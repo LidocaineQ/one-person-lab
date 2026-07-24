@@ -1007,9 +1007,9 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
       payloadRef: 'payloads/mas-0.2.20.json',
     },
     mag: {
-      version: '0.3.5',
-      sourceCommit: 'd707f4a46880ee1b195e43a40169165507a585b4',
-      payloadRef: 'payloads/mag-0.3.5.json',
+      version: '0.3.6',
+      sourceCommit: '115c0286d09e6b3663c82848dfca119f264104f8',
+      payloadRef: 'payloads/mag-0.3.6.json',
     },
     rca: {
       version: '0.2.8',
@@ -1307,6 +1307,28 @@ test('bundled Full MAS snapshot keeps its frozen manifest bytes while ordinary p
   assert.equal(frozenManifest.version, '0.2.19');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mas-0.2.19.json');
   assert.equal(ordinaryManifest.version, '0.2.20');
+});
+
+test('bundled Full MAG snapshot keeps its frozen manifest bytes while ordinary publication advances', () => {
+  const catalog = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
+    'utf8',
+  )) as Record<string, any>;
+  const frozenRef = catalog.packages.mag.manifest_ref;
+  const frozenPath = path.join(repoRoot, 'contracts/opl-framework', frozenRef);
+  const frozenBytes = fs.readFileSync(frozenPath);
+  const frozenManifest = parseJsonText(frozenBytes.toString('utf8')) as Record<string, any>;
+  const ordinaryManifest = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/packages/mag.json'),
+    'utf8',
+  )) as Record<string, any>;
+
+  assert.equal(frozenRef, 'packages/mag-0.3.5.json');
+  assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
+    'aa6b49a22fa44b87e5f7864bedb8fe275760a064963d96689d188047f751064f');
+  assert.equal(frozenManifest.version, '0.3.5');
+  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mag-0.3.5.json');
+  assert.equal(ordinaryManifest.version, '0.3.6');
 });
 
 test('bundled Full OMA snapshot keeps its frozen manifest bytes while ordinary publication advances', () => {
