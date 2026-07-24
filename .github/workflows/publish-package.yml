@@ -73,6 +73,7 @@ jobs:
           [[ "$PUBLICATION_REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$ ]]
           [ "$GITHUB_SHA" = "$EXPECTED_FRAMEWORK_SOURCE_COMMIT" ]
           [ "$(git rev-parse HEAD)" = "$EXPECTED_FRAMEWORK_SOURCE_COMMIT" ]
+          npm ci --ignore-scripts --no-audit --no-fund
 
           manifest="contracts/opl-framework/packages/${PACKAGE_ID}.json"
           source_repo="$(jq -er .source_repo "$manifest")"

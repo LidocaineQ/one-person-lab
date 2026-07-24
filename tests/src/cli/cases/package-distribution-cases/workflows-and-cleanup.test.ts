@@ -464,6 +464,8 @@ test('single-Package publication is protected, selector-bound, and readback-only
   assert.match(workflow, /cancel-in-progress: false/);
   assert.match(workflow, /\[\[ "\$GITHUB_REF" == "refs\/heads\/main" \]\]/);
   assert.match(workflow, /\[ "\$GITHUB_SHA" = "\$EXPECTED_FRAMEWORK_SOURCE_COMMIT" \]/);
+  assert.match(workflow, /npm ci --ignore-scripts --no-audit --no-fund/);
+  assert.ok(workflow.indexOf('npm ci --ignore-scripts') < workflow.indexOf('scripts/materialize-package-payload.mjs'));
   assert.match(workflow, /scripts\/package-source-projection-gate\.mjs/);
   assert.match(workflow, /scripts\/materialize-package-payload\.mjs/);
   assert.match(workflow, /--artifact-ref "\$\{image\}:\$\{EXPECTED_PACKAGE_VERSION\}"/);
