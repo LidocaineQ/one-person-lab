@@ -239,6 +239,7 @@ function isAllowedMetadataLine(relativePath, line) {
   )
     || isAllowedManagedUpdateOwnerBoundaryLine(relativePath, line)
     || isAllowedOwnerRoutedCommandProjectionLine(relativePath, line)
+    || isAllowedFrozenPackageManifestProvenanceLine(relativePath, line)
     || isAllowedQueueProjectionVocabularyLine(relativePath, line)
     || isAllowedObservabilityProjectionVocabularyLine(relativePath, line)
     || isAllowedDiagnosticProjectionLine(relativePath, line);
@@ -259,6 +260,15 @@ function isAllowedManagedUpdateOwnerBoundaryLine(relativePath, line) {
     'post_apply_hooks',
     'rollback_ref',
   ].some((term) => line.includes(term));
+}
+
+function isAllowedFrozenPackageManifestProvenanceLine(relativePath, line) {
+  if (!line.includes('"source_manifest_ref"')) {
+    return false;
+  }
+  return /^contracts\/opl-framework\/packages\/[a-z0-9][a-z0-9-]*-\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\.json$/.test(
+    relativePath,
+  );
 }
 
 function isAllowedOwnerRoutedCommandProjectionLine(relativePath, line) {

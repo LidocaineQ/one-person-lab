@@ -727,10 +727,6 @@ export function assertStandardAgentDescriptorIdentity(
   const accepted = [
     expected.project,
     expected.domain_id ?? '',
-    descriptor.agent_id ?? '',
-    descriptor.package_id ?? '',
-    descriptor.interface.runtime.runtime_domain_id,
-    ...descriptor.interface.routing.explicit_aliases,
     ...(registryEntry
       ? [
           registryEntry.agent_id,

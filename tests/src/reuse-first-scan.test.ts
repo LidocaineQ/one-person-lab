@@ -114,7 +114,31 @@ test('reuse-first strict diff keeps advisory categories non-blocking', (t) => {
   assert.ok(output.findings[0].risk_categories.includes('observability_ledger'));
 });
 
-function makeFixture(t: TestContext) {
+test('reuse-first strict diff allows frozen package provenance but blocks the active manifest', (t) => {
+  const fixture = makeFixture(t, ['contracts']);
+  writeFixtureFile(
+    fixture,
+    'contracts/opl-framework/packages/mas-scholar-skills-0.2.14.json',
+    '{"source_manifest_ref":"owner/contracts/manifest.json"}\n',
+  );
+  writeFixtureFile(
+    fixture,
+    'contracts/opl-framework/packages/mas-scholar-skills.json',
+    '{"source_manifest_ref":"owner/contracts/manifest.json"}\n',
+  );
+
+  const result = runScan(fixture);
+  const output = parseJsonText(result.stdout) as any;
+
+  assert.equal(result.status, 1);
+  assert.equal(output.hard_gate_finding_count, 1);
+  assert.equal(
+    output.findings[0].path,
+    'contracts/opl-framework/packages/mas-scholar-skills.json',
+  );
+});
+
+function makeFixture(t: TestContext, scanRoots = ['src']) {
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-reuse-first-scan-'));
   t.after(() => fs.rmSync(fixture, { recursive: true, force: true }));
   const contractDir = path.join(fixture, 'contracts', 'opl-framework');
@@ -123,7 +147,7 @@ function makeFixture(t: TestContext) {
     path.join(repoRoot, 'contracts', 'opl-framework', 'reuse-first-governance.json'),
     'utf8',
   )) as any;
-  contract.scan.roots = ['src'];
+  contract.scan.roots = scanRoots;
   fs.writeFileSync(
     path.join(contractDir, 'reuse-first-governance.json'),
     `${JSON.stringify(contract, null, 2)}\n`,

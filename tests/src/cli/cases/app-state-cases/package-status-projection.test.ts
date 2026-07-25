@@ -246,9 +246,16 @@ test('App package projection accepts arbitrary package ids and trusts fresh owne
     status: 'hidden',
     codex_visible: false,
   });
-  assert.equal(fastStatus.operational_ready, true);
-  assert.equal(fastStatus.launch_allowed, true);
-  assert.equal(fastStatus.launch_state, 'ready');
+  assert.equal(fastStatus.status, 'verification_deferred');
+  assert.equal(fastStatus.operational_ready, false);
+  assert.equal(fastStatus.launch_allowed, false);
+  assert.equal(fastStatus.launch_blocked_reason, 'live_verification_deferred');
+  assert.equal(fastStatus.launch_state, 'degraded');
+  assert.equal(fastStatus.launch_state_reason, 'live_verification_deferred');
+  assert.equal(fastStatus.currentness_detail_deferred, true);
+  assert.equal(fullStatus.operational_ready, true);
+  assert.equal(fullStatus.launch_allowed, true);
+  assert.equal(fullStatus.launch_state, 'ready');
   assert.equal(fastStatus.recommended_action, 'update');
   assert.deepEqual(fastStatus.actions.available, [
     'update',
@@ -258,7 +265,9 @@ test('App package projection accepts arbitrary package ids and trusts fresh owne
     'disable',
     'home_shortcut_preferences_set',
   ]);
-  assert.deepEqual({ ...fastStatus, profile: 'full' }, fullStatus);
+  assert.deepEqual(fastStatus.presence, fullStatus.presence);
+  assert.deepEqual(fastStatus.capability_exposure, fullStatus.capability_exposure);
+  assert.deepEqual(fastStatus.dependency_readiness, fullStatus.dependency_readiness);
   assertLegacyManagerFieldsAbsent(fastStatus);
   assertLegacyManagerFieldsAbsent(fullStatus);
 });

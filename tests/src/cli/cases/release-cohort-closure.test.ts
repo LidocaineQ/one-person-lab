@@ -44,9 +44,9 @@ function writeJson(filePath: string, value: unknown) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
-function copyRef(sourceRoot: string, targetRoot: string, ref: string) {
+function copyRef(sourceRoot: string, targetRoot: string, ref: string, targetRef = ref) {
   const source = path.join(sourceRoot, ...ref.split('/'));
-  const target = path.join(targetRoot, ...ref.split('/'));
+  const target = path.join(targetRoot, ...targetRef.split('/'));
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.copyFileSync(source, target);
 }
@@ -73,183 +73,13 @@ function committedSurfaceFixture(
   const releaseSet = readJson(path.join(root, releaseSetRef));
   for (const packageId of packageIds) {
     const member = releaseSet.components.packages.members[packageId];
+    const frozenManifestRef = `contracts/opl-framework/packages/${packageId}-${member.version}.json`;
+    copyRef(repoRoot, root, frozenManifestRef, member.manifest_ref);
     copyRef(repoRoot, root, member.payload_manifest_ref);
-    const payload = readJson(path.join(root, member.payload_manifest_ref));
-    let manifest = readJson(path.join(repoRoot, member.manifest_ref));
-    if (packageId === 'mas' && member.version === '0.2.16') {
-      manifest.capability_dependencies = [{
-        module_id: 'scholarskills',
-        package_id: 'mas-scholar-skills',
-        kind: 'framework_capability_package',
-        required: true,
-        version_requirement: '>=0.2.12 <0.3.0',
-        capability_abi: 'mas-scholar-skills.v1',
-        required_export_ids: [
-          'mas-scholar-skills',
-          'medical-manuscript-writing',
-          'medical-manuscript-review',
-          'medical-figure-design',
-          'medical-figure-style',
-          'medical-figure-composer',
-          'medical-research-lit',
-          'medical-statistical-review',
-          'medical-table-design',
-          'medical-submission-prep',
-          'medical-data-governance',
-        ],
-        required_module_ids: [
-          'mas-scholar-skills.display',
-          'mas-scholar-skills.tables',
-          'mas-scholar-skills.stats',
-          'mas-scholar-skills.lit',
-          'mas-scholar-skills.write',
-          'mas-scholar-skills.review',
-          'mas-scholar-skills.submit',
-          'mas-scholar-skills.data',
-          'mas-scholar-skills.reference-provider-adapters',
-          'mas-scholar-skills.scientific-search-adapters',
-        ],
-        manifest_url: 'mas-scholar-skills.json',
-        version_policy: 'compatible_channel_manifest',
-        codex_distribution: 'bundled',
-        opl_distribution: 'managed_dependency',
-        developer_distribution: 'source_checkout',
-        required_for: [
-          'workspace_or_quest_codex_discovery',
-          'mas_operational_readiness',
-          'all_mas_medical_research_workflows',
-        ],
-        install_owner: 'one-person-lab',
-        install_update_source: 'ghcr_capability_packages_channel',
-        sync_scopes: ['workspace', 'quest'],
-        authority_boundary: {
-          can_write_domain_truth: false,
-          can_sign_owner_receipt: false,
-          can_create_typed_blocker: false,
-          can_write_runtime_queue: false,
-        },
-      }];
-    }
-    if (packageId === 'mag' && member.version === '0.3.4') {
-      manifest.codex_surface.bundled_capability_package_ids = [];
-      manifest.capability_dependencies = [];
-    }
-    if (packageId === 'mas-scholar-skills' && member.version === '0.2.14') {
-      manifest = {
-        surface_kind: manifest.surface_kind,
-        package_id: manifest.package_id,
-        display_name: manifest.display_name,
-        publisher: manifest.publisher,
-        version: manifest.version,
-        source: manifest.source,
-        source_repo: manifest.source_repo,
-        package_role: 'required_agent_capability_package',
-        schema_ref: manifest.schema_ref,
-        primary_consumer: {
-          agent_id: 'mas',
-          package_id: 'mas',
-          dependency_kind: 'hard_runtime_dependency',
-          required: true,
-          version_requirement: '>=0.2.12 <0.3.0',
-          capability_abi: 'mas-scholar-skills.v1',
-        },
-        consumer_policy: {
-          compatibility_commitment: 'primary_consumer_only',
-          supported_required_by: ['mas'],
-          non_primary_read_only_discovery_allowed: true,
-          non_primary_runtime_dependency_supported: false,
-          relationship: 'one_required_product_consumer_with_read_only_observers',
-        },
-        capability_abi: {
-          id: 'mas-scholar-skills.v1',
-          version: '1.0.0',
-          compatibility_policy: 'same_major',
-          breaking_change_requires: 'new_abi_major_and_mas_consumer_update',
-        },
-        exports: manifest.exports,
-        content_lock: manifest.content_lock,
-        lifecycle: {
-          owner: 'one-person-lab',
-          default_install_trigger: 'dependency_of_mas',
-          direct_install_supported_for_development: true,
-          disable_or_uninstall_when_required_by_installed_consumer: 'forbidden',
-          update_transaction: 'consumer_dependency_closure_atomic',
-          rollback_transaction: 'consumer_dependency_closure_atomic',
-          status_command_templates: {
-            workspace: 'opl packages status --package-id mas --scope workspace --target-workspace <workspace-root> --json',
-            quest: 'opl packages status --package-id mas --scope quest --target-quest <quest-root> --json',
-          },
-          repair_command_templates: {
-            workspace: 'opl packages repair --package-id mas --scope workspace --target-workspace <workspace-root> --json',
-            quest: 'opl packages repair --package-id mas --scope quest --target-quest <quest-root> --json',
-          },
-          activation_materialization: {
-            required: true,
-            owner: 'one-person-lab',
-            trigger: 'mas_workspace_or_quest_activation',
-            scopes: ['workspace', 'quest'],
-            skill_ids_ref: '#/exports/all_skill_ids',
-            readiness_skill_ids_ref: '#/exports/core_skill_ids',
-            materialization_policy: 'all_exported_skills',
-            target_path_template: '<scope-root>/.codex/skills/<skill-id>',
-            receipt_required: true,
-            readiness_policy: 'all_core_skills_current_for_active_scope',
-          },
-        },
-        codex_surface: {
-          plugin_id: 'mas-scholar-skills',
-          carrier_source_commit: manifest.codex_surface.carrier_source_commit,
-          carrier_source_role: 'codex_plugin_carrier_not_package_truth',
-          required_skill_ids_ref: '#/exports/core_skill_ids',
-          default_materialized_skill_ids_ref: '#/exports/all_skill_ids',
-          codex_default_exposure: false,
-          optional_install_policy: 'all_exported_skills',
-          plugin_payload_manifest_url: manifest.codex_surface.plugin_payload_manifest_url,
-        },
-        authority_boundary: {
-          can_write_domain_truth: false,
-          can_sign_owner_receipt: false,
-          can_create_typed_blocker: false,
-          can_write_runtime_queue: false,
-          can_claim_mas_operational_readiness: false,
-        },
-        source_manifest_ref: manifest.source_manifest_ref, // reuse-first: allow frozen manifest byte reconstruction from the current owner projection.
-      };
-    }
-    // The frozen digest proves this identity-only reconstruction is byte-exact.
-    manifest.version = member.version;
-    if (manifest.owner_language_version?.value !== undefined) {
-      manifest.owner_language_version.value = member.version;
-    }
-    manifest.codex_surface.carrier_source_commit = member.source_commit;
-    manifest.codex_surface.plugin_payload_manifest_url = path.posix.relative(
-      path.posix.dirname(member.manifest_ref),
-      member.payload_manifest_ref,
+    assert.equal(
+      sha256(fs.readFileSync(path.join(root, member.manifest_ref))),
+      member.manifest_sha256,
     );
-    if (manifest.content_lock !== undefined) {
-      manifest.content_lock = {
-        algorithm: payload.content_lock.algorithm,
-        canonicalization: payload.content_lock.canonicalization,
-        paths: payload.files.map((entry: { path: string }) => entry.path),
-        digest: payload.content_lock.digest,
-      };
-    }
-    if (packageId === 'mas' && member.version === '0.2.16') {
-      const scholarDependency = manifest.capability_dependencies.find(
-        (entry: { package_id: string }) => entry.package_id === 'mas-scholar-skills',
-      );
-      scholarDependency.version_requirement = '>=0.2.0 <0.3.0';
-      scholarDependency.required_for = ['workspace_or_quest_codex_discovery'];
-    }
-    if (packageId === 'mas-scholar-skills' && member.version === '0.2.14') {
-      manifest.primary_consumer.version_requirement = '>=0.2.0 <0.3.0';
-    }
-    if (packageId === 'opl-flow' && member.version === '0.1.24') {
-      manifest.codex_surface.required_skill_ids = ['opl-flow'];
-    }
-    const manifestPath = path.join(root, member.manifest_ref);
-    writeJson(manifestPath, manifest);
-    assert.equal(sha256(fs.readFileSync(manifestPath)), member.manifest_sha256);
     assert.equal(
       sha256(fs.readFileSync(path.join(root, member.payload_manifest_ref))),
       member.payload_manifest_sha256,

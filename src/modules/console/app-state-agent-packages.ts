@@ -239,14 +239,24 @@ export function projectAppAgentPackageStatus(input: {
   const { status, profile } = input;
   const presence = projectedPresence(status);
   const capabilityExposure = exposureProjection(status, presence.present);
-  const launchState = ownerLaunchState(status, presence.installed, capabilityExposure.status);
   const lifecycleActionRefs = [...(status.lifecycle_action_refs ?? [])];
+  const readinessDeferred = profile === 'fast'
+    && presence.callable
+    && status.operational_ready === true;
+  const launchState = readinessDeferred
+    ? deriveAgentPackageLaunchState({
+        installed: presence.installed,
+        exposure_state: capabilityExposure.status,
+        operational_ready: false,
+        degraded_reason: 'live_verification_deferred',
+      })
+    : ownerLaunchState(status, presence.installed, capabilityExposure.status);
 
   return {
     surface_kind: 'opl_agent_package_status_projection',
     profile,
     package_id: status.package_id,
-    status: status.status,
+    status: readinessDeferred ? 'verification_deferred' : status.status,
     installed_package_count: presence.installed ? 1 : 0,
     registered_package_count: registeredPackageCount(status),
     presence,
@@ -265,14 +275,17 @@ export function projectAppAgentPackageStatus(input: {
       status.package_dependency_readiness,
     ),
     runtime_source_readiness: compactRuntimeSourceReadiness(status),
-    operational_ready: presence.installed && status.operational_ready === true,
+    operational_ready: readinessDeferred ? false : presence.installed && status.operational_ready === true,
     operational_ready_scope: status.operational_ready_scope,
-    launch_allowed: presence.callable,
-    launch_blocked_reason: presence.callable ? null : status.launch_blocked_reason,
+    launch_allowed: readinessDeferred ? false : presence.callable,
+    launch_blocked_reason: readinessDeferred
+      ? 'live_verification_deferred'
+      : presence.callable ? null : status.launch_blocked_reason,
     ...launchState,
     allowed_when_blocked: status.allowed_when_blocked,
     repair_action: repairAction(status, presence.registered),
     home_shortcut_preferences: status.home_shortcut_preferences,
+    ...(readinessDeferred ? { currentness_detail_deferred: true } : {}),
     detail_surface: `opl packages status --package-id ${status.package_id ?? '<package_id>'} --json`,
   };
 }

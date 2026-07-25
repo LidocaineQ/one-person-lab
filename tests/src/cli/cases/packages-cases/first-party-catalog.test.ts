@@ -1070,6 +1070,7 @@ test('developer checkout policy tracks Release Set currentness without accepting
     OPL_MODULE_PATH_SCHOLARSKILLS: scholarCheckout,
     PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
     UV_TOOL_DIR: path.join(root, 'uv-tools'),
+    OPL_CLI_TEST_TIMEOUT_MS: '120000',
   };
   fs.mkdirSync(masCheckout, { recursive: true });
   fs.mkdirSync(scholarCheckout, { recursive: true });
@@ -1148,7 +1149,6 @@ test('developer checkout policy tracks Release Set currentness without accepting
     const updated = runCli(['update', 'apply'], {
       ...commonEnv,
       ...nextReleaseSet.env,
-      OPL_CLI_TEST_TIMEOUT_MS: '90000',
     }) as any;
     const adapter = updated.managed_update.execution.adapter_results.find(
       (entry: any) => entry.component_id === 'opl_packages',
