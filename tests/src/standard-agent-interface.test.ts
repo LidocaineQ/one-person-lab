@@ -16,6 +16,7 @@ import {
 } from '../../src/kernel/standard-agent-interface.ts';
 import {
   readInstalledStandardAgentDescriptorForDomain,
+  readInstalledStandardAgentDescriptorForPackage,
   readPackageManagedStandardAgentDescriptor,
   readStandardAgentDescriptorForDomain,
   resolveStandardAgentContractCheckout,
@@ -602,6 +603,77 @@ test('installed Agent discovery is presence-only while launch compatibility rema
       fs.realpathSync.native(repoDir),
     );
     assert.equal(readStandardAgentDescriptorForDomain('fixture-agent', statusReader, () => null), null);
+  } finally {
+    fs.rmSync(repoDir, { recursive: true, force: true });
+  }
+});
+
+test('installed package descriptor discovery bypasses registry-selected module routing', () => {
+  const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-standard-interface-direct-package-'));
+  const statusReads: string[] = [];
+  try {
+    writeStandardAgentDescriptor(repoDir, {
+      ...standardAgentDescriptor('independent-agent'),
+      kind: 'agent',
+      agent_id: 'independent-agent',
+      package_id: 'fixture-package',
+    });
+    const statusReader = ((input: { packageId?: string | null }) => {
+      statusReads.push(input.packageId ?? '');
+      return {
+        opl_agent_package_status: {
+          installed_package_count: 1,
+          installed_packages: [
+            {
+              package_id: 'fixture-package',
+              agent_id: 'independent-agent',
+            },
+          ],
+          runtime_source_readiness: {
+            checkout_path: repoDir,
+          },
+        },
+      };
+    }) as PackageStatusReaderFixture;
+
+    const descriptor = readInstalledStandardAgentDescriptorForPackage('fixture-package', statusReader);
+
+    assert.equal(descriptor?.package_id, 'fixture-package');
+    assert.equal(descriptor?.agent_id, 'independent-agent');
+    assert.equal(fs.realpathSync.native(descriptor?.repo_dir ?? ''), fs.realpathSync.native(repoDir));
+    writeStandardAgentDescriptor(repoDir, {
+      ...standardAgentDescriptor('other-agent'),
+      kind: 'agent',
+      agent_id: 'other-agent',
+      package_id: 'other-agent',
+    });
+    assert.equal(readInstalledStandardAgentDescriptorForPackage('fixture-package', statusReader), null);
+    writeStandardAgentDescriptor(repoDir, {
+      ...standardAgentDescriptor('second-independent-agent'),
+      kind: 'agent',
+      agent_id: 'second-independent-agent',
+      package_id: 'fixture-package',
+    });
+    assert.equal(
+      readInstalledStandardAgentDescriptorForPackage('fixture-package', statusReader),
+      null,
+    );
+    writeStandardAgentDescriptor(repoDir, {
+      ...standardAgentDescriptor('independent-agent'),
+      kind: 'workflow_profile',
+      agent_id: 'independent-agent',
+      package_id: 'fixture-package',
+    });
+    assert.throws(
+      () => readInstalledStandardAgentDescriptorForPackage('fixture-package', statusReader),
+      /descriptor kind must be agent/,
+    );
+    assert.deepEqual(statusReads, [
+      'fixture-package',
+      'fixture-package',
+      'fixture-package',
+      'fixture-package',
+    ]);
   } finally {
     fs.rmSync(repoDir, { recursive: true, force: true });
   }

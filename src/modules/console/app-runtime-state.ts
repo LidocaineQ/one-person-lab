@@ -1,11 +1,11 @@
 import type { JsonRecord } from '../../kernel/json-record.ts';
 import {
-  buildOplModules,
-  canonicalAgentPackageId,
   createOplAgentPackageStatusReader,
-  readStandardAgentDescriptorForDomain,
+  listOplAgentPackages,
+  readInstalledStandardAgentDescriptorForPackage,
 } from '../connect/public/app-state.ts';
 import { listWorkspaceBindings } from '../workspace/public/app-state.ts';
+import { projectRuntimeAgentPackageDirectoryEntry } from './app-state-agent-packages.ts';
 import { buildAppRuntimeWorkItemProjection } from './app-runtime-work-item-projection.ts';
 import type { InventoryDescriptorResolver } from './work-item-projection/inventory.ts';
 
@@ -16,84 +16,172 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function normalizedIdentity(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function errorDiagnostic(error: unknown) {
+  return {
+    code: error instanceof Error && 'code' in error && typeof error.code === 'string'
+      ? error.code
+      : 'unexpected_error',
+    message: error instanceof Error ? error.message : 'Descriptor read failed.',
+  };
+}
+
+function descriptorWithReservedPackageAliasesRemoved(
+  descriptor: NonNullable<ReturnType<typeof readInstalledStandardAgentDescriptorForPackage>>,
+  packageId: string,
+  reservedPackageIds: ReadonlySet<string>,
+) {
+  const packageIdentity = normalizedIdentity(packageId);
+  const hardIdentities = [
+    descriptor.agent_id ?? '',
+    descriptor.domain_id,
+    descriptor.interface.runtime.runtime_domain_id,
+  ]
+    .map(normalizedIdentity)
+    .filter(Boolean);
+  if (
+    hardIdentities.some(
+      (identity) => identity !== packageIdentity && reservedPackageIds.has(identity),
+    )
+  ) {
+    return null;
+  }
+  return {
+    ...descriptor,
+    interface: {
+      ...descriptor.interface,
+      routing: {
+        ...descriptor.interface.routing,
+        explicit_aliases: descriptor.interface.routing.explicit_aliases.filter((alias) => {
+          const identity = normalizedIdentity(alias);
+          return identity === packageIdentity || !reservedPackageIds.has(identity);
+        }),
+      },
+    },
+  };
+}
+
 export type BuildOplRuntimeAppStateInput = {
   generatedAt?: string;
   now?: () => number;
-  buildModules?: typeof buildOplModules;
+  listPackages?: typeof listOplAgentPackages;
   createPackageStatusReader?: typeof createOplAgentPackageStatusReader;
-  readDescriptor?: typeof readStandardAgentDescriptorForDomain;
+  readDescriptor?: typeof readInstalledStandardAgentDescriptorForPackage;
   listBindings?: typeof listWorkspaceBindings;
   buildProjection?: typeof buildAppRuntimeWorkItemProjection;
 };
 
-type RuntimeModuleInspection = ReturnType<typeof buildOplModules>['modules']['modules'][number];
-
-function buildRuntimeProjectionDependencies(
-  input: BuildOplRuntimeAppStateInput,
-  includeModuleInventory: boolean,
-) {
+function buildRuntimeProjectionDependencies(input: BuildOplRuntimeAppStateInput) {
   const packageProjectionItems: JsonRecord[] = [];
   const packageStatusById: Record<string, JsonRecord> = {};
-  const selectedModules = new Map<string, RuntimeModuleInspection>();
-  const descriptorByAgent = new Map<
+  const diagnostics: JsonRecord[] = [];
+  const descriptorByPackage = new Map<
     string,
-    ReturnType<typeof readStandardAgentDescriptorForDomain>
+    ReturnType<typeof readInstalledStandardAgentDescriptorForPackage>
   >();
-  const buildModules = input.buildModules ?? buildOplModules;
+  const descriptorByIdentity = new Map<
+    string,
+    ReturnType<typeof readInstalledStandardAgentDescriptorForPackage>
+  >();
+  const listPackages = input.listPackages ?? listOplAgentPackages;
   const createPackageStatusReader = input.createPackageStatusReader
     ?? createOplAgentPackageStatusReader;
-  const readDescriptor = input.readDescriptor ?? readStandardAgentDescriptorForDomain;
-  let readPackageStatus: ReturnType<typeof createOplAgentPackageStatusReader> | null = null;
+  const readDescriptor = input.readDescriptor ?? readInstalledStandardAgentDescriptorForPackage;
+  const readPackageStatus = createPackageStatusReader();
+  const directory = listPackages({
+    detail: 'fast',
+    readStatus: readPackageStatus,
+  }).opl_agent_packages.directory;
+  const installedAgentEntries = directory.entries.filter(
+    (entry) => entry.installed && entry.package_role === 'standard_agent',
+  );
+  const packageIdCounts = new Map<string, number>();
+  for (const entry of installedAgentEntries) {
+    const identity = normalizedIdentity(entry.package_id);
+    packageIdCounts.set(identity, (packageIdCounts.get(identity) ?? 0) + 1);
+  }
+  const reservedPackageIds = new Set(packageIdCounts.keys());
 
-  if (includeModuleInventory) {
-    for (const module of buildModules({ profile: 'fast' }).modules.modules) {
-      if (!module.default_install) continue;
-      const packageId = canonicalAgentPackageId(module.module_id);
-      if (!packageId) continue;
-      selectedModules.set(packageId, module);
-      packageProjectionItems.push({
-        package_id: packageId,
-        source_present: module.installed,
-        source_origin: module.install_origin,
-        source_path: module.checkout_path,
-        managed_source_path: module.managed_checkout_path,
-        source_health_status: module.health_status,
+  for (const entry of installedAgentEntries) {
+    const projection = projectRuntimeAgentPackageDirectoryEntry(entry);
+    packageProjectionItems.push(projection.packageProjectionItem);
+    packageStatusById[entry.package_id] = projection.packageStatus;
+    const packageIdentity = normalizedIdentity(entry.package_id);
+    if ((packageIdCounts.get(packageIdentity) ?? 0) > 1) {
+      diagnostics.push({
+        reason: 'runtime_agent_package_identity_ambiguous',
+        agent_id: entry.package_id,
+        ref: entry.readiness.detail_surface,
+        details: {
+          package_id: entry.package_id,
+          normalized_package_id: packageIdentity,
+        },
       });
-      packageStatusById[packageId] = {
-        status: module.installed ? 'available' : 'unavailable',
-        codex_visible: module.installed,
-        launch_allowed: null,
-        source_path: module.checkout_path,
-      };
+      continue;
+    }
+    if (entry.readiness.status_read_error) {
+      diagnostics.push({
+        reason: 'runtime_agent_package_status_read_failed',
+        agent_id: entry.package_id,
+        ref: entry.readiness.detail_surface,
+        details: {
+          package_id: entry.package_id,
+          status_read_error: entry.readiness.status_read_error,
+        },
+      });
+    }
+    try {
+      const read = readDescriptor(entry.package_id, readPackageStatus);
+      const descriptor = read
+        ? descriptorWithReservedPackageAliasesRemoved(read, entry.package_id, reservedPackageIds)
+        : null;
+      if (!descriptor) {
+        diagnostics.push({
+          reason: 'runtime_agent_descriptor_unavailable',
+          agent_id: entry.package_id,
+          ref: entry.readiness.detail_surface,
+          details: { package_id: entry.package_id },
+        });
+        continue;
+      }
+      descriptorByPackage.set(packageIdentity, descriptor);
+      for (const identity of [
+        descriptor.agent_id ?? '',
+        descriptor.domain_id,
+        descriptor.interface.runtime.runtime_domain_id,
+        ...descriptor.interface.routing.explicit_aliases,
+      ]) {
+        const normalized = normalizedIdentity(identity);
+        if (normalized && !reservedPackageIds.has(normalized)) {
+          if (!descriptorByIdentity.has(normalized)) {
+            descriptorByIdentity.set(normalized, descriptor);
+          } else if (descriptorByIdentity.get(normalized) !== descriptor) {
+            descriptorByIdentity.set(normalized, null);
+          }
+        }
+      }
+    } catch (error) {
+      diagnostics.push({
+        reason: 'runtime_agent_descriptor_read_failed',
+        agent_id: entry.package_id,
+        ref: entry.readiness.detail_surface,
+        details: {
+          package_id: entry.package_id,
+          descriptor_read_error: errorDiagnostic(error),
+        },
+      });
     }
   }
 
   const resolveDescriptor: InventoryDescriptorResolver = (agentId) => {
-    if (descriptorByAgent.has(agentId)) {
-      return descriptorByAgent.get(agentId) ?? null;
-    }
-    readPackageStatus ??= createPackageStatusReader();
-    const descriptor = readDescriptor(
-      agentId,
-      readPackageStatus,
-      (moduleId) => {
-        const packageId = canonicalAgentPackageId(moduleId);
-        const selected = packageId ? selectedModules.get(packageId) : null;
-        return selected
-          ? {
-              installed: selected.installed,
-              install_origin: selected.install_origin,
-              checkout_path: selected.checkout_path,
-              health_status: selected.health_status,
-            }
-          : null;
-      },
-    );
-    descriptorByAgent.set(agentId, descriptor);
-    return descriptor;
+    const identity = normalizedIdentity(agentId);
+    return descriptorByPackage.get(identity) ?? descriptorByIdentity.get(identity) ?? null;
   };
 
-  return { packageProjectionItems, packageStatusById, resolveDescriptor };
+  return { packageProjectionItems, packageStatusById, resolveDescriptor, diagnostics };
 }
 
 export function buildOplRuntimeAppState(input: BuildOplRuntimeAppStateInput = {}) {
@@ -101,13 +189,25 @@ export function buildOplRuntimeAppState(input: BuildOplRuntimeAppStateInput = {}
   const startedAt = now();
   const generatedAt = input.generatedAt ?? nowIso();
   const bindings = (input.listBindings ?? listWorkspaceBindings)();
-  const dependencies = buildRuntimeProjectionDependencies(input, bindings.length > 0);
-  const workItemProjectionV2 = (input.buildProjection ?? buildAppRuntimeWorkItemProjection)({
+  const dependencies = buildRuntimeProjectionDependencies(input);
+  const projectedWorkItems = (input.buildProjection ?? buildAppRuntimeWorkItemProjection)({
     profile: 'fast',
     generatedAt,
     bindings,
     ...dependencies,
   });
+  const workItemProjectionV2 = dependencies.diagnostics.length === 0
+    ? projectedWorkItems
+    : {
+        ...projectedWorkItems,
+        diagnostics: {
+          ...projectedWorkItems.diagnostics,
+          count: projectedWorkItems.diagnostics.count + dependencies.diagnostics.length,
+          items: projectedWorkItems.diagnostics.detail_policy === 'included'
+            ? [...projectedWorkItems.diagnostics.items, ...dependencies.diagnostics]
+            : projectedWorkItems.diagnostics.items,
+        },
+      };
 
   return {
     version: 'g2',

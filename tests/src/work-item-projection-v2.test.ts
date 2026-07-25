@@ -3177,6 +3177,14 @@ test('deferred inventory resolves producer identity but isolates one descriptor 
     assert.equal(projection.agent_catalog.length, 5);
     assert.equal(projection.agent_catalog.some((entry) => entry.agent_id === 'rca'), false);
     assert.equal(projection.agent_catalog.some((entry) => entry.agent_id === 'synthetic-agent'), true);
+    assert.equal(
+      projection.agent_availability.some((entry) => entry.agent_id === 'synthetic-agent'),
+      true,
+    );
+    assert.equal(
+      projection.agent_availability.some((entry) => entry.agent_id === 'rca'),
+      false,
+    );
     assert.deepEqual(projection.items, []);
     assert.equal(projection.detail_policy.inventory_detail, 'deferred');
     assert.equal(projection.detail_policy.all_work_item_summaries_included, false);

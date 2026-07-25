@@ -2,6 +2,7 @@ import type { JsonRecord } from '../../kernel/json-record.ts';
 import { deriveAgentPackageLaunchState } from '../../kernel/agent-package-launch-state.ts';
 import type {
   AgentPackageLockIndex,
+  listOplAgentPackages,
   runOplAgentPackageStatus,
 } from '../connect/public/app-state.ts';
 import type { AppStateProfile } from './app-state-profile.ts';
@@ -9,6 +10,9 @@ import type { AppStateProfile } from './app-state-profile.ts';
 type RawAgentPackageStatus = ReturnType<typeof runOplAgentPackageStatus>['opl_agent_package_status'];
 type RawDependencyReadiness = NonNullable<RawAgentPackageStatus['package_dependency_readiness']>;
 type RawDependencyCheck = RawDependencyReadiness['dependencies'][number];
+type RawAgentPackageDirectoryEntry = ReturnType<
+  typeof listOplAgentPackages
+>['opl_agent_packages']['directory']['entries'][number];
 
 const REPAIR_COMMAND_REF =
   'opl app action execute --action agent_package_repair --payload <json> --json';
@@ -167,6 +171,64 @@ function ownerLaunchState(
     operational_ready: status.operational_ready === true,
     launch_blocked_reason: status.launch_blocked_reason,
   });
+}
+
+export function projectRuntimeAgentPackageDirectoryEntry(
+  entry: RawAgentPackageDirectoryEntry,
+) {
+  const statusReadError = entry.readiness.status_read_error;
+  const launchAllowed = entry.readiness.launch_allowed;
+  const codexVisible = entry.installed
+    && statusReadError === null
+    && (launchAllowed === true || entry.readiness.verification_deferred === true);
+  const callable = entry.installed && launchAllowed === true && statusReadError === null;
+  const sourceRef = entry.manifest_url || entry.version_currentness.source_ref;
+  return {
+    packageProjectionItem: {
+      package_id: entry.package_id,
+      source_present: entry.installed,
+      source_origin: entry.source_explanation.kind,
+      source_path: null,
+      managed_source_path: null,
+      source_health_status: statusReadError ? 'status_unavailable' : entry.readiness.status,
+      source_ref: sourceRef,
+      status_read_error: statusReadError,
+    } satisfies JsonRecord,
+    packageStatus: {
+      surface_kind: 'opl_runtime_agent_package_status_projection',
+      package_id: entry.package_id,
+      package_role: entry.package_role,
+      status: statusReadError ? 'unavailable' : entry.installed ? 'available' : 'not_installed',
+      installed_package_count: entry.installed ? 1 : 0,
+      presence: {
+        registered: entry.installed,
+        installed: entry.installed,
+        present: entry.installed,
+        callable,
+        status: entry.installed ? 'present' : 'not_installed',
+        reason: callable ? null : entry.readiness.reason,
+      },
+      capability_exposure: {
+        status: !entry.installed
+          ? 'not_installed'
+          : codexVisible
+            ? 'visible'
+            : 'attention_needed',
+        codex_visible: codexVisible,
+      },
+      codex_visible: codexVisible,
+      operational_ready: entry.readiness.operational_ready,
+      launch_allowed: launchAllowed,
+      launch_blocked_reason: launchAllowed === true ? null : entry.readiness.reason,
+      runtime_source_readiness: {
+        status: entry.readiness.status,
+        operational_ready: entry.readiness.operational_ready,
+        reason: entry.readiness.reason,
+      },
+      status_read_error: statusReadError,
+      source_ref: sourceRef,
+    } satisfies JsonRecord,
+  };
 }
 
 export function projectAppAgentPackageStatus(input: {

@@ -1,7 +1,85 @@
 import { DatabaseSync } from 'node:sqlite';
 
+import { buildOplRuntimeAppState } from '../../../../../src/modules/console/app-runtime-state.ts';
+import { buildAppRuntimeWorkItemProjection } from '../../../../../src/modules/console/app-runtime-work-item-projection.ts';
 import { createStageAttemptTable } from '../../../../../src/modules/runway/family-runtime-stage-attempt-ledger.ts';
 import { assert, fs, os, path, runCli, test } from '../../helpers.ts';
+
+function runtimeDescriptor(packageId: string, input: { aliases?: string[] } = {}) {
+  return {
+    repo_dir: `/fixture/${packageId}`,
+    kind: 'agent',
+    agent_id: packageId,
+    package_id: packageId,
+    domain_id: `${packageId}-domain`,
+    display_name: `${packageId} agent`,
+    interface: {
+      version: 'opl.standard_agent_interface.v1',
+      inventory_projection: null,
+      stage_catalog: null,
+      domain_detail_views: [],
+      workspace_binding: {
+        locator_surface_kind: 'fixture_locator',
+        default_profile_id: 'fixture',
+        workspace_kind: 'fixture_workspace',
+        project_kind: 'fixture_project',
+        project_collection_label: 'projects',
+        default_workspace_id: 'workspace',
+        default_project_id: 'project',
+        required_locator_fields: ['workspace_root'],
+        optional_locator_fields: [],
+      },
+      runtime: { runtime_domain_id: `${packageId}-domain`, registration_ref: null },
+      progress: { deliverable_delta_aliases: [], platform_delta_aliases: [] },
+      routing: {
+        explicit_aliases: input.aliases ?? [packageId],
+        workstream_ids: [],
+        intent_signals: [],
+        ambiguity_policy: 'require_explicit_domain_selection',
+      },
+    },
+  } as const;
+}
+
+function runtimeDirectoryEntry(input: {
+  packageId: string;
+  installed?: boolean;
+  packageRole?: 'standard_agent' | 'workflow_profile';
+  statusReadError?: { code: string; message: string } | null;
+  verificationDeferred?: boolean;
+}) {
+  const installed = input.installed ?? true;
+  const verificationDeferred = input.verificationDeferred ?? false;
+  return {
+    package_id: input.packageId,
+    package_role: input.packageRole ?? 'standard_agent',
+    installed,
+    activated: false,
+    manifest_url: `file:///fixture/${input.packageId}/manifest.json`,
+    version_currentness: { source_ref: `fixture:${input.packageId}` },
+    source_explanation: { kind: 'installed_package_lock' },
+    readiness: {
+      status: input.statusReadError
+        ? 'repair_required'
+        : verificationDeferred
+          ? 'verification_deferred'
+          : installed
+            ? 'ready'
+            : 'not_installed',
+      operational_ready: installed && !input.statusReadError && !verificationDeferred,
+      launch_allowed: installed && !input.statusReadError && !verificationDeferred,
+      verification_deferred: verificationDeferred,
+      reason: input.statusReadError
+        ? 'package_status_read_failed'
+        : verificationDeferred
+          ? 'live_verification_deferred'
+          : installed
+            ? null
+            : 'package_not_installed',
+      status_read_error: input.statusReadError ?? null,
+    },
+  } as const;
+}
 
 function writeStageAttemptFixture(input: {
   stateDir: string;
@@ -138,6 +216,171 @@ test('app state keeps fast as the default and exposes runtime as an explicit cap
     );
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime membership follows one installed standard-Agent directory cohort', () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-membership-state-'));
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = stateDir;
+  const statusReader = ((input: { packageId?: string }) => {
+    if (input.packageId === 'status-failed-agent') {
+      throw new Error('synthetic status reader failure');
+    }
+    throw new Error('The synthetic directory owns status projection for this test.');
+  }) as any;
+  const descriptorReads: string[] = [];
+  let directoryReads = 0;
+  try {
+    const output = buildOplRuntimeAppState({
+      generatedAt: '2026-07-25T00:00:00.000Z',
+      listBindings: () => [],
+      createPackageStatusReader: () => statusReader,
+      listPackages: ((input: { detail?: string; readStatus?: unknown }) => {
+        directoryReads += 1;
+        assert.equal(input.detail, 'fast');
+        assert.equal(input.readStatus, statusReader);
+        return {
+          opl_agent_packages: {
+            directory: {
+              entries: [
+                runtimeDirectoryEntry({ packageId: 'third-party-agent' }),
+                runtimeDirectoryEntry({ packageId: 'catalog-only-agent', installed: false }),
+                runtimeDirectoryEntry({ packageId: 'installed-workflow', packageRole: 'workflow_profile' }),
+                runtimeDirectoryEntry({
+                  packageId: 'status-failed-agent',
+                  statusReadError: { code: 'synthetic_error', message: 'status reader failed' },
+                }),
+                runtimeDirectoryEntry({ packageId: 'descriptor-failed-agent' }),
+                runtimeDirectoryEntry({ packageId: 'deferred-agent', verificationDeferred: true }),
+                runtimeDirectoryEntry({ packageId: 'healthy-agent' }),
+              ],
+            },
+          },
+        };
+      }) as any,
+      readDescriptor: ((packageId: string, reader: unknown) => {
+        assert.equal(reader, statusReader);
+        descriptorReads.push(packageId);
+        if (packageId === 'status-failed-agent') return (reader as any)({ packageId });
+        if (packageId === 'descriptor-failed-agent') throw new Error('synthetic descriptor failure');
+        return runtimeDescriptor(packageId);
+      }) as any,
+    }) as any;
+
+    const projection = output.app_state.operator.workbench.work_item_projection_v2;
+    assert.equal(directoryReads, 1);
+    assert.deepEqual(descriptorReads.sort(), [
+      'deferred-agent',
+      'descriptor-failed-agent',
+      'healthy-agent',
+      'status-failed-agent',
+      'third-party-agent',
+    ]);
+    assert.deepEqual(
+      projection.agent_catalog.map((entry: any) => entry.package_id).sort(),
+      ['deferred-agent', 'healthy-agent', 'third-party-agent'],
+    );
+    assert.equal(
+      projection.agent_catalog.some((entry: any) => entry.package_id === 'status-failed-agent'),
+      false,
+    );
+    assert.equal(
+      projection.agent_availability.find((entry: any) => entry.package_id === 'healthy-agent')?.availability,
+      'available',
+    );
+    assert.equal(
+      projection.agent_availability.find((entry: any) => entry.package_id === 'deferred-agent')?.availability,
+      'available',
+    );
+    assert.equal(
+      projection.agent_availability.find((entry: any) => entry.package_id === 'deferred-agent')?.reason,
+      'package_installed_and_visible',
+    );
+    assert.equal(
+      projection.agent_catalog.some((entry: any) => entry.package_id === 'deferred-agent'),
+      true,
+    );
+    assert.equal(
+      projection.agent_catalog.some((entry: any) => entry.package_id === 'descriptor-failed-agent'),
+      false,
+    );
+    assert.equal(projection.diagnostics.count, 3);
+    assert.deepEqual(projection.diagnostics.items, []);
+    assert.equal(projection.agent_catalog.some((entry: any) => entry.package_id === 'catalog-only-agent'), false);
+    assert.equal(projection.agent_catalog.some((entry: any) => entry.package_id === 'installed-workflow'), false);
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    fs.rmSync(stateDir, { recursive: true, force: true });
+  }
+});
+
+test('runtime Package identity outranks another Agent descriptor alias', () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-alias-state-'));
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = stateDir;
+  const projectionProbe: {
+    resolveDescriptor?: (identity: string) => ReturnType<typeof runtimeDescriptor> | null;
+  } = {};
+  try {
+    const output = buildOplRuntimeAppState({
+      generatedAt: '2026-07-25T00:00:00.000Z',
+      listBindings: () => [],
+      createPackageStatusReader: (() => () => ({})) as any,
+      listPackages: (() => ({
+        opl_agent_packages: {
+          directory: {
+            entries: [
+              runtimeDirectoryEntry({ packageId: 'alias-owner-agent' }),
+              runtimeDirectoryEntry({ packageId: 'exact-package-agent' }),
+              runtimeDirectoryEntry({ packageId: 'second-alias-owner-agent' }),
+              runtimeDirectoryEntry({ packageId: 'foo-bar' }),
+              runtimeDirectoryEntry({ packageId: 'foobar' }),
+            ],
+          },
+        },
+      })) as any,
+      readDescriptor: ((packageId: string) => packageId === 'alias-owner-agent'
+        ? runtimeDescriptor(packageId, {
+            aliases: ['exact-package-agent', 'alias-only', 'unique-alias'],
+          })
+        : packageId === 'second-alias-owner-agent'
+          ? runtimeDescriptor(packageId, { aliases: ['alias-only'] })
+          : runtimeDescriptor(packageId)) as any,
+      buildProjection: ((options: any) => {
+        projectionProbe.resolveDescriptor = options.resolveDescriptor;
+        return buildAppRuntimeWorkItemProjection(options);
+      }) as any,
+    }) as any;
+
+    const projection = output.app_state.operator.workbench.work_item_projection_v2;
+    assert.deepEqual(
+      projection.agent_catalog.map((entry: any) => [entry.agent_id, entry.package_id]).sort(),
+      [
+        ['alias-owner-agent', 'alias-owner-agent'],
+        ['exact-package-agent', 'exact-package-agent'],
+        ['second-alias-owner-agent', 'second-alias-owner-agent'],
+      ],
+    );
+    assert.equal(
+      projection.agent_availability.find((entry: any) => entry.package_id === 'exact-package-agent')?.agent_id,
+      'exact-package-agent',
+    );
+    assert.equal(
+      projectionProbe.resolveDescriptor?.('exact-package-agent')?.package_id,
+      'exact-package-agent',
+    );
+    assert.equal(projectionProbe.resolveDescriptor?.('alias-only'), null);
+    assert.equal(
+      projectionProbe.resolveDescriptor?.('unique-alias')?.package_id,
+      'alias-owner-agent',
+    );
+    assert.equal(projection.diagnostics.count, 2);
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    fs.rmSync(stateDir, { recursive: true, force: true });
   }
 });
 

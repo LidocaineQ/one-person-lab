@@ -531,6 +531,40 @@ export function readInstalledStandardAgentDescriptorForDomain(
     : descriptorMatchesTarget(descriptor, target))) ?? null;
 }
 
+export function readInstalledStandardAgentDescriptorForPackage(
+  packageId: string,
+  readStatus: PackageStatusReader = runOplAgentPackageStatus,
+): StandardAgentDescriptorInterface | null {
+  let status: ReturnType<PackageStatusReader>['opl_agent_package_status'];
+  try {
+    status = readStatus({ packageId, recoverRuntimeSource: false }).opl_agent_package_status;
+  } catch {
+    return null;
+  }
+  if (typeof status.installed_package_count !== 'number' || status.installed_package_count < 1) {
+    return null;
+  }
+  const checkoutPath = typeof status.runtime_source_readiness?.checkout_path === 'string'
+    ? canonicalCheckoutPath(status.runtime_source_readiness.checkout_path)
+    : null;
+  const descriptor = checkoutPath ? readStandardAgentDescriptorInterface(checkoutPath) : null;
+  if (descriptor?.kind !== 'agent') return null;
+  const target = normalizedIdentity(packageId);
+  const descriptorPackageId = normalizedIdentity(descriptor.package_id ?? '');
+  const descriptorAgentId = normalizedIdentity(descriptor.agent_id ?? '');
+  const installedAgentIds = new Set(
+    (status.installed_packages ?? [])
+      .filter((entry) => normalizedIdentity(entry.package_id) === target)
+      .map((entry) => normalizedIdentity(entry.agent_id ?? ''))
+      .filter(Boolean),
+  );
+  return descriptorPackageId === target
+    && descriptorAgentId
+    && (installedAgentIds.size === 0 || installedAgentIds.has(descriptorAgentId))
+    ? descriptor
+    : null;
+}
+
 export function standardAgentProgressDeltaKeySet(
   domainId: string,
   readStatus: PackageStatusReader = runOplAgentPackageStatus,
