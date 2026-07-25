@@ -22,6 +22,25 @@ import {
 } from './packages-cases/capability-fixtures.ts';
 import { packageLaunchHardStopReason } from '../../../../src/modules/runway/family-runtime-package-readiness.ts';
 
+function writeMasUvFixture(binRoot: string) {
+  fs.mkdirSync(binRoot, { recursive: true });
+  fs.writeFileSync(path.join(binRoot, 'uv'), [
+    '#!/usr/bin/env node',
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    "const target = path.join(process.env.UV_TOOL_DIR, 'med-autoscience', 'bin', 'mas-foundry-owner-gate');",
+    'fs.mkdirSync(path.dirname(target), { recursive: true });',
+    "fs.writeFileSync(target, '#!/usr/bin/env bash\\nexit 0\\n', { mode: 0o755 });",
+  ].join('\n'), { mode: 0o755 });
+}
+
+function withMasUvFixturePath(releaseEnv: Record<string, string>, binRoot: string) {
+  return {
+    ...releaseEnv,
+    PATH: `${binRoot}${path.delimiter}${releaseEnv.PATH ?? process.env.PATH ?? ''}`,
+  };
+}
+
 test('package launch stops only for missing required capability while metadata drift remains quality debt', () => {
   assert.equal(packageLaunchHardStopReason({
     installed_package_count: 1,
@@ -582,6 +601,8 @@ test('family-runtime absorbs developer checkout changes only after an explicit u
   const provider = writeCapabilityProvider(path.join(root, 'release-provider'), '0.1.0');
   const consumer = writeMasConsumer(path.join(root, 'release-consumer'), provider, '0.1.0a4');
   const releaseSet = writeCapabilityCatalog(path.join(root, 'release-set'), [consumer, provider]);
+  const fakeBin = path.join(root, 'bin');
+  writeMasUvFixture(fakeBin);
   const fixture = writeDeveloperCapabilityCheckoutClosure({
     masCheckout,
     scholarCheckout,
@@ -593,7 +614,7 @@ test('family-runtime absorbs developer checkout changes only after an explicit u
     CODEX_HOME: path.join(root, 'codex-home'),
     OPL_MODULE_PATH_MEDAUTOSCIENCE: masCheckout,
     OPL_MODULE_PATH_SCHOLARSKILLS: scholarCheckout,
-    ...releaseSet.env,
+    ...withMasUvFixturePath(releaseSet.env, fakeBin),
   };
   const lockFile = path.join(env.OPL_STATE_DIR, 'agent-package-locks.json');
   try {
@@ -690,6 +711,8 @@ test('family-runtime ignores an incomplete checkout until an explicit update', a
   const provider = writeCapabilityProvider(path.join(root, 'release-provider'), '0.1.0');
   const consumer = writeMasConsumer(path.join(root, 'release-consumer'), provider, '0.1.0a4');
   const releaseSet = writeCapabilityCatalog(path.join(root, 'release-set'), [consumer, provider]);
+  const fakeBin = path.join(root, 'bin');
+  writeMasUvFixture(fakeBin);
   const fixture = writeDeveloperCapabilityCheckoutClosure({
     masCheckout,
     scholarCheckout,
@@ -701,7 +724,7 @@ test('family-runtime ignores an incomplete checkout until an explicit update', a
     CODEX_HOME: path.join(root, 'codex-home'),
     OPL_MODULE_PATH_MEDAUTOSCIENCE: masCheckout,
     OPL_MODULE_PATH_SCHOLARSKILLS: scholarCheckout,
-    ...releaseSet.env,
+    ...withMasUvFixturePath(releaseSet.env, fakeBin),
   };
   const lockFile = path.join(env.OPL_STATE_DIR, 'agent-package-locks.json');
   try {

@@ -78,6 +78,16 @@ function writeMasOwnerGateFixture(checkoutPath: string, binRoot: string) {
   return { UV_TOOL_DIR: uvToolDir };
 }
 
+function withMasOwnerGateFixturePath(
+  releaseEnv: Record<string, string>,
+  binRoot: string,
+) {
+  return {
+    ...releaseEnv,
+    PATH: `${binRoot}${path.delimiter}${releaseEnv.PATH ?? process.env.PATH ?? ''}`,
+  };
+}
+
 function writePackageOwnerChannelFixture(input: {
   root: string;
   binRoot: string;
@@ -1083,13 +1093,15 @@ test('developer checkout policy tracks Release Set currentness without accepting
   });
   writeMasOwnerGateFixture(masCheckout, fakeBin);
   commitDeveloperCheckout(masCheckout, 'add owner gate fixture');
+  const oldEnv = { ...commonEnv, ...withMasOwnerGateFixturePath(oldReleaseSet.env, fakeBin) };
+  const nextEnv = { ...commonEnv, ...withMasOwnerGateFixturePath(nextReleaseSet.env, fakeBin) };
 
   try {
     const pathFailure = runCliFailure([
       'packages', 'install', 'mas',
       '--source-kind', 'developer_checkout_override',
       '--agent-root', wrongCheckout,
-    ], { ...commonEnv, ...oldReleaseSet.env });
+    ], oldEnv);
     assert.equal(pathFailure.payload.error.code, 'contract_shape_invalid');
     assert.equal(
       pathFailure.payload.error.details.failure_code,
@@ -1097,10 +1109,7 @@ test('developer checkout policy tracks Release Set currentness without accepting
     );
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
 
-    const installed = runCli(['packages', 'install', 'mas'], {
-      ...commonEnv,
-      ...oldReleaseSet.env,
-    }) as any;
+    const installed = runCli(['packages', 'install', 'mas'], oldEnv) as any;
     assert.equal(installed.opl_agent_package_install.package_lock.package_version, '0.1.0');
     assert.equal(installed.opl_agent_package_install.package_lock.source_kind, 'developer_checkout_override');
     assert.deepEqual(
@@ -1132,10 +1141,7 @@ test('developer checkout policy tracks Release Set currentness without accepting
       catalog_payload: JSON.parse(fs.readFileSync(oldReleaseSet.catalogPath, 'utf8')),
     });
     fs.writeFileSync(releaseCatalogCache, cachedOldReleaseSet);
-    const preview = runCli(['packages', 'update', '--dry-run'], {
-      ...commonEnv,
-      ...nextReleaseSet.env,
-    }) as any;
+    const preview = runCli(['packages', 'update', '--dry-run'], nextEnv) as any;
     const previewPackages = preview.managed_update.components.find(
       (entry: any) => entry.component_id === 'opl_packages',
     );
@@ -1146,10 +1152,7 @@ test('developer checkout policy tracks Release Set currentness without accepting
     assert.equal(previewMas.currentness.status, 'update_available');
     assert.equal(fs.readFileSync(releaseCatalogCache, 'utf8'), cachedOldReleaseSet);
 
-    const updated = runCli(['update', 'apply'], {
-      ...commonEnv,
-      ...nextReleaseSet.env,
-    }) as any;
+    const updated = runCli(['update', 'apply'], nextEnv) as any;
     const adapter = updated.managed_update.execution.adapter_results.find(
       (entry: any) => entry.component_id === 'opl_packages',
     );
@@ -1424,14 +1427,13 @@ test('single-package developer update reconciles from the live Release Set and b
   });
   writeMasOwnerGateFixture(masCheckout, fakeBin);
   commitDeveloperCheckout(masCheckout, 'add owner gate fixture');
+  const oldEnv = { ...commonEnv, ...withMasOwnerGateFixturePath(oldReleaseSet.env, fakeBin) };
+  const nextEnv = { ...commonEnv, ...withMasOwnerGateFixturePath(nextReleaseSet.env, fakeBin) };
   fs.writeFileSync(masSentinel, 'developer MAS source\n');
   fs.writeFileSync(scholarSentinel, 'developer ScholarSkills source\n');
 
   try {
-    const installed = runCli(['packages', 'install', 'mas'], {
-      ...commonEnv,
-      ...oldReleaseSet.env,
-    }) as any;
+    const installed = runCli(['packages', 'install', 'mas'], oldEnv) as any;
     assert.equal(installed.opl_agent_package_install.package_lock.package_version, '0.1.0');
     assert.equal(installed.opl_agent_package_install.package_lock.source_kind, 'developer_checkout_override');
     const installedLockBytes = fs.readFileSync(lockFile, 'utf8');
@@ -1440,10 +1442,7 @@ test('single-package developer update reconciles from the live Release Set and b
 
     const pathFailure = runCliFailure([
       'packages', 'update', 'mas', '--agent-root', wrongCheckout,
-    ], {
-      ...commonEnv,
-      ...nextReleaseSet.env,
-    });
+    ], nextEnv);
     assert.equal(pathFailure.payload.error.code, 'contract_shape_invalid');
     assert.equal(
       pathFailure.payload.error.details.failure_code,
@@ -1461,10 +1460,7 @@ test('single-package developer update reconciles from the live Release Set and b
       message: 'fixture B',
     });
 
-    const preview = runCli(['packages', 'update', 'mas', '--dry-run'], {
-      ...commonEnv,
-      ...nextReleaseSet.env,
-    }) as any;
+    const preview = runCli(['packages', 'update', 'mas', '--dry-run'], nextEnv) as any;
     const previewUpdate = preview.opl_agent_package_update;
     assert.equal(previewUpdate.status, 'validated_no_write');
     assert.equal(previewUpdate.reconciliation_action, 'source_reconcile');
@@ -1477,10 +1473,7 @@ test('single-package developer update reconciles from the live Release Set and b
     assert.equal(fs.readFileSync(lockFile, 'utf8'), installedLockBytes);
     assert.equal(fs.readFileSync(ledgerFile, 'utf8'), installedLedgerBytes);
 
-    const updated = runCli(['packages', 'update', 'mas'], {
-      ...commonEnv,
-      ...nextReleaseSet.env,
-    }) as any;
+    const updated = runCli(['packages', 'update', 'mas'], nextEnv) as any;
     const appliedUpdate = updated.opl_agent_package_update;
     assert.equal(appliedUpdate.status, 'updated');
     assert.equal(appliedUpdate.reconciliation_action, 'source_reconcile');
@@ -1518,10 +1511,7 @@ test('single-package developer update reconciles from the live Release Set and b
     );
     driftedScholarLock.source_kind = 'first_party_managed_cohort';
     fs.writeFileSync(lockFile, `${JSON.stringify(driftedLockIndex, null, 2)}\n`);
-    const dependencyReconciled = runCli(['packages', 'update', 'mas'], {
-      ...commonEnv,
-      ...nextReleaseSet.env,
-    }) as any;
+    const dependencyReconciled = runCli(['packages', 'update', 'mas'], nextEnv) as any;
     const dependencyUpdate = dependencyReconciled.opl_agent_package_update;
     assert.equal(dependencyUpdate.status, 'updated');
     assert.equal(dependencyUpdate.currentness.status, 'update_available');
@@ -1542,10 +1532,7 @@ test('single-package developer update reconciles from the live Release Set and b
 
     const currentLockBytes = fs.readFileSync(lockFile, 'utf8');
     const currentLedgerBytes = fs.readFileSync(ledgerFile, 'utf8');
-    const current = runCli(['packages', 'update', 'mas'], {
-      ...commonEnv,
-      ...nextReleaseSet.env,
-    }) as any;
+    const current = runCli(['packages', 'update', 'mas'], nextEnv) as any;
     const currentUpdate = current.opl_agent_package_update;
     assert.equal(currentUpdate.status, 'current_noop');
     assert.equal(currentUpdate.currentness.status, 'current');
@@ -1568,10 +1555,7 @@ test('single-package developer update reconciles from the live Release Set and b
     }).trim();
     fs.appendFileSync(developerFixture.providerHelperPath, 'offline dirty developer update\n');
     fs.rmSync(nextReleaseSet.catalogPath, { force: true });
-    const offlineDeveloper = runCli(['packages', 'update', 'mas'], {
-      ...commonEnv,
-      ...nextReleaseSet.env,
-    }) as any;
+    const offlineDeveloper = runCli(['packages', 'update', 'mas'], nextEnv) as any;
     const offlineUpdate = offlineDeveloper.opl_agent_package_update;
     const offlineProvider = offlineUpdate.dependency_package_locks.find(
       (entry: any) => entry.package_id === 'mas-scholar-skills',
