@@ -7,6 +7,12 @@ export type PackageContentLockCanonicalization =
   | typeof LEGACY_PACKAGE_CONTENT_LOCK
   | typeof CANONICAL_PACKAGE_CONTENT_LOCK;
 
+export type ModeAwarePackageContentLockFile = {
+  path: string;
+  content: Buffer;
+  mode: '100644' | '100755';
+};
+
 export function packageContentLockDigest(
   canonicalization: PackageContentLockCanonicalization,
   files: Array<{ path: string; content: Buffer }>,
@@ -30,4 +36,20 @@ export function packageContentLockDigest(
     digest.update(file.content);
   }
   return `sha256:${digest.digest('hex')}`;
+}
+
+/**
+ * The package payload lock binds executable mode as well as path and bytes.
+ * Keep this representation shared so local carriers cannot silently disagree.
+ */
+export function modeAwarePackageContentLockDigest(files: ModeAwarePackageContentLockFile[]) {
+  return packageContentLockDigest(
+    CANONICAL_PACKAGE_CONTENT_LOCK,
+    [...files]
+      .sort((left, right) => left.path.localeCompare(right.path, 'en'))
+      .map((file) => ({
+        path: file.path,
+        content: Buffer.concat([Buffer.from(`${file.mode}\0`, 'utf8'), file.content]),
+      })),
+  );
 }

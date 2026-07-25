@@ -11,7 +11,7 @@ import { readDeveloperCheckoutSourceIdentity } from './developer-checkout-runtim
 import { normalizePackageManifest } from './manifest-normalizers.ts';
 import {
   CANONICAL_PACKAGE_CONTENT_LOCK,
-  packageContentLockDigest,
+  modeAwarePackageContentLockDigest,
 } from './payload-content-lock.ts';
 import type {
   AgentPackageDeveloperCheckoutSource,
@@ -43,15 +43,7 @@ export type DeveloperCheckoutPayloadFile = {
 };
 
 export function developerCheckoutPayloadDigest(files: DeveloperCheckoutPayloadFile[]) {
-  return packageContentLockDigest(
-    CANONICAL_PACKAGE_CONTENT_LOCK,
-    [...files]
-      .sort((left, right) => left.path.localeCompare(right.path, 'en'))
-      .map((file) => ({
-        path: file.path,
-        content: Buffer.concat([Buffer.from(`${file.mode}\0`, 'utf8'), file.content]),
-      })),
-  );
+  return modeAwarePackageContentLockDigest(files);
 }
 
 function isInside(root: string, candidate: string) {
