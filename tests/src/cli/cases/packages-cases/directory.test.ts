@@ -7,6 +7,7 @@ import {
   formatJsonPayload,
   fs,
   os,
+  parseJsonText,
   path,
   repoRoot,
   runCli,
@@ -23,6 +24,11 @@ import { getOplPackageSpecs } from '../../../../../src/modules/connect/package-d
 import { normalizeRegistry } from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
 import { fetchAndValidateRegistry } from '../../../../../src/modules/connect/agent-package-registry-parts/selection.ts';
 import { readFirstPartyPackageCatalogSnapshot } from '../../../../../src/modules/connect/agent-package-registry-parts/release-catalog-cache.ts';
+import {
+  defaultHomeShortcutPreferences,
+  mergedHomeShortcutPreferences,
+} from '../../../../../src/modules/connect/agent-package-registry-parts/home-shortcuts.ts';
+import { validateJsonSchemaPayload } from '../../../../../src/kernel/schema-registry.ts';
 import { listOplAgentPackages } from '../../../../../src/modules/connect/agent-package-registry.ts';
 
 const CANONICAL_PACKAGE_ROLES = new Set([
@@ -95,6 +101,99 @@ function assertRecommendedActionMatchesAvailable(entry: any) {
   assert.equal(available.action_ref, `app_state.actions#${entry.recommended_action}`);
   assert.equal(typeof available.payload, 'object');
 }
+
+const thirdPartyPresentation = {
+  display_name_i18n: {
+    'zh-CN': '未来研究代理',
+    'en-US': 'Future Research Agent',
+  },
+  description_i18n: {
+    'zh-CN': '从所有者清单投影的研究代理。',
+    'en-US': 'Research Agent projected from its owner manifest.',
+  },
+  session_routing_summary_i18n: {
+    'zh-CN': '启动新的研究会话。',
+    'en-US': 'Start a new research session.',
+  },
+  home_shortcuts: [{
+    shortcut_id: 'future-main',
+    label_i18n: {
+      'zh-CN': '开始研究',
+      'en-US': 'Start Research',
+    },
+    default_visible: true,
+    user_configurable: true,
+    route: {
+      route_kind: 'agent_package_shortcut',
+      executor: 'codex_cli',
+      codex_visible_entry: 'future-agent',
+    },
+  }],
+};
+
+const HOME_PRESENTATION_CROSS_FIXTURE_SHA256 = 'b9986890f5af0d0004caad41b8bfd244e2fab7a7aa43ed98c9d5a7644221d8bf';
+const homePresentationCrossFixture = `{
+  "package_id": "future.agent-lab",
+  "package_role": "standard_agent",
+  "installed": true,
+  "display_name": "Future Agent Lab",
+  "description": "Generic directory description.",
+  "display_name_i18n": {
+    "zh-CN": "未来智能体实验室",
+    "en-US": "Future Agent Lab"
+  },
+  "description_i18n": {
+    "zh-CN": "由所有者清单投影的动态智能体。",
+    "en-US": "A dynamic Agent projected from its owner manifest."
+  },
+  "session_routing_summary_i18n": {
+    "zh-CN": "启动未来研究会话。",
+    "en-US": "Start a future research session."
+  },
+  "home_shortcuts": [
+    {
+      "shortcut_id": "future-main",
+      "label_i18n": {
+        "zh-CN": "开始未来研究",
+        "en-US": "Start Future Research"
+      },
+      "default_visible": true,
+      "user_configurable": true,
+      "route": {
+        "route_kind": "agent_package_shortcut",
+        "executor": "codex_cli",
+        "codex_visible_entry": "future-agent"
+      }
+    },
+    {
+      "shortcut_id": "future-pinned",
+      "label_i18n": {
+        "zh-CN": "固定未来入口",
+        "en-US": "Pinned Future Entry"
+      },
+      "default_visible": true,
+      "user_configurable": false,
+      "route": {
+        "route_kind": "agent_package_shortcut",
+        "executor": "codex_cli",
+        "codex_visible_entry": "future-agent-pinned"
+      }
+    }
+  ]
+}
+`;
+
+test('Framework freezes the Shell Home public directory entry fixture bytes', () => {
+  assert.equal(crypto.createHash('sha256').update(homePresentationCrossFixture).digest('hex'), HOME_PRESENTATION_CROSS_FIXTURE_SHA256);
+  const entry = parseJsonText(homePresentationCrossFixture) as Record<string, unknown>;
+  assert.equal(Object.hasOwn(entry, 'presentation'), false);
+  assert.deepEqual(Object.keys(entry).filter((key) => key.endsWith('_i18n') || key === 'home_shortcuts'), [
+    'display_name_i18n',
+    'description_i18n',
+    'session_routing_summary_i18n',
+    'home_shortcuts',
+  ]);
+});
 
 test('packages list and app state ignore shared Release Catalog cache before installation', () => {
   const fixture = isolatedPackageEnv('opl-package-directory');
@@ -229,6 +328,12 @@ test('first-party Directory versions come only from the managed Release Set sele
   const versions = new Map(getOplPackageSpecs().map((spec) => {
     const packageVersion = spec.package_id === 'opl-flow' ? '0.1.19' : spec.selected_version;
     const sourceArtifactRef = `ghcr.io/fixture/one-person-lab-packages/${spec.package_id}:${packageVersion}`;
+    const sourceManifest = parseJsonText(fs.readFileSync(path.join(repoRoot, spec.package_manifest_ref), 'utf8')) as Record<string, unknown>;
+    const manifestJson = formatJsonPayload({
+      ...sourceManifest,
+      version: packageVersion,
+      ...(spec.package_id === 'mas' ? { presentation: thirdPartyPresentation } : {}),
+    });
     return [spec.package_id, {
       package_id: spec.package_id,
       package_role: spec.package_role,
@@ -237,8 +342,8 @@ test('first-party Directory versions come only from the managed Release Set sele
         package_version: packageVersion,
         capability_abi: null,
         manifest_url: `opl+oci://${sourceArtifactRef}#/package-manifest.json`,
-        manifest_sha256: `sha256:${'1'.repeat(64)}`,
-        manifest_json: '{}',
+        manifest_sha256: `sha256:${crypto.createHash('sha256').update(manifestJson).digest('hex')}`,
+        manifest_json: manifestJson,
         payload_manifest_json: '{}',
         payload_manifest_sha256: `sha256:${'2'.repeat(64)}`,
         content_digest: `sha256:${'3'.repeat(64)}`,
@@ -269,6 +374,12 @@ test('first-party Directory versions come only from the managed Release Set sele
     },
   });
   const flow = directory.entries.find((entry) => entry.package_id === 'opl-flow')!;
+  const mas = directory.entries.find((entry) => entry.package_id === 'mas')!;
+  assert.deepEqual(mas.display_name_i18n, thirdPartyPresentation.display_name_i18n);
+  assert.deepEqual(mas.description_i18n, thirdPartyPresentation.description_i18n);
+  assert.deepEqual(mas.session_routing_summary_i18n, thirdPartyPresentation.session_routing_summary_i18n);
+  assert.deepEqual(mas.home_shortcuts, thirdPartyPresentation.home_shortcuts);
+  assert.equal(Object.hasOwn(mas, 'presentation'), false);
   assert.equal(flow.projected_version, '0.1.25');
   assert.equal(flow.selected_version, '0.1.19');
   assert.equal(flow.stable_version, '0.1.19');
@@ -537,7 +648,184 @@ test('external package catalogs preserve third-party selection and reject first-
     assert.equal(Object.hasOwn(actual.recommended_action_ref?.payload ?? {}, 'manifest_url'), false);
     assert.equal(Object.hasOwn(actual.recommended_action_ref?.payload ?? {}, 'trust_tier'), false);
   }
+}));
+
+test('owner presentation projects through an unknown package directory without becoming preference authority', () =>
+  withIsolatedStateDir('opl-package-directory-owner-presentation', () => {
+  const manifest = {
+    ...agentPackageManifest(),
+    codex_surface: {
+      ...agentPackageManifest().codex_surface,
+      plugin_id: 'third-party-research',
+      carrier_source_commit: 'a'.repeat(40),
+      standalone_distribution: 'repo_carrier_source',
+    },
+    presentation: thirdPartyPresentation,
+  };
+  const schema = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/agent-package-manifest.schema.json'),
+    'utf8',
+  )) as Record<string, unknown>;
+  assert.equal(validateJsonSchemaPayload({
+    schemaId: 'opl.agent_package_manifest.v1',
+    schema,
+    sourceRef: 'contracts/opl-framework/agent-package-manifest.schema.json',
+  }, manifest).ok, true);
+  assert.equal(validateJsonSchemaPayload({
+    schemaId: 'opl.agent_package_manifest.v1',
+    schema,
+    sourceRef: 'contracts/opl-framework/agent-package-manifest.schema.json',
+  }, { ...manifest, presentation: undefined }).ok, true);
+
+  const manifestUrl = 'file:///tmp/future-research.json';
+  const catalog = {
+    surface_kind: 'opl_package_catalog.v1',
+    packages: {
+      package_catalog: {
+        'third.party.research': {
+          package_id: 'third.party.research',
+          package_role: 'standard_agent',
+          source: 'third_party',
+          trust_tier: 'third_party_verified',
+          selected_version: '1.2.3',
+          versions: [{
+            package_version: '1.2.3',
+            selection_status: 'selected_for_release_set',
+            manifest_url: manifestUrl,
+            manifest_json: formatJsonPayload(manifest),
+          }],
+        },
+      },
+    },
+  };
+  const cache = normalizePackageCatalogRegistry(catalog, 'file:///tmp/future-catalog.json', 'catalog-sha');
+  const directory = buildAgentPackageDirectory({ registryCache: cache, locks: [], detail: 'fast' });
+  const entry = directory.entries.find((candidate) => candidate.package_id === 'third.party.research')!;
+  assert.deepEqual(entry.display_name_i18n, thirdPartyPresentation.display_name_i18n);
+  assert.deepEqual(entry.description_i18n, thirdPartyPresentation.description_i18n);
+  assert.deepEqual(entry.session_routing_summary_i18n, thirdPartyPresentation.session_routing_summary_i18n);
+  assert.deepEqual(entry.home_shortcuts, thirdPartyPresentation.home_shortcuts);
+  assert.equal(Object.hasOwn(entry, 'presentation'), false);
+  assert.equal(entry.installed, false);
+  assert.equal(entry.installability.installable, true);
+  assert.equal(entry.recommended_action, 'install_from_manifest_url');
+
+  const defaults = defaultHomeShortcutPreferences(directory, {
+    surface_kind: 'opl_agent_package_lock_index',
+    version: 'opl-agent-package-lock-index.v1',
+    packages: [],
+  });
+  assert.deepEqual(defaults.map((preference) => ({
+    shortcut_id: preference.shortcut_id,
+    package_id: preference.package_id,
+    visible: preference.visible,
+    sort_order: preference.sort_order,
+    source: preference.source,
+    installed: preference.installed,
+  })), [{
+    shortcut_id: 'future-main',
+    package_id: 'third.party.research',
+    visible: true,
+    sort_order: 700,
+    source: 'default',
+    installed: false,
+  }]);
+
+  fs.mkdirSync(process.env.OPL_STATE_DIR!, { recursive: true });
+  fs.writeFileSync(path.join(process.env.OPL_STATE_DIR!, 'agent-package-home-shortcut-preferences.json'), formatJsonPayload({
+    surface_kind: 'opl_agent_package_home_shortcut_preferences',
+    version: 'g1',
+    updated_at: '2026-07-25T00:00:00.000Z',
+    preferences: [{
+      shortcut_id: 'future-main',
+      package_id: 'third.party.research',
+      visible: false,
+      sort_order: 4,
+      source: 'user_preference',
+      updated_at: '2026-07-25T00:00:00.000Z',
+      installed: false,
+      label_i18n: { 'en-US': 'Attacker label' },
+      route: { route_kind: 'unknown' },
+    }],
   }));
+  const merged = mergedHomeShortcutPreferences(directory, {
+    surface_kind: 'opl_agent_package_lock_index',
+    version: 'opl-agent-package-lock-index.v1',
+    packages: [],
+  });
+  assert.deepEqual(merged.map((preference) => ({
+    shortcut_id: preference.shortcut_id,
+    package_id: preference.package_id,
+    visible: preference.visible,
+    sort_order: preference.sort_order,
+    source: preference.source,
+  })), [{
+    shortcut_id: 'future-main',
+    package_id: 'third.party.research',
+    visible: false,
+    sort_order: 4,
+    source: 'user_preference',
+  }]);
+  assert.deepEqual(entry.display_name_i18n, thirdPartyPresentation.display_name_i18n);
+  assert.deepEqual(entry.description_i18n, thirdPartyPresentation.description_i18n);
+  assert.deepEqual(entry.session_routing_summary_i18n, thirdPartyPresentation.session_routing_summary_i18n);
+  assert.deepEqual(entry.home_shortcuts, thirdPartyPresentation.home_shortcuts);
+  }));
+
+test('invalid owner presentation fails closed while legacy manifests remain compatible', () => {
+  const base = agentPackageManifest();
+  assert.equal(normalizePackageCatalogRegistry({
+    surface_kind: 'opl_package_catalog.v1',
+    packages: {
+      package_catalog: {
+        'third.party.research': {
+          package_id: 'third.party.research',
+          package_role: 'standard_agent',
+          source: 'third_party',
+          trust_tier: 'third_party_verified',
+          selected_version: '1.2.3',
+          versions: [{
+            package_version: '1.2.3',
+            selection_status: 'selected_for_release_set',
+            manifest_url: 'file:///tmp/legacy.json',
+            manifest_json: formatJsonPayload(base),
+          }],
+        },
+      },
+    },
+  }, 'file:///tmp/legacy-catalog.json', 'catalog-sha').entries[0].presentation, null);
+
+  assert.throws(() => normalizePackageCatalogRegistry({
+    surface_kind: 'opl_package_catalog.v1',
+    packages: {
+      package_catalog: {
+        'third.party.research': {
+          package_id: 'third.party.research',
+          package_role: 'standard_agent',
+          source: 'third_party',
+          trust_tier: 'third_party_verified',
+          selected_version: '1.2.3',
+          versions: [{
+            package_version: '1.2.3',
+            selection_status: 'selected_for_release_set',
+            manifest_url: 'file:///tmp/invalid-presentation.json',
+            manifest_json: formatJsonPayload({
+              ...base,
+              presentation: {
+                ...thirdPartyPresentation,
+                home_shortcuts: [
+                  ...thirdPartyPresentation.home_shortcuts,
+                  thirdPartyPresentation.home_shortcuts[0],
+                ],
+              },
+            }),
+          }],
+        },
+      },
+    },
+  }, 'file:///tmp/invalid-presentation-catalog.json', 'catalog-sha'),
+  (error: any) => error?.details?.failure_code === 'agent_package_presentation_invalid');
+});
 
 test('external registries preserve external claims and reject first-party authority', async () =>
   withIsolatedStateDir('opl-package-directory-external-registry', async () => {

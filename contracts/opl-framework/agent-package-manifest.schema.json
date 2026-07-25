@@ -42,6 +42,25 @@
       "type": "string",
       "minLength": 1
     },
+    "presentation": {
+      "type": "object",
+      "required": [
+        "display_name_i18n",
+        "description_i18n",
+        "session_routing_summary_i18n",
+        "home_shortcuts"
+      ],
+      "properties": {
+        "display_name_i18n": { "$ref": "#/$defs/localized_text" },
+        "description_i18n": { "$ref": "#/$defs/localized_text" },
+        "session_routing_summary_i18n": { "$ref": "#/$defs/localized_text" },
+        "home_shortcuts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/home_shortcut" }
+        }
+      },
+      "additionalProperties": false
+    },
     "registry_entry": {
       "type": "object",
       "required": [
@@ -799,6 +818,46 @@
             "additionalProperties": false
           },
           "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "localized_text": {
+      "type": "object",
+      "minProperties": 1,
+      "patternProperties": {
+        "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "home_shortcut": {
+      "type": "object",
+      "required": [
+        "shortcut_id",
+        "label_i18n",
+        "default_visible",
+        "user_configurable",
+        "route"
+      ],
+      "properties": {
+        "shortcut_id": { "type": "string", "minLength": 1 },
+        "label_i18n": { "$ref": "#/$defs/localized_text" },
+        "default_visible": { "type": "boolean" },
+        "user_configurable": { "type": "boolean" },
+        "route": {
+          "type": "object",
+          "required": ["route_kind", "executor", "codex_visible_entry"],
+          "properties": {
+            "route_kind": { "const": "agent_package_shortcut" },
+            "executor": { "const": "codex_cli" },
+            "codex_visible_entry": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

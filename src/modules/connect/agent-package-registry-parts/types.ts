@@ -155,6 +155,29 @@ export type AgentPackagePayloadFile = {
   digestVerified: boolean;
 };
 
+export type AgentPackageLocalizedText = Record<string, string>;
+
+export type AgentPackageHomeShortcutRoute = {
+  route_kind: 'agent_package_shortcut';
+  executor: 'codex_cli';
+  codex_visible_entry: string;
+};
+
+export type AgentPackageHomeShortcutPresentation = {
+  shortcut_id: string;
+  label_i18n: AgentPackageLocalizedText;
+  default_visible: boolean;
+  user_configurable: boolean;
+  route: AgentPackageHomeShortcutRoute;
+};
+
+export type AgentPackagePresentation = {
+  display_name_i18n: AgentPackageLocalizedText;
+  description_i18n: AgentPackageLocalizedText;
+  session_routing_summary_i18n: AgentPackageLocalizedText;
+  home_shortcuts: AgentPackageHomeShortcutPresentation[];
+};
+
 export type AgentPackageRegistryEntry = {
   package_id: string;
   display_name: string;
@@ -174,6 +197,7 @@ export type AgentPackageRegistryEntry = {
   required_skill_ids: string[];
   optional_skill_ids: string[];
   home_shortcut_ids: string[];
+  presentation?: AgentPackagePresentation | null;
   display_policy: string | null;
   ordinary_user_source: AgentPackageOrdinaryUserSource | null;
 };
@@ -234,6 +258,7 @@ export type AgentPackageManifest = {
   codex_visible_entry: string;
   required_skill_ids: string[];
   optional_skill_refs: string[];
+  presentation?: AgentPackagePresentation | null;
   plugin_id: string | null;
   plugin_source_path: string | null;
   plugin_payload_manifest_url: string | null;

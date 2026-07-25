@@ -54,19 +54,34 @@ export function writeHomeShortcutPreferenceFile(file: AgentPackageHomeShortcutPr
 }
 
 export function defaultHomeShortcutPreferences(
-  registryCache: unknown,
+  directoryOrRegistry: unknown,
   lockIndex: AgentPackageLockIndex,
 ): AgentPackageHomeShortcutPreference[] {
-  const entries = isRecord(registryCache) ? recordList(registryCache.entries) : [];
+  const entries = isRecord(directoryOrRegistry) ? recordList(directoryOrRegistry.entries) : [];
   const installedIds = new Set(lockIndex.packages.map((entry) => entry.package_id));
   const timestamp = nowIso();
   return entries.flatMap((entry, entryIndex) => {
     const packageId = stringValue(entry.package_id);
     if (!packageId) return [];
-    return stringList(entry.home_shortcut_ids).map((shortcutId, shortcutIndex) => ({
+    const ownerShortcuts = Array.isArray(entry.home_shortcuts)
+      ? recordList(entry.home_shortcuts).flatMap((shortcut) => {
+          const shortcutId = stringValue(shortcut.shortcut_id);
+          return shortcutId ? [{
+            shortcutId,
+            visible: shortcut.default_visible === true,
+          }] : [];
+        })
+      : [];
+    const shortcuts = ownerShortcuts.length > 0
+      ? ownerShortcuts
+      : stringList(entry.home_shortcut_ids).map((shortcutId) => ({
+          shortcutId,
+          visible: entry.starter_default === true,
+        }));
+    return shortcuts.map(({ shortcutId, visible }, shortcutIndex) => ({
       shortcut_id: shortcutId,
       package_id: packageId,
-      visible: entry.starter_default === true,
+      visible,
       sort_order: entryIndex * 100 + shortcutIndex,
       source: 'default' as const,
       updated_at: timestamp,
@@ -76,18 +91,46 @@ export function defaultHomeShortcutPreferences(
 }
 
 export function mergedHomeShortcutPreferences(
-  registryCache: unknown,
+  directoryOrRegistry: unknown,
   lockIndex: AgentPackageLockIndex,
 ): AgentPackageHomeShortcutPreference[] {
   const installedIds = new Set(lockIndex.packages.map((entry) => entry.package_id));
   const merged = new Map<string, AgentPackageHomeShortcutPreference>();
-  for (const entry of defaultHomeShortcutPreferences(registryCache, lockIndex)) {
+  const configurable = new Set<string>();
+  const legacyPackages = new Set<string>();
+  const entries = isRecord(directoryOrRegistry) ? recordList(directoryOrRegistry.entries) : [];
+  for (const entry of entries) {
+    const packageId = stringValue(entry.package_id);
+    if (!packageId) continue;
+    const hasOwnerPresentation = isRecord(entry.display_name_i18n)
+      && isRecord(entry.description_i18n)
+      && isRecord(entry.session_routing_summary_i18n);
+    const ownerShortcuts = Array.isArray(entry.home_shortcuts)
+      ? recordList(entry.home_shortcuts)
+      : [];
+    if (hasOwnerPresentation) {
+      for (const shortcut of ownerShortcuts) {
+        const shortcutId = stringValue(shortcut.shortcut_id);
+        if (shortcutId && shortcut.user_configurable === true) configurable.add(`${packageId}\n${shortcutId}`);
+      }
+    } else {
+      legacyPackages.add(packageId);
+      for (const shortcutId of stringList(entry.home_shortcut_ids)) configurable.add(`${packageId}\n${shortcutId}`);
+    }
+  }
+  for (const entry of defaultHomeShortcutPreferences(directoryOrRegistry, lockIndex)) {
     merged.set(`${entry.package_id}\n${entry.shortcut_id}`, entry);
   }
   for (const entry of readHomeShortcutPreferenceFile().preferences) {
-    merged.set(`${entry.package_id}\n${entry.shortcut_id}`, {
-      ...entry,
+    const key = `${entry.package_id}\n${entry.shortcut_id}`;
+    const declaredDefault = merged.get(key);
+    if (!configurable.has(key) && !legacyPackages.has(entry.package_id)) continue;
+    merged.set(key, {
+      ...(declaredDefault ?? entry),
+      visible: entry.visible,
+      sort_order: entry.sort_order,
       source: 'user_preference',
+      updated_at: entry.updated_at,
       installed: installedIds.has(entry.package_id),
     });
   }

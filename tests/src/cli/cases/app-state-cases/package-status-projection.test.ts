@@ -263,6 +263,58 @@ test('App package projection accepts arbitrary package ids and trusts fresh owne
   assertLegacyManagerFieldsAbsent(fullStatus);
 });
 
+test('App status projection does not mirror owner presentation or shortcut route metadata', () => {
+  const ownerPresentation = {
+    display_name_i18n: { 'en-US': 'Owner title' },
+    description_i18n: { 'en-US': 'Owner description' },
+    session_routing_summary_i18n: { 'en-US': 'Owner session route' },
+    home_shortcuts: [{
+      shortcut_id: 'owner-main',
+      label_i18n: { 'en-US': 'Owner shortcut' },
+      default_visible: true,
+      user_configurable: true,
+      route: {
+        route_kind: 'agent_package_shortcut',
+        executor: 'codex_cli',
+        codex_visible_entry: 'owner-agent',
+      },
+    }],
+  };
+  const projected = buildAppAgentPackageStatuses({
+    packageIds: ['third.party.research'],
+    profile: 'fast',
+    lockIndex: lockIndex(),
+    readStatus: (() => ({
+      ...installedStatus({ packageId: 'third.party.research' }),
+      opl_agent_package_status: {
+        ...installedStatus({ packageId: 'third.party.research' }).opl_agent_package_status,
+        ...ownerPresentation,
+        home_shortcut_preferences: [{
+          package_id: 'third.party.research',
+          shortcut_id: 'owner-main',
+          visible: false,
+          sort_order: 2,
+          source: 'user_preference',
+        }],
+      },
+    })) as any,
+  })['third.party.research'] as any;
+
+  assert.equal(Object.hasOwn(projected, 'display_name_i18n'), false);
+  assert.equal(Object.hasOwn(projected, 'description_i18n'), false);
+  assert.equal(Object.hasOwn(projected, 'session_routing_summary_i18n'), false);
+  assert.equal(Object.hasOwn(projected, 'home_shortcuts'), false);
+  assert.equal(JSON.stringify(projected).includes('Owner title'), false);
+  assert.equal(JSON.stringify(projected).includes('owner-agent'), false);
+  assert.deepEqual(projected.home_shortcut_preferences, [{
+    package_id: 'third.party.research',
+    shortcut_id: 'owner-main',
+    visible: false,
+    sort_order: 2,
+    source: 'user_preference',
+  }]);
+});
+
 test('presence-only dependency projection ignores legacy version ABI digest observations', () => {
   const dependencyReadiness = {
     status: 'incompatible',

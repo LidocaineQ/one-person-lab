@@ -4178,13 +4178,19 @@ function readAgentPackageStatusSnapshot() {
   const lockIndex = readLockIndex();
   const lifecycleLedger = readLifecycleLedger();
   const registryCache = readRegistryCache();
+  const directory = buildAgentPackageDirectory({
+    registryCache,
+    locks: lockIndex.packages,
+    detail: 'fast',
+    firstPartyCatalog: readFirstPartyPackageCatalogSnapshot(),
+  });
   return {
     lockIndex,
     lifecycleLedger,
     registryCache,
     paths: resolveOplStatePaths(),
     runtimeSourceRecovery: inspectManagedRuntimeSourceTransactions(),
-    homeShortcutPreferences: mergedHomeShortcutPreferences(registryCache, lockIndex),
+    homeShortcutPreferences: mergedHomeShortcutPreferences(directory, lockIndex),
     receiptsByRef: new Map(
       lifecycleLedger.receipts.map((receipt) => [receipt.receipt_ref, receipt]),
     ),
@@ -4423,7 +4429,6 @@ export function listOplAgentPackages(input: {
   const registryCache = readRegistryCache();
   const lockIndex = readLockIndex();
   const lifecycleLedger = readLifecycleLedger();
-  const homeShortcutPreferences = mergedHomeShortcutPreferences(registryCache, lockIndex);
   const receiptsByRef = new Map<string, AgentPackageLifecycleReceipt>();
   for (const receipt of lifecycleLedger.receipts) {
     receiptsByRef.set(receipt.receipt_ref, receipt);
@@ -4453,6 +4458,7 @@ export function listOplAgentPackages(input: {
       }).opl_agent_package_status;
     },
   });
+  const homeShortcutPreferences = mergedHomeShortcutPreferences(directory, lockIndex);
   return {
     version: 'g2',
     opl_agent_packages: {

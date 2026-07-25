@@ -9,6 +9,7 @@ import {
 import { getAgentPackageManifestByModuleId } from '../agent-package-manifests.ts';
 import { getOplPackageSpecs } from '../package-distribution.ts';
 import {
+  catalogManifestPayload,
   selectManagedCatalogPackageVersion,
   type ManagedCatalogVersion,
   type ManagedPackageCatalog,
@@ -27,6 +28,7 @@ import {
 import type {
   AgentPackageLock,
   AgentPackagePackageActionInput,
+  AgentPackagePresentation,
   AgentPackageRegistryCache,
   AgentPackageRegistryEntry,
   AgentPackageRole,
@@ -72,6 +74,8 @@ type DirectorySource = {
   source_kind: 'first_party_framework_projection' | 'first_party_release_catalog' | 'agent_package_registry_cache' | 'installed_package_lock';
   registry_source_ref: string | null;
   capability_metadata: DirectoryCapabilityMetadata | null;
+  presentation: AgentPackagePresentation | null;
+  home_shortcut_ids: string[];
   release_target: ManagedCatalogVersion | null;
   version_currentness: {
     status: 'live_release_set' | 'cached_release_set' | 'last_known_good_release_set' | 'framework_projection_only' | 'registry_cache' | 'installed_lock_only';
@@ -126,6 +130,7 @@ function manifestDirectoryMetadata(payload: unknown, manifestUrl: string) {
     selected_version: manifest.version,
     required_skill_ids: [...manifest.required_skill_ids],
     optional_skill_refs: [...manifest.optional_skill_refs],
+    presentation: manifest.presentation ?? null,
   };
 }
 
@@ -248,6 +253,7 @@ export function normalizePackageCatalogRegistry(
       required_skill_ids: metadata.required_skill_ids,
       optional_skill_ids: metadata.optional_skill_refs,
       home_shortcut_ids: [],
+      presentation: metadata.presentation ?? null,
       display_policy: null,
       ordinary_user_source: null,
     } satisfies AgentPackageRegistryEntry;
@@ -323,6 +329,7 @@ export async function enrichRegistryCacheManifestMetadata(cache: AgentPackageReg
       stable_version: entry.stable_version ?? metadata.selected_version,
       required_skill_ids: metadata.required_skill_ids,
       optional_skill_ids: metadata.optional_skill_refs,
+      presentation: metadata.presentation ?? null,
       manifest_validation: 'fetched_manifest' as const,
     };
   }));
@@ -347,6 +354,26 @@ function firstPartyDirectorySources(snapshot: FirstPartyDirectoryCatalogSnapshot
       ? selectManagedCatalogPackageVersion(snapshot.catalog, spec.package_id)
       : null;
     if (selected) assertFirstPartyPackageCatalogVersion(spec.package_id, selected);
+    const selectedManifest = selected
+      ? normalizePackageManifest(catalogManifestPayload(selected), selected.manifest_url)
+      : null;
+    if (selected && selectedManifest
+      && (selectedManifest.package_id !== spec.package_id || selectedManifest.version !== selected.package_version)) {
+      throw new FrameworkContractError('contract_shape_invalid', 'First-party directory selection must match its owner manifest identity.', {
+        package_id: spec.package_id,
+        selected_version: selected.package_version,
+        manifest_package_id: selectedManifest.package_id,
+        manifest_version: selectedManifest.version,
+        failure_code: 'first_party_package_catalog_manifest_mismatch',
+      });
+    }
+    const selectedCapabilityMetadata: DirectoryCapabilityMetadata | null = selectedManifest?.package_role === 'standard_agent'
+      ? {
+          source: 'normalized_owner_manifest',
+          required_skill_ids: [...selectedManifest.required_skill_ids],
+          optional_skill_refs: [...selectedManifest.optional_skill_refs],
+        }
+      : null;
     const currentnessStatus = liveVerified
       ? 'live_release_set'
       : snapshot?.freshness === 'cached'
@@ -375,7 +402,9 @@ function firstPartyDirectorySources(snapshot: FirstPartyDirectoryCatalogSnapshot
         : `${spec.package_manifest_ref}#/version`,
       source_kind: selected ? 'first_party_release_catalog' : 'first_party_framework_projection',
       registry_source_ref: selected ? snapshot!.catalog_ref : spec.package_manifest_ref,
-      capability_metadata: capabilityMetadata,
+      capability_metadata: selectedCapabilityMetadata ?? capabilityMetadata,
+      presentation: selectedManifest?.presentation ?? null,
+      home_shortcut_ids: [],
       version_currentness: {
         status: currentnessStatus,
         live_verified: liveVerified,
@@ -417,6 +446,8 @@ function registryDirectorySource(cache: AgentPackageRegistryCache, entry: AgentP
     source_kind: 'agent_package_registry_cache',
     registry_source_ref: cache.registry_url,
     capability_metadata: capabilityMetadata,
+    presentation: entry.presentation ?? null,
+    home_shortcut_ids: [...entry.home_shortcut_ids],
     version_currentness: {
       status: 'registry_cache',
       live_verified: false,
@@ -457,6 +488,8 @@ function lockDirectorySource(lock: AgentPackageLock, packageRole: AgentPackageRo
     source_kind: 'installed_package_lock',
     registry_source_ref: null,
     capability_metadata: capabilityMetadata,
+    presentation: null,
+    home_shortcut_ids: [],
     version_currentness: {
       status: 'installed_lock_only',
       live_verified: false,
@@ -797,6 +830,11 @@ export function buildAgentPackageDirectory(input: {
       capability_metadata: effectiveSource.package_role === 'standard_agent'
         ? effectiveSource.capability_metadata
         : null,
+      display_name_i18n: effectiveSource.presentation?.display_name_i18n ?? null,
+      description_i18n: effectiveSource.presentation?.description_i18n ?? null,
+      session_routing_summary_i18n: effectiveSource.presentation?.session_routing_summary_i18n ?? null,
+      home_shortcuts: effectiveSource.presentation?.home_shortcuts ?? [],
+      home_shortcut_ids: effectiveSource.home_shortcut_ids,
       role_state: {
         status: !installed
           ? roleKnown ? 'declared' : 'migration_required'
