@@ -4182,7 +4182,7 @@ function readAgentPackageStatusSnapshot() {
     registryCache,
     locks: lockIndex.packages,
     detail: 'fast',
-    firstPartyCatalog: readFirstPartyPackageCatalogSnapshot(),
+    firstPartyCatalog: null,
   });
   return {
     lockIndex,
