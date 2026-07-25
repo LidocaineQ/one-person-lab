@@ -96,7 +96,7 @@ function assertRecommendedActionMatchesAvailable(entry: any) {
   assert.equal(typeof available.payload, 'object');
 }
 
-test('packages list and app state expose the canonical public package directory before installation', () => {
+test('packages list and app state ignore shared Release Catalog cache before installation', () => {
   const fixture = isolatedPackageEnv('opl-package-directory');
   const codexFixture = createFakeCodexFixture(`
 if [[ "$1" == "--version" ]]; then
@@ -106,6 +106,20 @@ fi
 exit 1
 `);
   try {
+    fs.mkdirSync(fixture.env.OPL_STATE_DIR, { recursive: true });
+    fs.writeFileSync(
+      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-release-catalog-cache.json'),
+      formatJsonPayload({
+        surface_kind: 'opl_agent_package_release_catalog_cache.v1',
+        catalog_ref: 'ghcr.io/fixture/one-person-lab-manifest:latest-stable',
+        catalog_digest: `sha256:${'a'.repeat(64)}`,
+        checked_at: new Date().toISOString(),
+        catalog_payload: {
+          surface_kind: 'opl_package_catalog.v1',
+          packages: { package_catalog: {} },
+        },
+      }),
+    );
     const list = runCli(['packages', 'list'], fixture.env) as any;
     const directory = list.opl_agent_packages.directory;
     assert.equal(directory.surface_kind, 'opl_agent_package_directory.v1');
@@ -158,6 +172,7 @@ exit 1
       assert.equal(projected.surface_kind, 'opl_agent_package_directory.v1');
       assert.equal(projected.detail, profile);
       assert.equal(projected.entries.length, 7);
+      assert.equal(projected.first_party_release_currentness.status, 'unknown');
       assert.equal(projected.entries.every((entry: any) =>
         entry.package_id && entry.package_role && entry.installability && entry.recommended_action), true);
       assert.equal('directory' in projected, false);
@@ -303,18 +318,22 @@ test('legacy v1 Release Set cache remains non-live and never invents a descripto
         surface_kind: 'opl_agent_package_release_catalog_cache.v1',
         catalog_ref: 'ghcr.io/fixture/one-person-lab-manifest:latest-stable',
         catalog_digest: legacyLayerDigest,
-        checked_at: new Date().toISOString(),
+        checked_at: '2000-01-01T00:00:00.000Z',
         catalog_payload: catalogPayload,
       }),
     );
     const snapshot = readFirstPartyPackageCatalogSnapshot();
     assert.ok(snapshot);
-    assert.equal(snapshot.freshness, 'cached');
+    assert.equal(snapshot.freshness, 'last_known_good');
     assert.equal(snapshot.release_set_descriptor_digest, null);
     assert.equal(snapshot.channel_manifest_layer_digest, legacyLayerDigest);
     assert.equal(
       snapshot.package_catalog_digest,
       `sha256:${crypto.createHash('sha256').update(JSON.stringify(packageCatalog)).digest('hex')}`,
+    );
+    assert.equal(
+      listOplAgentPackages().opl_agent_packages.directory.first_party_release_currentness.status,
+      'unknown',
     );
   } finally {
     if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;

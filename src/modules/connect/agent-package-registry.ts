@@ -121,7 +121,6 @@ import {
   enrichRegistryCacheManifestMetadata,
 } from './agent-package-registry-parts/directory.ts';
 import {
-  readFirstPartyPackageCatalogSnapshot,
   refreshFirstPartyPackageCatalogSnapshot,
   resolveFirstPartyPackageCatalogSnapshot,
 } from './agent-package-registry-parts/release-catalog-cache.ts';
@@ -4442,7 +4441,7 @@ export function listOplAgentPackages(input: {
     registryCache,
     locks: lockIndex.packages,
     detail,
-    firstPartyCatalog: input.firstPartyCatalog ?? readFirstPartyPackageCatalogSnapshot(),
+    firstPartyCatalog: input.firstPartyCatalog ?? null,
     actionContext: input.statusContext,
     readStatus: (packageId) => {
       const context = input.statusContext?.(packageId) ?? {};
