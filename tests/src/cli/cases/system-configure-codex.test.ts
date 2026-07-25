@@ -14,6 +14,7 @@ import {
 import {
   agentPackageLifecycleUxReadback,
 } from '../../../../src/modules/connect/agent-package-registry-parts/readback.ts';
+import { computePackageChannelTreeSha256 } from '../../../../src/modules/connect/system-installation/module-package-channel.ts';
 import {
   runCliWithStdin,
 } from './system-install-fixtures.ts';
@@ -73,6 +74,15 @@ function materializeScholarSkillsFixture(root: string, manifest: Record<string, 
   }
 }
 
+function bundledFixtureManifestPath(packageId: string) {
+  return path.resolve(
+    'contracts',
+    'opl-framework',
+    'packages',
+    packageId === 'oma' ? 'oma-0.4.3.json' : `${packageId}.json`,
+  );
+}
+
 function buildBundledRuntimeCatalogFixture(input: {
   familyRoot: string;
   runtimeHome: string;
@@ -94,7 +104,7 @@ function buildBundledRuntimeCatalogFixture(input: {
   const packages: Record<string, unknown> = {};
 
   for (const packageId of [...bundledPackageFixtures.map((entry) => entry.packageId), 'mas-scholar-skills']) {
-    const canonicalManifestPath = path.resolve('contracts', 'opl-framework', 'packages', `${packageId}.json`);
+    const canonicalManifestPath = bundledFixtureManifestPath(packageId);
     const canonicalPayloadPath = path.resolve(
       'contracts',
       'opl-framework',
@@ -180,6 +190,15 @@ function buildBundledRuntimeCatalogFixture(input: {
 
 function buildFullRuntimeFamilyFixture(input: { captureDir: string; homeRoot: string }) {
   const familyWorkspace = createFakeFamilySkillWorkspace(input.captureDir);
+  writeJson(
+    path.join(familyWorkspace.workspaceRoot, 'opl-meta-agent', 'contracts', 'foundry_provider.json'),
+    {
+      surface_kind: 'opl_foundry_provider_manifest',
+      version: 'opl-foundry-provider.v1',
+      provider_id: 'oma',
+      owner: 'opl-meta-agent',
+    },
+  );
   const runtimeHome = path.join(input.homeRoot, 'full-runtime');
   const bundledCatalog = buildBundledRuntimeCatalogFixture({
     familyRoot: familyWorkspace.workspaceRoot,
@@ -194,7 +213,7 @@ function buildFullRuntimeFamilyFixture(input: { captureDir: string; homeRoot: st
     ['opl-bookforge', 'oplbookforge', 'obf'],
   ]) {
     const packageManifest = parseJsonText(fs.readFileSync(
-      path.resolve('contracts', 'opl-framework', 'packages', `${packageId}.json`),
+      bundledFixtureManifestPath(packageId),
       'utf8',
     )) as Record<string, any>;
     fs.writeFileSync(
@@ -709,6 +728,248 @@ test('system configure-codex does not sync packaged Full companion skills', () =
     }
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
+  }
+});
+
+test('packages repair restores an installed bundled runtime only from its immutable source identity', () => {
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bundled-package-repair-home-'));
+  const captureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bundled-package-repair-capture-'));
+  const fixture = buildFullRuntimeFamilyFixture({ captureDir, homeRoot });
+  const codexHome = path.join(homeRoot, 'codex-home');
+
+  try {
+    runCliWithStdin(
+      ['system', 'configure-codex', '--api-key-stdin'],
+      'secret-family-key\n',
+      fixture.env,
+    );
+    runCli(['system', 'startup-maintenance'], fixture.env);
+
+    const lockPath = path.join(fixture.env.OPL_STATE_DIR, 'agent-package-locks.json');
+    const originalLockIndex = parseJsonText(fs.readFileSync(lockPath, 'utf8')) as Record<string, any>;
+    const omaLock = originalLockIndex.packages.find(
+      (entry: Record<string, any>) => entry.package_id === 'oma',
+    );
+    assert.equal(omaLock.package_version, '0.4.3');
+    assert.equal(omaLock.owner_source_commit, 'd58fee532bc0ccce4b7a4f1c5a5e521dd2e50a41');
+    const omaTargetRoot = omaLock.managed_runtime_source.checkout_path as string;
+    const omaRepairSourceRoot = path.join(homeRoot, 'oma-repair-source');
+    const omaWrongSourceRoot = path.join(homeRoot, 'oma-repair-source-wrong-tree');
+    const omaLiveCheckoutSourceRoot = path.join(homeRoot, 'oma-live-checkout-source');
+    fs.cpSync(omaTargetRoot, omaRepairSourceRoot, { recursive: true });
+    fs.cpSync(omaTargetRoot, omaWrongSourceRoot, { recursive: true });
+    fs.cpSync(omaTargetRoot, omaLiveCheckoutSourceRoot, { recursive: true });
+    fs.appendFileSync(
+      path.join(omaWrongSourceRoot, 'agent', 'primary_skill', 'SKILL.md'),
+      '\nwrong repair source tree\n',
+    );
+    const liveCheckoutMarkerPath = path.join(omaLiveCheckoutSourceRoot, 'opl-runtime-module.json');
+    const liveCheckoutMarker = parseJsonText(fs.readFileSync(liveCheckoutMarkerPath, 'utf8')) as Record<string, any>;
+    liveCheckoutMarker.source_git.head_sha = '65e1bb8753c9a4e6b49712cdff75395518f569f0';
+    writeJson(liveCheckoutMarkerPath, liveCheckoutMarker);
+    fs.appendFileSync(
+      path.join(omaLiveCheckoutSourceRoot, 'agent', 'primary_skill', 'SKILL.md'),
+      '\nlive checkout package tree\n',
+    );
+    fs.appendFileSync(
+      path.join(omaTargetRoot, 'agent', 'primary_skill', 'SKILL.md'),
+      '\ndisplaced live runtime tree\n',
+    );
+    const driftedOmaTreeSha256 = computePackageChannelTreeSha256(omaTargetRoot);
+    assert.notEqual(driftedOmaTreeSha256, omaLock.managed_runtime_source.tree_sha256);
+
+    const packageLifecycleMutexPaths = [
+      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite'),
+      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite-wal'),
+      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite-shm'),
+    ];
+    const repairAuthorityPaths = [
+      lockPath,
+      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json'),
+      ...packageLifecycleMutexPaths,
+      path.join(codexHome, 'config.toml'),
+    ];
+    const captureAuthorityBytes = (filePaths: string[]) => new Map(filePaths.map((filePath) => [
+      filePath,
+      fs.existsSync(filePath) ? fs.readFileSync(filePath) : null,
+    ]));
+    const assertAuthorityBytes = (before: Map<string, Buffer | null>) => {
+      for (const [filePath, expected] of before) {
+        if (expected === null) {
+          assert.equal(fs.existsSync(filePath), false, `${filePath} must remain absent`);
+        } else {
+          assert.deepEqual(fs.readFileSync(filePath), expected, `${filePath} must remain byte-identical`);
+        }
+      }
+    };
+    const noWriteBytes = captureAuthorityBytes(repairAuthorityPaths);
+    const wrongSourceFailure = runCliFailure([
+      'packages', 'repair', 'oma', '--agent-root', omaWrongSourceRoot, '--dry-run',
+    ], fixture.env);
+    assert.equal(wrongSourceFailure.status, 3);
+    assert.equal(
+      wrongSourceFailure.payload.error.details.failure_code,
+      'agent_package_bundled_full_runtime_repair_source_identity_mismatch',
+    );
+    assert.equal(wrongSourceFailure.payload.error.details.mutation_started, false);
+    assert.equal(
+      wrongSourceFailure.payload.error.details.expected_tree_sha256,
+      omaLock.managed_runtime_source.tree_sha256,
+    );
+    assert.notEqual(
+      wrongSourceFailure.payload.error.details.actual_source_tree_sha256,
+      omaLock.managed_runtime_source.tree_sha256,
+    );
+    assert.equal(computePackageChannelTreeSha256(omaTargetRoot), driftedOmaTreeSha256);
+    assertAuthorityBytes(noWriteBytes);
+
+    const liveCheckoutSourceFailure = runCliFailure([
+      'packages', 'repair', 'oma', '--agent-root', omaLiveCheckoutSourceRoot, '--dry-run',
+    ], fixture.env);
+    assert.equal(liveCheckoutSourceFailure.status, 3);
+    assert.equal(
+      liveCheckoutSourceFailure.payload.error.details.failure_code,
+      'agent_package_bundled_full_runtime_repair_source_identity_mismatch',
+    );
+    assert.equal(liveCheckoutSourceFailure.payload.error.details.mutation_started, false);
+    assert.equal(
+      liveCheckoutSourceFailure.payload.error.details.actual_source_owner_source_commit,
+      '65e1bb8753c9a4e6b49712cdff75395518f569f0',
+    );
+    assert.notEqual(
+      liveCheckoutSourceFailure.payload.error.details.actual_source_tree_sha256,
+      omaLock.managed_runtime_source.tree_sha256,
+    );
+    assert.equal(computePackageChannelTreeSha256(omaTargetRoot), driftedOmaTreeSha256);
+    assertAuthorityBytes(noWriteBytes);
+
+    const repairPreview = runCli([
+      'packages', 'repair', 'oma', '--agent-root', omaRepairSourceRoot, '--dry-run',
+    ], fixture.env) as any;
+    assert.equal(repairPreview.opl_agent_package_repair.status, 'validated_no_write');
+    assert.equal(repairPreview.opl_agent_package_repair.dry_run, true);
+    assert.equal(
+      repairPreview.opl_agent_package_repair.repair_source_validation.status,
+      'validated_no_write',
+    );
+    assert.equal(
+      repairPreview.opl_agent_package_repair.repair_source_validation.source_role,
+      'source_only',
+    );
+    assert.equal(
+      repairPreview.opl_agent_package_repair.repair_source_validation.target_role,
+      'existing_lock_checkout',
+    );
+    assert.equal(
+      repairPreview.opl_agent_package_repair.repair_source_validation.source_root,
+      omaRepairSourceRoot,
+    );
+    assert.equal(
+      repairPreview.opl_agent_package_repair.repair_source_validation.target_root,
+      omaTargetRoot,
+    );
+    assert.equal(
+      repairPreview.opl_agent_package_repair.repair_source_validation.source_tree_sha256,
+      omaLock.managed_runtime_source.tree_sha256,
+    );
+    assert.equal(
+      repairPreview.opl_agent_package_repair.repair_source_validation.source_owner_source_commit,
+      omaLock.owner_source_commit,
+    );
+    assert.equal(repairPreview.opl_agent_package_repair.repair_source_validation.source_adopted_as_target, false);
+    assert.equal(repairPreview.opl_agent_package_repair.repair_source_validation.mutation_started, false);
+    assert.equal(repairPreview.opl_agent_package_repair.repair_source_validation.writes_performed, false);
+    assert.equal(repairPreview.opl_agent_package_repair.package_lock.managed_runtime_source.checkout_path, omaTargetRoot);
+    assert.equal(computePackageChannelTreeSha256(omaTargetRoot), driftedOmaTreeSha256);
+    assertAuthorityBytes(noWriteBytes);
+
+    const rollbackAuthorityPaths = repairAuthorityPaths.filter((filePath) =>
+      !packageLifecycleMutexPaths.includes(filePath));
+    const rollbackBytes = captureAuthorityBytes(rollbackAuthorityPaths);
+    const repairInterrupted = runCliFailure([
+      'packages', 'repair', 'oma', '--agent-root', omaRepairSourceRoot,
+    ], {
+      ...fixture.env,
+      OPL_TEST_RUNTIME_SOURCE_INTERRUPT_AFTER_APPLY: '1',
+    });
+    assert.equal(repairInterrupted.status, 3);
+    assert.equal(
+      repairInterrupted.payload.error.details.failure_code,
+      'agent_package_bundled_full_runtime_repair_rolled_back',
+    );
+    assert.equal(repairInterrupted.payload.error.details.local_prestate_restored, true);
+    assert.equal(repairInterrupted.payload.error.details.mutation_started, true);
+    assert.equal(
+      repairInterrupted.payload.error.details.original_error.error.details.failure_code,
+      'test_runtime_source_interrupted_after_apply',
+    );
+    assert.equal(computePackageChannelTreeSha256(omaTargetRoot), driftedOmaTreeSha256);
+    assertAuthorityBytes(rollbackBytes);
+    assert.equal(
+      fs.readdirSync(path.dirname(omaTargetRoot)).some((entry) =>
+        entry.startsWith(`${path.basename(omaTargetRoot)}.opl-package-repair-`)),
+      false,
+    );
+    const runtimeTransactionRoot = path.join(
+      fixture.env.OPL_STATE_DIR,
+      'agent-package-runtime-source-transactions',
+    );
+    assert.deepEqual(
+      fs.existsSync(runtimeTransactionRoot) ? fs.readdirSync(runtimeTransactionRoot) : [],
+      [],
+    );
+
+    const unrelatedLocksBeforeRepair = (parseJsonText(fs.readFileSync(lockPath, 'utf8')) as Record<string, any>)
+      .packages.filter((entry: Record<string, any>) => entry.package_id !== 'oma');
+    const repaired = runCli([
+      'packages', 'repair', 'oma', '--agent-root', omaRepairSourceRoot,
+    ], fixture.env) as any;
+    assert.equal(repaired.opl_agent_package_repair.status, 'repaired');
+    assert.equal(repaired.opl_agent_package_repair.dry_run, false);
+    assert.equal(repaired.opl_agent_package_repair.lifecycle_receipt.action, 'repair');
+    assert.equal(repaired.opl_agent_package_repair.lifecycle_receipt.action_status, 'completed');
+    assert.equal(repaired.opl_agent_package_repair.lifecycle_receipt.writes_performed, true);
+    assert.equal(repaired.opl_agent_package_repair.repair_source_validation.status, 'completed');
+    assert.equal(repaired.opl_agent_package_repair.repair_source_validation.source_adopted_as_target, false);
+    assert.equal(repaired.opl_agent_package_repair.repair_source_validation.target_root, omaTargetRoot);
+    assert.equal(repaired.opl_agent_package_repair.repair_source_validation.actual_tree_sha256, omaLock.managed_runtime_source.tree_sha256);
+    assert.equal(
+      repaired.opl_agent_package_repair.repair_source_validation.runtime_source_readiness.status,
+      'current',
+    );
+    assert.equal(
+      repaired.opl_agent_package_repair.repair_source_validation.runtime_source_readiness.operational_ready,
+      true,
+    );
+    assert.equal(computePackageChannelTreeSha256(omaTargetRoot), omaLock.managed_runtime_source.tree_sha256);
+    const repairedLockIndex = parseJsonText(fs.readFileSync(lockPath, 'utf8')) as Record<string, any>;
+    const repairedOmaLock = repairedLockIndex.packages.find(
+      (entry: Record<string, any>) => entry.package_id === 'oma',
+    );
+    assert.equal(repairedOmaLock.managed_runtime_source.checkout_path, omaTargetRoot);
+    assert.equal(repairedOmaLock.managed_runtime_source.tree_sha256, omaLock.managed_runtime_source.tree_sha256);
+    assert.equal(repairedOmaLock.managed_runtime_source.source_git_head_sha, omaLock.owner_source_commit);
+    assert.equal(repairedOmaLock.owner_source_commit, omaLock.owner_source_commit);
+    assert.equal(repairedOmaLock.carrier_authority.verified_source_commit, omaLock.owner_source_commit);
+    assert.deepEqual(
+      repairedLockIndex.packages.filter((entry: Record<string, any>) => entry.package_id !== 'oma'),
+      unrelatedLocksBeforeRepair,
+    );
+    const repairedStatus = runCli(['packages', 'status', '--package-id', 'oma'], fixture.env) as any;
+    assert.equal(repairedStatus.opl_agent_package_status.status, 'available');
+    assert.equal(repairedStatus.opl_agent_package_status.operational_ready, true);
+    assert.equal(repairedStatus.opl_agent_package_status.launch_allowed, true);
+    assert.equal(repairedStatus.opl_agent_package_status.runtime_source_readiness.status, 'current');
+    assert.equal(repairedStatus.opl_agent_package_status.runtime_source_readiness.operational_ready, true);
+    assert.equal(
+      fs.readdirSync(path.dirname(omaTargetRoot)).some((entry) =>
+        entry.startsWith(`${path.basename(omaTargetRoot)}.opl-package-repair-`)),
+      false,
+    );
+  } finally {
+    removeFixtureTree(fixture.familyWorkspace.workspaceRoot);
+    fs.rmSync(homeRoot, { recursive: true, force: true });
+    fs.rmSync(captureDir, { recursive: true, force: true });
   }
 });
 

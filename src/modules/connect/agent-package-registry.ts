@@ -14,7 +14,12 @@ import {
   resolveFirstPartyPackageCatalog,
 } from './agent-package-first-party.ts';
 import { materializeStandardAgentFrameworkLink } from './standard-agent-framework-link.ts';
-import type { ManagedModulePackageChannelSelection } from './system-installation/module-package-channel.ts';
+import {
+  computePackageChannelTreeSha256,
+  type ManagedModulePackageChannelSelection,
+} from './system-installation/module-package-channel.ts';
+import { readPackagedModuleMarker } from './system-installation/module-packaged.ts';
+import { resolveOplDomainModuleSpec } from './system-installation/modules.ts';
 import { FORBIDDEN_AGENT_PACKAGE_FIELDS, MANIFEST_REQUIRED_FIELDS } from './agent-package-registry-parts/constants.ts';
 import {
   assertManifestMatchesRegistrySelection,
@@ -234,6 +239,19 @@ type BundledFullRuntimePathSnapshot = {
 type BundledFullRuntimePackageSnapshot = {
   root: string;
   paths: BundledFullRuntimePathSnapshot[];
+};
+
+type BundledFullRuntimeRepairSourceValidation = {
+  packageId: string;
+  sourceRoot: string;
+  targetRoot: string;
+  moduleId: string;
+  expectedTreeSha256: string;
+  sourceTreeSha256: string;
+  targetTreeSha256: string;
+  expectedOwnerSourceCommit: string;
+  sourceOwnerSourceCommit: string;
+  targetOwnerSourceCommit: string | null;
 };
 
 function bundledFullRuntimePayloadContentDigest(entry: BundledFullRuntimeCatalogEntry) {
@@ -469,7 +487,11 @@ async function applyManifestPackageLock(
       && input.provenance?.source_policy === 'bundled_full_runtime_modules'
       && input.provenance.trigger === 'managed_update_kernel_apply'
       && input.provenance.initiator === 'opl_managed_update_kernel';
-    if ((action !== 'install' && !trustedBundledUpdate)
+    const trustedBundledRepair = action === 'repair'
+      && input.provenance?.source_policy === 'bundled_full_runtime_modules'
+      && input.provenance.trigger === 'agent_package_repair'
+      && input.provenance.initiator === 'opl_packages';
+    if ((action !== 'install' && !trustedBundledUpdate && !trustedBundledRepair)
       || packageId !== trustedBundledInstall.packageId
       || input.sourceKind !== 'bundled_full_runtime_modules'
       || stringValue(input.manifestUrl) !== expectedManifestUrl
@@ -484,6 +506,7 @@ async function applyManifestPackageLock(
         selected_package_root: selectedPackageRoot,
         lifecycle_action: action,
         bundled_update_provenance_valid: trustedBundledUpdate,
+        bundled_repair_provenance_valid: trustedBundledRepair,
         failure_code: 'agent_package_bundled_full_runtime_selection_invalid',
       });
     }
@@ -2018,6 +2041,7 @@ function captureBundledFullRuntimePackageSnapshot(input: {
   index: AgentPackageLockIndex;
   rootPackageId: string;
   prospectiveLocks: AgentPackageLock[];
+  extraTargetPaths?: string[];
 }) {
   const statePaths = resolveOplStatePaths();
   const affectedLocks = bundledFullRuntimeAffectedLocks({
@@ -2033,6 +2057,7 @@ function captureBundledFullRuntimePackageSnapshot(input: {
     statePaths.agent_package_lock_file,
     statePaths.agent_package_lifecycle_ledger_file,
     ...affectedLocks.flatMap(managedBundledLockSnapshotPaths),
+    ...(input.extraTargetPaths ?? []),
   ], managedEntrypointPaths);
   const snapshotRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bundled-package-update-'));
   try {
@@ -2128,6 +2153,422 @@ function managedBundledFullRuntimeProvenance(operationId: string) {
     operation_id: operationId,
     correlation_id: operationId,
   } satisfies AgentPackageInstallInput['provenance'];
+}
+
+function bundledFullRuntimeRepairFailure(
+  message: string,
+  details: Record<string, unknown>,
+  failureCode: string,
+) {
+  return new FrameworkContractError('contract_shape_invalid', message, {
+    ...details,
+    mutation_started: false,
+    failure_code: failureCode,
+  });
+}
+
+function pathContainsPath(parentPath: string, candidatePath: string) {
+  const relative = path.relative(parentPath, candidatePath);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function validateBundledFullRuntimeRepairSource(
+  input: AgentPackageRepairInput,
+  lock: AgentPackageLock,
+): BundledFullRuntimeRepairSourceValidation {
+  const sourceRoot = stringValue(input.agentRoot);
+  const managedSource = lock.managed_runtime_source;
+  const carrier = lock.runtime_source_carrier;
+  const expectedOwnerSourceCommit = lock.owner_source_commit ?? null;
+  if (!sourceRoot || !managedSource || !carrier
+    || managedSource.source_mode !== 'bundled_full_runtime'
+    || !/^[0-9a-f]{40}$/.test(expectedOwnerSourceCommit ?? '')
+    || managedSource.source_git_head_sha !== expectedOwnerSourceCommit
+    || lock.carrier_authority?.verified_source_commit !== expectedOwnerSourceCommit) {
+    throw bundledFullRuntimeRepairFailure(
+      'Bundled Full runtime repair requires an installed immutable lock and an explicit source root.',
+      {
+        package_id: lock.package_id,
+        source_root_present: Boolean(sourceRoot),
+        managed_runtime_source_present: Boolean(managedSource),
+        runtime_source_carrier_present: Boolean(carrier),
+        source_mode: managedSource?.source_mode ?? null,
+        lock_owner_source_commit: expectedOwnerSourceCommit,
+        managed_source_commit: managedSource?.source_git_head_sha ?? null,
+        carrier_source_commit: lock.carrier_authority?.verified_source_commit ?? null,
+      },
+      'agent_package_bundled_full_runtime_repair_lock_invalid',
+    );
+  }
+  const sourcePath = path.resolve(sourceRoot);
+  const targetPath = path.resolve(managedSource.checkout_path);
+  const sourceStat = lstatOrNull(sourcePath);
+  const targetStat = lstatOrNull(targetPath);
+  if (!sourceStat?.isDirectory() || sourceStat.isSymbolicLink()
+    || !targetStat?.isDirectory() || targetStat.isSymbolicLink()) {
+    throw bundledFullRuntimeRepairFailure(
+      'Bundled Full runtime repair requires physical non-symbolic-link source and target directories.',
+      {
+        package_id: lock.package_id,
+        source_root: sourcePath,
+        target_root: targetPath,
+        source_directory: sourceStat?.isDirectory() ?? false,
+        source_symbolic_link: sourceStat?.isSymbolicLink() ?? false,
+        target_directory: targetStat?.isDirectory() ?? false,
+        target_symbolic_link: targetStat?.isSymbolicLink() ?? false,
+      },
+      'agent_package_bundled_full_runtime_repair_source_unsafe',
+    );
+  }
+  const realSourcePath = fs.realpathSync.native(sourcePath);
+  const realTargetPath = fs.realpathSync.native(targetPath);
+  if (pathContainsPath(realSourcePath, realTargetPath)
+    || pathContainsPath(realTargetPath, realSourcePath)) {
+    throw bundledFullRuntimeRepairFailure(
+      'Bundled Full runtime repair source must be independent from the installed target.',
+      {
+        package_id: lock.package_id,
+        source_root: sourcePath,
+        target_root: targetPath,
+      },
+      'agent_package_bundled_full_runtime_repair_source_overlaps_target',
+    );
+  }
+  const spec = resolveOplDomainModuleSpec(managedSource.module_id);
+  const sourceMarker = readPackagedModuleMarker(sourcePath, spec);
+  const targetMarker = readPackagedModuleMarker(targetPath, spec);
+  const sourceTreeSha256 = computePackageChannelTreeSha256(sourcePath);
+  const targetTreeSha256 = computePackageChannelTreeSha256(targetPath);
+  const expectedTreeSha256 = managedSource.tree_sha256;
+  if (sourceMarker?.source_kind !== 'full_runtime'
+    || sourceMarker.source_git.head_sha !== expectedOwnerSourceCommit
+    || sourceTreeSha256 !== expectedTreeSha256) {
+    throw bundledFullRuntimeRepairFailure(
+      'Bundled Full runtime repair source does not match the installed immutable lock identity.',
+      {
+        package_id: lock.package_id,
+        module_id: managedSource.module_id,
+        source_root: sourcePath,
+        target_root: targetPath,
+        expected_tree_sha256: expectedTreeSha256,
+        actual_source_tree_sha256: sourceTreeSha256,
+        expected_owner_source_commit: expectedOwnerSourceCommit,
+        actual_source_owner_source_commit: sourceMarker?.source_git.head_sha ?? null,
+        source_kind: sourceMarker?.source_kind ?? null,
+      },
+      'agent_package_bundled_full_runtime_repair_source_identity_mismatch',
+    );
+  }
+  return {
+    packageId: lock.package_id,
+    sourceRoot: sourcePath,
+    targetRoot: targetPath,
+    moduleId: managedSource.module_id,
+    expectedTreeSha256,
+    sourceTreeSha256,
+    targetTreeSha256,
+    expectedOwnerSourceCommit,
+    sourceOwnerSourceCommit: sourceMarker.source_git.head_sha!,
+    targetOwnerSourceCommit: targetMarker?.source_git.head_sha ?? null,
+  };
+}
+
+function bundledFullRuntimeRepairReadback(
+  input: AgentPackageRepairInput,
+  lock: AgentPackageLock,
+  validation: BundledFullRuntimeRepairSourceValidation,
+) {
+  const receipt = lifecycleReceipt({
+    action: 'repair',
+    actionStatus: 'validated',
+    packageId: lock.package_id,
+    manifestUrl: lock.manifest_url,
+    manifestSha256: lock.manifest_sha256,
+    packageLockRef: lock.lock_ref,
+    rollbackRef: lock.rollback_ref,
+    sourceKind: lock.source_kind,
+    trustTier: lock.trust_tier,
+    sourceSha256: sha256Text([
+      'bundled-full-runtime-repair-source',
+      validation.sourceRoot,
+      validation.sourceTreeSha256,
+      validation.sourceOwnerSourceCommit,
+    ].join('\n')),
+    writesPerformed: false,
+    physicalSurface: lock.physical_surface,
+    managedRuntimeSource: lock.managed_runtime_source,
+    sourceArtifactRef: lock.source_artifact_ref ?? null,
+    artifactDigest: lock.artifact_digest ?? null,
+    ownerSourceCommit: lock.owner_source_commit ?? null,
+    carrierAuthority: lock.carrier_authority ?? null,
+    releaseChannelRef: lock.release_channel_ref ?? null,
+    releaseChannelDigest: lock.release_channel_digest ?? null,
+  });
+  return {
+    version: 'g2',
+    opl_agent_package_repair: {
+      surface_kind: 'opl_agent_package_repair',
+      status: 'validated_no_write',
+      dry_run: true,
+      package_lock: lock,
+      physical_surface: lock.physical_surface,
+      framework_link: null,
+      lifecycle_receipt: receipt,
+      owner_route_readback: ownerRouteReadback({
+        selectedPackageId: lock.package_id,
+        scope: input.scope,
+        targetWorkspace: input.targetWorkspace,
+        targetQuest: input.targetQuest,
+        packages: [{ packageId: lock.package_id, lock, receipt }],
+      }),
+      repair_source_validation: {
+        status: 'validated_no_write',
+        source_role: 'source_only',
+        target_role: 'existing_lock_checkout',
+        source_root: validation.sourceRoot,
+        target_root: validation.targetRoot,
+        expected_tree_sha256: validation.expectedTreeSha256,
+        source_tree_sha256: validation.sourceTreeSha256,
+        target_tree_sha256: validation.targetTreeSha256,
+        expected_owner_source_commit: validation.expectedOwnerSourceCommit,
+        source_owner_source_commit: validation.sourceOwnerSourceCommit,
+        target_owner_source_commit: validation.targetOwnerSourceCommit,
+        source_adopted_as_target: false,
+        mutation_started: false,
+        writes_performed: false,
+      },
+      authority_boundary: refsOnlyAuthorityBoundary(),
+    },
+  };
+}
+
+function verifyBundledFullRuntimeRepairTarget(
+  lock: AgentPackageLock,
+  validation: BundledFullRuntimeRepairSourceValidation,
+) {
+  const state = lock.managed_runtime_source;
+  const spec = resolveOplDomainModuleSpec(validation.moduleId);
+  const marker = readPackagedModuleMarker(validation.targetRoot, spec);
+  const actualTreeSha256 = computePackageChannelTreeSha256(validation.targetRoot);
+  const readiness = managedRuntimeSourceReadiness(state, lock.runtime_source_carrier);
+  const mismatches = [
+    state?.source_mode === 'bundled_full_runtime' ? null : 'source_mode',
+    state && path.resolve(state.checkout_path) === validation.targetRoot ? null : 'checkout_path',
+    state?.tree_sha256 === validation.expectedTreeSha256 ? null : 'lock_tree_sha256',
+    actualTreeSha256 === validation.expectedTreeSha256 ? null : 'actual_tree_sha256',
+    state?.source_git_head_sha === validation.expectedOwnerSourceCommit ? null : 'lock_source_commit',
+    marker?.source_git.head_sha === validation.expectedOwnerSourceCommit ? null : 'marker_source_commit',
+    lock.owner_source_commit === validation.expectedOwnerSourceCommit ? null : 'owner_source_commit',
+    lock.carrier_authority?.verified_source_commit === validation.expectedOwnerSourceCommit
+      ? null
+      : 'carrier_source_commit',
+    readiness.status === 'current' ? null : 'runtime_source_status',
+    readiness.operational_ready ? null : 'runtime_source_operational_ready',
+  ].filter((entry): entry is string => entry !== null);
+  if (mismatches.length > 0) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Bundled Full runtime repair final verification did not prove the installed target current.',
+      {
+        package_id: lock.package_id,
+        source_root: validation.sourceRoot,
+        target_root: validation.targetRoot,
+        expected_tree_sha256: validation.expectedTreeSha256,
+        actual_tree_sha256: actualTreeSha256,
+        expected_owner_source_commit: validation.expectedOwnerSourceCommit,
+        actual_marker_source_commit: marker?.source_git.head_sha ?? null,
+        runtime_source_readiness: readiness,
+        mismatches,
+        mutation_started: true,
+        failure_code: 'agent_package_bundled_full_runtime_repair_final_verification_failed',
+      },
+    );
+  }
+  return readiness;
+}
+
+async function runOplBundledFullRuntimeAgentPackageRepairUnlocked(
+  input: AgentPackageRepairInput,
+  originalIndex: AgentPackageLockIndex,
+  lock: AgentPackageLock,
+) {
+  const validation = validateBundledFullRuntimeRepairSource(input, lock);
+  const catalog = readBundledFullRuntimePackageCatalog();
+  const packageRoots = { [lock.package_id]: validation.targetRoot };
+  assertBundledFullRuntimePackageRoots({
+    catalog,
+    rootPackageId: lock.package_id,
+    packageRoots,
+  });
+  if (input.dryRun) return bundledFullRuntimeRepairReadback(input, lock, validation);
+
+  const catalogEntry = catalog.entries.get(lock.package_id)!;
+  const firstParty = resolveFirstPartyPackageCatalog(lock.package_id)!;
+  const transactionId = sha256Text([
+    'bundled-full-runtime-owner-repair',
+    lock.package_id,
+    lock.lock_ref,
+    validation.sourceTreeSha256,
+    validation.expectedOwnerSourceCommit,
+  ].join('\n')).slice(0, 24);
+  const stageRoot = `${validation.targetRoot}.opl-package-repair-stage-${transactionId}`;
+  const displacedRoot = `${validation.targetRoot}.opl-package-repair-displaced-${transactionId}`;
+  if (fs.existsSync(stageRoot) || fs.existsSync(displacedRoot)) {
+    throw bundledFullRuntimeRepairFailure(
+      'Bundled Full runtime repair found unresolved package-local transaction residue.',
+      {
+        package_id: lock.package_id,
+        stage_root: stageRoot,
+        displaced_root: displacedRoot,
+        stage_root_present: fs.existsSync(stageRoot),
+        displaced_root_present: fs.existsSync(displacedRoot),
+      },
+      'agent_package_bundled_full_runtime_repair_residue_present',
+    );
+  }
+  if (path.resolve(validation.sourceRoot) === path.resolve(stageRoot)
+    || path.resolve(validation.sourceRoot) === path.resolve(displacedRoot)) {
+    throw bundledFullRuntimeRepairFailure(
+      'Bundled Full runtime repair source collides with a reserved transaction path.',
+      {
+        package_id: lock.package_id,
+        source_root: validation.sourceRoot,
+        stage_root: stageRoot,
+        displaced_root: displacedRoot,
+      },
+      'agent_package_bundled_full_runtime_repair_source_unsafe',
+    );
+  }
+
+  const snapshot = captureBundledFullRuntimePackageSnapshot({
+    index: originalIndex,
+    rootPackageId: lock.package_id,
+    prospectiveLocks: [lock],
+    extraTargetPaths: [validation.targetRoot],
+  });
+  let targetReplaced = false;
+  try {
+    copyBundledFullRuntimeSnapshotPath(validation.sourceRoot, stageRoot);
+    const stagedMarker = readPackagedModuleMarker(
+      stageRoot,
+      resolveOplDomainModuleSpec(validation.moduleId),
+    );
+    const stagedTreeSha256 = computePackageChannelTreeSha256(stageRoot);
+    if (stagedMarker?.source_kind !== 'full_runtime'
+      || stagedMarker.source_git.head_sha !== validation.expectedOwnerSourceCommit
+      || stagedTreeSha256 !== validation.expectedTreeSha256) {
+      throw bundledFullRuntimeRepairFailure(
+        'Bundled Full runtime repair staging changed the immutable source identity.',
+        {
+          package_id: lock.package_id,
+          stage_root: stageRoot,
+          expected_tree_sha256: validation.expectedTreeSha256,
+          actual_tree_sha256: stagedTreeSha256,
+          expected_owner_source_commit: validation.expectedOwnerSourceCommit,
+          actual_owner_source_commit: stagedMarker?.source_git.head_sha ?? null,
+        },
+        'agent_package_bundled_full_runtime_repair_stage_identity_mismatch',
+      );
+    }
+    fs.renameSync(validation.targetRoot, displacedRoot);
+    fs.renameSync(stageRoot, validation.targetRoot);
+    targetReplaced = true;
+
+    const provenance = {
+      trigger: 'agent_package_repair',
+      initiator: 'opl_packages',
+      source_policy: 'bundled_full_runtime_modules',
+      source_policy_reason: 'explicit_source_matches_installed_bundled_identity',
+      operation_id: transactionId,
+      correlation_id: transactionId,
+    } satisfies AgentPackageInstallInput['provenance'];
+    const lifecycleInput: AgentPackageInstallInput = {
+      packageId: lock.package_id,
+      manifestUrl: catalogEntry.manifestUrl,
+      trustTier: firstParty.trustTier,
+      sourceKind: 'bundled_full_runtime_modules',
+      agentRoot: validation.targetRoot,
+      dryRun: false,
+      provenance,
+    };
+    const result = await applyManifestPackageLock(lifecycleInput, 'repair', {
+      trustedBundledFullRuntimeInstall: {
+        packageId: lock.package_id,
+        agentRoot: validation.targetRoot,
+        packageRoots,
+      },
+    });
+    const readiness = verifyBundledFullRuntimeRepairTarget(result.lock, validation);
+    fs.rmSync(displacedRoot, { recursive: true, force: true });
+    const readback = packageRepairResult(input, result);
+    return {
+      ...readback,
+      opl_agent_package_repair: {
+        ...readback.opl_agent_package_repair,
+        repair_source_validation: {
+          status: 'completed',
+          source_role: 'source_only',
+          target_role: 'existing_lock_checkout',
+          source_root: validation.sourceRoot,
+          target_root: validation.targetRoot,
+          expected_tree_sha256: validation.expectedTreeSha256,
+          source_tree_sha256: validation.sourceTreeSha256,
+          actual_tree_sha256: readiness.actual_tree_sha256,
+          expected_owner_source_commit: validation.expectedOwnerSourceCommit,
+          source_owner_source_commit: validation.sourceOwnerSourceCommit,
+          target_owner_source_commit: result.lock.managed_runtime_source?.source_git_head_sha ?? null,
+          source_adopted_as_target: false,
+          mutation_started: true,
+          writes_performed: true,
+          runtime_source_readiness: readiness,
+        },
+      },
+    };
+  } catch (error) {
+    try {
+      rollbackBundledFullRuntimePackage(snapshot);
+    } catch (rollbackError) {
+      throw new FrameworkContractError(
+        'contract_shape_invalid',
+        'Bundled Full runtime repair failed and its package-local prestate could not be proven restored.',
+        {
+          package_id: lock.package_id,
+          source_root: validation.sourceRoot,
+          target_root: validation.targetRoot,
+          local_prestate_restored: false,
+          mutation_started: targetReplaced,
+          original_error: error instanceof FrameworkContractError
+            ? error.toJSON()
+            : { message: error instanceof Error ? error.message : String(error) },
+          rollback_error: rollbackError instanceof FrameworkContractError
+            ? rollbackError.toJSON()
+            : { message: rollbackError instanceof Error ? rollbackError.message : String(rollbackError) },
+          failure_code: 'agent_package_bundled_full_runtime_repair_rollback_failed',
+        },
+      );
+    }
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Bundled Full runtime repair failed and restored its live target and package-local prestate.',
+      {
+        package_id: lock.package_id,
+        source_root: validation.sourceRoot,
+        target_root: validation.targetRoot,
+        local_prestate_restored: true,
+        mutation_started: targetReplaced,
+        original_error: error instanceof FrameworkContractError
+          ? error.toJSON()
+          : { message: error instanceof Error ? error.message : String(error) },
+        failure_code: 'agent_package_bundled_full_runtime_repair_rolled_back',
+      },
+    );
+  } finally {
+    makeBundledFullRuntimeSnapshotPathWritable(stageRoot);
+    makeBundledFullRuntimeSnapshotPathWritable(displacedRoot);
+    fs.rmSync(stageRoot, { recursive: true, force: true });
+    fs.rmSync(displacedRoot, { recursive: true, force: true });
+    cleanupBundledFullRuntimePackageSnapshot(snapshot);
+  }
 }
 
 export async function runOplBundledFullRuntimeAgentPackageInstall(
@@ -2668,10 +3109,13 @@ function packageRepairResult(
   };
 }
 
-function runOplAgentPackageRepairUnlocked(input: AgentPackageRepairInput) {
+async function runOplAgentPackageRepairUnlocked(input: AgentPackageRepairInput) {
   const packageId = requirePackageId(input.packageId, 'repair');
   const { index } = readRecoveredLockIndex(input.dryRun === true);
   const { lockIndex, lock } = requireInstalledPackage(index, packageId, 'repair');
+  if (lock.source_kind === 'bundled_full_runtime_modules' && stringValue(input.agentRoot)) {
+    return runOplBundledFullRuntimeAgentPackageRepairUnlocked(input, index, lock);
+  }
   if (
     (lock.capability_dependencies ?? []).length > 0
     || lock.runtime_source_carrier
@@ -2680,8 +3124,8 @@ function runOplAgentPackageRepairUnlocked(input: AgentPackageRepairInput) {
     || stringValue(input.manifestUrl)
     || stringValue(input.registryUrl)
   ) {
-    return applyManifestPackageLock({ ...input, packageId }, 'repair')
-      .then((result) => packageRepairResult(input, result));
+    const result = await applyManifestPackageLock({ ...input, packageId }, 'repair');
+    return packageRepairResult(input, result);
   }
   const physicalSurface = rematerializePhysicalCodexSurfaceFromLock(lock, input.dryRun === true);
   const frameworkLink = input.agentRoot
