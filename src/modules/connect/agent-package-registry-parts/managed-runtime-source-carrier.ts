@@ -500,6 +500,51 @@ function packageHealthCommand(moduleId: string, checkoutPath: string) {
     ?? null;
 }
 
+function mirrorPreparationSourceModes(sourceRoot: string, targetRoot: string) {
+  const sourceStat = fs.lstatSync(sourceRoot);
+  if (sourceStat.isSymbolicLink()) return;
+  if (sourceStat.isFile()) {
+    fs.chmodSync(targetRoot, sourceStat.mode & 0o777);
+    return;
+  }
+  if (!sourceStat.isDirectory()) return;
+  for (const entry of fs.readdirSync(sourceRoot)) {
+    mirrorPreparationSourceModes(path.join(sourceRoot, entry), path.join(targetRoot, entry));
+  }
+  fs.chmodSync(targetRoot, sourceStat.mode & 0o777);
+}
+
+function materializeWritablePreparationSource(
+  sourceRoot: string,
+  preparationRoot: string,
+  expectedTreeSha256: string,
+) {
+  const targetRoot = path.join(preparationRoot, 'package-source-input');
+  makeDeveloperCheckoutRuntimeSnapshotWritable(preparationRoot);
+  fs.rmSync(targetRoot, { recursive: true, force: true });
+  fs.cpSync(sourceRoot, targetRoot, {
+    recursive: true,
+    verbatimSymlinks: true,
+  });
+  mirrorPreparationSourceModes(sourceRoot, targetRoot);
+  if (computePackageChannelTreeSha256(targetRoot) !== expectedTreeSha256) {
+    makeDeveloperCheckoutRuntimeSnapshotWritable(targetRoot);
+    fs.rmSync(targetRoot, { recursive: true, force: true });
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Managed runtime preparation source copy changed the immutable source bytes.',
+      {
+        checkout_path: sourceRoot,
+        preparation_source_path: targetRoot,
+        expected_tree_sha256: expectedTreeSha256,
+        failure_code: 'agent_package_runtime_source_preparation_copy_mismatch',
+      },
+    );
+  }
+  makeDeveloperCheckoutRuntimeSnapshotWritable(targetRoot);
+  return targetRoot;
+}
+
 function prepareRuntimeSource(
   moduleId: string,
   checkoutPath: string,
@@ -530,6 +575,9 @@ function prepareRuntimeSource(
     preparationKey,
   );
   const managedPackageScope = includeBootstrap || packageProbeOnly;
+  const preparationCheckoutPath = includeBootstrap && preparationIdentity !== null
+    ? materializeWritablePreparationSource(checkoutPath, preparationRoot, preparationIdentity)
+    : checkoutPath;
   const commandEnv = {
     ...process.env,
     PYTHONDONTWRITEBYTECODE: '1',
@@ -546,27 +594,24 @@ function prepareRuntimeSource(
       : {}),
   };
   if (managedPackageScope) {
-    if (includeBootstrap && preparationIdentity !== null) {
-      makeDeveloperCheckoutRuntimeSnapshotWritable(preparationRoot);
-    }
     fs.mkdirSync(commandEnv.HOME!, { recursive: true });
   }
-  const bootstrapSpec = spec.package_bootstrap_command?.(checkoutPath) ?? null;
+  const bootstrapSpec = spec.package_bootstrap_command?.(preparationCheckoutPath) ?? null;
   const bootstrap = includeBootstrap && bootstrapSpec
     ? runRequiredCommand(
       moduleId,
-      checkoutPath,
+      preparationCheckoutPath,
       bootstrapSpec,
       'bootstrap',
       commandEnv,
     )
     : null;
-  if (includeBootstrap) materializeStandardAgentFrameworkLink({ agentRoot: checkoutPath });
+  if (includeBootstrap) materializeStandardAgentFrameworkLink({ agentRoot: preparationCheckoutPath });
   const packagePrepare = includeBootstrap && spec.package_prepare_command
     ? runRequiredCommand(
       moduleId,
-      checkoutPath,
-      spec.package_prepare_command(checkoutPath),
+      preparationCheckoutPath,
+      spec.package_prepare_command(preparationCheckoutPath),
       'package_prepare',
       commandEnv,
     )

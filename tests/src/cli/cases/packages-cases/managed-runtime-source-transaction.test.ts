@@ -168,8 +168,30 @@ function writeMasPackageRuntimeFixture(root: string, version: string) {
   );
 }
 
-function writeFakeMasUv(binRoot: string, fail = false) {
+function writeFakeMasUv(binRoot: string, fail = false, preserveReadonlyCopyModes = false) {
   fs.mkdirSync(binRoot, { recursive: true });
+  if (preserveReadonlyCopyModes) {
+    fs.writeFileSync(path.join(binRoot, 'cp'), [
+      '#!/usr/bin/env node',
+      "const fs = require('node:fs');",
+      "const path = require('node:path');",
+      "const { spawnSync } = require('node:child_process');",
+      'const args = process.argv.slice(2);',
+      "const copied = spawnSync('/bin/cp', args, { stdio: 'inherit' });",
+      'if (copied.status !== 0) process.exit(copied.status ?? 1);',
+      "if (args[0] !== '-R') process.exit(0);",
+      'const sourceRoot = path.resolve(args[1]);',
+      'const targetRoot = path.resolve(args.at(-1));',
+      'if ((fs.statSync(sourceRoot).mode & 0o222) !== 0) process.exit(0);',
+      'const freeze = (target) => {',
+      '  const stat = fs.lstatSync(target);',
+      '  if (stat.isSymbolicLink()) return;',
+      '  if (stat.isDirectory()) for (const entry of fs.readdirSync(target)) freeze(path.join(target, entry));',
+      '  fs.chmodSync(target, stat.mode & ~0o222);',
+      '};',
+      'freeze(targetRoot);',
+    ].join('\n'), { mode: 0o755 });
+  }
   fs.writeFileSync(path.join(binRoot, 'uv'), [
     '#!/usr/bin/env node',
     "const fs = require('node:fs');",
@@ -181,6 +203,7 @@ function writeFakeMasUv(binRoot: string, fail = false) {
       "for (const ref of ['pyproject.toml', 'README.md', 'src/med_autoscience/authority_handlers/foundry_owner_gate.py']) {",
       "  if (!fs.existsSync(path.join(sourceRoot, ref)) || !fs.statSync(path.join(sourceRoot, ref)).isFile()) { console.error(`missing copied MAS input: ${ref}`); process.exit(74); }",
       '}',
+      "fs.writeFileSync(path.join(sourceRoot, 'src/med_autoscience/authority_handlers/uv-install-probe.txt'), 'writable preparation source\\n');",
       "const target = path.join(process.env.UV_TOOL_DIR, 'med-autoscience', 'bin', 'mas-foundry-owner-gate');",
       'fs.mkdirSync(path.dirname(target), { recursive: true });',
       "fs.writeFileSync(target, '#!/usr/bin/env bash\\nif [[ \"${1:-}\" == \"--help\" ]]; then printf \"MAS OwnerGate verifier\\\\n\"; exit 0; fi\\nexit 64\\n', { mode: 0o755 });",
@@ -484,7 +507,7 @@ test('MAS developer snapshot reuses its physical OwnerGate preparation and prese
   runGit(checkoutPath, ['config', 'user.name', 'Fixture']);
   runGit(checkoutPath, ['add', '.']);
   runGit(checkoutPath, ['commit', '-qm', 'MAS developer runtime v1']);
-  writeFakeMasUv(binRoot);
+  writeFakeMasUv(binRoot, false, true);
   process.env.OPL_STATE_DIR = stateDir;
   process.env.PATH = `${binRoot}${path.delimiter}${previousPath ?? ''}`;
 
@@ -527,7 +550,32 @@ test('MAS developer snapshot reuses its physical OwnerGate preparation and prese
       'authority_handlers',
       'foundry_owner_gate.py',
     );
-    assert.equal(fs.statSync(copiedPackageSource).mode & 0o222, 0);
+    assert.notEqual(fs.statSync(copiedPackageSource).mode & 0o222, 0);
+    assert.equal(
+      fs.readFileSync(
+        path.join(
+          installed.after.preparation_root,
+          'uv-tools',
+          'package-source',
+          'src',
+          'med_autoscience',
+          'authority_handlers',
+          'uv-install-probe.txt',
+        ),
+        'utf8',
+      ),
+      'writable preparation source\n',
+    );
+    assert.equal(
+      fs.existsSync(path.join(
+        installed.after.checkout_path,
+        'src',
+        'med_autoscience',
+        'authority_handlers',
+        'uv-install-probe.txt',
+      )),
+      false,
+    );
     const repaired = applyManagedRuntimeSourceCarrier({
       config: carrier,
       previous: installed.after,
