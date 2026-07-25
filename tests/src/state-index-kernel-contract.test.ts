@@ -121,6 +121,51 @@ test('OPL State Index Kernel forbids SQLite truth-body and verdict authority sto
   assert.equal(boundary.sqlite_record_counts_as_stage_complete, false);
 });
 
+test('OPL State Index Kernel requires bounded backup retention with latest recovery protection', () => {
+  const contract = readJson('contracts/opl-framework/state-index-kernel-contract.json');
+  const retention = contract.maintenance_policy.backup_retention;
+
+  assert.equal(contract.maintenance_policy.backup_retention_required, true);
+  assert.deepEqual(
+    {
+      max_count: retention.max_count,
+      max_age_days: retention.max_age_days,
+      max_bytes: retention.max_bytes,
+    },
+    {
+      max_count: 3,
+      max_age_days: 14,
+      max_bytes: 8 * 1024 * 1024 * 1024,
+    },
+  );
+  assert.equal(retention.always_retain_latest_successful_backup, true);
+  assert.equal(retention.prune_order, 'oldest_first_after_new_backup_succeeds');
+});
+
+test('OPL State Index Kernel bounds runtime history and persisted payloads', () => {
+  const contract = readJson('contracts/opl-framework/state-index-kernel-contract.json');
+  const policy = contract.maintenance_policy;
+  const retention = policy.runtime_history_retention;
+
+  assert.equal(policy.runtime_history_retention_required, true);
+  assert.deepEqual(retention.events, { max_count: 50_000, max_age_days: 30 });
+  assert.deepEqual(retention.notifications, { max_count: 10_000, max_age_days: 30 });
+  assert.deepEqual(retention.stage_attempt_closeouts, {
+    max_count: 10_000,
+    max_age_days: 90,
+    eligible_statuses: ['completed', 'failed', 'dead_lettered'],
+  });
+  assert.equal(retention.prune_trigger, 'queue_open_and_bounded_periodic_event_or_notification_write');
+  assert.equal(retention.prune_mode, 'incremental_oldest_first');
+  assert.equal(retention.max_rows_per_table_per_prune_pass, 5_000);
+  assert.deepEqual(policy.payload_byte_limits, {
+    runtime_ledger_json_max_bytes: 64 * 1024,
+    stage_attempt_workspace_locator_json_max_bytes: 64 * 1024,
+    stage_attempt_activity_event_json_max_bytes: 16 * 1024,
+    stage_attempt_closeout_packet_json_max_bytes: 64 * 1024,
+  });
+});
+
 test('OPL State Index Kernel locks SQLite maintenance policy for local sidecar use', () => {
   const contract = readJson('contracts/opl-framework/state-index-kernel-contract.json');
   const policy = contract.maintenance_policy as Record<string, any>;

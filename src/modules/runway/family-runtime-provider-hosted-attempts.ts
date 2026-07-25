@@ -640,9 +640,9 @@ function workspaceLocatorForProviderHostedTask(row: FamilyRuntimeTaskRow, payloa
     domain_id: row.domain_id,
     task_kind: row.task_kind,
   };
-  const providerAttemptIdentity = isRecord(payload.provider_attempt_identity)
-    ? payload.provider_attempt_identity
-    : null;
+  const providerAttemptIdentity = providerAttemptCurrentnessIdentity(payload, {
+    requirePendingStatus: false,
+  });
   if (isDomainRouteTask(row.domain_id, row.task_kind, payload)) {
     locator.route_ref = row.task_kind;
     locator.action_ref = domainRouteActionRef(row.task_kind, payload);
@@ -696,7 +696,7 @@ function workspaceLocatorForProviderHostedTask(row: FamilyRuntimeTaskRow, payloa
         ?? optionalString(providerAttemptIdentity?.route_identity_key),
       attempt_idempotency_key: optionalString(payload.attempt_idempotency_key)
         ?? optionalString(providerAttemptIdentity?.attempt_idempotency_key)
-        ?? optionalString(providerAttemptIdentity?.idempotency_key),
+        ?? optionalString(payload.idempotency_key),
       recovery_obligation_id: optionalString(payload.recovery_obligation_id)
         ?? optionalString(providerAttemptIdentity?.recovery_obligation_id),
     })) {
@@ -788,12 +788,14 @@ function workspaceLocatorForProviderHostedTask(row: FamilyRuntimeTaskRow, payloa
   for (const key of [
     'owner_route_currentness_basis',
     'owner_route',
-    'provider_attempt_identity',
     'progress_first_closeout_observation',
   ]) {
     if (isRecord(payload[key])) {
       locator[key] = payload[key];
     }
+  }
+  if (providerAttemptIdentity) {
+    locator.provider_attempt_identity = providerAttemptIdentity;
   }
   if (isDefaultExecutorDispatchTask(row, payload)) {
     locator.domain_truth_owner = optionalString(payload.domain_truth_owner) ?? row.domain_id;

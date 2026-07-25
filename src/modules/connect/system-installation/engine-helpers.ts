@@ -21,6 +21,8 @@ import {
 
 const DEFAULT_MINIMUM_CODEX_CLI_VERSION = '0.125.0';
 const DEFAULT_CODEX_LATEST_TIMEOUT_MS = 5000;
+const DEFAULT_RUNTIME_STAGE_RETENTION_MAX_COUNT = 2;
+const DEFAULT_RUNTIME_STAGE_RETENTION_MAX_AGE_HOURS = 24;
 const CODEX_RUNTIME_UPDATER_VERSION = 'opl-runtime-substrate-updater.v1';
 const HEADLESS_PROCESS_INSTANCE_ID = `headless-cli:${process.pid}:${Date.now()}`;
 
@@ -690,6 +692,66 @@ function makeRuntimeStageAttemptRoot(paths: RuntimeToolchainPaths) {
   return attemptRoot;
 }
 
+function positiveIntegerEnvironmentValue(key: string, fallback: number) {
+  const parsed = Number(process.env[key] ?? '');
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function processIsAlive(pid: number) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+function pruneRuntimeStageAttempts(stagingRoot: string) {
+  if (!fs.existsSync(stagingRoot)) {
+    return {
+      pruned_paths: [] as string[],
+      retained_paths: [] as string[],
+    };
+  }
+  const maxCount = positiveIntegerEnvironmentValue(
+    'OPL_RUNTIME_STAGE_RETENTION_MAX_COUNT',
+    DEFAULT_RUNTIME_STAGE_RETENTION_MAX_COUNT,
+  );
+  const maxAgeHours = positiveIntegerEnvironmentValue(
+    'OPL_RUNTIME_STAGE_RETENTION_MAX_AGE_HOURS',
+    DEFAULT_RUNTIME_STAGE_RETENTION_MAX_AGE_HOURS,
+  );
+  const candidates = fs.readdirSync(stagingRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && /^download-\d+-\d+$/.test(entry.name))
+    .map((entry) => {
+      const candidatePath = path.join(stagingRoot, entry.name);
+      const pid = Number(entry.name.split('-').at(-1));
+      return {
+        path: candidatePath,
+        modified_at_ms: fs.statSync(candidatePath).mtimeMs,
+        process_alive: Number.isSafeInteger(pid) && processIsAlive(pid),
+      };
+    })
+    .sort((left, right) => right.modified_at_ms - left.modified_at_ms);
+  const retainedPaths: string[] = [];
+  const prunedPaths: string[] = [];
+  let inactiveRetained = 0;
+  for (const candidate of candidates) {
+    const expired = Date.now() - candidate.modified_at_ms > maxAgeHours * 60 * 60 * 1000;
+    if (candidate.process_alive || (!expired && inactiveRetained < maxCount)) {
+      retainedPaths.push(candidate.path);
+      if (!candidate.process_alive) inactiveRetained += 1;
+      continue;
+    }
+    fs.rmSync(candidate.path, { recursive: true, force: true });
+    prunedPaths.push(candidate.path);
+  }
+  return {
+    pruned_paths: prunedPaths,
+    retained_paths: retainedPaths,
+  };
+}
+
 function resolvePreseedTarballPath(envKey: string) {
   const rawPath = normalizeOptionalString(process.env[envKey]);
   if (!rawPath) {
@@ -1106,6 +1168,7 @@ function readLatestPendingCodexGeneration(paths: RuntimeToolchainPaths) {
 
 function runBuiltinCodexRuntimeInstallOrUpdate(cwd?: string) {
   const paths = resolveOplRuntimeToolchainPaths();
+  const preflightStageCleanup = pruneRuntimeStageAttempts(paths.staging_root);
   const pending = readLatestPendingCodexGeneration(paths);
   if (pending) {
     return {
@@ -1125,83 +1188,98 @@ function runBuiltinCodexRuntimeInstallOrUpdate(cwd?: string) {
           generation_root: pending.generation_root,
           pending_metadata_path: paths.pending_metadata_path,
           staging_process_instance_id: pending.staging_process_instance_id,
+          staging_cleanup: {
+            ...preflightStageCleanup,
+            current_attempt_removed: null,
+          },
         },
       }),
       stderr: '',
     };
   }
   const stageAttemptRoot = makeRuntimeStageAttemptRoot(paths);
-  const installArgs = buildCodexRuntimeNpmInstallArgs(stageAttemptRoot);
-  const installResult = runCommand('npm', installArgs, cwd);
-  if (installResult.exitCode !== 0) {
-    return installResult;
-  }
-  let preseededPlatformPackage = null;
-  const platformTarballPath = resolveCodexPlatformPackageTarball();
   try {
-    if (platformTarballPath) {
-      preseededPlatformPackage = materializePreseededCodexPlatformPackage(stageAttemptRoot, platformTarballPath);
+    const installArgs = buildCodexRuntimeNpmInstallArgs(stageAttemptRoot);
+    const installResult = runCommand('npm', installArgs, cwd);
+    if (installResult.exitCode !== 0) {
+      return installResult;
     }
-  } catch (error) {
-    return {
-      exitCode: 1,
-      stdout: installResult.stdout,
-      stderr: normalizeOutput(
-        installResult.stderr,
-        JSON.stringify({
-          opl_runtime_codex_update: {
-            surface_kind: 'opl_runtime_substrate_update_receipt',
-            updater_version: CODEX_RUNTIME_UPDATER_VERSION,
-            owner: 'opl_app_runtime',
-            target_toolchain: 'codex_cli',
-            stage_attempt_root: stageAttemptRoot,
-            preseeded_platform_package: {
-              status: 'failed',
-              tarball_path: platformTarballPath,
-              error: error instanceof Error ? error.message : String(error),
+    let preseededPlatformPackage = null;
+    const platformTarballPath = resolveCodexPlatformPackageTarball();
+    try {
+      if (platformTarballPath) {
+        preseededPlatformPackage = materializePreseededCodexPlatformPackage(
+          stageAttemptRoot,
+          platformTarballPath,
+        );
+      }
+    } catch (error) {
+      return {
+        exitCode: 1,
+        stdout: installResult.stdout,
+        stderr: normalizeOutput(
+          installResult.stderr,
+          JSON.stringify({
+            opl_runtime_codex_update: {
+              surface_kind: 'opl_runtime_substrate_update_receipt',
+              updater_version: CODEX_RUNTIME_UPDATER_VERSION,
+              owner: 'opl_app_runtime',
+              target_toolchain: 'codex_cli',
+              stage_attempt_root: stageAttemptRoot,
+              preseeded_platform_package: {
+                status: 'failed',
+                tarball_path: platformTarballPath,
+                error: error instanceof Error ? error.message : String(error),
+              },
             },
-          },
-        }),
-      ),
-    };
-  }
+          }),
+        ),
+      };
+    }
 
-  const runtimeApply = applyStagedCodexRuntimePayload(stageAttemptRoot, paths, cwd);
-  if (!runtimeApply.applied) {
+    const runtimeApply = applyStagedCodexRuntimePayload(stageAttemptRoot, paths, cwd);
+    if (!runtimeApply.applied) {
+      return {
+        exitCode: 1,
+        stdout: installResult.stdout,
+        stderr: normalizeOutput(
+          installResult.stderr,
+          JSON.stringify({ opl_runtime_codex_update: runtimeApply }),
+        ),
+      };
+    }
+
     return {
-      exitCode: 1,
-      stdout: installResult.stdout,
-      stderr: normalizeOutput(
-        installResult.stderr,
-        JSON.stringify({ opl_runtime_codex_update: runtimeApply }),
+      ...installResult,
+      stdout: normalizeOutput(
+        installResult.stdout,
+        [
+          installResult.stderr,
+          JSON.stringify({
+            opl_runtime_codex_update: {
+              surface_kind: 'opl_runtime_substrate_update_receipt',
+              updater_version: CODEX_RUNTIME_UPDATER_VERSION,
+              owner: 'opl_app_runtime',
+              target_toolchain: 'codex_cli',
+              update_strategy: 'app_owned_stage_verify_restart_activate',
+              global_toolchain_mutation_allowed: false,
+              system_tool_priority: 'prefer_compatible_system_codex_from_env_or_path',
+              stage_attempt_root: stageAttemptRoot,
+              staging_cleanup: {
+                ...preflightStageCleanup,
+                current_attempt_removed: true,
+              },
+              preseeded_package_tarball: resolvePreseedTarballPath('OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL'),
+              preseeded_platform_package: preseededPlatformPackage,
+              ...runtimeApply,
+            },
+          }),
+        ].filter(Boolean).join('\n'),
       ),
     };
+  } finally {
+    fs.rmSync(stageAttemptRoot, { recursive: true, force: true });
   }
-
-  return {
-    ...installResult,
-    stdout: normalizeOutput(
-      installResult.stdout,
-      [
-        installResult.stderr,
-        JSON.stringify({
-          opl_runtime_codex_update: {
-            surface_kind: 'opl_runtime_substrate_update_receipt',
-            updater_version: CODEX_RUNTIME_UPDATER_VERSION,
-            owner: 'opl_app_runtime',
-            target_toolchain: 'codex_cli',
-            update_strategy: 'app_owned_stage_verify_restart_activate',
-            global_toolchain_mutation_allowed: false,
-            system_tool_priority: 'prefer_compatible_system_codex_from_env_or_path',
-            stage_attempt_root: stageAttemptRoot,
-            preseeded_package_tarball: resolvePreseedTarballPath('OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL'),
-            preseeded_platform_package: preseededPlatformPackage,
-            ...runtimeApply,
-          },
-        }),
-      ].filter(Boolean).join('\n'),
-    ),
-  };
 }
 
 function buildBuiltinCodexRuntimeActionSpec(): OplShellActionSpec {

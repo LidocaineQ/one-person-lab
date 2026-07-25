@@ -185,6 +185,16 @@ test('builtin Codex update stages selected OPL runtime binary for restart activa
   fs.writeFileSync(runtimeCodex, '#!/usr/bin/env bash\necho "codex-cli 0.130.0"\n', { mode: 0o755 });
   fs.writeFileSync(runtimeRg, '#!/usr/bin/env bash\necho "rg old"\n', { mode: 0o755 });
   writeFakeNpmRuntimeInstaller(fakeNpm, npmLog);
+  const stageRoot = path.join(fixtureRoot, 'runtime', 'staged', 'codex-cli');
+  const staleStageAttempt = path.join(stageRoot, 'download-1-999999');
+  fs.mkdirSync(staleStageAttempt, { recursive: true });
+  fs.writeFileSync(path.join(staleStageAttempt, 'partial-download'), 'stale');
+  const activeStageAttempt = path.join(stageRoot, `download-2-${process.pid}`);
+  fs.mkdirSync(activeStageAttempt, { recursive: true });
+  fs.writeFileSync(path.join(activeStageAttempt, 'partial-download'), 'active');
+  const staleTime = new Date('2026-01-01T00:00:00Z');
+  fs.utimesSync(staleStageAttempt, staleTime, staleTime);
+  fs.utimesSync(activeStageAttempt, staleTime, staleTime);
 
   try {
     const output = runCli(
@@ -254,6 +264,10 @@ test('builtin Codex update stages selected OPL runtime binary for restart activa
       receipt.platform_package_root.endsWith('node_modules/@openai/codex-darwin-arm64'),
       true,
     );
+    assert.equal(receipt.staging_cleanup.current_attempt_removed, true);
+    assert.equal(receipt.staging_cleanup.pruned_paths.includes(staleStageAttempt), true);
+    assert.equal(receipt.staging_cleanup.retained_paths.includes(activeStageAttempt), true);
+    assert.deepEqual(fs.readdirSync(stageRoot), [path.basename(activeStageAttempt)]);
   } finally {
     fs.rmSync(fixtureRoot, { recursive: true, force: true });
   }
@@ -605,6 +619,10 @@ test('builtin Codex install reports explicit platform package materialization fa
     assert.match(
       fs.readFileSync(npmLog, 'utf8'),
       /@openai\/codex-darwin-arm64@npm:@openai\/codex@0\.141\.0-darwin-arm64/,
+    );
+    assert.deepEqual(
+      fs.readdirSync(path.join(fixtureRoot, 'runtime', 'staged', 'codex-cli')),
+      [],
     );
   } finally {
     fs.rmSync(fixtureRoot, { recursive: true, force: true });

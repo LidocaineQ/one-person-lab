@@ -251,6 +251,56 @@
     "network_filesystem_multi_writer_supported": false,
     "checkpoint_required": true,
     "backup_required": true,
+    "backup_retention_required": true,
+    "backup_retention": {
+      "max_count": 3,
+      "max_age_days": 14,
+      "max_bytes": 8589934592,
+      "always_retain_latest_successful_backup": true,
+      "prune_order": "oldest_first_after_new_backup_succeeds",
+      "environment_overrides": [
+        "OPL_STATE_INDEX_BACKUP_MAX_COUNT",
+        "OPL_STATE_INDEX_BACKUP_MAX_AGE_DAYS",
+        "OPL_STATE_INDEX_BACKUP_MAX_BYTES"
+      ]
+    },
+    "runtime_history_retention_required": true,
+    "runtime_history_retention": {
+      "events": {
+        "max_count": 50000,
+        "max_age_days": 30
+      },
+      "notifications": {
+        "max_count": 10000,
+        "max_age_days": 30
+      },
+      "stage_attempt_closeouts": {
+        "max_count": 10000,
+        "max_age_days": 90,
+        "eligible_statuses": [
+          "completed",
+          "failed",
+          "dead_lettered"
+        ]
+      },
+      "prune_trigger": "queue_open_and_bounded_periodic_event_or_notification_write",
+      "prune_mode": "incremental_oldest_first",
+      "max_rows_per_table_per_prune_pass": 5000,
+      "environment_overrides": [
+        "OPL_RUNTIME_EVENT_RETENTION_MAX_COUNT",
+        "OPL_RUNTIME_EVENT_RETENTION_MAX_AGE_DAYS",
+        "OPL_RUNTIME_NOTIFICATION_RETENTION_MAX_COUNT",
+        "OPL_RUNTIME_NOTIFICATION_RETENTION_MAX_AGE_DAYS",
+        "OPL_RUNTIME_STAGE_ATTEMPT_CLOSEOUT_RETENTION_MAX_COUNT",
+        "OPL_RUNTIME_STAGE_ATTEMPT_CLOSEOUT_RETENTION_MAX_AGE_DAYS"
+      ]
+    },
+    "payload_byte_limits": {
+      "runtime_ledger_json_max_bytes": 65536,
+      "stage_attempt_workspace_locator_json_max_bytes": 65536,
+      "stage_attempt_activity_event_json_max_bytes": 16384,
+      "stage_attempt_closeout_packet_json_max_bytes": 65536
+    },
     "integrity_check_required": true,
     "optimize_required": true,
     "vacuum_after_large_delete_only": true,

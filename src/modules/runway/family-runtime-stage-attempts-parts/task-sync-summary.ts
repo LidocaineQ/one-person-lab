@@ -9,6 +9,7 @@ import {
 import { requireRuntimeExecutionScopeMutationAllowed } from '../family-runtime-execution-scope-persistence.ts';
 import {
   appendActivityEventToRow,
+  compactStageAttemptActivityEvents,
   nowIso,
 } from './shared.ts';
 import { inspectStageAttempt } from './inspect.ts';
@@ -71,7 +72,10 @@ export function updateStageAttemptsForTask(
       : parseStageAttemptJsonObject(row.route_impact_json);
     const activityEvents = input.activityEvent
       ? appendActivityEventToRow(row, input.activityEvent)
-      : parseStageAttemptJsonList(row.activity_events_json);
+      : compactStageAttemptActivityEvents(
+          parseStageAttemptJsonList(row.activity_events_json),
+          updatedAt,
+        );
     const closeoutReceiptStatus = input.closeoutReceiptStatus !== undefined
       ? input.closeoutReceiptStatus
       : input.status === 'completed' && closeoutRefs.length > 0

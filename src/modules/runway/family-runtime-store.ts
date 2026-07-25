@@ -28,6 +28,10 @@ import {
   FAMILY_RUNTIME_TASK_COLUMNS,
   FAMILY_RUNTIME_TASK_STATUS,
 } from './family-runtime-queue-projection-boundary.ts';
+import {
+  maybePruneRuntimeQueueHistory,
+  pruneRuntimeQueueHistory,
+} from './family-runtime-queue-retention.ts';
 
 export { stableId } from '../../kernel/stable-id.ts';
 
@@ -37,6 +41,9 @@ const RUNTIME_LEDGER_MAX_STRING_LENGTH = 4_096;
 const RUNTIME_LEDGER_MAX_ARRAY_ITEMS = 20;
 const RUNTIME_LEDGER_MAX_OBJECT_KEYS = 40;
 const RUNTIME_LEDGER_MAX_DEPTH = 6;
+const RUNTIME_LEDGER_MAX_JSON_BYTES = 64 * 1024;
+const RUNTIME_NOTIFICATION_MAX_TITLE_LENGTH = 512;
+const RUNTIME_NOTIFICATION_MAX_BODY_LENGTH = 4_096;
 
 export type FamilyRuntimeTaskStatus =
   typeof FAMILY_RUNTIME_TASK_STATUS[keyof typeof FAMILY_RUNTIME_TASK_STATUS];
@@ -156,7 +163,28 @@ function boundedLedgerValue(value: unknown, depth = 0): unknown {
 }
 
 function boundedLedgerPayload(payload: Record<string, unknown> | undefined) {
-  return boundedLedgerValue(payload ?? {}) as Record<string, unknown>;
+  const bounded = boundedLedgerValue(payload ?? {}) as Record<string, unknown>;
+  const serialized = JSON.stringify(bounded);
+  const bytes = Buffer.byteLength(serialized);
+  if (bytes <= RUNTIME_LEDGER_MAX_JSON_BYTES) {
+    return bounded;
+  }
+  return {
+    surface_kind: 'opl_runtime_ledger_truncated_payload',
+    truncated: true,
+    reason: 'max_json_bytes',
+    original_json_bytes: bytes,
+    sha256: sha256Text(serialized),
+    preview: serialized.slice(0, RUNTIME_LEDGER_MAX_STRING_LENGTH),
+  };
+}
+
+function boundedNotificationText(value: string, maxLength: number) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  const suffix = ` [truncated sha256:${sha256Text(value)}]`;
+  return `${value.slice(0, Math.max(0, maxLength - suffix.length))}${suffix}`;
 }
 
 export function familyRuntimePaths() {
@@ -237,6 +265,7 @@ export function createFamilyRuntimeQueueTables(db: DatabaseSync) {
     `);
     createStageAttemptTable(db);
     createStageRunLaunchTable(db);
+    pruneRuntimeQueueHistory(db);
   });
 }
 
@@ -512,6 +541,7 @@ export function insertEvent(
     INSERT INTO events(event_id, task_id, domain_id, event_type, source, payload_json, created_at)
     VALUES (@event_id, @task_id, @domain_id, @event_type, @source, @payload_json, @created_at)
   `).run(event);
+  maybePruneRuntimeQueueHistory(db);
   return eventToPayload(event as FamilyRuntimeEventRow);
 }
 
@@ -530,8 +560,8 @@ export function insertNotification(
     notification_id: randomId('ntf'),
     task_id: input.taskId ?? null,
     severity: input.severity,
-    title: input.title,
-    body: input.body,
+    title: boundedNotificationText(input.title, RUNTIME_NOTIFICATION_MAX_TITLE_LENGTH),
+    body: boundedNotificationText(input.body, RUNTIME_NOTIFICATION_MAX_BODY_LENGTH),
     channel: 'local_inbox',
     status: 'written',
     payload_json: JSON.stringify(boundedLedgerPayload(input.payload)),
@@ -541,6 +571,7 @@ export function insertNotification(
     INSERT INTO notifications(notification_id, task_id, severity, title, body, channel, status, payload_json, created_at)
     VALUES (@notification_id, @task_id, @severity, @title, @body, @channel, @status, @payload_json, @created_at)
   `).run(notification);
+  maybePruneRuntimeQueueHistory(db);
   return notificationToPayload(notification as FamilyRuntimeNotificationRow);
 }
 

@@ -18,6 +18,10 @@ import {
 } from '../../src/modules/runway/family-runtime-stage-attempts.ts';
 import { setStageAttemptArchived } from '../../src/modules/runway/family-runtime-stage-attempt-ledger.ts';
 import { buildTemporalStageAttemptWorkflowInput } from '../../src/modules/runway/family-runtime-temporal.ts';
+import {
+  MAX_STAGE_ATTEMPT_ACTIVITY_EVENT_BYTES,
+  MAX_STAGE_ATTEMPT_PERSISTED_JSON_BYTES,
+} from '../../src/modules/runway/family-runtime-stage-attempts-parts/shared.ts';
 
 function withAttempt(fn: (db: DatabaseSync, attemptId: string) => void) {
   const db = new DatabaseSync(':memory:');
@@ -59,6 +63,88 @@ test('stage attempt closeout replay is idempotent and conflicting receipts fail 
     );
     assert.deepEqual(inspectStageAttempt(db, attemptId).closeout_refs, ['receipt:artifact-handoff']);
   });
+});
+
+test('stage attempt storage rejects oversized identity and closeout payloads', () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    createStageAttemptTable(db);
+    assert.throws(
+      () => createStageAttempt(db, {
+        domainId: 'redcube',
+        stageId: 'oversized_locator',
+        providerKind: 'temporal',
+        workspaceLocator: {
+          workspace_root: '/tmp/redcube-runtime',
+          accidental_payload: 'x'.repeat(MAX_STAGE_ATTEMPT_PERSISTED_JSON_BYTES),
+        },
+      }),
+      (error) => error instanceof FrameworkContractError
+        && error.details?.failure_code === 'stage_attempt_persisted_json_too_large',
+    );
+    assert.equal(
+      (db.prepare('SELECT COUNT(*) AS count FROM stage_attempts').get() as { count: number }).count,
+      0,
+    );
+
+    const attempt = createStageAttempt(db, {
+      domainId: 'redcube',
+      stageId: 'oversized_closeout',
+      providerKind: 'temporal',
+      workspaceLocator: { workspace_root: '/tmp/redcube-runtime' },
+    }).attempt;
+    assert.throws(
+      () => ingestStageAttemptCloseout(db, {
+        stageAttemptId: attempt.stage_attempt_id,
+        packet: closeoutPacket(`receipt:${'x'.repeat(MAX_STAGE_ATTEMPT_PERSISTED_JSON_BYTES)}`),
+      }),
+      (error) => error instanceof FrameworkContractError
+        && error.details?.failure_code === 'stage_attempt_persisted_json_too_large',
+    );
+    assert.deepEqual(listStageAttemptCloseouts(db, attempt.stage_attempt_id), []);
+  } finally {
+    db.close();
+  }
+});
+
+test('stage attempt activity records retain a hash-only entry when one event is oversized', () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    createStageAttemptTable(db);
+    const attempt = createStageAttempt(db, {
+      domainId: 'redcube',
+      stageId: 'oversized_activity',
+      providerKind: 'temporal',
+      workspaceLocator: { workspace_root: '/tmp/redcube-runtime' },
+      launchContextObservation: {
+        captured_output: 'x'.repeat(MAX_STAGE_ATTEMPT_ACTIVITY_EVENT_BYTES),
+      },
+    }).attempt;
+
+    assert.equal(attempt.activity_events.length, 1);
+    const activity = attempt.activity_events[0] as Record<string, unknown>;
+    assert.deepEqual(
+      {
+        event_kind: activity.event_kind,
+        event_time: activity.event_time,
+        original_event_kind: activity.original_event_kind,
+        retention_policy: activity.retention_policy,
+      },
+      {
+        event_kind: 'stage_attempt_activity_event_truncated',
+        event_time: activity.event_time,
+        original_event_kind: 'stage_context_observed',
+        retention_policy: {
+          strategy: 'hash_and_size_only',
+          max_event_json_bytes: MAX_STAGE_ATTEMPT_ACTIVITY_EVENT_BYTES,
+        },
+      },
+    );
+    assert.ok(Number(activity.original_json_bytes) > MAX_STAGE_ATTEMPT_ACTIVITY_EVENT_BYTES);
+    assert.match(String(activity.sha256), /^[a-f0-9]{64}$/);
+  } finally {
+    db.close();
+  }
 });
 
 test('identity-unresolved attempts reject start, signals, heartbeat, and closeout without ledger writes', () => {

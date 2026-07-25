@@ -21,6 +21,7 @@ import { stableId } from '../../../kernel/stable-id.ts';
 import {
   appendActivityEventToRow,
   nowIso,
+  stringifyBoundedStageAttemptJson,
 } from './shared.ts';
 import { inspectStageAttempt } from './inspect.ts';
 import {
@@ -226,7 +227,10 @@ export function ingestStageAttemptCloseout(
   const createdAt = nowIso();
   const closeoutId = packet.closeout_id
     ?? stableId('closeout', [input.stageAttemptId, packet.surface_kind, packet.closeout_refs]);
-  const packetJson = JSON.stringify(packet);
+  const packetJson = stringifyBoundedStageAttemptJson(
+    packet,
+    'stage_attempt_closeout.packet_json',
+  );
   const existingCloseout = db.prepare(`
     SELECT * FROM stage_attempt_closeouts WHERE closeout_id = ?
   `).get(closeoutId) as StageAttemptCloseoutRow | undefined;

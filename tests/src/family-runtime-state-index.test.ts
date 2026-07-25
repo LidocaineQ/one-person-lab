@@ -7,6 +7,12 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { runCli } from './cli/helpers-parts/runner.ts';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
+import {
+  createFamilyRuntimeQueueTables,
+  insertEvent,
+} from '../../src/modules/runway/family-runtime-store.ts';
+import { pruneRuntimeQueueHistory } from '../../src/modules/runway/family-runtime-queue-retention.ts';
+import { createStageAttempt } from '../../src/modules/runway/family-runtime-stage-attempts.ts';
 
 function withTempState<T>(fn: (root: string) => T) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-state-index-'));
@@ -332,5 +338,216 @@ test('opl index checkpoint integrity-check and backup maintain existing sidecar 
     assert.equal(backup.files.length, 4);
     assert.equal(fs.existsSync(backup.backup_root), true);
     assert.equal(backup.files.every((file: { backup_path: string }) => fs.existsSync(file.backup_path)), true);
+    assert.equal(backup.retention.status, 'bounded');
+    assert.deepEqual(backup.retention.policy, {
+      max_count: 3,
+      max_age_days: 14,
+      max_bytes: 8 * 1024 * 1024 * 1024,
+    });
+    assert.equal(backup.retention.protected_backup_root, backup.backup_root);
+    assert.equal(backup.retention.retained.length, 1);
+    assert.equal(backup.retention.pruned.length, 0);
   });
+});
+
+test('opl index backup prunes old generations by age and count after the new backup succeeds', () => {
+  withTempState((root) => {
+    runCli(['index', 'rebuild'], { OPL_STATE_DIR: root });
+    const backupStorageRoot = path.join(root, 'family-runtime', 'backups');
+    const env = {
+      OPL_STATE_DIR: root,
+      OPL_STATE_INDEX_BACKUP_MAX_COUNT: '2',
+      OPL_STATE_INDEX_BACKUP_MAX_AGE_DAYS: '1',
+      OPL_STATE_INDEX_BACKUP_MAX_BYTES: String(1024 * 1024 * 1024),
+    };
+    runCli(['index', 'backup'], env);
+    runCli(['index', 'backup'], env);
+    const legacyBackup = path.join(
+      backupStorageRoot,
+      'queue.sqlite.backup-20260101T000000+0800-legacy',
+    );
+    fs.writeFileSync(legacyBackup, 'legacy recovery backup');
+    const oldTime = new Date('2026-01-01T00:00:00Z');
+    fs.utimesSync(legacyBackup, oldTime, oldTime);
+    const backup = runCli(['index', 'backup'], env).state_index.backup;
+
+    assert.equal(fs.existsSync(backup.backup_root), true);
+    assert.equal(fs.existsSync(legacyBackup), false);
+    assert.equal(backup.retention.status, 'bounded');
+    assert.equal(backup.retention.retained.length, 2);
+    assert.ok(backup.retention.pruned.length >= 1);
+    assert.match(backup.retention.pruned[0].generation_id, /^legacy:/);
+    assert.ok(backup.retention.pruned.some(
+      (generation: { reasons: string[] }) => generation.reasons.includes('max_count'),
+    ));
+    assert.ok(backup.retention.reclaimed_bytes > 0);
+  });
+});
+
+test('opl index backup never deletes the newly successful backup when it alone exceeds the byte budget', () => {
+  withTempState((root) => {
+    runCli(['index', 'rebuild'], { OPL_STATE_DIR: root });
+    const backup = runCli(['index', 'backup'], {
+      OPL_STATE_DIR: root,
+      OPL_STATE_INDEX_BACKUP_MAX_COUNT: '3',
+      OPL_STATE_INDEX_BACKUP_MAX_AGE_DAYS: '14',
+      OPL_STATE_INDEX_BACKUP_MAX_BYTES: '1',
+    }).state_index.backup;
+
+    assert.equal(backup.retention.status, 'latest_backup_retained_over_byte_budget');
+    assert.equal(backup.retention.retained.length, 1);
+    assert.equal(backup.retention.retained[0].paths.includes(backup.backup_root), true);
+    assert.equal(fs.existsSync(backup.backup_root), true);
+  });
+});
+
+test('runtime queue retention bounds events, notifications, and terminal closeout history', () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    createFamilyRuntimeQueueTables(db);
+    const oversizedEvent = insertEvent(db, {
+      eventType: 'oversized_diagnostic',
+      source: 'test',
+      payload: {
+        recursive_diagnostic: Object.fromEntries(
+          Array.from({ length: 40 }, (_, index) => [`field_${index}`, 'x'.repeat(4_096)]),
+        ),
+      },
+    });
+    const oversizedPayload = db.prepare(
+      'SELECT payload_json FROM events WHERE event_id = ?',
+    ).get(oversizedEvent.event_id) as { payload_json: string };
+    assert.ok(Buffer.byteLength(oversizedPayload.payload_json) < 64 * 1024);
+    assert.equal(
+      (parseJsonText(oversizedPayload.payload_json) as { truncated?: boolean }).truncated,
+      true,
+    );
+
+    const event = db.prepare(`
+      INSERT INTO events(event_id, task_id, domain_id, event_type, source, payload_json, created_at)
+      VALUES (?, NULL, NULL, ?, ?, ?, ?)
+    `);
+    for (const [index, createdAt] of [
+      ['old-event', '2026-05-01T00:00:00.000Z'],
+      ['recent-event-a', '2026-07-24T00:00:00.000Z'],
+      ['recent-event-b', '2026-07-25T00:00:00.000Z'],
+    ]) {
+      event.run(index, 'test_event', 'test', '{}', createdAt);
+    }
+
+    const notification = db.prepare(`
+      INSERT INTO notifications(
+        notification_id, task_id, severity, title, body, channel, status, payload_json, created_at
+      ) VALUES (?, NULL, 'info', 'test', 'test', 'local_inbox', 'written', '{}', ?)
+    `);
+    for (const [index, createdAt] of [
+      ['old-notification', '2026-05-01T00:00:00.000Z'],
+      ['recent-notification-a', '2026-07-24T00:00:00.000Z'],
+      ['recent-notification-b', '2026-07-25T00:00:00.000Z'],
+    ]) {
+      notification.run(index, createdAt);
+    }
+
+    const attempt = createStageAttempt(db, {
+      domainId: 'redcube',
+      stageId: 'storage_retention',
+      providerKind: 'temporal',
+      workspaceLocator: { workspace_root: '/tmp/opl-storage-retention' },
+    }).attempt;
+    db.prepare("UPDATE stage_attempts SET status = 'completed' WHERE stage_attempt_id = ?")
+      .run(attempt.stage_attempt_id);
+    const closeout = db.prepare(`
+      INSERT INTO stage_attempt_closeouts(closeout_id, stage_attempt_id, packet_json, created_at)
+      VALUES (?, ?, '{}', ?)
+    `);
+    for (const [index, createdAt] of [
+      ['old-closeout', '2026-05-01T00:00:00.000Z'],
+      ['recent-closeout-a', '2026-07-24T00:00:00.000Z'],
+      ['recent-closeout-b', '2026-07-25T00:00:00.000Z'],
+    ]) {
+      closeout.run(index, attempt.stage_attempt_id, createdAt);
+    }
+    const activeAttempt = createStageAttempt(db, {
+      domainId: 'redcube',
+      stageId: 'active_storage_retention',
+      providerKind: 'temporal',
+      workspaceLocator: { workspace_root: '/tmp/opl-active-storage-retention' },
+    }).attempt;
+    closeout.run(
+      'active-closeout',
+      activeAttempt.stage_attempt_id,
+      '2026-05-01T00:00:00.000Z',
+    );
+
+    const retention = pruneRuntimeQueueHistory(db, {
+      event_max_count: 2,
+      event_max_age_days: 30,
+      notification_max_count: 1,
+      notification_max_age_days: 30,
+      stage_attempt_closeout_max_count: 1,
+      stage_attempt_closeout_max_age_days: 30,
+    }, Date.parse('2026-07-25T12:00:00.000Z'));
+
+    assert.equal(retention.events.retained, 2);
+    assert.equal(retention.notifications.retained, 1);
+    assert.equal(retention.stage_attempt_closeouts.retained, 1);
+    assert.equal(
+      (db.prepare("SELECT COUNT(*) AS count FROM events WHERE event_id = 'old-event'").get() as { count: number }).count,
+      0,
+    );
+    assert.equal(
+      (db.prepare("SELECT COUNT(*) AS count FROM notifications WHERE notification_id = 'old-notification'").get() as { count: number }).count,
+      0,
+    );
+    assert.equal(
+      (db.prepare("SELECT COUNT(*) AS count FROM stage_attempt_closeouts WHERE closeout_id = 'old-closeout'").get() as { count: number }).count,
+      0,
+    );
+    assert.equal(
+      (db.prepare("SELECT COUNT(*) AS count FROM stage_attempt_closeouts WHERE closeout_id = 'active-closeout'").get() as { count: number }).count,
+      1,
+    );
+  } finally {
+    db.close();
+  }
+});
+
+test('runtime queue retention limits each cleanup pass to five thousand rows', () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    createFamilyRuntimeQueueTables(db);
+    const event = db.prepare(`
+      INSERT INTO events(event_id, task_id, domain_id, event_type, source, payload_json, created_at)
+      VALUES (?, NULL, NULL, 'retention_batch_fixture', 'test', '{}', ?)
+    `);
+    for (let index = 0; index < 5_002; index += 1) {
+      event.run(`event-${String(index).padStart(5, '0')}`, '2026-07-25T00:00:00.000Z');
+    }
+    const policy = {
+      event_max_count: 1,
+      event_max_age_days: 365,
+      notification_max_count: 1,
+      notification_max_age_days: 365,
+      stage_attempt_closeout_max_count: 1,
+      stage_attempt_closeout_max_age_days: 365,
+    };
+
+    const first = pruneRuntimeQueueHistory(db, policy, Date.parse('2026-07-25T12:00:00.000Z'));
+    assert.deepEqual(first.events, {
+      before: 5_002,
+      retained: 2,
+      pruned: 5_000,
+      status: 'prune_in_progress',
+    });
+
+    const second = pruneRuntimeQueueHistory(db, policy, Date.parse('2026-07-25T12:00:00.000Z'));
+    assert.deepEqual(second.events, {
+      before: 2,
+      retained: 1,
+      pruned: 1,
+      status: 'bounded',
+    });
+  } finally {
+    db.close();
+  }
 });

@@ -23,9 +23,11 @@ import {
 } from '../../stagecraft/index.ts';
 import { validateStageQualityAttemptContextManifest } from '../family-runtime-stage-quality-context-manifest.ts';
 import {
+  compactStageAttemptActivityEvents,
   normalizeJsonList,
   normalizeStageId,
   nowIso,
+  stringifyBoundedStageAttemptJson,
 } from './shared.ts';
 import { taskRetryBudgetProjection } from '../family-runtime-queue-projection-boundary.ts';
 import { requireStageQualityAttemptBoundary } from '../family-runtime-stage-quality-attempt-boundary.ts';
@@ -307,6 +309,13 @@ export function createStageAttempt(db: DatabaseSync, input: StageAttemptCreateIn
     scopeKind: input.scopeKind,
     executionScope: input.executionScope,
   });
+  const workspaceLocator = scope.executionScope
+    ? { ...input.workspaceLocator, execution_scope: scope.executionScope }
+    : input.workspaceLocator;
+  const workspaceLocatorJson = stringifyBoundedStageAttemptJson(
+    workspaceLocator,
+    'workspace_locator_json',
+  );
   let retryBudget: Record<string, unknown> = input.retryBudget ?? taskRetryBudgetProjection(3);
   const taskId = input.taskId?.trim() || null;
   const attemptRole = input.attemptRole ? normalizeStageQualityAttemptRole(input.attemptRole) : null;
@@ -530,9 +539,6 @@ export function createStageAttempt(db: DatabaseSync, input: StageAttemptCreateIn
         input.newAttempt ? newAttemptOrdinal : createdAt,
       ]);
   const workflowId = stableId('wf', [input.domainId, stageId, stageAttemptId]);
-  const workspaceLocator = scope.executionScope
-    ? { ...input.workspaceLocator, execution_scope: scope.executionScope }
-    : input.workspaceLocator;
   requireFamilyRuntimeExecutionScope({
     scopeKind: scope.columns.scope_kind,
     executionScope: scope.executionScope,
@@ -589,7 +595,7 @@ export function createStageAttempt(db: DatabaseSync, input: StageAttemptCreateIn
     workflow_id: workflowId,
     domain_id: input.domainId,
     stage_id: stageId,
-    workspace_locator_json: JSON.stringify(workspaceLocator),
+    workspace_locator_json: workspaceLocatorJson,
     source_fingerprint: sourceFingerprint,
     executor_kind: executorKind,
     stage_attempt_executor_policy_json: stageAttemptExecutorPolicy
@@ -628,7 +634,9 @@ export function createStageAttempt(db: DatabaseSync, input: StageAttemptCreateIn
     blocked_reason: input.blockedReason?.trim() || null,
     provider_receipt_json: JSON.stringify(providerReceipt),
     provider_run_json: JSON.stringify(providerRun),
-    activity_events_json: JSON.stringify(initialActivityEvents),
+    activity_events_json: JSON.stringify(
+      compactStageAttemptActivityEvents(initialActivityEvents, createdAt),
+    ),
     route_impact_json: JSON.stringify(input.routeImpact ?? {}),
     closeout_receipt_status: null,
     created_at: createdAt,

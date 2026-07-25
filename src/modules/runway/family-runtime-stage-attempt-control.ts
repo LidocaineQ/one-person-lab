@@ -7,23 +7,10 @@ import { requireRuntimeExecutionScopeMutationAllowed } from './family-runtime-ex
 import {
   getStageAttemptRow,
   parseStageAttemptJsonObject,
-  parseStageAttemptJsonList,
   stageAttemptToPayload,
-  type StageAttemptRow,
 } from './family-runtime-stage-attempt-ledger.ts';
 import { nowIso } from './family-runtime-store.ts';
-
-function appendActivityEventToRow(row: StageAttemptRow, event: Record<string, unknown>) {
-  return [
-    ...parseStageAttemptJsonList(row.activity_events_json).filter(
-      (entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null && !Array.isArray(entry),
-    ),
-    {
-      event_time: nowIso(),
-      ...event,
-    },
-  ];
-}
+import { appendActivityEventToRow } from './family-runtime-stage-attempts-parts/shared.ts';
 
 export function markStageAttemptOperatorHoldRequested(
   db: DatabaseSync,

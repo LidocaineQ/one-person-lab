@@ -822,6 +822,59 @@ test('provider-hosted attempt launch consumes typed capability readout without c
       (attempt.workspace_locator.package_use_binding as any)?.use_boundary_id,
     );
 
+    let nestedProviderIdentity: Record<string, unknown> = {
+      status: 'provider_attempt_pending',
+      route_identity_key: 'route:compact-provider-identity',
+      attempt_idempotency_key: 'attempt:compact-provider-identity',
+    };
+    for (let depth = 0; depth < 48; depth += 1) {
+      nestedProviderIdentity = {
+        status: 'provider_attempt_pending',
+        route_identity_key: 'route:compact-provider-identity',
+        attempt_idempotency_key: 'attempt:compact-provider-identity',
+        nested_provider_attempt_identity: nestedProviderIdentity,
+        legacy_payload: 'x'.repeat(4_096),
+      };
+    }
+    const compactIdentityAttempt = await ensureProviderHostedStageAttempt(db, {
+      ...row,
+      task_id: 'task:compact-provider-attempt-identity',
+    }, {
+      opl_provider_hosted_stage_attempt: true,
+      stage_id: 'review',
+      workspace_root: familyRoot,
+      work_unit_id: 'review-current-output',
+      work_unit_fingerprint: 'sha256:review-current-output',
+      source_fingerprint: 'sha256:compact-provider-attempt-identity',
+      provider_attempt_identity: nestedProviderIdentity,
+    });
+    assert.ok(compactIdentityAttempt);
+    assert.deepEqual(compactIdentityAttempt.workspace_locator.provider_attempt_identity, {
+      status: 'provider_attempt_pending',
+      schema_source: null,
+      generated_at: null,
+      source_fingerprint: 'sha256:compact-provider-attempt-identity',
+      work_unit_id: 'review-current-output',
+      work_unit_fingerprint: 'sha256:review-current-output',
+      action_fingerprint: null,
+      truth_epoch: null,
+      runtime_health_epoch: null,
+      source_eval_id: null,
+      runtime_digest: null,
+      stable_truth_digest: null,
+      volatile_projection_digest: null,
+      work_unit_digest: null,
+      stage_packet_ref: null,
+      stage_packet_refs: [],
+      route_identity_key: 'route:compact-provider-identity',
+      attempt_idempotency_key: 'attempt:compact-provider-identity',
+      recovery_obligation_id: null,
+    });
+    const compactLocatorJson = JSON.stringify(compactIdentityAttempt.workspace_locator);
+    assert.equal(compactLocatorJson.includes('nested_provider_attempt_identity'), false);
+    assert.equal(compactLocatorJson.includes('legacy_payload'), false);
+    assert.ok(compactLocatorJson.length < 16_384);
+
     const resolutionOnlyAttempt = await ensureProviderHostedStageAttempt(db, {
       ...row,
       task_id: 'task:resolved-route-without-current-delta',

@@ -21,6 +21,7 @@ import { createStageAttemptTable } from '../../../src/modules/runway/family-runt
 import { createStageAttempt } from '../../../src/modules/runway/family-runtime-stage-attempts-parts/create.ts';
 import { inspectStageAttempt } from '../../../src/modules/runway/family-runtime-stage-attempts-parts/inspect.ts';
 import { recordStageAttemptActivityHeartbeat } from '../../../src/modules/runway/family-runtime-stage-attempts-parts/signals-heartbeat.ts';
+import { MAX_STAGE_ATTEMPT_ACTIVITY_EVENTS } from '../../../src/modules/runway/family-runtime-stage-attempts-parts/shared.ts';
 import { createFakeCodexFixture } from '../cli/helpers.ts';
 import { runPublicCodexStageRunner } from '../family-runtime-codex-stage-runner-helpers.ts';
 
@@ -432,6 +433,47 @@ test('activity heartbeat promotes queued liveness without reopening a terminal a
     assert.equal(terminal?.status, 'completed');
     assert.equal(terminal?.provider_run.provider_status, 'completed');
     assert.equal(terminal?.provider_run.last_heartbeat_at, OBSERVED_AT);
+  } finally {
+    db.close();
+  }
+});
+
+test('activity heartbeat retains a bounded tail with cumulative compaction evidence', () => {
+  const db = new DatabaseSync(':memory:');
+  createStageAttemptTable(db);
+  try {
+    const attempt = createStageAttempt(db, {
+      domainId: 'redcube_ai',
+      stageId: 'heartbeat_retention',
+      providerKind: 'temporal',
+      workspaceLocator: { workspace_root: '/tmp/redcube-ai' },
+      executorKind: 'codex_cli',
+    }).attempt;
+
+    for (let index = 0; index < 300; index += 1) {
+      recordStageAttemptActivityHeartbeat(db, {
+        stageAttemptId: attempt.stage_attempt_id,
+        heartbeatKind: `heartbeat-${index}`,
+        observedAt: new Date(Date.UTC(2026, 6, 13, 0, 0, index)).toISOString(),
+      });
+    }
+
+    const readback = inspectStageAttempt(db, attempt.stage_attempt_id);
+    assert.equal(readback.activity_events.length, MAX_STAGE_ATTEMPT_ACTIVITY_EVENTS);
+    assert.deepEqual(readback.activity_events[0], {
+      event_kind: 'stage_attempt_activity_history_compacted',
+      event_time: new Date(Date.UTC(2026, 6, 13, 0, 0, 299)).toISOString(),
+      compacted_event_count: 45,
+      retained_event_count: 255,
+      retention_policy: {
+        strategy: 'latest_tail',
+        max_events: MAX_STAGE_ATTEMPT_ACTIVITY_EVENTS,
+      },
+    });
+    assert.equal(
+      readback.activity_events.at(-1)?.heartbeat_kind,
+      'heartbeat-299',
+    );
   } finally {
     db.close();
   }
