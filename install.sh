@@ -92,7 +92,7 @@ prepend_managed_node_if_present() {
 node_is_usable() {
   command -v node >/dev/null 2>&1 || return 1
   command -v npm >/dev/null 2>&1 || return 1
-  node -e 'const major = Number(process.versions.node.split(".")[0]); process.exit(major >= 22 && major < 25 ? 0 : 1)' >/dev/null 2>&1
+  node -e 'const major = Number(process.versions.node.split(".")[0]); process.exit(major >= 22 ? 0 : 1)' >/dev/null 2>&1
 }
 
 install_managed_node() {

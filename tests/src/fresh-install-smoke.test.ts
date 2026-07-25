@@ -16,6 +16,12 @@ const codexDefaultProfilePath = path.join(repoRoot, 'contracts', 'opl-framework'
 const codexDefaultProfileExporterPath = path.join(repoRoot, 'scripts', 'export-codex-default-profile.mjs');
 const installScript = path.join(repoRoot, 'install.sh');
 
+test('installer accepts supported Node majors without an arbitrary upper bound', () => {
+  const source = fs.readFileSync(installScript, 'utf8');
+  assert.match(source, /major >= 22 \? 0 : 1/);
+  assert.doesNotMatch(source, /major < \d+/);
+});
+
 test('install carrier-only handles no forwarded args under nounset bash', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-install-bash-compat-'));
   const fakeBin = path.join(homeRoot, 'bin');
