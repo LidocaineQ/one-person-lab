@@ -117,6 +117,23 @@ function packageRoleFromManifest(payload: unknown, manifestUrl: string) {
   return { manifest, role: manifest.package_role };
 }
 
+function normalizeDirectoryOwnerManifest(payload: unknown, manifestUrl: string) {
+  try {
+    return normalizePackageManifest(payload, manifestUrl);
+  } catch (error) {
+    if (
+      error instanceof FrameworkContractError
+      && error.details?.failure_code === 'agent_package_presentation_invalid'
+      && isRecord(payload)
+      && 'presentation' in payload
+    ) {
+      const { presentation: _invalidPresentation, ...manifestWithoutPresentation } = payload;
+      return normalizePackageManifest(manifestWithoutPresentation, manifestUrl);
+    }
+    throw error;
+  }
+}
+
 function manifestDirectoryMetadata(payload: unknown, manifestUrl: string) {
   const { manifest, role } = packageRoleFromManifest(payload, manifestUrl);
   const raw = isRecord(payload) ? payload : {};
@@ -355,7 +372,7 @@ function firstPartyDirectorySources(snapshot: FirstPartyDirectoryCatalogSnapshot
       : null;
     if (selected) assertFirstPartyPackageCatalogVersion(spec.package_id, selected);
     const selectedManifest = selected
-      ? normalizePackageManifest(catalogManifestPayload(selected), selected.manifest_url)
+      ? normalizeDirectoryOwnerManifest(catalogManifestPayload(selected), selected.manifest_url)
       : null;
     if (selected && selectedManifest
       && (selectedManifest.package_id !== spec.package_id || selectedManifest.version !== selected.package_version)) {

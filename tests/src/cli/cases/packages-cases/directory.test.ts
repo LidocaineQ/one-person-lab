@@ -933,6 +933,81 @@ test('invalid owner presentation fails closed while legacy manifests remain comp
   (error: any) => error?.details?.failure_code === 'agent_package_presentation_invalid');
 });
 
+test('invalid first-party owner presentation omits only that Package presentation', () =>
+  withIsolatedStateDir('opl-package-directory-invalid-owner-presentation', () => {
+  const versions = new Map(getOplPackageSpecs().map((spec) => {
+    const sourceManifest = parseJsonText(
+      fs.readFileSync(path.join(repoRoot, spec.package_manifest_ref), 'utf8'),
+    ) as Record<string, unknown>;
+    const manifestJson = formatJsonPayload({
+      ...sourceManifest,
+      ...(spec.package_id === 'mas'
+        ? {
+            presentation: {
+              ...thirdPartyPresentation,
+              home_shortcuts: [
+                ...thirdPartyPresentation.home_shortcuts,
+                thirdPartyPresentation.home_shortcuts[0],
+              ],
+            },
+          }
+        : spec.package_id === 'oma'
+          ? { presentation: thirdPartyPresentation }
+          : {}),
+    });
+    const sourceArtifactRef = `ghcr.io/fixture/one-person-lab-packages/${spec.package_id}:${spec.selected_version}`;
+    return [spec.package_id, {
+      package_id: spec.package_id,
+      package_role: spec.package_role,
+      selected_version: spec.selected_version,
+      versions: [{
+        package_version: spec.selected_version,
+        capability_abi: null,
+        manifest_url: `opl+oci://${sourceArtifactRef}#/package-manifest.json`,
+        manifest_sha256: `sha256:${crypto.createHash('sha256').update(manifestJson).digest('hex')}`,
+        manifest_json: manifestJson,
+        payload_manifest_json: '{}',
+        payload_manifest_sha256: `sha256:${'2'.repeat(64)}`,
+        content_digest: `sha256:${'3'.repeat(64)}`,
+        payload_digest: `sha256:${'4'.repeat(64)}`,
+        source_artifact_ref: sourceArtifactRef,
+        artifact_digest: `sha256:${'5'.repeat(64)}`,
+        artifact_status: 'published_immutable',
+        package_content_digest: `sha256:${'6'.repeat(64)}`,
+        owner_source_commit: '7'.repeat(40),
+        dependency_package_ids: [],
+        selection_status: 'selected_for_release_set' as const,
+      }],
+    }];
+  }));
+  const directory = buildAgentPackageDirectory({
+    registryCache: null,
+    locks: [],
+    detail: 'fast',
+    firstPartyCatalog: {
+      catalog: versions,
+      freshness: 'live',
+      catalog_ref: 'ghcr.io/fixture/one-person-lab-manifest:latest-stable',
+      release_set_descriptor_digest: `sha256:${'7'.repeat(64)}`,
+      channel_manifest_layer_digest: `sha256:${'8'.repeat(64)}`,
+      package_catalog_digest: `sha256:${'9'.repeat(64)}`,
+      catalog_digest: `sha256:${'8'.repeat(64)}`,
+      checked_at: '2026-07-25T00:00:00.000Z',
+    },
+  });
+
+  const mas = directory.entries.find((entry) => entry.package_id === 'mas')!;
+  const oma = directory.entries.find((entry) => entry.package_id === 'oma')!;
+  assert.equal(mas.display_name_i18n, null);
+  assert.equal(mas.description_i18n, null);
+  assert.equal(mas.session_routing_summary_i18n, null);
+  assert.deepEqual(mas.home_shortcuts, []);
+  assert.deepEqual(oma.display_name_i18n, thirdPartyPresentation.display_name_i18n);
+  assert.deepEqual(oma.description_i18n, thirdPartyPresentation.description_i18n);
+  assert.deepEqual(oma.session_routing_summary_i18n, thirdPartyPresentation.session_routing_summary_i18n);
+  assert.deepEqual(oma.home_shortcuts, thirdPartyPresentation.home_shortcuts);
+  }));
+
 test('external registries preserve external claims and reject first-party authority', async () =>
   withIsolatedStateDir('opl-package-directory-external-registry', async () => {
   const fixture = isolatedPackageEnv('opl-package-directory-first-party-registry-collision');
