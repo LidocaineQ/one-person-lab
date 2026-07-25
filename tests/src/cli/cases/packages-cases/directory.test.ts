@@ -1111,6 +1111,8 @@ test('registry manifest enrichment admits third-party packages and rejects role 
       'confirmation_required',
       'payload',
       'required_payload_fields',
+      'semantic',
+      'surface',
     ]);
     assert.deepEqual(directInstallAction.payload, {
       package_id: 'third.party.research',
@@ -1118,6 +1120,8 @@ test('registry manifest enrichment admits third-party packages and rejects role 
       trust_tier: 'third_party_verified',
     });
     assert.deepEqual(directInstallAction.required_payload_fields, ['manifest_url', 'trust_tier']);
+    assert.equal(directInstallAction.semantic, 'install');
+    assert.equal(directInstallAction.surface, 'settings');
     assert.equal(
       directInstallAction.required_payload_fields.every((field) => Object.hasOwn(directInstallAction.payload, field)),
       true,

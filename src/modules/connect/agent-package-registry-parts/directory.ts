@@ -535,12 +535,29 @@ function packageAction(
   requiredPayloadFields: string[],
   confirmationRequired: boolean,
 ) {
+  const semantics = actionId === 'refresh_registry'
+    ? { semantic: 'refresh', surface: 'settings' }
+    : actionId === 'install_from_manifest_url'
+      ? { semantic: 'install', surface: 'settings' }
+      : actionId === 'agent_package_activate'
+        ? { semantic: 'activate', surface: 'workspace' }
+        : actionId === 'agent_package_update'
+          ? { semantic: 'update', surface: 'settings' }
+          : actionId === 'agent_package_repair'
+            ? { semantic: 'repair', surface: 'settings' }
+            : actionId === 'agent_package_preferences_set'
+              ? { semantic: 'preferences', surface: 'settings' }
+              : actionId === 'agent_package_uninstall'
+                ? { semantic: 'uninstall', surface: 'settings' }
+                : { semantic: 'custom', surface: 'settings' };
   return {
     action_id: actionId,
     action_ref: `app_state.actions#${actionId}`,
     payload,
     required_payload_fields: requiredPayloadFields,
     confirmation_required: confirmationRequired,
+    semantic: semantics.semantic,
+    surface: semantics.surface,
   };
 }
 
