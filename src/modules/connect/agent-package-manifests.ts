@@ -5,6 +5,8 @@ import omaAgentPackageManifest from '../../../contracts/opl-framework/packages/o
 import rcaAgentPackageManifest from '../../../contracts/opl-framework/packages/rca.json' with { type: 'json' };
 import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
 import { canonicalAgentPackageId } from './agent-package-identity.ts';
+import { normalizePackageManifest } from './agent-package-registry-parts/manifest-normalizers.ts';
+import type { AgentPackagePresentation } from './agent-package-registry-parts/types.ts';
 import type { ModuleCapabilityDependency, OplModuleId } from './system-installation/shared.ts';
 
 type CodexCarrierDistribution = 'repo_carrier_source' | 'generated_carrier_surface';
@@ -40,6 +42,7 @@ type FirstPartyAgentPackageManifest = {
   carrier_adapters: readonly Record<string, unknown>[];
   dependency_profiles: readonly unknown[];
   capability_dependencies: readonly ModuleCapabilityDependency[];
+  presentation: AgentPackagePresentation | null;
 };
 
 function stringList(value: unknown) {
@@ -232,6 +235,24 @@ function normalizeCapabilityDependency(value: unknown): ModuleCapabilityDependen
   };
 }
 
+function normalizeFirstPartyAgentPackagePresentation(payload: Record<string, unknown>) {
+  const manifestUrl = `framework://contracts/opl-framework/packages/${requiredString(payload.package_id, 'package_id')}.json`;
+  try {
+    return normalizePackageManifest(payload, manifestUrl).presentation ?? null;
+  } catch (error) {
+    if (
+      error instanceof FrameworkContractError
+      && error.details?.failure_code === 'agent_package_presentation_invalid'
+      && 'presentation' in payload
+    ) {
+      const { presentation: _invalidPresentation, ...manifestWithoutPresentation } = payload;
+      normalizePackageManifest(manifestWithoutPresentation, manifestUrl);
+      return null;
+    }
+    throw error;
+  }
+}
+
 export function normalizeFirstPartyAgentPackageManifest(payload: unknown): FirstPartyAgentPackageManifest {
   if (!isRecord(payload)) {
     throw new FrameworkContractError('contract_shape_invalid', 'Agent package manifest must be a JSON object.', {
@@ -290,6 +311,7 @@ export function normalizeFirstPartyAgentPackageManifest(payload: unknown): First
       ? payload.dependency_profiles
       : [],
     capability_dependencies: capabilityDependencies,
+    presentation: normalizeFirstPartyAgentPackagePresentation(payload),
   };
 }
 

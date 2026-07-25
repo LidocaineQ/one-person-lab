@@ -254,6 +254,9 @@ exit 1
     OPL_DEVELOPER_MODE_GH_BINARY: path.join(fixture.home, 'missing-gh'),
     PATH: `${codexFixture.fixtureRoot}:/usr/bin:/bin`,
   };
+  const homeShortcutPreferenceSnapshot = (preferences: any[]) => preferences.map(
+    ({ updated_at: _updatedAt, ...preference }) => preference,
+  );
   const readOrdinarySurfaces = () => {
     const list = runCli(['packages', 'list'], fixture.env) as any;
     const status = runCli(
@@ -268,17 +271,22 @@ exit 1
         package_home_shortcut_preferences: Object.fromEntries(
           Object.entries(agentPackages.status_index.packages).map(([packageId, entry]: [string, any]) => [
             packageId,
-            entry.home_shortcut_preferences,
+            homeShortcutPreferenceSnapshot(entry.home_shortcut_preferences),
           ]),
         ),
-        home_shortcut_preferences: agentPackages.status_index.home_shortcut_preferences,
+        home_shortcut_preferences: homeShortcutPreferenceSnapshot(
+          agentPackages.status_index.home_shortcut_preferences,
+        ),
       }];
     }));
     return {
       list_directory: list.opl_agent_packages.directory,
-      list_home_shortcut_preferences: list.opl_agent_packages.home_shortcut_preferences,
-      status_home_shortcut_preferences:
+      list_home_shortcut_preferences: homeShortcutPreferenceSnapshot(
+        list.opl_agent_packages.home_shortcut_preferences,
+      ),
+      status_home_shortcut_preferences: homeShortcutPreferenceSnapshot(
         status.opl_agent_package_status.home_shortcut_preferences,
+      ),
       app,
     };
   };
@@ -324,7 +332,12 @@ exit 1
     assert.equal(directory.first_party_release_currentness.status, 'unknown');
     assert.equal(scholarSkills.package_role, 'framework_capability_package');
     assert.equal(scholarSkills.capability_metadata, null);
-    assert.deepEqual(baseline.list_home_shortcut_preferences, []);
+    assert.deepEqual(
+      baseline.list_home_shortcut_preferences
+        .map((preference: any) => preference.package_id)
+        .sort(),
+      ['mag', 'obf', 'rca'],
+    );
     assert.deepEqual(baseline.status_home_shortcut_preferences, []);
 
     for (const [cacheCase, checkedAt] of [
@@ -374,10 +387,18 @@ exit 1
           entry.package_id && entry.package_role && entry.installability && entry.recommended_action), true);
         assert.equal('directory' in projected, false);
         assert.deepEqual(
-          Object.values(actual.app[profile].package_home_shortcut_preferences),
-          Array.from({ length: 7 }, () => []),
+          Object.values(actual.app[profile].package_home_shortcut_preferences)
+            .flatMap((preferences: any) => preferences)
+            .map((preference: any) => preference.package_id)
+            .sort(),
+          ['mag', 'obf', 'rca'],
         );
-        assert.deepEqual(actual.app[profile].home_shortcut_preferences, []);
+        assert.deepEqual(
+          actual.app[profile].home_shortcut_preferences
+            .map((preference: any) => preference.package_id)
+            .sort(),
+          ['mag', 'obf', 'rca'],
+        );
       }
     }
   } finally {
@@ -515,6 +536,80 @@ test('first-party Directory versions come only from the managed Release Set sele
   assert.equal(runtimeOnlyDirectory.first_party_release_currentness.status, 'live');
   assert.equal(runtimeOnlyDirectory.first_party_release_currentness.live_verified, true);
   assert.equal(runtimeOnlyDirectory.first_party_release_currentness.release_set_descriptor_digest, null);
+  }));
+
+test('static owner presentation projects only when no selected catalog manifest owns the package', () =>
+  withIsolatedStateDir('opl-package-directory-static-owner-presentation', () => {
+  const staticDirectory = buildAgentPackageDirectory({
+    registryCache: null,
+    locks: [],
+    detail: 'fast',
+  });
+  for (const packageId of ['mag', 'rca', 'obf']) {
+    const sourceManifest = parseJsonText(fs.readFileSync(
+      path.join(repoRoot, `contracts/opl-framework/packages/${packageId}.json`),
+      'utf8',
+    )) as Record<string, any>;
+    const entry = staticDirectory.entries.find((candidate) => candidate.package_id === packageId)!;
+    assert.deepEqual(entry.display_name_i18n, sourceManifest.presentation.display_name_i18n);
+    assert.deepEqual(entry.description_i18n, sourceManifest.presentation.description_i18n);
+    assert.deepEqual(entry.session_routing_summary_i18n, sourceManifest.presentation.session_routing_summary_i18n);
+    assert.deepEqual(entry.home_shortcuts, sourceManifest.presentation.home_shortcuts);
+    assert.equal(Object.hasOwn(entry, 'presentation'), false);
+  }
+
+  const versions = new Map(getOplPackageSpecs().map((spec) => {
+    const selectedManifest = parseJsonText(fs.readFileSync(
+      path.join(repoRoot, spec.package_manifest_ref),
+      'utf8',
+    )) as Record<string, unknown>;
+    if (spec.package_id === 'mag') delete selectedManifest.presentation;
+    const manifestJson = formatJsonPayload(selectedManifest);
+    const sourceArtifactRef = `ghcr.io/fixture/one-person-lab-packages/${spec.package_id}:${spec.selected_version}`;
+    return [spec.package_id, {
+      package_id: spec.package_id,
+      package_role: spec.package_role,
+      selected_version: spec.selected_version,
+      versions: [{
+        package_version: spec.selected_version,
+        capability_abi: null,
+        manifest_url: `opl+oci://${sourceArtifactRef}#/package-manifest.json`,
+        manifest_sha256: `sha256:${crypto.createHash('sha256').update(manifestJson).digest('hex')}`,
+        manifest_json: manifestJson,
+        payload_manifest_json: '{}',
+        payload_manifest_sha256: `sha256:${'2'.repeat(64)}`,
+        content_digest: `sha256:${'3'.repeat(64)}`,
+        payload_digest: `sha256:${'4'.repeat(64)}`,
+        source_artifact_ref: sourceArtifactRef,
+        artifact_digest: `sha256:${'5'.repeat(64)}`,
+        artifact_status: 'published_immutable',
+        package_content_digest: `sha256:${'6'.repeat(64)}`,
+        owner_source_commit: '7'.repeat(40),
+        dependency_package_ids: [],
+        selection_status: 'selected_for_release_set' as const,
+      }],
+    }];
+  }));
+  const selectedDirectory = buildAgentPackageDirectory({
+    registryCache: null,
+    locks: [],
+    detail: 'fast',
+    firstPartyCatalog: {
+      catalog: versions,
+      freshness: 'live',
+      catalog_ref: 'ghcr.io/fixture/one-person-lab-manifest:latest-stable',
+      release_set_descriptor_digest: `sha256:${'7'.repeat(64)}`,
+      channel_manifest_layer_digest: `sha256:${'8'.repeat(64)}`,
+      package_catalog_digest: `sha256:${'9'.repeat(64)}`,
+      catalog_digest: `sha256:${'8'.repeat(64)}`,
+      checked_at: '2026-07-25T00:00:00.000Z',
+    },
+  });
+  const selectedMag = selectedDirectory.entries.find((entry) => entry.package_id === 'mag')!;
+  assert.equal(selectedMag.display_name_i18n, null);
+  assert.equal(selectedMag.description_i18n, null);
+  assert.equal(selectedMag.session_routing_summary_i18n, null);
+  assert.deepEqual(selectedMag.home_shortcuts, []);
   }));
 
 test('legacy v1 Release Set cache remains non-live and never invents a descriptor digest', () => {
@@ -821,7 +916,9 @@ test('owner presentation projects through an unknown package directory without b
     version: 'opl-agent-package-lock-index.v1',
     packages: [],
   });
-  assert.deepEqual(defaults.map((preference) => ({
+  assert.deepEqual(defaults
+    .filter((preference) => preference.package_id === 'third.party.research')
+    .map((preference) => ({
     shortcut_id: preference.shortcut_id,
     package_id: preference.package_id,
     visible: preference.visible,
@@ -859,7 +956,9 @@ test('owner presentation projects through an unknown package directory without b
     version: 'opl-agent-package-lock-index.v1',
     packages: [],
   });
-  assert.deepEqual(merged.map((preference) => ({
+  assert.deepEqual(merged
+    .filter((preference) => preference.package_id === 'third.party.research')
+    .map((preference) => ({
     shortcut_id: preference.shortcut_id,
     package_id: preference.package_id,
     visible: preference.visible,

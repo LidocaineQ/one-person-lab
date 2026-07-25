@@ -420,7 +420,9 @@ function firstPartyDirectorySources(snapshot: FirstPartyDirectoryCatalogSnapshot
       source_kind: selected ? 'first_party_release_catalog' : 'first_party_framework_projection',
       registry_source_ref: selected ? snapshot!.catalog_ref : spec.package_manifest_ref,
       capability_metadata: selectedCapabilityMetadata ?? capabilityMetadata,
-      presentation: selectedManifest?.presentation ?? null,
+      presentation: selected
+        ? selectedManifest?.presentation ?? null
+        : ownerManifest?.presentation ?? null,
       home_shortcut_ids: [],
       version_currentness: {
         status: currentnessStatus,

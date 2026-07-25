@@ -1098,8 +1098,30 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
       schema,
       sourceRef: 'contracts/opl-framework/agent-package-manifest.schema.json',
     }, sourceManifest));
-    assert.equal(normalizeFirstPartyAgentPackageManifest(sourceManifest).distribution_payload, null);
+    const normalized = normalizeFirstPartyAgentPackageManifest(sourceManifest);
+    assert.equal(normalized.distribution_payload, null);
+    assert.deepEqual(normalized.presentation, sourceManifest.presentation ?? null);
   });
+  assert.deepEqual(
+    ['mag', 'rca', 'obf'].map((packageId) => manifests[packageId].presentation?.home_shortcuts[0].route),
+    [
+      {
+        route_kind: 'agent_package_shortcut',
+        executor: 'codex_cli',
+        codex_visible_entry: 'med-autogrant',
+      },
+      {
+        route_kind: 'agent_package_shortcut',
+        executor: 'codex_cli',
+        codex_visible_entry: 'redcube-ai',
+      },
+      {
+        route_kind: 'agent_package_shortcut',
+        executor: 'codex_cli',
+        codex_visible_entry: 'opl-bookforge',
+      },
+    ],
+  );
   assert.equal(manifest.opl_managed_surface.package_shape, 'thin_agent_package');
   assert.equal(manifest.opl_managed_surface.dependency_resolution, 'managed_dependency_graph');
   assert.deepEqual(
@@ -1119,6 +1141,45 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
         developer_distribution: 'source_checkout',
       },
     ],
+  );
+});
+
+test('static first-party presentation is optional without weakening manifest validation', () => {
+  const manifest = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/packages/mag.json'),
+    'utf8',
+  )) as Record<string, any>;
+  const invalidPresentation = {
+    ...manifest,
+    presentation: {
+      ...manifest.presentation,
+      home_shortcuts: [
+        ...manifest.presentation.home_shortcuts,
+        manifest.presentation.home_shortcuts[0],
+      ],
+    },
+  };
+  assert.equal(normalizeFirstPartyAgentPackageManifest(invalidPresentation).presentation, null);
+  assert.throws(
+    () => normalizeFirstPartyAgentPackageManifest({
+      ...invalidPresentation,
+      agent_id: 'med-autogrant',
+    }),
+    /canonical id/,
+  );
+  assert.throws(
+    () => normalizeFirstPartyAgentPackageManifest({
+      ...invalidPresentation,
+      package_role: 'workflow_profile',
+    }),
+    /incompatible package role/,
+  );
+  assert.throws(
+    () => normalizeFirstPartyAgentPackageManifest({
+      ...invalidPresentation,
+      version: '',
+    }),
+    /version/,
   );
 });
 
