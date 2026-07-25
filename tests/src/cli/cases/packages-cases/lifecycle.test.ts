@@ -400,19 +400,24 @@ test('packages fetches registry URL, validates manifest, and writes lock receipt
         list.opl_agent_packages.conditions.some((condition) => condition.condition_id === 'codex_reload_observed'),
         true,
       );
-      assert.deepEqual(list.opl_agent_packages.home_shortcut_preferences.map((entry) => ({
-        package_id: entry.package_id,
-        shortcut_id: entry.shortcut_id,
-        visible: entry.visible,
-        source: entry.source,
-        installed: entry.installed,
-      })), [{
+      assert.deepEqual(
+        list.opl_agent_packages.home_shortcut_preferences
+          .filter((entry) => entry.package_id === 'third.party.research')
+          .map((entry) => ({
+            package_id: entry.package_id,
+            shortcut_id: entry.shortcut_id,
+            visible: entry.visible,
+            source: entry.source,
+            installed: entry.installed,
+          })),
+        [{
         package_id: 'third.party.research',
         shortcut_id: 'research',
         visible: false,
         source: 'default',
         installed: true,
-      }]);
+        }],
+      );
       assert.equal(list.opl_agent_packages.lifecycle_receipt_count, 3);
       assert.equal(list.opl_agent_packages.registry_cache.entry_count, 1);
       const installedDirectoryEntry = list.opl_agent_packages.directory.entries.find(

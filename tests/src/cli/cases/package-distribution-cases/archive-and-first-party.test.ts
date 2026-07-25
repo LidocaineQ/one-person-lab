@@ -1002,9 +1002,9 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
   const manifest = manifests.mas;
   const expectedReleases: Record<string, { version: string; sourceCommit: string; payloadRef: string }> = {
     mas: {
-      version: '0.2.20',
-      sourceCommit: '24740b3c117c177ba272247780977361b0bfb6e3',
-      payloadRef: 'payloads/mas-0.2.20.json',
+      version: '0.2.21',
+      sourceCommit: 'd32a437c96916ba9f232084d1492229b4bf8603b',
+      payloadRef: 'payloads/mas-0.2.21.json',
     },
     mag: {
       version: '0.3.6',
@@ -1031,7 +1031,7 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
   assert.equal(manifest.schema_ref, 'contracts/opl-framework/agent-package-manifest.schema.json');
   assert.equal(manifest.package_id, 'mas');
   assert.equal(manifest.agent_id, 'mas');
-  assert.equal(manifest.version, '0.2.20');
+  assert.equal(manifest.version, '0.2.21');
   assert.equal(manifest.carrier_source_role, 'codex_plugin_default_carrier_not_package_truth');
   assert.equal(schema.required.includes('distribution_payload'), false);
   assert.equal(schema.properties.distribution_payload.properties.install_truth.const, 'resolved_digest_lock');
@@ -1046,6 +1046,62 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
   assert.equal(schema.properties.codex_surface.required.includes('carrier_source_commit'), true);
   assert.equal(schema.properties.package_core.properties.core_kind.const, 'opl_agent_package_core');
   assert.equal(schema.properties.carrier_adapters.items.properties.carrier.const, 'codex_plugin');
+  assert.deepEqual(manifest.presentation, {
+    display_name_i18n: {
+      'zh-CN': 'Med Auto Science',
+      'en-US': 'Med Auto Science',
+    },
+    description_i18n: {
+      'zh-CN': '用于科研选题、文献分析、数据分析、论文写作、审稿、返修和投稿。',
+      'en-US': 'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.',
+    },
+    session_routing_summary_i18n: {
+      'zh-CN': '科研、论文、数据分析、审稿、返修和投稿',
+      'en-US': 'research, papers, data analysis, peer review, revision, and submission',
+    },
+    home_shortcuts: [{
+      shortcut_id: 'research',
+      label_i18n: {
+        'zh-CN': '科研',
+        'en-US': 'Research',
+      },
+      default_visible: true,
+      user_configurable: true,
+      route: {
+        route_kind: 'agent_package_shortcut',
+        executor: 'codex_cli',
+        codex_visible_entry: 'med-autoscience',
+      },
+    }],
+  });
+  assert.deepEqual(manifests.oma.presentation, {
+    display_name_i18n: {
+      'en-US': 'OPL Meta Agent',
+      'zh-CN': 'OPL Meta Agent',
+    },
+    description_i18n: {
+      'en-US': 'Turns an Agent engineering objective into a reviewable semantic design.',
+      'zh-CN': '将智能体工程目标转化为可审查的语义设计。',
+    },
+    session_routing_summary_i18n: {
+      'en-US': 'Create, take over, or improve an Agent through OPL Foundry.',
+      'zh-CN': '通过 OPL Foundry 创建、接管或改进智能体。',
+    },
+    home_shortcuts: [{
+      shortcut_id: 'engineer-agent',
+      label_i18n: {
+        'en-US': 'Engineer Agent',
+        'zh-CN': '设计与演进智能体',
+      },
+      default_visible: true,
+      user_configurable: true,
+      route: {
+        route_kind: 'agent_package_shortcut',
+        executor: 'codex_cli',
+        codex_visible_entry: 'opl-meta-agent',
+      },
+    }],
+  });
   assert.deepEqual(manifest.codex_surface.required_skill_ids, ['med-autoscience']);
   assert.deepEqual(manifest.codex_surface.bundled_capability_package_ids, ['mas-scholar-skills']);
   assert.equal(manifests.mag.codex_surface.standalone_distribution, 'repo_carrier_source');
@@ -1357,6 +1413,12 @@ test('bundled Full MAS snapshot keeps its frozen manifest bytes while ordinary p
   const frozenPath = path.join(repoRoot, 'contracts/opl-framework', frozenRef);
   const frozenBytes = fs.readFileSync(frozenPath);
   const frozenManifest = parseJsonText(frozenBytes.toString('utf8')) as Record<string, any>;
+  const priorOrdinaryBytes = fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/packages/mas-0.2.20.json'),
+  );
+  const priorOrdinaryManifest = parseJsonText(
+    priorOrdinaryBytes.toString('utf8'),
+  ) as Record<string, any>;
   const ordinaryManifest = parseJsonText(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/packages/mas.json'),
     'utf8',
@@ -1367,7 +1429,11 @@ test('bundled Full MAS snapshot keeps its frozen manifest bytes while ordinary p
     '12e3ec3f3307a083d490179656a455605d1e040e96cc77b379f9b9b4daf59a20');
   assert.equal(frozenManifest.version, '0.2.19');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mas-0.2.19.json');
-  assert.equal(ordinaryManifest.version, '0.2.20');
+  assert.equal(crypto.createHash('sha256').update(priorOrdinaryBytes).digest('hex'),
+    '1fda4a1e6942037809e8637306d01661149d320ca586798138292a9903b37be2');
+  assert.equal(priorOrdinaryManifest.version, '0.2.20');
+  assert.equal(priorOrdinaryManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mas-0.2.20.json');
+  assert.equal(ordinaryManifest.version, '0.2.21');
 });
 
 test('bundled Full MAG snapshot keeps its frozen manifest bytes while ordinary publication advances', () => {

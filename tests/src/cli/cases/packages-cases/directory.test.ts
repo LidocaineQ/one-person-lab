@@ -336,9 +336,16 @@ exit 1
       baseline.list_home_shortcut_preferences
         .map((preference: any) => preference.package_id)
         .sort(),
-      ['mag', 'obf', 'rca'],
+      ['mag', 'mas', 'obf', 'oma', 'rca'],
     );
-    assert.deepEqual(baseline.status_home_shortcut_preferences, []);
+    assert.deepEqual(baseline.status_home_shortcut_preferences, [{
+      shortcut_id: 'research',
+      package_id: 'mas',
+      visible: true,
+      sort_order: 200,
+      source: 'default',
+      installed: false,
+    }]);
 
     for (const [cacheCase, checkedAt] of [
       ['valid', new Date().toISOString()],
@@ -391,13 +398,13 @@ exit 1
             .flatMap((preferences: any) => preferences)
             .map((preference: any) => preference.package_id)
             .sort(),
-          ['mag', 'obf', 'rca'],
+          ['mag', 'mas', 'obf', 'oma', 'rca'],
         );
         assert.deepEqual(
           actual.app[profile].home_shortcut_preferences
             .map((preference: any) => preference.package_id)
             .sort(),
-          ['mag', 'obf', 'rca'],
+          ['mag', 'mas', 'obf', 'oma', 'rca'],
         );
       }
     }

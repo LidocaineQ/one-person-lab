@@ -3,6 +3,36 @@
   "agent_id": "oma",
   "package_id": "oma",
   "display_name": "OPL Meta Agent",
+  "presentation": {
+    "display_name_i18n": {
+      "en-US": "OPL Meta Agent",
+      "zh-CN": "OPL Meta Agent"
+    },
+    "description_i18n": {
+      "en-US": "Turns an Agent engineering objective into a reviewable semantic design.",
+      "zh-CN": "将智能体工程目标转化为可审查的语义设计。"
+    },
+    "session_routing_summary_i18n": {
+      "en-US": "Create, take over, or improve an Agent through OPL Foundry.",
+      "zh-CN": "通过 OPL Foundry 创建、接管或改进智能体。"
+    },
+    "home_shortcuts": [
+      {
+        "shortcut_id": "engineer-agent",
+        "label_i18n": {
+          "en-US": "Engineer Agent",
+          "zh-CN": "设计与演进智能体"
+        },
+        "default_visible": true,
+        "user_configurable": true,
+        "route": {
+          "route_kind": "agent_package_shortcut",
+          "executor": "codex_cli",
+          "codex_visible_entry": "opl-meta-agent"
+        }
+      }
+    ]
+  },
   "publisher": "one-person-lab",
   "version": "0.4.4",
   "source": "first_party",

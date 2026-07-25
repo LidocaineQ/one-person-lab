@@ -596,19 +596,24 @@ test('app action execute routes install_from_manifest_url to Framework package l
         files: { home_shortcut_preferences_file: string };
       };
     };
-    assert.deepEqual(list.opl_agent_packages.home_shortcut_preferences.map((entry) => ({
-      package_id: entry.package_id,
-      shortcut_id: entry.shortcut_id,
-      visible: entry.visible,
-      sort_order: entry.sort_order,
-      source: entry.source,
-    })), [{
+    assert.deepEqual(
+      list.opl_agent_packages.home_shortcut_preferences
+        .filter((entry) => entry.package_id === 'third.party.research')
+        .map((entry) => ({
+          package_id: entry.package_id,
+          shortcut_id: entry.shortcut_id,
+          visible: entry.visible,
+          sort_order: entry.sort_order,
+          source: entry.source,
+        })),
+      [{
       package_id: 'third.party.research',
       shortcut_id: 'research',
       visible: false,
       sort_order: 9,
       source: 'user_preference',
-    }]);
+      }],
+    );
     assert.equal(fs.existsSync(list.opl_agent_packages.files.home_shortcut_preferences_file), true);
 
   } finally {
