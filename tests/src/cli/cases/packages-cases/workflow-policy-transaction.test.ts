@@ -506,6 +506,7 @@ test('workflow policy v3 installs a GitHub Skill from its declared repository so
       activation: 'task_routed',
       source: sourceUrl,
       source_path: `skills/${skillId}`,
+      relationship: 'required',
     });
     assert.equal('offline_bundle' in dependency, false);
     const codexSkillRoot = path.join(env.CODEX_HOME, 'skills', skillId);
@@ -528,6 +529,27 @@ test('workflow policy v3 installs a GitHub Skill from its declared repository so
     assert.equal(migration.dependency_sync.items[0].source_authority, 'github_repository');
     assert.equal(migration.dependency_sync.items[0].frontmatter_schema_status, 'valid');
     assert.equal(migration.dependency_sync.items[0].resource_closure_status, 'complete');
+    const directory = (await runCliAsync(['packages', 'list'], env) as any).opl_agent_packages.directory;
+    const flowEntry = directory.entries.find(
+      (entry: { package_id: string }) => entry.package_id === 'fixture.opl-flow',
+    );
+    const summary = flowEntry.capability_dependency_summary.find(
+      (entry: { id: string }) => entry.id === skillId,
+    );
+    assert.deepEqual(summary, {
+      id: skillId,
+      kind: 'codex_skill',
+      relationship: 'required',
+      activation: 'task_routed',
+      presence: 'present',
+      callability: 'callable',
+      user_outcome: 'required_for_workflow',
+      route: {
+        action_ref: 'app_state.actions#agent_package_repair',
+        payload: { package_id: 'fixture.opl-flow' },
+        detail_surface: 'opl packages status --package-id fixture.opl-flow --json',
+      },
+    });
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
   }
@@ -805,6 +827,7 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
       online_install_default: true,
       activation: 'always',
       source: 'fixture',
+      relationship: 'required',
     }]);
     assert.deepEqual(migration.migration_ids, [
       'upstream-superpowers',

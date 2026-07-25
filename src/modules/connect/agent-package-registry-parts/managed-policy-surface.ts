@@ -892,7 +892,10 @@ function managedPolicyDependencySelection(input: {
     }
   }
   return {
-    dependencies: selected.map(({ dependency }) => dependency),
+    dependencies: selected.map(({ dependency, required }) => ({
+      ...dependency,
+      relationship: required ? 'required' as const : 'recommended' as const,
+    })),
     skillIds: selected
       .filter(({ dependency }) => dependency.kind === 'codex_skill')
       .map(({ dependency }) => dependency.id),

@@ -374,6 +374,8 @@ export type AgentPackageManagedPolicyDependency = {
   lifecycle_owner?: string;
   conflict_policy?: 'managed_reconcile' | 'preserve_user_surface' | 'fail_closed_on_collision';
   credential_policy?: 'none' | 'user_or_provider_owned_not_bundled';
+  /** Recorded at materialization so projections never infer requiredness from a legacy catalog. */
+  relationship?: 'required' | 'recommended';
 };
 
 export type AgentPackageManagedPolicyMigrationAction = {

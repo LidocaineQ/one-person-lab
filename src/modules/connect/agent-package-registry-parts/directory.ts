@@ -672,6 +672,47 @@ function recommendedActionId(input: {
   return null;
 }
 
+function capabilityDependencySummary(lock: AgentPackageLock | null) {
+  const migration = lock?.physical_surface?.workflow_policy_migration;
+  if (!lock || !migration || migration.dependencies.length === 0) return null;
+  const sync = isRecord(migration.dependency_sync) ? migration.dependency_sync : {};
+  const syncItems = recordList(sync.items);
+  return migration.dependencies.map((dependency) => {
+    const item = syncItems.find((candidate) => stringValue(candidate.skill_id) === dependency.id) ?? {};
+    const status = stringValue(item.status);
+    const entrypoint = stringValue(item.entrypoint_authority_status);
+    const presence = ['synced', 'installed', 'current'].includes(status ?? '')
+      ? 'present'
+      : ['missing_source', 'missing'].includes(status ?? '')
+        ? 'missing'
+        : 'unknown';
+    const callability = presence === 'missing'
+      ? 'unavailable'
+      : entrypoint === 'converged'
+        ? 'callable'
+        : 'unknown';
+    const relationship = dependency.relationship ?? 'unknown';
+    return {
+      id: dependency.id,
+      kind: dependency.kind,
+      relationship,
+      activation: dependency.activation,
+      presence,
+      callability,
+      user_outcome: relationship === 'required'
+        ? 'required_for_workflow'
+        : relationship === 'recommended'
+          ? 'recommended_workflow_enhancement'
+          : 'relationship_unclassified',
+      route: {
+        action_ref: 'app_state.actions#agent_package_repair',
+        payload: { package_id: lock.package_id },
+        detail_surface: `opl packages status --package-id ${lock.package_id} --json`,
+      },
+    };
+  });
+}
+
 export function buildAgentPackageDirectory(input: {
   registryCache: AgentPackageRegistryCache | null;
   locks: AgentPackageLock[];
@@ -835,6 +876,7 @@ export function buildAgentPackageDirectory(input: {
       session_routing_summary_i18n: effectiveSource.presentation?.session_routing_summary_i18n ?? null,
       home_shortcuts: effectiveSource.presentation?.home_shortcuts ?? [],
       home_shortcut_ids: effectiveSource.home_shortcut_ids,
+      capability_dependency_summary: capabilityDependencySummary(lock),
       role_state: {
         status: !installed
           ? roleKnown ? 'declared' : 'migration_required'
