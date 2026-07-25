@@ -195,7 +195,7 @@ test('Framework freezes the Shell Home public directory entry fixture bytes', ()
   ]);
 });
 
-test('packages list and app state ignore shared Release Catalog cache before installation', () => {
+test('ordinary list, status, App, and Home surfaces ignore valid, stale, and poisoned Release Catalog caches', () => {
   const fixture = isolatedPackageEnv('opl-package-directory');
   const codexFixture = createFakeCodexFixture(`
 if [[ "$1" == "--version" ]]; then
@@ -204,23 +204,89 @@ if [[ "$1" == "--version" ]]; then
 fi
 exit 1
 `);
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  const cacheFile = path.join(
+    fixture.env.OPL_STATE_DIR,
+    'agent-package-release-catalog-cache.json',
+  );
+  const packageCatalog = Object.fromEntries(getOplPackageSpecs().map((spec) => {
+    const manifest = parseJsonText(
+      fs.readFileSync(path.join(repoRoot, spec.package_manifest_ref), 'utf8'),
+    ) as Record<string, unknown>;
+    const version = String(manifest.version);
+    const manifestJson = formatJsonPayload({
+      ...manifest,
+      ...(spec.package_id === 'mas' ? { presentation: thirdPartyPresentation } : {}),
+    });
+    const sourceArtifactRef =
+      `ghcr.io/fixture/one-person-lab-packages/${spec.package_id}:${version}`;
+    return [spec.package_id, {
+      package_id: spec.package_id,
+      package_role: spec.package_role,
+      selected_version: version,
+      versions: [{
+        package_version: version,
+        selection_status: 'selected_for_release_set',
+        manifest_url: `opl+oci://${sourceArtifactRef}#/package-manifest.json`,
+        manifest_sha256: `sha256:${crypto.createHash('sha256').update(manifestJson).digest('hex')}`,
+        manifest_json: manifestJson,
+        payload_manifest_json: '{}',
+        payload_manifest_sha256: `sha256:${'2'.repeat(64)}`,
+        content_digest: `sha256:${'3'.repeat(64)}`,
+        payload_digest: `sha256:${'4'.repeat(64)}`,
+        source_artifact_ref: sourceArtifactRef,
+        artifact_digest: `sha256:${'5'.repeat(64)}`,
+        artifact_status: 'published_immutable',
+        package_content_digest: `sha256:${'6'.repeat(64)}`,
+        owner_source_commit: '7'.repeat(40),
+        dependency_package_ids: [],
+      }],
+    }];
+  }));
+  const catalogPayload = {
+    surface_kind: 'opl_package_catalog.v1',
+    packages: { package_catalog: packageCatalog },
+  };
+  const appEnv = {
+    ...fixture.env,
+    OPL_MODULES_ROOT: path.join(fixture.home, 'opl-state', 'modules'),
+    OPL_CODEX_CLI_LATEST_VERSION: '0.125.0',
+    OPL_DEVELOPER_MODE_GH_BINARY: path.join(fixture.home, 'missing-gh'),
+    PATH: `${codexFixture.fixtureRoot}:/usr/bin:/bin`,
+  };
+  const readOrdinarySurfaces = () => {
+    const list = runCli(['packages', 'list'], fixture.env) as any;
+    const status = runCli(
+      ['packages', 'status', '--package-id', 'mas'],
+      fixture.env,
+    ) as any;
+    const app = Object.fromEntries((['fast', 'full'] as const).map((profile) => {
+      const state = runCli(['app', 'state', '--profile', profile], appEnv) as any;
+      const agentPackages = state.app_state.agent_packages;
+      return [profile, {
+        directory: agentPackages.directory,
+        package_home_shortcut_preferences: Object.fromEntries(
+          Object.entries(agentPackages.status_index.packages).map(([packageId, entry]: [string, any]) => [
+            packageId,
+            entry.home_shortcut_preferences,
+          ]),
+        ),
+        home_shortcut_preferences: agentPackages.status_index.home_shortcut_preferences,
+      }];
+    }));
+    return {
+      list_directory: list.opl_agent_packages.directory,
+      list_home_shortcut_preferences: list.opl_agent_packages.home_shortcut_preferences,
+      status_home_shortcut_preferences:
+        status.opl_agent_package_status.home_shortcut_preferences,
+      app,
+    };
+  };
   try {
     fs.mkdirSync(fixture.env.OPL_STATE_DIR, { recursive: true });
-    fs.writeFileSync(
-      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-release-catalog-cache.json'),
-      formatJsonPayload({
-        surface_kind: 'opl_agent_package_release_catalog_cache.v1',
-        catalog_ref: 'ghcr.io/fixture/one-person-lab-manifest:latest-stable',
-        catalog_digest: `sha256:${'a'.repeat(64)}`,
-        checked_at: new Date().toISOString(),
-        catalog_payload: {
-          surface_kind: 'opl_package_catalog.v1',
-          packages: { package_catalog: {} },
-        },
-      }),
-    );
-    const list = runCli(['packages', 'list'], fixture.env) as any;
-    const directory = list.opl_agent_packages.directory;
+    process.env.OPL_STATE_DIR = fixture.env.OPL_STATE_DIR;
+    const baseline = readOrdinarySurfaces();
+    const directory = baseline.list_directory;
     assert.equal(directory.surface_kind, 'opl_agent_package_directory.v1');
     assert.equal(directory.entry_count, 7);
     assert.equal(directory.installed_package_count, 0);
@@ -258,25 +324,65 @@ exit 1
     assert.equal(directory.first_party_release_currentness.status, 'unknown');
     assert.equal(scholarSkills.package_role, 'framework_capability_package');
     assert.equal(scholarSkills.capability_metadata, null);
+    assert.deepEqual(baseline.list_home_shortcut_preferences, []);
+    assert.deepEqual(baseline.status_home_shortcut_preferences, []);
 
-    for (const profile of ['fast', 'full'] as const) {
-      const appState = runCli(['app', 'state', '--profile', profile], {
-        ...fixture.env,
-        OPL_MODULES_ROOT: path.join(fixture.home, 'opl-state', 'modules'),
-        OPL_CODEX_CLI_LATEST_VERSION: '0.125.0',
-        OPL_DEVELOPER_MODE_GH_BINARY: path.join(fixture.home, 'missing-gh'),
-        PATH: `${codexFixture.fixtureRoot}:/usr/bin:/bin`,
-      }) as any;
-      const projected = appState.app_state.agent_packages.directory;
-      assert.equal(projected.surface_kind, 'opl_agent_package_directory.v1');
-      assert.equal(projected.detail, profile);
-      assert.equal(projected.entries.length, 7);
-      assert.equal(projected.first_party_release_currentness.status, 'unknown');
-      assert.equal(projected.entries.every((entry: any) =>
-        entry.package_id && entry.package_role && entry.installability && entry.recommended_action), true);
-      assert.equal('directory' in projected, false);
+    for (const [cacheCase, checkedAt] of [
+      ['valid', new Date().toISOString()],
+      ['stale', '2000-01-01T00:00:00.000Z'],
+      ['poisoned', null],
+    ] as const) {
+      fs.writeFileSync(cacheFile, cacheCase === 'poisoned'
+        ? '{not-json'
+        : formatJsonPayload({
+          surface_kind: 'opl_agent_package_release_catalog_cache.v1',
+          catalog_ref: 'ghcr.io/fixture/one-person-lab-manifest:latest-stable',
+          catalog_digest: `sha256:${'a'.repeat(64)}`,
+          checked_at: checkedAt,
+          catalog_payload: catalogPayload,
+        }));
+      const snapshot = readFirstPartyPackageCatalogSnapshot();
+      if (cacheCase === 'poisoned') {
+        assert.equal(snapshot, null);
+      } else {
+        assert.ok(snapshot);
+        assert.equal(
+          snapshot.freshness,
+          cacheCase === 'valid' ? 'cached' : 'last_known_good',
+        );
+        assert.equal(
+          buildAgentPackageDirectory({
+            registryCache: null,
+            locks: [],
+            detail: 'fast',
+            firstPartyCatalog: snapshot,
+          }).entries.find((entry) => entry.package_id === 'mas')
+            ?.home_shortcuts[0]?.shortcut_id,
+          'future-main',
+        );
+      }
+
+      const actual = readOrdinarySurfaces();
+      assert.deepEqual(actual, baseline, `${cacheCase} Release Catalog cache changed ordinary read models`);
+      for (const profile of ['fast', 'full'] as const) {
+        const projected = actual.app[profile].directory;
+        assert.equal(projected.surface_kind, 'opl_agent_package_directory.v1');
+        assert.equal(projected.detail, profile);
+        assert.equal(projected.entries.length, 7);
+        assert.equal(projected.first_party_release_currentness.status, 'unknown');
+        assert.equal(projected.entries.every((entry: any) =>
+          entry.package_id && entry.package_role && entry.installability && entry.recommended_action), true);
+        assert.equal('directory' in projected, false);
+        assert.deepEqual(
+          Object.values(actual.app[profile].package_home_shortcut_preferences),
+          Array.from({ length: 7 }, () => []),
+        );
+        assert.deepEqual(actual.app[profile].home_shortcut_preferences, []);
+      }
     }
   } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
     fs.rmSync(codexFixture.fixtureRoot, { recursive: true, force: true });
     fs.rmSync(fixture.home, { recursive: true, force: true });
   }
@@ -446,87 +552,6 @@ test('legacy v1 Release Set cache remains non-live and never invents a descripto
       listOplAgentPackages().opl_agent_packages.directory.first_party_release_currentness.status,
       'unknown',
     );
-  } finally {
-    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
-    else process.env.OPL_STATE_DIR = previousStateDir;
-    fs.rmSync(fixture.home, { recursive: true, force: true });
-  }
-});
-
-test('package status Home preferences ignore the shared Release Catalog cache', () => {
-  const fixture = isolatedPackageEnv('opl-package-status-home-release-cache');
-  const previousStateDir = process.env.OPL_STATE_DIR;
-  const packageCatalog = Object.fromEntries(getOplPackageSpecs().map((spec) => {
-    const manifest = parseJsonText(
-      fs.readFileSync(path.join(repoRoot, spec.package_manifest_ref), 'utf8'),
-    ) as Record<string, unknown>;
-    const version = String(manifest.version);
-    const manifestJson = formatJsonPayload({
-      ...manifest,
-      ...(spec.package_id === 'mas' ? { presentation: thirdPartyPresentation } : {}),
-    });
-    const sourceArtifactRef =
-      `ghcr.io/fixture/one-person-lab-packages/${spec.package_id}:${version}`;
-    return [spec.package_id, {
-      package_id: spec.package_id,
-      package_role: spec.package_role,
-      selected_version: version,
-      versions: [{
-        package_version: version,
-        selection_status: 'selected_for_release_set',
-        manifest_url: `opl+oci://${sourceArtifactRef}#/package-manifest.json`,
-        manifest_sha256: `sha256:${crypto.createHash('sha256').update(manifestJson).digest('hex')}`,
-        manifest_json: manifestJson,
-        payload_manifest_json: '{}',
-        payload_manifest_sha256: `sha256:${'2'.repeat(64)}`,
-        content_digest: `sha256:${'3'.repeat(64)}`,
-        payload_digest: `sha256:${'4'.repeat(64)}`,
-        source_artifact_ref: sourceArtifactRef,
-        artifact_digest: `sha256:${'5'.repeat(64)}`,
-        artifact_status: 'published_immutable',
-        package_content_digest: `sha256:${'6'.repeat(64)}`,
-        owner_source_commit: '7'.repeat(40),
-        dependency_package_ids: [],
-      }],
-    }];
-  }));
-  const catalogPayload = {
-    surface_kind: 'opl_package_catalog.v1',
-    packages: {
-      package_catalog: packageCatalog,
-    },
-  };
-  try {
-    fs.mkdirSync(fixture.env.OPL_STATE_DIR, { recursive: true });
-    fs.writeFileSync(
-      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-release-catalog-cache.json'),
-      formatJsonPayload({
-        surface_kind: 'opl_agent_package_release_catalog_cache.v1',
-        catalog_ref: 'ghcr.io/fixture/one-person-lab-manifest:latest-stable',
-        catalog_digest: `sha256:${'a'.repeat(64)}`,
-        checked_at: new Date().toISOString(),
-        catalog_payload: catalogPayload,
-      }),
-    );
-    process.env.OPL_STATE_DIR = fixture.env.OPL_STATE_DIR;
-    const snapshot = readFirstPartyPackageCatalogSnapshot();
-    assert.ok(snapshot);
-    assert.equal(snapshot.freshness, 'cached');
-    assert.equal(
-      buildAgentPackageDirectory({
-        registryCache: null,
-        locks: [],
-        detail: 'fast',
-        firstPartyCatalog: snapshot,
-      }).entries.find((entry) => entry.package_id === 'mas')?.home_shortcuts[0]?.shortcut_id,
-      'future-main',
-    );
-
-    const status = runCli(
-      ['packages', 'status', '--package-id', 'mas'],
-      fixture.env,
-    ) as any;
-    assert.deepEqual(status.opl_agent_package_status.home_shortcut_preferences, []);
   } finally {
     if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateDir;
