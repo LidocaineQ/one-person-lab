@@ -252,6 +252,7 @@ const readModelGateTestFiles = [
   'tests/src/app-state-view-model-runtime-scope.test.ts',
   'tests/src/cli/cases/app-action.test.ts',
   'tests/src/work-item-control-ledger.test.ts',
+  'tests/src/cli/cases/packages-cases/resolved-selected-bundle-descriptor.test.ts',
   'tests/src/cli/cases/packages-cases/workflow-policy-transaction.test.ts',
   'tests/src/cli/cases/packages-cases/codex-default-exposure.test.ts',
   ...expandTestFiles(['tests/src/cli/cases/app-state-runtime-workbench.test.ts', 'tests/src/cli/cases/app-state-provider-source.test.ts', 'tests/src/cli/cases/app-state-developer-mode-closeout.test.ts']),
