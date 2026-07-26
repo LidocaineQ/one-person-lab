@@ -1722,7 +1722,8 @@ function configuredCarrierLifecycleReadback(input: {
     && input.carrier.executor.status === 'callable'
     && input.carrier.carrier.precedence === 'exact_single_source';
   const status = input.action === 'remove'
-    ? input.carrier.status === 'not_installed'
+    ? (input.carrier.status === 'not_installed'
+        || input.carrier.status === 'physical_unavailable')
       && input.carrier.carrier.precedence === 'not_present'
       ? 'uninstalled'
       : 'attention_needed'

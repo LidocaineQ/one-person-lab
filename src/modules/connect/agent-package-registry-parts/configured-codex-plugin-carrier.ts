@@ -350,7 +350,11 @@ export function runConfiguredCodexPluginCarrier(input: {
       status: callable ? 'callable' : 'attention_needed',
     },
     publication_ref: input.descriptor.publicationRef,
-    status: entry?.installed ? 'installed' : 'not_installed',
+    status: entry?.installed
+      ? 'installed'
+      : unexpectedOnly
+        ? 'not_installed'
+        : 'physical_unavailable',
     installed_version: ambiguous ? null : entry?.version ?? null,
     enabled: entry?.installed ? entry.enabled : null,
     plugin_source_path: ambiguous ? null : entry?.sourcePath ?? null,

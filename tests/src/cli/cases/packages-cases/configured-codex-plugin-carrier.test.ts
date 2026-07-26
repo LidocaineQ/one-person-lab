@@ -185,6 +185,24 @@ test('configured Codex carrier reports an unexpected same-name source without se
   assert.equal(readback.carrier.observed_sources.length, 1);
 });
 
+test('configured Codex carrier reports a declared selector without a physical source as unavailable', () => {
+  const readback = runConfiguredCodexPluginCarrier({
+    descriptor,
+    action: 'list',
+    runner: () => ({
+      status: 0,
+      stdout: pluginList([]),
+      stderr: '',
+      error: null,
+    }),
+  });
+  assert.equal(readback.status, 'physical_unavailable');
+  assert.equal(readback.carrier.precedence, 'not_present');
+  assert.equal(readback.executor.status, 'attention_needed');
+  assert.equal(readback.reason, 'native_carrier_reports_not_installed');
+  assert.equal(readback.carrier.observed_sources.length, 0);
+});
+
 function writeFakeCodex(binary: string) {
   fs.writeFileSync(binary, `#!/usr/bin/env node
 import fs from 'node:fs';
@@ -298,6 +316,19 @@ test('generic Package lifecycle and read-model use configured native carrier wit
     }
     const uninstall = runCli(['packages', 'uninstall', packageId], env) as any;
     assert.equal(uninstall.opl_agent_package_uninstall.status, 'uninstalled');
+    assert.equal(
+      uninstall.opl_agent_package_uninstall.configured_carrier.status,
+      'physical_unavailable',
+    );
+    const afterRemoval = runCli(['packages', 'status', '--package-id', packageId], env) as any;
+    assert.equal(afterRemoval.opl_agent_package_status.status, 'attention_needed');
+    assert.equal(afterRemoval.opl_agent_package_status.installed_package_count, 0);
+    assert.equal(afterRemoval.opl_agent_package_status.operational_ready, false);
+    assert.equal(afterRemoval.opl_agent_package_status.launch_allowed, false);
+    assert.equal(
+      afterRemoval.opl_agent_package_status.configured_carrier.status,
+      'physical_unavailable',
+    );
     assertStateBytesUnchanged();
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -346,7 +377,7 @@ test('configured Codex carrier executes native install/list/update/repair/remove
     runCodex(binary, ['plugin', 'marketplace', 'add', marketplaceRoot, '--json'], env);
 
     const absent = runConfiguredCodexPluginCarrier({ descriptor, action: 'list', binary, env });
-    assert.equal(absent.status, 'not_installed');
+    assert.equal(absent.status, 'physical_unavailable');
 
     const installed = runConfiguredCodexPluginCarrier({ descriptor, action: 'install', binary, env });
     assert.equal(installed.status, 'installed');
@@ -381,7 +412,7 @@ test('configured Codex carrier executes native install/list/update/repair/remove
     assert.equal(fs.existsSync(oplStateDir), false);
 
     const removed = runConfiguredCodexPluginCarrier({ descriptor, action: 'remove', binary, env });
-    assert.equal(removed.status, 'not_installed');
+    assert.equal(removed.status, 'physical_unavailable');
     assert.equal(removed.executor.status, 'attention_needed');
     assert.equal(fs.existsSync(path.join(oplStateDir, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(oplStateDir, 'agent-package-lifecycle-ledger.json')), false);
