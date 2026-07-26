@@ -4,7 +4,7 @@
   "package_id": "rca",
   "display_name": "RedCube AI",
   "publisher": "one-person-lab",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "presentation": {
     "display_name_i18n": {
       "en-US": "RedCube AI"
@@ -68,8 +68,8 @@
   },
   "codex_surface": {
     "plugin_id": "redcube-ai",
-    "plugin_payload_manifest_url": "payloads/rca-0.2.8.json",
-    "carrier_source_commit": "d41360070fd2f02b85f2eed5761670746d10e25e",
+    "plugin_payload_manifest_url": "payloads/rca-0.2.9.json",
+    "carrier_source_commit": "8e740a09ee64c0e216d05eff3c6a8024e813e09f",
     "standalone_distribution": "repo_carrier_source",
     "required_skill_ids": [
       "redcube-ai"

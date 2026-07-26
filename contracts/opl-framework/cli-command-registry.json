@@ -3981,7 +3981,6 @@
               "registry_url",
               "entry_count",
               "entries",
-              "lifecycle_receipt",
               "authority_boundary"
             ],
             "additionalProperties": true
@@ -4061,7 +4060,6 @@
               "codex_visible_entry",
               "bundled_required_skill_ids",
               "rollback_ref",
-              "lifecycle_receipt",
               "owner_route_readback",
               "authority_boundary"
             ],
@@ -5197,7 +5195,6 @@
               "dry_run",
               "preference",
               "preferences_file",
-              "lifecycle_receipt",
               "authority_boundary"
             ],
             "additionalProperties": true

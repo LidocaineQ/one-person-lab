@@ -437,6 +437,19 @@ test('Temporal service supervisor installs an idempotent direct-executable launc
     assert.equal(restored.supervisor.configuration_current, true);
     assert.equal(restored.supervisor.ready, true);
 
+    fs.rmSync(plistPath);
+    const missingPlist = await inspectTemporalServiceLifecycle(fixture.paths, runtime);
+    assert.equal(missingPlist.supervisor.installed, false);
+    assert.equal(missingPlist.supervisor.configuration_current, false);
+    assert.equal(missingPlist.repair_action.action_id, 'install_temporal_service_supervisor');
+    assert.equal(
+      missingPlist.repair_action.next_command,
+      'opl family-runtime service supervisor install --provider temporal',
+    );
+    const reinstalled = await runTemporalServiceSupervisorCommand(fixture.db, fixture.paths, 'install', runtime);
+    assert.equal(reinstalled.status, 'ready');
+    assert.equal(fakeLaunchctl.bootstrapCount, 2);
+
     const triggered = await runTemporalServiceSupervisorCommand(fixture.db, fixture.paths, 'trigger', runtime);
     assert.equal(triggered.status, 'ready');
     assert.equal(fakeLaunchctl.calls.some((args) => args[0] === 'kickstart' && args[1] === '-k'), true);

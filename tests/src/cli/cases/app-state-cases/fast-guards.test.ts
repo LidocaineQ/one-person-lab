@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 
 import { buildAppStateRuntimeActivityItems } from '../../../../../src/modules/console/app-state-runtime-activity.ts';
+import { buildTaskRunProjectionV2 } from '../../../../../src/modules/console/app-state-task-run-projection.ts';
 import { readWorkItemStageAttempts } from '../../../../../src/modules/console/work-item-projection/execution.ts';
 import { createStageAttemptTable } from '../../../../../src/modules/runway/family-runtime-stage-attempt-ledger.ts';
 import { createStageAttempt } from '../../../../../src/modules/runway/family-runtime-stage-attempts.ts';
@@ -95,6 +96,11 @@ test('app state fast hot path avoids barrel imports and keeps full drilldown laz
     'full runtime tray must not load on the fast profile import path',
   );
   assert.match(appStateSource, /import\(['"]\.\/runtime-tray-snapshot\.ts['"]\)/);
+});
+
+test('task run projection does not republish the retired work item V1 envelope', () => {
+  const projection = buildTaskRunProjectionV2([]);
+  assert.equal('work_item_projection_v1' in projection, false);
 });
 
 test('app state fast ignores non-framework owner-delta cache as default cockpit source', () => {
@@ -265,7 +271,8 @@ test('app state fast excludes unregistered runtime history from the work-item in
     assert.equal(Buffer.byteLength(JSON.stringify(output), 'utf8') <= 262144, true);
     assert.equal(runtimeTasks.length, 0);
     assert.equal(workbench.task_run_projection_v2.tasks.length, 0);
-    assert.equal(workbench.work_item_projection_v1.items.length, 0);
+    assert.equal('work_item_projection_v1' in workbench.task_run_projection_v2, false);
+    assert.equal('work_item_projection_v1' in workbench, false);
     assert.equal(workItemProjectionV2.items.length, 0);
     assert.equal(workItemProjectionV2.summary.work_item_count, 0);
     assert.equal(workItemProjectionV2.identity_health.non_work_item_execution_count, 0);

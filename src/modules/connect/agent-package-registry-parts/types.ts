@@ -32,8 +32,6 @@ export type AgentPackageCarrierAuthority = {
 };
 
 export type AgentPackageLifecycleAction =
-  | 'registry_refresh'
-  | 'manifest_validate'
   | 'install'
   | 'update'
   | 'optimize'
@@ -46,8 +44,7 @@ export type AgentPackageLifecycleAction =
   | 'hide'
   | 'unhide'
   | 'enable'
-  | 'disable'
-  | 'home_shortcut_preferences_set';
+  | 'disable';
 
 export type AgentPackageLifecycleCondition = {
   condition_id:
@@ -62,6 +59,8 @@ export type AgentPackageLifecycleCondition = {
     | 'managed_policy_drift_detected'
     | 'carrier_authority_current'
     | 'carrier_authority_invalid'
+    | 'configured_native_carrier_present'
+    | 'configured_native_carrier_attention_needed'
     | 'codex_reload_observed';
   package_id: string | null;
   status: 'ok' | 'attention_needed';
@@ -178,6 +177,19 @@ export type AgentPackagePresentation = {
   home_shortcuts: AgentPackageHomeShortcutPresentation[];
 };
 
+export type AgentPackageConfiguredCodexPluginCarrierDescriptor = {
+  packageId: string;
+  carrier: {
+    kind: 'codex_plugin_manager';
+    pluginId: string;
+  };
+  executor: {
+    route: 'codex_cli';
+    requiredSkillIds: string[];
+  };
+  publicationRef: string | null;
+};
+
 export type AgentPackageRegistryEntry = {
   package_id: string;
   display_name: string;
@@ -200,6 +212,7 @@ export type AgentPackageRegistryEntry = {
   presentation?: AgentPackagePresentation | null;
   display_policy: string | null;
   ordinary_user_source: AgentPackageOrdinaryUserSource | null;
+  configured_codex_plugin_carrier?: AgentPackageConfiguredCodexPluginCarrierDescriptor | null;
 };
 
 export type AgentPackageOrdinaryUserSource = {
@@ -274,6 +287,7 @@ export type AgentPackageManifest = {
   content_lock_canonicalization: 'ordered_path_nul_file_bytes' | 'ordered_path_length_file_length_bytes' | null;
   content_lock_paths: string[];
   developer_checkout_source?: AgentPackageDeveloperCheckoutSource | null;
+  configured_codex_plugin_carrier?: AgentPackageConfiguredCodexPluginCarrierDescriptor | null;
 };
 
 export type AgentPackageDeveloperCheckoutSource = {
@@ -909,11 +923,20 @@ export type AgentPackageHomeShortcutPreference = {
   installed: boolean;
 };
 
+export type AgentPackageStoredHomeShortcutPreference = {
+  shortcut_id: string;
+  package_id: string;
+  visible: boolean;
+  sort_order: number | null;
+  source: 'user_preference';
+  updated_at: string;
+};
+
 export type AgentPackageHomeShortcutPreferenceFile = {
   surface_kind: 'opl_agent_package_home_shortcut_preferences';
   version: 'g1';
   updated_at: string;
-  preferences: AgentPackageHomeShortcutPreference[];
+  preferences: AgentPackageStoredHomeShortcutPreference[];
 };
 
 export type AgentPackageRegistryCache = {

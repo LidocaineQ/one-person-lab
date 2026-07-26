@@ -40,9 +40,9 @@ import {
   requirePackageId,
 } from './agent-package-registry-parts/lifecycle-lock.ts';
 import {
-  homeShortcutPreferenceSourceSha256,
   mergedHomeShortcutPreferences,
   readHomeShortcutPreferenceFile,
+  withHomeShortcutPreferenceTransaction,
   writeHomeShortcutPreferenceFile,
 } from './agent-package-registry-parts/home-shortcuts.ts';
 import { normalizeManifest, normalizePackageManifest } from './agent-package-registry-parts/manifest-normalizers.ts';
@@ -126,6 +126,11 @@ import {
   enrichRegistryCacheManifestMetadata,
 } from './agent-package-registry-parts/directory.ts';
 import {
+  runConfiguredCodexPluginCarrier,
+  type ConfiguredCodexPluginCarrierAction,
+  type ConfiguredCodexPluginCarrierReadback,
+} from './agent-package-registry-parts/configured-codex-plugin-carrier.ts';
+import {
   refreshFirstPartyPackageCatalogSnapshot,
   resolveFirstPartyPackageCatalogSnapshot,
 } from './agent-package-registry-parts/release-catalog-cache.ts';
@@ -153,7 +158,6 @@ import {
   sha256Text,
 } from './agent-package-registry-parts/shared.ts';
 import {
-  appendReceipt,
   readLifecycleLedger,
   readLockIndex,
   readRegistryCache,
@@ -166,12 +170,13 @@ import {
   rollbackInstalledPackageOptimization,
 } from './agent-package-registry-parts/installed-source-optimize.ts';
 import type {
-  AgentPackageHomeShortcutPreference,
   AgentPackageHomeShortcutPreferenceFile,
   AgentPackageHomeShortcutPreferencesSetInput,
+  AgentPackageStoredHomeShortcutPreference,
   AgentPackageCarrierAuthority,
   AgentPackageInstallInput,
   AgentPackageLifecycleReceipt,
+  AgentPackageLifecycleUxReadback,
   AgentPackageLastKnownGood,
   AgentPackageLock,
   AgentPackageLockIndex,
@@ -183,6 +188,8 @@ import type {
   AgentPackageScopeMaterialization,
   AgentPackageProfileApplyInput,
   AgentPackageRepairInput,
+  AgentPackageRegistryCache,
+  AgentPackageRegistryEntry,
   AgentPackageRegistryRefreshInput,
 } from './agent-package-registry-parts/types.ts';
 
@@ -1568,7 +1575,7 @@ async function applyManifestPackageLock(
   };
 }
 
-async function runOplAgentPackageRegistryRefreshUnlocked(input: AgentPackageRegistryRefreshInput) {
+export async function runOplAgentPackageRegistryRefresh(input: AgentPackageRegistryRefreshInput) {
   const registryUrl = stringValue(input.registryUrl);
   if (!registryUrl) {
     throw new FrameworkContractError('cli_usage_error', 'Agent package registry refresh requires --registry-url.', {
@@ -1579,15 +1586,6 @@ async function runOplAgentPackageRegistryRefreshUnlocked(input: AgentPackageRegi
   const cache = await enrichRegistryCacheManifestMetadata(fetchedCache);
   writeRegistryCache(cache);
   const lifecycleUx = agentPackageLifecycleSummaryReadback({ packages: [] });
-  const receipt = lifecycleReceipt({
-    action: 'registry_refresh',
-    actionStatus: 'completed',
-    registryUrl,
-    sourceKind: 'registry_url',
-    sourceSha256: fetched.source_sha256,
-    writesPerformed: true,
-  });
-  appendReceipt(receipt);
   return {
     version: 'g2',
     opl_agent_package_registry: {
@@ -1603,40 +1601,18 @@ async function runOplAgentPackageRegistryRefreshUnlocked(input: AgentPackageRegi
       lifecycle_action_refs: lifecycleUx.lifecycle_action_refs,
       lifecycle_ux: lifecycleUx,
       cache_file: resolveOplStatePaths().agent_package_registry_cache_file,
-      lifecycle_receipt: receipt,
       authority_boundary: refsOnlyAuthorityBoundary(),
     },
   };
 }
 
-export async function runOplAgentPackageRegistryRefresh(input: AgentPackageRegistryRefreshInput) {
-  return withAgentPackageLifecycleTransaction(
-    false,
-    () => runOplAgentPackageRegistryRefreshUnlocked(input),
-  );
-}
-
-async function runOplAgentPackageManifestValidateUnlocked(input: AgentPackageManifestValidateInput) {
+export async function runOplAgentPackageManifestValidate(input: AgentPackageManifestValidateInput) {
   const selection = await resolveManifestSelection(input);
   const fetched = await fetchJsonSource(selection.manifestUrl);
   const manifest = normalizeManifest(fetched.payload, selection.manifestUrl);
   assertManifestMatchesRegistrySelection(manifest, selection);
   const effectiveTrustTier = stringValue(input.trustTier) ?? selection.trustTier;
   const sourceKind = normalizeSourceKind(input.sourceKind, selection.manifestUrl);
-  const receipt = lifecycleReceipt({
-    action: 'manifest_validate',
-    actionStatus: 'validated',
-    packageId: manifest.package_id,
-    registryUrl: selection.registryUrl,
-    manifestUrl: selection.manifestUrl,
-    manifestSha256: fetched.source_sha256,
-    rollbackRef: manifest.rollback_ref,
-    sourceKind,
-    trustTier: effectiveTrustTier,
-    sourceSha256: fetched.source_sha256,
-    writesPerformed: true,
-  });
-  appendReceipt(receipt);
   return {
     version: 'g2',
     opl_agent_package_manifest: {
@@ -1658,13 +1634,10 @@ async function runOplAgentPackageManifestValidateUnlocked(input: AgentPackageMan
       distribution_payload: manifest.distribution_payload,
       rollback_ref: manifest.rollback_ref,
       registry_entry: selection.registryEntry,
-      lifecycle_receipt: receipt,
-      lifecycle_ledger_file: resolveOplStatePaths().agent_package_lifecycle_ledger_file,
       owner_route_readback: ownerRouteReadback({
         selectedPackageId: manifest.package_id,
         packages: [{
           packageId: manifest.package_id,
-          receipt,
           manifestUrl: selection.manifestUrl,
           manifestSha256: fetched.source_sha256,
           registryUrl: selection.registryUrl,
@@ -1684,20 +1657,135 @@ async function runOplAgentPackageManifestValidateUnlocked(input: AgentPackageMan
   };
 }
 
-export async function runOplAgentPackageManifestValidate(input: AgentPackageManifestValidateInput) {
-  return withAgentPackageLifecycleTransaction(
-    false,
-    () => runOplAgentPackageManifestValidateUnlocked(input),
-  );
-}
-
 async function runOplAgentPackageInstallUnlocked(input: AgentPackageInstallInput) {
   const result = await applyManifestPackageLock(input, 'install');
 
   return agentPackageInstallReadback(input, result);
 }
 
+type ConfiguredCarrierSelectionInput =
+  | AgentPackageInstallInput
+  | AgentPackageRepairInput
+  | AgentPackagePackageActionInput;
+
+async function resolveFreshConfiguredCarrier(input: ConfiguredCarrierSelectionInput) {
+  const packageId = canonicalAgentPackageId(input.packageId);
+  const explicitManifestUrl = 'manifestUrl' in input ? stringValue(input.manifestUrl) : null;
+  const explicitRegistryUrl = 'registryUrl' in input ? stringValue(input.registryUrl) : null;
+  if (
+    resolveFirstPartyPackageCatalog(packageId)
+    && (explicitManifestUrl || explicitRegistryUrl)
+  ) {
+    return null;
+  }
+  const registryCache = readRegistryCache();
+  const cacheEntry = packageId
+    ? registryCache?.entries.find((entry) => entry.package_id === packageId) ?? null
+    : null;
+  if (!explicitManifestUrl && !explicitRegistryUrl && !cacheEntry?.configured_codex_plugin_carrier) {
+    return null;
+  }
+  const selection = await resolveManifestSelection({
+    packageId,
+    manifestUrl: explicitManifestUrl,
+    registryUrl: explicitRegistryUrl
+      ?? (cacheEntry?.configured_codex_plugin_carrier ? registryCache?.registry_url ?? null : null),
+    trustTier: 'trustTier' in input ? input.trustTier : null,
+  });
+  const fetched = await fetchJsonSource(selection.manifestUrl);
+  const manifest = normalizePackageManifest(fetched.payload, selection.manifestUrl);
+  assertManifestMatchesRegistrySelection(manifest, selection);
+  if (packageId && manifest.package_id !== packageId) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Configured native carrier manifest identity must match the requested Package.',
+      {
+        package_id: packageId,
+        manifest_package_id: manifest.package_id,
+        manifest_url: selection.manifestUrl,
+        failure_code: 'configured_codex_plugin_carrier_package_identity_mismatch',
+      },
+    );
+  }
+  return manifest.configured_codex_plugin_carrier
+    ? { descriptor: manifest.configured_codex_plugin_carrier, selection }
+    : null;
+}
+
+function configuredCarrierLifecycleReadback(input: {
+  action: Exclude<ConfiguredCodexPluginCarrierAction, 'list'>;
+  dryRun: boolean;
+  carrier: ConfiguredCodexPluginCarrierReadback;
+  registryEntry: AgentPackageRegistryEntry | null;
+}) {
+  const nativeReady = input.carrier.status === 'installed'
+    && input.carrier.executor.status === 'callable'
+    && input.carrier.carrier.precedence === 'exact_single_source';
+  const status = input.action === 'remove'
+    ? input.carrier.status === 'not_installed'
+      && input.carrier.carrier.precedence === 'not_present'
+      ? 'uninstalled'
+      : 'attention_needed'
+    : input.dryRun
+      ? 'validated_no_write'
+      : nativeReady
+        ? input.action === 'install' ? 'installed'
+          : input.action === 'update' ? 'updated'
+            : 'repaired'
+        : 'attention_needed';
+  return {
+    status,
+    dry_run: input.dryRun,
+    package_lock: null,
+    lifecycle_receipt: null,
+    configured_carrier: input.carrier,
+    registry_entry: input.registryEntry,
+    opl_private_state_writes: {
+      package_lock: false,
+      lifecycle_receipt: false,
+      lifecycle_ledger: false,
+      last_known_good: false,
+      rollback: false, // reuse-first: allow - reports that the legacy OPL writer stayed inactive.
+      transaction_mutex: false,
+    },
+    authority_boundary: refsOnlyAuthorityBoundary(),
+  };
+}
+
+async function maybeRunConfiguredCarrierLifecycle(input: {
+  selectionInput: ConfiguredCarrierSelectionInput;
+  action: Exclude<ConfiguredCodexPluginCarrierAction, 'list'>;
+}) {
+  const selected = await resolveFreshConfiguredCarrier(input.selectionInput);
+  if (!selected) return null;
+  const dryRun = input.selectionInput.dryRun === true;
+  const carrier = runConfiguredCodexPluginCarrier({
+    descriptor: selected.descriptor,
+    action: input.action,
+    dryRun,
+  });
+  return configuredCarrierLifecycleReadback({
+    action: input.action,
+    dryRun,
+    carrier,
+    registryEntry: selected.selection.registryEntry,
+  });
+}
+
 export async function runOplAgentPackageInstall(input: AgentPackageInstallInput) {
+  const configured = await maybeRunConfiguredCarrierLifecycle({
+    selectionInput: input,
+    action: 'install',
+  });
+  if (configured) {
+    return {
+      version: 'g2',
+      opl_agent_package_install: {
+        surface_kind: 'opl_agent_package_install',
+        ...configured,
+      },
+    };
+  }
   return withAgentPackageLifecycleTransaction(
     input.dryRun === true,
     () => runOplAgentPackageInstallUnlocked(input),
@@ -2881,6 +2969,19 @@ async function runOplAgentPackageUpdateUnlocked(
 export async function runOplAgentPackageUpdate(input: AgentPackageInstallInput) {
   const bundledPresence = tryBundledFullRuntimePackagePresenceReadback(input);
   if (bundledPresence) return bundledPresence;
+  const configured = await maybeRunConfiguredCarrierLifecycle({
+    selectionInput: input,
+    action: 'update',
+  });
+  if (configured) {
+    return {
+      version: 'g2',
+      opl_agent_package_update: {
+        surface_kind: 'opl_agent_package_update',
+        ...configured,
+      },
+    };
+  }
   return withAgentPackageLifecycleTransaction(
     input.dryRun === true,
     () => runOplAgentPackageUpdateUnlocked(input),
@@ -3184,6 +3285,19 @@ async function runOplAgentPackageRepairUnlocked(input: AgentPackageRepairInput) 
 }
 
 export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
+  const configured = await maybeRunConfiguredCarrierLifecycle({
+    selectionInput: input,
+    action: 'repair',
+  });
+  if (configured) {
+    return {
+      version: 'g2',
+      opl_agent_package_repair: {
+        surface_kind: 'opl_agent_package_repair',
+        ...configured,
+      },
+    };
+  }
   return withAgentPackageLifecycleTransaction(
     input.dryRun === true,
     async () => await runOplAgentPackageRepairUnlocked(input),
@@ -4315,6 +4429,19 @@ function runOplAgentPackageUninstallUnlocked(input: AgentPackagePackageActionInp
 }
 
 export async function runOplAgentPackageUninstall(input: AgentPackagePackageActionInput) {
+  const configured = await maybeRunConfiguredCarrierLifecycle({
+    selectionInput: input,
+    action: 'remove',
+  });
+  if (configured) {
+    return {
+      version: 'g2',
+      opl_agent_package_uninstall: {
+        surface_kind: 'opl_agent_package_uninstall',
+        ...configured,
+      },
+    };
+  }
   return withAgentPackageLifecycleTransaction(
     input.dryRun === true,
     async () => runOplAgentPackageUninstallUnlocked(input),
@@ -4398,17 +4525,15 @@ function runOplAgentPackageHomeShortcutPreferencesSetUnlocked(input: AgentPackag
       required: ['shortcut_id'],
     });
   }
-  const { index: lockIndex } = readRecoveredLockIndex(input.dryRun === true);
   const stored = readHomeShortcutPreferenceFile();
   const updatedAt = nowIso();
-  const nextEntry: AgentPackageHomeShortcutPreference = {
+  const nextEntry: AgentPackageStoredHomeShortcutPreference = {
     shortcut_id: shortcutId,
     package_id: packageId,
     visible: input.visible !== false,
     sort_order: typeof input.sortOrder === 'number' && Number.isFinite(input.sortOrder) ? input.sortOrder : null,
     source: 'user_preference',
     updated_at: updatedAt,
-    installed: lockIndex.packages.some((entry) => entry.package_id === packageId),
   };
   const nextPreferences = [
     nextEntry,
@@ -4420,18 +4545,8 @@ function runOplAgentPackageHomeShortcutPreferencesSetUnlocked(input: AgentPackag
     updated_at: updatedAt,
     preferences: nextPreferences,
   };
-  const receipt = lifecycleReceipt({
-    action: 'home_shortcut_preferences_set',
-    actionStatus: input.dryRun ? 'validated' : 'completed',
-    packageId,
-    sourceKind: 'manifest_import',
-    trustTier: null,
-    sourceSha256: homeShortcutPreferenceSourceSha256(input),
-    writesPerformed: !input.dryRun,
-  });
   if (!input.dryRun) {
     writeHomeShortcutPreferenceFile(nextFile);
-    appendReceipt(receipt);
   }
   return {
     version: 'g2',
@@ -4441,16 +4556,15 @@ function runOplAgentPackageHomeShortcutPreferencesSetUnlocked(input: AgentPackag
       dry_run: input.dryRun === true,
       preference: nextEntry,
       preferences_file: resolveOplStatePaths().agent_package_home_shortcut_preferences_file,
-      lifecycle_receipt: receipt,
       authority_boundary: refsOnlyAuthorityBoundary(),
     },
   };
 }
 
 export async function runOplAgentPackageHomeShortcutPreferencesSet(input: AgentPackageHomeShortcutPreferencesSetInput) {
-  return withAgentPackageLifecycleTransaction(
+  return withHomeShortcutPreferenceTransaction(
     input.dryRun === true,
-    async () => runOplAgentPackageHomeShortcutPreferencesSetUnlocked(input),
+    () => runOplAgentPackageHomeShortcutPreferencesSetUnlocked(input),
   );
 }
 
@@ -4618,20 +4732,85 @@ function packageLifecycleHistoryPage(input: {
   };
 }
 
+function configuredCarrierReadbacks(
+  registryCache: AgentPackageRegistryCache | null,
+  packageId: string | null = null,
+) {
+  return new Map<string, ConfiguredCodexPluginCarrierReadback>(
+    (registryCache?.entries ?? []).flatMap((entry) => {
+      const descriptor = entry.configured_codex_plugin_carrier ?? null;
+      if (!descriptor || (packageId && entry.package_id !== packageId)) return [];
+      return [[entry.package_id, runConfiguredCodexPluginCarrier({
+        descriptor,
+        action: 'list',
+      })] as const];
+    }),
+  );
+}
+
+function configuredCarrierLifecycleUxReadback(
+  carrier: ConfiguredCodexPluginCarrierReadback,
+  legacyPrivateStatePresent: boolean,
+): AgentPackageLifecycleUxReadback {
+  const installed = carrier.status === 'installed';
+  const attention = legacyPrivateStatePresent
+    || carrier.status === 'physical_unavailable'
+    || carrier.executor.status !== 'callable'
+    || carrier.carrier.precedence !== 'exact_single_source';
+  return {
+    status: attention
+      ? 'attention_needed'
+      : installed
+        ? 'installed'
+        : 'not_installed',
+    conditions: [
+      {
+        condition_id: installed
+          ? 'configured_native_carrier_present'
+          : 'package_not_installed',
+        package_id: carrier.package_id,
+        status: installed ? 'ok' : 'attention_needed',
+        reason: installed
+          ? 'Configured native carrier reports the Package selector installed.'
+          : carrier.reason ?? 'Configured native carrier reports the Package selector absent.',
+        action_ref: installed ? null : 'install_from_manifest_url',
+      },
+      ...(attention ? [{
+        condition_id: 'configured_native_carrier_attention_needed' as const,
+        package_id: carrier.package_id,
+        status: 'attention_needed' as const,
+        reason: legacyPrivateStatePresent
+          ? 'Legacy OPL private lifecycle state remains for a Package now observed through its configured native carrier.'
+          : carrier.reason ?? 'Configured native carrier requires attention.',
+        action_ref: installed ? 'agent_package_repair' : 'install_from_manifest_url',
+      }] : []),
+    ],
+    recommended_action: attention
+      ? installed ? 'agent_package_repair' : 'install_from_manifest_url'
+      : null,
+    lifecycle_action_refs: installed
+      ? ['update', 'repair', 'uninstall']
+      : ['install'],
+  };
+}
+
 function readAgentPackageStatusSnapshot() {
   const lockIndex = readLockIndex();
   const lifecycleLedger = readLifecycleLedger();
   const registryCache = readRegistryCache();
+  const configuredCarriers = configuredCarrierReadbacks(registryCache);
   const directory = buildAgentPackageDirectory({
     registryCache,
     locks: lockIndex.packages,
     detail: 'fast',
     firstPartyCatalog: null,
+    configuredCarrierReadbacks: configuredCarriers,
   });
   return {
     lockIndex,
     lifecycleLedger,
     registryCache,
+    configuredCarriers,
     paths: resolveOplStatePaths(),
     runtimeSourceRecovery: inspectManagedRuntimeSourceTransactions(),
     homeShortcutPreferences: mergedHomeShortcutPreferences(directory, lockIndex),
@@ -4653,18 +4832,23 @@ function buildOplAgentPackageStatus(
     paths,
     homeShortcutPreferences: allHomeShortcutPreferences,
     receiptsByRef,
+    configuredCarriers,
   } = snapshot;
   const installedPackages = packageId
     ? lockIndex.packages.filter((entry) => entry.package_id === packageId)
     : lockIndex.packages;
   const homeShortcutPreferences = allHomeShortcutPreferences
     .filter((entry) => !packageId || entry.package_id === packageId);
-  const lifecycleUx = agentPackageLifecycleSummaryReadback({
+  const legacyLifecycleUx = agentPackageLifecycleSummaryReadback({
     selectedPackageId: packageId ?? null,
     packages: installedPackages,
     receipts: lifecycleLedger.receipts,
   });
   const selectedLock = packageId ? installedPackages[0] ?? null : null;
+  const configuredCarrier = packageId ? configuredCarriers.get(packageId) ?? null : null;
+  const lifecycleUx = configuredCarrier
+    ? configuredCarrierLifecycleUxReadback(configuredCarrier, Boolean(selectedLock))
+    : legacyLifecycleUx;
   const selectedReceipt = selectedLock
     ? receiptsByRef.get(selectedLock.action_receipt_id) ?? null
     : null;
@@ -4696,15 +4880,30 @@ function buildOplAgentPackageStatus(
       ? requiredPolicyDependenciesOperational
       : false;
   const exposureOperational = selectedLock?.exposure_state !== 'disabled';
-  const operationalReady = Boolean(
-    selectedLock
-    && exposureOperational
-    && packageDependencyReadiness?.operational_ready
-    && materializationOperational
-    && runtimeSourceReadiness.operational_ready
-    && managedPolicyOperational,
+  const configuredCarrierReady = Boolean(
+    configuredCarrier
+    && configuredCarrier.status === 'installed'
+    && configuredCarrier.executor.status === 'callable'
+    && configuredCarrier.carrier.precedence === 'exact_single_source'
+    && !selectedLock,
   );
-  const launchBlockedReason = !selectedLock
+  const operationalReady = configuredCarrier
+    ? configuredCarrierReady
+    : Boolean(
+        selectedLock
+        && exposureOperational
+        && packageDependencyReadiness?.operational_ready
+        && materializationOperational
+        && runtimeSourceReadiness.operational_ready
+        && managedPolicyOperational,
+      );
+  const launchBlockedReason = configuredCarrier
+    ? selectedLock
+      ? 'configured_native_carrier_legacy_state_present'
+      : configuredCarrierReady
+        ? null
+        : configuredCarrier.reason ?? 'configured_native_carrier_attention_needed'
+    : !selectedLock
     ? 'package_not_installed'
     : !exposureOperational
       ? 'package_disabled'
@@ -4769,8 +4968,9 @@ function buildOplAgentPackageStatus(
       ?? (policyCurrentness.status === 'drifted' ? 'managed_policy_drifted' : null)
       ?? (dependencyObservationReason ? `package_dependency_${dependencyObservationReason}` : null);
   const launchState = deriveAgentPackageLaunchState({
-    installed: Boolean(selectedLock),
-    exposure_state: selectedLock?.exposure_state ?? 'not_installed',
+    installed: Boolean(selectedLock || configuredCarrier?.status === 'installed'),
+    exposure_state: selectedLock?.exposure_state
+      ?? (configuredCarrier?.status === 'installed' ? 'visible' : 'not_installed'),
     operational_ready: operationalReady,
     launch_blocked_reason: operationalReady ? null : launchBlockedReason,
     degraded_reason: degradedReason,
@@ -4787,13 +4987,19 @@ function buildOplAgentPackageStatus(
     opl_agent_package_status: {
       surface_kind: 'opl_agent_package_status',
       status: packageId && installedPackages.length === 0
-        ? 'not_installed'
+        && configuredCarrier?.status !== 'installed'
+        ? configuredCarrier?.status === 'physical_unavailable'
+          ? 'attention_needed'
+          : 'not_installed'
         : packageId && !operationalReady
           ? 'attention_needed'
           : 'available',
       package_id: packageId ?? null,
-      installed_package_count: installedPackages.length,
+      installed_package_count: configuredCarrier?.status === 'installed'
+        ? Math.max(1, installedPackages.length)
+        : installedPackages.length,
       installed_packages: installedPackages,
+      configured_carrier: configuredCarrier,
       conditions: lifecycleUx.conditions,
       recommended_action: lifecycleUx.recommended_action,
       lifecycle_action_refs: lifecycleUx.lifecycle_action_refs,
@@ -4805,7 +5011,9 @@ function buildOplAgentPackageStatus(
       managed_policy_currentness: policyCurrentness,
       runtime_source_recovery: runtimeSourceRecovery,
       operational_ready: operationalReady,
-      operational_ready_scope: 'package_dependency_scope_runtime_source_and_managed_policy',
+      operational_ready_scope: configuredCarrier
+        ? 'configured_native_carrier_presence_callability_identity_and_precedence'
+        : 'package_dependency_scope_runtime_source_and_managed_policy',
       launch_allowed: operationalReady,
       launch_blocked_reason: operationalReady ? null : launchBlockedReason,
       ...launchState,
@@ -4872,6 +5080,7 @@ export function listOplAgentPackages(input: {
   const paths = resolveOplStatePaths();
   const registryCache = readRegistryCache();
   const lockIndex = readLockIndex();
+  const configuredCarriers = configuredCarrierReadbacks(registryCache);
   const lifecycleLedger = readLifecycleLedger();
   const receiptsByRef = new Map<string, AgentPackageLifecycleReceipt>();
   for (const receipt of lifecycleLedger.receipts) {
@@ -4891,6 +5100,7 @@ export function listOplAgentPackages(input: {
     locks: lockIndex.packages,
     detail,
     firstPartyCatalog: input.firstPartyCatalog ?? null,
+    configuredCarrierReadbacks: configuredCarriers,
     actionContext: input.statusContext,
     readStatus: (packageId) => {
       const context = input.statusContext?.(packageId) ?? {};
@@ -4910,8 +5120,14 @@ export function listOplAgentPackages(input: {
       status: 'available',
       registry_cache: registryCache,
       directory,
-      installed_package_count: lockIndex.packages.length,
+      installed_package_count: new Set([
+        ...lockIndex.packages.map((entry) => entry.package_id),
+        ...[...configuredCarriers.entries()]
+          .filter(([, readback]) => readback.status === 'installed')
+          .map(([packageId]) => packageId),
+      ]).size,
       installed_packages: lockIndex.packages,
+      configured_carriers: [...configuredCarriers.values()],
       conditions: lifecycleUx.conditions,
       recommended_action: lifecycleUx.recommended_action,
       lifecycle_action_refs: lifecycleUx.lifecycle_action_refs,

@@ -405,7 +405,7 @@ test('OPL Flow manifest resolves its package-owned 0.1.25 carrier and managed po
   });
 });
 
-test('RCA first-party manifest resolves the projected 0.2.8 carrier payload', () => {
+test('RCA first-party manifest resolves the projected 0.2.9 carrier payload', () => {
   const manifestPath = path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'rca.json');
   const manifest = normalizePackageManifest(
     parseJsonText(fs.readFileSync(manifestPath, 'utf8')),
@@ -413,13 +413,13 @@ test('RCA first-party manifest resolves the projected 0.2.8 carrier payload', ()
   );
 
   assert.equal(manifest.package_id, 'rca');
-  assert.equal(manifest.version, '0.2.8');
+  assert.equal(manifest.version, '0.2.9');
   assert.deepEqual(manifest.required_skill_ids, ['redcube-ai']);
   assert.equal(
     manifest.plugin_payload_manifest_url,
-    path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'payloads', 'rca-0.2.8.json'),
+    path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'payloads', 'rca-0.2.9.json'),
   );
-  assert.equal(manifest.carrier_source_commit, 'd41360070fd2f02b85f2eed5761670746d10e25e');
+  assert.equal(manifest.carrier_source_commit, '8e740a09ee64c0e216d05eff3c6a8024e813e09f');
 });
 
 test('standard Agent manifests declare managed runtime source carriers while capability and policy packages do not', () => {
@@ -502,11 +502,14 @@ test('Home shortcut preferences can be changed before the package is installed',
           sort_order: number | null;
           source: string;
           updated_at: string;
-          installed: boolean;
         };
       };
     };
 
+    assert.equal(
+      Object.hasOwn(result.opl_agent_package_home_shortcut_preferences, 'lifecycle_receipt'),
+      false,
+    );
     assert.deepEqual(result.opl_agent_package_home_shortcut_preferences.preference, {
       package_id: 'oma',
       shortcut_id: 'oma',
@@ -514,8 +517,63 @@ test('Home shortcut preferences can be changed before the package is installed',
       sort_order: null,
       source: 'user_preference',
       updated_at: result.opl_agent_package_home_shortcut_preferences.preference.updated_at,
-      installed: false,
     });
+    assert.equal(
+      Object.hasOwn(result.opl_agent_package_home_shortcut_preferences.preference, 'installed'),
+      false,
+    );
+  } finally {
+    fs.rmSync(stateDir, { recursive: true, force: true });
+  }
+});
+
+test('concurrent Home shortcut preference writes preserve each preference without Package lifecycle state', async () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-home-preference-concurrency-'));
+  const shortcutIds = Array.from({ length: 8 }, (_, index) => `shortcut-${index}`);
+  try {
+    const outputs = await Promise.all(shortcutIds.map((shortcutId, index) => runCliAsync([
+      'packages',
+      'preferences',
+      'set',
+      '--package-id',
+      'opl-meta-agent',
+      '--shortcut-id',
+      shortcutId,
+      '--sort-order',
+      String(index),
+      '--visible',
+    ], { OPL_STATE_DIR: stateDir })));
+
+    for (const output of outputs) {
+      const surface = output.opl_agent_package_home_shortcut_preferences as Record<string, unknown>;
+      assert.equal(Object.hasOwn(surface, 'lifecycle_receipt'), false);
+    }
+    const stored = parseJsonText(
+      fs.readFileSync(path.join(stateDir, 'agent-package-home-shortcut-preferences.json'), 'utf8'),
+    ) as {
+      preferences: Array<{ package_id: string; shortcut_id: string; sort_order: number; installed?: boolean }>;
+    };
+    assert.equal(stored.preferences.some((entry) => Object.hasOwn(entry, 'installed')), false);
+    assert.deepEqual(
+      stored.preferences
+        .map((entry) => ({
+          package_id: entry.package_id,
+          shortcut_id: entry.shortcut_id,
+          sort_order: entry.sort_order,
+        }))
+        .sort((a, b) => a.shortcut_id.localeCompare(b.shortcut_id)),
+      shortcutIds.map((shortcutId, index) => ({
+        package_id: 'oma',
+        shortcut_id: shortcutId,
+        sort_order: index,
+      })),
+    );
+    const stateFiles = fs.readdirSync(stateDir);
+    assert.equal(stateFiles.includes('agent-package-home-shortcut-preferences.sqlite'), true);
+    assert.equal(stateFiles.includes('agent-package-lifecycle.sqlite'), false);
+    assert.equal(stateFiles.includes('agent-package-locks.json'), false);
+    assert.equal(stateFiles.includes('agent-package-lifecycle-ledger.json'), false);
+    assert.equal(stateFiles.some((file) => file.endsWith('.tmp')), false);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
   }

@@ -15,7 +15,7 @@ import {
   withRemotePayloadAgentPackageServer,
 } from './helpers.ts';
 
-test('packages fetches registry URL, validates manifest, and writes lock receipt', async () => {
+test('packages refreshes and validates without private lifecycle state before install', async () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-packages-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-packages-home-'));
   const codexHome = path.join(homeDir, '.codex');
@@ -44,20 +44,13 @@ test('packages fetches registry URL, validates manifest, and writes lock receipt
           conditions: Array<{ condition_id: string; status: string; action_ref: string | null }>;
           recommended_action: string | null;
           lifecycle_action_refs: string[];
-          lifecycle_receipt: {
-            action: string;
-            writes_performed: boolean;
-            authority_boundary: { can_write_domain_truth: boolean };
-          };
         };
       };
 
       assert.equal(refresh.opl_agent_package_registry.status, 'refreshed');
       assert.equal(refresh.opl_agent_package_registry.registry_url, registryUrl);
       assert.equal(refresh.opl_agent_package_registry.entry_count, 1);
-      assert.equal(refresh.opl_agent_package_registry.lifecycle_receipt.action, 'registry_refresh');
-      assert.equal(refresh.opl_agent_package_registry.lifecycle_receipt.writes_performed, true);
-      assert.equal(refresh.opl_agent_package_registry.lifecycle_receipt.authority_boundary.can_write_domain_truth, false);
+      assert.equal(Object.hasOwn(refresh.opl_agent_package_registry, 'lifecycle_receipt'), false);
       assert.equal(refresh.opl_agent_package_registry.conditions[0].condition_id, 'package_not_installed');
       assert.equal(refresh.opl_agent_package_registry.conditions[0].action_ref, 'install_from_manifest_url');
       assert.equal(refresh.opl_agent_package_registry.recommended_action, 'install_from_manifest_url');
@@ -72,6 +65,12 @@ test('packages fetches registry URL, validates manifest, and writes lock receipt
       assert.equal(refreshedCache.entries[0].selected_version, '1.2.3');
       assert.equal(refreshedCache.entries[0].stable_version, '1.2.3');
       assert.equal(refreshedCache.entries[0].manifest_validation, 'fetched_manifest');
+      const registryCacheBytes = fs.readFileSync(refresh.opl_agent_package_registry.cache_file);
+      const assertNoPrivateLifecycleState = () => {
+        assert.deepEqual(fs.readdirSync(stateDir).sort(), ['agent-package-registry-cache.json']);
+        assert.deepEqual(fs.readFileSync(refresh.opl_agent_package_registry.cache_file), registryCacheBytes);
+      };
+      assertNoPrivateLifecycleState();
 
       const beforeInstall = runCli(['packages', 'list'], env) as any;
       const installAction = beforeInstall.opl_agent_packages.directory.entries.find(
@@ -81,25 +80,17 @@ test('packages fetches registry URL, validates manifest, and writes lock receipt
         package_id: 'third.party.research',
         registry_url: registryUrl,
       });
-      const ledgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
-      const receiptCountBeforeOverrides = (parseJsonText(fs.readFileSync(ledgerPath, 'utf8')) as any).receipts.length;
-      for (const command of ['validate-manifest', 'install']) {
-        await assert.rejects(
-          runCliAsync([
-            'packages', command,
-            '--registry-url', registryUrl,
-            '--package-id', 'third.party.research',
-            '--trust-tier', 'first_party',
-          ], env),
-          (error: any) => error instanceof Error
-            && error.message.includes('agent_package_registry_trust_tier_override_forbidden'),
-        );
-      }
-      assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
-      assert.equal(
-        (parseJsonText(fs.readFileSync(ledgerPath, 'utf8')) as any).receipts.length,
-        receiptCountBeforeOverrides,
+      await assert.rejects(
+        runCliAsync([
+          'packages', 'validate-manifest',
+          '--registry-url', registryUrl,
+          '--package-id', 'third.party.research',
+          '--trust-tier', 'first_party',
+        ], env),
+        (error: any) => error instanceof Error
+          && error.message.includes('agent_package_registry_trust_tier_override_forbidden'),
       );
+      assertNoPrivateLifecycleState();
 
       const validated = await runCliAsync([
         'packages',
@@ -121,17 +112,13 @@ test('packages fetches registry URL, validates manifest, and writes lock receipt
             }>;
             no_package_manager_boundary: { package_manager_claim: boolean };
           };
-          lifecycle_receipt: {
-            action: string;
-            writes_performed: boolean;
-          };
         };
       };
 
       assert.equal(validated.opl_agent_package_manifest.status, 'valid');
       assert.equal(validated.opl_agent_package_manifest.package_id, 'third.party.research');
-      assert.equal(validated.opl_agent_package_manifest.lifecycle_receipt.action, 'manifest_validate');
-      assert.equal(validated.opl_agent_package_manifest.lifecycle_receipt.writes_performed, true);
+      assert.equal(Object.hasOwn(validated.opl_agent_package_manifest, 'lifecycle_receipt'), false);
+      assert.equal(Object.hasOwn(validated.opl_agent_package_manifest, 'lifecycle_ledger_file'), false);
       assert.equal(validated.opl_agent_package_manifest.owner_route_readback.owner_route.readback_ref, 'opl packages list --json');
       assert.equal(validated.opl_agent_package_manifest.owner_route_readback.packages[0].descriptor.manifest_url, `${baseUrl}/manifest.json`);
       assert.equal(validated.opl_agent_package_manifest.owner_route_readback.packages[0].descriptor.registry_url, registryUrl);
@@ -140,6 +127,20 @@ test('packages fetches registry URL, validates manifest, and writes lock receipt
       assert.equal(validated.opl_agent_package_manifest.owner_route_readback.packages[0].carrier_adapters[0].carrier, 'codex_plugin');
       assert.equal(validated.opl_agent_package_manifest.owner_route_readback.packages[0].carrier_adapters[0].owns_package_core, false);
       assert.equal(validated.opl_agent_package_manifest.owner_route_readback.no_package_manager_boundary.package_manager_claim, false);
+      assertNoPrivateLifecycleState();
+
+      await assert.rejects(
+        runCliAsync([
+          'packages', 'install',
+          '--registry-url', registryUrl,
+          '--package-id', 'third.party.research',
+          '--trust-tier', 'first_party',
+        ], env),
+        (error: any) => error instanceof Error
+          && error.message.includes('agent_package_registry_trust_tier_override_forbidden'),
+      );
+      assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+      assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
 
       const install = await runCliAsync([
         'packages',
@@ -418,7 +419,7 @@ test('packages fetches registry URL, validates manifest, and writes lock receipt
         installed: true,
         }],
       );
-      assert.equal(list.opl_agent_packages.lifecycle_receipt_count, 3);
+      assert.equal(list.opl_agent_packages.lifecycle_receipt_count, 1);
       assert.equal(list.opl_agent_packages.registry_cache.entry_count, 1);
       const installedDirectoryEntry = list.opl_agent_packages.directory.entries.find(
         (entry) => entry.package_id === 'third.party.research',
@@ -632,7 +633,7 @@ test('packages fetches registry URL, validates manifest, and writes lock receipt
       );
       assert.deepEqual(
         status.opl_agent_package_status.lifecycle_history.receipts.map((receipt) => receipt.action),
-        ['enable', 'disable', 'unhide', 'hide', 'repair', 'update', 'install', 'manifest_validate'],
+        ['enable', 'disable', 'unhide', 'hide', 'repair', 'update', 'install'],
       );
 
       const uninstall = runCli([

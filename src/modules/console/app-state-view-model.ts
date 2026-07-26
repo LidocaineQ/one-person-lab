@@ -871,7 +871,6 @@ export function buildOplAppOperatorViewModel(input: OplAppOperatorViewModelInput
       domain_lane_map: domainLaneMap,
       task_drilldowns: taskDrilldowns,
       task_run_projection_v2: taskRunProjection,
-      work_item_projection_v1: taskRunProjection.work_item_projection_v1,
       work_item_projection_v2: input.workItemProjectionV2,
       agent_availability: asRecordArray(asRecord(input.workItemProjectionV2).agent_availability),
       safe_action_routes: safeActionRoutes,

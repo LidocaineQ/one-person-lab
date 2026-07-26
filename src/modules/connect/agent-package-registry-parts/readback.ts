@@ -41,7 +41,6 @@ const PACKAGE_LIFECYCLE_ACTION_REFS: AgentPackageLifecycleAction[] = [
   'unhide',
   'enable',
   'disable',
-  'home_shortcut_preferences_set',
 ];
 
 function ownerRouteReadbackCommands() {

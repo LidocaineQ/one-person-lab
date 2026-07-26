@@ -1,15 +1,19 @@
+import path from 'node:path';
+
 import { isRecord } from '../../../kernel/contract-validation.ts';
 import { readJsonFileOrNull, writeJsonPayloadFile } from '../../../kernel/json-file.ts';
 import { recordList, stringList, stringValue } from '../../../kernel/json-record.ts';
+import { withRuntimeStateMutex } from '../../../kernel/runtime-state-mutex.ts';
 import { ensureOplStateDir, resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
-import { nowIso, sha256Text } from './shared.ts';
+import { nowIso } from './shared.ts';
 import type {
   AgentPackageHomeShortcutPreference,
   AgentPackageHomeShortcutPreferenceFile,
-  AgentPackageHomeShortcutPreferencesSetInput,
   AgentPackageLockIndex,
 } from './types.ts';
+
+const HOME_SHORTCUT_PREFERENCE_LOCK_TIMEOUT_MS = 5_000;
 
 export function emptyHomeShortcutPreferenceFile(): AgentPackageHomeShortcutPreferenceFile {
   return {
@@ -42,7 +46,6 @@ export function readHomeShortcutPreferenceFile(): AgentPackageHomeShortcutPrefer
         sort_order: sortOrder,
         source: 'user_preference' as const,
         updated_at: stringValue(entry.updated_at) ?? nowIso(),
-        installed: entry.installed === true,
       }];
     }),
   };
@@ -51,6 +54,23 @@ export function readHomeShortcutPreferenceFile(): AgentPackageHomeShortcutPrefer
 export function writeHomeShortcutPreferenceFile(file: AgentPackageHomeShortcutPreferenceFile) {
   const paths = ensureOplStateDir();
   writeJsonPayloadFile(paths.agent_package_home_shortcut_preferences_file, file);
+}
+
+export function withHomeShortcutPreferenceTransaction<T>(
+  dryRun: boolean,
+  operation: () => T,
+) {
+  if (dryRun) return operation();
+  const lockFile = path.join(
+    ensureOplStateDir().state_dir,
+    'agent-package-home-shortcut-preferences.sqlite',
+  );
+  return withRuntimeStateMutex({
+    lockFile,
+    timeoutMs: HOME_SHORTCUT_PREFERENCE_LOCK_TIMEOUT_MS,
+    contentionMessage: 'Timed out waiting for another Home shortcut preference write.',
+    failureCode: 'agent_package_home_shortcut_preferences_lock_timeout',
+  }, operation);
 }
 
 export function defaultHomeShortcutPreferences(
@@ -139,13 +159,4 @@ export function mergedHomeShortcutPreferences(
       || a.package_id.localeCompare(b.package_id)
       || a.shortcut_id.localeCompare(b.shortcut_id)
   );
-}
-
-export function homeShortcutPreferenceSourceSha256(input: AgentPackageHomeShortcutPreferencesSetInput) {
-  return sha256Text([
-    input.packageId,
-    input.shortcutId,
-    input.visible === false ? 'hidden' : 'visible',
-    input.sortOrder ?? '',
-  ].join('\n'));
 }

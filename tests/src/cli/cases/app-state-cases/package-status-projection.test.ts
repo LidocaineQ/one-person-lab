@@ -72,7 +72,6 @@ function installedStatus(input: {
         'uninstall',
         'hide',
         'disable',
-        'home_shortcut_preferences_set',
       ],
       package_dependency_readiness: input.dependencyReadiness ?? {
         status: 'current',
@@ -263,7 +262,6 @@ test('App package projection accepts arbitrary package ids and trusts fresh owne
     'uninstall',
     'hide',
     'disable',
-    'home_shortcut_preferences_set',
   ]);
   assert.deepEqual(fastStatus.presence, fullStatus.presence);
   assert.deepEqual(fastStatus.capability_exposure, fullStatus.capability_exposure);

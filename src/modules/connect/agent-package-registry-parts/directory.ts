@@ -15,6 +15,7 @@ import {
   type ManagedPackageCatalog,
 } from './capability-reconciliation.ts';
 import { agentPackageTargetCurrentness } from './currentness.ts';
+import type { ConfiguredCodexPluginCarrierReadback } from './configured-codex-plugin-carrier.ts';
 import { normalizePackageManifest } from './manifest-normalizers.ts';
 import { packageRoleFromInstalledLock } from './package-role.ts';
 import { agentPackageLifecycleUxReadback } from './readback.ts';
@@ -26,6 +27,7 @@ import {
   uniqueStrings,
 } from './shared.ts';
 import type {
+  AgentPackageConfiguredCodexPluginCarrierDescriptor,
   AgentPackageLock,
   AgentPackagePackageActionInput,
   AgentPackagePresentation,
@@ -76,6 +78,7 @@ type DirectorySource = {
   capability_metadata: DirectoryCapabilityMetadata | null;
   presentation: AgentPackagePresentation | null;
   home_shortcut_ids: string[];
+  configured_codex_plugin_carrier: AgentPackageConfiguredCodexPluginCarrierDescriptor | null;
   release_target: ManagedCatalogVersion | null;
   version_currentness: {
     status: 'live_release_set' | 'cached_release_set' | 'last_known_good_release_set' | 'framework_projection_only' | 'registry_cache' | 'installed_lock_only';
@@ -148,6 +151,7 @@ function manifestDirectoryMetadata(payload: unknown, manifestUrl: string) {
     required_skill_ids: [...manifest.required_skill_ids],
     optional_skill_refs: [...manifest.optional_skill_refs],
     presentation: manifest.presentation ?? null,
+    configured_codex_plugin_carrier: manifest.configured_codex_plugin_carrier ?? null,
   };
 }
 
@@ -273,6 +277,7 @@ export function normalizePackageCatalogRegistry(
       presentation: metadata.presentation ?? null,
       display_policy: null,
       ordinary_user_source: null,
+      configured_codex_plugin_carrier: metadata.configured_codex_plugin_carrier,
     } satisfies AgentPackageRegistryEntry;
   });
   return {
@@ -347,6 +352,7 @@ export async function enrichRegistryCacheManifestMetadata(cache: AgentPackageReg
       required_skill_ids: metadata.required_skill_ids,
       optional_skill_ids: metadata.optional_skill_refs,
       presentation: metadata.presentation ?? null,
+      configured_codex_plugin_carrier: metadata.configured_codex_plugin_carrier,
       manifest_validation: 'fetched_manifest' as const,
     };
   }));
@@ -424,6 +430,9 @@ function firstPartyDirectorySources(snapshot: FirstPartyDirectoryCatalogSnapshot
         ? selectedManifest?.presentation ?? null
         : ownerManifest?.presentation ?? null,
       home_shortcut_ids: [],
+      configured_codex_plugin_carrier: selected
+        ? selectedManifest?.configured_codex_plugin_carrier ?? null
+        : null,
       version_currentness: {
         status: currentnessStatus,
         live_verified: liveVerified,
@@ -467,6 +476,7 @@ function registryDirectorySource(cache: AgentPackageRegistryCache, entry: AgentP
     capability_metadata: capabilityMetadata,
     presentation: entry.presentation ?? null,
     home_shortcut_ids: [...entry.home_shortcut_ids],
+    configured_codex_plugin_carrier: entry.configured_codex_plugin_carrier ?? null,
     version_currentness: {
       status: 'registry_cache',
       live_verified: false,
@@ -509,6 +519,7 @@ function lockDirectorySource(lock: AgentPackageLock, packageRole: AgentPackageRo
     capability_metadata: capabilityMetadata,
     presentation: null,
     home_shortcut_ids: [],
+    configured_codex_plugin_carrier: null,
     version_currentness: {
       status: 'installed_lock_only',
       live_verified: false,
@@ -755,6 +766,7 @@ export function buildAgentPackageDirectory(input: {
   detail: 'fast' | 'full';
   firstPartyCatalog?: FirstPartyDirectoryCatalogSnapshot | null;
   readStatus?: (packageId: string) => PackageStatusReadback;
+  configuredCarrierReadbacks?: ReadonlyMap<string, ConfiguredCodexPluginCarrierReadback>;
   actionContext?: (packageId: string) => Pick<AgentPackagePackageActionInput, 'scope' | 'targetWorkspace' | 'targetQuest'> | null;
 }) {
   const sources = new Map(firstPartyDirectorySources(input.firstPartyCatalog ?? null)
@@ -782,12 +794,23 @@ export function buildAgentPackageDirectory(input: {
   }));
   const entries = [...sources.values()].map((source) => {
     const lock = locksById.get(source.package_id) ?? null;
-    const installed = Boolean(lock);
+    const configuredCarrier = input.configuredCarrierReadbacks?.get(source.package_id) ?? null;
+    const configuredCarrierInstalled = configuredCarrier?.status === 'installed';
+    const installed = Boolean(lock) || configuredCarrierInstalled;
+    const configuredCarrierAttention = Boolean(
+      configuredCarrier
+      && (
+        configuredCarrier.status === 'physical_unavailable'
+        || configuredCarrier.executor.status !== 'callable'
+        || configuredCarrier.carrier.precedence !== 'exact_single_source'
+        || lock
+      ),
+    );
     const sourcePolicy = resolveFirstPartyPackageCatalog(source.package_id)
       ? resolveAgentPackageEffectiveSourcePolicy(source.package_id, { profile: input.detail })
       : null;
     const installedRole = lock ? installedRoles.get(source.package_id)! : null;
-    const effectiveSource = installed
+    const effectiveSource = lock
       ? { ...source, package_role: installedRole!.role }
       : source;
     const roleKnown = effectiveSource.package_role !== null;
@@ -800,7 +823,23 @@ export function buildAgentPackageDirectory(input: {
     const lifecycle = agentPackageLifecycleUxReadback({ packageId: source.package_id, lock });
     let status: PackageStatusReadback = {};
     let statusReadError: { code: string; message: string } | null = null;
-    if (installed) {
+    if (configuredCarrier) {
+      status = {
+        status: configuredCarrierAttention ? 'attention_needed' : 'available',
+        recommended_action: configuredCarrierInstalled ? 'agent_package_repair' : null,
+        operational_ready: configuredCarrierInstalled && !configuredCarrierAttention,
+        launch_allowed: configuredCarrierInstalled && !configuredCarrierAttention,
+        launch_blocked_reason: configuredCarrierAttention
+          ? lock
+            ? 'configured_native_carrier_legacy_state_present'
+            : configuredCarrier.reason ?? 'configured_native_carrier_attention_needed'
+          : configuredCarrierInstalled
+            ? null
+            : 'package_not_installed',
+        materialization_readiness: { status: 'not_required' },
+        runtime_source_readiness: { status: 'not_required' },
+      };
+    } else if (installed) {
       try {
         status = input.readStatus?.(source.package_id) ?? {};
       } catch (error) {
@@ -830,11 +869,13 @@ export function buildAgentPackageDirectory(input: {
         materializationStatus === 'scope_required'
         || status.launch_blocked_reason?.startsWith('scope_materialization_') === true
       );
-    const verificationDeferred = installed && activated && (
-      input.detail === 'fast'
-      || status.currentness_detail_deferred === true
-      || status.runtime_source_readiness?.live_verification_deferred === true
-    );
+    const verificationDeferred = configuredCarrier
+      ? false
+      : installed && activated && (
+          input.detail === 'fast'
+          || status.currentness_detail_deferred === true
+          || status.runtime_source_readiness?.live_verification_deferred === true
+        );
     const desiredSourceKind = sourcePolicy?.desired_source_kind ?? lock?.source_kind ?? null;
     const targetCurrentness = lock && source.release_target && desiredSourceKind
       ? agentPackageTargetCurrentness({
@@ -873,7 +914,7 @@ export function buildAgentPackageDirectory(input: {
           effectiveSource,
           installed,
           input.actionContext?.(source.package_id) ?? null,
-          lock?.exposure_state !== 'disabled',
+          configuredCarrier ? false : lock?.exposure_state !== 'disabled',
           lock?.source_kind !== 'developer_checkout_override' && (
             sourcePolicy?.package_channel_auto_update === true
             || automaticSourceReconciliationAllowed
@@ -913,6 +954,7 @@ export function buildAgentPackageDirectory(input: {
       home_shortcuts: effectiveSource.presentation?.home_shortcuts ?? [],
       home_shortcut_ids: effectiveSource.home_shortcut_ids,
       capability_dependency_summary: capabilityDependencySummary(lock),
+      configured_carrier: configuredCarrier,
       role_state: {
         status: !installed
           ? roleKnown ? 'declared' : 'migration_required'
@@ -977,7 +1019,9 @@ export function buildAgentPackageDirectory(input: {
                 status: 'unknown',
                 reasons: ['release_set_unavailable'],
               },
-      installed_version: lock?.package_version ?? null,
+      installed_version: configuredCarrierInstalled
+        ? configuredCarrier.installed_version
+        : lock?.package_version ?? null,
       installed_content_digest: lock?.content_digest ?? null,
       installed_artifact_digest: lock?.artifact_digest ?? null,
       installed,
@@ -1011,6 +1055,7 @@ export function buildAgentPackageDirectory(input: {
       recommended_action: recommendedAction,
       recommended_action_ref: actions.find((action) => action.action_id === recommendedAction) ?? null,
       available_actions: actions,
+      legacy_private_lifecycle_state_present: Boolean(configuredCarrier && lock),
       ...(input.detail === 'full' ? {
         lifecycle_ux: lifecycle,
         lock_ref: lock?.lock_ref ?? null,

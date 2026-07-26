@@ -1,12 +1,14 @@
 import fs from 'node:fs';
+import path from 'node:path';
 
 import { isRecord } from '../../kernel/contract-validation.ts';
 import { writeJsonPayloadFile } from '../../kernel/json-file.ts';
+import { withRuntimeStateMutex } from '../../kernel/runtime-state-mutex.ts';
 import { ensureOplStateDir, resolveOplStatePaths } from '../../kernel/runtime-state-paths.ts';
-import { withAgentPackageLifecycleTransactionSync } from './agent-package-registry-parts/store.ts';
 
 export const STORAGE_OWNER_INVENTORY_TTL_MS = 5 * 60 * 1000;
 export const STORAGE_OWNER_INVENTORY_MAX_SNAPSHOT_BYTES = 262_144;
+const STORAGE_OWNER_INVENTORY_LOCK_TIMEOUT_MS = 5_000;
 
 export type StorageHostActionAbi = {
   capability_id: 'carrier_host.storage.webui_data_volume.lifecycle';
@@ -212,6 +214,19 @@ function readBoundedStorageSnapshot(filePath: string) {
   }
 }
 
+function withStorageOwnerInventorySnapshotTransaction<T>(operation: () => T): T {
+  const lockPath = path.join(
+    ensureOplStateDir().state_dir,
+    'storage-owner-inventory.sqlite',
+  );
+  return withRuntimeStateMutex({
+    lockFile: lockPath,
+    timeoutMs: STORAGE_OWNER_INVENTORY_LOCK_TIMEOUT_MS,
+    contentionMessage: 'Timed out waiting for another storage owner inventory snapshot write.',
+    failureCode: 'storage_owner_inventory_snapshot_lock_timeout',
+  }, operation);
+}
+
 export function readStorageOwnerInventorySnapshot(options: { now?: Date } = {}) {
   const now = options.now ?? new Date();
   const empty = emptySnapshot();
@@ -231,7 +246,7 @@ export function writeStorageOwnerInventoryProjection(
   section: 'agent_package_store' | 'webui_data_volume',
   projection: StorageOwnerProjection,
 ) {
-  return withAgentPackageLifecycleTransactionSync(false, () => {
+  return withStorageOwnerInventorySnapshotTransaction(() => {
     const paths = ensureOplStateDir();
     const now = new Date();
     const current = readStorageOwnerInventorySnapshot({ now });

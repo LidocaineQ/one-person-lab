@@ -383,10 +383,13 @@ export async function inspectTemporalServiceLifecycle(
     ? supervisorState.error
       ?? (supervisorConfig && !serverReachable ? 'temporal_server_unreachable' : null)
     : null;
+  const supervisorNeedsInstall = !supervisorConfig
+    || !supervisorState.installed
+    || !supervisorState.configuration_current;
   const supervisorRepairActionId = supervisorRequired && supervisorReady !== true
-    ? supervisorConfig
-      ? 'trigger_temporal_service_supervisor'
-      : 'install_temporal_service_supervisor'
+    ? supervisorNeedsInstall
+      ? 'install_temporal_service_supervisor'
+      : 'trigger_temporal_service_supervisor'
     : 'none';
   return {
     surface_kind: 'temporal_service_lifecycle_status',

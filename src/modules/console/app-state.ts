@@ -39,7 +39,7 @@ import { buildSettingsControlCenter } from './app-state-settings-control-center.
 import type { AppStateProfile } from './app-state-profile.ts';
 import { buildOplAppOperatorViewModel } from './app-state-view-model.ts';
 import { buildAppRuntimeWorkItemProjection } from './app-runtime-work-item-projection.ts';
-import { projectWorkItemRuntimeActivityItems } from './work-item-projection/legacy-adapter.ts';
+import { projectRuntimeActivityItems } from './work-item-projection/runtime-activity-projection.ts';
 import { selectAppStateCurrentOwnerDeltaReadModel } from './app-state-current-owner-delta.ts';
 import { buildFoundryOperatorProjection } from './foundry-operator-projection.ts';
 import { readCodexUserInstructions } from './codex-personalization.ts';
@@ -768,38 +768,11 @@ function compactFastTaskRun(value: unknown) {
   };
 }
 
-function compactFastWorkItem(value: unknown) {
-  const item = isRecord(value) ? value : {};
-  const stage = isRecord(item.stage) ? item.stage : {};
-  const attempt = isRecord(item.attempt) ? item.attempt : {};
-  const action = isRecord(item.action) ? item.action : {};
-  const status = isRecord(item.status) ? item.status : {};
-  return {
-    item_id: item.item_id,
-    title: item.title,
-    stage: { stage_id: stage.stage_id, label: stage.label },
-    attempt: { run_id: attempt.run_id, status: attempt.status },
-    action: {
-      action_kind: action.action_kind,
-      title: action.title,
-      summary: action.summary,
-      ref: action.ref,
-      action_ref: action.action_ref,
-    },
-    status: {
-      primary_state: status.primary_state,
-      automation_state: status.automation_state,
-    },
-  };
-}
-
 function compactFastOperatorRuntimeProjection(operator: JsonRecord) {
   const workbench = isRecord(operator.workbench) ? operator.workbench : {};
   const taskRun = isRecord(workbench.task_run_projection_v2) ? workbench.task_run_projection_v2 : {};
-  const workItems = isRecord(workbench.work_item_projection_v1) ? workbench.work_item_projection_v1 : {};
   const workItemsV2 = isRecord(workbench.work_item_projection_v2) ? workbench.work_item_projection_v2 : {};
   const activityCenter = isRecord(workbench.activity_center) ? workbench.activity_center : {};
-  const compactWorkItems = recordArray(workItems.items).map(compactFastWorkItem);
   const compactActivityCenter = {
     ...activityCenter,
     needs_attention: recordArray(activityCenter.needs_attention).map(compactFastRuntimeTask),
@@ -923,11 +896,7 @@ function compactFastOperatorRuntimeProjection(operator: JsonRecord) {
       task_run_projection_v2: {
         ...taskRun,
         tasks: recordArray(taskRun.tasks).map(compactFastTaskRun),
-        work_item_projection_v1: {
-          source_ref: 'app_state.operator.workbench.work_item_projection_v1',
-        },
       },
-      work_item_projection_v1: { ...workItems, items: compactWorkItems },
       work_item_projection_v2: {
         ...workItemsV2,
         items: recordArray(workItemsV2.items),
@@ -1029,7 +998,7 @@ export async function buildOplAppState(input: {
     bindings: workspaceBindings,
   });
   const runtimeActivityItems = profile === 'full'
-    ? projectWorkItemRuntimeActivityItems(workItemProjectionV2)
+    ? projectRuntimeActivityItems(workItemProjectionV2)
     : [];
   const fullRuntimeDrilldown = profile === 'full'
     ? (await (await import('./runtime-tray-snapshot.ts')).buildRuntimeTraySnapshot(contracts, {

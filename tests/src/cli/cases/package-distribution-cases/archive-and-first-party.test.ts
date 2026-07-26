@@ -1012,9 +1012,9 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
       payloadRef: 'payloads/mag-0.3.6.json',
     },
     rca: {
-      version: '0.2.8',
-      sourceCommit: 'd41360070fd2f02b85f2eed5761670746d10e25e',
-      payloadRef: 'payloads/rca-0.2.8.json',
+      version: '0.2.9',
+      sourceCommit: '8e740a09ee64c0e216d05eff3c6a8024e813e09f',
+      payloadRef: 'payloads/rca-0.2.9.json',
     },
     oma: {
       version: '0.4.4',
@@ -1456,6 +1456,28 @@ test('bundled Full MAG snapshot keeps its frozen manifest bytes while ordinary p
   assert.equal(frozenManifest.version, '0.3.5');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mag-0.3.5.json');
   assert.equal(ordinaryManifest.version, '0.3.6');
+});
+
+test('bundled Full RCA snapshot keeps its frozen manifest bytes while ordinary publication advances', () => {
+  const catalog = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
+    'utf8',
+  )) as Record<string, any>;
+  const frozenRef = catalog.packages.rca.manifest_ref;
+  const frozenPath = path.join(repoRoot, 'contracts/opl-framework', frozenRef);
+  const frozenBytes = fs.readFileSync(frozenPath);
+  const frozenManifest = parseJsonText(frozenBytes.toString('utf8')) as Record<string, any>;
+  const ordinaryManifest = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/packages/rca.json'),
+    'utf8',
+  )) as Record<string, any>;
+
+  assert.equal(frozenRef, 'packages/rca-0.2.8.json');
+  assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
+    '87f73b832411933848b16c1dad70bf96279c35208b62404063d887603e5fe08f');
+  assert.equal(frozenManifest.version, '0.2.8');
+  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/rca-0.2.8.json');
+  assert.equal(ordinaryManifest.version, '0.2.9');
 });
 
 test('bundled Full OMA snapshot keeps its frozen manifest bytes while ordinary publication advances', () => {

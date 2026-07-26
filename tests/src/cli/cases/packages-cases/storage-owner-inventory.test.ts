@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 import type { AgentPackageLockIndex } from '../../../../../src/modules/connect/agent-package-registry-parts/types.ts';
 import {
   buildAgentPackageStoreStorageInventory,
@@ -11,7 +13,11 @@ import {
   STORAGE_OWNER_INVENTORY_TTL_MS,
 } from '../../../../../src/modules/connect/storage-owner-inventory-snapshot.ts';
 import { resolveOplStatePaths } from '../../../../../src/kernel/runtime-state-paths.ts';
-import { assert, fs, os, path, test } from '../../helpers.ts';
+import { assert, fs, os, path, spawn, test } from '../../helpers.ts';
+
+const storageInventoryWriterFixture = fileURLToPath(
+  new URL('../../../../fixtures/storage-owner-inventory-writer.ts', import.meta.url),
+);
 
 function emptyLockIndex(): AgentPackageLockIndex {
   return {
@@ -41,6 +47,55 @@ function runtimeLock(input: {
 function restoreEnv(name: string, value: string | undefined) {
   if (value === undefined) delete process.env[name];
   else process.env[name] = value;
+}
+
+function waitForFiles(files: string[], timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  return new Promise<void>((resolve, reject) => {
+    const check = () => {
+      if (files.every((file) => fs.existsSync(file))) {
+        resolve();
+      } else if (Date.now() >= deadline) {
+        reject(new Error(`Timed out waiting for fixture files: ${files.join(', ')}`));
+      } else {
+        setTimeout(check, 10);
+      }
+    };
+    check();
+  });
+}
+
+function spawnStorageInventoryWriter(input: {
+  stateDir: string;
+  section: 'agent_package_store' | 'webui_data_volume';
+  projection: Record<string, unknown>;
+  readyFile: string;
+  startFile: string;
+}) {
+  const child = spawn(process.execPath, [
+    '--experimental-strip-types',
+    storageInventoryWriterFixture,
+    input.section,
+    JSON.stringify(input.projection),
+    input.readyFile,
+    input.startFile,
+  ], {
+    env: { ...process.env, OPL_STATE_DIR: input.stateDir },
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+  const completed = new Promise<void>((resolve, reject) => {
+    let stderr = '';
+    child.stderr?.setEncoding('utf8');
+    child.stderr?.on('data', (chunk) => {
+      stderr += chunk;
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`storage inventory writer exited ${code}: ${stderr}`));
+    });
+  });
+  return { child, completed };
 }
 
 test('storage scanner is bounded, excludes requested roots, and never follows symlinks', () => {
@@ -228,6 +283,22 @@ test('storage snapshot is bounded and stale, future, symlink, or oversized data 
     assert.equal(current.agent_package_store.bytes, 0);
     assert.equal(current.webui_data_volume.status, 'unavailable');
 
+    buildWebuiDataVolumeStorageInventory({
+      dataDir: null,
+      now: observedAt,
+      persist: true,
+    });
+    const afterBothOwners = readStorageOwnerInventorySnapshot({ now: observedAt });
+    assert.equal(afterBothOwners.agent_package_store.status, 'available');
+    assert.equal(afterBothOwners.webui_data_volume.status, 'not_configured');
+    const stateFiles = fs.readdirSync(stateDir).sort();
+    assert.equal(stateFiles.includes('storage-owner-inventory-snapshot.json'), true);
+    assert.equal(stateFiles.includes('storage-owner-inventory.sqlite'), true);
+    assert.equal(stateFiles.includes('agent-package-lifecycle.sqlite'), false);
+    assert.equal(stateFiles.includes('agent-package-locks.json'), false);
+    assert.equal(stateFiles.includes('agent-package-lifecycle-ledger.json'), false);
+    assert.equal(stateFiles.some((file) => file.endsWith('.tmp')), false);
+
     const stale = readStorageOwnerInventorySnapshot({
       now: new Date(observedAt.getTime() + STORAGE_OWNER_INVENTORY_TTL_MS + 1),
     });
@@ -255,6 +326,62 @@ test('storage snapshot is bounded and stale, future, symlink, or oversized data 
     fs.writeFileSync(snapshotPath, Buffer.alloc(STORAGE_OWNER_INVENTORY_MAX_SNAPSHOT_BYTES + 1, 0x20));
     assert.equal(readStorageOwnerInventorySnapshot().agent_package_store.status, 'unavailable');
   } finally {
+    restoreEnv('OPL_STATE_DIR', previousStateDir);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('storage snapshot serializes independent owner projections without Package lifecycle state', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-storage-snapshot-concurrent-'));
+  const stateDir = path.join(root, 'state');
+  const startFile = path.join(root, 'start');
+  const readyAgent = path.join(root, 'ready-agent');
+  const readyWebui = path.join(root, 'ready-webui');
+  const observedAt = new Date().toISOString();
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = stateDir;
+  const agent = spawnStorageInventoryWriter({
+    stateDir,
+    section: 'agent_package_store',
+    projection: {
+      status: 'available',
+      observed_at: observedAt,
+      stale: false,
+      bytes: 111,
+      reclaimable_bytes: 11,
+    },
+    readyFile: readyAgent,
+    startFile,
+  });
+  const webui = spawnStorageInventoryWriter({
+    stateDir,
+    section: 'webui_data_volume',
+    projection: {
+      status: 'available',
+      observed_at: observedAt,
+      stale: false,
+      bytes: 222,
+      reclaimable_bytes: 22,
+    },
+    readyFile: readyWebui,
+    startFile,
+  });
+  try {
+    await waitForFiles([readyAgent, readyWebui]);
+    fs.writeFileSync(startFile, 'start\n');
+    await Promise.all([agent.completed, webui.completed]);
+
+    const snapshot = readStorageOwnerInventorySnapshot();
+    assert.equal(snapshot.agent_package_store.bytes, 111);
+    assert.equal(snapshot.webui_data_volume.bytes, 222);
+    const stateFiles = fs.readdirSync(stateDir).sort();
+    assert.equal(stateFiles.includes('agent-package-lifecycle.sqlite'), false);
+    assert.equal(stateFiles.includes('agent-package-locks.json'), false);
+    assert.equal(stateFiles.includes('agent-package-lifecycle-ledger.json'), false);
+    assert.equal(stateFiles.some((file) => file.endsWith('.tmp')), false);
+  } finally {
+    agent.child.kill();
+    webui.child.kill();
     restoreEnv('OPL_STATE_DIR', previousStateDir);
     fs.rmSync(root, { recursive: true, force: true });
   }

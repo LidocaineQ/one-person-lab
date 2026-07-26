@@ -7,7 +7,7 @@ import {
 import type { RuntimeTrayItem } from '../runtime-tray-snapshot-types.ts';
 import type { WorkItemProjectionItem, WorkItemProjectionV2 } from './types.ts';
 
-function legacyPrimaryState(item: WorkItemProjectionItem) {
+function runtimeActivityPrimaryState(item: WorkItemProjectionItem) {
   switch (item.lifecycle.primary_state) {
     case 'automatically_advancing': return 'in_progress';
     case 'awaiting_user_decision': return 'owner_decision_required';
@@ -38,7 +38,7 @@ function nextStep(item: WorkItemProjectionItem) {
   return `The Agent may continue from ${item.lifecycle.current_stage_id ?? 'the next declared stage'}.`;
 }
 
-function legacyUsage(observation: WorkItemProjectionItem['telemetry']['current_stage']) {
+function runtimeActivityUsage(observation: WorkItemProjectionItem['telemetry']['current_stage']) {
   return {
     telemetry_status: observation.state,
     missing_reason: observation.missing_reason,
@@ -54,7 +54,7 @@ function legacyUsage(observation: WorkItemProjectionItem['telemetry']['current_s
   };
 }
 
-export function projectWorkItemRuntimeActivityItems(projection: WorkItemProjectionV2) {
+export function projectRuntimeActivityItems(projection: WorkItemProjectionV2) {
   return projection.items
     .filter((item) => item.visibility.state === 'visible')
     .map((item): RuntimeTrayItem & JsonRecord => {
@@ -108,9 +108,9 @@ export function projectWorkItemRuntimeActivityItems(projection: WorkItemProjecti
         last_heartbeat_at: item.execution.last_heartbeat_at,
         running_proof_status: item.execution.running_proof_status,
         running_proof_summary: item.execution.diagnostic_reason,
-        current_stage_usage: legacyUsage(item.telemetry.current_stage),
+        current_stage_usage: runtimeActivityUsage(item.telemetry.current_stage),
         task_total_usage: {
-          ...legacyUsage(item.telemetry.cumulative),
+          ...runtimeActivityUsage(item.telemetry.cumulative),
           observed_attempt_count: item.execution.attempt_ids.length > 0 ? item.execution.attempt_ids.length : null,
         },
         usage_telemetry_status: item.telemetry.state,
@@ -128,7 +128,7 @@ export function projectWorkItemRuntimeActivityItems(projection: WorkItemProjecti
         runtime_closeout_refs: [],
         provider_kind: item.execution.provider_kind,
         workflow_id: item.execution.workflow_id,
-        business_primary_state: legacyPrimaryState(item),
+        business_primary_state: runtimeActivityPrimaryState(item),
         business_status: item.lifecycle.raw_business_status,
         business_state: item.lifecycle.business_state,
         authority_boundary: projection.authority_boundary,

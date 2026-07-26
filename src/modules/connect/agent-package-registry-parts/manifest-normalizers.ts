@@ -18,6 +18,7 @@ import {
 import type {
   AgentPackageCapabilityDependency,
   AgentPackageCapabilityProvider,
+  AgentPackageConfiguredCodexPluginCarrierDescriptor,
   AgentPackageManagedVersionCatalogSource,
   AgentPackageDistributionPayload,
   AgentPackageManifest,
@@ -696,6 +697,14 @@ export function normalizeRegistryEntry(entry: Record<string, unknown>, index: nu
     presentation: null,
     display_policy: stringValue(entry.display_policy),
     ordinary_user_source: normalizeOrdinaryUserSource(entry.ordinary_user_source, `registry.entries.${index}.ordinary_user_source`),
+    configured_codex_plugin_carrier: normalizeConfiguredCodexPluginCarrier(
+      entry.configured_codex_plugin_carrier,
+      {
+        packageId: packageId!,
+        requiredSkillIds: stringList(entry.required_skill_ids),
+        manifestUrl,
+      },
+    ),
   };
 }
 
@@ -833,6 +842,107 @@ function normalizeCarrierSourceAuthority(
   return { sourceCommit, carrierSourceCommit };
 }
 
+function normalizeConfiguredCodexPluginCarrier(
+  value: unknown,
+  input: {
+    packageId: string;
+    requiredSkillIds: string[];
+    manifestUrl: string;
+  },
+): AgentPackageConfiguredCodexPluginCarrierDescriptor | null {
+  if (value === undefined || value === null) return null;
+  if (!isRecord(value)) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Configured Codex Plugin Manager carrier must declare its native carrier and Codex CLI executor route.',
+      {
+        package_id: input.packageId,
+        manifest_url: input.manifestUrl,
+        failure_code: 'configured_codex_plugin_carrier_descriptor_invalid',
+      },
+    );
+  }
+  const normalizedCarrier = isRecord(value.carrier) ? value.carrier : null;
+  const normalizedExecutor = isRecord(value.executor) ? value.executor : null;
+  const kind = value.kind ?? normalizedCarrier?.kind;
+  const executorRoute = value.executor_route ?? normalizedExecutor?.route;
+  if (kind !== 'codex_plugin_manager' || executorRoute !== 'codex_cli') {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Configured Codex Plugin Manager carrier must declare its native carrier and Codex CLI executor route.',
+      {
+        package_id: input.packageId,
+        manifest_url: input.manifestUrl,
+        failure_code: 'configured_codex_plugin_carrier_descriptor_invalid',
+      },
+    );
+  }
+  const declaredPackageId = stringValue(value.packageId);
+  if (declaredPackageId && declaredPackageId !== input.packageId) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Configured Codex Plugin Manager carrier package identity must match its manifest.',
+      {
+        package_id: input.packageId,
+        carrier_package_id: declaredPackageId,
+        manifest_url: input.manifestUrl,
+        failure_code: 'configured_codex_plugin_carrier_descriptor_invalid',
+      },
+    );
+  }
+  const pluginSelector = assertStringValue(
+    value.plugin_selector ?? normalizedCarrier?.pluginId,
+    'codex_surface.configured_codex_plugin_carrier.plugin_selector',
+  );
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*$/.test(pluginSelector)) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Configured Codex Plugin Manager plugin selector is invalid.',
+      {
+        package_id: input.packageId,
+        plugin_selector: pluginSelector,
+        manifest_url: input.manifestUrl,
+        failure_code: 'configured_codex_plugin_carrier_descriptor_invalid',
+      },
+    );
+  }
+  const normalizedRequiredSkills = stringList(normalizedExecutor?.requiredSkillIds);
+  if (normalizedExecutor && (
+    normalizedRequiredSkills.length !== input.requiredSkillIds.length
+    || normalizedRequiredSkills.some((skillId) => !input.requiredSkillIds.includes(skillId))
+  )) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Configured Codex Plugin Manager executor Skills must match the normalized Package manifest.',
+      {
+        package_id: input.packageId,
+        manifest_url: input.manifestUrl,
+        failure_code: 'configured_codex_plugin_carrier_descriptor_invalid',
+      },
+    );
+  }
+  return {
+    packageId: input.packageId,
+    carrier: {
+      kind: 'codex_plugin_manager',
+      pluginId: pluginSelector,
+    },
+    executor: {
+      route: 'codex_cli',
+      requiredSkillIds: [...input.requiredSkillIds],
+    },
+    publicationRef: value.publication_ref === undefined
+      && value.publicationRef === undefined
+      ? null
+      : value.publication_ref === null || value.publicationRef === null
+      ? null
+      : assertStringValue(
+          value.publication_ref ?? value.publicationRef,
+          'codex_surface.configured_codex_plugin_carrier.publication_ref',
+        ),
+  };
+}
+
 export function normalizeManifest(payload: unknown, manifestUrl: string): AgentPackageManifest {
   if (!isRecord(payload)) {
     throw new FrameworkContractError('contract_shape_invalid', 'Agent package manifest must be a JSON object.', {
@@ -869,6 +979,7 @@ export function normalizeManifest(payload: unknown, manifestUrl: string): AgentP
       failure_code: 'agent_package_manifest_role_invalid',
     });
   }
+  const packageId = canonicalManifestIdentity(payload.package_id, 'package_id');
   const capabilityDependencies = normalizeCapabilityDependencies(payload.capability_dependencies, manifestUrl);
   const capabilityProvider = normalizeCapabilityProvider(payload.capability_provider);
   const healthCheck = isRecord(payload.health_check) ? payload.health_check : {};
@@ -944,7 +1055,7 @@ export function normalizeManifest(payload: unknown, manifestUrl: string): AgentP
     ?? stringValue(payload.codex_surface.codex_visible_entry)
     ?? stringValue(payload.agent_id)!;
   return {
-    package_id: canonicalManifestIdentity(payload.package_id, 'package_id'),
+    package_id: packageId,
     agent_id: canonicalManifestIdentity(payload.agent_id, 'agent_id'),
     package_role: 'standard_agent',
     display_name: stringValue(payload.display_name)!,
@@ -986,6 +1097,10 @@ export function normalizeManifest(payload: unknown, manifestUrl: string): AgentP
     content_digest: distributionPayload?.payload_digest_ref ?? null,
     content_lock_canonicalization: null,
     content_lock_paths: [],
+    configured_codex_plugin_carrier: normalizeConfiguredCodexPluginCarrier(
+      payload.codex_surface.configured_codex_plugin_carrier,
+      { packageId, requiredSkillIds, manifestUrl },
+    ),
   };
 }
 
@@ -1159,6 +1274,10 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
     content_digest: contentDigest,
     content_lock_canonicalization: contentLockCanonicalization,
     content_lock_paths: contentLockPaths,
+    configured_codex_plugin_carrier: normalizeConfiguredCodexPluginCarrier(
+      codexSurface.configured_codex_plugin_carrier,
+      { packageId, requiredSkillIds: allSkillIds, manifestUrl },
+    ),
   };
 }
 
@@ -1253,6 +1372,10 @@ export function normalizeWorkflowProfilePackageManifest(payload: unknown, manife
     content_digest: null,
     content_lock_canonicalization: null,
     content_lock_paths: [],
+    configured_codex_plugin_carrier: normalizeConfiguredCodexPluginCarrier(
+      codexSurface.configured_codex_plugin_carrier,
+      { packageId, requiredSkillIds, manifestUrl },
+    ),
   };
 }
 

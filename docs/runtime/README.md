@@ -117,13 +117,14 @@ Fast Local Env
    - 不把 stale blocked attempt、queue residue 或 provider counter 直接当用户项目结论。
    - 不把 shell 分组需求写回 runtime truth。
 
-因此，`runtime_activity_items`、`task_drilldowns`、`task_run_projection_v2`、`work_item_projection_v1`
-和相关 scope/status projection 是 Framework owner surface；`work_item_projection_v1`
-只把同一 `task_run_projection_v2` refs-only 数据整理成用户认知顺序：scope、work item、agent、stage、
-attempt、action、evidence 与 conditions envelope，并通过 `family_stage_control_plane` / `family_action_catalog`
-refs 标明 stage label、attempt refs 与 next-action template 来源。它不写 domain truth，不生成 owner receipt、
-typed blocker、quality verdict 或 App release/currentness 结论；“显示成什么词、分成哪几组、哪些
-细节默认折叠”仍是 App 与 shell owner surface。
+因此，`runtime_activity_items`、`task_drilldowns`、`task_run_projection_v2` 和相关 scope/status
+projection 仍是 Framework 的兼容 owner surface；GUI 的 canonical Work Item surface 是
+`work_item_projection_v2`。Framework 不再在 `task_run_projection_v2` 内或 workbench 顶层发布
+`work_item_projection_v1`。
+
+`work-item-projection/legacy-adapter.ts` 只把 V2 投影成 full diagnostics、runtime tray 和
+current-owner fallback 仍在消费的 `runtime_activity_items`，不是 V1 writer。删除该 adapter
+必须等待这些 active consumers 先退出，不属于本次 V1 envelope 退役。
 
 ## 内容
 

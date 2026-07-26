@@ -100,23 +100,6 @@ export async function withAgentPackageLifecycleTransaction<T>(
   }
 }
 
-export function withAgentPackageLifecycleTransactionSync<T>(
-  dryRun: boolean,
-  operation: () => T,
-  options: PackageLifecycleTransactionOptions = {},
-): T {
-  if (dryRun || packageLifecycleTransactionContext.getStore()) return operation();
-  const acquired = acquirePackageLifecycleLock(options);
-  try {
-    const result = packageLifecycleTransactionContext.run(true, operation);
-    releasePackageLifecycleLock(acquired, true);
-    return result;
-  } catch (error) {
-    releasePackageLifecycleLock(acquired, false);
-    throw error;
-  }
-}
-
 function emptyLockIndex(): AgentPackageLockIndex {
   return {
     surface_kind: 'opl_agent_package_lock_index',
@@ -323,26 +306,9 @@ export function writeRegistryCache(cache: AgentPackageRegistryCache) {
   writeJsonPayloadFile(paths.agent_package_registry_cache_file, cache);
 }
 
-export function writeLockIndex(index: AgentPackageLockIndex) {
-  const paths = ensureOplStateDir();
-  readLockIndex();
-  writeJsonPayloadFile(
-    paths.agent_package_lock_file,
-    normalizeLockIndex(index, paths.agent_package_lock_file),
-  );
-}
-
 function writeLifecycleLedger(ledger: AgentPackageLifecycleLedger) {
   const paths = ensureOplStateDir();
   writeJsonReceiptLedger(paths.agent_package_lifecycle_ledger_file, ledger);
-}
-
-export function appendReceipt(receipt: AgentPackageLifecycleReceipt) {
-  const ledger = readLifecycleLedger();
-  upsertJsonReceipts(ledger.receipts, [receipt], (entry, next) =>
-    entry.receipt_ref === next.receipt_ref
-  );
-  writeLifecycleLedger(ledger);
 }
 
 export function writePackageTransaction(

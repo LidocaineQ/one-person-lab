@@ -23,7 +23,7 @@ import {
 import { buildAppRuntimeWorkItemProjection } from '../../src/modules/console/app-runtime-work-item-projection.ts';
 import { readStageIndexPresentation } from '../../src/modules/console/work-item-projection/inventory-presentation.ts';
 import { readWorkItemStageAttempts } from '../../src/modules/console/work-item-projection/execution.ts';
-import { projectWorkItemRuntimeActivityItems } from '../../src/modules/console/work-item-projection/legacy-adapter.ts';
+import { projectRuntimeActivityItems } from '../../src/modules/console/work-item-projection/runtime-activity-projection.ts';
 import { buildWorkItemProjectionV2 } from '../../src/modules/console/work-item-projection/projection.ts';
 import { projectWorkItemPrimaryState } from '../../src/modules/console/work-item-projection/primary-state.ts';
 import { buildStageAttemptRuntimeCurrentness } from '../../src/modules/runway/family-runtime-stage-attempt-runtime-currentness.ts';
@@ -2597,9 +2597,9 @@ test('post-snapshot human_gate from an exact-scoped StageRun projects the owner 
       ),
       true,
     );
-    const legacy = projectWorkItemRuntimeActivityItems(projection).find((entry) => entry.work_item_id === workItemId)!;
-    assert.equal(legacy.business_primary_state, 'owner_decision_required');
-    assert.equal(legacy.lane, 'attention');
+    const runtimeActivity = projectRuntimeActivityItems(projection).find((entry) => entry.work_item_id === workItemId)!;
+    assert.equal(runtimeActivity.business_primary_state, 'owner_decision_required');
+    assert.equal(runtimeActivity.lane, 'attention');
   } finally {
     if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateDir;

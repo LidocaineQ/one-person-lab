@@ -572,7 +572,6 @@ test('app action execute routes install_from_manifest_url to Framework package l
           opl_agent_package_home_shortcut_preferences: {
             status: string;
             preference: { shortcut_id: string; visible: boolean; sort_order: number };
-            lifecycle_receipt: { action: string; writes_performed: boolean };
           };
         };
       };
@@ -586,8 +585,11 @@ test('app action execute routes install_from_manifest_url to Framework package l
     assert.equal(shortcutPreference.app_action_execution.result.opl_agent_package_home_shortcut_preferences.preference.visible, false);
     assert.equal(shortcutPreference.app_action_execution.result.opl_agent_package_home_shortcut_preferences.preference.sort_order, 9);
     assert.equal(
-      shortcutPreference.app_action_execution.result.opl_agent_package_home_shortcut_preferences.lifecycle_receipt.action,
-      'home_shortcut_preferences_set',
+      Object.hasOwn(
+        shortcutPreference.app_action_execution.result.opl_agent_package_home_shortcut_preferences,
+        'lifecycle_receipt',
+      ),
+      false,
     );
 
     const list = runCli(['packages', 'list'], env) as {

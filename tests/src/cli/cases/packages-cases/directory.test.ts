@@ -953,7 +953,7 @@ test('owner presentation projects through an unknown package directory without b
       sort_order: 4,
       source: 'user_preference',
       updated_at: '2026-07-25T00:00:00.000Z',
-      installed: false,
+      installed: true,
       label_i18n: { 'en-US': 'Attacker label' },
       route: { route_kind: 'unknown' },
     }],
@@ -971,13 +971,24 @@ test('owner presentation projects through an unknown package directory without b
     visible: preference.visible,
     sort_order: preference.sort_order,
     source: preference.source,
+    installed: preference.installed,
   })), [{
     shortcut_id: 'future-main',
     package_id: 'third.party.research',
     visible: false,
     sort_order: 4,
     source: 'user_preference',
+    installed: false,
   }]);
+  const installedProjection = mergedHomeShortcutPreferences(directory, {
+    surface_kind: 'opl_agent_package_lock_index',
+    version: 'opl-agent-package-lock-index.v1',
+    packages: [{ package_id: 'third.party.research' } as any],
+  });
+  assert.equal(
+    installedProjection.find((preference) => preference.package_id === 'third.party.research')?.installed,
+    true,
+  );
   assert.deepEqual(entry.display_name_i18n, thirdPartyPresentation.display_name_i18n);
   assert.deepEqual(entry.description_i18n, thirdPartyPresentation.description_i18n);
   assert.deepEqual(entry.session_routing_summary_i18n, thirdPartyPresentation.session_routing_summary_i18n);

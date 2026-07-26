@@ -66,13 +66,10 @@ export function packageActionStatus(action: AgentPackageLifecycleAction) {
     unhide: 'visible',
     enable: 'enabled',
     disable: 'disabled',
-    home_shortcut_preferences_set: 'preferences_updated',
-    registry_refresh: 'refreshed',
-    manifest_validate: 'valid',
   }[action];
 }
 
-export function requirePackageId(packageId: string | null | undefined, action: AgentPackageLifecycleAction) {
+export function requirePackageId(packageId: string | null | undefined, action: string) {
   const normalized = canonicalAgentPackageId(packageId);
   if (!normalized) {
     throw new FrameworkContractError('cli_usage_error', `Agent package ${action} requires --package-id.`, {
