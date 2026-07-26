@@ -1,7 +1,23 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
 import { buildFoundryCommandSpecs } from '../../src/entrypoints/cli/cases/public-command-specs-parts/foundry.ts';
+import { createPersistentFoundryControl } from '../../src/entrypoints/cli/modules/foundry-control.ts';
+
+test('persistent Foundry control keeps read commands physically read-only on absent storage', async (t) => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-foundry-control-read-only-'));
+  const root = path.join(parent, 'foundry');
+  t.after(() => fs.rmSync(parent, { recursive: true, force: true }));
+  const control = createPersistentFoundryControl(root);
+
+  assert.equal(fs.existsSync(root), false);
+  assert.deepEqual(await control.listVersions('missing-agent', 'missing-domain'), []);
+  await assert.rejects(control.inspectRun('foundry_read_only_missing'), /FoundryRun does not exist/);
+  assert.equal(fs.existsSync(root), false);
+});
 
 test('Foundry operator CLI exposes only status, Owner decisions, cancel, versions, and rollback', async () => {
   const calls: Array<{ operation: string; input: unknown; options?: unknown }> = [];

@@ -7,6 +7,8 @@ import test from 'node:test';
 
 import { canonicalJsonBytes, canonicalJsonText } from '../../src/kernel/canonical-json.ts';
 import {
+  FileFoundryObjectStore,
+  LedgerFoundryEventStore,
   LedgerFoundryOperationResultJournal,
   LedgerVersionRegistry,
   foundryStoragePaths,
@@ -17,6 +19,7 @@ import {
   foundryContentDigest,
   type AgentBlueprint,
 } from '../../src/modules/foundry/protocol.ts';
+import { buildFoundryEvent } from '../../src/modules/foundry/state-machine.ts';
 import type {
   ActivationPointer,
   ActivationRuntimeBindingVerification,
@@ -39,6 +42,29 @@ function digest(value: unknown) {
 
 function fixtureDigest(label: string) {
   return `sha256:${sha256(label)}`;
+}
+
+function physicalTreeSnapshot(root: string, relative = ''): string[] {
+  const directory = relative ? path.join(root, relative) : root;
+  if (!fs.existsSync(directory)) return [];
+  const snapshot: string[] = [];
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+    const entryRelative = relative ? `${relative}/${entry.name}` : entry.name;
+    const full = path.join(root, entryRelative);
+    const stat = fs.lstatSync(full, { bigint: true });
+    const metadata = `${(stat.mode & 0o777n).toString(8)}:${stat.mtimeNs}:${stat.ctimeNs}`;
+    if (entry.isDirectory()) {
+      snapshot.push(`directory:${entryRelative}:${metadata}`);
+      snapshot.push(...physicalTreeSnapshot(root, entryRelative));
+    } else if (entry.isFile()) {
+      snapshot.push(`file:${entryRelative}:${metadata}:${stat.size}:${sha256(fs.readFileSync(full))}`);
+    } else if (entry.isSymbolicLink()) {
+      snapshot.push(`symlink:${entryRelative}:${metadata}:${fs.readlinkSync(full)}`);
+    } else {
+      snapshot.push(`other:${entryRelative}:${metadata}`);
+    }
+  }
+  return snapshot;
 }
 
 function registryDirectory(root: string) {
@@ -354,6 +380,99 @@ function pointer(versionDigest: string, revision: number, updatedAt: string): Ac
     updated_at: updatedAt,
   };
 }
+
+test('read-only Foundry adapters neither create storage nor admit mutation methods', async (t) => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-foundry-read-only-empty-'));
+  const root = path.join(parent, 'foundry');
+  t.after(() => fs.rmSync(parent, { recursive: true, force: true }));
+  const options = { readOnly: true };
+  const objects = new FileFoundryObjectStore(root, options);
+  const events = new LedgerFoundryEventStore(root, options);
+  const versions = new LedgerVersionRegistry(root, options);
+
+  assert.equal(await objects.get(`sha256:${'a'.repeat(64)}`), null);
+  assert.deepEqual(await events.read('foundry_read_only_missing'), []);
+  assert.deepEqual(await events.list(), []);
+  assert.deepEqual(await versions.list(TARGET_AGENT_ID, TARGET_DOMAIN_ID), []);
+  assert.equal(fs.existsSync(root), false);
+
+  await assert.rejects(objects.put({ forbidden: true }), /Read-only Foundry persistence adapter/);
+  await assert.rejects(events.create({} as never), /Read-only Foundry persistence adapter/);
+  await assert.rejects(versions.register({} as never), /Read-only Foundry persistence adapter/);
+  assert.equal(fs.existsSync(root), false);
+});
+
+test('read-only event inspection does not repair target reservations or the SQLite projection', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-foundry-read-only-events-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const requestDigest = fixtureDigest('read-only-event-request');
+  const runId = 'foundry_read_only_event';
+  const event = buildFoundryEvent({
+    runId,
+    revision: 1,
+    eventType: 'foundry_run_accepted',
+    fromState: null,
+    toState: 'accepted',
+    occurredAt: '2026-07-16T00:00:00.000Z',
+    idempotencyKey: `${runId}/0/accepted/${requestDigest}`,
+    previousEventHash: null,
+    payload: {
+      target_agent_id: TARGET_AGENT_ID,
+      target_domain_id: TARGET_DOMAIN_ID,
+      request_digest: requestDigest,
+      activation_revision_at_start: 0,
+      generation: 0,
+    },
+  });
+  await new LedgerFoundryEventStore(root).create({
+    target_key: `${TARGET_AGENT_ID}\0${TARGET_DOMAIN_ID}`,
+    event,
+  });
+  const paths = foundryStoragePaths(root);
+  fs.rmSync(paths.state_index, { force: true });
+  for (const entry of fs.readdirSync(paths.target_locks)) {
+    fs.rmSync(path.join(paths.target_locks, entry));
+  }
+  const before = physicalTreeSnapshot(root);
+
+  const events = new LedgerFoundryEventStore(root, { readOnly: true });
+  assert.deepEqual(await events.read(runId), [event]);
+  assert.equal((await events.list())[0]?.run_id, runId);
+  assert.deepEqual(physicalTreeSnapshot(root), before);
+  assert.equal(fs.existsSync(paths.state_index), false);
+  assert.deepEqual(fs.readdirSync(paths.target_locks), []);
+});
+
+test('read-only registry derives activation without repairing projection or cleaning dead temps', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-foundry-read-only-registry-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const fixture = await createRegisteredFixture(root, 'read-only-registry');
+  const files = registrationFiles(root, registrationRecords(fixture.input));
+  const occurredAt = '2026-07-16T00:01:00.000Z';
+  await fixture.registry.compareAndSwapActivation({
+    target_agent_id: TARGET_AGENT_ID,
+    target_domain_id: TARGET_DOMAIN_ID,
+    expected_revision: 0,
+    version_digest: fixture.version.version_digest,
+    authority_receipt_ref: null,
+    occurred_at: occurredAt,
+    runtime_binding_verification: activationVerification(fixture.version, 'activate', 0),
+  });
+  fs.rmSync(files.activation);
+  const deadTemp = `${files.version}.tmp-999999-${crypto.randomUUID()}`;
+  fs.writeFileSync(deadTemp, 'uncommitted legacy staging bytes');
+  const before = physicalTreeSnapshot(root);
+
+  const registry = new LedgerVersionRegistry(root, { readOnly: true });
+  assert.deepEqual(await registry.list(TARGET_AGENT_ID, TARGET_DOMAIN_ID), [fixture.version]);
+  assert.deepEqual(
+    await registry.activation(TARGET_AGENT_ID, TARGET_DOMAIN_ID),
+    pointer(fixture.version.version_digest, 1, occurredAt),
+  );
+  assert.equal(fs.existsSync(files.activation), false);
+  assert.equal(fs.existsSync(deadTemp), true);
+  assert.deepEqual(physicalTreeSnapshot(root), before);
+});
 
 test('registration hides a prepared qualification and exact retry atomically publishes its AgentVersion', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-foundry-registry-prepare-'));

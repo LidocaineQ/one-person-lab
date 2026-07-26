@@ -76,8 +76,18 @@ type CandidateResourceLock = {
   resources: CandidateResourceBinding[];
 };
 
+export type FoundryPersistentAdapterOptions = {
+  readOnly?: boolean;
+};
+
 function fail(message: string, details: Record<string, unknown> = {}): never {
   throw new FrameworkContractError('contract_shape_invalid', message, details);
+}
+
+function requireWritable(readOnly: boolean, operation: string) {
+  if (readOnly) {
+    fail('Read-only Foundry persistence adapter cannot mutate storage.', { operation });
+  }
 }
 
 function sha256(value: string | Buffer) {
@@ -367,13 +377,16 @@ function ensureStorage(paths: FoundryStoragePaths) {
 
 export class FileFoundryObjectStore implements FoundryObjectStore {
   readonly #paths: FoundryStoragePaths;
+  readonly #readOnly: boolean;
 
-  constructor(rootOverride?: string) {
+  constructor(rootOverride?: string, options: FoundryPersistentAdapterOptions = {}) {
     this.#paths = foundryStoragePaths(rootOverride);
-    ensureStorage(this.#paths);
+    this.#readOnly = options.readOnly === true;
+    if (!this.#readOnly) ensureStorage(this.#paths);
   }
 
   async put<T>(value: T) {
+    requireWritable(this.#readOnly, 'object_store_put');
     const digest = foundryContentDigest(value);
     const file = path.join(this.#paths.objects, `${digestSegment(digest)}.json`);
     const bytes = canonicalJsonBytes(value);
@@ -613,6 +626,7 @@ function readRunLedger(paths: FoundryStoragePaths, runId: string) {
 }
 
 function readAllRunLedgers(paths: FoundryStoragePaths) {
+  if (!fs.existsSync(paths.runs)) return [];
   const ledgers = fs.readdirSync(paths.runs, { withFileTypes: true })
     .sort((left, right) => left.name.localeCompare(right.name))
     .map((entry) => {
@@ -915,13 +929,16 @@ function reconcileRunDerivedState(
 
 export class LedgerFoundryEventStore implements FoundryEventStore {
   readonly #paths: FoundryStoragePaths;
+  readonly #readOnly: boolean;
 
-  constructor(rootOverride?: string) {
+  constructor(rootOverride?: string, options: FoundryPersistentAdapterOptions = {}) {
     this.#paths = foundryStoragePaths(rootOverride);
-    ensureStorage(this.#paths);
+    this.#readOnly = options.readOnly === true;
+    if (!this.#readOnly) ensureStorage(this.#paths);
   }
 
   async create(input: { target_key: string; event: FoundryRunEvent }) {
+    requireWritable(this.#readOnly, 'event_store_create');
     const runId = requireSafeSegment(input.event.run_id, 'run_id');
     verifyFoundryEventChain([input.event]);
     const inputSnapshot = snapshotFromEvents([input.event]);
@@ -982,6 +999,7 @@ export class LedgerFoundryEventStore implements FoundryEventStore {
   }
 
   async append(input: { target_key: string; expected_revision: number; event: FoundryRunEvent }) {
+    requireWritable(this.#readOnly, 'event_store_append');
     const runId = requireSafeSegment(input.event.run_id, 'run_id');
     const targetMutationLock = path.join(this.#paths.mutation_locks, `target-${sha256(input.target_key)}.lock`);
     const runMutationLock = path.join(this.#paths.mutation_locks, `run-${sha256(runId)}.lock`);
@@ -1025,24 +1043,26 @@ export class LedgerFoundryEventStore implements FoundryEventStore {
   async read(runId: string) {
     const ledger = readRunLedger(this.#paths, runId);
     if (!ledger) return [];
-    try {
-      const targetMutationLock = path.join(
-        this.#paths.mutation_locks,
-        `target-${sha256(ledger.metadata.target_key)}.lock`,
-      );
-      withMutationLock(targetMutationLock, this.#paths.staging, () => {
-        repairTargetReservation(this.#paths, ledger.metadata.target_key, ledger.snapshot);
-      });
-      projectSnapshot(this.#paths, ledger.metadata.target_key, ledger.snapshot);
-    } catch {
-      // Event bytes are authoritative; a derived-state repair failure must not hide them.
+    if (!this.#readOnly) {
+      try {
+        const targetMutationLock = path.join(
+          this.#paths.mutation_locks,
+          `target-${sha256(ledger.metadata.target_key)}.lock`,
+        );
+        withMutationLock(targetMutationLock, this.#paths.staging, () => {
+          repairTargetReservation(this.#paths, ledger.metadata.target_key, ledger.snapshot);
+        });
+        projectSnapshot(this.#paths, ledger.metadata.target_key, ledger.snapshot);
+      } catch {
+        // Event bytes are authoritative; a derived-state repair failure must not hide them.
+      }
     }
     return clone(ledger.events);
   }
 
   async list() {
     let ledgers = readAllRunLedgers(this.#paths);
-    if (!stateIndexMatches(this.#paths, ledgers)) {
+    if (!this.#readOnly && !stateIndexMatches(this.#paths, ledgers)) {
       try {
         ledgers = rebuildStateIndexFromLedger(this.#paths);
       } catch {
@@ -1055,6 +1075,7 @@ export class LedgerFoundryEventStore implements FoundryEventStore {
   }
 
   rebuildStateIndex() {
+    requireWritable(this.#readOnly, 'event_store_rebuild_state_index');
     rebuildStateIndexFromLedger(this.#paths);
   }
 }
@@ -1776,6 +1797,7 @@ function readRegistryDirectory<T>(
   directory: string,
   label: string,
   validate: (value: unknown, name: string) => T,
+  readOnly = false,
 ) {
   if (!fs.existsSync(directory)) return [];
   const stat = fs.lstatSync(directory);
@@ -1784,7 +1806,7 @@ function readRegistryDirectory<T>(
   const authoritative = fs.readdirSync(directory, { withFileTypes: true }).filter((entry) => {
     const match = /\.json\.tmp-(\d+)-[0-9a-f-]+$/.exec(entry.name);
     if (!match || !entry.isFile()) return true;
-    if (!processIsAlive(Number(match[1]))) {
+    if (!readOnly && !processIsAlive(Number(match[1]))) {
       fs.rmSync(path.join(directory, entry.name), { force: true });
       removed = true;
     }
@@ -2469,10 +2491,12 @@ export class LedgerFoundryOperationResultJournal implements FoundryOperationResu
 
 export class LedgerVersionRegistry implements VersionRegistry {
   readonly #paths: FoundryStoragePaths;
+  readonly #readOnly: boolean;
 
-  constructor(rootOverride?: string) {
+  constructor(rootOverride?: string, options: FoundryPersistentAdapterOptions = {}) {
     this.#paths = foundryStoragePaths(rootOverride);
-    ensureStorage(this.#paths);
+    this.#readOnly = options.readOnly === true;
+    if (!this.#readOnly) ensureStorage(this.#paths);
   }
 
   #directory(agentId: string, domainId: string) {
@@ -2519,11 +2543,13 @@ export class LedgerVersionRegistry implements VersionRegistry {
       qualificationsDirectory,
       'QualificationRecord directory',
       (value, name) => validateQualificationRecord(value, agentId, domainId, name),
+      this.#readOnly,
     );
     const versions = readRegistryDirectory(
       versionsDirectory,
       'AgentVersion directory',
       (value, name) => validateAgentVersion(value, agentId, domainId, name),
+      this.#readOnly,
     );
     requireUnique(qualifications.map((entry) => entry.qualification_digest), 'QualificationRecord digests');
     requireUnique(qualifications.map((entry) => entry.qualification_id), 'QualificationRecord identities');
@@ -2552,6 +2578,7 @@ export class LedgerVersionRegistry implements VersionRegistry {
       transactionsDirectory,
       'ActivationTransaction directory',
       (value, name) => validateActivationTransaction(value, agentId, domainId, name),
+      this.#readOnly,
     );
     requireUnique(transactions.map((entry) => entry.transaction_id), 'ActivationTransaction identities');
     let activation = this.#empty(agentId, domainId).activation;
@@ -2619,6 +2646,7 @@ export class LedgerVersionRegistry implements VersionRegistry {
   }
 
   async register(input: Parameters<VersionRegistry['register']>[0]) {
+    requireWritable(this.#readOnly, 'version_registry_register');
     const directory = this.#directory(input.target_agent_id, input.target_domain_id);
     const lock = this.#mutationLock(input.target_agent_id, input.target_domain_id);
     return withMutationLock(lock, this.#paths.staging, () => {
@@ -2744,6 +2772,9 @@ export class LedgerVersionRegistry implements VersionRegistry {
   }
 
   async activation(targetAgentId: string, targetDomainId: string) {
+    if (this.#readOnly) {
+      return clone(this.#read(targetAgentId, targetDomainId).activation);
+    }
     const directory = this.#directory(targetAgentId, targetDomainId);
     const lock = this.#mutationLock(targetAgentId, targetDomainId);
     return withMutationLock(lock, this.#paths.staging, () => {
@@ -2770,6 +2801,7 @@ export class LedgerVersionRegistry implements VersionRegistry {
   #switchActivation(input: Parameters<VersionRegistry['compareAndSwapActivation']>[0] & {
     transaction_kind: ActivationTransaction['transaction_kind'];
   }) {
+    requireWritable(this.#readOnly, `version_registry_${input.transaction_kind}`);
     const directory = this.#directory(input.target_agent_id, input.target_domain_id);
     const lock = this.#mutationLock(input.target_agent_id, input.target_domain_id);
     return withMutationLock(lock, this.#paths.staging, () => {
