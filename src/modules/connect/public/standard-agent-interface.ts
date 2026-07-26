@@ -1,1 +1,4 @@
-export { readStandardAgentDescriptorForDomain } from '../standard-agent-interface-discovery.ts';
+export {
+  readInstalledStandardAgentDescriptorForDomain,
+  readStandardAgentDescriptorForDomain,
+} from '../standard-agent-interface-discovery.ts';
