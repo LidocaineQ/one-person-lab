@@ -8,7 +8,7 @@ import test from 'node:test';
 import { FrameworkContractError } from '../../src/kernel/contract-validation.ts';
 import { materializeStandardAgentFrameworkLink } from '../../src/modules/connect/standard-agent-framework-link.ts';
 import { runManagedModuleWorkflow } from '../../src/modules/connect/system-installation/module-action-workflow.ts';
-import { runCli, runCliFailure } from './cli/helpers.ts';
+import { runCli, runCliAsync, runCliFailure } from './cli/helpers.ts';
 
 function withAgent(run: (agentRoot: string) => void) {
   const agentRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-link-'));
@@ -226,4 +226,44 @@ test('link-framework CLI checks, previews, creates, and rechecks the OPL-owned l
     assert.equal(checked.status, 'already_linked');
     assert.equal(checked.writes_performed, false);
   });
+});
+
+test('concurrent link-framework calls share no Package lifecycle state', async (t) => {
+  const agentRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-link-concurrent-'));
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-link-state-'));
+  t.after(() => {
+    fs.rmSync(agentRoot, { recursive: true, force: true });
+    fs.rmSync(stateDir, { recursive: true, force: true });
+  });
+  fs.mkdirSync(path.join(agentRoot, 'src'));
+  fs.writeFileSync(path.join(agentRoot, 'package.json'), JSON.stringify({
+    name: 'fixture-concurrent-standard-agent',
+    private: true,
+    type: 'module',
+    dependencies: {},
+  }, null, 2));
+  fs.writeFileSync(
+    path.join(agentRoot, 'src', 'consumer.mjs'),
+    "import 'opl-framework/domain-task-runtime';\n",
+  );
+
+  const env = {
+    OPL_STATE_DIR: stateDir,
+    OPL_CLI_TEST_TIMEOUT_MS: '90000',
+  };
+  const results = await Promise.all([
+    runCliAsync(['packages', 'link-framework', '--agent-root', agentRoot], env),
+    runCliAsync(['packages', 'link-framework', '--agent-root', agentRoot], env),
+  ]);
+  const links = results.map((result: any) => result.opl_agent_package_framework_link);
+
+  assert.equal(links.every((link) => ['linked', 'already_linked'].includes(link.status)), true);
+  assert.equal(links.every((link) => link.writes_performed === (link.status === 'linked')), true);
+  assert.equal(fs.realpathSync(links[0].link_path), fs.realpathSync(links[0].target_root));
+  assert.deepEqual(
+    fs.readdirSync(path.dirname(links[0].link_path))
+      .filter((entry) => entry.includes('.opl-framework.') && entry.endsWith('.tmp')),
+    [],
+  );
+  assert.deepEqual(fs.readdirSync(stateDir), []);
 });

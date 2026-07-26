@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -96,6 +97,42 @@ function readLinkTarget(linkPath: string) {
   }
 }
 
+function materializeFrameworkLink(linkPath: string, target: string) {
+  const directory = path.dirname(linkPath);
+  fs.mkdirSync(directory, { recursive: true });
+  const temporary = path.join(
+    directory,
+    `.${path.basename(linkPath)}.${process.pid}.${crypto.randomUUID()}.tmp`,
+  );
+  try {
+    fs.symlinkSync(target, temporary, process.platform === 'win32' ? 'junction' : 'dir');
+    try {
+      fs.renameSync(temporary, linkPath);
+      return true;
+    } catch (error) {
+      if (readLinkTarget(linkPath) === target) return false;
+      const code = (error as NodeJS.ErrnoException).code;
+      if (process.platform !== 'win32' || !['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(code ?? '')) {
+        throw error;
+      }
+      try {
+        fs.unlinkSync(linkPath);
+      } catch (unlinkError) {
+        if ((unlinkError as NodeJS.ErrnoException).code !== 'ENOENT') throw unlinkError;
+      }
+      try {
+        fs.renameSync(temporary, linkPath);
+        return true;
+      } catch (retryError) {
+        if (readLinkTarget(linkPath) !== target) throw retryError;
+        return false;
+      }
+    }
+  } finally {
+    fs.rmSync(temporary, { force: true });
+  }
+}
+
 function authorityBoundary() {
   return {
     opl_owns_framework_install_runtime_and_generated_surfaces: true,
@@ -180,10 +217,14 @@ export function materializeStandardAgentFrameworkLink(input: StandardAgentFramew
     return { ...base, status: 'validated_no_write', reason: null, writes_performed: false } as const;
   }
 
+  let writesPerformed = false;
   for (const link of unresolvedLinks) {
-    fs.mkdirSync(path.dirname(link.path), { recursive: true });
-    if (readLinkTarget(link.path)) fs.unlinkSync(link.path);
-    fs.symlinkSync(link.target, link.path, process.platform === 'win32' ? 'junction' : 'dir');
+    if (materializeFrameworkLink(link.path, link.target)) writesPerformed = true;
   }
-  return { ...base, status: 'linked', reason: null, writes_performed: true } as const;
+  return {
+    ...base,
+    status: writesPerformed ? 'linked' : 'already_linked',
+    reason: null,
+    writes_performed: writesPerformed,
+  } as const;
 }

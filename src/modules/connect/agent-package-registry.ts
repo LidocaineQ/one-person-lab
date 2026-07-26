@@ -4293,18 +4293,11 @@ export async function runOplAgentPackageProfileApply(input: AgentPackageProfileA
   );
 }
 
-function runOplAgentPackageFrameworkLinkUnlocked(input: { agentRoot: string; dryRun?: boolean; checkOnly?: boolean }) {
+export async function runOplAgentPackageFrameworkLink(input: { agentRoot: string; dryRun?: boolean; checkOnly?: boolean }) {
   return {
     version: 'g2',
     opl_agent_package_framework_link: materializeStandardAgentFrameworkLink(input),
   };
-}
-
-export async function runOplAgentPackageFrameworkLink(input: { agentRoot: string; dryRun?: boolean; checkOnly?: boolean }) {
-  return withAgentPackageLifecycleTransaction(
-    input.dryRun === true || input.checkOnly === true,
-    async () => runOplAgentPackageFrameworkLinkUnlocked(input),
-  );
 }
 
 function runOplAgentPackageUninstallUnlocked(input: AgentPackagePackageActionInput) {
