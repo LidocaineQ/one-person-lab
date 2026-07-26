@@ -6,6 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { FrameworkContractError } from '../../src/kernel/contract-validation.ts';
+import { readLocalCodexAccessState } from '../../src/kernel/local-codex-defaults.ts';
 import { bindGatewayKeyToCodex, restoreCodexBinding } from '../../src/modules/connect/opl-gateway-account-parts/codex-binding.ts';
 import { inspectGatewayPublicSettings, loginGateway } from '../../src/modules/connect/opl-gateway-account-parts/client.ts';
 import { buildGatewayInstallation, normalizeGatewayDeviceSlug } from '../../src/modules/connect/opl-gateway-account-parts/identity.ts';
@@ -16,8 +17,8 @@ import {
   loginOplGatewayAccount,
   readOplGatewayAccount,
   refreshOplGatewayAccount,
-  repairOplGatewayAccount,
   selectOplGatewayManagedGroup,
+  useOplGatewayForModelAccess,
 } from '../../src/modules/connect/opl-gateway-account.ts';
 
 function json(response: http.ServerResponse, value: unknown, status = 200) {
@@ -169,6 +170,11 @@ test('gateway account login, refresh and disconnect keep secrets private and dis
     assert.equal(login.gateway_account.managed_key?.ownership, 'opl_app_managed');
     assert.equal(requests.find((entry) => entry.url === '/api/v1/keys' && entry.method === 'POST')?.body.group_id, 3);
     assert.match(createIdempotency, /^opl-app-key-create:42:/);
+    assert.equal(
+      fs.existsSync(path.join(codexHome, 'config.toml')),
+      false,
+      'account login must not bind model access before the explicit use action',
+    );
 
     const publicJson = JSON.stringify(login);
     for (const secret of ['login-secret', 'refresh-login', 'managed-api-secret', 'access-login']) {
@@ -183,10 +189,30 @@ test('gateway account login, refresh and disconnect keep secrets private and dis
     assert.equal(accountDisk.includes('managed-api-secret'), false);
     assert.equal(accountDisk.includes('refresh-login'), false);
 
+    const firstUse = await useOplGatewayForModelAccess();
+    assert.equal(firstUse.gateway_account.status, 'connected');
+    assert.equal(readLocalCodexAccessState().model_access_source, 'opl_gateway');
+    const configPath = path.join(codexHome, 'config.toml');
+    const receiptPath = path.join(stateDir, 'codex-config-management-receipt.json');
+    const firstConfig = fs.readFileSync(configPath, 'utf8');
+    const firstReceipt = fs.readFileSync(receiptPath, 'utf8');
+    const secondUse = await useOplGatewayForModelAccess();
+    assert.equal(secondUse.gateway_account.status, 'connected');
+    assert.equal(fs.readFileSync(configPath, 'utf8'), firstConfig);
+    assert.equal(fs.readFileSync(receiptPath, 'utf8'), firstReceipt);
+
+    fs.writeFileSync(configPath, firstConfig.replace('managed-api-secret', 'other-gateway-key'), { mode: 0o600 });
+    assert.equal(readLocalCodexAccessState().model_access_source, 'opl_gateway');
+    const repairedUse = await useOplGatewayForModelAccess();
+    assert.equal(repairedUse.gateway_account.status, 'connected');
+    assert.match(fs.readFileSync(configPath, 'utf8'), /managed-api-secret/);
+    assert.doesNotMatch(fs.readFileSync(configPath, 'utf8'), /other-gateway-key/);
+
+    const refreshCountBeforeConcurrentRead = refreshCount;
     const refreshed = await Promise.all([refreshOplGatewayAccount(), refreshOplGatewayAccount()]);
     assert.equal(refreshed[0].gateway_account.status, 'connected');
     assert.equal(JSON.stringify(refreshed).includes('refresh-1'), false);
-    assert.equal(refreshCount, 1);
+    assert.equal(refreshCount, refreshCountBeforeConcurrentRead + 1);
 
     refreshFailureStatus = 503;
     await assert.rejects(
@@ -210,6 +236,7 @@ test('gateway account login, refresh and disconnect keep secrets private and dis
     assert.equal(disconnected.gateway_account.status, 'not_connected');
     assert.equal(keyStatus, 'inactive');
     assert.equal(fs.existsSync(path.join(gatewayDir, 'credentials.json')), false);
+    assert.equal(fs.existsSync(configPath), false);
     assert.equal(readOplGatewayAccount().status, 'not_connected');
   } finally {
     for (const [key, value] of Object.entries(previous)) {
@@ -351,7 +378,167 @@ test('Codex binding restores only owned provider fields and preserves manual tok
   }
 });
 
-test('post-key Codex binding failure disables the mutation and repair reuses the same key', async () => {
+test('explicit Gateway binding activates an incomplete existing provider and restores it on disconnect', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-gateway-explicit-binding-'));
+  const previous = { codex: process.env.CODEX_HOME, home: process.env.HOME, state: process.env.OPL_STATE_DIR };
+  process.env.CODEX_HOME = path.join(root, 'codex');
+  process.env.HOME = root;
+  process.env.OPL_STATE_DIR = path.join(root, 'state');
+  try {
+    fs.mkdirSync(process.env.CODEX_HOME, { recursive: true });
+    const configPath = path.join(process.env.CODEX_HOME, 'config.toml');
+    const previousConfig = [
+      'model_provider = "custom"',
+      'model = "custom-model"',
+      'model_reasoning_effort = "medium"',
+      '',
+      '[model_providers.custom]',
+      'name = "Existing custom provider"',
+      'base_url = "https://custom.example.test/v1"',
+      'experimental_bearer_token = "custom-secret"',
+      '',
+    ].join('\n');
+    fs.writeFileSync(configPath, previousConfig, { mode: 0o600 });
+
+    const binding = bindGatewayKeyToCodex('managed-explicit');
+    assert(binding.binding);
+    const activated = fs.readFileSync(configPath, 'utf8');
+    assert.equal(readLocalCodexAccessState().model_access_source, 'opl_gateway');
+    assert.equal(readLocalCodexAccessState().provider_base_url, 'https://gflabtoken.cn/v1');
+    assert.match(activated, new RegExp(`^model_provider = "${binding.binding.provider_id}"$`, 'm'));
+    assert.match(activated, /experimental_bearer_token = "managed-explicit"/);
+
+    assert.equal(restoreCodexBinding(binding.binding, binding.previous_config, true), 'restored_owned_fields');
+    assert.equal(fs.readFileSync(configPath, 'utf8'), previousConfig);
+  } finally {
+    for (const [envKey, value] of [
+      ['CODEX_HOME', previous.codex],
+      ['HOME', previous.home],
+      ['OPL_STATE_DIR', previous.state],
+    ] as const) {
+      if (value === undefined) delete process.env[envKey];
+      else process.env[envKey] = value;
+    }
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('explicit Gateway binding overrides ChatGPT and environment access without consuming ambient routes', () => {
+  for (const source of ['chatgpt', 'environment'] as const) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), `opl-gateway-${source}-`));
+    const previous = {
+      codex: process.env.CODEX_HOME,
+      home: process.env.HOME,
+      state: process.env.OPL_STATE_DIR,
+      openaiKey: process.env.OPENAI_API_KEY,
+      openaiBaseUrl: process.env.OPENAI_BASE_URL,
+    };
+    process.env.CODEX_HOME = path.join(root, 'codex');
+    process.env.HOME = root;
+    process.env.OPL_STATE_DIR = path.join(root, 'state');
+    process.env.OPENAI_BASE_URL = 'https://ambient.invalid/v1';
+    delete process.env.OPENAI_API_KEY;
+    try {
+      fs.mkdirSync(process.env.CODEX_HOME, { recursive: true });
+      if (source === 'chatgpt') {
+        fs.writeFileSync(
+          path.join(process.env.CODEX_HOME, 'auth.json'),
+          `${JSON.stringify({ auth_mode: 'chatgpt', tokens: { access_token: 'private' } })}\n`,
+          { mode: 0o600 },
+        );
+      } else {
+        process.env.OPENAI_API_KEY = 'ambient-key';
+      }
+
+      assert.equal(readLocalCodexAccessState().model_access_source, source === 'chatgpt' ? 'codex_login' : 'env_api_key');
+      const binding = bindGatewayKeyToCodex(`managed-${source}`);
+      assert(binding.binding);
+      const access = readLocalCodexAccessState();
+      assert.equal(access.model_access_source, 'opl_gateway');
+      assert.equal(access.provider_base_url, 'https://gflabtoken.cn/v1');
+      assert.doesNotMatch(fs.readFileSync(binding.binding.config_path, 'utf8'), /ambient\.invalid/);
+    } finally {
+      for (const [envKey, value] of [
+        ['CODEX_HOME', previous.codex],
+        ['HOME', previous.home],
+        ['OPL_STATE_DIR', previous.state],
+        ['OPENAI_API_KEY', previous.openaiKey],
+        ['OPENAI_BASE_URL', previous.openaiBaseUrl],
+      ] as const) {
+        if (value === undefined) delete process.env[envKey];
+        else process.env[envKey] = value;
+      }
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test('failed Gateway post-write readback restores config and management receipt bytes', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-gateway-readback-rollback-'));
+  const previous = { codex: process.env.CODEX_HOME, home: process.env.HOME, state: process.env.OPL_STATE_DIR };
+  process.env.CODEX_HOME = path.join(root, 'codex');
+  process.env.HOME = root;
+  process.env.OPL_STATE_DIR = path.join(root, 'state');
+  try {
+    fs.mkdirSync(process.env.CODEX_HOME, { recursive: true });
+    fs.mkdirSync(process.env.OPL_STATE_DIR, { recursive: true });
+    const configPath = path.join(process.env.CODEX_HOME, 'config.toml');
+    const receiptPath = path.join(process.env.OPL_STATE_DIR, 'codex-config-management-receipt.json');
+    const configBefore = [
+      'model_provider = "custom"',
+      'model = "custom-model"',
+      '',
+      '[model_providers.custom]',
+      'name = "Custom"',
+      'base_url = "https://custom.example.test/v1"',
+      'experimental_bearer_token = "custom-secret"',
+      '',
+    ].join('\n');
+    const receiptBefore = `${JSON.stringify({
+      surface_kind: 'opl_codex_config_management_receipt.v1',
+      config_path: configPath,
+      provider_id: 'custom',
+      selection_mode: 'inactive_provider',
+      provider_route: 'inactive_provider',
+      owned_keys: [],
+      last_applied_values: {
+        model_provider: 'custom',
+        model: 'custom-model',
+        model_reasoning_effort: null,
+        provider_base_url: 'https://custom.example.test/v1',
+      },
+      backup_path: null,
+      updated_at: '2026-07-26T00:00:00.000Z',
+    }, null, 2)}\n`;
+    fs.writeFileSync(configPath, configBefore, { mode: 0o600 });
+    fs.writeFileSync(receiptPath, receiptBefore, { mode: 0o600 });
+
+    assert.throws(
+      () => bindGatewayKeyToCodex('managed-failure', {
+        readback: () => ({
+          ...readLocalCodexAccessState(),
+          model_access_ready: false,
+          model_access_source: 'missing',
+        }),
+      }),
+      /gateway_codex_binding_failed/,
+    );
+    assert.equal(fs.readFileSync(configPath, 'utf8'), configBefore);
+    assert.equal(fs.readFileSync(receiptPath, 'utf8'), receiptBefore);
+  } finally {
+    for (const [envKey, value] of [
+      ['CODEX_HOME', previous.codex],
+      ['HOME', previous.home],
+      ['OPL_STATE_DIR', previous.state],
+    ] as const) {
+      if (value === undefined) delete process.env[envKey];
+      else process.env[envKey] = value;
+    }
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('explicit Codex binding failure keeps the managed key reusable for a corrected retry', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-gateway-rollback-'));
   let keyName = '';
   let keyStatus = 'active';
@@ -403,16 +590,18 @@ test('post-key Codex binding failure disables the mutation and repair reuses the
   fs.writeFileSync(path.join(process.env.CODEX_HOME, 'config.toml'), 'model = "unterminated\n', { mode: 0o600 });
   fs.chmodSync(process.env.CODEX_HOME, 0o500);
   try {
-    await assert.rejects(loginOplGatewayAccount({ email: 'u@example.test', password: 'secret' }), (error: unknown) =>
+    const login = await loginOplGatewayAccount({ email: 'u@example.test', password: 'secret' });
+    assert.equal(login.gateway_account.status, 'connected');
+    await assert.rejects(useOplGatewayForModelAccess(), (error: unknown) =>
       error instanceof FrameworkContractError && error.details?.reason_code === 'gateway_codex_binding_failed');
     assert.equal(createCount, 1);
-    assert.equal(keyStatus, 'inactive');
+    assert.equal(keyStatus, 'active');
     assert.equal(readOplGatewayAccount().status, 'attention_needed');
 
     fs.chmodSync(process.env.CODEX_HOME, 0o700);
     fs.rmSync(path.join(process.env.CODEX_HOME, 'config.toml'));
-    const repaired = await repairOplGatewayAccount();
-    assert.equal(repaired.gateway_account.status, 'connected');
+    const retried = await useOplGatewayForModelAccess();
+    assert.equal(retried.gateway_account.status, 'connected');
     assert.equal(createCount, 1);
     assert.equal(keyStatus, 'active');
   } finally {

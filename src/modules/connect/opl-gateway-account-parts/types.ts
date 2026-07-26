@@ -66,6 +66,11 @@ export type GatewayCodexBinding = {
   provider_id: string;
   previous_provider_id: string | null;
   managed_key_fingerprint: string;
+  managed_root_values?: {
+    model_provider: string;
+    model: string | null;
+    model_reasoning_effort: string | null;
+  };
   activated: boolean;
 };
 

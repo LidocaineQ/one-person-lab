@@ -1,5 +1,8 @@
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
-import { readLocalCodexAccessState } from '../../kernel/local-codex-defaults.ts';
+import {
+  readLocalCodexAccessState,
+  readLocalCodexDefaultsIfAvailable,
+} from '../../kernel/local-codex-defaults.ts';
 import {
   createOplConnection,
   listOplConnections,
@@ -225,6 +228,15 @@ async function reconcileAndCommit(input: {
     transaction_stage: 'key_resolved',
   };
   writeGatewayAccountState(keyResolvedState);
+  if (current.codex_binding?.activated !== true) {
+    const connected = {
+      ...stateWithSnapshot(current, remote, key, 'connected'),
+      codex_binding: current.codex_binding,
+    };
+    writeGatewayAccountState(connected);
+    upsertGatewayConnection(false);
+    return connected;
+  }
   let bindingResult: ReturnType<typeof bindGatewayKeyToCodex>;
   try {
     const needsRebind = !current.codex_binding
@@ -353,10 +365,56 @@ export async function useOplGatewayForModelAccess() {
       groupId: state.key_group_id,
     });
     const key = resolved.key;
-    const binding = bindGatewayKeyToCodex(key.key);
-    writeGatewayCredentials({ ...rotated.credentials,
-      previous_codex_config: binding.previous_config,
-      previous_codex_config_existed: binding.previous_config_existed });
+    let binding: ReturnType<typeof bindGatewayKeyToCodex>;
+    try {
+      const activeAccess = readLocalCodexAccessState();
+      const activeDefaults = readLocalCodexDefaultsIfAvailable();
+      const existingBinding = state.codex_binding;
+      if (
+        existingBinding?.activated === true
+        && existingBinding.managed_key_fingerprint === gatewayKeyFingerprint(key.key)
+        && activeAccess.model_access_ready
+        && activeAccess.model_access_source === 'opl_gateway'
+        && activeDefaults?.model_provider === existingBinding.provider_id
+        && Boolean(activeDefaults.provider_api_key)
+        && gatewayKeyFingerprint(activeDefaults.provider_api_key ?? '') === existingBinding.managed_key_fingerprint
+      ) {
+        binding = {
+          binding: existingBinding,
+          previous_config: rotated.credentials.previous_codex_config,
+          previous_config_existed: rotated.credentials.previous_codex_config_existed,
+        };
+      } else {
+        binding = bindGatewayKeyToCodex(key.key);
+      }
+    } catch {
+      if (resolved.mutation !== 'none') {
+        try {
+          await disableGatewayManagedKey({
+            accessToken: rotated.session.access_token,
+            expectedName: key.name,
+            keyId: key.id,
+          });
+        } catch {
+          // The recoverable account state remains available for another explicit attempt.
+        }
+      }
+      writeGatewayAccountState({
+        ...stateWithSnapshot(state, remote, key, 'attention_needed'),
+        last_error_code: 'gateway_codex_binding_failed',
+      });
+      throw gatewayError('gateway_codex_binding_failed', 'The managed key could not be bound to Codex safely.');
+    }
+    const preserveActivationBaseline = state.codex_binding?.activated === true;
+    writeGatewayCredentials({
+      ...rotated.credentials,
+      previous_codex_config: preserveActivationBaseline
+        ? rotated.credentials.previous_codex_config
+        : binding.previous_config,
+      previous_codex_config_existed: preserveActivationBaseline
+        ? rotated.credentials.previous_codex_config_existed
+        : binding.previous_config_existed,
+    });
     const next = { ...stateWithSnapshot(state, remote, key, 'connected'), codex_binding: binding.binding };
     writeGatewayAccountState(next);
     return { gateway_account: readOplGatewayAccount() };

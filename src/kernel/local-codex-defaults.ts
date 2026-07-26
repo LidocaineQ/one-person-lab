@@ -59,7 +59,9 @@ export type BootstrapLocalCodexDefaultsInput = Partial<{
   provider_name: string;
   provider_base_url: string;
   provider_api_key: string;
-}>;
+}> & {
+  activate_provider?: boolean;
+};
 
 export type CodexDefaultProfile = {
   surface_id: 'opl_codex_default_profile';
@@ -575,6 +577,7 @@ function readBootstrapInputFromEnv(): BootstrapLocalCodexDefaultsInput {
 
 export function bootstrapLocalCodexDefaults(input: BootstrapLocalCodexDefaultsInput = {}) {
   const defaultProfile = readBundledCodexDefaultProfile();
+  const activateProvider = input.activate_provider === true;
   const explicitProviderApiKey = normalizeOptionalString(input.provider_api_key);
   const oplEnvironmentProviderApiKey = normalizeOptionalString(process.env.OPL_CODEX_API_KEY);
   const merged = {
@@ -643,12 +646,12 @@ export function bootstrapLocalCodexDefaults(input: BootstrapLocalCodexDefaultsIn
   const preserveLocalOverride = activeOplProvider
     ? hasLocalOverride(activeOplProvider, receipt)
     : false;
-  const selectedModel = existing && !oplProviderActive
+  const selectedModel = existing && !oplProviderActive && !activateProvider
     ? existing.model
     : preserveLocalOverride
       ? activeOplProvider!.model
       : model;
-  const selectedReasoningEffort = existing && !oplProviderActive
+  const selectedReasoningEffort = existing && !oplProviderActive && !activateProvider
     ? existing.reasoning_effort
     : preserveLocalOverride
       ? activeOplProvider!.reasoning_effort
@@ -656,12 +659,12 @@ export function bootstrapLocalCodexDefaults(input: BootstrapLocalCodexDefaultsIn
   const selectedProviderBaseUrl = activeOplProvider?.provider_base_url
     ? activeOplProvider.provider_base_url
     : providerBaseUrl;
-  const selectionMode = existing && !oplProviderActive
+  const selectionMode = existing && !oplProviderActive && !activateProvider
     ? 'inactive_provider' as const
     : preserveLocalOverride
       ? 'local_override' as const
       : 'auto' as const;
-  const nextText = existing && !oplProviderActive
+  const nextText = existing && !oplProviderActive && !activateProvider
     ? buildCodexProviderOnlyConfigText(existingText, {
       providerId,
       providerName,
@@ -685,7 +688,10 @@ export function bootstrapLocalCodexDefaults(input: BootstrapLocalCodexDefaultsIn
     config_path: configPath,
     provider_id: providerId,
     selection_mode: selectionMode,
-    provider_route: providerRoute(selectedProviderBaseUrl, !existing || Boolean(activeOplProvider)),
+    provider_route: providerRoute(
+      selectedProviderBaseUrl,
+      activateProvider || !existing || Boolean(activeOplProvider),
+    ),
     owned_keys: [
       ...(selectionMode === 'auto' ? [
         'model_provider',
