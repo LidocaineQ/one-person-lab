@@ -10,6 +10,7 @@ import {
   fs,
   os,
   path,
+  parseJsonText,
   runCli,
   runCliAsync,
   runCliFailure,
@@ -309,10 +310,10 @@ test('use boundary never calls a hanging package channel and uses the installed 
     assert.equal(activation.package_use_binding.remote_dependency_policy, 'forbidden');
     assert.equal(fs.existsSync(curlMarker), false);
 
-    const status = await runCliAsync([
-      'packages', 'status', '--package-id', 'mas', '--include-history', '--limit', '20',
-    ], env) as any;
-    const useReceipt = status.opl_agent_package_status.lifecycle_history.receipts.find(
+    const ledger = parseJsonText(
+      fs.readFileSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json'), 'utf8'),
+    ) as any;
+    const useReceipt = ledger.receipts.find(
       (entry: any) => entry.receipt_ref === activation.package_use_binding.use_receipt_ref,
     );
     assert.equal(useReceipt.source_selection, 'installed_package_lock');
