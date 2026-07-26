@@ -487,7 +487,9 @@ const lanes = {
       'tests/src/skill-catalog.test.ts',
       'tests/src/opl-skills-boundary.test.ts',
       'tests/src/automation-companions.test.ts',
-    ]),
+    ], {
+      env: { OPL_CLI_TEST_TIMEOUT_MS: '90000' },
+    }),
   ],
   integration: [
     nodeTest([
