@@ -21,7 +21,28 @@ type InstalledCarrierEntry = {
   version: string | null;
   enabled: boolean;
   sourcePath: string;
+  sourceKind: string;
   marketplaceSource: string | null;
+};
+
+/**
+ * Carrier-neutral installed readback.  This is deliberately a read model:
+ * carrier lifecycle state is observed here, never recreated in Framework.
+ */
+export type InstalledPackageCarrierReadback = {
+  kind: string;
+  identity: string;
+  source_ref: string;
+  version: string | null;
+  enabled: boolean;
+  lifecycle_authority: 'carrier_owned';
+};
+
+export type InstalledPackageReadiness = {
+  installed: boolean;
+  physical_status: 'available' | 'unavailable';
+  callability: 'callable' | 'disabled';
+  legacy_lifecycle_state_present: false;
 };
 
 export type InstalledPackageDescriptor = {
@@ -32,6 +53,9 @@ export type InstalledPackageDescriptor = {
   marketplaceSource: string | null;
   enabled: boolean;
   carrier: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  /** Generic readback used by future carriers; `carrier` remains compatibility data. */
+  carrier_readback: InstalledPackageCarrierReadback;
+  readiness: InstalledPackageReadiness;
 };
 
 /** Compatibility alias for the Codex carrier adapter. */
@@ -57,6 +81,7 @@ function parseInstalledCarrierEntries(value: string): InstalledCarrierEntry[] {
       version: stringValue(value.version),
       enabled: value.enabled === true,
       sourcePath,
+      sourceKind: stringValue(source?.source) ?? 'codex_plugin_manager',
       marketplaceSource: stringValue(marketplace?.source),
     }];
   });
@@ -238,6 +263,20 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
       marketplaceSource: entry.marketplaceSource,
       enabled: entry.enabled,
       carrier,
+      carrier_readback: {
+        kind: entry.sourceKind,
+        identity: entry.pluginId,
+        source_ref: entry.sourcePath,
+        version: entry.version ?? manifest.version,
+        enabled: entry.enabled,
+        lifecycle_authority: 'carrier_owned',
+      },
+      readiness: {
+        installed: true,
+        physical_status: fs.existsSync(entry.sourcePath) ? 'available' : 'unavailable',
+        callability: entry.enabled ? 'callable' : 'disabled',
+        legacy_lifecycle_state_present: false,
+      },
     };
   } catch {
     return null;

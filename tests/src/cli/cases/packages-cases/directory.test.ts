@@ -89,6 +89,15 @@ test('installed Codex plugins project owner descriptors without a registry entry
     assert.equal(owner.sourcePath, sourceRoot);
     assert.equal(owner.carrier.carrier.pluginId, 'unknown-installed-agent@owner-carrier');
     assert.equal(owner.enabled, true);
+    assert.equal(owner.carrier_readback.kind, 'local');
+    assert.equal(owner.carrier_readback.identity, 'unknown-installed-agent@owner-carrier');
+    assert.equal(owner.carrier_readback.lifecycle_authority, 'carrier_owned');
+    assert.deepEqual(owner.readiness, {
+      installed: true,
+      physical_status: 'available',
+      callability: 'callable',
+      legacy_lifecycle_state_present: false,
+    });
 
     const directory = buildAgentPackageDirectory({
       registryCache: null,
@@ -235,6 +244,9 @@ test('carrier-neutral producer discovers an unknown installed carrier without Fr
     });
     const descriptor = discovered.get('future-carrier-package');
     assert.ok(descriptor);
+    assert.equal(descriptor?.carrier_readback.kind, 'future-carrier');
+    assert.equal(descriptor?.carrier_readback.lifecycle_authority, 'carrier_owned');
+    assert.equal(descriptor?.readiness.legacy_lifecycle_state_present, false);
     assert.equal(descriptor?.manifest.rollback_ref, 'native-carrier-owned');
     assert.equal(descriptor?.manifest.content_lock_paths.length, 0);
     assert.equal(descriptor?.manifest.configured_codex_plugin_carrier?.carrier.pluginId, 'future-carrier-package@future-carrier');
