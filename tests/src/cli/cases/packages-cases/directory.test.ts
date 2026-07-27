@@ -457,6 +457,8 @@ process.stdout.write(JSON.stringify({
     assert.equal(entry?.source_explanation.kind, 'installed_codex_plugin_descriptor');
     assert.equal(entry?.configured_carrier?.status, 'installed');
     assert.equal(entry?.configured_carrier?.executor.status, 'callable');
+    assert.equal(entry?.installed_carrier_readback?.kind, 'local');
+    assert.equal(entry?.installed_readiness?.legacy_lifecycle_state_present, false);
     assert.deepEqual(
       entry?.available_actions.map((action) => action.action_id),
       ['agent_package_update', 'agent_package_repair', 'agent_package_preferences_set', 'agent_package_uninstall'],

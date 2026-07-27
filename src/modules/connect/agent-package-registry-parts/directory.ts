@@ -17,7 +17,11 @@ import {
 } from './capability-reconciliation.ts';
 import { agentPackageTargetCurrentness } from './currentness.ts';
 import type { ConfiguredCodexPluginCarrierReadback } from './configured-codex-plugin-carrier.ts';
-import type { InstalledCodexPluginDescriptor } from './installed-codex-plugin-directory.ts';
+import type {
+  InstalledCodexPluginDescriptor,
+  InstalledPackageCarrierReadback,
+  InstalledPackageReadiness,
+} from './installed-codex-plugin-directory.ts';
 import { normalizePackageManifest } from './manifest-normalizers.ts';
 import { packageRoleFromInstalledLock } from './package-role.ts';
 import { agentPackageLifecycleUxReadback } from './readback.ts';
@@ -103,6 +107,8 @@ type DirectorySource = {
     source_digest: string | null;
     checked_at: string | null;
   };
+  installed_carrier_readback?: InstalledPackageCarrierReadback | null;
+  installed_readiness?: InstalledPackageReadiness | null;
 };
 
 export type FirstPartyDirectoryCatalogSnapshot = {
@@ -595,6 +601,8 @@ function installedCodexPluginDirectorySource(
       checked_at: null,
     },
     release_target: null,
+    installed_carrier_readback: discovered.carrier_readback,
+    installed_readiness: discovered.readiness,
   };
 }
 
@@ -1062,6 +1070,8 @@ export function buildAgentPackageDirectory(input: {
       app_contributions: effectiveSource.app_contributions,
       capability_dependency_summary: capabilityDependencySummary(lock),
       configured_carrier: configuredCarrier,
+      installed_carrier_readback: effectiveSource.installed_carrier_readback ?? null,
+      installed_readiness: effectiveSource.installed_readiness ?? null,
       role_state: {
         status: !installed
           ? roleKnown ? 'declared' : 'migration_required'
