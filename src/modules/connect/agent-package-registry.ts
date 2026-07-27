@@ -4733,6 +4733,8 @@ function buildOplAgentPackageStatus(
     : null;
   const configuredCarrier = packageId ? configuredCarriers.get(packageId) ?? null : null;
   const carrierReadiness = installedDescriptor?.readiness ?? null;
+  const installedReadiness = carrierReadiness;
+  const installedCarrierReadback = installedDescriptor?.carrier_readback ?? null;
   const lifecycleUx = configuredCarrier
     ? configuredCarrierLifecycleUxReadback(configuredCarrier, Boolean(selectedLock))
     : legacyLifecycleUx;
@@ -4904,6 +4906,8 @@ function buildOplAgentPackageStatus(
         : installedPackages.length,
       installed_packages: installedPackages,
       configured_carrier: configuredCarrier,
+      installed_carrier_readback: installedCarrierReadback,
+      installed_readiness: installedReadiness,
       conditions: lifecycleUx.conditions,
       recommended_action: lifecycleUx.recommended_action,
       lifecycle_action_refs: lifecycleUx.lifecycle_action_refs,
