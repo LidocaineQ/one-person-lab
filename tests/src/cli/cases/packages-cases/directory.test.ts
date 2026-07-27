@@ -136,6 +136,8 @@ test('installed Codex plugins project owner descriptors without a registry entry
     assert.equal(entry?.source_explanation.kind, 'installed_codex_plugin_descriptor');
     assert.equal(entry?.installed, true);
     assert.equal(entry?.configured_carrier?.carrier.plugin_id, 'unknown-installed-agent@owner-carrier');
+    assert.equal(entry?.recommended_action, null);
+    assert.equal(entry?.recommended_action_ref, null);
   } finally {
     if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateDir;

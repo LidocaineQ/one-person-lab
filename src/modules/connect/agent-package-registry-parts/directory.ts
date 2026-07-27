@@ -996,8 +996,18 @@ export function buildAgentPackageDirectory(input: {
         );
     const recommendedAction = recommendedActionId({
       installed,
-      statusAction: roleRepairRequired ? 'agent_package_repair' : status.recommended_action ?? null,
-      lifecycleAction: lifecycle.recommended_action,
+      statusAction: roleRepairRequired
+        ? 'agent_package_repair'
+        : configuredCarrierInstalled
+          && configuredCarrier?.executor.status === 'callable'
+          && configuredCarrier.carrier.precedence === 'exact_single_source'
+          ? null
+          : status.recommended_action ?? null,
+      lifecycleAction: configuredCarrierInstalled
+        && configuredCarrier?.executor.status === 'callable'
+        && configuredCarrier.carrier.precedence === 'exact_single_source'
+        ? null
+        : lifecycle.recommended_action,
       availableActionIds: new Set(actions.map((action) => action.action_id)),
     });
     const readinessStatus = installed && !roleKnown
