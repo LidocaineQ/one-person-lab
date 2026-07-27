@@ -3,8 +3,10 @@
 Owner: `One Person Lab`
 Purpose: `status`
 State: `active_truth`
-Package platform composition Phase 1文档已完成并等待用户评估；Phase 2实现尚未获得
-用户批准，既有 canonical代码只按 current truth记录，不等于迁移已经验收。
+Package platform composition Phase 1文档已完成；Phase 2逐 family退役已获用户批准并
+执行中。既有 canonical代码只按 current truth记录，不等于迁移已经验收；每个 family
+仍须在 replacement canonical、affected outcome fresh PASS、retained consumer为零、旧
+writer停止、精确物理删除和同 outcome复验后才能闭合。
 当前 main 已使用 owner-channel `latest-stable` 做一方 Package target discovery，
 并把 MAS required selection限制为 MAS + ScholarSkills；shared-latest verifier已退休。
 这仍不证明 activation/readiness、App-state projection、installed lock、payload、

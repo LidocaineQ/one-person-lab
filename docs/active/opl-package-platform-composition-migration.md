@@ -2,14 +2,27 @@
 
 Owner: `One Person Lab Framework`
 Purpose: `framework_package_platform_composition_migration`
-State: `planned`
-Status: `review_ready`
+State: `phase_2_family_retirement_in_progress`
+Status: `active_implementation`
 Decision date: `2026-07-24`
 Machine boundary: 本文只维护 Framework 的兼容现状、仓内迁移责任和删除证明。跨仓
 目标架构、用户功能等价矩阵、总体顺序和 App/Shell 验收的唯一计划是
 [`one-person-lab-app/docs/active/opl-package-platform-composition-migration.md`](https://github.com/gaofeng21cn/one-person-lab-app/blob/main/docs/active/opl-package-platform-composition-migration.md)。
 当前机器真相继续归 contracts、source、tests、native carrier inventory 和 fresh CLI/App
 readback。
+
+## 阶段边界
+
+- **Phase 1 - SSOT 与冻结计划**：已完成。目标边界、兼容面、功能不降级证明和
+  删除门禁已经进入 canonical documentation authority。
+- **Phase 2 - 逐 family 退役**：已获用户批准并执行中。每个 legacy family 仍须按
+  replacement canonical、affected outcomes fresh PASS、retained consumer 为零、停止旧
+  writer、精确物理删除和同 outcome 复验的顺序独立闭合。
+
+Phase 2 已获授权不表示迁移已完成，也不自动授权 Package publication、Stable/Latest、
+真实用户 managed state 或其他 public mutation。当前仍存在的 installed lock、payload、
+materialization、receipt、LKG/rollback、scope activation 与 transaction consumer 必须按
+下面的删除门禁逐 family 迁移；docs、测试、checkpoint 或兼容数据静止不能替代这些证明。
 
 ## 结论
 
