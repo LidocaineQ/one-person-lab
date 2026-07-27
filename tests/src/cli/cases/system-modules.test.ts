@@ -160,6 +160,8 @@ test('RCA mutable checkout health uses its repo script while package/runtime pro
     assert.deepEqual(rca?.health_check_command?.(checkoutPath), expectedHealthcheck);
     assert.deepEqual(rca?.package_health_check_command?.(checkoutPath), expectedPackProbe);
     assert.deepEqual(rca?.runtime_probe_command?.(checkoutPath), expectedPackProbe);
+    assert.equal(rca?.package_bootstrap_command, undefined);
+    assert.equal(rca?.package_prepare_command, undefined);
     assert.equal(rca?.exec_command, undefined);
   } finally {
     fs.rmSync(checkoutPath, { recursive: true, force: true });
