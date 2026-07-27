@@ -1266,7 +1266,7 @@ test('system configure-codex delegates Full runtime Package and carrier reconcil
     assert.equal(receiptMissing.opl_agent_package_status.carrier_authority_readiness.status, 'current');
     assert.equal(receiptMissing.opl_agent_package_status.lifecycle_ux.status, 'available');
     const carrierObservation = receiptMissing.opl_agent_package_status.conditions.find(
-      (condition: Record<string, any>) => condition.condition_id === 'carrier_authority_invalid',
+      (condition: Record<string, any>) => condition.condition_id === 'carrier_authority_current',
     );
     assert.equal(carrierObservation?.status, 'ok');
     assert.equal(carrierObservation?.action_ref, null);

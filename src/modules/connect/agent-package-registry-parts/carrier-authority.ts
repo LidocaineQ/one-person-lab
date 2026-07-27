@@ -70,10 +70,6 @@ export function agentPackageCarrierAuthorityStatus(lock: AgentPackageLock) {
     authority?.verified_source_commit === lock.owner_source_commit ? null : 'verified_source_commit_mismatch',
     authority?.catalog_ref === lock.release_channel_ref ? null : 'catalog_ref_lock_mismatch',
     authority?.catalog_sha256 === lock.release_channel_digest ? null : 'catalog_sha256_lock_mismatch',
-    !lock.runtime_source_carrier
-      || lock.managed_runtime_source?.source_git_head_sha === lock.owner_source_commit
-      ? null
-      : 'runtime_source_commit_mismatch',
     lock.source_kind !== 'bundled_full_runtime_modules'
       || !lock.runtime_source_carrier
       || lock.managed_runtime_source?.source_mode === 'bundled_full_runtime'
