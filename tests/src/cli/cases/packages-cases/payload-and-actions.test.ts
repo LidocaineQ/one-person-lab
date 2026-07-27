@@ -353,6 +353,74 @@ test('packages owns profile install, semantic merge apply, and non-destructive u
   }
 });
 
+test('package enable and disable delegate installed descriptor carriers without private lifecycle state', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-native-exposure-'));
+  const codexHome = path.join(root, 'codex-home');
+  const stateDir = path.join(root, 'opl-state');
+  const pluginRoot = path.join(root, 'plugin-source');
+  const binary = path.join(root, 'fake-codex');
+  const env = {
+    CODEX_HOME: codexHome,
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: binary,
+    FIXTURE_PLUGIN_SOURCE: pluginRoot,
+  };
+  try {
+    fs.mkdirSync(path.join(pluginRoot, '.codex-plugin'), { recursive: true });
+    fs.mkdirSync(path.join(pluginRoot, 'skills', 'fixture-native-carrier'), { recursive: true });
+    fs.writeFileSync(path.join(pluginRoot, '.codex-plugin', 'plugin.json'), formatJsonPayload({
+      name: 'fixture-native-carrier',
+      version: '1.0.0',
+      skills: './skills/',
+    }), 'utf8');
+    fs.writeFileSync(path.join(pluginRoot, 'skills', 'fixture-native-carrier', 'SKILL.md'), '# fixture\n', 'utf8');
+    fs.mkdirSync(codexHome, { recursive: true });
+    fs.writeFileSync(path.join(codexHome, 'config.toml'), [
+      'model = "user-model"',
+      '',
+      '[plugins."fixture-native-carrier@fixture-marketplace"]',
+      'enabled = true',
+      '',
+    ].join('\n'), 'utf8');
+    fs.writeFileSync(binary, `#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+const config = fs.readFileSync(path.join(process.env.CODEX_HOME, 'config.toml'), 'utf8');
+const enabled = !/\\[plugins\\."fixture-native-carrier@fixture-marketplace"\\][\\s\\S]*?enabled = false/.test(config);
+if (process.argv.slice(2).join(' ') !== 'plugin list --json') process.exit(2);
+process.stdout.write(JSON.stringify({ installed: [{
+  pluginId: 'fixture-native-carrier@fixture-marketplace', version: '1.0.0', installed: true, enabled,
+  source: { source: 'local', path: process.env.FIXTURE_PLUGIN_SOURCE },
+  marketplaceSource: { sourceType: 'local', source: 'fixture-marketplace' },
+}], available: [] }));
+`, 'utf8');
+    fs.chmodSync(binary, 0o755);
+
+    const disabled = runCli(['packages', 'disable', 'fixture-native-carrier'], env) as any;
+    const disabledResult = disabled.opl_agent_package_exposure;
+    assert.equal(disabledResult.status, 'disabled');
+    assert.equal(disabledResult.action, 'disable');
+    assert.equal(disabledResult.package_id, 'fixture-native-carrier');
+    assert.equal(disabledResult.package_lock, null);
+    assert.equal(disabledResult.lifecycle_receipt, null);
+    assert.equal(disabledResult.configured_carrier.enabled, false);
+    assert.equal(disabledResult.opl_private_state_writes.package_lock, false);
+    assert.equal(disabledResult.opl_private_state_writes.lifecycle_receipt, false);
+    assert.equal(fs.existsSync(stateDir), false);
+
+    const enabled = runCli(['packages', 'enable', 'fixture-native-carrier'], env) as any;
+    const enabledResult = enabled.opl_agent_package_exposure;
+    assert.equal(enabledResult.status, 'enabled');
+    assert.equal(enabledResult.package_lock, null);
+    assert.equal(enabledResult.lifecycle_receipt, null);
+    assert.equal(enabledResult.configured_carrier.enabled, true);
+    assert.equal(enabledResult.configured_carrier.executor.status, 'callable');
+    assert.equal(fs.existsSync(stateDir), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('packages installs a declared profile directly on an empty Codex home', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-fresh-profile-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-fresh-profile-home-'));

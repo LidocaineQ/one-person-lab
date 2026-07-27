@@ -1728,6 +1728,8 @@ function configuredCarrierLifecycleReadback(input: {
   const nativeReady = input.carrier.status === 'installed'
     && input.carrier.executor.status === 'callable'
     && input.carrier.carrier.precedence === 'exact_single_source';
+  const exactInstalledCarrier = input.carrier.status === 'installed'
+    && input.carrier.carrier.precedence === 'exact_single_source';
   const status = input.action === 'remove'
     ? (input.carrier.status === 'not_installed'
         || input.carrier.status === 'physical_unavailable')
@@ -1736,6 +1738,14 @@ function configuredCarrierLifecycleReadback(input: {
       : 'attention_needed'
     : input.dryRun
       ? 'validated_no_write'
+      : input.action === 'enable'
+        ? exactInstalledCarrier && input.carrier.enabled === true
+          ? 'enabled'
+          : 'attention_needed'
+        : input.action === 'disable'
+          ? exactInstalledCarrier && input.carrier.enabled === false
+            ? 'disabled'
+            : 'attention_needed'
       : nativeReady
         ? input.action === 'install' ? 'installed'
           : input.action === 'update' ? 'updated'
@@ -4513,6 +4523,22 @@ export async function runOplAgentPackageExposureAction(
   action: 'hide' | 'unhide' | 'enable' | 'disable',
   input: AgentPackagePackageActionInput,
 ) {
+  if (action === 'enable' || action === 'disable') {
+    const configured = await maybeRunConfiguredCarrierLifecycle({
+      selectionInput: input,
+      action,
+    });
+    if (configured) {
+      return {
+        version: 'g2',
+        opl_agent_package_exposure: {
+          surface_kind: 'opl_agent_package_exposure',
+          action,
+          ...configured,
+        },
+      };
+    }
+  }
   return withAgentPackageLifecycleTransaction(
     input.dryRun === true,
     async () => runOplAgentPackageExposureActionUnlocked(action, input),

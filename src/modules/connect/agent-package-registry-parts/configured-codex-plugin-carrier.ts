@@ -1,10 +1,15 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { computePackageChannelTreeSha256 } from '../system-installation/module-package-channel.ts';
+import {
+  parseTomlDocument,
+  renderTomlDocument,
+} from './managed-policy-surface.ts';
 import type { AgentPackageConfiguredCodexPluginCarrierDescriptor } from './types.ts';
 
 export type ConfiguredCodexPluginCarrierAction =
@@ -12,7 +17,9 @@ export type ConfiguredCodexPluginCarrierAction =
   | 'install'
   | 'update'
   | 'repair'
-  | 'remove';
+  | 'remove'
+  | 'enable'
+  | 'disable';
 
 type CodexPluginListEntry = {
   pluginId: string;
@@ -220,7 +227,100 @@ function observedSource(entry: CodexPluginListEntry): ConfiguredCodexPluginCarri
 function nativeArgs(action: ConfiguredCodexPluginCarrierAction, pluginId: string) {
   if (action === 'list') return ['plugin', 'list', '--json'];
   if (action === 'remove') return ['plugin', 'remove', pluginId, '--json'];
+  if (action === 'enable' || action === 'disable') return ['plugin', 'list', '--json'];
   return ['plugin', 'add', pluginId, '--json'];
+}
+
+function configuredCodexHome(env: NodeJS.ProcessEnv) {
+  const configured = env.CODEX_HOME?.trim();
+  if (configured) return path.resolve(configured);
+  const home = env.HOME?.trim() || os.homedir();
+  return path.join(path.resolve(home), '.codex');
+}
+
+function replacePluginEnabledTable(input: {
+  configPath: string;
+  pluginId: string;
+  enabled: boolean;
+}) {
+  const before = fs.existsSync(input.configPath)
+    ? fs.readFileSync(input.configPath, 'utf8')
+    : '';
+  const expectedHeader = `plugins.${input.pluginId}`;
+  const document = parseTomlDocument(before);
+  const target = document.tables.find((table) => table.header === expectedHeader) ?? null;
+  const enabledLine = `enabled = ${input.enabled ? 'true' : 'false'}`;
+  const tables = target
+    ? document.tables.map((table) => {
+      if (table !== target) return table;
+      const lines = table.content.trimEnd().split('\n');
+      const enabledIndexes = lines.flatMap((line, index) => /^\s*enabled\s*=/.test(line) ? [index] : []);
+      if (enabledIndexes.length > 1) {
+        throw new FrameworkContractError(
+          'contract_shape_invalid',
+          'Configured Codex plugin table has duplicate enabled keys.',
+          {
+            plugin_id: input.pluginId,
+            config_path: input.configPath,
+            failure_code: 'configured_codex_plugin_carrier_config_duplicate_enabled',
+          },
+        );
+      }
+      if (enabledIndexes.length === 1) lines[enabledIndexes[0]] = enabledLine;
+      else lines.push(enabledLine);
+      return { content: `${lines.join('\n').trimEnd()}\n` };
+    })
+    : [
+      ...document.tables,
+      { content: `[plugins."${input.pluginId}"]\n${enabledLine}\n` },
+    ];
+  const after = renderTomlDocument(document.preamble, tables);
+  if (after === before) return false;
+  fs.mkdirSync(path.dirname(input.configPath), { recursive: true });
+  const temporary = path.join(
+    path.dirname(input.configPath),
+    `.${path.basename(input.configPath)}.${process.pid}.${Date.now()}.tmp`,
+  );
+  try {
+    fs.writeFileSync(temporary, after, { encoding: 'utf8', mode: 0o600 });
+    fs.renameSync(temporary, input.configPath);
+  } finally {
+    if (fs.existsSync(temporary)) fs.rmSync(temporary, { force: true });
+  }
+  return true;
+}
+
+function setConfiguredPluginEnabled(input: {
+  descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  entries: CodexPluginListEntry[];
+  enabled: boolean;
+  env: NodeJS.ProcessEnv;
+}) {
+  const selection = configuredPluginSelection({
+    entries: input.entries,
+    descriptor: input.descriptor,
+  });
+  if (!selection.entry?.installed || selection.ambiguous || selection.unexpectedOnly) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Configured Codex plugin toggle requires one exact installed native carrier source.',
+      {
+        package_id: input.descriptor.packageId,
+        plugin_id: input.descriptor.carrier.pluginId,
+        precedence: configuredCarrierPrecedence({
+          ambiguous: selection.ambiguous,
+          unexpectedOnly: selection.unexpectedOnly,
+          installed: Boolean(selection.entry?.installed),
+        }),
+        failure_code: 'configured_codex_plugin_carrier_toggle_requires_exact_installed_source',
+      },
+    );
+  }
+  return replacePluginEnabledTable({
+    configPath: path.join(configuredCodexHome(input.env), 'config.toml'),
+    pluginId: input.descriptor.carrier.pluginId,
+    enabled: input.enabled,
+  });
 }
 
 function ensureMarketplaceArgs(source: string) {
@@ -449,10 +549,12 @@ function configuredCarrierReason(input: {
   ambiguous: boolean;
   unexpectedOnly: boolean;
   callable: boolean;
+  enabled: boolean;
   missingSkills: string[];
 }) {
   if (input.installed) {
     if (input.ambiguous) return 'configured_native_carrier_source_ambiguous';
+    if (!input.enabled) return 'configured_native_carrier_disabled';
     return input.callable ? null : `required_skill_unavailable:${input.missingSkills.join(',')}`;
   }
   return input.unexpectedOnly
@@ -504,6 +606,7 @@ function configuredPluginReadback(input: {
       ambiguous: selection.ambiguous,
       unexpectedOnly: selection.unexpectedOnly,
       callable: selection.callable,
+      enabled: selection.entry?.enabled === true,
       missingSkills: selection.missingSkills,
     }),
   };
@@ -524,7 +627,8 @@ export function runConfiguredCodexPluginCarrier(input: {
   const runner = input.runner ?? defaultRunner;
   const env = { ...process.env, ...input.env };
   const actionArgs = nativeArgs(input.action, input.descriptor.carrier.pluginId);
-  const dispatchAction = input.action !== 'list' && input.dryRun !== true;
+  const isConfigToggle = input.action === 'enable' || input.action === 'disable';
+  const dispatchAction = !isConfigToggle && input.action !== 'list' && input.dryRun !== true;
   const marketplaceSource = input.descriptor.carrier.marketplaceSource;
   if (dispatchAction && marketplaceSource) {
     ensureMarketplaceAvailable({
@@ -545,7 +649,7 @@ export function runConfiguredCodexPluginCarrier(input: {
     env,
     runner,
   });
-  const entries = readConfiguredPluginEntries({
+  let entries = readConfiguredPluginEntries({
     descriptor: input.descriptor,
     action: input.action,
     dispatchAction,
@@ -554,6 +658,23 @@ export function runConfiguredCodexPluginCarrier(input: {
     runner,
   });
   if (isConfiguredCarrierReadback(entries)) return entries;
+  if (isConfigToggle && input.dryRun !== true) {
+    setConfiguredPluginEnabled({
+      descriptor: input.descriptor,
+      entries,
+      enabled: input.action === 'enable',
+      env,
+    });
+    entries = readConfiguredPluginEntries({
+      descriptor: input.descriptor,
+      action: input.action,
+      dispatchAction: true,
+      binary,
+      env,
+      runner,
+    });
+    if (isConfiguredCarrierReadback(entries)) return entries;
+  }
   return configuredPluginReadback({
     descriptor: input.descriptor,
     action: input.action,

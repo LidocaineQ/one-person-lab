@@ -211,10 +211,13 @@ test('configured Codex carrier reports a declared selector without a physical so
 function writeFakeCodex(binary: string) {
   fs.writeFileSync(binary, `#!/usr/bin/env node
 import fs from 'node:fs';
+import path from 'node:path';
 const args = process.argv.slice(2);
 const stateFile = process.env.FIXTURE_PLUGIN_STATE;
 const sourcePath = process.env.FIXTURE_PLUGIN_SOURCE;
 let state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : { installed: false, version: '1.0.0', marketplaceSource: null }; // reuse-first: disposable native CLI fixture owns this transient state.
+const configPath = path.join(process.env.CODEX_HOME, 'config.toml');
+const enabled = !fs.existsSync(configPath) || !/\\[plugins\\."third-party-research@fixture-carrier"\\][\\s\\S]*?enabled = false/.test(fs.readFileSync(configPath, 'utf8'));
 if (args.join(' ') === 'plugin marketplace list --json') {
   process.stdout.write(JSON.stringify({
     marketplaces: state.marketplaceSource ? [{
@@ -240,7 +243,7 @@ if (args.join(' ') === 'plugin marketplace list --json') {
       pluginId: '${pluginSelector}',
       version: state.version,
       installed: true,
-      enabled: true,
+      enabled,
       source: { source: 'local', path: sourcePath },
       marketplaceSource: { sourceType: 'local', source: 'fixture-carrier' },
     }] : [],
@@ -252,6 +255,73 @@ if (args.join(' ') === 'plugin marketplace list --json') {
 `);
   fs.chmodSync(binary, 0o755);
 }
+
+test('configured Codex carrier toggles only its native plugin table and verifies fresh enabled state', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-toggle-'));
+  const binary = path.join(root, 'fake-codex');
+  const configHome = path.join(root, 'codex-home');
+  const stateDir = path.join(root, 'opl-state');
+  const stateFile = path.join(root, 'plugin-state.json');
+  const sourcePath = path.join(root, 'plugin-source');
+  const configPath = path.join(configHome, 'config.toml');
+  const env = {
+    CODEX_HOME: configHome,
+    FIXTURE_PLUGIN_SOURCE: sourcePath,
+    FIXTURE_PLUGIN_STATE: stateFile,
+    OPL_STATE_DIR: stateDir,
+  };
+  try {
+    writePluginSource(sourcePath, 'toggle');
+    writeFakeCodex(binary);
+    fs.mkdirSync(configHome, { recursive: true });
+    fs.writeFileSync(configPath, [
+      'model = "user-model"',
+      '',
+      '[plugins."unrelated@fixture-carrier"]',
+      'enabled = true',
+      '',
+      '[plugins."third-party-research@fixture-carrier"]',
+      'enabled = true',
+      'custom = "preserved"',
+      '',
+    ].join('\n'), 'utf8');
+    fs.writeFileSync(stateFile, JSON.stringify({
+      installed: true,
+      version: '1.0.1',
+      marketplaceSource: 'fixture-carrier',
+    }), 'utf8');
+
+    const disabled = runConfiguredCodexPluginCarrier({
+      descriptor,
+      action: 'disable',
+      binary,
+      env,
+    });
+    assert.equal(disabled.status, 'installed');
+    assert.equal(disabled.enabled, false);
+    assert.equal(disabled.executor.status, 'attention_needed');
+    assert.equal(disabled.native_command.join(' '), 'plugin list --json');
+    assert.equal(disabled.native_action_dispatched, false);
+    const disabledConfig = fs.readFileSync(configPath, 'utf8');
+    assert.match(disabledConfig, /model = "user-model"/);
+    assert.match(disabledConfig, /\[plugins\."unrelated@fixture-carrier"\]\nenabled = true/);
+    assert.match(disabledConfig, /\[plugins\."third-party-research@fixture-carrier"\]\nenabled = false\ncustom = "preserved"/);
+
+    const enabled = runConfiguredCodexPluginCarrier({
+      descriptor,
+      action: 'enable',
+      binary,
+      env,
+    });
+    assert.equal(enabled.status, 'installed');
+    assert.equal(enabled.enabled, true);
+    assert.equal(enabled.executor.status, 'callable');
+    assert.match(fs.readFileSync(configPath, 'utf8'), /\[plugins\."third-party-research@fixture-carrier"\]\nenabled = true\ncustom = "preserved"/);
+    assert.equal(fs.existsSync(stateDir), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('configured Codex carrier ensures a descriptor-owned marketplace before native add', () => {
   const calls: string[][] = [];
@@ -515,6 +585,29 @@ test('configured Codex carrier executes native install/list/update/repair/remove
     });
     assert.equal(repaired.status, 'installed');
     assert.equal(repaired.installed_version, '1.0.1');
+    assert.equal(fs.existsSync(oplStateDir), false);
+
+    const disabled = runConfiguredCodexPluginCarrier({
+      descriptor: nativeDescriptor,
+      action: 'disable',
+      binary,
+      env,
+    });
+    assert.equal(disabled.status, 'installed');
+    assert.equal(disabled.enabled, false);
+    assert.equal(disabled.executor.status, 'attention_needed');
+    assert.equal(disabled.reason, 'configured_native_carrier_disabled');
+    assert.equal(fs.existsSync(oplStateDir), false);
+
+    const enabled = runConfiguredCodexPluginCarrier({
+      descriptor: nativeDescriptor,
+      action: 'enable',
+      binary,
+      env,
+    });
+    assert.equal(enabled.status, 'installed');
+    assert.equal(enabled.enabled, true);
+    assert.equal(enabled.executor.status, 'callable');
     assert.equal(fs.existsSync(oplStateDir), false);
 
     const removed = runConfiguredCodexPluginCarrier({
