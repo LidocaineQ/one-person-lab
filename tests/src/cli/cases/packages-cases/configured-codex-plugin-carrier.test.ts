@@ -323,6 +323,54 @@ test('configured Codex carrier toggles only its native plugin table and verifies
   }
 });
 
+test('configured Codex carrier refuses to overwrite concurrent native config changes', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-toggle-conflict-'));
+  const binary = path.join(root, 'fake-codex');
+  const configHome = path.join(root, 'codex-home');
+  const stateFile = path.join(root, 'plugin-state.json');
+  const sourcePath = path.join(root, 'plugin-source');
+  const configPath = path.join(configHome, 'config.toml');
+  const env = {
+    CODEX_HOME: configHome,
+    FIXTURE_PLUGIN_SOURCE: sourcePath,
+    FIXTURE_PLUGIN_STATE: stateFile,
+  };
+  try {
+    writePluginSource(sourcePath, 'toggle-conflict');
+    writeFakeCodex(binary);
+    fs.mkdirSync(configHome, { recursive: true });
+    fs.writeFileSync(configPath, [
+      'model = "user-model"',
+      '',
+      '[plugins."third-party-research@fixture-carrier"]',
+      'enabled = true',
+      '',
+    ].join('\n'), 'utf8');
+    fs.writeFileSync(stateFile, JSON.stringify({
+      installed: true,
+      version: '1.0.1',
+      marketplaceSource: 'fixture-carrier',
+    }), 'utf8');
+
+    assert.throws(
+      () => runConfiguredCodexPluginCarrier({
+        descriptor,
+        action: 'disable',
+        binary,
+        env,
+        beforeConfigReplace: () => fs.appendFileSync(configPath, 'developer_mode = true\n', 'utf8'),
+      }),
+      (error: any) => error?.details?.failure_code
+        === 'configured_codex_plugin_carrier_config_apply_conflict',
+    );
+    const config = fs.readFileSync(configPath, 'utf8');
+    assert.match(config, /enabled = true/);
+    assert.match(config, /developer_mode = true/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('configured Codex carrier ensures a descriptor-owned marketplace before native add', () => {
   const calls: string[][] = [];
   let marketplaceConfigured = false;

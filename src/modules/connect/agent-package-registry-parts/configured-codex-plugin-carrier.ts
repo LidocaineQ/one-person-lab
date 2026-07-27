@@ -242,8 +242,10 @@ function replacePluginEnabledTable(input: {
   configPath: string;
   pluginId: string;
   enabled: boolean;
+  beforeConfigReplace?: () => void;
 }) {
-  const before = fs.existsSync(input.configPath)
+  const beforeExists = fs.existsSync(input.configPath);
+  const before = beforeExists
     ? fs.readFileSync(input.configPath, 'utf8')
     : '';
   const expectedHeader = `plugins.${input.pluginId}`;
@@ -283,6 +285,22 @@ function replacePluginEnabledTable(input: {
   );
   try {
     fs.writeFileSync(temporary, after, { encoding: 'utf8', mode: 0o600 });
+    input.beforeConfigReplace?.();
+    const currentExists = fs.existsSync(input.configPath);
+    const current = currentExists
+      ? fs.readFileSync(input.configPath, 'utf8')
+      : '';
+    if (currentExists !== beforeExists || current !== before) {
+      throw new FrameworkContractError(
+        'contract_shape_invalid',
+        'Codex config changed during configured plugin toggle.',
+        {
+          plugin_id: input.pluginId,
+          config_path: input.configPath,
+          failure_code: 'configured_codex_plugin_carrier_config_apply_conflict',
+        },
+      );
+    }
     fs.renameSync(temporary, input.configPath);
   } finally {
     if (fs.existsSync(temporary)) fs.rmSync(temporary, { force: true });
@@ -295,6 +313,7 @@ function setConfiguredPluginEnabled(input: {
   entries: CodexPluginListEntry[];
   enabled: boolean;
   env: NodeJS.ProcessEnv;
+  beforeConfigReplace?: () => void;
 }) {
   const selection = configuredPluginSelection({
     entries: input.entries,
@@ -320,6 +339,7 @@ function setConfiguredPluginEnabled(input: {
     configPath: path.join(configuredCodexHome(input.env), 'config.toml'),
     pluginId: input.descriptor.carrier.pluginId,
     enabled: input.enabled,
+    beforeConfigReplace: input.beforeConfigReplace,
   });
 }
 
@@ -619,6 +639,7 @@ export function runConfiguredCodexPluginCarrier(input: {
   binary?: string;
   env?: NodeJS.ProcessEnv;
   runner?: CodexPluginCommandRunner;
+  beforeConfigReplace?: () => void;
 }): ConfiguredCodexPluginCarrierReadback {
   assertDescriptor(input.descriptor);
   const binary = input.binary?.trim()
@@ -664,6 +685,7 @@ export function runConfiguredCodexPluginCarrier(input: {
       entries,
       enabled: input.action === 'enable',
       env,
+      beforeConfigReplace: input.beforeConfigReplace,
     });
     entries = readConfiguredPluginEntries({
       descriptor: input.descriptor,
