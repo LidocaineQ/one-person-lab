@@ -396,9 +396,9 @@ test('generic package activation action returns the launch binding at the App bo
     assert.equal(carrierObservation.opl_agent_package_status.operational_ready, true);
     assert.equal(carrierObservation.opl_agent_package_status.launch_allowed, true);
     assert.equal(carrierObservation.opl_agent_package_status.launch_blocked_reason, null);
-    assert.equal(carrierObservation.opl_agent_package_status.carrier_authority_readiness.status, 'invalid');
-    assert.equal(carrierObservation.opl_agent_package_status.launch_state, 'degraded');
-    assert.equal(carrierObservation.opl_agent_package_status.launch_state_reason, 'carrier_authority_invalid');
+    assert.equal(carrierObservation.opl_agent_package_status.carrier_authority_readiness.status, 'current');
+    assert.equal(carrierObservation.opl_agent_package_status.launch_state, 'ready');
+    assert.equal(carrierObservation.opl_agent_package_status.launch_state_reason, null);
 
     providerLock.exposure_state = 'disabled';
     fs.writeFileSync(lockPath, `${JSON.stringify(lockIndex, null, 2)}\n`);
@@ -408,7 +408,7 @@ test('generic package activation action returns the launch binding at the App bo
     ], env) as any;
     assert.equal(hardDependency.opl_agent_package_status.launch_allowed, false);
     assert.equal(hardDependency.opl_agent_package_status.launch_blocked_reason, 'package_dependency_incompatible');
-    assert.equal(hardDependency.opl_agent_package_status.carrier_authority_readiness.status, 'invalid');
+    assert.equal(hardDependency.opl_agent_package_status.carrier_authority_readiness.status, 'current');
     assert.equal(hardDependency.opl_agent_package_status.launch_state, 'package_unavailable');
     assert.equal(hardDependency.opl_agent_package_status.launch_state_reason, 'package_dependency_incompatible');
 
