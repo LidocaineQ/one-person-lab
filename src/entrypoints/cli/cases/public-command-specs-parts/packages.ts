@@ -263,7 +263,7 @@ export function admitMasWorkspaceScopedPackageMutation<T extends ScopedPackageMu
 async function installPackageWithActiveWorkspace(input: AgentPackageInstallInput) {
   const result = await runOplAgentPackageInstall(input);
   if (input.dryRun || input.scope) return result;
-  const packageId = result.opl_agent_package_install.package_lock?.package_id;
+  const packageId = result.opl_agent_package_install.package_id;
   if (!packageId) return result;
   const agent = STANDARD_AGENT_REGISTRY.find((entry) => entry.project === packageId);
   const binding = agent ? getActiveWorkspaceBinding(agent.domain_id) : null;

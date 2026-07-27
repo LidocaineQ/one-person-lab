@@ -361,6 +361,7 @@ test('generic Package lifecycle and read-model use configured native carrier wit
       '--trust-tier', 'third_party_verified',
     ], env) as any;
     assert.equal(install.opl_agent_package_install.status, 'installed');
+    assert.equal(install.opl_agent_package_install.package_id, packageId);
     assert.equal(install.opl_agent_package_install.package_lock, null);
     assert.equal(install.opl_agent_package_install.lifecycle_receipt, null);
     assert.deepEqual(

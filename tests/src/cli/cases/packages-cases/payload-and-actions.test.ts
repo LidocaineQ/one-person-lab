@@ -483,6 +483,7 @@ test('app action execute routes install_from_manifest_url to Framework package l
         result: {
           opl_agent_package_install: {
             status: string;
+            package_id: string;
             package_lock: { package_id: string; source_kind: string };
             lifecycle_receipt: { writes_performed: boolean };
           };
@@ -492,6 +493,7 @@ test('app action execute routes install_from_manifest_url to Framework package l
 
     assert.equal(output.app_action_execution.delegated_surface, 'opl packages install --manifest-url <manifest_url>');
     assert.equal(output.app_action_execution.result.opl_agent_package_install.status, 'installed');
+    assert.equal(output.app_action_execution.result.opl_agent_package_install.package_id, 'third.party.research');
     assert.equal(output.app_action_execution.result.opl_agent_package_install.package_lock.package_id, 'third.party.research');
     assert.equal(output.app_action_execution.result.opl_agent_package_install.package_lock.source_kind, 'local_manifest_file');
     assert.equal(output.app_action_execution.result.opl_agent_package_install.lifecycle_receipt.writes_performed, true);

@@ -1744,6 +1744,7 @@ function configuredCarrierLifecycleReadback(input: {
   return {
     status,
     dry_run: input.dryRun,
+    package_id: input.carrier.package_id,
     package_lock: null,
     lifecycle_receipt: null,
     configured_carrier: input.carrier,
@@ -1811,6 +1812,7 @@ function agentPackageInstallReadback(
       surface_kind: 'opl_agent_package_install',
       status: result.status,
       dry_run: input.dryRun === true,
+      package_id: result.lock.package_id,
       package_lock: result.lock,
       physical_surface: result.physicalSurface,
       framework_link: result.frameworkLink,
