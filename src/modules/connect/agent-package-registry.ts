@@ -1677,20 +1677,24 @@ async function resolveFreshConfiguredCarrier(input: ConfiguredCarrierSelectionIn
   ) {
     return null;
   }
+  if (!explicitManifestUrl && !explicitRegistryUrl) {
+    const discovered = discoverInstalledCodexPluginDescriptors({ packageId });
+    const descriptor = packageId ? discovered.get(packageId) : null;
+    if (descriptor) {
+      return {
+        descriptor: descriptor.carrier,
+        selection: {
+          registryEntry: null,
+        },
+      };
+    }
+  }
   const registryCache = readRegistryCache();
   const cacheEntry = packageId
     ? registryCache?.entries.find((entry) => entry.package_id === packageId) ?? null
     : null;
   if (!explicitManifestUrl && !explicitRegistryUrl && !cacheEntry?.configured_codex_plugin_carrier) {
-    const discovered = discoverInstalledCodexPluginDescriptors({ packageId });
-    const descriptor = packageId ? discovered.get(packageId) : null;
-    if (!descriptor) return null;
-    return {
-      descriptor: descriptor.carrier,
-      selection: {
-        registryEntry: null,
-      },
-    };
+    return null;
   }
   const selection = await resolveManifestSelection({
     packageId,

@@ -444,6 +444,10 @@ test('generic Package lifecycle and read-model use configured native carrier wit
   const manifestUrl = pathToFileURL(manifestPath).toString();
   const registryUrl = pathToFileURL(registryPath).toString();
   writePluginSource(pluginSource, 'callable');
+  fs.writeFileSync(
+    path.join(pluginSource, 'opl-package.json'),
+    formatJsonPayload(configuredManifest('fixture-carrier')),
+  );
   writeFakeCodex(binary);
   fs.writeFileSync(manifestPath, formatJsonPayload(configuredManifest('fixture-carrier')));
   fs.writeFileSync(registryPath, formatJsonPayload(registryPayload(
@@ -458,6 +462,13 @@ test('generic Package lifecycle and read-model use configured native carrier wit
   fs.mkdirSync(stateDir, { recursive: true });
   const registryCachePath = path.join(stateDir, 'agent-package-registry-cache.json');
   fs.writeFileSync(registryCachePath, formatJsonPayload(cache));
+  const staleCache = JSON.parse(fs.readFileSync(registryCachePath, 'utf8')) as {
+    entries: Array<{ configured_codex_plugin_carrier?: { plugin_selector?: string } }>;
+  };
+  staleCache.entries[0].configured_codex_plugin_carrier = {
+    plugin_selector: 'stale-carrier@historical',
+  };
+  fs.writeFileSync(registryCachePath, formatJsonPayload(staleCache));
   const registryCacheBytes = fs.readFileSync(registryCachePath);
   const env = {
     HOME: root,
@@ -518,14 +529,11 @@ test('generic Package lifecycle and read-model use configured native carrier wit
       'physical_unavailable',
     );
     const afterRemoval = runCli(['packages', 'status', '--package-id', packageId], env) as any;
-    assert.equal(afterRemoval.opl_agent_package_status.status, 'attention_needed');
+    assert.equal(afterRemoval.opl_agent_package_status.status, 'not_installed');
     assert.equal(afterRemoval.opl_agent_package_status.installed_package_count, 0);
     assert.equal(afterRemoval.opl_agent_package_status.operational_ready, false);
     assert.equal(afterRemoval.opl_agent_package_status.launch_allowed, false);
-    assert.equal(
-      afterRemoval.opl_agent_package_status.configured_carrier.status,
-      'physical_unavailable',
-    );
+    assert.equal(afterRemoval.opl_agent_package_status.configured_carrier, null);
     assertStateBytesUnchanged();
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
