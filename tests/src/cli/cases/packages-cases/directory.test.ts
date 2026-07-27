@@ -22,6 +22,7 @@ import {
 } from '../../../../../src/modules/connect/agent-package-registry-parts/directory.ts';
 import {
   discoverInstalledCodexPluginDescriptors,
+  discoverInstalledPackageDescriptors,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/installed-codex-plugin-directory.ts';
 import { getOplPackageSpecs } from '../../../../../src/modules/connect/package-distribution.ts';
 import {
@@ -189,9 +190,105 @@ test('installed Codex plugins fall back to the native plugin manifest without pa
     assert.deepEqual(descriptor.manifest.required_skill_ids, ['native-capability']);
     assert.equal(descriptor.manifest.configured_codex_plugin_carrier?.carrier.pluginId, 'unknown-native-plugin@example-marketplace');
     assert.equal(descriptor.manifest.content_lock_paths.length, 0);
-    assert.equal(descriptor.manifest.rollback_ref, 'rollback-ref:unknown-native-plugin/unavailable');
+    assert.equal(descriptor.manifest.rollback_ref, 'native-carrier-owned');
     assert.equal(descriptor.manifestPath, path.join(sourceRoot, '.codex-plugin', 'plugin.json'));
   } finally {
+    fs.rmSync(sourceRoot, { recursive: true, force: true });
+  }
+});
+
+test('carrier-neutral producer discovers an unknown installed carrier without Framework lifecycle state', () => {
+  const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-neutral-carrier-descriptor-'));
+  const stateFixture = isolatedPackageEnv('neutral-carrier-descriptor');
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  const previousBinary = process.env.OPL_CODEX_PLUGIN_BIN;
+  process.env.OPL_STATE_DIR = stateFixture.env.OPL_STATE_DIR;
+  process.env.OPL_CODEX_PLUGIN_BIN = path.join(stateFixture.home, 'fake-codex');
+  fs.mkdirSync(path.join(sourceRoot, '.codex-plugin'), { recursive: true });
+  fs.writeFileSync(
+    path.join(sourceRoot, '.codex-plugin', 'plugin.json'),
+    formatJsonPayload({
+      name: 'future-carrier-package',
+      version: '9.1.0',
+      description: 'A package from a future carrier.',
+      skills: [],
+    }),
+  );
+  try {
+    const discovered = discoverInstalledPackageDescriptors({
+      runner: () => ({
+        status: 0,
+        stdout: JSON.stringify({
+          installed: [{
+            pluginId: 'future-carrier-package@future-carrier',
+            version: '9.1.0',
+            enabled: true,
+            source: { source: 'future-carrier', path: sourceRoot },
+            marketplaceSource: { sourceType: 'future', source: 'future://catalog' },
+          }],
+        }),
+        stderr: '',
+        error: null,
+      }),
+    });
+    const descriptor = discovered.get('future-carrier-package');
+    assert.ok(descriptor);
+    assert.equal(descriptor?.manifest.rollback_ref, 'native-carrier-owned');
+    assert.equal(descriptor?.manifest.content_lock_paths.length, 0);
+    assert.equal(descriptor?.manifest.configured_codex_plugin_carrier?.carrier.pluginId, 'future-carrier-package@future-carrier');
+    const directory = buildAgentPackageDirectory({
+      registryCache: null,
+      locks: [],
+      detail: 'fast',
+      installedCodexPluginDescriptors: discovered,
+      configuredCarrierReadbacks: new Map([[
+        'future-carrier-package',
+        {
+          surface_kind: 'opl_configured_codex_plugin_carrier_readback.v1',
+          package_id: 'future-carrier-package',
+          carrier: {
+            kind: 'codex_plugin_manager',
+            plugin_id: 'future-carrier-package@future-carrier',
+            marketplace_source: 'future://catalog',
+            observed_sources: [{
+              plugin_id: 'future-carrier-package@future-carrier',
+              marketplace_source: 'future://catalog',
+              installed_version: '9.1.0',
+              enabled: true,
+              plugin_source_path: sourceRoot,
+              source_tree_sha256: null,
+            }],
+            precedence: 'exact_single_source',
+          },
+          executor: {
+            route: 'codex_cli',
+            required_skill_ids: [],
+            status: 'callable',
+          },
+          publication_ref: null,
+          status: 'installed',
+          installed_version: '9.1.0',
+          enabled: true,
+          plugin_source_path: sourceRoot,
+          operation: 'list',
+          native_command: ['plugin', 'list', '--json'],
+          native_action_dispatched: false,
+          reason: null,
+        },
+      ]]),
+    });
+    const entry = directory.entries.find((candidate) => candidate.package_id === 'future-carrier-package');
+    assert.ok(entry);
+    assert.equal(entry?.installed, true);
+    assert.equal(entry?.source_explanation.kind, 'installed_codex_plugin_descriptor');
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    if (previousBinary === undefined) delete process.env.OPL_CODEX_PLUGIN_BIN;
+    else process.env.OPL_CODEX_PLUGIN_BIN = previousBinary;
+    assert.equal(fs.existsSync(path.join(stateFixture.env.OPL_STATE_DIR, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(stateFixture.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json')), false);
+    fs.rmSync(stateFixture.home, { recursive: true, force: true });
     fs.rmSync(sourceRoot, { recursive: true, force: true });
   }
 });

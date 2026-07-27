@@ -16,7 +16,7 @@ import type {
   CodexPluginCommandRunner,
 } from './configured-codex-plugin-carrier.ts';
 
-type InstalledPluginEntry = {
+type InstalledCarrierEntry = {
   pluginId: string;
   version: string | null;
   enabled: boolean;
@@ -24,7 +24,7 @@ type InstalledPluginEntry = {
   marketplaceSource: string | null;
 };
 
-export type InstalledCodexPluginDescriptor = {
+export type InstalledPackageDescriptor = {
   manifest: AgentPackageManifest;
   manifestPath: string;
   sourcePath: string;
@@ -34,11 +34,14 @@ export type InstalledCodexPluginDescriptor = {
   carrier: AgentPackageConfiguredCodexPluginCarrierDescriptor;
 };
 
+/** Compatibility alias for the Codex carrier adapter. */
+export type InstalledCodexPluginDescriptor = InstalledPackageDescriptor;
+
 function stringValue(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-function parseInstalledPlugins(value: string): InstalledPluginEntry[] {
+function parseInstalledCarrierEntries(value: string): InstalledCarrierEntry[] {
   const parsed = parseJsonText(value);
   const readback = isRecord(parsed) ? parsed : null;
   if (!readback || !Array.isArray(readback.installed)) return [];
@@ -107,8 +110,8 @@ function pluginSkillIds(sourcePath: string, manifest: Record<string, unknown>) {
   return [...skillIds].sort();
 }
 
-function normalizeInstalledPluginManifest(
-  entry: InstalledPluginEntry,
+function normalizeNativeCarrierManifest(
+  entry: InstalledCarrierEntry,
   pluginPayload: Record<string, unknown>,
   manifestPath: string,
 ): AgentPackageManifest {
@@ -153,9 +156,9 @@ function normalizeInstalledPluginManifest(
     permissions: [],
     distribution_payload: null,
     update_channel: 'codex_plugin_manager',
-    // The native carrier owns lifecycle history. This is the existing explicit
-    // no-rollback sentinel, not a locally manufactured rollback receipt.
-    rollback_ref: `rollback-ref:${packageId}/unavailable`,
+    // Native carriers own lifecycle history. Keep the manifest contract's
+    // required field explicit without manufacturing a Framework rollback ref.
+    rollback_ref: 'native-carrier-owned',
     codex_visible_entry: packageId,
     required_skill_ids: requiredSkillIds,
     optional_skill_refs: [],
@@ -191,7 +194,7 @@ function normalizeInstalledPluginManifest(
   };
 }
 
-function readDescriptor(entry: InstalledPluginEntry): InstalledCodexPluginDescriptor | null {
+function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): InstalledPackageDescriptor | null {
   const ownerManifestPath = path.join(entry.sourcePath, 'opl-package.json');
   const pluginManifestPath = path.join(entry.sourcePath, '.codex-plugin', 'plugin.json');
   try {
@@ -207,7 +210,7 @@ function readDescriptor(entry: InstalledPluginEntry): InstalledCodexPluginDescri
       manifestPath = pluginManifestPath;
       const pluginPayload = JSON.parse(fs.readFileSync(pluginManifestPath, 'utf8'));
       if (!isRecord(pluginPayload)) return null;
-      manifest = normalizeInstalledPluginManifest(entry, pluginPayload, pluginManifestPath);
+      manifest = normalizeNativeCarrierManifest(entry, pluginPayload, pluginManifestPath);
       // First-party Package identity remains owned by its stable catalog. A
       // carrier-native manifest without an explicit Framework owner descriptor
       // must not synthesize a second authority for that identity.
@@ -241,7 +244,7 @@ function readDescriptor(entry: InstalledPluginEntry): InstalledCodexPluginDescri
   }
 }
 
-export function discoverInstalledCodexPluginDescriptors(input: {
+export function discoverInstalledPackageDescriptors(input: {
   packageId?: string | null;
   binary?: string;
   env?: NodeJS.ProcessEnv;
@@ -250,7 +253,7 @@ export function discoverInstalledCodexPluginDescriptors(input: {
   // A package-scoped lifecycle lookup must not let native carrier observation
   // replace the canonical first-party stable catalog selection.
   if (input.packageId && resolveFirstPartyPackageCatalog(input.packageId)) {
-    return new Map<string, InstalledCodexPluginDescriptor>();
+    return new Map<string, InstalledPackageDescriptor>();
   }
   const binary = input.binary?.trim() || process.env.OPL_CODEX_PLUGIN_BIN?.trim() || 'codex';
   const runner = input.runner ?? defaultRunner;
@@ -259,16 +262,16 @@ export function discoverInstalledCodexPluginDescriptors(input: {
     args: ['plugin', 'list', '--json'],
     env: { ...process.env, ...input.env },
   });
-  if (result.status !== 0 || result.error) return new Map<string, InstalledCodexPluginDescriptor>();
-  let entries: InstalledPluginEntry[];
+  if (result.status !== 0 || result.error) return new Map<string, InstalledPackageDescriptor>();
+  let entries: InstalledCarrierEntry[];
   try {
-    entries = parseInstalledPlugins(result.stdout);
+    entries = parseInstalledCarrierEntries(result.stdout);
   } catch {
-    return new Map<string, InstalledCodexPluginDescriptor>();
+    return new Map<string, InstalledPackageDescriptor>();
   }
-  const discovered = new Map<string, InstalledCodexPluginDescriptor>();
+  const discovered = new Map<string, InstalledPackageDescriptor>();
   for (const entry of entries) {
-    const descriptor = readDescriptor(entry);
+    const descriptor = readInstalledPackageDescriptor(entry);
     if (!descriptor) continue;
     if (input.packageId && descriptor.manifest.package_id !== input.packageId) continue;
     if (discovered.has(descriptor.manifest.package_id)) continue;
@@ -276,3 +279,9 @@ export function discoverInstalledCodexPluginDescriptors(input: {
   }
   return discovered;
 }
+
+/**
+ * Codex remains one native carrier adapter. Keep its historical export while
+ * making the installed descriptor producer explicit and carrier-neutral.
+ */
+export const discoverInstalledCodexPluginDescriptors = discoverInstalledPackageDescriptors;
