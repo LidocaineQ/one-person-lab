@@ -44,6 +44,34 @@ export function buildPublicAppCommandSpecs(
         return runOplAppActionExecute(getContracts(), options);
       },
     },
+    'app contribution read': {
+      usage: 'opl app contribution read --package-id <package_id> --ref <data_ref> [--input <json>|--input-stdin]',
+      summary: 'Read a descriptor-declared App contribution through its installed Package-owned JSON ABI.',
+      examples: [
+        'opl app contribution read --package-id <package_id> --ref <data_ref> --json',
+      ],
+      group: 'app',
+      handler: async (args) => {
+        const { parseAppContributionArgs, runAppContribution } = await import(
+          '../../../modules/console/app-contribution-broker.ts'
+        );
+        return runAppContribution(parseAppContributionArgs(args, 'read'));
+      },
+    },
+    'app contribution execute': {
+      usage: 'opl app contribution execute --package-id <package_id> --ref <action_ref> [--input <json>|--input-stdin] [--confirm]',
+      summary: 'Execute a descriptor-declared App contribution through its Package-owned JSON ABI.',
+      examples: [
+        'opl app contribution execute --package-id <package_id> --ref <action_ref> --input <json> --confirm --json',
+      ],
+      group: 'app',
+      handler: async (args) => {
+        const { parseAppContributionArgs, runAppContribution } = await import(
+          '../../../modules/console/app-contribution-broker.ts'
+        );
+        return runAppContribution(parseAppContributionArgs(args, 'execute'));
+      },
+    },
     'app view read': {
       usage: 'opl app view read --item-id <canonical-item-id> --view-id <view-id> [--if-revision <n>]',
       summary: 'Read one descriptor-declared, item-scoped JSON detail view without accepting arbitrary paths.',

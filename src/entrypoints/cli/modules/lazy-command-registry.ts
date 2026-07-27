@@ -14,6 +14,14 @@ import type { FrameworkContracts } from '../../../kernel/types.ts';
 
 type CommandSpecs = Record<string, CommandSpec>;
 
+const APP_COMMANDS = new Set([
+  'app state',
+  'app action execute',
+  'app contribution read',
+  'app contribution execute',
+  'app view read',
+]);
+
 type ExecutableCommandLoader = () => Promise<CommandSpecs>;
 
 function materializeMetadata(entry: CliCommandSurfaceMetadata): Omit<CommandSpec, 'handler'> {
@@ -123,9 +131,7 @@ export function buildLazyCommandSpecs(
           return buildMetadataHelp(commandSpecs, args);
         }
 
-        const executableSpecs = command === 'app state'
-          || command === 'app action execute'
-          || command === 'app view read'
+        const executableSpecs = APP_COMMANDS.has(command)
           ? await loadAppSpecs()
           : await loadExecutableSpecs();
         const executableSpec = executableSpecs[command];
