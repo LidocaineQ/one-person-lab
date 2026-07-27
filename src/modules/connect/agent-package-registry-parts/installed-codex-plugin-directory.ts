@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
+import { resolveFirstPartyPackageCatalog } from '../agent-package-first-party.ts';
 import { normalizePackageManifest } from './manifest-normalizers.ts';
 import type {
   AgentPackageConfiguredCodexPluginCarrierDescriptor,
@@ -207,6 +208,10 @@ function readDescriptor(entry: InstalledPluginEntry): InstalledCodexPluginDescri
       const pluginPayload = JSON.parse(fs.readFileSync(pluginManifestPath, 'utf8'));
       if (!isRecord(pluginPayload)) return null;
       manifest = normalizeInstalledPluginManifest(entry, pluginPayload, pluginManifestPath);
+      // First-party Package identity remains owned by its stable catalog. A
+      // carrier-native manifest without an explicit Framework owner descriptor
+      // must not synthesize a second authority for that identity.
+      if (resolveFirstPartyPackageCatalog(manifest.package_id)) return null;
     }
     const carrier = manifest.configured_codex_plugin_carrier
       ?? {
@@ -242,6 +247,11 @@ export function discoverInstalledCodexPluginDescriptors(input: {
   env?: NodeJS.ProcessEnv;
   runner?: CodexPluginCommandRunner;
 } = {}) {
+  // A package-scoped lifecycle lookup must not let native carrier observation
+  // replace the canonical first-party stable catalog selection.
+  if (input.packageId && resolveFirstPartyPackageCatalog(input.packageId)) {
+    return new Map<string, InstalledCodexPluginDescriptor>();
+  }
   const binary = input.binary?.trim() || process.env.OPL_CODEX_PLUGIN_BIN?.trim() || 'codex';
   const runner = input.runner ?? defaultRunner;
   const result = runner({

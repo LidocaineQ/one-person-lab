@@ -196,6 +196,40 @@ test('installed Codex plugins fall back to the native plugin manifest without pa
   }
 });
 
+test('native manifest fallback does not synthesize a second first-party Package authority', () => {
+  const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-native-plugin-'));
+  fs.mkdirSync(path.join(sourceRoot, '.codex-plugin'));
+  fs.writeFileSync(
+    path.join(sourceRoot, '.codex-plugin', 'plugin.json'),
+    formatJsonPayload({
+      name: 'redcube-ai',
+      version: '0.2.9',
+      description: 'Installed first-party carrier observation.',
+    }),
+  );
+  const runner = () => ({
+    status: 0,
+    stdout: JSON.stringify({
+      installed: [{
+        pluginId: 'redcube-ai@redcube-ai',
+        version: '0.2.9',
+        enabled: true,
+        installed: true,
+        source: { source: 'local', path: sourceRoot },
+        marketplaceSource: { sourceType: 'local', source: '/tmp/redcube-ai' },
+      }],
+    }),
+    stderr: '',
+    error: null,
+  });
+  try {
+    assert.equal(discoverInstalledCodexPluginDescriptors({ runner }).size, 0);
+    assert.equal(discoverInstalledCodexPluginDescriptors({ packageId: 'rca', runner }).size, 0);
+  } finally {
+    fs.rmSync(sourceRoot, { recursive: true, force: true });
+  }
+});
+
 test('invalid installed Codex descriptors degrade locally without hiding valid plugins', () => {
   const validRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-installed-plugin-valid-'));
   const invalidRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-installed-plugin-invalid-'));
