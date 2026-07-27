@@ -50,7 +50,7 @@ jobs:
               echo "::warning::Sentrux rules reported violations. This advisory job does not block by itself; apply the repo's merge policy and product semantics first."
             fi
           else
-            echo "::notice::No .sentrux/rules.toml found; skipping rules check."
+            echo "Sentrux explicit rules are not configured; baseline regression checks remain active."
           fi
 
       - name: Run OPL quality details

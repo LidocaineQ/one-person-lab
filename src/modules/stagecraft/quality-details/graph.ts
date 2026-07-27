@@ -29,24 +29,38 @@ function buildIncoming(files: SourceFileInfo[]) {
   return incoming;
 }
 
-function longestPathFrom(file: string, adjacency: Map<string, string[]>, visiting = new Set<string>()) {
+function longestPathFrom(
+  file: string,
+  adjacency: Map<string, string[]>,
+  memo: Map<string, string[]>,
+  visiting = new Set<string>(),
+) {
   if (visiting.has(file)) {
-    return [file];
+    return [];
+  }
+  const cached = memo.get(file);
+  if (cached) {
+    return cached;
   }
   const nextFiles = adjacency.get(file) ?? [];
   if (nextFiles.length === 0) {
-    return [file];
+    const terminalPath = [file];
+    memo.set(file, terminalPath);
+    return terminalPath;
   }
 
   visiting.add(file);
   let longest = [file];
   for (const nextFile of nextFiles) {
-    const candidate = [file, ...longestPathFrom(nextFile, adjacency, visiting)];
+    const tail = longestPathFrom(nextFile, adjacency, memo, visiting);
+    if (tail.length === 0) continue;
+    const candidate = [file, ...tail];
     if (candidate.length > longest.length) {
       longest = candidate;
     }
   }
   visiting.delete(file);
+  memo.set(file, longest);
   return longest;
 }
 
@@ -89,13 +103,15 @@ function analyzeGraph(files: SourceFileInfo[], functions: FunctionFinding[], lim
   }
 
   const incoming = buildIncoming(files);
+  const sourceFilePaths = new Set(sourceFiles.map((file) => file.relativePath));
   const adjacency = new Map(sourceFiles.map((file) => [
     file.relativePath,
-    file.resolvedImports.filter((target) => sourceFiles.some((source) => source.relativePath === target)),
+    file.resolvedImports.filter((target) => sourceFilePaths.has(target)),
   ]));
+  const longestPaths = new Map<string, string[]>();
 
   const paths = sourceFiles
-    .map((file) => longestPathFrom(file.relativePath, adjacency))
+    .map((file) => longestPathFrom(file.relativePath, adjacency, longestPaths))
     .sort((left, right) => right.length - left.length);
   const maxPath = paths[0] ?? [];
   const maxDepth = Math.max(0, maxPath.length - 1);

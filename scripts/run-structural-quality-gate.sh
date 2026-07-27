@@ -108,7 +108,7 @@ run_gate() {
 
 run_rules_check() {
   if [ ! -f .sentrux/rules.toml ]; then
-    echo "::notice::No .sentrux/rules.toml found; skipping Sentrux rules check."
+    echo "Sentrux explicit rules are not configured; baseline regression checks remain active."
     return 0
   fi
 

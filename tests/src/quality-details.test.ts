@@ -139,6 +139,29 @@ function makeQualityFixture() {
   return root;
 }
 
+function makeSharedBranchGraphFixture(layerCount = 22) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-quality-details-graph-'));
+  const sourceRoot = path.join(root, 'src');
+  fs.mkdirSync(sourceRoot, { recursive: true });
+
+  for (let layer = 0; layer < layerCount; layer += 1) {
+    for (const branch of ['a', 'b']) {
+      const nextLayer = layer + 1;
+      const imports = nextLayer < layerCount
+        ? [
+          `import './layer-${String(nextLayer).padStart(2, '0')}-a.ts';`,
+          `import './layer-${String(nextLayer).padStart(2, '0')}-b.ts';`,
+        ]
+        : [];
+      fs.writeFileSync(
+        path.join(sourceRoot, `layer-${String(layer).padStart(2, '0')}-${branch}.ts`),
+        [...imports, `export const layer${layer}${branch} = ${layer};`, ''].join('\n'),
+      );
+    }
+  }
+  return root;
+}
+
 test('quality details emits function, dependency, test gap, and rules diagnostics', () => {
   const fixtureRoot = makeQualityFixture();
   try {
@@ -177,6 +200,23 @@ test('quality details emits function, dependency, test gap, and rules diagnostic
       ),
     );
     assert.ok(output.quality_details.agent_triage_targets.length > 0);
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+});
+
+test('quality details bounds shared dependency graph traversal', () => {
+  const fixtureRoot = makeSharedBranchGraphFixture();
+  try {
+    const output = runCli(['quality', 'details', '--root', fixtureRoot, '--format', 'json', '--limit', '5']);
+
+    assert.equal(output.quality_details.repo_summary.max_depth, 21);
+    assert.ok(
+      output.quality_details.dependency_findings.some(
+        (finding: { kind: string; depth: number }) =>
+          finding.kind === 'deep_dependency_path' && finding.depth === 21,
+      ),
+    );
   } finally {
     fs.rmSync(fixtureRoot, { recursive: true, force: true });
   }
