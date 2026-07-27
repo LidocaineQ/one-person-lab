@@ -823,9 +823,6 @@ test('packages preserves installed lock and receipt trail when update materializ
       'status',
       '--package-id',
       'third.party.research',
-      '--include-history',
-      '--limit',
-      '20',
     ], env) as {
       opl_agent_package_status: {
         installed_package_count: number;
@@ -834,7 +831,6 @@ test('packages preserves installed lock and receipt trail when update materializ
           lock_ref: string;
           physical_surface: { codex_plugin_cache_path: string };
         }>;
-        lifecycle_history: { receipts: Array<{ action: string }> };
       };
     };
     assert.equal(status.opl_agent_package_status.installed_package_count, 1);
@@ -847,7 +843,6 @@ test('packages preserves installed lock and receipt trail when update materializ
       install.opl_agent_package_install.package_lock.lock_ref,
     );
     assert.equal(status.opl_agent_package_status.installed_packages[0].physical_surface.codex_plugin_cache_path, installedCachePath);
-    assert.deepEqual(status.opl_agent_package_status.lifecycle_history.receipts.map((receipt) => receipt.action), ['install']);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
     fs.rmSync(homeDir, { recursive: true, force: true });

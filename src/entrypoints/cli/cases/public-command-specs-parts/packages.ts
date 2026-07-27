@@ -382,12 +382,9 @@ export function buildPackagesCommandSpecs(
       handler: () => listOplAgentPackages(),
     },
     'packages status': {
-      usage: 'opl packages status [--package-id <id>] [--scope workspace|quest --target-workspace <path>|--target-quest <path>] [--include-history [--cursor <cursor>] [--limit <1-100>]]',
-      summary: 'Read compact package lock, projection, migration, and lifecycle receipt status; history is explicit and paginated.',
-      examples: [
-        'opl packages status --package-id mas --json',
-        'opl packages status --package-id mas --include-history --limit 20 --json',
-      ],
+      usage: 'opl packages status [--package-id <id>] [--scope workspace|quest --target-workspace <path>|--target-quest <path>]',
+      summary: 'Read compact package presence, callability, actions, and owner-route status.',
+      examples: ['opl packages status --package-id mas --json'],
       group: 'packages',
       help_surface: 'diagnostic_drilldown',
       handler: (args) => {
@@ -397,30 +394,11 @@ export function buildPackagesCommandSpecs(
           args,
           spec,
         );
-        const includeHistory = parsed['include-history'] === true;
-        const historyPageOptionUsed = args.some((arg) =>
-          arg === '--cursor'
-          || arg.startsWith('--cursor=')
-          || arg === '--limit'
-          || arg.startsWith('--limit=')
-        );
-        if (!includeHistory && historyPageOptionUsed) {
-          throw buildUsageError(
-            'packages status requires --include-history when --cursor or --limit is provided.',
-            spec,
-            {
-              required: ['--include-history'],
-            },
-          );
-        }
         return runOplAgentPackageStatus({
           packageId: readOptionalString(parsed['package-id']),
           scope: readOptionalString(parsed.scope) as 'workspace' | 'quest' | null,
           targetWorkspace: readOptionalString(parsed['target-workspace']),
           targetQuest: readOptionalString(parsed['target-quest']),
-          includeHistory,
-          historyCursor: readOptionalString(parsed.cursor),
-          historyLimit: parsed.limit as number | undefined,
         });
       },
     },

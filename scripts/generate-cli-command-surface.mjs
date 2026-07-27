@@ -47,7 +47,7 @@ export type CliCommandSurfaceMetadata = {
 };
 
 export const CLI_COMMAND_SURFACE_VERSION = 'opl-cli-command-surface.v1' as const;
-export const CLI_COMMAND_SURFACE = JSON.parse(${JSON.stringify(JSON.stringify(metadata))}) as Record<string, CliCommandSurfaceMetadata>;
+export const CLI_COMMAND_SURFACE = JSON.parse(${JSON.stringify(JSON.stringify(metadata))}) as Record<string, CliCommandSurfaceMetadata>; // reuse-first: allow - generated projection of executable CLI metadata.
 export const CLI_COMMAND_SURFACE_COMMAND_COUNT = ${Object.keys(metadata).length} as const;
 `;
 
