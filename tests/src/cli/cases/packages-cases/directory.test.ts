@@ -36,7 +36,11 @@ import {
   mergedHomeShortcutPreferences,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/home-shortcuts.ts';
 import { validateJsonSchemaPayload } from '../../../../../src/kernel/schema-registry.ts';
-import { listOplAgentPackages } from '../../../../../src/modules/connect/agent-package-registry.ts';
+import {
+  listOplAgentPackages,
+  runOplAgentPackageStatus,
+} from '../../../../../src/modules/connect/agent-package-registry.ts';
+import { buildAppAgentPackageStatuses } from '../../../../../src/modules/console/app-state.ts';
 
 const CANONICAL_PACKAGE_ROLES = new Set([
   'standard_agent',
@@ -359,7 +363,7 @@ test('invalid installed Codex descriptors degrade locally without hiding valid p
   }
 });
 
-test('real package list projects an installed owner descriptor with an empty registry cache', () => {
+test('real directory and status project an unknown installed carrier without legacy lifecycle state', () => {
   const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-installed-plugin-list-source-'));
   const stateFixture = isolatedPackageEnv('installed-plugin-list');
   const binary = path.join(stateFixture.home, 'fake-codex');
@@ -414,8 +418,8 @@ process.stdout.write(JSON.stringify({
     version: '1.0.0',
     installed: true,
     enabled: true,
-    source: { source: 'local', path: ${JSON.stringify(sourceRoot)} },
-    marketplaceSource: { sourceType: 'local', source: '/tmp/owner-carrier' }
+    source: { source: 'future-carrier', path: ${JSON.stringify(sourceRoot)} },
+    marketplaceSource: { sourceType: 'future', source: 'future://owner-carrier' }
   }]
 }));
 `);
@@ -430,12 +434,40 @@ process.stdout.write(JSON.stringify({
     assert.equal(entry?.source_explanation.kind, 'installed_codex_plugin_descriptor');
     assert.equal(entry?.configured_carrier?.status, 'installed');
     assert.equal(entry?.configured_carrier?.executor.status, 'callable');
-    assert.equal(entry?.installed_carrier_readback?.kind, 'local');
+    assert.equal(entry?.installed_carrier_readback?.kind, 'future-carrier');
     assert.equal(entry?.installed_readiness?.legacy_lifecycle_state_present, false);
     assert.deepEqual(
       entry?.available_actions.map((action) => action.action_id),
       ['agent_package_update', 'agent_package_repair', 'agent_package_preferences_set', 'agent_package_uninstall'],
     );
+    const status = runOplAgentPackageStatus({ packageId, detail: 'fast' }).opl_agent_package_status;
+    assert.equal(status.status, 'available');
+    assert.equal(status.installed_package_count, 1);
+    assert.equal(status.operational_ready, true);
+    assert.equal(status.launch_allowed, true);
+    assert.equal(status.launch_blocked_reason, null);
+    assert.equal(status.installed_carrier_readback?.kind, 'future-carrier');
+    assert.deepEqual(status.installed_readiness, {
+      installed: true,
+      physical_status: 'available',
+      callability: 'callable',
+      legacy_lifecycle_state_present: false,
+    });
+    const appPackage = buildAppAgentPackageStatuses({
+      packageIds: [packageId],
+      profile: 'fast',
+      readStatus: (input) => runOplAgentPackageStatus(input),
+      lockIndex: {
+        surface_kind: 'opl_agent_package_lock_index',
+        version: 'opl-agent-package-lock-index.v1',
+        packages: [],
+      },
+    })[packageId] as any;
+    assert.equal(appPackage.status, 'available');
+    assert.equal(appPackage.operational_ready, true);
+    assert.equal(appPackage.launch_allowed, true);
+    assert.equal(appPackage.launch_blocked_reason, null);
+    assert.equal(appPackage.currentness_detail_deferred, undefined);
     assert.equal(fs.existsSync(path.join(stateFixture.env.OPL_STATE_DIR, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(stateFixture.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json')), false);
   } finally {
