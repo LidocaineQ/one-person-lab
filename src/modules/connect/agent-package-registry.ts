@@ -91,6 +91,7 @@ import {
   type BundledFullRuntimeCatalogEntry,
 } from './agent-package-registry-parts/bundled-full-runtime-catalog.ts';
 import {
+  agentPackageCarrierAuthorityStatus,
   agentPackageCarrierReceiptAuthorityStatus,
   buildAgentPackageCarrierAuthority,
 } from './agent-package-registry-parts/carrier-authority.ts';
@@ -4630,7 +4631,6 @@ function configuredCarrierLifecycleUxReadback(
 
 function readAgentPackageStatusSnapshot() {
   const lockIndex = readLockIndex();
-  const lifecycleLedger = readLifecycleLedger();
   const registryCache = readRegistryCache();
   const configuredCarriers = configuredCarrierReadbacks(registryCache);
   const directory = buildAgentPackageDirectory({
@@ -4642,15 +4642,11 @@ function readAgentPackageStatusSnapshot() {
   });
   return {
     lockIndex,
-    lifecycleLedger,
     registryCache,
     configuredCarriers,
     paths: resolveOplStatePaths(),
     runtimeSourceRecovery: inspectManagedRuntimeSourceTransactions(),
     homeShortcutPreferences: mergedHomeShortcutPreferences(directory, lockIndex),
-    receiptsByRef: new Map(
-      lifecycleLedger.receipts.map((receipt) => [receipt.receipt_ref, receipt]),
-    ),
   };
 }
 
@@ -4662,10 +4658,8 @@ function buildOplAgentPackageStatus(
   const {
     lockIndex,
     runtimeSourceRecovery,
-    lifecycleLedger,
     paths,
     homeShortcutPreferences: allHomeShortcutPreferences,
-    receiptsByRef,
     configuredCarriers,
   } = snapshot;
   const installedPackages = packageId
@@ -4676,18 +4670,14 @@ function buildOplAgentPackageStatus(
   const legacyLifecycleUx = agentPackageLifecycleSummaryReadback({
     selectedPackageId: packageId ?? null,
     packages: installedPackages,
-    receipts: lifecycleLedger.receipts,
   });
   const selectedLock = packageId ? installedPackages[0] ?? null : null;
   const configuredCarrier = packageId ? configuredCarriers.get(packageId) ?? null : null;
   const lifecycleUx = configuredCarrier
     ? configuredCarrierLifecycleUxReadback(configuredCarrier, Boolean(selectedLock))
     : legacyLifecycleUx;
-  const selectedReceipt = selectedLock
-    ? receiptsByRef.get(selectedLock.action_receipt_id) ?? null
-    : null;
   const carrierAuthorityReadiness = selectedLock
-    ? agentPackageCarrierReceiptAuthorityStatus(selectedLock, selectedReceipt)
+    ? agentPackageCarrierAuthorityStatus(selectedLock)
     : null;
   const policyCurrentness = managedPolicyCurrentness(selectedLock);
   const packageDependencyReadiness = selectedLock ? dependencyReadiness(selectedLock, lockIndex) : null;
@@ -4867,7 +4857,6 @@ function buildOplAgentPackageStatus(
             packages: installedPackages.map((lock) => ({
               packageId: lock.package_id,
               lock,
-              receipt: receiptsByRef.get(lock.action_receipt_id) ?? null,
             })),
           }),
       files: {
@@ -4898,14 +4887,8 @@ export function listOplAgentPackages(input: {
   const registryCache = readRegistryCache();
   const lockIndex = readLockIndex();
   const configuredCarriers = configuredCarrierReadbacks(registryCache);
-  const lifecycleLedger = readLifecycleLedger();
-  const receiptsByRef = new Map<string, AgentPackageLifecycleReceipt>();
-  for (const receipt of lifecycleLedger.receipts) {
-    receiptsByRef.set(receipt.receipt_ref, receipt);
-  }
   const lifecycleUx = agentPackageLifecycleSummaryReadback({
     packages: lockIndex.packages,
-    receipts: lifecycleLedger.receipts,
   });
   const directory = buildAgentPackageDirectory({
     registryCache,
@@ -4959,7 +4942,6 @@ export function listOplAgentPackages(input: {
             packages: lockIndex.packages.map((lock) => ({
               packageId: lock.package_id,
               lock,
-              receipt: receiptsByRef.get(lock.action_receipt_id) ?? null,
             })),
           }),
       files: {

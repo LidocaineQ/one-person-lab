@@ -229,14 +229,21 @@ export function agentPackageLifecycleSummaryReadback(input: {
       lifecycle_action_refs: ['install'],
     };
   }
-  const receiptsByRef = new Map(
-    (input.receipts ?? []).map((receipt) => [receipt.receipt_ref, receipt]),
-  );
-  const packageReadbacks = input.packages.map((lock) => agentPackageLifecycleUxReadback({
-    packageId: lock.package_id,
-    lock,
-    receipt: receiptsByRef.get(lock.action_receipt_id) ?? null,
-  }));
+  const receiptsByRef = input.receipts
+    ? new Map(input.receipts.map((receipt) => [receipt.receipt_ref, receipt]))
+    : null;
+  const packageReadbacks = input.packages.map((lock) => {
+    const base = {
+      packageId: lock.package_id,
+      lock,
+    };
+    return receiptsByRef
+      ? agentPackageLifecycleUxReadback({
+          ...base,
+          receipt: receiptsByRef.get(lock.action_receipt_id) ?? null,
+        })
+      : agentPackageLifecycleUxReadback(base);
+  });
   const recommendedAction = packageReadbacks.find((entry) => entry.recommended_action)?.recommended_action ?? null;
   return {
     status: recommendedAction ? 'attention_needed' : 'available',
