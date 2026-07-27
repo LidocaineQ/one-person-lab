@@ -115,6 +115,14 @@ export {
   agentPackageDelegatedSurface,
   listAgentPackageSettingsActions,
 } from './agent-package-actions.ts';
+export {
+  discoverInstalledPackageDescriptors,
+} from './agent-package-registry-parts/installed-codex-plugin-directory.ts';
+export type {
+  InstalledPackageDescriptor,
+  InstalledPackageCarrierReadback,
+  InstalledPackageReadiness,
+} from './agent-package-registry-parts/installed-codex-plugin-directory.ts';
 export { readBundledCodexDefaultProfile, readLocalCodexAccessState, readLocalCodexDefaultsIfAvailable } from '../../kernel/local-codex-defaults.ts';
 export type { LocalCodexDefaults } from '../../kernel/local-codex-defaults.ts';
 export { listManagedInstallUpdateReceipts } from './managed-install-update-ledger.ts';

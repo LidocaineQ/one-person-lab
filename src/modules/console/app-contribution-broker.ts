@@ -7,7 +7,7 @@ import { parseJsonText } from '../../kernel/json-file.ts';
 import {
   discoverInstalledPackageDescriptors,
   type InstalledPackageDescriptor,
-} from '../connect/agent-package-registry-parts/installed-codex-plugin-directory.ts';
+} from '../connect/index.ts';
 
 const REQUEST_SCHEMA = 'opl-package-app-contribution-request.v1';
 const RESPONSE_SCHEMA = 'opl-package-app-contribution-response.v1';
