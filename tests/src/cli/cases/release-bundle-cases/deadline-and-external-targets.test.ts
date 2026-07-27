@@ -296,6 +296,68 @@ test('elapsed absolute deadline blocks admit, build, verify, and publish while s
   }
 });
 
+test('Stable publishes immutable track assets and projects Latest before post-publication installed-artifact verification', () => {
+  const fixture = createFixture();
+  try {
+    const bundleDigest = fixture.frozen.release_bundle_freeze.bundle_digest;
+    buildReleaseBundle({
+      bundleDigest,
+      executorReceiptPath: writeBuildReceipt({ root: fixture.root, bundleDigest }),
+      storeRoot: fixture.storeRoot,
+    });
+    const published = publishReleaseBundle({
+      bundleDigest,
+      executorReceiptPath: writeRemoteInspection({
+        root: fixture.root,
+        bundleDigest,
+        attemptId: 'track-assets-before-verification',
+        assets: [
+          { name: 'standard.dmg', bytes: 'standard dmg' },
+          { name: 'latest.yml', bytes: 'updater' },
+        ],
+      }),
+      storeRoot: fixture.storeRoot,
+    });
+    assert.equal(published.release_bundle_publish.status, 'complete');
+    let status = readReleaseBundleStatus({ bundleDigest, storeRoot: fixture.storeRoot })
+      .release_bundle_status;
+    assert.equal(status.tracks.standard.verified, false);
+    assert.equal(status.tracks.standard.published, true);
+    assert.equal(status.stable_promotion_barrier.satisfied, true);
+    assert.equal(status.latest_eligible, true);
+
+    const latest = publishReleaseBundle({
+      bundleDigest,
+      executorReceiptPath: writeRemoteInspection({
+        root: fixture.root,
+        bundleDigest,
+        attemptId: 'latest-before-verification',
+        remoteTarget: 'github-latest:gaofeng21cn/one-person-lab@post-publication',
+        publicationScope: 'external_target',
+      }),
+      storeRoot: fixture.storeRoot,
+    });
+    assert.equal(latest.release_bundle_publish.status, 'complete');
+
+    verifyReleaseBundle({
+      bundleDigest,
+      track: 'standard',
+      qualificationReceiptPath: writeQualification({
+        root: fixture.root,
+        bundle: fixture.request,
+        bundleDigest,
+      }),
+      storeRoot: fixture.storeRoot,
+    });
+    status = readReleaseBundleStatus({ bundleDigest, storeRoot: fixture.storeRoot })
+      .release_bundle_status;
+    assert.equal(status.tracks.standard.verified, true);
+    assert.equal(status.latest_eligible, true);
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test('Latest PATCH and Homebrew use the same external-target unknown/reconcile ABI without asset retry', () => {
   const fixture = createFixture();
   const premature = createFixture();

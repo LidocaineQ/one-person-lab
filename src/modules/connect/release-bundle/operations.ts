@@ -584,19 +584,6 @@ export function restoreQualifiedReleaseBundleTrackFromCheckpoint(input: ReleaseB
   recordReleaseBundleOperation(stored.paths, receipt);
 }
 
-function assertTrackQualified(
-  stored: ReturnType<typeof readStoredReleaseBundle>,
-  track: ReleaseBundleTrackName,
-) {
-  const verification = readReleaseBundleOperation(stored.paths, 'verify', track);
-  if (!verification || !['complete', 'idempotent'].includes(verification.status)) {
-    fail('Release Bundle track requires a bound installed-artifact qualification before publish.', {
-      bundle_digest: stored.bundle.bundle_digest,
-      track,
-    });
-  }
-}
-
 function latestPublicationState(
   stored: ReturnType<typeof readStoredReleaseBundle>,
   track: ReleaseBundleTrackName,
@@ -626,7 +613,6 @@ function assertStablePromotionBarrier(
 ) {
   const requiredTracks = stableRequiredTrackNames(stored.bundle);
   for (const requiredTrack of requiredTracks) {
-    assertTrackQualified(stored, requiredTrack);
     const publication = latestPublicationState(stored, requiredTrack);
     const confirmedByActiveAttempt = activeExternalMarker?.publication_scope === 'external_target'
       && activeExternalMarker.track === requiredTrack;
@@ -659,7 +645,6 @@ function publishWithReceipt(input: ReleaseBundleOperationInput & ReleaseBundleOp
       track,
     });
   }
-  assertTrackQualified(stored, track);
   const publicationScope = executorReceipt.publication_scope ?? 'track_assets';
   const previousPublication = latestPublicationState(stored, track);
   const previousTrackAssetsConfirmed = trackAssetsConfirmed(previousPublication);
@@ -945,12 +930,12 @@ export function readReleaseBundleStatus(input: ReleaseBundleOperationInput) {
         required_tracks: stableRequiredTrackNames(stored.bundle),
         satisfied: stableRequiredTrackNames(stored.bundle).every((track) => {
           const status = track === 'standard' ? standard : webui;
-          return Boolean(status?.verified && status.published && !status.reconcile_required);
+          return Boolean(status?.published && !status.reconcile_required);
         }),
       },
       latest_eligible: stableRequiredTrackNames(stored.bundle).every((track) => {
         const status = track === 'standard' ? standard : webui;
-        return Boolean(status?.verified && status.published && !status.reconcile_required);
+        return Boolean(status?.published && !status.reconcile_required);
       }),
     },
   };
