@@ -13,6 +13,7 @@ import {
   canonicalAgentPackageId,
   compactStorageOwnerInventorySnapshot,
   compactStorageOwnerProjection,
+  createOplAgentPackageStatusReader,
   listOplAgentPackages,
   readOplAgentPackageLockIndex,
   readOplFlowDefaultUserInstructions,
@@ -941,7 +942,7 @@ export async function buildOplAppState(input: {
     ? compactFastActionCatalog(rawActions as unknown as JsonRecord[])
     : rawActions;
   const readAgentPackageStatus = requestCachedAgentPackageStatusReader(
-    input.readAgentPackageStatus ?? runOplAgentPackageStatus,
+    input.readAgentPackageStatus ?? createOplAgentPackageStatusReader(),
   );
   const agentPackagesReadback = listOplAgentPackages({
     detail: profile,

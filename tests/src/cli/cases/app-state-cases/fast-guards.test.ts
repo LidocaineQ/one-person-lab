@@ -96,6 +96,11 @@ test('app state fast hot path avoids barrel imports and keeps full drilldown laz
     'full runtime tray must not load on the fast profile import path',
   );
   assert.match(appStateSource, /import\(['"]\.\/runtime-tray-snapshot\.ts['"]\)/);
+  assert.match(
+    appStateSource,
+    /input\.readAgentPackageStatus \?\? createOplAgentPackageStatusReader\(\)/,
+    'each app-state request must reuse one installed Package status snapshot unless a caller injects a reader',
+  );
 });
 
 test('task run projection does not republish the retired work item V1 envelope', () => {
