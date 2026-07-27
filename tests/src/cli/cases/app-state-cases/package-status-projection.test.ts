@@ -43,6 +43,7 @@ function installedStatus(input: {
   lifecycleActionRefs?: string[];
   recommendedAction?: string | null;
   appContributions?: Record<string, unknown> | null;
+  operationalReadyScope?: string;
 }) {
   const legacyRollbackField = ['roll', 'back_ref'].join('');
   const runtimeReady = input.runtimeReady ?? true;
@@ -99,7 +100,8 @@ function installedStatus(input: {
         reason: runtimeReady ? null : 'managed_runtime_source_probe_failed',
       },
       operational_ready: launchAllowed,
-      operational_ready_scope: 'package_dependency_scope_runtime_source_and_managed_policy',
+      operational_ready_scope: input.operationalReadyScope
+        ?? 'package_dependency_scope_runtime_source_and_managed_policy',
       launch_allowed: launchAllowed,
       launch_blocked_reason: launchBlockedReason,
       ...deriveAgentPackageLaunchState({
@@ -272,6 +274,29 @@ test('App package projection accepts arbitrary package ids and trusts fresh owne
   assert.deepEqual(fastStatus.dependency_readiness, fullStatus.dependency_readiness);
   assertLegacyManagerFieldsAbsent(fastStatus);
   assertLegacyManagerFieldsAbsent(fullStatus);
+});
+
+test('Fast App status keeps configured native carrier readiness from the same fresh readback', () => {
+  const status = buildAppAgentPackageStatuses({
+    packageIds: ['future.owner.package'],
+    profile: 'fast',
+    lockIndex: lockIndex(),
+    readStatus: (() => installedStatus({
+      packageId: 'future.owner.package',
+      lifecycleActionRefs: ['update', 'repair', 'uninstall'],
+      operationalReadyScope: 'configured_native_carrier_presence_callability_identity_and_precedence',
+    })) as any,
+  })['future.owner.package'] as any;
+
+  assert.equal(status.status, 'available');
+  assert.equal(status.operational_ready, true);
+  assert.equal(status.launch_allowed, true);
+  assert.equal(status.launch_blocked_reason, null);
+  assert.equal(status.launch_state, 'ready');
+  assert.equal(Object.hasOwn(status, 'currentness_detail_deferred'), false);
+  assert.deepEqual(status.actions.available, ['update', 'repair', 'uninstall']);
+  assert.equal(status.actions.recommended, null);
+  assertLegacyManagerFieldsAbsent(status);
 });
 
 test('App package status preserves canonical role-neutral app contributions', () => {

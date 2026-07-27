@@ -241,7 +241,10 @@ export function projectAppAgentPackageStatus(input: {
   const presence = projectedPresence(status);
   const capabilityExposure = exposureProjection(status, presence.present);
   const lifecycleActionRefs = [...(status.lifecycle_action_refs ?? [])];
+  const nativeCarrierReadiness =
+    status.operational_ready_scope === 'configured_native_carrier_presence_callability_identity_and_precedence';
   const readinessDeferred = profile === 'fast'
+    && !nativeCarrierReadiness
     && presence.callable
     && status.operational_ready === true;
   const launchState = readinessDeferred

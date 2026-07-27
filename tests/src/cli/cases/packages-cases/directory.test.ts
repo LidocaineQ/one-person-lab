@@ -452,6 +452,8 @@ process.stdout.write(JSON.stringify({
     assert.ok(entry);
     assert.equal(readback.registry_cache, null);
     assert.equal(entry?.installed, true);
+    assert.equal(entry?.readiness.operational_ready, true);
+    assert.equal(entry?.readiness.launch_allowed, true);
     assert.equal(entry?.source_explanation.kind, 'installed_codex_plugin_descriptor');
     assert.equal(entry?.configured_carrier?.status, 'installed');
     assert.equal(entry?.configured_carrier?.executor.status, 'callable');

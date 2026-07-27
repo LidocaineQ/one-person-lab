@@ -867,9 +867,13 @@ export function buildAgentPackageDirectory(input: {
   }));
   const entries = [...sources.values()].map((source) => {
     const lock = locksById.get(source.package_id) ?? null;
+    const installedDescriptor = input.installedCodexPluginDescriptors?.get(source.package_id) ?? null;
+    const carrierReadiness = installedDescriptor?.readiness ?? null;
     const configuredCarrier = input.configuredCarrierReadbacks?.get(source.package_id) ?? null;
     const configuredCarrierInstalled = configuredCarrier?.status === 'installed';
-    const installed = Boolean(lock) || configuredCarrierInstalled;
+    const installed = Boolean(lock)
+      || configuredCarrierInstalled
+      || carrierReadiness?.installed === true;
     const configuredCarrierAttention = Boolean(
       configuredCarrier
       && (
@@ -896,7 +900,26 @@ export function buildAgentPackageDirectory(input: {
     const lifecycle = agentPackageLifecycleUxReadback({ packageId: source.package_id, lock });
     let status: PackageStatusReadback = {};
     let statusReadError: { code: string; message: string } | null = null;
-    if (configuredCarrier) {
+    if (carrierReadiness) {
+      const carrierReady = carrierReadiness.installed
+        && carrierReadiness.physical_status === 'available'
+        && carrierReadiness.callability === 'callable';
+      status = {
+        status: carrierReady ? 'available' : 'attention_needed',
+        recommended_action: carrierReady ? null : 'agent_package_repair',
+        operational_ready: carrierReady,
+        launch_allowed: carrierReady,
+        launch_blocked_reason: carrierReady
+          ? null
+          : carrierReadiness.physical_status !== 'available'
+            ? 'carrier_source_unavailable'
+            : carrierReadiness.callability !== 'callable'
+              ? 'carrier_disabled'
+              : 'carrier_not_installed',
+        materialization_readiness: { status: 'not_required' },
+        runtime_source_readiness: { status: 'not_required' },
+      };
+    } else if (configuredCarrier) {
       status = {
         status: configuredCarrierAttention ? 'attention_needed' : 'available',
         recommended_action: configuredCarrierInstalled ? 'agent_package_repair' : null,

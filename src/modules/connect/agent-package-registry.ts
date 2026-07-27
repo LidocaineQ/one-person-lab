@@ -4697,6 +4697,7 @@ function readAgentPackageStatusSnapshot() {
   return {
     lockIndex,
     registryCache,
+    installedCodexPluginDescriptors,
     configuredCarriers,
     paths: resolveOplStatePaths(),
     runtimeSourceRecovery: inspectManagedRuntimeSourceTransactions(),
@@ -4714,6 +4715,7 @@ function buildOplAgentPackageStatus(
     runtimeSourceRecovery,
     paths,
     homeShortcutPreferences: allHomeShortcutPreferences,
+    installedCodexPluginDescriptors,
     configuredCarriers,
   } = snapshot;
   const installedPackages = packageId
@@ -4726,7 +4728,11 @@ function buildOplAgentPackageStatus(
     packages: installedPackages,
   });
   const selectedLock = packageId ? installedPackages[0] ?? null : null;
+  const installedDescriptor = packageId
+    ? installedCodexPluginDescriptors.get(packageId) ?? null
+    : null;
   const configuredCarrier = packageId ? configuredCarriers.get(packageId) ?? null : null;
+  const carrierReadiness = installedDescriptor?.readiness ?? null;
   const lifecycleUx = configuredCarrier
     ? configuredCarrierLifecycleUxReadback(configuredCarrier, Boolean(selectedLock))
     : legacyLifecycleUx;
@@ -4765,7 +4771,15 @@ function buildOplAgentPackageStatus(
     && configuredCarrier.carrier.precedence === 'exact_single_source'
     && !selectedLock,
   );
-  const operationalReady = configuredCarrier
+  const neutralCarrierReady = Boolean(
+    carrierReadiness
+    && carrierReadiness.installed
+    && carrierReadiness.physical_status === 'available'
+    && carrierReadiness.callability === 'callable',
+  );
+  const operationalReady = carrierReadiness
+    ? neutralCarrierReady
+    : configuredCarrier
     ? configuredCarrierReady
     : Boolean(
         selectedLock
@@ -4775,7 +4789,15 @@ function buildOplAgentPackageStatus(
         && runtimeSourceReadiness.operational_ready
         && managedPolicyOperational,
       );
-  const launchBlockedReason = configuredCarrier
+  const launchBlockedReason = carrierReadiness
+    ? neutralCarrierReady
+      ? null
+      : carrierReadiness.physical_status !== 'available'
+        ? 'carrier_source_unavailable'
+        : carrierReadiness.callability !== 'callable'
+          ? 'carrier_disabled'
+          : 'carrier_not_installed'
+    : configuredCarrier
     ? selectedLock
       ? 'configured_native_carrier_legacy_state_present'
       : configuredCarrierReady
@@ -4846,9 +4868,17 @@ function buildOplAgentPackageStatus(
       ?? (policyCurrentness.status === 'drifted' ? 'managed_policy_drifted' : null)
       ?? (dependencyObservationReason ? `package_dependency_${dependencyObservationReason}` : null);
   const launchState = deriveAgentPackageLaunchState({
-    installed: Boolean(selectedLock || configuredCarrier?.status === 'installed'),
+    installed: Boolean(
+      selectedLock
+      || configuredCarrier?.status === 'installed'
+      || carrierReadiness?.installed,
+    ),
     exposure_state: selectedLock?.exposure_state
-      ?? (configuredCarrier?.status === 'installed' ? 'visible' : 'not_installed'),
+      ?? (
+        configuredCarrier?.status === 'installed' || carrierReadiness?.installed
+          ? 'visible'
+          : 'not_installed'
+      ),
     operational_ready: operationalReady,
     launch_blocked_reason: operationalReady ? null : launchBlockedReason,
     degraded_reason: degradedReason,
@@ -4860,6 +4890,7 @@ function buildOplAgentPackageStatus(
       surface_kind: 'opl_agent_package_status',
       status: packageId && installedPackages.length === 0
         && configuredCarrier?.status !== 'installed'
+        && !carrierReadiness?.installed
         ? configuredCarrier?.status === 'physical_unavailable'
           ? 'attention_needed'
           : 'not_installed'
@@ -4868,6 +4899,7 @@ function buildOplAgentPackageStatus(
           : 'available',
       package_id: packageId ?? null,
       installed_package_count: configuredCarrier?.status === 'installed'
+        || carrierReadiness?.installed
         ? Math.max(1, installedPackages.length)
         : installedPackages.length,
       installed_packages: installedPackages,
