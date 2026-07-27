@@ -500,6 +500,22 @@ function packageHealthCommand(moduleId: string, checkoutPath: string) {
     ?? null;
 }
 
+function packageBootstrapCommand(moduleId: string, checkoutPath: string) {
+  const spec = resolveOplDomainModuleSpec(moduleId);
+  const packageBootstrap = spec.package_bootstrap_command?.(checkoutPath) ?? null;
+  if (packageBootstrap) return packageBootstrap;
+
+  const fallback = spec.bootstrap_command?.(checkoutPath) ?? null;
+  const scriptPath = fallback?.command === 'bash' ? fallback.args[0] : null;
+  if (!scriptPath) return null;
+
+  const resolvedRoot = path.resolve(checkoutPath);
+  const resolvedScript = path.resolve(scriptPath);
+  if (!resolvedScript.startsWith(`${resolvedRoot}${path.sep}`)) return null;
+  const scriptStat = lstatOrNull(resolvedScript);
+  return scriptStat?.isFile() && !scriptStat.isSymbolicLink() ? fallback : null;
+}
+
 function mirrorPreparationSourceModes(sourceRoot: string, targetRoot: string) {
   const sourceStat = fs.lstatSync(sourceRoot);
   if (sourceStat.isSymbolicLink()) return;
@@ -596,7 +612,7 @@ function prepareRuntimeSource(
   if (managedPackageScope) {
     fs.mkdirSync(commandEnv.HOME!, { recursive: true });
   }
-  const bootstrapSpec = spec.package_bootstrap_command?.(preparationCheckoutPath) ?? null;
+  const bootstrapSpec = packageBootstrapCommand(moduleId, preparationCheckoutPath);
   const bootstrap = includeBootstrap && bootstrapSpec
     ? runRequiredCommand(
       moduleId,
