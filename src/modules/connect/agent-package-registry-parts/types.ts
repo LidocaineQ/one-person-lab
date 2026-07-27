@@ -222,6 +222,7 @@ export type AgentPackageConfiguredCodexPluginCarrierDescriptor = {
   carrier: {
     kind: 'codex_plugin_manager';
     pluginId: string;
+    marketplaceSource: string | null;
   };
   executor: {
     route: 'codex_cli';

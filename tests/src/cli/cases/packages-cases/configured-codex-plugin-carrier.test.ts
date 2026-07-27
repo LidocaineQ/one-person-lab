@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 import {
@@ -31,6 +30,7 @@ const descriptor = {
   carrier: {
     kind: 'codex_plugin_manager' as const,
     pluginId: pluginSelector,
+    marketplaceSource: null,
   },
   executor: {
     route: 'codex_cli' as const,
@@ -39,7 +39,7 @@ const descriptor = {
   publicationRef: 'oci://example.invalid/third-party-research:latest-stable',
 };
 
-function configuredManifest() {
+function configuredManifest(marketplaceSource: string | null = null) {
   const manifest = agentPackageManifest();
   manifest.codex_surface = {
     ...manifest.codex_surface,
@@ -48,6 +48,7 @@ function configuredManifest() {
       plugin_selector: pluginSelector,
       executor_route: 'codex_cli',
       publication_ref: descriptor.publicationRef,
+      ...(marketplaceSource ? { marketplace_source: marketplaceSource } : {}),
     },
   } as typeof manifest.codex_surface & Record<string, unknown>;
   return manifest;
@@ -148,7 +149,11 @@ test('configured Codex carrier keeps native failures Package-local and rejects s
     () => runConfiguredCodexPluginCarrier({
       descriptor: {
         ...descriptor,
-        carrier: { kind: 'codex_plugin_manager', pluginId: '--help' },
+        carrier: {
+          kind: 'codex_plugin_manager',
+          pluginId: '--help',
+          marketplaceSource: null,
+        },
       },
       action: 'install',
       runner: () => {
@@ -209,8 +214,19 @@ import fs from 'node:fs';
 const args = process.argv.slice(2);
 const stateFile = process.env.FIXTURE_PLUGIN_STATE;
 const sourcePath = process.env.FIXTURE_PLUGIN_SOURCE;
-let state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : { installed: false, version: '1.0.0' }; // reuse-first: allow - disposable native CLI fixture owns this two-field state file.
-if (args[0] === 'plugin' && args[1] === 'add') {
+let state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : { installed: false, version: '1.0.0', marketplaceSource: null }; // reuse-first: disposable native CLI fixture owns this transient state.
+if (args.join(' ') === 'plugin marketplace list --json') {
+  process.stdout.write(JSON.stringify({
+    marketplaces: state.marketplaceSource ? [{
+      marketplaceSource: { sourceType: 'local', source: state.marketplaceSource },
+    }] : [],
+  }));
+} else if (args[0] === 'plugin' && args[1] === 'marketplace' && args[2] === 'add') {
+  state = { ...state, marketplaceSource: args[3] };
+  fs.writeFileSync(stateFile, JSON.stringify(state));
+  process.stdout.write(JSON.stringify({ status: 'ok' }));
+} else if (args[0] === 'plugin' && args[1] === 'add') {
+  if (!state.marketplaceSource) process.exitCode = 3;
   state = { installed: true, version: state.version === '1.0.0' ? '1.0.1' : state.version };
   fs.writeFileSync(stateFile, JSON.stringify(state));
   process.stdout.write(JSON.stringify({ status: 'ok' }));
@@ -237,6 +253,68 @@ if (args[0] === 'plugin' && args[1] === 'add') {
   fs.chmodSync(binary, 0o755);
 }
 
+test('configured Codex carrier ensures a descriptor-owned marketplace before native add', () => {
+  const calls: string[][] = [];
+  let marketplaceConfigured = false;
+  let installed = false;
+  const carrier = runConfiguredCodexPluginCarrier({
+    descriptor: {
+      ...descriptor,
+      carrier: {
+        ...descriptor.carrier,
+        marketplaceSource: 'owner/third-party-marketplace@release',
+      },
+    },
+    action: 'install',
+    runner: ({ args }) => {
+      calls.push(args);
+      if (args.join(' ') === 'plugin marketplace list --json') {
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            marketplaces: marketplaceConfigured ? [{
+              marketplaceSource: {
+                source: 'owner/third-party-marketplace@release',
+              },
+            }] : [],
+          }),
+          stderr: '',
+          error: null,
+        };
+      }
+      if (args.join(' ') === 'plugin marketplace add owner/third-party-marketplace@release --json') {
+        marketplaceConfigured = true;
+        return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+      }
+      if (args.join(' ') === `plugin add ${pluginSelector} --json`) {
+        installed = true;
+        return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+      }
+      if (args.join(' ') === 'plugin list --json') {
+        return {
+          status: 0,
+          stdout: installed ? pluginList([{
+            pluginId: pluginSelector,
+            version: '1.0.1',
+            sourcePath: '/fixture/source',
+            marketplaceSource: 'third-party-marketplace',
+          }]) : pluginList([]),
+          stderr: '',
+          error: null,
+        };
+      }
+      return { status: 1, stdout: '', stderr: `unexpected command: ${args.join(' ')}`, error: null };
+    },
+  });
+  assert.equal(carrier.status, 'installed');
+  assert.deepEqual(calls, [
+    ['plugin', 'marketplace', 'list', '--json'],
+    ['plugin', 'marketplace', 'add', 'owner/third-party-marketplace@release', '--json'],
+    ['plugin', 'add', pluginSelector, '--json'],
+    ['plugin', 'list', '--json'],
+  ]);
+});
+
 test('generic Package lifecycle and read-model use configured native carrier without OPL private state writes', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-generic-'));
   const stateDir = path.join(root, 'opl-state');
@@ -249,7 +327,7 @@ test('generic Package lifecycle and read-model use configured native carrier wit
   const registryUrl = pathToFileURL(registryPath).toString();
   writePluginSource(pluginSource, 'callable');
   writeFakeCodex(binary);
-  fs.writeFileSync(manifestPath, formatJsonPayload(configuredManifest()));
+  fs.writeFileSync(manifestPath, formatJsonPayload(configuredManifest('fixture-carrier')));
   fs.writeFileSync(registryPath, formatJsonPayload(registryPayload(
     manifestUrl.replace(/\/manifest\.json$/, ''),
   )));
@@ -356,10 +434,6 @@ function writeNativeMarketplace(root: string, version: string) {
   }));
 }
 
-function runCodex(binary: string, args: string[], env: NodeJS.ProcessEnv) {
-  return execFileSync(binary, args, { encoding: 'utf8', env });
-}
-
 test('configured Codex carrier executes native install/list/update/repair/remove with fresh readback', {
   skip: process.env.OPL_RUN_CODEX_PLUGIN_CARRIER_INTEGRATION === '1'
     ? false
@@ -372,14 +446,30 @@ test('configured Codex carrier executes native install/list/update/repair/remove
   const binary = process.env.OPL_CODEX_PLUGIN_BIN?.trim() || 'codex';
   fs.mkdirSync(codexHome, { recursive: true });
   const env = { ...process.env, CODEX_HOME: codexHome, OPL_STATE_DIR: oplStateDir };
+  const nativeDescriptor = {
+    ...descriptor,
+    carrier: {
+      ...descriptor.carrier,
+      marketplaceSource: marketplaceRoot,
+    },
+  };
   try {
     writeNativeMarketplace(marketplaceRoot, '1.0.0');
-    runCodex(binary, ['plugin', 'marketplace', 'add', marketplaceRoot, '--json'], env);
 
-    const absent = runConfiguredCodexPluginCarrier({ descriptor, action: 'list', binary, env });
+    const absent = runConfiguredCodexPluginCarrier({
+      descriptor: nativeDescriptor,
+      action: 'list',
+      binary,
+      env,
+    });
     assert.equal(absent.status, 'physical_unavailable');
 
-    const installed = runConfiguredCodexPluginCarrier({ descriptor, action: 'install', binary, env });
+    const installed = runConfiguredCodexPluginCarrier({
+      descriptor: nativeDescriptor,
+      action: 'install',
+      binary,
+      env,
+    });
     assert.equal(installed.status, 'installed');
     assert.equal(installed.installed_version, '1.0.0');
     assert.equal(installed.executor.status, 'callable');
@@ -395,23 +485,43 @@ test('configured Codex carrier executes native install/list/update/repair/remove
       'SKILL.md',
     );
     fs.rmSync(requiredSkill);
-    const drifted = runConfiguredCodexPluginCarrier({ descriptor, action: 'list', binary, env });
+    const drifted = runConfiguredCodexPluginCarrier({
+      descriptor: nativeDescriptor,
+      action: 'list',
+      binary,
+      env,
+    });
     assert.equal(drifted.status, 'installed');
     assert.equal(drifted.executor.status, 'attention_needed');
     assert.match(drifted.reason ?? '', /required_skill_unavailable/);
 
     writeNativeMarketplace(marketplaceRoot, '1.0.1');
-    const updated = runConfiguredCodexPluginCarrier({ descriptor, action: 'update', binary, env });
+    const updated = runConfiguredCodexPluginCarrier({
+      descriptor: nativeDescriptor,
+      action: 'update',
+      binary,
+      env,
+    });
     assert.equal(updated.status, 'installed');
     assert.equal(updated.installed_version, '1.0.1');
     assert.equal(fs.existsSync(oplStateDir), false);
 
-    const repaired = runConfiguredCodexPluginCarrier({ descriptor, action: 'repair', binary, env });
+    const repaired = runConfiguredCodexPluginCarrier({
+      descriptor: nativeDescriptor,
+      action: 'repair',
+      binary,
+      env,
+    });
     assert.equal(repaired.status, 'installed');
     assert.equal(repaired.installed_version, '1.0.1');
     assert.equal(fs.existsSync(oplStateDir), false);
 
-    const removed = runConfiguredCodexPluginCarrier({ descriptor, action: 'remove', binary, env });
+    const removed = runConfiguredCodexPluginCarrier({
+      descriptor: nativeDescriptor,
+      action: 'remove',
+      binary,
+      env,
+    });
     assert.equal(removed.status, 'physical_unavailable');
     assert.equal(removed.executor.status, 'attention_needed');
     assert.equal(fs.existsSync(path.join(oplStateDir, 'agent-package-locks.json')), false);

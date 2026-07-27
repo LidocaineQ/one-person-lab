@@ -1286,6 +1286,25 @@ function normalizeConfiguredCodexPluginCarrier(
       },
     );
   }
+  const marketplaceSourceValue = value.marketplace_source ?? normalizedCarrier?.marketplaceSource;
+  const marketplaceSource = marketplaceSourceValue === undefined || marketplaceSourceValue === null
+    ? null
+    : assertStringValue(
+        marketplaceSourceValue,
+        'codex_surface.configured_codex_plugin_carrier.marketplace_source',
+      );
+  if (marketplaceSource?.startsWith('-') || marketplaceSource?.includes('\0')) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Configured Codex Plugin Manager marketplace source is invalid.',
+      {
+        package_id: input.packageId,
+        marketplace_source: marketplaceSource,
+        manifest_url: input.manifestUrl,
+        failure_code: 'configured_codex_plugin_carrier_descriptor_invalid',
+      },
+    );
+  }
   const normalizedRequiredSkills = stringList(normalizedExecutor?.requiredSkillIds);
   if (normalizedExecutor && (
     normalizedRequiredSkills.length !== input.requiredSkillIds.length
@@ -1306,6 +1325,7 @@ function normalizeConfiguredCodexPluginCarrier(
     carrier: {
       kind: 'codex_plugin_manager',
       pluginId: pluginSelector,
+      marketplaceSource,
     },
     executor: {
       route: 'codex_cli',

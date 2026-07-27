@@ -23,6 +23,10 @@ type CodexPluginListEntry = {
   marketplaceSource: string | null;
 };
 
+type CodexPluginMarketplaceListEntry = {
+  marketplaceSource: string | null;
+};
+
 export type ConfiguredCodexPluginCarrierObservedSource = {
   plugin_id: string;
   marketplace_source: string | null;
@@ -150,6 +154,27 @@ function parsePluginList(value: string, packageId: string): CodexPluginListEntry
   });
 }
 
+function parseMarketplaceList(value: string, packageId: string): CodexPluginMarketplaceListEntry[] {
+  const parsed = parseJsonText(value);
+  const readback = isRecord(parsed) ? parsed : null;
+  if (!readback || !Array.isArray(readback.marketplaces)) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Configured Codex Plugin Manager marketplace readback has no marketplaces array.',
+      {
+        package_id: packageId,
+        failure_code: 'configured_codex_plugin_carrier_marketplace_readback_invalid_shape',
+      },
+    );
+  }
+  return readback.marketplaces.flatMap((value) => {
+    const entry = isRecord(value) ? value : null;
+    const marketplaceSource = isRecord(entry?.marketplaceSource) ? entry.marketplaceSource : null;
+    if (!entry) return [];
+    return [{ marketplaceSource: stringValue(marketplaceSource?.source) }];
+  });
+}
+
 function missingRequiredSkills(sourcePath: string | null, requiredSkillIds: string[]) {
   if (!sourcePath) return requiredSkillIds;
   return requiredSkillIds.filter((skillId) => {
@@ -195,10 +220,18 @@ function nativeArgs(action: ConfiguredCodexPluginCarrierAction, pluginId: string
   return ['plugin', 'add', pluginId, '--json'];
 }
 
+function ensureMarketplaceArgs(source: string) {
+  return ['plugin', 'marketplace', 'add', source, '--json'];
+}
+
 function assertDescriptor(descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor) {
   if (!descriptor.packageId.trim()
     || !/^[A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*$/
-      .test(descriptor.carrier.pluginId)) {
+      .test(descriptor.carrier.pluginId)
+    || (descriptor.carrier.marketplaceSource !== null
+      && (!descriptor.carrier.marketplaceSource.trim()
+        || descriptor.carrier.marketplaceSource.startsWith('-')
+        || descriptor.carrier.marketplaceSource.includes('\0')))) {
     throw new FrameworkContractError(
       'contract_shape_invalid',
       'Configured Codex Plugin Manager descriptor has an invalid identity or plugin selector.',
@@ -261,6 +294,27 @@ export function runConfiguredCodexPluginCarrier(input: {
   const env = { ...process.env, ...input.env };
   const actionArgs = nativeArgs(input.action, input.descriptor.carrier.pluginId);
   const dispatchAction = input.action !== 'list' && input.dryRun !== true;
+  const marketplaceSource = input.descriptor.carrier.marketplaceSource;
+  if (dispatchAction && marketplaceSource) {
+    const marketplaceListArgs = ['plugin', 'marketplace', 'list', '--json'];
+    const marketplaceList = runner({ binary, args: marketplaceListArgs, env });
+    const marketplacePresent = marketplaceList.status === 0 && !marketplaceList.error
+      ? parseMarketplaceList(marketplaceList.stdout, input.descriptor.packageId)
+        .some((entry) => entry.marketplaceSource === marketplaceSource)
+      : false;
+    if (!marketplacePresent) {
+      const marketplaceArgs = ensureMarketplaceArgs(marketplaceSource);
+      const marketplaceResult = runner({ binary, args: marketplaceArgs, env });
+      if (marketplaceResult.status !== 0 || marketplaceResult.error) {
+        commandFailure({
+          packageId: input.descriptor.packageId,
+          action: input.action,
+          args: marketplaceArgs,
+          result: marketplaceResult,
+        });
+      }
+    }
+  }
   if (dispatchAction) {
     const actionResult = runner({ binary, args: actionArgs, env });
     if (actionResult.status !== 0 || actionResult.error) {
