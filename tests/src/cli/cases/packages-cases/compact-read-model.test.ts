@@ -73,35 +73,11 @@ test('package read models stay compact without exposing lifecycle history', (con
     const list = runCli(['packages', 'list'], env) as any;
     assert.equal(Object.hasOwn(status.opl_agent_package_status, 'lifecycle_receipts'), false);
     assert.equal(Object.hasOwn(status.opl_agent_package_status, 'lifecycle_history'), false);
+    assert.equal(Object.hasOwn(status.opl_agent_package_status, 'lifecycle_receipt_summary'), false);
     assert.equal(Object.hasOwn(list.opl_agent_packages, 'lifecycle_receipts'), false);
     assert.equal(Object.hasOwn(list.opl_agent_packages, 'lifecycle_history'), false);
-
-    const packageReceiptCount = ledger.receipts.filter(
-      (receipt: any) => receipt.package_id === 'third.party.research',
-    ).length;
-    const summary = status.opl_agent_package_status.lifecycle_receipt_summary;
-    assert.equal(summary.total_count, packageReceiptCount);
-    assert.equal(summary.latest_receipt_ref, packageHistory[0].receipt_ref);
-    assert.deepEqual(Object.keys(summary.latest_receipt).sort(), [
-      'action',
-      'action_status',
-      'package_id',
-      'package_lock_ref',
-      'receipt_ref',
-      'recorded_at',
-      'rollback_ref',
-      'writes_performed',
-    ]);
-    assert.equal(summary.current_receipts[0].receipt_ref, installedReceiptRef);
-    assert.equal(summary.current_receipts[0].receipt.action, 'install');
-    assert.equal(Object.hasOwn(summary, 'history_included'), false);
-    assert.equal(Object.hasOwn(summary, 'history_detail_surface'), false);
-    assert.equal(Object.hasOwn(summary, 'order'), false);
-    assert.equal(list.opl_agent_packages.lifecycle_receipt_count, ledger.receipts.length);
-    assert.equal(
-      list.opl_agent_packages.lifecycle_receipt_summary.total_count,
-      ledger.receipts.length,
-    );
+    assert.equal(Object.hasOwn(list.opl_agent_packages, 'lifecycle_receipt_count'), false);
+    assert.equal(Object.hasOwn(list.opl_agent_packages, 'lifecycle_receipt_summary'), false);
 
     const compactStatusBytes = Buffer.byteLength(JSON.stringify(status));
     const compactListBytes = Buffer.byteLength(JSON.stringify(list));

@@ -4566,52 +4566,6 @@ export type OplAgentPackageStatusInput = {
   detail?: 'fast' | 'full';
 };
 
-function lifecycleReceiptSummary(receipt: AgentPackageLifecycleReceipt | null) {
-  return receipt
-    ? {
-        receipt_ref: receipt.receipt_ref,
-        package_id: receipt.package_id,
-        action: receipt.action,
-        action_status: receipt.action_status,
-        recorded_at: receipt.recorded_at,
-        writes_performed: receipt.writes_performed,
-        package_lock_ref: receipt.package_lock_ref,
-        rollback_ref: receipt.rollback_ref,
-      }
-    : null;
-}
-
-function relevantLifecycleReceipts(
-  receipts: AgentPackageLifecycleReceipt[],
-  packageId: string | null,
-) {
-  return receipts.filter((receipt) => !packageId || receipt.package_id === packageId);
-}
-
-function lifecycleReceiptSummaryReadback(input: {
-  receipts: AgentPackageLifecycleReceipt[];
-  locks: AgentPackageLock[];
-  packageId: string | null;
-}) {
-  const relevantReceipts = relevantLifecycleReceipts(input.receipts, input.packageId);
-  const receiptsByRef = new Map(
-    input.receipts.map((receipt) => [receipt.receipt_ref, receipt]),
-  );
-  const latestReceipt = relevantReceipts[0] ?? null;
-  return {
-    surface_kind: 'opl_agent_package_lifecycle_receipt_summary.v1',
-    package_id: input.packageId,
-    total_count: relevantReceipts.length,
-    latest_receipt_ref: latestReceipt?.receipt_ref ?? null,
-    latest_receipt: lifecycleReceiptSummary(latestReceipt),
-    current_receipts: input.locks.map((lock) => ({
-      package_id: lock.package_id,
-      receipt_ref: lock.action_receipt_id,
-      receipt: lifecycleReceiptSummary(receiptsByRef.get(lock.action_receipt_id) ?? null),
-    })),
-  };
-}
-
 function configuredCarrierReadbacks(
   registryCache: AgentPackageRegistryCache | null,
   packageId: string | null = null,
@@ -4856,11 +4810,6 @@ function buildOplAgentPackageStatus(
     degraded_reason: degradedReason,
     unavailable_reason: unavailableReason,
   });
-  const lifecycleReceiptReadback = lifecycleReceiptSummaryReadback({
-    receipts: lifecycleLedger.receipts,
-    locks: installedPackages,
-    packageId: packageId ?? null,
-  });
   return {
     version: 'g2',
     opl_agent_package_status: {
@@ -4899,7 +4848,6 @@ function buildOplAgentPackageStatus(
       allowed_when_blocked: ['status', 'doctor', 'repair'],
       repair_action: repairAction,
       home_shortcut_preferences: homeShortcutPreferences,
-      lifecycle_receipt_summary: lifecycleReceiptReadback,
       owner_route_readback: input.detail === 'fast'
         ? {
             surface_kind: 'opl_agent_package_owner_route_readback',
@@ -4959,11 +4907,6 @@ export function listOplAgentPackages(input: {
     packages: lockIndex.packages,
     receipts: lifecycleLedger.receipts,
   });
-  const lifecycleReceiptReadback = lifecycleReceiptSummaryReadback({
-    receipts: lifecycleLedger.receipts,
-    locks: lockIndex.packages,
-    packageId: null,
-  });
   const directory = buildAgentPackageDirectory({
     registryCache,
     locks: lockIndex.packages,
@@ -5002,8 +4945,6 @@ export function listOplAgentPackages(input: {
       lifecycle_action_refs: lifecycleUx.lifecycle_action_refs,
       lifecycle_ux: lifecycleUx,
       home_shortcut_preferences: homeShortcutPreferences,
-      lifecycle_receipt_count: lifecycleLedger.receipts.length,
-      lifecycle_receipt_summary: lifecycleReceiptReadback,
       owner_route_readback: input.detail === 'fast'
         ? {
             surface_kind: 'opl_agent_package_owner_route_readback',

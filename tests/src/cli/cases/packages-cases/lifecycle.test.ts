@@ -375,7 +375,6 @@ test('packages refreshes and validates without private lifecycle state before in
             source: string;
             installed: boolean;
           }>;
-          lifecycle_receipt_count: number;
           registry_cache: { entry_count: number };
           directory: {
             entries: Array<{
@@ -420,7 +419,6 @@ test('packages refreshes and validates without private lifecycle state before in
         installed: true,
         }],
       );
-      assert.equal(list.opl_agent_packages.lifecycle_receipt_count, 1);
       assert.equal(list.opl_agent_packages.registry_cache.entry_count, 1);
       const installedDirectoryEntry = list.opl_agent_packages.directory.entries.find(
         (entry) => entry.package_id === 'third.party.research',

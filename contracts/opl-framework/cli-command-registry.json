@@ -3693,8 +3693,6 @@
               "conditions",
               "recommended_action",
               "lifecycle_ux",
-              "lifecycle_receipt_count",
-              "lifecycle_receipt_summary",
               "owner_route_readback",
               "authority_boundary"
             ],
@@ -3743,26 +3741,6 @@
                       ],
                       "additionalProperties": true
                     }
-                  }
-                }
-              },
-              "lifecycle_receipt_summary": {
-                "type": "object",
-                "required": [
-                  "surface_kind",
-                  "package_id",
-                  "total_count",
-                  "latest_receipt_ref",
-                  "latest_receipt",
-                  "current_receipts"
-                ],
-                "additionalProperties": true,
-                "properties": {
-                  "surface_kind": {
-                    "const": "opl_agent_package_lifecycle_receipt_summary.v1"
-                  },
-                  "current_receipts": {
-                    "type": "array"
                   }
                 }
               }
@@ -3832,33 +3810,11 @@
               "status",
               "installed_package_count",
               "installed_packages",
-              "lifecycle_receipt_summary",
               "owner_route_readback",
               "authority_boundary"
             ],
             "additionalProperties": true,
-            "properties": {
-              "lifecycle_receipt_summary": {
-                "type": "object",
-                "required": [
-                  "surface_kind",
-                  "package_id",
-                  "total_count",
-                  "latest_receipt_ref",
-                  "latest_receipt",
-                  "current_receipts"
-                ],
-                "additionalProperties": true,
-                "properties": {
-                  "surface_kind": {
-                    "const": "opl_agent_package_lifecycle_receipt_summary.v1"
-                  },
-                  "current_receipts": {
-                    "type": "array"
-                  }
-                }
-              }
-            }
+            "properties": {}
           }
         }
       },
