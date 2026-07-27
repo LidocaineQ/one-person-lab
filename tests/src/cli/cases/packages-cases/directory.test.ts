@@ -143,6 +143,59 @@ test('installed Codex plugins project owner descriptors without a registry entry
   }
 });
 
+test('installed Codex plugins fall back to the native plugin manifest without package-id tables', () => {
+  const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-plugin-descriptor-'));
+  const skillRoot = path.join(sourceRoot, 'skills', 'native-capability');
+  fs.mkdirSync(skillRoot, { recursive: true });
+  fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), '# Native capability\n');
+  fs.mkdirSync(path.join(sourceRoot, '.codex-plugin'));
+  fs.writeFileSync(
+    path.join(sourceRoot, '.codex-plugin', 'plugin.json'),
+    formatJsonPayload({
+      name: 'unknown-native-plugin',
+      version: '1.2.3',
+      description: 'Unknown native plugin',
+      author: { name: 'Example owner' },
+      repository: 'https://example.test/unknown-native-plugin',
+      skills: './skills/',
+      interface: {
+        displayName: 'Unknown Native Plugin',
+        longDescription: 'A future plugin discovered from its own carrier manifest.',
+      },
+    }),
+  );
+  try {
+    const discovered = discoverInstalledCodexPluginDescriptors({
+      runner: () => ({
+        status: 0,
+        stdout: JSON.stringify({
+          installed: [{
+            pluginId: 'unknown-native-plugin@example-marketplace',
+            version: '1.2.3',
+            enabled: true,
+            installed: true,
+            source: { source: 'local', path: sourceRoot },
+            marketplaceSource: { sourceType: 'local', source: '/tmp/example-marketplace' },
+          }],
+        }),
+        stderr: '',
+        error: null,
+      }),
+    });
+    const descriptor = discovered.get('unknown-native-plugin');
+    assert.ok(descriptor);
+    assert.equal(descriptor.manifest.display_name, 'Unknown Native Plugin');
+    assert.equal(descriptor.manifest.publisher, 'Example owner');
+    assert.deepEqual(descriptor.manifest.required_skill_ids, ['native-capability']);
+    assert.equal(descriptor.manifest.configured_codex_plugin_carrier?.carrier.pluginId, 'unknown-native-plugin@example-marketplace');
+    assert.equal(descriptor.manifest.content_lock_paths.length, 0);
+    assert.equal(descriptor.manifest.rollback_ref, 'rollback-ref:unknown-native-plugin/unavailable');
+    assert.equal(descriptor.manifestPath, path.join(sourceRoot, '.codex-plugin', 'plugin.json'));
+  } finally {
+    fs.rmSync(sourceRoot, { recursive: true, force: true });
+  }
+});
+
 test('invalid installed Codex descriptors degrade locally without hiding valid plugins', () => {
   const validRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-installed-plugin-valid-'));
   const invalidRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-installed-plugin-invalid-'));

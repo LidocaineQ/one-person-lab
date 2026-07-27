@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
+import { canonicalAgentPackageId } from '../agent-package-identity.ts';
 import { normalizePackageManifest } from './manifest-normalizers.ts';
 import type {
   AgentPackageConfiguredCodexPluginCarrierDescriptor,
@@ -74,16 +75,106 @@ function defaultRunner(input: {
   };
 }
 
-function readDescriptor(entry: InstalledPluginEntry): InstalledCodexPluginDescriptor | null {
-  const manifestPath = path.join(entry.sourcePath, 'opl-package.json');
-  try {
-    if (!fs.statSync(manifestPath).isFile()) return null;
-    const manifest = normalizePackageManifest(
-      JSON.parse(fs.readFileSync(manifestPath, 'utf8')),
-      pathToFileURL(manifestPath).toString(),
-    );
-    const carrier: AgentPackageConfiguredCodexPluginCarrierDescriptor = {
-      packageId: manifest.package_id,
+function pluginPackageId(pluginId: string) {
+  const bareName = pluginId.split('@', 1)[0]?.trim().toLowerCase() ?? '';
+  const normalized = bareName.replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+  return canonicalAgentPackageId(normalized) ?? normalized;
+}
+
+function pluginSkillIds(sourcePath: string, manifest: Record<string, unknown>) {
+  const declared = manifest.skills;
+  const roots = Array.isArray(declared)
+    ? declared.filter((value): value is string => typeof value === 'string')
+    : typeof declared === 'string'
+      ? [declared]
+      : ['./skills/'];
+  const skillIds = new Set<string>();
+  for (const root of roots) {
+    if (!root.trim() || root.startsWith('/') || root.includes('\0')) continue;
+    const skillRoot = path.resolve(sourcePath, root);
+    if (skillRoot !== sourcePath && !skillRoot.startsWith(`${path.resolve(sourcePath)}${path.sep}`)) continue;
+    try {
+      for (const entry of fs.readdirSync(skillRoot, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const skillFile = path.join(skillRoot, entry.name, 'SKILL.md');
+        if (fs.statSync(skillFile).isFile()) skillIds.add(entry.name);
+      }
+    } catch {
+      // An installed plugin may expose tools or commands without a Skill directory.
+    }
+  }
+  return [...skillIds].sort();
+}
+
+function normalizeInstalledPluginManifest(
+  entry: InstalledPluginEntry,
+  pluginPayload: Record<string, unknown>,
+  manifestPath: string,
+): AgentPackageManifest {
+  const packageId = pluginPackageId(entry.pluginId);
+  if (!packageId) throw new Error('plugin package id is empty');
+  const interfacePayload = isRecord(pluginPayload.interface) ? pluginPayload.interface : {};
+  const displayName = stringValue(interfacePayload.displayName)
+    ?? stringValue(pluginPayload.name)
+    ?? packageId;
+  const description = stringValue(interfacePayload.longDescription)
+    ?? stringValue(pluginPayload.description)
+    ?? `${displayName} installed Codex plugin.`;
+  const requiredSkillIds = pluginSkillIds(entry.sourcePath, pluginPayload);
+  const sourceRepo = stringValue(pluginPayload.repository) ?? stringValue(pluginPayload.homepage);
+  const version = entry.version
+    ?? stringValue(pluginPayload.version)
+    ?? '0.0.0';
+  return {
+    package_id: packageId,
+    agent_id: packageId,
+    package_role: 'standard_agent',
+    display_name: displayName,
+    publisher: stringValue(isRecord(pluginPayload.author) ? pluginPayload.author.name : null)
+      ?? 'installed-plugin',
+    version,
+    owner_language_version: null,
+    source: 'installed_descriptor',
+    source_repo: sourceRepo,
+    source_commit: null,
+    carrier_source_commit: null,
+    verified_payload_source_commit: null,
+    codex_surface: {
+      plugin_id: entry.pluginId,
+      plugin_source_path: entry.sourcePath,
+      required_skill_ids: requiredSkillIds,
+      codex_default_exposure: entry.enabled,
+    },
+    codex_default_exposure: entry.enabled,
+    skill_packs: [],
+    entrypoints: [],
+    health_check: {},
+    permissions: [],
+    distribution_payload: null,
+    update_channel: 'codex_plugin_manager',
+    // The native carrier owns lifecycle history. This is the existing explicit
+    // no-rollback sentinel, not a locally manufactured rollback receipt.
+    rollback_ref: `rollback-ref:${packageId}/unavailable`,
+    codex_visible_entry: packageId,
+    required_skill_ids: requiredSkillIds,
+    optional_skill_refs: [],
+    presentation: null,
+    plugin_id: entry.pluginId,
+    plugin_source_path: entry.sourcePath,
+    plugin_payload_manifest_url: pathToFileURL(manifestPath).toString(),
+    plugin_payload_manifest_sha256: null,
+    plugin_payload_cache_path: null,
+    profile_surface: null,
+    managed_policy_surface: null,
+    runtime_source_carrier: null,
+    managed_update_source: null,
+    capability_dependencies: [],
+    capability_provider: null,
+    content_digest: null,
+    content_lock_canonicalization: null,
+    content_lock_paths: [],
+    configured_codex_plugin_carrier: {
+      packageId,
       carrier: {
         kind: 'codex_plugin_manager',
         pluginId: entry.pluginId,
@@ -91,10 +182,46 @@ function readDescriptor(entry: InstalledPluginEntry): InstalledCodexPluginDescri
       },
       executor: {
         route: 'codex_cli',
-        requiredSkillIds: [...manifest.required_skill_ids],
+        requiredSkillIds: [...requiredSkillIds],
       },
       publicationRef: null,
-    };
+    },
+    app_contributions: null,
+  };
+}
+
+function readDescriptor(entry: InstalledPluginEntry): InstalledCodexPluginDescriptor | null {
+  const ownerManifestPath = path.join(entry.sourcePath, 'opl-package.json');
+  const pluginManifestPath = path.join(entry.sourcePath, '.codex-plugin', 'plugin.json');
+  try {
+    let manifestPath = ownerManifestPath;
+    let manifest: AgentPackageManifest;
+    if (fs.existsSync(ownerManifestPath) && fs.statSync(ownerManifestPath).isFile()) {
+      manifest = normalizePackageManifest(
+        JSON.parse(fs.readFileSync(ownerManifestPath, 'utf8')),
+        pathToFileURL(ownerManifestPath).toString(),
+      );
+    } else {
+      if (!fs.existsSync(pluginManifestPath) || !fs.statSync(pluginManifestPath).isFile()) return null;
+      manifestPath = pluginManifestPath;
+      const pluginPayload = JSON.parse(fs.readFileSync(pluginManifestPath, 'utf8'));
+      if (!isRecord(pluginPayload)) return null;
+      manifest = normalizeInstalledPluginManifest(entry, pluginPayload, pluginManifestPath);
+    }
+    const carrier = manifest.configured_codex_plugin_carrier
+      ?? {
+        packageId: manifest.package_id,
+        carrier: {
+          kind: 'codex_plugin_manager' as const,
+          pluginId: entry.pluginId,
+          marketplaceSource: entry.marketplaceSource,
+        },
+        executor: {
+          route: 'codex_cli' as const,
+          requiredSkillIds: [...manifest.required_skill_ids],
+        },
+        publicationRef: null,
+      };
     return {
       manifest,
       manifestPath,
