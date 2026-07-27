@@ -154,6 +154,12 @@ function parsePluginList(value: string, packageId: string): CodexPluginListEntry
   });
 }
 
+function marketplaceListEntry(value: unknown): CodexPluginMarketplaceListEntry | null {
+  if (!isRecord(value)) return null;
+  const marketplaceSource = isRecord(value.marketplaceSource) ? value.marketplaceSource : null;
+  return { marketplaceSource: stringValue(marketplaceSource?.source) };
+}
+
 function parseMarketplaceList(value: string, packageId: string): CodexPluginMarketplaceListEntry[] {
   const parsed = parseJsonText(value);
   const readback = isRecord(parsed) ? parsed : null;
@@ -167,12 +173,9 @@ function parseMarketplaceList(value: string, packageId: string): CodexPluginMark
       },
     );
   }
-  return readback.marketplaces.flatMap((value) => {
-    const entry = isRecord(value) ? value : null;
-    const marketplaceSource = isRecord(entry?.marketplaceSource) ? entry.marketplaceSource : null;
-    if (!entry) return [];
-    return [{ marketplaceSource: stringValue(marketplaceSource?.source) }];
-  });
+  return readback.marketplaces
+    .map(marketplaceListEntry)
+    .filter((entry): entry is CodexPluginMarketplaceListEntry => entry !== null);
 }
 
 function missingRequiredSkills(sourcePath: string | null, requiredSkillIds: string[]) {
@@ -222,6 +225,42 @@ function nativeArgs(action: ConfiguredCodexPluginCarrierAction, pluginId: string
 
 function ensureMarketplaceArgs(source: string) {
   return ['plugin', 'marketplace', 'add', source, '--json'];
+}
+
+function ensureMarketplaceAvailable(input: {
+  packageId: string;
+  action: ConfiguredCodexPluginCarrierAction;
+  marketplaceSource: string;
+  binary: string;
+  env: NodeJS.ProcessEnv;
+  runner: CodexPluginCommandRunner;
+}) {
+  const marketplaceListArgs = ['plugin', 'marketplace', 'list', '--json'];
+  const marketplaceList = input.runner({
+    binary: input.binary,
+    args: marketplaceListArgs,
+    env: input.env,
+  });
+  const marketplacePresent = marketplaceList.status === 0 && !marketplaceList.error
+    ? parseMarketplaceList(marketplaceList.stdout, input.packageId)
+      .some((entry) => entry.marketplaceSource === input.marketplaceSource)
+    : false;
+  if (marketplacePresent) return;
+
+  const marketplaceArgs = ensureMarketplaceArgs(input.marketplaceSource);
+  const marketplaceResult = input.runner({
+    binary: input.binary,
+    args: marketplaceArgs,
+    env: input.env,
+  });
+  if (marketplaceResult.status !== 0 || marketplaceResult.error) {
+    commandFailure({
+      packageId: input.packageId,
+      action: input.action,
+      args: marketplaceArgs,
+      result: marketplaceResult,
+    });
+  }
 }
 
 function assertDescriptor(descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor) {
@@ -278,6 +317,198 @@ function unavailableReadback(input: {
   };
 }
 
+function dispatchConfiguredPluginAction(input: {
+  dispatchAction: boolean;
+  packageId: string;
+  action: ConfiguredCodexPluginCarrierAction;
+  actionArgs: string[];
+  binary: string;
+  env: NodeJS.ProcessEnv;
+  runner: CodexPluginCommandRunner;
+}) {
+  if (!input.dispatchAction) return;
+  const actionResult = input.runner({
+    binary: input.binary,
+    args: input.actionArgs,
+    env: input.env,
+  });
+  if (actionResult.status !== 0 || actionResult.error) {
+    commandFailure({
+      packageId: input.packageId,
+      action: input.action,
+      args: input.actionArgs,
+      result: actionResult,
+    });
+  }
+}
+
+function listUnavailableReadback(input: {
+  descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  action: ConfiguredCodexPluginCarrierAction;
+  listArgs: string[];
+  dispatchAction: boolean;
+}): ConfiguredCodexPluginCarrierReadback {
+  return unavailableReadback({
+    descriptor: input.descriptor,
+    action: input.action,
+    nativeCommand: input.listArgs,
+    nativeActionDispatched: input.action === 'list',
+    reason: 'configured_native_carrier_unavailable',
+  });
+}
+
+function invalidListReadback(input: {
+  descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  action: ConfiguredCodexPluginCarrierAction;
+  listArgs: string[];
+  error: unknown;
+}): ConfiguredCodexPluginCarrierReadback {
+  return unavailableReadback({
+    descriptor: input.descriptor,
+    action: input.action,
+    nativeCommand: input.listArgs,
+    nativeActionDispatched: input.action === 'list',
+    reason: input.error instanceof FrameworkContractError
+      ? String(input.error.details?.failure_code ?? 'configured_native_carrier_readback_invalid')
+      : 'configured_native_carrier_readback_invalid',
+  });
+}
+
+function readConfiguredPluginEntries(input: {
+  descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  action: ConfiguredCodexPluginCarrierAction;
+  dispatchAction: boolean;
+  binary: string;
+  env: NodeJS.ProcessEnv;
+  runner: CodexPluginCommandRunner;
+}): CodexPluginListEntry[] | ConfiguredCodexPluginCarrierReadback {
+  const listArgs = ['plugin', 'list', '--json'];
+  const list = input.runner({ binary: input.binary, args: listArgs, env: input.env });
+  if (list.status !== 0 || list.error) {
+    if (input.dispatchAction) {
+      commandFailure({
+        packageId: input.descriptor.packageId,
+        action: input.action,
+        args: listArgs,
+        result: list,
+      });
+    }
+    return listUnavailableReadback({
+      descriptor: input.descriptor,
+      action: input.action,
+      listArgs,
+      dispatchAction: input.dispatchAction,
+    });
+  }
+  try {
+    return parsePluginList(list.stdout, input.descriptor.packageId);
+  } catch (error) {
+    if (input.dispatchAction) throw error;
+    return invalidListReadback({
+      descriptor: input.descriptor,
+      action: input.action,
+      listArgs,
+      error,
+    });
+  }
+}
+
+function isConfiguredCarrierReadback(
+  value: CodexPluginListEntry[] | ConfiguredCodexPluginCarrierReadback,
+): value is ConfiguredCodexPluginCarrierReadback {
+  return !Array.isArray(value);
+}
+
+function configuredPluginSelection(input: {
+  entries: CodexPluginListEntry[];
+  descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+}) {
+  const pluginId = input.descriptor.carrier.pluginId;
+  const installedSameName = input.entries.filter(
+    (candidate) => candidate.installed && pluginBareName(candidate.pluginId) === pluginBareName(pluginId),
+  );
+  const entry = input.entries.find((candidate) => candidate.pluginId === pluginId) ?? null;
+  const unexpectedSameName = installedSameName.filter((candidate) => candidate.pluginId !== pluginId);
+  const ambiguous = unexpectedSameName.length > 0 && Boolean(entry?.installed);
+  const unexpectedOnly = !entry?.installed && unexpectedSameName.length > 0;
+  const missingSkills = entry
+    ? missingRequiredSkills(entry.sourcePath, input.descriptor.executor.requiredSkillIds)
+    : input.descriptor.executor.requiredSkillIds;
+  const callable = Boolean(entry?.installed && entry.enabled && missingSkills.length === 0 && !ambiguous && !unexpectedOnly);
+  return { installedSameName, entry, ambiguous, unexpectedOnly, missingSkills, callable };
+}
+
+function configuredCarrierPrecedence(input: { ambiguous: boolean; unexpectedOnly: boolean; installed: boolean }) {
+  if (input.ambiguous) return 'ambiguous_same_plugin_name' as const;
+  if (input.unexpectedOnly) return 'unexpected_same_plugin_name' as const;
+  return input.installed ? 'exact_single_source' as const : 'not_present' as const;
+}
+
+function configuredCarrierReason(input: {
+  installed: boolean;
+  ambiguous: boolean;
+  unexpectedOnly: boolean;
+  callable: boolean;
+  missingSkills: string[];
+}) {
+  if (input.installed) {
+    if (input.ambiguous) return 'configured_native_carrier_source_ambiguous';
+    return input.callable ? null : `required_skill_unavailable:${input.missingSkills.join(',')}`;
+  }
+  return input.unexpectedOnly
+    ? 'configured_native_carrier_unexpected_source_present'
+    : 'native_carrier_reports_not_installed';
+}
+
+function configuredPluginReadback(input: {
+  descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  action: ConfiguredCodexPluginCarrierAction;
+  dryRun: boolean | undefined;
+  dispatchAction: boolean;
+  actionArgs: string[];
+  entries: CodexPluginListEntry[];
+}): ConfiguredCodexPluginCarrierReadback {
+  const selection = configuredPluginSelection({ entries: input.entries, descriptor: input.descriptor });
+  const installed = Boolean(selection.entry?.installed);
+  return {
+    surface_kind: 'opl_configured_codex_plugin_carrier_readback.v1',
+    package_id: input.descriptor.packageId,
+    carrier: {
+      kind: 'codex_plugin_manager',
+      plugin_id: input.descriptor.carrier.pluginId,
+      marketplace_source: selection.ambiguous ? null : selection.entry?.marketplaceSource ?? null,
+      observed_sources: selection.installedSameName.map(observedSource),
+      precedence: configuredCarrierPrecedence({
+        ambiguous: selection.ambiguous,
+        unexpectedOnly: selection.unexpectedOnly,
+        installed,
+      }),
+    },
+    executor: {
+      route: input.descriptor.executor.route,
+      required_skill_ids: [...input.descriptor.executor.requiredSkillIds],
+      status: selection.callable ? 'callable' : 'attention_needed',
+    },
+    publication_ref: input.descriptor.publicationRef,
+    status: installed ? 'installed' : selection.unexpectedOnly ? 'not_installed' : 'physical_unavailable',
+    installed_version: selection.ambiguous ? null : selection.entry?.version ?? null,
+    enabled: installed ? selection.entry?.enabled ?? false : null,
+    plugin_source_path: selection.ambiguous ? null : selection.entry?.sourcePath ?? null,
+    operation: input.action,
+    native_command: input.action === 'list' || input.dryRun === true
+      ? ['plugin', 'list', '--json']
+      : input.actionArgs,
+    native_action_dispatched: input.action === 'list' || input.dispatchAction,
+    reason: configuredCarrierReason({
+      installed,
+      ambiguous: selection.ambiguous,
+      unexpectedOnly: selection.unexpectedOnly,
+      callable: selection.callable,
+      missingSkills: selection.missingSkills,
+    }),
+  };
+}
+
 export function runConfiguredCodexPluginCarrier(input: {
   descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
   action: ConfiguredCodexPluginCarrierAction;
@@ -296,131 +527,39 @@ export function runConfiguredCodexPluginCarrier(input: {
   const dispatchAction = input.action !== 'list' && input.dryRun !== true;
   const marketplaceSource = input.descriptor.carrier.marketplaceSource;
   if (dispatchAction && marketplaceSource) {
-    const marketplaceListArgs = ['plugin', 'marketplace', 'list', '--json'];
-    const marketplaceList = runner({ binary, args: marketplaceListArgs, env });
-    const marketplacePresent = marketplaceList.status === 0 && !marketplaceList.error
-      ? parseMarketplaceList(marketplaceList.stdout, input.descriptor.packageId)
-        .some((entry) => entry.marketplaceSource === marketplaceSource)
-      : false;
-    if (!marketplacePresent) {
-      const marketplaceArgs = ensureMarketplaceArgs(marketplaceSource);
-      const marketplaceResult = runner({ binary, args: marketplaceArgs, env });
-      if (marketplaceResult.status !== 0 || marketplaceResult.error) {
-        commandFailure({
-          packageId: input.descriptor.packageId,
-          action: input.action,
-          args: marketplaceArgs,
-          result: marketplaceResult,
-        });
-      }
-    }
-  }
-  if (dispatchAction) {
-    const actionResult = runner({ binary, args: actionArgs, env });
-    if (actionResult.status !== 0 || actionResult.error) {
-      commandFailure({
-        packageId: input.descriptor.packageId,
-        action: input.action,
-        args: actionArgs,
-        result: actionResult,
-      });
-    }
-  }
-  const listArgs = ['plugin', 'list', '--json'];
-  const list = runner({ binary, args: listArgs, env });
-  if (list.status !== 0 || list.error) {
-    if (dispatchAction) {
-      commandFailure({
-        packageId: input.descriptor.packageId,
-        action: input.action,
-        args: listArgs,
-        result: list,
-      });
-    }
-    return unavailableReadback({
-      descriptor: input.descriptor,
+    ensureMarketplaceAvailable({
+      packageId: input.descriptor.packageId,
       action: input.action,
-      nativeCommand: listArgs,
-      nativeActionDispatched: input.action === 'list',
-      reason: 'configured_native_carrier_unavailable',
+      marketplaceSource,
+      binary,
+      env,
+      runner,
     });
   }
-  let entries: CodexPluginListEntry[];
-  try {
-    entries = parsePluginList(list.stdout, input.descriptor.packageId);
-  } catch (error) {
-    if (dispatchAction) throw error;
-    return unavailableReadback({
-      descriptor: input.descriptor,
-      action: input.action,
-      nativeCommand: listArgs,
-      nativeActionDispatched: input.action === 'list',
-      reason: error instanceof FrameworkContractError
-        ? String(error.details?.failure_code ?? 'configured_native_carrier_readback_invalid')
-        : 'configured_native_carrier_readback_invalid',
-    });
-  }
-  const installedSameName = entries.filter(
-    (candidate) => candidate.installed
-      && pluginBareName(candidate.pluginId) === pluginBareName(input.descriptor.carrier.pluginId),
-  );
-  const entry = entries.find(
-    (candidate) => candidate.pluginId === input.descriptor.carrier.pluginId,
-  ) ?? null;
-  const unexpectedSameName = installedSameName.filter(
-    (candidate) => candidate.pluginId !== input.descriptor.carrier.pluginId,
-  );
-  const ambiguous = unexpectedSameName.length > 0 && Boolean(entry?.installed);
-  const unexpectedOnly = !entry?.installed && unexpectedSameName.length > 0;
-  const missingSkills = entry
-    ? missingRequiredSkills(entry.sourcePath, input.descriptor.executor.requiredSkillIds)
-    : input.descriptor.executor.requiredSkillIds;
-  const callable = Boolean(
-    entry?.installed
-    && entry.enabled
-    && missingSkills.length === 0
-    && !ambiguous
-    && !unexpectedOnly,
-  );
-  return {
-    surface_kind: 'opl_configured_codex_plugin_carrier_readback.v1',
-    package_id: input.descriptor.packageId,
-    carrier: {
-      kind: 'codex_plugin_manager',
-      plugin_id: input.descriptor.carrier.pluginId,
-      marketplace_source: ambiguous ? null : entry?.marketplaceSource ?? null,
-      observed_sources: installedSameName.map(observedSource),
-      precedence: ambiguous
-        ? 'ambiguous_same_plugin_name'
-        : unexpectedOnly
-          ? 'unexpected_same_plugin_name'
-        : entry?.installed
-          ? 'exact_single_source'
-          : 'not_present',
-    },
-    executor: {
-      route: input.descriptor.executor.route,
-      required_skill_ids: [...input.descriptor.executor.requiredSkillIds],
-      status: callable ? 'callable' : 'attention_needed',
-    },
-    publication_ref: input.descriptor.publicationRef,
-    status: entry?.installed
-      ? 'installed'
-      : unexpectedOnly
-        ? 'not_installed'
-        : 'physical_unavailable',
-    installed_version: ambiguous ? null : entry?.version ?? null,
-    enabled: entry?.installed ? entry.enabled : null,
-    plugin_source_path: ambiguous ? null : entry?.sourcePath ?? null,
-    operation: input.action,
-    native_command: input.action === 'list' || input.dryRun === true ? listArgs : actionArgs,
-    native_action_dispatched: input.action === 'list' || dispatchAction,
-    reason: entry?.installed
-      ? ambiguous
-        ? 'configured_native_carrier_source_ambiguous'
-        : (callable ? null : `required_skill_unavailable:${missingSkills.join(',')}`)
-      : unexpectedOnly
-        ? 'configured_native_carrier_unexpected_source_present'
-      : 'native_carrier_reports_not_installed',
-  };
+  dispatchConfiguredPluginAction({
+    dispatchAction,
+    packageId: input.descriptor.packageId,
+    action: input.action,
+    actionArgs,
+    binary,
+    env,
+    runner,
+  });
+  const entries = readConfiguredPluginEntries({
+    descriptor: input.descriptor,
+    action: input.action,
+    dispatchAction,
+    binary,
+    env,
+    runner,
+  });
+  if (isConfiguredCarrierReadback(entries)) return entries;
+  return configuredPluginReadback({
+    descriptor: input.descriptor,
+    action: input.action,
+    dryRun: input.dryRun,
+    dispatchAction,
+    actionArgs,
+    entries,
+  });
 }

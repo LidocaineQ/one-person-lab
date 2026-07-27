@@ -1,0 +1,4 @@
+[constraints]
+# Ratchet the current canonical graph. Future changes may reduce this value,
+# but must not introduce additional dependency cycles.
+max_cycles = 5
