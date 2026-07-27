@@ -1139,7 +1139,10 @@ export function buildAgentPackageDirectory(input: {
                 reasons: ['release_set_unavailable'],
               },
       installed_version: configuredCarrierInstalled
-        ? configuredCarrier.installed_version
+        ? configuredCarrier?.installed_version
+          ?? source.installed_carrier_readback?.version
+          ?? lock?.package_version
+          ?? null
         : lock?.package_version ?? null,
       installed_content_digest: lock?.content_digest ?? null,
       installed_artifact_digest: lock?.artifact_digest ?? null,

@@ -255,46 +255,19 @@ test('carrier-neutral producer discovers an unknown installed carrier without Fr
       locks: [],
       detail: 'fast',
       installedCodexPluginDescriptors: discovered,
-      configuredCarrierReadbacks: new Map([[
-        'future-carrier-package',
-        {
-          surface_kind: 'opl_configured_codex_plugin_carrier_readback.v1',
-          package_id: 'future-carrier-package',
-          carrier: {
-            kind: 'codex_plugin_manager',
-            plugin_id: 'future-carrier-package@future-carrier',
-            marketplace_source: 'future://catalog',
-            observed_sources: [{
-              plugin_id: 'future-carrier-package@future-carrier',
-              marketplace_source: 'future://catalog',
-              installed_version: '9.1.0',
-              enabled: true,
-              plugin_source_path: sourceRoot,
-              source_tree_sha256: null,
-            }],
-            precedence: 'exact_single_source',
-          },
-          executor: {
-            route: 'codex_cli',
-            required_skill_ids: [],
-            status: 'callable',
-          },
-          publication_ref: null,
-          status: 'installed',
-          installed_version: '9.1.0',
-          enabled: true,
-          plugin_source_path: sourceRoot,
-          operation: 'list',
-          native_command: ['plugin', 'list', '--json'],
-          native_action_dispatched: false,
-          reason: null,
-        },
-      ]]),
     });
     const entry = directory.entries.find((candidate) => candidate.package_id === 'future-carrier-package');
     assert.ok(entry);
     assert.equal(entry?.installed, true);
     assert.equal(entry?.source_explanation.kind, 'installed_codex_plugin_descriptor');
+    assert.deepEqual(entry?.installed_readiness, {
+      installed: true,
+      physical_status: 'available',
+      callability: 'callable',
+      legacy_lifecycle_state_present: false,
+    });
+    assert.equal(entry?.installed_carrier_readback?.kind, 'future-carrier');
+    assert.equal(entry?.legacy_private_lifecycle_state_present, false);
   } finally {
     if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateDir;
