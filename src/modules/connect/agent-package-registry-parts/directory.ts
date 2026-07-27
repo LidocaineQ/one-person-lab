@@ -1,6 +1,7 @@
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { recordList, stringList, stringValue } from '../../../kernel/json-record.ts';
+import { pathToFileURL } from 'node:url';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
 import {
   assertFirstPartyPackageCatalogVersion,
@@ -16,6 +17,7 @@ import {
 } from './capability-reconciliation.ts';
 import { agentPackageTargetCurrentness } from './currentness.ts';
 import type { ConfiguredCodexPluginCarrierReadback } from './configured-codex-plugin-carrier.ts';
+import type { InstalledCodexPluginDescriptor } from './installed-codex-plugin-directory.ts';
 import { normalizePackageManifest } from './manifest-normalizers.ts';
 import { packageRoleFromInstalledLock } from './package-role.ts';
 import { agentPackageLifecycleUxReadback } from './readback.ts';
@@ -74,7 +76,12 @@ type DirectorySource = {
   stable_version: string | null;
   registry_url: string | null;
   version_source_ref: string;
-  source_kind: 'first_party_framework_projection' | 'first_party_release_catalog' | 'agent_package_registry_cache' | 'installed_package_lock';
+  source_kind:
+    | 'first_party_framework_projection'
+    | 'first_party_release_catalog'
+    | 'agent_package_registry_cache'
+    | 'installed_package_lock'
+    | 'installed_codex_plugin_descriptor';
   registry_source_ref: string | null;
   capability_metadata: DirectoryCapabilityMetadata | null;
   presentation: AgentPackagePresentation | null;
@@ -83,7 +90,14 @@ type DirectorySource = {
   app_contributions: AgentPackageAppContributions | null;
   release_target: ManagedCatalogVersion | null;
   version_currentness: {
-    status: 'live_release_set' | 'cached_release_set' | 'last_known_good_release_set' | 'framework_projection_only' | 'registry_cache' | 'installed_lock_only';
+    status:
+      | 'live_release_set'
+      | 'cached_release_set'
+      | 'last_known_good_release_set'
+      | 'framework_projection_only'
+      | 'registry_cache'
+      | 'installed_lock_only'
+      | 'installed_codex_plugin_descriptor';
     live_verified: boolean;
     source_ref: string | null;
     source_digest: string | null;
@@ -541,6 +555,49 @@ function lockDirectorySource(lock: AgentPackageLock, packageRole: AgentPackageRo
   };
 }
 
+function installedCodexPluginDirectorySource(
+  discovered: InstalledCodexPluginDescriptor,
+): DirectorySource {
+  const manifest = discovered.manifest;
+  return {
+    package_id: manifest.package_id,
+    display_name: manifest.display_name,
+    publisher: manifest.publisher,
+    description: `${manifest.display_name} installed package.`,
+    tags: uniqueStrings(['installed', 'codex_plugin', manifest.package_role]),
+    package_role: manifest.package_role,
+    trust_tier: manifest.source === 'first_party' ? 'first_party' : 'installed_descriptor',
+    source: manifest.source,
+    manifest_url: pathToFileURL(discovered.manifestPath).toString(),
+    projected_version: null,
+    selected_version: manifest.version,
+    stable_version: null,
+    registry_url: null,
+    version_source_ref: `${discovered.manifestPath}#/version`,
+    source_kind: 'installed_codex_plugin_descriptor',
+    registry_source_ref: null,
+    capability_metadata: manifest.package_role === 'standard_agent'
+      ? {
+          source: 'normalized_owner_manifest',
+          required_skill_ids: [...manifest.required_skill_ids],
+          optional_skill_refs: [...manifest.optional_skill_refs],
+        }
+      : null,
+    presentation: manifest.presentation ?? null,
+    home_shortcut_ids: manifest.presentation?.home_shortcuts.map((entry) => entry.shortcut_id) ?? [],
+    configured_codex_plugin_carrier: discovered.carrier,
+    app_contributions: manifest.app_contributions ?? null,
+    version_currentness: {
+      status: 'installed_codex_plugin_descriptor',
+      live_verified: false,
+      source_ref: discovered.manifestPath,
+      source_digest: null,
+      checked_at: null,
+    },
+    release_target: null,
+  };
+}
+
 function installedRoleResolution(lock: AgentPackageLock, source: DirectorySource | null) {
   try {
     return {
@@ -777,6 +834,7 @@ export function buildAgentPackageDirectory(input: {
   firstPartyCatalog?: FirstPartyDirectoryCatalogSnapshot | null;
   readStatus?: (packageId: string) => PackageStatusReadback;
   configuredCarrierReadbacks?: ReadonlyMap<string, ConfiguredCodexPluginCarrierReadback>;
+  installedCodexPluginDescriptors?: ReadonlyMap<string, InstalledCodexPluginDescriptor>;
   actionContext?: (packageId: string) => Pick<AgentPackagePackageActionInput, 'scope' | 'targetWorkspace' | 'targetQuest'> | null;
 }) {
   const sources = new Map(firstPartyDirectorySources(input.firstPartyCatalog ?? null)
@@ -794,6 +852,11 @@ export function buildAgentPackageDirectory(input: {
         registry_source_ref: existing.registry_source_ref,
       } : candidate);
     }
+  }
+  for (const discovered of input.installedCodexPluginDescriptors?.values() ?? []) {
+    const existing = sources.get(discovered.manifest.package_id);
+    if (existing && isFirstPartyDirectorySource(existing)) continue;
+    sources.set(discovered.manifest.package_id, installedCodexPluginDirectorySource(discovered));
   }
   const locksById = new Map(input.locks.map((lock) => [lock.package_id, lock]));
   const installedRoles = new Map(input.locks.map((lock) => {
@@ -989,7 +1052,9 @@ export function buildAgentPackageDirectory(input: {
             ? 'Framework-owned first-party Package projection; no Release Set selection was verified for this readback.'
           : source.source_kind === 'agent_package_registry_cache'
             ? 'Validated discovery metadata from the Framework Agent Package registry cache.'
-            : 'Installed lock retained after its discovery source became unavailable.',
+              : source.source_kind === 'installed_codex_plugin_descriptor'
+                ? 'Owner descriptor discovered from the installed Codex plugin carrier source root.'
+                : 'Installed lock retained after its discovery source became unavailable.',
         catalog_ref: source.source_kind === 'first_party_release_catalog'
           ? resolveFirstPartyPackageCatalog(source.package_id)?.catalogSource.catalog_ref ?? null
           : null,

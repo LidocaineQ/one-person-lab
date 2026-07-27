@@ -127,6 +127,9 @@ import {
   enrichRegistryCacheManifestMetadata,
 } from './agent-package-registry-parts/directory.ts';
 import {
+  discoverInstalledCodexPluginDescriptors,
+} from './agent-package-registry-parts/installed-codex-plugin-directory.ts';
+import {
   runConfiguredCodexPluginCarrier,
   type ConfiguredCodexPluginCarrierAction,
   type ConfiguredCodexPluginCarrierReadback,
@@ -1679,7 +1682,15 @@ async function resolveFreshConfiguredCarrier(input: ConfiguredCarrierSelectionIn
     ? registryCache?.entries.find((entry) => entry.package_id === packageId) ?? null
     : null;
   if (!explicitManifestUrl && !explicitRegistryUrl && !cacheEntry?.configured_codex_plugin_carrier) {
-    return null;
+    const discovered = discoverInstalledCodexPluginDescriptors({ packageId });
+    const descriptor = packageId ? discovered.get(packageId) : null;
+    if (!descriptor) return null;
+    return {
+      descriptor: descriptor.carrier,
+      selection: {
+        registryEntry: null,
+      },
+    };
   }
   const selection = await resolveManifestSelection({
     packageId,
@@ -4569,9 +4580,10 @@ export type OplAgentPackageStatusInput = {
 
 function configuredCarrierReadbacks(
   registryCache: AgentPackageRegistryCache | null,
+  installedCodexPluginDescriptors: ReadonlyMap<string, import('./agent-package-registry-parts/installed-codex-plugin-directory.ts').InstalledCodexPluginDescriptor>,
   packageId: string | null = null,
 ) {
-  return new Map<string, ConfiguredCodexPluginCarrierReadback>(
+  const readbacks = new Map<string, ConfiguredCodexPluginCarrierReadback>(
     (registryCache?.entries ?? []).flatMap((entry) => {
       const descriptor = entry.configured_codex_plugin_carrier ?? null;
       if (!descriptor || (packageId && entry.package_id !== packageId)) return [];
@@ -4581,6 +4593,14 @@ function configuredCarrierReadbacks(
       })] as const];
     }),
   );
+  for (const discovered of installedCodexPluginDescriptors.values()) {
+    if (packageId && discovered.manifest.package_id !== packageId) continue;
+    readbacks.set(discovered.manifest.package_id, runConfiguredCodexPluginCarrier({
+      descriptor: discovered.carrier,
+      action: 'list',
+    }));
+  }
+  return readbacks;
 }
 
 function configuredCarrierLifecycleUxReadback(
@@ -4632,13 +4652,15 @@ function configuredCarrierLifecycleUxReadback(
 function readAgentPackageStatusSnapshot() {
   const lockIndex = readLockIndex();
   const registryCache = readRegistryCache();
-  const configuredCarriers = configuredCarrierReadbacks(registryCache);
+  const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
+  const configuredCarriers = configuredCarrierReadbacks(registryCache, installedCodexPluginDescriptors);
   const directory = buildAgentPackageDirectory({
     registryCache,
     locks: lockIndex.packages,
     detail: 'fast',
     firstPartyCatalog: null,
     configuredCarrierReadbacks: configuredCarriers,
+    installedCodexPluginDescriptors,
   });
   return {
     lockIndex,
@@ -4886,7 +4908,8 @@ export function listOplAgentPackages(input: {
   const paths = resolveOplStatePaths();
   const registryCache = readRegistryCache();
   const lockIndex = readLockIndex();
-  const configuredCarriers = configuredCarrierReadbacks(registryCache);
+  const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
+  const configuredCarriers = configuredCarrierReadbacks(registryCache, installedCodexPluginDescriptors);
   const lifecycleUx = agentPackageLifecycleSummaryReadback({
     packages: lockIndex.packages,
   });
@@ -4896,6 +4919,7 @@ export function listOplAgentPackages(input: {
     detail,
     firstPartyCatalog: input.firstPartyCatalog ?? null,
     configuredCarrierReadbacks: configuredCarriers,
+    installedCodexPluginDescriptors,
     actionContext: input.statusContext,
     readStatus: (packageId) => {
       const context = input.statusContext?.(packageId) ?? {};

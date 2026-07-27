@@ -20,6 +20,9 @@ import {
   enrichRegistryCacheManifestMetadata,
   normalizePackageCatalogRegistry,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/directory.ts';
+import {
+  discoverInstalledCodexPluginDescriptors,
+} from '../../../../../src/modules/connect/agent-package-registry-parts/installed-codex-plugin-directory.ts';
 import { getOplPackageSpecs } from '../../../../../src/modules/connect/package-distribution.ts';
 import {
   normalizePackageManifest,
@@ -48,6 +51,227 @@ const CANONICAL_PACKAGE_IDS = [
   'mas-scholar-skills',
   'opl-flow',
 ];
+
+test('installed Codex plugins project owner descriptors without a registry entry', () => {
+  const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-installed-plugin-descriptor-'));
+  const stateFixture = isolatedPackageEnv('installed-plugin-descriptor');
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = stateFixture.env.OPL_STATE_DIR;
+  try {
+    const descriptor = agentPackageManifest({
+      packageId: 'unknown.installed.agent',
+      agentId: 'unknown-installed-agent',
+      pluginId: 'unknown-installed-agent',
+    });
+    fs.writeFileSync(path.join(sourceRoot, 'opl-package.json'), formatJsonPayload(descriptor));
+    const discovered = discoverInstalledCodexPluginDescriptors({
+      runner: () => ({
+        status: 0,
+        stdout: JSON.stringify({
+          installed: [{
+            pluginId: 'unknown-installed-agent@owner-carrier',
+            version: '1.2.3',
+            enabled: true,
+            installed: true,
+            source: { source: 'local', path: sourceRoot },
+            marketplaceSource: { sourceType: 'local', source: '/tmp/owner-carrier' },
+          }],
+        }),
+        stderr: '',
+        error: null,
+      }),
+    });
+    const owner = discovered.get('unknown.installed.agent');
+    assert.ok(owner);
+    assert.equal(owner.manifest.package_id, 'unknown.installed.agent');
+    assert.equal(owner.manifest.display_name, 'Third Party Research');
+    assert.equal(owner.sourcePath, sourceRoot);
+    assert.equal(owner.carrier.carrier.pluginId, 'unknown-installed-agent@owner-carrier');
+    assert.equal(owner.enabled, true);
+
+    const directory = buildAgentPackageDirectory({
+      registryCache: null,
+      locks: [],
+      detail: 'fast',
+      installedCodexPluginDescriptors: discovered,
+      configuredCarrierReadbacks: new Map([[
+        'unknown.installed.agent',
+        {
+          surface_kind: 'opl_configured_codex_plugin_carrier_readback.v1',
+          package_id: 'unknown.installed.agent',
+          carrier: {
+            kind: 'codex_plugin_manager',
+            plugin_id: 'unknown-installed-agent@owner-carrier',
+            marketplace_source: '/tmp/owner-carrier',
+            observed_sources: [{
+              plugin_id: 'unknown-installed-agent@owner-carrier',
+              marketplace_source: '/tmp/owner-carrier',
+              installed_version: '1.2.3',
+              enabled: true,
+              plugin_source_path: sourceRoot,
+              source_tree_sha256: null,
+            }],
+            precedence: 'exact_single_source',
+          },
+          executor: {
+            route: 'codex_cli',
+            required_skill_ids: ['unknown-installed-agent'],
+            status: 'callable',
+          },
+          publication_ref: null,
+          status: 'installed',
+          installed_version: '1.2.3',
+          enabled: true,
+          plugin_source_path: sourceRoot,
+          operation: 'list',
+          native_command: ['plugin', 'list', '--json'],
+          native_action_dispatched: false,
+          reason: null,
+        },
+      ]]),
+    });
+    const entry = directory.entries.find((candidate) => candidate.package_id === 'unknown.installed.agent');
+    assert.ok(entry);
+    assert.equal(entry?.source_explanation.kind, 'installed_codex_plugin_descriptor');
+    assert.equal(entry?.installed, true);
+    assert.equal(entry?.configured_carrier?.carrier.plugin_id, 'unknown-installed-agent@owner-carrier');
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    fs.rmSync(stateFixture.home, { recursive: true, force: true });
+    fs.rmSync(sourceRoot, { recursive: true, force: true });
+  }
+});
+
+test('invalid installed Codex descriptors degrade locally without hiding valid plugins', () => {
+  const validRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-installed-plugin-valid-'));
+  const invalidRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-installed-plugin-invalid-'));
+  try {
+    fs.writeFileSync(
+      path.join(validRoot, 'opl-package.json'),
+      formatJsonPayload(agentPackageManifest({
+        packageId: 'valid.installed.agent',
+        agentId: 'valid-installed-agent',
+        pluginId: 'valid-installed-agent',
+      })),
+    );
+    fs.writeFileSync(path.join(invalidRoot, 'opl-package.json'), '{"surface_kind":"unknown"}\n');
+    const discovered = discoverInstalledCodexPluginDescriptors({
+      runner: () => ({
+        status: 0,
+        stdout: JSON.stringify({
+          installed: [
+            {
+              pluginId: 'invalid-installed-agent@owner-carrier',
+              version: '1.0.0',
+              enabled: true,
+              installed: true,
+              source: { source: 'local', path: invalidRoot },
+            },
+            {
+              pluginId: 'valid-installed-agent@owner-carrier',
+              version: '1.0.0',
+              enabled: true,
+              installed: true,
+              source: { source: 'local', path: validRoot },
+            },
+          ],
+        }),
+        stderr: '',
+        error: null,
+      }),
+    });
+    assert.deepEqual([...discovered.keys()], ['valid.installed.agent']);
+  } finally {
+    fs.rmSync(validRoot, { recursive: true, force: true });
+    fs.rmSync(invalidRoot, { recursive: true, force: true });
+  }
+});
+
+test('real package list projects an installed owner descriptor with an empty registry cache', () => {
+  const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-installed-plugin-list-source-'));
+  const stateFixture = isolatedPackageEnv('installed-plugin-list');
+  const binary = path.join(stateFixture.home, 'fake-codex');
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  const previousBinary = process.env.OPL_CODEX_PLUGIN_BIN;
+  process.env.OPL_STATE_DIR = stateFixture.env.OPL_STATE_DIR;
+  process.env.OPL_CODEX_PLUGIN_BIN = binary;
+  try {
+    const packageId = 'unknown.installed.capability';
+    fs.writeFileSync(
+      path.join(sourceRoot, 'opl-package.json'),
+      formatJsonPayload({
+        surface_kind: 'opl_capability_package_manifest.v2',
+        package_id: packageId,
+        display_name: 'Unknown Installed Capability',
+        publisher: 'example-owner',
+        version: '1.0.0',
+        source: 'third_party',
+        package_role: 'framework_capability_package',
+        capability_abi: { id: 'unknown.installed.capability.v1', version: '1.0.0' },
+        exports: {
+          core_skill_ids: ['unknown-capability'],
+          specialty_skill_ids: [],
+          core_module_ids: ['unknown.capability.v1'],
+          optional_skill_policy_ref: 'opl-package.json#/exports',
+          optional_skills_installed_by_default: true,
+          default_materialization_policy: 'all_exported_skills',
+        },
+        content_lock: {
+          algorithm: 'sha256',
+          canonicalization: 'ordered_path_nul_file_bytes',
+          paths: ['skills/unknown-capability/SKILL.md'],
+          digest: 'sha256:'
+            + '0'.repeat(64),
+        },
+        codex_surface: {
+          plugin_id: 'unknown-capability',
+          codex_default_exposure: true,
+        },
+      }),
+    );
+    fs.mkdirSync(path.join(sourceRoot, 'skills', 'unknown-capability'), { recursive: true });
+    fs.writeFileSync(
+      path.join(sourceRoot, 'skills', 'unknown-capability', 'SKILL.md'),
+      '# Unknown capability\n',
+      { encoding: 'utf8', flag: 'w' },
+    );
+    fs.writeFileSync(binary, `#!/usr/bin/env node
+process.stdout.write(JSON.stringify({
+  installed: [{
+    pluginId: 'unknown-capability@owner-carrier',
+    version: '1.0.0',
+    installed: true,
+    enabled: true,
+    source: { source: 'local', path: ${JSON.stringify(sourceRoot)} },
+    marketplaceSource: { sourceType: 'local', source: '/tmp/owner-carrier' }
+  }]
+}));
+`);
+    fs.chmodSync(binary, 0o755);
+    const readback = listOplAgentPackages({ detail: 'fast' }).opl_agent_packages;
+    const entry = readback.directory.entries.find((candidate) => candidate.package_id === packageId);
+    assert.ok(entry);
+    assert.equal(readback.registry_cache, null);
+    assert.equal(entry?.installed, true);
+    assert.equal(entry?.source_explanation.kind, 'installed_codex_plugin_descriptor');
+    assert.equal(entry?.configured_carrier?.status, 'installed');
+    assert.equal(entry?.configured_carrier?.executor.status, 'callable');
+    assert.deepEqual(
+      entry?.available_actions.map((action) => action.action_id),
+      ['agent_package_update', 'agent_package_repair', 'agent_package_preferences_set', 'agent_package_uninstall'],
+    );
+    assert.equal(fs.existsSync(path.join(stateFixture.env.OPL_STATE_DIR, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(stateFixture.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json')), false);
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    if (previousBinary === undefined) delete process.env.OPL_CODEX_PLUGIN_BIN;
+    else process.env.OPL_CODEX_PLUGIN_BIN = previousBinary;
+    fs.rmSync(stateFixture.home, { recursive: true, force: true });
+    fs.rmSync(sourceRoot, { recursive: true, force: true });
+  }
+});
 
 function isolatedPackageEnv(prefix: string) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-home-`));
