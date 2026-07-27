@@ -198,6 +198,7 @@ export function projectRuntimeAgentPackageDirectoryEntry(
       surface_kind: 'opl_runtime_agent_package_status_projection',
       package_id: entry.package_id,
       package_role: entry.package_role,
+      app_contributions: entry.app_contributions,
       status: statusReadError ? 'unavailable' : entry.installed ? 'available' : 'not_installed',
       installed_package_count: entry.installed ? 1 : 0,
       presence: {
@@ -256,6 +257,7 @@ export function projectAppAgentPackageStatus(input: {
     surface_kind: 'opl_agent_package_status_projection',
     profile,
     package_id: status.package_id,
+    app_contributions: 'app_contributions' in status ? status.app_contributions ?? null : null,
     status: readinessDeferred ? 'verification_deferred' : status.status,
     installed_package_count: presence.installed ? 1 : 0,
     registered_package_count: registeredPackageCount(status),

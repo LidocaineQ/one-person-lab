@@ -21,7 +21,10 @@ import {
   normalizePackageCatalogRegistry,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/directory.ts';
 import { getOplPackageSpecs } from '../../../../../src/modules/connect/package-distribution.ts';
-import { normalizeRegistry } from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
+import {
+  normalizePackageManifest,
+  normalizeRegistry,
+} from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
 import { fetchAndValidateRegistry } from '../../../../../src/modules/connect/agent-package-registry-parts/selection.ts';
 import { readFirstPartyPackageCatalogSnapshot } from '../../../../../src/modules/connect/agent-package-registry-parts/release-catalog-cache.ts';
 import {
@@ -131,6 +134,49 @@ const thirdPartyPresentation = {
   }],
 };
 
+const relayAppContributions = {
+  schema_version: 'opl-app-contributions.v1',
+  navigation: [{
+    navigation_id: 'relay.inbox-nav',
+    label_i18n: {
+      'zh-CN': '收件箱',
+      'en-US': 'Inbox',
+    },
+    view_id: 'relay.inbox',
+    icon_id: 'mail',
+    sort_order: 100,
+  }],
+  views: [{
+    view_id: 'relay.inbox',
+    view_type: 'list_detail',
+    title_i18n: {
+      'zh-CN': '收件箱',
+      'en-US': 'Inbox',
+    },
+    data_ref: 'communications.mail.v1#inbox',
+    command_ids: ['relay.compose'],
+    badge_ids: ['relay.unread'],
+  }],
+  commands: [{
+    command_id: 'relay.compose',
+    label_i18n: {
+      'zh-CN': '新建草稿',
+      'en-US': 'New draft',
+    },
+    action_ref: 'communications.mail.v1#draft-create',
+    confirmation_required: false,
+  }],
+  badges: [{
+    badge_id: 'relay.unread',
+    label_i18n: {
+      'zh-CN': '未读',
+      'en-US': 'Unread',
+    },
+    data_ref: 'communications.mail.v1#unread-count',
+    tone: 'info',
+  }],
+} as const;
+
 const HOME_PRESENTATION_CROSS_FIXTURE_SHA256 = 'b9986890f5af0d0004caad41b8bfd244e2fab7a7aa43ed98c9d5a7644221d8bf';
 const homePresentationCrossFixture = `{
   "package_id": "future.agent-lab",
@@ -193,6 +239,169 @@ test('Framework freezes the Shell Home public directory entry fixture bytes', ()
     'session_routing_summary_i18n',
     'home_shortcuts',
   ]);
+});
+
+test('role-neutral app contributions validate, normalize, and project without executable UI fields', async () => {
+  const agentManifest = {
+    ...agentPackageManifest(),
+    codex_surface: {
+      ...agentPackageManifest().codex_surface,
+      plugin_id: 'third-party-research',
+      carrier_source_commit: 'a'.repeat(40),
+      standalone_distribution: 'repo_carrier_source',
+    },
+    app_contributions: relayAppContributions,
+  };
+  const capabilityManifest = {
+    ...(parseJsonText(fs.readFileSync(
+      path.join(repoRoot, 'contracts/opl-framework/packages/mas-scholar-skills.json'),
+      'utf8',
+    )) as Record<string, unknown>),
+    app_contributions: relayAppContributions,
+  };
+  const workflowManifest = {
+    ...(parseJsonText(fs.readFileSync(
+      path.join(repoRoot, 'contracts/opl-framework/packages/opl-flow.json'),
+      'utf8',
+    )) as Record<string, unknown>),
+    app_contributions: relayAppContributions,
+  };
+  const schemaCases = [
+    {
+      schemaRef: 'contracts/opl-framework/agent-package-manifest.schema.json',
+      schemaId: 'opl.agent_package_manifest.app_contributions.v1',
+      payload: agentManifest,
+    },
+    {
+      schemaRef: 'contracts/opl-framework/capability-package-manifest.schema.json',
+      schemaId: 'opl.capability_package_manifest.app_contributions.v1',
+      payload: capabilityManifest,
+    },
+    {
+      schemaRef: 'contracts/opl-framework/workflow-profile-package-manifest.schema.json',
+      schemaId: 'opl.workflow_profile_package_manifest.app_contributions.v1',
+      payload: workflowManifest,
+    },
+    {
+      schemaRef: 'contracts/opl-framework/app-contributions.schema.json',
+      schemaId: 'opl.app_contributions.v1',
+      payload: relayAppContributions,
+    },
+  ];
+  for (const entry of schemaCases) {
+    const schema = parseJsonText(
+      fs.readFileSync(path.join(repoRoot, entry.schemaRef), 'utf8'),
+    ) as Parameters<typeof validateJsonSchemaPayload>[0]['schema'];
+    assert.equal(validateJsonSchemaPayload({
+      schemaId: entry.schemaId,
+      schema,
+      sourceRef: entry.schemaRef,
+    }, entry.payload).ok, true, entry.schemaRef);
+    const emptyContributions = { schema_version: 'opl-app-contributions.v1' };
+    const emptyPayload = entry.schemaRef.endsWith('/app-contributions.schema.json')
+      ? emptyContributions
+      : { ...entry.payload, app_contributions: emptyContributions };
+    assert.equal(validateJsonSchemaPayload({
+      schemaId: `${entry.schemaId}.empty`,
+      schema,
+      sourceRef: entry.schemaRef,
+    }, emptyPayload).ok, false, `${entry.schemaRef} must reject an empty contribution block`);
+  }
+
+  for (const [manifest, manifestUrl] of [
+    [agentManifest, 'file:///tmp/relay-agent.json'],
+    [capabilityManifest, 'file:///tmp/relay-capability.json'],
+    [workflowManifest, 'file:///tmp/relay-workflow.json'],
+  ] as const) {
+    assert.deepEqual(
+      normalizePackageManifest(manifest, manifestUrl).app_contributions,
+      relayAppContributions,
+      manifestUrl,
+    );
+  }
+
+  const unsafeContributions = {
+    ...relayAppContributions,
+    views: [{
+      ...relayAppContributions.views[0],
+      component_path: './RelayInbox.tsx',
+    }],
+  };
+  const appSchema = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/app-contributions.schema.json'),
+    'utf8',
+  )) as Parameters<typeof validateJsonSchemaPayload>[0]['schema'];
+  assert.equal(validateJsonSchemaPayload({
+    schemaId: 'opl.app_contributions.unsafe.v1',
+    schema: appSchema,
+    sourceRef: 'contracts/opl-framework/app-contributions.schema.json',
+  }, unsafeContributions).ok, false);
+  assert.throws(
+    () => normalizePackageManifest({
+      ...agentManifest,
+      app_contributions: unsafeContributions,
+    }, 'file:///tmp/unsafe-component.json'),
+    (error: unknown) => error instanceof Error
+      && error.message.includes('unsupported fields'),
+  );
+  assert.throws(
+    () => normalizePackageManifest({
+      ...agentManifest,
+      app_contributions: {
+        ...relayAppContributions,
+        views: [{
+          ...relayAppContributions.views[0],
+          view_type: 'arbitrary_react_component',
+        }],
+      },
+    }, 'file:///tmp/unsafe-view.json'),
+    (error: unknown) => error instanceof Error
+      && error.message.includes('view_type is unsupported'),
+  );
+  assert.throws(
+    () => normalizePackageManifest({
+      ...agentManifest,
+      app_contributions: {
+        ...relayAppContributions,
+        navigation: [{
+          ...relayAppContributions.navigation[0],
+          view_id: 'relay.missing',
+        }],
+      },
+    }, 'file:///tmp/unresolved-view.json'),
+    (error: unknown) => error instanceof Error
+      && error.message.includes('references must resolve'),
+  );
+
+  const manifestUrl = 'file:///tmp/relay-agent.json';
+  const cache = normalizePackageCatalogRegistry({
+    surface_kind: 'opl_package_catalog.v1',
+    packages: {
+      package_catalog: {
+        'third.party.research': {
+          package_id: 'third.party.research',
+          package_role: 'standard_agent',
+          source: 'third_party',
+          trust_tier: 'third_party_verified',
+          selected_version: '1.2.3',
+          versions: [{
+            package_version: '1.2.3',
+            selection_status: 'selected_for_release_set',
+            manifest_url: manifestUrl,
+            manifest_json: formatJsonPayload(agentManifest),
+          }],
+        },
+      },
+    },
+  }, 'file:///tmp/relay-catalog.json', 'catalog-sha');
+  const entry = await withIsolatedStateDir('opl-app-contributions', () =>
+    buildAgentPackageDirectory({
+      registryCache: cache,
+      locks: [],
+      detail: 'fast',
+    }).entries.find((candidate) => candidate.package_id === 'third.party.research'));
+  assert.deepEqual(entry?.app_contributions, relayAppContributions);
+  assert.equal(entry?.package_role, 'standard_agent');
 });
 
 test('ordinary list, status, App, and Home surfaces ignore valid, stale, and poisoned Release Catalog caches', () => {

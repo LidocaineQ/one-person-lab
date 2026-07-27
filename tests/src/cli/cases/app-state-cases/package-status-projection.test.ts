@@ -42,6 +42,7 @@ function installedStatus(input: {
   launchBlockedReason?: string | null;
   lifecycleActionRefs?: string[];
   recommendedAction?: string | null;
+  appContributions?: Record<string, unknown> | null;
 }) {
   const legacyRollbackField = ['roll', 'back_ref'].join('');
   const runtimeReady = input.runtimeReady ?? true;
@@ -52,6 +53,9 @@ function installedStatus(input: {
     opl_agent_package_status: {
       surface_kind: 'opl_agent_package_status',
       package_id: input.packageId,
+      ...(input.appContributions === undefined
+        ? {}
+        : { app_contributions: input.appContributions }),
       status: launchAllowed ? 'available' : 'attention_needed',
       installed_package_count: 1,
       installed_packages: [{
@@ -268,6 +272,35 @@ test('App package projection accepts arbitrary package ids and trusts fresh owne
   assert.deepEqual(fastStatus.dependency_readiness, fullStatus.dependency_readiness);
   assertLegacyManagerFieldsAbsent(fastStatus);
   assertLegacyManagerFieldsAbsent(fullStatus);
+});
+
+test('App package status preserves canonical role-neutral app contributions', () => {
+  const appContributions = {
+    schema_version: 'opl-app-contributions.v1',
+    navigation: [],
+    views: [{
+      view_id: 'relay.activity',
+      view_type: 'activity_log',
+      title_i18n: { 'en-US': 'Activity' },
+      data_ref: 'communications.mail.v1#activity',
+      command_ids: [],
+      badge_ids: [],
+    }],
+    commands: [],
+    badges: [],
+  };
+  const projected = buildAppAgentPackageStatuses({
+    packageIds: ['opl-relay'],
+    profile: 'full',
+    lockIndex: lockIndex(),
+    readStatus: (() => installedStatus({
+      packageId: 'opl-relay',
+      appContributions,
+    })) as any,
+  })['opl-relay'] as any;
+
+  assert.deepEqual(projected.app_contributions, appContributions);
+  assert.equal(Object.hasOwn(projected, 'package_role'), false);
 });
 
 test('App status projection does not mirror owner presentation or shortcut route metadata', () => {

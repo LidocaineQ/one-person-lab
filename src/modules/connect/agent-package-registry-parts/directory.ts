@@ -27,6 +27,7 @@ import {
   uniqueStrings,
 } from './shared.ts';
 import type {
+  AgentPackageAppContributions,
   AgentPackageConfiguredCodexPluginCarrierDescriptor,
   AgentPackageLock,
   AgentPackagePackageActionInput,
@@ -79,6 +80,7 @@ type DirectorySource = {
   presentation: AgentPackagePresentation | null;
   home_shortcut_ids: string[];
   configured_codex_plugin_carrier: AgentPackageConfiguredCodexPluginCarrierDescriptor | null;
+  app_contributions: AgentPackageAppContributions | null;
   release_target: ManagedCatalogVersion | null;
   version_currentness: {
     status: 'live_release_set' | 'cached_release_set' | 'last_known_good_release_set' | 'framework_projection_only' | 'registry_cache' | 'installed_lock_only';
@@ -152,6 +154,7 @@ function manifestDirectoryMetadata(payload: unknown, manifestUrl: string) {
     optional_skill_refs: [...manifest.optional_skill_refs],
     presentation: manifest.presentation ?? null,
     configured_codex_plugin_carrier: manifest.configured_codex_plugin_carrier ?? null,
+    app_contributions: manifest.app_contributions,
   };
 }
 
@@ -278,6 +281,7 @@ export function normalizePackageCatalogRegistry(
       display_policy: null,
       ordinary_user_source: null,
       configured_codex_plugin_carrier: metadata.configured_codex_plugin_carrier,
+      app_contributions: metadata.app_contributions,
     } satisfies AgentPackageRegistryEntry;
   });
   return {
@@ -353,6 +357,7 @@ export async function enrichRegistryCacheManifestMetadata(cache: AgentPackageReg
       optional_skill_ids: metadata.optional_skill_refs,
       presentation: metadata.presentation ?? null,
       configured_codex_plugin_carrier: metadata.configured_codex_plugin_carrier,
+      app_contributions: metadata.app_contributions,
       manifest_validation: 'fetched_manifest' as const,
     };
   }));
@@ -433,6 +438,9 @@ function firstPartyDirectorySources(snapshot: FirstPartyDirectoryCatalogSnapshot
       configured_codex_plugin_carrier: selected
         ? selectedManifest?.configured_codex_plugin_carrier ?? null
         : null,
+      app_contributions: selected
+        ? selectedManifest?.app_contributions ?? null
+        : null,
       version_currentness: {
         status: currentnessStatus,
         live_verified: liveVerified,
@@ -477,6 +485,7 @@ function registryDirectorySource(cache: AgentPackageRegistryCache, entry: AgentP
     presentation: entry.presentation ?? null,
     home_shortcut_ids: [...entry.home_shortcut_ids],
     configured_codex_plugin_carrier: entry.configured_codex_plugin_carrier ?? null,
+    app_contributions: entry.app_contributions ?? null,
     version_currentness: {
       status: 'registry_cache',
       live_verified: false,
@@ -520,6 +529,7 @@ function lockDirectorySource(lock: AgentPackageLock, packageRole: AgentPackageRo
     presentation: null,
     home_shortcut_ids: [],
     configured_codex_plugin_carrier: null,
+    app_contributions: null,
     version_currentness: {
       status: 'installed_lock_only',
       live_verified: false,
@@ -953,6 +963,7 @@ export function buildAgentPackageDirectory(input: {
       session_routing_summary_i18n: effectiveSource.presentation?.session_routing_summary_i18n ?? null,
       home_shortcuts: effectiveSource.presentation?.home_shortcuts ?? [],
       home_shortcut_ids: effectiveSource.home_shortcut_ids,
+      app_contributions: effectiveSource.app_contributions,
       capability_dependency_summary: capabilityDependencySummary(lock),
       configured_carrier: configuredCarrier,
       role_state: {

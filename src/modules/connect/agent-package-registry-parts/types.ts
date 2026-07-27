@@ -156,6 +156,46 @@ export type AgentPackagePayloadFile = {
 
 export type AgentPackageLocalizedText = Record<string, string>;
 
+export type AgentPackageAppContributionViewType =
+  | 'list_detail'
+  | 'timeline'
+  | 'approval_diff'
+  | 'task_board'
+  | 'artifact_view'
+  | 'activity_log';
+
+export type AgentPackageAppContributions = {
+  schema_version: 'opl-app-contributions.v1';
+  navigation: Array<{
+    navigation_id: string;
+    label_i18n: AgentPackageLocalizedText;
+    view_id: string;
+    icon_id?: string;
+    sort_order?: number;
+  }>;
+  views: Array<{
+    view_id: string;
+    view_type: AgentPackageAppContributionViewType;
+    title_i18n: AgentPackageLocalizedText;
+    data_ref: string;
+    command_ids: string[];
+    badge_ids: string[];
+    empty_state_i18n?: AgentPackageLocalizedText;
+  }>;
+  commands: Array<{
+    command_id: string;
+    label_i18n: AgentPackageLocalizedText;
+    action_ref: string;
+    confirmation_required: boolean;
+  }>;
+  badges: Array<{
+    badge_id: string;
+    label_i18n: AgentPackageLocalizedText;
+    data_ref: string;
+    tone?: 'neutral' | 'info' | 'success' | 'warning' | 'critical';
+  }>;
+};
+
 export type AgentPackageHomeShortcutRoute = {
   route_kind: 'agent_package_shortcut';
   executor: 'codex_cli';
@@ -213,6 +253,7 @@ export type AgentPackageRegistryEntry = {
   display_policy: string | null;
   ordinary_user_source: AgentPackageOrdinaryUserSource | null;
   configured_codex_plugin_carrier?: AgentPackageConfiguredCodexPluginCarrierDescriptor | null;
+  app_contributions?: AgentPackageAppContributions | null;
 };
 
 export type AgentPackageOrdinaryUserSource = {
@@ -288,6 +329,7 @@ export type AgentPackageManifest = {
   content_lock_paths: string[];
   developer_checkout_source?: AgentPackageDeveloperCheckoutSource | null;
   configured_codex_plugin_carrier?: AgentPackageConfiguredCodexPluginCarrierDescriptor | null;
+  app_contributions?: AgentPackageAppContributions | null;
 };
 
 export type AgentPackageDeveloperCheckoutSource = {
