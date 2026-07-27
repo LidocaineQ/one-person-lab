@@ -41,20 +41,21 @@ test('packages refreshes and validates without private lifecycle state before in
           registry_url: string;
           entry_count: number;
           cache_file: string;
-          conditions: Array<{ condition_id: string; status: string; action_ref: string | null }>;
-          recommended_action: string | null;
-          lifecycle_action_refs: string[];
         };
       };
 
       assert.equal(refresh.opl_agent_package_registry.status, 'refreshed');
       assert.equal(refresh.opl_agent_package_registry.registry_url, registryUrl);
       assert.equal(refresh.opl_agent_package_registry.entry_count, 1);
-      assert.equal(Object.hasOwn(refresh.opl_agent_package_registry, 'lifecycle_receipt'), false);
-      assert.equal(refresh.opl_agent_package_registry.conditions[0].condition_id, 'package_not_installed');
-      assert.equal(refresh.opl_agent_package_registry.conditions[0].action_ref, 'install_from_manifest_url');
-      assert.equal(refresh.opl_agent_package_registry.recommended_action, 'install_from_manifest_url');
-      assert.equal(refresh.opl_agent_package_registry.lifecycle_action_refs.includes('install'), true);
+      for (const field of [
+        'lifecycle_receipt',
+        'conditions',
+        'recommended_action',
+        'lifecycle_action_refs',
+        'lifecycle_ux',
+      ]) {
+        assert.equal(Object.hasOwn(refresh.opl_agent_package_registry, field), false);
+      }
       assert.equal(fs.existsSync(refresh.opl_agent_package_registry.cache_file), true);
       const refreshedCache = parseJsonText(
         fs.readFileSync(refresh.opl_agent_package_registry.cache_file, 'utf8'),

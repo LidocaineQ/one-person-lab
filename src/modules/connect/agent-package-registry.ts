@@ -1585,7 +1585,6 @@ export async function runOplAgentPackageRegistryRefresh(input: AgentPackageRegis
   const { fetched, cache: fetchedCache } = await fetchAndValidateRegistry(registryUrl);
   const cache = await enrichRegistryCacheManifestMetadata(fetchedCache);
   writeRegistryCache(cache);
-  const lifecycleUx = agentPackageLifecycleSummaryReadback({ packages: [] });
   return {
     version: 'g2',
     opl_agent_package_registry: {
@@ -1596,10 +1595,6 @@ export async function runOplAgentPackageRegistryRefresh(input: AgentPackageRegis
       registry_source_kind: fetched.source_kind,
       entry_count: cache.entry_count,
       entries: cache.entries,
-      conditions: lifecycleUx.conditions,
-      recommended_action: lifecycleUx.recommended_action,
-      lifecycle_action_refs: lifecycleUx.lifecycle_action_refs,
-      lifecycle_ux: lifecycleUx,
       cache_file: resolveOplStatePaths().agent_package_registry_cache_file,
       authority_boundary: refsOnlyAuthorityBoundary(),
     },
