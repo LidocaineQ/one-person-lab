@@ -12,6 +12,7 @@ import {
 import { readOplFlowDefaultUserInstructions } from '../../src/modules/connect/index.ts';
 import { runCli } from './cli/helpers.ts';
 import { writeManagedRuntimeSourceFixture } from './cli/cases/packages-cases/managed-runtime-source-fixture.ts';
+import { agentPackageManifest, formatJsonPayload } from './cli/cases/packages-cases/helpers.ts';
 
 function sha256(content: string) {
   return `sha256:${crypto.createHash('sha256').update(content).digest('hex')}`;
@@ -56,6 +57,125 @@ function writeOplFlowPackage(root: string) {
   });
 }
 
+function writeInstalledOwnerProfileFixture(root: string) {
+  const sourceRoot = path.join(root, 'installed-owner-profile');
+  const profilePath = path.join(sourceRoot, 'profiles', 'default', 'AGENTS.md');
+  const manifest = agentPackageManifest({
+    packageId: 'fixture.profile.owner',
+    agentId: 'fixture-profile-owner',
+    pluginId: 'fixture-profile-owner',
+    distributionPayload: null,
+    profileSurface: {
+      runtime_profile: { source_path: 'profiles/default/AGENTS.md', target_id: 'user_agents_profile' },
+      authoring_sources: [],
+      merge_context_paths: [],
+      existing_profile_policy: 'semantic_merge_required',
+    },
+  });
+  manifest.source = 'first_party';
+  manifest.publisher = 'one-person-lab';
+  fs.mkdirSync(path.dirname(profilePath), { recursive: true });
+  fs.writeFileSync(path.join(sourceRoot, 'opl-package.json'), formatJsonPayload(manifest));
+  fs.writeFileSync(profilePath, 'Descriptor-owned default instructions.\n');
+  return {
+    codexPath: writeFakeCodexPluginList(root, [{
+      pluginId: 'fixture-profile-owner@fixture-marketplace',
+      version: '1.2.3',
+      enabled: true,
+      source: { source: 'local', path: sourceRoot },
+      marketplaceSource: { sourceType: 'local', source: sourceRoot },
+    }]),
+    sourceRoot,
+    profilePath,
+  };
+}
+
+function writeFakeCodexPluginList(root: string, installed: unknown[]) {
+  const codexPath = path.join(root, 'fake-codex');
+  fs.writeFileSync(codexPath, `#!/usr/bin/env node
+process.stdout.write(${JSON.stringify(JSON.stringify({
+  installed,
+}))});
+`, { mode: 0o755 });
+  return codexPath;
+}
+
+test('Codex user instructions restore from one installed owner descriptor without lifecycle state', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-codex-owner-profile-'));
+  const previousCodexHome = process.env.CODEX_HOME;
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  const previousPluginBin = process.env.OPL_CODEX_PLUGIN_BIN;
+  process.env.CODEX_HOME = path.join(root, 'codex-home');
+  process.env.OPL_STATE_DIR = path.join(root, 'opl-state');
+  const fixture = writeInstalledOwnerProfileFixture(root);
+  process.env.OPL_CODEX_PLUGIN_BIN = fixture.codexPath;
+
+  try {
+    const defaultInstructions = readOplFlowDefaultUserInstructions();
+    assert.equal(defaultInstructions.status, 'available');
+    assert.equal(defaultInstructions.source, 'installed_owner_descriptor');
+    assert.equal(defaultInstructions.source_root, fixture.sourceRoot);
+    assert.equal(defaultInstructions.source_path, fs.realpathSync(fixture.profilePath));
+    assert.equal(defaultInstructions.package_version, '1.2.3');
+    assert.equal(defaultInstructions.package_lock_ref, null);
+    assert.equal(defaultInstructions.content, 'Descriptor-owned default instructions.\n');
+    assert.equal(fs.existsSync(path.join(process.env.OPL_STATE_DIR, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(process.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json')), false);
+
+    const restored = restoreCodexUserInstructionsFromOplFlowDefault({ expectedSha256: null })
+      .codex_user_instructions_restore;
+    assert.equal(restored.status, 'restored');
+    assert.equal(readCodexUserInstructions().content, 'Descriptor-owned default instructions.\n');
+    assert.equal(fs.existsSync(path.join(process.env.OPL_STATE_DIR, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(process.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json')), false);
+  } finally {
+    if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = previousCodexHome;
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    if (previousPluginBin === undefined) delete process.env.OPL_CODEX_PLUGIN_BIN;
+    else process.env.OPL_CODEX_PLUGIN_BIN = previousPluginBin;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Codex user instructions reject a bare plugin manifest as a first-party profile owner', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-codex-plugin-profile-'));
+  const sourceRoot = path.join(root, 'bare-plugin');
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  const previousPluginBin = process.env.OPL_CODEX_PLUGIN_BIN;
+  process.env.OPL_STATE_DIR = path.join(root, 'opl-state');
+  fs.mkdirSync(path.join(sourceRoot, '.codex-plugin'), { recursive: true });
+  fs.writeFileSync(
+    path.join(sourceRoot, '.codex-plugin', 'plugin.json'),
+    formatJsonPayload({ name: 'opl-flow', version: '1.2.3' }),
+  );
+  fs.mkdirSync(path.join(sourceRoot, 'templates'), { recursive: true });
+  fs.writeFileSync(path.join(sourceRoot, 'templates', 'AGENTS.md'), 'Untrusted plugin default.\n');
+  process.env.OPL_CODEX_PLUGIN_BIN = writeFakeCodexPluginList(root, [{
+    pluginId: 'opl-flow@fixture-marketplace',
+    version: '1.2.3',
+    enabled: true,
+    source: { source: 'local', path: sourceRoot },
+    marketplaceSource: { sourceType: 'local', source: sourceRoot },
+  }]);
+
+  try {
+    const defaultInstructions = readOplFlowDefaultUserInstructions();
+    assert.equal(defaultInstructions.status, 'unavailable');
+    assert.equal(defaultInstructions.reason, 'opl_flow_package_not_installed');
+    assert.equal(defaultInstructions.content, null);
+    assert.equal(fs.existsSync(path.join(process.env.OPL_STATE_DIR, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(process.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json')), false);
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    if (previousPluginBin === undefined) delete process.env.OPL_CODEX_PLUGIN_BIN;
+    else process.env.OPL_CODEX_PLUGIN_BIN = previousPluginBin;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('Codex user instructions use SHA preconditions, backup, and atomic readback', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-codex-personalization-'));
   const previousCodexHome = process.env.CODEX_HOME;
@@ -98,6 +218,7 @@ test('Codex user instructions use SHA preconditions, backup, and atomic readback
 
     const oplFlowDefault = readOplFlowDefaultUserInstructions();
     assert.equal(oplFlowDefault.status, 'available');
+    assert.equal(oplFlowDefault.source, 'installed_opl_package_lock');
     assert.equal(oplFlowDefault.package_version, '0.1.16');
     assert.match(oplFlowDefault.package_lock_ref!, /^opl:\/\/agent-package-lock\/opl-flow\/0\.1\.16\//);
     assert.equal(oplFlowDefault.content, 'OPL Flow default instructions.\n');
