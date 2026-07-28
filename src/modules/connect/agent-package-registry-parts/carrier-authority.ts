@@ -82,19 +82,6 @@ export function agentPackageCarrierAuthorityStatus(lock: AgentPackageLock) {
   };
 }
 
-export function assertAgentPackageCarrierAuthority(lock: AgentPackageLock) {
-  const result = agentPackageCarrierAuthorityStatus(lock);
-  if (result.status !== 'invalid') return;
-  throw new FrameworkContractError('contract_shape_invalid', 'Installed package carrier authority is missing or inconsistent.', {
-    package_id: lock.package_id,
-    source_kind: lock.source_kind,
-    owner_source_commit: lock.owner_source_commit ?? null,
-    carrier_authority: lock.carrier_authority ?? null,
-    failures: result.reasons,
-    failure_code: 'agent_package_lock_carrier_authority_invalid',
-  });
-}
-
 export function agentPackageCarrierReceiptAuthorityStatus(
   lock: AgentPackageLock,
   receipt: AgentPackageLifecycleReceipt | null | undefined,
@@ -119,27 +106,7 @@ export function agentPackageCarrierReceiptAuthorityStatus(
   };
 }
 
-export function assertAgentPackageCarrierReceiptAuthority(
-  lock: AgentPackageLock,
-  receipt: AgentPackageLifecycleReceipt | null | undefined,
-) {
-  const result = agentPackageCarrierReceiptAuthorityStatus(lock, receipt);
-  if (result.status !== 'invalid') return;
-  throw new FrameworkContractError(
-    'contract_shape_invalid',
-    'Installed package lifecycle receipt does not preserve its carrier authority.',
-    {
-      package_id: lock.package_id,
-      package_lock_ref: lock.lock_ref,
-      action_receipt_id: lock.action_receipt_id,
-      receipt_ref: receipt?.receipt_ref ?? null,
-      failures: result.reasons,
-      failure_code: 'agent_package_lifecycle_receipt_carrier_authority_invalid',
-    },
-  );
-}
-
-export function sameAgentPackageCarrierAuthority(
+function sameAgentPackageCarrierAuthority(
   left: AgentPackageCarrierAuthority | null | undefined,
   right: AgentPackageCarrierAuthority | null | undefined,
 ) {
