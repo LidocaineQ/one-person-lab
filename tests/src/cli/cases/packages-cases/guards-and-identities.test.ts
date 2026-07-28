@@ -122,6 +122,8 @@ test('local manifest fixtures own runtime source install repair rollback and uni
     }));
     const updated = runCli(['packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
     assert.equal(updated.opl_agent_package_update.package_lock.managed_runtime_source.source_git_head_sha, 'runtime-source-v2');
+    assert.equal(Object.hasOwn(updated.opl_agent_package_update, 'lock_file'), false);
+    assert.equal(Object.hasOwn(updated.opl_agent_package_update, 'lifecycle_ledger_file'), false);
     assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.1');
 
     const rolledBack = runCli(['packages', 'rollback', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
@@ -792,18 +794,35 @@ test('packages preserves installed lock and receipt trail when update materializ
       'third_party_verified',
     ], env) as {
       opl_agent_package_install: {
-        lock_file: string;
-        lifecycle_ledger_file: string;
         package_lock: {
           action_receipt_id: string;
           lock_ref: string;
           physical_surface: { codex_plugin_cache_path: string };
         };
+        owner_route_readback: {
+          packages: Array<{
+            lock: Record<string, unknown>;
+            package_core: { lock: Record<string, unknown> };
+          }>;
+        };
       };
     };
-    const lockFileBefore = fs.readFileSync(install.opl_agent_package_install.lock_file, 'utf8');
-    const ledgerBefore = fs.readFileSync(install.opl_agent_package_install.lifecycle_ledger_file, 'utf8');
+    const installReadback = install.opl_agent_package_install;
+    const lockFile = path.join(stateDir, 'agent-package-locks.json');
+    const ledgerFile = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
+    const lockFileBefore = fs.readFileSync(lockFile, 'utf8');
+    const ledgerBefore = fs.readFileSync(ledgerFile, 'utf8');
     const installedCachePath = install.opl_agent_package_install.package_lock.physical_surface.codex_plugin_cache_path;
+    assert.equal(Object.hasOwn(installReadback, 'lock_file'), false);
+    assert.equal(Object.hasOwn(installReadback, 'lifecycle_ledger_file'), false);
+    assert.equal(installReadback.owner_route_readback.packages.length, 1);
+    for (const ownerLock of [
+      installReadback.owner_route_readback.packages[0].lock,
+      installReadback.owner_route_readback.packages[0].package_core.lock,
+    ]) {
+      assert.equal(Object.hasOwn(ownerLock, 'lock_file'), false);
+      assert.equal(Object.hasOwn(ownerLock, 'lifecycle_ledger_file'), false);
+    }
 
     const failure = runCliFailure([
       'packages',
@@ -815,8 +834,8 @@ test('packages preserves installed lock and receipt trail when update materializ
     ], env);
     assert.equal(failure.payload.error.details.failure_code, 'agent_package_required_skill_missing');
     assert.equal(fs.existsSync(installedCachePath), true);
-    assert.equal(fs.readFileSync(install.opl_agent_package_install.lock_file, 'utf8'), lockFileBefore);
-    assert.equal(fs.readFileSync(install.opl_agent_package_install.lifecycle_ledger_file, 'utf8'), ledgerBefore);
+    assert.equal(fs.readFileSync(lockFile, 'utf8'), lockFileBefore);
+    assert.equal(fs.readFileSync(ledgerFile, 'utf8'), ledgerBefore);
 
     const status = runCli([
       'packages',

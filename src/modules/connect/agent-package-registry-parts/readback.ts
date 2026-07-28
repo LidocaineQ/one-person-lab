@@ -1,4 +1,3 @@
-import { resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
 import {
   CAPABILITY_PACKAGE_APPLY_COMMAND,
   CAPABILITY_PACKAGE_OWNER_FORBIDDEN_CLAIMS,
@@ -268,7 +267,6 @@ function ownerRouteReadbackItem(input: {
   targetWorkspace?: string | null;
   targetQuest?: string | null;
 }): AgentPackageOwnerRouteReadbackItem {
-  const paths = resolveOplStatePaths();
   const surface = input.lock?.physical_surface ?? input.receipt?.physical_surface;
   const descriptor = {
     manifest_url: input.lock?.manifest_url ?? input.receipt?.manifest_url ?? input.manifestUrl ?? null,
@@ -297,8 +295,6 @@ function ownerRouteReadbackItem(input: {
   const lock = {
     package_lock_ref: input.lock?.lock_ref ?? input.receipt?.package_lock_ref ?? null,
     lifecycle_receipt_ref: input.receipt?.receipt_ref ?? input.lock?.action_receipt_id ?? null,
-    lock_file: paths.agent_package_lock_file,
-    lifecycle_ledger_file: paths.agent_package_lifecycle_ledger_file,
   };
   const policyCurrentness = managedPolicyCurrentness(input.lock);
   const materializer = {

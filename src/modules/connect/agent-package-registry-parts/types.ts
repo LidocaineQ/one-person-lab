@@ -721,8 +721,6 @@ export type AgentPackageDigestReadback = {
 export type AgentPackageLockReadback = {
   package_lock_ref: string | null;
   lifecycle_receipt_ref: string | null;
-  lock_file: string;
-  lifecycle_ledger_file: string;
 };
 
 export type AgentPackageCarrierAdapterReadback = {

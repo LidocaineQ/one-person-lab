@@ -1854,8 +1854,6 @@ function agentPackageInstallReadback(
       dependency_transaction_id: result.dependencyTransactionId,
       dependency_closure_digest: result.dependencyClosureDigest,
       dependency_package_locks: result.closureLocks,
-      lock_file: resolveOplStatePaths().agent_package_lock_file,
-      lifecycle_ledger_file: resolveOplStatePaths().agent_package_lifecycle_ledger_file,
       registry_entry: result.registryEntry,
       authority_boundary: refsOnlyAuthorityBoundary(),
     },

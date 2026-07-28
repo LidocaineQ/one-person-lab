@@ -2,7 +2,6 @@ import path from 'node:path';
 
 import { FrameworkContractError } from '../../../kernel/contract-validation.ts';
 import { stringValue } from '../../../kernel/json-record.ts';
-import { resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
 import {
   assertFirstPartyPackageCatalogVersion,
   resolveFirstPartyPackageCatalog,
@@ -112,8 +111,6 @@ export function agentPackageUpdateReadback(
       dependency_closure_digest: result.dependencyClosureDigest,
       dependency_package_locks: result.closureLocks,
       ...(result.carrierEnsure ? { carrier_ensure: result.carrierEnsure } : {}),
-      lock_file: resolveOplStatePaths().agent_package_lock_file,
-      lifecycle_ledger_file: resolveOplStatePaths().agent_package_lifecycle_ledger_file,
       registry_entry: result.registryEntry,
       ...(reconciliation ? {
         source_policy: reconciliation.sourcePolicy,
