@@ -507,12 +507,18 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     );
     assertNoPrivateState();
 
+    const lockPath = path.join(stateDir, 'agent-package-locks.json');
+    const invalidLegacyLock = '{ invalid legacy lock\n';
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(lockPath, invalidLegacyLock, 'utf8');
     const status = runCli(['packages', 'status', '--package-id', packageId], env) as any;
     assert.equal(status.opl_agent_package_status.status, 'available');
     assert.equal(status.opl_agent_package_status.operational_ready, true);
     assert.equal(status.opl_agent_package_status.launch_allowed, true);
     assert.equal(status.opl_agent_package_status.installed_packages.length, 0);
     assert.equal(status.opl_agent_package_status.configured_carrier.status, 'installed');
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLegacyLock);
+    fs.rmSync(lockPath);
     assertNoPrivateState();
 
     const workspace = path.join(root, 'workspace');

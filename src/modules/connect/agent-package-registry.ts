@@ -4743,9 +4743,24 @@ function configuredCarrierLifecycleUxReadback(
   };
 }
 
-function readAgentPackageStatusSnapshot() {
-  const lockIndex = readLockIndex();
+function emptyStatusLockIndex(): AgentPackageLockIndex {
+  return {
+    surface_kind: 'opl_agent_package_lock_index',
+    version: 'opl-agent-package-lock-index.v1',
+    packages: [],
+    last_known_good_transactions: [],
+  };
+}
+
+function readAgentPackageStatusSnapshot(packageId?: string | null) {
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
+  const canonicalPackageId = canonicalAgentPackageId(packageId);
+  const descriptorOnlyReadback = Boolean(
+    canonicalPackageId && installedCodexPluginDescriptors.has(canonicalPackageId),
+  );
+  // A native installed descriptor is already the status authority. Avoid
+  // touching the legacy lock when a caller requests that single Package.
+  const lockIndex = descriptorOnlyReadback ? emptyStatusLockIndex() : readLockIndex();
   const configuredCarriers = configuredCarrierReadbacks(installedCodexPluginDescriptors);
   const directory = buildAgentPackageDirectory({
     locks: lockIndex.packages,
@@ -5034,7 +5049,7 @@ export function createOplAgentPackageStatusReader() {
 }
 
 export function runOplAgentPackageStatus(input: OplAgentPackageStatusInput = {}) {
-  return buildOplAgentPackageStatus(input, readAgentPackageStatusSnapshot());
+  return buildOplAgentPackageStatus(input, readAgentPackageStatusSnapshot(input.packageId));
 }
 
 export function listOplAgentPackages(input: {
