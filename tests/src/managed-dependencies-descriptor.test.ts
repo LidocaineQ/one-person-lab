@@ -26,6 +26,43 @@ process.stdout.write(${JSON.stringify(JSON.stringify({
   return binary;
 }
 
+function writeEmptyPluginList(root: string) {
+  const binary = path.join(root, 'fake-empty-codex');
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+process.stdout.write(${JSON.stringify(JSON.stringify({ installed: [] }))});
+`, { mode: 0o755 });
+  return binary;
+}
+
+function writeLegacyDependencyLock(stateRoot: string) {
+  fs.mkdirSync(stateRoot, { recursive: true });
+  fs.writeFileSync(path.join(stateRoot, 'agent-package-locks.json'), formatJsonPayload({
+    surface_kind: 'opl_agent_package_lock_index',
+    version: 'opl-agent-package-lock-index.v1',
+    packages: [{
+      package_id: 'opl-flow',
+      lock_ref: 'opl://agent-package-lock/opl-flow/legacy',
+      physical_surface: {
+        workflow_policy_migration: {
+          dependency_ids: ['opl-base', 'officecli'],
+          dependencies: [{
+            id: 'opl-base',
+            kind: 'base',
+            activation: 'always',
+            offline_bundle: 'full',
+            online_install_default: true,
+            source: 'legacy-lock',
+          }],
+          dependency_sync: {
+            tools: [{ tool_id: 'officecli', status: 'ready' }],
+          },
+        },
+      },
+    }],
+    last_known_good_transactions: [],
+  }));
+}
+
 test('managed dependencies read from the installed owner descriptor policy without lock state', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-dependencies-descriptor-'));
   const sourceRoot = path.join(root, 'opl-flow');
@@ -145,6 +182,38 @@ test('managed dependencies read from the installed owner descriptor policy witho
     const outsidePolicyPath = path.join(root, 'outside-workflow-policy.json');
     fs.renameSync(policyPath, outsidePolicyPath);
     fs.symlinkSync(outsidePolicyPath, policyPath);
+    assert.deepEqual(readOplFlowManagedDependencyIds(), []);
+    assert.deepEqual(readOplFlowManagedDependencies(), []);
+
+    fs.unlinkSync(policyPath);
+    fs.writeFileSync(policyPath, '{invalid policy');
+    assert.deepEqual(readOplFlowManagedDependencyIds(), []);
+    assert.deepEqual(readOplFlowManagedDependencies(), []);
+  } finally {
+    if (previous.codexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = previous.codexHome;
+    if (previous.stateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previous.stateDir;
+    if (previous.pluginBin === undefined) delete process.env.OPL_CODEX_PLUGIN_BIN;
+    else process.env.OPL_CODEX_PLUGIN_BIN = previous.pluginBin;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('legacy lock dependency metadata does not provide managed dependency authority', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-dependencies-legacy-lock-'));
+  const stateRoot = path.join(root, 'state');
+  writeLegacyDependencyLock(stateRoot);
+  const previous = {
+    codexHome: process.env.CODEX_HOME,
+    stateDir: process.env.OPL_STATE_DIR,
+    pluginBin: process.env.OPL_CODEX_PLUGIN_BIN,
+  };
+  process.env.CODEX_HOME = path.join(root, 'codex-home');
+  process.env.OPL_STATE_DIR = stateRoot;
+  process.env.OPL_CODEX_PLUGIN_BIN = writeEmptyPluginList(root);
+
+  try {
     assert.deepEqual(readOplFlowManagedDependencyIds(), []);
     assert.deepEqual(readOplFlowManagedDependencies(), []);
   } finally {

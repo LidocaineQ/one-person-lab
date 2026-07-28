@@ -5214,21 +5214,21 @@ export function readOplFlowDefaultUserInstructions() {
   return readInstalledOwnerProfileDefault();
 }
 
-function readInstalledOplFlowManagedPolicyDependencies(): AgentPackageManagedPolicyDependency[] | null {
+function readInstalledOplFlowManagedPolicyDependencies(): AgentPackageManagedPolicyDependency[] {
   const descriptor = discoverInstalledCodexPluginDescriptors().get('opl-flow');
   const policySurface = descriptor?.manifest.managed_policy_surface;
-  if (!descriptor || !policySurface) return null;
+  if (!descriptor || !policySurface) return [];
   try {
     const sourceRoot = fs.realpathSync(descriptor.sourcePath);
     const policyPath = path.resolve(sourceRoot, policySurface.source_path);
     const policyRealPath = fs.realpathSync(policyPath);
     if (!policyRealPath.startsWith(`${sourceRoot}${path.sep}`)
       || !fs.statSync(policyRealPath).isFile()) {
-      return null;
+      return [];
     }
     const policy = JSON.parse(fs.readFileSync(policyRealPath, 'utf8')) as unknown;
     if (!isRecord(policy) || !isRecord(policy.package) || policy.package.id !== 'opl-flow') {
-      return null;
+      return [];
     }
     if (!Array.isArray(policy.requires)) return [];
     return policy.requires.flatMap((value) => {
@@ -5267,112 +5267,28 @@ function readInstalledOplFlowManagedPolicyDependencies(): AgentPackageManagedPol
       }];
     });
   } catch {
-    return null;
+    return [];
   }
 }
 
 export function readOplFlowManagedDependencyIds() {
-  const descriptorDependencies = readInstalledOplFlowManagedPolicyDependencies();
-  if (descriptorDependencies) {
-    return [...new Set(descriptorDependencies.map((dependency) => dependency.id))];
-  }
-  const lock = readLockIndex().packages.find((entry) => entry.package_id === 'opl-flow') ?? null;
-  return [...new Set(lock?.physical_surface?.workflow_policy_migration?.dependency_ids ?? [])];
+  return [...new Set(
+    readInstalledOplFlowManagedPolicyDependencies().map((dependency) => dependency.id),
+  )];
 }
 
 export function readOplFlowManagedDependencies() {
-  const descriptorDependencies = readInstalledOplFlowManagedPolicyDependencies();
-  if (descriptorDependencies) {
-    return descriptorDependencies.map((dependency) => ({
-      dependency_id: dependency.id,
-      dependency_kind: dependency.kind,
-      activation: dependency.activation,
-      offline_bundle: dependency.offline_bundle ?? 'none',
-      online_install_default: dependency.online_install_default,
-      source: dependency.source ?? null,
-      lifecycle_owner: dependency.lifecycle_owner
-        ?? (dependency.kind === 'codex_skill' ? 'opl_packages' : 'opl_base'),
-      update_mode: dependency.online_install_default ? 'silent_managed' : 'detect_only_guidance',
-      observed_status: null,
-      installed: dependency.kind === 'base' ? true : null,
-    }));
-  }
-  const lock = readLockIndex().packages.find((entry) => entry.package_id === 'opl-flow') ?? null;
-  const migration = lock?.physical_surface?.workflow_policy_migration;
-  const sync = migration?.dependency_sync && typeof migration.dependency_sync === 'object'
-    ? migration.dependency_sync as Record<string, unknown>
-    : null;
-  const items = Array.isArray(sync?.items) ? sync.items.filter((entry): entry is Record<string, unknown> => (
-    Boolean(entry) && typeof entry === 'object'
-  )) : [];
-  const tools = Array.isArray(sync?.tools) ? sync.tools.filter((entry): entry is Record<string, unknown> => (
-    Boolean(entry) && typeof entry === 'object'
-  )) : [];
-  const recordedDependencies = migration?.dependencies ?? [];
-  const dependencies = recordedDependencies.length > 0
-    ? recordedDependencies
-    : [
-        ...((migration?.dependency_ids ?? []).includes('opl-base')
-          ? [{
-              id: 'opl-base',
-              kind: 'base' as const,
-              activation: 'always',
-              offline_bundle: 'full',
-              online_install_default: true,
-              source: 'installed_opl_flow_package_lock',
-            }]
-          : []),
-        ...items.flatMap((entry) => {
-          const id = typeof entry.skill_id === 'string' ? entry.skill_id : null;
-          return id
-            ? [{
-                id,
-                kind: 'codex_skill' as const,
-                activation: 'task_routed',
-                offline_bundle: 'full',
-                online_install_default: true,
-                source: typeof entry.source_path === 'string'
-                  ? entry.source_path
-                  : 'installed_opl_flow_dependency_sync',
-              }]
-            : [];
-        }),
-        ...tools.flatMap((entry) => {
-          const id = typeof entry.tool_id === 'string' ? entry.tool_id : null;
-          return id
-            ? [{
-                id,
-                kind: 'cli' as const,
-                activation: 'task_routed',
-                offline_bundle: 'full',
-                online_install_default: true,
-                source: typeof entry.binary_path === 'string'
-                  ? entry.binary_path
-                  : 'installed_opl_flow_dependency_sync',
-              }]
-            : [];
-        }),
-      ];
-  return dependencies.map((dependency) => {
-    const observed = dependency.kind === 'codex_skill'
-      ? items.find((entry) => entry.skill_id === dependency.id)
-      : dependency.kind === 'cli'
-        ? tools.find((entry) => entry.tool_id === dependency.id)
-        : null;
-    const observedStatus = typeof observed?.status === 'string' ? observed.status : null;
-    return {
-      dependency_id: dependency.id,
-      dependency_kind: dependency.kind,
-      activation: dependency.activation,
-      offline_bundle: dependency.offline_bundle,
-      online_install_default: dependency.online_install_default,
-      source: dependency.source,
-      lifecycle_owner: dependency.kind === 'codex_skill' ? 'opl_packages' : 'opl_base',
-      update_mode: dependency.online_install_default ? 'silent_managed' : 'detect_only_guidance',
-      observed_status: observedStatus,
-      installed: dependency.kind === 'base'
-        ? true
-        : observedStatus ? !['missing', 'missing_source', 'failed'].includes(observedStatus) : null,
-    };
-  });
+  return readInstalledOplFlowManagedPolicyDependencies().map((dependency) => ({
+    dependency_id: dependency.id,
+    dependency_kind: dependency.kind,
+    activation: dependency.activation,
+    offline_bundle: dependency.offline_bundle ?? 'none',
+    online_install_default: dependency.online_install_default,
+    source: dependency.source ?? null,
+    lifecycle_owner: dependency.lifecycle_owner
+      ?? (dependency.kind === 'codex_skill' ? 'opl_packages' : 'opl_base'),
+    update_mode: dependency.online_install_default ? 'silent_managed' : 'detect_only_guidance',
+    observed_status: null,
+    installed: dependency.kind === 'base' ? true : null,
+  }));
 }

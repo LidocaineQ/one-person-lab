@@ -29,6 +29,7 @@ import {
   TEMPORAL_SDK_PACKAGE_NAMES,
   validateTemporalStableCohort,
 } from '../../src/modules/connect/temporal-stable-cohort.ts';
+import { agentPackageManifest, formatJsonPayload } from './cli/cases/packages-cases/helpers.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '../..');
 
@@ -51,29 +52,56 @@ function toolInstaller(filePath: string, binaryName: string, versionCommand: str
   ].join('\n'), { mode: 0o755 });
 }
 
-function writeFlowDependencyLock(stateRoot: string, dependencyIds: string[]) {
-  fs.mkdirSync(stateRoot, { recursive: true });
-  fs.writeFileSync(path.join(stateRoot, 'agent-package-locks.json'), `${JSON.stringify({
-    surface_kind: 'opl_agent_package_lock_index',
-    version: 'opl-agent-package-lock-index.v1',
-    packages: [{
-      package_id: 'opl-flow',
-      lock_ref: 'opl://agent-package-lock/opl-flow/test',
-      physical_surface: {
-        workflow_policy_migration: {
-          dependency_ids: dependencyIds,
-          dependencies: dependencyIds.map((id) => ({
-            id,
-            kind: id === 'opl-base' ? 'base' : 'cli',
-            offline_bundle: 'full',
-            online_install_default: true,
-            activation: 'always',
-            source: id,
-          })),
-        },
-      },
-    }],
-  }, null, 2)}\n`, 'utf8');
+function writeFlowDependencyDescriptor(root: string, dependencyIds: string[]) {
+  const sourceRoot = path.join(root, 'opl-flow');
+  const policyPath = path.join(sourceRoot, 'contracts', 'workflow-policy.json');
+  const manifest = agentPackageManifest({
+    packageId: 'opl-flow',
+    agentId: 'opl-flow',
+    pluginId: 'opl-flow',
+    distributionPayload: null,
+    profileSurface: {
+      runtime_profile: { source_path: 'templates/AGENTS.md', target_id: 'user_agents_profile' },
+      authoring_sources: [],
+      merge_context_paths: [],
+      existing_profile_policy: 'semantic_merge_required',
+    },
+  }) as unknown as Record<string, unknown>;
+  manifest.source = 'first_party';
+  manifest.publisher = 'one-person-lab';
+  manifest.managed_policy_surface = {
+    policy_kind: 'opl_flow_workflow_policy',
+    source_path: 'contracts/workflow-policy.json',
+    schema_path: 'contracts/workflow-policy.schema.json',
+  };
+  const binary = path.join(root, 'fake-codex');
+  fs.mkdirSync(path.dirname(policyPath), { recursive: true });
+  fs.mkdirSync(path.join(sourceRoot, 'templates'), { recursive: true });
+  fs.writeFileSync(path.join(sourceRoot, 'opl-package.json'), formatJsonPayload(manifest));
+  fs.writeFileSync(path.join(sourceRoot, 'templates', 'AGENTS.md'), 'fixture\n');
+  fs.writeFileSync(policyPath, formatJsonPayload({
+    schema: 'opl_flow_workflow_policy.v3',
+    package: { id: 'opl-flow', version: '0.1.28', owner: 'opl-flow', kind: 'workflow_profile' },
+    requires: dependencyIds.map((id) => ({
+      id,
+      kind: id === 'opl-base' ? 'base' : 'cli',
+      activation: 'always',
+      online_install_default: true,
+      source: id,
+    })),
+  }));
+  fs.writeFileSync(binary, `#!${process.execPath}
+process.stdout.write(${JSON.stringify(JSON.stringify({
+  installed: [{
+    pluginId: 'opl-flow@fixture-marketplace',
+    version: '0.1.28',
+    enabled: true,
+    source: { source: 'local', path: sourceRoot },
+    marketplaceSource: { sourceType: 'local', source: sourceRoot },
+  }],
+}))});
+`, { mode: 0o755 });
+  return binary;
 }
 
 function writeLegacyFlowDependencyLock(stateRoot: string) {
@@ -477,13 +505,15 @@ test('managed companion currentness makes OPL Base background apply eligible', (
   const codex = path.join(runtimeRoot, 'current', 'bin', 'codex');
   executable(office, 'officecli 1.0.1');
   executable(codex, 'codex-cli 0.2.0');
-  writeFlowDependencyLock(stateRoot, ['opl-base', 'officecli']);
+  const pluginBin = writeFlowDependencyDescriptor(root, ['opl-base', 'officecli']);
   try {
     withEnvironment({
+      CODEX_HOME: path.join(root, 'codex-home'),
       HOME: root,
       OPL_STATE_DIR: stateRoot,
       OPL_RUNTIME_ROOT: runtimeRoot,
       OPL_CODEX_BIN: codex,
+      OPL_CODEX_PLUGIN_BIN: pluginBin,
       OPL_CODEX_CLI_LATEST_VERSION: '0.2.0',
       OPL_OFFICECLI_LATEST_VERSION: '1.0.2',
       OPL_COMPANION_SKIP_LATEST_LOOKUP: '1',
@@ -500,18 +530,18 @@ test('managed companion currentness makes OPL Base background apply eligible', (
       assert.equal(component.state, 'update_available');
       assert.equal(component.auto_apply.eligible, true);
       const catalog = component.current.dependency_catalog as ReturnType<typeof inspectBaseManagedDependencies>;
-      assert.equal(catalog.dependencies.find((entry) => entry.dependency_id === 'officecli')?.currentness, 'update_available');
       assert.deepEqual(catalog.flow_dependencies.map((entry) => [entry.dependency_id, entry.dependency_kind]), [
         ['opl-base', 'base'],
         ['officecli', 'cli'],
       ]);
+      assert.equal(catalog.dependencies.find((entry) => entry.dependency_id === 'officecli')?.currentness, 'update_available');
     });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('legacy OPL Flow locks project a typed dependency catalog from recorded sync receipts', () => {
+test('legacy OPL Flow locks do not project managed dependency authority', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-flow-legacy-dependency-lock-'));
   const stateRoot = path.join(root, 'state');
   writeLegacyFlowDependencyLock(stateRoot);
@@ -525,14 +555,7 @@ test('legacy OPL Flow locks project a typed dependency catalog from recorded syn
       PATH: '/usr/bin:/bin',
     }, () => {
       const catalog = inspectBaseManagedDependencies(root);
-      assert.deepEqual(catalog.flow_dependencies.map((entry) => [entry.dependency_id, entry.dependency_kind]), [
-        ['opl-base', 'base'],
-        ['officecli', 'codex_skill'],
-        ['officecli-docx', 'codex_skill'],
-        ['officecli', 'cli'],
-        ['mineru-open-api', 'cli'],
-      ]);
-      assert.equal(catalog.flow_dependencies.every((entry) => typeof entry.status === 'string'), true);
+      assert.deepEqual(catalog.flow_dependencies, []);
     });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -546,7 +569,7 @@ test('cached Base status skips companion latest network lookup while explicit re
   const fakeGit = path.join(root, 'bin', 'git');
   const marker = path.join(root, 'git-called');
   executable(office, 'officecli 1.0.1');
-  writeFlowDependencyLock(stateRoot, ['opl-base', 'officecli']);
+  const pluginBin = writeFlowDependencyDescriptor(root, ['opl-base', 'officecli']);
   fs.mkdirSync(path.dirname(fakeGit), { recursive: true });
   fs.writeFileSync(fakeGit, [
     '#!/usr/bin/env bash',
@@ -556,10 +579,12 @@ test('cached Base status skips companion latest network lookup while explicit re
   ].join('\n'), { mode: 0o755 });
   try {
     withEnvironment({
+      CODEX_HOME: path.join(root, 'codex-home'),
       HOME: root,
       OPL_STATE_DIR: stateRoot,
       OPL_COMPANION_SKIP_LATEST_LOOKUP: undefined,
       OPL_OFFICECLI_LATEST_VERSION: undefined,
+      OPL_CODEX_PLUGIN_BIN: pluginBin,
       PATH: `${path.dirname(fakeGit)}:/usr/bin:/bin`,
     }, () => {
       const cached = inspectBaseManagedDependencies(root);
