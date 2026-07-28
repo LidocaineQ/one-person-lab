@@ -680,6 +680,10 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
     assert.equal(descriptorStatus.opl_agent_package_status.status, 'available');
     assert.equal(descriptorStatus.opl_agent_package_status.operational_ready, true);
     assert.equal(descriptorStatus.opl_agent_package_status.launch_allowed, true);
+    assert.equal(descriptorStatus.opl_agent_package_status.installed_package_count, 1);
+    assert.deepEqual(descriptorStatus.opl_agent_package_status.installed_packages, []);
+    assert.equal(descriptorStatus.opl_agent_package_status.owner_route_readback.package_count, 0);
+    assert.deepEqual(descriptorStatus.opl_agent_package_status.owner_route_readback.packages, []);
 
     const descriptorDirectory = runCli(['packages', 'list', '--detail', 'full'], env) as any;
     const descriptorEntry = descriptorDirectory.opl_agent_packages.directory.entries.find(
@@ -687,6 +691,12 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
     );
     assert.equal(Object.hasOwn(descriptorEntry, 'lock_ref'), false);
     assert.equal(descriptorEntry.legacy_private_lifecycle_state_present, true);
+    assert.equal(descriptorDirectory.opl_agent_packages.installed_package_count, 1);
+    assert.deepEqual(descriptorDirectory.opl_agent_packages.installed_packages, []);
+    assert.equal(descriptorDirectory.opl_agent_packages.owner_route_readback.package_count, 0);
+    assert.deepEqual(descriptorDirectory.opl_agent_packages.owner_route_readback.packages, []);
+    assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
+    assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json'), 'utf8'), legacyLedgerBytes);
 
     const activated = runCli([
       'packages', 'activate', packageId,

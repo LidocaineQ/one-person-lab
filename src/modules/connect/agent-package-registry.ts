@@ -4757,6 +4757,13 @@ function readAgentPackageStatusSnapshot() {
   };
 }
 
+function publicLegacyPackages(
+  packages: AgentPackageLock[],
+  installedCodexPluginDescriptors: ReadonlyMap<string, import('./agent-package-registry-parts/installed-codex-plugin-directory.ts').InstalledCodexPluginDescriptor>,
+) {
+  return packages.filter((entry) => !installedCodexPluginDescriptors.has(entry.package_id));
+}
+
 function buildOplAgentPackageStatus(
   input: OplAgentPackageStatusInput,
   snapshot: ReturnType<typeof readAgentPackageStatusSnapshot>,
@@ -4770,9 +4777,12 @@ function buildOplAgentPackageStatus(
     installedCodexPluginDescriptors,
     configuredCarriers,
   } = snapshot;
-  const installedPackages = packageId
-    ? lockIndex.packages.filter((entry) => entry.package_id === packageId)
-    : lockIndex.packages;
+  const installedPackages = publicLegacyPackages(
+    packageId
+      ? lockIndex.packages.filter((entry) => entry.package_id === packageId)
+      : lockIndex.packages,
+    installedCodexPluginDescriptors,
+  );
   const homeShortcutPreferences = allHomeShortcutPreferences
     .filter((entry) => !packageId || entry.package_id === packageId);
   const legacyLifecycleUx = agentPackageLifecycleSummaryReadback({
@@ -5031,8 +5041,9 @@ export function listOplAgentPackages(input: {
   const lockIndex = readLockIndex();
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
   const configuredCarriers = configuredCarrierReadbacks(installedCodexPluginDescriptors);
+  const installedPackages = publicLegacyPackages(lockIndex.packages, installedCodexPluginDescriptors);
   const lifecycleUx = agentPackageLifecycleSummaryReadback({
-    packages: lockIndex.packages,
+    packages: installedPackages,
   });
   const directory = buildAgentPackageDirectory({
     locks: lockIndex.packages,
@@ -5059,12 +5070,12 @@ export function listOplAgentPackages(input: {
       status: 'available',
       directory,
       installed_package_count: new Set([
-        ...lockIndex.packages.map((entry) => entry.package_id),
+        ...installedPackages.map((entry) => entry.package_id),
         ...[...configuredCarriers.entries()]
           .filter(([, readback]) => readback.status === 'installed')
           .map(([packageId]) => packageId),
       ]).size,
-      installed_packages: lockIndex.packages,
+      installed_packages: installedPackages,
       configured_carriers: [...configuredCarriers.values()],
       conditions: lifecycleUx.conditions,
       recommended_action: lifecycleUx.recommended_action,
@@ -5076,13 +5087,13 @@ export function listOplAgentPackages(input: {
             surface_kind: 'opl_agent_package_owner_route_readback',
             status: 'deferred_fast_profile',
             selected_package_id: null,
-            package_count: lockIndex.packages.length,
+            package_count: installedPackages.length,
             packages: [],
             detail_surface: 'opl packages status --package-id <package_id> --json',
             authority_boundary: refsOnlyAuthorityBoundary(),
           }
         : ownerRouteReadback({
-            packages: lockIndex.packages.map((lock) => ({
+            packages: installedPackages.map((lock) => ({
               packageId: lock.package_id,
               lock,
             })),
