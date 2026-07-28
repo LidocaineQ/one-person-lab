@@ -841,6 +841,11 @@ test('managed-update reader excludes a legacy lock once the native owner descrip
       marketplaceSource: 'fixture-carrier',
     }));
     assert.equal(legacy.readInstalledOplAgentPackageLocks().some((entry: any) => entry.package_id === packageId), false);
+
+    const bulkUpdate = await legacy.runOplAgentPackageBulkUpdate({ dryRun: true });
+    assert.equal(bulkUpdate.opl_agent_package_bulk_update.summary.installed_package_count, 0);
+    assert.equal(bulkUpdate.opl_agent_package_bulk_update.summary.root_package_count, 0);
+    assert.deepEqual(bulkUpdate.opl_agent_package_bulk_update.targets, []);
   } finally {
     if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateDir;

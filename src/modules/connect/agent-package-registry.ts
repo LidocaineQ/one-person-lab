@@ -401,6 +401,14 @@ function readRecoveredLockIndex(dryRun = false) {
   };
 }
 
+function readRecoveredLegacyLockIndex(dryRun = false) {
+  const recovered = readRecoveredLockIndex(dryRun);
+  return {
+    ...recovered,
+    index: readLegacyAgentPackageLockIndex(),
+  };
+}
+
 function retainLastKnownGoodPerRoot(
   entries: AgentPackageLastKnownGood[],
   next: AgentPackageLastKnownGood,
@@ -2981,7 +2989,7 @@ export async function runOplAgentPackageUpdate(input: AgentPackageInstallInput) 
 }
 
 async function runOplAgentPackageBulkUpdateUnlocked(input: { dryRun?: boolean } = {}) {
-  const { index } = readRecoveredLockIndex(input.dryRun === true);
+  const { index } = readRecoveredLegacyLockIndex(input.dryRun === true);
   const dependencyIds = new Set(index.packages.flatMap((lock) =>
     (lock.resolved_dependencies ?? []).map((dependency) => dependency.package_id)));
   const recordedRootIds = new Set((index.last_known_good_transactions ?? [])
