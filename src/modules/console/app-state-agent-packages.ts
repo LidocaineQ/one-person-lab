@@ -1,7 +1,6 @@
 import type { JsonRecord } from '../../kernel/json-record.ts';
 import { deriveAgentPackageLaunchState } from '../../kernel/agent-package-launch-state.ts';
 import type {
-  AgentPackageLockIndex,
   listOplAgentPackages,
   runOplAgentPackageStatus,
 } from '../connect/public/app-state.ts';
@@ -235,7 +234,6 @@ export function projectRuntimeAgentPackageDirectoryEntry(
 export function projectAppAgentPackageStatus(input: {
   status: RawAgentPackageStatus;
   profile: AppStateProfile;
-  lockIndex: AgentPackageLockIndex;
 }) {
   const { status, profile } = input;
   const presence = projectedPresence(status);
@@ -295,10 +293,7 @@ export function projectAppAgentPackageStatus(input: {
   };
 }
 
-export function unavailableAgentPackageCanonicalFields(
-  packageId: string,
-  _lockIndex: AgentPackageLockIndex,
-) {
+export function unavailableAgentPackageCanonicalFields(packageId: string) {
   return {
     ...deriveAgentPackageLaunchState({
       installed: false,

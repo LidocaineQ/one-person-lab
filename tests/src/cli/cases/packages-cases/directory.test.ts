@@ -454,11 +454,6 @@ process.stdout.write(JSON.stringify({
       packageIds: [packageId],
       profile: 'fast',
       readStatus: (input) => runOplAgentPackageStatus(input),
-      lockIndex: {
-        surface_kind: 'opl_agent_package_lock_index',
-        version: 'opl-agent-package-lock-index.v1',
-        packages: [],
-      },
     })[packageId] as any;
     assert.equal(appPackage.status, 'available');
     assert.equal(appPackage.operational_ready, true);

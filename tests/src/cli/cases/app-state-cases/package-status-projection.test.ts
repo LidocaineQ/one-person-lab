@@ -12,7 +12,6 @@ import { validateJsonSchemaPayload } from '../../../../../src/kernel/schema-regi
 import { buildAppAgentPackageStatuses } from '../../../../../src/modules/console/app-state.ts';
 import { managedRuntimeSourceLockReadiness } from '../../../../../src/modules/connect/agent-package-registry-parts/managed-runtime-source-carrier.ts';
 import type {
-  AgentPackageLockIndex,
   AgentPackageManagedRuntimeSourceState,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/types.ts';
 
@@ -22,15 +21,6 @@ const launchStateFixtureRef = 'contracts/opl-framework/agent-package-launch-stat
 
 function readContractJson(relativePath: string) {
   return parseJsonText(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')) as Record<string, unknown>;
-}
-
-function lockIndex(packages: unknown[] = []) {
-  return {
-    surface_kind: 'opl_agent_package_lock_index',
-    version: 'opl-agent-package-lock-index.v1',
-    packages,
-    last_known_good_transactions: [],
-  } as unknown as AgentPackageLockIndex;
 }
 
 function installedStatus(input: {
@@ -216,23 +206,15 @@ test('App package projection accepts arbitrary package ids and trusts fresh owne
       recommendedAction: 'update',
     });
   }) as any;
-  const staleLockIndex = lockIndex([{
-    package_id: 'unrelated.legacy.package',
-    package_version: '1.0.0',
-    exposure_state: 'disabled',
-  }]);
-
   const fast = buildAppAgentPackageStatuses({
     packageIds: ['third.party.research'],
     profile: 'fast',
     readStatus,
-    lockIndex: staleLockIndex,
   });
   const full = buildAppAgentPackageStatuses({
     packageIds: ['third.party.research'],
     profile: 'full',
     readStatus,
-    lockIndex: staleLockIndex,
   });
 
   assert.deepEqual(Object.keys(fast), ['third.party.research']);
@@ -280,7 +262,6 @@ test('Fast App status keeps configured native carrier readiness from the same fr
   const status = buildAppAgentPackageStatuses({
     packageIds: ['future.owner.package'],
     profile: 'fast',
-    lockIndex: lockIndex(),
     readStatus: (() => installedStatus({
       packageId: 'future.owner.package',
       lifecycleActionRefs: ['update', 'repair', 'uninstall'],
@@ -317,7 +298,6 @@ test('App package status preserves canonical role-neutral app contributions', ()
   const projected = buildAppAgentPackageStatuses({
     packageIds: ['opl-relay'],
     profile: 'full',
-    lockIndex: lockIndex(),
     readStatus: (() => installedStatus({
       packageId: 'opl-relay',
       appContributions,
@@ -348,7 +328,6 @@ test('App status projection does not mirror owner presentation or shortcut route
   const projected = buildAppAgentPackageStatuses({
     packageIds: ['third.party.research'],
     profile: 'fast',
-    lockIndex: lockIndex(),
     readStatus: (() => ({
       ...installedStatus({ packageId: 'third.party.research' }),
       opl_agent_package_status: {
@@ -424,7 +403,6 @@ test('presence-only dependency projection ignores legacy version ABI digest obse
   const statuses = buildAppAgentPackageStatuses({
     packageIds: ['mas'],
     profile: 'fast',
-    lockIndex: lockIndex(),
     readStatus: (() => installedStatus({
       packageId: 'mas',
       dependencyReadiness,
@@ -461,7 +439,6 @@ test('dependency projection does not hide unsupported receipt-shaped reasons', (
   const statuses = buildAppAgentPackageStatuses({
     packageIds: ['mas'],
     profile: 'fast',
-    lockIndex: lockIndex(),
     readStatus: (() => installedStatus({
       packageId: 'mas',
       dependencyReadiness: {
@@ -514,7 +491,6 @@ test('missing or disabled required packages remain local presence blockers', () 
   const statuses = buildAppAgentPackageStatuses({
     packageIds: ['mas'],
     profile: 'full',
-    lockIndex: lockIndex(),
     readStatus: (() => installedStatus({
       packageId: 'mas',
       dependencyReadiness,
@@ -548,7 +524,6 @@ test('runtime carrier failure reports physical_unavailable without exposing old 
   const statuses = buildAppAgentPackageStatuses({
     packageIds: ['mas'],
     profile: 'fast',
-    lockIndex: lockIndex(),
     readStatus: (() => installedStatus({
       packageId: 'mas',
       runtimeReady: false,
@@ -580,19 +555,10 @@ test('runtime carrier failure reports physical_unavailable without exposing old 
   assertLegacyManagerFieldsAbsent(projected);
 });
 
-test('status read failure stays unknown and never guesses installed state from a stale lock', () => {
-  const legacyRollbackField = ['roll', 'back_ref'].join('');
-  const staleLockIndex = lockIndex([{
-    package_id: 'stale.package',
-    package_version: '1.0.0',
-    exposure_state: 'hidden',
-    action_receipt_id: 'opl://stale-receipt',
-    [legacyRollbackField]: 'opl://stale-history',
-  }]);
+test('status read failure stays unknown without a private lifecycle fallback', () => {
   const statuses = buildAppAgentPackageStatuses({
     packageIds: ['stale.package'],
     profile: 'fast',
-    lockIndex: staleLockIndex,
     readStatus: (() => {
       throw new FrameworkContractError(
         'contract_shape_invalid',

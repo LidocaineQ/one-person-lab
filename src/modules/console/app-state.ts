@@ -15,7 +15,6 @@ import {
   compactStorageOwnerProjection,
   createOplAgentPackageStatusReader,
   listOplAgentPackages,
-  readOplAgentPackageLockIndex,
   readOplFlowDefaultUserInstructions,
   readStorageOwnerInventorySnapshot,
   resolveCodexVersion,
@@ -158,11 +157,10 @@ function requestCachedAgentPackageStatusReader(readStatus: AgentPackageStatusRea
 function unavailableAgentPackageStatus(
   packageId: string,
   error: unknown,
-  lockIndex: ReturnType<typeof readOplAgentPackageLockIndex>,
 ): JsonRecord {
   const contractError = error instanceof FrameworkContractError ? error : null;
   return {
-    ...unavailableAgentPackageCanonicalFields(packageId, lockIndex),
+    ...unavailableAgentPackageCanonicalFields(packageId),
     surface_kind: 'opl_agent_package_status_unavailable',
     status: 'unavailable',
     installed_package_count: null,
@@ -193,10 +191,8 @@ export function buildAppAgentPackageStatuses(input: {
   packageIds: readonly string[];
   profile: AppStateProfile;
   readStatus?: AgentPackageStatusReader;
-  lockIndex?: ReturnType<typeof readOplAgentPackageLockIndex>;
 }) {
   const readStatus = input.readStatus ?? runOplAgentPackageStatus;
-  const lockIndex = input.lockIndex ?? readOplAgentPackageLockIndex();
   const statuses: Record<string, JsonRecord> = {};
   for (const packageId of input.packageIds) {
     try {
@@ -208,10 +204,9 @@ export function buildAppAgentPackageStatuses(input: {
       statuses[packageId] = projectAppAgentPackageStatus({
         status,
         profile: input.profile,
-        lockIndex,
       }) as unknown as JsonRecord;
     } catch (error) {
-      statuses[packageId] = unavailableAgentPackageStatus(packageId, error, lockIndex);
+      statuses[packageId] = unavailableAgentPackageStatus(packageId, error);
     }
   }
   return statuses;
@@ -956,7 +951,6 @@ export async function buildOplAppState(input: {
     packageIds,
     profile,
     readStatus: readAgentPackageStatus,
-    lockIndex: readOplAgentPackageLockIndex(),
   });
   const packageStatusFailures = Object.entries(agentPackageStatuses)
     .filter(([, status]) => status.status === 'unavailable')
