@@ -40,13 +40,13 @@ test('explicit registry selection validates and installs without a persistent di
       assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), true);
       assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), true);
 
-      const listed = runCli(['packages', 'list'], env) as any;
+      const listed = await runCliAsync(['packages', 'list'], env) as any;
       assert.equal(Object.hasOwn(listed.opl_agent_packages, 'registry_cache'), false);
       assert.equal(listed.opl_agent_packages.directory.entries.some((entry: any) =>
         entry.package_id === 'third.party.research' && entry.installed === true
       ), true);
 
-      const uninstall = runCli(['packages', 'uninstall', '--package-id', 'third.party.research'], env) as any;
+      const uninstall = await runCliAsync(['packages', 'uninstall', '--package-id', 'third.party.research'], env) as any;
       assert.equal(uninstall.opl_agent_package_uninstall.status, 'uninstalled');
       assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-registry-cache.json')), false);
     }, agentPackageManifest({ pluginSourcePath }));

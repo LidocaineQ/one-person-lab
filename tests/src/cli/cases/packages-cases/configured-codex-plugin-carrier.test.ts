@@ -483,6 +483,47 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     assert.equal(status.opl_agent_package_status.configured_carrier.status, 'installed');
     assertNoPrivateState();
 
+    const workspace = path.join(root, 'workspace');
+    fs.mkdirSync(workspace, { recursive: true });
+    const activate = runCli([
+      'packages', 'activate', packageId,
+      '--scope', 'workspace', '--target-workspace', workspace,
+    ], env) as any;
+    assert.equal(activate.opl_agent_package_activation.status, 'already_activated');
+    assert.equal(activate.opl_agent_package_activation.writes_performed, false);
+    assert.equal(activate.opl_agent_package_activation.package_lock, null);
+    assert.equal(activate.opl_agent_package_activation.lifecycle_receipt, null);
+    assert.equal(activate.opl_agent_package_activation.package_use_binding, null);
+    assert.equal(activate.opl_agent_package_activation.use_receipt, null);
+    assert.equal(activate.opl_agent_package_activation.launch_state, 'ready');
+    assertNoPrivateState();
+
+    const activateDryRun = runCli([
+      'packages', 'activate', packageId,
+      '--scope', 'workspace', '--target-workspace', workspace, '--dry-run',
+    ], env) as any;
+    assert.equal(activateDryRun.opl_agent_package_activation.status, 'validated_no_write');
+    assert.equal(activateDryRun.opl_agent_package_activation.writes_performed, false);
+    assert.equal(activateDryRun.opl_agent_package_activation.package_lock, null);
+    assert.equal(activateDryRun.opl_agent_package_activation.lifecycle_receipt, null);
+    assertNoPrivateState();
+
+    const disabled = runCli(['packages', 'disable', packageId], env) as any;
+    assert.equal(disabled.opl_agent_package_exposure.status, 'disabled');
+    const disabledActivation = runCliFailure([
+      'packages', 'activate', packageId,
+      '--scope', 'workspace', '--target-workspace', workspace,
+    ], env);
+    assert.equal(
+      disabledActivation.payload.error.details.failure_code,
+      'agent_package_scope_activation_blocked',
+    );
+    assertNoPrivateState();
+
+    const enabled = runCli(['packages', 'enable', packageId], env) as any;
+    assert.equal(enabled.opl_agent_package_exposure.status, 'enabled');
+    assertNoPrivateState();
+
     const list = runCli(['packages', 'list', '--detail', 'full'], env) as any;
     const entry = list.opl_agent_packages.directory.entries.find(
       (candidate: any) => candidate.package_id === packageId,

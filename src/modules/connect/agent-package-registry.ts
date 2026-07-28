@@ -4113,6 +4113,65 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
     targetWorkspace: input.targetWorkspace,
     targetQuest: input.targetQuest,
   }).opl_agent_package_status;
+  const selectedLock = beforeStatus.installed_packages.find(
+    (entry: AgentPackageLock) => entry.package_id === packageId,
+  ) ?? null;
+  const nativeCarrierReady = selectedLock === null
+    && beforeStatus.configured_carrier?.carrier?.kind === 'codex_plugin_manager'
+    && beforeStatus.configured_carrier.status === 'installed'
+    && beforeStatus.configured_carrier.carrier.precedence === 'exact_single_source'
+    && beforeStatus.installed_readiness?.installed === true
+    && beforeStatus.installed_readiness.callability === 'callable'
+    && beforeStatus.operational_ready === true
+    && beforeStatus.launch_allowed === true;
+  if (nativeCarrierReady) {
+    return {
+      version: 'g2',
+      opl_agent_package_activation: {
+        surface_kind: 'opl_agent_package_activation',
+        status: input.dryRun ? 'validated_no_write' : 'already_activated',
+        package_id: packageId,
+        writes_performed: false,
+        scope_materializations: [],
+        package_lock: null,
+        lifecycle_receipt: null,
+        package_dependency_readiness: null,
+        materialization_readiness: null,
+        package_use_binding: null,
+        use_receipt: null,
+        operational_ready: true,
+        launch_allowed: true,
+        launch_blocked_reason: null,
+        launch_state_schema_version: beforeStatus.launch_state_schema_version,
+        launch_state: beforeStatus.launch_state,
+        launch_state_reason: beforeStatus.launch_state_reason,
+        use_boundary_id: input.useBoundaryId ?? null,
+        use_receipt_ref: null,
+        lifecycle_receipt_ref: null,
+        authority_boundary: refsOnlyAuthorityBoundary(),
+      },
+    };
+  }
+  const nativeCarrierPresent = selectedLock === null
+    && beforeStatus.configured_carrier?.carrier?.kind === 'codex_plugin_manager'
+    && beforeStatus.configured_carrier.status === 'installed'
+    && beforeStatus.configured_carrier.carrier.precedence === 'exact_single_source';
+  if (nativeCarrierPresent) {
+    const launchBlockedReason = stringValue(beforeStatus.launch_blocked_reason)
+      ?? stringValue(beforeStatus.launch_state_reason)
+      ?? 'native_carrier_not_ready';
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Package activation is blocked until the native carrier is callable and ready.',
+      {
+        package_id: packageId,
+        launch_blocked_reason: launchBlockedReason,
+        configured_carrier: beforeStatus.configured_carrier,
+        installed_readiness: beforeStatus.installed_readiness,
+        failure_code: 'agent_package_scope_activation_blocked',
+      },
+    );
+  }
   if (input.dryRun && beforeStatus.installed_package_count === 0) {
     const launchState = deriveAgentPackageLaunchState({
       installed: false,
