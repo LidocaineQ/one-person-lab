@@ -1,4 +1,15 @@
-import { assert, fs, parseJsonText, path, repoRoot, runCli, runCliFailure, test } from '../helpers.ts';
+import {
+  assert,
+  createFakeCodexFixture,
+  fs,
+  parseJsonText,
+  path,
+  repoRoot,
+  runCli,
+  runCliFailure,
+  shellSingleQuote,
+  test,
+} from '../helpers.ts';
 import os from 'node:os';
 import { formatJsonPayload } from '../../../../src/kernel/json-file.ts';
 import { loadFrameworkContracts } from '../../../../src/modules/charter/contracts.ts';
@@ -7,6 +18,7 @@ import { selectedManagedUpdateComponentIds } from '../../../../src/modules/conne
 import { getOplPackageSpecs } from '../../../../src/modules/connect/package-distribution.ts';
 import { loadDeveloperCheckoutPackageSource } from '../../../../src/modules/connect/agent-package-registry-parts/developer-checkout-package-source.ts';
 import { writePackageCatalog } from './packages-cases/capability-fixtures.ts';
+import { agentPackageManifest } from './packages-cases/helpers.ts';
 
 function readManagedUpdateKernelContract() {
   return parseJsonText(
@@ -336,6 +348,116 @@ test('OPL Packages folds Codex projection and profile migration into one guarded
   ]);
   assert.equal(components[0].authority_boundary.can_overwrite_dirty_checkout, false);
   assert.equal(components[0].authority_boundary.can_overwrite_developer_checkout, false);
+});
+
+test('OPL Packages managed-update projection retains only legacy lock owners', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-update-legacy-read-model-'));
+  const homeDir = path.join(root, 'home');
+  const stateDir = path.join(root, 'state');
+  const pluginSource = path.join(root, 'native-plugin');
+  const nativePackageId = 'third.party.research';
+  const legacyPackageId = 'legacy.package';
+  fs.mkdirSync(path.join(pluginSource, '.codex-plugin'), { recursive: true });
+  fs.mkdirSync(path.join(pluginSource, 'skills', 'third-party-research'), { recursive: true });
+  fs.writeFileSync(
+    path.join(pluginSource, '.codex-plugin', 'plugin.json'),
+    formatJsonPayload({
+      name: 'third-party-research',
+      version: '1.2.3',
+      skills: './skills/',
+    }),
+  );
+  fs.writeFileSync(
+    path.join(pluginSource, 'skills', 'third-party-research', 'SKILL.md'),
+    '# Third Party Research\n',
+  );
+  fs.writeFileSync(
+    path.join(pluginSource, 'opl-package.json'),
+    formatJsonPayload(agentPackageManifest({
+      packageId: nativePackageId,
+      agentId: 'third-party-research',
+      pluginId: 'third-party-research',
+      distributionPayload: null,
+    })),
+  );
+  const pluginList = JSON.stringify({
+    installed: [{
+      pluginId: 'third-party-research@fixture-carrier',
+      version: '1.2.3',
+      installed: true,
+      enabled: true,
+      source: { source: 'local', path: pluginSource },
+      marketplaceSource: { sourceType: 'local', source: 'fixture-carrier' },
+    }],
+    available: [],
+  });
+  const codexFixture = createFakeCodexFixture(`
+if [[ "$*" == "plugin list --json" ]]; then
+  printf '%s\\n' ${shellSingleQuote(pluginList)}
+  exit 0
+fi
+exit 2
+`);
+  const packageLock = (packageId: string) => ({
+    surface_kind: 'opl_agent_package_lock',
+    package_id: packageId,
+    agent_id: packageId,
+    package_role: 'standard_agent',
+    display_name: packageId,
+    publisher: 'fixture',
+    package_version: '1.2.3',
+    source_kind: 'manifest_url',
+    manifest_url: `https://example.invalid/${packageId}.json`,
+    manifest_sha256: '1'.repeat(64),
+    content_digest: `sha256:${'2'.repeat(64)}`,
+    artifact_digest: null,
+    owner_source_commit: null,
+    lock_ref: `opl://agent-package-lock/${packageId}/1.2.3/fixture`,
+    physical_surface: { status: 'materialized', failure_reason: null },
+    resolved_dependencies: [],
+  });
+  const lockPath = path.join(stateDir, 'agent-package-locks.json');
+  const lockBytes = formatJsonPayload({
+    surface_kind: 'opl_agent_package_lock_index',
+    version: 'opl-agent-package-lock-index.v1',
+    packages: [packageLock(nativePackageId), packageLock(legacyPackageId)],
+    last_known_good_transactions: [],
+  });
+  fs.mkdirSync(stateDir, { recursive: true });
+  fs.writeFileSync(lockPath, lockBytes);
+  const env = {
+    HOME: homeDir,
+    CODEX_HOME: path.join(homeDir, '.codex'),
+    OPL_STATE_DIR: stateDir,
+    OPL_MODULES_ROOT: path.join(root, 'modules'),
+    OPL_CODEX_PLUGIN_BIN: codexFixture.codexPath,
+    OPL_PACKAGE_CHANNEL_MANIFEST_REF: '',
+  };
+  const previousEnv = new Map(Object.keys(env).map((key) => [key, process.env[key]]));
+
+  try {
+    for (const [key, value] of Object.entries(env)) process.env[key] = value;
+    const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
+      operation: 'status',
+      componentId: 'opl_packages',
+    }) as Record<string, any>;
+    const packages = output.managed_update.components[0];
+
+    assert.deepEqual(
+      packages.current.package_lock_states.map((entry: Record<string, unknown>) => entry.package_id),
+      [legacyPackageId],
+    );
+    assert.equal(packages.current.installed_root_package_count, 1);
+    assert.equal(packages.current.package_lock_states[0].reason, 'external_or_unowned_package_source');
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytes);
+  } finally {
+    for (const [key, value] of previousEnv) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(codexFixture.fixtureRoot, { recursive: true, force: true });
+  }
 });
 
 test('OPL Packages evaluates MAG and OPL Flow against their effective developer targets', async () => {
