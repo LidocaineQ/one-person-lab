@@ -5470,19 +5470,6 @@ export function listOplAgentPackages(input: {
   };
 }
 
-export async function refreshAndListOplAgentPackages(input: {
-  detail?: 'fast' | 'full';
-  refresh?: boolean;
-} = {}) {
-  const firstPartyCatalog = await resolveFirstPartyPackageCatalogSnapshot({
-    refresh: input.refresh !== false,
-  });
-  return listOplAgentPackages({
-    detail: input.detail,
-    firstPartyCatalog,
-  });
-}
-
 export function readManagedUpdateOplAgentPackageProjection() {
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
   const snapshot = readStatusLockIndex(

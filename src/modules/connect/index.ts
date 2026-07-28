@@ -59,7 +59,6 @@ export type {
 } from './capability-registry-resolver.ts';
 export {
   listOplAgentPackages,
-  refreshAndListOplAgentPackages,
   readOplFlowDefaultUserInstructions,
   readOplFlowManagedDependencyIds,
   ensureOplAgentPackageScopeActivation,
