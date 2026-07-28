@@ -5487,6 +5487,21 @@ export function readInstalledOplAgentPackageLocks() {
   return readLegacyAgentPackageLockIndex().packages;
 }
 
+export function readManagedUpdateOplAgentPackageProjection() {
+  const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
+  const snapshot = readStatusLockIndex(
+    installedCodexPluginDescriptors,
+    installedCodexPluginDescriptors.size > 0,
+  );
+  return {
+    packages: publicLegacyPackages(
+      snapshot.lockIndex.packages,
+      installedCodexPluginDescriptors,
+    ),
+    legacy_authority: snapshot.legacyAuthority,
+  };
+}
+
 function readInstalledOwnerProfileDefault() {
   const descriptors = discoverInstalledOwnerProfileDescriptors();
   if (descriptors.length === 0) {

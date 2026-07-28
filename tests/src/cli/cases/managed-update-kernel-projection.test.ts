@@ -359,8 +359,9 @@ test('OPL Packages managed-update projection retains only legacy lock owners', a
   const legacyPackageId = 'legacy.package';
   fs.mkdirSync(path.join(pluginSource, '.codex-plugin'), { recursive: true });
   fs.mkdirSync(path.join(pluginSource, 'skills', 'third-party-research'), { recursive: true });
+  const pluginManifestPath = path.join(pluginSource, '.codex-plugin', 'plugin.json');
   fs.writeFileSync(
-    path.join(pluginSource, '.codex-plugin', 'plugin.json'),
+    pluginManifestPath,
     formatJsonPayload({
       name: 'third-party-research',
       version: '1.2.3',
@@ -371,8 +372,9 @@ test('OPL Packages managed-update projection retains only legacy lock owners', a
     path.join(pluginSource, 'skills', 'third-party-research', 'SKILL.md'),
     '# Third Party Research\n',
   );
+  const descriptorPath = path.join(pluginSource, 'opl-package.json');
   fs.writeFileSync(
-    path.join(pluginSource, 'opl-package.json'),
+    descriptorPath,
     formatJsonPayload(agentPackageManifest({
       packageId: nativePackageId,
       agentId: 'third-party-research',
@@ -450,6 +452,46 @@ exit 2
     assert.equal(packages.current.installed_root_package_count, 1);
     assert.equal(packages.current.package_lock_states[0].reason, 'external_or_unowned_package_source');
     assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytes);
+
+    const corruptLockBytes = '{ invalid legacy lock\n';
+    fs.writeFileSync(lockPath, corruptLockBytes);
+    const degraded = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
+      operation: 'status',
+      componentId: 'opl_packages',
+    }) as Record<string, any>;
+    const degradedPackages = degraded.managed_update.components[0];
+
+    assert.equal(degradedPackages.state, 'skipped_manual_required');
+    assert.equal(degradedPackages.plan.action, 'manual_review');
+    assert.equal(degradedPackages.auto_apply.eligible, false);
+    assert.deepEqual(
+      degradedPackages.auto_apply.blocked_reasons,
+      ['legacy_lock_authority_requires_repair'],
+    );
+    assert.deepEqual(degradedPackages.current.package_lock_states, []);
+    assert.equal(degradedPackages.current.installed_root_package_count, 0);
+    assert.equal(degradedPackages.current.legacy_authority.status, 'degraded');
+    assert.equal(degradedPackages.current.legacy_authority.authority_status, 'corrupt');
+    assert.equal(
+      degradedPackages.current.legacy_authority.failure_code,
+      'agent_package_lock_authority_corrupt',
+    );
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), corruptLockBytes);
+
+    fs.rmSync(descriptorPath);
+    fs.rmSync(pluginManifestPath);
+    await assert.rejects(
+      buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
+        operation: 'status',
+        componentId: 'opl_packages',
+      }),
+      (error: any) => {
+        assert.equal(error.code, 'contract_json_invalid');
+        assert.equal(error.details.failure_code, 'agent_package_lock_authority_corrupt');
+        return true;
+      },
+    );
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), corruptLockBytes);
   } finally {
     for (const [key, value] of previousEnv) {
       if (value === undefined) delete process.env[key];

@@ -41,7 +41,7 @@ import {
 } from './managed-update-owner-boundary.ts';
 import { buildInstallationCarrierComponent } from './managed-update-kernel-parts/installation-carrier.ts';
 import { buildRuntimeSubstrateComponent } from './managed-update-kernel-parts/runtime-substrate.ts';
-import { readInstalledOplAgentPackageLocks } from './agent-package-registry.ts';
+import { readManagedUpdateOplAgentPackageProjection } from './agent-package-registry.ts';
 import { resolveFirstPartyPackageCatalog } from './agent-package-first-party.ts';
 import { agentPackageTargetCurrentness } from './agent-package-registry-parts/currentness.ts';
 import {
@@ -123,7 +123,10 @@ function buildCapabilityPackagesComponent(
     source_policy: entry.source_policy ?? null,
     git: entry.git ?? null,
   }));
-  const installedPackages = readInstalledOplAgentPackageLocks();
+  const installedPackageProjection = readManagedUpdateOplAgentPackageProjection();
+  const installedPackages = installedPackageProjection.packages;
+  const legacyAuthorityCorrupt =
+    installedPackageProjection.legacy_authority.authority_status === 'corrupt';
   const bundledCatalog = readBundledFullRuntimePackageCatalog();
   const dependencyIds = new Set(installedPackages.flatMap((lock) =>
     (lock.resolved_dependencies ?? []).map((dependency) => dependency.package_id)));
@@ -299,34 +302,41 @@ function buildCapabilityPackagesComponent(
   const updateCount = targetStates.filter((entry) => entry.state === 'update_available').length;
   const manualCount = targetStates.filter((entry) => entry.state === 'skipped_manual_required').length;
   const cleanManagedTargetsCount = targetStates.filter((entry) => entry.state === 'update_available').length;
-  const state: ManagedUpdateComponentState =
-    failedWithRepairCount > 0
-        ? 'failed_with_repair'
-        : updateCount > 0
-          ? 'update_available'
-          : manualCount > 0
-            ? 'skipped_manual_required'
+  const state: ManagedUpdateComponentState = legacyAuthorityCorrupt
+    ? 'skipped_manual_required'
+    : failedWithRepairCount > 0
+      ? 'failed_with_repair'
+      : updateCount > 0
+        ? 'update_available'
+        : manualCount > 0
+          ? 'skipped_manual_required'
           : 'current';
-  const action = failedWithRepairCount > 0
+  const action = legacyAuthorityCorrupt
+    ? 'manual_review'
+    : failedWithRepairCount > 0
       ? 'install'
       : updateCount > 0
         ? 'update'
         : manualCount > 0
           ? 'manual_review'
-        : 'none';
+          : 'none';
   const postApplyHooks = [
     'reconcile_packages',
     'sync_skills',
     'sync_plugin_registry',
     'sync_plugin_packaged_skills',
   ];
-  const cleanManagedScopeSafe = cleanManagedTargetsCount > 0;
+  const cleanManagedScopeSafe = cleanManagedTargetsCount > 0 && !legacyAuthorityCorrupt;
   const autoApplyEligible = cleanManagedScopeSafe && action !== 'none';
   const managedBundledRootCount = packageStates.filter((entry) =>
     entry.source_policy.desired_source_kind === 'bundled_full_runtime_modules').length;
   const packageApplyCommand = managedBundledRootCount > 0
     ? 'opl update apply --json'
     : 'opl packages update --json';
+  const blockedReasons = [
+    ...(legacyAuthorityCorrupt ? ['legacy_lock_authority_requires_repair'] : []),
+    ...(manualCount > 0 ? ['manual_required_targets_are_detect_only_and_skipped'] : []),
+  ];
   const reloadRecommended = autoApplyEligible;
   const reloadGuidance: ManagedUpdateReloadGuidance = reloadRecommended
     ? {
@@ -405,6 +415,7 @@ function buildCapabilityPackagesComponent(
       module_states: moduleStates,
       installed_root_package_count: packageStates.length,
       package_lock_states: packageStates,
+      legacy_authority: installedPackageProjection.legacy_authority,
       release_catalog: releaseCatalog ? {
         freshness: releaseCatalog.freshness,
         catalog_ref: releaseCatalog.catalog_ref,
@@ -433,10 +444,26 @@ function buildCapabilityPackagesComponent(
       condition(
         'Ready',
         state === 'current' ? 'True' : 'False',
-        state === 'current' ? 'CapabilityPackagesCurrent' : 'CapabilityPackageMaintenanceAvailable',
+        state === 'current'
+          ? 'CapabilityPackagesCurrent'
+          : legacyAuthorityCorrupt
+            ? 'LegacyLockAuthorityRequiresRepair'
+            : 'CapabilityPackageMaintenanceAvailable',
         state === 'current'
           ? 'Installed first-party Package locks match the effective source policy and selected source targets.'
-          : 'First-party Package maintenance or manual review is required.',
+          : legacyAuthorityCorrupt
+            ? 'Native descriptor projection remains available, but legacy Package maintenance is blocked until the corrupt lock authority is repaired.'
+            : 'First-party Package maintenance or manual review is required.',
+      ),
+      condition(
+        'LegacyAuthorityReadable',
+        legacyAuthorityCorrupt ? 'False' : 'True',
+        legacyAuthorityCorrupt
+          ? 'LegacyLockAuthorityCorrupt'
+          : 'LegacyLockAuthorityReadableOrAbsent',
+        legacyAuthorityCorrupt
+          ? 'The legacy Package lock authority is corrupt; descriptor-owned Packages remain projected without replacing its bytes.'
+          : 'The legacy Package lock authority is readable or not present.',
       ),
       condition(
         'DigestPinned',
@@ -461,9 +488,7 @@ function buildCapabilityPackagesComponent(
       app_background_safe: cleanManagedScopeSafe,
       scope: packageStates.length > 0 ? 'clean_digest_locked_installed_root_packages_only' : 'legacy_explicit_channel_roots_only',
       command_ref: autoApplyEligible ? packageApplyCommand : null,
-      blocked_reasons: manualCount > 0
-        ? ['manual_required_targets_are_detect_only_and_skipped']
-        : [],
+      blocked_reasons: blockedReasons,
     },
     status_detail: detail,
     post_apply_guidance: {
