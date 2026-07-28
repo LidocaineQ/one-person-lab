@@ -287,6 +287,34 @@ if (args.join(' ') === 'plugin marketplace list --json') {
   fs.chmodSync(binary, 0o755);
 }
 
+function writeDiscoveryThenUnavailableCodex(binary: string, counterPath: string) {
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+import fs from 'node:fs';
+const args = process.argv.slice(2);
+const counterPath = ${JSON.stringify(counterPath)};
+const callCount = fs.existsSync(counterPath)
+  ? Number(fs.readFileSync(counterPath, 'utf8'))
+  : 0;
+fs.writeFileSync(counterPath, String(callCount + 1));
+if (callCount > 0 || args.join(' ') !== 'plugin list --json') {
+  process.exitCode = 1;
+} else {
+  process.stdout.write(JSON.stringify({
+    installed: [{
+      pluginId: ${JSON.stringify(pluginSelector)},
+      version: '1.0.1',
+      installed: true,
+      enabled: true,
+      source: { source: 'local', path: process.env.FIXTURE_PLUGIN_SOURCE },
+      marketplaceSource: { sourceType: 'local', source: 'fixture-carrier' },
+    }],
+    available: [],
+  }));
+}
+`);
+  fs.chmodSync(binary, 0o755);
+}
+
 test('configured Codex carrier toggles only its native plugin table and verifies fresh enabled state', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-toggle-'));
   const binary = path.join(root, 'fake-codex');
@@ -827,6 +855,115 @@ test('preloaded native status reader does not parse or replace a corrupt legacy 
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;
     }
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('native private lifecycle actions stay carrier-owned when legacy authorities are corrupt', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-private-actions-'));
+  const stateDir = path.join(root, 'opl-state');
+  const binary = path.join(root, 'fake-codex.mjs');
+  const pluginState = path.join(root, 'plugin-state.json');
+  const pluginSource = path.join(root, 'plugin-source');
+  const lockPath = path.join(stateDir, 'agent-package-locks.json');
+  const ledgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
+  const sqlitePath = path.join(stateDir, 'agent-package-lifecycle.sqlite');
+  const invalidLock = '{ invalid native-action lock\n';
+  const invalidLedger = '{ invalid native-action ledger\n';
+  const env = {
+    HOME: root,
+    CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: binary,
+    FIXTURE_PLUGIN_STATE: pluginState,
+    FIXTURE_PLUGIN_SOURCE: pluginSource,
+  };
+  try {
+    writePluginSource(pluginSource, 'native-private-actions');
+    fs.writeFileSync(
+      path.join(pluginSource, 'opl-package.json'),
+      formatJsonPayload(installedOwnerDescriptor()),
+    );
+    writeFakeCodex(binary);
+    fs.writeFileSync(pluginState, JSON.stringify({
+      installed: true,
+      version: '1.0.1',
+      marketplaceSource: 'fixture-carrier',
+    }));
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(lockPath, invalidLock, 'utf8');
+    fs.writeFileSync(ledgerPath, invalidLedger, 'utf8');
+    const lockBefore = fs.readFileSync(lockPath, 'utf8');
+    const ledgerBefore = fs.readFileSync(ledgerPath, 'utf8');
+
+    for (const action of ['optimize', 'rollback', 'profile apply'] as const) { // reuse-first: exception - preserve the public action vocabulary while proving no Framework writer runs.
+      const result = action === 'profile apply'
+        ? runCli([
+            'packages', 'profile', 'apply', packageId,
+            '--merged-file', path.join(root, 'missing-merged-file.md'),
+          ], env) as any
+        : runCli(['packages', action, packageId], env) as any;
+      const surfaceKey = action === 'profile apply'
+        ? 'opl_agent_package_profile_apply'
+        : `opl_agent_package_${action}`;
+      const surface = result[surfaceKey];
+      assert.equal(surface.status, 'carrier_owned');
+      assert.equal(surface.lifecycle_authority, 'carrier_owned');
+      assert.equal(surface.writes_performed, false);
+      assert.equal(surface.package_lock, null);
+      assert.equal(surface.lifecycle_receipt, null);
+      assert.equal(surface.configured_carrier.status, 'installed');
+      assert.equal(surface.configured_carrier.operation, 'list');
+      assert.equal(surface.configured_carrier.native_action_dispatched, true);
+      assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBefore);
+      assert.equal(fs.readFileSync(ledgerPath, 'utf8'), ledgerBefore);
+      assert.equal(fs.existsSync(sqlitePath), false);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('native private action does not fall back to legacy state after carrier readback becomes unavailable', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-private-action-unavailable-'));
+  const stateDir = path.join(root, 'opl-state');
+  const binary = path.join(root, 'flaky-codex.mjs');
+  const counterPath = path.join(root, 'list-calls.txt');
+  const pluginSource = path.join(root, 'plugin-source');
+  const lockPath = path.join(stateDir, 'agent-package-locks.json');
+  const ledgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
+  const sqlitePath = path.join(stateDir, 'agent-package-lifecycle.sqlite');
+  const env = {
+    HOME: root,
+    CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: binary,
+    FIXTURE_PLUGIN_SOURCE: pluginSource,
+  };
+  try {
+    writePluginSource(pluginSource, 'native-private-action-unavailable');
+    fs.writeFileSync(
+      path.join(pluginSource, 'opl-package.json'),
+      formatJsonPayload(installedOwnerDescriptor()),
+    );
+    writeDiscoveryThenUnavailableCodex(binary, counterPath);
+    fs.mkdirSync(stateDir, { recursive: true });
+    const invalidLock = '{ invalid unavailable-action lock\\n';
+    const invalidLedger = '{ invalid unavailable-action ledger\\n';
+    fs.writeFileSync(lockPath, invalidLock, 'utf8');
+    fs.writeFileSync(ledgerPath, invalidLedger, 'utf8');
+
+    const result = runCli(['packages', 'optimize', packageId], env) as any;
+    const surface = result.opl_agent_package_optimize;
+    assert.equal(surface.status, 'attention_needed');
+    assert.equal(surface.lifecycle_authority, 'carrier_owned');
+    assert.equal(surface.writes_performed, false);
+    assert.equal(surface.reason, 'configured_native_carrier_unavailable');
+    assert.equal(surface.configured_carrier.status, 'physical_unavailable');
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLock);
+    assert.equal(fs.readFileSync(ledgerPath, 'utf8'), invalidLedger);
+    assert.equal(fs.existsSync(sqlitePath), false);
+  } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

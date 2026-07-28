@@ -1644,7 +1644,8 @@ async function runOplAgentPackageInstallUnlocked(input: AgentPackageInstallInput
 type ConfiguredCarrierSelectionInput =
   | AgentPackageInstallInput
   | AgentPackageRepairInput
-  | AgentPackagePackageActionInput;
+  | AgentPackagePackageActionInput
+  | AgentPackageProfileApplyInput;
 
 async function resolveFreshConfiguredCarrier(input: ConfiguredCarrierSelectionInput) {
   const packageId = canonicalAgentPackageId(input.packageId);
@@ -1768,6 +1769,53 @@ async function maybeRunConfiguredCarrierLifecycle(input: {
     dryRun,
     carrier,
     registryEntry: selected.selection.registryEntry,
+  });
+}
+
+type ConfiguredCarrierPrivateAction = 'optimize' | 'rollback' | 'profile_apply'; // reuse-first: exception - these are native carrier action labels, not Framework updater authority.
+
+function configuredCarrierPrivateActionReadback(input: {
+  action: ConfiguredCarrierPrivateAction;
+  dryRun: boolean;
+  carrier: ConfiguredCodexPluginCarrierReadback;
+}) {
+  const nativeReady = input.carrier.status === 'installed'
+    && input.carrier.executor.status === 'callable'
+    && input.carrier.carrier.precedence === 'exact_single_source';
+  return {
+    status: nativeReady
+      ? input.dryRun ? 'validated_no_write' : 'carrier_owned'
+      : 'attention_needed',
+    dry_run: input.dryRun,
+    package_id: input.carrier.package_id,
+    writes_performed: false,
+    lifecycle_authority: 'carrier_owned' as const,
+    package_lock: null,
+    lifecycle_receipt: null,
+    configured_carrier: input.carrier,
+    reason: nativeReady ? null : input.carrier.reason ?? 'native_carrier_not_ready',
+    authority_boundary: refsOnlyAuthorityBoundary(),
+  };
+}
+
+async function maybeRunConfiguredCarrierPrivateAction(input: {
+  selectionInput: ConfiguredCarrierSelectionInput;
+  action: ConfiguredCarrierPrivateAction;
+}) {
+  const selected = await resolveFreshConfiguredCarrier(input.selectionInput);
+  if (!selected) return null;
+  const dryRun = input.selectionInput.dryRun === true;
+  // Private Framework lifecycle actions are read-only for carrier-owned
+  // Packages. The native carrier remains the sole action authority.
+  const carrier = runConfiguredCodexPluginCarrier({
+    descriptor: selected.descriptor,
+    action: 'list',
+    dryRun: true,
+  });
+  return configuredCarrierPrivateActionReadback({
+    action: input.action,
+    dryRun,
+    carrier,
   });
 }
 
@@ -3346,6 +3394,19 @@ function runOplAgentPackageOptimizeUnlocked(input: AgentPackagePackageActionInpu
 }
 
 export async function runOplAgentPackageOptimize(input: AgentPackagePackageActionInput) {
+  const configured = await maybeRunConfiguredCarrierPrivateAction({
+    selectionInput: input,
+    action: 'optimize',
+  });
+  if (configured) {
+    return {
+      version: 'g2',
+      opl_agent_package_optimize: {
+        surface_kind: 'opl_agent_package_optimize',
+        ...configured,
+      },
+    };
+  }
   return withAgentPackageLifecycleTransaction(
     input.dryRun === true,
     async () => runOplAgentPackageOptimizeUnlocked(input),
@@ -3798,6 +3859,19 @@ function runOplAgentPackageRollbackUnlocked(input: AgentPackagePackageActionInpu
 }
 
 export async function runOplAgentPackageRollback(input: AgentPackagePackageActionInput) {
+  const configured = await maybeRunConfiguredCarrierPrivateAction({
+    selectionInput: input,
+    action: 'rollback', // reuse-first: exception - route the existing command vocabulary through native carrier preflight.
+  });
+  if (configured) {
+    return {
+      version: 'g2',
+      opl_agent_package_rollback: {
+        surface_kind: 'opl_agent_package_rollback',
+        ...configured,
+      },
+    };
+  }
   return withAgentPackageLifecycleTransaction(
     input.dryRun === true,
     async () => runOplAgentPackageRollbackUnlocked(input),
@@ -4389,6 +4463,19 @@ function runOplAgentPackageProfileApplyUnlocked(input: AgentPackageProfileApplyI
 }
 
 export async function runOplAgentPackageProfileApply(input: AgentPackageProfileApplyInput) {
+  const configured = await maybeRunConfiguredCarrierPrivateAction({
+    selectionInput: input,
+    action: 'profile_apply',
+  });
+  if (configured) {
+    return {
+      version: 'g2',
+      opl_agent_package_profile_apply: {
+        surface_kind: 'opl_agent_package_profile_apply',
+        ...configured,
+      },
+    };
+  }
   return withAgentPackageLifecycleTransaction(
     input.dryRun === true,
     async () => runOplAgentPackageProfileApplyUnlocked(input),
