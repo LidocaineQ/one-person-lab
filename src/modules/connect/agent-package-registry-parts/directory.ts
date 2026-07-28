@@ -733,6 +733,7 @@ export function buildAgentPackageDirectory(input: {
   const entries = [...sources.values()].map((source) => {
     const lock = locksById.get(source.package_id) ?? null;
     const installedDescriptor = input.installedCodexPluginDescriptors?.get(source.package_id) ?? null;
+    const legacyLock = installedDescriptor ? null : lock;
     const carrierReadiness = installedDescriptor?.readiness ?? null;
     const configuredCarrier = input.configuredCarrierReadbacks?.get(source.package_id) ?? null;
     const configuredCarrierInstalled = configuredCarrier?.status === 'installed';
@@ -745,14 +746,13 @@ export function buildAgentPackageDirectory(input: {
         configuredCarrier.status === 'physical_unavailable'
         || configuredCarrier.executor.status !== 'callable'
         || configuredCarrier.carrier.precedence !== 'exact_single_source'
-        || lock
       ),
     );
     const sourcePolicy = resolveFirstPartyPackageCatalog(source.package_id)
       ? resolveAgentPackageEffectiveSourcePolicy(source.package_id, { profile: input.detail })
       : null;
-    const installedRole = lock ? installedRoles.get(source.package_id)! : null;
-    const effectiveSource = lock
+    const installedRole = legacyLock ? installedRoles.get(source.package_id)! : null;
+    const effectiveSource = legacyLock
       ? { ...source, package_role: installedRole!.role }
       : source;
     const roleKnown = effectiveSource.package_role !== null;
@@ -762,7 +762,7 @@ export function buildAgentPackageDirectory(input: {
       && installedRole.role !== source.package_role,
     );
     const roleRepairRequired = installed && (!roleKnown || roleMismatch);
-    const lifecycle = agentPackageLifecycleUxReadback({ packageId: source.package_id, lock });
+    const lifecycle = agentPackageLifecycleUxReadback({ packageId: source.package_id, lock: legacyLock });
     let status: PackageStatusReadback = {};
     let statusReadError: { code: string; message: string } | null = null;
     if (carrierReadiness) {
@@ -825,7 +825,7 @@ export function buildAgentPackageDirectory(input: {
     const useBoundaryReconciliationReady = installed
       && !roleRepairRequired
       && !statusReadError
-      && lock?.exposure_state !== 'disabled'
+      && legacyLock?.exposure_state !== 'disabled'
       && (
         materializationStatus === 'scope_required'
         || status.launch_blocked_reason?.startsWith('scope_materialization_') === true
@@ -837,10 +837,10 @@ export function buildAgentPackageDirectory(input: {
           || status.currentness_detail_deferred === true
           || status.runtime_source_readiness?.live_verification_deferred === true
         );
-    const desiredSourceKind = sourcePolicy?.desired_source_kind ?? lock?.source_kind ?? null;
-    const targetCurrentness = lock && source.release_target && desiredSourceKind
+    const desiredSourceKind = sourcePolicy?.desired_source_kind ?? legacyLock?.source_kind ?? null;
+    const targetCurrentness = legacyLock && source.release_target && desiredSourceKind
       ? agentPackageTargetCurrentness({
-          lock,
+          lock: legacyLock,
           target: source.release_target,
           desiredSourceKind,
         })
@@ -850,10 +850,10 @@ export function buildAgentPackageDirectory(input: {
       : sourcePolicy.desired_source_kind === 'developer_checkout_override'
         ? !sourcePolicy.developer_checkout_available
           ? 'manual_required'
-          : lock?.source_kind === 'developer_checkout_override'
+          : legacyLock?.source_kind === 'developer_checkout_override'
             ? 'current'
             : 'reconciliation_available'
-        : lock && lock.source_kind !== 'first_party_managed_cohort'
+        : legacyLock && legacyLock.source_kind !== 'first_party_managed_cohort'
           ? 'reconciliation_available'
           : 'current';
     const automaticSourceReconciliationAllowed = Boolean(
@@ -866,7 +866,7 @@ export function buildAgentPackageDirectory(input: {
     );
     const actions = statusReadError
       ? [
-          ...(roleKnown && lock?.exposure_state !== 'disabled'
+          ...(roleKnown && legacyLock?.exposure_state !== 'disabled'
             ? [activationAction(effectiveSource, input.actionContext?.(source.package_id) ?? null)]
             : []),
           packageAction('agent_package_repair', { package_id: source.package_id }, ['package_id'], true),
@@ -875,8 +875,8 @@ export function buildAgentPackageDirectory(input: {
           effectiveSource,
           installed,
           input.actionContext?.(source.package_id) ?? null,
-          configuredCarrier ? false : lock?.exposure_state !== 'disabled',
-          lock?.source_kind !== 'developer_checkout_override' && (
+          configuredCarrier ? false : legacyLock?.exposure_state !== 'disabled',
+          legacyLock?.source_kind !== 'developer_checkout_override' && (
             sourcePolicy?.package_channel_auto_update === true
             || automaticSourceReconciliationAllowed
             || !sourcePolicy
@@ -925,7 +925,7 @@ export function buildAgentPackageDirectory(input: {
       home_shortcuts: effectiveSource.presentation?.home_shortcuts ?? [],
       home_shortcut_ids: effectiveSource.home_shortcut_ids,
       app_contributions: effectiveSource.app_contributions,
-      capability_dependency_summary: capabilityDependencySummary(lock),
+      capability_dependency_summary: capabilityDependencySummary(legacyLock),
       configured_carrier: configuredCarrier,
       installed_carrier_readback: effectiveSource.installed_carrier_readback ?? null,
       installed_readiness: effectiveSource.installed_readiness ?? null,
@@ -959,7 +959,7 @@ export function buildAgentPackageDirectory(input: {
         registry_url: source.registry_url,
         registry_source_ref: source.registry_source_ref,
         version_source_ref: source.version_source_ref,
-        installed_source_kind: lock?.source_kind ?? null,
+        installed_source_kind: legacyLock?.source_kind ?? null,
         effective_source_policy: sourcePolicy,
         source_policy_status: sourcePolicyStatus,
       },
@@ -996,11 +996,11 @@ export function buildAgentPackageDirectory(input: {
       installed_version: configuredCarrierInstalled
         ? configuredCarrier?.installed_version
           ?? source.installed_carrier_readback?.version
-          ?? lock?.package_version
+          ?? legacyLock?.package_version
           ?? null
-        : lock?.package_version ?? null,
-      installed_content_digest: lock?.content_digest ?? null,
-      installed_artifact_digest: lock?.artifact_digest ?? null,
+        : legacyLock?.package_version ?? null,
+      installed_content_digest: legacyLock?.content_digest ?? null,
+      installed_artifact_digest: legacyLock?.artifact_digest ?? null,
       installed,
       activated,
       installability: {
@@ -1035,8 +1035,8 @@ export function buildAgentPackageDirectory(input: {
       legacy_private_lifecycle_state_present: Boolean(configuredCarrier && lock),
       ...(input.detail === 'full' ? {
         lifecycle_ux: lifecycle,
-        lock_ref: lock?.lock_ref ?? null,
-        scope_materialization_count: lock?.scope_materializations?.length ?? 0,
+        lock_ref: legacyLock?.lock_ref ?? null,
+        scope_materialization_count: legacyLock?.scope_materializations?.length ?? 0,
       } : {}),
       authority_boundary: refsOnlyAuthorityBoundary(),
     };

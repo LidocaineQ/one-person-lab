@@ -4114,11 +4114,7 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
     targetWorkspace: input.targetWorkspace,
     targetQuest: input.targetQuest,
   }).opl_agent_package_status;
-  const selectedLock = beforeStatus.installed_packages.find(
-    (entry: AgentPackageLock) => entry.package_id === packageId,
-  ) ?? null;
-  const nativeCarrierReady = selectedLock === null
-    && beforeStatus.configured_carrier?.carrier?.kind === 'codex_plugin_manager'
+  const nativeCarrierReady = beforeStatus.configured_carrier?.carrier?.kind === 'codex_plugin_manager'
     && beforeStatus.configured_carrier.status === 'installed'
     && beforeStatus.configured_carrier.carrier.precedence === 'exact_single_source'
     && beforeStatus.installed_readiness?.installed === true
@@ -4153,8 +4149,7 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
       },
     };
   }
-  const nativeCarrierPresent = selectedLock === null
-    && beforeStatus.configured_carrier?.carrier?.kind === 'codex_plugin_manager'
+  const nativeCarrierPresent = beforeStatus.configured_carrier?.carrier?.kind === 'codex_plugin_manager'
     && beforeStatus.configured_carrier.status === 'installed'
     && beforeStatus.configured_carrier.carrier.precedence === 'exact_single_source';
   if (nativeCarrierPresent) {
@@ -4555,8 +4550,7 @@ export async function runOplAgentPackageExposureAction(
   if (action === 'hide' || action === 'unhide') {
     const packageId = requirePackageId(input.packageId, action);
     const descriptor = discoverInstalledCodexPluginDescriptors({ packageId }).get(packageId) ?? null;
-    const hasLegacyLock = readLockIndex().packages.some((lock) => lock.package_id === packageId);
-    if (descriptor && !hasLegacyLock) {
+    if (descriptor) {
       const shortcutIds = descriptor.manifest.presentation?.home_shortcuts
         .filter((shortcut) => shortcut.user_configurable)
         .map((shortcut) => shortcut.shortcut_id) ?? [];
@@ -4793,25 +4787,26 @@ function buildOplAgentPackageStatus(
   const carrierReadiness = installedDescriptor?.readiness ?? null;
   const installedReadiness = carrierReadiness;
   const installedCarrierReadback = installedDescriptor?.carrier_readback ?? null;
+  const legacySelectedLock = installedDescriptor ? null : selectedLock;
   const lifecycleUx = configuredCarrier
-    ? configuredCarrierLifecycleUxReadback(configuredCarrier, Boolean(selectedLock))
+    ? configuredCarrierLifecycleUxReadback(configuredCarrier, false)
     : legacyLifecycleUx;
-  const carrierAuthorityReadiness = selectedLock
-    ? agentPackageCarrierAuthorityStatus(selectedLock)
+  const carrierAuthorityReadiness = legacySelectedLock
+    ? agentPackageCarrierAuthorityStatus(legacySelectedLock)
     : null;
-  const policyCurrentness = managedPolicyCurrentness(selectedLock);
-  const packageDependencyReadiness = selectedLock ? dependencyReadiness(selectedLock, lockIndex) : null;
-  const materializationReadiness = selectedLock
-    ? scopeMaterializationReadiness(selectedLock, lockIndex, input)
+  const policyCurrentness = managedPolicyCurrentness(legacySelectedLock);
+  const packageDependencyReadiness = legacySelectedLock ? dependencyReadiness(legacySelectedLock, lockIndex) : null;
+  const materializationReadiness = legacySelectedLock
+    ? scopeMaterializationReadiness(legacySelectedLock, lockIndex, input)
     : null;
   const runtimeSourceReadiness = input.detail === 'fast'
     ? managedRuntimeSourceLockReadiness(
-        selectedLock?.managed_runtime_source,
-        selectedLock?.runtime_source_carrier,
+        legacySelectedLock?.managed_runtime_source,
+        legacySelectedLock?.runtime_source_carrier,
       )
     : managedRuntimeSourceReadiness(
-        selectedLock?.managed_runtime_source,
-        selectedLock?.runtime_source_carrier,
+        legacySelectedLock?.managed_runtime_source,
+        legacySelectedLock?.runtime_source_carrier,
       );
   const materializationOperational = !materializationReadiness
     || materializationReadiness.status === 'current'
@@ -4823,13 +4818,13 @@ function buildOplAgentPackageStatus(
     || policyCurrentness.status === 'drifted'
       ? requiredPolicyDependenciesOperational
       : false;
-  const exposureOperational = selectedLock?.exposure_state !== 'disabled';
+  const exposureOperational = legacySelectedLock?.exposure_state !== 'disabled';
   const configuredCarrierReady = Boolean(
     configuredCarrier
     && configuredCarrier.status === 'installed'
     && configuredCarrier.executor.status === 'callable'
     && configuredCarrier.carrier.precedence === 'exact_single_source'
-    && !selectedLock,
+    && !legacySelectedLock,
   );
   const neutralCarrierReady = Boolean(
     carrierReadiness
@@ -4843,7 +4838,7 @@ function buildOplAgentPackageStatus(
     : configuredCarrier
     ? configuredCarrierReady
     : Boolean(
-        selectedLock
+        legacySelectedLock
         && exposureOperational
         && packageDependencyReadiness?.operational_ready
         && materializationOperational
@@ -4859,12 +4854,12 @@ function buildOplAgentPackageStatus(
           ? 'carrier_disabled'
           : 'carrier_not_installed'
     : configuredCarrier
-    ? selectedLock
+    ? legacySelectedLock
       ? 'configured_native_carrier_legacy_state_present'
       : configuredCarrierReady
         ? null
         : configuredCarrier.reason ?? 'configured_native_carrier_attention_needed'
-    : !selectedLock
+    : !legacySelectedLock
     ? 'package_not_installed'
     : !exposureOperational
       ? 'package_disabled'
@@ -4879,7 +4874,7 @@ function buildOplAgentPackageStatus(
                 ? `managed_policy_${policyCurrentness.status}`
                 : 'managed_policy_required_dependency_unavailable'
               : null;
-  const repairAction = selectedLock && launchBlockedReason
+  const repairAction = legacySelectedLock && launchBlockedReason
     ? !materializationOperational
       ? materializationReadiness?.repair_command ?? null
       : packageDependencyReadiness && !packageDependencyReadiness.operational_ready
@@ -4930,11 +4925,11 @@ function buildOplAgentPackageStatus(
       ?? (dependencyObservationReason ? `package_dependency_${dependencyObservationReason}` : null);
   const launchState = deriveAgentPackageLaunchState({
     installed: Boolean(
-      selectedLock
+      legacySelectedLock
       || configuredCarrier?.status === 'installed'
       || carrierReadiness?.installed,
     ),
-    exposure_state: selectedLock?.exposure_state
+    exposure_state: legacySelectedLock?.exposure_state
       ?? (
         configuredCarrier?.status === 'installed' || carrierReadiness?.installed
           ? 'visible'

@@ -616,13 +616,14 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
   }
 });
 
-test('native descriptor visibility keeps an existing legacy lock on its original exposure transaction', async () => {
+test('native descriptor visibility leaves an existing legacy lock diagnostic-only', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-legacy-exposure-'));
   const stateDir = path.join(root, 'opl-state');
   const manifestPath = path.join(root, 'manifest.json');
   const binary = path.join(root, 'fake-codex.mjs');
   const pluginState = path.join(root, 'plugin-state.json');
   const pluginSource = path.join(root, 'plugin-source');
+  const workspace = path.join(root, 'workspace');
   const env = {
     HOME: root,
     CODEX_HOME: path.join(root, 'codex-home'),
@@ -632,7 +633,15 @@ test('native descriptor visibility keeps an existing legacy lock on its original
     FIXTURE_PLUGIN_SOURCE: pluginSource,
   };
   try {
+    fs.mkdirSync(workspace, { recursive: true });
     writePluginSource(pluginSource, 'legacy-exposure');
+    fs.mkdirSync(path.join(pluginSource, '.codex-plugin'), { recursive: true });
+    fs.writeFileSync(path.join(pluginSource, '.codex-plugin', 'plugin.json'), formatJsonPayload({
+      name: 'third-party-research',
+      version: '1.0.1',
+      description: 'Legacy exposure fixture carried by Codex Plugin Manager.',
+      skills: './skills/',
+    }));
     fs.writeFileSync(manifestPath, formatJsonPayload(agentPackageManifest({
       pluginSourcePath: pluginSource,
       distributionPayload: null,
@@ -644,6 +653,8 @@ test('native descriptor visibility keeps an existing legacy lock on its original
     ], env) as any;
     assert.equal(installed.opl_agent_package_install.package_lock.package_id, packageId);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), true);
+    const legacyLockBytes = fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8');
+    const legacyLedgerBytes = fs.readFileSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json'), 'utf8');
 
     fs.writeFileSync(
       path.join(pluginSource, 'opl-package.json'),
@@ -655,12 +666,44 @@ test('native descriptor visibility keeps an existing legacy lock on its original
       marketplaceSource: 'fixture-carrier',
     }));
 
+    const descriptorStatus = runCli(['packages', 'status', '--package-id', packageId], env) as any;
+    assert.equal(descriptorStatus.opl_agent_package_status.status, 'available');
+    assert.equal(descriptorStatus.opl_agent_package_status.operational_ready, true);
+    assert.equal(descriptorStatus.opl_agent_package_status.launch_allowed, true);
+
+    const descriptorDirectory = runCli(['packages', 'list', '--detail', 'full'], env) as any;
+    const descriptorEntry = descriptorDirectory.opl_agent_packages.directory.entries.find(
+      (entry: any) => entry.package_id === packageId,
+    );
+    assert.equal(Object.hasOwn(descriptorEntry, 'lock_ref'), false);
+    assert.equal(descriptorEntry.legacy_private_lifecycle_state_present, true);
+
+    const activated = runCli([
+      'packages', 'activate', packageId,
+      '--scope', 'workspace', '--target-workspace', workspace,
+    ], env) as any;
+    assert.equal(activated.opl_agent_package_activation.status, 'already_activated');
+    assert.equal(activated.opl_agent_package_activation.writes_performed, false);
+    assert.equal(activated.opl_agent_package_activation.package_lock, null);
+    assert.equal(activated.opl_agent_package_activation.lifecycle_receipt, null);
+    assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
+    assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json'), 'utf8'), legacyLedgerBytes);
+
     const hidden = runCli(['packages', 'hide', '--package-id', packageId], env) as any;
     assert.equal(hidden.opl_agent_package_exposure.status, 'hidden');
-    assert.equal(hidden.opl_agent_package_exposure.package_lock.package_id, packageId);
-    assert.equal(hidden.opl_agent_package_exposure.package_lock.exposure_state, 'hidden');
-    assert.equal(hidden.opl_agent_package_exposure.lifecycle_receipt.action, 'hide');
-    assert.equal(hidden.opl_agent_package_exposure.home_shortcut_preferences, undefined);
+    assert.equal(hidden.opl_agent_package_exposure.package_lock, null);
+    assert.equal(hidden.opl_agent_package_exposure.lifecycle_receipt, null);
+    assert.deepEqual(hidden.opl_agent_package_exposure.home_shortcut_preferences.map((entry: any) => entry.visible), [false]);
+    assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
+    assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json'), 'utf8'), legacyLedgerBytes);
+
+    const unhidden = runCli(['packages', 'unhide', '--package-id', packageId], env) as any;
+    assert.equal(unhidden.opl_agent_package_exposure.status, 'visible');
+    assert.equal(unhidden.opl_agent_package_exposure.package_lock, null);
+    assert.equal(unhidden.opl_agent_package_exposure.lifecycle_receipt, null);
+    assert.deepEqual(unhidden.opl_agent_package_exposure.home_shortcut_preferences.map((entry: any) => entry.visible), [true]);
+    assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
+    assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json'), 'utf8'), legacyLedgerBytes);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
