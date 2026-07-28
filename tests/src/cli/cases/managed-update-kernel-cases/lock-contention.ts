@@ -6,6 +6,7 @@ import {
   runCliFailure,
   test,
 } from '../../helpers.ts';
+import { acquireManagedUpdateLock } from '../../../../../src/modules/connect/managed-update-lock.ts';
 
 test('packages update reports lock contention without running a parallel writer', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-update-lock-'));
@@ -17,7 +18,8 @@ test('packages update reports lock contention without running a parallel writer'
       lock_id: 'opl_managed_updater_kernel.global',
       acquired_at: new Date().toISOString(),
       operation: 'apply',
-      pid: 999999,
+      // Keep the owner alive so this fixture exercises genuine contention.
+      pid: process.pid,
     }),
     'utf8',
   );
@@ -49,6 +51,41 @@ test('packages update reports lock contention without running a parallel writer'
     assert.equal(failure.payload.error.details.lock_status, 'held');
     assert.equal(failure.payload.error.details.repair_action, 'retry_after_current_update_finishes_or_remove_stale_lock_after_timeout');
   } finally {
+    fs.rmSync(homeRoot, { recursive: true, force: true });
+  }
+});
+
+test('managed update reclaims a recent lock whose owner process is gone', () => {
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-update-orphan-lock-'));
+  const stateRoot = path.join(homeRoot, 'state');
+  fs.mkdirSync(stateRoot, { recursive: true });
+  const lockFile = path.join(stateRoot, 'managed-update-kernel.lock');
+  fs.writeFileSync(
+    lockFile,
+    JSON.stringify({
+      lock_id: 'opl_managed_updater_kernel.global',
+      acquired_at: new Date().toISOString(),
+      operation: 'apply',
+      pid: 999999,
+    }),
+    'utf8',
+  );
+
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  const previousHome = process.env.HOME;
+  process.env.OPL_STATE_DIR = stateRoot;
+  process.env.HOME = homeRoot;
+  try {
+    const lock = acquireManagedUpdateLock({ operation: 'apply' });
+    assert.equal(lock.status, 'acquired');
+    assert.equal(JSON.parse(fs.readFileSync(lockFile, 'utf8')).pid, process.pid);
+    lock.release();
+    assert.equal(fs.existsSync(lockFile), false);
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    if (previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = previousHome;
     fs.rmSync(homeRoot, { recursive: true, force: true });
   }
 });

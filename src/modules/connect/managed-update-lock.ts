@@ -46,6 +46,23 @@ function readLockFile(file: string) {
   return isRecord(payload) ? payload : null;
 }
 
+function isProcessAlive(pid: unknown) {
+  if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // EPERM means the process exists but is not inspectable by this user.
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+function isReclaimableLock(file: string) {
+  const lock = readLockFile(file);
+  if (lock && !isProcessAlive(lock.pid)) return true;
+  return isStaleLock(file);
+}
+
 function createLockFile(file: string, receipt: ManagedUpdateLockReceipt) {
   const handle = fs.openSync(file, 'wx');
   try {
@@ -89,7 +106,7 @@ export function acquireManagedUpdateLock(input: {
   try {
     createLockFile(file, receipt);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST' && isStaleLock(file)) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST' && isReclaimableLock(file)) {
       fs.rmSync(file, { force: true });
       createLockFile(file, receipt);
     } else {
