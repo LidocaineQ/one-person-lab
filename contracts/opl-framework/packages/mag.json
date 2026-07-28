@@ -20,7 +20,7 @@
       {
         "shortcut_id": "open_grant_user_loop",
         "label_i18n": {
-          "zh-CN": "进入基金工作流",
+          "zh-CN": "启动基金申报",
           "en-US": "Open MAG user loop"
         },
         "default_visible": true,

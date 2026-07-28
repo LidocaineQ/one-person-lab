@@ -21,7 +21,7 @@
         "shortcut_id": "engineer-agent",
         "label_i18n": {
           "en-US": "Engineer Agent",
-          "zh-CN": "设计与演进智能体"
+          "zh-CN": "构建与迭代智能体"
         },
         "default_visible": true,
         "user_configurable": true,

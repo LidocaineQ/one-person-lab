@@ -1062,7 +1062,7 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
     home_shortcuts: [{
       shortcut_id: 'research',
       label_i18n: {
-        'zh-CN': '科研',
+        'zh-CN': '开展科研工作',
         'en-US': 'Research',
       },
       default_visible: true,
@@ -1091,7 +1091,7 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
       shortcut_id: 'engineer-agent',
       label_i18n: {
         'en-US': 'Engineer Agent',
-        'zh-CN': '设计与演进智能体',
+        'zh-CN': '构建与迭代智能体',
       },
       default_visible: true,
       user_configurable: true,
@@ -1197,6 +1197,21 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
         developer_distribution: 'source_checkout',
       },
     ],
+  );
+  assert.deepEqual(
+    Object.fromEntries(
+      ['mag', 'mas', 'obf', 'oma', 'rca'].map((packageId) => [
+        packageId,
+        manifests[packageId].presentation?.home_shortcuts[0].label_i18n['zh-CN'],
+      ]),
+    ),
+    {
+      mag: '启动基金申报',
+      mas: '开展科研工作',
+      obf: '规划书稿结构',
+      oma: '构建与迭代智能体',
+      rca: '制作视觉交付物',
+    },
   );
 });
 

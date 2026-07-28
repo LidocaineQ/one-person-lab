@@ -20,7 +20,7 @@
       {
         "shortcut_id": "shape-storyline",
         "label_i18n": {
-          "zh-CN": "设计书稿结构",
+          "zh-CN": "规划书稿结构",
           "en-US": "Shape Storyline"
         },
         "default_visible": true,
