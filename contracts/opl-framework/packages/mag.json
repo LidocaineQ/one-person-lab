@@ -7,6 +7,7 @@
   "version": "0.3.6",
   "presentation": {
     "display_name_i18n": {
+      "zh-CN": "医学基金",
       "en-US": "Med Auto Grant"
     },
     "description_i18n": {
@@ -19,6 +20,7 @@
       {
         "shortcut_id": "open_grant_user_loop",
         "label_i18n": {
+          "zh-CN": "进入基金工作流",
           "en-US": "Open MAG user loop"
         },
         "default_visible": true,

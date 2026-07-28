@@ -7,6 +7,7 @@
   "version": "0.2.9",
   "presentation": {
     "display_name_i18n": {
+      "zh-CN": "RedCube AI",
       "en-US": "RedCube AI"
     },
     "description_i18n": {
@@ -19,6 +20,7 @@
       {
         "shortcut_id": "invoke_product_entry",
         "label_i18n": {
+          "zh-CN": "创建视觉交付物",
           "en-US": "Create or continue a visual deliverable"
         },
         "default_visible": true,
