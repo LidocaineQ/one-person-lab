@@ -320,6 +320,25 @@ export function discoverInstalledPackageDescriptors(input: {
 }
 
 /**
+ * Profile defaults are owned by an installed first-party Package descriptor.
+ * A carrier-native `.codex-plugin` manifest is not sufficient authority to
+ * replace user instructions, even when it presents a similar plugin surface.
+ */
+export function discoverInstalledOwnerProfileDescriptors(input: {
+  binary?: string;
+  env?: NodeJS.ProcessEnv;
+  runner?: CodexPluginCommandRunner;
+} = {}) {
+  return [...discoverInstalledPackageDescriptors(input).values()]
+    .filter((descriptor) => (
+      descriptor.manifest.source === 'first_party'
+      && descriptor.manifestPath === path.join(descriptor.sourcePath, 'opl-package.json')
+      && descriptor.manifest.profile_surface?.runtime_profile.target_id === 'user_agents_profile'
+    ))
+    .sort((left, right) => left.manifest.package_id.localeCompare(right.manifest.package_id));
+}
+
+/**
  * Codex remains one native carrier adapter. Keep its historical export while
  * making the installed descriptor producer explicit and carrier-neutral.
  */
