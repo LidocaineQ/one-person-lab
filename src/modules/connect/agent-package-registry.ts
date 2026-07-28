@@ -5008,7 +5008,6 @@ function buildAgentPackageStatusSnapshot(
     configuredCarriers,
     legacyAuthority,
     paths: resolveOplStatePaths(),
-    runtimeSourceRecovery: inspectManagedRuntimeSourceTransactions(),
     homeShortcutPreferences: mergedHomeShortcutPreferences(directory, lockIndex),
   };
 }
@@ -5072,7 +5071,6 @@ function buildOplAgentPackageStatus(
   const packageId = canonicalAgentPackageId(input.packageId);
   const {
     lockIndex,
-    runtimeSourceRecovery,
     paths,
     homeShortcutPreferences: allHomeShortcutPreferences,
     installedCodexPluginDescriptors,
@@ -5290,7 +5288,6 @@ function buildOplAgentPackageStatus(
       runtime_source_readiness: runtimeSourceReadiness,
       carrier_authority_readiness: carrierAuthorityReadiness,
       managed_policy_currentness: policyCurrentness,
-      runtime_source_recovery: runtimeSourceRecovery,
       legacy_authority: legacyAuthority,
       operational_ready: operationalReady,
       operational_ready_scope: configuredCarrier

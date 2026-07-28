@@ -26,6 +26,7 @@ import {
   applyManagedRuntimeSourceCarrier,
   cleanupUnreferencedDeveloperRuntimeSnapshots,
   finalizeManagedRuntimeSourceMutation,
+  inspectManagedRuntimeSourceTransactions,
   managedRuntimeSourceReadiness,
   recoverManagedRuntimeSourceTransactions,
   rollbackManagedRuntimeSourceMutation,
@@ -44,6 +45,35 @@ const FIXTURE_MAS_PACKAGE_ID = 'fixture.mas';
 const FIXTURE_MAG_PACKAGE_ID = 'fixture.mag';
 const FIXTURE_RCA_PACKAGE_ID = 'fixture.rca';
 const FIXTURE_PROVIDER_PACKAGE_ID = 'fixture.mas-scholar-skills';
+
+function withProcessEnvironment<T>(
+  environment: Record<string, string>,
+  action: () => T,
+) {
+  const previous = new Map(
+    Object.keys(environment).map((name) => [name, process.env[name]]),
+  );
+  Object.assign(process.env, environment);
+  try {
+    return action();
+  } finally {
+    for (const [name, value] of previous) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+}
+
+function inspectPrivateRuntimeSourceRecovery(
+  statusReadback: any,
+  environment: Record<string, string>,
+) {
+  assert.equal(
+    Object.hasOwn(statusReadback.opl_agent_package_status, 'runtime_source_recovery'),
+    false,
+  );
+  return withProcessEnvironment(environment, inspectManagedRuntimeSourceTransactions);
+}
 
 test('developer plugin cache publishes one stage directly into its immutable generation', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-developer-plugin-stage-'));
@@ -1631,9 +1661,10 @@ test('Packages compensates managed runtime source across downstream failure upda
     const preservedFailureLifecycle = readPackageChannelLifecycle(previousCheckout, spec);
     assert.equal(preservedFailureLifecycle?.current.tree_sha256, dirtyCurrentTreeSha256);
     const rollbackCleanup = runCli(['packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
-    assert.equal(rollbackCleanup.opl_agent_package_status.runtime_source_recovery.status, 'recovery_required');
-    assert.equal(rollbackCleanup.opl_agent_package_status.runtime_source_recovery.pending_transaction_count, 1);
-    assert.equal(rollbackCleanup.opl_agent_package_status.runtime_source_recovery.cleanup_completed_count, 0);
+    const rollbackRecovery = inspectPrivateRuntimeSourceRecovery(rollbackCleanup, env);
+    assert.equal(rollbackRecovery.status, 'recovery_required');
+    assert.equal(rollbackRecovery.pending_transaction_count, 1);
+    assert.equal(rollbackRecovery.cleanup_completed_count, 0);
 
     const moduleRuntimeEnvRoot = path.join(stateDir, 'agent-package-runtime-envs', 'redcube');
     assert.ok(fs.readdirSync(moduleRuntimeEnvRoot).length >= 2);
@@ -1702,10 +1733,11 @@ test('Packages recovers durable runtime-source markers after interrupted apply a
     }));
     const staleMarkerBytes = fs.readFileSync(markerPath);
     const staleMarkerRecovery = runCli(['packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
-    assert.equal(staleMarkerRecovery.opl_agent_package_status.runtime_source_recovery.status, 'recovery_required');
-    assert.equal(staleMarkerRecovery.opl_agent_package_status.runtime_source_recovery.pending_transaction_count, 1);
-    assert.equal(staleMarkerRecovery.opl_agent_package_status.runtime_source_recovery.cleared_prepared_transaction_count, 0);
-    assert.equal(staleMarkerRecovery.opl_agent_package_status.runtime_source_recovery.recovered_transaction_count, 0);
+    const staleRecovery = inspectPrivateRuntimeSourceRecovery(staleMarkerRecovery, env);
+    assert.equal(staleRecovery.status, 'recovery_required');
+    assert.equal(staleRecovery.pending_transaction_count, 1);
+    assert.equal(staleRecovery.cleared_prepared_transaction_count, 0);
+    assert.equal(staleRecovery.recovered_transaction_count, 0);
     assert.equal(staleMarkerRecovery.opl_agent_package_status.runtime_source_readiness.status, 'incompatible');
     assert.deepEqual(fs.readFileSync(markerPath), staleMarkerBytes);
     assert.equal(fs.existsSync(path.join(modulesRoot, 'redcube-ai', 'generated-drift.txt')), true);
@@ -1732,10 +1764,11 @@ test('Packages recovers durable runtime-source markers after interrupted apply a
     const preparedMarkerPath = fs.readdirSync(markerDir).map((entry) => path.join(markerDir, entry))[0]!;
     const preparedMarkerBytes = fs.readFileSync(preparedMarkerPath);
     const preparedUpdateRecovery = runCli(['packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
-    assert.equal(preparedUpdateRecovery.opl_agent_package_status.runtime_source_recovery.status, 'recovery_required');
-    assert.equal(preparedUpdateRecovery.opl_agent_package_status.runtime_source_recovery.pending_transaction_count, 1);
-    assert.equal(preparedUpdateRecovery.opl_agent_package_status.runtime_source_recovery.cleared_prepared_transaction_count, 0);
-    assert.equal(preparedUpdateRecovery.opl_agent_package_status.runtime_source_recovery.recovered_transaction_count, 0);
+    const preparedRecovery = inspectPrivateRuntimeSourceRecovery(preparedUpdateRecovery, env);
+    assert.equal(preparedRecovery.status, 'recovery_required');
+    assert.equal(preparedRecovery.pending_transaction_count, 1);
+    assert.equal(preparedRecovery.cleared_prepared_transaction_count, 0);
+    assert.equal(preparedRecovery.recovered_transaction_count, 0);
     assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.0');
     assert.equal(fs.existsSync(interruptedStagePath), true);
     assert.deepEqual(fs.readFileSync(preparedMarkerPath), preparedMarkerBytes);
@@ -1756,9 +1789,10 @@ test('Packages recovers durable runtime-source markers after interrupted apply a
     const appliedMarkerPath = fs.readdirSync(markerDir).map((entry) => path.join(markerDir, entry))[0]!;
     const appliedMarkerBytes = fs.readFileSync(appliedMarkerPath);
     const recoveredStatus = runCli(['packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
-    assert.equal(recoveredStatus.opl_agent_package_status.runtime_source_recovery.status, 'recovery_required');
-    assert.equal(recoveredStatus.opl_agent_package_status.runtime_source_recovery.pending_transaction_count, 1);
-    assert.equal(recoveredStatus.opl_agent_package_status.runtime_source_recovery.recovered_transaction_count, 0);
+    const appliedRecovery = inspectPrivateRuntimeSourceRecovery(recoveredStatus, env);
+    assert.equal(appliedRecovery.status, 'recovery_required');
+    assert.equal(appliedRecovery.pending_transaction_count, 1);
+    assert.equal(appliedRecovery.recovered_transaction_count, 0);
     assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.1');
     assert.equal(recoveredStatus.opl_agent_package_status.runtime_source_readiness.status, 'incompatible');
     assert.equal(recoveredStatus.opl_agent_package_status.runtime_source_readiness.operational_ready, false);
@@ -1779,10 +1813,14 @@ test('Packages recovers durable runtime-source markers after interrupted apply a
     assert.equal(preparedRollback.payload.error.details.failure_code, 'test_runtime_source_interrupted_after_prepare_rollback');
     assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.1');
     const preparedRollbackRecovery = runCli(['packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
-    assert.equal(preparedRollbackRecovery.opl_agent_package_status.runtime_source_recovery.status, 'recovery_required');
-    assert.equal(preparedRollbackRecovery.opl_agent_package_status.runtime_source_recovery.pending_transaction_count, 1);
-    assert.equal(preparedRollbackRecovery.opl_agent_package_status.runtime_source_recovery.cleared_prepared_transaction_count, 0);
-    assert.equal(preparedRollbackRecovery.opl_agent_package_status.runtime_source_recovery.recovered_transaction_count, 0);
+    const rollbackPreparedRecovery = inspectPrivateRuntimeSourceRecovery(
+      preparedRollbackRecovery,
+      env,
+    );
+    assert.equal(rollbackPreparedRecovery.status, 'recovery_required');
+    assert.equal(rollbackPreparedRecovery.pending_transaction_count, 1);
+    assert.equal(rollbackPreparedRecovery.cleared_prepared_transaction_count, 0);
+    assert.equal(rollbackPreparedRecovery.recovered_transaction_count, 0);
     assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.1');
 
     const interruptedUninstall = runCliFailure(['packages', 'uninstall', '--package-id', FIXTURE_RCA_PACKAGE_ID], {
@@ -1793,9 +1831,10 @@ test('Packages recovers durable runtime-source markers after interrupted apply a
     assert.equal(interruptedUninstall.payload.error.details.failure_code, 'test_runtime_source_interrupted_after_stage_uninstall');
     assert.equal(fs.existsSync(path.join(modulesRoot, 'redcube-ai')), false);
     const restoredStatus = runCli(['packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
-    assert.equal(restoredStatus.opl_agent_package_status.runtime_source_recovery.status, 'recovery_required');
-    assert.equal(restoredStatus.opl_agent_package_status.runtime_source_recovery.pending_transaction_count, 1);
-    assert.equal(restoredStatus.opl_agent_package_status.runtime_source_recovery.recovered_transaction_count, 0);
+    const uninstallPreparedRecovery = inspectPrivateRuntimeSourceRecovery(restoredStatus, env);
+    assert.equal(uninstallPreparedRecovery.status, 'recovery_required');
+    assert.equal(uninstallPreparedRecovery.pending_transaction_count, 1);
+    assert.equal(uninstallPreparedRecovery.recovered_transaction_count, 0);
     assert.equal(restoredStatus.opl_agent_package_status.runtime_source_readiness.status, 'missing');
     assert.equal(fs.existsSync(path.join(modulesRoot, 'redcube-ai')), false);
 
@@ -1807,9 +1846,10 @@ test('Packages recovers durable runtime-source markers after interrupted apply a
     assert.equal(uninstalled.opl_agent_package_uninstall.runtime_source_cleanup.status, 'cleanup_pending');
     assert.equal(fs.readdirSync(markerDir).length, 1);
     const postCommitRecovery = runCli(['packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
-    assert.equal(postCommitRecovery.opl_agent_package_status.runtime_source_recovery.status, 'recovery_required');
-    assert.equal(postCommitRecovery.opl_agent_package_status.runtime_source_recovery.pending_transaction_count, 1);
-    assert.equal(postCommitRecovery.opl_agent_package_status.runtime_source_recovery.cleanup_completed_count, 0);
+    const cleanupPendingRecovery = inspectPrivateRuntimeSourceRecovery(postCommitRecovery, env);
+    assert.equal(cleanupPendingRecovery.status, 'recovery_required');
+    assert.equal(cleanupPendingRecovery.pending_transaction_count, 1);
+    assert.equal(cleanupPendingRecovery.cleanup_completed_count, 0);
     runCliFailure(['packages', 'uninstall', '--package-id', FIXTURE_RCA_PACKAGE_ID], env);
     assert.equal(fs.readdirSync(markerDir).length, 0);
 
@@ -1844,21 +1884,34 @@ test('Packages recovers durable runtime-source markers after interrupted apply a
     const corruptMarkerBytes = fs.readFileSync(corruptMarkerPath);
     const lockFile = path.join(stateDir, 'agent-package-locks.json');
     const lockBytes = fs.readFileSync(lockFile);
-    for (const args of [
-      ['packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID],
-      ['packages', 'install', '--manifest-url', manifestPath, '--trust-tier', 'first_party'],
-    ]) {
-      const failure = runCliFailure(args, env);
-      assert.equal(failure.payload.error.code, 'contract_shape_invalid');
-      assert.equal(
-        failure.payload.error.details.failure_code,
-        'agent_package_runtime_source_transaction_invalid',
-      );
-      assert.equal(failure.payload.error.details.recovery_status, 'recovery_required');
-      assert.deepEqual(fs.readFileSync(corruptMarkerPath), corruptMarkerBytes);
-      assert.deepEqual(fs.readFileSync(lockFile), lockBytes);
-      assert.equal(fs.readFileSync(sentinelPath, 'utf8'), 'must remain unchanged\n');
-    }
+    const statusWithCorruptPrivateMarker = runCli([
+      'packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID,
+    ], env) as any;
+    assert.equal(
+      Object.hasOwn(
+        statusWithCorruptPrivateMarker.opl_agent_package_status,
+        'runtime_source_recovery',
+      ),
+      false,
+    );
+    assert.throws(
+      () => withProcessEnvironment(env, inspectManagedRuntimeSourceTransactions),
+      (error: any) =>
+        error?.details?.failure_code === 'agent_package_runtime_source_transaction_invalid'
+        && error?.details?.recovery_status === 'recovery_required',
+    );
+    const installFailure = runCliFailure([
+      'packages', 'install', '--manifest-url', manifestPath, '--trust-tier', 'first_party',
+    ], env);
+    assert.equal(installFailure.payload.error.code, 'contract_shape_invalid');
+    assert.equal(
+      installFailure.payload.error.details.failure_code,
+      'agent_package_runtime_source_transaction_invalid',
+    );
+    assert.equal(installFailure.payload.error.details.recovery_status, 'recovery_required');
+    assert.deepEqual(fs.readFileSync(corruptMarkerPath), corruptMarkerBytes);
+    assert.deepEqual(fs.readFileSync(lockFile), lockBytes);
+    assert.equal(fs.readFileSync(sentinelPath, 'utf8'), 'must remain unchanged\n');
 
     fs.rmSync(corruptMarkerPath);
     const nonCanonicalPackageId = 'Fixture.RCA';
@@ -1886,16 +1939,21 @@ test('Packages recovers durable runtime-source markers after interrupted apply a
       },
     }));
     const invalidIdentityMarkerBytes = fs.readFileSync(invalidIdentityMarkerPath);
-    const invalidIdentity = runCliFailure([
+    const statusWithInvalidPrivateMarker = runCli([
       'packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID,
-    ], env);
+    ], env) as any;
     assert.equal(
-      invalidIdentity.payload.error.details.failure_code,
-      'agent_package_runtime_source_transaction_invalid',
+      Object.hasOwn(
+        statusWithInvalidPrivateMarker.opl_agent_package_status,
+        'runtime_source_recovery',
+      ),
+      false,
     );
-    assert.equal(
-      invalidIdentity.payload.error.details.recovery_action_state,
-      'manual_owner_intervention_required',
+    assert.throws(
+      () => withProcessEnvironment(env, inspectManagedRuntimeSourceTransactions),
+      (error: any) =>
+        error?.details?.failure_code === 'agent_package_runtime_source_transaction_invalid'
+        && error?.details?.recovery_action_state === 'manual_owner_intervention_required',
     );
     assert.deepEqual(fs.readFileSync(invalidIdentityMarkerPath), invalidIdentityMarkerBytes);
     assert.deepEqual(fs.readFileSync(lockFile), lockBytes);
