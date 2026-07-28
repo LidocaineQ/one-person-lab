@@ -1,5 +1,6 @@
 import type { AgentWorkspaceNormContract, FrameworkContracts } from '../../kernel/types.ts';
 import { SETTINGS_CONTROL_CENTER_ACTIONS } from './app-state-settings-control-center.ts';
+import { hasExecutableAppContribution } from './app-contribution-broker.ts';
 import {
   listAgentPackageLaunchActions,
   listExternalOwnerDelegatedUpdateActions,
@@ -296,6 +297,20 @@ export function buildActionCatalog(
       impact: 'Delegates one update to the verified original package manager; never enters managed background apply.',
     })),
     ...moduleActions,
+    ...(hasExecutableAppContribution()
+      ? [{
+          action_id: 'package_contribution_execute',
+          label: 'Execute installed Package contribution',
+          surface: 'opl app action execute' as const,
+          delegated_surface: 'opl app contribution execute',
+          payload_fields: ['package_id', 'ref', 'input', 'confirmed'],
+          mutates: 'installed_package_owned_app_contribution',
+          dry_run_supported: true,
+          confirmation_required: true,
+          danger_level: 'medium',
+          impact: 'revalidates_the_current_descriptor_carrier_readiness_declared_ref_and_confirmation_before_invoking_the_package_owned_contribution',
+        } satisfies AppActionCatalogEntry]
+      : []),
     {
       action_id: 'module_sync',
       label: 'Sync OPL modules',

@@ -255,6 +255,61 @@ test('CLI contribution routes discover arbitrary installed Package ids without a
   }
 });
 
+test('canonical App action exposes and executes dynamically discovered Package contributions', () => {
+  const fixture = writeContributionFixture();
+  const codex = fakeCodexList(fixture.root);
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-contribution-action-state-'));
+  const env = {
+    OPL_CODEX_PLUGIN_BIN: codex.codexPath,
+    OPL_STATE_DIR: stateDir,
+  };
+  const payload = {
+    package_id: fixture.manifest.package_id,
+    ref: 'future.data.v1#write',
+    input: { source: 'canonical-action' },
+    confirmed: true,
+  };
+  try {
+    const state = runCli(['app', 'state', '--profile', 'fast'], env) as any;
+    const action = state.app_state.actions.find((entry: any) => entry.action_id === 'package_contribution_execute');
+    assert.ok(action);
+    assert.deepEqual(action.payload_fields, ['package_id', 'ref', 'input', 'confirmed']);
+    assert.equal(action.dry_run_supported, true);
+
+    const preflight = runCli([
+      'app', 'action', 'execute',
+      '--action', 'package_contribution_execute',
+      '--payload', JSON.stringify(payload),
+      '--dry-run',
+    ], env) as any;
+    assert.equal(preflight.app_action_execution.dry_run, true);
+    assert.equal(preflight.app_action_execution.result.opl_app_contribution_preflight.execution_status, 'dry_run');
+    assert.equal(preflight.app_action_execution.result.opl_app_contribution_preflight.package_command_invoked, false);
+    assert.equal(preflight.app_action_execution.result.opl_app_contribution_preflight.package_id, fixture.manifest.package_id);
+
+    const output = runCli([
+      'app', 'action', 'execute',
+      '--action', 'package_contribution_execute',
+      '--payload', JSON.stringify(payload),
+    ], env) as any;
+    assert.equal(output.app_action_execution.action_id, 'package_contribution_execute');
+    assert.equal(output.app_action_execution.result.opl_app_contribution.package_id, fixture.manifest.package_id);
+    assert.equal(output.app_action_execution.result.opl_app_contribution.response.result.owner_echo.source, 'canonical-action');
+
+    const malformed = runCliFailure([
+      'app', 'action', 'execute',
+      '--action', 'package_contribution_execute',
+      '--payload', JSON.stringify({ ...payload, unexpected: true }),
+    ], env);
+    assert.equal(malformed.payload.error.code, 'cli_usage_error');
+    assert.deepEqual(malformed.payload.error.details.unexpected_fields, ['unexpected']);
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+    fs.rmSync(codex.fixtureRoot, { recursive: true, force: true });
+    fs.rmSync(stateDir, { recursive: true, force: true });
+  }
+});
+
 test('contribution parser only accepts the Package-owned request shape', () => {
   assert.deepEqual(
     parseAppContributionArgs([

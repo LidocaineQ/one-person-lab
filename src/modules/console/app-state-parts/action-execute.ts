@@ -28,6 +28,7 @@ import { runFamilyRuntime } from '../../runway/index.ts';
 import { runOplEngineAction } from '../../connect/index.ts';
 import { MANAGED_UPDATE_OWNER_ACTIONS, managedUpdateCommand } from '../../connect/index.ts';
 import { executeWorkspaceAppAction } from '../app-state-workspace-actions.ts';
+import { preflightAppContribution, runAppContribution } from '../app-contribution-broker.ts';
 import type { FrameworkContracts } from '../../../kernel/types.ts';
 import { buildOplDockerWebuiDoctor } from '../../connect/index.ts';
 import { runOplTurnkeyInstall } from '../../connect/index.ts';
@@ -38,6 +39,7 @@ import {
   agentPackagePreferencesPayload,
   dockerWebuiSeedEnv,
   modulePayload,
+  packageContributionExecutePayload,
   parseCodexAction,
   parseModuleAction,
   releaseChannelPayload,
@@ -162,6 +164,17 @@ async function executeDirectAppAction(
 ) {
   const connectionAction = await executeConnectionAppAction(options);
   if (connectionAction) return connectionAction;
+
+  if (options.actionId === 'package_contribution_execute') {
+    const contribution = packageContributionExecutePayload(options.payload);
+    const request = { ...contribution, operation: 'execute' as const };
+    return {
+      delegatedSurface: 'opl app contribution execute',
+      result: options.dryRun
+        ? preflightAppContribution(request)
+        : runAppContribution(request),
+    };
+  }
 
   if (options.actionId === OPL_PACK_PROVISION_SUBMISSION_RESOURCE_ACTION_ID) {
     return {

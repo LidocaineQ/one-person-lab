@@ -39,6 +39,27 @@ type ResolvedContribution = {
   confirmationRequired: boolean;
 };
 
+function contributionReadback(resolved: ResolvedContribution, request: AppContributionRequest) {
+  return {
+    surface_kind: 'opl_app_package_contribution.v1',
+    package_id: resolved.descriptor.manifest.package_id,
+    ref: request.ref,
+    operation: request.operation,
+    confirmation_required: resolved.confirmationRequired,
+    carrier_readback: {
+      kind: resolved.descriptor.carrier_readback.kind,
+      identity: resolved.descriptor.carrier_readback.identity,
+      lifecycle_authority: resolved.descriptor.carrier_readback.lifecycle_authority,
+    },
+    readiness: {
+      installed: resolved.descriptor.readiness.installed,
+      physical_status: resolved.descriptor.readiness.physical_status,
+      callability: resolved.descriptor.readiness.callability,
+      legacy_lifecycle_state_present: resolved.descriptor.readiness.legacy_lifecycle_state_present,
+    },
+  };
+}
+
 function usageError(message: string, details?: JsonRecord): never {
   throw new FrameworkContractError('cli_usage_error', message, details);
 }
@@ -299,23 +320,48 @@ export function runAppContribution(
   const response = invokeContribution(resolved, request);
   return {
     opl_app_contribution: {
-      surface_kind: 'opl_app_package_contribution.v1',
-      package_id: resolved.descriptor.manifest.package_id,
-      ref: request.ref,
-      operation: request.operation,
-      confirmation_required: resolved.confirmationRequired,
-      carrier_readback: {
-        kind: resolved.descriptor.carrier_readback.kind,
-        identity: resolved.descriptor.carrier_readback.identity,
-        lifecycle_authority: resolved.descriptor.carrier_readback.lifecycle_authority,
-      },
-      readiness: {
-        installed: resolved.descriptor.readiness.installed,
-        physical_status: resolved.descriptor.readiness.physical_status,
-        callability: resolved.descriptor.readiness.callability,
-        legacy_lifecycle_state_present: resolved.descriptor.readiness.legacy_lifecycle_state_present,
-      },
+      ...contributionReadback(resolved, request),
       response,
     },
   };
+}
+
+export function preflightAppContribution(
+  request: AppContributionRequest,
+  options: { discover?: () => Map<string, InstalledPackageDescriptor> } = {},
+) {
+  const resolved = resolveContribution(request, options.discover ?? discoverInstalledPackageDescriptors);
+  return {
+    opl_app_contribution_preflight: {
+      ...contributionReadback(resolved, request),
+      execution_status: 'dry_run',
+      package_command_invoked: false,
+    },
+  };
+}
+
+export function hasExecutableAppContribution(
+  options: { discover?: () => Map<string, InstalledPackageDescriptor> } = {},
+): boolean {
+  try {
+    return [...(options.discover ?? discoverInstalledPackageDescriptors)().values()].some((descriptor) => {
+      if (
+        !descriptor.enabled
+        || !descriptor.readiness.installed
+        || descriptor.readiness.physical_status !== 'available'
+        || descriptor.readiness.callability !== 'callable'
+        || !descriptor.manifest.app_contributions?.commands.length
+      ) {
+        return false;
+      }
+      try {
+        contributionAbi(descriptor);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  } catch {
+    return false;
+  }
 }

@@ -77,6 +77,41 @@ export function booleanPayloadField(payload: JsonRecord, field: string, fallback
   return typeof value === 'boolean' ? value : fallback;
 }
 
+export function packageContributionExecutePayload(payload: JsonRecord) {
+  const actionId = 'package_contribution_execute';
+  const requiredFields = ['package_id', 'ref', 'input', 'confirmed'];
+  const unexpectedFields = Object.keys(payload).filter((field) => !requiredFields.includes(field));
+  const missingFields = requiredFields.filter((field) => !(field in payload));
+  if (unexpectedFields.length > 0 || missingFields.length > 0) {
+    throw new FrameworkContractError('cli_usage_error', `${actionId} requires the exact payload shape.`, {
+      action_id: actionId,
+      required: requiredFields,
+      missing_fields: missingFields,
+      unexpected_fields: unexpectedFields,
+    });
+  }
+  const packageId = stringPayloadField(payload, 'package_id');
+  const ref = stringPayloadField(payload, 'ref');
+  const input = payload.input;
+  const confirmed = payload.confirmed;
+  if (!packageId || !ref || !input || typeof input !== 'object' || Array.isArray(input) || typeof confirmed !== 'boolean') {
+    throw new FrameworkContractError('cli_usage_error', `${actionId} payload fields are invalid.`, {
+      action_id: actionId,
+      required: requiredFields,
+      package_id_valid: Boolean(packageId),
+      ref_valid: Boolean(ref),
+      input_must_be_object: true,
+      confirmed_must_be_boolean: true,
+    });
+  }
+  return {
+    packageId,
+    ref,
+    input: input as JsonRecord,
+    confirmed,
+  };
+}
+
 export function positiveIntegerPayloadField(payload: JsonRecord, field: string) {
   const value = payload[field];
   if (value === undefined || value === null) {
