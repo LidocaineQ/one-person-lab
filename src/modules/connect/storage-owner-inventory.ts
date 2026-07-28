@@ -5,6 +5,10 @@ import { isRecord } from '../../kernel/contract-validation.ts';
 import { resolveOplStatePaths } from '../../kernel/runtime-state-paths.ts';
 import { assertSafePersistedPackagePath } from './agent-package-registry-parts/persisted-path-safety.ts';
 import { resolveCodexHome } from './agent-package-registry-parts/shared.ts';
+import {
+  discoverInstalledPackageDescriptors,
+  type InstalledPackageDescriptor,
+} from './agent-package-registry-parts/installed-codex-plugin-directory.ts';
 import { readLockIndex } from './agent-package-registry-parts/store.ts';
 import type { AgentPackageLockIndex } from './agent-package-registry-parts/types.ts';
 import {
@@ -199,7 +203,10 @@ function minimalMeasurementRoots(roots: string[]) {
   return kept;
 }
 
-function collectOwnedStorageRoots(index: AgentPackageLockIndex): OwnedStorageRoots {
+function collectOwnedStorageRoots(
+  index: AgentPackageLockIndex,
+  installedPackageIds: ReadonlySet<string>,
+): OwnedStorageRoots {
   let reasonCode: OwnedStorageRoots['reason_code'] = null;
   const roots: string[] = [];
   const currentLocks: unknown[] = Array.isArray(index.packages) ? index.packages : [];
@@ -239,6 +246,11 @@ function collectOwnedStorageRoots(index: AgentPackageLockIndex): OwnedStorageRoo
       reasonCode = 'inventory_source_invalid';
       continue;
     }
+    // Once a package exposes an installed owner descriptor, its native carrier
+    // owns the physical bytes. Do not count retained Framework lock roots as
+    // current Package storage; legacy entries without a descriptor remain
+    // measurable until their carrier migration is complete.
+    if (typeof lock.package_id === 'string' && installedPackageIds.has(lock.package_id)) continue;
     const physical = lock.physical_surface;
     if (physical !== null && physical !== undefined && !isRecord(physical)) {
       reasonCode = 'inventory_source_invalid';
@@ -330,6 +342,8 @@ function persistStorageProjection(
 
 export function buildAgentPackageStoreStorageInventory(input: {
   lockIndex?: AgentPackageLockIndex;
+  installedPackageIds?: ReadonlySet<string>;
+  installedDescriptors?: ReadonlyMap<string, InstalledPackageDescriptor>;
   now?: Date;
   persist?: boolean;
   scan?: typeof scanStoragePath;
@@ -339,7 +353,11 @@ export function buildAgentPackageStoreStorageInventory(input: {
 } = {}) {
   const clock = input.clock ?? Date.now;
   const now = input.now ?? new Date();
-  const owned = collectOwnedStorageRoots(input.lockIndex ?? readLockIndex());
+  const installedPackageIds = input.installedPackageIds
+    ?? new Set(
+      [...(input.installedDescriptors ?? discoverInstalledPackageDescriptors()).keys()],
+    );
+  const owned = collectOwnedStorageRoots(input.lockIndex ?? readLockIndex(), installedPackageIds);
   const usageByRoot = measureRoots({
     roots: owned.roots,
     scan: input.scan ?? scanStoragePath,

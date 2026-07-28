@@ -221,6 +221,58 @@ test('Agent Package storage inventory measures only typed current/LKG package-cr
   }
 });
 
+test('Agent Package storage inventory excludes retained lock roots for descriptor-owned carriers', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-storage-descriptor-'));
+  const stateDir = path.join(root, 'state');
+  const codexHome = path.join(root, 'codex-home');
+  const checkoutPath = path.join(stateDir, 'agent-package-runtime-generations', 'opl-flow');
+  const preparationRoot = path.join(stateDir, 'agent-package-runtime-envs', 'opl-flow');
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  const previousCodexHome = process.env.CODEX_HOME;
+  process.env.OPL_STATE_DIR = stateDir;
+  process.env.CODEX_HOME = codexHome;
+  try {
+    fs.mkdirSync(checkoutPath, { recursive: true });
+    fs.mkdirSync(preparationRoot, { recursive: true });
+    const lock = runtimeLock({ checkoutPath, preparationRoot });
+    const scannedRoots: string[] = [];
+    const projection = buildAgentPackageStoreStorageInventory({
+      lockIndex: {
+        ...emptyLockIndex(),
+        packages: [lock],
+        last_known_good_transactions: [{
+          root_package_id: 'opl-flow',
+          transaction_id: 'tx-opl-flow',
+          closure_digest: 'sha256:opl-flow',
+          package_locks: [lock],
+        }],
+      } as AgentPackageLockIndex,
+      installedPackageIds: new Set(['test.storage-owner']),
+      persist: false,
+      scan: (candidate) => {
+        scannedRoots.push(candidate);
+        return {
+          complete: true,
+          reason_code: null,
+          bytes: 100,
+          entry_count: 1,
+          excluded_root_count: 0,
+        };
+      },
+    });
+
+    assert.deepEqual(scannedRoots, []);
+    assert.equal(projection.status, 'available');
+    assert.equal(projection.bytes, 0);
+    assert.equal(projection.reclaimable_bytes, null);
+    assert.equal(projection.reason_code, null);
+  } finally {
+    restoreEnv('OPL_STATE_DIR', previousStateDir);
+    restoreEnv('CODEX_HOME', previousCodexHome);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('WebUI inventory excludes Projects and exposes only carrier-host destructive authority', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-webui-storage-'));
   const dataDir = path.join(root, 'data');
