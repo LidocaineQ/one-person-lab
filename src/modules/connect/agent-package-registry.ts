@@ -1689,18 +1689,29 @@ async function resolveFreshConfiguredCarrier(input: ConfiguredCarrierSelectionIn
       };
     }
   }
-  const registryCache = readRegistryCache();
-  const cacheEntry = packageId
-    ? registryCache?.entries.find((entry) => entry.package_id === packageId) ?? null
-    : null;
-  if (!explicitManifestUrl && !explicitRegistryUrl && !cacheEntry?.configured_codex_plugin_carrier) {
+  // A registry cache can describe a directory entry, but it cannot select a
+  // carrier action. Bare actions must use the fresh installed owner descriptor;
+  // a not-yet-installed Package needs an explicit user or projected source.
+  if (!explicitManifestUrl && !explicitRegistryUrl) {
+    const cacheEntry = packageId
+      ? readRegistryCache()?.entries.find((entry) => entry.package_id === packageId) ?? null
+      : null;
+    if (cacheEntry?.configured_codex_plugin_carrier) {
+      throw new FrameworkContractError(
+        'contract_shape_invalid',
+        'Cached Package discovery metadata cannot authorize a native carrier action without an installed owner descriptor.',
+        {
+          package_id: packageId,
+          failure_code: 'agent_package_cache_only_carrier_action_forbidden',
+        },
+      );
+    }
     return null;
   }
   const selection = await resolveManifestSelection({
     packageId,
     manifestUrl: explicitManifestUrl,
-    registryUrl: explicitRegistryUrl
-      ?? (cacheEntry?.configured_codex_plugin_carrier ? registryCache?.registry_url ?? null : null),
+    registryUrl: explicitRegistryUrl,
     trustTier: 'trustTier' in input ? input.trustTier : null,
   });
   const fetched = await fetchJsonSource(selection.manifestUrl);

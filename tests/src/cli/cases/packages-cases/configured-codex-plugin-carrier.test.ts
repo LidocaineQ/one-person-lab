@@ -10,6 +10,7 @@ import {
   removeFixtureTree,
   registryPayload,
   runCli,
+  runCliFailure,
   test,
 } from './helpers.ts';
 import {
@@ -465,13 +466,6 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
   fs.mkdirSync(stateDir, { recursive: true });
   const registryCachePath = path.join(stateDir, 'agent-package-registry-cache.json');
   fs.writeFileSync(registryCachePath, formatJsonPayload(cache));
-  const staleCache = JSON.parse(fs.readFileSync(registryCachePath, 'utf8')) as {
-    entries: Array<{ configured_codex_plugin_carrier?: { plugin_selector?: string } }>;
-  };
-  staleCache.entries[0].configured_codex_plugin_carrier = {
-    plugin_selector: 'stale-carrier@historical',
-  };
-  fs.writeFileSync(registryCachePath, formatJsonPayload(staleCache));
   const registryCacheBytes = fs.readFileSync(registryCachePath);
   const env = {
     HOME: root,
@@ -491,12 +485,28 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     const cacheOnlyEntry = cacheOnlyList.opl_agent_packages.directory.entries.find(
       (candidate: any) => candidate.package_id === packageId,
     );
-    assert.ok(!cacheOnlyEntry || cacheOnlyEntry.installed === false);
+    assert.equal(cacheOnlyEntry.installed, false);
     assert.ok(!cacheOnlyEntry || cacheOnlyEntry.configured_carrier == null);
     const cacheOnlyStatus = runCli(['packages', 'status', '--package-id', packageId], env) as any;
     assert.equal(cacheOnlyStatus.opl_agent_package_status.status, 'not_installed');
     assert.equal(cacheOnlyStatus.opl_agent_package_status.configured_carrier ?? null, null);
     assertStateBytesUnchanged();
+
+    const cacheOnlyUpdate = runCliFailure(['packages', 'update', packageId], env);
+    assert.equal(
+      cacheOnlyUpdate.payload.error.details.failure_code,
+      'agent_package_cache_only_carrier_action_forbidden',
+      JSON.stringify(cacheOnlyUpdate.payload),
+    );
+    assertStateBytesUnchanged();
+    for (const action of ['repair', 'uninstall']) {
+      const failure = runCliFailure(['packages', action, packageId], env);
+      assert.equal(
+        failure.payload.error.details.failure_code,
+        'agent_package_cache_only_carrier_action_forbidden',
+      );
+      assertStateBytesUnchanged();
+    }
 
     const install = runCli([
       'packages', 'install', packageId,
