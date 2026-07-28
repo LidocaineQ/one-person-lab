@@ -298,6 +298,49 @@ test('Full runtime reconciliation installs required Scholar only through the sel
   }
 });
 
+test('Full runtime reconciliation defaults to the legacy lock projection', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-full-runtime-legacy-projection-'));
+  const runtimeHome = path.join(root, 'runtime');
+  const stateDir = path.join(root, 'state');
+  const fakeCodex = path.join(root, 'codex-unavailable.mjs');
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  const previousPluginBin = process.env.OPL_CODEX_PLUGIN_BIN;
+  const catalog = readBundledFullRuntimePackageCatalog();
+  for (const entry of catalog.entries.values()) {
+    fs.mkdirSync(path.join(runtimeHome, entry.runtimeModuleRelativePath), { recursive: true });
+  }
+  const physicalRoot = path.join(root, 'physical');
+  const locks = [...catalog.entries.values()].map((entry) =>
+    writeMaterializedLock(physicalRoot, entry, catalog));
+  fs.mkdirSync(stateDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(stateDir, 'agent-package-locks.json'),
+    `${JSON.stringify(lockIndex(locks), null, 2)}\n`,
+  );
+  fs.writeFileSync(fakeCodex, 'process.exit(1);\n');
+  process.env.OPL_STATE_DIR = stateDir;
+  process.env.OPL_CODEX_PLUGIN_BIN = fakeCodex;
+  try {
+    const result = await reconcileBundledFullRuntimePackagesIfAvailable(
+      { OPL_FULL_RUNTIME_HOME: runtimeHome },
+      {
+        readCatalog: () => catalog,
+      },
+    );
+    assert.ok(result);
+    assert.equal(result.status, 'completed');
+    assert.equal(result.summary.installed, 0);
+    assert.equal(result.summary.already_installed, 7);
+    assert.equal(result.summary.failed_package_count, 0);
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    if (previousPluginBin === undefined) delete process.env.OPL_CODEX_PLUGIN_BIN;
+    else process.env.OPL_CODEX_PLUGIN_BIN = previousPluginBin;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('managed Full runtime reconciliation retains successful roots around a package-local failure', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-full-runtime-managed-fail-open-'));
   const runtimeHome = path.join(root, 'runtime');

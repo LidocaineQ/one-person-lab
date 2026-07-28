@@ -13,8 +13,8 @@ import {
   type BundledFullRuntimeCatalogEntry,
   type BundledFullRuntimePackageCatalog,
 } from '../agent-package-registry-parts/bundled-full-runtime-catalog.ts';
+import { readLegacyAgentPackageLockIndex } from '../agent-package-registry-parts/legacy-lock-projection.ts';
 import { managedPolicyCurrentness } from '../agent-package-registry-parts/managed-policy-surface.ts';
-import { readLockIndex } from '../agent-package-registry-parts/store.ts';
 import type { AgentPackageLock, AgentPackageLockIndex } from '../agent-package-registry-parts/types.ts';
 
 type FullRuntimePackageInstaller = typeof runOplBundledFullRuntimeAgentPackageInstall;
@@ -338,7 +338,7 @@ async function reconcileBundledFullRuntimePackages(
   const roots = rootPackageIds(catalog);
   const resolvedRoots = resolvePackageRoots(catalog, env);
 
-  const installedIndex = (options.readInstalledLocks ?? readLockIndex)();
+  const installedIndex = (options.readInstalledLocks ?? readLegacyAgentPackageLockIndex)();
   const locks = new Map(installedIndex.packages.map((lock) => [lock.package_id, lock]));
   const isCurrent = (packageId: string) => {
     const lock = locks.get(packageId);
