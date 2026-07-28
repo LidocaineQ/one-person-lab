@@ -17,6 +17,7 @@ import {
   runConfiguredCodexPluginCarrier,
   type CodexPluginCommandRunner,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/configured-codex-plugin-carrier.ts';
+import { createOplAgentPackageStatusReader } from '../../../../../src/modules/connect/agent-package-registry.ts';
 
 const packageId = 'third.party.research';
 const pluginSelector = 'third-party-research@fixture-carrier';
@@ -731,6 +732,68 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
     assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
     assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json'), 'utf8'), legacyLedgerBytes);
   } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('preloaded native status reader does not parse or replace a corrupt legacy lock', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-preloaded-native-status-'));
+  const stateDir = path.join(root, 'opl-state');
+  const binary = path.join(root, 'fake-codex.mjs');
+  const pluginState = path.join(root, 'plugin-state.json');
+  const pluginSource = path.join(root, 'plugin-source');
+  const lockPath = path.join(stateDir, 'agent-package-locks.json');
+  const invalidLegacyLock = '{ invalid legacy lock\n';
+  const env = {
+    HOME: root,
+    CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: binary,
+    FIXTURE_PLUGIN_STATE: pluginState,
+    FIXTURE_PLUGIN_SOURCE: pluginSource,
+  };
+  const previous = new Map(
+    Object.keys(env).map((name) => [name, process.env[name]]),
+  );
+  try {
+    writePluginSource(pluginSource, 'preloaded-native-status');
+    writePluginManifest(pluginSource);
+    fs.writeFileSync(
+      path.join(pluginSource, 'opl-package.json'),
+      formatJsonPayload(installedOwnerDescriptor()),
+    );
+    writeFakeCodex(binary);
+    fs.writeFileSync(pluginState, JSON.stringify({
+      installed: true,
+      version: '1.0.1',
+      marketplaceSource: 'fixture-carrier',
+    }));
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(lockPath, invalidLegacyLock, 'utf8');
+    Object.assign(process.env, env);
+
+    const readStatus = createOplAgentPackageStatusReader();
+    for (let index = 0; index < 2; index += 1) {
+      const status = readStatus({
+        packageId,
+        detail: 'fast',
+      }).opl_agent_package_status;
+      assert.equal(status.status, 'available');
+      assert.equal(status.operational_ready, true);
+      assert.equal(status.launch_allowed, true);
+      assert.equal(status.installed_package_count, 1);
+      assert.deepEqual(status.installed_packages, []);
+    }
+    assert.throws(
+      () => readStatus({ packageId: 'legacy.package', detail: 'fast' }),
+      (error: any) => error?.details?.failure_code === 'agent_package_lock_authority_corrupt',
+    );
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLegacyLock);
+  } finally {
+    for (const [name, value] of previous) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

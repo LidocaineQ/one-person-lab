@@ -4752,15 +4752,10 @@ function emptyStatusLockIndex(): AgentPackageLockIndex {
   };
 }
 
-function readAgentPackageStatusSnapshot(packageId?: string | null) {
-  const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
-  const canonicalPackageId = canonicalAgentPackageId(packageId);
-  const descriptorOnlyReadback = Boolean(
-    canonicalPackageId && installedCodexPluginDescriptors.has(canonicalPackageId),
-  );
-  // A native installed descriptor is already the status authority. Avoid
-  // touching the legacy lock when a caller requests that single Package.
-  const lockIndex = descriptorOnlyReadback ? emptyStatusLockIndex() : readLockIndex();
+function buildAgentPackageStatusSnapshot(
+  lockIndex: AgentPackageLockIndex,
+  installedCodexPluginDescriptors: ReturnType<typeof discoverInstalledCodexPluginDescriptors>,
+) {
   const configuredCarriers = configuredCarrierReadbacks(installedCodexPluginDescriptors);
   const directory = buildAgentPackageDirectory({
     locks: lockIndex.packages,
@@ -4777,6 +4772,18 @@ function readAgentPackageStatusSnapshot(packageId?: string | null) {
     runtimeSourceRecovery: inspectManagedRuntimeSourceTransactions(),
     homeShortcutPreferences: mergedHomeShortcutPreferences(directory, lockIndex),
   };
+}
+
+function readAgentPackageStatusSnapshot(packageId?: string | null) {
+  const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
+  const canonicalPackageId = canonicalAgentPackageId(packageId);
+  const descriptorOnlyReadback = Boolean(
+    canonicalPackageId && installedCodexPluginDescriptors.has(canonicalPackageId),
+  );
+  // A native installed descriptor is already the status authority. Avoid
+  // touching the legacy lock when a caller requests that single Package.
+  const lockIndex = descriptorOnlyReadback ? emptyStatusLockIndex() : readLockIndex();
+  return buildAgentPackageStatusSnapshot(lockIndex, installedCodexPluginDescriptors);
 }
 
 function publicLegacyPackages(
@@ -5044,8 +5051,25 @@ function buildOplAgentPackageStatus(
 }
 
 export function createOplAgentPackageStatusReader() {
-  const snapshot = readAgentPackageStatusSnapshot();
-  return (input: OplAgentPackageStatusInput = {}) => buildOplAgentPackageStatus(input, snapshot);
+  const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
+  let descriptorSnapshot: ReturnType<typeof buildAgentPackageStatusSnapshot> | null = null;
+  let legacySnapshot: ReturnType<typeof buildAgentPackageStatusSnapshot> | null = null;
+  return (input: OplAgentPackageStatusInput = {}) => {
+    const packageId = canonicalAgentPackageId(input.packageId);
+    const descriptorOwned = Boolean(
+      packageId && installedCodexPluginDescriptors.has(packageId),
+    );
+    const snapshot = descriptorOwned
+      ? descriptorSnapshot ??= buildAgentPackageStatusSnapshot(
+          emptyStatusLockIndex(),
+          installedCodexPluginDescriptors,
+        )
+      : legacySnapshot ??= buildAgentPackageStatusSnapshot(
+          readLockIndex(),
+          installedCodexPluginDescriptors,
+        );
+    return buildOplAgentPackageStatus(input, snapshot);
+  };
 }
 
 export function runOplAgentPackageStatus(input: OplAgentPackageStatusInput = {}) {
