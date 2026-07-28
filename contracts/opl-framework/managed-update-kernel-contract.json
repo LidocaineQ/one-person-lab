@@ -293,7 +293,23 @@
     ],
     "stale_after_seconds": 1800,
     "contention_policy": "report_in_progress_or_skip_without_parallel_stage_or_plugin_sync",
-    "orphan_reclamation_policy": "reclaim_a_lock_immediately_when_its_recorded_owner_pid_is_not_alive; otherwise_reclaim_only_after_stale_after_seconds"
+    "orphan_reclamation_policy": "reclaim_a_lock_immediately_when_its_recorded_owner_pid_or_process_identity_is_not_alive; otherwise_reclaim_only_after_stale_after_seconds",
+    "process_identity": {
+      "required_fields": [
+        "pid",
+        "proc_start_time_ticks",
+        "boot_id"
+      ],
+      "linux_semantics": "proc_start_time_ticks_is_read_from_proc_pid_stat_and_boot_id_from_proc_sys_kernel_random_boot_id; a_same_pid_different_identity_is_an_orphan",
+      "portable_fallback": "when_proc_identity_is_unavailable_pid_liveness_and_stale_after_seconds_remain_the_compatibility_boundary"
+    },
+    "reclaim_atomicity": {
+      "algorithm": "rename_existing_lock_to_unique_reclaim_guard_then_recheck_identity_and_remove; retry_create_after_guard_loss",
+      "concurrent_reclaim_policy": "only_the_process_that_wins_the_atomic_rename_may_create_the_replacement_lock",
+      "never": [
+        "unprotected_remove_then_create"
+      ]
+    }
   },
   "owner_route_contract": {
     "required_fields": [

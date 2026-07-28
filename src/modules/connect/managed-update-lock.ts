@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 
 import { resolveOplStatePaths } from '../../kernel/runtime-state-paths.ts';
@@ -21,7 +22,14 @@ type ManagedUpdateLockReceipt = {
   receipt_id: string | null;
   acquired_at: string;
   pid: number;
+  process_identity: ProcessIdentity;
   stale_after_seconds: number;
+};
+
+type ProcessIdentity = {
+  pid: number;
+  proc_start_time_ticks: string | null;
+  boot_id: string | null;
 };
 
 function nowMs() {
@@ -46,21 +54,99 @@ function readLockFile(file: string) {
   return isRecord(payload) ? payload : null;
 }
 
-function isProcessAlive(pid: unknown) {
-  if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return false;
+function readProcStartTimeTicks(pid: number) {
+  if (process.platform !== 'linux') return null;
   try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    // EPERM means the process exists but is not inspectable by this user.
-    return (error as NodeJS.ErrnoException).code === 'EPERM';
+    const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+    const commandEnd = stat.lastIndexOf(')');
+    if (commandEnd < 0) return null;
+    const fieldsAfterCommand = stat.slice(commandEnd + 1).trim().split(/\s+/);
+    return fieldsAfterCommand[19] ?? null;
+  } catch {
+    return null;
   }
 }
 
-function isReclaimableLock(file: string) {
-  const lock = readLockFile(file);
-  if (lock && !isProcessAlive(lock.pid)) return true;
+function readBootId() {
+  if (process.platform !== 'linux') return null;
+  try {
+    return fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+function processIdentity(pid: number): ProcessIdentity {
+  return {
+    pid,
+    proc_start_time_ticks: readProcStartTimeTicks(pid),
+    boot_id: readBootId(),
+  };
+}
+
+function isProcessAlive(identity: unknown, pidFallback?: unknown) {
+  const pid = isRecord(identity) ? identity.pid : pidFallback;
+  if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+  } catch (error) {
+    // EPERM means the process exists but is not inspectable by this user.
+    if ((error as NodeJS.ErrnoException).code !== 'EPERM') return false;
+  }
+  const current = processIdentity(pid);
+  if (
+    isRecord(identity)
+    && typeof identity.proc_start_time_ticks === 'string'
+    && current.proc_start_time_ticks !== null
+    && identity.proc_start_time_ticks !== current.proc_start_time_ticks
+  ) {
+    return false;
+  }
+  if (
+    isRecord(identity)
+    && typeof identity.boot_id === 'string'
+    && current.boot_id !== null
+    && identity.boot_id !== current.boot_id
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function isReclaimableLockPayload(lock: Record<string, unknown> | null, file: string) {
+  if (lock && !isProcessAlive(lock.process_identity, lock.pid)) return true;
   return isStaleLock(file);
+}
+
+function restoreGuardedLock(guard: string, file: string) {
+  try {
+    fs.linkSync(guard, file);
+    fs.rmSync(guard, { force: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      fs.rmSync(guard, { force: true });
+      return;
+    }
+    throw error;
+  }
+}
+
+function reclaimLockAtomically(file: string) {
+  const guard = `${file}.reclaim-${process.pid}-${crypto.randomUUID()}`;
+  try {
+    fs.renameSync(file, guard);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
+
+  const movedLock = readLockFile(guard);
+  if (!isReclaimableLockPayload(movedLock, guard)) {
+    restoreGuardedLock(guard, file);
+    return false;
+  }
+  fs.rmSync(guard, { force: true });
+  return true;
 }
 
 function createLockFile(file: string, receipt: ManagedUpdateLockReceipt) {
@@ -100,32 +186,53 @@ export function acquireManagedUpdateLock(input: {
     receipt_id: input.receiptId ?? null,
     acquired_at: acquiredAt,
     pid: process.pid,
+    process_identity: processIdentity(process.pid),
     stale_after_seconds: STALE_AFTER_SECONDS,
   };
 
-  try {
-    createLockFile(file, receipt);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST' && isReclaimableLock(file)) {
-      fs.rmSync(file, { force: true });
+  let acquired = false;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
       createLockFile(file, receipt);
-    } else {
+      acquired = true;
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
       const lock = readLockFile(file);
-      throw new FrameworkContractError(
-        'managed_update_lock_contention',
-        'Managed update is already running.',
-        {
-          surface_id: MANAGED_UPDATE_KERNEL_ID,
-          lock_id: `${MANAGED_UPDATE_KERNEL_ID}.global`,
-          lock_file: file,
-          lock_status: 'held',
-          held_by: lock,
-          stale_after_seconds: STALE_AFTER_SECONDS,
-          repair_action: 'retry_after_current_update_finishes_or_remove_stale_lock_after_timeout',
-        },
-        3,
-      );
+      if (!isReclaimableLockPayload(lock, file) || !reclaimLockAtomically(file)) {
+        throw new FrameworkContractError(
+          'managed_update_lock_contention',
+          'Managed update is already running.',
+          {
+            surface_id: MANAGED_UPDATE_KERNEL_ID,
+            lock_id: `${MANAGED_UPDATE_KERNEL_ID}.global`,
+            lock_file: file,
+            lock_status: 'held',
+            held_by: lock,
+            stale_after_seconds: STALE_AFTER_SECONDS,
+            repair_action: 'retry_after_current_update_finishes_or_remove_stale_lock_after_timeout',
+          },
+          3,
+        );
+      }
     }
+  }
+  if (!acquired) {
+    const lock = readLockFile(file);
+    throw new FrameworkContractError(
+      'managed_update_lock_contention',
+      'Managed update is already running.',
+      {
+        surface_id: MANAGED_UPDATE_KERNEL_ID,
+        lock_id: `${MANAGED_UPDATE_KERNEL_ID}.global`,
+        lock_file: file,
+        lock_status: 'held',
+        held_by: lock,
+        stale_after_seconds: STALE_AFTER_SECONDS,
+        repair_action: 'retry_after_current_update_finishes_or_remove_stale_lock_after_timeout',
+      },
+      3,
+    );
   }
 
   return {
