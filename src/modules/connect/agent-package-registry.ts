@@ -5130,7 +5130,23 @@ export function readInstalledOplAgentPackageLocks() {
 
 function readInstalledOwnerProfileDefault() {
   const descriptors = discoverInstalledOwnerProfileDescriptors();
-  if (descriptors.length === 0) return null;
+  if (descriptors.length === 0) {
+    return {
+      surface_kind: 'opl_flow_default_user_instructions.v1' as const,
+      source: 'installed_owner_descriptor' as const,
+      source_path: null,
+      source_root: null,
+      package_version: null,
+      package_lock_ref: null,
+      manifest_sha256: null,
+      content_digest: null,
+      plugin_payload_manifest_sha256: null,
+      status: 'unavailable' as const,
+      reason: 'opl_flow_package_not_installed' as const,
+      content: null,
+      sha256: null,
+    };
+  }
   if (descriptors.length !== 1) {
     return {
       surface_kind: 'opl_flow_default_user_instructions.v1' as const,
@@ -5195,65 +5211,7 @@ function readInstalledOwnerProfileDefault() {
 }
 
 export function readOplFlowDefaultUserInstructions() {
-  const installedOwnerProfile = readInstalledOwnerProfileDefault();
-  if (installedOwnerProfile) return installedOwnerProfile;
-
-  const lock = readLockIndex().packages.find((entry) => entry.package_id === 'opl-flow') ?? null;
-  const sourceRoot = lock?.physical_surface?.plugin_payload_cache_path ?? null;
-  const sourcePath = sourceRoot ? path.join(sourceRoot, 'templates', 'AGENTS.md') : null;
-  const base = {
-    surface_kind: 'opl_flow_default_user_instructions.v1' as const,
-    source: 'installed_opl_package_lock' as const,
-    source_path: sourcePath,
-    source_root: sourceRoot,
-    package_version: lock?.package_version ?? null,
-    package_lock_ref: lock?.lock_ref ?? null,
-    manifest_sha256: lock?.manifest_sha256 ?? null,
-    content_digest: lock?.content_digest ?? null,
-    plugin_payload_manifest_sha256: lock?.physical_surface?.plugin_payload_manifest_sha256 ?? null,
-  };
-  if (!lock) {
-    return {
-      ...base,
-      status: 'unavailable' as const,
-      reason: 'opl_flow_package_not_installed' as const,
-      content: null,
-      sha256: null,
-    };
-  }
-  if (!sourceRoot || !sourcePath) {
-    return {
-      ...base,
-      status: 'unavailable' as const,
-      reason: 'managed_package_payload_not_materialized' as const,
-      content: null,
-      sha256: null,
-    };
-  }
-  try {
-    const sourceRootRealPath = fs.realpathSync(sourceRoot);
-    const sourcePathRealPath = fs.realpathSync(sourcePath);
-    if (!sourcePathRealPath.startsWith(`${sourceRootRealPath}${path.sep}`)
-      || !fs.statSync(sourcePathRealPath).isFile()) {
-      throw new Error('OPL Flow default instructions escaped the locked package payload.');
-    }
-    const content = fs.readFileSync(sourcePathRealPath, 'utf8');
-    return {
-      ...base,
-      status: 'available' as const,
-      reason: null,
-      content,
-      sha256: sha256Text(content),
-    };
-  } catch {
-    return {
-      ...base,
-      status: 'invalid' as const,
-      reason: 'locked_default_instructions_missing_or_invalid' as const,
-      content: null,
-      sha256: null,
-    };
-  }
+  return readInstalledOwnerProfileDefault();
 }
 
 function readInstalledOplFlowManagedPolicyDependencies(): AgentPackageManagedPolicyDependency[] | null {

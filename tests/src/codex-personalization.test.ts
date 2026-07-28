@@ -181,9 +181,11 @@ test('Codex user instructions use SHA preconditions, backup, and atomic readback
   const previousCodexHome = process.env.CODEX_HOME;
   const previousStateDir = process.env.OPL_STATE_DIR;
   const previousHome = process.env.HOME;
+  const previousPluginBin = process.env.OPL_CODEX_PLUGIN_BIN;
   process.env.CODEX_HOME = path.join(root, 'codex-home');
   process.env.OPL_STATE_DIR = path.join(root, 'opl-state');
   process.env.HOME = path.join(root, 'home');
+  process.env.OPL_CODEX_PLUGIN_BIN = writeFakeCodexPluginList(root, []);
 
   try {
     assert.equal(readOplFlowDefaultUserInstructions().reason, 'opl_flow_package_not_installed');
@@ -194,6 +196,11 @@ test('Codex user instructions use SHA preconditions, backup, and atomic readback
       OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
       ...writeOplFlowPackage(root),
     });
+    const lockOnlyDefault = readOplFlowDefaultUserInstructions();
+    assert.equal(lockOnlyDefault.status, 'unavailable');
+    assert.equal(lockOnlyDefault.source, 'installed_owner_descriptor');
+    assert.equal(lockOnlyDefault.package_lock_ref, null);
+    assert.equal(lockOnlyDefault.content, null);
 
     const missing = readCodexUserInstructions();
     assert.equal(missing.status, 'missing');
@@ -216,20 +223,22 @@ test('Codex user instructions use SHA preconditions, backup, and atomic readback
     assert.equal(fs.readFileSync(second.backup_path!, 'utf8'), 'Always answer directly.\n');
     assert.equal(second.readback.content, 'Always answer in Chinese.\n');
 
+    const ownerProfile = writeInstalledOwnerProfileFixture(root);
+    process.env.OPL_CODEX_PLUGIN_BIN = ownerProfile.codexPath;
     const oplFlowDefault = readOplFlowDefaultUserInstructions();
     assert.equal(oplFlowDefault.status, 'available');
-    assert.equal(oplFlowDefault.source, 'installed_opl_package_lock');
-    assert.equal(oplFlowDefault.package_version, '0.1.16');
-    assert.match(oplFlowDefault.package_lock_ref!, /^opl:\/\/agent-package-lock\/opl-flow\/0\.1\.16\//);
-    assert.equal(oplFlowDefault.content, 'OPL Flow default instructions.\n');
-    assert.ok(oplFlowDefault.plugin_payload_manifest_sha256);
+    assert.equal(oplFlowDefault.source, 'installed_owner_descriptor');
+    assert.equal(oplFlowDefault.package_version, '1.2.3');
+    assert.equal(oplFlowDefault.package_lock_ref, null);
+    assert.equal(oplFlowDefault.content, 'Descriptor-owned default instructions.\n');
+    assert.equal(oplFlowDefault.plugin_payload_manifest_sha256, null);
 
     const restored = restoreCodexUserInstructionsFromOplFlowDefault({
       expectedSha256: second.next_sha256,
     }).codex_user_instructions_restore;
     assert.equal(restored.status, 'restored');
     assert.ok(restored.write.readback);
-    assert.equal(restored.write.readback!.content, 'OPL Flow default instructions.\n');
+    assert.equal(restored.write.readback!.content, 'Descriptor-owned default instructions.\n');
     assert.ok(restored.write.backup_path);
 
     const customized = writeCodexUserInstructions({
@@ -249,7 +258,7 @@ test('Codex user instructions use SHA preconditions, backup, and atomic readback
       actionRestore.app_action_execution.result.codex_user_instructions_restore.status,
       'restored',
     );
-    assert.equal(readCodexUserInstructions().content, 'OPL Flow default instructions.\n');
+    assert.equal(readCodexUserInstructions().content, 'Descriptor-owned default instructions.\n');
 
     assert.throws(
       () => writeCodexUserInstructions({ content: 'stale', expectedSha256: first.next_sha256 }),
@@ -262,6 +271,8 @@ test('Codex user instructions use SHA preconditions, backup, and atomic readback
     else process.env.OPL_STATE_DIR = previousStateDir;
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;
+    if (previousPluginBin === undefined) delete process.env.OPL_CODEX_PLUGIN_BIN;
+    else process.env.OPL_CODEX_PLUGIN_BIN = previousPluginBin;
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
