@@ -5,23 +5,19 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
 import {
-  readJsonFileOrNull,
   readJsonFileResult,
   upsertJsonReceipts,
   writeJsonPayloadFile,
   writeJsonReceiptLedger,
 } from '../../../kernel/json-file.ts';
-import { recordList, stringValue } from '../../../kernel/json-record.ts';
+import { stringValue } from '../../../kernel/json-record.ts';
 import { ensureOplStateDir, resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
-import { normalizeRegistryEntry } from './manifest-normalizers.ts';
-import { nowIso } from './shared.ts';
 import type {
   AgentPackageLifecycleLedger,
   AgentPackageLifecycleReceipt,
   AgentPackageLock,
   AgentPackageLockIndex,
-  AgentPackageRegistryCache,
 } from './types.ts';
 
 type PackageLifecycleTransactionOptions = {
@@ -274,36 +270,6 @@ export function readLifecycleLedger(): AgentPackageLifecycleLedger {
       return receipt;
     }),
   };
-}
-
-export function readRegistryCache() {
-  const parsed = readJsonFileOrNull(resolveOplStatePaths().agent_package_registry_cache_file);
-  if (!isRecord(parsed) || !Array.isArray(parsed.entries)) {
-    return null;
-  }
-  const entries = recordList(parsed.entries).flatMap((entry, index) => {
-    try {
-      return [normalizeRegistryEntry(entry, index)];
-    } catch (error) {
-      // This cache is a non-authoritative read model; stale invalid rows cannot hide the built-in directory.
-      if (error instanceof FrameworkContractError) return [];
-      throw error;
-    }
-  });
-  return {
-    surface_kind: 'opl_agent_package_registry_cache' as const,
-    version: 'opl-agent-package-registry-cache.v1' as const,
-    refreshed_at: stringValue(parsed.refreshed_at) ?? nowIso(),
-    registry_url: stringValue(parsed.registry_url) ?? '',
-    registry_sha256: stringValue(parsed.registry_sha256) ?? '',
-    entry_count: entries.length,
-    entries,
-  };
-}
-
-export function writeRegistryCache(cache: AgentPackageRegistryCache) {
-  const paths = ensureOplStateDir();
-  writeJsonPayloadFile(paths.agent_package_registry_cache_file, cache);
 }
 
 function writeLifecycleLedger(ledger: AgentPackageLifecycleLedger) {

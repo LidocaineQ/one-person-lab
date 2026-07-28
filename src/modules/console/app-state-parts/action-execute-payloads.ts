@@ -146,19 +146,6 @@ export function settingsVerifyWorkspacePayload(payload: JsonRecord) {
   return workspacePath;
 }
 
-export function agentPackageRegistryUrlPayload(payload: JsonRecord) {
-  const registryUrl = stringPayloadField(payload, 'registry_url')
-    ?? stringPayloadField(payload, 'registryUrl')
-    ?? stringPayloadField(payload, 'url');
-  if (!registryUrl) {
-    throw new FrameworkContractError('cli_usage_error', 'refresh_registry action requires payload.registry_url.', {
-      action_id: 'refresh_registry',
-      required: ['registry_url'],
-    });
-  }
-  return registryUrl;
-}
-
 export function agentPackageInstallPayload(payload: JsonRecord, options: { allowPackageOnly?: boolean } = {}) {
   const manifestUrl = stringPayloadField(payload, 'manifest_url')
     ?? stringPayloadField(payload, 'manifestUrl');

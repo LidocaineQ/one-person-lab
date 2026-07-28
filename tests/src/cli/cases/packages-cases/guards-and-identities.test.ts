@@ -22,7 +22,7 @@ import {
 import {
   normalizeManifest,
   normalizePackageManifest,
-  normalizeRegistry,
+  normalizeRegistryDocument,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
 import { defaultHomeShortcutPreferences } from '../../../../../src/modules/connect/agent-package-registry-parts/home-shortcuts.ts';
 import { assertManifestMatchesRegistrySelection } from '../../../../../src/modules/connect/agent-package-registry-parts/selection.ts';
@@ -31,7 +31,7 @@ import { writeManagedRuntimeSourceFixture } from './managed-runtime-source-fixtu
 const FIXTURE_RCA_PACKAGE_ID = 'fixture.rca';
 
 test('default Home shortcut visibility follows registry starter_default', () => {
-  const registry = normalizeRegistry({
+  const registry = normalizeRegistryDocument({
     ...registryPayload('https://registry.example'),
     entries: [{
       ...registryPayload('https://registry.example').entries[0],
@@ -54,7 +54,7 @@ test('default Home shortcut visibility follows registry starter_default', () => 
 
 test('package registry uses version_source_ref and rejects mutable latest_version truth', () => {
   const payload = registryPayload('https://registry.example');
-  const registry = normalizeRegistry(
+  const registry = normalizeRegistryDocument(
     payload,
     'https://registry.example/registry.json',
     'fixture-sha256',
@@ -62,7 +62,7 @@ test('package registry uses version_source_ref and rejects mutable latest_versio
   assert.equal(registry.entries[0].version_source_ref, 'https://registry.example/manifest.json#/version');
 
   assert.throws(
-    () => normalizeRegistry({
+    () => normalizeRegistryDocument({
       ...payload,
       entries: [{ ...payload.entries[0], latest_version: '1.2.3' }],
     }, 'https://registry.example/registry.json', 'fixture-sha256'),
@@ -581,7 +581,7 @@ test('concurrent Home shortcut preference writes preserve each preference withou
 
 test('published registry entry rejects a source-only manifest without distribution payload', () => {
   const manifestUrl = 'https://registry.example/manifest.json';
-  const registryEntry = normalizeRegistry(
+  const registryEntry = normalizeRegistryDocument(
     registryPayload('https://registry.example'),
     'https://registry.example/registry.json',
     'fixture-sha256',
@@ -601,7 +601,7 @@ test('published registry entry rejects a source-only manifest without distributi
 
 test('registry selection rejects declared package role or selected version drift', () => {
   const manifestUrl = 'https://registry.example/manifest.json';
-  const registryEntry = normalizeRegistry(
+  const registryEntry = normalizeRegistryDocument(
     registryPayload('https://registry.example'),
     'https://registry.example/registry.json',
     'fixture-sha256',
@@ -936,12 +936,6 @@ test('packages reject external registries that claim canonical public package id
     await withAgentPackageServer(async (baseUrl) => {
       await assert.rejects(
         () => runCliAsync([
-          'packages', 'registry', 'refresh', '--registry-url', `${baseUrl}/registry.json`,
-        ], env),
-        /agent_package_registry_first_party_identity_collision/,
-      );
-      await assert.rejects(
-        () => runCliAsync([
           'packages', 'install', '--registry-url', `${baseUrl}/registry.json`, '--package-id', 'mas',
         ], env),
         /first_party_package_explicit_source_forbidden/,
@@ -964,40 +958,6 @@ test('packages reject external registries that claim canonical public package id
 test('packages fail closed on a legacy noncanonical lock identity without overwriting authority bytes', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-legacy-state-'));
   try {
-    fs.writeFileSync(path.join(stateDir, 'agent-package-registry-cache.json'), formatJsonPayload({
-      surface_kind: 'opl_agent_package_registry_cache',
-      version: 'opl-agent-package-registry-cache.v1',
-      refreshed_at: '2026-01-01T00:00:00.000Z',
-      registry_url: 'https://example.test/registry.json',
-      registry_sha256: 'fixture-registry-sha',
-      entry_count: 2,
-      entries: [
-        {
-          package_id: 'medautoscience',
-          display_name: 'Med Auto Science',
-          publisher: 'one-person-lab',
-          source: 'first_party',
-          manifest_url: 'https://example.test/mas.json',
-          latest_version: '1.0.0',
-          trust_tier: 'first_party_managed',
-          required_skill_ids: ['mas'],
-          optional_skill_ids: [],
-          home_shortcut_ids: ['research'],
-        },
-        {
-          package_id: 'bookforge',
-          display_name: 'OPL Book Forge',
-          publisher: 'one-person-lab',
-          source: 'first_party',
-          manifest_url: 'https://example.test/bookforge.json',
-          latest_version: '1.0.0',
-          trust_tier: 'first_party_managed',
-          required_skill_ids: ['opl-bookforge'],
-          optional_skill_ids: [],
-          home_shortcut_ids: ['book'],
-        },
-      ],
-    }), 'utf8');
     fs.writeFileSync(path.join(stateDir, 'agent-package-locks.json'), formatJsonPayload({
       surface_kind: 'opl_agent_package_lock_index',
       version: 'opl-agent-package-lock-index.v1',

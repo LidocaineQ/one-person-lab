@@ -70,7 +70,6 @@ export {
   runOplAgentPackageManifestValidate,
   runOplAgentPackageOptimize,
   runOplAgentPackageProfileApply,
-  runOplAgentPackageRegistryRefresh,
   runOplAgentPackageRepair,
   runOplAgentPackageRollback,
   runOplAgentPackageStatus,

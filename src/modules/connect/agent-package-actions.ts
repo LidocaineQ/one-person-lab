@@ -1,5 +1,4 @@
 export type AgentPackageAppActionId =
-  | 'refresh_registry'
   | 'install_from_manifest_url'
   | 'agent_package_update'
   | 'agent_package_repair'
@@ -8,7 +7,6 @@ export type AgentPackageAppActionId =
   | 'agent_package_preferences_set';
 
 export type AgentPackageActionTaskKind =
-  | 'refresh'
   | 'install'
   | 'uninstall'
   | 'repair'
@@ -34,24 +32,6 @@ export type AgentPackageActionCatalogEntry = {
 };
 
 const AGENT_PACKAGE_ACTION_CATALOG = [
-  {
-    action_id: 'refresh_registry',
-    aliases: ['agent_registry_refresh'],
-    stable_id: 'refresh_agent_package_registry',
-    label: 'Refresh agent registry',
-    section_id: 'capabilities',
-    task_kind: 'refresh',
-    taxonomy: 'settings.capabilities.agent_registry.refresh',
-    delegated_surface: 'opl packages registry refresh --registry-url <registry_url>',
-    payload_fields: ['registry_url'],
-    mutates: 'opl_agent_package_registry_cache',
-    dry_run_supported: true,
-    confirmation_required: false,
-    danger_level: 'low',
-    impact: 'Fetches and validates a registry catalog for discovery only, then updates the Framework registry cache.',
-    follow_up_action_ids: ['install_from_manifest_url'],
-    verify_action_id: 'refresh_registry',
-  },
   {
     action_id: 'install_from_manifest_url',
     aliases: ['agent_package_install_from_manifest_url'],

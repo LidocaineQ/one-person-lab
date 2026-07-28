@@ -12,7 +12,6 @@ import {
   runOplAgentPackageManifestValidate,
   runOplAgentPackageOptimize,
   runOplAgentPackageProfileApply,
-  runOplAgentPackageRegistryRefresh,
   runOplAgentPackageRepair,
   runOplAgentPackageRollback,
   runOplAgentPackageStatus,
@@ -282,17 +281,6 @@ async function installPackageWithActiveWorkspace(input: AgentPackageInstallInput
   };
 }
 
-function parseRegistryRefresh(args: string[], spec: CommandSpec) {
-  const parsed = parseRegisteredCommandOptions('packages registry refresh', args, spec);
-  const registryUrl = String(parsed['registry-url'] ?? '').trim();
-  if (!registryUrl) {
-    throw buildUsageError('packages registry refresh requires --registry-url.', spec, {
-      required: ['--registry-url'],
-    });
-  }
-  return { registryUrl };
-}
-
 function parseManifestValidation(args: string[], spec: CommandSpec): AgentPackageManifestValidateInput {
   const parsed = parseRegisteredCommandOptions('packages validate-manifest', args, spec);
   return {
@@ -401,16 +389,6 @@ export function buildPackagesCommandSpecs(
           targetQuest: readOptionalString(parsed['target-quest']),
         });
       },
-    },
-    'packages registry refresh': {
-      usage: 'opl packages registry refresh --registry-url <url>',
-      summary: 'Refresh the OPL Package discovery registry without changing installed packages.',
-      examples: ['opl packages registry refresh --registry-url https://example.com/registry.json --json'],
-      group: 'packages',
-      help_surface: 'diagnostic_drilldown',
-      handler: (args) => runOplAgentPackageRegistryRefresh(
-        parseRegistryRefresh(args, getCommandSpec('packages registry refresh')),
-      ),
     },
     'packages validate-manifest': {
       usage: 'opl packages validate-manifest (--manifest-url <url>|--registry-url <url> --package-id <id>) [--trust-tier <tier>] [--source-kind <kind>]',

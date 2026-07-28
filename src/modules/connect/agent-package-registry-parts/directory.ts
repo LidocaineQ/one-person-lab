@@ -28,7 +28,6 @@ import { agentPackageLifecycleUxReadback } from './readback.ts';
 import { resolveAgentPackageEffectiveSourcePolicy } from './source-policy.ts';
 import {
   assertExplicitExternalRegistryClaim,
-  fetchJsonSource,
   refsOnlyAuthorityBoundary,
   uniqueStrings,
 } from './shared.ts';
@@ -38,7 +37,7 @@ import type {
   AgentPackageLock,
   AgentPackagePackageActionInput,
   AgentPackagePresentation,
-  AgentPackageRegistryCache,
+  AgentPackageRegistryDocument,
   AgentPackageRegistryEntry,
   AgentPackageRole,
 } from './types.ts';
@@ -83,7 +82,6 @@ type DirectorySource = {
   source_kind:
     | 'first_party_framework_projection'
     | 'first_party_release_catalog'
-    | 'agent_package_registry_cache'
     | 'installed_package_lock'
     | 'installed_codex_plugin_descriptor';
   registry_source_ref: string | null;
@@ -99,7 +97,6 @@ type DirectorySource = {
       | 'cached_release_set'
       | 'last_known_good_release_set'
       | 'framework_projection_only'
-      | 'registry_cache'
       | 'installed_lock_only'
       | 'installed_codex_plugin_descriptor';
     live_verified: boolean;
@@ -201,11 +198,11 @@ export function isOplPackageCatalog(payload: unknown) {
     || payload.package_catalog_surface_kind === 'opl_package_catalog.v1';
 }
 
-export function normalizePackageCatalogRegistry(
+export function normalizePackageCatalogDocument(
   payload: unknown,
   registryUrl: string,
   registrySha256: string,
-): AgentPackageRegistryCache {
+): AgentPackageRegistryDocument {
   if (!isRecord(payload) || !isRecord(payload.packages) || !isRecord(payload.packages.package_catalog)) {
     throw new FrameworkContractError('contract_shape_invalid', 'OPL package catalog must declare packages.package_catalog.', {
       registry_url: registryUrl,
@@ -305,83 +302,10 @@ export function normalizePackageCatalogRegistry(
     } satisfies AgentPackageRegistryEntry;
   });
   return {
-    surface_kind: 'opl_agent_package_registry_cache',
-    version: 'opl-agent-package-registry-cache.v1',
-    refreshed_at: new Date().toISOString(),
     registry_url: registryUrl,
     registry_sha256: registrySha256,
-    entry_count: entries.length,
     entries,
   };
-}
-
-export async function enrichRegistryCacheManifestMetadata(cache: AgentPackageRegistryCache) {
-  const entries = await Promise.all(cache.entries.map(async (entry) => {
-    if (entry.manifest_validation === 'catalog_inline_manifest') return entry;
-    const fetched = await fetchJsonSource(entry.manifest_url);
-    const metadata = manifestDirectoryMetadata(fetched.payload, entry.manifest_url);
-    if (metadata.package_id !== entry.package_id) {
-      throw new FrameworkContractError('contract_shape_invalid', 'Registry entry package id must match its manifest.', {
-        registry_url: cache.registry_url,
-        manifest_url: entry.manifest_url,
-        registry_package_id: entry.package_id,
-        manifest_package_id: metadata.package_id,
-        failure_code: 'registry_manifest_package_id_mismatch',
-      });
-    }
-    if (entry.package_role && entry.package_role !== metadata.package_role) {
-      throw new FrameworkContractError('contract_shape_invalid', 'Registry entry package role must match its manifest.', {
-        registry_url: cache.registry_url,
-        manifest_url: entry.manifest_url,
-        package_id: entry.package_id,
-        registry_package_role: entry.package_role,
-        manifest_package_role: metadata.package_role,
-        failure_code: 'registry_manifest_package_role_mismatch',
-      });
-    }
-    if (entry.version_source_ref !== `${entry.manifest_url}#/version`) {
-      throw new FrameworkContractError('contract_shape_invalid', 'Registry version source must point to the selected manifest version.', {
-        registry_url: cache.registry_url,
-        manifest_url: entry.manifest_url,
-        package_id: entry.package_id,
-        registry_version_source_ref: entry.version_source_ref,
-        expected_version_source_ref: `${entry.manifest_url}#/version`,
-        failure_code: 'registry_manifest_version_source_mismatch',
-      });
-    }
-    for (const field of ['selected_version', 'stable_version'] as const) {
-      const registryVersion = entry[field];
-      if (registryVersion && registryVersion !== metadata.selected_version) {
-        throw new FrameworkContractError('contract_shape_invalid', `Registry entry ${field} must match its manifest version.`, {
-          registry_url: cache.registry_url,
-          manifest_url: entry.manifest_url,
-          package_id: entry.package_id,
-          [`registry_${field}`]: registryVersion,
-          manifest_version: metadata.selected_version,
-          failure_code: `registry_manifest_${field.replace('_version', '')}_version_mismatch`,
-        });
-      }
-    }
-    return {
-      ...entry,
-      display_name: entry.display_name || metadata.display_name,
-      publisher: entry.publisher || metadata.publisher,
-      description: entry.description === `${entry.display_name} package.`
-        ? metadata.description
-        : entry.description,
-      tags: uniqueStrings([...entry.tags, ...metadata.tags]),
-      package_role: metadata.package_role,
-      selected_version: metadata.selected_version,
-      stable_version: entry.stable_version ?? metadata.selected_version,
-      required_skill_ids: metadata.required_skill_ids,
-      optional_skill_ids: metadata.optional_skill_refs,
-      presentation: metadata.presentation ?? null,
-      configured_codex_plugin_carrier: metadata.configured_codex_plugin_carrier,
-      app_contributions: metadata.app_contributions,
-      manifest_validation: 'fetched_manifest' as const,
-    };
-  }));
-  return { ...cache, entries, entry_count: entries.length };
 }
 
 function firstPartyDirectorySources(snapshot: FirstPartyDirectoryCatalogSnapshot | null): DirectorySource[] {
@@ -471,50 +395,6 @@ function firstPartyDirectorySources(snapshot: FirstPartyDirectoryCatalogSnapshot
       release_target: selected,
     };
   });
-}
-
-function registryDirectorySource(cache: AgentPackageRegistryCache, entry: AgentPackageRegistryEntry): DirectorySource {
-  const capabilityMetadata: DirectoryCapabilityMetadata | null = entry.package_role === 'standard_agent'
-    && (entry.manifest_validation === 'fetched_manifest'
-      || entry.manifest_validation === 'catalog_inline_manifest')
-    && entry.required_skill_ids.length > 0
-    ? {
-        source: 'validated_registry_manifest',
-        required_skill_ids: [...entry.required_skill_ids],
-        optional_skill_refs: [...entry.optional_skill_ids],
-      }
-    : null;
-  return {
-    package_id: entry.package_id,
-    display_name: entry.display_name,
-    publisher: entry.publisher,
-    description: entry.description,
-    tags: [...entry.tags],
-    package_role: entry.package_role,
-    trust_tier: entry.trust_tier,
-    source: entry.source,
-    manifest_url: entry.manifest_url,
-    projected_version: null,
-    selected_version: entry.selected_version,
-    stable_version: entry.stable_version,
-    registry_url: cache.registry_url,
-    version_source_ref: entry.version_source_ref,
-    source_kind: 'agent_package_registry_cache',
-    registry_source_ref: cache.registry_url,
-    capability_metadata: capabilityMetadata,
-    presentation: entry.presentation ?? null,
-    home_shortcut_ids: [...entry.home_shortcut_ids],
-    configured_codex_plugin_carrier: entry.configured_codex_plugin_carrier ?? null,
-    app_contributions: entry.app_contributions ?? null,
-    version_currentness: {
-      status: 'registry_cache',
-      live_verified: false,
-      source_ref: cache.registry_url,
-      source_digest: cache.registry_sha256,
-      checked_at: cache.refreshed_at,
-    },
-    release_target: null,
-  };
 }
 
 function lockDirectorySource(lock: AgentPackageLock, packageRole: AgentPackageRole | null): DirectorySource {
@@ -640,9 +520,7 @@ function packageAction(
   requiredPayloadFields: string[],
   confirmationRequired: boolean,
 ) {
-  const semantics = actionId === 'refresh_registry'
-    ? { semantic: 'refresh', surface: 'settings' }
-    : actionId === 'install_from_manifest_url'
+  const semantics = actionId === 'install_from_manifest_url'
       ? { semantic: 'install', surface: 'settings' }
       : actionId === 'agent_package_activate'
         ? { semantic: 'activate', surface: 'workspace' }
@@ -724,12 +602,7 @@ function availableActions(
         packageAction('agent_package_uninstall', { package_id: source.package_id }, ['package_id'], true),
       ];
     }
-    return [packageAction(
-      'refresh_registry',
-      { registry_url: source.registry_url },
-      ['registry_url'],
-      false,
-    )];
+    return [];
   }
   if (!installed) {
     const payload = installPayload(source);
@@ -780,7 +653,6 @@ function recommendedActionId(input: {
 }) {
   if (!input.installed) {
     if (input.availableActionIds.has('install_from_manifest_url')) return 'install_from_manifest_url';
-    if (input.availableActionIds.has('refresh_registry')) return 'refresh_registry';
     return null;
   }
   const candidate = input.statusAction ?? input.lifecycleAction;
@@ -836,7 +708,6 @@ function capabilityDependencySummary(lock: AgentPackageLock | null) {
 }
 
 export function buildAgentPackageDirectory(input: {
-  registryCache: AgentPackageRegistryCache | null;
   locks: AgentPackageLock[];
   detail: 'fast' | 'full';
   firstPartyCatalog?: FirstPartyDirectoryCatalogSnapshot | null;
@@ -847,20 +718,6 @@ export function buildAgentPackageDirectory(input: {
 }) {
   const sources = new Map(firstPartyDirectorySources(input.firstPartyCatalog ?? null)
     .map((entry) => [entry.package_id, entry]));
-  for (const entry of input.registryCache?.entries ?? []) {
-    if (resolveFirstPartyPackageCatalog(entry.package_id)) continue;
-    const existing = sources.get(entry.package_id);
-    const candidate = registryDirectorySource(input.registryCache!, entry);
-    if (!existing || !isFirstPartyDirectorySource(existing)) {
-      sources.set(entry.package_id, existing ? {
-        ...existing,
-        ...candidate,
-        tags: uniqueStrings([...existing.tags, ...candidate.tags]),
-        source_kind: existing.source_kind,
-        registry_source_ref: existing.registry_source_ref,
-      } : candidate);
-    }
-  }
   for (const discovered of input.installedCodexPluginDescriptors?.values() ?? []) {
     const existing = sources.get(discovered.manifest.package_id);
     if (existing && isFirstPartyDirectorySource(existing)) continue;
@@ -1093,9 +950,7 @@ export function buildAgentPackageDirectory(input: {
           ? 'Release Set selection resolved by the canonical managed Package catalog selector.'
           : source.source_kind === 'first_party_framework_projection'
             ? 'Framework-owned first-party Package projection; no Release Set selection was verified for this readback.'
-          : source.source_kind === 'agent_package_registry_cache'
-            ? 'Validated discovery metadata from the Framework Agent Package registry cache.'
-              : source.source_kind === 'installed_codex_plugin_descriptor'
+          : source.source_kind === 'installed_codex_plugin_descriptor'
                 ? 'Owner descriptor discovered from the installed Codex plugin carrier source root.'
                 : 'Installed lock retained after its discovery source became unavailable.',
         catalog_ref: source.source_kind === 'first_party_release_catalog'
@@ -1193,7 +1048,7 @@ export function buildAgentPackageDirectory(input: {
       || entry.readiness.status === 'repair_required')
       ? 'attention_required'
       : 'available',
-    source_catalog_kind: 'opl_framework_package_projection+optional_release_set+opl_agent_package_registry_cache',
+    source_catalog_kind: 'opl_framework_package_projection+optional_release_set+installed_descriptor',
     first_party_release_currentness: {
       status: input.firstPartyCatalog?.freshness ?? 'unknown',
       live_verified: input.firstPartyCatalog?.freshness === 'live',

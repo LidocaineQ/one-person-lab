@@ -11,7 +11,6 @@ import {
   assertNoForbiddenFields,
   assertStringValue,
   missingFields,
-  nowIso,
   uniqueStrings,
   validateUrlLike,
 } from './shared.ts';
@@ -28,7 +27,7 @@ import type {
   AgentPackageOrdinaryUserSource,
   AgentPackagePresentation,
   AgentPackageProfileSurfaceConfig,
-  AgentPackageRegistryCache,
+  AgentPackageRegistryDocument,
   AgentPackageRegistryEntry,
   AgentPackageRole,
 } from './types.ts';
@@ -1023,7 +1022,7 @@ export function normalizeRegistryEntry(entry: Record<string, unknown>, index: nu
   const manifestUrl = stringValue(entry.manifest_url)!;
   const versionSourceRef = stringValue(entry.version_source_ref)!;
   if (manifestUrl.startsWith('opl+oci://') || versionSourceRef.startsWith('opl+oci://')) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package registry entries must use manifest sources supported by registry refresh.', {
+    throw new FrameworkContractError('contract_shape_invalid', 'Agent package registry entries must use manifest sources supported by explicit package selection.', {
       entry_index: index,
       manifest_url: manifestUrl,
       version_source_ref: versionSourceRef,
@@ -1088,7 +1087,11 @@ export function normalizeRegistryEntry(entry: Record<string, unknown>, index: nu
   };
 }
 
-export function normalizeRegistry(payload: unknown, registryUrl: string, registrySha256: string): AgentPackageRegistryCache {
+export function normalizeRegistryDocument(
+  payload: unknown,
+  registryUrl: string,
+  registrySha256: string,
+): AgentPackageRegistryDocument {
   if (!isRecord(payload) || !Array.isArray(payload.entries)) {
     throw new FrameworkContractError('contract_shape_invalid', 'Agent package registry must contain an entries array.', {
       registry_url: registryUrl,
@@ -1113,12 +1116,8 @@ export function normalizeRegistry(payload: unknown, registryUrl: string, registr
     });
   }
   return {
-    surface_kind: 'opl_agent_package_registry_cache',
-    version: 'opl-agent-package-registry-cache.v1',
-    refreshed_at: nowIso(),
     registry_url: registryUrl,
     registry_sha256: registrySha256,
-    entry_count: entries.length,
     entries,
   };
 }

@@ -2,8 +2,8 @@ import { FrameworkContractError } from '../../../kernel/contract-validation.ts';
 import { stringValue } from '../../../kernel/json-record.ts';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
 import { resolveFirstPartyPackageCatalog } from '../agent-package-first-party.ts';
-import { normalizeRegistry } from './manifest-normalizers.ts';
-import { isOplPackageCatalog, normalizePackageCatalogRegistry } from './directory.ts';
+import { normalizeRegistryDocument } from './manifest-normalizers.ts';
+import { isOplPackageCatalog, normalizePackageCatalogDocument } from './directory.ts';
 import { fetchJsonSource } from './shared.ts';
 import type {
   AgentPackageManifest,
@@ -30,12 +30,12 @@ export async function resolveManifestSelection(input: AgentPackageManifestValida
     });
   }
   const registry = await fetchAndValidateRegistry(registryUrl);
-  const registryEntry = registry.cache.entries.find((entry) => entry.package_id === packageId);
+  const registryEntry = registry.document.entries.find((entry) => entry.package_id === packageId);
   if (!registryEntry) {
     throw new FrameworkContractError('contract_shape_invalid', 'Requested agent package is not present in the registry.', {
       registry_url: registryUrl,
       package_id: packageId,
-      available_package_ids: registry.cache.entries.map((entry) => entry.package_id),
+      available_package_ids: registry.document.entries.map((entry) => entry.package_id),
     });
   }
   const requestedTrustTier = stringValue(input.trustTier);
@@ -59,10 +59,10 @@ export async function resolveManifestSelection(input: AgentPackageManifestValida
 
 export async function fetchAndValidateRegistry(registryUrl: string) {
   const fetched = await fetchJsonSource(registryUrl);
-  const cache = isOplPackageCatalog(fetched.payload)
-    ? normalizePackageCatalogRegistry(fetched.payload, registryUrl, fetched.source_sha256)
-    : normalizeRegistry(fetched.payload, registryUrl, fetched.source_sha256);
-  const firstPartyCollision = cache.entries.find((entry) => resolveFirstPartyPackageCatalog(entry.package_id));
+  const document = isOplPackageCatalog(fetched.payload)
+    ? normalizePackageCatalogDocument(fetched.payload, registryUrl, fetched.source_sha256)
+    : normalizeRegistryDocument(fetched.payload, registryUrl, fetched.source_sha256);
+  const firstPartyCollision = document.entries.find((entry) => resolveFirstPartyPackageCatalog(entry.package_id));
   if (firstPartyCollision) {
     throw new FrameworkContractError('contract_shape_invalid', 'External registries cannot claim canonical first-party package identities.', {
       registry_url: registryUrl,
@@ -70,7 +70,7 @@ export async function fetchAndValidateRegistry(registryUrl: string) {
       failure_code: 'agent_package_registry_first_party_identity_collision',
     });
   }
-  return { fetched, cache };
+  return { fetched, document };
 }
 
 export function assertTrustTierAssigned(

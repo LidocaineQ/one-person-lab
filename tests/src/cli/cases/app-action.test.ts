@@ -120,7 +120,7 @@ test('app action catalog exposes representative safe delegated action refs', () 
     }
     assert.deepEqual(actions.get('module_sync')?.payload_fields, []);
     assert.equal(actions.get('module_sync')?.delegated_surface, 'opl packages update');
-    assert.equal(actions.get('refresh_registry')?.mutates, 'opl_agent_package_registry_cache');
+    assert.equal(actions.has('refresh_registry'), false);
     assert.equal(actions.has('scholarskills_workspace_sync'), false);
     assert.equal(actions.has('scholarskills_quest_sync'), false);
     assert.equal(actions.get('provider_scheduler_status')?.submit_via, 'opl app action execute');

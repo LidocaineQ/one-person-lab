@@ -3687,7 +3687,6 @@
               "surface_kind",
               "status",
               "directory",
-              "registry_cache",
               "installed_package_count",
               "installed_packages",
               "conditions",
@@ -3815,54 +3814,6 @@
             ],
             "additionalProperties": true,
             "properties": {}
-          }
-        }
-      },
-      "authority_boundary": {
-        "can_write_domain_truth": false,
-        "can_create_owner_receipt": false,
-        "can_create_typed_blocker": false,
-        "can_claim_domain_ready": false,
-        "can_claim_production_ready": false,
-        "owner": "OPL Packages",
-        "surface": "opl_packages_lifecycle"
-      }
-    },
-    "packages_registry_refresh": {
-      "command_id": "packages registry refresh",
-      "owner": "OPL Packages",
-      "parser_adapter": "node_util_parse_args",
-      "options": [
-        {
-          "name": "registry-url",
-          "flag": "--registry-url",
-          "value_kind": "string",
-          "required": true,
-          "summary": "HTTP(S), file://, or absolute path to an OPL Agent Package registry JSON document."
-        }
-      ],
-      "output_schema": {
-        "type": "object",
-        "required": [
-          "version",
-          "opl_agent_package_registry"
-        ],
-        "additionalProperties": true,
-        "properties": {
-          "version": {
-            "const": "g2"
-          },
-          "opl_agent_package_registry": {
-            "type": "object",
-            "required": [
-              "surface_kind",
-              "status",
-              "registry_url",
-              "entry_count",
-              "entries",
-              "authority_boundary"
-            ],
-            "additionalProperties": true
           }
         }
       },

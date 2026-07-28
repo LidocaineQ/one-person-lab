@@ -4,7 +4,6 @@ import {
   runOplAgentPackageExposureAction,
   runOplAgentPackageHomeShortcutPreferencesSet,
   runOplAgentPackageInstall,
-  runOplAgentPackageRegistryRefresh,
   runOplAgentPackageRepair,
   runOplAgentPackageUninstall,
   runOplAgentPackageUpdate,
@@ -37,7 +36,6 @@ import {
   agentPackageIdPayload,
   agentPackageInstallPayload,
   agentPackagePreferencesPayload,
-  agentPackageRegistryUrlPayload,
   dockerWebuiSeedEnv,
   modulePayload,
   parseCodexAction,
@@ -484,16 +482,6 @@ async function executeDirectAppAction(
       result: options.dryRun
         ? await buildManagedUpdateControlCenterDryRun(contracts, options, 'opl_packages')
         : await runManagedUpdateApply(contracts, 'opl_packages'),
-    };
-  }
-
-  if (options.actionId === 'refresh_registry' || options.actionId === 'agent_registry_refresh') {
-    const registryUrl = agentPackageRegistryUrlPayload(options.payload);
-    return {
-      delegatedSurface: requireAgentPackageDelegatedSurface(options.actionId),
-      result: options.dryRun
-        ? buildSettingsControlCenterDryRun(options.actionId, options.payload)
-        : await runOplAgentPackageRegistryRefresh({ registryUrl }),
     };
   }
 

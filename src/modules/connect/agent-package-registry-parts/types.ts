@@ -75,10 +75,6 @@ export type AgentPackageLifecycleUxReadback = {
   lifecycle_action_refs: AgentPackageLifecycleAction[];
 };
 
-export type AgentPackageRegistryRefreshInput = {
-  registryUrl: string;
-};
-
 export type AgentPackageManifestValidateInput = {
   manifestUrl?: string | null;
   registryUrl?: string | null;
@@ -982,13 +978,9 @@ export type AgentPackageHomeShortcutPreferenceFile = {
   preferences: AgentPackageStoredHomeShortcutPreference[];
 };
 
-export type AgentPackageRegistryCache = {
-  surface_kind: 'opl_agent_package_registry_cache';
-  version: 'opl-agent-package-registry-cache.v1';
-  refreshed_at: string;
+export type AgentPackageRegistryDocument = {
   registry_url: string;
   registry_sha256: string;
-  entry_count: number;
   entries: AgentPackageRegistryEntry[];
 };
 

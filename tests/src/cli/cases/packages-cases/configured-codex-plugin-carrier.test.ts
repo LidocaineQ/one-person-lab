@@ -17,12 +17,6 @@ import {
   runConfiguredCodexPluginCarrier,
   type CodexPluginCommandRunner,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/configured-codex-plugin-carrier.ts';
-import {
-  enrichRegistryCacheManifestMetadata,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/directory.ts';
-import {
-  normalizeRegistry,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
 
 const packageId = 'third.party.research';
 const pluginSelector = 'third-party-research@fixture-carrier';
@@ -438,35 +432,20 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-generic-'));
   const stateDir = path.join(root, 'opl-state');
   const manifestPath = path.join(root, 'manifest.json');
-  const registryPath = path.join(root, 'registry.json');
   const binary = path.join(root, 'fake-codex.mjs');
   const pluginState = path.join(root, 'plugin-state.json');
   const pluginSource = path.join(root, 'plugin-source');
   const manifestUrl = pathToFileURL(manifestPath).toString();
-  const registryUrl = pathToFileURL(registryPath).toString();
   writePluginSource(pluginSource, 'callable');
   fs.writeFileSync(
     path.join(pluginSource, 'opl-package.json'),
     // The installed owner descriptor deliberately has no legacy configured
     // carrier block. Subsequent actions must derive the native adapter from
-    // the fresh installed carrier, not from the registry cache.
+    // the fresh installed carrier, not a Framework discovery cache.
     formatJsonPayload(agentPackageManifest()),
   );
   writeFakeCodex(binary);
   fs.writeFileSync(manifestPath, formatJsonPayload(configuredManifest('fixture-carrier')));
-  fs.writeFileSync(registryPath, formatJsonPayload(registryPayload(
-    manifestUrl.replace(/\/manifest\.json$/, ''),
-  )));
-  const rawCache = normalizeRegistry(
-    registryPayload(manifestUrl.replace(/\/manifest\.json$/, '')),
-    registryUrl,
-    'fixture-registry-sha',
-  );
-  const cache = await enrichRegistryCacheManifestMetadata(rawCache);
-  fs.mkdirSync(stateDir, { recursive: true });
-  const registryCachePath = path.join(stateDir, 'agent-package-registry-cache.json');
-  fs.writeFileSync(registryCachePath, formatJsonPayload(cache));
-  const registryCacheBytes = fs.readFileSync(registryCachePath);
   const env = {
     HOME: root,
     CODEX_HOME: path.join(root, 'codex-home'),
@@ -475,39 +454,12 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     FIXTURE_PLUGIN_STATE: pluginState,
     FIXTURE_PLUGIN_SOURCE: pluginSource,
   };
-  const expectedStateFiles = ['agent-package-registry-cache.json'];
-  const assertStateBytesUnchanged = () => {
-    assert.deepEqual(fs.readdirSync(stateDir).sort(), expectedStateFiles);
-    assert.deepEqual(fs.readFileSync(registryCachePath), registryCacheBytes);
+  const assertNoPrivateState = () => {
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-registry-cache.json')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
   };
   try {
-    const cacheOnlyList = runCli(['packages', 'list', '--detail', 'full'], env) as any;
-    const cacheOnlyEntry = cacheOnlyList.opl_agent_packages.directory.entries.find(
-      (candidate: any) => candidate.package_id === packageId,
-    );
-    assert.equal(cacheOnlyEntry.installed, false);
-    assert.ok(!cacheOnlyEntry || cacheOnlyEntry.configured_carrier == null);
-    const cacheOnlyStatus = runCli(['packages', 'status', '--package-id', packageId], env) as any;
-    assert.equal(cacheOnlyStatus.opl_agent_package_status.status, 'not_installed');
-    assert.equal(cacheOnlyStatus.opl_agent_package_status.configured_carrier ?? null, null);
-    assertStateBytesUnchanged();
-
-    const cacheOnlyUpdate = runCliFailure(['packages', 'update', packageId], env);
-    assert.equal(
-      cacheOnlyUpdate.payload.error.details.failure_code,
-      'agent_package_cache_only_carrier_action_forbidden',
-      JSON.stringify(cacheOnlyUpdate.payload),
-    );
-    assertStateBytesUnchanged();
-    for (const action of ['repair', 'uninstall']) {
-      const failure = runCliFailure(['packages', action, packageId], env);
-      assert.equal(
-        failure.payload.error.details.failure_code,
-        'agent_package_cache_only_carrier_action_forbidden',
-      );
-      assertStateBytesUnchanged();
-    }
-
     const install = runCli([
       'packages', 'install', packageId,
       '--manifest-url', manifestUrl,
@@ -521,7 +473,7 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
       Object.values(install.opl_agent_package_install.opl_private_state_writes),
       [false, false, false, false, false, false],
     );
-    assertStateBytesUnchanged();
+    assertNoPrivateState();
 
     const status = runCli(['packages', 'status', '--package-id', packageId], env) as any;
     assert.equal(status.opl_agent_package_status.status, 'available');
@@ -529,7 +481,7 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     assert.equal(status.opl_agent_package_status.launch_allowed, true);
     assert.equal(status.opl_agent_package_status.installed_packages.length, 0);
     assert.equal(status.opl_agent_package_status.configured_carrier.status, 'installed');
-    assertStateBytesUnchanged();
+    assertNoPrivateState();
 
     const list = runCli(['packages', 'list', '--detail', 'full'], env) as any;
     const entry = list.opl_agent_packages.directory.entries.find(
@@ -538,13 +490,13 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     assert.equal(entry.installed, true);
     assert.equal(entry.configured_carrier.carrier.precedence, 'exact_single_source');
     assert.equal(entry.legacy_private_lifecycle_state_present, false);
-    assertStateBytesUnchanged();
+    assertNoPrivateState();
 
     for (const action of ['update', 'repair']) {
       const readback = runCli(['packages', action, packageId], env) as any;
       assert.equal(readback[`opl_agent_package_${action}`].package_lock, null);
       assert.equal(readback[`opl_agent_package_${action}`].lifecycle_receipt, null);
-      assertStateBytesUnchanged();
+      assertNoPrivateState();
     }
     const uninstall = runCli(['packages', 'uninstall', packageId], env) as any;
     assert.equal(uninstall.opl_agent_package_uninstall.status, 'uninstalled');
@@ -558,7 +510,7 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     assert.equal(afterRemoval.opl_agent_package_status.operational_ready, false);
     assert.equal(afterRemoval.opl_agent_package_status.launch_allowed, false);
     assert.equal(afterRemoval.opl_agent_package_status.configured_carrier, null);
-    assertStateBytesUnchanged();
+    assertNoPrivateState();
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

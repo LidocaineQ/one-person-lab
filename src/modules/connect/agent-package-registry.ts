@@ -124,7 +124,6 @@ import {
 } from './agent-package-registry-parts/readback.ts';
 import {
   buildAgentPackageDirectory,
-  enrichRegistryCacheManifestMetadata,
 } from './agent-package-registry-parts/directory.ts';
 import {
   discoverInstalledCodexPluginDescriptors,
@@ -164,10 +163,8 @@ import {
 import {
   readLifecycleLedger,
   readLockIndex,
-  readRegistryCache,
   withAgentPackageLifecycleTransaction,
   writePackageTransaction,
-  writeRegistryCache,
 } from './agent-package-registry-parts/store.ts';
 import {
   optimizeInstalledPackageSource,
@@ -192,9 +189,7 @@ import type {
   AgentPackageScopeMaterialization,
   AgentPackageProfileApplyInput,
   AgentPackageRepairInput,
-  AgentPackageRegistryCache,
   AgentPackageRegistryEntry,
-  AgentPackageRegistryRefreshInput,
 } from './agent-package-registry-parts/types.ts';
 
 export type {
@@ -204,7 +199,6 @@ export type {
   AgentPackagePackageActionInput,
   AgentPackageProfileApplyInput,
   AgentPackageRepairInput,
-  AgentPackageRegistryRefreshInput,
 } from './agent-package-registry-parts/types.ts';
 
 type PreparedPackage = {
@@ -1579,32 +1573,6 @@ async function applyManifestPackageLock(
   };
 }
 
-export async function runOplAgentPackageRegistryRefresh(input: AgentPackageRegistryRefreshInput) {
-  const registryUrl = stringValue(input.registryUrl);
-  if (!registryUrl) {
-    throw new FrameworkContractError('cli_usage_error', 'Agent package registry refresh requires --registry-url.', {
-      required: ['--registry-url'],
-    });
-  }
-  const { fetched, cache: fetchedCache } = await fetchAndValidateRegistry(registryUrl);
-  const cache = await enrichRegistryCacheManifestMetadata(fetchedCache);
-  writeRegistryCache(cache);
-  return {
-    version: 'g2',
-    opl_agent_package_registry: {
-      surface_kind: 'opl_agent_package_registry_refresh',
-      status: 'refreshed',
-      registry_url: registryUrl,
-      registry_sha256: fetched.source_sha256,
-      registry_source_kind: fetched.source_kind,
-      entry_count: cache.entry_count,
-      entries: cache.entries,
-      cache_file: resolveOplStatePaths().agent_package_registry_cache_file,
-      authority_boundary: refsOnlyAuthorityBoundary(),
-    },
-  };
-}
-
 export async function runOplAgentPackageManifestValidate(input: AgentPackageManifestValidateInput) {
   const selection = await resolveManifestSelection(input);
   const fetched = await fetchJsonSource(selection.manifestUrl);
@@ -1689,23 +1657,9 @@ async function resolveFreshConfiguredCarrier(input: ConfiguredCarrierSelectionIn
       };
     }
   }
-  // A registry cache can describe a directory entry, but it cannot select a
-  // carrier action. Bare actions must use the fresh installed owner descriptor;
-  // a not-yet-installed Package needs an explicit user or projected source.
+  // Bare actions must use a fresh installed owner descriptor; an uninstalled
+  // Package needs an explicit manifest or registry selection for this request.
   if (!explicitManifestUrl && !explicitRegistryUrl) {
-    const cacheEntry = packageId
-      ? readRegistryCache()?.entries.find((entry) => entry.package_id === packageId) ?? null
-      : null;
-    if (cacheEntry?.configured_codex_plugin_carrier) {
-      throw new FrameworkContractError(
-        'contract_shape_invalid',
-        'Cached Package discovery metadata cannot authorize a native carrier action without an installed owner descriptor.',
-        {
-          package_id: packageId,
-          failure_code: 'agent_package_cache_only_carrier_action_forbidden',
-        },
-      );
-    }
     return null;
   }
   const selection = await resolveManifestSelection({
@@ -4687,11 +4641,9 @@ function configuredCarrierLifecycleUxReadback(
 
 function readAgentPackageStatusSnapshot() {
   const lockIndex = readLockIndex();
-  const registryCache = readRegistryCache();
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
   const configuredCarriers = configuredCarrierReadbacks(installedCodexPluginDescriptors);
   const directory = buildAgentPackageDirectory({
-    registryCache,
     locks: lockIndex.packages,
     detail: 'fast',
     firstPartyCatalog: null,
@@ -4700,7 +4652,6 @@ function readAgentPackageStatusSnapshot() {
   });
   return {
     lockIndex,
-    registryCache,
     installedCodexPluginDescriptors,
     configuredCarriers,
     paths: resolveOplStatePaths(),
@@ -4979,7 +4930,6 @@ export function listOplAgentPackages(input: {
 } = {}) {
   const detail = input.detail ?? 'fast';
   const paths = resolveOplStatePaths();
-  const registryCache = readRegistryCache();
   const lockIndex = readLockIndex();
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
   const configuredCarriers = configuredCarrierReadbacks(installedCodexPluginDescriptors);
@@ -4987,7 +4937,6 @@ export function listOplAgentPackages(input: {
     packages: lockIndex.packages,
   });
   const directory = buildAgentPackageDirectory({
-    registryCache,
     locks: lockIndex.packages,
     detail,
     firstPartyCatalog: input.firstPartyCatalog ?? null,
@@ -5010,7 +4959,6 @@ export function listOplAgentPackages(input: {
     opl_agent_packages: {
       surface_kind: 'opl_agent_package_readback',
       status: 'available',
-      registry_cache: registryCache,
       directory,
       installed_package_count: new Set([
         ...lockIndex.packages.map((entry) => entry.package_id),
@@ -5042,7 +4990,6 @@ export function listOplAgentPackages(input: {
             })),
           }),
       files: {
-        registry_cache_file: paths.agent_package_registry_cache_file,
         package_lock_file: paths.agent_package_lock_file,
         lifecycle_ledger_file: paths.agent_package_lifecycle_ledger_file,
         home_shortcut_preferences_file: paths.agent_package_home_shortcut_preferences_file,
