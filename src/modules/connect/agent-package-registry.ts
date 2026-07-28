@@ -4082,11 +4082,43 @@ async function ensureOplAgentPackageScopeActivationUnlocked(input: AgentPackageP
 }
 
 export async function ensureOplAgentPackageScopeActivation(input: AgentPackagePackageActionInput) {
+  const packageId = requirePackageId(input.packageId, 'activate');
+  const targetRoot = packageScopeTarget(input);
+  if (!input.scope || !targetRoot) {
+    throw new FrameworkContractError('cli_usage_error', 'Package scope activation requires workspace or quest target.', {
+      package_id: packageId,
+      failure_code: 'agent_package_scope_target_required',
+    });
+  }
+  const nativeStatus = runOplAgentPackageStatus({
+    packageId,
+    scope: input.scope,
+    targetWorkspace: input.targetWorkspace,
+    targetQuest: input.targetQuest,
+  }).opl_agent_package_status;
+  const nativeCarrierState = packageNativeCarrierActivationState(nativeStatus);
+  if (nativeCarrierState === 'ready') {
+    return {
+      status: input.dryRun ? 'validated_no_write' : 'already_activated',
+      package_id: packageId,
+      writes_performed: false,
+      scope_materializations: [],
+      lifecycle_receipt: null,
+      package_lock: null,
+      materialization_readiness: null,
+      package_use_binding: null,
+      use_receipt: null,
+      package_status: nativeStatus,
+    };
+  }
+  if (nativeCarrierState === 'blocked') {
+    throwNativeCarrierActivationBlocked(packageId, nativeStatus);
+  }
   return withAgentPackageLifecycleTransaction(
     input.dryRun === true,
     async () => {
       const beforeStatus = runOplAgentPackageStatus({
-        packageId: input.packageId,
+        packageId,
         scope: input.scope,
         targetWorkspace: input.targetWorkspace,
         targetQuest: input.targetQuest,
@@ -4097,7 +4129,7 @@ export async function ensureOplAgentPackageScopeActivation(input: AgentPackagePa
           'contract_shape_invalid',
           'Package activation is blocked by the current package lifecycle state.',
           {
-            package_id: input.packageId,
+            package_id: packageId,
             launch_blocked_reason: preflightHardStopReason,
             allowed_when_blocked: beforeStatus.allowed_when_blocked,
             package_dependency_readiness: beforeStatus.package_dependency_readiness,
@@ -4130,14 +4162,8 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
     targetWorkspace: input.targetWorkspace,
     targetQuest: input.targetQuest,
   }).opl_agent_package_status;
-  const nativeCarrierReady = beforeStatus.configured_carrier?.carrier?.kind === 'codex_plugin_manager'
-    && beforeStatus.configured_carrier.status === 'installed'
-    && beforeStatus.configured_carrier.carrier.precedence === 'exact_single_source'
-    && beforeStatus.installed_readiness?.installed === true
-    && beforeStatus.installed_readiness.callability === 'callable'
-    && beforeStatus.operational_ready === true
-    && beforeStatus.launch_allowed === true;
-  if (nativeCarrierReady) {
+  const nativeCarrierState = packageNativeCarrierActivationState(beforeStatus);
+  if (nativeCarrierState === 'ready') {
     return {
       version: 'g2',
       opl_agent_package_activation: {
@@ -4165,24 +4191,8 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
       },
     };
   }
-  const nativeCarrierPresent = beforeStatus.configured_carrier?.carrier?.kind === 'codex_plugin_manager'
-    && beforeStatus.configured_carrier.status === 'installed'
-    && beforeStatus.configured_carrier.carrier.precedence === 'exact_single_source';
-  if (nativeCarrierPresent) {
-    const launchBlockedReason = stringValue(beforeStatus.launch_blocked_reason)
-      ?? stringValue(beforeStatus.launch_state_reason)
-      ?? 'native_carrier_not_ready';
-    throw new FrameworkContractError(
-      'contract_shape_invalid',
-      'Package activation is blocked until the native carrier is callable and ready.',
-      {
-        package_id: packageId,
-        launch_blocked_reason: launchBlockedReason,
-        configured_carrier: beforeStatus.configured_carrier,
-        installed_readiness: beforeStatus.installed_readiness,
-        failure_code: 'agent_package_scope_activation_blocked',
-      },
-    );
+  if (nativeCarrierState === 'blocked') {
+    throwNativeCarrierActivationBlocked(packageId, beforeStatus);
   }
   if (input.dryRun && beforeStatus.installed_package_count === 0) {
     const launchState = deriveAgentPackageLaunchState({
@@ -4266,6 +4276,38 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
       authority_boundary: refsOnlyAuthorityBoundary(),
     },
   };
+}
+
+function packageNativeCarrierActivationState(
+  packageStatus: any,
+): 'ready' | 'blocked' | 'legacy' {
+  const nativeCarrierPresent = packageStatus.configured_carrier?.carrier?.kind === 'codex_plugin_manager'
+    && packageStatus.configured_carrier.status === 'installed'
+    && packageStatus.configured_carrier.carrier.precedence === 'exact_single_source';
+  if (!nativeCarrierPresent) return 'legacy';
+  return packageStatus.installed_readiness?.installed === true
+    && packageStatus.installed_readiness.callability === 'callable'
+    && packageStatus.operational_ready === true
+    && packageStatus.launch_allowed === true
+    ? 'ready'
+    : 'blocked';
+}
+
+function throwNativeCarrierActivationBlocked(packageId: string, packageStatus: any): never {
+  const launchBlockedReason = stringValue(packageStatus.launch_blocked_reason)
+    ?? stringValue(packageStatus.launch_state_reason)
+    ?? 'native_carrier_not_ready';
+  throw new FrameworkContractError(
+    'contract_shape_invalid',
+    'Package activation is blocked until the native carrier is callable and ready.',
+    {
+      package_id: packageId,
+      launch_blocked_reason: launchBlockedReason,
+      configured_carrier: packageStatus.configured_carrier,
+      installed_readiness: packageStatus.installed_readiness,
+      failure_code: 'agent_package_scope_activation_blocked',
+    },
+  );
 }
 
 function packageActivationPreflightHardStopReason(packageStatus: any) {

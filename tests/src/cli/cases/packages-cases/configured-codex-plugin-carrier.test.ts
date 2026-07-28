@@ -17,7 +17,10 @@ import {
   runConfiguredCodexPluginCarrier,
   type CodexPluginCommandRunner,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/configured-codex-plugin-carrier.ts';
-import { createOplAgentPackageStatusReader } from '../../../../../src/modules/connect/agent-package-registry.ts';
+import {
+  createOplAgentPackageStatusReader,
+  ensureOplAgentPackageScopeActivation,
+} from '../../../../../src/modules/connect/agent-package-registry.ts';
 
 const packageId = 'third.party.research';
 const pluginSelector = 'third-party-research@fixture-carrier';
@@ -519,6 +522,36 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     assert.equal(status.opl_agent_package_status.installed_packages.length, 0);
     assert.equal(status.opl_agent_package_status.configured_carrier.status, 'installed');
     assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLegacyLock);
+
+    const previousEnv = new Map(
+      Object.keys(env).map((name) => [name, process.env[name]]),
+    );
+    Object.assign(process.env, env);
+    let readinessActivation;
+    try {
+      readinessActivation = await ensureOplAgentPackageScopeActivation({
+        packageId,
+        scope: 'workspace',
+        targetWorkspace: root,
+        useBoundaryId: 'package-use:readiness-port-native-fixture',
+      });
+    } finally {
+      for (const [name, value] of previousEnv) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+    assert.equal(readinessActivation.status, 'already_activated');
+    assert.equal(readinessActivation.writes_performed, false);
+    assert.equal(readinessActivation.package_lock, null);
+    assert.equal(readinessActivation.lifecycle_receipt, null);
+    assert.equal(readinessActivation.package_use_binding, null);
+    assert.equal(readinessActivation.use_receipt, null);
+    assert.equal(readinessActivation.package_status.launch_allowed, true);
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLegacyLock);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle.sqlite')), false);
+
     fs.rmSync(lockPath);
     assertNoPrivateState();
 
