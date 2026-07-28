@@ -4878,7 +4878,6 @@ type LegacyLockAuthorityReadback = {
   status: 'available' | 'not_present' | 'degraded';
   authority_kind: 'lock_index';
   authority_status: 'present' | 'missing' | 'stale' | 'corrupt';
-  authority_file: string;
   failure_code: string | null;
   reason: string | null;
   retained_descriptor_lock_count: number;
@@ -4915,15 +4914,11 @@ function legacyLockAuthorityReadback(
 ): LegacyLockAuthorityReadback {
   const authorityFile = resolveOplStatePaths().agent_package_lock_file;
   if (error) {
-    const reportedAuthorityFile = typeof error.details?.authority_file === 'string'
-      ? error.details.authority_file
-      : authorityFile;
     return {
       surface_kind: 'opl_agent_package_legacy_lock_authority_readback',
       status: 'degraded',
       authority_kind: 'lock_index',
       authority_status: 'corrupt',
-      authority_file: reportedAuthorityFile,
       failure_code: typeof error.details?.failure_code === 'string'
         ? error.details.failure_code
         : 'agent_package_lock_authority_corrupt',
@@ -4940,7 +4935,6 @@ function legacyLockAuthorityReadback(
       status: 'not_present',
       authority_kind: 'lock_index',
       authority_status: 'missing',
-      authority_file: authorityFile,
       failure_code: null,
       reason: 'legacy_lock_index_not_present',
       retained_descriptor_lock_count: retainedCount,
@@ -4951,7 +4945,6 @@ function legacyLockAuthorityReadback(
     status: retainedCount > 0 ? 'degraded' : 'available',
     authority_kind: 'lock_index',
     authority_status: retainedCount > 0 ? 'stale' : 'present',
-    authority_file: authorityFile,
     failure_code: null,
     reason: retainedCount > 0
       ? 'descriptor_owned_state_retained_in_legacy_lock'
