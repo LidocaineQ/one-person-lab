@@ -5262,11 +5262,12 @@ function readInstalledOplFlowManagedPolicyDependencies(): AgentPackageManagedPol
   try {
     const sourceRoot = fs.realpathSync(descriptor.sourcePath);
     const policyPath = path.resolve(sourceRoot, policySurface.source_path);
-    if (!policyPath.startsWith(`${sourceRoot}${path.sep}`)
-      || !fs.statSync(policyPath).isFile()) {
+    const policyRealPath = fs.realpathSync(policyPath);
+    if (!policyRealPath.startsWith(`${sourceRoot}${path.sep}`)
+      || !fs.statSync(policyRealPath).isFile()) {
       return null;
     }
-    const policy = JSON.parse(fs.readFileSync(policyPath, 'utf8')) as unknown;
+    const policy = JSON.parse(fs.readFileSync(policyRealPath, 'utf8')) as unknown;
     if (!isRecord(policy) || !isRecord(policy.package) || policy.package.id !== 'opl-flow') {
       return null;
     }

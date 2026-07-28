@@ -141,6 +141,12 @@ test('managed dependencies read from the installed owner descriptor policy witho
     ]);
     assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-lifecycle-ledger.json')), false);
+
+    const outsidePolicyPath = path.join(root, 'outside-workflow-policy.json');
+    fs.renameSync(policyPath, outsidePolicyPath);
+    fs.symlinkSync(outsidePolicyPath, policyPath);
+    assert.deepEqual(readOplFlowManagedDependencyIds(), []);
+    assert.deepEqual(readOplFlowManagedDependencies(), []);
   } finally {
     if (previous.codexHome === undefined) delete process.env.CODEX_HOME;
     else process.env.CODEX_HOME = previous.codexHome;
