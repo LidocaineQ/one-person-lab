@@ -58,10 +58,8 @@ import {
 import {
   catalogManifestPayload,
   catalogPayloadManifestJson,
-  fetchManagedPackageCatalog,
   selectCapabilityCatalogVersion,
   selectManagedCatalogPackageVersion,
-  selectRootCatalogVersion,
   type ManagedCatalogVersion,
   type ManagedPackageCatalog,
 } from './agent-package-registry-parts/capability-reconciliation.ts';

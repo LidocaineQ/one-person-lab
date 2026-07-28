@@ -3,8 +3,6 @@ import crypto from 'node:crypto';
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { recordList, stringValue } from '../../../kernel/json-record.ts';
-import { fetchJsonSource } from './shared.ts';
-import { readOplPackageChannelManifestWithMetadata } from '../system-installation/module-package-channel.ts';
 import { publicAgentPackageSelector } from '../agent-package-identity.ts';
 import {
   comparePackageRepositoryVersions,
@@ -19,8 +17,6 @@ import {
 } from './package-repository-index.ts';
 import type {
   AgentPackageCapabilityDependency,
-  AgentPackageLock,
-  AgentPackageManagedVersionCatalogSource,
 } from './types.ts';
 
 export type ManagedCatalogVersion = PackageRepositoryVersionCandidate;
@@ -138,46 +134,6 @@ export function managedPackageCatalogDigest(payload: unknown) {
   return actualDigest;
 }
 
-export async function fetchManagedPackageCatalog(
-  source: AgentPackageManagedVersionCatalogSource,
-  input: { timeoutMs?: number } = {},
-) {
-  const fetched = source.transport === 'json_url'
-    ? await fetchJsonSource(source.catalog_ref, input).then((result) => ({
-        ...result,
-        channel_ref: source.catalog_ref,
-        release_set_descriptor_digest: null,
-        channel_manifest_layer_digest: `sha256:${result.source_sha256.replace(/^sha256:/, '')}`,
-        channel_digest: `sha256:${result.source_sha256.replace(/^sha256:/, '')}`,
-        checked_at: new Date().toISOString(),
-      }))
-    : (() => {
-        const channel = readOplPackageChannelManifestWithMetadata(source.catalog_ref, input);
-        return {
-          payload: channel.payload,
-          source_sha256: channel.source_sha256,
-          channel_ref: channel.channel_ref,
-          release_set_descriptor_digest: channel.release_set_descriptor_digest,
-          channel_manifest_layer_digest: channel.channel_manifest_layer_digest,
-          channel_digest: channel.channel_manifest_layer_digest,
-          checked_at: channel.checked_at,
-        };
-      })();
-  const packageCatalogDigest = managedPackageCatalogDigest(fetched.payload);
-  return {
-    catalog: normalizeManagedPackageCatalog(fetched.payload),
-    catalog_payload: fetched.payload,
-    source_sha256: fetched.source_sha256,
-    channel_ref: fetched.channel_ref,
-    release_set_descriptor_digest: fetched.release_set_descriptor_digest,
-    channel_manifest_layer_digest: fetched.channel_manifest_layer_digest,
-    package_catalog_digest: packageCatalogDigest,
-    // Existing package locks bind the channel-manifest layer, not the OCI descriptor.
-    channel_digest: fetched.channel_digest,
-    checked_at: fetched.checked_at,
-  };
-}
-
 export function resolveManagedCatalogPackageVersion(
   catalog: ManagedPackageCatalog,
   packageId: string,
@@ -205,10 +161,6 @@ export function selectManagedCatalogPackageVersion(
   input: { currentBaseAbi?: string | null } = {},
 ) {
   return resolveManagedCatalogPackageVersion(catalog, packageId, input).selected;
-}
-
-export function selectRootCatalogVersion(catalog: ManagedPackageCatalog, lock: AgentPackageLock) {
-  return selectManagedCatalogPackageVersion(catalog, lock.package_id);
 }
 
 export function selectCapabilityCatalogVersion(
