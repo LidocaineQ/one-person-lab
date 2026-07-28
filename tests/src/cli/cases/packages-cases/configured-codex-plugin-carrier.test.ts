@@ -433,7 +433,7 @@ test('configured Codex carrier ensures a descriptor-owned marketplace before nat
   ]);
 });
 
-test('generic Package lifecycle and read-model use configured native carrier without OPL private state writes', async () => {
+test('owner descriptor lifecycle and read-model use the native carrier without OPL private state writes', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-generic-'));
   const stateDir = path.join(root, 'opl-state');
   const manifestPath = path.join(root, 'manifest.json');
@@ -446,7 +446,10 @@ test('generic Package lifecycle and read-model use configured native carrier wit
   writePluginSource(pluginSource, 'callable');
   fs.writeFileSync(
     path.join(pluginSource, 'opl-package.json'),
-    formatJsonPayload(configuredManifest('fixture-carrier')),
+    // The installed owner descriptor deliberately has no legacy configured
+    // carrier block. Subsequent actions must derive the native adapter from
+    // the fresh installed carrier, not from the registry cache.
+    formatJsonPayload(agentPackageManifest()),
   );
   writeFakeCodex(binary);
   fs.writeFileSync(manifestPath, formatJsonPayload(configuredManifest('fixture-carrier')));
@@ -484,6 +487,17 @@ test('generic Package lifecycle and read-model use configured native carrier wit
     assert.deepEqual(fs.readFileSync(registryCachePath), registryCacheBytes);
   };
   try {
+    const cacheOnlyList = runCli(['packages', 'list', '--detail', 'full'], env) as any;
+    const cacheOnlyEntry = cacheOnlyList.opl_agent_packages.directory.entries.find(
+      (candidate: any) => candidate.package_id === packageId,
+    );
+    assert.ok(!cacheOnlyEntry || cacheOnlyEntry.installed === false);
+    assert.ok(!cacheOnlyEntry || cacheOnlyEntry.configured_carrier == null);
+    const cacheOnlyStatus = runCli(['packages', 'status', '--package-id', packageId], env) as any;
+    assert.equal(cacheOnlyStatus.opl_agent_package_status.status, 'not_installed');
+    assert.equal(cacheOnlyStatus.opl_agent_package_status.configured_carrier ?? null, null);
+    assertStateBytesUnchanged();
+
     const install = runCli([
       'packages', 'install', packageId,
       '--manifest-url', manifestUrl,

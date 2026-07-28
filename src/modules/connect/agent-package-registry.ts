@@ -4611,20 +4611,13 @@ export type OplAgentPackageStatusInput = {
 };
 
 function configuredCarrierReadbacks(
-  registryCache: AgentPackageRegistryCache | null,
   installedCodexPluginDescriptors: ReadonlyMap<string, import('./agent-package-registry-parts/installed-codex-plugin-directory.ts').InstalledCodexPluginDescriptor>,
   packageId: string | null = null,
 ) {
-  const readbacks = new Map<string, ConfiguredCodexPluginCarrierReadback>(
-    (registryCache?.entries ?? []).flatMap((entry) => {
-      const descriptor = entry.configured_codex_plugin_carrier ?? null;
-      if (!descriptor || (packageId && entry.package_id !== packageId)) return [];
-      return [[entry.package_id, runConfiguredCodexPluginCarrier({
-        descriptor,
-        action: 'list',
-      })] as const];
-    }),
-  );
+  // Installed descriptor readback is the only ordinary status/list authority.
+  // Registry cache remains a compatibility directory source and an explicit
+  // lifecycle-selection fallback, but must not synthesize installed state.
+  const readbacks = new Map<string, ConfiguredCodexPluginCarrierReadback>();
   for (const discovered of installedCodexPluginDescriptors.values()) {
     if (packageId && discovered.manifest.package_id !== packageId) continue;
     readbacks.set(discovered.manifest.package_id, runConfiguredCodexPluginCarrier({
@@ -4685,7 +4678,7 @@ function readAgentPackageStatusSnapshot() {
   const lockIndex = readLockIndex();
   const registryCache = readRegistryCache();
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
-  const configuredCarriers = configuredCarrierReadbacks(registryCache, installedCodexPluginDescriptors);
+  const configuredCarriers = configuredCarrierReadbacks(installedCodexPluginDescriptors);
   const directory = buildAgentPackageDirectory({
     registryCache,
     locks: lockIndex.packages,
@@ -4978,7 +4971,7 @@ export function listOplAgentPackages(input: {
   const registryCache = readRegistryCache();
   const lockIndex = readLockIndex();
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
-  const configuredCarriers = configuredCarrierReadbacks(registryCache, installedCodexPluginDescriptors);
+  const configuredCarriers = configuredCarrierReadbacks(installedCodexPluginDescriptors);
   const lifecycleUx = agentPackageLifecycleSummaryReadback({
     packages: lockIndex.packages,
   });
