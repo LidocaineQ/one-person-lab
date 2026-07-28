@@ -76,6 +76,16 @@ function writePluginSource(root: string, marker: string) {
   );
 }
 
+function writePluginManifest(root: string, version = '1.0.1') {
+  fs.mkdirSync(path.join(root, '.codex-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.codex-plugin', 'plugin.json'), formatJsonPayload({
+    name: 'third-party-research',
+    version,
+    description: 'Unknown Package fixture carried by Codex Plugin Manager.',
+    skills: './skills/',
+  }));
+}
+
 function installedOwnerDescriptor() {
   return {
     ...agentPackageManifest(),
@@ -712,7 +722,6 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
 function writeNativeMarketplace(root: string, version: string) {
   const pluginRoot = path.join(root, 'plugins', 'third-party-research');
   fs.mkdirSync(path.join(root, '.agents', 'plugins'), { recursive: true });
-  fs.mkdirSync(path.join(pluginRoot, '.codex-plugin'), { recursive: true });
   writePluginSource(pluginRoot, 'callable');
   fs.writeFileSync(path.join(root, '.agents', 'plugins', 'marketplace.json'), formatJsonPayload({
     name: 'fixture-carrier',
@@ -722,12 +731,7 @@ function writeNativeMarketplace(root: string, version: string) {
       policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
     }],
   }));
-  fs.writeFileSync(path.join(pluginRoot, '.codex-plugin', 'plugin.json'), formatJsonPayload({
-    name: 'third-party-research',
-    version,
-    description: 'Unknown Package fixture carried by Codex Plugin Manager.',
-    skills: './skills/',
-  }));
+  writePluginManifest(pluginRoot, version);
 }
 
 test('configured Codex carrier executes native install/list/update/repair/remove with fresh readback', {
