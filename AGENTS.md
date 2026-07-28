@@ -10,6 +10,12 @@
 - 平台原生 carrier 负责实际生命周期；Framework 只在已证实的平台缺口处提供薄 adapter，不复制 resolver、lock、payload、LKG 或平行 currentness。
 - 跨仓边界变更以相关 machine-readable contract 和真实 consumer 为依据。默认验证入口：`scripts/verify.sh`。
 
+## Code Review Rules
+
+- 只报告当前 diff 可复现的 runtime 正确性、安全、数据完整性、Package 生命周期或 machine-readable contract 回归；每条必须给出精确代码或 contract 证据、触发路径和可验证影响。安全路径是修复 canonical owner 或真实 consumer，不是添加平行 registry、cache 或 currentness。
+- 将 installed descriptor、平台 carrier、executor route 与 App/Framework contracts 的 owner 边界视为事实来源；只有改动实际违背这些边界时才报告 P2。不得把格式、命名、主观重构或没有具体回归路径的建议升级成发现。
+- 不报告与当前 diff 无关的既有问题，也不把缺少测试或文档本身当作问题；只有它们直接造成可复现的行为或契约回归时才报告。若不存在高价值可复现问题，明确返回无发现。
+
 <!-- CODEGRAPH_START -->
 ## CodeGraph
 
