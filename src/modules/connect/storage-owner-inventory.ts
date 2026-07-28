@@ -3,13 +3,13 @@ import path from 'node:path';
 
 import { isRecord } from '../../kernel/contract-validation.ts';
 import { resolveOplStatePaths } from '../../kernel/runtime-state-paths.ts';
+import { readLegacyAgentPackageLockIndex } from './agent-package-registry-parts/legacy-lock-projection.ts';
 import { assertSafePersistedPackagePath } from './agent-package-registry-parts/persisted-path-safety.ts';
 import { resolveCodexHome } from './agent-package-registry-parts/shared.ts';
 import {
   discoverInstalledPackageDescriptors,
   type InstalledPackageDescriptor,
 } from './agent-package-registry-parts/installed-codex-plugin-directory.ts';
-import { readLockIndex } from './agent-package-registry-parts/store.ts';
 import type { AgentPackageLockIndex } from './agent-package-registry-parts/types.ts';
 import {
   agentPackageStorageNavigationAction,
@@ -357,7 +357,10 @@ export function buildAgentPackageStoreStorageInventory(input: {
     ?? new Set(
       [...(input.installedDescriptors ?? discoverInstalledPackageDescriptors()).keys()],
     );
-  const owned = collectOwnedStorageRoots(input.lockIndex ?? readLockIndex(), installedPackageIds);
+  const owned = collectOwnedStorageRoots(
+    input.lockIndex ?? readLegacyAgentPackageLockIndex(),
+    input.lockIndex ? installedPackageIds : new Set(),
+  );
   const usageByRoot = measureRoots({
     roots: owned.roots,
     scan: input.scan ?? scanStoragePath,

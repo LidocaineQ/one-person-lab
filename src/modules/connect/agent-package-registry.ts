@@ -130,6 +130,7 @@ import {
   discoverInstalledCodexPluginDescriptors,
   discoverInstalledOwnerProfileDescriptors,
 } from './agent-package-registry-parts/installed-codex-plugin-directory.ts';
+import { readLegacyAgentPackageLockIndex } from './agent-package-registry-parts/legacy-lock-projection.ts';
 import {
   runConfiguredCodexPluginCarrier,
   type ConfiguredCodexPluginCarrierAction,
@@ -5168,8 +5169,7 @@ export async function refreshAndListOplAgentPackages(input: {
 }
 
 export function readInstalledOplAgentPackageLocks() {
-  const installedDescriptors = discoverInstalledCodexPluginDescriptors();
-  return readLockIndex().packages.filter((entry) => !installedDescriptors.has(entry.package_id));
+  return readLegacyAgentPackageLockIndex().packages;
 }
 
 function readInstalledOwnerProfileDefault() {

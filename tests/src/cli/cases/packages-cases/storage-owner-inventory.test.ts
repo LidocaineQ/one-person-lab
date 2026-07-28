@@ -273,6 +273,35 @@ test('Agent Package storage inventory excludes retained lock roots for descripto
   }
 });
 
+test('Agent Package storage inventory defaults to the legacy lock projection', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-storage-legacy-projection-'));
+  const stateDir = path.join(root, 'state');
+  const codexHome = path.join(root, 'codex-home');
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  const previousCodexHome = process.env.CODEX_HOME;
+  process.env.OPL_STATE_DIR = stateDir;
+  process.env.CODEX_HOME = codexHome;
+  try {
+    const projection = buildAgentPackageStoreStorageInventory({
+      persist: false,
+      scan: () => ({
+        complete: true,
+        reason_code: null,
+        bytes: 0,
+        entry_count: 0,
+        excluded_root_count: 0,
+      }),
+    });
+    assert.equal(projection.status, 'available');
+    assert.equal(projection.bytes, 0);
+    assert.equal(projection.reclaimable_bytes, 0);
+  } finally {
+    restoreEnv('OPL_STATE_DIR', previousStateDir);
+    restoreEnv('CODEX_HOME', previousCodexHome);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('WebUI inventory excludes Projects and exposes only carrier-host destructive authority', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-webui-storage-'));
   const dataDir = path.join(root, 'data');
