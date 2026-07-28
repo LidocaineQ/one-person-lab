@@ -11,6 +11,7 @@ import type {
   AgentPackageHomeShortcutPreference,
   AgentPackageHomeShortcutPreferenceFile,
   AgentPackageLockIndex,
+  AgentPackageStoredHomeShortcutPreference,
 } from './types.ts';
 
 const HOME_SHORTCUT_PREFERENCE_LOCK_TIMEOUT_MS = 5_000;
@@ -73,12 +74,51 @@ export function withHomeShortcutPreferenceTransaction<T>(
   }, operation);
 }
 
+export function updateHomeShortcutPreferences(input: {
+  packageId: string;
+  shortcutIds: string[];
+  visible: boolean;
+  dryRun: boolean;
+}) {
+  const shortcutIds = [...new Set(input.shortcutIds)];
+  const stored = readHomeShortcutPreferenceFile();
+  const updatedAt = nowIso();
+  const preferenceByKey = new Map(
+    stored.preferences.map((entry) => [`${entry.package_id}\n${entry.shortcut_id}`, entry]),
+  );
+  const preferences = shortcutIds.map((shortcutId, index) => {
+    const key = `${input.packageId}\n${shortcutId}`;
+    const previous = preferenceByKey.get(key);
+    const next: AgentPackageStoredHomeShortcutPreference = {
+      package_id: input.packageId,
+      shortcut_id: shortcutId,
+      visible: input.visible,
+      sort_order: previous?.sort_order ?? null,
+      source: 'user_preference',
+      updated_at: updatedAt,
+    };
+    preferenceByKey.set(key, next);
+    return { ...next, action_order: index };
+  });
+  const nextFile: AgentPackageHomeShortcutPreferenceFile = {
+    surface_kind: 'opl_agent_package_home_shortcut_preferences',
+    version: 'g1',
+    updated_at: updatedAt,
+    preferences: [...preferenceByKey.values()],
+  };
+  if (!input.dryRun) writeHomeShortcutPreferenceFile(nextFile);
+  return preferences;
+}
+
 export function defaultHomeShortcutPreferences(
   directoryOrRegistry: unknown,
   lockIndex: AgentPackageLockIndex,
 ): AgentPackageHomeShortcutPreference[] {
   const entries = isRecord(directoryOrRegistry) ? recordList(directoryOrRegistry.entries) : [];
-  const installedIds = new Set(lockIndex.packages.map((entry) => entry.package_id));
+  const installedIds = new Set([
+    ...lockIndex.packages.map((entry) => entry.package_id),
+    ...entries.flatMap((entry) => entry.installed === true ? [stringValue(entry.package_id)] : []),
+  ]);
   const timestamp = nowIso();
   return entries.flatMap((entry, entryIndex) => {
     const packageId = stringValue(entry.package_id);
@@ -114,11 +154,14 @@ export function mergedHomeShortcutPreferences(
   directoryOrRegistry: unknown,
   lockIndex: AgentPackageLockIndex,
 ): AgentPackageHomeShortcutPreference[] {
-  const installedIds = new Set(lockIndex.packages.map((entry) => entry.package_id));
+  const entries = isRecord(directoryOrRegistry) ? recordList(directoryOrRegistry.entries) : [];
+  const installedIds = new Set([
+    ...lockIndex.packages.map((entry) => entry.package_id),
+    ...entries.flatMap((entry) => entry.installed === true ? [stringValue(entry.package_id)] : []),
+  ]);
   const merged = new Map<string, AgentPackageHomeShortcutPreference>();
   const configurable = new Set<string>();
   const legacyPackages = new Set<string>();
-  const entries = isRecord(directoryOrRegistry) ? recordList(directoryOrRegistry.entries) : [];
   for (const entry of entries) {
     const packageId = stringValue(entry.package_id);
     if (!packageId) continue;

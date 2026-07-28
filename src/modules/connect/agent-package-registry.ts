@@ -42,6 +42,7 @@ import {
 import {
   mergedHomeShortcutPreferences,
   readHomeShortcutPreferenceFile,
+  updateHomeShortcutPreferences,
   withHomeShortcutPreferenceTransaction,
   writeHomeShortcutPreferenceFile,
 } from './agent-package-registry-parts/home-shortcuts.ts';
@@ -4551,6 +4552,49 @@ export async function runOplAgentPackageExposureAction(
   action: 'hide' | 'unhide' | 'enable' | 'disable',
   input: AgentPackagePackageActionInput,
 ) {
+  if (action === 'hide' || action === 'unhide') {
+    const packageId = requirePackageId(input.packageId, action);
+    const descriptor = discoverInstalledCodexPluginDescriptors({ packageId }).get(packageId) ?? null;
+    const hasLegacyLock = readLockIndex().packages.some((lock) => lock.package_id === packageId);
+    if (descriptor && !hasLegacyLock) {
+      const shortcutIds = descriptor.manifest.presentation?.home_shortcuts
+        .filter((shortcut) => shortcut.user_configurable)
+        .map((shortcut) => shortcut.shortcut_id) ?? [];
+      if (shortcutIds.length === 0) {
+        throw new FrameworkContractError(
+          'contract_shape_invalid',
+          'Native descriptor hide and unhide require at least one user-configurable Home shortcut.',
+          {
+            package_id: packageId,
+            action,
+            failure_code: 'agent_package_home_shortcut_not_configurable',
+          },
+        );
+      }
+      return withHomeShortcutPreferenceTransaction(
+        input.dryRun === true,
+        () => ({
+          version: 'g2' as const,
+          opl_agent_package_exposure: {
+            surface_kind: 'opl_agent_package_exposure' as const,
+            status: input.dryRun ? 'validated_no_write' : packageActionStatus(action),
+            action,
+            dry_run: input.dryRun === true,
+            package_id: packageId,
+            home_shortcut_preferences: updateHomeShortcutPreferences({
+              packageId,
+              shortcutIds,
+              visible: action === 'unhide',
+              dryRun: input.dryRun === true,
+            }),
+            package_lock: null,
+            lifecycle_receipt: null,
+            authority_boundary: refsOnlyAuthorityBoundary(),
+          },
+        }),
+      );
+    }
+  }
   if (action === 'enable' || action === 'disable') {
     const configured = await maybeRunConfiguredCarrierLifecycle({
       selectionInput: input,

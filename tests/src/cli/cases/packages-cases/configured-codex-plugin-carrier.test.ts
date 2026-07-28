@@ -76,6 +76,28 @@ function writePluginSource(root: string, marker: string) {
   );
 }
 
+function installedOwnerDescriptor() {
+  return {
+    ...agentPackageManifest(),
+    presentation: {
+      display_name_i18n: { 'en-US': 'Third Party Research' },
+      description_i18n: { 'en-US': 'Descriptor-owned Home shortcuts.' },
+      session_routing_summary_i18n: { 'en-US': 'Use the native carrier.' },
+      home_shortcuts: [{
+        shortcut_id: 'research',
+        label_i18n: { 'en-US': 'Research' },
+        default_visible: true,
+        user_configurable: true,
+        route: {
+          route_kind: 'agent_package_shortcut',
+          executor: 'codex_cli',
+          codex_visible_entry: 'third-party-research',
+        },
+      }],
+    },
+  };
+}
+
 test('configured Codex carrier exposes exact identity and fails closed on duplicate source precedence', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-identity-'));
   const selectedSource = path.join(root, 'selected');
@@ -442,7 +464,7 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     // The installed owner descriptor deliberately has no legacy configured
     // carrier block. Subsequent actions must derive the native adapter from
     // the fresh installed carrier, not a Framework discovery cache.
-    formatJsonPayload(agentPackageManifest()),
+    formatJsonPayload(installedOwnerDescriptor()),
   );
   writeFakeCodex(binary);
   fs.writeFileSync(manifestPath, formatJsonPayload(configuredManifest('fixture-carrier')));
@@ -508,6 +530,43 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     assert.equal(activateDryRun.opl_agent_package_activation.lifecycle_receipt, null);
     assertNoPrivateState();
 
+    const hideDryRun = runCli(['packages', 'hide', '--package-id', packageId, '--dry-run'], env) as any;
+    assert.equal(hideDryRun.opl_agent_package_exposure.status, 'validated_no_write');
+    assert.equal(hideDryRun.opl_agent_package_exposure.package_lock, null);
+    assert.equal(hideDryRun.opl_agent_package_exposure.lifecycle_receipt, null);
+    assert.equal(hideDryRun.opl_agent_package_exposure.home_shortcut_preferences[0].visible, false);
+    assertNoPrivateState();
+
+    const hidden = runCli(['packages', 'hide', '--package-id', packageId], env) as any;
+    assert.equal(hidden.opl_agent_package_exposure.status, 'hidden');
+    assert.equal(hidden.opl_agent_package_exposure.package_lock, null);
+    assert.equal(hidden.opl_agent_package_exposure.lifecycle_receipt, null);
+    assert.equal(hidden.opl_agent_package_exposure.home_shortcut_preferences[0].visible, false);
+    assertNoPrivateState();
+
+    const hiddenPreferences = runCli(['packages', 'list'], env) as any;
+    assert.deepEqual(
+      hiddenPreferences.opl_agent_packages.home_shortcut_preferences.filter((entry: any) => entry.package_id === packageId),
+      [{
+        package_id: packageId,
+        shortcut_id: 'research',
+        visible: false,
+        sort_order: null,
+        source: 'user_preference',
+        updated_at: hiddenPreferences.opl_agent_packages.home_shortcut_preferences.find((entry: any) => entry.package_id === packageId).updated_at,
+        installed: true,
+      }],
+    );
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-home-shortcut-preferences.json')), true);
+    assertNoPrivateState();
+
+    const unhidden = runCli(['packages', 'unhide', '--package-id', packageId], env) as any;
+    assert.equal(unhidden.opl_agent_package_exposure.status, 'visible');
+    assert.equal(unhidden.opl_agent_package_exposure.package_lock, null);
+    assert.equal(unhidden.opl_agent_package_exposure.lifecycle_receipt, null);
+    assert.equal(unhidden.opl_agent_package_exposure.home_shortcut_preferences[0].visible, true);
+    assertNoPrivateState();
+
     const disabled = runCli(['packages', 'disable', packageId], env) as any;
     assert.equal(disabled.opl_agent_package_exposure.status, 'disabled');
     const disabledActivation = runCliFailure([
@@ -552,6 +611,56 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     assert.equal(afterRemoval.opl_agent_package_status.launch_allowed, false);
     assert.equal(afterRemoval.opl_agent_package_status.configured_carrier, null);
     assertNoPrivateState();
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('native descriptor visibility keeps an existing legacy lock on its original exposure transaction', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-legacy-exposure-'));
+  const stateDir = path.join(root, 'opl-state');
+  const manifestPath = path.join(root, 'manifest.json');
+  const binary = path.join(root, 'fake-codex.mjs');
+  const pluginState = path.join(root, 'plugin-state.json');
+  const pluginSource = path.join(root, 'plugin-source');
+  const env = {
+    HOME: root,
+    CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: binary,
+    FIXTURE_PLUGIN_STATE: pluginState,
+    FIXTURE_PLUGIN_SOURCE: pluginSource,
+  };
+  try {
+    writePluginSource(pluginSource, 'legacy-exposure');
+    fs.writeFileSync(manifestPath, formatJsonPayload(agentPackageManifest({
+      pluginSourcePath: pluginSource,
+      distributionPayload: null,
+    })));
+    writeFakeCodex(binary);
+
+    const installed = runCli([
+      'packages', 'install', '--manifest-url', manifestPath, '--trust-tier', 'third_party_verified',
+    ], env) as any;
+    assert.equal(installed.opl_agent_package_install.package_lock.package_id, packageId);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), true);
+
+    fs.writeFileSync(
+      path.join(pluginSource, 'opl-package.json'),
+      formatJsonPayload(installedOwnerDescriptor()),
+    );
+    fs.writeFileSync(pluginState, JSON.stringify({
+      installed: true,
+      version: '1.0.1',
+      marketplaceSource: 'fixture-carrier',
+    }));
+
+    const hidden = runCli(['packages', 'hide', '--package-id', packageId], env) as any;
+    assert.equal(hidden.opl_agent_package_exposure.status, 'hidden');
+    assert.equal(hidden.opl_agent_package_exposure.package_lock.package_id, packageId);
+    assert.equal(hidden.opl_agent_package_exposure.package_lock.exposure_state, 'hidden');
+    assert.equal(hidden.opl_agent_package_exposure.lifecycle_receipt.action, 'hide');
+    assert.equal(hidden.opl_agent_package_exposure.home_shortcut_preferences, undefined);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
