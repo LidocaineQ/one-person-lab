@@ -1173,6 +1173,10 @@ test('installed-source optimize is offline, dry-run safe, and explicitly rolls b
     assert.equal(optimization.lifecycle_receipt.source_selection, 'installed_package_lock');
     assert.equal(optimization.lifecycle_receipt.network_accessed, false);
     assert.equal(optimization.lifecycle_receipt.remote_dependency_policy, 'forbidden');
+    assert.equal(
+      optimization.package_lock.physical_surface.optimization_receipt_ref,
+      optimization.package_lock.action_receipt_id,
+    );
     assert.equal(fs.existsSync(commandLog), false, 'optimize must not invoke git, curl, or npm');
     assert.equal(fs.existsSync(conflictPath), false);
     assert.doesNotMatch(fs.readFileSync(configPath, 'utf8'), /marketplaces\.ponytail/);
@@ -1201,11 +1205,13 @@ test('installed-source optimize is offline, dry-run safe, and explicitly rolls b
       config: fs.readFileSync(configPath, 'utf8'),
       profile: fs.readFileSync(profilePath, 'utf8'),
     };
+    fs.writeFileSync(ledgerPath, '{ invalid lifecycle ledger\n', 'utf8');
     const rollbackPreview = runCli(['packages', 'rollback', 'fixture.opl-flow', '--dry-run'], optimizeEnv) as any;
     assert.equal(rollbackPreview.opl_agent_package_rollback.status, 'validated_no_write');
     assert.equal(rollbackPreview.opl_agent_package_rollback.network_accessed, false);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), rollbackPreviewState.lock);
-    assert.equal(fs.readFileSync(ledgerPath, 'utf8'), rollbackPreviewState.ledger);
+    assert.equal(fs.readFileSync(ledgerPath, 'utf8'), '{ invalid lifecycle ledger\n');
+    fs.writeFileSync(ledgerPath, rollbackPreviewState.ledger, 'utf8');
     assert.equal(fs.readFileSync(configPath, 'utf8'), rollbackPreviewState.config);
     assert.equal(fs.readFileSync(profilePath, 'utf8'), rollbackPreviewState.profile);
 

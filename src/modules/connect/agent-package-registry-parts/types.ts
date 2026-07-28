@@ -686,6 +686,11 @@ export type AgentPackagePhysicalSurface = {
   reload_required: boolean;
   failure_reason: string | null;
   note: string | null;
+  /**
+   * Lock-local discriminator for an optimize result. It is valid only while
+   * it matches the owning lock's current action_receipt_id.
+   */
+  optimization_receipt_ref?: string | null;
   profile_config: AgentPackageProfileSurfaceConfig | null;
   profile_migration: AgentPackageProfileMigration;
   managed_policy_config: AgentPackageManagedPolicySurfaceConfig | null;

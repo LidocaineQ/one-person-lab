@@ -163,7 +163,6 @@ import {
   sha256Text,
 } from './agent-package-registry-parts/shared.ts';
 import {
-  readLifecycleLedger,
   readLockIndex,
   withAgentPackageLifecycleTransaction,
   writePackageTransaction,
@@ -3371,16 +3370,22 @@ function runOplAgentPackageRollbackUnlocked(input: AgentPackagePackageActionInpu
     });
   }
   const lock = installedLock ?? restoredRoot!;
-  const latestReceipt = installedLock
-    ? readLifecycleLedger().receipts.find((entry) =>
-        entry.receipt_ref === installedLock.action_receipt_id)
-    : null;
-  if (installedLock && latestReceipt?.action === 'optimize') {
+  const optimizationReceiptRef = installedLock?.physical_surface?.optimization_receipt_ref ?? null;
+  const optimizeRollbackReady = Boolean(
+    installedLock
+      && optimizationReceiptRef
+      && optimizationReceiptRef === installedLock.action_receipt_id
+      && Array.isArray(installedLock.scope_materializations),
+  );
+  if (installedLock && optimizeRollbackReady) {
     const result = rollbackInstalledPackageOptimization({
       index,
       root: installedLock,
       generation: lastKnownGood,
-      optimizeReceipt: latestReceipt,
+      optimizeReceipt: {
+        receipt_ref: optimizationReceiptRef!,
+        scope_materializations: installedLock.scope_materializations,
+      },
       action: input,
     });
     return {

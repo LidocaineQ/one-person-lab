@@ -37,7 +37,6 @@ import { nowIso, resolveCodexHome, sha256Text } from './shared.ts';
 import { writePackageTransaction } from './store.ts';
 import type {
   AgentPackageLastKnownGood,
-  AgentPackageLifecycleReceipt,
   AgentPackageLock,
   AgentPackageLockIndex,
   AgentPackagePackageActionInput,
@@ -281,6 +280,10 @@ export function optimizeInstalledPackageSource(input: {
     networkAccessed: false,
     remoteDependencyPolicy: 'forbidden',
   });
+  const optimizationSurface: AgentPackagePhysicalSurface = {
+    ...physicalSurface,
+    optimization_receipt_ref: receipt.receipt_ref,
+  };
   for (const materialization of scopeMaterializations) {
     materialization.lifecycle_receipt_ref = receipt.receipt_ref;
   }
@@ -288,7 +291,7 @@ export function optimizeInstalledPackageSource(input: {
     ...input.root,
     updated_at: dryRun ? input.root.updated_at : nowIso(),
     action_receipt_id: receipt.receipt_ref,
-    physical_surface: physicalSurface,
+    physical_surface: optimizationSurface,
     scope_materializations: [
       ...scopeMaterializations,
       ...(input.root.scope_materializations ?? []).filter((entry) =>
@@ -336,7 +339,7 @@ export function optimizeInstalledPackageSource(input: {
     status: dryRun ? 'validated_no_write' : 'optimized',
     lock: nextLock,
     receipt,
-    physicalSurface,
+    physicalSurface: optimizationSurface,
     closureLocks: previousLocks.map((entry) =>
       entry.package_id === nextLock.package_id ? nextLock : entry),
     closureDigest,
@@ -431,7 +434,10 @@ export function rollbackInstalledPackageOptimization(input: {
   index: AgentPackageLockIndex;
   root: AgentPackageLock;
   generation: AgentPackageLastKnownGood;
-  optimizeReceipt: AgentPackageLifecycleReceipt;
+  optimizeReceipt: {
+    receipt_ref: string;
+    scope_materializations?: AgentPackageScopeMaterialization[];
+  };
   action: AgentPackagePackageActionInput;
 }) {
   const dryRun = input.action.dryRun === true;
