@@ -729,6 +729,62 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
   }
 });
 
+test('managed-update reader excludes a legacy lock once the native owner descriptor is installed', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-managed-update-'));
+  const stateDir = path.join(root, 'opl-state');
+  const manifestPath = path.join(root, 'manifest.json');
+  const binary = path.join(root, 'fake-codex.mjs');
+  const pluginState = path.join(root, 'plugin-state.json');
+  const pluginSource = path.join(root, 'plugin-source');
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  const previousPluginBin = process.env.OPL_CODEX_PLUGIN_BIN;
+  const previousPluginState = process.env.FIXTURE_PLUGIN_STATE;
+  const previousPluginSource = process.env.FIXTURE_PLUGIN_SOURCE;
+  const env = {
+    HOME: root,
+    CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: binary,
+    FIXTURE_PLUGIN_STATE: pluginState,
+    FIXTURE_PLUGIN_SOURCE: pluginSource,
+  };
+  try {
+    writePluginSource(pluginSource, 'legacy-managed-update');
+    writePluginManifest(pluginSource);
+    fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+    fs.writeFileSync(manifestPath, formatJsonPayload(agentPackageManifest({
+      pluginSourcePath: pluginSource,
+      distributionPayload: null,
+    })));
+    writeFakeCodex(binary);
+    const installed = runCli([
+      'packages', 'install', '--manifest-url', manifestPath, '--trust-tier', 'third_party_verified',
+    ], env) as any;
+    assert.equal(installed.opl_agent_package_install.package_lock.package_id, packageId);
+    const legacy = await import('../../../../../src/modules/connect/agent-package-registry.ts');
+    Object.assign(process.env, env);
+    assert.equal(legacy.readInstalledOplAgentPackageLocks().some((entry: any) => entry.package_id === packageId), true);
+
+    fs.writeFileSync(path.join(pluginSource, 'opl-package.json'), formatJsonPayload(installedOwnerDescriptor()));
+    fs.writeFileSync(pluginState, JSON.stringify({
+      installed: true,
+      version: '1.0.1',
+      marketplaceSource: 'fixture-carrier',
+    }));
+    assert.equal(legacy.readInstalledOplAgentPackageLocks().some((entry: any) => entry.package_id === packageId), false);
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    if (previousPluginBin === undefined) delete process.env.OPL_CODEX_PLUGIN_BIN;
+    else process.env.OPL_CODEX_PLUGIN_BIN = previousPluginBin;
+    if (previousPluginState === undefined) delete process.env.FIXTURE_PLUGIN_STATE;
+    else process.env.FIXTURE_PLUGIN_STATE = previousPluginState;
+    if (previousPluginSource === undefined) delete process.env.FIXTURE_PLUGIN_SOURCE;
+    else process.env.FIXTURE_PLUGIN_SOURCE = previousPluginSource;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 function writeNativeMarketplace(root: string, version: string) {
   const pluginRoot = path.join(root, 'plugins', 'third-party-research');
   fs.mkdirSync(path.join(root, '.agents', 'plugins'), { recursive: true });

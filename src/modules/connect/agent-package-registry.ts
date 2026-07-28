@@ -5124,7 +5124,8 @@ export async function refreshAndListOplAgentPackages(input: {
 }
 
 export function readInstalledOplAgentPackageLocks() {
-  return readLockIndex().packages;
+  const installedDescriptors = discoverInstalledCodexPluginDescriptors();
+  return readLockIndex().packages.filter((entry) => !installedDescriptors.has(entry.package_id));
 }
 
 function readInstalledOwnerProfileDefault() {
