@@ -272,11 +272,6 @@ export function readLifecycleLedger(): AgentPackageLifecycleLedger {
   };
 }
 
-function writeLifecycleLedger(ledger: AgentPackageLifecycleLedger) {
-  const paths = ensureOplStateDir();
-  writeJsonReceiptLedger(paths.agent_package_lifecycle_ledger_file, ledger);
-}
-
 export function writePackageTransaction(
   index: AgentPackageLockIndex,
   receipts: AgentPackageLifecycleReceipt[],

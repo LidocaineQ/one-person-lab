@@ -8,7 +8,7 @@ import { parseJsonText } from '../../kernel/json-file.ts';
 import { stringValue } from '../../kernel/json-record.ts';
 import { resolveOplStatePaths } from '../../kernel/runtime-state-paths.ts';
 import { resolveStandardAgent } from '../../kernel/standard-agent-registry.ts';
-import { canonicalAgentPackageId, publicAgentPackageSelector } from './agent-package-identity.ts';
+import { canonicalAgentPackageId } from './agent-package-identity.ts';
 import {
   assertFirstPartyPackageCatalogVersion,
   resolveFirstPartyPackageCatalog,
@@ -24,7 +24,6 @@ import { FORBIDDEN_AGENT_PACKAGE_FIELDS, MANIFEST_REQUIRED_FIELDS } from './agen
 import {
   assertManifestMatchesRegistrySelection,
   assertTrustTierAssigned,
-  fetchAndValidateRegistry,
   resolveManifestSelection,
 } from './agent-package-registry-parts/selection.ts';
 import {
@@ -34,8 +33,6 @@ import {
   lifecycleReceipt,
   packageActionSourceSha256,
   packageActionStatus,
-  packageLockRef,
-  packageReceiptRef,
   requireInstalledPackage,
   requirePackageId,
 } from './agent-package-registry-parts/lifecycle-lock.ts';
@@ -91,7 +88,6 @@ import {
 } from './agent-package-registry-parts/bundled-full-runtime-catalog.ts';
 import {
   agentPackageCarrierAuthorityStatus,
-  agentPackageCarrierReceiptAuthorityStatus,
   buildAgentPackageCarrierAuthority,
 } from './agent-package-registry-parts/carrier-authority.ts';
 import {
@@ -176,7 +172,6 @@ import type {
   AgentPackageStoredHomeShortcutPreference,
   AgentPackageCarrierAuthority,
   AgentPackageInstallInput,
-  AgentPackageLifecycleReceipt,
   AgentPackageLifecycleUxReadback,
   AgentPackageLastKnownGood,
   AgentPackageLock,
