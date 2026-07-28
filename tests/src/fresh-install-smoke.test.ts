@@ -7,6 +7,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parseJsonText } from '../../src/kernel/json-file.ts';
+import {
+  buildReleaseState,
+  readInstalledFrameworkSourceIdentity,
+} from '../../src/modules/console/app-state-release.ts';
 import { renderCodexConfigFixture } from '../../scripts/fresh-install-codex-config-fixture.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -15,6 +19,72 @@ const matrixContractPath = path.join(repoRoot, 'contracts', 'opl-framework', 'fr
 const codexDefaultProfilePath = path.join(repoRoot, 'contracts', 'opl-framework', 'codex-default-profile.json');
 const codexDefaultProfileExporterPath = path.join(repoRoot, 'scripts', 'export-codex-default-profile.mjs');
 const installScript = path.join(repoRoot, 'install.sh');
+const frameworkSourceCommit = 'a'.repeat(40);
+
+function writeInstalledSourceIdentity(identityPath: string, identity: Record<string, unknown>) {
+  fs.writeFileSync(identityPath, `${JSON.stringify(identity, null, 2)}\n`, { mode: 0o600 });
+}
+
+test('release state exposes the exact installed Framework SHA and typed identity source', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-installed-framework-identity-'));
+  const identityPath = path.join(tempRoot, 'installed-source-identity.json');
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = path.join(tempRoot, 'state');
+  writeInstalledSourceIdentity(identityPath, {
+    schema: 'opl_framework_installed_source_identity.v1',
+    framework_sha: frameworkSourceCommit,
+    install_mode: 'archive',
+    identity_source: 'explicit_source_commit',
+  });
+
+  try {
+    const release = buildReleaseState({ installedSourceIdentityPath: identityPath });
+    assert.equal(release.opl_framework_revision, frameworkSourceCommit);
+    assert.equal(release.framework_revision, frameworkSourceCommit);
+    assert.equal(release.framework_revision_source, 'installed_source_identity');
+    assert.equal(release.installed_framework_source_sha, frameworkSourceCommit);
+    assert.equal(
+      release.installed_framework_source_identity_source,
+      'explicit_source_commit',
+    );
+    assert.deepEqual(release.installed_framework_source_identity, {
+      schema: 'opl_framework_installed_source_identity.v1',
+      framework_sha: frameworkSourceCommit,
+      install_mode: 'archive',
+      identity_source: 'explicit_source_commit',
+    });
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('installed Framework source identity rejects symlinks and malformed records', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-installed-framework-invalid-'));
+  const symlinkPath = path.join(tempRoot, 'identity-link.json');
+  const malformedPath = path.join(tempRoot, 'identity-malformed.json');
+  fs.symlinkSync(path.join(tempRoot, 'missing-target.json'), symlinkPath);
+  writeInstalledSourceIdentity(malformedPath, {
+    schema: 'opl_framework_installed_source_identity.v1',
+    framework_sha: frameworkSourceCommit.slice(0, 12),
+    install_mode: 'archive',
+    identity_source: 'explicit_source_commit',
+  });
+
+  try {
+    assert.throws(
+      () => readInstalledFrameworkSourceIdentity(symlinkPath),
+      /regular non-symlink file/,
+    );
+    assert.throws(
+      () => readInstalledFrameworkSourceIdentity(malformedPath),
+      /source identity is invalid/,
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
 
 test('installer accepts supported Node majors without an arbitrary upper bound', () => {
   const source = fs.readFileSync(installScript, 'utf8');
@@ -56,6 +126,7 @@ test('install carrier-only handles no forwarded args under nounset bash', () => 
     env: {
       HOME: homeRoot,
       OPL_INSTALL_DIR: installDir,
+      OPL_FRAMEWORK_SOURCE_COMMIT: frameworkSourceCommit,
       OPL_REPO_URL: 'https://example.invalid/one-person-lab.git',
       PATH: `${fakeBin}:/usr/bin:/bin`,
     },
@@ -104,6 +175,7 @@ test('install carrier-only removes partial clone directories after clone failure
       env: {
         HOME: homeRoot,
         OPL_INSTALL_DIR: installDir,
+        OPL_FRAMEWORK_SOURCE_COMMIT: frameworkSourceCommit,
         OPL_REPO_URL: 'https://example.invalid/one-person-lab.git',
         PATH: `${fakeBin}:/usr/bin:/bin`,
       },
@@ -200,6 +272,7 @@ test('install carrier-only can use an explicit source archive even when git is u
         HOME: homeRoot,
         OPL_INSTALL_DIR: installDir,
         OPL_INSTALL_SOURCE_MODE: 'archive',
+        OPL_FRAMEWORK_SOURCE_COMMIT: frameworkSourceCommit,
         OPL_SOURCE_ARCHIVE_URL: 'file:///tmp/current-source-framework.tar.gz',
         PATH: `${fakeBin}:/usr/bin:/bin`,
       },
@@ -208,6 +281,17 @@ test('install carrier-only can use an explicit source archive even when git is u
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.match(result.stdout, /Downloading One Person Lab source archive/);
     assert.equal(fs.readFileSync(path.join(installDir, '.opl-install-source'), 'utf8').trim(), 'archive');
+    const sourceIdentityPath = path.join(installDir, '.opl-framework-installed-source-identity.json');
+    const sourceIdentityStat = fs.lstatSync(sourceIdentityPath);
+    assert.equal(sourceIdentityStat.isFile(), true);
+    assert.equal(sourceIdentityStat.isSymbolicLink(), false);
+    assert.equal(sourceIdentityStat.mode & 0o777, 0o600);
+    assert.deepEqual(parseJsonText(fs.readFileSync(sourceIdentityPath, 'utf8')), {
+      schema: 'opl_framework_installed_source_identity.v1',
+      framework_sha: frameworkSourceCommit,
+      install_mode: 'archive',
+      identity_source: 'explicit_source_commit',
+    });
     assert.deepEqual(fs.readFileSync(curlLog, 'utf8').trim().split('\n'), [
       'file:///tmp/current-source-framework.tar.gz',
     ]);
@@ -273,6 +357,7 @@ test('install carrier-only restores Full prefilled dependencies without an npm n
         HOME: homeRoot,
         OPL_INSTALL_DIR: installDir,
         OPL_INSTALL_SOURCE_MODE: 'archive',
+        OPL_FRAMEWORK_SOURCE_COMMIT: frameworkSourceCommit,
         OPL_SOURCE_ARCHIVE_URL: 'file:///tmp/current-source-framework.tar.gz',
         OPL_PREFILLED_NODE_MODULES_DIR: prefilledNodeModules,
         PATH: `${fakeBin}:/usr/bin:/bin`,
@@ -375,6 +460,7 @@ test('install carrier-only on macOS prepares managed Node and uses a source arch
       env: {
         HOME: homeRoot,
         OPL_INSTALL_DIR: installDir,
+        OPL_FRAMEWORK_SOURCE_COMMIT: frameworkSourceCommit,
         OPL_MANAGED_TOOLCHAIN_ROOT: toolchainRoot,
         PATH: `${fakeBin}:/usr/bin:/bin`,
       },
@@ -388,6 +474,15 @@ test('install carrier-only on macOS prepares managed Node and uses a source arch
     assert.equal(result.stderr.includes('brew install'), false);
     assert.equal(fs.existsSync(path.join(toolchainRoot, 'node-v22.21.1-darwin-arm64', 'bin', 'node')), true);
     assert.equal(fs.readFileSync(path.join(installDir, '.opl-install-source'), 'utf8').trim(), 'archive');
+    assert.deepEqual(
+      parseJsonText(fs.readFileSync(path.join(installDir, '.opl-framework-installed-source-identity.json'), 'utf8')),
+      {
+        schema: 'opl_framework_installed_source_identity.v1',
+        framework_sha: frameworkSourceCommit,
+        install_mode: 'archive',
+        identity_source: 'explicit_source_commit',
+      },
+    );
     assert.equal(fs.existsSync(gitLog), true);
     assert.equal(fs.readFileSync(gitLog, 'utf8').includes('clone'), false);
     assert.deepEqual(fs.readFileSync(npmLog, 'utf8').trim().split('\n'), [
@@ -466,6 +561,7 @@ test('install carrier-only on macOS uses an existing git checkout while Command 
       env: {
         HOME: homeRoot,
         OPL_INSTALL_DIR: installDir,
+        OPL_FRAMEWORK_SOURCE_COMMIT: frameworkSourceCommit,
         OPL_SYSTEM_GIT_PATH: path.join(fakeUsrBin, 'git'),
         OPL_XCODE_SELECT: path.join(fakeUsrBin, 'xcode-select'),
         PATH: `${fakeBin}:${fakeUsrBin}:/usr/bin:/bin`,
@@ -546,6 +642,7 @@ test('one-click installer defaults to the headless base contract before invoking
       env: {
         HOME: homeRoot,
         OPL_INSTALL_DIR: installDir,
+        OPL_FRAMEWORK_SOURCE_COMMIT: frameworkSourceCommit,
         OPL_REPO_URL: 'https://example.invalid/one-person-lab.git',
         OPL_STATE_DIR: stateDir,
         PATH: `${fakeBin}:/usr/bin:/bin`,

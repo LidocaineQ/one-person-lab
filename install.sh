@@ -10,6 +10,7 @@ MANAGED_TOOLCHAIN_ROOT=${OPL_MANAGED_TOOLCHAIN_ROOT:-$HOME/.opl/toolchain}
 MANAGED_NODE_VERSION=${OPL_MANAGED_NODE_VERSION:-v22.21.1}
 PREFILLED_NODE_MODULES_DIR=${OPL_PREFILLED_NODE_MODULES_DIR:-}
 INSTALL_SOURCE_MARKER=.opl-install-source
+INSTALL_SOURCE_IDENTITY=.opl-framework-installed-source-identity.json
 SYSTEM_GIT_PATH=${OPL_SYSTEM_GIT_PATH:-/usr/bin/git}
 XCODE_SELECT=${OPL_XCODE_SELECT:-/usr/bin/xcode-select}
 
@@ -181,12 +182,137 @@ need_cmd() {
   fi
 }
 
+normalize_framework_source_commit() {
+  local commit=${1:-}
+  if [[ ! "$commit" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    return 1
+  fi
+  printf '%s\n' "$commit" | tr '[:upper:]' '[:lower:]'
+}
+
+resolve_archive_source_identity() {
+  local commit archive_url commit_payload
+
+  if [ -n "${OPL_FRAMEWORK_SOURCE_COMMIT:-}" ]; then
+    commit=$(normalize_framework_source_commit "$OPL_FRAMEWORK_SOURCE_COMMIT") || {
+      printf 'OPL_FRAMEWORK_SOURCE_COMMIT must be a complete 40-character Git SHA.\n' >&2
+      exit 1
+    }
+    printf '%s|explicit_source_commit\n' "$commit"
+    return 0
+  fi
+
+  if commit=$(normalize_framework_source_commit "$BRANCH" 2>/dev/null); then
+    printf '%s|install_ref\n' "$commit"
+    return 0
+  fi
+
+  archive_url=${OPL_SOURCE_ARCHIVE_URL:-}
+  if [[ "$archive_url" =~ ([0-9a-fA-F]{40}) ]]; then
+    commit=$(normalize_framework_source_commit "${BASH_REMATCH[1]}")
+    printf '%s|source_archive_url\n' "$commit"
+    return 0
+  fi
+
+  commit_payload=$(curl --http1.1 --connect-timeout 20 --max-time 60 --retry 3 --retry-delay 2 --retry-all-errors -fsSL \
+    "https://api.github.com/repos/gaofeng21cn/one-person-lab/commits/$BRANCH")
+  commit=$(printf '%s' "$commit_payload" | node -e '
+    let payload = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (chunk) => { payload += chunk; });
+    process.stdin.on("end", () => {
+      try {
+        const sha = JSON.parse(payload)?.sha;
+        if (typeof sha !== "string" || !/^[0-9a-f]{40}$/i.test(sha)) process.exit(1);
+        process.stdout.write(sha.toLowerCase());
+      } catch {
+        process.exit(1);
+      }
+    });
+  ') || {
+    printf 'Could not resolve an exact Framework commit for archive ref: %s\n' "$BRANCH" >&2
+    printf 'Set OPL_FRAMEWORK_SOURCE_COMMIT to the expected 40-character SHA and retry.\n' >&2
+    exit 1
+  }
+  commit=$(normalize_framework_source_commit "$commit") || {
+    printf 'Resolved Framework archive commit was not a complete 40-character Git SHA.\n' >&2
+    exit 1
+  }
+  printf '%s|github_commit_api\n' "$commit"
+}
+
 source_archive_url() {
-  printf 'https://github.com/gaofeng21cn/one-person-lab/archive/refs/heads/%s.tar.gz\n' "$BRANCH"
+  local source_commit=$1
+  printf 'https://github.com/gaofeng21cn/one-person-lab/archive/%s.tar.gz\n' "$source_commit"
+}
+
+write_installed_source_identity() {
+  local source_root=$1 install_mode=$2 framework_sha=$3 identity_source=$4
+  local identity_path identity_tmp
+
+  framework_sha=$(normalize_framework_source_commit "$framework_sha") || {
+    printf 'Refusing to persist an invalid Framework source identity: %s\n' "$framework_sha" >&2
+    exit 1
+  }
+  case "$install_mode" in
+    archive|git)
+      ;;
+    *)
+      printf 'Unsupported Framework install identity mode: %s\n' "$install_mode" >&2
+      exit 1
+      ;;
+  esac
+  case "$identity_source" in
+    explicit_source_commit|install_ref|source_archive_url|github_commit_api|git_head)
+      ;;
+    *)
+      printf 'Unsupported Framework install identity source: %s\n' "$identity_source" >&2
+      exit 1
+      ;;
+  esac
+
+  identity_path="$source_root/$INSTALL_SOURCE_IDENTITY"
+  identity_tmp="$identity_path.tmp.$$"
+  if [ -d "$identity_path" ] && [ ! -L "$identity_path" ]; then
+    printf 'Framework source identity path must not be a directory: %s\n' "$identity_path" >&2
+    exit 1
+  fi
+  rm -f "$identity_path" "$identity_tmp"
+  (
+    umask 077
+    printf '{\n  "schema": "opl_framework_installed_source_identity.v1",\n  "framework_sha": "%s",\n  "install_mode": "%s",\n  "identity_source": "%s"\n}\n' \
+      "$framework_sha" "$install_mode" "$identity_source" > "$identity_tmp"
+  )
+  if [ ! -f "$identity_tmp" ] || [ -L "$identity_tmp" ]; then
+    printf 'Framework source identity temporary file is not a regular file: %s\n' "$identity_tmp" >&2
+    exit 1
+  fi
+  mv "$identity_tmp" "$identity_path"
+  if [ ! -f "$identity_path" ] || [ -L "$identity_path" ]; then
+    printf 'Framework source identity is not a regular non-symlink file: %s\n' "$identity_path" >&2
+    exit 1
+  fi
+}
+
+write_git_source_identity() {
+  local framework_sha identity_source
+  if [ -n "${OPL_FRAMEWORK_SOURCE_COMMIT:-}" ]; then
+    framework_sha=$OPL_FRAMEWORK_SOURCE_COMMIT
+    identity_source=explicit_source_commit
+  elif git_is_usable; then
+    framework_sha=$(git -C "$INSTALL_DIR" rev-parse HEAD)
+    identity_source=git_head
+  elif [ -f "$INSTALL_DIR/$INSTALL_SOURCE_IDENTITY" ] && [ ! -L "$INSTALL_DIR/$INSTALL_SOURCE_IDENTITY" ]; then
+    return 0
+  else
+    printf 'Cannot persist the installed Framework source identity without Git or OPL_FRAMEWORK_SOURCE_COMMIT.\n' >&2
+    exit 1
+  fi
+  write_installed_source_identity "$INSTALL_DIR" git "$framework_sha" "$identity_source"
 }
 
 install_from_archive() {
-  local archive_tmp extract_root source_dir
+  local archive_tmp extract_root source_dir source_identity source_commit identity_source archive_url
   archive_tmp=$(mktemp "${TMPDIR:-/tmp}/one-person-lab.XXXXXX")
   extract_root=$(mktemp -d "${TMPDIR:-/tmp}/one-person-lab-src.XXXXXX")
   cleanup_archive_tmp() {
@@ -196,8 +322,11 @@ install_from_archive() {
   trap cleanup_archive_tmp EXIT
 
   log "Downloading One Person Lab source archive into $INSTALL_DIR"
+  source_identity=$(resolve_archive_source_identity)
+  IFS='|' read -r source_commit identity_source <<< "$source_identity"
+  archive_url=${OPL_SOURCE_ARCHIVE_URL:-$(source_archive_url "$source_commit")}
   curl --http1.1 --connect-timeout 20 --max-time 300 --retry 3 --retry-delay 2 --retry-all-errors -fsSL \
-    "${OPL_SOURCE_ARCHIVE_URL:-$(source_archive_url)}" \
+    "$archive_url" \
     -o "$archive_tmp"
   tar -xzf "$archive_tmp" -C "$extract_root"
   source_dir=$(find "$extract_root" -mindepth 1 -maxdepth 1 -type d | head -n 1)
@@ -206,6 +335,7 @@ install_from_archive() {
     exit 1
   fi
   printf 'archive\n' > "$source_dir/$INSTALL_SOURCE_MARKER"
+  write_installed_source_identity "$source_dir" archive "$source_commit" "$identity_source"
   rm -rf "$INSTALL_DIR"
   mv "$source_dir" "$INSTALL_DIR"
   trap - EXIT
@@ -264,6 +394,10 @@ else
   mv "$CLONE_TMP" "$INSTALL_DIR"
   trap - EXIT
   fi
+fi
+
+if [ ! -f "$INSTALL_DIR/$INSTALL_SOURCE_MARKER" ]; then
+  write_git_source_identity
 fi
 
 cd "$INSTALL_DIR"
