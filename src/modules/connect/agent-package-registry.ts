@@ -5483,10 +5483,6 @@ export async function refreshAndListOplAgentPackages(input: {
   });
 }
 
-export function readInstalledOplAgentPackageLocks() {
-  return readLegacyAgentPackageLockIndex().packages;
-}
-
 export function readManagedUpdateOplAgentPackageProjection() {
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
   const snapshot = readStatusLockIndex(

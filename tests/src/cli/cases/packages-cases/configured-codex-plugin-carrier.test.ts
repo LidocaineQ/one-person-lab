@@ -1036,7 +1036,11 @@ test('managed-update reader excludes a legacy lock once the native owner descrip
     assert.equal(installed.opl_agent_package_install.package_lock.package_id, packageId);
     const legacy = await import('../../../../../src/modules/connect/agent-package-registry.ts');
     Object.assign(process.env, env);
-    assert.equal(legacy.readInstalledOplAgentPackageLocks().some((entry: any) => entry.package_id === packageId), true);
+    assert.equal(
+      legacy.readManagedUpdateOplAgentPackageProjection().packages
+        .some((entry: any) => entry.package_id === packageId),
+      true,
+    );
 
     fs.writeFileSync(path.join(pluginSource, 'opl-package.json'), formatJsonPayload(installedOwnerDescriptor()));
     fs.writeFileSync(pluginState, JSON.stringify({
@@ -1044,7 +1048,11 @@ test('managed-update reader excludes a legacy lock once the native owner descrip
       version: '1.0.1',
       marketplaceSource: 'fixture-carrier',
     }));
-    assert.equal(legacy.readInstalledOplAgentPackageLocks().some((entry: any) => entry.package_id === packageId), false);
+    assert.equal(
+      legacy.readManagedUpdateOplAgentPackageProjection().packages
+        .some((entry: any) => entry.package_id === packageId),
+      false,
+    );
 
     const bulkUpdate = await legacy.runOplAgentPackageBulkUpdate({ dryRun: true });
     assert.equal(bulkUpdate.opl_agent_package_bulk_update.summary.installed_package_count, 0);
