@@ -687,6 +687,8 @@ test('app action execute routes install_from_manifest_url to Framework package l
       }],
     );
     assert.equal(fs.existsSync(list.opl_agent_packages.files.home_shortcut_preferences_file), true);
+    assert.equal(Object.hasOwn(list.opl_agent_packages.files, 'package_lock_file'), false);
+    assert.equal(Object.hasOwn(list.opl_agent_packages.files, 'lifecycle_ledger_file'), false);
 
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });

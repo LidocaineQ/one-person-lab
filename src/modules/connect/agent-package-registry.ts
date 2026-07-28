@@ -5443,8 +5443,6 @@ export function listOplAgentPackages(input: {
             })),
           }),
       files: {
-        package_lock_file: paths.agent_package_lock_file,
-        lifecycle_ledger_file: paths.agent_package_lifecycle_ledger_file,
         home_shortcut_preferences_file: paths.agent_package_home_shortcut_preferences_file,
       },
       authority_boundary: refsOnlyAuthorityBoundary(),
