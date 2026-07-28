@@ -21,6 +21,7 @@ import {
   resolveDefaultFamilyWorkspaceRoot,
   runOplAgentPackageStatus,
 } from '../connect/public/app-state.ts';
+import { readInstalledStandardAgentDescriptorForDomain } from '../connect/public/standard-agent-interface.ts';
 import { listWorkspaceBindings } from '../workspace/public/app-state.ts';
 import { buildOplEndpoints } from '../../kernel/opl-runtime-endpoints.ts';
 import {
@@ -991,6 +992,8 @@ export async function buildOplAppState(input: {
     packageProjectionItems: runtimeSourceCarriers,
     packageStatusById: agentPackageStatuses,
     bindings: workspaceBindings,
+    resolveDescriptor: (agentId) =>
+      readInstalledStandardAgentDescriptorForDomain(agentId, readAgentPackageStatus),
   });
   const runtimeActivityItems = profile === 'full'
     ? projectRuntimeActivityItems(workItemProjectionV2)

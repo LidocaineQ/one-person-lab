@@ -101,6 +101,11 @@ test('app state fast hot path avoids barrel imports and keeps full drilldown laz
     /input\.readAgentPackageStatus \?\? createOplAgentPackageStatusReader\(\)/,
     'each app-state request must reuse one installed Package status snapshot unless a caller injects a reader',
   );
+  assert.match(
+    appStateSource,
+    /readInstalledStandardAgentDescriptorForDomain\(agentId,\s*readAgentPackageStatus\)/,
+    'Runtime work-item descriptor discovery must reuse the app-state request Package status snapshot',
+  );
 });
 
 test('task run projection does not republish the retired work item V1 envelope', () => {
