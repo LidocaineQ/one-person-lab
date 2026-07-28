@@ -185,6 +185,7 @@ import type {
   AgentPackageLockIndex,
   AgentPackageManifestValidateInput,
   AgentPackageManifest,
+  AgentPackageManagedPolicyDependency,
   AgentPackageManagedVersionCatalogSource,
   AgentPackagePackageActionInput,
   AgentPackagePhysicalSurface,
@@ -5254,12 +5255,88 @@ export function readOplFlowDefaultUserInstructions() {
   }
 }
 
+function readInstalledOplFlowManagedPolicyDependencies(): AgentPackageManagedPolicyDependency[] | null {
+  const descriptor = discoverInstalledCodexPluginDescriptors().get('opl-flow');
+  const policySurface = descriptor?.manifest.managed_policy_surface;
+  if (!descriptor || !policySurface) return null;
+  try {
+    const sourceRoot = fs.realpathSync(descriptor.sourcePath);
+    const policyPath = path.resolve(sourceRoot, policySurface.source_path);
+    if (!policyPath.startsWith(`${sourceRoot}${path.sep}`)
+      || !fs.statSync(policyPath).isFile()) {
+      return null;
+    }
+    const policy = JSON.parse(fs.readFileSync(policyPath, 'utf8')) as unknown;
+    if (!isRecord(policy) || !isRecord(policy.package) || policy.package.id !== 'opl-flow') {
+      return null;
+    }
+    if (!Array.isArray(policy.requires)) return [];
+    return policy.requires.flatMap((value) => {
+      if (!isRecord(value) || typeof value.id !== 'string' || typeof value.kind !== 'string') {
+        return [];
+      }
+      if (!['base', 'codex_skill', 'codex_plugin', 'mcp_server', 'cli', 'runtime_capability'].includes(value.kind)) {
+        return [];
+      }
+      if (typeof value.online_install_default !== 'boolean'
+        || typeof value.activation !== 'string'
+        || !['always', 'task_routed', 'explicit'].includes(value.activation)) {
+        return [];
+      }
+      return [{
+        id: value.id,
+        kind: value.kind as AgentPackageManagedPolicyDependency['kind'],
+        offline_bundle: value.offline_bundle === 'full' ? 'full' : 'none',
+        online_install_default: value.online_install_default,
+        activation: value.activation as AgentPackageManagedPolicyDependency['activation'],
+        source: typeof value.source === 'string' ? value.source : undefined,
+        source_path: typeof value.source_path === 'string' ? value.source_path : undefined,
+        owner: typeof value.owner === 'string' ? value.owner : undefined,
+        version_requirement: typeof value.version_requirement === 'string'
+          ? value.version_requirement
+          : undefined,
+        install_source: typeof value.install_source === 'string' ? value.install_source : undefined,
+        lifecycle_owner: typeof value.lifecycle_owner === 'string' ? value.lifecycle_owner : undefined,
+        conflict_policy: typeof value.conflict_policy === 'string'
+          ? value.conflict_policy as AgentPackageManagedPolicyDependency['conflict_policy']
+          : undefined,
+        credential_policy: typeof value.credential_policy === 'string'
+          ? value.credential_policy as AgentPackageManagedPolicyDependency['credential_policy']
+          : undefined,
+        relationship: 'required' as const,
+      }];
+    });
+  } catch {
+    return null;
+  }
+}
+
 export function readOplFlowManagedDependencyIds() {
+  const descriptorDependencies = readInstalledOplFlowManagedPolicyDependencies();
+  if (descriptorDependencies) {
+    return [...new Set(descriptorDependencies.map((dependency) => dependency.id))];
+  }
   const lock = readLockIndex().packages.find((entry) => entry.package_id === 'opl-flow') ?? null;
   return [...new Set(lock?.physical_surface?.workflow_policy_migration?.dependency_ids ?? [])];
 }
 
 export function readOplFlowManagedDependencies() {
+  const descriptorDependencies = readInstalledOplFlowManagedPolicyDependencies();
+  if (descriptorDependencies) {
+    return descriptorDependencies.map((dependency) => ({
+      dependency_id: dependency.id,
+      dependency_kind: dependency.kind,
+      activation: dependency.activation,
+      offline_bundle: dependency.offline_bundle ?? 'none',
+      online_install_default: dependency.online_install_default,
+      source: dependency.source ?? null,
+      lifecycle_owner: dependency.lifecycle_owner
+        ?? (dependency.kind === 'codex_skill' ? 'opl_packages' : 'opl_base'),
+      update_mode: dependency.online_install_default ? 'silent_managed' : 'detect_only_guidance',
+      observed_status: null,
+      installed: dependency.kind === 'base' ? true : null,
+    }));
+  }
   const lock = readLockIndex().packages.find((entry) => entry.package_id === 'opl-flow') ?? null;
   const migration = lock?.physical_surface?.workflow_policy_migration;
   const sync = migration?.dependency_sync && typeof migration.dependency_sync === 'object'
