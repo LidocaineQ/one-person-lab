@@ -502,9 +502,35 @@ function withCliTimeout<T>(timeoutMs: string, fn: () => T): T {
   }
 }
 
-test('packages update executes the existing managed adapter and records one package transaction receipt', () => {
+test('packages update ignores legacy lock authority and records one native module transaction receipt', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-update-apply-agent-'));
   const stateRoot = path.join(homeRoot, 'state');
+  const legacyLockPath = path.join(stateRoot, 'agent-package-locks.json');
+  const legacyLockBytes = `${JSON.stringify({
+    surface_kind: 'opl_agent_package_lock_index',
+    version: 'opl-agent-package-lock-index.v1',
+    packages: [{
+      surface_kind: 'opl_agent_package_lock',
+      package_id: 'legacy.capability',
+      agent_id: null,
+      package_role: 'workflow_profile',
+      display_name: 'Legacy capability fixture',
+      publisher: 'fixture',
+      package_version: '1.0.0',
+      source_kind: 'developer_checkout_override',
+      manifest_url: 'file:///legacy/opl-package.json',
+      manifest_sha256: '0'.repeat(64),
+      content_digest: `sha256:${'0'.repeat(64)}`,
+      artifact_digest: null,
+      owner_source_commit: null,
+      lock_ref: 'opl://agent-package-lock/legacy.capability/1.0.0/fixture',
+      physical_surface: { status: 'materialized', failure_reason: null },
+      resolved_dependencies: [],
+    }],
+    last_known_good_transactions: [],
+  }, null, 2)}\n`;
+  fs.mkdirSync(stateRoot, { recursive: true });
+  fs.writeFileSync(legacyLockPath, legacyLockBytes);
   const moduleEnv = writeManagedUpdateModuleFixtures(homeRoot);
   const packageChannel = writeManagedUpdatePackageChannelFixture({
     root: path.join(homeRoot, 'channel-update'),
@@ -565,7 +591,8 @@ exit 2
     ]);
     assert.equal(output.managed_update.execution.adapter_results[0].result.apply_mode, 'auto_apply');
     assert.equal(output.managed_update.execution.adapter_results[0].result.app_background_safe, true);
-    assert.equal(output.managed_update.execution.adapter_results[0].result.auto_apply_scope, 'legacy_explicit_channel_roots_only');
+    assert.equal(output.managed_update.execution.adapter_results[0].result.auto_apply_scope, 'native_package_channel_modules_only');
+    assert.equal(fs.readFileSync(legacyLockPath, 'utf8'), legacyLockBytes);
     assert.equal(output.managed_update.execution.adapter_results[0].result.read_model_guidance.status_plane, 'opl packages status --json');
     assert.equal(
       output.managed_update.execution.adapter_results[0].result.read_model_guidance.component_receipt_ledger,

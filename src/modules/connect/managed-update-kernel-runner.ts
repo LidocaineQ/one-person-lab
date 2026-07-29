@@ -1,8 +1,5 @@
 import { spawnSync } from 'node:child_process';
 
-import {
-  runOplAgentPackageBulkUpdate,
-} from './agent-package-registry.ts';
 import { reconcileBaseManagedDependencies } from './base-managed-dependencies.ts';
 import {
   buildOplModules,
@@ -462,9 +459,7 @@ async function runAgentPackageAdapter(
               : 'bundled_full_runtime_target_failed_with_local_rollback',
       }))
     : null;
-  const bulkUpdate = bundledTargets === null ? await runOplAgentPackageBulkUpdate() : null;
-  const bulkResult = bulkUpdate?.opl_agent_package_bulk_update ?? null;
-  const packageTargets = bundledTargets ?? (bulkResult?.targets as Record<string, unknown>[] ?? []);
+  const packageTargets = bundledTargets ?? [];
   const targets: Record<string, unknown>[] = packageTargets.length > 0
     ? [...packageTargets]
     : bundledReconciliation
@@ -545,9 +540,7 @@ async function runAgentPackageAdapter(
     app_background_safe: applyMode === 'auto_apply' && failedCount === 0 && !postApplyFailed,
     auto_apply_scope: bundledTargets !== null
       ? 'catalog_owned_bundled_full_runtime_root_packages_only'
-      : packageTargets.length > 0
-        ? 'clean_digest_locked_installed_root_packages_only'
-      : 'legacy_explicit_channel_roots_only',
+      : 'native_package_channel_modules_only',
     status_detail: statusDetail,
     reload_guidance: reloadGuidance,
     read_model_guidance: {
