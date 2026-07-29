@@ -339,7 +339,7 @@ test('OPL Packages folds Codex projection and profile migration into one guarded
   assert.equal(components[0].profile_migration_status.silent_overwrite_allowed, false);
   assert.equal(components[0].profile_migration_status.apply_mode, 'fail_closed_owner_handoff');
   assert.equal(components[0].current.transaction_guards.installed_digest_required, true);
-  assert.equal(components[0].current.transaction_guards.receipt_policy, 'single_package_transaction_receipt');
+  assert.equal(components[0].current.transaction_guards.receipt_policy, 'native_module_owner_receipt');
   assert.deepEqual(components[0].receipt.content_identity_fields, [
     'digest',
     'sha256',
@@ -350,7 +350,7 @@ test('OPL Packages folds Codex projection and profile migration into one guarded
   assert.equal(components[0].authority_boundary.can_overwrite_developer_checkout, false);
 });
 
-test('OPL Packages managed-update projection retains only legacy lock owners', async () => {
+test('OPL Packages managed-update projection is independent of legacy lock authority', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-update-legacy-read-model-'));
   const homeDir = path.join(root, 'home');
   const stateDir = path.join(root, 'state');
@@ -445,52 +445,37 @@ exit 2
     }) as Record<string, any>;
     const packages = output.managed_update.components[0];
 
-    assert.deepEqual(
-      packages.current.package_lock_states.map((entry: Record<string, unknown>) => entry.package_id),
-      [legacyPackageId],
-    );
-    assert.equal(packages.current.installed_root_package_count, 1);
-    assert.equal(packages.current.package_lock_states[0].reason, 'external_or_unowned_package_source');
+    assert.equal(packages.state, 'current');
+    assert.equal(packages.plan.action, 'none');
+    assert.equal(packages.current.projection_source, 'native_module_directory');
+    assert.equal(Object.hasOwn(packages.current, 'package_lock_states'), false);
+    assert.equal(Object.hasOwn(packages.current, 'installed_root_package_count'), false);
+    assert.equal(Object.hasOwn(packages.current, 'legacy_authority'), false);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytes);
 
     const corruptLockBytes = '{ invalid legacy lock\n';
     fs.writeFileSync(lockPath, corruptLockBytes);
-    const degraded = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
+    const unaffected = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
       operation: 'status',
       componentId: 'opl_packages',
     }) as Record<string, any>;
-    const degradedPackages = degraded.managed_update.components[0];
+    const unaffectedPackages = unaffected.managed_update.components[0];
 
-    assert.equal(degradedPackages.state, 'skipped_manual_required');
-    assert.equal(degradedPackages.plan.action, 'manual_review');
-    assert.equal(degradedPackages.auto_apply.eligible, false);
-    assert.deepEqual(
-      degradedPackages.auto_apply.blocked_reasons,
-      ['legacy_lock_authority_requires_repair'],
-    );
-    assert.deepEqual(degradedPackages.current.package_lock_states, []);
-    assert.equal(degradedPackages.current.installed_root_package_count, 0);
-    assert.equal(degradedPackages.current.legacy_authority.status, 'degraded');
-    assert.equal(degradedPackages.current.legacy_authority.authority_status, 'corrupt');
-    assert.equal(
-      degradedPackages.current.legacy_authority.failure_code,
-      'agent_package_lock_authority_corrupt',
-    );
+    assert.equal(unaffectedPackages.state, 'current');
+    assert.equal(unaffectedPackages.plan.action, 'none');
+    assert.equal(unaffectedPackages.auto_apply.eligible, false);
+    assert.deepEqual(unaffectedPackages.auto_apply.blocked_reasons, []);
+    assert.equal(Object.hasOwn(unaffectedPackages.current, 'package_lock_states'), false);
+    assert.equal(Object.hasOwn(unaffectedPackages.current, 'legacy_authority'), false);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), corruptLockBytes);
 
     fs.rmSync(descriptorPath);
     fs.rmSync(pluginManifestPath);
-    await assert.rejects(
-      buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
-        operation: 'status',
-        componentId: 'opl_packages',
-      }),
-      (error: any) => {
-        assert.equal(error.code, 'contract_json_invalid');
-        assert.equal(error.details.failure_code, 'agent_package_lock_authority_corrupt');
-        return true;
-      },
-    );
+    const descriptorIndependent = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
+      operation: 'status',
+      componentId: 'opl_packages',
+    }) as Record<string, any>;
+    assert.equal(descriptorIndependent.managed_update.components[0].state, 'current');
     assert.equal(fs.readFileSync(lockPath, 'utf8'), corruptLockBytes);
   } finally {
     for (const [key, value] of previousEnv) {
@@ -502,7 +487,7 @@ exit 2
   }
 });
 
-test('OPL Packages evaluates MAG and OPL Flow against their effective developer targets', async () => {
+test('OPL Packages reads developer checkout readiness from the native module projection', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-update-developer-targets-'));
   const homeDir = path.join(root, 'home');
   const stateDir = path.join(root, 'state');
@@ -555,25 +540,15 @@ test('OPL Packages evaluates MAG and OPL Flow against their effective developer 
       componentId: 'opl_packages',
     }) as Record<string, any>;
     const currentPackages = current.managed_update.components[0];
-    const magCurrent = currentPackages.current.package_lock_states.find(
-      (entry: Record<string, unknown>) => entry.package_id === 'mag',
-    );
-    const flowCurrent = currentPackages.current.package_lock_states.find(
-      (entry: Record<string, unknown>) => entry.package_id === 'opl-flow',
+    const magCurrent = currentPackages.current.module_states.find(
+      (entry: Record<string, unknown>) => entry.module_id === 'medautogrant',
     );
 
     assert.equal(currentPackages.state, 'current');
     assert.equal(currentPackages.plan.action, 'none');
-    for (const entry of [magCurrent, flowCurrent]) {
-      assert.equal(entry.state, 'current');
-      assert.equal(entry.reason, 'installed_identity_matches_developer_checkout_target');
-      assert.equal(entry.currentness.status, 'current');
-      assert.equal(entry.currentness.target_version, developerVersion);
-      assert.equal(entry.target.source_kind, 'developer_checkout_override');
-      assert.equal(entry.target.package_version, developerVersion);
-      assert.equal(entry.target.source_artifact_ref, null);
-      assert.notEqual(entry.target.package_version, releaseVersion);
-    }
+    assert.equal(currentPackages.current.projection_source, 'native_module_directory');
+    assert.equal(Object.hasOwn(currentPackages.current, 'package_lock_states'), false);
+    assert.equal(magCurrent.install_origin, 'invalid_checkout');
 
     fs.appendFileSync(mag.skillPath, '\nDeveloper checkout changed.\n');
     const drifted = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
@@ -581,21 +556,14 @@ test('OPL Packages evaluates MAG and OPL Flow against their effective developer 
       componentId: 'opl_packages',
     }) as Record<string, any>;
     const driftedPackages = drifted.managed_update.components[0];
-    const magDrifted = driftedPackages.current.package_lock_states.find(
-      (entry: Record<string, unknown>) => entry.package_id === 'mag',
-    );
-    const flowStillCurrent = driftedPackages.current.package_lock_states.find(
-      (entry: Record<string, unknown>) => entry.package_id === 'opl-flow',
+    const magDrifted = driftedPackages.current.module_states.find(
+      (entry: Record<string, unknown>) => entry.module_id === 'medautogrant',
     );
 
-    assert.equal(driftedPackages.state, 'update_available');
-    assert.equal(driftedPackages.plan.action, 'update');
-    assert.equal(magDrifted.state, 'update_available');
-    assert.equal(magDrifted.reason, 'developer_checkout_target_differs');
-    assert.equal(magDrifted.currentness.status, 'update_available');
-    assert.equal(magDrifted.currentness.reasons.includes('developer_payload_changed'), true);
-    assert.equal(magDrifted.target.package_version, developerVersion);
-    assert.equal(flowStillCurrent.state, 'current');
+    assert.equal(driftedPackages.state, 'current');
+    assert.equal(driftedPackages.plan.action, 'none');
+    assert.equal(magDrifted.install_origin, 'invalid_checkout');
+    assert.equal(Object.hasOwn(driftedPackages.current, 'package_lock_states'), false);
   } finally {
     for (const [key, value] of previousEnv) {
       if (value === undefined) delete process.env[key];
@@ -648,7 +616,7 @@ test('canonical bundled projection freezes root6 closure7 and OPL Flow policy v2
   assert.match(payload.content_lock.digest, /^sha256:[0-9a-f]{64}$/);
 });
 
-test('component-neutral apply runs eligible Base and bundled Packages while missing package roots fail closed', () => {
+test('component-neutral apply runs bundled Packages while missing package roots fail closed', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-update-rootless-bundled-'));
   const homeDir = path.join(root, 'home');
   const stateDir = path.join(root, 'state');
@@ -693,21 +661,17 @@ test('component-neutral apply runs eligible Base and bundled Packages while miss
     const output = runCli(['update', 'apply'], env) as Record<string, any>;
     assert.deepEqual(
       output.managed_update.components.map((entry: Record<string, unknown>) => entry.component_id),
-      ['opl_base', 'opl_packages'],
+      ['opl_packages'],
     );
     assert.deepEqual(
       output.managed_update.execution.adapter_results.map(
         (entry: Record<string, unknown>) => entry.component_id,
       ),
-      ['opl_base', 'opl_packages'],
-    );
-    const baseAdapter = output.managed_update.execution.adapter_results.find(
-      (entry: Record<string, unknown>) => entry.component_id === 'opl_base',
+      ['opl_packages'],
     );
     const adapter = output.managed_update.execution.adapter_results.find(
       (entry: Record<string, unknown>) => entry.component_id === 'opl_packages',
     );
-    assert.equal(baseAdapter.adapter_id, 'runtime_substrate_adapter');
     assert.equal(adapter.adapter_id, 'capability_packages_adapter');
     const reconciliation = adapter.result.bundled_full_runtime_reconciliation;
     assert.equal(adapter.status, 'failed');

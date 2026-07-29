@@ -1058,7 +1058,7 @@ test('first-party activation uses the installed package without reading an inval
   }
 });
 
-test('developer checkout policy tracks Release Set currentness without accepting an arbitrary checkout path', () => {
+test('developer checkout policy stays explicit and is not a managed-update authority', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-developer-currentness-'));
   const homeDir = path.join(root, 'home');
   const stateDir = path.join(root, 'state');
@@ -1141,38 +1141,32 @@ test('developer checkout policy tracks Release Set currentness without accepting
       catalog_payload: JSON.parse(fs.readFileSync(oldReleaseSet.catalogPath, 'utf8')),
     });
     fs.writeFileSync(releaseCatalogCache, cachedOldReleaseSet);
+    const legacyLockPath = path.join(stateDir, 'agent-package-locks.json');
+    const legacyLockBytes = fs.readFileSync(legacyLockPath, 'utf8');
     const preview = runCli(['packages', 'update', '--dry-run'], nextEnv) as any;
     const previewPackages = preview.managed_update.components.find(
       (entry: any) => entry.component_id === 'opl_packages',
     );
-    const previewMas = previewPackages.current.package_lock_states.find(
-      (entry: any) => entry.package_id === 'mas',
-    );
-    assert.equal(previewMas.state, 'update_available');
-    assert.equal(previewMas.currentness.status, 'update_available');
+    assert.equal(previewPackages.current.projection_source, 'native_module_directory');
+    assert.equal(Object.hasOwn(previewPackages.current, 'package_lock_states'), false);
+    assert.equal(previewPackages.plan.action, 'manual_review');
     assert.equal(fs.readFileSync(releaseCatalogCache, 'utf8'), cachedOldReleaseSet);
 
     const updated = runCli(['update', 'apply'], nextEnv) as any;
     const adapter = updated.managed_update.execution.adapter_results.find(
       (entry: any) => entry.component_id === 'opl_packages',
     );
-    const target = adapter.result.targets.find((entry: any) => entry.target_id === 'mas');
-    assert.equal(target.status, 'completed', JSON.stringify(target, null, 2));
-    assert.equal(target.action, 'source_reconcile');
-    assert.equal(target.currentness.status, 'update_available');
-    assert.ok(target.currentness.reasons.includes('package_version_changed'));
-    assert.equal(target.result.package_lock.package_version, '0.1.1');
-    assert.equal(target.result.package_lock.source_kind, 'developer_checkout_override');
-    assert.equal(target.result.lifecycle_receipt.trigger, 'managed_update_kernel_apply');
+    assert.equal(adapter, undefined);
+    assert.equal(fs.readFileSync(legacyLockPath, 'utf8'), legacyLockBytes);
 
-    const lockIndex = JSON.parse(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'));
+    const lockIndex = parseJsonText(fs.readFileSync(legacyLockPath, 'utf8')) as any;
     assert.deepEqual(
       lockIndex.packages
         .map((lock: any) => [lock.package_id, lock.package_version, lock.source_kind])
         .sort((left: string[], right: string[]) => left[0].localeCompare(right[0])),
       [
-        ['mas', '0.1.1', 'developer_checkout_override'],
-        ['mas-scholar-skills', '0.1.1', 'developer_checkout_override'],
+        ['mas', '0.1.0', 'developer_checkout_override'],
+        ['mas-scholar-skills', '0.1.0', 'developer_checkout_override'],
       ],
     );
   } finally {

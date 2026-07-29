@@ -1,6 +1,5 @@
 import { readOplUpdateChannel, readOplWorkspaceRoot } from '../../kernel/system-preferences.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
-import { parseJsonText } from '../../kernel/json-file.ts';
 import { resolveCodexVersion } from './system-installation/engine-helpers.ts';
 import { buildOplModules } from './system-installation/modules.ts';
 import {
@@ -41,19 +40,10 @@ import {
 } from './managed-update-owner-boundary.ts';
 import { buildInstallationCarrierComponent } from './managed-update-kernel-parts/installation-carrier.ts';
 import { buildRuntimeSubstrateComponent } from './managed-update-kernel-parts/runtime-substrate.ts';
-import { readManagedUpdateOplAgentPackageProjection } from './agent-package-registry.ts';
-import { resolveFirstPartyPackageCatalog } from './agent-package-first-party.ts';
-import { agentPackageTargetCurrentness } from './agent-package-registry-parts/currentness.ts';
-import {
-  developerCheckoutPackageCurrentness,
-  loadDeveloperCheckoutPackageSource,
-} from './agent-package-registry-parts/developer-checkout-package-source.ts';
 import {
   readFirstPartyPackageCatalogSnapshot,
   resolveFirstPartyPackageCatalogSnapshot,
 } from './agent-package-registry-parts/release-catalog-cache.ts';
-import { resolveAgentPackageEffectiveSourcePolicy } from './agent-package-registry-parts/source-policy.ts';
-import { selectManagedCatalogPackageVersion } from './agent-package-registry-parts/capability-reconciliation.ts';
 import { readBundledFullRuntimePackageCatalog } from './agent-package-registry-parts/bundled-full-runtime-catalog.ts';
 import type { FirstPartyDirectoryCatalogSnapshot } from './agent-package-registry-parts/directory.ts';
 import { asRecord, booleanValue, stringValue } from './managed-update-kernel-parts/shared.ts';
@@ -123,197 +113,36 @@ function buildCapabilityPackagesComponent(
     source_policy: entry.source_policy ?? null,
     git: entry.git ?? null,
   }));
-  const installedPackageProjection = readManagedUpdateOplAgentPackageProjection();
-  const installedPackages = installedPackageProjection.packages;
-  const legacyAuthorityCorrupt =
-    installedPackageProjection.legacy_authority.authority_status === 'corrupt';
-  const bundledCatalog = readBundledFullRuntimePackageCatalog();
-  const dependencyIds = new Set(installedPackages.flatMap((lock) =>
-    (lock.resolved_dependencies ?? []).map((dependency) => dependency.package_id)));
-  const packageStates = installedPackages
-    .filter((lock) => !dependencyIds.has(lock.package_id))
-    .map((lock) => {
-      const firstParty = resolveFirstPartyPackageCatalog(lock.package_id);
-      const sourcePolicy = resolveAgentPackageEffectiveSourcePolicy(lock.package_id, {
-        profile: 'fast',
-        installedSourceKind: lock.source_kind,
-      });
-      const developerSourceSelected = sourcePolicy.desired_source_kind === 'developer_checkout_override';
-      const bundledSourceSelected = sourcePolicy.desired_source_kind === 'bundled_full_runtime_modules';
-      let developerTarget = null;
-      let developerTargetInvalid = false;
-      if (firstParty
-        && developerSourceSelected
-        && sourcePolicy.developer_checkout_available
-        && sourcePolicy.developer_checkout_path) {
-        try {
-          developerTarget = loadDeveloperCheckoutPackageSource(
-            lock.package_id,
-            sourcePolicy.developer_checkout_path,
-          );
-        } catch {
-          developerTargetInvalid = true;
-        }
-      }
-      const sourceReconciliationAvailable = Boolean(
-        firstParty
-        && sourcePolicy.desired_source_kind
-        && lock.source_kind !== sourcePolicy.desired_source_kind
-        && (
-          sourcePolicy.desired_source_kind === 'first_party_managed_cohort'
-          || sourcePolicy.desired_source_kind === 'bundled_full_runtime_modules'
-          || sourcePolicy.developer_checkout_available
-        ),
-      );
-      const manualReason = !firstParty || !sourcePolicy.desired_source_kind
-        ? 'external_or_unowned_package_source'
-        : developerSourceSelected && !sourcePolicy.developer_checkout_available
-          ? 'developer_checkout_unavailable'
-          : developerTargetInvalid
-            ? 'developer_checkout_package_source_invalid'
-          : !lock.content_digest || !lock.manifest_sha256 || !lock.lock_ref
-            ? 'package_content_identity_incomplete'
-            : lock.physical_surface?.failure_reason
-              ? 'package_physical_surface_requires_repair'
-              : null;
-      let target = null;
-      let currentness = null;
-      if (developerTarget) {
-        currentness = developerCheckoutPackageCurrentness({
-          lock,
-          ownerManifest: developerTarget.ownerManifest,
-          source: developerTarget.source,
-        });
-      } else if (bundledSourceSelected && firstParty) {
-        try {
-          const catalogEntry = bundledCatalog.entries.get(lock.package_id)!;
-          const payload = asRecord(parseJsonText(catalogEntry.payloadManifestJson));
-          const contentLock = asRecord(payload?.content_lock);
-          target = {
-            ...selectManagedCatalogPackageVersion(bundledCatalog.catalog, lock.package_id),
-            content_digest: stringValue(contentLock, 'digest'),
-          };
-          const identityCurrentness = agentPackageTargetCurrentness({
-            lock,
-            target,
-            desiredSourceKind: 'bundled_full_runtime_modules',
-          });
-          const carrierReasons = [
-            lock.owner_source_commit === catalogEntry.ownerSourceCommit
-              ? null
-              : 'owner_source_commit_changed',
-            lock.carrier_authority?.catalog_ref === bundledCatalog.catalogRef
-              ? null
-              : 'carrier_catalog_ref_changed',
-            lock.carrier_authority?.catalog_sha256 === bundledCatalog.catalogSha256
-              ? null
-              : 'carrier_catalog_digest_changed',
-          ].filter((reason): reason is string => reason !== null);
-          currentness = carrierReasons.length === 0
-            ? identityCurrentness
-            : {
-                ...identityCurrentness,
-                status: 'update_available',
-                reasons: [...identityCurrentness.reasons, ...carrierReasons],
-              };
-        } catch {
-          target = null;
-        }
-      } else if (!developerSourceSelected && firstParty && releaseCatalog) {
-        try {
-          target = selectManagedCatalogPackageVersion(releaseCatalog.catalog, lock.package_id);
-          if (sourcePolicy.desired_source_kind) {
-            currentness = agentPackageTargetCurrentness({
-              lock,
-              target,
-              desiredSourceKind: sourcePolicy.desired_source_kind,
-            });
-          }
-        } catch {
-          target = null;
-        }
-      }
-      const state: ManagedUpdateComponentState = manualReason
-        ? 'skipped_manual_required'
-        : sourceReconciliationAvailable
-            ? 'update_available'
-            : currentness?.status === 'current'
-              ? 'current'
-              : 'update_available';
-      return {
-        package_id: lock.package_id,
-        state,
-        reason: manualReason
-          ?? (sourceReconciliationAvailable
-              ? 'source_policy_reconciliation_available'
-              : currentness?.status === 'current'
-                ? developerTarget
-                  ? 'installed_identity_matches_developer_checkout_target'
-                  : 'installed_identity_matches_release_set_target'
-                : developerTarget
-                  ? 'developer_checkout_target_differs'
-                  : bundledSourceSelected
-                    ? 'bundled_full_runtime_catalog_target_differs'
-                    : releaseCatalog
-                      ? 'release_set_target_differs'
-                      : 'release_set_refresh_required'),
-        source_kind: lock.source_kind,
-        source_policy: sourcePolicy,
-        manifest_sha256: lock.manifest_sha256,
-        content_digest: lock.content_digest,
-        artifact_digest: lock.artifact_digest ?? null,
-        lock_ref: lock.lock_ref,
-        currentness,
-        target: developerTarget
-          ? {
-              source_kind: 'developer_checkout_override',
-              package_version: developerTarget.ownerManifest.version,
-              manifest_sha256: developerTarget.source.owner_manifest_sha256,
-              content_digest: developerTarget.source.payload_digest,
-              artifact_digest: null,
-              source_artifact_ref: null,
-              checkout_path: developerTarget.source.checkout_path,
-              owner_source_commit: developerTarget.source.source_git_head_sha,
-              tree_sha256: developerTarget.source.tree_sha256,
-            }
-          : target
-            ? {
-                source_kind: bundledSourceSelected
-                  ? 'bundled_full_runtime_modules'
-                  : 'first_party_managed_cohort',
-                package_version: target.package_version,
-                manifest_sha256: target.manifest_sha256,
-                content_digest: target.content_digest,
-                artifact_digest: target.artifact_digest,
-                source_artifact_ref: target.source_artifact_ref,
-                catalog_ref: bundledSourceSelected
-                  ? bundledCatalog.catalogRef
-                  : releaseCatalog?.catalog_ref ?? null,
-                catalog_digest: bundledSourceSelected
-                  ? bundledCatalog.catalogSha256
-                  : releaseCatalog?.catalog_digest ?? null,
-              }
-            : null,
-      };
-    });
-  const legacyStates = process.env.OPL_PACKAGE_CHANNEL_MANIFEST_REF?.trim() ? moduleStates : [];
-  const targetStates = packageStates.length > 0 ? packageStates : legacyStates;
-  const failedWithRepairCount = targetStates.filter((entry) => entry.state === 'failed_with_repair').length;
-  const updateCount = targetStates.filter((entry) => entry.state === 'update_available').length;
-  const manualCount = targetStates.filter((entry) => entry.state === 'skipped_manual_required').length;
-  const cleanManagedTargetsCount = targetStates.filter((entry) => entry.state === 'update_available').length;
-  const state: ManagedUpdateComponentState = legacyAuthorityCorrupt
-    ? 'skipped_manual_required'
-    : failedWithRepairCount > 0
+  const bundledRuntimeRequested = process.env.OPL_FULL_RUNTIME_HOME !== undefined
+    || moduleStates.some((entry) => entry.install_origin === 'full_runtime');
+  const bundledCatalog = bundledRuntimeRequested
+    ? readBundledFullRuntimePackageCatalog()
+    : null;
+  const packageChannelConfigured = Boolean(process.env.OPL_PACKAGE_CHANNEL_MANIFEST_REF?.trim());
+  const targetStates = bundledRuntimeRequested || packageChannelConfigured ? moduleStates : [];
+  const bundledReconciliationRequired = bundledRuntimeRequested
+    && targetStates.some((entry) => entry.state !== 'current');
+  const failedWithRepairCount = bundledRuntimeRequested
+    ? 0
+    : targetStates.filter((entry) => entry.state === 'failed_with_repair').length;
+  const nativeUpdateCount = targetStates.filter((entry) => entry.state === 'update_available').length;
+  const updateCount = nativeUpdateCount > 0
+    ? nativeUpdateCount
+    : bundledReconciliationRequired ? 1 : 0;
+  const manualCount = bundledRuntimeRequested
+    ? 0
+    : targetStates.filter((entry) => entry.state === 'skipped_manual_required').length;
+  const cleanManagedTargetsCount = bundledReconciliationRequired
+    ? Math.max(targetStates.length, 1)
+    : nativeUpdateCount;
+  const state: ManagedUpdateComponentState = failedWithRepairCount > 0
       ? 'failed_with_repair'
       : updateCount > 0
         ? 'update_available'
         : manualCount > 0
           ? 'skipped_manual_required'
           : 'current';
-  const action = legacyAuthorityCorrupt
-    ? 'manual_review'
-    : failedWithRepairCount > 0
+  const action = failedWithRepairCount > 0
       ? 'install'
       : updateCount > 0
         ? 'update'
@@ -326,15 +155,12 @@ function buildCapabilityPackagesComponent(
     'sync_plugin_registry',
     'sync_plugin_packaged_skills',
   ];
-  const cleanManagedScopeSafe = cleanManagedTargetsCount > 0 && !legacyAuthorityCorrupt;
+  const cleanManagedScopeSafe = cleanManagedTargetsCount > 0 && manualCount === 0;
   const autoApplyEligible = cleanManagedScopeSafe && action !== 'none';
-  const managedBundledRootCount = packageStates.filter((entry) =>
-    entry.source_policy.desired_source_kind === 'bundled_full_runtime_modules').length;
-  const packageApplyCommand = managedBundledRootCount > 0
+  const packageApplyCommand = bundledRuntimeRequested
     ? 'opl update apply --json'
     : 'opl packages update --json';
   const blockedReasons = [
-    ...(legacyAuthorityCorrupt ? ['legacy_lock_authority_requires_repair'] : []),
     ...(manualCount > 0 ? ['manual_required_targets_are_detect_only_and_skipped'] : []),
   ];
   const reloadRecommended = autoApplyEligible;
@@ -358,7 +184,7 @@ function buildCapabilityPackagesComponent(
   });
   const route = ownerRoute({
     owner: 'one-person-lab-managed-modules',
-    authority_surface: 'Release Set catalog, effective Package source policy, installed lock identity, and protected runtime source roots',
+    authority_surface: 'Native module carrier state, package-channel content identity, and protected runtime source roots',
     route_kind: 'clean_managed_package_executor',
     readback_ref: 'opl connect modules --json',
     apply_owner: 'opl_connect_managed_module_reconciler',
@@ -386,7 +212,7 @@ function buildCapabilityPackagesComponent(
       receipt_projection: 'component_receipt_with_owner_route',
       diagnostic_only: false,
       notes: [
-        'Runner may reconcile clean digest-locked managed or developer Package locks, but it never overwrites developer checkout content or owns domain truth.',
+        'Runner may reconcile clean content-addressed native module carriers, but it never overwrites developer checkout content or owns domain truth.',
       ],
     }),
     label: 'OPL Packages',
@@ -402,7 +228,7 @@ function buildCapabilityPackagesComponent(
         developer_checkout_policy: 'source_reconcile_then_protect_no_channel_overwrite',
         codex_skill_plugin_sync: 'same_transaction_post_apply',
         profile_semantic_merge: 'fail_closed_owner_handoff',
-        receipt_policy: 'single_package_transaction_receipt',
+        receipt_policy: 'native_module_owner_receipt',
       },
       oci_distribution: {
         descriptor_media_type: 'application/vnd.opl.capability-package.channel.v1+json',
@@ -412,27 +238,25 @@ function buildCapabilityPackagesComponent(
         digest_field: MANAGED_UPDATE_OWNER_FIELDS.toDigest,
       },
       default_modules_count: defaultModules.length,
+      managed_module_count: targetStates.length,
+      projection_source: 'native_module_directory',
       module_states: moduleStates,
-      installed_root_package_count: packageStates.length,
-      package_lock_states: packageStates,
-      legacy_authority: installedPackageProjection.legacy_authority,
       release_catalog: releaseCatalog ? {
         freshness: releaseCatalog.freshness,
         catalog_ref: releaseCatalog.catalog_ref,
         catalog_digest: releaseCatalog.catalog_digest,
         checked_at: releaseCatalog.checked_at,
       } : null,
-      bundled_full_runtime_catalog: managedBundledRootCount > 0 ? {
+      bundled_full_runtime_catalog: bundledCatalog ? {
         catalog_ref: bundledCatalog.catalogRef,
         catalog_digest: bundledCatalog.catalogSha256,
-        root_package_count: packageStates.length,
-        managed_root_package_count: managedBundledRootCount,
+        catalog_package_count: bundledCatalog.entries.size,
       } : null,
     },
     target: state === 'current'
       ? null
       : {
-        source: 'Effective Package source target selected by Framework source policy',
+        source: 'Native module carrier target selected by Framework module source policy',
         content_identity: 'digest_or_source_fingerprint_required_in_receipt',
         oci_descriptor: {
           media_type: 'application/vnd.opl.capability-package.channel.v1+json',
@@ -446,24 +270,10 @@ function buildCapabilityPackagesComponent(
         state === 'current' ? 'True' : 'False',
         state === 'current'
           ? 'CapabilityPackagesCurrent'
-          : legacyAuthorityCorrupt
-            ? 'LegacyLockAuthorityRequiresRepair'
-            : 'CapabilityPackageMaintenanceAvailable',
+          : 'CapabilityPackageMaintenanceAvailable',
         state === 'current'
-          ? 'Installed first-party Package locks match the effective source policy and selected source targets.'
-          : legacyAuthorityCorrupt
-            ? 'Native descriptor projection remains available, but legacy Package maintenance is blocked until the corrupt lock authority is repaired.'
-            : 'First-party Package maintenance or manual review is required.',
-      ),
-      condition(
-        'LegacyAuthorityReadable',
-        legacyAuthorityCorrupt ? 'False' : 'True',
-        legacyAuthorityCorrupt
-          ? 'LegacyLockAuthorityCorrupt'
-          : 'LegacyLockAuthorityReadableOrAbsent',
-        legacyAuthorityCorrupt
-          ? 'The legacy Package lock authority is corrupt; descriptor-owned Packages remain projected without replacing its bytes.'
-          : 'The legacy Package lock authority is readable or not present.',
+          ? 'Native module carriers match their selected package-channel targets.'
+          : 'Native module maintenance or manual review is required.',
       ),
       condition(
         'DigestPinned',
@@ -476,8 +286,8 @@ function buildCapabilityPackagesComponent(
         manualCount > 0 ? 'False' : 'True',
         manualCount > 0 ? 'ManualSourceVisible' : 'CleanManagedRootsOnly',
         manualCount > 0
-          ? 'At least one Package is unowned, missing content identity, has an unavailable selected checkout, or requires physical repair.'
-          : 'Silent Package maintenance is limited to clean digest-locked first-party Package locks.',
+          ? 'At least one native module has an unavailable, dirty, or user-managed source.'
+          : 'Silent Package maintenance is limited to clean content-addressed native module roots.',
       ),
     ],
     lifecycle: KERNEL_LIFECYCLE,
@@ -486,7 +296,9 @@ function buildCapabilityPackagesComponent(
       mode: cleanManagedScopeSafe ? 'auto_apply' : 'manual_required',
       eligible: autoApplyEligible,
       app_background_safe: cleanManagedScopeSafe,
-      scope: packageStates.length > 0 ? 'clean_digest_locked_installed_root_packages_only' : 'legacy_explicit_channel_roots_only',
+      scope: bundledRuntimeRequested
+        ? 'catalog_owned_bundled_full_runtime_root_packages_only'
+        : 'native_package_channel_modules_only',
       command_ref: autoApplyEligible ? packageApplyCommand : null,
       blocked_reasons: blockedReasons,
     },
@@ -494,7 +306,7 @@ function buildCapabilityPackagesComponent(
     post_apply_guidance: {
       required: autoApplyEligible,
       command_refs: autoApplyEligible
-        ? ['opl packages status --json']
+        ? ['opl connect modules --json']
         : [],
       reload_guidance: reloadGuidance,
     },
@@ -503,22 +315,22 @@ function buildCapabilityPackagesComponent(
       summary: action === 'none'
         ? 'No managed capability package maintenance is required.'
         : action === 'manual_review'
-          ? 'Manual review is required before OPL can update one or more capability package roots.'
-          : 'Reconcile installed Package locks against effective source-policy targets, then sync Codex-visible skills and plugins.',
+          ? 'Manual review is required before OPL can update one or more native module roots.'
+          : 'Reconcile native module carriers against package-channel targets, then sync Codex-visible skills and plugins.',
       command_refs: action === 'manual_review'
         ? [
           manualCommand(
             'inspect_packages',
-            'opl packages status --json',
-            'Inspect canonical Package state and manual source or checkout-availability blockers.',
+            'opl connect modules --json',
+            'Inspect native module state and manual source or checkout-availability blockers.',
           ),
         ]
         : action === 'none'
           ? [
             readOnlyCommand(
               'inspect_packages',
-              'opl packages status --json',
-              'Read the canonical package lifecycle projection.',
+              'opl connect modules --json',
+              'Read the native module carrier projection.',
             ),
           ]
           : [
@@ -549,8 +361,8 @@ function buildCapabilityPackagesComponent(
     },
     notes: [
       'GHCR package channel is the ordinary non-development source for managed capability packages.',
-      'Developer checkout content remains protected while its Package lock is compared with and reprojected from the Release Set target.',
-      'App-carried bundled Full runtime locks are compared with the canonical bundled catalog and updated only through the managed update kernel.',
+      'Developer checkout content remains protected while native module state is compared with the selected package-channel target.',
+      'App-carried bundled Full runtime modules are reconciled against the canonical bundled catalog only through the managed update kernel.',
       'Package-channel freshness does not claim domain readiness, artifact authority, quality verdict, or export readiness.',
     ],
   });
