@@ -89,21 +89,59 @@ test('Standard operation control freezes once, resume cannot refresh it, and app
       /requires an existing Standard operation control/,
     );
 
-    assertTypedContractFailure(
-      () => admitReleaseBundleOperation({
-        bundleDigest,
-        storeRoot: fixture.storeRoot,
-        now: '2026-07-21T00:04:00.000Z',
-        ...appendFullOperation,
-      }),
-      /requires a qualified Standard checkpoint/,
-    );
+    const missingBuild = createFixture();
+    try {
+      const missingBundleDigest = missingBuild.frozen.release_bundle_freeze.bundle_digest;
+      assertTypedContractFailure(
+        () => admitReleaseBundleOperation({
+          bundleDigest: missingBundleDigest,
+          storeRoot: missingBuild.storeRoot,
+          now: '2026-07-21T00:04:00.000Z',
+          ...appendFullOperation,
+        }),
+        /requires a built Standard checkpoint/,
+      );
+    } finally {
+      fs.rmSync(missingBuild.root, { recursive: true, force: true });
+    }
     buildReleaseBundle({
       bundleDigest,
       executorReceiptPath: writeBuildReceipt({ root: fixture.root, bundleDigest }),
       storeRoot: fixture.storeRoot,
       now: '2026-07-21T00:04:00.000Z',
     });
+    assertTypedContractFailure(
+      () => admitReleaseBundleOperation({
+        bundleDigest,
+        storeRoot: fixture.storeRoot,
+        now: '2026-07-21T00:04:30.000Z',
+        ...appendFullOperation,
+        operationId: standardOperation.operationId,
+      }),
+      /independent operation identity/,
+    );
+    const appendBeforeQualification = admitReleaseBundleOperation({
+      bundleDigest,
+      storeRoot: fixture.storeRoot,
+      now: '2026-07-21T00:04:30.000Z',
+      ...appendFullOperation,
+    }).release_bundle_operation_admit.operation_control;
+    assert.equal(appendBeforeQualification.track, 'full');
+    assert.equal(appendBeforeQualification.operation_kind, 'append_full');
+
+    const builtCheckpointDirectory = path.join(fixture.root, 'standard-built-append-control');
+    const builtCheckpoint = exportReleaseBundleCheckpoint({
+      bundleDigest,
+      outputDirectory: builtCheckpointDirectory,
+      storeRoot: fixture.storeRoot,
+    }).release_bundle_checkpoint_export;
+    assert.equal(builtCheckpoint.checkpoint_stage, 'standard_built');
+    const importedBuilt = importReleaseBundleCheckpoint({
+      checkpointPath: path.join(builtCheckpointDirectory, 'checkpoint.json'),
+      storeRoot: path.join(fixture.root, 'standard-built-append-import'),
+    }).release_bundle_checkpoint_import;
+    assert.equal(importedBuilt.checkpoint_stage, 'standard_built');
+    assert.equal(importedBuilt.live_mutation_compatible, true);
     verifyReleaseBundle({
       bundleDigest,
       track: 'standard',
@@ -115,22 +153,7 @@ test('Standard operation control freezes once, resume cannot refresh it, and app
       storeRoot: fixture.storeRoot,
       now: '2026-07-21T00:05:00.000Z',
     });
-    assertTypedContractFailure(
-      () => admitReleaseBundleOperation({
-        bundleDigest,
-        storeRoot: fixture.storeRoot,
-        now: '2026-07-21T00:06:00.000Z',
-        ...appendFullOperation,
-        operationId: standardOperation.operationId,
-      }),
-      /independent operation identity/,
-    );
-    const append = admitReleaseBundleOperation({
-      bundleDigest,
-      storeRoot: fixture.storeRoot,
-      now: '2026-07-21T00:06:00.000Z',
-      ...appendFullOperation,
-    }).release_bundle_operation_admit.operation_control;
+    const append = appendBeforeQualification;
     assert.notEqual(append.operation_id, admitted.operation_control.operation_id);
     assert.notEqual(append.operation_deadline_at, admitted.operation_control.operation_deadline_at);
   } finally {
