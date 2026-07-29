@@ -12,7 +12,6 @@ import { stringValue } from '../../../kernel/json-record.ts';
 import { ensureOplStateDir, resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
 import type {
-  AgentPackageLifecycleReceipt,
   AgentPackageLock,
   AgentPackageLockIndex,
 } from './types.ts';
@@ -229,7 +228,6 @@ export function readLockIndex(): AgentPackageLockIndex {
 
 export function writePackageTransaction(
   index: AgentPackageLockIndex,
-  receipts: AgentPackageLifecycleReceipt[],
   options: PackageTransactionWriteOptions = {},
 ) {
   const paths = ensureOplStateDir();
@@ -242,7 +240,6 @@ export function writePackageTransaction(
     ? fs.readFileSync(legacyLedgerPath)
     : null;
   const normalizedIndex = normalizeLockIndex(index, paths.agent_package_lock_file);
-  void receipts;
   try {
     if (
       options.removeEmptyAuthorities

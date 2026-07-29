@@ -1476,7 +1476,7 @@ async function applyManifestPackageLock(
     const retiredLockIds = new Set(retiredLocks.map((entry) => entry.package_id));
     nextIndex.packages = nextIndex.packages.filter((entry) => !retiredLockIds.has(entry.package_id));
     try {
-      writePackageTransaction(nextIndex, receipts);
+      writePackageTransaction(nextIndex);
     } catch (error) {
       for (const scopeMaterialization of scopeMaterializations) {
         rollbackCapabilityScopeTransaction(scopeMaterialization);
@@ -3099,7 +3099,7 @@ async function runOplAgentPackageRepairUnlocked(input: AgentPackageRepairInput) 
   };
   if (!input.dryRun) {
     index.packages[lockIndex] = repairedLock;
-    writePackageTransaction(index, [receipt]);
+    writePackageTransaction(index);
   }
   return {
     version: 'g2',
@@ -3325,7 +3325,7 @@ function runOplAgentPackageRollbackUnlocked(input: AgentPackagePackageActionInpu
           package_locks: structuredClone(currentLocks),
           },
         );
-        writePackageTransaction(nextIndex, [receipt]);
+        writePackageTransaction(nextIndex);
       } catch (error) {
         if (runtimeSourceMutation) rollbackManagedRuntimeSourceMutation(runtimeSourceMutation);
         for (const surface of restoredPhysicalSurfaces.values()) {
@@ -3528,7 +3528,7 @@ function runOplAgentPackageRollbackUnlocked(input: AgentPackagePackageActionInpu
             },
           )
         : remainingLastKnownGood;
-      writePackageTransaction(nextIndex, receipts);
+      writePackageTransaction(nextIndex);
     } catch (error) {
       if (runtimeSourceMutation) rollbackManagedRuntimeSourceMutation(runtimeSourceMutation);
       for (const surface of restoredPhysicalSurfaces.values()) {
@@ -3848,7 +3848,7 @@ async function ensureOplAgentPackageScopeActivationUnlocked(input: AgentPackageP
   useReceipt.use_binding = useBinding;
   if (!input.dryRun) {
     try {
-      writePackageTransaction(nextIndex, activationReceipt ? [activationReceipt, useReceipt] : [useReceipt]);
+      writePackageTransaction(nextIndex);
     } catch (error) {
       for (const materialization of materializations) {
         rollbackCapabilityScopeTransaction(materialization);
@@ -4156,7 +4156,7 @@ function runOplAgentPackageProfileApplyUnlocked(input: AgentPackageProfileApplyI
   };
   if (!input.dryRun) {
     index.packages[lockIndex] = updatedLock;
-    writePackageTransaction(index, [receipt]);
+    writePackageTransaction(index);
   }
   return {
     version: 'g2',
@@ -4289,7 +4289,7 @@ function runOplAgentPackageUninstallUnlocked(input: AgentPackagePackageActionInp
       : (nextIndex.last_known_good_transactions ?? [])
           .filter((entry) => entry.root_package_id !== packageId);
     try {
-      writePackageTransaction(nextIndex, [receipt]);
+      writePackageTransaction(nextIndex);
     } catch (error) {
       rollbackManagedRuntimeSourceMutation(runtimeSourceMutation);
       rematerializePhysicalCodexSurfaceFromLock(lock, false);
@@ -4386,7 +4386,7 @@ function runOplAgentPackageExposureActionUnlocked(
   };
   if (!input.dryRun) {
     index.packages[lockIndex] = updatedLock;
-    writePackageTransaction(index, [receipt]);
+    writePackageTransaction(index);
   }
   return {
     version: 'g2',

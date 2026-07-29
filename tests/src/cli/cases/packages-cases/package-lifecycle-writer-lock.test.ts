@@ -137,7 +137,7 @@ test('package lock authority rejects corruption while legacy receipt history is 
           && error?.details?.write_allowed === false,
       );
       assert.throws(
-        () => writePackageTransaction(emptyLockIndex(), []),
+        () => writePackageTransaction(emptyLockIndex()),
         (error: any) => error?.details?.failure_code === 'agent_package_lock_authority_corrupt',
       );
       assert.deepEqual(fs.readFileSync(lockPath), corruptLockBytes);
@@ -146,7 +146,7 @@ test('package lock authority rejects corruption while legacy receipt history is 
       fs.writeFileSync(lockPath, formatJsonPayload(emptyLockIndex()));
       fs.writeFileSync(ledgerPath, '{ obsolete receipt history\n');
       const validLockBytes = fs.readFileSync(lockPath);
-      writePackageTransaction(emptyLockIndex(), []);
+      writePackageTransaction(emptyLockIndex());
       assert.deepEqual(fs.readFileSync(lockPath), validLockBytes);
       assert.equal(fs.existsSync(ledgerPath), false);
     });

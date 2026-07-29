@@ -232,7 +232,7 @@ function retireDescriptorOwnedLegacyState(input: {
   };
   if (!mutationRequired || input.dryRun) return result;
 
-  writePackageTransaction(nextIndex, [], {
+  writePackageTransaction(nextIndex, {
     removeEmptyAuthorities: true,
   });
   try {
@@ -257,7 +257,7 @@ function retireDescriptorOwnedLegacyState(input: {
       ...new Set([...legacySurfaceRemovals, ...unreferencedRemovals]),
     ];
   } catch (error) {
-    writePackageTransaction(index, []);
+    writePackageTransaction(index);
     throw error;
   }
   return result;
