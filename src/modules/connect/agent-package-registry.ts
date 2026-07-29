@@ -124,6 +124,9 @@ import {
   discoverInstalledCodexPluginDescriptors,
   discoverInstalledOwnerProfileDescriptors,
 } from './agent-package-registry-parts/installed-codex-plugin-directory.ts';
+import {
+  maybeRetireDescriptorOwnedLegacyState,
+} from './agent-package-registry-parts/descriptor-owned-legacy-state-retirement.ts';
 import { readLegacyAgentPackageLockIndex } from './agent-package-registry-parts/legacy-lock-projection.ts';
 import {
   runConfiguredCodexPluginCarrier,
@@ -3134,11 +3137,25 @@ export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
     action: 'repair',
   });
   if (configured) {
+    const retirement = await maybeRetireDescriptorOwnedLegacyState({
+      configured,
+      dryRun: input.dryRun === true,
+    });
+    const retired = retirement.writes_performed;
     return {
       version: 'g2',
       opl_agent_package_repair: {
         surface_kind: 'opl_agent_package_repair',
         ...configured,
+        legacy_state_retirement: retirement,
+        opl_private_state_writes: {
+          ...configured.opl_private_state_writes,
+          package_lock: retired && retirement.retired.package_lock,
+          lifecycle_receipt: retired && retirement.retired.lifecycle_receipts > 0,
+          lifecycle_ledger: retired && retirement.retired.lifecycle_receipts > 0,
+          last_known_good: retired && retirement.retired.last_known_good_transactions > 0,
+          transaction_mutex: retired,
+        },
       },
     };
   }

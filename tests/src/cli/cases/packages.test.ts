@@ -12,3 +12,4 @@ import './packages-cases/package-lifecycle-writer-lock.test.ts';
 import './packages-cases/storage-owner-inventory.test.ts';
 import './packages-cases/command-surface.test.ts';
 import './packages-cases/configured-codex-plugin-carrier.test.ts';
+import './packages-cases/descriptor-owned-legacy-state-retirement.test.ts';

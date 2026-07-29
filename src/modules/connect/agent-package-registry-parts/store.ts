@@ -25,6 +25,11 @@ type PackageLifecycleTransactionOptions = {
   retryMs?: number;
 };
 
+type PackageTransactionWriteOptions = {
+  removeEmptyAuthorities?: boolean;
+  replaceReceipts?: boolean;
+};
+
 const PACKAGE_LIFECYCLE_LOCK_TIMEOUT_MS = 5_000;
 const packageLifecycleTransactionContext = new AsyncLocalStorage<boolean>();
 
@@ -275,6 +280,7 @@ export function readLifecycleLedger(): AgentPackageLifecycleLedger {
 export function writePackageTransaction(
   index: AgentPackageLockIndex,
   receipts: AgentPackageLifecycleReceipt[],
+  options: PackageTransactionWriteOptions = {},
 ) {
   const paths = ensureOplStateDir();
   readLockIndex();
@@ -286,12 +292,28 @@ export function writePackageTransaction(
     : null;
   const ledger = readLifecycleLedger();
   const normalizedIndex = normalizeLockIndex(index, paths.agent_package_lock_file);
-  upsertJsonReceipts(ledger.receipts, receipts, (entry, next) =>
-    entry.receipt_ref === next.receipt_ref
-  );
+  if (options.replaceReceipts) {
+    ledger.receipts = [...receipts];
+  } else {
+    upsertJsonReceipts(ledger.receipts, receipts, (entry, next) =>
+      entry.receipt_ref === next.receipt_ref
+    );
+  }
   try {
-    writeJsonPayloadFile(paths.agent_package_lock_file, normalizedIndex);
-    writeJsonReceiptLedger(paths.agent_package_lifecycle_ledger_file, ledger);
+    if (
+      options.removeEmptyAuthorities
+      && normalizedIndex.packages.length === 0
+      && (normalizedIndex.last_known_good_transactions ?? []).length === 0
+    ) {
+      fs.rmSync(paths.agent_package_lock_file, { force: true });
+    } else {
+      writeJsonPayloadFile(paths.agent_package_lock_file, normalizedIndex);
+    }
+    if (options.removeEmptyAuthorities && ledger.receipts.length === 0) {
+      fs.rmSync(paths.agent_package_lifecycle_ledger_file, { force: true });
+    } else {
+      writeJsonReceiptLedger(paths.agent_package_lifecycle_ledger_file, ledger);
+    }
   } catch (error) {
     if (previousLock) fs.writeFileSync(paths.agent_package_lock_file, previousLock);
     else fs.rmSync(paths.agent_package_lock_file, { force: true });

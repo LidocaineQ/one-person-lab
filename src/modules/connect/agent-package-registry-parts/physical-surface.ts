@@ -1591,23 +1591,35 @@ function pluginCacheRefs(index: AgentPackageLockIndex) {
 export function cleanupUnreferencedPackagePayloadSources(
   previous: AgentPackageLockIndex,
   current: AgentPackageLockIndex,
+  options: { protectedPaths?: ReadonlySet<string> } = {},
 ) {
+  const protectedPaths = [...(options.protectedPaths ?? [])].map((entry) => path.resolve(entry));
+  const overlapsProtectedPath = (candidate: string) => {
+    const resolvedCandidate = path.resolve(candidate);
+    return protectedPaths.some((protectedPath) =>
+      resolvedCandidate === protectedPath
+      || protectedPath.startsWith(`${resolvedCandidate}${path.sep}`)
+      || resolvedCandidate.startsWith(`${protectedPath}${path.sep}`)
+    );
+  };
+  const removedPaths: string[] = [];
   const retained = payloadSourceRefs(current);
   const payloadRoot = path.resolve(resolveOplStatePaths().state_dir, 'agent-package-payloads');
   for (const payloadPath of payloadSourceRefs(previous)) {
-    if (!retained.has(payloadPath)) {
+    if (!retained.has(payloadPath) && !overlapsProtectedPath(payloadPath)) {
       removeSafePersistedPackagePath({
         candidatePath: payloadPath,
         allowedRoots: [payloadRoot],
         pathKind: 'lock.physical_surface.plugin_payload_cache_path',
         recursive: true,
       });
+      removedPaths.push(payloadPath);
     }
   }
   const retainedPluginCaches = pluginCacheRefs(current);
   const cacheRoot = path.resolve(resolveCodexHome(), 'plugins', 'cache');
   for (const cachePath of pluginCacheRefs(previous)) {
-    if (!retainedPluginCaches.has(cachePath)) {
+    if (!retainedPluginCaches.has(cachePath) && !overlapsProtectedPath(cachePath)) {
       makeGenerationTreeWritable(cachePath);
       removeSafePersistedPackagePath({
         candidatePath: cachePath,
@@ -1615,8 +1627,10 @@ export function cleanupUnreferencedPackagePayloadSources(
         pathKind: 'lock.physical_surface.codex_plugin_cache_path',
         recursive: true,
       });
+      removedPaths.push(cachePath);
     }
   }
+  return removedPaths;
 }
 
 export function rollbackManagedPolicySurface(surface: AgentPackagePhysicalSurface | undefined) {
