@@ -943,10 +943,8 @@ function buildFreshCompanionItem(
     ? 'not_applicable'
     : !sourceRealPath
       ? 'missing'
-      : codexEntryRealPath && agentsEntryRealPath
-        ? codexEntryRealPath === sourceRealPath && agentsEntryRealPath === sourceRealPath
-          ? 'converged'
-          : 'diverged'
+      : codexEntryRealPath
+        ? codexEntryRealPath === sourceRealPath ? 'converged' : 'diverged'
         : 'missing';
   const installedPayloadSha256 = codexEntryRealPath ? skillPayloadSha256(targetPath) : null;
   const payloadCurrentness: OplCompanionSkillSyncItem['payload_currentness'] = builtin
@@ -1038,7 +1036,7 @@ function buildObservedCompanionItem(
   return {
     ...observed,
     status: 'planned',
-    note: 'Managed Codex and Agents skill entrypoints require convergence.',
+    note: 'Managed global Codex Skill entrypoint requires convergence; domain .agents/skills projection remains owner-managed.',
   };
 }
 
@@ -1148,7 +1146,6 @@ export function syncOplCompanionSkills(
   for (const skill of recommendedSkills) {
     const source = ensureRecommendedSkillSource(home, skill, networkAccess);
     const targetPath = path.join(codexSkillsDir, skill.skill_id);
-    const agentsTargetPath = path.join(resolveAgentsSkillsDir(home), skill.skill_id);
     if (!source) {
       items.push(buildFreshCompanionItem(home, skill, {
         source: null,
@@ -1210,10 +1207,9 @@ export function syncOplCompanionSkills(
         }));
         continue;
       }
-      const changedEntrypointCount = convergeSkillEntrypoints(
-        source.link_path,
-        [targetPath, agentsTargetPath],
-      );
+      // Framework-owned companion Skills are global user capabilities. Domain
+      // owners alone may materialize `.agents/skills` project projections.
+      const changedEntrypointCount = convergeSkillEntrypoints(source.link_path, [targetPath]);
       items.push(buildFreshCompanionItem(home, skill, {
         source,
         status: changedEntrypointCount > 0 ? 'synced' : 'ready',

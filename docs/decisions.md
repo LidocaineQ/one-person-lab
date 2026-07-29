@@ -448,6 +448,7 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 - `contracts/opl-framework/foundry-agent-series-contract.json#skill_on_demand_exposure_policy` 是统一机器政策；`opl connect skills --json` 的 `professional_skill_exposure.on_demand_exposure_policy` 必须投影该政策。
 - OPL foundation/support Skill 继续由 `plugins/opl-foundation-skills/exposure.json` 和 `opl connect foundation-skills inspect|sync` 管理，默认禁止 global / codex scope。
 - MAS Scholar Skills 等专业能力包可以作为 `domain_profile` 或 package dependency 出现，但实际进入任务上下文仍应优先同步到 workspace / quest-local discovery 面。
+- AionUI 的 `builtin-skills/auto-inject` 不是第三种 Scope，也不是 Framework 的 Skill owner。OPL active shell 通过 `AIONUI_SKILL_WORKSPACE_MATERIALIZATION=global_only` 禁止其写入 workspace；`cron` 走 Scheduled Tasks，其他内部 helper 只能由明确 owner 物化到 global user 目录并默认隐藏。
 
 ## 2026-07-06
 

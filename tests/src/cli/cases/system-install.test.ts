@@ -223,9 +223,9 @@ test('managed companion sync prefers Skills Manager packages over fallback mater
       assert.equal(item?.entrypoint_authority_status, 'converged');
       assert.equal(item?.source_payload_sha256, item?.installed_payload_sha256);
       assert.equal(fs.realpathSync(targetRoot), fs.realpathSync(managerSkillRoot));
-      assert.equal(fs.realpathSync(agentsTargetRoot), fs.realpathSync(managerSkillRoot));
+      assert.equal(fs.existsSync(agentsTargetRoot), false);
       assert.equal(item?.codex_entry_realpath, fs.realpathSync(managerSkillRoot));
-      assert.equal(item?.agents_entry_realpath, fs.realpathSync(managerSkillRoot));
+      assert.equal(item?.agents_entry_realpath, null);
     }
     assert.equal(fs.existsSync(path.join(homeRoot, 'companion-sources', 'materialized')), false);
 
@@ -319,7 +319,7 @@ test('managed companion sync accepts a referenced resource directory inside the 
   }
 });
 
-test('managed companion sync fails closed when either entrypoint is user-managed', () => {
+test('managed companion sync fails closed when the global entrypoint is user-managed', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-user-managed-skill-conflict-home-'));
   const env = createFakeCompanionInstallEnv(homeRoot);
   const managerSkillRoot = path.join(homeRoot, '.skills-manager', 'skills', 'officecli-docx');
