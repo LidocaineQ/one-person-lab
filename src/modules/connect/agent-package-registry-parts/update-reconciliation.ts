@@ -367,16 +367,3 @@ export function installedPackageClosure(
   const byId = new Map(packages.map((lock) => [lock.package_id, lock]));
   return targets.map(({ packageId }) => byId.get(packageId)).filter((lock): lock is AgentPackageLock => Boolean(lock));
 }
-
-export function packageBulkUpdateSafety(lock: AgentPackageLock) {
-  if (lock.source_kind === 'developer_checkout_override') {
-    return { eligible: false, reason: 'developer_checkout_is_user_managed' } as const;
-  }
-  if (!lock.content_digest || !lock.manifest_sha256 || !lock.lock_ref) {
-    return { eligible: false, reason: 'package_content_identity_incomplete' } as const;
-  }
-  if (lock.physical_surface?.failure_reason) {
-    return { eligible: false, reason: 'package_physical_surface_requires_repair' } as const;
-  }
-  return { eligible: true, reason: 'installed_digest_locked_package' } as const;
-}
