@@ -417,7 +417,7 @@ test('generic package activation action returns the launch binding at the App bo
     fs.writeFileSync(lockPath, `${JSON.stringify(lockIndex, null, 2)}\n`);
     const requiredWorkspace = path.join(root, 'required-provider-missing-workspace');
     const ledgerPath = path.join(env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json');
-    const ledgerBeforeRequiredFailure = fs.readFileSync(ledgerPath, 'utf8');
+    assert.equal(fs.existsSync(ledgerPath), false);
     const requiredFailure = runCliFailure([
       'app', 'action', 'execute', '--action', 'agent_package_activate',
       '--payload', JSON.stringify({
@@ -430,7 +430,7 @@ test('generic package activation action returns the launch binding at the App bo
     assert.equal(requiredFailure.payload.error.code, 'contract_shape_invalid');
     assert.equal(requiredFailure.payload.error.details.failure_code, 'agent_package_scope_activation_blocked');
     assert.equal(requiredFailure.payload.error.details.launch_blocked_reason, 'package_dependency_missing');
-    assert.equal(fs.readFileSync(ledgerPath, 'utf8'), ledgerBeforeRequiredFailure);
+    assert.equal(fs.existsSync(ledgerPath), false);
     assert.equal(fs.existsSync(path.join(requiredWorkspace, '.codex', 'skills')), false);
 
     consumerLock.capability_dependencies[0].required = false;
@@ -474,7 +474,7 @@ test('generic package activation action returns the launch binding at the App bo
   }
 });
 
-test('dependency-free activation returns only persisted receipt refs', async () => {
+test('dependency-free activation returns operation receipt refs without a lifecycle ledger', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-action-package-use-receipt-'));
   const stateRoot = path.join(root, 'state');
   const workspace = path.join(root, 'workspace');
@@ -493,24 +493,19 @@ test('dependency-free activation returns only persisted receipt refs', async () 
         use_boundary_id: 'dependency-free-use',
       }),
     ], env) as any).app_action_execution.result.opl_agent_package_activation;
-    const ledger = JSON.parse(fs.readFileSync(
-      path.join(stateRoot, 'agent-package-lifecycle-ledger.json'),
-      'utf8',
-    ));
-    const persistedRefs = new Set(ledger.receipts.map((receipt: any) => receipt.receipt_ref));
-    const returnedRefs = [
-      activation.lifecycle_receipt?.receipt_ref,
-      activation.lifecycle_receipt_ref,
-      activation.use_receipt?.receipt_ref,
-      activation.use_receipt_ref,
-      activation.package_use_binding?.use_receipt_ref,
-      activation.package_lock?.action_receipt_id,
-    ].filter((receiptRef): receiptRef is string => typeof receiptRef === 'string' && receiptRef.length > 0);
+    const ledgerPath = path.join(stateRoot, 'agent-package-lifecycle-ledger.json');
 
     assert.equal(activation.lifecycle_receipt, null);
     assert.equal(activation.lifecycle_receipt_ref, null);
     assert.equal(activation.package_use_binding.use_receipt_ref, activation.use_receipt_ref);
-    assert.equal(returnedRefs.every((receiptRef) => persistedRefs.has(receiptRef)), true);
+    assert.match(activation.use_receipt_ref, /^opl:\/\/agent-package\/use\/rca\//);
+    assert.equal(activation.use_receipt?.receipt_ref, activation.use_receipt_ref);
+    assert.equal(activation.use_receipt?.package_lock_ref, activation.package_lock.lock_ref);
+    assert.equal(
+      activation.use_receipt?.use_binding.root_package.package_lock_ref,
+      activation.package_lock.lock_ref,
+    );
+    assert.equal(fs.existsSync(ledgerPath), false);
   } finally {
     makeTreeWritable(root);
     fs.rmSync(root, { recursive: true, force: true });
@@ -529,8 +524,9 @@ test('package activation dry-run stays canonical and disabled preflight performs
     installRuntimePackageFixture(stateRoot, 'rca');
     const lockPath = path.join(stateRoot, 'agent-package-locks.json');
     const ledgerPath = path.join(stateRoot, 'agent-package-lifecycle-ledger.json');
+    fs.rmSync(ledgerPath, { force: true });
     const lockBeforeDryRun = fs.readFileSync(lockPath, 'utf8');
-    const ledgerBeforeDryRun = fs.readFileSync(ledgerPath, 'utf8');
+    assert.equal(fs.existsSync(ledgerPath), false);
     const dryRun = (await runCliAsync([
       'app', 'action', 'execute', '--action', 'agent_package_activate', '--dry-run',
       '--payload', JSON.stringify({
@@ -556,13 +552,12 @@ test('package activation dry-run stays canonical and disabled preflight performs
       assert.deepEqual(dryRun[field], dryRun.package_status[field], field);
     }
     assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBeforeDryRun);
-    assert.equal(fs.readFileSync(ledgerPath, 'utf8'), ledgerBeforeDryRun);
+    assert.equal(fs.existsSync(ledgerPath), false);
 
     const lockIndex = JSON.parse(lockBeforeDryRun);
     lockIndex.packages[0].exposure_state = 'disabled';
     fs.writeFileSync(lockPath, `${JSON.stringify(lockIndex, null, 2)}\n`);
     const disabledLockBefore = fs.readFileSync(lockPath, 'utf8');
-    const disabledLedgerBefore = fs.readFileSync(ledgerPath, 'utf8');
     const failure = runCliFailure([
       'app', 'action', 'execute', '--action', 'agent_package_activate',
       '--payload', JSON.stringify({
@@ -576,7 +571,7 @@ test('package activation dry-run stays canonical and disabled preflight performs
     assert.equal(failure.payload.error.details.failure_code, 'agent_package_scope_activation_blocked');
     assert.equal(failure.payload.error.details.launch_blocked_reason, 'package_disabled');
     assert.equal(fs.readFileSync(lockPath, 'utf8'), disabledLockBefore);
-    assert.equal(fs.readFileSync(ledgerPath, 'utf8'), disabledLedgerBefore);
+    assert.equal(fs.existsSync(ledgerPath), false);
     assert.equal(fs.existsSync(path.join(workspace, '.codex', 'skills')), false);
   } finally {
     makeTreeWritable(root);

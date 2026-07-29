@@ -1219,11 +1219,9 @@ test('system configure-codex delegates Full runtime Package and carrier reconcil
       (entry: Record<string, any>) => entry.package_id === 'mas',
     );
     const ledgerPath = path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json');
-    const ledger = parseJsonText(fs.readFileSync(ledgerPath, 'utf8')) as Record<string, any>;
-    const currentMasReceipt = ledger.receipts.find(
-      (entry: Record<string, any>) => entry.receipt_ref === currentMasLock.action_receipt_id,
-    );
-    assert.ok(currentMasReceipt);
+    const currentMasReceipt = rolledBack.opl_agent_package_rollback.lifecycle_receipt;
+    assert.equal(fs.existsSync(ledgerPath), false);
+    assert.equal(currentMasReceipt.receipt_ref, currentMasLock.action_receipt_id);
     for (const receipt of [
       null,
       { ...structuredClone(currentMasReceipt), owner_source_commit: 'f'.repeat(40) },
@@ -1241,31 +1239,27 @@ test('system configure-codex delegates Full runtime Package and carrier reconcil
       assert.equal(carrierObservation?.status, 'ok');
       assert.equal(carrierObservation?.action_ref, null);
     }
-    ledger.receipts = ledger.receipts.filter(
-      (entry: Record<string, any>) => entry.receipt_ref !== currentMasLock.action_receipt_id,
-    );
-    writeJson(ledgerPath, ledger);
 
-    const receiptMissing = runCli(['packages', 'status', '--package-id', 'mas'], fixture.env) as any;
-    assert.equal(receiptMissing.opl_agent_package_status.status, 'available');
-    assert.equal(receiptMissing.opl_agent_package_status.operational_ready, true);
-    assert.equal(receiptMissing.opl_agent_package_status.launch_allowed, true);
-    assert.equal(receiptMissing.opl_agent_package_status.launch_blocked_reason, null);
-    assert.equal(receiptMissing.opl_agent_package_status.package_dependency_readiness.status, 'current');
-    assert.equal(receiptMissing.opl_agent_package_status.package_dependency_readiness.operational_ready, true);
-    assert.equal(receiptMissing.opl_agent_package_status.runtime_source_readiness.status, 'current');
-    assert.equal(receiptMissing.opl_agent_package_status.runtime_source_readiness.reason, null);
+    const statusReadback = runCli(['packages', 'status', '--package-id', 'mas'], fixture.env) as any;
+    assert.equal(statusReadback.opl_agent_package_status.status, 'available');
+    assert.equal(statusReadback.opl_agent_package_status.operational_ready, true);
+    assert.equal(statusReadback.opl_agent_package_status.launch_allowed, true);
+    assert.equal(statusReadback.opl_agent_package_status.launch_blocked_reason, null);
+    assert.equal(statusReadback.opl_agent_package_status.package_dependency_readiness.status, 'current');
+    assert.equal(statusReadback.opl_agent_package_status.package_dependency_readiness.operational_ready, true);
+    assert.equal(statusReadback.opl_agent_package_status.runtime_source_readiness.status, 'current');
+    assert.equal(statusReadback.opl_agent_package_status.runtime_source_readiness.reason, null);
     assert.equal(
-      receiptMissing.opl_agent_package_status.runtime_source_readiness.actual_tree_sha256,
-      receiptMissing.opl_agent_package_status.runtime_source_readiness.expected_tree_sha256,
+      statusReadback.opl_agent_package_status.runtime_source_readiness.actual_tree_sha256,
+      statusReadback.opl_agent_package_status.runtime_source_readiness.expected_tree_sha256,
     );
     assert.equal(currentMasLock.managed_runtime_source.preparation_scope, 'preexisting_read_only_probe');
     assert.equal(currentMasLock.managed_runtime_source.preparation_root, null);
     assert.deepEqual(currentMasLock.managed_runtime_source.health_check_command, []);
     assert.deepEqual(currentMasLock.managed_runtime_source.handler_probe_command, []);
-    assert.equal(receiptMissing.opl_agent_package_status.carrier_authority_readiness.status, 'current');
-    assert.equal(receiptMissing.opl_agent_package_status.lifecycle_ux.status, 'available');
-    const carrierObservation = receiptMissing.opl_agent_package_status.conditions.find(
+    assert.equal(statusReadback.opl_agent_package_status.carrier_authority_readiness.status, 'current');
+    assert.equal(statusReadback.opl_agent_package_status.lifecycle_ux.status, 'available');
+    const carrierObservation = statusReadback.opl_agent_package_status.conditions.find(
       (condition: Record<string, any>) => condition.condition_id === 'carrier_authority_current',
     );
     assert.equal(carrierObservation?.status, 'ok');
