@@ -802,7 +802,10 @@ test('packages preserves installed lock and receipt trail when update materializ
         owner_route_readback: {
           packages: Array<{
             lock: Record<string, unknown>;
-            package_core: { lock: Record<string, unknown> };
+            package_core: {
+              lock: Record<string, unknown>;
+              lifecycle: Record<string, unknown>;
+            };
           }>;
         };
       };
@@ -820,7 +823,12 @@ test('packages preserves installed lock and receipt trail when update materializ
     ]) {
       assert.equal(Object.hasOwn(ownerLock, 'lock_file'), false);
       assert.equal(Object.hasOwn(ownerLock, 'lifecycle_ledger_file'), false);
+      assert.equal(Object.hasOwn(ownerLock, 'lifecycle_receipt_ref'), false);
     }
+    assert.equal(
+      Object.hasOwn(installReadback.owner_route_readback.packages[0].package_core.lifecycle, 'latest_receipt_ref'),
+      false,
+    );
 
     const failure = runCliFailure([
       'packages',

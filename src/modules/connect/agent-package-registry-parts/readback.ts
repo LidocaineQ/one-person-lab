@@ -294,7 +294,6 @@ function ownerRouteReadbackItem(input: {
   };
   const lock = {
     package_lock_ref: input.lock?.lock_ref ?? input.receipt?.package_lock_ref ?? null,
-    lifecycle_receipt_ref: input.receipt?.receipt_ref ?? input.lock?.action_receipt_id ?? null,
   };
   const policyCurrentness = managedPolicyCurrentness(input.lock);
   const materializer = {
@@ -441,7 +440,6 @@ function ownerRouteReadbackItem(input: {
       carrier_authority: input.lock?.carrier_authority ?? null,
       lock,
       lifecycle: {
-        latest_receipt_ref: lock.lifecycle_receipt_ref,
         latest_action: input.receipt?.action ?? null,
         status: lifecycleUx.status,
         conditions: lifecycleUx.conditions,

@@ -720,7 +720,6 @@ export type AgentPackageDigestReadback = {
 
 export type AgentPackageLockReadback = {
   package_lock_ref: string | null;
-  lifecycle_receipt_ref: string | null;
 };
 
 export type AgentPackageCarrierAdapterReadback = {
@@ -825,7 +824,6 @@ export type AgentPackageCoreReadback = {
   carrier_authority: AgentPackageCarrierAuthority | null;
   lock: AgentPackageLockReadback;
   lifecycle: {
-    latest_receipt_ref: string | null;
     latest_action: AgentPackageLifecycleAction | null;
     status: AgentPackageLifecycleUxReadback['status'];
     conditions: AgentPackageLifecycleCondition[];
