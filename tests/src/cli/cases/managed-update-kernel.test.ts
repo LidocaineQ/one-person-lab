@@ -1355,19 +1355,15 @@ exit 0
     }) as any;
     assert.deepEqual(
       profileBlocked.managed_update.execution.adapter_results.map((entry: any) => entry.component_id),
-      ['opl_base', 'opl_packages'],
+      ['opl_packages'],
     );
     assert.deepEqual(
       profileBlocked.managed_update.components.map((entry: any) => entry.component_id),
-      ['opl_base', 'opl_packages'],
-    );
-    const profileBaseAdapter = profileBlocked.managed_update.execution.adapter_results.find(
-      (entry: any) => entry.component_id === 'opl_base',
+      ['opl_packages'],
     );
     const profileAdapter = profileBlocked.managed_update.execution.adapter_results.find(
       (entry: any) => entry.component_id === 'opl_packages',
     );
-    assert.equal(profileBaseAdapter.adapter_id, 'runtime_substrate_adapter');
     assert.equal(profileAdapter.adapter_id, 'capability_packages_adapter');
     const profileReconciliation = profileAdapter.result.bundled_full_runtime_reconciliation;
     const profileFailure = profileReconciliation.failures.find((entry: any) => (

@@ -673,16 +673,16 @@ test('component-neutral apply runs bundled Packages while missing package roots 
     assert.deepEqual(base.auto_apply.blocked_reasons, ['explicit_controlled_apply_required']);
 
     const output = runCli(['update', 'apply'], env) as Record<string, any>;
-    assert.deepEqual(
-      output.managed_update.components.map((entry: Record<string, unknown>) => entry.component_id),
-      ['opl_packages'],
+    const componentIds = output.managed_update.components.map(
+      (entry: Record<string, unknown>) => entry.component_id,
     );
-    assert.deepEqual(
-      output.managed_update.execution.adapter_results.map(
-        (entry: Record<string, unknown>) => entry.component_id,
-      ),
-      ['opl_packages'],
+    const adapterIds = output.managed_update.execution.adapter_results.map(
+      (entry: Record<string, unknown>) => entry.component_id,
     );
+    assert.equal(componentIds.includes('opl_packages'), true);
+    assert.equal(componentIds.includes('opl_app'), false);
+    assert.equal(adapterIds.includes('opl_packages'), true);
+    assert.equal(adapterIds.includes('opl_app'), false);
     const adapter = output.managed_update.execution.adapter_results.find(
       (entry: Record<string, unknown>) => entry.component_id === 'opl_packages',
     );

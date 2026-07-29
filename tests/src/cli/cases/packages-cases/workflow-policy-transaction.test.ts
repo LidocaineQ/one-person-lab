@@ -527,6 +527,7 @@ test('workflow policy v3 installs a GitHub Skill from its declared repository so
     );
     assert.equal(migration.dependency_sync.items[0].status, 'synced');
     assert.equal(migration.dependency_sync.items[0].source_authority, 'github_repository');
+    assert.equal(migration.dependency_sync.items[0].agents_entry_realpath, null);
     assert.equal(migration.dependency_sync.items[0].frontmatter_schema_status, 'valid');
     assert.equal(migration.dependency_sync.items[0].resource_closure_status, 'complete');
     const directory = (await runCliAsync(['packages', 'list'], env) as any).opl_agent_packages.directory;
@@ -987,6 +988,7 @@ test('managed policy currentness detects and repairs a missing global Codex skil
       '--trust-tier', 'first_party',
     ], env) as any;
     assert.equal(installed.opl_agent_package_install.status, 'installed');
+    assert.equal(fs.existsSync(codexSkillRoot), true);
     assert.equal(fs.existsSync(agentsSkillRoot), false);
 
     const current = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
@@ -1017,11 +1019,11 @@ test('managed policy currentness detects and repairs a missing global Codex skil
       .workflow_policy_migration.dependency_sync.items[0];
     assert.equal(repairedItem.status, 'synced', JSON.stringify(repairedItem));
     assert.equal(
-      fs.existsSync(agentsSkillRoot),
-      false,
+      fs.existsSync(codexSkillRoot),
+      true,
       JSON.stringify(repaired.opl_agent_package_repair.physical_surface.workflow_policy_migration, null, 2),
     );
-    assert.equal(fs.existsSync(codexSkillRoot), true);
+    assert.equal(fs.existsSync(agentsSkillRoot), false);
     const repairedStatus = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
     assert.equal(
       repairedStatus.opl_agent_package_status.owner_route_readback.packages[0]
