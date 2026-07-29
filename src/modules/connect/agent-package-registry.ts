@@ -164,10 +164,7 @@ import {
   withAgentPackageLifecycleTransaction,
   writePackageTransaction,
 } from './agent-package-registry-parts/store.ts';
-import {
-  optimizeInstalledPackageSource,
-  rollbackInstalledPackageOptimization,
-} from './agent-package-registry-parts/installed-source-optimize.ts';
+import { rollbackInstalledPackageOptimization } from './agent-package-registry-parts/installed-source-optimize.ts';
 import type {
   AgentPackageHomeShortcutPreferenceFile,
   AgentPackageHomeShortcutPreferencesSetInput,
@@ -3162,47 +3159,6 @@ export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
   );
 }
 
-function runOplAgentPackageOptimizeUnlocked(input: AgentPackagePackageActionInput) {
-  const packageId = requirePackageId(input.packageId, 'optimize');
-  const { index } = readRecoveredLockIndex(input.dryRun === true);
-  const { lock } = requireInstalledPackage(index, packageId, 'optimize');
-  const result = optimizeInstalledPackageSource({
-    index,
-    root: lock,
-    action: { ...input, packageId },
-  });
-  return {
-    version: 'g2',
-    opl_agent_package_optimize: {
-      surface_kind: 'opl_agent_package_optimize',
-      status: result.status,
-      dry_run: input.dryRun === true,
-      source_selection: result.sourceSelection,
-      network_accessed: result.networkAccessed,
-      remote_dependency_policy: 'forbidden',
-      package_lock: result.lock,
-      physical_surface: result.physicalSurface,
-      dependency_package_locks: result.closureLocks,
-      dependency_closure_digest: result.closureDigest,
-      scope_materializations: result.scopeMaterializations,
-      rollback_generation: result.rollbackGeneration,
-      lifecycle_receipt: result.receipt,
-      owner_route_readback: ownerRouteReadback({
-        selectedPackageId: packageId,
-        scope: input.scope,
-        targetWorkspace: input.targetWorkspace,
-        targetQuest: input.targetQuest,
-        packages: result.closureLocks.map((entry) => ({
-          packageId: entry.package_id,
-          lock: entry,
-          receipt: entry.package_id === packageId ? result.receipt : null,
-        })),
-      }),
-      authority_boundary: refsOnlyAuthorityBoundary(),
-    },
-  };
-}
-
 export async function runOplAgentPackageOptimize(input: AgentPackagePackageActionInput) {
   const configured = await maybeRunConfiguredCarrierPrivateAction({
     selectionInput: input,
@@ -3217,9 +3173,15 @@ export async function runOplAgentPackageOptimize(input: AgentPackagePackageActio
       },
     };
   }
-  return withAgentPackageLifecycleTransaction(
-    input.dryRun === true,
-    async () => runOplAgentPackageOptimizeUnlocked(input),
+  const packageId = requirePackageId(input.packageId, 'optimize');
+  throw new FrameworkContractError(
+    'contract_shape_invalid',
+    'Agent package optimize requires a fresh callable native owner descriptor.',
+    {
+      package_id: packageId,
+      failure_code: 'agent_package_optimize_native_carrier_required',
+      repair_command: `opl packages repair --package-id ${packageId}`,
+    },
   );
 }
 

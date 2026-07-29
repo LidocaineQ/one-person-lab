@@ -1192,53 +1192,32 @@ test('system configure-codex delegates Full runtime Package and carrier reconcil
     assert.equal(reconciledMasLock.owner_source_commit, expectedMasOwnerSourceCommit);
     assert.deepEqual(reconciledMasLock.carrier_authority, expectedMasCarrierAuthority);
 
-    const optimized = runCli(['packages', 'optimize', 'mas'], fixture.env) as any;
-    assert.equal(optimized.opl_agent_package_optimize.status, 'optimized');
-    assert.deepEqual(
-      optimized.opl_agent_package_optimize.package_lock.carrier_authority,
-      expectedMasCarrierAuthority,
+    const lockBytesBeforeOptimize = fs.readFileSync(lockPath, 'utf8');
+    const optimizeFailure = runCliFailure(['packages', 'optimize', 'mas'], fixture.env);
+    assert.equal(
+      optimizeFailure.payload.error.details.failure_code,
+      'agent_package_optimize_native_carrier_required',
     );
-    assert.deepEqual(
-      optimized.opl_agent_package_optimize.lifecycle_receipt.carrier_authority,
-      expectedMasCarrierAuthority,
-    );
-
-    const rolledBack = runCli(['packages', 'rollback', 'mas'], fixture.env) as any;
-    assert.equal(rolledBack.opl_agent_package_rollback.status, 'rolled_back');
-    assert.deepEqual(
-      rolledBack.opl_agent_package_rollback.package_lock.carrier_authority,
-      expectedMasCarrierAuthority,
-    );
-    assert.deepEqual(
-      rolledBack.opl_agent_package_rollback.lifecycle_receipt.carrier_authority,
-      expectedMasCarrierAuthority,
-    );
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytesBeforeOptimize);
 
     const currentLockIndex = parseJsonText(fs.readFileSync(lockPath, 'utf8')) as Record<string, any>;
     const currentMasLock = currentLockIndex.packages.find(
       (entry: Record<string, any>) => entry.package_id === 'mas',
     );
     const ledgerPath = path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json');
-    const currentMasReceipt = rolledBack.opl_agent_package_rollback.lifecycle_receipt;
     assert.equal(fs.existsSync(ledgerPath), false);
-    assert.equal(currentMasReceipt.receipt_ref, currentMasLock.action_receipt_id);
-    for (const receipt of [
-      null,
-      { ...structuredClone(currentMasReceipt), owner_source_commit: 'f'.repeat(40) },
-    ]) {
-      const lifecycle = agentPackageLifecycleUxReadback({
-        packageId: 'mas',
-        lock: currentMasLock,
-        receipt,
-      });
-      assert.equal(lifecycle.status, 'installed');
-      assert.equal(lifecycle.recommended_action, null);
-      const carrierObservation = lifecycle.conditions.find(
-        (condition) => condition.condition_id === 'carrier_authority_invalid',
-      );
-      assert.equal(carrierObservation?.status, 'ok');
-      assert.equal(carrierObservation?.action_ref, null);
-    }
+    const lifecycle = agentPackageLifecycleUxReadback({
+      packageId: 'mas',
+      lock: currentMasLock,
+      receipt: null,
+    });
+    assert.equal(lifecycle.status, 'installed');
+    assert.equal(lifecycle.recommended_action, null);
+    const lifecycleCarrierObservation = lifecycle.conditions.find(
+      (condition) => condition.condition_id === 'carrier_authority_invalid',
+    );
+    assert.equal(lifecycleCarrierObservation?.status, 'ok');
+    assert.equal(lifecycleCarrierObservation?.action_ref, null);
 
     const statusReadback = runCli(['packages', 'status', '--package-id', 'mas'], fixture.env) as any;
     assert.equal(statusReadback.opl_agent_package_status.status, 'available');

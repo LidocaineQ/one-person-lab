@@ -487,7 +487,7 @@ test('MAS dependency closure update and rollback atomically rematerialize known 
   }
 });
 
-test('installed-source optimize records dependency and scope transactions and rollback consumes the retained scope backup', async () => {
+test('legacy installed-source optimize fails closed without creating dependency or scope transactions', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-installed-source-scope-'));
   const stateDir = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
@@ -510,38 +510,22 @@ test('installed-source optimize records dependency and scope transactions and ro
       'utf8',
     );
 
-    const optimized = runCli(['packages', 'optimize', FIXTURE_CONSUMER_PACKAGE_ID], env) as any;
-    const optimization = optimized.opl_agent_package_optimize;
-    assert.equal(optimization.status, 'optimized');
-    assert.deepEqual(
-      optimization.lifecycle_receipt.dependency_packages.map((entry: any) => entry.package_id).sort(),
-      [FIXTURE_CONSUMER_PACKAGE_ID, FIXTURE_PROVIDER_PACKAGE_ID],
+    const lockPath = path.join(stateDir, 'agent-package-locks.json');
+    const lockBefore = fs.readFileSync(lockPath, 'utf8');
+    const transactionRoot = path.join(workspace, '.codex', '.opl-package-transactions');
+    const transactionsBefore = fs.existsSync(transactionRoot)
+      ? fs.readdirSync(transactionRoot).sort()
+      : [];
+    const failure = runCliFailure(['packages', 'optimize', FIXTURE_CONSUMER_PACKAGE_ID], env);
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'agent_package_optimize_native_carrier_required',
     );
-    assert.equal(optimization.scope_materializations.length, 1);
-    assert.equal(optimization.lifecycle_receipt.scope_materializations.length, 1);
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBefore);
     assert.equal(fs.readFileSync(helperPath, 'utf8'), originalHelper);
-    const transactionRoot = path.join(
-      workspace,
-      '.codex',
-      '.opl-package-transactions',
-      optimization.scope_materializations[0].transaction_id,
-    );
-    assert.equal(fs.existsSync(transactionRoot), true);
-
-    fs.rmSync(providerRoot, { recursive: true, force: true });
-    fs.rmSync(path.join(root, 'consumer'), { recursive: true, force: true });
-
-    const rolledBack = runCli(['packages', 'rollback', FIXTURE_CONSUMER_PACKAGE_ID], env) as any;
-    const rollback = rolledBack.opl_agent_package_rollback;
-    assert.equal(rollback.status, 'rolled_back');
-    assert.equal(rollback.source_selection, 'installed_package_lock');
-    assert.equal(rollback.network_accessed, false);
-    assert.equal(fs.readFileSync(helperPath, 'utf8'), originalHelper);
-    assert.equal(fs.existsSync(transactionRoot), false);
     assert.deepEqual(
-      JSON.parse(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'))
-        .last_known_good_transactions,
-      [],
+      fs.existsSync(transactionRoot) ? fs.readdirSync(transactionRoot).sort() : [],
+      transactionsBefore,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

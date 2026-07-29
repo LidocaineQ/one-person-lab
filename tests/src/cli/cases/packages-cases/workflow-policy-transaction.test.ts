@@ -1106,7 +1106,7 @@ test('managed policy rollback helpers refuse conflicting TOML tables and recreat
   }
 });
 
-test('installed-source optimize is offline, dry-run safe, and explicitly rolls back policy and profile state', async () => {
+test('legacy installed-source optimize is unavailable without a native owner and performs no writes', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-installed-source-optimize-'));
   const home = path.join(root, 'home');
   const codexHome = path.join(home, '.codex');
@@ -1132,7 +1132,7 @@ test('installed-source optimize is offline, dry-run safe, and explicitly rolls b
     const originalProfile = fs.readFileSync(profilePath, 'utf8');
 
     writeFile(path.join(sourceRoot, 'profile', 'runtime-profile'), '你始终用中文回复。\nOptimize fixture.\n');
-    writeFile(path.join(conflictPath, 'restored.txt'), 'restore after rollback\n');
+    writeFile(path.join(conflictPath, 'restored.txt'), 'preserve local state\n');
     fs.appendFileSync(
       configPath,
       '\n[marketplaces.ponytail]\nsource_type = "local"\nsource = "/tmp/ponytail-optimize"\n',
@@ -1155,94 +1155,29 @@ test('installed-source optimize is offline, dry-run safe, and explicitly rolls b
       config: fs.readFileSync(configPath, 'utf8'),
       profile: fs.readFileSync(profilePath, 'utf8'),
     };
-    const preview = runCli(['packages', 'optimize', 'fixture.opl-flow', '--dry-run'], optimizeEnv) as any;
-    assert.equal(preview.opl_agent_package_optimize.status, 'validated_no_write');
-    assert.equal(preview.opl_agent_package_optimize.source_selection, 'installed_package_lock');
-    assert.equal(preview.opl_agent_package_optimize.network_accessed, false);
-    assert.equal(preview.opl_agent_package_optimize.remote_dependency_policy, 'forbidden');
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), beforeDryRun.lock);
-    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
-    assert.equal(fs.readFileSync(configPath, 'utf8'), beforeDryRun.config);
-    assert.equal(fs.readFileSync(profilePath, 'utf8'), beforeDryRun.profile);
-
-    const optimized = runCli(['packages', 'optimize', 'fixture.opl-flow'], optimizeEnv) as any;
-    const optimization = optimized.opl_agent_package_optimize;
-    assert.equal(optimization.status, 'optimized');
-    assert.equal(optimization.lifecycle_receipt.source_selection, 'installed_package_lock');
-    assert.equal(optimization.lifecycle_receipt.network_accessed, false);
-    assert.equal(optimization.lifecycle_receipt.remote_dependency_policy, 'forbidden');
-    assert.equal(
-      optimization.package_lock.physical_surface.optimization_receipt_ref,
-      optimization.package_lock.action_receipt_id,
-    );
-    assert.equal(fs.existsSync(commandLog), false, 'optimize must not invoke git, curl, or npm');
-    assert.equal(fs.existsSync(conflictPath), false);
-    assert.doesNotMatch(fs.readFileSync(configPath, 'utf8'), /marketplaces\.ponytail/);
-    const optimizedProfileSource = path.join(
-      optimization.package_lock.physical_surface.codex_plugin_cache_path,
-      'profile',
-      'runtime-profile',
-    );
-    assert.equal(optimization.physical_surface.profile_migration.source_path, optimizedProfileSource);
-    assert.equal(fs.readFileSync(optimizedProfileSource, 'utf8'), originalProfile);
-    assert.equal(fs.readFileSync(profilePath, 'utf8'), originalProfile);
-    assert.match(fs.readFileSync(path.join(sourceRoot, 'profile', 'runtime-profile'), 'utf8'), /Optimize fixture/);
-    const optimizedLockIndex = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
-    assert.equal(optimizedLockIndex.last_known_good_transactions.length, 1);
-    const lkgRoot = optimizedLockIndex.last_known_good_transactions[0].package_locks.find(
-      (entry: any) => entry.package_id === 'fixture.opl-flow',
-    );
-    assert.equal(
-      lkgRoot.physical_surface.codex_plugin_cache_path,
-      optimization.package_lock.physical_surface.codex_plugin_cache_path,
-    );
-
-    const rollbackPreviewState = {
-      lock: fs.readFileSync(lockPath, 'utf8'),
-      config: fs.readFileSync(configPath, 'utf8'),
-      profile: fs.readFileSync(profilePath, 'utf8'),
-    };
-    const legacyLedgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
-    fs.writeFileSync(legacyLedgerPath, '{ obsolete receipt history\n', 'utf8');
-    const rollbackPreview = runCli(['packages', 'rollback', 'fixture.opl-flow', '--dry-run'], optimizeEnv) as any;
-    assert.equal(rollbackPreview.opl_agent_package_rollback.status, 'validated_no_write');
-    assert.equal(rollbackPreview.opl_agent_package_rollback.network_accessed, false);
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), rollbackPreviewState.lock);
-    assert.equal(fs.readFileSync(legacyLedgerPath, 'utf8'), '{ obsolete receipt history\n');
-    fs.rmSync(legacyLedgerPath, { force: true });
-    assert.equal(fs.readFileSync(configPath, 'utf8'), rollbackPreviewState.config);
-    assert.equal(fs.readFileSync(profilePath, 'utf8'), rollbackPreviewState.profile);
-
-    fs.chmodSync(stateDir, 0o555);
-    const rollbackFailure = runCliFailure(['packages', 'rollback', 'fixture.opl-flow'], optimizeEnv);
-    fs.chmodSync(stateDir, 0o755);
-    assert.notEqual(rollbackFailure.status, 0);
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), rollbackPreviewState.lock);
-    assert.equal(fs.existsSync(legacyLedgerPath), false);
-    assert.doesNotMatch(fs.readFileSync(configPath, 'utf8'), /marketplaces\.ponytail/);
-    assert.equal(fs.readFileSync(profilePath, 'utf8'), originalProfile);
-    assert.equal(fs.existsSync(conflictPath), false);
-
-    const rolledBack = runCli(['packages', 'rollback', 'fixture.opl-flow'], optimizeEnv) as any;
-    const rollback = rolledBack.opl_agent_package_rollback;
-    assert.equal(rollback.status, 'rolled_back');
-    assert.equal(rollback.source_selection, 'installed_package_lock');
-    assert.equal(rollback.network_accessed, false);
-    assert.equal(rollback.remote_dependency_policy, 'forbidden');
-    assert.equal(fs.existsSync(commandLog), false, 'optimize rollback must remain offline');
-    assert.equal(fs.readFileSync(path.join(conflictPath, 'restored.txt'), 'utf8'), 'restore after rollback\n');
-    assert.match(fs.readFileSync(configPath, 'utf8'), /marketplaces\.ponytail/);
-    assert.equal(fs.readFileSync(profilePath, 'utf8'), originalProfile);
-    assert.deepEqual(
-      JSON.parse(fs.readFileSync(lockPath, 'utf8')).last_known_good_transactions,
-      [],
-    );
+    for (const args of [
+      ['packages', 'optimize', 'fixture.opl-flow', '--dry-run'],
+      ['packages', 'optimize', 'fixture.opl-flow'],
+    ]) {
+      const failure = runCliFailure(args, optimizeEnv);
+      assert.equal(
+        failure.payload.error.details.failure_code,
+        'agent_package_optimize_native_carrier_required',
+      );
+      assert.equal(fs.readFileSync(lockPath, 'utf8'), beforeDryRun.lock);
+      assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
+      assert.equal(fs.readFileSync(configPath, 'utf8'), beforeDryRun.config);
+      assert.equal(fs.readFileSync(profilePath, 'utf8'), beforeDryRun.profile);
+      assert.equal(fs.existsSync(commandLog), false);
+      assert.equal(fs.readFileSync(path.join(conflictPath, 'restored.txt'), 'utf8'), 'preserve local state\n');
+      assert.match(fs.readFileSync(configPath, 'utf8'), /marketplaces\.ponytail/);
+    }
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
   }
 });
 
-test('failed installed-source optimize restores policy and profile state before returning failure', async () => {
+test('legacy optimize refusal preserves policy and profile state', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-optimize-failure-'));
   const home = path.join(root, 'home');
   const codexHome = path.join(home, '.codex');
@@ -1271,6 +1206,10 @@ test('failed installed-source optimize restores policy and profile state before 
     const failure = runCliFailure(['packages', 'optimize', 'fixture.opl-flow'], env);
     fs.chmodSync(stateDir, 0o755);
     assert.notEqual(failure.status, 0);
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'agent_package_optimize_native_carrier_required',
+    );
     assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), lockBefore);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
     assert.equal(fs.readFileSync(profilePath, 'utf8'), originalProfile);
