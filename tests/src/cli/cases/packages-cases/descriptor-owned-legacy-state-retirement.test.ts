@@ -128,7 +128,6 @@ function createLegacyThenNativeFixture(label: string) {
     pluginSource,
     env,
     lockPath: path.join(stateDir, 'agent-package-locks.json'),
-    ledgerPath: path.join(stateDir, 'agent-package-lifecycle-ledger.json'),
   };
 }
 
@@ -145,19 +144,21 @@ test('explicit native-confirmed repair retires descriptor-owned lock LKG receipt
     }];
     fs.writeFileSync(fixture.lockPath, formatJsonPayload(originalIndex));
     const originalLockBytes = fs.readFileSync(fixture.lockPath);
-    const originalLedgerBytes = fs.readFileSync(fixture.ledgerPath);
+    const legacyLedgerPath = path.join(fixture.stateDir, 'agent-package-lifecycle-ledger.json');
+    const originalLegacyLedgerBytes = Buffer.from('{ obsolete receipt history\n');
+    fs.writeFileSync(legacyLedgerPath, originalLegacyLedgerBytes);
 
     runCli(['packages', 'list'], fixture.env);
     runCli(['packages', 'status', '--package-id', packageId], fixture.env);
     runCli(['packages', 'update', packageId], fixture.env);
     assert.deepEqual(fs.readFileSync(fixture.lockPath), originalLockBytes);
-    assert.deepEqual(fs.readFileSync(fixture.ledgerPath), originalLedgerBytes);
+    assert.deepEqual(fs.readFileSync(legacyLedgerPath), originalLegacyLedgerBytes);
 
     const preview = runCli(['packages', 'repair', packageId, '--dry-run'], fixture.env) as any;
     assert.equal(preview.opl_agent_package_repair.legacy_state_retirement.status, 'validated_no_write');
     assert.equal(preview.opl_agent_package_repair.legacy_state_retirement.mutation_required, true);
     assert.deepEqual(fs.readFileSync(fixture.lockPath), originalLockBytes);
-    assert.deepEqual(fs.readFileSync(fixture.ledgerPath), originalLedgerBytes);
+    assert.deepEqual(fs.readFileSync(legacyLedgerPath), originalLegacyLedgerBytes);
 
     const repaired = runCli(['packages', 'repair', packageId], fixture.env) as any;
     const retirement = repaired.opl_agent_package_repair.legacy_state_retirement;
@@ -165,13 +166,11 @@ test('explicit native-confirmed repair retires descriptor-owned lock LKG receipt
     assert.equal(retirement.status, 'retired');
     assert.equal(retirement.retired.package_lock, true);
     assert.equal(retirement.retired.last_known_good_transactions, 1);
-    assert.equal(retirement.retired.lifecycle_receipts > 0, true);
     assert.equal(repaired.opl_agent_package_repair.opl_private_state_writes.package_lock, true);
-    assert.equal(repaired.opl_agent_package_repair.opl_private_state_writes.lifecycle_ledger, true);
     assert.equal(repaired.opl_agent_package_repair.opl_private_state_writes.transaction_mutex, true);
 
     assert.equal(fs.existsSync(fixture.lockPath), false);
-    assert.equal(fs.existsSync(fixture.ledgerPath), false);
+    assert.equal(fs.existsSync(legacyLedgerPath), false);
     assert.equal(fs.existsSync(path.join(fixture.pluginSource, 'opl-package.json')), true);
     for (const removedPath of retirement.retired.physical_paths) {
       assert.equal(fs.existsSync(removedPath), false);
@@ -207,7 +206,6 @@ test('mixed LKG history stays intact while only the current descriptor-owned loc
     assert.equal(retirement.retired.package_lock, true);
     assert.equal(retirement.retired.last_known_good_transactions, 0);
     assert.equal(retirement.retained.last_known_good_transactions, 1);
-    assert.equal(retirement.retained.lifecycle_receipts > 0, true);
 
     const nextIndex = parseJsonText(fs.readFileSync(fixture.lockPath, 'utf8')) as any;
     assert.equal(nextIndex.packages.some((entry: any) => entry.package_id === packageId), false);
@@ -284,7 +282,6 @@ test('corrupt legacy authority fails closed after native readback without rewrit
     const corruptLockBytes = Buffer.from(
       '{"surface_kind":"opl_agent_package_lock_index","packages":[',
     );
-    const ledgerBytes = fs.readFileSync(fixture.ledgerPath);
     fs.writeFileSync(fixture.lockPath, corruptLockBytes);
 
     const failure = runCliFailure(['packages', 'repair', packageId], fixture.env);
@@ -293,7 +290,7 @@ test('corrupt legacy authority fails closed after native readback without rewrit
       'agent_package_lock_authority_corrupt',
     );
     assert.deepEqual(fs.readFileSync(fixture.lockPath), corruptLockBytes);
-    assert.deepEqual(fs.readFileSync(fixture.ledgerPath), ledgerBytes);
+    assert.equal(fs.existsSync(path.join(fixture.stateDir, 'agent-package-lifecycle-ledger.json')), false);
     assert.equal(fs.existsSync(path.join(fixture.pluginSource, 'opl-package.json')), true);
   } finally {
     removeFixtureTree(fixture.root);

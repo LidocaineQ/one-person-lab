@@ -23,7 +23,6 @@ export type OplStatePaths = {
   external_evidence_ledger_file: string;
   agent_package_release_catalog_cache_file: string;
   agent_package_lock_file: string;
-  agent_package_lifecycle_ledger_file: string;
   agent_package_home_shortcut_preferences_file: string;
   storage_owner_inventory_snapshot_file: string;
   managed_install_update_ledger_file: string;
@@ -143,7 +142,6 @@ export function resolveOplStatePaths(input: { dataDir?: string | null } = {}): O
     external_evidence_ledger_file: path.join(stateDir, 'external-evidence-ledger.json'),
     agent_package_release_catalog_cache_file: path.join(stateDir, 'agent-package-release-catalog-cache.json'),
     agent_package_lock_file: path.join(stateDir, 'agent-package-locks.json'),
-    agent_package_lifecycle_ledger_file: path.join(stateDir, 'agent-package-lifecycle-ledger.json'),
     agent_package_home_shortcut_preferences_file: path.join(stateDir, 'agent-package-home-shortcut-preferences.json'),
     storage_owner_inventory_snapshot_file: path.join(stateDir, 'storage-owner-inventory-snapshot.json'),
     managed_install_update_ledger_file: path.join(stateDir, 'managed-install-update-ledger.json'),

@@ -2179,7 +2179,6 @@ function captureBundledFullRuntimePackageSnapshot(input: {
   }));
   const targetPaths = minimalBundledFullRuntimeSnapshotPaths([
     statePaths.agent_package_lock_file,
-    statePaths.agent_package_lifecycle_ledger_file,
     ...affectedLocks.flatMap(managedBundledLockSnapshotPaths),
     ...(input.extraTargetPaths ?? []),
   ], managedEntrypointPaths);
@@ -3151,8 +3150,6 @@ export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
         opl_private_state_writes: {
           ...configured.opl_private_state_writes,
           package_lock: retired && retirement.retired.package_lock,
-          lifecycle_receipt: retired && retirement.retired.lifecycle_receipts > 0,
-          lifecycle_ledger: retired && retirement.retired.lifecycle_receipts > 0,
           last_known_good: retired && retirement.retired.last_known_good_transactions > 0,
           transaction_mutex: retired,
         },

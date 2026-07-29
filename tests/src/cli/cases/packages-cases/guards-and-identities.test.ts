@@ -809,9 +809,7 @@ test('packages preserves installed lock and receipt trail when update materializ
     };
     const installReadback = install.opl_agent_package_install;
     const lockFile = path.join(stateDir, 'agent-package-locks.json');
-    const ledgerFile = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
     const lockFileBefore = fs.readFileSync(lockFile, 'utf8');
-    const ledgerBefore = fs.readFileSync(ledgerFile, 'utf8');
     const installedCachePath = install.opl_agent_package_install.package_lock.physical_surface.codex_plugin_cache_path;
     assert.equal(Object.hasOwn(installReadback, 'lock_file'), false);
     assert.equal(Object.hasOwn(installReadback, 'lifecycle_ledger_file'), false);
@@ -835,7 +833,7 @@ test('packages preserves installed lock and receipt trail when update materializ
     assert.equal(failure.payload.error.details.failure_code, 'agent_package_required_skill_missing');
     assert.equal(fs.existsSync(installedCachePath), true);
     assert.equal(fs.readFileSync(lockFile, 'utf8'), lockFileBefore);
-    assert.equal(fs.readFileSync(ledgerFile, 'utf8'), ledgerBefore);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
 
     const status = runCli([
       'packages',
@@ -1004,7 +1002,8 @@ test('packages fail closed on a legacy noncanonical lock identity without overwr
         },
       ],
     }), 'utf8');
-    fs.writeFileSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json'), formatJsonPayload({
+    const legacyLedgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
+    fs.writeFileSync(legacyLedgerPath, formatJsonPayload({
       surface_kind: 'opl_agent_package_lifecycle_ledger',
       version: 'opl-agent-package-lifecycle-ledger.v1',
       receipts: [
@@ -1071,9 +1070,8 @@ test('packages fail closed on a legacy noncanonical lock identity without overwr
     }), 'utf8');
 
     const lockPath = path.join(stateDir, 'agent-package-locks.json');
-    const ledgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
     const lockBytes = fs.readFileSync(lockPath);
-    const ledgerBytes = fs.readFileSync(ledgerPath);
+    const legacyLedgerBytes = fs.readFileSync(legacyLedgerPath);
     const failure = runCliFailure(['packages', 'list'], { OPL_STATE_DIR: stateDir });
     assert.equal(failure.payload.error.code, 'contract_shape_invalid');
     assert.equal(failure.payload.error.details.failure_code, 'agent_package_lock_authority_corrupt');
@@ -1081,7 +1079,7 @@ test('packages fail closed on a legacy noncanonical lock identity without overwr
     assert.equal(failure.payload.error.details.recovery_required, true);
     assert.equal(failure.payload.error.details.write_allowed, false);
     assert.deepEqual(fs.readFileSync(lockPath), lockBytes);
-    assert.deepEqual(fs.readFileSync(ledgerPath), ledgerBytes);
+    assert.deepEqual(fs.readFileSync(legacyLedgerPath), legacyLedgerBytes);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
   }

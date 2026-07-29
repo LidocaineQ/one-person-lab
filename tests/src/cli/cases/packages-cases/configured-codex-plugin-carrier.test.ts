@@ -889,7 +889,8 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
     assert.equal(installed.opl_agent_package_install.package_lock.package_id, packageId);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), true);
     const legacyLockBytes = fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8');
-    const legacyLedgerBytes = fs.readFileSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json'), 'utf8');
+    const legacyLedgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
+    assert.equal(fs.existsSync(legacyLedgerPath), false);
 
     fs.writeFileSync(
       path.join(pluginSource, 'opl-package.json'),
@@ -927,7 +928,7 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
     assert.equal(descriptorDirectory.opl_agent_packages.owner_route_readback.package_count, 0);
     assert.deepEqual(descriptorDirectory.opl_agent_packages.owner_route_readback.packages, []);
     assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
-    assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json'), 'utf8'), legacyLedgerBytes);
+    assert.equal(fs.existsSync(legacyLedgerPath), false);
 
     const activated = runCli([
       'packages', 'activate', packageId,
@@ -938,7 +939,7 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
     assert.equal(activated.opl_agent_package_activation.package_lock, null);
     assert.equal(activated.opl_agent_package_activation.lifecycle_receipt, null);
     assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
-    assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json'), 'utf8'), legacyLedgerBytes);
+    assert.equal(fs.existsSync(legacyLedgerPath), false);
 
     const hidden = runCli(['packages', 'hide', '--package-id', packageId], env) as any;
     assert.equal(hidden.opl_agent_package_exposure.status, 'hidden');
@@ -946,7 +947,7 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
     assert.equal(hidden.opl_agent_package_exposure.lifecycle_receipt, null);
     assert.deepEqual(hidden.opl_agent_package_exposure.home_shortcut_preferences.map((entry: any) => entry.visible), [false]);
     assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
-    assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json'), 'utf8'), legacyLedgerBytes);
+    assert.equal(fs.existsSync(legacyLedgerPath), false);
 
     const unhidden = runCli(['packages', 'unhide', '--package-id', packageId], env) as any;
     assert.equal(unhidden.opl_agent_package_exposure.status, 'visible');
@@ -954,7 +955,7 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
     assert.equal(unhidden.opl_agent_package_exposure.lifecycle_receipt, null);
     assert.deepEqual(unhidden.opl_agent_package_exposure.home_shortcut_preferences.map((entry: any) => entry.visible), [true]);
     assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
-    assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json'), 'utf8'), legacyLedgerBytes);
+    assert.equal(fs.existsSync(legacyLedgerPath), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

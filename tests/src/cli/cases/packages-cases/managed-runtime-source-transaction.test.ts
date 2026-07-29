@@ -1177,7 +1177,6 @@ test('ordinary-user explicit update advances MAS and ScholarSkills by immutable 
     OPL_MODULE_SOURCE_MODE: 'package_channel',
   };
   const lockFile = path.join(stateDir, 'agent-package-locks.json');
-  const ledgerFile = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
   fs.mkdirSync(workspace, { recursive: true });
   fs.writeFileSync(badWorkspace, 'not a directory\n');
 
@@ -1238,7 +1237,6 @@ test('ordinary-user explicit update advances MAS and ScholarSkills by immutable 
     );
 
     const beforeDryRunLock = fs.readFileSync(lockFile);
-    const beforeDryRunLedger = fs.readFileSync(ledgerFile);
     const runtimeGenerationRoot = path.dirname(v2Paths.runtime);
     const payloadGenerationRoot = path.dirname(v2Paths.payload);
     const pluginCacheRoot = path.join(homeDir, '.codex', 'plugins', 'cache');
@@ -1255,7 +1253,7 @@ test('ordinary-user explicit update advances MAS and ScholarSkills by immutable 
     assert.equal(previewV3.opl_agent_package_update.status, 'validated_no_write');
     assert.equal(previewV3.opl_agent_package_update.target_version, '0.1.2');
     assert.deepEqual(fs.readFileSync(lockFile), beforeDryRunLock);
-    assert.deepEqual(fs.readFileSync(ledgerFile), beforeDryRunLedger);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
     assert.deepEqual({
       runtime: exactTreeDigest(runtimeGenerationRoot),
       payload: exactTreeDigest(payloadGenerationRoot),
@@ -1274,7 +1272,7 @@ test('ordinary-user explicit update advances MAS and ScholarSkills by immutable 
     });
     assert.equal(failedV3.payload.error.code, 'contract_shape_invalid');
     assert.deepEqual(fs.readFileSync(lockFile), beforeDryRunLock);
-    assert.deepEqual(fs.readFileSync(ledgerFile), beforeDryRunLedger);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
     assert.deepEqual({
       runtime: exactTreeDigest(runtimeGenerationRoot),
       payload: exactTreeDigest(payloadGenerationRoot),

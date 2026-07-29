@@ -193,27 +193,21 @@ test('MAS package lifecycle atomically installs and repairs its 11-core capabili
       assert.deepEqual(blocked.payload.error.details.dependent_package_ids, [FIXTURE_CONSUMER_PACKAGE_ID]);
     }
 
-    const ledgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
-    const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
-    const statusBeforeReceiptRemoval = runCli([
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
+    const receiptIndependent = runCli([
       'packages', 'status', '--package-id', FIXTURE_CONSUMER_PACKAGE_ID, '--scope', 'workspace', '--target-workspace', workspace,
     ], env) as any;
-    const receiptRef = statusBeforeReceiptRemoval.opl_agent_package_status.materialization_readiness.lifecycle_receipt_ref;
-    ledger.receipts = ledger.receipts.filter((entry: any) => entry.receipt_ref !== receiptRef);
-    fs.writeFileSync(ledgerPath, formatJsonPayload(ledger));
-    const receiptMissing = runCli([
-      'packages', 'status', '--package-id', FIXTURE_CONSUMER_PACKAGE_ID, '--scope', 'workspace', '--target-workspace', workspace,
-    ], env) as any;
-    assert.equal(receiptMissing.opl_agent_package_status.materialization_readiness.status, 'current');
+    const receiptRef = receiptIndependent.opl_agent_package_status.materialization_readiness.lifecycle_receipt_ref;
+    assert.equal(receiptIndependent.opl_agent_package_status.materialization_readiness.status, 'current');
     assert.equal(
-      receiptMissing.opl_agent_package_status.materialization_readiness.lifecycle_receipt_ref,
+      receiptIndependent.opl_agent_package_status.materialization_readiness.lifecycle_receipt_ref,
       receiptRef,
     );
-    assert.equal(receiptMissing.opl_agent_package_status.status, 'available');
-    assert.equal(receiptMissing.opl_agent_package_status.operational_ready, true);
-    assert.equal(receiptMissing.opl_agent_package_status.launch_allowed, true);
-    assert.equal(receiptMissing.opl_agent_package_status.launch_blocked_reason, null);
-    assert.equal(receiptMissing.opl_agent_package_status.repair_action, null);
+    assert.equal(receiptIndependent.opl_agent_package_status.status, 'available');
+    assert.equal(receiptIndependent.opl_agent_package_status.operational_ready, true);
+    assert.equal(receiptIndependent.opl_agent_package_status.launch_allowed, true);
+    assert.equal(receiptIndependent.opl_agent_package_status.launch_blocked_reason, null);
+    assert.equal(receiptIndependent.opl_agent_package_status.repair_action, null);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

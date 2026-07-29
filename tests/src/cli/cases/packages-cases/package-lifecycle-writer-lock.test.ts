@@ -10,14 +10,12 @@ import {
   fs,
   os,
   path,
-  parseJsonText,
   runCli,
   runCliAsync,
   runCliFailure,
   test,
 } from './helpers.ts';
 import {
-  readLifecycleLedger,
   readLockIndex,
   withAgentPackageLifecycleTransaction,
   writePackageTransaction,
@@ -119,18 +117,13 @@ test('package lifecycle SQLite writer mutex times out on live contention and rec
   }
 });
 
-test('package authority reads allow missing first-install state but reject corrupt files without overwriting bytes', async () => {
+test('package lock authority rejects corruption while legacy receipt history is not an authority', async () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-authority-corrupt-state-'));
   const lockPath = path.join(stateDir, 'agent-package-locks.json');
   const ledgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
   try {
     await withProcessEnv({ OPL_STATE_DIR: stateDir }, async () => {
       assert.deepEqual(readLockIndex(), emptyLockIndex());
-      assert.deepEqual(readLifecycleLedger(), {
-        surface_kind: 'opl_agent_package_lifecycle_ledger',
-        version: 'opl-agent-package-lifecycle-ledger.v1',
-        receipts: [],
-      });
       assert.equal(fs.existsSync(lockPath), false);
       assert.equal(fs.existsSync(ledgerPath), false);
 
@@ -151,26 +144,11 @@ test('package authority reads allow missing first-install state but reject corru
       assert.equal(fs.existsSync(ledgerPath), false);
 
       fs.writeFileSync(lockPath, formatJsonPayload(emptyLockIndex()));
-      const corruptLedgerBytes = Buffer.from(formatJsonPayload({
-        surface_kind: 'opl_agent_package_lifecycle_ledger',
-        version: 'opl-agent-package-lifecycle-ledger.v1',
-        receipts: [{ receipt_ref: 'missing-required-shape' }],
-      }));
-      fs.writeFileSync(ledgerPath, corruptLedgerBytes);
+      fs.writeFileSync(ledgerPath, '{ obsolete receipt history\n');
       const validLockBytes = fs.readFileSync(lockPath);
-      assert.throws(
-        () => readLifecycleLedger(),
-        (error: any) => error?.code === 'contract_shape_invalid'
-          && error?.details?.failure_code === 'agent_package_lifecycle_ledger_authority_corrupt'
-          && error?.details?.recovery_required === true
-          && error?.details?.write_allowed === false,
-      );
-      assert.throws(
-        () => writePackageTransaction(emptyLockIndex(), []),
-        (error: any) => error?.details?.failure_code === 'agent_package_lifecycle_ledger_authority_corrupt',
-      );
+      writePackageTransaction(emptyLockIndex(), []);
       assert.deepEqual(fs.readFileSync(lockPath), validLockBytes);
-      assert.deepEqual(fs.readFileSync(ledgerPath), corruptLedgerBytes);
+      assert.equal(fs.existsSync(ledgerPath), false);
     });
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
@@ -213,11 +191,7 @@ test('concurrent package activation preserves distinct workspaces and avoids sha
       mas.scope_materializations.map((entry: any) => path.resolve(entry.target_root)).sort(),
       [path.resolve(workspaceA), path.resolve(workspaceB)].sort(),
     );
-    const distinctUseTargets = JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).receipts
-      .filter((entry: any) => entry.action === 'use')
-      .map((entry: any) => path.resolve(entry.use_binding.target_root));
-    assert.equal(distinctUseTargets.includes(path.resolve(workspaceA)), true);
-    assert.equal(distinctUseTargets.includes(path.resolve(workspaceB)), true);
+    assert.equal(fs.existsSync(ledgerFile), false);
     assertNoScopeTransactionArtifacts(workspaceA);
     assertNoScopeTransactionArtifacts(workspaceB);
 
@@ -310,15 +284,10 @@ test('use boundary never calls a hanging package channel and uses the installed 
     assert.equal(activation.package_use_binding.remote_dependency_policy, 'forbidden');
     assert.equal(fs.existsSync(curlMarker), false);
 
-    const ledger = parseJsonText(
-      fs.readFileSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json'), 'utf8'),
-    ) as any;
-    const useReceipt = ledger.receipts.find(
-      (entry: any) => entry.receipt_ref === activation.package_use_binding.use_receipt_ref,
+    assert.equal(
+      fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')),
+      false,
     );
-    assert.equal(useReceipt.source_selection, 'installed_package_lock');
-    assert.equal(useReceipt.network_accessed, false);
-    assert.equal(useReceipt.remote_dependency_policy, 'forbidden');
   } finally {
     removeFixtureTree(root);
   }

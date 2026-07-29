@@ -783,7 +783,6 @@ test('identity-drifted bundled OMA reconciles only through its owner package cha
     generation: 'next',
   });
   const lockPath = path.join(stateDir, 'agent-package-locks.json');
-  const ledgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
   const lifecycleSqlitePath = path.join(stateDir, 'agent-package-lifecycle.sqlite');
   const transactionRoot = path.join(stateDir, 'agent-package-runtime-transactions');
   const commonEnv = {
@@ -852,7 +851,6 @@ test('identity-drifted bundled OMA reconciles only through its owner package cha
     fs.writeFileSync(path.join(bundledRuntimeRoot, 'unrecorded-owner-write.txt'), 'drift\n');
     const stateSnapshot = () => ({
       lock: fileDigest(lockPath),
-      ledger: fileDigest(ledgerPath),
       sqlite: fileDigest(lifecycleSqlitePath),
       sqliteWal: fileDigest(`${lifecycleSqlitePath}-wal`),
       sqliteShm: fileDigest(`${lifecycleSqlitePath}-shm`),
@@ -1400,7 +1398,6 @@ test('single-package developer update reconciles from the live Release Set and b
   const nextReleaseSet = writeCapabilityCatalog(path.join(root, 'next-release-set'), [nextMas, nextProvider]);
   const fakeBin = path.join(root, 'bin');
   const lockFile = path.join(stateDir, 'agent-package-locks.json');
-  const ledgerFile = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
   const releaseCatalogCache = path.join(stateDir, 'agent-package-release-catalog-cache.json');
   const masSentinel = path.join(masCheckout, 'developer-source.txt');
   const scholarSentinel = path.join(scholarCheckout, 'developer-source.txt');
@@ -1434,7 +1431,7 @@ test('single-package developer update reconciles from the live Release Set and b
     assert.equal(installed.opl_agent_package_install.package_lock.package_version, '0.1.0');
     assert.equal(installed.opl_agent_package_install.package_lock.source_kind, 'developer_checkout_override');
     const installedLockBytes = fs.readFileSync(lockFile, 'utf8');
-    const installedLedgerBytes = fs.readFileSync(ledgerFile, 'utf8');
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
     assert.equal(fs.existsSync(releaseCatalogCache), false);
 
     const pathFailure = runCliFailure([
@@ -1446,7 +1443,7 @@ test('single-package developer update reconciles from the live Release Set and b
       'first_party_package_developer_checkout_path_mismatch',
     );
     assert.equal(fs.readFileSync(lockFile, 'utf8'), installedLockBytes);
-    assert.equal(fs.readFileSync(ledgerFile, 'utf8'), installedLedgerBytes);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
     assert.equal(fs.existsSync(releaseCatalogCache), false);
 
     updateDeveloperCapabilityCheckoutClosure({
@@ -1468,7 +1465,7 @@ test('single-package developer update reconciles from the live Release Set and b
     assert.equal(previewUpdate.lifecycle_receipt.writes_performed, false);
     assert.equal(fs.existsSync(releaseCatalogCache), false);
     assert.equal(fs.readFileSync(lockFile, 'utf8'), installedLockBytes);
-    assert.equal(fs.readFileSync(ledgerFile, 'utf8'), installedLedgerBytes);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
 
     const updated = runCli(['packages', 'update', 'mas'], nextEnv) as any;
     const appliedUpdate = updated.opl_agent_package_update;
@@ -1528,7 +1525,6 @@ test('single-package developer update reconciles from the live Release Set and b
     assert.equal(fs.existsSync(releaseCatalogCache), false);
 
     const currentLockBytes = fs.readFileSync(lockFile, 'utf8');
-    const currentLedgerBytes = fs.readFileSync(ledgerFile, 'utf8');
     const current = runCli(['packages', 'update', 'mas'], nextEnv) as any;
     const currentUpdate = current.opl_agent_package_update;
     assert.equal(currentUpdate.status, 'current_noop');
@@ -1543,7 +1539,7 @@ test('single-package developer update reconciles from the live Release Set and b
       ],
     );
     assert.equal(fs.readFileSync(lockFile, 'utf8'), currentLockBytes);
-    assert.equal(fs.readFileSync(ledgerFile, 'utf8'), currentLedgerBytes);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
     assert.equal(fs.existsSync(releaseCatalogCache), false);
 
     const scholarHead = execFileSync('git', ['rev-parse', 'HEAD'], {

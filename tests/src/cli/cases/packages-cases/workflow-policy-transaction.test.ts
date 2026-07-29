@@ -656,10 +656,8 @@ test('OPL Flow package lifecycle advances workflow policy v1 v2 v3 and reaches a
     );
 
     const lockPath = path.join(stateDir, 'agent-package-locks.json');
-    const ledgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
     const beforeFixedPoint = {
       lock: fs.readFileSync(lockPath),
-      ledger: fs.readFileSync(ledgerPath),
     };
     for (let iteration = 0; iteration < 2; iteration += 1) {
       const status = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
@@ -671,7 +669,7 @@ test('OPL Flow package lifecycle advances workflow policy v1 v2 v3 and reaches a
       );
     }
     assert.deepEqual(fs.readFileSync(lockPath), beforeFixedPoint.lock);
-    assert.deepEqual(fs.readFileSync(ledgerPath), beforeFixedPoint.ledger);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
 
     const workflowProfileIndex = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
     workflowProfileIndex.packages.find(
@@ -1152,10 +1150,8 @@ test('installed-source optimize is offline, dry-run safe, and explicitly rolls b
       OPL_COMPANION_SKIP_LATEST_LOOKUP: '0',
     };
     const lockPath = path.join(stateDir, 'agent-package-locks.json');
-    const ledgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
     const beforeDryRun = {
       lock: fs.readFileSync(lockPath, 'utf8'),
-      ledger: fs.readFileSync(ledgerPath, 'utf8'),
       config: fs.readFileSync(configPath, 'utf8'),
       profile: fs.readFileSync(profilePath, 'utf8'),
     };
@@ -1165,7 +1161,7 @@ test('installed-source optimize is offline, dry-run safe, and explicitly rolls b
     assert.equal(preview.opl_agent_package_optimize.network_accessed, false);
     assert.equal(preview.opl_agent_package_optimize.remote_dependency_policy, 'forbidden');
     assert.equal(fs.readFileSync(lockPath, 'utf8'), beforeDryRun.lock);
-    assert.equal(fs.readFileSync(ledgerPath, 'utf8'), beforeDryRun.ledger);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
     assert.equal(fs.readFileSync(configPath, 'utf8'), beforeDryRun.config);
     assert.equal(fs.readFileSync(profilePath, 'utf8'), beforeDryRun.profile);
 
@@ -1203,17 +1199,17 @@ test('installed-source optimize is offline, dry-run safe, and explicitly rolls b
 
     const rollbackPreviewState = {
       lock: fs.readFileSync(lockPath, 'utf8'),
-      ledger: fs.readFileSync(ledgerPath, 'utf8'),
       config: fs.readFileSync(configPath, 'utf8'),
       profile: fs.readFileSync(profilePath, 'utf8'),
     };
-    fs.writeFileSync(ledgerPath, '{ invalid lifecycle ledger\n', 'utf8');
+    const legacyLedgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
+    fs.writeFileSync(legacyLedgerPath, '{ obsolete receipt history\n', 'utf8');
     const rollbackPreview = runCli(['packages', 'rollback', 'fixture.opl-flow', '--dry-run'], optimizeEnv) as any;
     assert.equal(rollbackPreview.opl_agent_package_rollback.status, 'validated_no_write');
     assert.equal(rollbackPreview.opl_agent_package_rollback.network_accessed, false);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), rollbackPreviewState.lock);
-    assert.equal(fs.readFileSync(ledgerPath, 'utf8'), '{ invalid lifecycle ledger\n');
-    fs.writeFileSync(ledgerPath, rollbackPreviewState.ledger, 'utf8');
+    assert.equal(fs.readFileSync(legacyLedgerPath, 'utf8'), '{ obsolete receipt history\n');
+    fs.rmSync(legacyLedgerPath, { force: true });
     assert.equal(fs.readFileSync(configPath, 'utf8'), rollbackPreviewState.config);
     assert.equal(fs.readFileSync(profilePath, 'utf8'), rollbackPreviewState.profile);
 
@@ -1222,7 +1218,7 @@ test('installed-source optimize is offline, dry-run safe, and explicitly rolls b
     fs.chmodSync(stateDir, 0o755);
     assert.notEqual(rollbackFailure.status, 0);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), rollbackPreviewState.lock);
-    assert.equal(fs.readFileSync(ledgerPath, 'utf8'), rollbackPreviewState.ledger);
+    assert.equal(fs.existsSync(legacyLedgerPath), false);
     assert.doesNotMatch(fs.readFileSync(configPath, 'utf8'), /marketplaces\.ponytail/);
     assert.equal(fs.readFileSync(profilePath, 'utf8'), originalProfile);
     assert.equal(fs.existsSync(conflictPath), false);
@@ -1271,13 +1267,12 @@ test('failed installed-source optimize restores policy and profile state before 
     writeFile(path.join(conflictPath, 'restored.txt'), 'must survive failed optimize\n');
     fs.appendFileSync(configPath, '\n[marketplaces.ponytail]\nsource = "/tmp/failure"\n', 'utf8');
     const lockBefore = fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8');
-    const ledgerBefore = fs.readFileSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json'), 'utf8');
     fs.chmodSync(stateDir, 0o555);
     const failure = runCliFailure(['packages', 'optimize', 'fixture.opl-flow'], env);
     fs.chmodSync(stateDir, 0o755);
     assert.notEqual(failure.status, 0);
     assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), lockBefore);
-    assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json'), 'utf8'), ledgerBefore);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
     assert.equal(fs.readFileSync(profilePath, 'utf8'), originalProfile);
     assert.equal(fs.readFileSync(path.join(conflictPath, 'restored.txt'), 'utf8'), 'must survive failed optimize\n');
     assert.match(fs.readFileSync(configPath, 'utf8'), /marketplaces\.ponytail/);

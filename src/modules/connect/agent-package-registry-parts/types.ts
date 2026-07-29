@@ -994,12 +994,6 @@ export type AgentPackageLockIndex = {
   last_known_good_transactions?: AgentPackageLastKnownGood[];
 };
 
-export type AgentPackageLifecycleLedger = {
-  surface_kind: 'opl_agent_package_lifecycle_ledger';
-  version: 'opl-agent-package-lifecycle-ledger.v1';
-  receipts: AgentPackageLifecycleReceipt[];
-};
-
 export type AgentPackageOwnerRouteReadbackItem = {
   package_id: string;
   package_dependency_readiness: AgentPackageDependencyReadiness;

@@ -6,15 +6,12 @@ import { DatabaseSync } from 'node:sqlite';
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
 import {
   readJsonFileResult,
-  upsertJsonReceipts,
   writeJsonPayloadFile,
-  writeJsonReceiptLedger,
 } from '../../../kernel/json-file.ts';
 import { stringValue } from '../../../kernel/json-record.ts';
 import { ensureOplStateDir, resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
 import type {
-  AgentPackageLifecycleLedger,
   AgentPackageLifecycleReceipt,
   AgentPackageLock,
   AgentPackageLockIndex,
@@ -27,7 +24,6 @@ type PackageLifecycleTransactionOptions = {
 
 type PackageTransactionWriteOptions = {
   removeEmptyAuthorities?: boolean;
-  replaceReceipts?: boolean;
 };
 
 const PACKAGE_LIFECYCLE_LOCK_TIMEOUT_MS = 5_000;
@@ -110,15 +106,7 @@ function emptyLockIndex(): AgentPackageLockIndex {
   };
 }
 
-function emptyLifecycleLedger(): AgentPackageLifecycleLedger {
-  return {
-    surface_kind: 'opl_agent_package_lifecycle_ledger',
-    version: 'opl-agent-package-lifecycle-ledger.v1',
-    receipts: [],
-  };
-}
-
-type PackageAuthorityKind = 'lock_index' | 'lifecycle_ledger';
+type PackageAuthorityKind = 'lock_index';
 
 function packageAuthorityCorrupt(
   authorityKind: PackageAuthorityKind,
@@ -126,16 +114,12 @@ function packageAuthorityCorrupt(
   reason: 'invalid_json' | 'invalid_shape',
   details: Record<string, unknown> = {},
 ) {
-  const label = authorityKind === 'lock_index'
-    ? 'Agent package lock index'
-    : 'Agent package lifecycle ledger';
+  const label = 'Agent package lock index';
   return new FrameworkContractError(
     reason === 'invalid_json' ? 'contract_json_invalid' : 'contract_shape_invalid',
     `${label} exists but is corrupt; restore or repair it before Package lifecycle mutation.`,
     {
-      failure_code: authorityKind === 'lock_index'
-        ? 'agent_package_lock_authority_corrupt'
-        : 'agent_package_lifecycle_ledger_authority_corrupt',
+      failure_code: 'agent_package_lock_authority_corrupt',
       authority_kind: authorityKind,
       authority_status: 'corrupt',
       authority_file: filePath,
@@ -243,40 +227,6 @@ export function readLockIndex(): AgentPackageLockIndex {
   return normalizeLockIndex(result.payload, filePath);
 }
 
-export function readLifecycleLedger(): AgentPackageLifecycleLedger {
-  const filePath = resolveOplStatePaths().agent_package_lifecycle_ledger_file;
-  const result = readJsonFileResult(filePath);
-  if (result.status === 'missing') {
-    return emptyLifecycleLedger();
-  }
-  if (result.status === 'invalid_json') {
-    throw packageAuthorityCorrupt('lifecycle_ledger', filePath, 'invalid_json', {
-      parse_error: result.error,
-    });
-  }
-  if (
-    !isRecord(result.payload)
-    || result.payload.surface_kind !== 'opl_agent_package_lifecycle_ledger'
-    || result.payload.version !== 'opl-agent-package-lifecycle-ledger.v1'
-    || !Array.isArray(result.payload.receipts)
-  ) {
-    throw packageAuthorityCorrupt('lifecycle_ledger', filePath, 'invalid_shape');
-  }
-  return {
-    ...emptyLifecycleLedger(),
-    receipts: result.payload.receipts.map((value, index) => {
-      const receipt = normalizeLifecycleReceipt(value);
-      if (!receipt) {
-        throw packageAuthorityCorrupt('lifecycle_ledger', filePath, 'invalid_shape', {
-          field: 'receipts',
-          invalid_entry_index: index,
-        });
-      }
-      return receipt;
-    }),
-  };
-}
-
 export function writePackageTransaction(
   index: AgentPackageLockIndex,
   receipts: AgentPackageLifecycleReceipt[],
@@ -287,18 +237,12 @@ export function writePackageTransaction(
   const previousLock = fs.existsSync(paths.agent_package_lock_file)
     ? fs.readFileSync(paths.agent_package_lock_file)
     : null;
-  const previousLedger = fs.existsSync(paths.agent_package_lifecycle_ledger_file)
-    ? fs.readFileSync(paths.agent_package_lifecycle_ledger_file)
+  const legacyLedgerPath = path.join(paths.state_dir, 'agent-package-lifecycle-ledger.json');
+  const previousLegacyLedger = fs.existsSync(legacyLedgerPath)
+    ? fs.readFileSync(legacyLedgerPath)
     : null;
-  const ledger = readLifecycleLedger();
   const normalizedIndex = normalizeLockIndex(index, paths.agent_package_lock_file);
-  if (options.replaceReceipts) {
-    ledger.receipts = [...receipts];
-  } else {
-    upsertJsonReceipts(ledger.receipts, receipts, (entry, next) =>
-      entry.receipt_ref === next.receipt_ref
-    );
-  }
+  void receipts;
   try {
     if (
       options.removeEmptyAuthorities
@@ -309,48 +253,12 @@ export function writePackageTransaction(
     } else {
       writeJsonPayloadFile(paths.agent_package_lock_file, normalizedIndex);
     }
-    if (options.removeEmptyAuthorities && ledger.receipts.length === 0) {
-      fs.rmSync(paths.agent_package_lifecycle_ledger_file, { force: true });
-    } else {
-      writeJsonReceiptLedger(paths.agent_package_lifecycle_ledger_file, ledger);
-    }
+    fs.rmSync(legacyLedgerPath, { force: true });
   } catch (error) {
     if (previousLock) fs.writeFileSync(paths.agent_package_lock_file, previousLock);
     else fs.rmSync(paths.agent_package_lock_file, { force: true });
-    if (previousLedger) fs.writeFileSync(paths.agent_package_lifecycle_ledger_file, previousLedger);
-    else fs.rmSync(paths.agent_package_lifecycle_ledger_file, { force: true });
+    if (previousLegacyLedger) fs.writeFileSync(legacyLedgerPath, previousLegacyLedger);
+    else fs.rmSync(legacyLedgerPath, { force: true });
     throw error;
   }
-}
-
-function normalizeLifecycleReceipt(value: unknown): AgentPackageLifecycleReceipt | null {
-  if (
-    !isRecord(value)
-    || value.surface_kind !== 'opl_agent_package_lifecycle_receipt'
-    || value.receipt_status !== 'recorded'
-    || typeof value.recorded_at !== 'string'
-    || typeof value.action !== 'string'
-    || !['completed', 'validated'].includes(String(value.action_status))
-    || typeof value.writes_performed !== 'boolean'
-  ) {
-    return null;
-  }
-  const receiptRef = stringValue(value.receipt_ref);
-  const declaredPackageId = stringValue(value.package_id)?.toLowerCase() ?? null;
-  const packageId = canonicalAgentPackageId(declaredPackageId);
-  if (declaredPackageId && packageId !== declaredPackageId) return null;
-  const physicalSurface = isRecord(value.physical_surface)
-    ? value.physical_surface
-    : value.physical_surface;
-  const physicalPackageId = isRecord(physicalSurface)
-    ? stringValue(physicalSurface.package_id)?.toLowerCase() ?? null
-    : null;
-  if (physicalPackageId && canonicalAgentPackageId(physicalPackageId) !== physicalPackageId) return null;
-  return receiptRef
-    ? {
-        ...value,
-        package_id: packageId,
-        ...(physicalSurface ? { physical_surface: physicalSurface } : {}),
-      } as AgentPackageLifecycleReceipt
-    : null;
 }

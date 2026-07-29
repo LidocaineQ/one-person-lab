@@ -1,6 +1,8 @@
+import fs from 'node:fs';
 import path from 'node:path';
 
 import { FrameworkContractError } from '../../../kernel/contract-validation.ts';
+import { ensureOplStateDir } from '../../../kernel/runtime-state-paths.ts';
 import {
   discoverInstalledCodexPluginDescriptors,
 } from './installed-codex-plugin-directory.ts';
@@ -9,7 +11,6 @@ import {
   removePhysicalCodexSurface,
 } from './physical-surface.ts';
 import {
-  readLifecycleLedger,
   readLockIndex,
   withAgentPackageLifecycleTransaction,
   writePackageTransaction,
@@ -33,13 +34,11 @@ export type DescriptorOwnedLegacyStateRetirement = {
   retired: {
     package_lock: boolean;
     last_known_good_transactions: number;
-    lifecycle_receipts: number;
     physical_paths: string[];
   };
   retained: {
     package_lock: boolean;
     last_known_good_transactions: number;
-    lifecycle_receipts: number;
   };
 };
 
@@ -55,13 +54,6 @@ function pathsOverlap(left: string, right: string) {
   return resolvedLeft === resolvedRight
     || resolvedLeft.startsWith(`${resolvedRight}${path.sep}`)
     || resolvedRight.startsWith(`${resolvedLeft}${path.sep}`);
-}
-
-function lockReceiptRefs(index: AgentPackageLockIndex) {
-  return new Set([
-    ...index.packages,
-    ...(index.last_known_good_transactions ?? []).flatMap((entry) => entry.package_locks),
-  ].map((lock) => lock.action_receipt_id).filter(Boolean));
 }
 
 function physicalSurfaceStillReferenced(
@@ -189,7 +181,6 @@ function retireDescriptorOwnedLegacyState(input: {
   }
 
   const index = readLockIndex();
-  const ledger = readLifecycleLedger();
   const retainedReason = retentionReason(
     input.packageId,
     index,
@@ -211,22 +202,11 @@ function retireDescriptorOwnedLegacyState(input: {
         packages: index.packages.filter((lock) => lock.package_id !== input.packageId),
         last_known_good_transactions: retainedTransactions,
       };
-  const retainedReceiptRefs = lockReceiptRefs(nextIndex);
-  const retiredReceipts = retainedReason
-    ? []
-    : ledger.receipts.filter((receipt) =>
-        receipt.package_id === input.packageId
-        && !retainedReceiptRefs.has(receipt.receipt_ref)
-      );
-  const nextReceipts = ledger.receipts.filter((receipt) => !retiredReceipts.includes(receipt));
   const mutationRequired = !retainedReason
-    && (Boolean(currentLock) || targetOnlyTransactions.length > 0 || retiredReceipts.length > 0);
+    && (Boolean(currentLock) || targetOnlyTransactions.length > 0);
   const retainedPackageLock = nextIndex.packages.some((lock) => lock.package_id === input.packageId);
   const retainedLkgCount = (nextIndex.last_known_good_transactions ?? []).filter((entry) =>
     entry.package_locks.some((lock) => lock.package_id === input.packageId)
-  ).length;
-  const retainedReceiptCount = nextReceipts.filter(
-    (receipt) => receipt.package_id === input.packageId,
   ).length;
   const result: DescriptorOwnedLegacyStateRetirement = {
     surface_kind: 'opl_descriptor_owned_legacy_state_retirement.v1',
@@ -245,20 +225,24 @@ function retireDescriptorOwnedLegacyState(input: {
     retired: {
       package_lock: Boolean(currentLock) && !retainedReason,
       last_known_good_transactions: retainedReason ? 0 : targetOnlyTransactions.length,
-      lifecycle_receipts: retiredReceipts.length,
       physical_paths: [],
     },
     retained: {
       package_lock: retainedPackageLock,
       last_known_good_transactions: retainedLkgCount,
-      lifecycle_receipts: retainedReceiptCount,
     },
   };
   if (!mutationRequired || input.dryRun) return result;
 
-  writePackageTransaction(nextIndex, nextReceipts, {
+  const legacyLedgerPath = path.join(
+    ensureOplStateDir().state_dir,
+    'agent-package-lifecycle-ledger.json',
+  );
+  const legacyLedgerSnapshot = fs.existsSync(legacyLedgerPath)
+    ? fs.readFileSync(legacyLedgerPath)
+    : null;
+  writePackageTransaction(nextIndex, [], {
     removeEmptyAuthorities: true,
-    replaceReceipts: true,
   });
   try {
     const retiredLocks = [
@@ -282,7 +266,9 @@ function retireDescriptorOwnedLegacyState(input: {
       ...new Set([...legacySurfaceRemovals, ...unreferencedRemovals]),
     ];
   } catch (error) {
-    writePackageTransaction(index, ledger.receipts, { replaceReceipts: true });
+    writePackageTransaction(index, []);
+    if (legacyLedgerSnapshot) fs.writeFileSync(legacyLedgerPath, legacyLedgerSnapshot);
+    else fs.rmSync(legacyLedgerPath, { force: true });
     throw error;
   }
   return result;
@@ -307,13 +293,11 @@ export async function maybeRetireDescriptorOwnedLegacyState(input: {
       retired: {
         package_lock: false,
         last_known_good_transactions: 0,
-        lifecycle_receipts: 0,
         physical_paths: [],
       },
       retained: {
         package_lock: false,
         last_known_good_transactions: 0,
-        lifecycle_receipts: 0,
       },
     } satisfies DescriptorOwnedLegacyStateRetirement;
   }
