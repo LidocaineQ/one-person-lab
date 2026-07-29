@@ -34,6 +34,16 @@ function writeMasUvFixture(binRoot: string) {
   ].join('\n'), { mode: 0o755 });
 }
 
+function writeAbsentCodexPluginManager(root: string) {
+  const binary = path.join(root, 'fake-codex-plugin-manager');
+  fs.writeFileSync(binary, [
+    '#!/usr/bin/env node',
+    "if (process.argv.slice(2).join(' ') !== 'plugin list --json') process.exit(2);",
+    "process.stdout.write(JSON.stringify({ installed: [], available: [] }));",
+  ].join('\n'), { mode: 0o755 });
+  return binary;
+}
+
 function withMasUvFixturePath(releaseEnv: Record<string, string>, binRoot: string) {
   return {
     ...releaseEnv,
@@ -200,6 +210,7 @@ test('family-runtime attempt create fails closed when the canonical domain packa
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
   };
   fs.mkdirSync(workspace, { recursive: true });
   try {
@@ -226,6 +237,7 @@ test('family-runtime keeps duplicate create idempotent and refreshes the scope a
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
     OPL_TEMPORAL_ADDRESS: '',
     TEMPORAL_ADDRESS: '',
     ...releaseSet.env,
@@ -251,17 +263,17 @@ test('family-runtime keeps duplicate create idempotent and refreshes the scope a
     const projectionRoot = path.join(env.OPL_STATE_DIR, 'agent-package-skill-projections');
     const packageBytesBeforeCreate = {
       lock: fs.readFileSync(lockPath, 'utf8'),
-      ledger: fs.readFileSync(ledgerPath, 'utf8'),
       generations: fs.existsSync(projectionRoot) ? fs.readdirSync(projectionRoot).sort() : [],
     };
+    assert.equal(fs.existsSync(ledgerPath), false);
     const existingAttempt = runCli(createArgs(workspace), env)
       .family_runtime_stage_attempt.attempt;
     assert.equal(Object.hasOwn(existingAttempt.workspace_locator, 'package_use_binding'), false);
     assert.deepEqual({
       lock: fs.readFileSync(lockPath, 'utf8'),
-      ledger: fs.readFileSync(ledgerPath, 'utf8'),
       generations: fs.existsSync(projectionRoot) ? fs.readdirSync(projectionRoot).sort() : [],
     }, packageBytesBeforeCreate);
+    assert.equal(fs.existsSync(ledgerPath), false);
     fs.rmSync(path.join(workspace, '.codex', 'skills', 'medical-manuscript-writing'), {
       recursive: true,
       force: true,
@@ -351,6 +363,7 @@ test('family-runtime quest first start activates every Skill while a new attempt
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
     ...releaseSet.env,
   };
   try {
@@ -490,6 +503,7 @@ test('family-runtime invocation keeps the installed provider until an explicit u
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
     ...releaseSet.env,
   };
   try {
@@ -612,6 +626,7 @@ test('family-runtime absorbs developer checkout changes only after an explicit u
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
     OPL_MODULE_PATH_MEDAUTOSCIENCE: masCheckout,
     OPL_MODULE_PATH_SCHOLARSKILLS: scholarCheckout,
     ...withMasUvFixturePath(releaseSet.env, fakeBin),
@@ -722,6 +737,7 @@ test('family-runtime ignores an incomplete checkout until an explicit update', a
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
     OPL_MODULE_PATH_MEDAUTOSCIENCE: masCheckout,
     OPL_MODULE_PATH_SCHOLARSKILLS: scholarCheckout,
     ...withMasUvFixturePath(releaseSet.env, fakeBin),
@@ -810,6 +826,7 @@ test('explicit provider update removes only unchanged package-owned Skills and p
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
     ...releaseSet.env,
   };
   try {
@@ -846,6 +863,7 @@ test('family-runtime use boundary ignores owner channels when the legacy shared 
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
     ...releaseSet.env,
   };
   try {
@@ -887,7 +905,7 @@ test('family-runtime use boundary ignores owner channels when the legacy shared 
   }
 });
 
-test('family-runtime treats lifecycle and prior use receipt metadata as observation-only', async () => {
+test('family-runtime treats operation receipts as observation-only without a lifecycle ledger', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-capability-use-receipt-tamper-'));
   const workspace = path.join(root, 'workspace');
   const provider = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0');
@@ -900,36 +918,36 @@ test('family-runtime treats lifecycle and prior use receipt metadata as observat
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
     ...releaseSet.env,
   };
   try {
-    await runCliAsync(['packages', 'install', 'mas'], env);
+    const installation = (await runCliAsync(['packages', 'install', 'mas'], env) as any)
+      .opl_agent_package_install;
     const lockIndex = JSON.parse(fs.readFileSync(
       path.join(env.OPL_STATE_DIR, 'agent-package-locks.json'),
       'utf8',
     ));
     const installedMas = lockIndex.packages.find((entry: any) => entry.package_id === 'mas');
     const ledgerPath = path.join(env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json');
-    const installLedger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
-    const installReceipt = installLedger.receipts.find((entry: any) =>
-      entry.receipt_ref === installedMas.action_receipt_id);
-    installReceipt.owner_source_commit = 'f'.repeat(40);
-    fs.writeFileSync(ledgerPath, `${JSON.stringify(installLedger, null, 2)}\n`);
+    assert.equal(installation.lifecycle_receipt.receipt_ref, installedMas.action_receipt_id);
+    assert.equal(fs.existsSync(ledgerPath), false);
 
     const attempt = createThenBindAtStart(
       createSessionArgs(workspace, 'tampered-receipt'),
       env,
     ).attempt;
-    const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
-    const receipt = ledger.receipts.find((entry: any) =>
-      entry.receipt_ref === attempt.workspace_locator.package_use_binding.use_receipt_ref);
-    receipt.use_binding.provider_packages[0].package_version = '9.9.9';
-    fs.writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+    assert.match(
+      attempt.workspace_locator.package_use_binding.use_receipt_ref,
+      /^opl:\/\/agent-package\/use\//,
+    );
+    assert.equal(fs.existsSync(ledgerPath), false);
 
     const resumedFailure = runCliFailure([
       'family-runtime', 'attempt', 'start', attempt.stage_attempt_id,
     ], env);
     assert.notEqual(resumedFailure.payload.error.details?.failure_code, 'agent_package_use_receipt_invalid');
+    assert.equal(fs.existsSync(ledgerPath), false);
   } finally {
     removeFixtureTree(root);
   }
@@ -951,6 +969,7 @@ test('family-runtime keeps the installed provider callable without an ABI compat
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
     ...releaseSet.env,
   };
   try {
@@ -999,6 +1018,7 @@ test('family-runtime does not enter explicit update reconciliation during invoca
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
     ...releaseSet.env,
   };
   const helper = path.join(workspace, '.codex', 'skills', 'medical-manuscript-writing', 'helper.txt');
