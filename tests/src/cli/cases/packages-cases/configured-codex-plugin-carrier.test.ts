@@ -7,12 +7,15 @@ import {
   fs,
   os,
   path,
+  parseJsonText,
   removeFixtureTree,
+  repoRoot,
   registryPayload,
   runCli,
   runCliFailure,
   test,
 } from './helpers.ts';
+import { validateJsonSchemaPayload } from '../../../../../src/kernel/schema-registry.ts';
 import {
   runConfiguredCodexPluginCarrier,
   type CodexPluginCommandRunner,
@@ -110,6 +113,19 @@ function installedOwnerDescriptor() {
       }],
     },
   };
+}
+
+function assertCommandOutputSchema(commandKey: string, payload: unknown) {
+  const registry = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts', 'opl-framework', 'cli-command-registry.json'),
+    'utf8',
+  )) as any;
+  const validation = validateJsonSchemaPayload({
+    schemaId: `opl.cli.${commandKey}.configured_carrier`,
+    schema: registry.commands[commandKey].output_schema,
+    sourceRef: `cli-command-registry.json#/commands/${commandKey}/output_schema`,
+  }, payload);
+  assert.equal(validation.ok, true, JSON.stringify(validation));
 }
 
 test('configured Codex carrier exposes exact identity and fails closed on duplicate source precedence', () => {
@@ -310,6 +326,18 @@ if (callCount > 0 || args.join(' ') !== 'plugin list --json') {
     }],
     available: [],
   }));
+}
+`);
+  fs.chmodSync(binary, 0o755);
+}
+
+function writeUnavailableCodex(binary: string) {
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+if (process.argv.slice(2).join(' ') === 'plugin list --json') {
+  process.stderr.write('native list unavailable');
+  process.exitCode = 23;
+} else {
+  process.exitCode = 2;
 }
 `);
   fs.chmodSync(binary, 0o755);
@@ -1059,6 +1087,10 @@ test('native private lifecycle actions stay carrier-owned when legacy authoritie
       const surfaceKey = action === 'profile apply'
         ? 'opl_agent_package_profile_apply'
         : `opl_agent_package_${action}`;
+      const commandKey = action === 'profile apply'
+        ? 'packages_profile_apply'
+        : `packages_${action}`;
+      assertCommandOutputSchema(commandKey, result);
       const surface = result[surfaceKey];
       assert.equal(surface.status, 'carrier_owned');
       assert.equal(surface.lifecycle_authority, 'carrier_owned');
@@ -1070,6 +1102,48 @@ test('native private lifecycle actions stay carrier-owned when legacy authoritie
       assert.equal(surface.configured_carrier.native_action_dispatched, true);
       assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBefore);
       assert.equal(fs.readFileSync(ledgerPath, 'utf8'), ledgerBefore);
+      assert.equal(fs.existsSync(sqlitePath), false);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('initial native carrier discovery failure does not enter legacy private lifecycle', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-private-action-discovery-failure-'));
+  const stateDir = path.join(root, 'opl-state');
+  const binary = path.join(root, 'unavailable-codex.mjs');
+  const lockPath = path.join(stateDir, 'agent-package-locks.json');
+  const ledgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
+  const sqlitePath = path.join(stateDir, 'agent-package-lifecycle.sqlite');
+  const invalidLock = '{ invalid discovery-failure lock\n';
+  const invalidLedger = '{ invalid discovery-failure ledger\n';
+  const env = {
+    HOME: root,
+    CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: binary,
+  };
+  try {
+    writeUnavailableCodex(binary);
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(lockPath, invalidLock, 'utf8');
+    fs.writeFileSync(ledgerPath, invalidLedger, 'utf8');
+
+    for (const action of ['optimize', 'rollback', 'profile apply'] as const) { // reuse-first: allow - exercise the public command vocabulary without implementing a Framework lifecycle writer.
+      const failure = action === 'profile apply'
+        ? runCliFailure([
+            'packages', 'profile', 'apply', packageId,
+            '--merged-file', path.join(root, 'missing-merged-file.md'),
+          ], env)
+        : runCliFailure(['packages', action, packageId], env);
+      assert.equal(
+        failure.payload.error.details.failure_code,
+        'configured_codex_plugin_carrier_action_failed',
+      );
+      assert.equal(failure.payload.error.details.action, 'list');
+      assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLock);
+      assert.equal(fs.readFileSync(ledgerPath, 'utf8'), invalidLedger);
       assert.equal(fs.existsSync(sqlitePath), false);
     }
   } finally {
