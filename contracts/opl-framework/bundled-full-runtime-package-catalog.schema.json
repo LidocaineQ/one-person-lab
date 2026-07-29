@@ -56,7 +56,7 @@
           "pattern": "^[a-z0-9][a-z0-9.-]*$"
         },
         "package_role": {
-          "enum": ["standard_agent", "framework_capability_package", "workflow_profile"]
+          "enum": ["standard_agent", "capability_package", "workflow_profile"]
         },
         "package_version": {
           "type": "string",

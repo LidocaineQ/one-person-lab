@@ -103,7 +103,7 @@ jobs:
               echo "::error::latest-stable exists but its exact digest could not be resolved."
               exit 1
             fi
-            echo "::notice::No latest-stable Release Set exists; bootstrapping all seven Packages to candidate."
+            echo "::notice::No latest-stable Release Set exists; bootstrapping all nine Packages to candidate."
             {
               echo "current_manifest="
               echo "frozen_base_release_set_generation=none"

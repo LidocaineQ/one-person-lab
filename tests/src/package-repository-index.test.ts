@@ -262,7 +262,7 @@ test('capability resolver selects the highest version satisfying Package, Base, 
   const payload = repositoryIndex({
     provider: {
       package_id: 'provider',
-      package_role: 'framework_capability_package',
+      package_role: 'capability_package',
       versions: [
         repositoryVersion({
           version: '1.9.0',

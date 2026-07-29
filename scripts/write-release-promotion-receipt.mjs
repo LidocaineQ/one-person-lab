@@ -123,9 +123,18 @@ function main() {
     }
   }
   const base = exactComponent(releaseSet.components?.base);
-  const packages = Object.fromEntries(Object.entries(releaseSet.components?.packages?.members ?? {})
+  const packageCollection = releaseSet.components?.packages;
+  const packageIds = Array.isArray(packageCollection?.package_ids)
+    ? [...packageCollection.package_ids].sort()
+    : [];
+  const memberIds = Object.keys(packageCollection?.members ?? {}).sort();
+  if (packageIds.length === 0
+    || packageCollection?.package_count !== packageIds.length
+    || JSON.stringify(memberIds) !== JSON.stringify(packageIds)) {
+    throw new Error('Promotion receipt requires consistent Package count, ids, and members');
+  }
+  const packages = Object.fromEntries(Object.entries(packageCollection.members)
     .map(([packageId, component]) => [packageId, exactComponent(component)]));
-  if (Object.keys(packages).length !== 7) throw new Error('Promotion receipt requires exactly seven Packages');
   const channelRef = `${options.carrierRef.slice(0, options.carrierRef.lastIndexOf(':'))}:${options.target}`;
   const verifiedRefs = [channelRef, `${base.artifact_ref.slice(0, base.artifact_ref.lastIndexOf(':'))}:${options.target}`]
     .concat(Object.values(packages).map((component) => `${component.artifact_ref.slice(0, component.artifact_ref.lastIndexOf(':'))}:${options.target}`))

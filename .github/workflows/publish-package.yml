@@ -8,7 +8,7 @@ on:
         description: Canonical Package id
         required: true
         type: choice
-        options: [mas, mag, rca, oma, obf, mas-scholar-skills, opl-flow]
+        options: [mas, mag, rca, oma, obf, mas-scholar-skills, opl-relay, opl-persona, opl-flow]
       expected_package_version:
         description: Exact stable SemVer selected by canonical Framework main
         required: true
@@ -22,7 +22,7 @@ on:
         required: true
         type: string
       expected_latest_stable_predecessor:
-        description: Exact latest-stable digest observed before dispatch
+        description: Exact latest-stable digest observed before dispatch, or none only when the tag is verified absent
         required: true
         type: string
       publication_request_id:
@@ -69,7 +69,7 @@ jobs:
           [[ "$EXPECTED_FRAMEWORK_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           [[ "$EXPECTED_OWNER_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           [[ "$EXPECTED_PACKAGE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
-          [[ "$EXPECTED_LATEST_STABLE_PREDECESSOR" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$EXPECTED_LATEST_STABLE_PREDECESSOR" == none || "$EXPECTED_LATEST_STABLE_PREDECESSOR" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "$PUBLICATION_REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$ ]]
           [ "$GITHUB_SHA" = "$EXPECTED_FRAMEWORK_SOURCE_COMMIT" ]
           [ "$(git rev-parse HEAD)" = "$EXPECTED_FRAMEWORK_SOURCE_COMMIT" ]
@@ -180,12 +180,31 @@ jobs:
           node scripts/oci-publication-preflight.mjs --ref "${PACKAGE_IMAGE}@${digest}" "${preflight_args[@]}" \
             --verify-only --expected-digest "$digest" --anonymous
 
-          first_stable_digest="$(oras manifest fetch --descriptor "$LATEST_STABLE_REF" | jq -er .digest)"
+          read_stable_digest() {
+            local output status normalized
+            set +e
+            output="$(oras manifest fetch --descriptor "$LATEST_STABLE_REF" 2>&1)"
+            status=$?
+            set -e
+            if [ "$status" -eq 0 ]; then
+              jq -er .digest <<<"$output"
+              return
+            fi
+            normalized="$(tr '[:upper:]' '[:lower:]' <<<"$output")"
+            if grep -Eq 'manifest unknown|name unknown|not found|404' <<<"$normalized"; then
+              printf '%s\n' none
+              return
+            fi
+            printf '%s\n' "$output" >&2
+            return "$status"
+          }
+
+          first_stable_digest="$(read_stable_digest)"
           if [ "$first_stable_digest" = "$digest" ]; then
             stable_result="already_current"
           else
             [ "$first_stable_digest" = "$EXPECTED_LATEST_STABLE_PREDECESSOR" ]
-            second_stable_digest="$(oras manifest fetch --descriptor "$LATEST_STABLE_REF" | jq -er .digest)"
+            second_stable_digest="$(read_stable_digest)"
             [ "$second_stable_digest" = "$EXPECTED_LATEST_STABLE_PREDECESSOR" ]
             set +e
             oras tag "${PACKAGE_IMAGE}@${digest}" latest-stable

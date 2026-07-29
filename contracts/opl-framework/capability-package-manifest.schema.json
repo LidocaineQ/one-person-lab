@@ -23,12 +23,7 @@
     "publisher": { "type": "string", "minLength": 1 },
     "version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$" },
     "source": { "type": "string", "minLength": 1 },
-    "package_role": {
-      "enum": [
-        "framework_capability_package",
-        "required_agent_capability_package"
-      ]
-    },
+    "package_role": { "const": "capability_package" },
     "capability_abi": {
       "type": "object",
       "required": ["id", "version", "compatibility_policy"],
@@ -124,7 +119,7 @@
     },
     "codex_surface": {
       "type": "object",
-      "required": ["plugin_id", "carrier_source_commit", "codex_default_exposure", "optional_install_policy"],
+      "required": ["plugin_id", "codex_default_exposure", "optional_install_policy"],
       "properties": {
         "plugin_id": { "type": "string", "minLength": 1 },
         "plugin_source_path": { "type": "string", "minLength": 1 },

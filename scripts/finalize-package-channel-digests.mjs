@@ -5,8 +5,6 @@ import path from 'node:path';
 
 import { readJsonFile } from './script-json-boundary.mjs';
 
-const CANONICAL_PACKAGE_IDS = ['mas', 'mag', 'rca', 'oma', 'obf', 'mas-scholar-skills', 'opl-flow'];
-
 function sha256Payload(value) {
   return `sha256:${crypto.createHash('sha256').update(value).digest('hex')}`;
 }
@@ -56,9 +54,11 @@ function resolvePromotionTarget(release) {
 
 function assertFinalized(release, channel) {
   const failures = [];
+  const packageIds = Object.keys(release.packages?.package_artifacts ?? {}).sort();
+  if (packageIds.length === 0) failures.push('package_artifacts');
   const catalog = channel.packages?.package_catalog ?? {};
   const catalogIds = Object.keys(catalog).sort();
-  if (JSON.stringify(catalogIds) !== JSON.stringify([...CANONICAL_PACKAGE_IDS].sort())) {
+  if (JSON.stringify(catalogIds) !== JSON.stringify(packageIds)) {
     failures.push(`catalog ids=${catalogIds.join(',')}`);
   }
   if (release.release_set_generation !== release.release_set?.generation
@@ -69,7 +69,7 @@ function assertFinalized(release, channel) {
   if (cohortLock?.surface_kind !== 'opl_package_owner_cohort_lock.v1'
     || cohortLock?.ref !== 'owner-cohort-lock.json'
     || !/^sha256:[0-9a-f]{64}$/.test(cohortLock?.digest ?? '')
-    || JSON.stringify([...(cohortLock?.package_ids ?? [])].sort()) !== JSON.stringify([...CANONICAL_PACKAGE_IDS].sort())) {
+    || JSON.stringify([...(cohortLock?.package_ids ?? [])].sort()) !== JSON.stringify(packageIds)) {
     failures.push('owner_cohort_lock');
   }
   if (release.release_channel !== undefined
@@ -82,7 +82,7 @@ function assertFinalized(release, channel) {
   if (JSON.stringify(channel.release_set) !== JSON.stringify(release.release_set)) {
     failures.push('channel_release_set');
   }
-  for (const packageId of CANONICAL_PACKAGE_IDS) {
+  for (const packageId of packageIds) {
     const entry = catalog[packageId];
     const version = entry?.versions?.find((candidate) => candidate?.selection_status === 'selected_for_release_set');
     const packageEntry = release.packages?.package_artifacts?.[packageId];
@@ -108,9 +108,12 @@ function assertFinalized(release, channel) {
       failures.push(packageId);
     }
   }
-  if (release.release_set?.component_count !== CANONICAL_PACKAGE_IDS.length + 2
-    || release.release_set?.components?.packages?.package_count !== CANONICAL_PACKAGE_IDS.length
-    || Object.keys(release.release_set?.components?.packages?.members ?? {}).length !== CANONICAL_PACKAGE_IDS.length) {
+  const releasePackageIds = [...(release.release_set?.components?.packages?.package_ids ?? [])].sort();
+  const releaseMemberIds = Object.keys(release.release_set?.components?.packages?.members ?? {}).sort();
+  if (release.release_set?.component_count !== packageIds.length + 2
+    || release.release_set?.components?.packages?.package_count !== packageIds.length
+    || JSON.stringify(releasePackageIds) !== JSON.stringify(packageIds)
+    || JSON.stringify(releaseMemberIds) !== JSON.stringify(packageIds)) {
     failures.push('release_set_member_count');
   }
   const base = release.release_set?.components?.base;

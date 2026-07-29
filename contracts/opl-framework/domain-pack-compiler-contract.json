@@ -48,7 +48,7 @@
   "standard_agent_discovery_contract": {
     "identity_registry_ref": "src/kernel/standard-agent-registry.ts",
     "included_series_membership": "standard_domain_agent",
-    "excluded_series_membership": "framework_capability_package",
+    "excluded_series_membership": "capability_package",
     "currentness_resolver": "resolveStandardAgentContractCheckout",
     "owner_contract_refs": [
       "contracts/domain_descriptor.json",

@@ -95,9 +95,13 @@ test('repo hygiene blocks checkout-local OPL runtime state drift', () => {
 test('repo temp env wrapper routes tool caches outside the checkout', () => {
   const sourceHome = fs.mkdtempSync(path.join(process.env.OPL_REPO_TEMP_ROOT || '/tmp', 'opl-source-home-'));
   const sourceCodexHome = path.join(sourceHome, '.codex');
+  const sourcePython = path.join(sourceHome, '.py-global', 'bin', 'python3');
   const sourceConfig = path.join(sourceCodexHome, 'config.toml');
   fs.mkdirSync(sourceCodexHome, { recursive: true });
+  fs.mkdirSync(path.dirname(sourcePython), { recursive: true });
   fs.writeFileSync(sourceConfig, 'model = "sentinel"\n');
+  fs.writeFileSync(sourcePython, '#!/bin/sh\nprintf "source-python\\n"\n');
+  fs.chmodSync(sourcePython, 0o755);
 
   const result = spawnSync('bash', [
     'scripts/run-with-repo-temp-env.sh',
@@ -170,6 +174,22 @@ test('repo temp env wrapper routes tool caches outside the checkout', () => {
   assert.match(env.PYTEST_ADDOPTS, new RegExp(`cache_dir=${tempRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
   assert.equal(fs.readFileSync(sourceConfig, 'utf8'), 'model = "sentinel"\n');
   assert.equal(fs.existsSync(tempRoot), false);
+
+  const interpreter = spawnSync('bash', [
+    'scripts/run-with-repo-temp-env.sh',
+    'python3',
+  ], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      HOME: sourceHome,
+      OPL_REPO_TEMP_ROOT: '',
+      OPL_REPO_TEMP_ENV_ACTIVE: '',
+    },
+  });
+  assert.equal(interpreter.status, 0, interpreter.stderr);
+  assert.equal(interpreter.stdout, 'source-python\n');
   fs.rmSync(sourceHome, { recursive: true, force: true });
 });
 

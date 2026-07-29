@@ -163,8 +163,8 @@ test('packages manifest exposes canonical Release Set coordinates for Package in
   assert.equal(output.packages_manifest.release_set_generation, '26.4.27');
   assert.equal(output.packages_manifest.release_set.generation, '26.4.27');
   assert.equal(output.packages_manifest.release_set.surface_kind, 'opl_release_set.v2');
-  assert.equal(output.packages_manifest.release_set.component_count, 9);
-  assert.equal(output.packages_manifest.release_set.components.packages.package_count, 7);
+  assert.equal(output.packages_manifest.release_set.component_count, 11);
+  assert.equal(output.packages_manifest.release_set.components.packages.package_count, 9);
   assert.equal(output.packages_manifest.release_set.components.base.component_id, 'opl-base');
   assert.equal(output.packages_manifest.release_set.components.app.component_id, 'opl-app');
   assert.equal(output.packages_manifest.release_set.catalog_carrier_is_package_identity, false);
@@ -398,7 +398,7 @@ test('packages manifest exposes canonical Release Set coordinates for Package in
       {
         module_id: 'scholarskills',
         package_id: 'mas-scholar-skills',
-        kind: 'framework_capability_package',
+        kind: 'capability_package',
         codex_distribution: 'bundled',
         opl_distribution: 'managed_dependency',
         developer_distribution: 'source_checkout',
@@ -474,7 +474,7 @@ test('packages manifest exposes canonical Release Set coordinates for Package in
   );
   assert.equal(
     output.packages_manifest.packages.package_artifacts['mas-scholar-skills'].scope,
-    'framework_capability_package',
+    'capability_package',
   );
   assert.equal(
     output.packages_manifest.packages.package_artifacts['mas-scholar-skills'].package_manifest_ref,

@@ -209,13 +209,15 @@ function resolveCarrierSourceCommit({ spec, ownerRepoPath, owner, projectedManif
 
 function validateContentLock({
   packageId,
+  ownerManifestKind,
+  ownerPluginManifestRef,
   ownerRepoPath,
   sourceCommit,
   ownerManifest,
   projectedManifest,
   payload,
 }) {
-  if (packageId !== 'mas-scholar-skills') return;
+  if (ownerManifestKind !== 'capability_package') return;
   const ownerLock = ownerManifest.content_lock;
   const projectedLock = projectedManifest.content_lock;
   if (JSON.stringify(projectedLock) !== JSON.stringify(ownerLock)) {
@@ -231,13 +233,19 @@ function validateContentLock({
     fail('content_lock_drift', packageId, 'payload files do not match the ordered content lock paths');
   }
   const hash = crypto.createHash('sha256');
+  const pluginManifestPath = safeRelativePath(
+    ownerPluginManifestRef,
+    'owner_plugin_manifest_ref',
+    packageId,
+  );
+  const carrierRoot = path.posix.dirname(path.posix.dirname(pluginManifestPath));
   for (const declaredPath of ownerLock.paths) {
     const relative = safeRelativePath(declaredPath, 'content_lock.paths[]', packageId);
     const bytes = readCommitBlob({
       packageId,
       ownerRepoPath,
       sourceCommit,
-      treePath: relative,
+      treePath: carrierRoot === '.' ? relative : path.posix.join(carrierRoot, relative),
       failureCode: 'content_lock_source_missing',
     });
     const pathBytes = Buffer.from(relative, 'utf8');
@@ -355,6 +363,8 @@ export function validatePackageSourceProjection({
   }
   validateContentLock({
     packageId: spec.package_id,
+    ownerManifestKind: spec.owner_manifest_kind,
+    ownerPluginManifestRef: spec.owner_plugin_manifest_ref,
     ownerRepoPath,
     sourceCommit: carrierSourceCommit,
     ownerManifest: owner.ownerManifest,

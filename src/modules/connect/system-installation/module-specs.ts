@@ -296,7 +296,7 @@ export const DOMAIN_MODULE_SPECS: DomainModuleRuntimeSpec[] = [
     label: 'MAS Scholar Skills',
     repo_name: 'mas-scholar-skills',
     repo_url: 'https://github.com/gaofeng21cn/mas-scholar-skills.git',
-    scope: 'framework_capability_package',
+    scope: 'capability_package',
     default_install: false,
     description: 'External professional Codex skill package consumed by MAS workspaces and quests.',
     skill_sync_domain: 'scholarskills',

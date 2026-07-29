@@ -317,7 +317,7 @@ test('package archive builder writes channel manifest checksums git source and r
       package_catalog: {
         'mas-scholar-skills': {
           package_id: 'mas-scholar-skills',
-          package_role: 'framework_capability_package',
+          package_role: 'capability_package',
           selected_version: '0.0.9',
           dependency_package_ids: [],
           versions: [
@@ -447,8 +447,8 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(channelManifest.release_set_generation, manifest.release_set_generation);
   assert.equal(manifest.release_set.generation, '26.4.31');
   assert.equal(manifest.release_set.surface_kind, 'opl_release_set.v2');
-  assert.equal(manifest.release_set.component_count, 9);
-  assert.equal(manifest.release_set.components.packages.package_count, 7);
+  assert.equal(manifest.release_set.component_count, 11);
+  assert.equal(manifest.release_set.components.packages.package_count, 9);
   assert.equal(manifest.release_set.components.app.version, '26.7.12');
   assert.deepEqual(manifest.release_set.components.app.carriers, appCarriers);
   assert.equal(manifest.packages.package_artifacts.mag.package_version, '0.3.0');
@@ -663,7 +663,7 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(packageCatalog['opl-flow'].homebrew_formula, undefined);
   assert.match(channelManifest.package_catalog_digest, /^sha256:[0-9a-f]{64}$/);
   const scholarSkillsCatalog = packageCatalog['mas-scholar-skills'];
-  assert.equal(scholarSkillsCatalog.package_role, 'framework_capability_package');
+  assert.equal(scholarSkillsCatalog.package_role, 'capability_package');
   assert.equal(scholarSkillsCatalog.selected_version, '0.2.1');
   assert.deepEqual(
     scholarSkillsCatalog.versions.map((entry: Record<string, unknown>) => entry.package_version),
@@ -779,7 +779,7 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(promotionReceipt.surface_kind, 'opl_release_set_promotion_receipt.v1');
   assert.equal(promotionReceipt.carrier.digest, `sha256:${'b'.repeat(64)}`);
   assert.deepEqual(promotionReceipt.app.carriers, appCarriers);
-  assert.equal(promotionReceipt.anonymous_readback.verified_refs.length, 9);
+  assert.equal(promotionReceipt.anonymous_readback.verified_refs.length, 11);
   assert.match(checksums, /one-person-lab-framework-0\.3\.5\.tar\.gz/);
   assert.match(checksums, new RegExp(manifest.packages.framework_core.source_archive.sha256));
   assert.equal(manifest.packages.native_helper.channel_status, 'active_ghcr_oci_prebuild');
@@ -833,7 +833,7 @@ test('package archive builder writes channel manifest checksums git source and r
     manifest.packages.package_artifacts['mas-scholar-skills'].source_git.head_sha,
     fixtures.scholarskills.getHeadSha(),
   );
-  assert.equal(manifest.packages.package_artifacts['mas-scholar-skills'].scope, 'framework_capability_package');
+  assert.equal(manifest.packages.package_artifacts['mas-scholar-skills'].scope, 'capability_package');
   assert.equal(
     manifest.packages.package_artifacts['mas-scholar-skills'].package_manifest_ref,
     'contracts/opl-framework/packages/mas-scholar-skills.json',
@@ -1268,8 +1268,8 @@ test('MAS Scholar Skills provider manifest separates core Skill exports from mod
     sourceRef: 'contracts/opl-framework/capability-package-manifest.schema.json',
   }, manifest));
   const normalized = normalizeCapabilityPackageManifest(manifest, manifestPath);
-  assert.equal(manifest.package_role, 'framework_capability_package');
-  assert.equal(normalized.package_role, 'framework_capability_package');
+  assert.equal(manifest.package_role, 'capability_package');
+  assert.equal(normalized.package_role, 'capability_package');
   assert.deepEqual(
     manifest.consumer_profiles.map((profile: Record<string, any>) => ({
       profile_id: profile.profile_id,
@@ -1285,7 +1285,7 @@ test('MAS Scholar Skills provider manifest separates core Skill exports from mod
       ...manifest,
       package_role: 'optional_agent_capability_package',
     }, manifestPath),
-    /package_role must be framework_capability_package/,
+    /package_role must be capability_package/,
   );
   const payloadPath = path.join(path.dirname(manifestPath), manifest.codex_surface.plugin_payload_manifest_url);
   const payload = parseJsonText(fs.readFileSync(payloadPath, 'utf8')) as Record<string, any>;
@@ -1372,7 +1372,7 @@ test('first-party agent package manifest rejects non-canonical identity fields',
       {
         module_id: 'scholarskills',
         package_id: 'mas-scholar-skills',
-        kind: 'framework_capability_package',
+        kind: 'capability_package',
         required_for: ['workspace_or_quest_codex_discovery'],
         codex_distribution: 'bundled',
         opl_distribution: 'managed_dependency',
