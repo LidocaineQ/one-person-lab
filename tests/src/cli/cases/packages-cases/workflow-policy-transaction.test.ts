@@ -519,7 +519,7 @@ test('workflow policy v3 installs a GitHub Skill from its declared repository so
       true,
       resolvedSourceRoot,
     );
-    assert.equal(resolvedSourceRoot, fs.realpathSync(agentsSkillRoot));
+    assert.equal(fs.existsSync(agentsSkillRoot), false);
     assert.notEqual(resolvedSourceRoot, fs.realpathSync(privateManagerSkillRoot));
     assert.equal(
       fs.readFileSync(path.join(resolvedSourceRoot, 'SKILL.md'), 'utf8'),
@@ -527,6 +527,7 @@ test('workflow policy v3 installs a GitHub Skill from its declared repository so
     );
     assert.equal(migration.dependency_sync.items[0].status, 'synced');
     assert.equal(migration.dependency_sync.items[0].source_authority, 'github_repository');
+    assert.equal(migration.dependency_sync.items[0].agents_entry_realpath, null);
     assert.equal(migration.dependency_sync.items[0].frontmatter_schema_status, 'valid');
     assert.equal(migration.dependency_sync.items[0].resource_closure_status, 'complete');
     const directory = (await runCliAsync(['packages', 'list'], env) as any).opl_agent_packages.directory;
@@ -949,7 +950,7 @@ test('fresh install rollback has no virtual target', async () => {
   }
 });
 
-test('managed policy currentness detects and repairs a missing Agents skill entrypoint', async () => {
+test('managed policy currentness detects and repairs a missing global Codex skill entrypoint', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-skill-currentness-'));
   const home = path.join(root, 'home');
   const codexHome = path.join(home, '.codex');
@@ -987,7 +988,8 @@ test('managed policy currentness detects and repairs a missing Agents skill entr
       '--trust-tier', 'first_party',
     ], env) as any;
     assert.equal(installed.opl_agent_package_install.status, 'installed');
-    assert.equal(fs.realpathSync(agentsSkillRoot), fs.realpathSync(codexSkillRoot));
+    assert.equal(fs.existsSync(codexSkillRoot), true);
+    assert.equal(fs.existsSync(agentsSkillRoot), false);
 
     const current = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
     const currentness = current.opl_agent_package_status.owner_route_readback.packages[0]
@@ -997,7 +999,7 @@ test('managed policy currentness detects and repairs a missing Agents skill entr
     assert.equal(currentness.dependency_sync.items[0].payload_currentness, 'current');
     assert.equal(currentness.dependency_sync.items[0].entrypoint_authority_status, 'converged');
 
-    fs.rmSync(agentsSkillRoot, { recursive: true, force: true });
+    fs.rmSync(codexSkillRoot, { recursive: true, force: true });
     const drifted = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
     const driftedPackage = drifted.opl_agent_package_status.owner_route_readback.packages[0];
     const driftedCurrentness = driftedPackage.materializer.managed_policy_currentness;
@@ -1017,11 +1019,11 @@ test('managed policy currentness detects and repairs a missing Agents skill entr
       .workflow_policy_migration.dependency_sync.items[0];
     assert.equal(repairedItem.status, 'synced', JSON.stringify(repairedItem));
     assert.equal(
-      fs.existsSync(agentsSkillRoot),
+      fs.existsSync(codexSkillRoot),
       true,
       JSON.stringify(repaired.opl_agent_package_repair.physical_surface.workflow_policy_migration, null, 2),
     );
-    assert.equal(fs.realpathSync(agentsSkillRoot), fs.realpathSync(codexSkillRoot));
+    assert.equal(fs.existsSync(agentsSkillRoot), false);
     const repairedStatus = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
     assert.equal(
       repairedStatus.opl_agent_package_status.owner_route_readback.packages[0]
