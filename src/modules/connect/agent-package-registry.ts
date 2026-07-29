@@ -164,7 +164,6 @@ import {
   withAgentPackageLifecycleTransaction,
   writePackageTransaction,
 } from './agent-package-registry-parts/store.ts';
-import { rollbackInstalledPackageOptimization } from './agent-package-registry-parts/installed-source-optimize.ts';
 import type {
   AgentPackageHomeShortcutPreferenceFile,
   AgentPackageHomeShortcutPreferencesSetInput,
@@ -3212,52 +3211,6 @@ function runOplAgentPackageRollbackUnlocked(input: AgentPackagePackageActionInpu
     });
   }
   const lock = installedLock ?? restoredRoot!;
-  const optimizationReceiptRef = installedLock?.physical_surface?.optimization_receipt_ref ?? null;
-  const optimizeRollbackReady = Boolean(
-    installedLock
-      && optimizationReceiptRef
-      && optimizationReceiptRef === installedLock.action_receipt_id
-      && Array.isArray(installedLock.scope_materializations),
-  );
-  if (installedLock && optimizeRollbackReady) {
-    const result = rollbackInstalledPackageOptimization({
-      index,
-      root: installedLock,
-      generation: lastKnownGood,
-      optimizeReceipt: {
-        receipt_ref: optimizationReceiptRef!,
-        scope_materializations: installedLock.scope_materializations,
-      },
-      action: input,
-    });
-    return {
-      version: 'g2',
-      opl_agent_package_rollback: {
-        surface_kind: 'opl_agent_package_rollback',
-        status: result.status,
-        dry_run: input.dryRun === true,
-        source_selection: result.sourceSelection,
-        network_accessed: result.networkAccessed,
-        remote_dependency_policy: 'forbidden',
-        package_lock: result.root,
-        dependency_package_locks: result.locks,
-        dependency_transaction_id: result.root.dependency_transaction_id,
-        dependency_closure_digest: result.closureDigest,
-        scope_materializations: result.scopeMaterializations,
-        lifecycle_receipt: result.receipt,
-        runtime_source_cleanup: { status: 'not_required', cleanup_paths: [] },
-        owner_route_readback: ownerRouteReadback({
-          selectedPackageId: packageId,
-          packages: result.locks.map((entry) => ({
-            packageId: entry.package_id,
-            lock: entry,
-            receipt: entry.package_id === packageId ? result.receipt : null,
-          })),
-        }),
-        authority_boundary: refsOnlyAuthorityBoundary(),
-      },
-    };
-  }
   const currentLocks = installedLock
     ? index.packages.filter((entry) =>
         entry.package_id === packageId

@@ -425,14 +425,19 @@ test('MAS dependency closure update and rollback atomically rematerialize known 
     ], env) as any;
     assert.equal(secondUpdatedStatus.opl_agent_package_status.materialization_readiness.status, 'current');
 
-    const beforeRollbackIndex = parseJsonText(fs.readFileSync(
-      path.join(stateDir, 'agent-package-locks.json'),
-      'utf8',
-    )) as any;
+    const lockPath = path.join(stateDir, 'agent-package-locks.json');
+    const beforeRollbackIndex = parseJsonText(fs.readFileSync(lockPath, 'utf8')) as any;
     const rollbackGeneration = beforeRollbackIndex.last_known_good_transactions.find(
       (entry: any) => entry.root_package_id === FIXTURE_CONSUMER_PACKAGE_ID,
     );
     assert.ok(rollbackGeneration);
+    const legacyOptimizedRoot = beforeRollbackIndex.packages.find(
+      (entry: any) => entry.package_id === FIXTURE_CONSUMER_PACKAGE_ID,
+    );
+    assert.ok(legacyOptimizedRoot);
+    legacyOptimizedRoot.physical_surface.optimization_receipt_ref =
+      legacyOptimizedRoot.action_receipt_id;
+    fs.writeFileSync(lockPath, formatJsonPayload(beforeRollbackIndex), 'utf8');
     for (const packageLock of rollbackGeneration.package_locks) {
       assert.ok(packageLock.physical_surface.codex_plugin_cache_path);
       assert.equal(fs.existsSync(packageLock.physical_surface.codex_plugin_cache_path), true);
@@ -447,6 +452,15 @@ test('MAS dependency closure update and rollback atomically rematerialize known 
       rolledBack.opl_agent_package_rollback.dependency_package_locks
         .map((entry: any) => `${entry.package_id}@${entry.package_version}`).sort(),
       [`${FIXTURE_PROVIDER_PACKAGE_ID}@0.1.0`, `${FIXTURE_CONSUMER_PACKAGE_ID}@0.1.0-alpha.4`],
+    );
+    assert.equal(
+      Object.hasOwn(
+        rolledBack.opl_agent_package_rollback.dependency_package_locks.find(
+          (entry: any) => entry.package_id === FIXTURE_CONSUMER_PACKAGE_ID,
+        ).physical_surface,
+        'optimization_receipt_ref',
+      ),
+      false,
     );
     for (const packageLock of rolledBack.opl_agent_package_rollback.dependency_package_locks) {
       const generationLock = rollbackGeneration.package_locks.find(
