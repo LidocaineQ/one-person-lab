@@ -74,7 +74,6 @@ export {
   runOplAgentPackageStatus,
   runOplAgentPackageActivate,
   runOplAgentPackageUninstall,
-  runOplAgentPackageBulkUpdate,
   runOplAgentPackageUpdate,
 } from './agent-package-registry.ts';
 export type {

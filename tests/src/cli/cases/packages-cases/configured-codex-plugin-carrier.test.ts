@@ -1061,26 +1061,6 @@ test('managed-update reader excludes a legacy lock once the native owner descrip
       false,
     );
 
-    const markerPath = path.join(
-      stateDir,
-      'agent-package-runtime-source-transactions',
-      `${packageId}-unrelated-native-marker.json`,
-    );
-    fs.mkdirSync(path.dirname(markerPath), { recursive: true });
-    const markerBytes = '{ invalid native-owned marker\n';
-    fs.writeFileSync(markerPath, markerBytes);
-    const lockPath = path.join(stateDir, 'agent-package-locks.json');
-    const ledgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
-    const lockBytes = fs.readFileSync(lockPath, 'utf8');
-    const ledgerBytes = fs.readFileSync(ledgerPath, 'utf8');
-
-    const bulkUpdate = await legacy.runOplAgentPackageBulkUpdate({ dryRun: true });
-    assert.equal(bulkUpdate.opl_agent_package_bulk_update.summary.installed_package_count, 0);
-    assert.equal(bulkUpdate.opl_agent_package_bulk_update.summary.root_package_count, 0);
-    assert.deepEqual(bulkUpdate.opl_agent_package_bulk_update.targets, []);
-    assert.equal(fs.readFileSync(markerPath, 'utf8'), markerBytes);
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytes);
-    assert.equal(fs.readFileSync(ledgerPath, 'utf8'), ledgerBytes);
   } finally {
     if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateDir;
