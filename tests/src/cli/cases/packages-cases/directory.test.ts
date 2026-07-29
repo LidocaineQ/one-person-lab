@@ -302,6 +302,50 @@ test('native manifest fallback does not synthesize a second first-party Package 
   try {
     assert.equal(discoverInstalledCodexPluginDescriptors({ runner }).size, 0);
     assert.equal(discoverInstalledCodexPluginDescriptors({ packageId: 'rca', runner }).size, 0);
+
+    fs.writeFileSync(
+      path.join(sourceRoot, 'opl-package.json'),
+      formatJsonPayload({
+        surface_kind: 'opl_agent_package_manifest.v1',
+        kind: 'agent',
+        agent_id: 'rca',
+        package_id: 'rca',
+        domain_id: 'redcube_ai',
+        display_name: 'RedCube AI',
+        publisher: 'one-person-lab',
+        version: '0.2.9',
+        source: 'first_party_repo_local',
+        carrier_source_role: 'codex_plugin_default_carrier_not_package_truth',
+        source_repo: 'https://github.com/gaofeng21cn/redcube-ai.git',
+        schema_ref: 'one-person-lab/contracts/opl-framework/agent-package-manifest.schema.json',
+        domain_descriptor_ref: 'contracts/domain_descriptor.json',
+        task_provider_ref: 'contracts/domain_descriptor.json#/standard_agent_interface/stage_catalog',
+        action_catalog_ref: 'contracts/action_catalog.json',
+        view_refs: [],
+        entrypoints: [{
+          entrypoint_id: 'codex_primary_skill',
+          entrypoint_kind: 'codex_skill',
+          source_ref: 'agent/primary_skill/SKILL.md',
+          carrier_ref: 'skills/redcube-ai/SKILL.md',
+          authority: 'carrier_only_not_domain_truth',
+        }],
+        codex_surface: {
+          plugin_id: 'redcube-ai',
+          plugin_source_path: '.',
+          required_skill_ids: ['redcube-ai'],
+        },
+        requires: [],
+        capability_dependencies: [],
+      }),
+    );
+    const generic = discoverInstalledCodexPluginDescriptors({ runner });
+    const scoped = discoverInstalledCodexPluginDescriptors({ packageId: 'rca', runner });
+    assert.deepEqual([...generic.keys()], ['rca']);
+    assert.deepEqual([...scoped.keys()], ['rca']);
+    assert.equal(scoped.get('rca')?.manifestPath, path.join(sourceRoot, 'opl-package.json'));
+    assert.equal(scoped.get('rca')?.carrier.carrier.pluginId, 'redcube-ai@redcube-ai');
+    assert.equal(scoped.get('rca')?.carrier_readback.lifecycle_authority, 'carrier_owned');
+    assert.equal(scoped.get('rca')?.readiness.legacy_lifecycle_state_present, false);
   } finally {
     fs.rmSync(sourceRoot, { recursive: true, force: true });
   }

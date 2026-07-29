@@ -694,6 +694,99 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
   }
 });
 
+test('first-party owner descriptor routes a scoped native action without private lifecycle writes', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-owner-carrier-'));
+  const stateDir = path.join(root, 'opl-state');
+  const binary = path.join(root, 'fake-codex.mjs');
+  const pluginSource = path.join(root, 'plugin-source');
+  const skillRoot = path.join(pluginSource, 'skills', 'redcube-ai');
+  fs.mkdirSync(skillRoot, { recursive: true });
+  fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), '# RedCube AI\n');
+  fs.writeFileSync(
+    path.join(pluginSource, 'opl-package.json'),
+    formatJsonPayload({
+      surface_kind: 'opl_agent_package_manifest.v1',
+      kind: 'agent',
+      agent_id: 'rca',
+      package_id: 'rca',
+      domain_id: 'redcube_ai',
+      display_name: 'RedCube AI',
+      publisher: 'one-person-lab',
+      version: '0.2.9',
+      source: 'first_party_repo_local',
+      carrier_source_role: 'codex_plugin_default_carrier_not_package_truth',
+      source_repo: 'https://github.com/gaofeng21cn/redcube-ai.git',
+      schema_ref: 'one-person-lab/contracts/opl-framework/agent-package-manifest.schema.json',
+      domain_descriptor_ref: 'contracts/domain_descriptor.json',
+      task_provider_ref: 'contracts/domain_descriptor.json#/standard_agent_interface/stage_catalog',
+      action_catalog_ref: 'contracts/action_catalog.json',
+      view_refs: [],
+      entrypoints: [{
+        entrypoint_id: 'codex_primary_skill',
+        entrypoint_kind: 'codex_skill',
+        source_ref: 'agent/primary_skill/SKILL.md',
+        carrier_ref: 'skills/redcube-ai/SKILL.md',
+        authority: 'carrier_only_not_domain_truth',
+      }],
+      codex_surface: {
+        plugin_id: 'redcube-ai',
+        plugin_source_path: '.',
+        required_skill_ids: ['redcube-ai'],
+      },
+      requires: [],
+      capability_dependencies: [],
+    }),
+  );
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const installed = {
+  pluginId: 'redcube-ai@redcube-ai',
+  version: '0.2.9',
+  installed: true,
+  enabled: true,
+  source: { source: 'local', path: process.env.FIXTURE_PLUGIN_SOURCE },
+};
+if (args.join(' ') === 'plugin list --json') {
+  process.stdout.write(JSON.stringify({ installed: [installed], available: [] }));
+} else if (args.join(' ') === 'plugin add redcube-ai@redcube-ai --json') {
+  process.stdout.write(JSON.stringify({ status: 'ok' }));
+} else {
+  process.exitCode = 2;
+}
+`);
+  fs.chmodSync(binary, 0o755);
+  const env = {
+    HOME: root,
+    CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: binary,
+    FIXTURE_PLUGIN_SOURCE: pluginSource,
+  };
+  try {
+    const activation = runCli([
+      'packages', 'activate', 'rca',
+      '--scope', 'workspace', '--target-workspace', root,
+    ], env) as any;
+    const surface = activation.opl_agent_package_activation;
+    assert.equal(surface.package_id, 'rca');
+    assert.equal(surface.status, 'already_activated');
+    assert.equal(surface.writes_performed, false);
+    assert.equal(surface.package_lock, null);
+    assert.equal(surface.lifecycle_receipt, null);
+    assert.equal(surface.package_use_binding, null);
+    assert.equal(surface.use_receipt, null);
+    const status = runCli(['packages', 'status', '--package-id', 'rca'], env) as any;
+    assert.equal(status.opl_agent_package_status.configured_carrier.status, 'installed');
+    assert.equal(status.opl_agent_package_status.configured_carrier.operation, 'list');
+    assert.equal(status.opl_agent_package_status.configured_carrier.native_action_dispatched, true);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-registry-cache.json')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('native descriptor visibility leaves an existing legacy lock diagnostic-only', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-legacy-exposure-'));
   const stateDir = path.join(root, 'opl-state');

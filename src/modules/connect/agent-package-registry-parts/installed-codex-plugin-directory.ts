@@ -289,11 +289,6 @@ export function discoverInstalledPackageDescriptors(input: {
   env?: NodeJS.ProcessEnv;
   runner?: CodexPluginCommandRunner;
 } = {}) {
-  // A package-scoped lifecycle lookup must not let native carrier observation
-  // replace the canonical first-party stable catalog selection.
-  if (input.packageId && resolveFirstPartyPackageCatalog(input.packageId)) {
-    return new Map<string, InstalledPackageDescriptor>();
-  }
   const binary = input.binary?.trim() || process.env.OPL_CODEX_PLUGIN_BIN?.trim() || 'codex';
   const runner = input.runner ?? defaultRunner;
   const result = runner({
