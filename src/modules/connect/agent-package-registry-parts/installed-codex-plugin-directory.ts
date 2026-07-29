@@ -302,7 +302,8 @@ export function discoverInstalledPackageDescriptors(input: {
   runner?: CodexPluginCommandRunner;
   failClosedOnCarrierError?: boolean;
 } = {}) {
-  const binary = input.binary?.trim() || process.env.OPL_CODEX_PLUGIN_BIN?.trim() || 'codex';
+  const configuredBinary = input.binary?.trim() || process.env.OPL_CODEX_PLUGIN_BIN?.trim() || null;
+  const binary = configuredBinary ?? 'codex';
   const runner = input.runner ?? defaultRunner;
   const result = runner({
     binary,
@@ -310,6 +311,11 @@ export function discoverInstalledPackageDescriptors(input: {
     env: { ...process.env, ...input.env },
   });
   if (result.status !== 0 || result.error) {
+    const defaultCarrierAbsent = !configuredBinary
+      && (result.error as NodeJS.ErrnoException | null)?.code === 'ENOENT';
+    if (defaultCarrierAbsent) {
+      return new Map<string, InstalledPackageDescriptor>();
+    }
     if (input.failClosedOnCarrierError) {
       throw new FrameworkContractError(
         'contract_shape_invalid',

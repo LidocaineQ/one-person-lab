@@ -21,6 +21,9 @@ import {
   type CodexPluginCommandRunner,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/configured-codex-plugin-carrier.ts';
 import {
+  discoverInstalledPackageDescriptors,
+} from '../../../../../src/modules/connect/agent-package-registry-parts/installed-codex-plugin-directory.ts';
+import {
   createOplAgentPackageStatusReader,
   ensureOplAgentPackageScopeActivation,
 } from '../../../../../src/modules/connect/agent-package-registry.ts';
@@ -253,6 +256,20 @@ test('configured Codex carrier reports a declared selector without a physical so
   assert.equal(readback.executor.status, 'attention_needed');
   assert.equal(readback.reason, 'native_carrier_reports_not_installed');
   assert.equal(readback.carrier.observed_sources.length, 0);
+});
+
+test('an absent default Codex carrier does not masquerade as a failed native read', () => {
+  const error = Object.assign(new Error('spawnSync codex ENOENT'), { code: 'ENOENT' });
+  const discovered = discoverInstalledPackageDescriptors({
+    failClosedOnCarrierError: true,
+    runner: () => ({
+      status: null,
+      stdout: '',
+      stderr: '',
+      error,
+    }),
+  });
+  assert.equal(discovered.size, 0);
 });
 
 function writeFakeCodex(binary: string) {
