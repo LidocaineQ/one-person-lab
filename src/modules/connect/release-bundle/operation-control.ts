@@ -173,9 +173,9 @@ function assertAppendFullAdmission(
     (track) => bundle.tracks[track]?.required_for_latest,
   );
   for (const track of requiredTracks) {
-    const verification = readReleaseBundleOperation(paths, 'verify', track);
-    if (!verification || !['complete', 'idempotent'].includes(verification.status)) {
-      fail('append_full requires a qualified Standard checkpoint and every Stable carrier track before admission.', {
+    const build = readReleaseBundleOperation(paths, 'build', track);
+    if (!build || !['complete', 'idempotent'].includes(build.status)) {
+      fail('append_full requires a built Standard checkpoint and every Stable carrier track before admission.', {
         missing_track: track,
         required_tracks: requiredTracks,
       });

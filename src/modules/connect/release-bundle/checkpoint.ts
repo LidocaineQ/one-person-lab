@@ -448,9 +448,9 @@ function assertCheckpointSemantics(input: ReturnType<typeof readCheckpointJson>)
     }
     if (
       controls.append_full
-      && stableRequiredTrackNames(bundleValue).some((track) => !checkpoint.tracks[track]?.verified)
+      && stableRequiredTrackNames(bundleValue).some((track) => !checkpoint.tracks[track]?.built)
     ) {
-      fail('append_full checkpoint control requires every Stable carrier track to be qualified.');
+      fail('append_full checkpoint control requires every Stable carrier track to be built.');
     }
     if (
       controls.standard
