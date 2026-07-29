@@ -1642,7 +1642,10 @@ async function resolveFreshConfiguredCarrier(input: ConfiguredCarrierSelectionIn
     return null;
   }
   if (!explicitManifestUrl && !explicitRegistryUrl) {
-    const discovered = discoverInstalledCodexPluginDescriptors({ packageId });
+    const discovered = discoverInstalledCodexPluginDescriptors({
+      packageId,
+      failClosedOnCarrierError: true,
+    });
     const descriptor = packageId ? discovered.get(packageId) : null;
     if (descriptor) {
       return {

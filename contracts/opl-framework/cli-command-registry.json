@@ -4017,10 +4017,29 @@
               "status",
               "dry_run",
               "package_lock",
-              "profile_migration",
               "lifecycle_receipt",
-              "owner_route_readback",
               "authority_boundary"
+            ],
+            "oneOf": [
+              {
+                "required": [
+                  "profile_migration",
+                  "owner_route_readback"
+                ]
+              },
+              {
+                "required": [
+                  "writes_performed",
+                  "lifecycle_authority",
+                  "configured_carrier",
+                  "reason"
+                ],
+                "properties": {
+                  "lifecycle_authority": {
+                    "const": "carrier_owned"
+                  }
+                }
+              }
             ],
             "additionalProperties": true
           }
@@ -4547,14 +4566,33 @@
               "surface_kind",
               "status",
               "dry_run",
-              "source_selection",
-              "network_accessed",
-              "remote_dependency_policy",
               "package_lock",
-              "physical_surface",
               "lifecycle_receipt",
-              "owner_route_readback",
               "authority_boundary"
+            ],
+            "oneOf": [
+              {
+                "required": [
+                  "source_selection",
+                  "network_accessed",
+                  "remote_dependency_policy",
+                  "physical_surface",
+                  "owner_route_readback"
+                ]
+              },
+              {
+                "required": [
+                  "writes_performed",
+                  "lifecycle_authority",
+                  "configured_carrier",
+                  "reason"
+                ],
+                "properties": {
+                  "lifecycle_authority": {
+                    "const": "carrier_owned"
+                  }
+                }
+              }
             ],
             "additionalProperties": true
           }
@@ -4631,10 +4669,29 @@
               "status",
               "dry_run",
               "package_lock",
-              "dependency_package_locks",
               "lifecycle_receipt",
-              "owner_route_readback",
               "authority_boundary"
+            ],
+            "oneOf": [
+              {
+                "required": [
+                  "dependency_package_locks",
+                  "owner_route_readback"
+                ]
+              },
+              {
+                "required": [
+                  "writes_performed",
+                  "lifecycle_authority",
+                  "configured_carrier",
+                  "reason"
+                ],
+                "properties": {
+                  "lifecycle_authority": {
+                    "const": "carrier_owned"
+                  }
+                }
+              }
             ],
             "additionalProperties": true
           }

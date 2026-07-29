@@ -65,10 +65,22 @@ function stringValue(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-function parseInstalledCarrierEntries(value: string): InstalledCarrierEntry[] {
+function parseInstalledCarrierEntries(
+  value: string,
+  packageId: string | null,
+): InstalledCarrierEntry[] {
   const parsed = parseJsonText(value);
   const readback = isRecord(parsed) ? parsed : null;
-  if (!readback || !Array.isArray(readback.installed)) return [];
+  if (!readback || !Array.isArray(readback.installed)) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Installed Codex Plugin Manager readback has no installed array.',
+      {
+        package_id: packageId,
+        failure_code: 'configured_codex_plugin_carrier_readback_invalid_shape',
+      },
+    );
+  }
   return readback.installed.flatMap((value) => {
     if (!isRecord(value)) return [];
     const pluginId = stringValue(value.pluginId);
@@ -288,19 +300,56 @@ export function discoverInstalledPackageDescriptors(input: {
   binary?: string;
   env?: NodeJS.ProcessEnv;
   runner?: CodexPluginCommandRunner;
+  failClosedOnCarrierError?: boolean;
 } = {}) {
-  const binary = input.binary?.trim() || process.env.OPL_CODEX_PLUGIN_BIN?.trim() || 'codex';
+  const configuredBinary = input.binary?.trim() || process.env.OPL_CODEX_PLUGIN_BIN?.trim() || null;
+  const binary = configuredBinary ?? 'codex';
   const runner = input.runner ?? defaultRunner;
   const result = runner({
     binary,
     args: ['plugin', 'list', '--json'],
     env: { ...process.env, ...input.env },
   });
-  if (result.status !== 0 || result.error) return new Map<string, InstalledPackageDescriptor>();
+  if (result.status !== 0 || result.error) {
+    const defaultCarrierAbsent = !configuredBinary
+      && (result.error as NodeJS.ErrnoException | null)?.code === 'ENOENT';
+    if (defaultCarrierAbsent) {
+      return new Map<string, InstalledPackageDescriptor>();
+    }
+    if (input.failClosedOnCarrierError) {
+      throw new FrameworkContractError(
+        'contract_shape_invalid',
+        'Installed Codex Plugin Manager discovery did not complete.',
+        {
+          package_id: input.packageId ?? null,
+          action: 'list',
+          command: ['plugin', 'list', '--json'],
+          exit_status: result.status,
+          error: result.error?.message ?? null,
+          stderr_present: Boolean(result.stderr.trim()),
+          failure_code: result.error
+            ? 'configured_codex_plugin_carrier_unavailable'
+            : 'configured_codex_plugin_carrier_action_failed',
+        },
+      );
+    }
+    return new Map<string, InstalledPackageDescriptor>();
+  }
   let entries: InstalledCarrierEntry[];
   try {
-    entries = parseInstalledCarrierEntries(result.stdout);
-  } catch {
+    entries = parseInstalledCarrierEntries(result.stdout, input.packageId ?? null);
+  } catch (error) {
+    if (input.failClosedOnCarrierError) {
+      if (error instanceof FrameworkContractError) throw error;
+      throw new FrameworkContractError(
+        'contract_shape_invalid',
+        'Installed Codex Plugin Manager discovery readback is invalid.',
+        {
+          package_id: input.packageId ?? null,
+          failure_code: 'configured_codex_plugin_carrier_readback_invalid_shape',
+        },
+      );
+    }
     return new Map<string, InstalledPackageDescriptor>();
   }
   const discovered = new Map<string, InstalledPackageDescriptor>();
