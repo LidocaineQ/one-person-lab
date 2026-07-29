@@ -769,9 +769,20 @@ function cleanupTargetTemporaryFiles(directory, filePath) {
     const match = pattern.exec(name);
     if (!match || processIsRunning(Number(match[1]))) continue;
     const temporary = path.join(directory, name);
-    const state = fs.lstatSync(temporary);
+    let state;
+    try {
+      state = fs.lstatSync(temporary);
+    } catch (error) {
+      if (error && typeof error === 'object' && error.code === 'ENOENT') continue;
+      throw error;
+    }
     if (!state.isFile() || state.isSymbolicLink()) continue;
-    fs.rmSync(temporary);
+    try {
+      fs.rmSync(temporary);
+    } catch (error) {
+      if (error && typeof error === 'object' && error.code === 'ENOENT') continue;
+      throw error;
+    }
     removed = true;
   }
   if (removed) fsyncDirectory(directory);
