@@ -918,12 +918,10 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
     assert.equal(Object.hasOwn(descriptorEntry, 'lock_ref'), false);
     assert.equal(descriptorEntry.legacy_private_lifecycle_state_present, true);
     assert.equal(descriptorDirectory.opl_agent_packages.installed_package_count, 1);
-    assert.equal(descriptorDirectory.opl_agent_packages.legacy_authority.authority_status, 'stale');
-    assert.equal(descriptorDirectory.opl_agent_packages.legacy_authority.status, 'degraded');
-    assert.equal(descriptorDirectory.opl_agent_packages.legacy_authority.retained_descriptor_lock_count, 1);
-    assert.equal(descriptorDirectory.opl_agent_packages.directory.legacy_authority.authority_status, 'stale');
-    assert.equal(Object.hasOwn(descriptorDirectory.opl_agent_packages.legacy_authority, 'authority_file'), false);
-    assert.equal(Object.hasOwn(descriptorDirectory.opl_agent_packages.directory.legacy_authority, 'authority_file'), false);
+    assert.equal(descriptorDirectory.opl_agent_packages.status, 'attention_needed');
+    assert.equal(descriptorDirectory.opl_agent_packages.directory.status, 'attention_required');
+    assert.equal(Object.hasOwn(descriptorDirectory.opl_agent_packages, 'legacy_authority'), false);
+    assert.equal(Object.hasOwn(descriptorDirectory.opl_agent_packages.directory, 'legacy_authority'), false);
     assert.deepEqual(descriptorDirectory.opl_agent_packages.installed_packages, []);
     assert.equal(descriptorDirectory.opl_agent_packages.owner_route_readback.package_count, 0);
     assert.deepEqual(descriptorDirectory.opl_agent_packages.owner_route_readback.packages, []);
@@ -1001,11 +999,8 @@ test('preloaded native status reader does not parse or replace a corrupt legacy 
       (entry: any) => entry.package_id === packageId,
     );
     assert.equal(directory.opl_agent_packages.status, 'attention_needed');
-    assert.equal(directory.opl_agent_packages.legacy_authority.status, 'degraded');
-    assert.equal(directory.opl_agent_packages.legacy_authority.authority_status, 'corrupt');
-    assert.equal(directory.opl_agent_packages.legacy_authority.failure_code, 'agent_package_lock_authority_corrupt');
-    assert.equal(Object.hasOwn(directory.opl_agent_packages.legacy_authority, 'authority_file'), false);
-    assert.equal(Object.hasOwn(directory.opl_agent_packages.directory.legacy_authority, 'authority_file'), false);
+    assert.equal(Object.hasOwn(directory.opl_agent_packages, 'legacy_authority'), false);
+    assert.equal(Object.hasOwn(directory.opl_agent_packages.directory, 'legacy_authority'), false);
     assert.equal(directory.opl_agent_packages.directory.status, 'attention_required');
     assert.equal(directoryEntry.installed, true);
     assert.equal(directory.opl_agent_packages.installed_package_count, 1);
@@ -1014,16 +1009,15 @@ test('preloaded native status reader does not parse or replace a corrupt legacy 
     const globalStatus = runCli(['packages', 'status'], env) as any;
     assert.equal(globalStatus.opl_agent_package_status.status, 'attention_needed');
     assert.equal(globalStatus.opl_agent_package_status.installed_package_count, 1);
-    assert.equal(globalStatus.opl_agent_package_status.legacy_authority.authority_status, 'corrupt');
-    assert.equal(Object.hasOwn(globalStatus.opl_agent_package_status.legacy_authority, 'authority_file'), false);
+    assert.equal(Object.hasOwn(globalStatus.opl_agent_package_status, 'legacy_authority'), false);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLegacyLock);
 
     const appState = runCli(['app', 'state', '--profile', 'fast'], env) as any;
     assert.equal(appState.app_state.agent_packages.directory.entries.some(
       (entry: any) => entry.package_id === packageId,
     ), true);
-    assert.equal(appState.app_state.agent_packages.directory.legacy_authority.authority_status, 'corrupt');
-    assert.equal(Object.hasOwn(appState.app_state.agent_packages.directory.legacy_authority, 'authority_file'), false);
+    assert.equal(appState.app_state.agent_packages.directory.status, 'attention_required');
+    assert.equal(Object.hasOwn(appState.app_state.agent_packages.directory, 'legacy_authority'), false);
     assert.equal(appState.app_state.agent_packages.status_index.installed_package_count, 1);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLegacyLock);
 
@@ -1040,9 +1034,7 @@ test('preloaded native status reader does not parse or replace a corrupt legacy 
       assert.equal(status.launch_allowed, true);
       assert.equal(status.installed_package_count, 1);
       assert.deepEqual(status.installed_packages, []);
-      assert.equal(status.legacy_authority.authority_status, 'corrupt');
-      assert.equal(status.legacy_authority.status, 'degraded');
-      assert.equal(Object.hasOwn(status.legacy_authority, 'authority_file'), false);
+      assert.equal(Object.hasOwn(status, 'legacy_authority'), false);
     }
     assert.throws(
       () => readStatus({ packageId: 'legacy.package', detail: 'fast' }),

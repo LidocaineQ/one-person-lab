@@ -5010,7 +5010,6 @@ function buildOplAgentPackageStatus(
       runtime_source_readiness: runtimeSourceReadiness,
       carrier_authority_readiness: carrierAuthorityReadiness,
       managed_policy_currentness: policyCurrentness,
-      legacy_authority: legacyAuthority,
       operational_ready: operationalReady,
       operational_ready_scope: configuredCarrier
         ? 'configured_native_carrier_presence_callability_identity_and_precedence'
@@ -5125,7 +5124,6 @@ export function listOplAgentPackages(input: {
     ...(legacyAuthority.status === 'degraded'
       ? { status: 'attention_required' as const }
       : {}),
-    legacy_authority: legacyAuthority,
   };
   const homeShortcutPreferences = mergedHomeShortcutPreferences(directory, lockIndex);
   return {
@@ -5146,7 +5144,6 @@ export function listOplAgentPackages(input: {
       recommended_action: lifecycleUx.recommended_action,
       lifecycle_action_refs: lifecycleUx.lifecycle_action_refs,
       lifecycle_ux: lifecycleUx,
-      legacy_authority: legacyAuthority,
       home_shortcut_preferences: homeShortcutPreferences,
       owner_route_readback: input.detail === 'fast'
         ? {
@@ -5183,7 +5180,6 @@ export function readManagedUpdateOplAgentPackageProjection() {
       snapshot.lockIndex.packages,
       installedCodexPluginDescriptors,
     ),
-    legacy_authority: snapshot.legacyAuthority,
   };
 }
 
