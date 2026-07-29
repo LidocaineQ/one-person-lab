@@ -367,7 +367,6 @@ function ownerRouteReadbackItem(input: {
         expected_digest: null,
         actual_digest: null,
         repair_command: `opl packages repair --package-id ${input.packageId}`,
-        lifecycle_receipt_ref: null,
         core_readiness: { status: 'missing' as const, required_skill_ids: [], materialized_skill_ids: [] },
         specialty_exposure: {
           status: 'not_required' as const,

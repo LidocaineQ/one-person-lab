@@ -134,7 +134,11 @@ test('MAS package lifecycle atomically installs and repairs its 11-core capabili
     ], env) as any;
     assert.equal(current.opl_agent_package_status.package_dependency_readiness.status, 'current');
     assert.equal(current.opl_agent_package_status.materialization_readiness.status, 'current');
-    assert.match(current.opl_agent_package_status.materialization_readiness.lifecycle_receipt_ref, /^opl:\/\//);
+    assert.equal(
+      Object.hasOwn(current.opl_agent_package_status.materialization_readiness, 'lifecycle_receipt_ref'),
+      false,
+    );
+    assert.equal(Object.hasOwn(masLock.scope_materializations[0], 'lifecycle_receipt_ref'), false);
     assert.equal(current.opl_agent_package_status.operational_ready, true);
     assert.equal(current.opl_agent_package_status.launch_allowed, true);
     assert.equal(current.opl_agent_package_status.owner_route_readback.packages.length, 1);
@@ -197,11 +201,10 @@ test('MAS package lifecycle atomically installs and repairs its 11-core capabili
     const receiptIndependent = runCli([
       'packages', 'status', '--package-id', FIXTURE_CONSUMER_PACKAGE_ID, '--scope', 'workspace', '--target-workspace', workspace,
     ], env) as any;
-    const receiptRef = receiptIndependent.opl_agent_package_status.materialization_readiness.lifecycle_receipt_ref;
     assert.equal(receiptIndependent.opl_agent_package_status.materialization_readiness.status, 'current');
     assert.equal(
-      receiptIndependent.opl_agent_package_status.materialization_readiness.lifecycle_receipt_ref,
-      receiptRef,
+      Object.hasOwn(receiptIndependent.opl_agent_package_status.materialization_readiness, 'lifecycle_receipt_ref'),
+      false,
     );
     assert.equal(receiptIndependent.opl_agent_package_status.status, 'available');
     assert.equal(receiptIndependent.opl_agent_package_status.operational_ready, true);

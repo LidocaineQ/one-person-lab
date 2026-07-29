@@ -582,7 +582,6 @@ export type AgentPackageMaterializationReadiness = {
   expected_digest: string | null;
   actual_digest: string | null;
   repair_command: string | null;
-  lifecycle_receipt_ref: string | null;
   core_readiness: {
     status: 'not_required' | 'missing' | 'current' | 'incompatible';
     required_skill_ids: string[];
@@ -612,7 +611,6 @@ export type AgentPackageScopeMaterialization = {
   core_digest: string;
   full_export_digest: string;
   materialized_at: string;
-  lifecycle_receipt_ref: string;
 };
 
 export type AgentPackageProfileSurfaceConfig = {

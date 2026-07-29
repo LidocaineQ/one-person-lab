@@ -364,7 +364,6 @@ export function materializeCapabilityScope(input: {
     core_digest: coreDigest,
     full_export_digest: contentDigest,
     materialized_at: nowIso(),
-    lifecycle_receipt_ref: 'pending_dependency_transaction',
   };
 }
 
@@ -375,6 +374,10 @@ export function retireCapabilityScopeMaterialization(input: {
   retainTransactionBackup?: boolean;
 }): AgentPackageScopeMaterialization {
   const previous = input.previousMaterialization;
+  const receiptNeutralPrevious = {
+    ...previous,
+  } as AgentPackageScopeMaterialization & { lifecycle_receipt_ref?: string };
+  delete receiptNeutralPrevious.lifecycle_receipt_ref;
   safeScopePathSegment(input.transactionId, 'transaction_id');
   for (const skillId of previous.managed_skill_ids) safeScopePathSegment(skillId, 'managed_skill_ids[]');
   const targetSkillsRoot = path.join(previous.target_root, '.codex', 'skills');
@@ -418,7 +421,7 @@ export function retireCapabilityScopeMaterialization(input: {
     }
   }
   return {
-    ...previous,
+    ...receiptNeutralPrevious,
     transaction_id: input.transactionId,
     required_skill_ids: [],
     managed_skill_ids: [],
@@ -429,7 +432,6 @@ export function retireCapabilityScopeMaterialization(input: {
     core_digest: previous.core_digest,
     full_export_digest: previous.full_export_digest,
     materialized_at: nowIso(),
-    lifecycle_receipt_ref: 'pending_dependency_transaction',
   };
 }
 
@@ -611,7 +613,6 @@ export function scopeMaterializationReadiness(
       expected_digest: null,
       actual_digest: null,
       repair_command: null,
-      lifecycle_receipt_ref: null,
       core_readiness: { status: 'not_required', required_skill_ids: [], materialized_skill_ids: [] },
       specialty_exposure: { status: 'not_required', declared_skill_ids: [], materialized_skill_ids: [], missing_skill_ids: [] },
     };
@@ -629,7 +630,6 @@ export function scopeMaterializationReadiness(
       expected_digest: null,
       actual_digest: null,
       repair_command: `opl packages repair --package-id ${lock.package_id} --scope workspace --target-workspace <path>`,
-      lifecycle_receipt_ref: null,
       core_readiness: { status: 'missing', required_skill_ids: [], materialized_skill_ids: [] },
       specialty_exposure: { status: 'not_required', declared_skill_ids: [], materialized_skill_ids: [], missing_skill_ids: [] },
     };
@@ -696,7 +696,6 @@ export function scopeMaterializationReadiness(
     : providerReadiness.length === 1
       ? providerReadiness[0].actualDigest
       : `sha256:${sha256Text(JSON.stringify(providerReadiness.map((entry) => entry.actualDigest)))}`;
-  const lifecycleReceiptRefs = [...new Set(records.map((entry) => entry.lifecycle_receipt_ref))];
   const specialtyIds = [...new Set(providerReadiness.flatMap((entry) => entry.specialtyIds))];
   const materializedSpecialtyIds = specialtyIds.filter((skillId) =>
     fs.existsSync(path.join(targetSkillsRoot, skillId, 'SKILL.md')));
@@ -710,7 +709,6 @@ export function scopeMaterializationReadiness(
     expected_digest: expectedDigest,
     actual_digest: actualDigest,
     repair_command: `opl packages repair --package-id ${lock.package_id} --scope ${scope} ${targetFlag} ${targetRoot}`,
-    lifecycle_receipt_ref: lifecycleReceiptRefs.length === 1 ? lifecycleReceiptRefs[0] : null,
     core_readiness: {
       status: status === 'current' ? 'current' : status,
       required_skill_ids: requiredSkillIds,

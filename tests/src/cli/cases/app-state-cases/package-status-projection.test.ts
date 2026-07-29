@@ -78,7 +78,6 @@ function installedStatus(input: {
         status: 'current',
         expected_digest: 'sha256:legacy-expected',
         actual_digest: 'sha256:legacy-actual',
-        lifecycle_receipt_ref: `opl://legacy-materialization/${input.packageId}`,
       },
       runtime_source_readiness: {
         status: runtimeReady ? 'current' : 'incompatible',

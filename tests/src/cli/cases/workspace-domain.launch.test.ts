@@ -244,7 +244,7 @@ test('MAS launch activates a new workspace scope and automatically recovers mana
     const skillsRoot = path.join(workspace, '.codex', 'skills');
     const lifecycleLedger = path.join(stateRoot, 'agent-package-lifecycle-ledger.json');
     assert.equal(fs.existsSync(skillsRoot), false);
-    const ledgerBeforeDryRun = fs.readFileSync(lifecycleLedger, 'utf8');
+    assert.equal(fs.existsSync(lifecycleLedger), false);
     const dryRun = runCli([
       'domain', 'launch', '--project', 'medautoscience', '--dry-run',
     ], env).domain_entry_launch;
@@ -252,7 +252,7 @@ test('MAS launch activates a new workspace scope and automatically recovers mana
     assert.equal(dryRun.launch_status, 'preview_only');
     assert.equal(fs.existsSync(skillsRoot), false);
     assert.equal(fs.existsSync(openFixture.capturePath), false);
-    assert.equal(fs.readFileSync(lifecycleLedger, 'utf8'), ledgerBeforeDryRun);
+    assert.equal(fs.existsSync(lifecycleLedger), false);
 
     const firstLaunch = runCli([
       'domain', 'launch', '--project', 'medautoscience',
@@ -266,7 +266,7 @@ test('MAS launch activates a new workspace scope and automatically recovers mana
       'packages', 'status', '--package-id', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
     ], env).opl_agent_package_status;
     assert.equal(current.materialization_readiness.status, 'current');
-    assert.match(current.materialization_readiness.lifecycle_receipt_ref, /^opl:\/\/agent-package\/activate\//);
+    assert.equal(Object.hasOwn(current.materialization_readiness, 'lifecycle_receipt_ref'), false);
 
     fs.rmSync(path.join(skillsRoot, 'medical-manuscript-writing'), { recursive: true, force: true });
     const resumed = runCli([
@@ -325,7 +325,7 @@ test('quest root activation through a canonical MAS workspace binding materializ
     ], env).opl_agent_package_activation;
     assert.equal(activation.status, 'activated');
     assert.equal(activation.package_id, 'mas');
-    assert.match(activation.lifecycle_receipt_ref, /^opl:\/\/agent-package\/activate\//);
+    assert.equal(Object.hasOwn(activation, 'lifecycle_receipt_ref'), false);
     const skillsRoot = path.join(quest, '.codex', 'skills');
     assert.deepEqual(fs.readdirSync(skillsRoot).sort(), [...scholarSkillsCoreSkillIds].sort());
     assert.equal(fs.existsSync(path.join(skillsRoot, 'medical-optional-specialty')), false);

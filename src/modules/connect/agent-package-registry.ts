@@ -1431,9 +1431,6 @@ async function applyManifestPackageLock(
       dependency_transaction_id: transactionId,
     });
     if (prepared.manifest.package_id === root.manifest.package_id && scopeMaterializations.length > 0) {
-      for (const scopeMaterialization of scopeMaterializations) {
-        scopeMaterialization.lifecycle_receipt_ref = receipt.receipt_ref;
-      }
       receipt.scope_materialization = scopeMaterializations[0];
     }
     return receipt;
@@ -3356,7 +3353,6 @@ function runOplAgentPackageRollbackUnlocked(input: AgentPackagePackageActionInpu
             dryRun: false,
             retainTransactionBackup: true,
           });
-          materialization.lifecycle_receipt_ref = scopeRecord.lifecycle_receipt_ref;
         }
         throw error;
       }
@@ -3471,7 +3467,6 @@ function runOplAgentPackageRollbackUnlocked(input: AgentPackagePackageActionInpu
           && entry.target_root === record.target_root
           && entry.provider_package_id === record.provider_package_id) ?? null,
       });
-      materialization.lifecycle_receipt_ref = rootReceipt.receipt_ref;
       scopeMaterializations.push(materialization);
     }
   } catch (error) {
@@ -3741,9 +3736,6 @@ async function ensureOplAgentPackageScopeActivationUnlocked(input: AgentPackageP
       })
     : null;
   if (activationReceipt) {
-    for (const materialization of materializations) {
-      materialization.lifecycle_receipt_ref = activationReceipt.receipt_ref;
-    }
     activationReceipt.scope_materialization = materializations[0];
     activationReceipt.scope_materializations = materializations;
   }
@@ -3985,7 +3977,6 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
         launch_state_reason: beforeStatus.launch_state_reason,
         use_boundary_id: input.useBoundaryId ?? null,
         use_receipt_ref: null,
-        lifecycle_receipt_ref: null,
         authority_boundary: refsOnlyAuthorityBoundary(),
       },
     };
@@ -4016,7 +4007,6 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
         package_use_binding: null,
         use_boundary_id: input.useBoundaryId ?? null,
         use_receipt_ref: null,
-        lifecycle_receipt_ref: null,
         authority_boundary: refsOnlyAuthorityBoundary(),
       },
     };
@@ -4071,7 +4061,6 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
       launch_state_reason: packageStatus.launch_state_reason,
       use_boundary_id: activation.package_use_binding?.use_boundary_id ?? null,
       use_receipt_ref: activation.package_use_binding?.use_receipt_ref ?? null,
-      lifecycle_receipt_ref: packageStatus.materialization_readiness?.lifecycle_receipt_ref ?? null,
       authority_boundary: refsOnlyAuthorityBoundary(),
     },
   };

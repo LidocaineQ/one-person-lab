@@ -496,7 +496,7 @@ test('dependency-free activation returns operation receipt refs without a lifecy
     const ledgerPath = path.join(stateRoot, 'agent-package-lifecycle-ledger.json');
 
     assert.equal(activation.lifecycle_receipt, null);
-    assert.equal(activation.lifecycle_receipt_ref, null);
+    assert.equal(Object.hasOwn(activation, 'lifecycle_receipt_ref'), false);
     assert.equal(activation.package_use_binding.use_receipt_ref, activation.use_receipt_ref);
     assert.match(activation.use_receipt_ref, /^opl:\/\/agent-package\/use\/rca\//);
     assert.equal(activation.use_receipt?.receipt_ref, activation.use_receipt_ref);

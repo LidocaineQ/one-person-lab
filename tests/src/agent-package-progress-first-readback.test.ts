@@ -149,7 +149,7 @@ test('invalid managed policy runtime remains a hard lifecycle condition', () => 
   assert.equal(condition?.action_ref, 'repair');
 });
 
-test('scope readiness observes digest receipt and provider lock drift but still requires core Skills', () => {
+test('scope readiness observes digest and provider lock drift but still requires core Skills', () => {
   const targetRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-scope-readback-'));
   const skillRoot = path.join(targetRoot, '.codex', 'skills', 'required-skill');
   fs.mkdirSync(skillRoot, { recursive: true });
@@ -169,7 +169,6 @@ test('scope readiness observes digest receipt and provider lock drift but still 
     core_digest: `sha256:${'0'.repeat(64)}`,
     full_export_digest: `sha256:${'0'.repeat(64)}`,
     materialized_at: '2026-07-17T00:00:00.000Z',
-    lifecycle_receipt_ref: 'pending_dependency_transaction',
   };
   const consumer = {
     package_id: 'fixture.consumer',
@@ -197,7 +196,7 @@ test('scope readiness observes digest receipt and provider lock drift but still 
     assert.equal(observedDrift.status, 'current');
     assert.equal(observedDrift.core_readiness.status, 'current');
     assert.notEqual(observedDrift.actual_digest, observedDrift.expected_digest);
-    assert.equal(observedDrift.lifecycle_receipt_ref, 'pending_dependency_transaction');
+    assert.equal(Object.hasOwn(observedDrift, 'lifecycle_receipt_ref'), false);
 
     const noReceiptRecord = scopeMaterializationReadiness({
       ...consumer,
@@ -208,7 +207,7 @@ test('scope readiness observes digest receipt and provider lock drift but still 
     });
     assert.equal(noReceiptRecord.status, 'current');
     assert.equal(noReceiptRecord.core_readiness.status, 'current');
-    assert.equal(noReceiptRecord.lifecycle_receipt_ref, null);
+    assert.equal(Object.hasOwn(noReceiptRecord, 'lifecycle_receipt_ref'), false);
 
     fs.rmSync(skillRoot, { recursive: true, force: true });
     const missingSkill = scopeMaterializationReadiness(consumer, index, {
