@@ -471,13 +471,25 @@ test('concurrent equal writers converge and changed authority cannot replace the
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const source = createSourceRepo(root);
   const authority = createAuthority(root, source);
+  const directory = path.dirname(authority.output);
+  fs.mkdirSync(directory, { recursive: true });
+  for (let index = 0; index < 64; index += 1) {
+    fs.writeFileSync(
+      path.join(directory, `.${path.basename(authority.output)}.999999.${index.toString(16).padStart(24, '0')}.tmp`),
+      'crashed writer\n',
+    );
+  }
 
   const equalResults = await Promise.all(Array.from({ length: 8 }, () => runConcurrent({
     authority,
     repo: source.repo,
     sourceCommit: source.sourceCommit,
   })));
-  assert.equal(equalResults.every((result) => result.status === 0), true);
+  assert.equal(
+    equalResults.every((result) => result.status === 0),
+    true,
+    JSON.stringify(equalResults.filter((result) => result.status !== 0)),
+  );
   const statuses = equalResults.map((result) => JSON.parse(result.stdout).status).sort();
   assert.deepEqual(statuses, ['created', ...Array.from({ length: 7 }, () => 'unchanged')].sort());
   assert.equal(fs.readdirSync(path.dirname(authority.output)).some((name) => name.endsWith('.tmp')), false);
