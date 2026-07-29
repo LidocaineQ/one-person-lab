@@ -301,6 +301,7 @@ test('package source projection gate verifies every capability Package ordered c
     repo_url: repoUrl,
     package_manifest_ref: `contracts/opl-framework/packages/${packageId}.json`,
     owner_package_manifest_ref: 'contracts/owner-package.json',
+    owner_plugin_manifest_ref: paths[0],
     owner_manifest_kind: 'capability_package',
   };
   assert.equal(validatePackageSourceProjection({ frameworkRoot, spec, ownerRepoPath: ownerRoot }).status, 'validated');

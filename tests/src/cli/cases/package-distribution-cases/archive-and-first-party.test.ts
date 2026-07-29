@@ -730,7 +730,7 @@ test('package archive builder writes channel manifest checksums git source and r
   const releaseSbom = parseJsonText(fs.readFileSync(path.join(outDir, 'opl-release-set.spdx.json'), 'utf8')) as Record<string, any>;
   const releaseProvenance = parseJsonText(fs.readFileSync(path.join(outDir, 'opl-release-provenance.json'), 'utf8')) as Record<string, any>;
   assert.equal(releaseSbom.spdxVersion, 'SPDX-2.3');
-  assert.equal(releaseSbom.packages.length, 9);
+  assert.equal(releaseSbom.packages.length, packageSpecs.length + 2);
   assert.equal(releaseSbom.packages.some((entry: Record<string, unknown>) => entry.name === 'opl-base'), true);
   assert.equal(
     releaseProvenance.buildDefinition.buildType,
@@ -740,7 +740,7 @@ test('package archive builder writes channel manifest checksums git source and r
     releaseProvenance.buildDefinition.externalParameters.opl_release_set_build_type,
     'https://one-person-lab.dev/build-types/release-set/v2',
   );
-  assert.equal(releaseProvenance.buildDefinition.resolvedDependencies.length, 9);
+  assert.equal(releaseProvenance.buildDefinition.resolvedDependencies.length, packageSpecs.length + 2);
   assert.equal(
     releaseProvenance.buildDefinition.externalParameters.owner_cohort_lock.digest,
     archiveBuilderResult.owner_cohort_lock_digest,
@@ -1670,6 +1670,8 @@ test('package archive builder refreshes reused managed clones before archiving s
     oplmetaagent: createOwnerPackageFixture('opl-meta-agent', 'oma', '0.3.0'),
     oplbookforge: createOwnerPackageFixture('opl-bookforge', 'obf', '0.3.2'),
     scholarskills: createOwnerPackageFixture('mas-scholar-skills', 'mas-scholar-skills', '0.2.1', 'capability_package'),
+    oplrelay: createOwnerPackageFixture('opl-relay', 'opl-relay', '0.5.2', 'capability_package'),
+    oplpersona: createOwnerPackageFixture('opl-persona', 'opl-persona', '0.2.2', 'capability_package'),
     oplflow: createOwnerPackageFixture('opl-flow', 'opl-flow', '0.1.20', 'workflow_profile'),
   };
   fs.writeFileSync(
@@ -1690,6 +1692,8 @@ test('package archive builder refreshes reused managed clones before archiving s
     OPL_PACKAGE_SOURCE_PATH_OMA: fixtures.oplmetaagent.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OBF: fixtures.oplbookforge.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_MAS_SCHOLAR_SKILLS: fixtures.scholarskills.sourceRoot,
+    OPL_PACKAGE_SOURCE_PATH_OPL_RELAY: fixtures.oplrelay.sourceRoot,
+    OPL_PACKAGE_SOURCE_PATH_OPL_PERSONA: fixtures.oplpersona.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OPL_FLOW: fixtures.oplflow.sourceRoot,
     OPL_PACKAGE_RELEASE_GATE: 'test_owner_sha_release_gate',
   };
