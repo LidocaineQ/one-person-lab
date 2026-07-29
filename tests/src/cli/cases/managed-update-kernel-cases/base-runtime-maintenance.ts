@@ -8,7 +8,7 @@ import {
   test,
 } from '../../helpers.ts';
 
-test('update repair and rollback expose controlled runtime maintenance execution boundaries', () => {
+test('update recovery operations expose controlled runtime maintenance execution boundaries', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-update-operations-'));
   const runtimeBin = path.join(homeRoot, 'runtime', 'current', 'bin');
   const runtimeCodex = path.join(runtimeBin, 'codex');
@@ -61,7 +61,10 @@ exit 2
   );
 
   try {
-    for (const operation of ['repair', 'rollback'] as const) {
+    for (const operation of ['apply', 'repair', 'rollback'] as const) {
+      if (operation === 'apply') {
+        continue;
+      }
       const output = runCli(['update', operation], {
         HOME: homeRoot,
         CODEX_HOME: path.join(homeRoot, 'codex-home'),
