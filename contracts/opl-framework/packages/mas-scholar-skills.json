@@ -6,7 +6,7 @@
   "version": "0.2.22",
   "source": "first_party_owner_projection",
   "source_repo": "https://github.com/gaofeng21cn/mas-scholar-skills.git",
-  "package_role": "framework_capability_package",
+  "package_role": "capability_package",
   "schema_ref": "one-person-lab/contracts/opl-framework/capability-package-manifest.schema.json",
   "consumer_policy": {
     "compatibility_commitment": "declared_optional_consumer_profiles",

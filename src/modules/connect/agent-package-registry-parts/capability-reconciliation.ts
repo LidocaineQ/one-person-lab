@@ -103,8 +103,8 @@ export function normalizeManagedPackageCatalog(payload: unknown): ManagedPackage
     if (versions.length === 0) continue;
     result.set(packageId, {
       package_id: packageId,
-      package_role: rawEntry.package_role === 'framework_capability_package'
-        ? 'framework_capability_package'
+      package_role: rawEntry.package_role === 'capability_package'
+        ? 'capability_package'
         : rawEntry.package_role === 'workflow_profile'
           ? 'workflow_profile'
           : 'standard_agent',

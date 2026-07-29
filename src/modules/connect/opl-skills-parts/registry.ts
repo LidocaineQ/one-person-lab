@@ -146,10 +146,10 @@ export function listFamilySkillPackSpecs(): SkillPackSpec[] {
     label: entry.label,
     plugin_name: entry.plugin_name,
     canonical_plugin_name: entry.canonical_plugin_name,
-    source_kind: entry.series_membership === 'framework_capability_package'
+    source_kind: entry.series_membership === 'capability_package'
       ? 'repo_plugin_installer' as const
       : 'opl_standard_codex_carrier' as const,
-    distribution_role: entry.series_membership === 'framework_capability_package'
+    distribution_role: entry.series_membership === 'capability_package'
       ? 'framework_capability_plugin_pack' as const
       : 'domain_agent_plugin_pack' as const,
     installer_kind: 'node' as const,

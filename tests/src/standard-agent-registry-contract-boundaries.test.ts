@@ -94,6 +94,8 @@ test('package and module aliases derive registry entries without promoting Schol
   }
 
   assert.equal(canonicalAgentPackageId('mas-scholar-skills'), 'mas-scholar-skills');
+  assert.equal(canonicalAgentPackageId('OPL Relay'), 'opl-relay');
+  assert.equal(canonicalAgentPackageId('OPL Persona'), 'opl-persona');
   assert.equal(normalizeStandardDomainAgentId('mas-scholar-skills'), 'mas-scholar-skills');
   assert.equal(matchesStandardDomainAgentCatalogEntry('rca', {
     project_id: 'redcube',

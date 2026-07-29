@@ -220,15 +220,16 @@ test('package source projection gate rejects stale payload authority and validat
   );
 });
 
-test('package source projection gate verifies Scholar Skills ordered content lock bytes', (t) => {
+test('package source projection gate verifies every capability Package ordered content lock bytes', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-scholar-projection-gate-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const ownerRoot = path.join(root, 'owner');
   const frameworkRoot = path.join(root, 'framework');
-  const repoUrl = 'https://github.com/example/mas-scholar-skills.git';
+  const repoUrl = 'https://github.com/example/opl-relay.git';
+  const packageId = 'opl-relay';
   const version = '0.2.0';
   const paths = ['.codex-plugin/plugin.json', 'skills/example/SKILL.md'];
-  writeJson(path.join(ownerRoot, paths[0]), { id: 'mas-scholar-skills', version });
+  writeJson(path.join(ownerRoot, paths[0]), { id: packageId, version });
   fs.mkdirSync(path.dirname(path.join(ownerRoot, paths[1])), { recursive: true });
   fs.writeFileSync(path.join(ownerRoot, paths[1]), '# Skill\n');
   const contentLockDigest = (canonicalization: string) => {
@@ -260,7 +261,7 @@ test('package source projection gate verifies Scholar Skills ordered content loc
     digest: contentLockDigest(canonicalization),
   };
   writeJson(path.join(ownerRoot, 'contracts', 'owner-package.json'), {
-    package_id: 'mas-scholar-skills',
+    package_id: packageId,
     version,
     content_lock: contentLock,
   });
@@ -271,10 +272,10 @@ test('package source projection gate verifies Scholar Skills ordered content loc
   git(ownerRoot, ['commit', '-qm', 'owner source']);
   const head = git(ownerRoot, ['rev-parse', 'HEAD']);
   git(ownerRoot, ['tag', '-a', `v${version}`, '-m', `v${version}`]);
-  const manifestPath = path.join(frameworkRoot, 'contracts/opl-framework/packages/mas-scholar-skills.json');
-  const payloadRef = `payloads/mas-scholar-skills-${version}.json`;
+  const manifestPath = path.join(frameworkRoot, `contracts/opl-framework/packages/${packageId}.json`);
+  const payloadRef = `payloads/${packageId}-${version}.json`;
   writeJson(manifestPath, {
-    package_id: 'mas-scholar-skills',
+    package_id: packageId,
     version,
     source_repo: repoUrl,
     content_lock: contentLock,
@@ -284,22 +285,23 @@ test('package source projection gate verifies Scholar Skills ordered content loc
     },
   });
   writeJson(path.join(path.dirname(manifestPath), payloadRef), {
-    package_id: 'mas-scholar-skills',
+    package_id: packageId,
     package_version: version,
     source_repo: repoUrl,
     source_commit: head,
     source_root: '.',
     files: paths.map((declaredPath) => ({
       path: declaredPath,
-      source_url: `https://raw.githubusercontent.com/example/mas-scholar-skills/${head}/${declaredPath}`,
+      source_url: `https://raw.githubusercontent.com/example/opl-relay/${head}/${declaredPath}`,
       sha256: digest(path.join(ownerRoot, declaredPath)),
     })),
   });
   const spec = {
-    package_id: 'mas-scholar-skills',
+    package_id: packageId,
     repo_url: repoUrl,
-    package_manifest_ref: 'contracts/opl-framework/packages/mas-scholar-skills.json',
+    package_manifest_ref: `contracts/opl-framework/packages/${packageId}.json`,
     owner_package_manifest_ref: 'contracts/owner-package.json',
+    owner_plugin_manifest_ref: paths[0],
     owner_manifest_kind: 'capability_package',
   };
   assert.equal(validatePackageSourceProjection({ frameworkRoot, spec, ownerRepoPath: ownerRoot }).status, 'validated');

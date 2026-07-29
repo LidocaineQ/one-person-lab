@@ -51,7 +51,7 @@ export function buildPackCompilerChecks(repoDir: string, canonicalAgentId?: stri
       ? implementationProfileValidation.blockers
       : []),
     canonicalAgentId === 'mas-scholar-skills' && implementationProfileValidation.status !== 'missing'
-      ? 'framework_capability_package_must_not_declare_standard_agent_implementation_profile'
+      ? 'capability_package_must_not_declare_standard_agent_implementation_profile'
       : null,
   ].filter((entry): entry is string => Boolean(entry));
   return {

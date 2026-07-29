@@ -171,7 +171,7 @@ function validateManifest(manifest, promotionTarget = 'candidate') {
     }
   }
   if (packageArtifacts['mas-scholar-skills']) {
-    assertCondition(packageArtifacts['mas-scholar-skills']?.scope === 'framework_capability_package', 'MAS Scholar Skills role drifted', failures);
+    assertCondition(packageArtifacts['mas-scholar-skills']?.scope === 'capability_package', 'MAS Scholar Skills role drifted', failures);
   }
   if (packageArtifacts['opl-flow']) {
     assertCondition(packageArtifacts['opl-flow']?.scope === 'runtime_dependency', 'OPL Flow workflow-profile role drifted', failures);

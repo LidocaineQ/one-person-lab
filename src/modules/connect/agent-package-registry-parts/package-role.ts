@@ -4,7 +4,7 @@ import type { AgentPackageLock, AgentPackageRole } from './types.ts';
 
 const PACKAGE_ROLES = new Set<AgentPackageRole>([
   'standard_agent',
-  'framework_capability_package',
+  'capability_package',
   'workflow_profile',
 ]);
 
@@ -20,7 +20,7 @@ export function packageRoleFromInstalledLock(lock: AgentPackageLock): AgentPacka
       repair_action: 'opl packages repair --package-id <package_id>',
     });
   }
-  if (lock.capability_provider) return 'framework_capability_package';
+  if (lock.capability_provider) return 'capability_package';
   if (lock.agent_id) return 'standard_agent';
   throw new FrameworkContractError('contract_shape_invalid', 'Installed package lock has no reliable package role.', {
     package_id: lock.package_id,

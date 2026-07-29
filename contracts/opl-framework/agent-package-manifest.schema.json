@@ -580,7 +580,7 @@
             "minLength": 1
           },
           "kind": {
-            "const": "framework_capability_package"
+            "const": "capability_package"
           },
           "required": {
             "type": "boolean"

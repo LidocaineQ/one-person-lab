@@ -474,7 +474,7 @@ test('MAS package exposes ScholarSkills as a required managed capability depende
   assert.equal(manifest.package_id, 'mas');
   assert.deepEqual(manifestPayload.codex_surface.bundled_capability_package_ids, ['mas-scholar-skills']);
   assert.equal(dependency?.module_id, 'scholarskills');
-  assert.equal(dependency?.kind, 'framework_capability_package');
+  assert.equal(dependency?.kind, 'capability_package');
   assert.equal(dependency?.required, true);
   assert.equal(dependency?.dependency_kind, 'hard_runtime_dependency');
   assert.equal(dependency?.consumer_profile_id, 'mas-medical-paper.v1');

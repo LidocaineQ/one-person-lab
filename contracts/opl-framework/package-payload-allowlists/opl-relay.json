@@ -1,0 +1,29 @@
+{
+  "surface_kind": "opl_package_payload_allowlist.v1",
+  "package_id": "opl-relay",
+  "plugin_id": "opl-relay",
+  "source_repo": "https://github.com/gaofeng21cn/opl-relay.git",
+  "source_root": "plugins/opl-relay",
+  "paths": [
+    ".codex-plugin/plugin.json",
+    "assets/icon.png",
+    "bin/opl-relay",
+    "runtime/codex_mail_workbench/__init__.py",
+    "runtime/codex_mail_workbench/apple_mail.py",
+    "runtime/codex_mail_workbench/cli.py",
+    "runtime/codex_mail_workbench/config.py",
+    "runtime/codex_mail_workbench/context.py",
+    "runtime/codex_mail_workbench/drafts.py",
+    "runtime/codex_mail_workbench/knowledge.py",
+    "runtime/codex_mail_workbench/memory.py",
+    "runtime/codex_mail_workbench/message.py",
+    "runtime/codex_mail_workbench/paths.py",
+    "runtime/codex_mail_workbench/persona.py",
+    "runtime/codex_mail_workbench/store.py",
+    "runtime/codex_mail_workbench/sync.py",
+    "runtime/codex_mail_workbench/triage.py",
+    "runtime/codex_mail_workbench/workspace.py",
+    "skills/opl-relay/SKILL.md",
+    "skills/opl-relay/agents/openai.yaml"
+  ]
+}

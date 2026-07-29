@@ -1,0 +1,26 @@
+{
+  "surface_kind": "opl_package_payload_allowlist.v1",
+  "package_id": "opl-persona",
+  "plugin_id": "opl-persona",
+  "source_repo": "https://github.com/gaofeng21cn/opl-persona.git",
+  "source_root": "plugins/opl-persona",
+  "paths": [
+    ".codex-plugin/plugin.json",
+    "assets/icon.png",
+    "bin/opl-persona",
+    "runtime/opl_persona/__init__.py",
+    "runtime/opl_persona/approvals.py",
+    "runtime/opl_persona/__main__.py",
+    "runtime/opl_persona/app_contributions.py",
+    "runtime/opl_persona/bindings.py",
+    "runtime/opl_persona/cli.py",
+    "runtime/opl_persona/core.py",
+    "runtime/opl_persona/inbox.py",
+    "runtime/opl_persona/obsidian.py",
+    "runtime/opl_persona/obsidian_apply.py",
+    "runtime/opl_persona/paths.py",
+    "runtime/opl_persona/policy.py",
+    "skills/opl-persona/SKILL.md",
+    "skills/opl-persona/agents/openai.yaml"
+  ]
+}

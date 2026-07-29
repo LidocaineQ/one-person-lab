@@ -74,9 +74,9 @@ durable Package intent 定义为长期目标的旧决策。历史原文保留用
 
 影响：
 
-- 专业能力 Provider 的通用身份是 `framework_capability_package`。旧
-  `required_agent_capability_package` 仅作已发布 manifest 的兼容输入，读取后不得获得 required
-  语义；新 manifest 不再写该值。
+- 专业能力 Provider 的通用身份是 `capability_package`。旧
+  `required_agent_capability_package` 只允许存在于冻结的历史证据中；活动 schema、parser 和
+  新 manifest 均不再接受或写入该值。
 - `bundled_capability_package_ids` 只表示默认分发便利。consumer 是否硬依赖 Provider 只由
   `required + dependency_kind` 决定：`required=true` 只能是 `hard_runtime_dependency`，
   `required=false` 只能是 `optional_enhancement`。
@@ -389,7 +389,7 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 
 ### 决策：标准智能体 canonical id 与 repo/package carrier 名分层
 
-原因：`opl-meta-agent`、`opl-bookforge` 这类 repo / package / plugin / carrier 名容易被误读成标准智能体 canonical id；`mas-scholar-skills` 也容易因为出现在 Foundry / package readback 中被误读成第六个 standard domain agent。当前机器读面已经把 Foundry Agent series 分成两层：standard domain agent 的 canonical ids 是 `mas`、`mag`、`rca`、`oma`、`obf`；`mas-scholar-skills` 的 membership 是 `framework_capability_package`。文档读法必须跟随这层身份边界，而不是跟随仓库名、GHCR package 名或 Codex carrier 名。
+原因：`opl-meta-agent`、`opl-bookforge` 这类 repo / package / plugin / carrier 名容易被误读成标准智能体 canonical id；`mas-scholar-skills` 也容易因为出现在 Foundry / package readback 中被误读成第六个 standard domain agent。当前机器读面已经把 Foundry Agent series 分成两层：standard domain agent 的 canonical ids 是 `mas`、`mag`、`rca`、`oma`、`obf`；`mas-scholar-skills` 的 membership 是 `capability_package`。文档读法必须跟随这层身份边界，而不是跟随仓库名、GHCR package 名或 Codex carrier 名。
 
 影响：
 
@@ -493,11 +493,11 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 
 影响：
 
-- `contracts/opl-framework/packages/mas.json` 是 MAS first-party agent package 的依赖单源；carrier/module readback 只从该 manifest 投影 `capability_dependencies`。其中 `mas-scholar-skills` 的 `kind` 固定为 `framework_capability_package`，安装 / 更新 owner 是 `one-person-lab`，普通用户来源是 `ghcr.io/<owner>/one-person-lab-packages/mas-scholar-skills:latest-stable`。
+- `contracts/opl-framework/packages/mas.json` 是 MAS first-party agent package 的依赖单源；carrier/module readback 只从该 manifest 投影 `capability_dependencies`。其中 `mas-scholar-skills` 的 `kind` 固定为 `capability_package`，安装 / 更新 owner 是 `one-person-lab`，普通用户来源是 `ghcr.io/<owner>/one-person-lab-packages/mas-scholar-skills:latest-stable`。
 - Codex App、headless CLI 和 Full App 都通过同一 `opl packages install mas` 语义安装 MAS；Packages 自动解析并安装 `mas-scholar-skills` required closure，不能要求用户手动补装外挂专业 Skill 库。
 - MAS 与 `mas-scholar-skills` 是两个独立维护、同一闭包事务管理的 package target；provider 在未安装 MAS 时不是全局默认 package，依赖关系由 MAS manifest 声明，不由 OPL App hard-code。
 - `scholarskills` package manifest 通过 `dependency_of: ["medautoscience"]` 暴露反向关系；这只表达 package 管理关系，不把 MAS Scholar Skills 变成 MAS domain module。
-- Developer Mode target authority resolver 把 `mas-scholar-skills` 解析为 `framework_capability_package` target；有 repo 写权限时可直修，无权限时走 fork / PR。手动打开 Developer Mode 不能授予直接写权限。
+- Developer Mode target authority resolver 把 `mas-scholar-skills` 解析为 `capability_package` target；有 repo 写权限时可直修，无权限时走 fork / PR。手动打开 Developer Mode 不能授予直接写权限。
 - 论文执行的 ScholarSkills 由 MAS package closure 在 hosted action / 新 child Attempt 首次启动时自动写入 Attempt 自有的只读 `.agents/skills` generation；目标 `.codex/skills/` 只作 Codex discovery/兼容投影。旧 Connect sync 只作为迁移输入，不再是用户安装、激活或修复入口；两类投影都不写 domain truth、owner receipt、typed blocker 或 runtime queue。
 
 ## 2026-07-04
@@ -760,7 +760,7 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 
 影响：
 
-- `MAS Scholar Skills` 作为 `framework_capability_package` 纳入统一 OPL Packages 对象模型，唯一 OCI 是 `ghcr.io/<owner>/one-person-lab-packages/mas-scholar-skills`。普通 App 只从 MAS package row/launch 自动管理该依赖，不提供 ScholarSkills 专属安装入口或 git clone / pull manager。
+- `MAS Scholar Skills` 作为 `capability_package` 纳入统一 OPL Packages 对象模型，唯一 OCI 是 `ghcr.io/<owner>/one-person-lab-packages/mas-scholar-skills`。普通 App 只从 MAS package row/launch 自动管理该依赖，不提供 ScholarSkills 专属安装入口或 git clone / pull manager。
 - `.github/workflows/daily-package-channel.yml` 继续通过 `packages.yml` 执行 changed-package-only 发布与 SemVer/digest gate；新增 capability package 必须复用 `candidate` -> `latest-stable` 晋级，不新建 daily job、source manager 或 OCI namespace。
 - `opl packages list/update/repair --json` 与 `opl system startup-maintenance --json` 把 MAS Scholar Skills 作为 MAS required dependency 处理；普通 channel 与 Developer Mode/显式本地 source 都由下一 hosted action/new Attempt 静默解析成 immutable generation。dirty checkout 只作 provenance，不被 OPL 覆盖，也不触发 manual-required；真实必需 Skill/ABI/probe 失败且无 LKG 才阻断。
 - 论文工作目录的 Codex discovery 兼容投影由 `opl packages` transaction 持有，落点仍是目标 workspace / quest 的 `.codex/skills/`；真正执行的完整 35 Skills 则来自 hosted action / 新 child Attempt 解析并绑定的只读 `.agents/skills` generation。Developer Mode 从可信本地 checkout 获取当前 bytes，普通用户从正式 channel 获取；新 generation 校验失败自动使用 LKG。11 core + 10 modules 只作 readiness floor；ScholarSkills 不进入系统全局默认 package，也不由 MAS 程序仓维护 mirror。

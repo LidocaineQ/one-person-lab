@@ -25,12 +25,14 @@ const PACKAGE_ROOT_ENV = new Map<string, string>([
   ['oma', 'OPL_MODULE_PATH_OPLMETAAGENT'],
   ['obf', 'OPL_MODULE_PATH_OPLBOOKFORGE'],
   ['mas-scholar-skills', 'OPL_MODULE_PATH_MAS_SCHOLAR_SKILLS'],
+  ['opl-relay', 'OPL_MODULE_PATH_OPL_RELAY'],
+  ['opl-persona', 'OPL_MODULE_PATH_OPL_PERSONA'],
   ['opl-flow', 'OPL_FLOW_REPO_ROOT'],
 ]);
 
 export type BundledFullRuntimeCatalogEntry = {
   packageId: string;
-  packageRole: 'standard_agent' | 'framework_capability_package' | 'workflow_profile';
+  packageRole: 'standard_agent' | 'capability_package' | 'workflow_profile';
   packageVersion: string;
   ownerSourceCommit: string;
   manifestUrl: string;

@@ -187,7 +187,7 @@ function buildFoundryAgentOsFrameworkCapabilityConformance(
     domain_id: report.domain_id,
     requested_agent_id: report.requested_agent_id,
     canonical_agent_id: report.canonical_agent_id,
-    standard_membership: 'framework_capability_package',
+    standard_membership: 'capability_package',
     foundry_agent_os_standard_member: false,
     foundry_agent_os_public_projection_member: true,
     status: statusFromBlockers(blockers),
@@ -196,7 +196,7 @@ function buildFoundryAgentOsFrameworkCapabilityConformance(
     provider_completion_counts_as_domain_completion: false,
     generated_surface_status: statusFromBlockers(blockers),
     generated_surface_owner: 'one-person-lab',
-    direct_hosted_accepted_answer_shape_policy: 'framework_capability_package_refs_only',
+    direct_hosted_accepted_answer_shape_policy: 'capability_package_refs_only',
     source_of_work_status: statusFromBlockers(blockers),
     capability_registry_policy_status: statusFromBlockers(blockers),
     optional_ref_policy: 'fail_open_unless_current_owner_delta_requires_route_ref',
@@ -235,7 +235,7 @@ function buildFoundryAgentOsFrameworkCapabilityConformanceFromRepoReport(
     requested_agent_id: report.requested_agent_id,
     domain_id: report.domain_id,
     canonical_agent_id: canonicalAgentId ?? report.domain_id,
-    package_scope: 'framework_capability_package',
+    package_scope: 'capability_package',
     status: blockers.length === 0 ? 'passed' : 'blocked',
     contract_status: 'resolved',
     capability_contract_ref: `package:${canonicalAgentId}#/capability_provider`,
@@ -267,7 +267,7 @@ export function buildFoundryAgentOsConformance(
     .filter((entry) => entry.series_membership === 'standard_domain_agent')
     .map((entry) => entry.agent_id);
   const expectedFrameworkCapabilityPackages: string[] = STANDARD_AGENT_REGISTRY
-    .filter((entry) => entry.series_membership === 'framework_capability_package')
+    .filter((entry) => entry.series_membership === 'capability_package')
     .map((entry) => entry.agent_id);
   const standardDomainReports = reports.filter((report) =>
     !expectedFrameworkCapabilityPackages.includes(canonicalFoundryAgentId(report))
@@ -298,7 +298,7 @@ export function buildFoundryAgentOsConformance(
     .map((report) => report.canonical_agent_id)
     .filter((agentId): agentId is string => typeof agentId === 'string');
   const frameworkCapabilityPackageIds = allDomainReports
-    .filter((report) => report.standard_membership === 'framework_capability_package')
+    .filter((report) => report.standard_membership === 'capability_package')
     .map((report) => report.canonical_agent_id)
     .filter((agentId): agentId is string => typeof agentId === 'string');
   const missingAgents = expectedAgents.filter((agentId) => !reportedAgentIds.includes(agentId));
@@ -316,7 +316,7 @@ export function buildFoundryAgentOsConformance(
     .map((claim) => `foundry_agent_os_standard_claim_missing:${claim}`);
   const blockers = unique([
     ...missingAgents.map((agentId) => `foundry_agent_os_standard_agent_missing:${agentId}`),
-    ...missingFrameworkCapabilityPackages.map((agentId) => `foundry_agent_os_framework_capability_package_missing:${agentId}`),
+    ...missingFrameworkCapabilityPackages.map((agentId) => `foundry_agent_os_capability_package_missing:${agentId}`),
     ...missingClaimBlockers,
     ...allDomainReports.flatMap((report) => report.blockers),
   ]);
@@ -330,12 +330,12 @@ export function buildFoundryAgentOsConformance(
     target_shape: standard.target_shape,
     source_pattern_ref: standard.source_pattern_ref,
     applies_to_domain_agents: expectedAgents,
-    framework_capability_package_ids: expectedFrameworkCapabilityPackages,
+    capability_package_ids: expectedFrameworkCapabilityPackages,
     observed_domain_agent_ids: reportedAgentIds,
-    observed_framework_capability_package_ids: frameworkCapabilityPackageIds,
+    observed_capability_package_ids: frameworkCapabilityPackageIds,
     unknown_non_standard_agent_ids: unknownNonStandardAgentIds,
     missing_domain_agent_ids: missingAgents,
-    missing_framework_capability_package_ids: missingFrameworkCapabilityPackages,
+    missing_capability_package_ids: missingFrameworkCapabilityPackages,
     conformance_required_claims: standard.cross_agent_conformance_required_claims,
     forbidden_claims: standard.forbidden_claims,
     module_mapping: standard.opl_module_mapping,

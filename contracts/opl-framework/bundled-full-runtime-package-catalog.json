@@ -60,11 +60,11 @@
     },
     "mas-scholar-skills": {
       "package_id": "mas-scholar-skills",
-      "package_role": "framework_capability_package",
+      "package_role": "capability_package",
       "package_version": "0.2.22",
       "owner_source_commit": "0c7f523c36222a9a3f08572dcead58e7b2953686",
       "manifest_ref": "packages/mas-scholar-skills.json",
-      "manifest_sha256": "sha256:87b26c270030b88ec486562f1c6cdb4fdf002fa3ee73a3a841e3b43cf816fca8",
+      "manifest_sha256": "sha256:45afe5318123363329f70f85a4fdaee1e3b5269b3f3f1655471a9ab4e52bde1d",
       "payload_manifest_ref": "packages/payloads/mas-scholar-skills-0.2.22.json",
       "payload_manifest_sha256": "sha256:acb3b55873d662ed2b44d3997c8abe3ad8d7e21267eb36bda353551cb08c0fd7",
       "runtime_module_relative_path": "modules/mas-scholar-skills"

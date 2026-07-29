@@ -389,7 +389,7 @@ function buildFrameworkCapabilityPackageConformance(input: RepoInput) {
   const blockers = unique([
     canonicalAgentIdForInput(input) === 'mas-scholar-skills'
       ? null
-      : `framework_capability_package_agent_invalid:${input.requested_agent_id ?? path.basename(repoDir)}`,
+      : `capability_package_agent_invalid:${input.requested_agent_id ?? path.basename(repoDir)}`,
     capabilityContract.status === 'resolved'
       ? null
       : `scholarskills_capability_contract_${capabilityContract.status}`,
@@ -427,7 +427,7 @@ function buildFrameworkCapabilityPackageConformance(input: RepoInput) {
     requested_agent_id: input.requested_agent_id,
     domain_id: 'scholarskills',
     canonical_agent_id: 'mas-scholar-skills',
-    package_scope: 'framework_capability_package',
+    package_scope: 'capability_package',
     status: blockers.length === 0 ? 'passed' : 'blocked',
     contract_status: capabilityContract.status,
     capability_contract_ref: 'contracts/scholar-skills-capability-modules.json',
@@ -571,7 +571,7 @@ export function buildStandardDomainAgentConformanceReport(
       },
       family_live_conformance_probe: familyLiveConformanceProbe,
       reports,
-      framework_capability_packages: frameworkCapabilityPackages,
+      capability_packages: frameworkCapabilityPackages,
       authority_boundary: {
         opl_can_write_domain_truth: false,
         opl_can_write_memory_body: false,

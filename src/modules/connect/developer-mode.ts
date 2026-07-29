@@ -93,8 +93,8 @@ function buildRepoTargets(): RepoAuthorityTarget[] {
         label: entry.label,
         repo: repo ?? `unknown/${entry.repo_name}`,
         repo_url: entry.repo_url,
-        source: entry.scope === 'framework_capability_package'
-          ? 'framework_capability_package_spec' as const
+        source: entry.scope === 'capability_package'
+          ? 'capability_package_spec' as const
           : 'domain_module_spec' as const,
       };
     }),
@@ -670,10 +670,10 @@ function buildUnresolvedTargetAuthority(
 
 function buildResolvedTargetAuthority(input: {
   context: DeveloperModeContext;
-  target_kind: 'standard_agent' | 'framework_capability_package' | 'explicit_repo';
+  target_kind: 'standard_agent' | 'capability_package' | 'explicit_repo';
   resolution_source:
     | 'standard_agent_registry'
-    | 'framework_capability_package_spec'
+    | 'capability_package_spec'
     | 'explicit_target_repo_id'
     | 'explicit_target_repo_url';
   target_agent_id: string | null;
@@ -839,11 +839,11 @@ function buildTargetAuthorityProjection(
     }
     return buildResolvedTargetAuthority({
       context,
-      target_kind: resolved.repoTarget.source === 'framework_capability_package_spec'
-        ? 'framework_capability_package'
+      target_kind: resolved.repoTarget.source === 'capability_package_spec'
+        ? 'capability_package'
         : 'standard_agent',
-      resolution_source: resolved.repoTarget.source === 'framework_capability_package_spec'
-        ? 'framework_capability_package_spec'
+      resolution_source: resolved.repoTarget.source === 'capability_package_spec'
+        ? 'capability_package_spec'
         : 'standard_agent_registry',
       target_agent_id: resolved.standardAgent.agent_id,
       target_repo_id: resolved.repoTarget.repo,

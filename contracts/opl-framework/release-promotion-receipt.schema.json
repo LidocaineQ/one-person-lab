@@ -51,8 +51,7 @@
         "base": { "$ref": "#/$defs/component" },
         "packages": {
           "type": "object",
-          "minProperties": 7,
-          "maxProperties": 7,
+          "minProperties": 1,
           "additionalProperties": { "$ref": "#/$defs/component" }
         }
       },
@@ -63,7 +62,7 @@
       "required": ["status", "verified_refs"],
       "properties": {
         "status": { "const": "verified" },
-        "verified_refs": { "type": "array", "minItems": 9, "uniqueItems": true, "items": { "type": "string" } }
+        "verified_refs": { "type": "array", "minItems": 3, "uniqueItems": true, "items": { "type": "string" } }
       },
       "additionalProperties": false
     }

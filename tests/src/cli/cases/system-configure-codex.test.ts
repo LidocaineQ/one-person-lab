@@ -161,7 +161,7 @@ function buildBundledRuntimeCatalogFixture(input: {
     const manifestJson = writeJson(path.join(input.outputRoot, manifestRef), manifest);
     const payloadJson = writeJson(path.join(input.outputRoot, payloadRef), payload);
     const packageRole = manifest.surface_kind === 'opl_capability_package_manifest.v2'
-      ? 'framework_capability_package'
+      ? 'capability_package'
       : manifest.surface_kind === 'opl_workflow_profile_package_manifest.v1'
         ? 'workflow_profile'
         : 'standard_agent';

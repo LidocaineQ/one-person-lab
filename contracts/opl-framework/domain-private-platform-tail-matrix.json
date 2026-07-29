@@ -361,8 +361,8 @@
         "no_authority_boundary"
       ],
       "active_caller_readback": {
-        "expected_state": "framework_capability_package_not_standard_domain_agent_default_caller",
-        "readback": "opl agents conformance --family-defaults --json#framework_capability_packages[mas-scholar-skills]",
+        "expected_state": "capability_package_not_standard_domain_agent_default_caller",
+        "readback": "opl agents conformance --family-defaults --json#capability_packages[mas-scholar-skills]",
         "domain_repo_surface": "ScholarSkills package/channel readback"
       },
       "delete_or_tombstone_gate": {

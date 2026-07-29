@@ -19,6 +19,7 @@ import {
   normalizePackageManifest,
   normalizeWorkflowProfilePackageManifest,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
+import { getOplPackageSpecs } from '../../../../../src/modules/connect/package-distribution.ts';
 
 const publishedDistributionPayload = {
   payload_kind: 'ghcr_oci_opl_package',
@@ -44,9 +45,13 @@ function createOwnerPackageFixture(
   ownerVersion: string,
   kind: 'standard_agent' | 'capability_package' | 'workflow_profile' = 'standard_agent',
 ) {
-  const pluginRoot = kind === 'standard_agent' ? `plugins/${repoName}` : '.';
+  const pluginRoot = kind === 'standard_agent' || repoName === 'opl-relay' || repoName === 'opl-persona'
+    ? `plugins/${repoName}`
+    : '.';
   const manifestRef = kind === 'capability_package'
-    ? 'contracts/opl_capability_package_manifest.json'
+    ? pluginRoot === '.'
+      ? 'contracts/opl_capability_package_manifest.json'
+      : `${pluginRoot}/opl-package.json`
     : kind === 'workflow_profile'
       ? 'contracts/workflow-policy.json'
       : 'contracts/opl_agent_package_manifest.json';
@@ -120,21 +125,14 @@ function addFrameworkPackageProjections(
   sourceRoot: string,
   commits: Record<string, string>,
 ) {
-  const manifestRefs: Record<string, string> = {
-    mas: 'mas.json',
-    mag: 'mag.json',
-    rca: 'rca.json',
-    oma: 'oma.json',
-    obf: 'obf.json',
-    'mas-scholar-skills': 'mas-scholar-skills.json',
-    'opl-flow': 'opl-flow.json',
-  };
-  for (const [packageId, fileName] of Object.entries(manifestRefs)) {
-    const target = path.join(sourceRoot, 'contracts/opl-framework/packages', fileName);
+  for (const spec of getOplPackageSpecs()) {
+    const sourceCommit = commits[spec.package_id];
+    assert.match(sourceCommit, /^[0-9a-f]{40}$/);
+    const target = path.join(sourceRoot, spec.package_manifest_ref);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, `${JSON.stringify({
-      package_id: packageId,
-      codex_surface: { carrier_source_commit: commits[packageId] },
+      package_id: spec.package_id,
+      codex_surface: { carrier_source_commit: sourceCommit },
     }, null, 2)}\n`, 'utf8');
   }
   execFileSync('git', ['add', '--all'], { cwd: sourceRoot, encoding: 'utf8' });
@@ -317,7 +315,7 @@ test('package archive builder writes channel manifest checksums git source and r
       package_catalog: {
         'mas-scholar-skills': {
           package_id: 'mas-scholar-skills',
-          package_role: 'framework_capability_package',
+          package_role: 'capability_package',
           selected_version: '0.0.9',
           dependency_package_ids: [],
           versions: [
@@ -341,6 +339,8 @@ test('package archive builder writes channel manifest checksums git source and r
     oplmetaagent: createOwnerPackageFixture('opl-meta-agent', 'oma', '0.3.0'),
     oplbookforge: createOwnerPackageFixture('opl-bookforge', 'obf', '0.3.2'),
     scholarskills: createOwnerPackageFixture('mas-scholar-skills', 'mas-scholar-skills', '0.2.1', 'capability_package'),
+    oplrelay: createOwnerPackageFixture('opl-relay', 'opl-relay', '0.5.2', 'capability_package'),
+    oplpersona: createOwnerPackageFixture('opl-persona', 'opl-persona', '0.2.2', 'capability_package'),
     oplflow: createOwnerPackageFixture('opl-flow', 'opl-flow', '0.1.20', 'workflow_profile'),
   };
   const ownerSourceEnv = {
@@ -351,6 +351,8 @@ test('package archive builder writes channel manifest checksums git source and r
     OPL_PACKAGE_SOURCE_PATH_OMA: fixtures.oplmetaagent.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OBF: fixtures.oplbookforge.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_MAS_SCHOLAR_SKILLS: fixtures.scholarskills.sourceRoot,
+    OPL_PACKAGE_SOURCE_PATH_OPL_RELAY: fixtures.oplrelay.sourceRoot,
+    OPL_PACKAGE_SOURCE_PATH_OPL_PERSONA: fixtures.oplpersona.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OPL_FLOW: fixtures.oplflow.sourceRoot,
     OPL_PACKAGE_RELEASE_GATE: 'test_owner_sha_release_gate',
   };
@@ -414,9 +416,10 @@ test('package archive builder writes channel manifest checksums git source and r
   const ownerCohortLockSource = fs.readFileSync(archiveBuilderResult.owner_cohort_lock, 'utf8');
   const ownerCohortLock = parseJsonText(ownerCohortLockSource) as Record<string, any>;
   assert.equal(ownerCohortLock.surface_kind, 'opl_package_owner_cohort_lock.v1');
-  assert.deepEqual(Object.keys(ownerCohortLock.packages).sort(), [
-    'mag', 'mas', 'mas-scholar-skills', 'obf', 'oma', 'opl-flow', 'rca',
-  ]);
+  assert.deepEqual(
+    Object.keys(ownerCohortLock.packages).sort(),
+    getOplPackageSpecs().map((spec) => spec.package_id).sort(),
+  );
   assert.equal(ownerCohortLock.packages.mas.source_commit, fixtures.medautoscience.getHeadSha());
   assert.equal(
     archiveBuilderResult.owner_cohort_lock_digest,
@@ -447,8 +450,8 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(channelManifest.release_set_generation, manifest.release_set_generation);
   assert.equal(manifest.release_set.generation, '26.4.31');
   assert.equal(manifest.release_set.surface_kind, 'opl_release_set.v2');
-  assert.equal(manifest.release_set.component_count, 9);
-  assert.equal(manifest.release_set.components.packages.package_count, 7);
+  assert.equal(manifest.release_set.component_count, 11);
+  assert.equal(manifest.release_set.components.packages.package_count, 9);
   assert.equal(manifest.release_set.components.app.version, '26.7.12');
   assert.deepEqual(manifest.release_set.components.app.carriers, appCarriers);
   assert.equal(manifest.packages.package_artifacts.mag.package_version, '0.3.0');
@@ -512,6 +515,8 @@ test('package archive builder writes channel manifest checksums git source and r
     oma: fixtures.oplmetaagent.getHeadSha(),
     obf: fixtures.oplbookforge.getHeadSha(),
     'mas-scholar-skills': fixtures.scholarskills.getHeadSha(),
+    'opl-relay': fixtures.oplrelay.getHeadSha(),
+    'opl-persona': fixtures.oplpersona.getHeadSha(),
     'opl-flow': fixtures.oplflow.getHeadSha(),
   });
   const frozenOutDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-frozen-framework-out-'));
@@ -563,25 +568,18 @@ test('package archive builder writes channel manifest checksums git source and r
 
   assert.equal(channelManifest.package_catalog_surface_kind, 'opl_package_catalog.v1');
   const packageCatalog = channelManifest.packages.package_catalog;
-  const expectedSourceRoots: Record<string, string> = {
-    mas: 'plugins/med-autoscience',
-    mag: 'plugins/med-autogrant',
-    rca: 'plugins/redcube-ai',
-    oma: 'plugins/opl-meta-agent',
-    obf: 'plugins/opl-bookforge',
-    'mas-scholar-skills': '.',
-    'opl-flow': '.',
-  };
-  const expectedArchiveRoots: Record<string, string> = {
-    mas: 'med-autoscience',
-    mag: 'med-autogrant',
-    rca: 'redcube-ai',
-    oma: 'opl-meta-agent',
-    obf: 'opl-bookforge',
-    'mas-scholar-skills': 'mas-scholar-skills',
-    'opl-flow': 'opl-flow',
-  };
-  assert.equal(Object.keys(packageCatalog).length, 7);
+  const packageSpecs = getOplPackageSpecs();
+  const expectedSourceRoots = Object.fromEntries(packageSpecs.map((spec) => {
+    const allowlist = parseJsonText(fs.readFileSync(
+      path.join(repoRoot, 'contracts/opl-framework/package-payload-allowlists', `${spec.package_id}.json`),
+      'utf8',
+    )) as Record<string, string>;
+    return [spec.package_id, allowlist.source_root];
+  }));
+  const expectedArchiveRoots = Object.fromEntries(
+    packageSpecs.map((spec) => [spec.package_id, spec.repo_name]),
+  );
+  assert.equal(Object.keys(packageCatalog).length, packageSpecs.length);
   for (const [catalogPackageId, entry] of Object.entries(packageCatalog) as Array<[string, Record<string, any>]>) {
     assert.equal(entry.homebrew_formula, undefined);
     assert.equal(entry.homebrew_cask, undefined);
@@ -663,7 +661,7 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(packageCatalog['opl-flow'].homebrew_formula, undefined);
   assert.match(channelManifest.package_catalog_digest, /^sha256:[0-9a-f]{64}$/);
   const scholarSkillsCatalog = packageCatalog['mas-scholar-skills'];
-  assert.equal(scholarSkillsCatalog.package_role, 'framework_capability_package');
+  assert.equal(scholarSkillsCatalog.package_role, 'capability_package');
   assert.equal(scholarSkillsCatalog.selected_version, '0.2.1');
   assert.deepEqual(
     scholarSkillsCatalog.versions.map((entry: Record<string, unknown>) => entry.package_version),
@@ -732,7 +730,7 @@ test('package archive builder writes channel manifest checksums git source and r
   const releaseSbom = parseJsonText(fs.readFileSync(path.join(outDir, 'opl-release-set.spdx.json'), 'utf8')) as Record<string, any>;
   const releaseProvenance = parseJsonText(fs.readFileSync(path.join(outDir, 'opl-release-provenance.json'), 'utf8')) as Record<string, any>;
   assert.equal(releaseSbom.spdxVersion, 'SPDX-2.3');
-  assert.equal(releaseSbom.packages.length, 9);
+  assert.equal(releaseSbom.packages.length, packageSpecs.length + 2);
   assert.equal(releaseSbom.packages.some((entry: Record<string, unknown>) => entry.name === 'opl-base'), true);
   assert.equal(
     releaseProvenance.buildDefinition.buildType,
@@ -742,7 +740,7 @@ test('package archive builder writes channel manifest checksums git source and r
     releaseProvenance.buildDefinition.externalParameters.opl_release_set_build_type,
     'https://one-person-lab.dev/build-types/release-set/v2',
   );
-  assert.equal(releaseProvenance.buildDefinition.resolvedDependencies.length, 9);
+  assert.equal(releaseProvenance.buildDefinition.resolvedDependencies.length, packageSpecs.length + 2);
   assert.equal(
     releaseProvenance.buildDefinition.externalParameters.owner_cohort_lock.digest,
     archiveBuilderResult.owner_cohort_lock_digest,
@@ -779,7 +777,7 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(promotionReceipt.surface_kind, 'opl_release_set_promotion_receipt.v1');
   assert.equal(promotionReceipt.carrier.digest, `sha256:${'b'.repeat(64)}`);
   assert.deepEqual(promotionReceipt.app.carriers, appCarriers);
-  assert.equal(promotionReceipt.anonymous_readback.verified_refs.length, 9);
+  assert.equal(promotionReceipt.anonymous_readback.verified_refs.length, 11);
   assert.match(checksums, /one-person-lab-framework-0\.3\.5\.tar\.gz/);
   assert.match(checksums, new RegExp(manifest.packages.framework_core.source_archive.sha256));
   assert.equal(manifest.packages.native_helper.channel_status, 'active_ghcr_oci_prebuild');
@@ -833,7 +831,7 @@ test('package archive builder writes channel manifest checksums git source and r
     manifest.packages.package_artifacts['mas-scholar-skills'].source_git.head_sha,
     fixtures.scholarskills.getHeadSha(),
   );
-  assert.equal(manifest.packages.package_artifacts['mas-scholar-skills'].scope, 'framework_capability_package');
+  assert.equal(manifest.packages.package_artifacts['mas-scholar-skills'].scope, 'capability_package');
   assert.equal(
     manifest.packages.package_artifacts['mas-scholar-skills'].package_manifest_ref,
     'contracts/opl-framework/packages/mas-scholar-skills.json',
@@ -1268,8 +1266,8 @@ test('MAS Scholar Skills provider manifest separates core Skill exports from mod
     sourceRef: 'contracts/opl-framework/capability-package-manifest.schema.json',
   }, manifest));
   const normalized = normalizeCapabilityPackageManifest(manifest, manifestPath);
-  assert.equal(manifest.package_role, 'framework_capability_package');
-  assert.equal(normalized.package_role, 'framework_capability_package');
+  assert.equal(manifest.package_role, 'capability_package');
+  assert.equal(normalized.package_role, 'capability_package');
   assert.deepEqual(
     manifest.consumer_profiles.map((profile: Record<string, any>) => ({
       profile_id: profile.profile_id,
@@ -1285,7 +1283,7 @@ test('MAS Scholar Skills provider manifest separates core Skill exports from mod
       ...manifest,
       package_role: 'optional_agent_capability_package',
     }, manifestPath),
-    /package_role must be framework_capability_package/,
+    /package_role must be capability_package/,
   );
   const payloadPath = path.join(path.dirname(manifestPath), manifest.codex_surface.plugin_payload_manifest_url);
   const payload = parseJsonText(fs.readFileSync(payloadPath, 'utf8')) as Record<string, any>;
@@ -1372,7 +1370,7 @@ test('first-party agent package manifest rejects non-canonical identity fields',
       {
         module_id: 'scholarskills',
         package_id: 'mas-scholar-skills',
-        kind: 'framework_capability_package',
+        kind: 'capability_package',
         required_for: ['workspace_or_quest_codex_discovery'],
         codex_distribution: 'bundled',
         opl_distribution: 'managed_dependency',
@@ -1672,6 +1670,8 @@ test('package archive builder refreshes reused managed clones before archiving s
     oplmetaagent: createOwnerPackageFixture('opl-meta-agent', 'oma', '0.3.0'),
     oplbookforge: createOwnerPackageFixture('opl-bookforge', 'obf', '0.3.2'),
     scholarskills: createOwnerPackageFixture('mas-scholar-skills', 'mas-scholar-skills', '0.2.1', 'capability_package'),
+    oplrelay: createOwnerPackageFixture('opl-relay', 'opl-relay', '0.5.2', 'capability_package'),
+    oplpersona: createOwnerPackageFixture('opl-persona', 'opl-persona', '0.2.2', 'capability_package'),
     oplflow: createOwnerPackageFixture('opl-flow', 'opl-flow', '0.1.20', 'workflow_profile'),
   };
   fs.writeFileSync(
@@ -1692,6 +1692,8 @@ test('package archive builder refreshes reused managed clones before archiving s
     OPL_PACKAGE_SOURCE_PATH_OMA: fixtures.oplmetaagent.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OBF: fixtures.oplbookforge.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_MAS_SCHOLAR_SKILLS: fixtures.scholarskills.sourceRoot,
+    OPL_PACKAGE_SOURCE_PATH_OPL_RELAY: fixtures.oplrelay.sourceRoot,
+    OPL_PACKAGE_SOURCE_PATH_OPL_PERSONA: fixtures.oplpersona.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OPL_FLOW: fixtures.oplflow.sourceRoot,
     OPL_PACKAGE_RELEASE_GATE: 'test_owner_sha_release_gate',
   };

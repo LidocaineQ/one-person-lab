@@ -105,7 +105,7 @@ export type AgentPackageInstallInput = AgentPackageManifestValidateInput & {
 
 export type AgentPackageRole =
   | 'standard_agent'
-  | 'framework_capability_package'
+  | 'capability_package'
   | 'workflow_profile';
 
 export type AgentPackagePackageActionInput = {
