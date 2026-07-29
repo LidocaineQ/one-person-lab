@@ -450,10 +450,10 @@ export async function runOplStartupMaintenance(
     ? []
     : buildOplModules().modules.modules.filter((module) => module.default_install);
   const moduleTargets = initialModules
-    .filter((module) => module.scope !== 'framework_capability_package')
+    .filter((module) => module.scope !== 'capability_package')
     .map((module) => runModuleStartupMaintenance(module));
   const capabilityTargets: StartupMaintenanceCapabilityTarget[] = initialModules
-    .filter((module) => module.scope === 'framework_capability_package')
+    .filter((module) => module.scope === 'capability_package')
     .map((module) => runModuleStartupMaintenance(module));
   const frameworkSummary = summarizeFrameworkTargets(frameworkTargets);
   const engineSummary = summarizeTargets(engineTargets);
@@ -537,7 +537,7 @@ export async function runOplStartupMaintenance(
             : fullRuntimePackageReconciliation
               ? 'full_runtime_package_reconciliation'
               : capabilitySummary.total_targets_count > 0
-                ? 'module_turnkey_skill_sync_and_framework_capability_package'
+                ? 'module_turnkey_skill_sync_and_capability_package'
                 : 'module_turnkey_skill_sync',
           synced_domain_packs_count: syncedDomains.length,
           synced_domain_packs: syncedDomains,

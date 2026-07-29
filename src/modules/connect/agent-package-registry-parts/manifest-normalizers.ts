@@ -34,7 +34,7 @@ import type {
 
 const AGENT_PACKAGE_ROLES = new Set<AgentPackageRole>([
   'standard_agent',
-  'framework_capability_package',
+  'capability_package',
   'workflow_profile',
 ]);
 
@@ -1511,10 +1511,8 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
       failure_code: 'invalid_capability_package_manifest',
     });
   }
-  // Published legacy manifests are input-compatible; normalized package state remains role-neutral.
-  if (payload.package_role !== 'framework_capability_package'
-    && payload.package_role !== 'required_agent_capability_package') {
-    throw new FrameworkContractError('contract_shape_invalid', 'Capability package manifest package_role must be framework_capability_package.', {
+  if (payload.package_role !== 'capability_package') {
+    throw new FrameworkContractError('contract_shape_invalid', 'Capability package manifest package_role must be capability_package.', {
       manifest_url: manifestUrl,
       package_role: payload.package_role,
       failure_code: 'invalid_capability_package_manifest',
@@ -1632,7 +1630,7 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
   return {
     package_id: packageId,
     agent_id: null,
-    package_role: 'framework_capability_package',
+    package_role: 'capability_package',
     display_name: assertStringValue(payload.display_name, 'display_name'),
     publisher: assertStringValue(payload.publisher, 'publisher'),
     version: normalizePackageVersion(payload.version),

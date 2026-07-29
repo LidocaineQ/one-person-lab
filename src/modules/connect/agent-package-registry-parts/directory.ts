@@ -9,6 +9,7 @@ import {
 } from '../agent-package-first-party.ts';
 import { getAgentPackageManifestByModuleId } from '../agent-package-manifests.ts';
 import { getOplPackageSpecs } from '../package-distribution.ts';
+import type { OplModuleId } from '../system-installation/shared.ts';
 import {
   catalogManifestPayload,
   selectManagedCatalogPackageVersion,
@@ -122,7 +123,7 @@ export type FirstPartyDirectoryCatalogSnapshot = {
 
 const PACKAGE_ROLES = new Set<AgentPackageRole>([
   'standard_agent',
-  'framework_capability_package',
+  'capability_package',
   'workflow_profile',
 ]);
 
@@ -311,9 +312,9 @@ export function normalizePackageCatalogDocument(
 function firstPartyDirectorySources(snapshot: FirstPartyDirectoryCatalogSnapshot | null): DirectorySource[] {
   const liveVerified = snapshot?.freshness === 'live';
   return getOplPackageSpecs().map((spec) => {
-    const ownerManifest = spec.module_id === 'oplflow'
-      ? null
-      : getAgentPackageManifestByModuleId(spec.module_id);
+    const ownerManifest = spec.owner_manifest_kind === 'standard_agent' || spec.module_id === 'scholarskills'
+      ? getAgentPackageManifestByModuleId(spec.module_id as OplModuleId)
+      : null;
     const capabilityMetadata: DirectoryCapabilityMetadata | null = spec.package_role === 'standard_agent'
       && ownerManifest
       ? {

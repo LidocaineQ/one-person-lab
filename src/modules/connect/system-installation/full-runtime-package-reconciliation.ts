@@ -299,7 +299,7 @@ function rootPackageIds(catalog: BundledFullRuntimePackageCatalog) {
     [...catalog.entries.values()].flatMap((entry) => entry.dependencyPackageIds),
   );
   return [...catalog.entries.values()]
-    .filter((entry) => entry.packageRole !== 'framework_capability_package')
+    .filter((entry) => entry.packageRole !== 'capability_package')
     .map((entry) => entry.packageId)
     .filter((packageId) => !dependencies.has(packageId))
     .sort();

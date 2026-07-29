@@ -1417,7 +1417,7 @@ test('Packages compensates managed runtime source across downstream failure upda
       capability_dependencies: [{
         module_id: 'scholarskills',
         package_id: FIXTURE_PROVIDER_PACKAGE_ID,
-        kind: 'framework_capability_package',
+        kind: 'capability_package',
         required: true,
         version_requirement: '>=0.1.0 <0.2.0',
         capability_abi: 'mas-scholar-skills.v1',

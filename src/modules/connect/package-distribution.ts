@@ -10,7 +10,7 @@ import {
 import { getOplReleaseRepo, getOplReleaseVersion } from './opl-release.ts';
 import { readBundledCodexDefaultProfile } from '../../kernel/local-codex-defaults.ts';
 import { MANAGED_UPDATE_OWNER_FIELDS } from './managed-update-owner-boundary.ts';
-import type { ModuleCapabilityDependency } from './system-installation/shared.ts';
+import type { ModuleCapabilityDependency, OplModuleId } from './system-installation/shared.ts';
 
 type PackageSourceId =
   | 'medautoscience'
@@ -19,6 +19,8 @@ type PackageSourceId =
   | 'oplmetaagent'
   | 'oplbookforge'
   | 'scholarskills'
+  | 'oplrelay'
+  | 'oplpersona'
   | 'oplflow';
 
 type PackageSpec = {
@@ -28,8 +30,8 @@ type PackageSpec = {
   tags: readonly string[];
   repo_name: string;
   repo_url: string;
-  scope: 'domain_module' | 'runtime_dependency' | 'framework_capability_package';
-  package_id: 'mas' | 'mag' | 'rca' | 'oma' | 'obf' | 'mas-scholar-skills' | 'opl-flow';
+  scope: 'domain_module' | 'runtime_dependency' | 'capability_package';
+  package_id: 'mas' | 'mag' | 'rca' | 'oma' | 'obf' | 'mas-scholar-skills' | 'opl-relay' | 'opl-persona' | 'opl-flow';
   package_manifest_ref: string;
   owner_package_manifest_ref: string;
   owner_manifest_kind: 'standard_agent' | 'capability_package' | 'workflow_profile';
@@ -172,12 +174,40 @@ const PACKAGE_SPECS: PackageSpec[] = [
     tags: ['medical-research', 'capabilities', 'skills'],
     repo_name: 'mas-scholar-skills',
     repo_url: 'https://github.com/gaofeng21cn/mas-scholar-skills.git',
-    scope: 'framework_capability_package',
+    scope: 'capability_package',
     package_id: 'mas-scholar-skills',
     package_manifest_ref: 'contracts/opl-framework/packages/mas-scholar-skills.json',
     owner_package_manifest_ref: 'contracts/opl_capability_package_manifest.json',
     owner_manifest_kind: 'capability_package',
     owner_plugin_manifest_ref: '.codex-plugin/plugin.json',
+  },
+  {
+    module_id: 'oplrelay',
+    label: 'OPL Relay',
+    description: 'Evidence-first mail, relationship context, and review-gated drafting.',
+    tags: ['mail', 'communication', 'evidence', 'apple-mail'],
+    repo_name: 'opl-relay',
+    repo_url: 'https://github.com/gaofeng21cn/opl-relay.git',
+    scope: 'capability_package',
+    package_id: 'opl-relay',
+    package_manifest_ref: 'contracts/opl-framework/packages/opl-relay.json',
+    owner_package_manifest_ref: 'plugins/opl-relay/opl-package.json',
+    owner_manifest_kind: 'capability_package',
+    owner_plugin_manifest_ref: 'plugins/opl-relay/.codex-plugin/plugin.json',
+  },
+  {
+    module_id: 'oplpersona',
+    label: 'OPL Persona',
+    description: 'Evidence-backed PI context, memory, Inbox, and output proposals.',
+    tags: ['persona', 'memory', 'knowledge', 'website'],
+    repo_name: 'opl-persona',
+    repo_url: 'https://github.com/gaofeng21cn/opl-persona.git',
+    scope: 'capability_package',
+    package_id: 'opl-persona',
+    package_manifest_ref: 'contracts/opl-framework/packages/opl-persona.json',
+    owner_package_manifest_ref: 'plugins/opl-persona/opl-package.json',
+    owner_manifest_kind: 'capability_package',
+    owner_plugin_manifest_ref: 'plugins/opl-persona/.codex-plugin/plugin.json',
   },
   {
     module_id: 'oplflow',
@@ -283,11 +313,11 @@ export function normalizeReleaseSetGeneration(value: string) {
   return generation;
 }
 
-function packageRole(spec: PackageSpec): 'standard_agent' | 'framework_capability_package' | 'workflow_profile' {
+function packageRole(spec: PackageSpec): 'standard_agent' | 'capability_package' | 'workflow_profile' {
   return spec.owner_manifest_kind === 'workflow_profile'
     ? 'workflow_profile'
-    : spec.scope === 'framework_capability_package'
-      ? 'framework_capability_package'
+    : spec.scope === 'capability_package'
+      ? 'capability_package'
       : 'standard_agent';
 }
 
@@ -412,7 +442,22 @@ function buildCodexStandaloneDistribution(spec: PackageSpec) {
   if (spec.module_id === 'oplflow') {
     return null;
   }
-  const agentPackageManifest = getAgentPackageManifestByModuleId(spec.module_id);
+  const agentPackageManifest = (
+    spec.owner_manifest_kind === 'standard_agent' || spec.module_id === 'scholarskills'
+  )
+    ? getAgentPackageManifestByModuleId(spec.module_id as OplModuleId)
+    : null;
+  if (spec.owner_manifest_kind === 'capability_package' && !agentPackageManifest) {
+    return {
+      distribution_shape: 'repo_carrier_source',
+      plugin_id: spec.package_id,
+      required_skill_ids: [spec.package_id],
+      bundled_capability_package_ids: [],
+      carrier_source_role: 'codex_plugin_default_carrier_not_package_truth',
+      package_manifest_ref: spec.package_manifest_ref,
+      user_install_action_count: 1,
+    };
+  }
   if (!agentPackageManifest) {
     return null;
   }

@@ -1,4 +1,4 @@
-export type StandardAgentSeriesMembership = 'standard_domain_agent' | 'framework_capability_package';
+export type StandardAgentSeriesMembership = 'standard_domain_agent' | 'capability_package';
 
 export type StandardAgentRegistryEntry = {
   agent_id: string;
@@ -19,7 +19,7 @@ export type StandardAgentRegistryEntry = {
 
 export const STANDARD_AGENT_REGISTRY_REF = 'src/kernel/standard-agent-registry.ts';
 export const STANDARD_AGENT_SERIES_MEMBERSHIP = 'standard_domain_agent' as const;
-export const FRAMEWORK_CAPABILITY_PACKAGE_MEMBERSHIP = 'framework_capability_package' as const;
+export const FRAMEWORK_CAPABILITY_PACKAGE_MEMBERSHIP = 'capability_package' as const;
 
 export const STANDARD_AGENT_REGISTRY = [
   {

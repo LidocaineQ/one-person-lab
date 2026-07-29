@@ -769,7 +769,17 @@ test('Framework allowlists and historical payload envelopes validate at their ex
     path.join(repoRoot, 'contracts/opl-framework/package-payload-manifest.schema.json'),
     'utf8',
   )) as Record<string, any>;
-  const canonicalIds = ['mag', 'mas', 'rca', 'oma', 'obf', 'mas-scholar-skills', 'opl-flow'];
+  const canonicalIds = [
+    'mag',
+    'mas',
+    'rca',
+    'oma',
+    'obf',
+    'mas-scholar-skills',
+    'opl-relay',
+    'opl-persona',
+    'opl-flow',
+  ];
   const packageRoot = path.join(repoRoot, 'contracts/opl-framework/packages');
   const payloadRoot = path.join(packageRoot, 'payloads');
   const manifests = Object.fromEntries(canonicalIds.map((id) => [

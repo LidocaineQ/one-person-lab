@@ -427,7 +427,17 @@ test('single-Package payload materialization binds exact physical archive proven
 
 test('single-Package publication is protected, selector-bound, and readback-only after unknown results', () => {
   const workflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/publish-package.yml'), 'utf8');
-  const publisherPackageIds = ['mas', 'mag', 'rca', 'oma', 'obf', 'mas-scholar-skills', 'opl-flow'];
+  const publisherPackageIds = [
+    'mas',
+    'mag',
+    'rca',
+    'oma',
+    'obf',
+    'mas-scholar-skills',
+    'opl-relay',
+    'opl-persona',
+    'opl-flow',
+  ];
   const packageSpecs = getOplPackageSpecs();
 
   assert.match(workflow, /^  workflow_dispatch:$/m);
@@ -478,6 +488,11 @@ test('single-Package publication is protected, selector-bound, and readback-only
   assert.ok(workflow.indexOf('immutable_preflight=') < workflow.indexOf('oras push --format json'));
   assert.ok(workflow.indexOf('first_stable_digest=') < workflow.indexOf('second_stable_digest='));
   assert.ok(workflow.indexOf('second_stable_digest=') < workflow.indexOf('oras tag '));
+  assert.match(workflow, /EXPECTED_LATEST_STABLE_PREDECESSOR" == none/);
+  assert.match(workflow, /manifest unknown\|name unknown\|not found\|404/);
+  assert.match(workflow, /printf '%s\\n' none/);
+  assert.ok(workflow.indexOf('read_stable_digest()') < workflow.indexOf('first_stable_digest='));
+  assert.doesNotMatch(workflow, /unauthorized\|denied/);
   assert.match(workflow, /immutable_result="reconciled_after_unknown"/);
   assert.match(workflow, /stable_result="reconciled_after_unknown"/);
   assert.match(workflow, /registry_atomic_cas_claim:false/);

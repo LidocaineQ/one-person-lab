@@ -1,0 +1,70 @@
+{
+  "surface_kind": "opl_capability_package_manifest.v2",
+  "package_id": "opl-relay",
+  "display_name": "OPL Relay",
+  "publisher": "one-person-lab",
+  "version": "0.5.2",
+  "source": "first_party_owner_projection",
+  "source_repo": "https://github.com/gaofeng21cn/opl-relay.git",
+  "package_role": "capability_package",
+  "schema_ref": "one-person-lab/contracts/opl-framework/capability-package-manifest.schema.json",
+  "capability_abi": {
+    "id": "opl-relay.capabilities",
+    "version": "1.0.0",
+    "compatibility_policy": "same_major"
+  },
+  "exports": {
+    "core_skill_ids": ["opl-relay"],
+    "core_module_ids": [
+      "communications.mail.v1",
+      "personal.context.v1",
+      "personal.memory.v1",
+      "knowledge.obsidian.v1"
+    ],
+    "optional_skill_policy_ref": "opl-package.json#/exports",
+    "optional_skills_installed_by_default": true,
+    "default_materialization_policy": "all_exported_skills"
+  },
+  "content_lock": {
+    "algorithm": "sha256",
+    "canonicalization": "ordered_path_length_file_length_bytes",
+    "paths": [
+      ".codex-plugin/plugin.json",
+      "assets/icon.png",
+      "bin/opl-relay",
+      "runtime/codex_mail_workbench/__init__.py",
+      "runtime/codex_mail_workbench/apple_mail.py",
+      "runtime/codex_mail_workbench/cli.py",
+      "runtime/codex_mail_workbench/config.py",
+      "runtime/codex_mail_workbench/context.py",
+      "runtime/codex_mail_workbench/drafts.py",
+      "runtime/codex_mail_workbench/knowledge.py",
+      "runtime/codex_mail_workbench/memory.py",
+      "runtime/codex_mail_workbench/message.py",
+      "runtime/codex_mail_workbench/paths.py",
+      "runtime/codex_mail_workbench/persona.py",
+      "runtime/codex_mail_workbench/store.py",
+      "runtime/codex_mail_workbench/sync.py",
+      "runtime/codex_mail_workbench/triage.py",
+      "runtime/codex_mail_workbench/workspace.py",
+      "skills/opl-relay/SKILL.md",
+      "skills/opl-relay/agents/openai.yaml"
+    ],
+    "digest": "sha256:291736685f119696e755321e08936fe624e4f4c3672ae9e731d8e58dd3458fce"
+  },
+  "codex_surface": {
+    "plugin_id": "opl-relay",
+    "plugin_source_path": ".",
+    "carrier_source_commit": "0b8e8961eedbf76b59deb952e5c42a53912836c9",
+    "codex_default_exposure": false,
+    "optional_install_policy": "all_exported_skills",
+    "plugin_payload_manifest_url": "payloads/opl-relay-0.5.2.json",
+    "app_contribution_abi": {
+      "schema_version": "opl-package-app-contribution-cli.v1",
+      "transport": "stdin_json_stdout_json",
+      "argv": ["./bin/opl-relay", "--json", "app-contribution"],
+      "request_schema": "opl-package-app-contribution-request.v1",
+      "response_schema": "opl-package-app-contribution-response.v1"
+    }
+  }
+}

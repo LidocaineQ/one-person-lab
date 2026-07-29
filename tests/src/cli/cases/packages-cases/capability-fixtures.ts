@@ -212,7 +212,7 @@ export function writeCapabilityProvider(
     publisher: 'one-person-lab',
     version,
     source: 'test_provider',
-    package_role: 'framework_capability_package',
+    package_role: 'capability_package',
     capability_abi: {
       id: capabilityAbi,
       version: '1.0.0',
@@ -418,7 +418,7 @@ export function writePackageCatalog(
     };
     const entry = packages[packageId] ?? {
       package_id: packageId,
-      package_role: capabilityAbi ? 'framework_capability_package' : 'standard_agent',
+      package_role: capabilityAbi ? 'capability_package' : 'standard_agent',
       selected_version: manifest.version,
       versions: [],
     };
@@ -535,7 +535,7 @@ export function writeMasConsumer(
     capability_dependencies: [{
       module_id: 'scholarskills',
       package_id: options.providerPackageId ?? 'mas-scholar-skills',
-      kind: 'framework_capability_package',
+      kind: 'capability_package',
       required: dependencyRequired,
       dependency_kind: options.dependencyKind
         ?? (dependencyRequired ? 'hard_runtime_dependency' : 'optional_enhancement'),

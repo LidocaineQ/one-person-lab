@@ -22,7 +22,7 @@ export type DeveloperModeAllowedRoute =
 export type GithubIdentityStatus = DeveloperModeGithubIdentityProjection['status'];
 export type GithubIdentitySource = DeveloperModeGithubIdentityProjection['source'];
 export type RepoAuthorityStatus = 'ready' | 'limited' | 'blocked' | 'disabled' | 'not_checked';
-export type RepoTargetSource = 'opl_framework_constant' | 'domain_module_spec' | 'framework_capability_package_spec';
+export type RepoTargetSource = 'opl_framework_constant' | 'domain_module_spec' | 'capability_package_spec';
 export type DeveloperProfileId = 'contributor' | 'maintainer' | 'runtime_maintainer';
 export type DeveloperIdentityClass = 'opl_maintainer' | 'target_agent_developer' | 'contributor';
 export type DeveloperCapabilityStatus = 'ready' | 'limited' | 'blocked' | 'disabled' | 'not_checked';
@@ -156,10 +156,10 @@ export type OplDeveloperModeTargetAuthorityInput = {
 };
 
 export type OplDeveloperModeTargetAuthorityProjection = {
-  target_kind: 'standard_agent' | 'framework_capability_package' | 'explicit_repo' | 'unresolved';
+  target_kind: 'standard_agent' | 'capability_package' | 'explicit_repo' | 'unresolved';
   resolution_source:
     | 'standard_agent_registry'
-    | 'framework_capability_package_spec'
+    | 'capability_package_spec'
     | 'explicit_target_repo_id'
     | 'explicit_target_repo_url'
     | 'unresolved';

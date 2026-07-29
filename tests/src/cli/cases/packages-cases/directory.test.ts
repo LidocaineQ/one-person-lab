@@ -43,18 +43,10 @@ import { buildAppAgentPackageStatuses } from '../../../../../src/modules/console
 
 const CANONICAL_PACKAGE_ROLES = new Set([
   'standard_agent',
-  'framework_capability_package',
+  'capability_package',
   'workflow_profile',
 ]);
-const CANONICAL_PACKAGE_IDS = [
-  'mas',
-  'mag',
-  'rca',
-  'oma',
-  'obf',
-  'mas-scholar-skills',
-  'opl-flow',
-];
+const CANONICAL_PACKAGE_IDS = getOplPackageSpecs().map((spec) => spec.package_id);
 
 test('installed Codex plugins project owner descriptors without a registry entry', () => {
   const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-installed-plugin-descriptor-'));
@@ -379,7 +371,7 @@ test('real directory and status project an unknown installed carrier without leg
         publisher: 'example-owner',
         version: '1.0.0',
         source: 'third_party',
-        package_role: 'framework_capability_package',
+        package_role: 'capability_package',
         capability_abi: { id: 'unknown.installed.capability.v1', version: '1.0.0' },
         exports: {
           core_skill_ids: ['unknown-capability'],
@@ -990,9 +982,9 @@ exit 1
     const baseline = readOrdinarySurfaces();
     const directory = baseline.list_directory;
     assert.equal(directory.surface_kind, 'opl_agent_package_directory.v1');
-    assert.equal(directory.entry_count, 7);
+    assert.equal(directory.entry_count, CANONICAL_PACKAGE_IDS.length);
     assert.equal(directory.installed_package_count, 0);
-    assert.equal(directory.installable_package_count, 7);
+    assert.equal(directory.installable_package_count, CANONICAL_PACKAGE_IDS.length);
     for (const entry of directory.entries) {
       assert.equal(typeof entry.package_id, 'string');
       assert.equal(typeof entry.description, 'string');
@@ -1024,7 +1016,7 @@ exit 1
     assert.equal(flow.version_currentness.status, 'framework_projection_only');
     assert.equal(flow.version_currentness.live_verified, false);
     assert.equal(directory.first_party_release_currentness.status, 'unknown');
-    assert.equal(scholarSkills.package_role, 'framework_capability_package');
+    assert.equal(scholarSkills.package_role, 'capability_package');
     assert.equal(scholarSkills.capability_metadata, null);
     assert.deepEqual(
       baseline.list_home_shortcut_preferences
@@ -1081,7 +1073,7 @@ exit 1
         const projected = actual.app[profile].directory;
         assert.equal(projected.surface_kind, 'opl_agent_package_directory.v1');
         assert.equal(projected.detail, profile);
-        assert.equal(projected.entries.length, 7);
+        assert.equal(projected.entries.length, CANONICAL_PACKAGE_IDS.length);
         assert.equal(projected.first_party_release_currentness.status, 'unknown');
         assert.equal(projected.entries.every((entry: any) =>
           entry.package_id && entry.package_role && entry.installability && entry.recommended_action), true);
@@ -1112,15 +1104,7 @@ exit 1
 test('Developer Mode selects every available first-party Package checkout', () => {
   const fixture = isolatedPackageEnv('opl-package-directory-developer-policy');
   const workspace = path.join(fixture.home, 'workspace');
-  const repoNames = [
-    'med-autoscience',
-    'med-autogrant',
-    'redcube-ai',
-    'opl-meta-agent',
-    'opl-bookforge',
-    'mas-scholar-skills',
-    'opl-flow',
-  ];
+  const repoNames = getOplPackageSpecs().map((spec) => spec.repo_name);
   try {
     fs.mkdirSync(fixture.env.OPL_STATE_DIR, { recursive: true });
     for (const repoName of repoNames) {

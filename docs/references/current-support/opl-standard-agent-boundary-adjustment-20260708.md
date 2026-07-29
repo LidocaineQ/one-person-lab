@@ -17,7 +17,7 @@ Machine boundary: 本文是人读排查与调整说明。机器真相继续归 s
 - `opl agents default-callers --family-defaults --json`
 - 五个标准 domain repo 的 `contracts/domain_descriptor.json`、`contracts/pack_compiler_input.json`、`agent/stages/manifest.json`、`contracts/capability_map.json`、`agent/primary_skill/SKILL.md`；`family_stage_control_plane` 由 OPL Pack 从该 manifest 生成，不是 domain repo tracked contract
 
-当前标准 domain agent 是 `mas`、`mag`、`rca`、`oma`、`obf`。`opl-meta-agent` 与 `opl-bookforge` 只保留为 OMA / BookForge 的 repo、package、plugin、alias 或 carrier 名，不再作为 standard-agent canonical id。`mas-scholar-skills` 是 `framework_capability_package`，不是 standard domain agent，不进入 default-caller deletion gate 或 domain physical-delete 判断。
+当前标准 domain agent 是 `mas`、`mag`、`rca`、`oma`、`obf`。`opl-meta-agent` 与 `opl-bookforge` 只保留为 OMA / BookForge 的 repo、package、plugin、alias 或 carrier 名，不再作为 standard-agent canonical id。`mas-scholar-skills` 是 `capability_package`，不是 standard domain agent，不进入 default-caller deletion gate 或 domain physical-delete 判断。
 
 ## 已执行调整
 
@@ -27,7 +27,7 @@ Machine boundary: 本文是人读排查与调整说明。机器真相继续归 s
 | Derived projection paths 修正 | OPL 基座上收 / hygiene | `foundry-agent-series-contract` 仍把 derived surfaces 写成旧 root-level 文件。 | 改为 `src/modules/foundry/foundry-agent-cli-spine.ts`、`src/modules/connect/opl-skills.ts`、`src/modules/foundry/standard-domain-agent-conformance-foundry-agent-os.ts`。 |
 | 默认 Skill 生态 source pointer 修正 | OPL Connect hygiene | `opl-default-skill-ecosystem` 仍引用旧 root-level Skill catalog 和旧 plugin registry 路径。 | 改为 `src/modules/connect/opl-skills.ts` 与 `src/modules/connect/system-installation/codex-plugin-registry.ts`。 |
 | Primary Skill carrier projection 固化 | OPL Connect / Codex install carrier | 五个标准 agent 的 `agent/primary_skill/SKILL.md` 是 repo-owned canonical source，但 Codex plugin install 仍需要 plugin 目录下真实 `SKILL.md`；如果只把 plugin skill 当重复文件删除，会破坏 standalone plugin 安装。 | `foundry-agent-series-contract` 增加 `primary_skill_carrier_projection_policy`；`opl connect sync-skills` materialize 完整 skill copy，并在 generated plugin 写入 `opl-carrier.json` provenance。Carrier 不是 membership/status/authority 轴。 |
-| `mas-scholar-skills` fixture 分类修正 | OPL 基座 / capability package boundary | 正式 target architecture 已把它列为 `framework_capability_package`，但 minimal fixture 和 domain pack map 仍容易让它看起来像 standard domain agent。 | `applies_to_domain_agents` 只保留 `mas`、`mag`、`rca`、`oma`、`obf`；Scholar Skills 只通过 `framework_capability_packages` 暴露 refs-only package 能力。 |
+| `mas-scholar-skills` fixture 分类修正 | OPL 基座 / capability package boundary | 正式 target architecture 已把它列为 `capability_package`，但 minimal fixture 和 domain pack map 仍容易让它看起来像 standard domain agent。 | `applies_to_domain_agents` 只保留 `mas`、`mag`、`rca`、`oma`、`obf`；Scholar Skills 只通过 `capability_packages` 暴露 refs-only package 能力。 |
 
 这些调整只修正 OPL 基座 canonical source / projection pointer，不迁移 domain truth，不签 owner receipt，不创建 typed blocker，也不声明 runtime/domain/App/release ready。
 

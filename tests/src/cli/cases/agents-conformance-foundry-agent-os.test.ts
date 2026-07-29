@@ -72,12 +72,12 @@ test('agents conformance exposes Foundry Agent OS membership without readiness a
   assert.deepEqual(payload.foundry_agent_os_conformance, foundry);
   assert.equal(foundry.status, 'passed');
   assert.deepEqual(foundry.observed_domain_agent_ids, [...STANDARD_FOUNDRY_DOMAIN_AGENT_IDS]);
-  assert.deepEqual(foundry.observed_framework_capability_package_ids, ['mas-scholar-skills']);
+  assert.deepEqual(foundry.observed_capability_package_ids, ['mas-scholar-skills']);
   assert.deepEqual(foundry.unknown_non_standard_agent_ids, []);
   assert.deepEqual(foundry.missing_domain_agent_ids, []);
   assert.equal(standardOwnerWorklist.length, STANDARD_FOUNDRY_DOMAIN_AGENT_IDS.length);
   assert.equal(bookForge?.standard_membership, 'standard_domain_agent');
-  assert.equal(scholarSkills?.standard_membership, 'framework_capability_package');
+  assert.equal(scholarSkills?.standard_membership, 'capability_package');
   assert.equal(foundry.capability_registry_boundary.owner_modules.includes('stagecraft'), true);
   assert.equal(foundry.default_owner_route_policy.default_route_root, 'current_owner_delta');
   assert.equal(foundry.standard_membership_policy.generated_surface_is_membership_axis, false);

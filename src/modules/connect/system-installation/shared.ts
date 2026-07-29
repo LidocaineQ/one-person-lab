@@ -53,7 +53,7 @@ export type DomainModuleSpec = {
   label: string;
   repo_name: string;
   repo_url: string;
-  scope: 'domain_module' | 'runtime_dependency' | 'framework_capability_package';
+  scope: 'domain_module' | 'runtime_dependency' | 'capability_package';
   default_install: boolean;
   description: string;
   capability_dependencies?: readonly ModuleCapabilityDependency[];
@@ -62,7 +62,7 @@ export type DomainModuleSpec = {
 export type ModuleCapabilityDependency = {
   module_id: OplModuleId;
   package_id: string;
-  kind: 'framework_capability_package';
+  kind: 'capability_package';
   required: boolean;
   dependency_kind: 'hard_runtime_dependency' | 'optional_enhancement';
   version_requirement: string;
@@ -276,7 +276,7 @@ export type ModuleSourcePolicy = {
 export type ModuleInspection = {
   module_id: OplModuleId;
   label: string;
-  scope: 'domain_module' | 'runtime_dependency' | 'framework_capability_package';
+  scope: 'domain_module' | 'runtime_dependency' | 'capability_package';
   default_install: boolean;
   description: string;
   capability_dependencies: readonly ModuleCapabilityDependency[];

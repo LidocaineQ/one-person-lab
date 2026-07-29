@@ -42,7 +42,7 @@ export type PackageRepositoryVersionCandidate = {
 
 export type PackageRepositoryEntry = {
   package_id: string;
-  package_role: 'standard_agent' | 'framework_capability_package' | 'workflow_profile';
+  package_role: 'standard_agent' | 'capability_package' | 'workflow_profile';
   selected_version: string | null;
   versions: PackageRepositoryVersionCandidate[];
 };

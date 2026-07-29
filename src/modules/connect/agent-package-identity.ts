@@ -14,6 +14,8 @@ export const CANONICAL_OPL_PACKAGE_IDS = [
   'oma',
   'obf',
   'mas-scholar-skills',
+  'opl-relay',
+  'opl-persona',
   'opl-flow',
 ] as const;
 
@@ -29,7 +31,8 @@ const CANONICAL_PACKAGE_IDS = new Map<string, string>([
       entry.canonical_plugin_name,
       ...entry.aliases,
     ].map((alias) => [normalizeAgentPackageAliasKey(alias), entry.agent_id] as const)),
-  ['oplflow', 'opl-flow'],
+  ...CANONICAL_OPL_PACKAGE_IDS.map((packageId) =>
+    [normalizeAgentPackageAliasKey(packageId), packageId] as const),
 ]);
 
 export function canonicalAgentPackageId(value: unknown) {

@@ -1024,7 +1024,7 @@ function writeManagedBundledCatalogFixture(input: {
     packages[fixture.packageId] = {
       package_id: fixture.packageId,
       package_role: manifest.surface_kind === 'opl_capability_package_manifest.v2'
-        ? 'framework_capability_package'
+        ? 'capability_package'
         : manifest.surface_kind === 'opl_workflow_profile_package_manifest.v1'
           ? 'workflow_profile'
           : 'standard_agent',
