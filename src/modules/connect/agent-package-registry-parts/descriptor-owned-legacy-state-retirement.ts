@@ -1,8 +1,6 @@
-import fs from 'node:fs';
 import path from 'node:path';
 
 import { FrameworkContractError } from '../../../kernel/contract-validation.ts';
-import { ensureOplStateDir } from '../../../kernel/runtime-state-paths.ts';
 import {
   discoverInstalledCodexPluginDescriptors,
 } from './installed-codex-plugin-directory.ts';
@@ -234,13 +232,6 @@ function retireDescriptorOwnedLegacyState(input: {
   };
   if (!mutationRequired || input.dryRun) return result;
 
-  const legacyLedgerPath = path.join(
-    ensureOplStateDir().state_dir,
-    'agent-package-lifecycle-ledger.json',
-  );
-  const legacyLedgerSnapshot = fs.existsSync(legacyLedgerPath)
-    ? fs.readFileSync(legacyLedgerPath)
-    : null;
   writePackageTransaction(nextIndex, [], {
     removeEmptyAuthorities: true,
   });
@@ -267,8 +258,6 @@ function retireDescriptorOwnedLegacyState(input: {
     ];
   } catch (error) {
     writePackageTransaction(index, []);
-    if (legacyLedgerSnapshot) fs.writeFileSync(legacyLedgerPath, legacyLedgerSnapshot);
-    else fs.rmSync(legacyLedgerPath, { force: true });
     throw error;
   }
   return result;

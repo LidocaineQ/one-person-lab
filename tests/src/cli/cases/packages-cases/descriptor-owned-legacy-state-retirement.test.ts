@@ -145,20 +145,18 @@ test('explicit native-confirmed repair retires descriptor-owned lock LKG receipt
     fs.writeFileSync(fixture.lockPath, formatJsonPayload(originalIndex));
     const originalLockBytes = fs.readFileSync(fixture.lockPath);
     const legacyLedgerPath = path.join(fixture.stateDir, 'agent-package-lifecycle-ledger.json');
-    const originalLegacyLedgerBytes = Buffer.from('{ obsolete receipt history\n');
-    fs.writeFileSync(legacyLedgerPath, originalLegacyLedgerBytes);
 
     runCli(['packages', 'list'], fixture.env);
     runCli(['packages', 'status', '--package-id', packageId], fixture.env);
     runCli(['packages', 'update', packageId], fixture.env);
     assert.deepEqual(fs.readFileSync(fixture.lockPath), originalLockBytes);
-    assert.deepEqual(fs.readFileSync(legacyLedgerPath), originalLegacyLedgerBytes);
+    assert.equal(fs.existsSync(legacyLedgerPath), false);
 
     const preview = runCli(['packages', 'repair', packageId, '--dry-run'], fixture.env) as any;
     assert.equal(preview.opl_agent_package_repair.legacy_state_retirement.status, 'validated_no_write');
     assert.equal(preview.opl_agent_package_repair.legacy_state_retirement.mutation_required, true);
     assert.deepEqual(fs.readFileSync(fixture.lockPath), originalLockBytes);
-    assert.deepEqual(fs.readFileSync(legacyLedgerPath), originalLegacyLedgerBytes);
+    assert.equal(fs.existsSync(legacyLedgerPath), false);
 
     const repaired = runCli(['packages', 'repair', packageId], fixture.env) as any;
     const retirement = repaired.opl_agent_package_repair.legacy_state_retirement;
