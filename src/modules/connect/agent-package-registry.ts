@@ -2997,8 +2997,6 @@ async function runOplAgentPackageUpdateUnlocked(
 }
 
 export async function runOplAgentPackageUpdate(input: AgentPackageInstallInput) {
-  const bundledPresence = tryBundledFullRuntimePackagePresenceReadback(input);
-  if (bundledPresence) return bundledPresence;
   const configured = await maybeRunConfiguredCarrierLifecycle({
     selectionInput: input,
     action: 'update',
@@ -3012,6 +3010,8 @@ export async function runOplAgentPackageUpdate(input: AgentPackageInstallInput) 
       },
     };
   }
+  const bundledPresence = tryBundledFullRuntimePackagePresenceReadback(input);
+  if (bundledPresence) return bundledPresence;
   return withAgentPackageLifecycleTransaction(
     input.dryRun === true,
     () => runOplAgentPackageUpdateUnlocked(input),

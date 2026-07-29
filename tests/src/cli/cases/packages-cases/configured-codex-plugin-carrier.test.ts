@@ -763,6 +763,24 @@ if (args.join(' ') === 'plugin list --json') {
     FIXTURE_PLUGIN_SOURCE: pluginSource,
   };
   try {
+    const update = runCli(['packages', 'update', 'rca'], env) as any;
+    const updateSurface = update.opl_agent_package_update;
+    assert.equal(updateSurface.package_id, 'rca');
+    assert.equal(updateSurface.status, 'updated');
+    assert.equal(updateSurface.package_lock, null);
+    assert.equal(updateSurface.lifecycle_receipt, null);
+    assert.deepEqual(
+      Object.values(updateSurface.opl_private_state_writes),
+      [false, false, false, false, false, false],
+    );
+    assert.equal(updateSurface.configured_carrier.status, 'installed');
+    assert.equal(updateSurface.configured_carrier.operation, 'update');
+    assert.deepEqual(
+      updateSurface.configured_carrier.native_command,
+      ['plugin', 'add', 'redcube-ai@redcube-ai', '--json'],
+    );
+    assert.equal(updateSurface.configured_carrier.native_action_dispatched, true);
+
     const activation = runCli([
       'packages', 'activate', 'rca',
       '--scope', 'workspace', '--target-workspace', root,
@@ -782,6 +800,7 @@ if (args.join(' ') === 'plugin list --json') {
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-registry-cache.json')), false);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle.sqlite')), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
