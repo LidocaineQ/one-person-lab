@@ -681,17 +681,13 @@ test('OPL Flow package lifecycle advances workflow policy v1 v2 v3 and reaches a
       'packages', 'uninstall', '--package-id', 'fixture.opl-flow',
     ], env) as any;
     assert.equal(uninstalled.opl_agent_package_uninstall.status, 'uninstalled');
-    assert.equal(fs.existsSync(v3CachePath), true);
+    assert.equal(fs.existsSync(v3CachePath), false);
     const uninstalledIndex = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
     assert.equal(
       uninstalledIndex.packages.some((entry: any) => entry.package_id === 'fixture.opl-flow'),
       false,
     );
-    assert.ok(uninstalledIndex.last_known_good_transactions.some(
-      (entry: any) =>
-        entry.root_package_id === 'fixture.opl-flow'
-        && entry.package_locks.some((lock: any) => lock.package_id === 'fixture.opl-flow'),
-    ));
+    assert.equal('last_known_good_transactions' in uninstalledIndex, false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
   }
@@ -839,7 +835,7 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
     assert.match(installedConfig, /\[plugins\."documents@openai-primary-runtime"\]/);
 
     const lockIndex = JSON.parse(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'));
-    assert.deepEqual(lockIndex.last_known_good_transactions, []);
+    assert.equal('last_known_good_transactions' in lockIndex, false);
     assert.equal(fs.existsSync(path.join(stateDir, 'workflow-packages')), false);
     const current = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
     const statusMaterializer = current.opl_agent_package_status.owner_route_readback.packages[0].materializer;
@@ -902,7 +898,7 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
   }
 });
 
-test('fresh install has no virtual legacy generation', async () => {
+test('fresh install writes no legacy generation field', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-clean-prestate-'));
   const home = path.join(root, 'home');
   const codexHome = path.join(home, '.codex');
@@ -920,7 +916,7 @@ test('fresh install has no virtual legacy generation', async () => {
     assert.equal(fs.existsSync(path.join(codexHome, 'config.toml')), true);
 
     const lockIndex = JSON.parse(fs.readFileSync(path.join(env.OPL_STATE_DIR, 'agent-package-locks.json'), 'utf8'));
-    assert.deepEqual(lockIndex.last_known_good_transactions, []);
+    assert.equal('last_known_good_transactions' in lockIndex, false);
     assert.equal(runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env)
       .opl_agent_package_status.installed_package_count, 1);
   } finally {

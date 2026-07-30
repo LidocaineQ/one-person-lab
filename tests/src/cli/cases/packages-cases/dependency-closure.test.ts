@@ -494,7 +494,7 @@ test('MAS scope materialization rejects forged legacy OPL management markers', a
   }
 });
 
-test('fresh MAS install records no legacy generation and preserves its installed closure', async () => {
+test('fresh MAS install records only its installed closure', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-fresh-install-rollback-'));
   const workspace = path.join(root, 'workspace');
   const originalSkillRoot = path.join(workspace, '.codex', 'skills', 'workspace-user-skill');
@@ -515,7 +515,7 @@ test('fresh MAS install records no legacy generation and preserves its installed
       path.join(env.OPL_STATE_DIR, 'agent-package-locks.json'),
       'utf8',
     ));
-    assert.deepEqual(lockIndex.last_known_good_transactions, []);
+    assert.equal('last_known_good_transactions' in lockIndex, false);
     assert.equal(runCli(['packages', 'status', '--package-id', FIXTURE_CONSUMER_PACKAGE_ID], env)
       .opl_agent_package_status.installed_package_count, 1);
     assert.equal(runCli(['packages', 'status', '--package-id', FIXTURE_PROVIDER_PACKAGE_ID], env)

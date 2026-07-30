@@ -423,7 +423,6 @@ exit 2
     surface_kind: 'opl_agent_package_lock_index',
     version: 'opl-agent-package-lock-index.v1',
     packages: [packageLock(nativePackageId), packageLock(legacyPackageId)],
-    last_known_good_transactions: [],
   });
   fs.mkdirSync(stateDir, { recursive: true });
   fs.writeFileSync(lockPath, lockBytes);
@@ -513,7 +512,6 @@ test('OPL Packages reads developer checkout readiness from the native module pro
       developerPackageLock('mag', mag.source),
       developerPackageLock('opl-flow', flow.source),
     ],
-    last_known_good_transactions: [],
   }));
   fs.writeFileSync(path.join(stateDir, 'agent-package-release-catalog-cache.json'), formatJsonPayload({
     surface_kind: 'opl_agent_package_release_catalog_cache.v1',
@@ -635,7 +633,6 @@ test('component-neutral apply runs bundled Packages while missing package roots 
     surface_kind: 'opl_agent_package_lock_index',
     version: 'opl-agent-package-lock-index.v1',
     packages: [bundledPackageLockFixture('mag')],
-    last_known_good_transactions: [],
   });
   fs.writeFileSync(lockPath, lockBytes);
   const env = {

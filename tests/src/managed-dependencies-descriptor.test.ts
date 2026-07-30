@@ -59,7 +59,6 @@ function writeLegacyDependencyLock(stateRoot: string) {
         },
       },
     }],
-    last_known_good_transactions: [],
   }));
 }
 

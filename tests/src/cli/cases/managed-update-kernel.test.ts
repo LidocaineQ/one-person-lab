@@ -528,7 +528,6 @@ test('packages update ignores legacy lock authority and records one native modul
       physical_surface: { status: 'materialized', failure_reason: null },
       resolved_dependencies: [],
     }],
-    last_known_good_transactions: [],
   }, null, 2)}\n`;
   fs.mkdirSync(stateRoot, { recursive: true });
   fs.writeFileSync(legacyLockPath, legacyLockBytes);

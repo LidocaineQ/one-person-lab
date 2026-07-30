@@ -11,8 +11,6 @@ import {
   readPackageChannelLifecycle,
   refreshPackageChannelCurrentSnapshot,
   rollbackManagedModulePackageChannel,
-  validateManagedModulePackageChannelRollback,
-  type PackageChannelActivationSnapshot,
   type ManagedModulePackageChannelSelection,
 } from '../system-installation/module-package-channel.ts';
 import {
@@ -40,7 +38,6 @@ type RuntimeSourceMutationKind =
   | 'none'
   | 'installed_fresh'
   | 'activated_with_previous'
-  | 'restored_previous'
   | 'staged_removal';
 
 export type ManagedRuntimeSourceMutation = {
@@ -51,7 +48,7 @@ export type ManagedRuntimeSourceMutation = {
   after: AgentPackageManagedRuntimeSourceState | null;
   staged_removal_paths: Array<{ original: string; backup: string }>;
   package_id?: string;
-  action?: 'install' | 'update' | 'repair' | 'rollback' | 'uninstall';
+  action?: 'install' | 'update' | 'repair' | 'uninstall';
   transaction_id?: string;
   marker_path?: string;
   repair_displaced_path?: string | null;
@@ -436,18 +433,6 @@ function validateCurrentState(state: AgentPackageManagedRuntimeSourceState) {
     });
   }
   return current;
-}
-
-function packageChannelSnapshotMatchesState(
-  snapshot: PackageChannelActivationSnapshot,
-  state: AgentPackageManagedRuntimeSourceState,
-) {
-  return snapshot.channel_version === state.channel_version
-    && snapshot.artifact_ref === state.artifact_ref
-    && snapshot.layer_digest === state.layer_digest
-    && snapshot.source_archive_sha256 === state.source_archive_sha256
-    && snapshot.source_git_head_sha === state.source_git_head_sha
-    && snapshot.tree_sha256 === state.tree_sha256;
 }
 
 function commandDigest(stdout: string, stderr: string) {
@@ -1477,7 +1462,6 @@ export function removeManagedRuntimeSourceCarrier(input: {
   transactionId: string;
   dryRun: boolean;
   packageId?: string;
-  retainLastKnownGood?: boolean;
 }): ManagedRuntimeSourceMutation {
   if (!input.state) {
     return {
@@ -1490,7 +1474,7 @@ export function removeManagedRuntimeSourceCarrier(input: {
     };
   }
   const current = validateCurrentState(input.state);
-  if (input.state.ownership === 'preexisting_adopted' || input.retainLastKnownGood === true) {
+  if (input.state.ownership === 'preexisting_adopted') {
     return {
       kind: 'none',
       module_id: input.state.module_id,
@@ -1532,112 +1516,6 @@ export function removeManagedRuntimeSourceCarrier(input: {
     throw error;
   }
   mutation.after = { ...input.state, status: 'removed' };
-  persistTransactionMarker(mutation, 'physical_applied');
-  return mutation;
-}
-
-export function restoreManagedRuntimeSourceCarrier(input: {
-  current: AgentPackageManagedRuntimeSourceState | null | undefined;
-  restored: AgentPackageManagedRuntimeSourceState | null | undefined;
-  transactionId: string;
-  dryRun: boolean;
-  packageId?: string;
-}): ManagedRuntimeSourceMutation {
-  if (!input.restored) {
-    return removeManagedRuntimeSourceCarrier({
-      state: input.current,
-      transactionId: input.transactionId,
-      dryRun: input.dryRun,
-      packageId: input.packageId,
-    });
-  }
-  if (!input.current) {
-    const restored = validateCurrentState(input.restored);
-    return {
-      kind: 'none',
-      module_id: restored.module_id,
-      checkout_path: restored.checkout_path,
-      before: null,
-      after: { ...restored, status: input.dryRun ? 'validated_no_write' : 'current' },
-      staged_removal_paths: [],
-    };
-  }
-  if (path.resolve(input.current.checkout_path) !== path.resolve(input.restored.checkout_path)) {
-    const current = validateCurrentState(input.current);
-    const restored = validateCurrentState(input.restored);
-    return {
-      kind: 'none',
-      module_id: restored.module_id,
-      checkout_path: restored.checkout_path,
-      before: current,
-      after: { ...restored, status: input.dryRun ? 'validated_no_write' : 'current' },
-      staged_removal_paths: [],
-    };
-  }
-  if (input.current.tree_sha256 === input.restored.tree_sha256) {
-    const current = validateCurrentState(input.current);
-    return {
-      kind: 'none',
-      module_id: current.module_id,
-      checkout_path: current.checkout_path,
-      before: current,
-      after: { ...input.restored, status: input.dryRun ? 'validated_no_write' : 'current' },
-      staged_removal_paths: [],
-    };
-  }
-  const spec = resolveOplDomainModuleSpec(input.current.module_id);
-  const rollbackTarget = validateManagedModulePackageChannelRollback(spec, input.current.checkout_path);
-  if (
-    input.restored.module_id !== input.current.module_id
-    || !packageChannelSnapshotMatchesState(rollbackTarget.lifecycle.current, input.current)
-    || !packageChannelSnapshotMatchesState(rollbackTarget.previousSnapshot, input.restored)
-  ) {
-    throw sourceFailure('Managed runtime source rollback generation is unavailable.', {
-      module_id: input.current.module_id,
-      checkout_path: input.current.checkout_path,
-      expected_previous_tree_sha256: input.restored.tree_sha256,
-      actual_previous_tree_sha256: rollbackTarget.previousSnapshot.tree_sha256,
-    });
-  }
-  const current = {
-    ...input.current,
-    source_mode: 'package_channel' as const,
-    tree_sha256: computePackageChannelTreeSha256(input.current.checkout_path),
-  };
-  if (input.dryRun) {
-    return {
-      kind: 'none',
-      module_id: current.module_id,
-      checkout_path: current.checkout_path,
-      before: current,
-      after: { ...input.restored, status: 'validated_no_write' },
-      staged_removal_paths: [],
-    };
-  }
-  const mutation = transactionMutation({
-    kind: 'restored_previous',
-    packageId: input.packageId ?? current.module_id,
-    action: 'rollback',
-    transactionId: input.transactionId,
-    moduleId: current.module_id,
-    checkoutPath: current.checkout_path,
-    before: current,
-    checkoutExistedBefore: true,
-  });
-  if (process.env.OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED === '1'
-    && process.env.OPL_TEST_RUNTIME_SOURCE_INTERRUPT_AFTER_PREPARE_ROLLBACK === '1') {
-    throw new FrameworkContractError('contract_shape_invalid', 'Injected interruption after runtime source rollback prepare marker.', {
-      failure_code: 'test_runtime_source_interrupted_after_prepare_rollback',
-    });
-  }
-  try {
-    rollbackManagedModulePackageChannel(spec, current.checkout_path);
-  } catch (error) {
-    clearTransactionMarker(mutation);
-    throw error;
-  }
-  const after = validateCurrentState(input.restored);
-  mutation.after = after;
   persistTransactionMarker(mutation, 'physical_applied');
   return mutation;
 }
@@ -1770,10 +1648,7 @@ export function finalizeManagedRuntimeSourceMutation(
 }
 
 function developerRuntimeSnapshotRefs(index: AgentPackageLockIndex) {
-  return [
-    ...index.packages,
-    ...(index.last_known_good_transactions ?? []).flatMap((entry) => entry.package_locks),
-  ].flatMap((lock) => {
+  return index.packages.flatMap((lock) => {
     const state = lock.managed_runtime_source;
     return state?.source_mode === 'developer_checkout'
       && state.preparation_scope === 'developer_snapshot_root'
@@ -1963,15 +1838,13 @@ function parseTransactionMarker(filePath: string) {
     ? action === 'install' || action === 'update' || action === 'repair'
     : kind === 'activated_with_previous'
       ? action === 'update' || action === 'repair'
-    : kind === 'restored_previous'
-      ? action === 'rollback'
       : kind === 'staged_removal' && action === 'uninstall';
   if (!validKindAction) {
     throw transactionMarkerFailure(filePath, 'mutation_kind_action_mismatch', { kind, action });
   }
   const expectedCheckoutExistedBefore = kind === 'installed_fresh' && !developerSnapshotMutation
     ? false
-    : kind === 'activated_with_previous' || kind === 'restored_previous'
+    : kind === 'activated_with_previous'
       ? true
       : null;
   if (expectedCheckoutExistedBefore !== null
