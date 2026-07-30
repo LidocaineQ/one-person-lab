@@ -1,4 +1,6 @@
-import { assert, fs, os, parseJsonText, path, runCli, test } from '../helpers.ts';
+import crypto from 'node:crypto';
+
+import { assert, fs, os, parseJsonText, path, runCli, runCliFailure, test } from '../helpers.ts';
 import { runGitFixtureCommand } from '../helpers-parts/family-fixtures.ts';
 import {
   createCurrentCodexFixture,
@@ -68,46 +70,53 @@ function writeImageManifest(seedDir: string, seedStrategy: string, version = '26
   }, null, 2));
 }
 
-function writeSeedMetadata(seedDir: string, strategy = 'payload_manifest') {
+function writeSeedComponentMetadata(
+  seedDir: string,
+  components: Array<Record<string, unknown>>,
+  strategy = 'payload_manifest',
+) {
   fs.writeFileSync(path.join(seedDir, 'metadata.json'), JSON.stringify({
     schema: 'dev.onepersonlab.opl-webui-image-seed.v1',
     strategy,
-    components: [
-      {
-        id: 'opl_framework',
-        version: `0.1.0-${strategy}`,
-        source: 'image:/opt/opl/framework',
-        receipt_kind: 'image_seed',
-        payload_path: strategy === 'payload_preheated' ? 'payload/opl_framework' : 'framework',
-        source_fingerprint: `git:framework-${strategy}`,
-      },
-      {
-        id: 'codex_cli',
-        version: `codex-${strategy}`,
-        source: 'image:/opt/opl/toolchain/codex',
-        receipt_kind: 'image_seed',
-        payload_path: strategy === 'payload_preheated' ? 'payload/codex_cli' : 'toolchain/codex',
-        sha256: `sha256:declared-codex-${strategy}`,
-        size_bytes: 123,
-      },
-      {
-        id: 'companion_skills',
-        version: `skills-${strategy}`,
-        source: 'image:/opt/opl/skills',
-        receipt_kind: 'image_seed',
-        payload_path: strategy === 'payload_preheated' ? 'payload/companion_skills' : 'skills',
-        source_fingerprint: `skills:${strategy}`,
-      },
-      {
-        id: 'domain_modules',
-        version: `modules-${strategy}`,
-        source: 'image:/opt/opl/modules',
-        receipt_kind: 'image_seed',
-        payload_path: strategy === 'payload_preheated' ? 'payload/domain_modules' : 'modules',
-        source_fingerprint: `modules:${strategy}`,
-      },
-    ],
+    components,
   }, null, 2));
+}
+
+function writeSeedMetadata(seedDir: string, strategy = 'payload_manifest') {
+  writeSeedComponentMetadata(seedDir, [
+    {
+      id: 'opl_framework',
+      version: `0.1.0-${strategy}`,
+      source: 'image:/opt/opl/framework',
+      receipt_kind: 'image_seed',
+      payload_path: strategy === 'payload_preheated' ? 'payload/opl_framework' : 'framework',
+      source_fingerprint: `git:framework-${strategy}`,
+    },
+    {
+      id: 'codex_cli',
+      version: `codex-${strategy}`,
+      source: 'image:/opt/opl/toolchain/codex',
+      receipt_kind: 'image_seed',
+      payload_path: strategy === 'payload_preheated' ? 'payload/codex_cli' : 'toolchain/codex',
+      size_bytes: 123,
+    },
+    {
+      id: 'companion_skills',
+      version: `skills-${strategy}`,
+      source: 'image:/opt/opl/skills',
+      receipt_kind: 'image_seed',
+      payload_path: strategy === 'payload_preheated' ? 'payload/companion_skills' : 'skills',
+      source_fingerprint: `skills:${strategy}`,
+    },
+    {
+      id: 'domain_modules',
+      version: `modules-${strategy}`,
+      source: 'image:/opt/opl/modules',
+      receipt_kind: 'image_seed',
+      payload_path: strategy === 'payload_preheated' ? 'payload/domain_modules' : 'modules',
+      source_fingerprint: `modules:${strategy}`,
+    },
+  ], strategy);
 }
 
 function writePayloadFiles(seedDir: string, strategy = 'payload_manifest') {
@@ -134,6 +143,10 @@ function writePayloadFiles(seedDir: string, strategy = 'payload_manifest') {
   fs.writeFileSync(path.join(skillsPayload, 'seed.json'), '{"skills":[]}\n');
   fs.writeFileSync(path.join(modulesPayload, 'seed.json'), '{"modules":[]}\n');
   return { frameworkPayload, codexPayload, modulesPayload, skillsPayload };
+}
+
+function sha256File(file: string) {
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
 test('system seed-apply records env image manifest and stays idempotent', () => {
@@ -183,7 +196,7 @@ test('system seed-apply records env image manifest and stays idempotent', () => 
   }
 });
 
-test('system seed-apply materializes payload metadata but preserves existing framework root', () => {
+test('system seed-apply materializes verified relative and root-contained absolute payloads', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-seed-payload-home-'));
   const seedDir = path.join(homeRoot, 'image-seed');
   const dataDir = path.join(homeRoot, 'data');
@@ -193,8 +206,10 @@ test('system seed-apply materializes payload metadata but preserves existing fra
     writeImageManifest(seedDir, 'payload_manifest');
     writeSeedMetadata(seedDir, 'payload_manifest');
     const payloads = writePayloadFiles(seedDir, 'payload_manifest');
-    fs.mkdirSync(path.join(dataDir, 'opl', 'framework'), { recursive: true });
-    fs.writeFileSync(path.join(dataDir, 'opl', 'framework', 'package.json'), '{"name":"local-framework"}\n');
+    const metadataPath = path.join(seedDir, 'metadata.json');
+    const metadata = parseJsonText(fs.readFileSync(metadataPath, 'utf8')) as any;
+    metadata.components.find((component: any) => component.id === 'domain_modules').payload_path = payloads.modulesPayload;
+    fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
 
     const output = runCli(['system', 'seed-apply', '--from', seedDir, '--data-dir', dataDir, '--projects-dir', projectsDir], {
       HOME: homeRoot,
@@ -203,18 +218,154 @@ test('system seed-apply materializes payload metadata but preserves existing fra
     }).system_action;
     assert.equal(output.status, 'applied');
     assert.equal(output.details.seed_metadata.metadata_status, 'found');
-    assert.equal(fs.readFileSync(path.join(dataDir, 'opl', 'framework', 'package.json'), 'utf8'), '{"name":"local-framework"}\n');
+    assert.equal(
+      fs.readFileSync(path.join(dataDir, 'opl', 'framework', 'package.json'), 'utf8'),
+      '{"name":"opl-framework-payload_manifest"}\n',
+    );
     assert.equal(fs.readFileSync(path.join(dataDir, 'opl', 'framework', 'nested', 'bin', 'tool.js'), 'utf8'), 'payload_manifest-tool\n');
     assert.equal(fs.existsSync(path.join(dataDir, 'opl', 'toolchains', 'codex', 'codex')), true);
     assert.equal(fs.existsSync(path.join(dataDir, 'opl', 'skills', 'seed.json')), true);
     const components = new Map<string, any>(output.details.components.map((component: any) => [component.component_id, component] as [string, any]));
     assert.equal(components.get('opl_framework')?.payload_path, payloads.frameworkPayload);
-    assert.equal(components.get('codex_cli')?.checksum_sha256, 'sha256:declared-codex-payload_manifest');
+    assert.equal(components.get('codex_cli')?.checksum_sha256, sha256File(payloads.codexPayload));
+    assert.equal(components.get('domain_modules')?.payload_path, payloads.modulesPayload);
     assert.equal(components.get('domain_modules')?.source_fingerprint, 'modules:payload_manifest');
     assert.equal(output.details.reconcile.image_seed_receipts_count >= 5, true);
     assert.equal(output.details.reconcile.migration_receipts_count, 0);
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
+  }
+});
+
+test('system seed-apply rejects payload paths that escape the real seed root', () => {
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-seed-escape-home-'));
+  const seedDir = path.join(homeRoot, 'image-seed');
+  const outsideRoot = path.join(homeRoot, 'outside-framework');
+  const dataDir = path.join(homeRoot, 'data');
+  const stateDir = path.join(dataDir, 'opl', 'state');
+  try {
+    writeImageManifest(seedDir, 'payload_manifest');
+    writeMinimalFrameworkRoot(outsideRoot, 'outside');
+    writeSeedComponentMetadata(seedDir, [{
+      id: 'opl_framework',
+      version: '0.1.0-escape',
+      payload_path: '../outside-framework',
+    }]);
+
+    const failure = runCliFailure(['system', 'seed-apply', '--from', seedDir, '--data-dir', dataDir], {
+      HOME: homeRoot,
+      OPL_STATE_DIR: stateDir,
+      PATH: process.env.PATH ?? '',
+    });
+    assert.equal(failure.payload.error.details.failure_code, 'opl_seed_payload_path_outside_seed_root');
+    assert.equal(fs.existsSync(path.join(dataDir, 'opl', 'framework')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'install-manifest.json')), false);
+  } finally {
+    removeTree(homeRoot);
+  }
+});
+
+test('system seed-apply rejects symlink and hardlink payloads', () => {
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-seed-link-home-'));
+  const seedDir = path.join(homeRoot, 'image-seed');
+  const dataDir = path.join(homeRoot, 'data');
+  const stateDir = path.join(dataDir, 'opl', 'state');
+  try {
+    writeImageManifest(seedDir, 'payload_manifest');
+    const realFramework = path.join(seedDir, 'real-framework');
+    writeMinimalFrameworkRoot(realFramework, 'real');
+    fs.symlinkSync('real-framework', path.join(seedDir, 'framework'), 'dir');
+    writeSeedComponentMetadata(seedDir, [{
+      id: 'opl_framework',
+      version: '0.1.0-symlink',
+      payload_path: 'framework',
+    }]);
+
+    let failure = runCliFailure(['system', 'seed-apply', '--from', seedDir, '--data-dir', dataDir], {
+      HOME: homeRoot,
+      OPL_STATE_DIR: stateDir,
+      PATH: process.env.PATH ?? '',
+    });
+    assert.equal(failure.payload.error.details.failure_code, 'opl_seed_payload_symlink_forbidden');
+
+    const originalCodex = path.join(seedDir, 'codex-original');
+    const hardlinkedCodex = path.join(seedDir, 'codex-hardlink');
+    fs.writeFileSync(originalCodex, 'codex-hardlinked\n');
+    fs.linkSync(originalCodex, hardlinkedCodex);
+    writeSeedComponentMetadata(seedDir, [{
+      id: 'codex_cli',
+      version: 'codex-hardlink',
+      payload_path: 'codex-hardlink',
+    }]);
+
+    failure = runCliFailure(['system', 'seed-apply', '--from', seedDir, '--data-dir', dataDir], {
+      HOME: homeRoot,
+      OPL_STATE_DIR: stateDir,
+      PATH: process.env.PATH ?? '',
+    });
+    assert.equal(failure.payload.error.details.failure_code, 'opl_seed_payload_hardlink_forbidden');
+    assert.equal(fs.existsSync(path.join(stateDir, 'install-manifest.json')), false);
+  } finally {
+    removeTree(homeRoot);
+  }
+});
+
+test('system seed-apply rejects a declared payload digest mismatch before copying', () => {
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-seed-digest-home-'));
+  const seedDir = path.join(homeRoot, 'image-seed');
+  const dataDir = path.join(homeRoot, 'data');
+  const stateDir = path.join(dataDir, 'opl', 'state');
+  try {
+    writeImageManifest(seedDir, 'payload_manifest');
+    fs.mkdirSync(path.join(seedDir, 'toolchain'), { recursive: true });
+    fs.writeFileSync(path.join(seedDir, 'toolchain', 'codex'), 'codex-untrusted\n');
+    writeSeedComponentMetadata(seedDir, [{
+      id: 'codex_cli',
+      version: 'codex-untrusted',
+      payload_path: 'toolchain/codex',
+      sha256: `sha256:${'0'.repeat(64)}`,
+    }]);
+
+    const failure = runCliFailure(['system', 'seed-apply', '--from', seedDir, '--data-dir', dataDir], {
+      HOME: homeRoot,
+      OPL_STATE_DIR: stateDir,
+      PATH: process.env.PATH ?? '',
+    });
+    assert.equal(failure.payload.error.details.failure_code, 'opl_seed_payload_digest_mismatch');
+    assert.equal(fs.existsSync(path.join(dataDir, 'opl', 'toolchains', 'codex', 'codex')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'install-manifest.json')), false);
+  } finally {
+    removeTree(homeRoot);
+  }
+});
+
+test('system seed-apply refuses an existing materialized target with different bytes', () => {
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-seed-target-drift-home-'));
+  const seedDir = path.join(homeRoot, 'image-seed');
+  const dataDir = path.join(homeRoot, 'data');
+  const stateDir = path.join(dataDir, 'opl', 'state');
+  const sourceFramework = path.join(seedDir, 'framework');
+  const targetFramework = path.join(dataDir, 'opl', 'framework');
+  try {
+    writeImageManifest(seedDir, 'payload_manifest');
+    writeMinimalFrameworkRoot(sourceFramework, 'seed');
+    writeMinimalFrameworkRoot(targetFramework, 'local');
+    writeSeedComponentMetadata(seedDir, [{
+      id: 'opl_framework',
+      version: '0.1.0-target-drift',
+      payload_path: 'framework',
+    }]);
+
+    const failure = runCliFailure(['system', 'seed-apply', '--from', seedDir, '--data-dir', dataDir], {
+      HOME: homeRoot,
+      OPL_STATE_DIR: stateDir,
+      PATH: process.env.PATH ?? '',
+    });
+    assert.equal(failure.payload.error.details.failure_code, 'opl_seed_materialized_target_conflict');
+    assert.equal(fs.readFileSync(path.join(targetFramework, 'MARKER.txt'), 'utf8'), 'local\n');
+    assert.equal(fs.existsSync(path.join(stateDir, 'install-manifest.json')), false);
+  } finally {
+    removeTree(homeRoot);
   }
 });
 
