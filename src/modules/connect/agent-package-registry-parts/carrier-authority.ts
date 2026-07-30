@@ -2,7 +2,6 @@ import { FrameworkContractError } from '../../../kernel/contract-validation.ts';
 
 import type {
   AgentPackageCarrierAuthority,
-  AgentPackageLifecycleReceipt,
   AgentPackageLock,
 } from './types.ts';
 
@@ -80,35 +79,4 @@ export function agentPackageCarrierAuthorityStatus(lock: AgentPackageLock) {
     status: reasons.length === 0 ? 'current' as const : 'invalid' as const,
     reasons,
   };
-}
-
-export function agentPackageCarrierReceiptAuthorityStatus(
-  lock: AgentPackageLock,
-  receipt: AgentPackageLifecycleReceipt | null | undefined,
-) {
-  const lockStatus = agentPackageCarrierAuthorityStatus(lock);
-  if (lockStatus.status !== 'current') return lockStatus;
-  const reasons = [
-    receipt ? null : 'lifecycle_receipt_missing',
-    receipt?.receipt_ref === lock.action_receipt_id ? null : 'lifecycle_receipt_ref_mismatch',
-    receipt?.package_id === lock.package_id ? null : 'lifecycle_receipt_package_id_mismatch',
-    receipt?.package_lock_ref === lock.lock_ref ? null : 'lifecycle_receipt_package_lock_ref_mismatch',
-    receipt?.owner_source_commit === lock.owner_source_commit ? null : 'lifecycle_receipt_owner_source_commit_mismatch',
-    sameAgentPackageCarrierAuthority(receipt?.carrier_authority, lock.carrier_authority)
-      ? null
-      : 'lifecycle_receipt_carrier_authority_mismatch',
-    receipt?.release_channel_ref === lock.release_channel_ref ? null : 'lifecycle_receipt_catalog_ref_mismatch',
-    receipt?.release_channel_digest === lock.release_channel_digest ? null : 'lifecycle_receipt_catalog_sha256_mismatch',
-  ].filter((reason): reason is string => reason !== null);
-  return {
-    status: reasons.length === 0 ? 'current' as const : 'invalid' as const,
-    reasons,
-  };
-}
-
-function sameAgentPackageCarrierAuthority(
-  left: AgentPackageCarrierAuthority | null | undefined,
-  right: AgentPackageCarrierAuthority | null | undefined,
-) {
-  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 }

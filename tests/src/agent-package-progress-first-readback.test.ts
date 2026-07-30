@@ -79,21 +79,21 @@ function policyCurrentness(status: 'drifted' | 'invalid'): AgentPackageManagedPo
   };
 }
 
-test('carrier receipt and policy currentness drift remain observations', () => {
+test('carrier authority and policy currentness remain independent of lifecycle receipts', () => {
   const lock = carrierLock();
-  const receiptDrift = agentPackageLifecycleUxReadback({
+  const receiptNeutral = agentPackageLifecycleUxReadback({
     packageId: 'fixture.mas',
     lock,
     receipt: null,
   });
-  const carrierCondition = receiptDrift.conditions.find(
-    (condition) => condition.condition_id === 'carrier_authority_invalid',
+  const carrierCondition = receiptNeutral.conditions.find(
+    (condition) => condition.condition_id === 'carrier_authority_current',
   );
-  assert.equal(receiptDrift.status, 'installed');
-  assert.equal(receiptDrift.recommended_action, null);
+  assert.equal(receiptNeutral.status, 'installed');
+  assert.equal(receiptNeutral.recommended_action, null);
   assert.equal(carrierCondition?.status, 'ok');
   assert.equal(carrierCondition?.action_ref, null);
-  assert.match(carrierCondition?.reason ?? '', /lifecycle_receipt_missing/);
+  assert.match(carrierCondition?.reason ?? '', /carrier authority are current/);
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-progress-readback-'));
   const previousStateDir = process.env.OPL_STATE_DIR;
   process.env.OPL_STATE_DIR = stateDir;
@@ -102,7 +102,7 @@ test('carrier receipt and policy currentness drift remain observations', () => {
       selectedPackageId: 'fixture.mas',
       packages: [{ packageId: 'fixture.mas', lock, receipt: null }],
     }).packages[0];
-    assert.equal(ownerReadback.carrier_authority_readiness.status, 'invalid');
+    assert.equal(ownerReadback.carrier_authority_readiness.status, 'current');
     assert.equal(ownerReadback.operational_ready, true);
     assert.equal(ownerReadback.launch_allowed, true);
     assert.equal(ownerReadback.launch_blocked_reason, null);

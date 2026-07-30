@@ -7,10 +7,7 @@ import {
   capabilityPackageOwnerRoute,
 } from '../managed-update-owner-boundary.ts';
 import { dependencyReadiness } from './dependency-closure.ts';
-import {
-  agentPackageCarrierAuthorityStatus,
-  agentPackageCarrierReceiptAuthorityStatus,
-} from './carrier-authority.ts';
+import { agentPackageCarrierAuthorityStatus } from './carrier-authority.ts';
 import { managedPolicyCurrentness, noManagedPolicyMigration } from './managed-policy-surface.ts';
 import { scopeMaterializationReadiness } from './scope-materialization.ts';
 import { managedRuntimeSourceReadiness } from './managed-runtime-source-carrier.ts';
@@ -85,9 +82,7 @@ export function agentPackageLifecycleUxReadback(input: {
       action_ref: null,
     }),
   ];
-  const carrierAuthority = Object.prototype.hasOwnProperty.call(input, 'receipt')
-    ? agentPackageCarrierReceiptAuthorityStatus(input.lock, input.receipt)
-    : agentPackageCarrierAuthorityStatus(input.lock);
+  const carrierAuthority = agentPackageCarrierAuthorityStatus(input.lock);
   if (carrierAuthority.status === 'invalid') {
     conditions.push(lifecycleCondition({
       condition_id: 'carrier_authority_invalid',
@@ -208,7 +203,6 @@ export function agentPackageLifecycleUxReadback(input: {
 export function agentPackageLifecycleSummaryReadback(input: {
   selectedPackageId?: string | null;
   packages: AgentPackageLock[];
-  receipts?: AgentPackageLifecycleReceipt[];
 }): AgentPackageLifecycleUxReadback {
   if (input.selectedPackageId && input.packages.length === 0) {
     return agentPackageLifecycleUxReadback({ packageId: input.selectedPackageId });
@@ -227,21 +221,12 @@ export function agentPackageLifecycleSummaryReadback(input: {
       lifecycle_action_refs: ['install'],
     };
   }
-  const receiptsByRef = input.receipts
-    ? new Map(input.receipts.map((receipt) => [receipt.receipt_ref, receipt]))
-    : null;
-  const packageReadbacks = input.packages.map((lock) => {
-    const base = {
+  const packageReadbacks = input.packages.map((lock) =>
+    agentPackageLifecycleUxReadback({
       packageId: lock.package_id,
       lock,
-    };
-    return receiptsByRef
-      ? agentPackageLifecycleUxReadback({
-          ...base,
-          receipt: receiptsByRef.get(lock.action_receipt_id) ?? null,
-        })
-      : agentPackageLifecycleUxReadback(base);
-  });
+    })
+  );
   const recommendedAction = packageReadbacks.find((entry) => entry.recommended_action)?.recommended_action ?? null;
   return {
     status: recommendedAction ? 'attention_needed' : 'available',
@@ -379,9 +364,7 @@ function ownerRouteReadbackItem(input: {
     input.lock?.runtime_source_carrier,
   );
   const carrierAuthorityReadiness = input.lock
-    ? Object.prototype.hasOwnProperty.call(input, 'receipt')
-      ? agentPackageCarrierReceiptAuthorityStatus(input.lock, input.receipt)
-      : agentPackageCarrierAuthorityStatus(input.lock)
+    ? agentPackageCarrierAuthorityStatus(input.lock)
     : { status: 'not_required' as const, reasons: [] as string[] };
   const requiredPolicyDependenciesOperational = policyCurrentness.required_dependencies_operational !== false;
   const managedPolicyReady = policyCurrentness.status === 'current'
