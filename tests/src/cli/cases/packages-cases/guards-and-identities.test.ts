@@ -818,9 +818,7 @@ test('packages preserves installed lock and returns an operation receipt when up
         owner_route_readback: {
           packages: Array<{
             materializer: Record<string, unknown>;
-            package_core: {
-              lifecycle: Record<string, unknown>;
-            };
+            package_core: Record<string, unknown>;
             carrier_adapters: Array<Record<string, unknown>>;
           }>;
         };
@@ -872,14 +870,7 @@ test('packages preserves installed lock and returns an operation receipt when up
     for (const adapter of ownerPackage.carrier_adapters) {
       assert.equal(Object.hasOwn(adapter, 'managed_policy_currentness'), false);
     }
-    assert.equal(
-      Object.hasOwn(ownerPackage.package_core.lifecycle, 'latest_receipt_ref'),
-      false,
-    );
-    assert.equal(
-      Object.hasOwn(ownerPackage.package_core.lifecycle, 'latest_action'),
-      false,
-    );
+    assert.equal(Object.hasOwn(ownerPackage.package_core, 'lifecycle'), false);
 
     const failure = runCliFailure([
       'packages',

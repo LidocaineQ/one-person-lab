@@ -355,12 +355,6 @@ function ownerRouteReadbackItem(input: {
         resolved_dependencies: input.lock?.resolved_dependencies ?? [],
         dependency_readiness: readiness,
       },
-      lifecycle: {
-        status: lifecycleUx.status,
-        conditions: lifecycleUx.conditions,
-        recommended_action: lifecycleUx.recommended_action,
-        action_refs: lifecycleUx.lifecycle_action_refs,
-      },
     },
     carrier_adapters: [{
       adapter_kind: 'codex_plugin_carrier',

@@ -763,12 +763,6 @@ export type AgentPackageCoreReadback = {
     resolved_dependencies: AgentPackageResolvedDependency[];
     dependency_readiness: AgentPackageDependencyReadiness;
   };
-  lifecycle: {
-    status: AgentPackageLifecycleUxReadback['status'];
-    conditions: AgentPackageLifecycleCondition[];
-    recommended_action: string | null;
-    action_refs: AgentPackageLifecycleAction[];
-  };
 };
 
 export type AgentPackageLifecycleReceipt = {
