@@ -369,7 +369,6 @@ function ownerRouteReadbackItem(input: {
       },
       carrier_authority: input.lock?.carrier_authority ?? null,
       lifecycle: {
-        latest_action: input.receipt?.action ?? null,
         status: lifecycleUx.status,
         conditions: lifecycleUx.conditions,
         recommended_action: lifecycleUx.recommended_action,

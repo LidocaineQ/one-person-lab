@@ -876,6 +876,10 @@ test('packages preserves installed lock and returns an operation receipt when up
       Object.hasOwn(ownerPackage.package_core.lifecycle, 'latest_receipt_ref'),
       false,
     );
+    assert.equal(
+      Object.hasOwn(ownerPackage.package_core.lifecycle, 'latest_action'),
+      false,
+    );
 
     const failure = runCliFailure([
       'packages',

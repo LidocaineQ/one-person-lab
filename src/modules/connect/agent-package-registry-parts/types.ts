@@ -777,7 +777,6 @@ export type AgentPackageCoreReadback = {
   };
   carrier_authority: AgentPackageCarrierAuthority | null;
   lifecycle: {
-    latest_action: AgentPackageLifecycleAction | null;
     status: AgentPackageLifecycleUxReadback['status'];
     conditions: AgentPackageLifecycleCondition[];
     recommended_action: string | null;
