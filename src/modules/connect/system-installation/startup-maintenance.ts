@@ -396,11 +396,11 @@ async function maybeRunEngineStartupMaintenance(
   if (
     !selectedRuntimeCodex
     && codex.version_status === 'compatible'
-    && runtimeToolchain.latest_version_status === 'current'
+    && !process.env.OPL_CODEX_UPDATE_COMMAND?.trim()
   ) {
     return buildEngineTarget(environment, {
       status: 'skipped',
-      reason: 'compatible_system_codex_selected_runtime_substrate_current',
+      reason: 'selected_external_codex_carrier_detect_only',
       action: null,
       result: null,
       error: null,

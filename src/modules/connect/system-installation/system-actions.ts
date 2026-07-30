@@ -65,6 +65,17 @@ async function maybeUpdateCodex(
   if (codex.version_status === 'compatible' && !codex.update_available) {
     return buildSkippedUpdate('engine', 'codex', 'selected_codex_ready');
   }
+  const runtimeToolchain = codex.runtime_substrate_updater;
+  const selectedRuntimeCodex =
+    typeof runtimeToolchain.current_binary_path === 'string'
+    && codex.binary_path === runtimeToolchain.current_binary_path;
+  if (
+    !selectedRuntimeCodex
+    && codex.version_status === 'compatible'
+    && !process.env.OPL_CODEX_UPDATE_COMMAND?.trim()
+  ) {
+    return buildSkippedUpdate('engine', 'codex', 'selected_external_codex_carrier_detect_only');
+  }
 
   const result = await runOplEngineAction(contracts, 'update', 'codex');
   return {

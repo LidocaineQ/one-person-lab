@@ -255,6 +255,121 @@ test('system startup-maintenance applies staged App-owned runtime Codex update w
   }
 });
 
+test('system startup-maintenance keeps a compatible external Codex carrier detect-only', () => {
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-startup-maintenance-external-codex-'));
+  const externalBin = path.join(homeRoot, 'external-bin');
+  const externalCodex = path.join(externalBin, 'codex');
+  const fakeNpm = path.join(externalBin, 'npm');
+  const npmLog = path.join(homeRoot, 'npm.log');
+  const runtimeCodex = path.join(homeRoot, 'runtime', 'current', 'bin', 'codex');
+  const developerCheckout = path.join(homeRoot, 'developer-module-checkout');
+
+  fs.mkdirSync(externalBin, { recursive: true });
+  fs.writeFileSync(
+    externalCodex,
+    [
+      '#!/usr/bin/env bash',
+      'if [[ "${1:-}" == "--version" ]]; then',
+      '  echo "codex-cli 0.130.0"',
+      '  exit 0',
+      'fi',
+      'exit 2',
+      '',
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+  fs.writeFileSync(
+    fakeNpm,
+    [
+      '#!/usr/bin/env bash',
+      `printf '%s\\n' "$*" >> ${shellSingleQuote(npmLog)}`,
+      'exit 89',
+      '',
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+
+  fs.mkdirSync(developerCheckout, { recursive: true });
+  runGitFixtureCommand(developerCheckout, ['init', '--initial-branch', 'main']);
+  fs.writeFileSync(path.join(developerCheckout, 'README.md'), '# Developer checkout\n', 'utf8');
+  runGitFixtureCommand(developerCheckout, ['add', 'README.md']);
+  runGitFixtureCommand(developerCheckout, [
+    '-c',
+    'user.name=OPL Test',
+    '-c',
+    'user.email=opl@example.test',
+    'commit',
+    '-m',
+    'Initial developer checkout',
+  ]);
+
+  try {
+    const output = withCliTimeout('120000', () => runCli(['system', 'startup-maintenance'], {
+      HOME: homeRoot,
+      CODEX_HOME: path.join(homeRoot, 'codex-home'),
+      OPL_STATE_DIR: path.join(homeRoot, 'opl-state'),
+      OPL_MODULES_ROOT: path.join(homeRoot, 'managed-modules'),
+      OPL_RUNTIME_ROOT: path.join(homeRoot, 'runtime'),
+      OPL_CODEX_BIN: externalCodex,
+      OPL_CODEX_UPDATE_COMMAND: '',
+      OPL_MIN_CODEX_CLI_VERSION: '0.130.0',
+      OPL_CODEX_CLI_LATEST_VERSION: '0.134.0',
+      OPL_APP_PROCESS_INSTANCE_ID: 'external-carrier-app-instance',
+      OPL_MODULE_PATH_MEDAUTOSCIENCE: developerCheckout,
+      OPL_MODULE_PATH_MEDAUTOGRANT: developerCheckout,
+      OPL_MODULE_PATH_REDCUBE: developerCheckout,
+      OPL_MODULE_PATH_OPLMETAAGENT: developerCheckout,
+      OPL_MODULE_PATH_OPLBOOKFORGE: developerCheckout,
+      OPL_MODULE_PATH_SCHOLARSKILLS: developerCheckout,
+      PATH: `${externalBin}:/usr/bin:/bin`,
+      ...{ OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1' },
+    })) as {
+      system_action: {
+        details: {
+          engine_targets: Array<{
+            target_id: string;
+            status: string;
+            reason: string;
+            action: string | null;
+            result: Record<string, unknown> | null;
+          }>;
+          refreshed_system_environment: {
+            core_engines: {
+              codex: {
+                binary_path: string | null;
+                runtime_substrate_updater: {
+                  current_binary_installed: boolean;
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+
+    const engineTarget = output.system_action.details.engine_targets[0];
+    assert.equal(engineTarget.target_id, 'codex');
+    assert.equal(engineTarget.status, 'skipped');
+    assert.equal(engineTarget.reason, 'selected_external_codex_carrier_detect_only');
+    assert.equal(engineTarget.action, null);
+    assert.equal(engineTarget.result, null);
+    assert.equal(
+      output.system_action.details.refreshed_system_environment.core_engines.codex.binary_path,
+      externalCodex,
+    );
+    assert.equal(
+      output.system_action.details.refreshed_system_environment.core_engines.codex.runtime_substrate_updater
+        .current_binary_installed,
+      false,
+    );
+    assert.equal(fs.existsSync(npmLog), false);
+    assert.equal(fs.existsSync(runtimeCodex), false);
+    assert.equal(fs.existsSync(path.join(homeRoot, 'runtime', 'pending-codex-generation.json')), false);
+  } finally {
+    fs.rmSync(homeRoot, { recursive: true, force: true });
+  }
+});
+
 test('system startup-maintenance installs missing App-owned runtime Codex on clean machines', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-startup-maintenance-missing-runtime-codex-'));
   const runtimeBin = path.join(homeRoot, 'runtime', 'current', 'bin');
