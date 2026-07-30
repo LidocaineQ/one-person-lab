@@ -770,11 +770,8 @@ export type AgentPackageCoreReadback = {
     optional_skill_refs: string[];
     capability_dependencies: AgentPackageCapabilityDependency[];
     resolved_dependencies: AgentPackageResolvedDependency[];
-    dependency_readiness: AgentPackageDependencyReadiness;
-  };
-  trust: {
-    trust_tier: string | null;
-  };
+      dependency_readiness: AgentPackageDependencyReadiness;
+    };
   lifecycle: {
     status: AgentPackageLifecycleUxReadback['status'];
     conditions: AgentPackageLifecycleCondition[];

@@ -364,9 +364,6 @@ function ownerRouteReadbackItem(input: {
         resolved_dependencies: input.lock?.resolved_dependencies ?? [],
         dependency_readiness: readiness,
       },
-      trust: {
-        trust_tier: descriptor.trust_tier,
-      },
       lifecycle: {
         status: lifecycleUx.status,
         conditions: lifecycleUx.conditions,
