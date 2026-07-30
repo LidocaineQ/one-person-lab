@@ -119,7 +119,6 @@ async function buildManagedUpdateControlCenterDryRun(
   const projection = await buildManagedUpdateKernelProjection(contracts, {
     operation,
     componentId,
-    persistReleaseCatalog: false,
   });
   return {
     ...buildSettingsControlCenterDryRun(options.actionId, options.payload),
@@ -303,7 +302,6 @@ async function executeDirectAppAction(
         ? await buildManagedUpdateKernelProjection(contracts, {
             operation: 'plan',
             componentId: 'opl_packages',
-            persistReleaseCatalog: false,
           })
         : await runManagedUpdateApply(contracts, 'opl_packages'),
     };

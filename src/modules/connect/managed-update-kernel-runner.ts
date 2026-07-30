@@ -786,10 +786,7 @@ export async function runManagedUpdateKernelOperation(
       })
       .filter((receipt): receipt is ManagedUpdateComponentReceiptInput => Boolean(receipt));
     const receiptRecord = recordManagedUpdateComponentReceipts(receipts);
-    const refreshedProjection = await buildManagedUpdateKernelProjection(contracts, {
-      ...input,
-      refreshReleaseCatalog: false,
-    });
+    const refreshedProjection = await buildManagedUpdateKernelProjection(contracts, input);
     const selectedIds = new Set(componentIds);
     const selectedComponents = refreshedProjection.managed_update.components.filter((component) =>
       selectedIds.has(component.component_id)

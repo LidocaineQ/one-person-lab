@@ -163,8 +163,6 @@ export type ManagedUpdateKernelInput = {
   operation: ManagedUpdateOperation;
   componentId?: string;
   receiptId?: string;
-  persistReleaseCatalog?: boolean;
-  refreshReleaseCatalog?: boolean;
 };
 
 export type ManagedUpdateOwnerExecutionStatus =
