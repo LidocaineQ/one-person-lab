@@ -4386,9 +4386,6 @@ function readInstalledOwnerProfileDefault() {
       source_path: null,
       source_root: null,
       package_version: null,
-      manifest_sha256: null,
-      content_digest: null,
-      plugin_payload_manifest_sha256: null,
       status: 'unavailable' as const,
       reason: 'opl_flow_package_not_installed' as const,
       content: null,
@@ -4402,9 +4399,6 @@ function readInstalledOwnerProfileDefault() {
       source_path: null,
       source_root: null,
       package_version: null,
-      manifest_sha256: null,
-      content_digest: null,
-      plugin_payload_manifest_sha256: null,
       status: 'invalid' as const,
       reason: 'installed_owner_profile_descriptor_ambiguous' as const,
       content: null,
@@ -4421,9 +4415,6 @@ function readInstalledOwnerProfileDefault() {
     source_path: path.resolve(sourceRoot, declaredSourcePath),
     source_root: sourceRoot,
     package_version: descriptor.manifest.version,
-    manifest_sha256: null,
-    content_digest: null,
-    plugin_payload_manifest_sha256: null,
   };
   try {
     const sourceRootRealPath = fs.realpathSync(sourceRoot);

@@ -228,7 +228,6 @@ test('Codex user instructions use SHA preconditions, backup, and atomic readback
     assert.equal(oplFlowDefault.source, 'installed_owner_descriptor');
     assert.equal(oplFlowDefault.package_version, '1.2.3');
     assert.equal(oplFlowDefault.content, 'Descriptor-owned default instructions.\n');
-    assert.equal(oplFlowDefault.plugin_payload_manifest_sha256, null);
 
     const restored = restoreCodexUserInstructionsFromOplFlowDefault({
       expectedSha256: second.next_sha256,
