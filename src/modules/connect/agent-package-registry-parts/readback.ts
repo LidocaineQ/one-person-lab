@@ -350,7 +350,6 @@ function ownerRouteReadbackItem(input: {
               : 'managed_policy_required_dependency_unavailable'
             : null,
     allowed_when_blocked: ['status', 'doctor', 'repair'],
-    descriptor,
     materializer,
     lifecycle_ux: lifecycleUx,
     package_core: {

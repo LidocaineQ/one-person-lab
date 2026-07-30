@@ -952,7 +952,6 @@ export type AgentPackageOwnerRouteReadbackItem = {
   launch_allowed: boolean;
   launch_blocked_reason: string | null;
   allowed_when_blocked: Array<'status' | 'doctor' | 'repair'>;
-  descriptor: AgentPackageDescriptorReadback;
   materializer: {
     status: AgentPackagePhysicalSurface['status'];
     plugin_id: string | null;
