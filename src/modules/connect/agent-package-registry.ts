@@ -5010,6 +5010,7 @@ function buildOplAgentPackageStatus(
 export function createOplAgentPackageStatusReader() {
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
   let descriptorSnapshot: ReturnType<typeof buildAgentPackageStatusSnapshot> | null = null;
+  let globalSnapshot: ReturnType<typeof buildAgentPackageStatusSnapshot> | null = null;
   let legacySnapshot: ReturnType<typeof buildAgentPackageStatusSnapshot> | null = null;
   return (input: OplAgentPackageStatusInput = {}) => {
     const packageId = canonicalAgentPackageId(input.packageId);
@@ -5022,8 +5023,20 @@ export function createOplAgentPackageStatusReader() {
           installedCodexPluginDescriptors,
           'missing',
         )
-      : legacySnapshot ??= (() => {
+      : packageId
+      ? legacySnapshot ??= (() => {
           const projection = readStatusLockIndex(installedCodexPluginDescriptors, false);
+          return buildAgentPackageStatusSnapshot(
+            projection.lockIndex,
+            installedCodexPluginDescriptors,
+            projection.legacyLockState,
+          );
+        })()
+      : globalSnapshot ??= (() => {
+          const projection = readStatusLockIndex(
+            installedCodexPluginDescriptors,
+            installedCodexPluginDescriptors.size > 0,
+          );
           return buildAgentPackageStatusSnapshot(
             projection.lockIndex,
             installedCodexPluginDescriptors,
