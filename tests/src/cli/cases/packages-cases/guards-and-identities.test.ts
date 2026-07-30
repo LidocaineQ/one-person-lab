@@ -818,10 +818,12 @@ test('packages preserves installed lock and returns an operation receipt when up
         owner_route_readback: {
           packages: Array<{
             descriptor: Record<string, unknown>;
+            materializer: Record<string, unknown>;
             package_core: {
               descriptor: Record<string, unknown>;
               lifecycle: Record<string, unknown>;
             };
+            carrier_adapters: Array<Record<string, unknown>>;
           }>;
         };
       };
@@ -845,6 +847,22 @@ test('packages preserves installed lock and returns an operation receipt when up
       assert.equal(Object.hasOwn(ownerPackage.descriptor, field), false);
       assert.equal(Object.hasOwn(ownerPackage.package_core.descriptor, field), false);
     }
+    const physicalDetailFields = [
+      'plugin_source_path',
+      'plugin_manifest_path',
+      'codex_plugin_cache_path',
+      'plugin_payload_manifest_url',
+      'plugin_payload_manifest_sha256',
+      'plugin_payload_cache_path',
+      'materialized_required_skill_paths',
+    ];
+    for (const field of physicalDetailFields) {
+      assert.equal(Object.hasOwn(ownerPackage.materializer, field), false);
+      for (const adapter of ownerPackage.carrier_adapters) {
+        assert.equal(Object.hasOwn(adapter, field), false);
+      }
+    }
+    assert.equal(Object.hasOwn(ownerPackage.materializer, 'managed_policy_currentness'), true);
     assert.equal(
       Object.hasOwn(ownerPackage.package_core.lifecycle, 'latest_receipt_ref'),
       false,

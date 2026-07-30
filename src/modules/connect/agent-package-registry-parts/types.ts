@@ -701,14 +701,7 @@ export type AgentPackageCarrierAdapterReadback = {
   owns_domain_truth: false;
   status: AgentPackagePhysicalSurface['status'];
   plugin_id: string | null;
-  plugin_source_path: string | null;
-  plugin_manifest_path: string | null;
-  codex_plugin_cache_path: string | null;
-  plugin_payload_manifest_url: string | null;
-  plugin_payload_manifest_sha256: string | null;
-  plugin_payload_cache_path: string | null;
   materialized_required_skill_ids: string[];
-  materialized_required_skill_paths: string[];
   writes_performed: boolean;
   reload_required: boolean;
   failure_reason: string | null;
@@ -971,14 +964,7 @@ export type AgentPackageOwnerRouteReadbackItem = {
   materializer: {
     status: AgentPackagePhysicalSurface['status'];
     plugin_id: string | null;
-    plugin_source_path: string | null;
-    plugin_manifest_path: string | null;
-    codex_plugin_cache_path: string | null;
-    plugin_payload_manifest_url: string | null;
-    plugin_payload_manifest_sha256: string | null;
-    plugin_payload_cache_path: string | null;
     materialized_required_skill_ids: string[];
-    materialized_required_skill_paths: string[];
     writes_performed: boolean;
     reload_required: boolean;
     failure_reason: string | null;
