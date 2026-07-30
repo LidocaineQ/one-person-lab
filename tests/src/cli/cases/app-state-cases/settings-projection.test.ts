@@ -71,7 +71,7 @@ test('full Settings projection follows App page ownership without treating activ
         packages: {
           mas: {
             status: 'available',
-            installed_version: '0.2.10',
+            presence: { installed: true },
             capability_exposure: { status: 'visible' },
             operational_ready: true,
             launch_allowed: true,
@@ -358,28 +358,37 @@ test('Settings treats runtime source carrier health as provenance and fresh pack
         packages: {
           mas: {
             status: 'available',
-            installed_version: '0.2.10',
+            presence: { installed: true },
             capability_exposure: { status: 'visible' },
             operational_ready: true,
             launch_allowed: true,
           },
           oma: {
             status: 'using_last_known_good',
-            installed_version: '0.3.7',
+            presence: { installed: true },
             capability_exposure: { status: 'hidden' },
             operational_ready: false,
             launch_allowed: false,
           },
           disabled: {
             status: 'attention_needed',
-            installed_version: '1.0.0',
+            presence: { installed: true },
             capability_exposure: { status: 'disabled' },
             operational_ready: false,
             launch_allowed: false,
           },
           uninstalled: {
             status: 'not_installed',
-            installed_version: null,
+            presence: { installed: false },
+            capability_exposure: { status: 'not_installed' },
+            operational_ready: false,
+            launch_allowed: false,
+          },
+          'legacy-only': {
+            status: 'attention_needed',
+            installed_version: '9.9.9',
+            package_lock_ref: 'opl://legacy/package-lock',
+            lock_ref: 'opl://legacy/lock',
             capability_exposure: { status: 'not_installed' },
             operational_ready: false,
             launch_allowed: false,
@@ -420,14 +429,14 @@ test('Settings treats runtime source carrier health as provenance and fresh pack
         packages: {
           mas: {
             status: 'attention_needed',
-            installed_version: '0.2.10',
+            presence: { installed: true },
             capability_exposure: { status: 'visible' },
             operational_ready: false,
             launch_allowed: false,
           },
           disabled: {
             status: 'attention_needed',
-            installed_version: '1.0.0',
+            presence: { installed: true },
             capability_exposure: { status: 'disabled' },
             operational_ready: false,
             launch_allowed: false,

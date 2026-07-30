@@ -31,12 +31,10 @@ export function agentPackageFunctionalReadiness(agentPackages: JsonRecord) {
   const packages = asRecord(statusIndex.packages);
   const entries = Object.entries(packages).map(([packageId, value]) => {
     const status = asRecord(value);
+    const presence = asRecord(status.presence);
     const exposure = asRecord(status.capability_exposure);
     const exposureStatus = asString(exposure.status) ?? 'unknown';
-    const installed = asString(status.installed_version) !== null
-      || asString(status.package_lock_ref) !== null
-      || asString(status.lock_ref) !== null
-      || ['visible', 'hidden', 'disabled'].includes(exposureStatus);
+    const installed = presence.installed === true;
     const enabled = installed && exposureStatus !== 'disabled';
     const statusCode = asString(status.status) ?? 'unknown';
     const runnable = enabled && (
