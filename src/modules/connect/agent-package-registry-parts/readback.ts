@@ -241,9 +241,6 @@ function ownerRouteReadbackItem(input: {
   lock?: AgentPackageLock | null;
   receipt?: AgentPackageLifecycleReceipt | null;
   manifestUrl?: string | null;
-  manifestSha256?: string | null;
-  registryUrl?: string | null;
-  rollbackRef?: string | null;
   sourceKind?: AgentPackageLifecycleReceipt['source_kind'] | AgentPackageSourceKind | null;
   trustTier?: string | null;
   allLocks?: AgentPackageLock[];
@@ -254,11 +251,8 @@ function ownerRouteReadbackItem(input: {
   const surface = input.lock?.physical_surface ?? input.receipt?.physical_surface;
   const descriptor = {
     manifest_url: input.lock?.manifest_url ?? input.receipt?.manifest_url ?? input.manifestUrl ?? null,
-    manifest_sha256: input.lock?.manifest_sha256 ?? input.receipt?.manifest_sha256 ?? input.manifestSha256 ?? null,
-    registry_url: input.receipt?.registry_url ?? input.registryUrl ?? null,
     package_version: input.lock?.package_version ?? null,
     owner_language_version: input.lock?.owner_language_version ?? null,
-    rollback_ref: input.lock?.rollback_ref ?? input.receipt?.rollback_ref ?? input.rollbackRef ?? null,
     source_kind: input.lock?.source_kind ?? input.receipt?.source_kind ?? input.sourceKind ?? null,
     trust_tier: input.lock?.trust_tier ?? input.receipt?.trust_tier ?? input.trustTier ?? null,
   };
@@ -458,9 +452,6 @@ export function ownerRouteReadback(input: {
     lock?: AgentPackageLock | null;
     receipt?: AgentPackageLifecycleReceipt | null;
     manifestUrl?: string | null;
-    manifestSha256?: string | null;
-    registryUrl?: string | null;
-    rollbackRef?: string | null;
     sourceKind?: AgentPackageLifecycleReceipt['source_kind'] | AgentPackageSourceKind | null;
     trustTier?: string | null;
   }>;

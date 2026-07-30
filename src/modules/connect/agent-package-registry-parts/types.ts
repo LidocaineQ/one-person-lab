@@ -686,11 +686,8 @@ export type AgentPackagePhysicalSurface = {
 
 export type AgentPackageDescriptorReadback = {
   manifest_url: string | null;
-  manifest_sha256: string | null;
-  registry_url: string | null;
   package_version: string | null;
   owner_language_version: AgentPackageOwnerLanguageVersion | null;
-  rollback_ref: string | null;
   source_kind: AgentPackageLifecycleReceipt['source_kind'] | AgentPackageSourceKind | null;
   trust_tier: string | null;
 };

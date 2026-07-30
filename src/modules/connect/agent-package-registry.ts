@@ -1541,9 +1541,6 @@ export async function runOplAgentPackageManifestValidate(input: AgentPackageMani
         packages: [{
           packageId: manifest.package_id,
           manifestUrl: selection.manifestUrl,
-          manifestSha256: fetched.source_sha256,
-          registryUrl: selection.registryUrl,
-          rollbackRef: manifest.rollback_ref,
           sourceKind,
           trustTier: effectiveTrustTier,
         }],
