@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import path from 'node:path';
 
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
@@ -13,9 +12,14 @@ import {
   type BundledFullRuntimeCatalogEntry,
   type BundledFullRuntimePackageCatalog,
 } from '../agent-package-registry-parts/bundled-full-runtime-catalog.ts';
-import { readLegacyAgentPackageLockIndex } from '../agent-package-registry-parts/legacy-lock-projection.ts';
-import { managedPolicyCurrentness } from '../agent-package-registry-parts/managed-policy-surface.ts';
-import type { AgentPackageLock, AgentPackageLockIndex } from '../agent-package-registry-parts/types.ts';
+import {
+  readInstalledCarrierEntries,
+  type InstalledCarrierEntry,
+} from '../agent-package-registry-parts/installed-codex-plugin-directory.ts';
+import { managedPolicyCurrentnessFromDescriptor } from '../agent-package-registry-parts/managed-policy-surface.ts';
+import { normalizePackageManifest } from '../agent-package-registry-parts/manifest-normalizers.ts';
+import { inspectMaterializedPhysicalCodexSurface } from '../agent-package-registry-parts/physical-surface.ts';
+import type { AgentPackageLock, AgentPackageManifest } from '../agent-package-registry-parts/types.ts';
 
 type FullRuntimePackageInstaller = typeof runOplBundledFullRuntimeAgentPackageInstall;
 type FullRuntimePackageUpdater = typeof runOplBundledFullRuntimeAgentPackageUpdate;
@@ -24,7 +28,9 @@ type FullRuntimePackageReconciliationOptions = {
   installPackage?: FullRuntimePackageInstaller;
   updatePackage?: FullRuntimePackageUpdater;
   readCatalog?: () => BundledFullRuntimePackageCatalog;
-  readInstalledLocks?: () => AgentPackageLockIndex;
+  readInstalledCarrierEntries?: () => InstalledCarrierEntry[];
+  inspectMaterializedSurface?: typeof inspectMaterializedPhysicalCodexSurface;
+  inspectManagedPolicy?: typeof managedPolicyCurrentnessFromDescriptor;
   lifecycleAction?: 'install' | 'update';
   operationId?: string;
   requireSourceRoots?: boolean;
@@ -76,176 +82,45 @@ function rootTargetIdentity(
   };
 }
 
-function expectedCodexDefaultExposure(entry: BundledFullRuntimeCatalogEntry) {
-  const manifest = parseJsonText(entry.manifestJson);
-  const codexSurface = isRecord(manifest) && isRecord(manifest.codex_surface)
-    ? manifest.codex_surface
-    : null;
-  const declared = codexSurface?.codex_default_exposure;
-  if (declared !== undefined && typeof declared !== 'boolean') {
-    fail('Bundled Full runtime package declares an invalid Codex exposure policy.', {
-      package_id: entry.packageId,
-      codex_default_exposure: declared,
-      failure_code: 'agent_package_codex_default_exposure_invalid',
-    });
-  }
-  return declared !== false;
-}
-
-function hasSkillManifest(root: string) {
-  if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) return false;
-  const pending = [root];
-  while (pending.length > 0) {
-    const current = pending.pop()!;
-    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      const absolutePath = path.join(current, entry.name);
-      if (entry.isDirectory()) pending.push(absolutePath);
-      else if (entry.isFile() && entry.name === 'SKILL.md') return true;
-    }
-  }
-  return false;
-}
-
-function expectedCatalogContentDigest(entry: BundledFullRuntimeCatalogEntry) {
+function materializedCatalogManifest(entry: BundledFullRuntimeCatalogEntry): AgentPackageManifest {
+  const manifest = normalizePackageManifest(parseJsonText(entry.manifestJson), entry.manifestUrl);
   const payload = parseJsonText(entry.payloadManifestJson);
   const contentLock = isRecord(payload) && isRecord(payload.content_lock)
     ? payload.content_lock
     : null;
-  return normalizedSha256(typeof contentLock?.digest === 'string' ? contentLock.digest : null);
-}
-
-function assertCatalogLock(
-  lock: AgentPackageLock,
-  entry: BundledFullRuntimeCatalogEntry,
-  catalog: BundledFullRuntimePackageCatalog,
-) {
-  const expectedDefaultExposure = expectedCodexDefaultExposure(entry);
-  const expectedContentDigest = expectedCatalogContentDigest(entry);
-  const carrierAuthority = lock.carrier_authority;
-  const mismatches = [
-    lock.source_kind === 'bundled_full_runtime_modules' ? null : 'source_kind',
-    lock.package_version === entry.packageVersion ? null : 'package_version',
-    normalizedSha256(lock.manifest_sha256) === normalizedSha256(entry.manifestSha256)
-      ? null
-      : 'manifest_sha256',
-    expectedContentDigest === null
-      || normalizedSha256(lock.content_digest) === expectedContentDigest
-      ? null
-      : 'content_digest',
-    lock.owner_source_commit === entry.ownerSourceCommit ? null : 'owner_source_commit',
-    carrierAuthority?.catalog_ref === catalog.catalogRef ? null : 'carrier_catalog_ref',
-    normalizedSha256(carrierAuthority?.catalog_sha256) === normalizedSha256(catalog.catalogSha256)
-      ? null
-      : 'carrier_catalog_sha256',
-    carrierAuthority?.catalog_owner_source_commit === entry.ownerSourceCommit
-      ? null
-      : 'carrier_catalog_owner_source_commit',
-    carrierAuthority?.manifest_carrier_source_commit === entry.ownerSourceCommit
-      ? null
-      : 'carrier_manifest_source_commit',
-    carrierAuthority?.payload_source_commit === entry.ownerSourceCommit
-      ? null
-      : 'carrier_payload_source_commit',
-    !expectedDefaultExposure && lock.exposure_state !== 'hidden' ? 'codex_default_exposure' : null,
-  ].filter((value): value is string => value !== null);
-  if (mismatches.length > 0) {
-    fail('Bundled Full runtime package lock does not match the packaged catalog authority.', {
-      package_id: entry.packageId,
-      mismatches,
-      lock_source_kind: lock.source_kind,
-      lock_package_version: lock.package_version,
-      expected_package_version: entry.packageVersion,
-      lock_manifest_sha256: lock.manifest_sha256,
-      expected_manifest_sha256: entry.manifestSha256,
-      lock_content_digest: lock.content_digest,
-      expected_content_digest: expectedContentDigest,
-      lock_owner_source_commit: lock.owner_source_commit ?? null,
-      expected_owner_source_commit: entry.ownerSourceCommit,
-      lock_carrier_authority: carrierAuthority ?? null,
-      expected_catalog_ref: catalog.catalogRef,
-      expected_catalog_sha256: catalog.catalogSha256,
-      lock_exposure_state: lock.exposure_state ?? null,
-      expected_codex_default_exposure: expectedDefaultExposure,
-      failure_code: 'full_runtime_package_lock_stale',
-    });
-  }
-}
-
-function assertMaterializedLock(lock: AgentPackageLock, entry: BundledFullRuntimeCatalogEntry) {
-  const surface = lock.physical_surface;
-  const scopedOnly = expectedCodexDefaultExposure(entry) === false;
-  const cacheSkillsRoot = surface?.codex_plugin_cache_path
-    ? path.join(surface.codex_plugin_cache_path, 'skills')
-    : null;
-  const requiredCachePaths = [
-    surface?.plugin_manifest_path,
-    surface?.codex_plugin_cache_path,
-    ...(surface?.materialized_required_skill_paths ?? []),
-  ].filter((candidate): candidate is string => Boolean(candidate));
-  const missingCachePaths = requiredCachePaths.filter((candidate) => !fs.existsSync(candidate));
-  const marketplaceSkillsRoot = surface?.marketplace_plugin_path
-    ? path.join(surface.marketplace_plugin_path, 'skills')
-    : null;
-  const hiddenSurfaceInvalid = scopedOnly && (
-    surface?.marketplace_id !== null
-    || surface?.marketplace_root !== null
-    || surface?.marketplace_path !== null
-    || surface?.marketplace_plugin_path !== null
-  );
-  const visibleSurfaceInvalid = !scopedOnly && (
-    !surface?.marketplace_id
-    || !surface.marketplace_root
-    || !surface.marketplace_path
-    || !surface.marketplace_plugin_path
-    || !fs.existsSync(surface.codex_config_path)
-    || !fs.existsSync(surface.marketplace_path)
-    || !hasSkillManifest(marketplaceSkillsRoot!)
-  );
-  const profileStatus = surface?.profile_migration.status ?? 'not_requested';
-  const profileIncomplete = Boolean(surface?.profile_config)
-    && !['installed', 'updated', 'current', 'semantic_merge_applied'].includes(profileStatus);
-  const policyCurrentness = managedPolicyCurrentness(lock);
-  const managedPolicyIncomplete = Boolean(surface?.managed_policy_config)
-    && policyCurrentness.status !== 'current';
-
+  const digest = typeof contentLock?.digest === 'string' ? contentLock.digest : null;
+  const canonicalization = contentLock?.canonicalization;
+  const files = isRecord(payload) && Array.isArray(payload.files) ? payload.files : null;
+  const contentLockPaths = files?.flatMap((value) =>
+    isRecord(value) && typeof value.path === 'string' && value.path.trim() ? [value.path.trim()] : []);
   if (
-    surface?.status !== 'materialized'
-    || !surface.plugin_id
-    || !surface.codex_plugin_cache_path
-    || !cacheSkillsRoot
-    || !hasSkillManifest(cacheSkillsRoot)
-    || missingCachePaths.length > 0
-    || hiddenSurfaceInvalid
-    || visibleSurfaceInvalid
-    || profileIncomplete
-    || managedPolicyIncomplete
+    !digest
+    || !/^sha256:[0-9a-f]{64}$/.test(digest)
+    || (canonicalization !== 'ordered_path_nul_file_bytes'
+      && canonicalization !== 'ordered_path_length_file_length_bytes')
+    || !files
+    || contentLockPaths?.length !== files.length
   ) {
-    fail('Bundled Full runtime package did not materialize its required Codex projection.', {
-      package_id: lock.package_id,
-      physical_surface_status: surface?.status ?? null,
-      plugin_id: surface?.plugin_id ?? null,
-      scoped_only: scopedOnly,
-      marketplace_id: surface?.marketplace_id ?? null,
-      marketplace_root: surface?.marketplace_root ?? null,
-      marketplace_path: surface?.marketplace_path ?? null,
-      marketplace_plugin_path: surface?.marketplace_plugin_path ?? null,
-      missing_cache_paths: missingCachePaths,
-      cache_skill_manifest_present: Boolean(cacheSkillsRoot && hasSkillManifest(cacheSkillsRoot)),
-      marketplace_skill_manifest_present: Boolean(
-        marketplaceSkillsRoot && hasSkillManifest(marketplaceSkillsRoot)
-      ),
-      profile_migration_status: profileStatus,
-      managed_policy_currentness: policyCurrentness,
-      failure_code: 'full_runtime_package_projection_incomplete',
+    fail('Bundled Full runtime catalog payload has no canonical materialized-byte identity.', {
+      package_id: entry.packageId,
+      payload_manifest_url: entry.payloadManifestUrl,
+      failure_code: 'agent_package_bundled_payload_content_lock_missing',
     });
   }
+  return {
+    ...manifest,
+    content_digest: digest,
+    content_lock_canonicalization: canonicalization as NonNullable<
+      AgentPackageManifest['content_lock_canonicalization']
+    >,
+    content_lock_paths: contentLockPaths,
+  };
 }
 
-function assertAppliedPackageLocks(
+function assertMutationClosure(
   locks: AgentPackageLock[],
   rootPackageId: string,
   catalog: BundledFullRuntimePackageCatalog,
-  env: NodeJS.ProcessEnv,
 ) {
   for (const lock of locks) {
     const entry = catalog.entries.get(lock.package_id);
@@ -256,19 +131,59 @@ function assertAppliedPackageLocks(
         failure_code: 'full_runtime_package_batch_result_invalid',
       });
     }
-    assertCatalogLock(lock, entry, catalog);
-    assertMaterializedLock(lock, entry);
   }
+}
+
+function pluginBareName(pluginId: string) {
+  return pluginId.split('@', 1)[0] ?? pluginId;
+}
+
+type MaterializedProjection = ReturnType<typeof inspectMaterializedPhysicalCodexSurface>;
+type CurrentProjection = {
+  manifest: AgentPackageManifest;
+  surface: MaterializedProjection | null;
+  nativeCarrier: InstalledCarrierEntry | null;
+  managedPolicy: ReturnType<typeof managedPolicyCurrentnessFromDescriptor> | null;
+  error: unknown | null;
+  carrierReadFailed: boolean;
+};
+
+function assertNativeCarrierProjection(
+  manifest: AgentPackageManifest,
+  surface: MaterializedProjection,
+  entries: InstalledCarrierEntry[],
+) {
+  const pluginId = manifest.plugin_id!;
+  const matchingEntries = entries.filter((entry) => pluginBareName(entry.pluginId) === pluginId);
+  if (manifest.codex_default_exposure === false) {
+    if (matchingEntries.length > 0) {
+      fail('Hidden bundled Full runtime Package is unexpectedly exposed by the native carrier.', {
+        package_id: manifest.package_id,
+        plugin_id: pluginId,
+        native_plugin_ids: matchingEntries.map((entry) => entry.pluginId),
+        failure_code: 'full_runtime_package_projection_incomplete',
+      });
+    }
+    return null;
+  }
+  const expectedPluginId = `${pluginId}@${surface.marketplace_id}`;
+  const expectedSourcePath = path.resolve(surface.marketplace_plugin_path!);
   if (
-    env.OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED === '1'
-    && env.OPL_TEST_MANAGED_BUNDLED_UPDATE_POST_VERIFY_FAIL_PACKAGE_ID === rootPackageId
+    matchingEntries.length !== 1
+    || matchingEntries[0].pluginId !== expectedPluginId
+    || !matchingEntries[0].enabled
+    || path.resolve(matchingEntries[0].sourcePath) !== expectedSourcePath
   ) {
-    fail('Injected failure after managed bundled package final verification.', {
-      package_id: rootPackageId,
-      mutation_started: true,
-      failure_code: 'test_managed_bundled_update_post_verify_interrupted',
+    fail('Bundled Full runtime Package native carrier projection is missing, disabled, ambiguous, or stale.', {
+      package_id: manifest.package_id,
+      plugin_id: pluginId,
+      expected_plugin_id: expectedPluginId,
+      expected_source_path: expectedSourcePath,
+      native_entries: matchingEntries,
+      failure_code: 'full_runtime_package_projection_incomplete',
     });
   }
+  return matchingEntries[0];
 }
 
 function catalogClosure(
@@ -337,19 +252,90 @@ async function reconcileBundledFullRuntimePackages(
   const packageIds = [...catalog.entries.keys()];
   const roots = rootPackageIds(catalog);
   const resolvedRoots = resolvePackageRoots(catalog, env);
-
-  const installedIndex = (options.readInstalledLocks ?? readLegacyAgentPackageLockIndex)();
-  const locks = new Map(installedIndex.packages.map((lock) => [lock.package_id, lock]));
-  const isCurrent = (packageId: string) => {
-    const lock = locks.get(packageId);
-    const entry = catalog.entries.get(packageId)!;
-    if (!lock) return false;
+  const manifests = new Map([...catalog.entries].map(([packageId, entry]) => [
+    packageId,
+    materializedCatalogManifest(entry),
+  ]));
+  const readCarrierEntries = options.readInstalledCarrierEntries
+    ?? (() => readInstalledCarrierEntries({
+      binary: env.OPL_CODEX_PLUGIN_BIN,
+      env,
+      failClosedOnCarrierError: true,
+    }));
+  const inspectMaterializedSurface = options.inspectMaterializedSurface
+    ?? inspectMaterializedPhysicalCodexSurface;
+  const inspectManagedPolicy = options.inspectManagedPolicy
+    ?? managedPolicyCurrentnessFromDescriptor;
+  const readCurrentProjection = () => {
+    let carrierEntries: InstalledCarrierEntry[];
     try {
-      assertCatalogLock(lock, entry, catalog);
-      assertMaterializedLock(lock, entry);
-      return true;
-    } catch {
-      return false;
+      carrierEntries = readCarrierEntries();
+    } catch (error) {
+      return new Map<string, CurrentProjection>(packageIds.map((packageId) => [
+        packageId,
+        {
+          manifest: manifests.get(packageId)!,
+          surface: null,
+          nativeCarrier: null,
+          managedPolicy: null,
+          error,
+          carrierReadFailed: true,
+        },
+      ]));
+    }
+    return new Map<string, CurrentProjection>(packageIds.map((packageId) => {
+      const manifest = manifests.get(packageId)!;
+      try {
+        const surface = inspectMaterializedSurface(manifest);
+        const nativeCarrier = assertNativeCarrierProjection(manifest, surface, carrierEntries);
+        const managedPolicy = inspectManagedPolicy({
+          manifest,
+          sourceRoot: surface.codex_plugin_cache_path,
+        });
+        if (managedPolicy.status !== 'current' && managedPolicy.status !== 'not_requested') {
+          fail('Bundled Full runtime Package managed policy projection is not current.', {
+            package_id: packageId,
+            managed_policy_currentness: managedPolicy,
+            failure_code: 'full_runtime_package_projection_incomplete',
+          });
+        }
+        return [packageId, {
+          manifest,
+          surface,
+          nativeCarrier,
+          managedPolicy,
+          error: null,
+          carrierReadFailed: false,
+        }] as const;
+      } catch (error) {
+        return [packageId, {
+          manifest,
+          surface: null,
+          nativeCarrier: null,
+          managedPolicy: null,
+          error,
+          carrierReadFailed: false,
+        }] as const;
+      }
+    }));
+  };
+  let currentProjection = readCurrentProjection();
+  const isCurrent = (packageId: string) => currentProjection.get(packageId)?.error === null;
+  const verifyCurrentClosure = (rootPackageId: string, closure: string[]) => {
+    currentProjection = readCurrentProjection();
+    for (const packageId of closure) {
+      const projection = currentProjection.get(packageId)!;
+      if (projection.error) throw projection.error;
+    }
+    if (
+      env.OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED === '1'
+      && env.OPL_TEST_MANAGED_BUNDLED_UPDATE_POST_VERIFY_FAIL_PACKAGE_ID === rootPackageId
+    ) {
+      fail('Injected failure after managed bundled package final verification.', {
+        package_id: rootPackageId,
+        mutation_started: true,
+        failure_code: 'test_managed_bundled_update_post_verify_interrupted',
+      });
     }
   };
   const touchedPackageIds = new Set<string>();
@@ -370,7 +356,7 @@ async function reconcileBundledFullRuntimePackages(
         action: null,
         result: null,
         ...rootTargetIdentity(catalog, packageId),
-        dependency_transaction_id: locks.get(packageId)?.dependency_transaction_id ?? null,
+        dependency_transaction_id: null,
         dependency_package_ids: closure,
       });
       continue;
@@ -392,6 +378,10 @@ async function reconcileBundledFullRuntimePackages(
           },
         );
       }
+      const carrierReadFailure = closure
+        .map((closurePackageId) => currentProjection.get(closurePackageId)!)
+        .find((projection) => projection.carrierReadFailed);
+      if (carrierReadFailure?.error) throw carrierReadFailure.error;
       let updateFinalVerificationCompleted = false;
       const result = lifecycleAction === 'update'
         ? await updatePackage({
@@ -400,7 +390,8 @@ async function reconcileBundledFullRuntimePackages(
             packageRoots: resolvedRoots.roots,
             operationId,
             verifyAppliedPackageLocks: async (locks) => {
-              assertAppliedPackageLocks(locks, packageId, catalog, env);
+              assertMutationClosure(locks, packageId, catalog);
+              verifyCurrentClosure(packageId, closure);
               updateFinalVerificationCompleted = true;
             },
           })
@@ -420,17 +411,10 @@ async function reconcileBundledFullRuntimePackages(
         });
       }
       if (lifecycleAction === 'install') {
-        assertAppliedPackageLocks(
-          lifecycleResult.dependency_package_locks,
-          packageId,
-          catalog,
-          {},
-        );
+        assertMutationClosure(lifecycleResult.dependency_package_locks, packageId, catalog);
+        verifyCurrentClosure(packageId, closure);
       }
-      for (const lock of lifecycleResult.dependency_package_locks) {
-        locks.set(lock.package_id, lock);
-        touchedPackageIds.add(lock.package_id);
-      }
+      for (const closurePackageId of closure) touchedPackageIds.add(closurePackageId);
       rootInstalls.push({
         target_id: packageId,
         package_id: packageId,
@@ -488,46 +472,31 @@ async function reconcileBundledFullRuntimePackages(
     }
   }
 
+  currentProjection = readCurrentProjection();
   const items = packageIds.map((packageId) => {
-    const lock = locks.get(packageId);
-    const entry = catalog.entries.get(packageId)!;
-    if (!lock) {
-      failures.push(failureReadback(new FrameworkContractError(
-        'contract_shape_invalid',
-        'Bundled Full runtime package lock closure is incomplete.',
-        {
-          package_id: packageId,
-          failure_code: 'full_runtime_package_lock_missing',
-        },
-      ), packageId));
-      return { package_id: packageId, status: 'lock_missing' as const };
-    }
-    try {
-      assertCatalogLock(lock, entry, catalog);
-      assertMaterializedLock(lock, entry);
-    } catch (error) {
-      const failure = failureReadback(error, packageId);
+    const projection = currentProjection.get(packageId)!;
+    if (projection.error || !projection.surface) {
+      const failure = failureReadback(projection.error, packageId);
       failures.push(failure);
       return {
         package_id: packageId,
-        status: failure.failure_code === 'full_runtime_package_projection_incomplete'
-          ? 'projection_incomplete' as const
-          : 'lock_stale' as const,
-        package_lock_ref: lock.lock_ref,
+        status: 'projection_incomplete' as const,
       };
     }
+    const { surface, nativeCarrier, managedPolicy } = projection;
     return {
       package_id: packageId,
       status: touchedPackageIds.has(packageId) ? 'installed' as const : 'already_installed' as const,
-      package_lock_ref: lock.lock_ref,
-      exposure_state: lock.exposure_state ?? null,
-      physical_surface_status: lock.physical_surface!.status,
-      plugin_id: lock.physical_surface!.plugin_id,
-      marketplace_id: lock.physical_surface!.marketplace_id,
-      marketplace_plugin_path: lock.physical_surface!.marketplace_plugin_path,
-      codex_plugin_cache_path: lock.physical_surface!.codex_plugin_cache_path,
-      materialized_required_skill_ids: lock.physical_surface!.materialized_required_skill_ids,
-      materialized_required_skill_paths: lock.physical_surface!.materialized_required_skill_paths,
+      exposure_state: surface.codex_default_exposure ? 'visible' as const : 'hidden' as const,
+      physical_surface_status: surface.status,
+      plugin_id: surface.plugin_id,
+      marketplace_id: surface.marketplace_id,
+      marketplace_plugin_path: surface.marketplace_plugin_path,
+      codex_plugin_cache_path: surface.codex_plugin_cache_path,
+      materialized_required_skill_ids: surface.materialized_required_skill_ids,
+      materialized_required_skill_paths: surface.materialized_required_skill_paths,
+      native_carrier: nativeCarrier,
+      managed_policy_currentness: managedPolicy,
     };
   });
   const completeItems = items.filter((item) =>

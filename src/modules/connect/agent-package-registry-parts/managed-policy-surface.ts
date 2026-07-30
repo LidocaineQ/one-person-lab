@@ -1143,22 +1143,21 @@ function dependencySyncDriftReasons(
   return reasons;
 }
 
-export function managedPolicyCurrentness(
-  lock?: AgentPackageLock | null,
-): AgentPackageManagedPolicyCurrentness {
-  const surface = lock?.physical_surface;
-  const config = surface?.managed_policy_config;
-  if (!lock || !surface || !config) {
+export function managedPolicyCurrentnessFromDescriptor(input: {
+  manifest: AgentPackageManifest;
+  sourceRoot: string;
+  enabledMigrationIds?: string[];
+  expectedPolicySha256?: string | null;
+}): AgentPackageManagedPolicyCurrentness {
+  const { manifest, sourceRoot } = input;
+  const config = manifest.managed_policy_surface;
+  if (!config) {
     return noManagedPolicyCurrentness('Package does not request a managed policy surface.');
   }
 
-  const migration = surface.workflow_policy_migration;
-  const sourceRoot = surface.status === 'validated_no_write'
-    ? surface.plugin_source_path
-    : surface.codex_plugin_cache_path ?? surface.plugin_source_path;
-  const policyPath = sourceRoot ? path.resolve(sourceRoot, config.source_path) : migration.policy_path;
-  const schemaPath = sourceRoot ? path.resolve(sourceRoot, config.schema_path) : migration.schema_path;
-  const expectedPolicySha256 = migration.policy_sha256;
+  const policyPath = path.resolve(sourceRoot, config.source_path);
+  const schemaPath = path.resolve(sourceRoot, config.schema_path);
+  const expectedPolicySha256 = input.expectedPolicySha256 ?? null;
   const actualPolicySha256 = policyPath && fs.existsSync(policyPath) && fs.statSync(policyPath).isFile()
     ? sha256File(policyPath)
     : null;
@@ -1171,29 +1170,29 @@ export function managedPolicyCurrentness(
     expected_policy_sha256: expectedPolicySha256,
     actual_policy_sha256: actualPolicySha256,
     inventory_digest: null,
-    enabled_migration_ids: migration.migration_ids,
+    enabled_migration_ids: input.enabledMigrationIds ?? [],
     detected_conflicts: [],
     dependency_sync: null,
     required_dependencies_operational: false,
     required_dependency_failure_ids: [],
-    repair_command: `opl packages repair --package-id ${lock.package_id}`,
+    repair_command: `opl packages repair --package-id ${manifest.package_id}`,
     reason,
   });
   if (!sourceRoot) {
-    return invalid('Managed policy source root is unavailable from the installed package lock.');
+    return invalid('Managed policy source root is unavailable from the installed Package descriptor.');
   }
 
   try {
     const inspection = inspectManagedPolicySurface({
       identity: {
-        packageId: lock.package_id,
-        packageVersion: lock.package_version,
-        pluginId: surface.plugin_id,
-        requiredSkillIds: lock.bundled_required_skill_ids,
+        packageId: manifest.package_id,
+        packageVersion: manifest.version,
+        pluginId: manifest.plugin_id,
+        requiredSkillIds: manifest.required_skill_ids,
         config,
       },
       sourceRoot,
-      enabledMigrationIds: migration.migration_ids,
+      enabledMigrationIds: input.enabledMigrationIds,
     });
     if (expectedPolicySha256 && inspection.policySha256 !== expectedPolicySha256) {
       return invalid('Managed policy bytes no longer match the installed package transaction.');
@@ -1244,7 +1243,7 @@ export function managedPolicyCurrentness(
       required_dependency_failure_ids: requiredDependencyFailureIds,
       repair_command: requiredDependenciesOperational
         ? null
-        : `opl packages repair --package-id ${lock.package_id}`,
+        : `opl packages repair --package-id ${manifest.package_id}`,
       reason: drifted
         ? [
             conflictDrifted
@@ -1259,6 +1258,39 @@ export function managedPolicyCurrentness(
   } catch (error) {
     return invalid(error instanceof Error ? error.message : 'Managed policy readback failed.');
   }
+}
+
+export function managedPolicyCurrentness(
+  lock?: AgentPackageLock | null,
+): AgentPackageManagedPolicyCurrentness {
+  const surface = lock?.physical_surface;
+  const config = surface?.managed_policy_config;
+  if (!lock || !surface || !config) {
+    return noManagedPolicyCurrentness('Package does not request a managed policy surface.');
+  }
+  const sourceRoot = surface.status === 'validated_no_write'
+    ? surface.plugin_source_path
+    : surface.codex_plugin_cache_path ?? surface.plugin_source_path;
+  if (!sourceRoot) {
+    return {
+      ...noManagedPolicyCurrentness('Managed policy source root is unavailable from the installed package lock.'),
+      status: 'invalid',
+      policy_kind: config.policy_kind,
+      repair_command: `opl packages repair --package-id ${lock.package_id}`,
+    };
+  }
+  return managedPolicyCurrentnessFromDescriptor({
+    manifest: {
+      package_id: lock.package_id,
+      version: lock.package_version,
+      plugin_id: surface.plugin_id,
+      required_skill_ids: lock.bundled_required_skill_ids,
+      managed_policy_surface: config,
+    } as AgentPackageManifest,
+    sourceRoot,
+    enabledMigrationIds: surface.workflow_policy_migration.migration_ids,
+    expectedPolicySha256: surface.workflow_policy_migration.policy_sha256,
+  });
 }
 
 function managedPolicyRollbackConflict(

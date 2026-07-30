@@ -481,15 +481,15 @@
       "provider_id": "capability_packages",
       "adapter_id": "capability_packages_adapter",
       "owner": "one-person-lab-managed-modules",
-      "role": "Installed OPL Package lock reconciliation through the canonical package lifecycle",
-      "authority": "Each installed root package lock selects its manifest/channel target; App-carried bundled roots select the canonical bundled Full runtime catalog; digest and package lifecycle receipt identify installed content.",
+      "role": "Installed OPL Package target reconciliation through native carriers and the canonical package lifecycle",
+      "authority": "Owner descriptors and managed source policy select Package targets. App-carried bundled roots use the canonical bundled Full runtime catalog plus fresh native-carrier and deterministic materialized-byte readback; lifecycle locks and receipts are mutation and recovery transport, not Full-runtime currentness authority.",
       "default_policy": "silent_background_for_clean_digest_locked_installed_packages",
       "mutation_scope": "installed_root_package_locks_or_catalog_owned_bundled_full_runtime_root_closure_only",
       "source_policy": {
         "authority": "effective Developer Mode and per-package source preference",
         "developer_checkout_effect": "compare_installed_lock_to_live_release_set_target_then_relock_and_reproject_from_the_exact_effective_checkout_without_overwriting_checkout_content",
         "managed_effect": "compare_installed_lock_to_release_set_target_then_apply_only_when_identity_differs",
-        "bundled_full_runtime_effect": "compare bundled locks to canonical catalog manifest payload content owner and catalog authority then independently update each selected root and its required dependency closure through opl update apply",
+        "bundled_full_runtime_effect": "compare canonical catalog descriptors to fresh native-carrier, deterministic immutable-cache, visible marketplace or hidden-surface, and descriptor-managed-policy readback, then independently update each stale selected root and its required dependency closure through opl update apply",
         "external_package_effect": "manual_explicit_update_only"
       },
       "release_catalog_cache_policy": {
@@ -559,13 +559,14 @@
           "rca"
         ],
         "currentness_identity_fields": [
-          "source_kind",
-          "package_version",
-          "manifest_sha256",
-          "content_digest",
-          "owner_source_commit",
-          "carrier_authority.catalog_ref",
-          "carrier_authority.catalog_sha256"
+          "catalog.manifest_sha256",
+          "catalog.payload_content_lock_digest",
+          "native_carrier.qualified_plugin_id",
+          "native_carrier.enabled",
+          "native_carrier.source_path",
+          "materialized_surface.immutable_cache_digest",
+          "materialized_surface.default_exposure",
+          "descriptor.managed_policy_surface"
         ],
         "managed_lifecycle_action": "update",
         "managed_provenance": {
@@ -574,6 +575,8 @@
           "source_policy": "bundled_full_runtime_modules"
         },
         "execution_receipt_authority": {
+          "currentness_authority": false,
+          "role": "mutation_and_recovery_transport_only",
           "framework_commit_field": "result.framework_commit",
           "catalog_ref_field": "result.catalog_ref",
           "catalog_sha256_field": "result.catalog_sha256",
@@ -589,6 +592,8 @@
         "post_apply_currentness": {
           "writes_performed": false,
           "command_ref": "opl packages status --json",
+          "authority": "fresh_native_carrier_and_materialized_descriptor_projection",
+          "legacy_lock_or_receipt_fallback_allowed": false,
           "ordinary_package_update_guidance_allowed": false
         },
         "recovery": {

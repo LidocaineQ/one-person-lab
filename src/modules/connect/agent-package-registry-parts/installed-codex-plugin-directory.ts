@@ -16,7 +16,7 @@ import type {
   CodexPluginCommandRunner,
 } from './configured-codex-plugin-carrier.ts';
 
-type InstalledCarrierEntry = {
+export type InstalledCarrierEntry = {
   pluginId: string;
   version: string | null;
   enabled: boolean;
@@ -65,7 +65,7 @@ function stringValue(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-function parseInstalledCarrierEntries(
+export function parseInstalledCarrierEntries(
   value: string,
   packageId: string | null,
 ): InstalledCarrierEntry[] {
@@ -302,6 +302,25 @@ export function discoverInstalledPackageDescriptors(input: {
   runner?: CodexPluginCommandRunner;
   failClosedOnCarrierError?: boolean;
 } = {}) {
+  const entries = readInstalledCarrierEntries(input);
+  const discovered = new Map<string, InstalledPackageDescriptor>();
+  for (const entry of entries) {
+    const descriptor = readInstalledPackageDescriptor(entry);
+    if (!descriptor) continue;
+    if (input.packageId && descriptor.manifest.package_id !== input.packageId) continue;
+    if (discovered.has(descriptor.manifest.package_id)) continue;
+    discovered.set(descriptor.manifest.package_id, descriptor);
+  }
+  return discovered;
+}
+
+export function readInstalledCarrierEntries(input: {
+  packageId?: string | null;
+  binary?: string;
+  env?: NodeJS.ProcessEnv;
+  runner?: CodexPluginCommandRunner;
+  failClosedOnCarrierError?: boolean;
+} = {}) {
   const configuredBinary = input.binary?.trim() || process.env.OPL_CODEX_PLUGIN_BIN?.trim() || null;
   const binary = configuredBinary ?? 'codex';
   const runner = input.runner ?? defaultRunner;
@@ -314,7 +333,7 @@ export function discoverInstalledPackageDescriptors(input: {
     const defaultCarrierAbsent = !configuredBinary
       && (result.error as NodeJS.ErrnoException | null)?.code === 'ENOENT';
     if (defaultCarrierAbsent) {
-      return new Map<string, InstalledPackageDescriptor>();
+      return [];
     }
     if (input.failClosedOnCarrierError) {
       throw new FrameworkContractError(
@@ -333,7 +352,7 @@ export function discoverInstalledPackageDescriptors(input: {
         },
       );
     }
-    return new Map<string, InstalledPackageDescriptor>();
+    return [];
   }
   let entries: InstalledCarrierEntry[];
   try {
@@ -350,17 +369,9 @@ export function discoverInstalledPackageDescriptors(input: {
         },
       );
     }
-    return new Map<string, InstalledPackageDescriptor>();
+    return [];
   }
-  const discovered = new Map<string, InstalledPackageDescriptor>();
-  for (const entry of entries) {
-    const descriptor = readInstalledPackageDescriptor(entry);
-    if (!descriptor) continue;
-    if (input.packageId && descriptor.manifest.package_id !== input.packageId) continue;
-    if (discovered.has(descriptor.manifest.package_id)) continue;
-    discovered.set(descriptor.manifest.package_id, descriptor);
-  }
-  return discovered;
+  return entries;
 }
 
 /**

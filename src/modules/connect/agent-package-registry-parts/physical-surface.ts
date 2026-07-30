@@ -795,6 +795,88 @@ function buildPhysicalSurfacePaths(manifest: AgentPackageManifest) {
   };
 }
 
+export function inspectMaterializedPhysicalCodexSurface(manifest: AgentPackageManifest) {
+  const paths = buildPhysicalSurfacePaths(manifest);
+  const codexDefaultExposure = manifest.codex_default_exposure !== false;
+  if (!manifest.plugin_id || !paths.codexPluginCachePath) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Package descriptor has no materialized Codex plugin identity.', {
+      package_id: manifest.package_id,
+      plugin_id: manifest.plugin_id,
+      failure_code: 'full_runtime_package_projection_incomplete',
+    });
+  }
+  verifyImmutablePluginCache(manifest, paths.codexPluginCachePath);
+  const pluginManifestPath = path.join(paths.codexPluginCachePath, '.codex-plugin', 'plugin.json');
+  const materializedRequiredSkills = validateMaterializedRequiredSkills(
+    manifest,
+    paths.codexPluginCachePath,
+  );
+  const marketplaceCurrent = !codexDefaultExposure || (
+    fs.existsSync(paths.codexConfigPath)
+    && fs.existsSync(paths.marketplacePath)
+    && paths.marketplacePluginPath !== null
+    && fs.existsSync(paths.marketplacePluginPath)
+    && fs.realpathSync(paths.marketplacePluginPath) !== fs.realpathSync(paths.codexPluginCachePath)
+    && (() => {
+      try {
+        verifyImmutablePluginCache(manifest, paths.marketplacePluginPath!);
+        return true;
+      } catch {
+        return false;
+      }
+    })()
+  );
+  if (!marketplaceCurrent) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Package marketplace projection is missing or does not match the immutable cache.', {
+      package_id: manifest.package_id,
+      plugin_id: manifest.plugin_id,
+      marketplace_id: paths.marketplaceId,
+      marketplace_path: paths.marketplacePath,
+      marketplace_plugin_path: paths.marketplacePluginPath,
+      failure_code: 'full_runtime_package_projection_incomplete',
+    });
+  }
+  const hiddenMarketplaceIds = [...new Set([
+    paths.marketplaceId,
+    `${manifest.plugin_id}-local`,
+    `opl-agent-${safePathSegment(manifest.package_id)}-local`,
+  ])];
+  const hiddenGlobalPaths = codexDefaultExposure
+    ? []
+    : [
+        ...hiddenMarketplaceIds.map((marketplaceId) =>
+          path.join(path.dirname(paths.marketplaceRoot), marketplaceId)),
+        ...hiddenMarketplaceIds
+          .filter((marketplaceId) => marketplaceId !== paths.marketplaceId)
+          .map((marketplaceId) => path.join(paths.codexHome, 'plugins', 'cache', marketplaceId)),
+      ].filter((candidate) => fs.existsSync(candidate));
+  if (hiddenGlobalPaths.length > 0) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Hidden Package leaked into a global Codex marketplace.', {
+      package_id: manifest.package_id,
+      plugin_id: manifest.plugin_id,
+      marketplace_id: paths.marketplaceId,
+      unexpected_global_paths: hiddenGlobalPaths,
+      failure_code: 'full_runtime_package_projection_incomplete',
+    });
+  }
+  return {
+    status: 'materialized' as const,
+    package_id: manifest.package_id,
+    plugin_id: manifest.plugin_id,
+    codex_default_exposure: codexDefaultExposure,
+    marketplace_id: codexDefaultExposure ? paths.marketplaceId : null,
+    marketplace_root: codexDefaultExposure ? paths.marketplaceRoot : null,
+    marketplace_path: codexDefaultExposure ? paths.marketplacePath : null,
+    marketplace_plugin_path: codexDefaultExposure ? paths.marketplacePluginPath : null,
+    codex_home: paths.codexHome,
+    codex_config_path: paths.codexConfigPath,
+    plugin_manifest_path: pluginManifestPath,
+    codex_plugin_cache_path: paths.codexPluginCachePath,
+    materialized_required_skill_ids: materializedRequiredSkills.map((entry) => entry.skillId),
+    materialized_required_skill_paths: materializedRequiredSkills.map((entry) => entry.skillPath),
+  };
+}
+
 function removeHiddenPackageGlobalExposure(
   manifest: AgentPackageManifest,
   paths: ReturnType<typeof buildPhysicalSurfacePaths>,
