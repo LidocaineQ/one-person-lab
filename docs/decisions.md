@@ -5,6 +5,34 @@ Purpose: `decisions`
 State: `active_truth`
 Machine boundary: 本文是核心人读真相面。机器真相继续归 contracts、source、CLI/API 行为、runtime ledger、provider receipt、domain-owned manifest 和真实 workspace / App evidence。
 
+## 2026-07-30
+
+### 决策：Codex executable carrier 按安装载体归属，App 不再重复打包 Framework carrier
+
+原因：`OPL Base` 的 headless / 独立安装必须自包含第一公民 executor，因此 Framework
+需要继续维护自己的 Codex carrier。当前 AionUI App 已固定打包 AionCore，而 AionCore
+managed-resources 又提供一份 Codex；Full App 若再嵌入 Framework 的 Codex wrapper、
+archive 和运行时展开 cache，就会形成两个版本源、两套 currentness 和可写 App bundle
+残留。未来替换为原生 GUI 时，真正需要稳定的是 Codex App Server 与 executable resolver，
+不是 AionCore 本身。
+
+影响：
+
+- `OPL Base` / headless / 独立安装继续由 Framework 提供自包含 Codex carrier；该能力属于
+  Base 安装面，不因当前 App 选择 AionCore 而退役。
+- 当前 AionUI shell 只从 bundled AionCore managed-resources manifest 解析 exact Codex，
+  通过 `OPL_CODEX_BIN` 交给 Codex App Server adapter。Framework 不解析 AionCore 私有
+  manifest，也不把 AionCore 变成 Framework dependency。
+- Standard 与 Full App 都只保留 shell-owned Codex carrier。Full runtime 不得包含
+  Framework `bin/codex`、`vendor/codex` 或 `.runtime-cache/codex-cli`，也不得覆盖 shell
+  已注入的 `OPL_CODEX_BIN`。
+- Framework headless carrier 与 App shell carrier 是两个互斥的部署角色，不是两个同时生效
+  的 executor authority。版本、路径和可用性分别由真实安装载体 readback；App 不用
+  Framework carrier 回退或猜测。
+- 后续原生 GUI 继续消费同一 `OPL_CODEX_BIN + codex app-server --stdio` 边界，可使用
+  Native-owned 或 exact external binary，不要求引入 AionCore，也不迁移 `CODEX_HOME`
+  或 canonical thread history。
+
 ## 2026-07-24
 
 ### 决策（planned）：Package lifecycle 退回平台能力，OPL 只保留组合与运行薄层
