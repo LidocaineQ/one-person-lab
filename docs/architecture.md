@@ -9,6 +9,24 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 
 `OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。当前产品认知分成 `OPL Framework`、`One Person Lab App` 和 `Foundry Agents` 三层：Framework 负责开发与运行框架，App 负责普通用户工作台，Foundry Agents 负责领域智能体与交付权威。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
 
+### Codex executable carrier 边界
+
+Codex 的 protocol/runtime truth 与 executable carrier 分层。Framework 持有
+`Codex-default session runtime` 和 Base/headless 自包含安装能力，但不要求每个 GUI
+使用 Framework 打包的同一份 executable。Shell 只需把 exact executable 通过
+`OPL_CODEX_BIN` 交给 Codex App Server adapter，并保留用户已有 `CODEX_HOME`。
+
+| 部署面 | Codex carrier | 边界 |
+| --- | --- | --- |
+| `OPL Base` / headless / 独立安装 | Framework-owned self-contained carrier | 可独立运行，不依赖 AionCore |
+| AionUI Standard / Full App | bundled AionCore managed-resources | App Full runtime 不再嵌入 Framework wrapper、archive 或展开 cache |
+| 后续原生 GUI | Native-owned 或 exact external binary | 复用 resolver/protocol，不继承 AionCore 私有 manifest parser |
+
+同一 App 进程只能有一个 shell-selected executable source。Framework runtime wrapper
+不得覆盖外部 `OPL_CODEX_BIN`，App 也不得把 Framework carrier 作为隐式 fallback。
+替换 GUI 只切换 carrier adapter；Codex App Server、`CODEX_HOME` 与 canonical thread
+history 的 owner 不变。
+
 ### Planned：平台组合式 Package 生态
 
 Package 生态的目标读法是 `OPL Base ≈ R`、`OPL App ≈ RStudio`、`OPL Package ≈ R Package`。Package 是唯一安装单元；Skill、Tool、Plugin、workflow 和 entrypoint 是 Package descriptor 中可发现、可调用、可自由组合的 capability，不再拥有平行 lifecycle。标准智能体只是 `kind=agent` 的普通 Package，可以像 MAS -> ScholarSkills 一样声明其他 Package 的 required presence dependency。

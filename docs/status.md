@@ -190,6 +190,13 @@ MAS domain-progress refs 是 current-control / StageRun 的 domain progress 与 
 
 `Codex CLI` 是当前第一公民 executor。标准 OPL Agent 的默认长跑路径是 `opl_temporal_hosted_autonomous`：任务启动后进入 OPL/Temporal 托管的 stage attempt runtime，由 OPL provider scheduler cadence / stage-attempt projection / wakeup / resume-requery / retry-dead-letter / attempt ledger 持久在线推进；Codex App 只承担启动、观察、介入和投影入口。Temporal-backed provider 是 production online runtime 的必需 substrate；`local_sqlite` 只允许作为 retired-provider negative guard，SQLite sidecar 只承担 projection/readback index。`hermes_agent`、`claude_code` 与 `antigravity_cli` 同属显式非默认 executor adapter/backend，以 request/stage binding、receipt/audit/fail-closed 证明连接，不承诺行为、质量、工具语义或 resume 与 `Codex CLI` 等价。
 
+Codex executable carrier 当前按部署面分工：Framework 继续为 `OPL Base` 的 headless /
+独立安装维护自包含 carrier；AionUI Standard / Full App 只使用 bundled AionCore
+managed-resources 中的 Codex，并通过 `OPL_CODEX_BIN` 注入 App Server adapter。Full App
+runtime 中的 Framework `bin/codex`、`vendor/codex` 和 `.runtime-cache/codex-cli` 属于待删除
+的重复 payload，不是合法 fallback 或 currentness authority。后续原生 GUI 复用同一
+resolver/protocol，但不要求 AionCore。
+
 `MDS` 不进入 OPL 顶层 agent 列表。它只作为 MAS 显式声明的 source provenance、historical fixture、explicit archive import、backend audit、upstream intake 或 parity oracle reference。
 
 ## 当前真实状态
