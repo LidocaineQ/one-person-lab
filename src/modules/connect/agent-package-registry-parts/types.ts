@@ -778,9 +778,6 @@ export type AgentPackageCoreReadback = {
     recommended_action: string | null;
     action_refs: AgentPackageLifecycleAction[];
   };
-  exposure: {
-    state: AgentPackageLock['exposure_state'] | null;
-  };
 };
 
 export type AgentPackageLifecycleReceipt = {
