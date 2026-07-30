@@ -76,7 +76,7 @@ export function buildUpdateCommandSpecs(
     'update rollback': buildUpdateSpec( // reuse-first: allow owner-routed update command registry metadata.
       'rollback', // reuse-first: allow owner-routed update command registry metadata.
       'opl update rollback', // reuse-first: allow owner-routed update command registry metadata.
-      'Roll back the OPL Base runtime; Package rollback remains under opl packages rollback.', // reuse-first: allow owner-routed update command registry metadata.
+      'Roll back the OPL Base runtime through its owner-controlled rollback pointer.', // reuse-first: allow owner-routed update command registry metadata.
       ['opl update rollback --json'], // reuse-first: allow owner-routed update command registry metadata.
       getContracts,
     ),

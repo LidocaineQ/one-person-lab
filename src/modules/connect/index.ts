@@ -68,7 +68,6 @@ export {
   runOplAgentPackageInstall,
   runOplAgentPackageManifestValidate,
   runOplAgentPackageRepair,
-  runOplAgentPackageRollback,
   runOplAgentPackageStatus,
   runOplAgentPackageActivate,
   runOplAgentPackageUninstall,

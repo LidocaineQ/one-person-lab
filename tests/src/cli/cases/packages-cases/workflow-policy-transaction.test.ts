@@ -692,22 +692,6 @@ test('OPL Flow package lifecycle advances workflow policy v1 v2 v3 and reaches a
         entry.root_package_id === 'fixture.opl-flow'
         && entry.package_locks.some((lock: any) => lock.package_id === 'fixture.opl-flow'),
     ));
-    fs.rmSync(path.join(root, 'fixture.opl-flow-source'), { recursive: true, force: true });
-
-    const recovered = runCli([
-      'packages', 'rollback', '--package-id', 'fixture.opl-flow',
-    ], env) as any;
-    assert.equal(recovered.opl_agent_package_rollback.status, 'rolled_back');
-    assert.equal(recovered.opl_agent_package_rollback.package_lock.package_version, '0.1.26');
-    const recoveredStatus = runCli([
-      'packages', 'status', '--package-id', 'fixture.opl-flow',
-    ], env) as any;
-    assert.equal(recoveredStatus.opl_agent_package_status.operational_ready, true);
-    assert.equal(
-      recoveredStatus.opl_agent_package_status.owner_route_readback.packages[0]
-        .materializer.managed_policy_currentness.status,
-      'current',
-    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
   }
@@ -911,8 +895,6 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
     ].join('\n');
     fs.writeFileSync(configPath, postInstallConfig, 'utf8');
 
-    const rollbackFailure = runCliFailure(['packages', 'rollback', 'fixture.opl-flow'], env);
-    assert.equal(rollbackFailure.payload.error.details.failure_code, 'agent_package_last_known_good_missing');
     const status = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
     assert.equal(status.opl_agent_package_status.installed_package_count, 1);
   } finally {
@@ -920,7 +902,7 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
   }
 });
 
-test('fresh install rollback has no virtual target', async () => {
+test('fresh install has no virtual legacy generation', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-clean-prestate-'));
   const home = path.join(root, 'home');
   const codexHome = path.join(home, '.codex');
@@ -939,8 +921,6 @@ test('fresh install rollback has no virtual target', async () => {
 
     const lockIndex = JSON.parse(fs.readFileSync(path.join(env.OPL_STATE_DIR, 'agent-package-locks.json'), 'utf8'));
     assert.deepEqual(lockIndex.last_known_good_transactions, []);
-    const failure = runCliFailure(['packages', 'rollback', 'fixture.opl-flow'], env);
-    assert.equal(failure.payload.error.details.failure_code, 'agent_package_last_known_good_missing');
     assert.equal(runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env)
       .opl_agent_package_status.installed_package_count, 1);
   } finally {
