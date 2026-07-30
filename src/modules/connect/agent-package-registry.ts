@@ -3323,10 +3323,6 @@ export async function ensureOplAgentPackageScopeActivation(input: AgentPackagePa
       status: input.dryRun ? 'validated_no_write' : 'already_activated',
       package_id: packageId,
       writes_performed: false,
-      scope_materializations: [],
-      materialization_readiness: null,
-      package_use_binding: null,
-      use_receipt: null,
       package_status: nativeStatus,
     };
   }
@@ -3390,11 +3386,6 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
         status: input.dryRun ? 'validated_no_write' : 'already_activated',
         package_id: packageId,
         writes_performed: false,
-        scope_materializations: [],
-        package_dependency_readiness: null,
-        materialization_readiness: null,
-        package_use_binding: null,
-        use_receipt: null,
         operational_ready: true,
         launch_allowed: true,
         launch_blocked_reason: null,
@@ -3402,7 +3393,6 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
         launch_state: beforeStatus.launch_state,
         launch_state_reason: beforeStatus.launch_state_reason,
         use_boundary_id: input.useBoundaryId ?? null,
-        use_receipt_ref: null,
         authority_boundary: refsOnlyAuthorityBoundary(),
       },
     };
@@ -3470,6 +3460,9 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
       },
     );
   }
+  const packageUseBinding = 'package_use_binding' in activation
+    ? activation.package_use_binding
+    : null;
   return {
     version: 'g2',
     opl_agent_package_activation: {
@@ -3485,8 +3478,8 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
       launch_state_schema_version: packageStatus.launch_state_schema_version,
       launch_state: packageStatus.launch_state,
       launch_state_reason: packageStatus.launch_state_reason,
-      use_boundary_id: activation.package_use_binding?.use_boundary_id ?? null,
-      use_receipt_ref: activation.package_use_binding?.use_receipt_ref ?? null,
+      use_boundary_id: packageUseBinding?.use_boundary_id ?? null,
+      use_receipt_ref: packageUseBinding?.use_receipt_ref ?? null,
       authority_boundary: refsOnlyAuthorityBoundary(),
     },
   };

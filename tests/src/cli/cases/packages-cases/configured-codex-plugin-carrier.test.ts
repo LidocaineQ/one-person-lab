@@ -666,8 +666,10 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     assert.equal(readinessActivation.writes_performed, false);
     assert.equal(Object.hasOwn(readinessActivation, 'package_lock'), false);
     assert.equal(Object.hasOwn(readinessActivation, 'lifecycle_receipt'), false);
-    assert.equal(readinessActivation.package_use_binding, null);
-    assert.equal(readinessActivation.use_receipt, null);
+    assert.equal(Object.hasOwn(readinessActivation, 'scope_materializations'), false);
+    assert.equal(Object.hasOwn(readinessActivation, 'materialization_readiness'), false);
+    assert.equal(Object.hasOwn(readinessActivation, 'package_use_binding'), false);
+    assert.equal(Object.hasOwn(readinessActivation, 'use_receipt'), false);
     assert.equal(readinessActivation.package_status.launch_allowed, true);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLegacyLock);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
@@ -686,8 +688,12 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     assert.equal(activate.opl_agent_package_activation.writes_performed, false);
     assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'package_lock'), false);
     assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'lifecycle_receipt'), false);
-    assert.equal(activate.opl_agent_package_activation.package_use_binding, null);
-    assert.equal(activate.opl_agent_package_activation.use_receipt, null);
+    assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'scope_materializations'), false);
+    assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'package_dependency_readiness'), false);
+    assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'materialization_readiness'), false);
+    assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'package_use_binding'), false);
+    assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'use_receipt'), false);
+    assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'use_receipt_ref'), false);
     assert.equal(activate.opl_agent_package_activation.launch_state, 'ready');
     assertNoPrivateState();
 
@@ -881,8 +887,12 @@ if (args.join(' ') === 'plugin list --json') {
     assert.equal(surface.writes_performed, false);
     assert.equal(Object.hasOwn(surface, 'package_lock'), false);
     assert.equal(Object.hasOwn(surface, 'lifecycle_receipt'), false);
-    assert.equal(surface.package_use_binding, null);
-    assert.equal(surface.use_receipt, null);
+    assert.equal(Object.hasOwn(surface, 'scope_materializations'), false);
+    assert.equal(Object.hasOwn(surface, 'package_dependency_readiness'), false);
+    assert.equal(Object.hasOwn(surface, 'materialization_readiness'), false);
+    assert.equal(Object.hasOwn(surface, 'package_use_binding'), false);
+    assert.equal(Object.hasOwn(surface, 'use_receipt'), false);
+    assert.equal(Object.hasOwn(surface, 'use_receipt_ref'), false);
     const status = runCli(['packages', 'status', '--package-id', 'rca'], env) as any;
     assert.equal(status.opl_agent_package_status.configured_carrier.status, 'installed');
     assert.equal(status.opl_agent_package_status.configured_carrier.operation, 'list');
