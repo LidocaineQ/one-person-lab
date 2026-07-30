@@ -193,8 +193,19 @@ test('installed Codex plugins fall back to the native plugin manifest without pa
     assert.equal(descriptor.manifest.publisher, 'Example owner');
     assert.deepEqual(descriptor.manifest.required_skill_ids, ['native-capability']);
     assert.equal(descriptor.manifest.configured_codex_plugin_carrier?.carrier.pluginId, 'unknown-native-plugin@example-marketplace');
-    assert.equal(descriptor.manifest.content_lock_paths.length, 0);
-    assert.equal(descriptor.manifest.rollback_ref, 'native-carrier-owned');
+    assert.deepEqual(
+      [
+        'distribution_payload',
+        'rollback_ref',
+        'plugin_payload_manifest_url',
+        'plugin_payload_manifest_sha256',
+        'plugin_payload_cache_path',
+        'content_digest',
+        'content_lock_canonicalization',
+        'content_lock_paths',
+      ].filter((field) => field in descriptor.manifest),
+      [],
+    );
     assert.equal(descriptor.manifestPath, path.join(sourceRoot, '.codex-plugin', 'plugin.json'));
   } finally {
     fs.rmSync(sourceRoot, { recursive: true, force: true });
@@ -240,8 +251,8 @@ test('carrier-neutral producer discovers an unknown installed carrier without Fr
     assert.equal(descriptor?.carrier_readback.kind, 'future-carrier');
     assert.equal(descriptor?.carrier_readback.lifecycle_authority, 'carrier_owned');
     assert.equal(descriptor?.readiness.legacy_lifecycle_state_present, false);
-    assert.equal(descriptor?.manifest.rollback_ref, 'native-carrier-owned');
-    assert.equal(descriptor?.manifest.content_lock_paths.length, 0);
+    assert.equal('rollback_ref' in descriptor.manifest, false);
+    assert.equal('content_lock_paths' in descriptor.manifest, false);
     assert.equal(descriptor?.manifest.configured_codex_plugin_carrier?.carrier.pluginId, 'future-carrier-package@future-carrier');
     const directory = buildAgentPackageDirectory({
       locks: [],

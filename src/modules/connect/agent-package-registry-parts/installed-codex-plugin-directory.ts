@@ -45,8 +45,29 @@ export type InstalledPackageReadiness = {
   legacy_lifecycle_state_present: false;
 };
 
+export type InstalledPackageManifest = Pick<
+  AgentPackageManifest,
+  | 'package_id'
+  | 'package_role'
+  | 'display_name'
+  | 'publisher'
+  | 'version'
+  | 'source'
+  | 'source_repo'
+  | 'codex_surface'
+  | 'codex_default_exposure'
+  | 'codex_visible_entry'
+  | 'required_skill_ids'
+  | 'optional_skill_refs'
+  | 'presentation'
+  | 'profile_surface'
+  | 'managed_policy_surface'
+  | 'configured_codex_plugin_carrier'
+  | 'app_contributions'
+>;
+
 export type InstalledPackageDescriptor = {
-  manifest: AgentPackageManifest;
+  manifest: InstalledPackageManifest;
   manifestPath: string;
   sourcePath: string;
   pluginId: string;
@@ -150,17 +171,13 @@ function pluginSkillIds(sourcePath: string, manifest: Record<string, unknown>) {
 function normalizeNativeCarrierManifest(
   entry: InstalledCarrierEntry,
   pluginPayload: Record<string, unknown>,
-  manifestPath: string,
-): AgentPackageManifest {
+): InstalledPackageManifest {
   const packageId = pluginPackageId(entry.pluginId);
   if (!packageId) throw new Error('plugin package id is empty');
   const interfacePayload = isRecord(pluginPayload.interface) ? pluginPayload.interface : {};
   const displayName = stringValue(interfacePayload.displayName)
     ?? stringValue(pluginPayload.name)
     ?? packageId;
-  const description = stringValue(interfacePayload.longDescription)
-    ?? stringValue(pluginPayload.description)
-    ?? `${displayName} installed Codex plugin.`;
   const requiredSkillIds = pluginSkillIds(entry.sourcePath, pluginPayload);
   const sourceRepo = stringValue(pluginPayload.repository) ?? stringValue(pluginPayload.homepage);
   const version = entry.version
@@ -168,18 +185,13 @@ function normalizeNativeCarrierManifest(
     ?? '0.0.0';
   return {
     package_id: packageId,
-    agent_id: packageId,
     package_role: 'standard_agent',
     display_name: displayName,
     publisher: stringValue(isRecord(pluginPayload.author) ? pluginPayload.author.name : null)
       ?? 'installed-plugin',
     version,
-    owner_language_version: null,
     source: 'installed_descriptor',
     source_repo: sourceRepo,
-    source_commit: null,
-    carrier_source_commit: null,
-    verified_payload_source_commit: null,
     codex_surface: {
       plugin_id: entry.pluginId,
       plugin_source_path: entry.sourcePath,
@@ -187,33 +199,12 @@ function normalizeNativeCarrierManifest(
       codex_default_exposure: entry.enabled,
     },
     codex_default_exposure: entry.enabled,
-    skill_packs: [],
-    entrypoints: [],
-    health_check: {},
-    permissions: [],
-    distribution_payload: null,
-    update_channel: 'codex_plugin_manager',
-    // Native carriers own lifecycle history. Keep the manifest contract's
-    // required field explicit without manufacturing a Framework rollback ref.
-    rollback_ref: 'native-carrier-owned',
     codex_visible_entry: packageId,
     required_skill_ids: requiredSkillIds,
     optional_skill_refs: [],
     presentation: null,
-    plugin_id: entry.pluginId,
-    plugin_source_path: entry.sourcePath,
-    plugin_payload_manifest_url: pathToFileURL(manifestPath).toString(),
-    plugin_payload_manifest_sha256: null,
-    plugin_payload_cache_path: null,
     profile_surface: null,
     managed_policy_surface: null,
-    runtime_source_carrier: null,
-    managed_update_source: null,
-    capability_dependencies: [],
-    capability_provider: null,
-    content_digest: null,
-    content_lock_canonicalization: null,
-    content_lock_paths: [],
     configured_codex_plugin_carrier: {
       packageId,
       carrier: {
@@ -236,7 +227,7 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
   const pluginManifestPath = path.join(entry.sourcePath, '.codex-plugin', 'plugin.json');
   try {
     let manifestPath = ownerManifestPath;
-    let manifest: AgentPackageManifest;
+    let manifest: InstalledPackageManifest;
     if (fs.existsSync(ownerManifestPath) && fs.statSync(ownerManifestPath).isFile()) {
       manifest = normalizePackageManifest(
         JSON.parse(fs.readFileSync(ownerManifestPath, 'utf8')),
@@ -247,7 +238,7 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
       manifestPath = pluginManifestPath;
       const pluginPayload = JSON.parse(fs.readFileSync(pluginManifestPath, 'utf8'));
       if (!isRecord(pluginPayload)) return null;
-      manifest = normalizeNativeCarrierManifest(entry, pluginPayload, pluginManifestPath);
+      manifest = normalizeNativeCarrierManifest(entry, pluginPayload);
       // First-party Package identity remains owned by its stable catalog. A
       // carrier-native manifest without an explicit Framework owner descriptor
       // must not synthesize a second authority for that identity.
