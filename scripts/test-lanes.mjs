@@ -98,7 +98,7 @@ const fastTestFiles = [
   'tests/src/progress-hard-stop-policy.test.ts',
   'tests/src/agent-package-home-localization.test.ts',
   'tests/src/agent-package-progress-first-readback.test.ts',
-  'tests/src/package-repository-index.test.ts',
+  'tests/src/package-catalog-selection.test.ts',
   'tests/src/stage-quality-attempt-boundary.test.ts',
   'tests/src/family-runtime-stage-run-launch.test.ts',
   'tests/src/family-runtime-temporal-stage-run-controller.test.ts',

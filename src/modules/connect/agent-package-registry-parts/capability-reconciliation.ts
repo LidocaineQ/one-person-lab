@@ -4,25 +4,37 @@ import { FrameworkContractError, isRecord } from '../../../kernel/contract-valid
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { recordList, stringValue } from '../../../kernel/json-record.ts';
 import { publicAgentPackageSelector } from '../agent-package-identity.ts';
-import {
-  comparePackageRepositoryVersions,
-  packageRepositorySourceFormat,
-  repositoryPackageCatalog,
-  repositoryVersionMetadata,
-  resolvePackageRepositoryVersion,
-  type PackageRepositoryCatalog,
-  type PackageRepositoryEntry,
-  type PackageRepositoryResolutionReceipt,
-  type PackageRepositoryVersionCandidate,
-} from './package-repository-index.ts';
 import type {
   AgentPackageCapabilityDependency,
 } from './types.ts';
 
-export type ManagedCatalogVersion = PackageRepositoryVersionCandidate;
-type ManagedCatalogEntry = PackageRepositoryEntry;
-export type ManagedPackageCatalog = PackageRepositoryCatalog;
-export type ManagedPackageResolutionReceipt = PackageRepositoryResolutionReceipt;
+export type ManagedCatalogVersion = {
+  package_version: string;
+  capability_abi: string | null;
+  manifest_url: string;
+  manifest_sha256: string;
+  manifest_json: string | null;
+  payload_manifest_json: string | null;
+  payload_manifest_sha256: string | null;
+  content_digest: string | null;
+  payload_digest: string | null;
+  source_artifact_ref: string | null;
+  artifact_digest: string | null;
+  artifact_status: string | null;
+  package_content_digest: string | null;
+  owner_source_commit: string | null;
+  dependency_package_ids: string[];
+  selection_status: 'selected_for_release_set' | 'retained_history';
+};
+
+type ManagedCatalogEntry = {
+  package_id: string;
+  package_role: 'standard_agent' | 'capability_package' | 'workflow_profile';
+  selected_version: string;
+  versions: ManagedCatalogVersion[];
+};
+
+export type ManagedPackageCatalog = Map<string, ManagedCatalogEntry>;
 
 function sha256(value: string) {
   return `sha256:${crypto.createHash('sha256').update(value).digest('hex')}`;
@@ -34,10 +46,25 @@ function normalizedSha256(value: unknown) {
   return digest.startsWith('sha256:') ? digest : `sha256:${digest}`;
 }
 
-function normalizeCatalogVersion(
-  value: unknown,
-  sourceFormat: ReturnType<typeof packageRepositorySourceFormat>,
-): ManagedCatalogVersion | null {
+function releaseSetPackageCatalog(payload: unknown) {
+  if (!isRecord(payload)) return null;
+  if (payload.surface_kind === 'opl_package_repository_index.v1') {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'The Framework Package repository compatibility index is retired; use an exact Release Set catalog.',
+      { failure_code: 'agent_package_repository_index_retired' },
+    );
+  }
+  if (payload.surface_kind !== undefined && payload.surface_kind !== 'opl_package_catalog.v1') {
+    return null;
+  }
+  if (!isRecord(payload.packages)) return null;
+  return isRecord(payload.packages.package_catalog)
+    ? payload.packages.package_catalog
+    : payload.packages;
+}
+
+function normalizeCatalogVersion(value: unknown): ManagedCatalogVersion | null {
   if (!isRecord(value)) return null;
   const packageVersion = stringValue(value.package_version);
   const manifest = isRecord(value.package_manifest) ? value.package_manifest : {};
@@ -78,29 +105,32 @@ function normalizeCatalogVersion(
     selection_status: value.selection_status === 'retained_history'
       ? 'retained_history'
       : 'selected_for_release_set',
-    ...repositoryVersionMetadata(value, sourceFormat),
   };
 }
 
 export function normalizeManagedPackageCatalog(payload: unknown): ManagedPackageCatalog {
-  const packageCatalog = repositoryPackageCatalog(payload);
+  const packageCatalog = releaseSetPackageCatalog(payload);
   if (!packageCatalog) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Managed Package source must declare a Release Set v1 catalog or Package repository index v1.', {
+    throw new FrameworkContractError('contract_shape_invalid', 'Managed Package source must declare a Release Set v1 catalog.', {
       failure_code: 'agent_package_catalog_invalid',
     });
   }
-  const sourceFormat = packageRepositorySourceFormat(payload);
   const result = new Map<string, ManagedCatalogEntry>();
   for (const [packageId, rawEntry] of Object.entries(packageCatalog)) {
     if (!isRecord(rawEntry) || !Array.isArray(rawEntry.versions)) continue;
     const versions = recordList(rawEntry.versions)
-      .map((entry) => normalizeCatalogVersion(entry, sourceFormat))
-      .filter((entry): entry is ManagedCatalogVersion => Boolean(entry))
-      .sort((left, right) => comparePackageRepositoryVersions(
-        right.package_version,
-        left.package_version,
-      ));
+      .map((entry) => normalizeCatalogVersion(entry))
+      .filter((entry): entry is ManagedCatalogVersion => Boolean(entry));
     if (versions.length === 0) continue;
+    const selectedVersion = stringValue(rawEntry.selected_version);
+    if (!selectedVersion || !versions.some((version) => version.package_version === selectedVersion)) {
+      throw new FrameworkContractError('contract_shape_invalid', 'Managed Package catalog entry must select an exact declared version.', {
+        package_id: packageId,
+        selected_version: selectedVersion,
+        available_versions: versions.map((version) => version.package_version),
+        failure_code: 'agent_package_catalog_selection_invalid',
+      });
+    }
     result.set(packageId, {
       package_id: packageId,
       package_role: rawEntry.package_role === 'capability_package'
@@ -108,7 +138,7 @@ export function normalizeManagedPackageCatalog(payload: unknown): ManagedPackage
         : rawEntry.package_role === 'workflow_profile'
           ? 'workflow_profile'
           : 'standard_agent',
-      selected_version: stringValue(rawEntry.selected_version),
+      selected_version: selectedVersion,
       versions,
     });
   }
@@ -116,7 +146,7 @@ export function normalizeManagedPackageCatalog(payload: unknown): ManagedPackage
 }
 
 export function managedPackageCatalogDigest(payload: unknown) {
-  const packageCatalog = repositoryPackageCatalog(payload);
+  const packageCatalog = releaseSetPackageCatalog(payload);
   if (!isRecord(payload) || !packageCatalog) {
     throw new FrameworkContractError('contract_shape_invalid', 'Managed package catalog must declare packages.package_catalog.', {
       failure_code: 'agent_package_catalog_invalid',
@@ -134,55 +164,56 @@ export function managedPackageCatalogDigest(payload: unknown) {
   return actualDigest;
 }
 
-export function resolveManagedCatalogPackageVersion(
+function selectedCatalogVersion(
   catalog: ManagedPackageCatalog,
   packageId: string,
-  input: { currentBaseAbi?: string | null } = {},
+  kind: 'root_package' | 'capability_provider',
 ) {
-  try {
-    return resolvePackageRepositoryVersion(catalog, {
-      packageId,
-      resolutionKind: 'root_package',
-      currentBaseAbi: input.currentBaseAbi,
-    });
-  } catch (error) {
-    if (!(error instanceof FrameworkContractError) || catalog.has(packageId)) throw error;
-    throw new FrameworkContractError('contract_shape_invalid', 'Managed package catalog does not contain the requested root package.', {
+  const entry = catalog.get(packageId);
+  if (!entry) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      kind === 'root_package'
+        ? 'Managed package catalog does not contain the requested root package.'
+        : 'Managed package catalog does not contain the requested capability provider.',
+      {
+        package_id: packageId,
+        failure_code: kind === 'root_package'
+          ? 'agent_package_catalog_root_missing'
+          : 'agent_package_catalog_capability_provider_missing',
+        ...(kind === 'root_package'
+          ? { update_action: `opl packages update ${publicAgentPackageSelector(packageId)}` }
+          : {}),
+      },
+    );
+  }
+  const selected = entry.versions.find(
+    (candidate) => candidate.package_version === entry.selected_version,
+  );
+  if (!selected) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Managed Package catalog selection is not present in its version set.', {
       package_id: packageId,
-      failure_code: 'agent_package_catalog_root_missing',
-      update_action: `opl packages update ${publicAgentPackageSelector(packageId)}`,
+      selected_version: entry.selected_version,
+      failure_code: 'agent_package_catalog_selection_invalid',
     });
   }
+  return selected;
 }
 
 export function selectManagedCatalogPackageVersion(
   catalog: ManagedPackageCatalog,
   packageId: string,
-  input: { currentBaseAbi?: string | null } = {},
+  _input: { currentBaseAbi?: string | null } = {},
 ) {
-  return resolveManagedCatalogPackageVersion(catalog, packageId, input).selected;
+  return selectedCatalogVersion(catalog, packageId, 'root_package');
 }
 
 export function selectCapabilityCatalogVersion(
   catalog: ManagedPackageCatalog,
   dependency: AgentPackageCapabilityDependency,
-  input: { currentBaseAbi?: string | null } = {},
+  _input: { currentBaseAbi?: string | null } = {},
 ) {
-  return resolveManagedCapabilityCatalogVersion(catalog, dependency, input).selected;
-}
-
-export function resolveManagedCapabilityCatalogVersion(
-  catalog: ManagedPackageCatalog,
-  dependency: AgentPackageCapabilityDependency,
-  input: { currentBaseAbi?: string | null } = {},
-) {
-  return resolvePackageRepositoryVersion(catalog, {
-    packageId: dependency.package_id,
-    resolutionKind: 'capability_provider',
-    currentBaseAbi: input.currentBaseAbi,
-    versionRequirement: dependency.version_requirement,
-    capabilityAbi: dependency.capability_abi,
-  });
+  return selectedCatalogVersion(catalog, dependency.package_id, 'capability_provider');
 }
 
 export function catalogManifestPayload(version: ManagedCatalogVersion) {
