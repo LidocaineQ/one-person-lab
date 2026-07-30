@@ -217,7 +217,6 @@ test('hidden capability packages keep immutable cache but leave global Codex sur
         manifestSha256,
         sourceKind: 'local_manifest_file',
         trustTier: 'first_party',
-        receiptRef: 'opl://test/hidden-capability',
         physicalSurface,
       });
       assert.equal(lock.exposure_state, 'hidden');

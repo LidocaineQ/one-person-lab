@@ -40,7 +40,6 @@ export function installRuntimePackageFixture(stateRoot: string, packageId: strin
   if (lockIndex.packages.some((entry: any) => entry.package_id === canonicalPackageId)) return;
 
   const installedAt = '2026-01-01T00:00:00.000Z';
-  const installReceiptRef = `opl://agent-package/install/${canonicalPackageId}/fixture`;
   const lockRef = `opl://agent-package-lock/${canonicalPackageId}/0.0.0-test/fixture`;
   lockIndex.packages.push({
     surface_kind: 'opl_agent_package_lock',
@@ -58,7 +57,6 @@ export function installRuntimePackageFixture(stateRoot: string, packageId: strin
     optional_skill_refs: [],
     source_kind: 'manifest_import',
     trust_tier: 'third_party_unverified',
-    action_receipt_id: installReceiptRef,
     rollback_ref: `opl://agent-package/rollback/${canonicalPackageId}/fixture`,
     manifest_url: `test://agent-package/${canonicalPackageId}`,
     manifest_sha256: 'sha256:' + '1'.repeat(64),
@@ -164,6 +162,7 @@ export function installRuntimePackageFixture(stateRoot: string, packageId: strin
         version: 'opl-agent-package-lifecycle-ledger.v1',
         receipts: [],
       };
+  const installReceiptRef = `opl://agent-package/install/${canonicalPackageId}/fixture`;
   ledger.receipts.push({
     surface_kind: 'opl_agent_package_lifecycle_receipt',
     receipt_ref: installReceiptRef,

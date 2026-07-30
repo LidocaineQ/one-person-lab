@@ -30,6 +30,16 @@ import { writeManagedRuntimeSourceFixture } from './managed-runtime-source-fixtu
 
 const FIXTURE_RCA_PACKAGE_ID = 'fixture.rca';
 
+function writeAbsentCodexPluginManager(root: string) {
+  const binary = path.join(root, 'fake-codex-plugin-manager');
+  fs.writeFileSync(binary, [
+    '#!/usr/bin/env node',
+    "if (process.argv.slice(2).join(' ') !== 'plugin list --json') process.exit(2);",
+    "process.stdout.write(JSON.stringify({ installed: [], available: [] }));",
+  ].join('\n'), { mode: 0o755 });
+  return binary;
+}
+
 test('default Home shortcut visibility follows registry starter_default', () => {
   const registry = normalizeRegistryDocument({
     ...registryPayload('https://registry.example'),
@@ -83,7 +93,12 @@ test('local manifest fixtures own runtime source install repair update and unins
       version: '0.1.0',
       sourceHeadSha: 'runtime-source-v1',
     });
-    const env = { OPL_STATE_DIR: stateDir, OPL_MODULES_ROOT: modulesRoot, ...fixtureEnv };
+    const env = {
+      OPL_STATE_DIR: stateDir,
+      OPL_MODULES_ROOT: modulesRoot,
+      OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(fixtureRoot),
+      ...fixtureEnv,
+    };
     const manifestPath = path.join(fixtureRoot, 'rca-local-manifest.json');
     fs.writeFileSync(manifestPath, formatJsonPayload({
       ...agentPackageManifest({
@@ -175,6 +190,7 @@ test('managed catalog payload cannot bypass the selected source archive with inl
       OPL_MODULES_ROOT: path.join(fixtureRoot, 'modules'),
       HOME: path.join(fixtureRoot, 'home'),
       CODEX_HOME: path.join(fixtureRoot, 'home', '.codex'),
+      OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(fixtureRoot),
       ...fixtureEnv,
     });
     assert.equal(failure.payload.error.details.failure_code, 'agent_package_payload_catalog_source_bypass');
@@ -226,6 +242,7 @@ test('managed catalog payload requires the exact declared source_path without ar
       OPL_MODULES_ROOT: path.join(fixtureRoot, 'modules'),
       HOME: path.join(fixtureRoot, 'home'),
       CODEX_HOME: path.join(fixtureRoot, 'home', '.codex'),
+      OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(fixtureRoot),
       ...fixtureEnv,
     });
     assert.equal(failure.payload.error.details.failure_code, 'agent_package_payload_artifact_source_missing');
@@ -289,6 +306,7 @@ test('repair migrates legacy Framework manifests to one stable catalog selection
     OPL_MODULES_ROOT: modulesRoot,
     HOME: homeDir,
     CODEX_HOME: path.join(homeDir, '.codex'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(fixtureRoot),
     ...writeManagedRuntimeSourceFixture({
       root: fixtureRoot,
       moduleId: 'redcube',
@@ -764,7 +782,7 @@ test('packages rejects developer checkout auto-update and permission scope drift
   }
 });
 
-test('packages preserves installed lock and receipt trail when update materialization fails', () => {
+test('packages preserves installed lock and returns an operation receipt when update materialization fails', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-update-failure-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-update-failure-home-'));
   const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-update-failure-fixtures-'));
@@ -791,9 +809,11 @@ test('packages preserves installed lock and receipt trail when update materializ
     ], env) as {
       opl_agent_package_install: {
         package_lock: {
-          action_receipt_id: string;
           lock_ref: string;
           physical_surface: { codex_plugin_cache_path: string };
+        };
+        lifecycle_receipt: {
+          receipt_ref: string;
         };
         owner_route_readback: {
           packages: Array<{
@@ -810,6 +830,9 @@ test('packages preserves installed lock and receipt trail when update materializ
     const lockFile = path.join(stateDir, 'agent-package-locks.json');
     const lockFileBefore = fs.readFileSync(lockFile, 'utf8');
     const installedCachePath = install.opl_agent_package_install.package_lock.physical_surface.codex_plugin_cache_path;
+    assert.match(installReadback.lifecycle_receipt.receipt_ref, /^opl:\/\/agent-package\/install\//);
+    assert.equal(Object.hasOwn(installReadback.package_lock, 'action_receipt_id'), false);
+    assert.doesNotMatch(lockFileBefore, /"action_receipt_id"/);
     assert.equal(Object.hasOwn(installReadback, 'lock_file'), false);
     assert.equal(Object.hasOwn(installReadback, 'lifecycle_ledger_file'), false);
     assert.equal(installReadback.owner_route_readback.packages.length, 1);
@@ -848,7 +871,6 @@ test('packages preserves installed lock and receipt trail when update materializ
       opl_agent_package_status: {
         installed_package_count: number;
         installed_packages: Array<{
-          action_receipt_id: string;
           lock_ref: string;
           physical_surface: { codex_plugin_cache_path: string };
         }>;
@@ -856,8 +878,8 @@ test('packages preserves installed lock and receipt trail when update materializ
     };
     assert.equal(status.opl_agent_package_status.installed_package_count, 1);
     assert.equal(
-      status.opl_agent_package_status.installed_packages[0].action_receipt_id,
-      install.opl_agent_package_install.package_lock.action_receipt_id,
+      Object.hasOwn(status.opl_agent_package_status.installed_packages[0], 'action_receipt_id'),
+      false,
     );
     assert.equal(
       status.opl_agent_package_status.installed_packages[0].lock_ref,

@@ -751,7 +751,6 @@ export type AgentPackageLock = {
   optional_skill_refs: string[];
   source_kind: AgentPackageSourceKind;
   trust_tier: string;
-  action_receipt_id: string;
   rollback_ref: string;
   manifest_url: string;
   manifest_sha256: string;

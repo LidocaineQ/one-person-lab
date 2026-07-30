@@ -159,8 +159,10 @@ function normalizeLockEntry(
       declared_agent_id: declaredAgentId,
     });
   }
+  const normalizedValue = { ...value };
+  delete normalizedValue.action_receipt_id;
   return {
-    ...value,
+    ...normalizedValue,
     package_id: packageId,
     agent_id: agentId,
   } as AgentPackageLock;

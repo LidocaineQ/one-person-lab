@@ -210,6 +210,13 @@ test('legacy LKG bytes are ignored on read and stripped by the next native-confi
     const nextIndex = parseJsonText(fs.readFileSync(fixture.lockPath, 'utf8')) as any;
     assert.equal(nextIndex.packages.some((entry: any) => entry.package_id === packageId), false);
     assert.equal(nextIndex.packages.some((entry: any) => entry.package_id === 'legacy.consumer'), true);
+    assert.equal(
+      Object.hasOwn(
+        nextIndex.packages.find((entry: any) => entry.package_id === 'legacy.consumer'),
+        'action_receipt_id',
+      ),
+      false,
+    );
     assert.equal('last_known_good_transactions' in nextIndex, false);
     assert.equal(fs.existsSync(targetLock.physical_surface.codex_plugin_cache_path), true);
   } finally {

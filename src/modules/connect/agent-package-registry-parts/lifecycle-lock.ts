@@ -220,7 +220,6 @@ export function buildLock(input: {
   manifestSha256: string;
   sourceKind: AgentPackageSourceKind;
   trustTier: string;
-  receiptRef: string;
   physicalSurface: AgentPackagePhysicalSurface;
   previousLock?: AgentPackageLock | null;
   resolvedDependencies?: AgentPackageResolvedDependency[];
@@ -262,7 +261,6 @@ export function buildLock(input: {
     optional_skill_refs: input.manifest.optional_skill_refs,
     source_kind: input.sourceKind,
     trust_tier: input.trustTier,
-    action_receipt_id: input.receiptRef,
     rollback_ref: input.manifest.rollback_ref,
     manifest_url: input.manifestUrl,
     manifest_sha256: input.manifestSha256,

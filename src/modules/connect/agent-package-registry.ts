@@ -1211,7 +1211,6 @@ async function applyManifestPackageLock(
       manifestSha256: prepared.manifestSha256,
       sourceKind: prepared.sourceKind,
       trustTier: prepared.trustTier,
-      receiptRef: 'pending_dependency_transaction',
       physicalSurface: physicalSurfaces.get(prepared.manifest.package_id)!,
       previousLock: prepared.previousLock,
       resolvedDependencies,
@@ -1390,7 +1389,6 @@ async function applyManifestPackageLock(
       provenance: input.provenance,
     });
     Object.assign(lock, {
-      action_receipt_id: receipt.receipt_ref,
       dependency_closure_digest: closureDigest,
       dependency_transaction_id: transactionId,
     });
@@ -2988,7 +2986,6 @@ async function runOplAgentPackageRepairUnlocked(input: AgentPackageRepairInput) 
   const repairedLock = {
     ...lock,
     updated_at: input.dryRun ? lock.updated_at : nowIso(),
-    action_receipt_id: receipt.receipt_ref,
     physical_surface: physicalSurface.status === 'not_requested' ? lock.physical_surface : physicalSurface,
   };
   if (!input.dryRun) {
@@ -3193,7 +3190,6 @@ async function ensureOplAgentPackageScopeActivationUnlocked(input: AgentPackageP
     ? {
         ...lock,
         updated_at: input.dryRun ? lock.updated_at : nowIso(),
-        action_receipt_id: activationReceipt.receipt_ref,
         scope_materializations: [
           ...materializations,
           ...(lock.scope_materializations ?? []).filter((entry) => !materializations.some((next) =>

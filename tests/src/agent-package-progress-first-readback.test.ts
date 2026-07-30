@@ -44,7 +44,6 @@ function carrierLock() {
     owner_source_commit: ownerSourceCommit,
     release_channel_ref: 'opl://release-set/stable',
     release_channel_digest: catalogSha256,
-    action_receipt_id: 'opl://agent-package/install/fixture.mas/current',
     carrier_authority: {
       surface_kind: 'opl_agent_package_carrier_authority.v1',
       status: 'verified',
