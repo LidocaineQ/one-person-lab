@@ -4695,11 +4695,14 @@ function readAgentPackageStatusSnapshot(packageId?: string | null) {
   const descriptorOnlyReadback = Boolean(
     canonicalPackageId && installedCodexPluginDescriptors.has(canonicalPackageId),
   );
-  // A native installed descriptor is already the status authority. A global
-  // projection may continue with an explicit attention signal when the
-  // legacy lock is corrupt; legacy-only Package lookups remain fail-closed.
+  // A native installed descriptor is already the status authority. Do not
+  // consult the legacy lock for a descriptor-selected readback. Global
+  // projections may degrade on invalid JSON; legacy-only lookups fail closed.
   const snapshot = descriptorOnlyReadback
-    ? readStatusLockIndex(installedCodexPluginDescriptors, true)
+    ? {
+        lockIndex: emptyStatusLockIndex(),
+        legacyLockState: 'missing' as const,
+      }
     : readStatusLockIndex(
         installedCodexPluginDescriptors,
         !canonicalPackageId && installedCodexPluginDescriptors.size > 0,
@@ -5014,14 +5017,11 @@ export function createOplAgentPackageStatusReader() {
       packageId && installedCodexPluginDescriptors.has(packageId),
     );
     const snapshot = descriptorOwned
-      ? descriptorSnapshot ??= (() => {
-          const projection = readStatusLockIndex(installedCodexPluginDescriptors, true);
-          return buildAgentPackageStatusSnapshot(
-            projection.lockIndex,
-            installedCodexPluginDescriptors,
-            projection.legacyLockState,
-          );
-        })()
+      ? descriptorSnapshot ??= buildAgentPackageStatusSnapshot(
+          emptyStatusLockIndex(),
+          installedCodexPluginDescriptors,
+          'missing',
+        )
       : legacySnapshot ??= (() => {
           const projection = readStatusLockIndex(installedCodexPluginDescriptors, false);
           return buildAgentPackageStatusSnapshot(

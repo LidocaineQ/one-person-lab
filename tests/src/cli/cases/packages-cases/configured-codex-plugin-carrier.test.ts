@@ -1021,6 +1021,15 @@ test('preloaded native status reader does not parse or replace a corrupt legacy 
     assert.equal(appState.app_state.agent_packages.status_index.installed_package_count, 1);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLegacyLock);
 
+    const invalidLegacyShape = formatJsonPayload({
+      surface_kind: 'opl_agent_package_lock_index',
+      version: 'opl-agent-package-lock-index.v1',
+      packages: [{
+        package_id: 'NONCANONICAL.PACKAGE',
+      }],
+      last_known_good_transactions: [],
+    });
+    fs.writeFileSync(lockPath, invalidLegacyShape, 'utf8');
     Object.assign(process.env, env);
 
     const readStatus = createOplAgentPackageStatusReader();
@@ -1040,7 +1049,7 @@ test('preloaded native status reader does not parse or replace a corrupt legacy 
       () => readStatus({ packageId: 'legacy.package', detail: 'fast' }),
       (error: any) => error?.details?.failure_code === 'agent_package_lock_authority_corrupt',
     );
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLegacyLock);
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLegacyShape);
   } finally {
     for (const [name, value] of previous) {
       if (value === undefined) delete process.env[name];
