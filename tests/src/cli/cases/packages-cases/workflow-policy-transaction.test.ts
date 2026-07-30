@@ -1,6 +1,15 @@
 import { execFileSync } from 'node:child_process';
 
-import { assert, fs, os, path, runCli, runCliAsync, runCliFailure, test } from '../../helpers.ts';
+import {
+  assert,
+  fs,
+  os,
+  path,
+  runCli,
+  runCliAsync,
+  runCliFailure,
+  test,
+} from '../../helpers.ts';
 import { formatJsonPayload } from '../../../../../src/kernel/json-file.ts';
 import {
   assertManagedPolicyRollbackReady,
@@ -11,6 +20,17 @@ import {
 function writeFile(filePath: string, content: string) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, content, 'utf8');
+}
+
+function writeAbsentCodexPluginManager(root: string) {
+  const binary = path.join(root, 'fake-codex-plugin-manager');
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(binary, [
+    '#!/usr/bin/env node',
+    "if (process.argv.slice(2).join(' ') !== 'plugin list --json') process.exit(2);",
+    "process.stdout.write(JSON.stringify({ installed: [], available: [] }));",
+  ].join('\n'), { mode: 0o755 });
+  return binary;
 }
 
 function writeOplFlowPackage(
@@ -595,7 +615,7 @@ test('workflow policy v3 projects a generic install action when a required Skill
     assert.equal(status.opl_agent_package_status.repair_action, 'opl packages repair --package-id fixture.opl-flow');
     assert.equal(packageReadback.lifecycle_ux.status, 'attention_needed');
     assert.equal(packageReadback.lifecycle_ux.recommended_action, 'repair');
-    const currentness = packageReadback.materializer.managed_policy_currentness;
+    const currentness = packageReadback.managed_policy_currentness;
     assert.equal(currentness.status, 'drifted');
     assert.equal(currentness.required_dependencies_operational, false);
     assert.deepEqual(currentness.required_dependency_failure_ids, ['fixture-managed-skill']);
@@ -614,6 +634,7 @@ test('OPL Flow package lifecycle advances workflow policy v1 v2 v3 and reaches a
   const env = {
     HOME: path.join(root, 'home'),
     CODEX_HOME: path.join(root, 'home', '.codex'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
     OPL_STATE_DIR: stateDir,
     OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
   };
@@ -664,7 +685,7 @@ test('OPL Flow package lifecycle advances workflow policy v1 v2 v3 and reaches a
       assert.equal(status.opl_agent_package_status.operational_ready, true);
       assert.equal(
         status.opl_agent_package_status.owner_route_readback.packages[0]
-          .materializer.managed_policy_currentness.status,
+          .managed_policy_currentness.status,
         'current',
       );
     }
@@ -716,7 +737,7 @@ test('workflow policy v3 keeps a missing recommended Skill non-blocking', async 
     ], env);
     const status = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
     const packageReadback = status.opl_agent_package_status.owner_route_readback.packages[0];
-    const currentness = packageReadback.materializer.managed_policy_currentness;
+    const currentness = packageReadback.managed_policy_currentness;
     assert.equal(status.opl_agent_package_status.operational_ready, true);
     assert.equal(status.opl_agent_package_status.launch_blocked_reason, null);
     assert.equal(currentness.status, 'drifted');
@@ -771,6 +792,7 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
   const env = {
     HOME: home,
     CODEX_HOME: codexHome,
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
     OPL_STATE_DIR: stateDir,
     OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
   };
@@ -838,19 +860,20 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
     assert.equal('last_known_good_transactions' in lockIndex, false);
     assert.equal(fs.existsSync(path.join(stateDir, 'workflow-packages')), false);
     const current = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
-    const statusMaterializer = current.opl_agent_package_status.owner_route_readback.packages[0].materializer;
+    const statusCurrentness = current.opl_agent_package_status.owner_route_readback.packages[0]
+      .managed_policy_currentness;
     assert.equal(
-      statusMaterializer.managed_policy_currentness.status,
+      statusCurrentness.status,
       'current',
-      JSON.stringify(statusMaterializer.managed_policy_currentness, null, 2),
+      JSON.stringify(statusCurrentness, null, 2),
     );
-    assert.deepEqual(statusMaterializer.managed_policy_currentness.detected_conflicts, []);
+    assert.deepEqual(statusCurrentness.detected_conflicts, []);
 
     const restoredPonytailPath = path.join(codexHome, 'plugins', 'cache', 'ponytail');
     writeFile(path.join(restoredPonytailPath, 'restored.txt'), 'restored after install\n');
     const drifted = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
     const driftedPackage = drifted.opl_agent_package_status.owner_route_readback.packages[0];
-    const driftedCurrentness = driftedPackage.materializer.managed_policy_currentness;
+    const driftedCurrentness = driftedPackage.managed_policy_currentness;
     assert.equal(drifted.opl_agent_package_status.status, 'available');
     assert.equal(drifted.opl_agent_package_status.operational_ready, true);
     assert.equal(drifted.opl_agent_package_status.launch_blocked_reason, null);
@@ -872,7 +895,7 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
     const repairedStatus = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
     const repairedPackage = repairedStatus.opl_agent_package_status.owner_route_readback.packages[0];
     assert.equal(repairedStatus.opl_agent_package_status.operational_ready, true);
-    assert.equal(repairedPackage.materializer.managed_policy_currentness.status, 'current');
+    assert.equal(repairedPackage.managed_policy_currentness.status, 'current');
     assert.notEqual(repairedPackage.lifecycle_ux.recommended_action, 'repair');
 
     const postInstallConfig = [
@@ -900,6 +923,7 @@ test('fresh install writes no legacy generation field', async () => {
   const env = {
     HOME: home,
     CODEX_HOME: codexHome,
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
     OPL_STATE_DIR: path.join(root, 'state'),
     OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
   };
@@ -931,6 +955,7 @@ test('managed policy currentness detects and repairs a missing global Codex skil
   const env = {
     HOME: home,
     CODEX_HOME: codexHome,
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
     OPL_STATE_DIR: path.join(root, 'state'),
     GIT_CONFIG_COUNT: '1',
     GIT_CONFIG_KEY_0: `url.file://${upstreamRoot}.insteadOf`,
@@ -962,7 +987,7 @@ test('managed policy currentness detects and repairs a missing global Codex skil
 
     const current = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
     const currentness = current.opl_agent_package_status.owner_route_readback.packages[0]
-      .materializer.managed_policy_currentness;
+      .managed_policy_currentness;
     assert.equal(currentness.status, 'current');
     assert.equal(currentness.dependency_sync.items[0].source_authority, 'github_repository');
     assert.equal(currentness.dependency_sync.items[0].payload_currentness, 'current');
@@ -971,7 +996,7 @@ test('managed policy currentness detects and repairs a missing global Codex skil
     fs.rmSync(codexSkillRoot, { recursive: true, force: true });
     const drifted = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
     const driftedPackage = drifted.opl_agent_package_status.owner_route_readback.packages[0];
-    const driftedCurrentness = driftedPackage.materializer.managed_policy_currentness;
+    const driftedCurrentness = driftedPackage.managed_policy_currentness;
     assert.equal(drifted.opl_agent_package_status.status, 'available');
     assert.equal(drifted.opl_agent_package_status.operational_ready, true);
     assert.equal(drifted.opl_agent_package_status.launch_blocked_reason, null);
@@ -996,7 +1021,7 @@ test('managed policy currentness detects and repairs a missing global Codex skil
     const repairedStatus = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
     assert.equal(
       repairedStatus.opl_agent_package_status.owner_route_readback.packages[0]
-        .materializer.managed_policy_currentness.status,
+        .managed_policy_currentness.status,
       'current',
     );
   } finally {

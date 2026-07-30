@@ -817,7 +817,7 @@ test('packages preserves installed lock and returns an operation receipt when up
         };
         owner_route_readback: {
           packages: Array<{
-            materializer: Record<string, unknown>;
+            managed_policy_currentness: Record<string, unknown>;
             carrier_adapters: Array<Record<string, unknown>>;
           }>;
         };
@@ -849,18 +849,17 @@ test('packages preserves installed lock and returns an operation receipt when up
       'materialized_required_skill_paths',
     ];
     for (const field of physicalDetailFields) {
-      assert.equal(Object.hasOwn(ownerPackage.materializer, field), false);
       for (const adapter of ownerPackage.carrier_adapters) {
         assert.equal(Object.hasOwn(adapter, field), false);
       }
     }
     for (const field of ['profile_migration', 'managed_policy_migration']) {
-      assert.equal(Object.hasOwn(ownerPackage.materializer, field), false);
       for (const adapter of ownerPackage.carrier_adapters) {
         assert.equal(Object.hasOwn(adapter, field), false);
       }
     }
-    assert.equal(Object.hasOwn(ownerPackage.materializer, 'managed_policy_currentness'), true);
+    assert.equal(Object.hasOwn(ownerPackage, 'materializer'), false);
+    assert.equal(Object.hasOwn(ownerPackage, 'managed_policy_currentness'), true);
     for (const adapter of ownerPackage.carrier_adapters) {
       assert.equal(Object.hasOwn(adapter, 'managed_policy_currentness'), false);
     }

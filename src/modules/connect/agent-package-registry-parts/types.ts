@@ -918,6 +918,7 @@ export type AgentPackageOwnerRouteReadbackItem = {
     status: 'not_required' | 'current' | 'invalid';
     reasons: string[];
   };
+  managed_policy_currentness: AgentPackageManagedPolicyCurrentness;
   operational_ready: boolean;
   operational_ready_scope:
     | 'package_dependency_scope_runtime_source_and_managed_policy'
@@ -925,15 +926,6 @@ export type AgentPackageOwnerRouteReadbackItem = {
   launch_allowed: boolean;
   launch_blocked_reason: string | null;
   allowed_when_blocked: Array<'status' | 'doctor' | 'repair'>;
-  materializer: {
-    status: AgentPackagePhysicalSurface['status'];
-    plugin_id: string | null;
-    materialized_required_skill_ids: string[];
-    writes_performed: boolean;
-    reload_required: boolean;
-    failure_reason: string | null;
-    managed_policy_currentness: AgentPackageManagedPolicyCurrentness;
-  };
   lifecycle_ux: AgentPackageLifecycleUxReadback;
   carrier_adapters: AgentPackageCarrierAdapterReadback[];
   authority_boundary: AgentPackageAuthorityBoundary;

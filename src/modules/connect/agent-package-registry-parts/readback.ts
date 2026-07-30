@@ -250,15 +250,6 @@ function ownerRouteReadbackItem(input: {
 }): AgentPackageOwnerRouteReadbackItem {
   const surface = input.lock?.physical_surface ?? input.receipt?.physical_surface;
   const policyCurrentness = managedPolicyCurrentness(input.lock);
-  const materializer = {
-    status: surface?.status ?? 'not_requested',
-    plugin_id: surface?.plugin_id ?? null,
-    materialized_required_skill_ids: surface?.materialized_required_skill_ids ?? [],
-    writes_performed: surface?.writes_performed ?? false,
-    reload_required: surface?.reload_required ?? false,
-    failure_reason: surface?.failure_reason ?? null,
-    managed_policy_currentness: policyCurrentness,
-  };
   const lifecycleUx = agentPackageLifecycleUxReadback({
     packageId: input.packageId,
     lock: input.lock,
@@ -328,6 +319,7 @@ function ownerRouteReadbackItem(input: {
     materialization_readiness: materializationReadiness,
     runtime_source_readiness: runtimeSourceReadiness,
     carrier_authority_readiness: carrierAuthorityReadiness,
+    managed_policy_currentness: policyCurrentness,
     operational_ready: operationalReady,
     operational_ready_scope: 'package_dependency_scope_runtime_source_and_managed_policy',
     launch_allowed: operationalReady,
@@ -343,7 +335,6 @@ function ownerRouteReadbackItem(input: {
               : 'managed_policy_required_dependency_unavailable'
             : null,
     allowed_when_blocked: ['status', 'doctor', 'repair'],
-    materializer,
     lifecycle_ux: lifecycleUx,
     carrier_adapters: [{
       adapter_kind: 'codex_plugin_carrier',
@@ -352,12 +343,12 @@ function ownerRouteReadbackItem(input: {
       projection_role: 'package_carrier_adapter',
       owns_package_core: false,
       owns_domain_truth: false,
-      status: materializer.status,
-      plugin_id: materializer.plugin_id,
-      materialized_required_skill_ids: materializer.materialized_required_skill_ids,
-      writes_performed: materializer.writes_performed,
-      reload_required: materializer.reload_required,
-      failure_reason: materializer.failure_reason,
+      status: surface?.status ?? 'not_requested',
+      plugin_id: surface?.plugin_id ?? null,
+      materialized_required_skill_ids: surface?.materialized_required_skill_ids ?? [],
+      writes_performed: surface?.writes_performed ?? false,
+      reload_required: surface?.reload_required ?? false,
+      failure_reason: surface?.failure_reason ?? null,
     }, ...(runtimeSource ? [{
       adapter_kind: 'managed_runtime_source_carrier' as const,
       carrier: 'opl_managed_module_source' as const,
