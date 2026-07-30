@@ -775,7 +775,6 @@ export type AgentPackageCoreReadback = {
   trust: {
     trust_tier: string | null;
   };
-  carrier_authority: AgentPackageCarrierAuthority | null;
   lifecycle: {
     status: AgentPackageLifecycleUxReadback['status'];
     conditions: AgentPackageLifecycleCondition[];

@@ -367,7 +367,6 @@ function ownerRouteReadbackItem(input: {
       trust: {
         trust_tier: descriptor.trust_tier,
       },
-      carrier_authority: input.lock?.carrier_authority ?? null,
       lifecycle: {
         status: lifecycleUx.status,
         conditions: lifecycleUx.conditions,

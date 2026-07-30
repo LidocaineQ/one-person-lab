@@ -843,6 +843,8 @@ test('packages preserves installed lock and returns an operation receipt when up
     assert.equal(Object.hasOwn(ownerPackage.package_core, 'lock'), false);
     assert.equal(Object.hasOwn(ownerPackage, 'digest'), false);
     assert.equal(Object.hasOwn(ownerPackage.package_core, 'digest'), false);
+    assert.equal(Object.hasOwn(ownerPackage.package_core, 'carrier_authority'), false);
+    assert.equal(Object.hasOwn(ownerPackage, 'carrier_authority_readiness'), true);
     for (const field of ['manifest_sha256', 'registry_url', 'rollback_ref']) {
       assert.equal(Object.hasOwn(ownerPackage.descriptor, field), false);
       assert.equal(Object.hasOwn(ownerPackage.package_core.descriptor, field), false);
