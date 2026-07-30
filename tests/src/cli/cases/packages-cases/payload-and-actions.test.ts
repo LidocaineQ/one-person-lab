@@ -589,7 +589,9 @@ test('app action execute routes install_from_manifest_url to Framework package l
     assert.equal(repair.app_action_execution.result.opl_agent_package_repair.status, 'repaired');
     assert.equal(repair.app_action_execution.result.opl_agent_package_repair.lifecycle_receipt.action, 'repair');
 
-    const exposurePreference = runCli([
+    const lockPath = path.join(stateDir, 'agent-package-locks.json');
+    const lockBeforeExposure = fs.readFileSync(lockPath, 'utf8');
+    const exposurePreference = runCliFailure([
       'app',
       'action',
       'execute',
@@ -600,27 +602,13 @@ test('app action execute routes install_from_manifest_url to Framework package l
         package_id: 'third.party.research',
         exposure_action: 'disable',
       }),
-    ], env) as {
-      app_action_execution: {
-        delegated_surface: string;
-        result: {
-          opl_agent_package_exposure: {
-            status: string;
-            action: string;
-            package_lock: { exposure_state: string };
-            lifecycle_receipt: { action: string; writes_performed: boolean };
-          };
-        };
-      };
-    };
+    ], env);
     assert.equal(
-      exposurePreference.app_action_execution.delegated_surface,
-      'opl packages disable --package-id <package_id>',
+      exposurePreference.payload.error.details.failure_code,
+      'agent_package_exposure_native_owner_required',
     );
-    assert.equal(exposurePreference.app_action_execution.result.opl_agent_package_exposure.status, 'disabled');
-    assert.equal(exposurePreference.app_action_execution.result.opl_agent_package_exposure.action, 'disable');
-    assert.equal(exposurePreference.app_action_execution.result.opl_agent_package_exposure.package_lock.exposure_state, 'disabled');
-    assert.equal(exposurePreference.app_action_execution.result.opl_agent_package_exposure.lifecycle_receipt.action, 'disable');
+    assert.equal(exposurePreference.payload.error.details.action, 'disable');
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBeforeExposure);
 
     const shortcutPreference = runCli([
       'app',

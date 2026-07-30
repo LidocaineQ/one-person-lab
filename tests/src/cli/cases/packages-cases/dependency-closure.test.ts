@@ -191,11 +191,20 @@ test('MAS package lifecycle atomically installs and repairs its 11-core capabili
     providerLock.capability_provider.module_export_ids = moduleIds;
     fs.writeFileSync(lockPath, formatJsonPayload(lockIndex));
 
-    for (const action of ['disable', 'uninstall']) {
-      const blocked = runCliFailure(['packages', action, FIXTURE_PROVIDER_PACKAGE_ID], env);
-      assert.equal(blocked.payload.error.details.failure_code, 'agent_package_required_by_installed_dependents');
-      assert.deepEqual(blocked.payload.error.details.dependent_package_ids, [FIXTURE_CONSUMER_PACKAGE_ID]);
-    }
+    const disabled = runCliFailure(['packages', 'disable', FIXTURE_PROVIDER_PACKAGE_ID], env);
+    assert.equal(
+      disabled.payload.error.details.failure_code,
+      'agent_package_exposure_native_owner_required',
+    );
+    const uninstallBlocked = runCliFailure(['packages', 'uninstall', FIXTURE_PROVIDER_PACKAGE_ID], env);
+    assert.equal(
+      uninstallBlocked.payload.error.details.failure_code,
+      'agent_package_required_by_installed_dependents',
+    );
+    assert.deepEqual(
+      uninstallBlocked.payload.error.details.dependent_package_ids,
+      [FIXTURE_CONSUMER_PACKAGE_ID],
+    );
 
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
     const receiptIndependent = runCli([

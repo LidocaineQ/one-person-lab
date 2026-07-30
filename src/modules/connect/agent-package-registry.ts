@@ -4343,70 +4343,12 @@ export async function runOplAgentPackageUninstall(input: AgentPackagePackageActi
   );
 }
 
-function runOplAgentPackageExposureActionUnlocked(
-  action: 'hide' | 'unhide' | 'enable' | 'disable',
-  input: AgentPackagePackageActionInput,
-) {
-  const packageId = requirePackageId(input.packageId, action);
-  const { index } = readRecoveredLockIndex(input.dryRun === true);
-  if (action === 'disable') assertNoRequiredInstalledDependents(index, packageId, 'disable');
-  const { lockIndex, lock } = requireInstalledPackage(index, packageId, action);
-  const nextState = action === 'hide'
-    ? 'hidden'
-    : action === 'disable'
-      ? 'disabled'
-      : action === 'enable'
-        ? 'enabled'
-        : 'visible';
-  const receipt = lifecycleReceipt({
-    action,
-    actionStatus: input.dryRun ? 'validated' : 'completed',
-    packageId,
-    manifestUrl: lock.manifest_url,
-    manifestSha256: lock.manifest_sha256,
-    packageLockRef: lock.lock_ref,
-    rollbackRef: lock.rollback_ref,
-    sourceKind: lock.source_kind,
-    trustTier: lock.trust_tier,
-    sourceSha256: packageActionSourceSha256(action, lock),
-    writesPerformed: !input.dryRun,
-    sourceArtifactRef: lock.source_artifact_ref ?? null,
-    artifactDigest: lock.artifact_digest ?? null,
-    ownerSourceCommit: lock.owner_source_commit ?? null,
-    carrierAuthority: lock.carrier_authority ?? null,
-    releaseChannelRef: lock.release_channel_ref ?? null,
-    releaseChannelDigest: lock.release_channel_digest ?? null,
-  });
-  const updatedLock: AgentPackageLock = {
-    ...lock,
-    exposure_state: nextState,
-    exposure_updated_at: input.dryRun ? lock.exposure_updated_at : nowIso(),
-    action_receipt_id: receipt.receipt_ref,
-  };
-  if (!input.dryRun) {
-    index.packages[lockIndex] = updatedLock;
-    writePackageTransaction(index);
-  }
-  return {
-    version: 'g2',
-    opl_agent_package_exposure: {
-      surface_kind: 'opl_agent_package_exposure',
-      status: input.dryRun ? 'validated_no_write' : packageActionStatus(action),
-      action,
-      dry_run: input.dryRun === true,
-      package_lock: updatedLock,
-      lifecycle_receipt: receipt,
-      authority_boundary: refsOnlyAuthorityBoundary(),
-    },
-  };
-}
-
 export async function runOplAgentPackageExposureAction(
   action: 'hide' | 'unhide' | 'enable' | 'disable',
   input: AgentPackagePackageActionInput,
 ) {
+  const packageId = requirePackageId(input.packageId, action);
   if (action === 'hide' || action === 'unhide') {
-    const packageId = requirePackageId(input.packageId, action);
     const descriptor = discoverInstalledCodexPluginDescriptors({ packageId }).get(packageId) ?? null;
     if (descriptor) {
       const shortcutIds = descriptor.manifest.presentation?.home_shortcuts
@@ -4463,9 +4405,14 @@ export async function runOplAgentPackageExposureAction(
       };
     }
   }
-  return withAgentPackageLifecycleTransaction(
-    input.dryRun === true,
-    async () => runOplAgentPackageExposureActionUnlocked(action, input),
+  throw new FrameworkContractError(
+    'contract_shape_invalid',
+    'Agent package exposure actions require a fresh installed native owner descriptor.',
+    {
+      package_id: packageId,
+      action,
+      failure_code: 'agent_package_exposure_native_owner_required',
+    },
   );
 }
 

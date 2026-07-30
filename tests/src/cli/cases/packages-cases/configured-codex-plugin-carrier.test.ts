@@ -272,6 +272,50 @@ test('an absent default Codex carrier does not masquerade as a failed native rea
   assert.equal(discovered.size, 0);
 });
 
+test('exposure actions without an installed native owner fail closed before legacy state access', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-exposure-owner-required-'));
+  const stateDir = path.join(root, 'opl-state');
+  const binary = path.join(root, 'empty-codex.mjs');
+  const lockPath = path.join(stateDir, 'agent-package-locks.json');
+  const ledgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
+  const sqlitePath = path.join(stateDir, 'agent-package-lifecycle.sqlite');
+  const invalidLock = '{ invalid native-exposure lock\n';
+  const invalidLedger = '{ invalid native-exposure ledger\n';
+  const env = {
+    HOME: root,
+    CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: binary,
+  };
+  try {
+    fs.writeFileSync(binary, `#!/usr/bin/env node
+if (process.argv.slice(2).join(' ') === 'plugin list --json') {
+  process.stdout.write(JSON.stringify({ installed: [], available: [] }));
+} else {
+  process.exitCode = 2;
+}
+`);
+    fs.chmodSync(binary, 0o755);
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(lockPath, invalidLock, 'utf8');
+    fs.writeFileSync(ledgerPath, invalidLedger, 'utf8');
+
+    for (const action of ['hide', 'unhide', 'enable', 'disable']) {
+      const failure = runCliFailure(['packages', action, '--package-id', 'legacy.package'], env);
+      assert.equal(
+        failure.payload.error.details.failure_code,
+        'agent_package_exposure_native_owner_required',
+      );
+      assert.equal(failure.payload.error.details.action, action);
+      assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLock);
+      assert.equal(fs.readFileSync(ledgerPath, 'utf8'), invalidLedger);
+      assert.equal(fs.existsSync(sqlitePath), false);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 function writeFakeCodex(binary: string) {
   fs.writeFileSync(binary, `#!/usr/bin/env node
 import fs from 'node:fs';
