@@ -1753,7 +1753,7 @@ async function maybeRunConfiguredCarrierLifecycle(input: {
   });
 }
 
-type ConfiguredCarrierPrivateAction = 'optimize' | 'rollback' | 'profile_apply'; // reuse-first: exception - these are native carrier action labels, not Framework updater authority.
+type ConfiguredCarrierPrivateAction = 'rollback' | 'profile_apply'; // reuse-first: exception - these are native carrier action labels, not Framework updater authority.
 
 function configuredCarrierPrivateActionReadback(input: {
   action: ConfiguredCarrierPrivateAction;
@@ -3150,31 +3150,6 @@ export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
   return withAgentPackageLifecycleTransaction(
     input.dryRun === true,
     async () => await runOplAgentPackageRepairUnlocked(input),
-  );
-}
-
-export async function runOplAgentPackageOptimize(input: AgentPackagePackageActionInput) {
-  const configured = await maybeRunConfiguredCarrierPrivateAction({
-    selectionInput: input,
-    action: 'optimize',
-  });
-  if (configured) {
-    return {
-      version: 'g2',
-      opl_agent_package_optimize: {
-        surface_kind: 'opl_agent_package_optimize',
-        ...configured,
-      },
-    };
-  }
-  const packageId = requirePackageId(input.packageId, 'optimize');
-  throw new FrameworkContractError(
-    'contract_shape_invalid',
-    'Agent package optimize requires a fresh callable native owner descriptor.',
-    {
-      package_id: packageId,
-      failure_code: 'agent_package_optimize_native_carrier_required',
-    },
   );
 }
 

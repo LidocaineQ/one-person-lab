@@ -513,51 +513,6 @@ test('MAS dependency closure update and rollback atomically rematerialize known 
   }
 });
 
-test('legacy installed-source optimize fails closed without creating dependency or scope transactions', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-installed-source-scope-'));
-  const stateDir = path.join(root, 'state');
-  const codexHome = path.join(root, 'codex-home');
-  const workspace = path.join(root, 'workspace');
-  const providerRoot = path.join(root, 'provider');
-  const providerManifest = writeFixtureCapabilityProvider(providerRoot);
-  const consumerManifest = writeFixtureMasConsumer(path.join(root, 'consumer'), providerManifest);
-  const env = { OPL_STATE_DIR: stateDir, CODEX_HOME: codexHome };
-  const helperPath = path.join(workspace, '.codex', 'skills', 'medical-manuscript-writing', 'helper.txt');
-  try {
-    bindMasWorkspace(workspace, env);
-    await runCliAsync([
-      'packages', 'install', '--manifest-url', consumerManifest, '--trust-tier', 'first_party',
-      '--scope', 'workspace', '--target-workspace', workspace,
-    ], env);
-    const originalHelper = fs.readFileSync(helperPath, 'utf8');
-    fs.writeFileSync(
-      path.join(providerRoot, 'skills', 'medical-manuscript-writing', 'helper.txt'),
-      'optimized installed source helper\n',
-      'utf8',
-    );
-
-    const lockPath = path.join(stateDir, 'agent-package-locks.json');
-    const lockBefore = fs.readFileSync(lockPath, 'utf8');
-    const transactionRoot = path.join(workspace, '.codex', '.opl-package-transactions');
-    const transactionsBefore = fs.existsSync(transactionRoot)
-      ? fs.readdirSync(transactionRoot).sort()
-      : [];
-    const failure = runCliFailure(['packages', 'optimize', FIXTURE_CONSUMER_PACKAGE_ID], env);
-    assert.equal(
-      failure.payload.error.details.failure_code,
-      'agent_package_optimize_native_carrier_required',
-    );
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBefore);
-    assert.equal(fs.readFileSync(helperPath, 'utf8'), originalHelper);
-    assert.deepEqual(
-      fs.existsSync(transactionRoot) ? fs.readdirSync(transactionRoot).sort() : [],
-      transactionsBefore,
-    );
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
 test('MAS scope materialization never overwrites an unowned local Skill', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-scope-collision-'));
   const workspace = path.join(root, 'workspace');

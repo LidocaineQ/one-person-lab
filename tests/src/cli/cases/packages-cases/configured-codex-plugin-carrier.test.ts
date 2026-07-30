@@ -1154,7 +1154,7 @@ test('native private lifecycle actions stay carrier-owned when legacy authoritie
     const lockBefore = fs.readFileSync(lockPath, 'utf8');
     const ledgerBefore = fs.readFileSync(ledgerPath, 'utf8');
 
-    for (const action of ['optimize', 'rollback', 'profile apply'] as const) { // reuse-first: exception - preserve the public action vocabulary while proving no Framework writer runs.
+    for (const action of ['rollback', 'profile apply'] as const) { // reuse-first: exception - preserve the retained public action vocabulary while proving no Framework writer runs.
       const result = action === 'profile apply'
         ? runCli([
             'packages', 'profile', 'apply', packageId,
@@ -1207,7 +1207,7 @@ test('initial native carrier discovery failure does not enter legacy private lif
     fs.writeFileSync(lockPath, invalidLock, 'utf8');
     fs.writeFileSync(ledgerPath, invalidLedger, 'utf8');
 
-    for (const action of ['optimize', 'rollback', 'profile apply'] as const) { // reuse-first: allow - exercise the public command vocabulary without implementing a Framework lifecycle writer.
+    for (const action of ['rollback', 'profile apply'] as const) { // reuse-first: allow - exercise the retained public command vocabulary without implementing a Framework lifecycle writer.
       const failure = action === 'profile apply'
         ? runCliFailure([
             'packages', 'profile', 'apply', packageId,
@@ -1257,8 +1257,8 @@ test('native private action does not fall back to legacy state after carrier rea
     fs.writeFileSync(lockPath, invalidLock, 'utf8');
     fs.writeFileSync(ledgerPath, invalidLedger, 'utf8');
 
-    const result = runCli(['packages', 'optimize', packageId], env) as any;
-    const surface = result.opl_agent_package_optimize;
+    const result = runCli(['packages', 'rollback', packageId], env) as any; // reuse-first: exception - retained native-owner rollback fail-closed guard; no Framework writer runs.
+    const surface = result.opl_agent_package_rollback;
     assert.equal(surface.status, 'attention_needed');
     assert.equal(surface.lifecycle_authority, 'carrier_owned');
     assert.equal(surface.writes_performed, false);

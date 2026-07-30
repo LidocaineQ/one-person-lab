@@ -10,7 +10,6 @@ import {
   runOplAgentPackageHomeShortcutPreferencesSet,
   runOplAgentPackageInstall,
   runOplAgentPackageManifestValidate,
-  runOplAgentPackageOptimize,
   runOplAgentPackageProfileApply,
   runOplAgentPackageRepair,
   runOplAgentPackageRollback,
@@ -533,17 +532,6 @@ export function buildPackagesCommandSpecs(
       handler: (args) => runOplAgentPackageRepair(admitMasWorkspaceScopedPackageMutation(
         'packages repair',
         parsePackageRepair(args, getCommandSpec('packages repair')),
-      )),
-    },
-    'packages optimize': {
-      usage: 'opl packages optimize <package_id> [--scope workspace|quest --target-workspace <path>|--target-quest <path>] [--dry-run]',
-      summary: 'Reconcile one installed OPL Package from its locked local source without catalog or network access.',
-      examples: ['opl packages optimize opl-flow --json'],
-      group: 'packages',
-      help_surface: 'diagnostic_drilldown',
-      handler: (args) => runOplAgentPackageOptimize(admitMasWorkspaceScopedPackageMutation(
-        'packages optimize',
-        parsePackageAction('packages optimize', args, getCommandSpec('packages optimize')),
       )),
     },
     'packages rollback': {

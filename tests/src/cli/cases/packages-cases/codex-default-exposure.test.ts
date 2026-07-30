@@ -233,7 +233,6 @@ test('hidden capability packages keep immutable cache but leave global Codex sur
         'packages activate',
         'packages update',
         'packages repair',
-        'packages optimize',
         'packages rollback',
       ]) {
         assert.throws(

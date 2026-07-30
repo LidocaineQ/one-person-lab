@@ -1195,14 +1195,6 @@ test('system configure-codex delegates Full runtime Package and carrier reconcil
     assert.notEqual(reconciledMasLock.owner_source_commit, expectedMasOwnerSourceCommit);
     assert.deepEqual(reconciledMasLock.carrier_authority, expectedMasCarrierAuthority);
 
-    const lockBytesBeforeOptimize = fs.readFileSync(lockPath, 'utf8');
-    const optimizeFailure = runCliFailure(['packages', 'optimize', 'mas'], fixture.env);
-    assert.equal(
-      optimizeFailure.payload.error.details.failure_code,
-      'agent_package_optimize_native_carrier_required',
-    );
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytesBeforeOptimize);
-
     const currentLockIndex = parseJsonText(fs.readFileSync(lockPath, 'utf8')) as Record<string, any>;
     const currentMasLock = currentLockIndex.packages.find(
       (entry: Record<string, any>) => entry.package_id === 'mas',
