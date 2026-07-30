@@ -817,9 +817,7 @@ test('packages preserves installed lock and returns an operation receipt when up
         };
         owner_route_readback: {
           packages: Array<{
-            lock: Record<string, unknown>;
             package_core: {
-              lock: Record<string, unknown>;
               lifecycle: Record<string, unknown>;
             };
           }>;
@@ -836,16 +834,11 @@ test('packages preserves installed lock and returns an operation receipt when up
     assert.equal(Object.hasOwn(installReadback, 'lock_file'), false);
     assert.equal(Object.hasOwn(installReadback, 'lifecycle_ledger_file'), false);
     assert.equal(installReadback.owner_route_readback.packages.length, 1);
-    for (const ownerLock of [
-      installReadback.owner_route_readback.packages[0].lock,
-      installReadback.owner_route_readback.packages[0].package_core.lock,
-    ]) {
-      assert.equal(Object.hasOwn(ownerLock, 'lock_file'), false);
-      assert.equal(Object.hasOwn(ownerLock, 'lifecycle_ledger_file'), false);
-      assert.equal(Object.hasOwn(ownerLock, 'lifecycle_receipt_ref'), false);
-    }
+    const ownerPackage = installReadback.owner_route_readback.packages[0];
+    assert.equal(Object.hasOwn(ownerPackage, 'lock'), false);
+    assert.equal(Object.hasOwn(ownerPackage.package_core, 'lock'), false);
     assert.equal(
-      Object.hasOwn(installReadback.owner_route_readback.packages[0].package_core.lifecycle, 'latest_receipt_ref'),
+      Object.hasOwn(ownerPackage.package_core.lifecycle, 'latest_receipt_ref'),
       false,
     );
 

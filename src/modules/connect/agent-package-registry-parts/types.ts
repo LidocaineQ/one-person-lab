@@ -704,10 +704,6 @@ export type AgentPackageDigestReadback = {
   content_identity_fields: string[];
 };
 
-export type AgentPackageLockReadback = {
-  package_lock_ref: string | null;
-};
-
 export type AgentPackageCarrierAdapterReadback = {
   adapter_kind: 'codex_plugin_carrier' | 'managed_runtime_source_carrier';
   carrier: 'codex_plugin' | 'opl_managed_module_source';
@@ -800,7 +796,6 @@ export type AgentPackageCoreReadback = {
     trust_tier: string | null;
   };
   carrier_authority: AgentPackageCarrierAuthority | null;
-  lock: AgentPackageLockReadback;
   lifecycle: {
     latest_action: AgentPackageLifecycleAction | null;
     status: AgentPackageLifecycleUxReadback['status'];
@@ -987,7 +982,6 @@ export type AgentPackageOwnerRouteReadbackItem = {
   allowed_when_blocked: Array<'status' | 'doctor' | 'repair'>;
   descriptor: AgentPackageDescriptorReadback;
   digest: AgentPackageDigestReadback;
-  lock: AgentPackageLockReadback;
   materializer: {
     status: AgentPackagePhysicalSurface['status'];
     plugin_id: string | null;

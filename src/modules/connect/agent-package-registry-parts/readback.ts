@@ -276,9 +276,6 @@ function ownerRouteReadbackItem(input: {
       'package_lock_ref',
     ],
   };
-  const lock = {
-    package_lock_ref: input.lock?.lock_ref ?? input.receipt?.package_lock_ref ?? null,
-  };
   const policyCurrentness = managedPolicyCurrentness(input.lock);
   const materializer = {
     status: surface?.status ?? 'not_requested',
@@ -400,7 +397,6 @@ function ownerRouteReadbackItem(input: {
     allowed_when_blocked: ['status', 'doctor', 'repair'],
     descriptor,
     digest,
-    lock,
     materializer,
     lifecycle_ux: lifecycleUx,
     package_core: {
@@ -419,7 +415,6 @@ function ownerRouteReadbackItem(input: {
         trust_tier: descriptor.trust_tier,
       },
       carrier_authority: input.lock?.carrier_authority ?? null,
-      lock,
       lifecycle: {
         latest_action: input.receipt?.action ?? null,
         status: lifecycleUx.status,
