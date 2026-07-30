@@ -925,7 +925,7 @@ test('external registry selectors reject forged claims and never become a direct
 });
 
 
-test('ordinary list, status, App, and Home surfaces ignore valid, stale, and poisoned Release Catalog caches', () => {
+test('ordinary list, status, App, and Home surfaces reject non-current Release Catalog caches', () => {
   const fixture = isolatedPackageEnv('opl-package-directory');
   const codexFixture = createFakeCodexFixture(`
 if [[ "$1" == "--version" ]]; then
@@ -1080,6 +1080,7 @@ exit 1
     for (const [cacheCase, checkedAt] of [
       ['valid', new Date().toISOString()],
       ['stale', '2000-01-01T00:00:00.000Z'],
+      ['future', '2999-01-01T00:00:00.000Z'],
       ['poisoned', null],
     ] as const) {
       fs.writeFileSync(cacheFile, cacheCase === 'poisoned'
@@ -1092,14 +1093,11 @@ exit 1
           catalog_payload: catalogPayload,
         }));
       const snapshot = readFirstPartyPackageCatalogSnapshot();
-      if (cacheCase === 'poisoned') {
+      if (cacheCase !== 'valid') {
         assert.equal(snapshot, null);
       } else {
         assert.ok(snapshot);
-        assert.equal(
-          snapshot.freshness,
-          cacheCase === 'valid' ? 'cached' : 'last_known_good',
-        );
+        assert.equal(snapshot.freshness, 'cached');
         assert.equal(
           buildAgentPackageDirectory({
             locks: [],
@@ -1336,7 +1334,7 @@ test('static owner presentation projects only when no selected catalog manifest 
   assert.deepEqual(selectedMag.home_shortcuts, []);
   }));
 
-test('legacy v1 Release Set cache remains non-live and never invents a descriptor digest', () => {
+test('expired legacy v1 Release Set cache is rejected', () => {
   const fixture = isolatedPackageEnv('opl-package-directory-legacy-release-cache');
   const previousStateDir = process.env.OPL_STATE_DIR;
   const packageCatalog = {};
@@ -1359,14 +1357,7 @@ test('legacy v1 Release Set cache remains non-live and never invents a descripto
       }),
     );
     const snapshot = readFirstPartyPackageCatalogSnapshot();
-    assert.ok(snapshot);
-    assert.equal(snapshot.freshness, 'last_known_good');
-    assert.equal(snapshot.release_set_descriptor_digest, null);
-    assert.equal(snapshot.channel_manifest_layer_digest, legacyLayerDigest);
-    assert.equal(
-      snapshot.package_catalog_digest,
-      `sha256:${crypto.createHash('sha256').update(JSON.stringify(packageCatalog)).digest('hex')}`,
-    );
+    assert.equal(snapshot, null);
     assert.equal(
       listOplAgentPackages().opl_agent_packages.directory.first_party_release_currentness.status,
       'unknown',
