@@ -34,6 +34,93 @@ ${handlerBody}
   };
 }
 
+export function createFakeCodexPluginManagerFixture(
+  fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-codex-plugin-manager-fixture-')),
+) {
+  fs.mkdirSync(fixtureRoot, { recursive: true });
+  const codexPath = path.join(fixtureRoot, 'codex');
+  fs.writeFileSync(
+    codexPath,
+    `#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+
+const args = process.argv.slice(2);
+if (args.length === 1 && args[0] === '--version') {
+  process.stdout.write('codex-cli 0.134.0\\n');
+  process.exit(0);
+}
+if (args.join(' ') !== 'plugin list --json') {
+  process.exit(2);
+}
+
+const configPath = path.join(process.env.CODEX_HOME || '', 'config.toml');
+const config = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
+const sections = new Map();
+let current = null;
+for (const line of config.split('\\n')) {
+  const header = line.trim().match(/^\\[([^\\]]+)\\]$/);
+  if (header) {
+    current = header[1];
+    sections.set(current, []);
+  } else if (current) {
+    sections.get(current).push(line);
+  }
+}
+const unquote = (value) => {
+  if (value.startsWith('"') && value.endsWith('"')) {
+    return value.slice(1, -1).replace(/\\\\"/g, '"').replace(/\\\\\\\\/g, '\\\\');
+  }
+  return value;
+};
+const stringValue = (lines, key) => {
+  const pattern = new RegExp('^\\\\s*' + key + '\\\\s*=\\\\s*"((?:\\\\\\\\.|[^"\\\\\\\\])*)"\\\\s*$');
+  for (const line of lines) {
+    const match = line.match(pattern);
+    if (match) return match[1].replace(/\\\\"/g, '"').replace(/\\\\\\\\/g, '\\\\');
+  }
+  return null;
+};
+const marketplaces = new Map();
+for (const [header, lines] of sections) {
+  if (!header.startsWith('marketplaces.')) continue;
+  const id = unquote(header.slice('marketplaces.'.length));
+  const source = stringValue(lines, 'source');
+  if (id && source) marketplaces.set(id, source);
+}
+const installed = [];
+for (const [header, lines] of sections) {
+  if (!header.startsWith('plugins.')) continue;
+  const selector = unquote(header.slice('plugins.'.length));
+  const separator = selector.lastIndexOf('@');
+  if (separator <= 0) continue;
+  const pluginId = selector.slice(0, separator);
+  const marketplaceId = selector.slice(separator + 1);
+  const marketplaceRoot = marketplaces.get(marketplaceId);
+  if (!marketplaceRoot) continue;
+  const sourcePath = path.join(marketplaceRoot, 'plugins', pluginId);
+  const manifestPath = path.join(sourcePath, '.codex-plugin', 'plugin.json');
+  if (!fs.existsSync(manifestPath)) continue;
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); // reuse-first: allow disposable fake Codex CLI to parse its own copied plugin manifest.
+  installed.push({
+    pluginId: selector,
+    version: typeof manifest.version === 'string' ? manifest.version : null,
+    installed: true,
+    enabled: !lines.some((line) => /^\\s*enabled\\s*=\\s*false\\s*$/.test(line)),
+    source: { source: 'local', path: sourcePath },
+    marketplaceSource: { sourceType: 'local', source: marketplaceRoot },
+  });
+}
+process.stdout.write(JSON.stringify({ installed, available: [] }));
+`,
+    { mode: 0o755 },
+  );
+  return {
+    fixtureRoot,
+    codexPath,
+  };
+}
+
 export function shellSingleQuote(value: string) {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }

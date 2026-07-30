@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import {
   assert,
   createFakeCodexFixture,
+  createFakeCodexPluginManagerFixture,
   fs,
   os,
   parseJsonText,
@@ -1144,7 +1145,10 @@ function packageMutationUnitFingerprint(input: {
 }) {
   const packageIds = new Set(input.packageIds);
   const lockIndex = readJsonFile(path.join(input.stateRoot, 'agent-package-locks.json')) as any;
-  const lifecycle = readJsonFile(path.join(input.stateRoot, 'agent-package-lifecycle-ledger.json')) as any;
+  const lifecyclePath = path.join(input.stateRoot, 'agent-package-lifecycle-ledger.json');
+  const lifecycle = fs.existsSync(lifecyclePath)
+    ? readJsonFile(lifecyclePath) as any
+    : { receipts: [] };
   const locks = lockIndex.packages
     .filter((entry: any) => packageIds.has(entry.package_id))
     .sort((left: any, right: any) => left.package_id.localeCompare(right.package_id));
@@ -1231,13 +1235,7 @@ test('public update apply retains successful bundled roots when another root res
       updated_at: new Date(0).toISOString(),
       source: 'user_config',
     });
-    const codexFixture = createFakeCodexFixture(`
-if [ "$1" = "--version" ]; then
-  echo "codex-cli 0.134.0"
-  exit 0
-fi
-exit 0
-`);
+    const codexFixture = createFakeCodexPluginManagerFixture();
     const baseRuntimeRoot = path.join(root, 'base-runtime');
     const baseRuntimeBin = path.join(baseRuntimeRoot, 'current', 'bin');
     const baseRuntimeCodex = path.join(baseRuntimeBin, 'codex');
@@ -1280,6 +1278,7 @@ exit 0
       OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED: '1',
       OPL_TEST_BUNDLED_FULL_RUNTIME_PACKAGE_CATALOG: oldCatalog.catalogPath,
       OPL_CODEX_CLI_LATEST_VERSION: '0.134.0',
+      OPL_CODEX_PLUGIN_BIN: codexFixture.codexPath,
       OPL_FRAMEWORK_UPDATE_SOURCE: path.resolve('.'),
       OPL_CLI_TEST_TIMEOUT_MS: '120000',
       OPL_TEST_LAUNCHCTL_LOG: launchctlLog,
@@ -1775,15 +1774,10 @@ exit 0
       2,
     );
     assert.equal(finalMasLkgRoot.dependency_transaction_id, preFaultMasLock.dependency_transaction_id);
-    const lifecycle = readJsonFile(path.join(stateRoot, 'agent-package-lifecycle-ledger.json')) as any;
-    const managedReceipts = lifecycle.receipts.filter((entry: any) => (
-      entry.action === 'update'
-      && entry.trigger === 'managed_update_kernel_apply'
-      && entry.operation_id === masResult.lifecycle_receipt.operation_id
-    ));
-    assert.equal(managedReceipts.length, 2);
-    assert.equal(managedReceipts.every((entry: any) => entry.initiator === 'opl_managed_update_kernel'), true);
-    assert.equal(new Set(managedReceipts.map((entry: any) => entry.operation_id)).size, 1);
+    assert.equal(
+      fs.existsSync(path.join(stateRoot, 'agent-package-lifecycle-ledger.json')),
+      false,
+    );
     const componentLedger = readJsonFile(path.join(stateRoot, 'managed-update-component-receipts.json')) as any;
     const finalComponentReceipt = componentLedger.receipts.find((entry: any) => (
       entry.receipt_ref === receiptRef

@@ -259,17 +259,24 @@ test('configured Codex carrier reports a declared selector without a physical so
 });
 
 test('an absent default Codex carrier does not masquerade as a failed native read', () => {
+  const previousBinary = process.env.OPL_CODEX_PLUGIN_BIN;
   const error = Object.assign(new Error('spawnSync codex ENOENT'), { code: 'ENOENT' });
-  const discovered = discoverInstalledPackageDescriptors({
-    failClosedOnCarrierError: true,
-    runner: () => ({
-      status: null,
-      stdout: '',
-      stderr: '',
-      error,
-    }),
-  });
-  assert.equal(discovered.size, 0);
+  delete process.env.OPL_CODEX_PLUGIN_BIN;
+  try {
+    const discovered = discoverInstalledPackageDescriptors({
+      failClosedOnCarrierError: true,
+      runner: () => ({
+        status: null,
+        stdout: '',
+        stderr: '',
+        error,
+      }),
+    });
+    assert.equal(discovered.size, 0);
+  } finally {
+    if (previousBinary === undefined) delete process.env.OPL_CODEX_PLUGIN_BIN;
+    else process.env.OPL_CODEX_PLUGIN_BIN = previousBinary;
+  }
 });
 
 test('exposure actions without an installed native owner fail closed before legacy state access', () => {

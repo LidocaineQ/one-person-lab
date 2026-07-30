@@ -5,6 +5,7 @@ import {
   cliPath,
   contractsDir,
   createContractsFixtureRoot,
+  createFakeCodexPluginManagerFixture,
   explainDomainBoundary,
   fs,
   loadFrameworkContracts,
@@ -302,6 +303,7 @@ test('domain selection uses package-locked domain routing signals for natural-la
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-atlas-package-lock-'));
   const domainRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-atlas-domain-'));
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-atlas-package-home-'));
+  const codexFixture = createFakeCodexPluginManagerFixture(path.join(homeRoot, 'fixture-bin'));
   const previousStateRoot = process.env.OPL_STATE_DIR;
   try {
     fs.mkdirSync(path.join(domainRepo, 'contracts'), { recursive: true });
@@ -378,6 +380,8 @@ test('domain selection uses package-locked domain routing signals for natural-la
       OPL_STATE_DIR: stateRoot,
       OPL_MODULES_ROOT: path.join(stateRoot, 'managed-modules'),
       ...releaseSet.env,
+      OPL_CODEX_PLUGIN_BIN: codexFixture.codexPath,
+      PATH: `${codexFixture.fixtureRoot}${path.delimiter}${releaseSet.env.PATH}`,
     };
     runCli(['packages', 'install', 'rca'], packageEnv);
     const status = runCli(['packages', 'status', '--package-id', 'rca'], packageEnv)

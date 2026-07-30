@@ -1,6 +1,7 @@
 import {
   assert,
   buildManifestCommand,
+  createFakeCodexPluginManagerFixture,
   createFakeOpenFixture,
   createFakeShellCommandFixture,
   fs,
@@ -22,6 +23,10 @@ import {
   writeCapabilityProvider,
   writeMasConsumer,
 } from './packages-cases/capability-fixtures.ts';
+
+function createPackageCarrierBinary(root: string) {
+  return createFakeCodexPluginManagerFixture(path.join(root, 'fixture-bin')).codexPath;
+}
 
 test('domain manifests resolves bound manifests and reports owner-action configuration gaps', () => {
   const resolvedState = fs.mkdtempSync(`${os.tmpdir()}/opl-domain-manifest-resolved-`);
@@ -229,6 +234,7 @@ test('MAS launch activates a new workspace scope and automatically recovers mana
     OPL_OPEN_BIN: openFixture.openPath,
     OPL_DEVELOPER_MODE_GITHUB_IDENTITY_FIXTURE: 'opl-managed-package-test',
     ...releaseSet.env,
+    OPL_CODEX_PLUGIN_BIN: createPackageCarrierBinary(root),
   };
   fs.mkdirSync(workspace, { recursive: true });
   try {
@@ -294,6 +300,7 @@ test('quest root activation through a canonical MAS workspace binding materializ
     CODEX_HOME: codexHome,
     OPL_DEVELOPER_MODE_GITHUB_IDENTITY_FIXTURE: 'opl-managed-package-test',
     ...releaseSet.env,
+    OPL_CODEX_PLUGIN_BIN: createPackageCarrierBinary(root),
   };
   fs.mkdirSync(quest, { recursive: true });
   try {
@@ -367,6 +374,7 @@ test('workspace activation automatically ensures the installed MAS package scope
     OPL_WORKSPACE_ROOT: workspaceA,
     OPL_DEVELOPER_MODE_GITHUB_IDENTITY_FIXTURE: 'opl-managed-package-test',
     ...releaseSet.env,
+    OPL_CODEX_PLUGIN_BIN: createPackageCarrierBinary(root),
   };
   fs.mkdirSync(workspaceA, { recursive: true });
   fs.mkdirSync(workspaceB, { recursive: true });

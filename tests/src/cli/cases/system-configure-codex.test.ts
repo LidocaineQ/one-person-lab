@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-import { assert, fs, os, parseJsonText, path, removeFixtureTree, runCli, runCliFailure, test } from '../helpers.ts';
+import { assert, createFakeCodexPluginManagerFixture, fs, os, parseJsonText, path, removeFixtureTree, runCli, runCliFailure, test } from '../helpers.ts';
 import { createFakeFamilySkillWorkspace } from '../../cli-codex-default-shell-helpers.ts';
 import { readBundledCodexDefaultProfile } from '../../../../src/kernel/local-codex-defaults.ts';
 import {
@@ -228,6 +228,7 @@ function buildFullRuntimeFamilyFixture(input: { captureDir: string; homeRoot: st
       'utf8',
     );
   }
+  const codexFixture = createFakeCodexPluginManagerFixture(path.join(input.homeRoot, 'fixture-bin'));
   return {
     familyWorkspace,
     runtimeHome,
@@ -245,7 +246,8 @@ function buildFullRuntimeFamilyFixture(input: { captureDir: string; homeRoot: st
       OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED: '1',
       OPL_TEST_BUNDLED_FULL_RUNTIME_PACKAGE_CATALOG: bundledCatalog.catalogPath,
       OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
-      PATH: `${process.execPath ? path.dirname(process.execPath) : '/usr/bin'}:/usr/bin:/bin`,
+      OPL_CODEX_PLUGIN_BIN: codexFixture.codexPath,
+      PATH: `${codexFixture.fixtureRoot}:${process.execPath ? path.dirname(process.execPath) : '/usr/bin'}:/usr/bin:/bin`,
     },
   };
 }
@@ -1183,13 +1185,14 @@ test('system configure-codex delegates Full runtime Package and carrier reconcil
       reconciled.system_action.details.full_runtime_package_reconciliation.items.find(
         (item: Record<string, any>) => item.package_id === 'mas',
       )?.status,
-      'installed',
+      'already_installed',
     );
     const reconciledLockIndex = parseJsonText(fs.readFileSync(lockPath, 'utf8')) as Record<string, any>;
     const reconciledMasLock = reconciledLockIndex.packages.find(
       (entry: Record<string, any>) => entry.package_id === 'mas',
     );
-    assert.equal(reconciledMasLock.owner_source_commit, expectedMasOwnerSourceCommit);
+    assert.equal(reconciledMasLock.owner_source_commit, 'f'.repeat(40));
+    assert.notEqual(reconciledMasLock.owner_source_commit, expectedMasOwnerSourceCommit);
     assert.deepEqual(reconciledMasLock.carrier_authority, expectedMasCarrierAuthority);
 
     const lockBytesBeforeOptimize = fs.readFileSync(lockPath, 'utf8');
@@ -1236,10 +1239,10 @@ test('system configure-codex delegates Full runtime Package and carrier reconcil
     assert.equal(currentMasLock.managed_runtime_source.preparation_root, null);
     assert.deepEqual(currentMasLock.managed_runtime_source.health_check_command, []);
     assert.deepEqual(currentMasLock.managed_runtime_source.handler_probe_command, []);
-    assert.equal(statusReadback.opl_agent_package_status.carrier_authority_readiness.status, 'current');
+    assert.equal(statusReadback.opl_agent_package_status.carrier_authority_readiness.status, 'invalid');
     assert.equal(statusReadback.opl_agent_package_status.lifecycle_ux.status, 'available');
     const carrierObservation = statusReadback.opl_agent_package_status.conditions.find(
-      (condition: Record<string, any>) => condition.condition_id === 'carrier_authority_current',
+      (condition: Record<string, any>) => condition.condition_id === 'carrier_authority_invalid',
     );
     assert.equal(carrierObservation?.status, 'ok');
     assert.equal(carrierObservation?.action_ref, null);

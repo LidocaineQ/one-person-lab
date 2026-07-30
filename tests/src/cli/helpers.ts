@@ -14,7 +14,7 @@ export { explainDomainBoundary, selectDomainAgentEntry, resolveRequestSurface } 
 
 export { cliPath, contractsDir, familyManifestFixtureDir, repoRoot } from './helpers-parts/constants.ts';
 export { runCli, runCliAsync, runCliFailure, runCliFailureInCwd, runCliInCwd, runCliRaw, runCliRawInCwd, runCliReadOnly, runCliReadOnlyFailure, runCliReadOnlyFailureInCwd, runCliReadOnlyInCwd, runCliViaEntryPathInCwd } from './helpers-parts/runner.ts';
-export { buildManifestCommand, createCodexConfigFixture, createContractsFixtureRoot, createFakeCodexFixture, createMasWorkspaceFixture, readJsonFixture, shellSingleQuote } from './helpers-parts/fixtures.ts';
+export { buildManifestCommand, createCodexConfigFixture, createContractsFixtureRoot, createFakeCodexFixture, createFakeCodexPluginManagerFixture, createMasWorkspaceFixture, readJsonFixture, shellSingleQuote } from './helpers-parts/fixtures.ts';
 export { assertMagActionGraph, assertMasActionGraph, assertRedcubeActionGraph, createFakeLaunchctlFixture, createFakeOpenFixture, createFakeShellCommandFixture, createFamilyContractsFixtureRoot, createFamilyLocatorResolverFixture, createGitModuleRemoteFixture, insertFamilyRuntimeTaskProjectionFixture, installRuntimePackageFixture, loadFamilyManifestFixtures, writeMasCleanRunnerFixture } from './helpers-parts/family-fixtures.ts';
 export { startFakeOplApiServer } from './helpers-parts/fake-api-server.ts';
 export { removeFixtureTree } from './helpers-parts/filesystem.ts';
