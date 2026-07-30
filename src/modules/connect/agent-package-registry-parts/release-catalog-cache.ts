@@ -12,7 +12,7 @@ import { readOplPackageArtifactWithMetadata } from '../system-installation/modul
 
 export async function refreshFirstPartyPackageCatalogSnapshot(
   packageId = 'mas',
-  input: { persist?: boolean; timeoutMs?: number } = {},
+  input: { timeoutMs?: number } = {},
 ): Promise<FirstPartyDirectoryCatalogSnapshot> {
   if (!resolveFirstPartyPackageCatalog(packageId)) {
     throw new Error(`Unknown first-party OPL Package: ${packageId}`);
@@ -135,13 +135,11 @@ export async function refreshFirstPartyPackageCatalogSnapshot(
 export async function resolveFirstPartyPackageCatalogSnapshot(input: {
   refresh: boolean;
   packageId?: string;
-  persist?: boolean;
   timeoutMs?: number;
 }): Promise<FirstPartyDirectoryCatalogSnapshot | null> {
   if (input.refresh && input.packageId) {
     try {
       return await refreshFirstPartyPackageCatalogSnapshot(input.packageId, {
-        persist: input.persist,
         timeoutMs: input.timeoutMs,
       });
     } catch {

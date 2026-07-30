@@ -597,9 +597,7 @@ async function applyManifestPackageLock(
     && !trustedBundledInstall
     && !developerRootSelection
     && (!catalog || !rootVersion)) {
-    const snapshot = await refreshFirstPartyPackageCatalogSnapshot(firstParty.canonicalId, {
-      persist: false,
-    });
+    const snapshot = await refreshFirstPartyPackageCatalogSnapshot(firstParty.canonicalId);
     catalog = snapshot.catalog;
     rootVersion = ownerPackageCatalogVersion(catalog, firstParty.canonicalId);
     catalogSource = { ...firstParty.catalogSource, catalog_ref: snapshot.catalog_ref };
@@ -2767,7 +2765,6 @@ async function runOplAgentPackageUpdateUnlocked(
       : await resolveFirstPartyPackageCatalogSnapshot({
           refresh: true,
           packageId,
-          persist: false,
           timeoutMs: runtime.catalogFetchTimeoutMs,
         });
     if (!catalogSnapshot && !developerRoot) {
