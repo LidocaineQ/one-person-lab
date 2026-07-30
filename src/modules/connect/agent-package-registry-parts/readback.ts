@@ -386,7 +386,12 @@ function ownerRouteReadbackItem(input: {
       projection_role: 'package_carrier_adapter',
       owns_package_core: false,
       owns_domain_truth: false,
-      ...materializer,
+      status: materializer.status,
+      plugin_id: materializer.plugin_id,
+      materialized_required_skill_ids: materializer.materialized_required_skill_ids,
+      writes_performed: materializer.writes_performed,
+      reload_required: materializer.reload_required,
+      failure_reason: materializer.failure_reason,
     }, ...(runtimeSource ? [{
       adapter_kind: 'managed_runtime_source_carrier' as const,
       carrier: 'opl_managed_module_source' as const,
