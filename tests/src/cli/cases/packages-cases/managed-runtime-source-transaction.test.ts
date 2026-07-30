@@ -821,7 +821,7 @@ test('developer checkout source switch does not validate a displaced managed car
   }
 });
 
-test('interrupted developer snapshot activation removes only the uncommitted snapshot and retains LKG', () => {
+test('interrupted developer snapshot activation removes only the uncommitted snapshot', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-developer-snapshot-recovery-'));
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-developer-snapshot-source-'));
   const checkoutPath = path.join(fixtureRoot, 'med-autogrant');
@@ -895,7 +895,6 @@ test('interrupted developer snapshot activation removes only the uncommitted sna
         package_id: FIXTURE_MAG_PACKAGE_ID,
         managed_runtime_source: installed.after,
       }],
-      last_known_good_transactions: [],
     } as any);
     assert.equal(recovery.status, 'recovered');
     assert.equal(recovery.recovered_transaction_count, 1);
@@ -926,7 +925,6 @@ test('interrupted developer snapshot activation removes only the uncommitted sna
         package_id: FIXTURE_MAG_PACKAGE_ID,
         managed_runtime_source: pathMismatchedLock,
       }],
-      last_known_good_transactions: [],
     } as any);
     assert.equal(physicalRecovery.recovered_transaction_count, 1);
     assert.equal(fs.existsSync(physicalAppliedPath), false);
@@ -990,7 +988,6 @@ test('developer snapshot garbage collection ignores forged and symlinked persist
         lock('fixture.linked-module', 'medautogrant', path.join(snapshotRoot, 'medautogrant', linkedModuleDigest)),
         lock('fixture.forged', 'redcube', forgedOutsidePath),
       ],
-      last_known_good_transactions: [],
     } as any;
     const current = {
       packages: [
@@ -1000,7 +997,6 @@ test('developer snapshot garbage collection ignores forged and symlinked persist
           `${redcubeRoot}${path.sep}.${path.sep}${retainedDigest}`,
         ),
       ],
-      last_known_good_transactions: [],
     } as any;
 
     cleanupUnreferencedDeveloperRuntimeSnapshots(previous, current);
@@ -1161,7 +1157,7 @@ test('bundled Full runtime source requires a matching carrier marker and rejects
   }
 });
 
-test('ordinary-user explicit update advances MAS and ScholarSkills by immutable V1 V2 V3 generations', () => {
+test('ordinary-user update advances immutable runtime generations and retires superseded Package caches', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-ordinary-generation-history-'));
   const stateDir = path.join(root, 'state');
   const homeDir = path.join(root, 'home');
@@ -1228,8 +1224,8 @@ test('ordinary-user explicit update advances MAS and ScholarSkills by immutable 
       providerPlugin: v2Provider.physical_surface.codex_plugin_cache_path,
     };
     for (const [key, generationPath] of Object.entries(v1Paths)) {
-      assert.equal(fs.existsSync(generationPath), true, generationPath);
-      assert.equal(exactTreeDigest(generationPath), v1Digests[key]);
+      assert.equal(fs.existsSync(generationPath), key === 'runtime', generationPath);
+      if (key === 'runtime') assert.equal(exactTreeDigest(generationPath), v1Digests[key]);
       assert.notEqual(generationPath, v2Paths[key as keyof typeof v2Paths]);
     }
     const v2Digests = Object.fromEntries(
@@ -1282,7 +1278,8 @@ test('ordinary-user explicit update advances MAS and ScholarSkills by immutable 
     });
     assert.deepEqual(exactTreeInventory(pluginCacheRoot), beforeFailedUpdatePluginInventory);
     for (const [key, generationPath] of Object.entries(v1Paths)) {
-      assert.equal(exactTreeDigest(generationPath), v1Digests[key]);
+      assert.equal(fs.existsSync(generationPath), key === 'runtime', generationPath);
+      if (key === 'runtime') assert.equal(exactTreeDigest(generationPath), v1Digests[key]);
     }
     for (const [key, generationPath] of Object.entries(v2Paths)) {
       assert.equal(exactTreeDigest(generationPath), v2Digests[key]);
@@ -1342,10 +1339,12 @@ test('ordinary-user explicit update advances MAS and ScholarSkills by immutable 
     );
     fs.rmSync(unexpectedPayloadFile);
     for (const [key, generationPath] of Object.entries(v1Paths)) {
-      assert.equal(exactTreeDigest(generationPath), v1Digests[key]);
+      assert.equal(fs.existsSync(generationPath), key === 'runtime', generationPath);
+      if (key === 'runtime') assert.equal(exactTreeDigest(generationPath), v1Digests[key]);
     }
     for (const [key, generationPath] of Object.entries(v2Paths)) {
-      assert.equal(exactTreeDigest(generationPath), v2Digests[key]);
+      assert.equal(fs.existsSync(generationPath), key === 'runtime', generationPath);
+      if (key === 'runtime') assert.equal(exactTreeDigest(generationPath), v2Digests[key]);
     }
   } finally {
     removeFixtureTree(root);

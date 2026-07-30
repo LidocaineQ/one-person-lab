@@ -1193,7 +1193,7 @@ function developerCheckoutCacheDigest(
         || fs.lstatSync(targetPath).isSymbolicLink()
         || (expectedSourceMode !== '100644' && expectedSourceMode !== '100755')
         || (fs.lstatSync(targetPath).mode & 0o777) !== expectedGenerationMode) {
-        throw new FrameworkContractError('contract_shape_invalid', 'Developer checkout LKG cache is incomplete or unsafe.', {
+        throw new FrameworkContractError('contract_shape_invalid', 'Developer checkout immutable cache is incomplete or unsafe.', {
           package_id: manifest.package_id,
           cache_path: target,
           copy_path: relativePath,
@@ -1653,19 +1653,13 @@ export function removePhysicalCodexSurface(
 }
 
 function payloadSourceRefs(index: AgentPackageLockIndex) {
-  return new Set([
-    ...index.packages,
-    ...(index.last_known_good_transactions ?? []).flatMap((entry) => entry.package_locks),
-  ].flatMap((lock) => lock.physical_surface?.plugin_payload_cache_path
+  return new Set(index.packages.flatMap((lock) => lock.physical_surface?.plugin_payload_cache_path
     ? [lock.physical_surface.plugin_payload_cache_path]
     : []));
 }
 
 function pluginCacheRefs(index: AgentPackageLockIndex) {
-  return new Set([
-    ...index.packages,
-    ...(index.last_known_good_transactions ?? []).flatMap((entry) => entry.package_locks),
-  ].flatMap((lock) => lock.physical_surface?.codex_plugin_cache_path
+  return new Set(index.packages.flatMap((lock) => lock.physical_surface?.codex_plugin_cache_path
     ? [lock.physical_surface.codex_plugin_cache_path]
     : []));
 }

@@ -109,7 +109,6 @@ import {
   managedRuntimeSourceReadiness,
   recoverManagedRuntimeSourceTransactions,
   removeManagedRuntimeSourceCarrier,
-  restoreManagedRuntimeSourceCarrier,
   rollbackManagedRuntimeSourceMutation,
 } from './agent-package-registry-parts/managed-runtime-source-carrier.ts';
 import {
@@ -136,7 +135,6 @@ import {
   resolveFirstPartyPackageCatalogSnapshot,
 } from './agent-package-registry-parts/release-catalog-cache.ts';
 import { resolveAgentPackageEffectiveSourcePolicy } from './agent-package-registry-parts/source-policy.ts';
-import { packageRoleFromInstalledLock } from './agent-package-registry-parts/package-role.ts';
 import {
   loadDeveloperCheckoutPackageSource,
   mergeDeveloperCheckoutPackageManifest,
@@ -169,7 +167,6 @@ import type {
   AgentPackageCarrierAuthority,
   AgentPackageInstallInput,
   AgentPackageLifecycleUxReadback,
-  AgentPackageLastKnownGood,
   AgentPackageLock,
   AgentPackageLockIndex,
   AgentPackageManifestValidateInput,
@@ -386,33 +383,6 @@ function readRecoveredLockIndex(dryRun = false) {
       ? inspectManagedRuntimeSourceTransactions()
       : recoverManagedRuntimeSourceTransactions(index),
   };
-}
-
-function retainLastKnownGoodPerRoot(
-  entries: AgentPackageLastKnownGood[],
-  next: AgentPackageLastKnownGood,
-) {
-  const counts = new Map<string, number>();
-  const identities = new Set<string>();
-  return [next, ...entries].filter((entry) => {
-    const identity = lastKnownGoodIdentity(entry);
-    if (identities.has(identity)) return false;
-    identities.add(identity);
-    const count = counts.get(entry.root_package_id) ?? 0;
-    counts.set(entry.root_package_id, count + 1);
-    return count < 4;
-  });
-}
-
-function lastKnownGoodIdentity(entry: AgentPackageLastKnownGood) {
-  return [
-    entry.root_package_id,
-    entry.transaction_id,
-    entry.closure_digest,
-    ...entry.package_locks
-      .map((lock) => `${lock.package_id}:${lock.lock_ref}`)
-      .sort(),
-  ].join('\0');
 }
 
 function installedLockClosure(index: AgentPackageLockIndex, root: AgentPackageLock) {
@@ -1438,23 +1408,6 @@ async function applyManifestPackageLock(
   if (!input.dryRun) {
     const previousLocks = previousClosureLocks;
     const nextIndex = structuredClone(index);
-    const previousClosureDigest = dependencyClosureDigest(previousLocks);
-    if (action !== 'repair' && previousLocks.length > 0) {
-      nextIndex.last_known_good_transactions = retainLastKnownGoodPerRoot(
-        nextIndex.last_known_good_transactions ?? [],
-        {
-          root_package_id: root.manifest.package_id,
-          transaction_id: sha256Text([
-            'lkg-snapshot',
-            root.manifest.package_id,
-            previousClosureDigest,
-            ...previousLocks.map((entry) => entry.lock_ref).sort(),
-          ].join('\n')),
-          closure_digest: previousClosureDigest,
-          package_locks: previousLocks,
-        },
-      );
-    }
     for (const nextLock of locks) {
       const currentIndex = nextIndex.packages.findIndex((entry) => entry.package_id === nextLock.package_id);
       if (currentIndex >= 0) nextIndex.packages[currentIndex] = nextLock;
@@ -1507,7 +1460,6 @@ async function applyManifestPackageLock(
     }
     const retainedPhysicalPaths = new Set([
       ...nextIndex.packages,
-      ...(nextIndex.last_known_good_transactions ?? []).flatMap((entry) => entry.package_locks),
     ].flatMap((entry) => [
       entry.physical_surface?.codex_plugin_cache_path,
       entry.physical_surface?.marketplace_plugin_path,
@@ -1951,9 +1903,6 @@ function bundledFullRuntimeAffectedLocks(input: {
     ...input.index.packages.filter((lock) =>
       prospectiveIds.has(lock.package_id)
       || previousTransactionIds.has(lock.dependency_transaction_id)),
-    ...(input.index.last_known_good_transactions ?? [])
-      .filter((entry) => rootIds.has(entry.root_package_id))
-      .flatMap((entry) => entry.package_locks),
   ];
   const byLockRef = new Map([...previous, ...input.prospectiveLocks]
     .map((lock) => [lock.lock_ref, lock]));
@@ -3091,7 +3040,6 @@ export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
         opl_private_state_writes: {
           ...configured.opl_private_state_writes,
           package_lock: retired && retirement.retired.package_lock,
-          last_known_good: retired && retirement.retired.last_known_good_transactions > 0,
           transaction_mutex: retired,
         },
       },
@@ -3627,25 +3575,6 @@ function runOplAgentPackageUninstallUnlocked(input: AgentPackagePackageActionInp
   const { index } = readRecoveredLockIndex(input.dryRun === true);
   assertNoRequiredInstalledDependents(index, packageId, 'uninstall');
   const { lockIndex, lock } = requireInstalledPackage(index, packageId, 'uninstall');
-  const retainLastKnownGood = packageRoleFromInstalledLock(lock) === 'workflow_profile';
-  const retainedGeneration = retainLastKnownGood
-    ? (() => {
-        const retainedClosure = installedLockClosure(index, lock);
-        const retainedClosureDigest = dependencyClosureDigest(retainedClosure);
-        return {
-          root_package_id: packageId,
-          transaction_id: sha256Text([
-            'lkg-snapshot',
-            'uninstall',
-            packageId,
-            retainedClosureDigest,
-            ...retainedClosure.map((entry) => entry.lock_ref).sort(),
-          ].join('\n')),
-          closure_digest: retainedClosureDigest,
-          package_locks: retainedClosure,
-        } satisfies AgentPackageLastKnownGood;
-      })()
-    : null;
   const physicalSurface = removePhysicalCodexSurface(
     lock.physical_surface,
     input.dryRun === true,
@@ -3659,7 +3588,6 @@ function runOplAgentPackageUninstallUnlocked(input: AgentPackagePackageActionInp
       transactionId: packageActionSourceSha256('uninstall', lock).slice(0, 16),
       dryRun: input.dryRun === true,
       packageId,
-      retainLastKnownGood,
     });
   } catch (error) {
     if (!input.dryRun) rematerializePhysicalCodexSurfaceFromLock(lock, false);
@@ -3700,13 +3628,6 @@ function runOplAgentPackageUninstallUnlocked(input: AgentPackagePackageActionInp
   if (!input.dryRun) {
     const nextIndex = structuredClone(index);
     nextIndex.packages.splice(lockIndex, 1);
-    nextIndex.last_known_good_transactions = retainedGeneration
-      ? retainLastKnownGoodPerRoot(
-          nextIndex.last_known_good_transactions ?? [],
-          retainedGeneration,
-        )
-      : (nextIndex.last_known_good_transactions ?? [])
-          .filter((entry) => entry.root_package_id !== packageId);
     try {
       writePackageTransaction(nextIndex);
     } catch (error) {
@@ -3966,7 +3887,6 @@ function emptyStatusLockIndex(): AgentPackageLockIndex {
     surface_kind: 'opl_agent_package_lock_index',
     version: 'opl-agent-package-lock-index.v1',
     packages: [],
-    last_known_good_transactions: [],
   };
 }
 
@@ -3992,7 +3912,6 @@ function retainedDescriptorLockCount(
   const descriptorIds = new Set(installedCodexPluginDescriptors.keys());
   return new Set([
     ...lockIndex.packages,
-    ...(lockIndex.last_known_good_transactions ?? []).flatMap((entry) => entry.package_locks),
   ].filter((lock) => descriptorIds.has(lock.package_id)).map((lock) => lock.package_id)).size;
 }
 

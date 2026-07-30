@@ -785,13 +785,6 @@ export type AgentPackageLock = {
   developer_checkout_source?: AgentPackageDeveloperCheckoutSource | null;
 };
 
-export type AgentPackageLastKnownGood = {
-  root_package_id: string;
-  transaction_id: string;
-  closure_digest: string;
-  package_locks: AgentPackageLock[];
-};
-
 export type AgentPackageCoreReadback = {
   core_kind: 'opl_agent_package_core';
   package_id: string;
@@ -975,7 +968,6 @@ export type AgentPackageLockIndex = {
   surface_kind: 'opl_agent_package_lock_index';
   version: 'opl-agent-package-lock-index.v1';
   packages: AgentPackageLock[];
-  last_known_good_transactions?: AgentPackageLastKnownGood[];
 };
 
 export type AgentPackageOwnerRouteReadbackItem = {

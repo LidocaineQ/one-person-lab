@@ -101,7 +101,6 @@ function emptyLockIndex(): AgentPackageLockIndex {
     surface_kind: 'opl_agent_package_lock_index',
     version: 'opl-agent-package-lock-index.v1',
     packages: [],
-    last_known_good_transactions: [],
   };
 }
 
@@ -173,10 +172,6 @@ function normalizeLockIndex(value: unknown, filePath: string): AgentPackageLockI
     || value.surface_kind !== 'opl_agent_package_lock_index'
     || value.version !== 'opl-agent-package-lock-index.v1'
     || !Array.isArray(value.packages)
-    || (
-      value.last_known_good_transactions !== undefined
-      && !Array.isArray(value.last_known_good_transactions)
-    )
   ) {
     throw packageAuthorityCorrupt('lock_index', filePath, 'invalid_shape');
   }
@@ -190,25 +185,9 @@ function normalizeLockIndex(value: unknown, filePath: string): AgentPackageLockI
       reason_code: 'duplicate_package_id',
     });
   }
-  const lastKnownGoodTransactions = (value.last_known_good_transactions ?? []).map((entry, index) => {
-    if (
-      !isRecord(entry)
-      || typeof entry.root_package_id !== 'string'
-      || typeof entry.transaction_id !== 'string'
-      || typeof entry.closure_digest !== 'string'
-      || !Array.isArray(entry.package_locks)
-    ) {
-      throw packageAuthorityCorrupt('lock_index', filePath, 'invalid_shape', {
-        field: 'last_known_good_transactions',
-        invalid_entry_index: index,
-      });
-    }
-    return entry as NonNullable<AgentPackageLockIndex['last_known_good_transactions']>[number];
-  });
   return {
     ...emptyLockIndex(),
     packages,
-    last_known_good_transactions: lastKnownGoodTransactions,
   };
 }
 
@@ -244,7 +223,6 @@ export function writePackageTransaction(
     if (
       options.removeEmptyAuthorities
       && normalizedIndex.packages.length === 0
-      && (normalizedIndex.last_known_good_transactions ?? []).length === 0
     ) {
       fs.rmSync(paths.agent_package_lock_file, { force: true });
     } else {

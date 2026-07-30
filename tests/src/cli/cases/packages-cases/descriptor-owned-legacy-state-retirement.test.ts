@@ -131,7 +131,7 @@ function createLegacyThenNativeFixture(label: string) {
   };
 }
 
-test('explicit native-confirmed repair retires descriptor-owned lock LKG receipt and unreferenced cache state', () => {
+test('explicit native-confirmed repair retires descriptor-owned lock and strips legacy LKG state', () => {
   const fixture = createLegacyThenNativeFixture('success');
   try {
     const originalIndex = parseJsonText(fs.readFileSync(fixture.lockPath, 'utf8')) as any;
@@ -163,7 +163,8 @@ test('explicit native-confirmed repair retires descriptor-owned lock LKG receipt
     assert.equal(repaired.opl_agent_package_repair.status, 'repaired');
     assert.equal(retirement.status, 'retired');
     assert.equal(retirement.retired.package_lock, true);
-    assert.equal(retirement.retired.last_known_good_transactions, 1);
+    assert.equal('last_known_good_transactions' in retirement.retired, false);
+    assert.equal('last_known_good_transactions' in retirement.retained, false);
     assert.equal(repaired.opl_agent_package_repair.opl_private_state_writes.package_lock, true);
     assert.equal(repaired.opl_agent_package_repair.opl_private_state_writes.transaction_mutex, true);
 
@@ -178,7 +179,7 @@ test('explicit native-confirmed repair retires descriptor-owned lock LKG receipt
   }
 });
 
-test('mixed LKG history stays intact while only the current descriptor-owned lock is retired', () => {
+test('legacy LKG bytes are ignored on read and stripped by the next native-confirmed repair', () => {
   const fixture = createLegacyThenNativeFixture('mixed-lkg');
   try {
     const index = parseJsonText(fs.readFileSync(fixture.lockPath, 'utf8')) as any;
@@ -190,6 +191,7 @@ test('mixed LKG history stays intact while only the current descriptor-owned loc
       action_receipt_id: 'opl-agent-package-receipt:legacy.consumer',
       resolved_dependencies: [],
     };
+    index.packages.push(legacyLock);
     index.last_known_good_transactions = [{
       root_package_id: 'legacy.consumer',
       transaction_id: 'mixed-history',
@@ -202,18 +204,13 @@ test('mixed LKG history stays intact while only the current descriptor-owned loc
     const retirement = repaired.opl_agent_package_repair.legacy_state_retirement;
     assert.equal(retirement.status, 'retired');
     assert.equal(retirement.retired.package_lock, true);
-    assert.equal(retirement.retired.last_known_good_transactions, 0);
-    assert.equal(retirement.retained.last_known_good_transactions, 1);
+    assert.equal('last_known_good_transactions' in retirement.retired, false);
+    assert.equal('last_known_good_transactions' in retirement.retained, false);
 
     const nextIndex = parseJsonText(fs.readFileSync(fixture.lockPath, 'utf8')) as any;
     assert.equal(nextIndex.packages.some((entry: any) => entry.package_id === packageId), false);
-    assert.equal(nextIndex.last_known_good_transactions.length, 1);
-    assert.equal(
-      nextIndex.last_known_good_transactions[0].package_locks.some(
-        (entry: any) => entry.package_id === packageId,
-      ),
-      true,
-    );
+    assert.equal(nextIndex.packages.some((entry: any) => entry.package_id === 'legacy.consumer'), true);
+    assert.equal('last_known_good_transactions' in nextIndex, false);
     assert.equal(fs.existsSync(targetLock.physical_surface.codex_plugin_cache_path), true);
   } finally {
     removeFixtureTree(fixture.root);

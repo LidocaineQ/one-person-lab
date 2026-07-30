@@ -1087,7 +1087,6 @@ test('preloaded native status reader does not parse or replace a corrupt legacy 
       packages: [{
         package_id: 'NONCANONICAL.PACKAGE',
       }],
-      last_known_good_transactions: [],
     });
     fs.writeFileSync(lockPath, invalidLegacyShape, 'utf8');
 

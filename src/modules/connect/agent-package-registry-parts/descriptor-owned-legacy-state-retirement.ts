@@ -31,12 +31,10 @@ export type DescriptorOwnedLegacyStateRetirement = {
   mutation_required: boolean;
   retired: {
     package_lock: boolean;
-    last_known_good_transactions: number;
     physical_paths: string[];
   };
   retained: {
     package_lock: boolean;
-    last_known_good_transactions: number;
   };
 };
 
@@ -60,10 +58,7 @@ function physicalSurfaceStillReferenced(
 ) {
   const retired = retiredLock.physical_surface;
   if (!retired) return false;
-  return [
-    ...index.packages,
-    ...(index.last_known_good_transactions ?? []).flatMap((entry) => entry.package_locks),
-  ].some((lock) => {
+  return index.packages.some((lock) => {
     const retained = lock.physical_surface;
     return Boolean(
       retained
@@ -102,15 +97,7 @@ function retentionReason(
   ) {
     return 'retained_by_runtime_or_scope_materialization';
   }
-  const retiredLocks = [
-    ...(currentLock ? [currentLock] : []),
-    ...(index.last_known_good_transactions ?? [])
-      .filter((entry) =>
-        entry.package_locks.length > 0
-        && entry.package_locks.every((lock) => lock.package_id === packageId)
-      )
-      .flatMap((entry) => entry.package_locks),
-  ];
+  const retiredLocks = currentLock ? [currentLock] : [];
   const nativeMarketplaceSource = carrier.carrier.observed_sources.find(
     (entry) => entry.plugin_source_path === descriptorSourcePath,
   )?.marketplace_source ?? null;
@@ -186,26 +173,14 @@ function retireDescriptorOwnedLegacyState(input: {
     input.carrier,
   );
   const currentLock = index.packages.find((lock) => lock.package_id === input.packageId) ?? null;
-  const targetOnlyTransactions = (index.last_known_good_transactions ?? []).filter((entry) =>
-    entry.package_locks.length > 0
-    && entry.package_locks.every((lock) => lock.package_id === input.packageId)
-  );
-  const retainedTransactions = (index.last_known_good_transactions ?? []).filter(
-    (entry) => !targetOnlyTransactions.includes(entry),
-  );
   const nextIndex: AgentPackageLockIndex = retainedReason
     ? index
     : {
         ...index,
         packages: index.packages.filter((lock) => lock.package_id !== input.packageId),
-        last_known_good_transactions: retainedTransactions,
       };
-  const mutationRequired = !retainedReason
-    && (Boolean(currentLock) || targetOnlyTransactions.length > 0);
+  const mutationRequired = !retainedReason && Boolean(currentLock);
   const retainedPackageLock = nextIndex.packages.some((lock) => lock.package_id === input.packageId);
-  const retainedLkgCount = (nextIndex.last_known_good_transactions ?? []).filter((entry) =>
-    entry.package_locks.some((lock) => lock.package_id === input.packageId)
-  ).length;
   const result: DescriptorOwnedLegacyStateRetirement = {
     surface_kind: 'opl_descriptor_owned_legacy_state_retirement.v1',
     status: retainedReason
@@ -222,12 +197,10 @@ function retireDescriptorOwnedLegacyState(input: {
     mutation_required: mutationRequired,
     retired: {
       package_lock: Boolean(currentLock) && !retainedReason,
-      last_known_good_transactions: retainedReason ? 0 : targetOnlyTransactions.length,
       physical_paths: [],
     },
     retained: {
       package_lock: retainedPackageLock,
-      last_known_good_transactions: retainedLkgCount,
     },
   };
   if (!mutationRequired || input.dryRun) return result;
@@ -236,10 +209,7 @@ function retireDescriptorOwnedLegacyState(input: {
     removeEmptyAuthorities: true,
   });
   try {
-    const retiredLocks = [
-      ...(currentLock ? [currentLock] : []),
-      ...targetOnlyTransactions.flatMap((entry) => entry.package_locks),
-    ];
+    const retiredLocks = currentLock ? [currentLock] : [];
     const legacySurfaceRemovals = retiredLocks.flatMap((lock) => {
       if (physicalSurfaceStillReferenced(nextIndex, lock)) return [];
       const surface = removePhysicalCodexSurface(
@@ -281,12 +251,10 @@ export async function maybeRetireDescriptorOwnedLegacyState(input: {
       mutation_required: false,
       retired: {
         package_lock: false,
-        last_known_good_transactions: 0,
         physical_paths: [],
       },
       retained: {
         package_lock: false,
-        last_known_good_transactions: 0,
       },
     } satisfies DescriptorOwnedLegacyStateRetirement;
   }

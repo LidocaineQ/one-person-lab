@@ -444,7 +444,7 @@ test('installed package cache selection rejects paths outside the managed Codex 
   }
 });
 
-test('package cache cleanup preserves referenced generations and removes retired LKG bytes', () => {
+test('package cache cleanup preserves current locks and removes unreferenced previous generations', () => {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-cache-cleanup-'));
   const codexHome = path.join(fixtureRoot, 'codex-home');
   const stateRoot = path.join(fixtureRoot, 'state');
@@ -463,16 +463,12 @@ test('package cache cleanup preserves referenced generations and removes retired
       physical_surface: { codex_plugin_cache_path: cachePath },
     } as unknown as AgentPackageLock);
     cleanupUnreferencedPackagePayloadSources({
-      packages: [lock('fixture-current', currentCache)],
-      last_known_good_transactions: [{
-        root_package_id: 'fixture-current',
-        transaction_id: 'retired',
-        closure_digest: 'retired',
-        package_locks: [lock('fixture-retired', retiredCache)],
-      }],
+      packages: [
+        lock('fixture-current', currentCache),
+        lock('fixture-retired', retiredCache),
+      ],
     } as AgentPackageLockIndex, {
       packages: [lock('fixture-current', currentCache)],
-      last_known_good_transactions: [],
     } as unknown as AgentPackageLockIndex);
     assert.equal(fs.existsSync(currentCache), true);
     assert.equal(fs.existsSync(retiredCache), false);
