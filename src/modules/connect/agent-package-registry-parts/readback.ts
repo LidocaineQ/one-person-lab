@@ -262,20 +262,6 @@ function ownerRouteReadbackItem(input: {
     source_kind: input.lock?.source_kind ?? input.receipt?.source_kind ?? input.sourceKind ?? null,
     trust_tier: input.lock?.trust_tier ?? input.receipt?.trust_tier ?? input.trustTier ?? null,
   };
-  const digest = {
-    manifest_sha256: input.lock?.manifest_sha256 ?? input.receipt?.manifest_sha256 ?? input.manifestSha256 ?? null,
-    version_or_source_digest: input.lock?.version_or_source_digest ?? null,
-    plugin_payload_manifest_sha256: surface?.plugin_payload_manifest_sha256 ?? null,
-    resolved_digest: input.lock?.resolved_digest ?? null,
-    install_truth: input.lock?.install_truth ?? null,
-    content_identity_fields: [
-      'manifest_sha256',
-      'version_or_source_digest',
-      'plugin_payload_manifest_sha256',
-      'resolved_digest',
-      'package_lock_ref',
-    ],
-  };
   const policyCurrentness = managedPolicyCurrentness(input.lock);
   const materializer = {
     status: surface?.status ?? 'not_requested',
@@ -396,14 +382,12 @@ function ownerRouteReadbackItem(input: {
             : null,
     allowed_when_blocked: ['status', 'doctor', 'repair'],
     descriptor,
-    digest,
     materializer,
     lifecycle_ux: lifecycleUx,
     package_core: {
       core_kind: 'opl_agent_package_core',
       package_id: input.packageId,
       descriptor,
-      digest,
       dependencies: {
         required_skill_ids: input.lock?.bundled_required_skill_ids ?? surface?.materialized_required_skill_ids ?? [],
         optional_skill_refs: input.lock?.optional_skill_refs ?? [],

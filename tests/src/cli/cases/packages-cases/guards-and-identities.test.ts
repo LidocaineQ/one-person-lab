@@ -837,6 +837,8 @@ test('packages preserves installed lock and returns an operation receipt when up
     const ownerPackage = installReadback.owner_route_readback.packages[0];
     assert.equal(Object.hasOwn(ownerPackage, 'lock'), false);
     assert.equal(Object.hasOwn(ownerPackage.package_core, 'lock'), false);
+    assert.equal(Object.hasOwn(ownerPackage, 'digest'), false);
+    assert.equal(Object.hasOwn(ownerPackage.package_core, 'digest'), false);
     assert.equal(
       Object.hasOwn(ownerPackage.package_core.lifecycle, 'latest_receipt_ref'),
       false,

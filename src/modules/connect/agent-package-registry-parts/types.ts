@@ -695,15 +695,6 @@ export type AgentPackageDescriptorReadback = {
   trust_tier: string | null;
 };
 
-export type AgentPackageDigestReadback = {
-  manifest_sha256: string | null;
-  version_or_source_digest: string | null;
-  plugin_payload_manifest_sha256: string | null;
-  resolved_digest: string | null;
-  install_truth: string | null;
-  content_identity_fields: string[];
-};
-
 export type AgentPackageCarrierAdapterReadback = {
   adapter_kind: 'codex_plugin_carrier' | 'managed_runtime_source_carrier';
   carrier: 'codex_plugin' | 'opl_managed_module_source';
@@ -784,7 +775,6 @@ export type AgentPackageCoreReadback = {
   core_kind: 'opl_agent_package_core';
   package_id: string;
   descriptor: AgentPackageDescriptorReadback;
-  digest: AgentPackageDigestReadback;
   dependencies: {
     required_skill_ids: string[];
     optional_skill_refs: string[];
@@ -981,7 +971,6 @@ export type AgentPackageOwnerRouteReadbackItem = {
   launch_blocked_reason: string | null;
   allowed_when_blocked: Array<'status' | 'doctor' | 'repair'>;
   descriptor: AgentPackageDescriptorReadback;
-  digest: AgentPackageDigestReadback;
   materializer: {
     status: AgentPackagePhysicalSurface['status'];
     plugin_id: string | null;
