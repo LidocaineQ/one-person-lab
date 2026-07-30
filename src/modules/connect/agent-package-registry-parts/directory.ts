@@ -96,7 +96,6 @@ type DirectorySource = {
     status:
       | 'live_release_set'
       | 'cached_release_set'
-      | 'last_known_good_release_set'
       | 'framework_projection_only'
       | 'installed_lock_only'
       | 'installed_codex_plugin_descriptor';
@@ -111,7 +110,7 @@ type DirectorySource = {
 
 export type FirstPartyDirectoryCatalogSnapshot = {
   catalog: ManagedPackageCatalog;
-  freshness: 'live' | 'cached' | 'last_known_good';
+  freshness: 'live' | 'cached';
   catalog_ref: string;
   release_set_descriptor_digest: string | null;
   channel_manifest_layer_digest: string;
@@ -349,13 +348,9 @@ function firstPartyDirectorySources(snapshot: FirstPartyDirectoryCatalogSnapshot
       : null;
     const currentnessStatus = liveVerified
       ? 'live_release_set'
-      : snapshot?.freshness === 'cached'
+      : snapshot
         ? 'cached_release_set'
-        : snapshot?.freshness === 'last_known_good'
-          ? 'last_known_good_release_set'
-          : snapshot
-            ? 'last_known_good_release_set'
-            : 'framework_projection_only';
+        : 'framework_projection_only';
     return {
       package_id: spec.package_id,
       display_name: spec.label,

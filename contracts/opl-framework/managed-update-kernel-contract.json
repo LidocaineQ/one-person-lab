@@ -500,7 +500,7 @@
         "status_and_fast_app_state": "validated_cache_or_framework_projection_only",
         "dry_run_refresh": "live_lookup_without_catalog_cache_persistence",
         "fresh_cache_max_age_hours": 24,
-        "expired_cache_role": "last_known_good_read_model_only"
+        "expired_cache_consumption": "forbidden"
       },
       "currentness_identity_fields": [
         "source_kind",

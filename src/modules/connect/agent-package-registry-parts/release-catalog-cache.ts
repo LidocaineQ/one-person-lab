@@ -45,11 +45,10 @@ type ReleaseCatalogCacheV1 = {
   catalog_payload: unknown;
 };
 
-function cacheFreshness(checkedAt: string): FirstPartyDirectoryCatalogSnapshot['freshness'] {
+function cacheIsFresh(checkedAt: string) {
   const checkedAtMs = Date.parse(checkedAt);
-  return Number.isFinite(checkedAtMs) && Date.now() - checkedAtMs <= LIVE_CACHE_MAX_AGE_MS
-    ? 'cached'
-    : 'last_known_good';
+  const ageMs = Date.now() - checkedAtMs;
+  return Number.isFinite(checkedAtMs) && ageMs >= 0 && ageMs <= LIVE_CACHE_MAX_AGE_MS;
 }
 
 function normalizeCache(value: unknown): NormalizedReleaseCatalogCache | null {
@@ -110,11 +109,11 @@ export function readFirstPartyPackageCatalogSnapshot(): FirstPartyDirectoryCatal
   const cache = normalizeCache(readJsonFileOrNull(
     resolveOplStatePaths().agent_package_release_catalog_cache_file,
   ));
-  if (!cache) return null;
+  if (!cache || !cacheIsFresh(cache.checked_at)) return null;
   try {
     return {
       catalog: normalizeManagedPackageCatalog(cache.catalog_payload),
-      freshness: cacheFreshness(cache.checked_at),
+      freshness: 'cached',
       catalog_ref: cache.catalog_ref,
       release_set_descriptor_digest: cache.release_set_descriptor_digest,
       channel_manifest_layer_digest: cache.channel_manifest_layer_digest,
