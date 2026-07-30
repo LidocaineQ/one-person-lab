@@ -133,7 +133,7 @@ import {
 import {
   refreshFirstPartyPackageCatalogSnapshot,
   resolveFirstPartyPackageCatalogSnapshot,
-} from './agent-package-registry-parts/release-catalog-cache.ts';
+} from './agent-package-registry-parts/first-party-release-catalog.ts';
 import { resolveAgentPackageEffectiveSourcePolicy } from './agent-package-registry-parts/source-policy.ts';
 import {
   loadDeveloperCheckoutPackageSource,
