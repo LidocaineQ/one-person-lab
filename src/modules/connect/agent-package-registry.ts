@@ -3174,7 +3174,6 @@ export async function runOplAgentPackageOptimize(input: AgentPackagePackageActio
     {
       package_id: packageId,
       failure_code: 'agent_package_optimize_native_carrier_required',
-      repair_command: `opl packages repair --package-id ${packageId}`,
     },
   );
 }

@@ -1164,6 +1164,7 @@ test('legacy installed-source optimize is unavailable without a native owner and
         failure.payload.error.details.failure_code,
         'agent_package_optimize_native_carrier_required',
       );
+      assert.equal('repair_command' in failure.payload.error.details, false);
       assert.equal(fs.readFileSync(lockPath, 'utf8'), beforeDryRun.lock);
       assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
       assert.equal(fs.readFileSync(configPath, 'utf8'), beforeDryRun.config);
