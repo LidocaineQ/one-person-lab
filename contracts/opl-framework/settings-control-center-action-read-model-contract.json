@@ -339,9 +339,10 @@
         "ordinary_read_uses_bounded_snapshot_only": true,
         "inventory_is_explicit_and_lazy": true,
         "unknown_bytes_remain_null": true,
-        "typed_package_lock_index_is_only_package_inventory_source": true,
+        "agent_package_storage_capacity_authority": "native_carrier_owned_unmeasured",
+        "legacy_package_lock_or_lkg_inventory_allowed": false,
         "raw_lock_or_filesystem_owner_inference_forbidden": true,
-        "package_root_selection": "current_and_last_known_good_package_created_safe_managed_roots_only",
+        "package_root_selection": "none_no_framework_byte_ownership_inference",
         "agent_package_cleanup_action": "agent_package_uninstall",
         "agent_package_storage_action_policy": "navigate_to_agents_reuse_owner_uninstall_no_duplicate_storage_lifecycle",
         "webui_projects_excluded": true,
@@ -351,7 +352,7 @@
         "shell_direct_filesystem_or_package_mutation_allowed": false
       },
       "owner_preview_boundary": {
-        "agent_package_store": "Framework projects measured bytes and the existing Agents owner route; it does not project a delete plan.",
+        "agent_package_store": "Framework projects unknown bytes and the existing Agents owner route; the native carrier owns capacity and cleanup, and Framework does not project a delete plan.",
         "webui_data_volume": "Framework projects measured bytes plus host_action_required ABI only; plan, execute, restore, archive, manifest, and receipt refs remain carrier-host owned."
       }
     },

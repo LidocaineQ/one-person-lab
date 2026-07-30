@@ -1,16 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { isRecord } from '../../kernel/contract-validation.ts';
-import { resolveOplStatePaths } from '../../kernel/runtime-state-paths.ts';
-import { readLegacyAgentPackageLockIndex } from './agent-package-registry-parts/legacy-lock-projection.ts';
-import { assertSafePersistedPackagePath } from './agent-package-registry-parts/persisted-path-safety.ts';
-import { resolveCodexHome } from './agent-package-registry-parts/shared.ts';
-import {
-  discoverInstalledPackageDescriptors,
-  type InstalledPackageDescriptor,
-} from './agent-package-registry-parts/installed-codex-plugin-directory.ts';
-import type { AgentPackageLockIndex } from './agent-package-registry-parts/types.ts';
 import {
   agentPackageStorageNavigationAction,
   webuiHostActionRequired,
@@ -20,7 +10,6 @@ import {
 
 export const STORAGE_SCAN_DEFAULT_MAX_ENTRIES = 20_000;
 export const STORAGE_SCAN_DEFAULT_DEADLINE_MS = 750;
-export const STORAGE_OWNER_INVENTORY_MAX_OWNER_ROWS = 256;
 
 export type StorageScanReason =
   | 'path_not_absolute'
@@ -41,13 +30,6 @@ export type StoragePathUsage = {
   bytes: number | null;
   entry_count: number;
   excluded_root_count: number;
-};
-
-type OwnedStorageRoots = {
-  roots: string[];
-  owner_count: number;
-  reason_code: 'inventory_source_invalid' | 'runtime_source_unmeasured' | 'path_unsafe'
-    | 'entry_limit_exceeded' | null;
 };
 
 function unknownUsage(reasonCode: Exclude<StorageScanReason, null>, entryCount = 0): StoragePathUsage {
@@ -161,167 +143,6 @@ export function scanStoragePath(
   };
 }
 
-function safePhysicalRoot(
-  candidate: string,
-  pathKind: 'plugin_payload_cache' | 'codex_plugin_cache' | 'marketplace_root',
-) {
-  const stateDir = resolveOplStatePaths().state_dir;
-  const allowedRoots = pathKind === 'plugin_payload_cache'
-    ? [path.join(stateDir, 'agent-package-payloads')]
-    : pathKind === 'codex_plugin_cache'
-      ? [path.join(resolveCodexHome(), 'plugins', 'cache')]
-      : [path.join(stateDir, 'codex-plugin-marketplaces')];
-  return assertSafePersistedPackagePath({
-    candidatePath: candidate,
-    allowedRoots,
-    pathKind: `storage_inventory.${pathKind}`,
-  });
-}
-
-function safeManagedRuntimeRoot(candidate: string, pathKind: 'checkout' | 'preparation') {
-  const stateDir = resolveOplStatePaths().state_dir;
-  const allowedRoots = pathKind === 'preparation'
-    ? [path.join(stateDir, 'agent-package-runtime-envs')]
-    : [
-        path.join(stateDir, 'agent-package-runtime-generations'),
-        path.join(stateDir, 'agent-package-developer-runtime-snapshots'),
-      ];
-  return assertSafePersistedPackagePath({
-    candidatePath: candidate,
-    allowedRoots,
-    pathKind: `storage_inventory.managed_runtime_source.${pathKind}`,
-  });
-}
-
-function minimalMeasurementRoots(roots: string[]) {
-  const ordered = [...new Set(roots.map((entry) => path.resolve(entry)))]
-    .sort((left, right) => left.length - right.length || left.localeCompare(right));
-  const kept: string[] = [];
-  for (const candidate of ordered) {
-    if (!kept.some((root) => isSameOrInside(root, candidate))) kept.push(candidate);
-  }
-  return kept;
-}
-
-function collectOwnedStorageRoots(
-  index: AgentPackageLockIndex,
-  installedPackageIds: ReadonlySet<string>,
-): OwnedStorageRoots {
-  let reasonCode: OwnedStorageRoots['reason_code'] = null;
-  const roots: string[] = [];
-  const currentLocks: unknown[] = Array.isArray(index.packages) ? index.packages : [];
-  if (!Array.isArray(index.packages)) reasonCode = 'inventory_source_invalid';
-  const lkgLocks: unknown[] = [];
-  if (index.last_known_good_transactions !== undefined
-    && !Array.isArray(index.last_known_good_transactions)) reasonCode = 'inventory_source_invalid';
-  for (const transaction of Array.isArray(index.last_known_good_transactions)
-    ? index.last_known_good_transactions
-    : []) {
-    if (!isRecord(transaction) || !Array.isArray(transaction.package_locks)) {
-      reasonCode = 'inventory_source_invalid';
-      continue;
-    }
-    lkgLocks.push(...transaction.package_locks);
-  }
-  const locks = [...currentLocks, ...lkgLocks];
-  if (locks.length > STORAGE_OWNER_INVENTORY_MAX_OWNER_ROWS) {
-    return { roots: [], owner_count: locks.length, reason_code: 'entry_limit_exceeded' };
-  }
-
-  const addRoot = (candidate: unknown, resolver: (value: string) => string) => {
-    if (candidate === null || candidate === undefined) return;
-    if (typeof candidate !== 'string' || !path.isAbsolute(candidate)) {
-      reasonCode = reasonCode ?? 'path_unsafe';
-      return;
-    }
-    try {
-      roots.push(resolver(candidate));
-    } catch {
-      reasonCode = reasonCode ?? 'path_unsafe';
-    }
-  };
-
-  for (const lock of locks) {
-    if (!isRecord(lock)) {
-      reasonCode = 'inventory_source_invalid';
-      continue;
-    }
-    // Once a package exposes an installed owner descriptor, its native carrier
-    // owns the physical bytes. Do not count retained Framework lock roots as
-    // current Package storage; legacy entries without a descriptor remain
-    // measurable until their carrier migration is complete.
-    if (typeof lock.package_id === 'string' && installedPackageIds.has(lock.package_id)) continue;
-    const physical = lock.physical_surface;
-    if (physical !== null && physical !== undefined && !isRecord(physical)) {
-      reasonCode = 'inventory_source_invalid';
-    } else if (isRecord(physical) && physical.status === 'materialized') {
-      addRoot(physical.plugin_payload_cache_path,
-        (value) => safePhysicalRoot(value, 'plugin_payload_cache'));
-      addRoot(physical.codex_plugin_cache_path,
-        (value) => safePhysicalRoot(value, 'codex_plugin_cache'));
-      addRoot(physical.marketplace_root,
-        (value) => safePhysicalRoot(value, 'marketplace_root'));
-    }
-
-    const runtime = lock.managed_runtime_source;
-    if (runtime === null || runtime === undefined) continue;
-    if (!isRecord(runtime)) {
-      reasonCode = 'inventory_source_invalid';
-      continue;
-    }
-    if (runtime.status === 'validated_no_write' || runtime.status === 'removed') continue;
-    if (runtime.status !== 'current' && runtime.status !== 'retained_on_uninstall') {
-      reasonCode = 'inventory_source_invalid';
-      continue;
-    }
-    if (runtime.ownership !== 'package_created') {
-      reasonCode = reasonCode ?? 'runtime_source_unmeasured';
-      continue;
-    }
-    addRoot(runtime.checkout_path, (value) => safeManagedRuntimeRoot(value, 'checkout'));
-    addRoot(runtime.preparation_root, (value) => safeManagedRuntimeRoot(value, 'preparation'));
-  }
-
-  return {
-    roots: minimalMeasurementRoots(roots),
-    owner_count: locks.length,
-    reason_code: reasonCode,
-  };
-}
-
-function measureRoots(input: {
-  roots: string[];
-  scan: typeof scanStoragePath;
-  clock: () => number;
-  maxEntries: number;
-  deadlineMs: number;
-}) {
-  const usageByRoot = new Map<string, StoragePathUsage>();
-  const deadline = input.clock() + input.deadlineMs;
-  let remainingEntries = input.maxEntries;
-  for (const root of input.roots) {
-    const remainingMs = Math.max(0, deadline - input.clock());
-    const usage = remainingEntries <= 0
-      ? unknownUsage('entry_limit_exceeded')
-      : remainingMs <= 0
-        ? unknownUsage('deadline_exceeded')
-        : input.scan(root, {
-            root,
-            maxEntries: remainingEntries,
-            deadlineMs: remainingMs,
-            now: input.clock,
-          });
-    usageByRoot.set(root, usage);
-    remainingEntries = Math.max(0, remainingEntries - usage.entry_count);
-  }
-  return usageByRoot;
-}
-
-function firstUnknownReason(usages: Iterable<StoragePathUsage>) {
-  for (const usage of usages) if (!usage.complete) return usage.reason_code;
-  return null;
-}
-
 function persistStorageProjection(
   section: 'agent_package_store' | 'webui_data_volume',
   projection: StorageOwnerProjection,
@@ -341,9 +162,10 @@ function persistStorageProjection(
 }
 
 export function buildAgentPackageStoreStorageInventory(input: {
-  lockIndex?: AgentPackageLockIndex;
+  /** Compatibility-only inputs; native carriers own Package byte accounting. */
+  lockIndex?: unknown;
   installedPackageIds?: ReadonlySet<string>;
-  installedDescriptors?: ReadonlyMap<string, InstalledPackageDescriptor>;
+  installedDescriptors?: ReadonlyMap<string, unknown>;
   now?: Date;
   persist?: boolean;
   scan?: typeof scanStoragePath;
@@ -351,37 +173,16 @@ export function buildAgentPackageStoreStorageInventory(input: {
   maxEntries?: number;
   deadlineMs?: number;
 } = {}) {
-  const clock = input.clock ?? Date.now;
   const now = input.now ?? new Date();
-  const installedPackageIds = input.installedPackageIds
-    ?? new Set(
-      [...(input.installedDescriptors ?? discoverInstalledPackageDescriptors()).keys()],
-    );
-  const owned = collectOwnedStorageRoots(
-    input.lockIndex ?? readLegacyAgentPackageLockIndex(),
-    input.lockIndex ? installedPackageIds : new Set(),
-  );
-  const usageByRoot = measureRoots({
-    roots: owned.roots,
-    scan: input.scan ?? scanStoragePath,
-    clock,
-    maxEntries: input.maxEntries ?? STORAGE_SCAN_DEFAULT_MAX_ENTRIES,
-    deadlineMs: input.deadlineMs ?? STORAGE_SCAN_DEFAULT_DEADLINE_MS,
-  });
-  const reasonCode = owned.reason_code ?? firstUnknownReason(usageByRoot.values());
-  const bytesKnown = reasonCode === null
-    && [...usageByRoot.values()].every((usage) => usage.complete);
   const projection: StorageOwnerProjection = {
-    status: bytesKnown ? 'available' : 'attention_required',
+    status: 'attention_required',
     observed_at: now.toISOString(),
     stale: false,
-    bytes: bytesKnown
-      ? owned.roots.reduce((total, root) => total + (usageByRoot.get(root)?.bytes ?? 0), 0)
-      : null,
-    reclaimable_bytes: bytesKnown && owned.owner_count === 0 ? 0 : null,
+    bytes: null,
+    reclaimable_bytes: null,
     owner_route: '/settings/agents',
     projected_action: agentPackageStorageNavigationAction(),
-    reason_code: reasonCode,
+    reason_code: 'carrier_owned_storage_unmeasured',
   };
   return persistStorageProjection('agent_package_store', projection, input.persist !== false);
 }

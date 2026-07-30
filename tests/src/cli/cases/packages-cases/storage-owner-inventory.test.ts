@@ -1,6 +1,5 @@
 import { fileURLToPath } from 'node:url';
 
-import type { AgentPackageLockIndex } from '../../../../../src/modules/connect/agent-package-registry-parts/types.ts';
 import {
   buildAgentPackageStoreStorageInventory,
   buildWebuiDataVolumeStorageInventory,
@@ -18,31 +17,6 @@ import { assert, fs, os, path, spawn, test } from '../../helpers.ts';
 const storageInventoryWriterFixture = fileURLToPath(
   new URL('../../../../fixtures/storage-owner-inventory-writer.ts', import.meta.url),
 );
-
-function emptyLockIndex(): AgentPackageLockIndex {
-  return {
-    surface_kind: 'opl_agent_package_lock_index',
-    version: 'opl-agent-package-lock-index.v1',
-    packages: [],
-    last_known_good_transactions: [],
-  };
-}
-
-function runtimeLock(input: {
-  checkoutPath: string;
-  preparationRoot?: string | null;
-  ownership?: 'package_created' | 'preexisting_adopted';
-}) {
-  return {
-    package_id: 'test.storage-owner',
-    managed_runtime_source: {
-      status: 'current',
-      ownership: input.ownership ?? 'package_created',
-      checkout_path: input.checkoutPath,
-      preparation_root: input.preparationRoot ?? null,
-    },
-  } as any;
-}
 
 function restoreEnv(name: string, value: string | undefined) {
   if (value === undefined) delete process.env[name];
@@ -128,178 +102,44 @@ test('storage scanner is bounded, excludes requested roots, and never follows sy
   }
 });
 
-test('Agent Package storage inventory measures only typed current/LKG package-created safe roots', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-storage-'));
-  const stateDir = path.join(root, 'state');
-  const codexHome = path.join(root, 'codex-home');
-  const checkoutPath = path.join(stateDir, 'agent-package-runtime-generations', 'test.storage-owner');
-  const preparationRoot = path.join(stateDir, 'agent-package-runtime-envs', 'test.storage-owner');
-  const previousStateDir = process.env.OPL_STATE_DIR;
-  const previousCodexHome = process.env.CODEX_HOME;
-  process.env.OPL_STATE_DIR = stateDir;
-  process.env.CODEX_HOME = codexHome;
-  try {
-    fs.mkdirSync(checkoutPath, { recursive: true });
-    fs.mkdirSync(preparationRoot, { recursive: true });
-    fs.mkdirSync(path.join(codexHome, 'plugins', 'cache'), { recursive: true });
-    const lock = runtimeLock({ checkoutPath, preparationRoot });
-    const index = {
-      ...emptyLockIndex(),
-      packages: [lock],
-      last_known_good_transactions: [{
-        root_package_id: 'test.storage-owner',
-        transaction_id: 'tx-storage-owner',
-        closure_digest: 'sha256:storage-owner',
-        package_locks: [lock],
+test('Agent Package storage inventory delegates byte accounting to the native carrier owner', () => {
+  const scannedRoots: string[] = [];
+  const projection = buildAgentPackageStoreStorageInventory({
+    lockIndex: {
+      packages: [{
+        package_id: 'legacy.package',
+        physical_surface: {
+          codex_plugin_cache_path: '/forged/legacy/cache',
+        },
       }],
-    } as AgentPackageLockIndex;
-    const scannedRoots: string[] = [];
-    const projection = buildAgentPackageStoreStorageInventory({
-      lockIndex: index,
-      persist: false,
-      scan: (candidate) => {
-        scannedRoots.push(candidate);
-        return {
-          complete: true,
-          reason_code: null,
-          bytes: 100,
-          entry_count: 1,
-          excluded_root_count: 0,
-        };
-      },
-    });
-
-    assert.deepEqual(scannedRoots.sort(), [checkoutPath, preparationRoot].sort());
-    assert.equal(projection.status, 'available');
-    assert.equal(projection.bytes, 200);
-    assert.equal(projection.reclaimable_bytes, null);
-    assert.equal(projection.owner_route, '/settings/agents');
-    assert.deepEqual(projection.projected_action, {
-      kind: 'navigate',
-      status: 'available',
-      action_id: null,
-      route: '/settings/agents',
-      dry_run_required: false,
-    });
-
-    const adopted = buildAgentPackageStoreStorageInventory({
-      lockIndex: {
-        ...emptyLockIndex(),
-        packages: [runtimeLock({ checkoutPath, ownership: 'preexisting_adopted' })],
-      },
-      persist: false,
-    });
-    assert.equal(adopted.status, 'attention_required');
-    assert.equal(adopted.bytes, null);
-    assert.equal(adopted.reason_code, 'runtime_source_unmeasured');
-
-    const outside = buildAgentPackageStoreStorageInventory({
-      lockIndex: {
-        ...emptyLockIndex(),
-        packages: [runtimeLock({ checkoutPath: path.join(root, 'outside-managed-root') })],
-      },
-      persist: false,
-    });
-    assert.equal(outside.status, 'attention_required');
-    assert.equal(outside.bytes, null);
-    assert.equal(outside.reason_code, 'path_unsafe');
-
-    const capped = buildAgentPackageStoreStorageInventory({
-      lockIndex: {
-        ...emptyLockIndex(),
-        packages: Array.from({ length: 257 }, () => ({} as any)),
-      },
-      persist: false,
-    });
-    assert.equal(capped.status, 'attention_required');
-    assert.equal(capped.bytes, null);
-    assert.equal(capped.reason_code, 'entry_limit_exceeded');
-  } finally {
-    restoreEnv('OPL_STATE_DIR', previousStateDir);
-    restoreEnv('CODEX_HOME', previousCodexHome);
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('Agent Package storage inventory excludes retained lock roots for descriptor-owned carriers', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-storage-descriptor-'));
-  const stateDir = path.join(root, 'state');
-  const codexHome = path.join(root, 'codex-home');
-  const checkoutPath = path.join(stateDir, 'agent-package-runtime-generations', 'opl-flow');
-  const preparationRoot = path.join(stateDir, 'agent-package-runtime-envs', 'opl-flow');
-  const previousStateDir = process.env.OPL_STATE_DIR;
-  const previousCodexHome = process.env.CODEX_HOME;
-  process.env.OPL_STATE_DIR = stateDir;
-  process.env.CODEX_HOME = codexHome;
-  try {
-    fs.mkdirSync(checkoutPath, { recursive: true });
-    fs.mkdirSync(preparationRoot, { recursive: true });
-    const lock = runtimeLock({ checkoutPath, preparationRoot });
-    const scannedRoots: string[] = [];
-    const projection = buildAgentPackageStoreStorageInventory({
-      lockIndex: {
-        ...emptyLockIndex(),
-        packages: [lock],
-        last_known_good_transactions: [{
-          root_package_id: 'opl-flow',
-          transaction_id: 'tx-opl-flow',
-          closure_digest: 'sha256:opl-flow',
-          package_locks: [lock],
-        }],
-      } as AgentPackageLockIndex,
-      installedPackageIds: new Set(['test.storage-owner']),
-      persist: false,
-      scan: (candidate) => {
-        scannedRoots.push(candidate);
-        return {
-          complete: true,
-          reason_code: null,
-          bytes: 100,
-          entry_count: 1,
-          excluded_root_count: 0,
-        };
-      },
-    });
-
-    assert.deepEqual(scannedRoots, []);
-    assert.equal(projection.status, 'available');
-    assert.equal(projection.bytes, 0);
-    assert.equal(projection.reclaimable_bytes, null);
-    assert.equal(projection.reason_code, null);
-  } finally {
-    restoreEnv('OPL_STATE_DIR', previousStateDir);
-    restoreEnv('CODEX_HOME', previousCodexHome);
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('Agent Package storage inventory defaults to the legacy lock projection', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-storage-legacy-projection-'));
-  const stateDir = path.join(root, 'state');
-  const codexHome = path.join(root, 'codex-home');
-  const previousStateDir = process.env.OPL_STATE_DIR;
-  const previousCodexHome = process.env.CODEX_HOME;
-  process.env.OPL_STATE_DIR = stateDir;
-  process.env.CODEX_HOME = codexHome;
-  try {
-    const projection = buildAgentPackageStoreStorageInventory({
-      persist: false,
-      scan: () => ({
+    },
+    installedPackageIds: new Set(['legacy.package']),
+    persist: false,
+    scan: (candidate) => {
+      scannedRoots.push(candidate);
+      return {
         complete: true,
         reason_code: null,
-        bytes: 0,
-        entry_count: 0,
+        bytes: 100,
+        entry_count: 1,
         excluded_root_count: 0,
-      }),
-    });
-    assert.equal(projection.status, 'available');
-    assert.equal(projection.bytes, 0);
-    assert.equal(projection.reclaimable_bytes, 0);
-  } finally {
-    restoreEnv('OPL_STATE_DIR', previousStateDir);
-    restoreEnv('CODEX_HOME', previousCodexHome);
-    fs.rmSync(root, { recursive: true, force: true });
-  }
+      };
+    },
+  });
+
+  assert.deepEqual(scannedRoots, []);
+  assert.equal(projection.status, 'attention_required');
+  assert.equal(projection.bytes, null);
+  assert.equal(projection.reclaimable_bytes, null);
+  assert.equal(projection.reason_code, 'carrier_owned_storage_unmeasured');
+  assert.equal(projection.owner_route, '/settings/agents');
+  assert.deepEqual(projection.projected_action, {
+    kind: 'navigate',
+    status: 'available',
+    action_id: null,
+    route: '/settings/agents',
+    dry_run_required: false,
+  });
 });
 
 test('WebUI inventory excludes Projects and exposes only carrier-host destructive authority', () => {
@@ -351,17 +191,18 @@ test('storage snapshot is bounded and stale, future, symlink, or oversized data 
   try {
     const observedAt = new Date();
     const projection = buildAgentPackageStoreStorageInventory({
-      lockIndex: emptyLockIndex(),
       now: observedAt,
       persist: true,
     });
-    assert.equal(projection.status, 'available');
-    assert.equal(projection.bytes, 0);
-    assert.equal(projection.reclaimable_bytes, 0);
+    assert.equal(projection.status, 'attention_required');
+    assert.equal(projection.bytes, null);
+    assert.equal(projection.reclaimable_bytes, null);
+    assert.equal(projection.reason_code, 'carrier_owned_storage_unmeasured');
 
     const current = readStorageOwnerInventorySnapshot({ now: observedAt });
-    assert.equal(current.agent_package_store.status, 'available');
-    assert.equal(current.agent_package_store.bytes, 0);
+    assert.equal(current.agent_package_store.status, 'attention_required');
+    assert.equal(current.agent_package_store.bytes, null);
+    assert.equal(current.agent_package_store.reason_code, 'carrier_owned_storage_unmeasured');
     assert.equal(current.webui_data_volume.status, 'unavailable');
 
     buildWebuiDataVolumeStorageInventory({
@@ -370,7 +211,7 @@ test('storage snapshot is bounded and stale, future, symlink, or oversized data 
       persist: true,
     });
     const afterBothOwners = readStorageOwnerInventorySnapshot({ now: observedAt });
-    assert.equal(afterBothOwners.agent_package_store.status, 'available');
+    assert.equal(afterBothOwners.agent_package_store.status, 'attention_required');
     assert.equal(afterBothOwners.webui_data_volume.status, 'not_configured');
     const stateFiles = fs.readdirSync(stateDir).sort();
     assert.equal(stateFiles.includes('storage-owner-inventory-snapshot.json'), true);
@@ -453,7 +294,9 @@ test('storage snapshot serializes independent owner projections without Package 
     await Promise.all([agent.completed, webui.completed]);
 
     const snapshot = readStorageOwnerInventorySnapshot();
-    assert.equal(snapshot.agent_package_store.bytes, 111);
+    assert.equal(snapshot.agent_package_store.status, 'attention_required');
+    assert.equal(snapshot.agent_package_store.bytes, null);
+    assert.equal(snapshot.agent_package_store.reason_code, 'carrier_owned_storage_unmeasured');
     assert.equal(snapshot.webui_data_volume.bytes, 222);
     const stateFiles = fs.readdirSync(stateDir).sort();
     assert.equal(stateFiles.includes('agent-package-lifecycle.sqlite'), false);

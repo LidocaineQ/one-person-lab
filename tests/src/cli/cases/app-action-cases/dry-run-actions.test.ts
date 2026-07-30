@@ -368,9 +368,13 @@ test('app action execute dry-runs Codex, module, scheduler, and worker actions f
       packageStorageInventory.delegated_surface,
       'opl app action execute --action settings_inventory_agent_package_store',
     );
-    assert.equal(packageStorageInventory.result.agent_package_store.status, 'available');
-    assert.equal(packageStorageInventory.result.agent_package_store.bytes, 0);
-    assert.equal(packageStorageInventory.result.agent_package_store.reclaimable_bytes, 0);
+    assert.equal(packageStorageInventory.result.agent_package_store.status, 'attention_required');
+    assert.equal(packageStorageInventory.result.agent_package_store.bytes, null);
+    assert.equal(packageStorageInventory.result.agent_package_store.reclaimable_bytes, null);
+    assert.equal(
+      packageStorageInventory.result.agent_package_store.reason_code,
+      'carrier_owned_storage_unmeasured',
+    );
     assert.equal(packageStorageInventory.result.settings_control_center_action.task_kind, 'read');
     assert.equal(
       fs.existsSync(path.join(env.OPL_STATE_DIR, 'storage-owner-inventory-snapshot.json')),

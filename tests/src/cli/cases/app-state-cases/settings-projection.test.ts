@@ -194,9 +194,13 @@ test('full Settings projection follows App page ownership without treating activ
     'local_data_usage_safe_cleanup_and_owner_page_references',
   );
   const storageLifecycle = settings.app_settings_read_model.storage_lifecycle;
-  assert.equal(storageLifecycle.agent_package_store.status, 'available');
-  assert.equal(storageLifecycle.agent_package_store.bytes, 2048);
+  assert.equal(storageLifecycle.agent_package_store.status, 'attention_required');
+  assert.equal(storageLifecycle.agent_package_store.bytes, null);
   assert.equal(storageLifecycle.agent_package_store.reclaimable_bytes, null);
+  assert.equal(
+    (storageLifecycle.agent_package_store as Record<string, unknown>).reason_code,
+    'carrier_owned_storage_unmeasured',
+  );
   assert.equal(storageLifecycle.agent_package_store.cleanup_action_id, 'agent_package_uninstall');
   assert.equal(storageLifecycle.agent_package_store.projected_action.route, '/settings/agents');
   assert.equal(storageLifecycle.webui_data_volume.status, 'not_configured');
@@ -219,8 +223,12 @@ test('full Settings projection follows App page ownership without treating activ
   assert.equal(settings.allowed_action_ids.includes('settings_inventory_webui_data_volume'), true);
   assert.equal(contract.action_sections.includes('storage_lifecycle'), true);
   assert.equal(
-    contract.app_settings_read_model.storage_lifecycle.policy.typed_package_lock_index_is_only_package_inventory_source,
-    true,
+    contract.app_settings_read_model.storage_lifecycle.policy.agent_package_storage_capacity_authority,
+    'native_carrier_owned_unmeasured',
+  );
+  assert.equal(
+    contract.app_settings_read_model.storage_lifecycle.policy.legacy_package_lock_or_lkg_inventory_allowed,
+    false,
   );
   assert.equal(contract.app_settings_read_model.storage_lifecycle.policy.generic_docker_prune_allowed, false);
   assert.equal(

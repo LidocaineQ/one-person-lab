@@ -53,6 +53,7 @@ const STORAGE_REASON_CODES = new Set([
   'inventory_cache_stale',
   'inventory_cache_write_failed',
   'inventory_source_invalid',
+  'carrier_owned_storage_unmeasured',
   'runtime_source_unmeasured',
   'path_not_absolute',
   'path_unsafe',
@@ -171,11 +172,21 @@ function normalizeProjection(
 }
 
 function normalizeAgentPackageProjection(value: unknown, now: Date) {
-  return normalizeProjection(
+  const normalized = normalizeProjection(
     value,
     unavailableProjection('/settings/agents', agentPackageStorageNavigationAction()),
     now,
   );
+  if (normalized.observed_at === null) return normalized;
+  return {
+    ...normalized,
+    status: 'attention_required' as const,
+    bytes: null,
+    reclaimable_bytes: null,
+    reason_code: normalized.stale
+      ? 'inventory_cache_stale'
+      : 'carrier_owned_storage_unmeasured',
+  };
 }
 
 function normalizeWebuiProjection(value: unknown, now: Date) {
