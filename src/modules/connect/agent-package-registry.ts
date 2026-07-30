@@ -4604,15 +4604,7 @@ function emptyStatusLockIndex(): AgentPackageLockIndex {
   };
 }
 
-type LegacyLockAuthorityReadback = {
-  surface_kind: 'opl_agent_package_legacy_lock_authority_readback';
-  status: 'available' | 'not_present' | 'degraded';
-  authority_kind: 'lock_index';
-  authority_status: 'present' | 'missing' | 'stale' | 'corrupt';
-  failure_code: string | null;
-  reason: string | null;
-  retained_descriptor_lock_count: number;
-};
+type LegacyLockProjectionState = 'present' | 'missing' | 'stale' | 'corrupt';
 
 function isCorruptLegacyLockAuthority(error: unknown): error is FrameworkContractError {
   return error instanceof FrameworkContractError
@@ -4638,50 +4630,18 @@ function retainedDescriptorLockCount(
   ].filter((lock) => descriptorIds.has(lock.package_id)).map((lock) => lock.package_id)).size;
 }
 
-function legacyLockAuthorityReadback(
-  lockIndex: AgentPackageLockIndex | null,
+function legacyLockProjectionState(
+  lockIndex: AgentPackageLockIndex,
   installedCodexPluginDescriptors: ReturnType<typeof discoverInstalledCodexPluginDescriptors>,
-  error: FrameworkContractError | null = null,
-): LegacyLockAuthorityReadback {
-  const authorityFile = resolveOplStatePaths().agent_package_lock_file;
-  if (error) {
-    return {
-      surface_kind: 'opl_agent_package_legacy_lock_authority_readback',
-      status: 'degraded',
-      authority_kind: 'lock_index',
-      authority_status: 'corrupt',
-      failure_code: typeof error.details?.failure_code === 'string'
-        ? error.details.failure_code
-        : 'agent_package_lock_authority_corrupt',
-      reason: 'legacy_lock_index_corrupt_descriptor_projection_preserved',
-      retained_descriptor_lock_count: 0,
-    };
-  }
-  const retainedCount = lockIndex
-    ? retainedDescriptorLockCount(lockIndex, installedCodexPluginDescriptors)
-    : 0;
-  if (!fs.existsSync(authorityFile)) {
-    return {
-      surface_kind: 'opl_agent_package_legacy_lock_authority_readback',
-      status: 'not_present',
-      authority_kind: 'lock_index',
-      authority_status: 'missing',
-      failure_code: null,
-      reason: 'legacy_lock_index_not_present',
-      retained_descriptor_lock_count: retainedCount,
-    };
-  }
-  return {
-    surface_kind: 'opl_agent_package_legacy_lock_authority_readback',
-    status: retainedCount > 0 ? 'degraded' : 'available',
-    authority_kind: 'lock_index',
-    authority_status: retainedCount > 0 ? 'stale' : 'present',
-    failure_code: null,
-    reason: retainedCount > 0
-      ? 'descriptor_owned_state_retained_in_legacy_lock'
-      : null,
-    retained_descriptor_lock_count: retainedCount,
-  };
+): LegacyLockProjectionState {
+  if (!fs.existsSync(resolveOplStatePaths().agent_package_lock_file)) return 'missing';
+  return retainedDescriptorLockCount(lockIndex, installedCodexPluginDescriptors) > 0
+    ? 'stale'
+    : 'present';
+}
+
+function legacyLockProjectionNeedsAttention(state: LegacyLockProjectionState) {
+  return state === 'stale' || state === 'corrupt';
 }
 
 function readStatusLockIndex(
@@ -4692,7 +4652,7 @@ function readStatusLockIndex(
     const lockIndex = readLockIndex();
     return {
       lockIndex,
-      legacyAuthority: legacyLockAuthorityReadback(lockIndex, installedCodexPluginDescriptors),
+      legacyLockState: legacyLockProjectionState(lockIndex, installedCodexPluginDescriptors),
     };
   } catch (error) {
     if (
@@ -4702,11 +4662,7 @@ function readStatusLockIndex(
     ) throw error;
     return {
       lockIndex: emptyStatusLockIndex(),
-      legacyAuthority: legacyLockAuthorityReadback(
-        null,
-        installedCodexPluginDescriptors,
-        error,
-      ),
+      legacyLockState: 'corrupt' as const,
     };
   }
 }
@@ -4714,7 +4670,7 @@ function readStatusLockIndex(
 function buildAgentPackageStatusSnapshot(
   lockIndex: AgentPackageLockIndex,
   installedCodexPluginDescriptors: ReturnType<typeof discoverInstalledCodexPluginDescriptors>,
-  legacyAuthority: LegacyLockAuthorityReadback,
+  legacyLockState: LegacyLockProjectionState,
 ) {
   const configuredCarriers = configuredCarrierReadbacks(installedCodexPluginDescriptors);
   const directory = buildAgentPackageDirectory({
@@ -4728,7 +4684,7 @@ function buildAgentPackageStatusSnapshot(
     lockIndex,
     installedCodexPluginDescriptors,
     configuredCarriers,
-    legacyAuthority,
+    legacyLockState,
     paths: resolveOplStatePaths(),
     homeShortcutPreferences: mergedHomeShortcutPreferences(directory, lockIndex),
   };
@@ -4741,7 +4697,7 @@ function readAgentPackageStatusSnapshot(packageId?: string | null) {
     canonicalPackageId && installedCodexPluginDescriptors.has(canonicalPackageId),
   );
   // A native installed descriptor is already the status authority. A global
-  // projection may continue with an explicit degraded diagnostic when the
+  // projection may continue with an explicit attention signal when the
   // legacy lock is corrupt; legacy-only Package lookups remain fail-closed.
   const snapshot = descriptorOnlyReadback
     ? readStatusLockIndex(installedCodexPluginDescriptors, true)
@@ -4752,7 +4708,7 @@ function readAgentPackageStatusSnapshot(packageId?: string | null) {
   return buildAgentPackageStatusSnapshot(
     snapshot.lockIndex,
     installedCodexPluginDescriptors,
-    snapshot.legacyAuthority,
+    snapshot.legacyLockState,
   );
 }
 
@@ -4769,7 +4725,7 @@ function agentPackageStatusReadbackStatus(input: {
   configuredCarrierStatus: ConfiguredCodexPluginCarrierReadback['status'] | null;
   installedCarrierReady: boolean;
   operationalReady: boolean;
-  legacyAuthorityStatus: LegacyLockAuthorityReadback['status'];
+  legacyLockState: LegacyLockProjectionState;
 }) {
   if (
     input.packageId
@@ -4782,7 +4738,7 @@ function agentPackageStatusReadbackStatus(input: {
       : 'not_installed';
   }
   if (input.packageId && !input.operationalReady) return 'attention_needed';
-  if (!input.packageId && input.legacyAuthorityStatus === 'degraded') return 'attention_needed';
+  if (!input.packageId && legacyLockProjectionNeedsAttention(input.legacyLockState)) return 'attention_needed';
   return 'available';
 }
 
@@ -4797,7 +4753,7 @@ function buildOplAgentPackageStatus(
     homeShortcutPreferences: allHomeShortcutPreferences,
     installedCodexPluginDescriptors,
     configuredCarriers,
-    legacyAuthority,
+    legacyLockState,
   } = snapshot;
   const installedPackages = publicLegacyPackages(
     packageId
@@ -4988,7 +4944,7 @@ function buildOplAgentPackageStatus(
         configuredCarrierStatus: configuredCarrier?.status ?? null,
         installedCarrierReady: carrierReadiness?.installed ?? false,
         operationalReady,
-        legacyAuthorityStatus: legacyAuthority.status,
+        legacyLockState,
       }),
       package_id: packageId ?? null,
       installed_package_count: packageId
@@ -5064,7 +5020,7 @@ export function createOplAgentPackageStatusReader() {
           return buildAgentPackageStatusSnapshot(
             projection.lockIndex,
             installedCodexPluginDescriptors,
-            projection.legacyAuthority,
+            projection.legacyLockState,
           );
         })()
       : legacySnapshot ??= (() => {
@@ -5072,7 +5028,7 @@ export function createOplAgentPackageStatusReader() {
           return buildAgentPackageStatusSnapshot(
             projection.lockIndex,
             installedCodexPluginDescriptors,
-            projection.legacyAuthority,
+            projection.legacyLockState,
           );
         })();
     return buildOplAgentPackageStatus(input, snapshot);
@@ -5096,7 +5052,7 @@ export function listOplAgentPackages(input: {
     installedCodexPluginDescriptors,
     installedCodexPluginDescriptors.size > 0,
   );
-  const { lockIndex, legacyAuthority } = projection;
+  const { lockIndex, legacyLockState } = projection;
   const configuredCarriers = configuredCarrierReadbacks(installedCodexPluginDescriptors);
   const installedPackages = publicLegacyPackages(lockIndex.packages, installedCodexPluginDescriptors);
   const lifecycleUx = agentPackageLifecycleSummaryReadback({
@@ -5121,7 +5077,7 @@ export function listOplAgentPackages(input: {
   });
   const directory = {
     ...directoryReadback,
-    ...(legacyAuthority.status === 'degraded'
+    ...(legacyLockProjectionNeedsAttention(legacyLockState)
       ? { status: 'attention_required' as const }
       : {}),
   };
@@ -5130,7 +5086,7 @@ export function listOplAgentPackages(input: {
     version: 'g2',
     opl_agent_packages: {
       surface_kind: 'opl_agent_package_readback',
-      status: legacyAuthority.status === 'degraded' ? 'attention_needed' : 'available',
+      status: legacyLockProjectionNeedsAttention(legacyLockState) ? 'attention_needed' : 'available',
       directory,
       installed_package_count: new Set([
         ...installedPackages.map((entry) => entry.package_id),
