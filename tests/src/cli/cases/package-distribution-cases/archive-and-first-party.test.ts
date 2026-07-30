@@ -1326,15 +1326,16 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
     'utf8',
   )) as Record<string, any>;
   assert.equal(manifest.surface_kind, 'opl_workflow_profile_package_manifest.v1');
-  assert.equal(manifest.version, '0.1.25');
-  assert.equal(manifest.codex_surface.carrier_source_commit, 'a693d7e51d9585106d8433e0cd19f5228cf9c110');
+  assert.equal(manifest.version, '0.1.28');
+  assert.equal(manifest.codex_surface.carrier_source_commit, 'dd988c9baa90b3db893da0185c785c71810ae9de');
   assert.deepEqual(manifest.codex_surface.required_skill_ids, ['coordinate-concurrent-tasks', 'opl-flow']);
   assert.equal(schema.properties.codex_surface.required.includes('carrier_source_commit'), true);
   assert.equal(Object.hasOwn(manifest, 'agent_id'), false);
   assert.equal(normalized.agent_id, null);
   assert.equal(normalized.profile_surface?.existing_profile_policy, 'semantic_merge_required');
   assert.equal(payload.surface_kind, 'opl_package_payload_manifest.v2');
-  assert.equal(payload.source_commit, 'a693d7e51d9585106d8433e0cd19f5228cf9c110');
+  assert.equal(payload.source_commit, 'dd988c9baa90b3db893da0185c785c71810ae9de');
+  assert.equal(payload.files.some((file: Record<string, unknown>) => file.path === 'opl-package.json'), true);
   assert.deepEqual(
     payload.files
       .filter((file: Record<string, unknown>) => String(file.path).startsWith('skills/'))

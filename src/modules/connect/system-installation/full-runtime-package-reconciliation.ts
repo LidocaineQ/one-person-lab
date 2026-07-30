@@ -145,13 +145,11 @@ function assertMutationClosure(
   }
 }
 
-function catalogCarriesOwnerDescriptors(catalog: BundledFullRuntimePackageCatalog) {
-  return [...catalog.entries.values()].every((entry) => {
-    const payload = parseJsonText(entry.payloadManifestJson);
-    return isRecord(payload)
-      && Array.isArray(payload.files)
-      && payload.files.some((file) => isRecord(file) && file.path === 'opl-package.json');
-  });
+function catalogEntryCarriesOwnerDescriptor(entry: BundledFullRuntimeCatalogEntry) {
+  const payload = parseJsonText(entry.payloadManifestJson);
+  return isRecord(payload)
+    && Array.isArray(payload.files)
+    && payload.files.some((file) => isRecord(file) && file.path === 'opl-package.json');
 }
 
 function pluginBareName(pluginId: string) {
@@ -365,12 +363,14 @@ async function reconcileBundledFullRuntimePackages(
   const updatePackage = options.updatePackage ?? runOplBundledFullRuntimeAgentPackageUpdate;
   const materializePackage = options.materializePackage ?? ((input) =>
     materializePhysicalCodexSurface(input.manifest, input.dryRun));
-  const useNativeMaterialization = options.materializePackage !== undefined
-    || catalogCarriesOwnerDescriptors(catalog);
   const rootClosures = new Map(roots.map((packageId) => [packageId, catalogClosure(catalog, packageId)]));
+  const nativeMaterializationRoots = new Set(roots.filter((packageId) =>
+    rootClosures.get(packageId)!.every((closurePackageId) =>
+      catalogEntryCarriesOwnerDescriptor(catalog.entries.get(closurePackageId)!))));
 
   for (const packageId of roots) {
     const closure = rootClosures.get(packageId)!;
+    const useNativeMaterialization = nativeMaterializationRoots.has(packageId);
     if (closure.every(isCurrent)) {
       rootInstalls.push({
         target_id: packageId,
@@ -642,9 +642,11 @@ async function reconcileBundledFullRuntimePackages(
     surface_kind: 'opl_full_runtime_package_reconciliation.v1' as const,
     status,
     orchestration_policy: 'fail_open_per_root_package' as const,
-    package_mutation_policy: useNativeMaterialization
-      ? 'package_local_atomic_root_retryable' as const
-      : 'fail_closed_per_required_dependency_closure' as const,
+    package_mutation_policy: nativeMaterializationRoots.size === 0
+      ? 'fail_closed_per_required_dependency_closure' as const
+      : nativeMaterializationRoots.size === roots.length
+        ? 'package_local_atomic_root_retryable' as const
+        : 'per_root_native_materialization_with_legacy_compatibility' as const,
     lifecycle_action: lifecycleAction,
     catalog_ref: catalog.catalogRef,
     catalog_sha256: catalog.catalogSha256,

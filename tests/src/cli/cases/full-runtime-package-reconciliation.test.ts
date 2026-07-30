@@ -46,6 +46,23 @@ function closure(catalog: BundledFullRuntimePackageCatalog, rootPackageId: strin
   return result;
 }
 
+function descriptorBearingCatalog() {
+  const catalog = readBundledFullRuntimePackageCatalog();
+  return {
+    ...catalog,
+    entries: new Map([...catalog.entries].map(([packageId, entry]) => {
+      const payload = parseJsonText(entry.payloadManifestJson) as Record<string, any>;
+      if (!payload.files.some((file: Record<string, unknown>) => file.path === 'opl-package.json')) {
+        payload.files.push({ path: 'opl-package.json' });
+      }
+      return [packageId, {
+        ...entry,
+        payloadManifestJson: JSON.stringify(payload),
+      }];
+    })),
+  };
+}
+
 function runtimeHomeFixture(root: string, catalog: BundledFullRuntimePackageCatalog) {
   const runtimeHome = path.join(root, 'runtime');
   for (const entry of catalog.entries.values()) {
@@ -181,7 +198,7 @@ async function withEnvironment<T>(
 test('Full runtime currentness ignores legacy lock state and installs each missing native closure', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-full-runtime-native-currentness-'));
   const stateDir = path.join(root, 'state');
-  const catalog = readBundledFullRuntimePackageCatalog();
+  const catalog = descriptorBearingCatalog();
   const runtimeHome = runtimeHomeFixture(root, catalog);
   const state: ProjectionState = {
     materialized: new Set(),
@@ -242,9 +259,62 @@ test('Full runtime currentness ignores legacy lock state and installs each missi
   }
 });
 
+test('descriptor-bearing roots use native materialization while legacy roots retain their installer', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-full-runtime-mixed-materialization-'));
+  const catalog = readBundledFullRuntimePackageCatalog();
+  const runtimeHome = runtimeHomeFixture(root, catalog);
+  const state = currentState(catalog);
+  const legacyInstalls: string[] = [];
+  const nativeMaterializations: string[] = [];
+  state.materialized.delete('oma');
+  state.materialized.delete('opl-flow');
+  try {
+    const result = await reconcileBundledFullRuntimePackagesIfAvailable(
+      { OPL_FULL_RUNTIME_HOME: runtimeHome },
+      {
+        ...projectionOptions(state),
+        readCatalog: () => catalog,
+        installPackage: (async (input: { packageId: string }) => {
+          legacyInstalls.push(input.packageId);
+          const dependencyPackageIds = closure(catalog, input.packageId);
+          for (const packageId of dependencyPackageIds) convergePackage(state, catalog, packageId);
+          return {
+            opl_agent_package_install: {
+              dependency_transaction_id: `fixture-${input.packageId}`,
+              dependency_package_locks: dependencyPackageIds.map((packageId) => ({ package_id: packageId })),
+            },
+          } as any;
+        }) as any,
+        materializePackage: ((input: { manifest: AgentPackageManifest; dryRun: boolean }) => {
+          if (!input.dryRun) {
+            nativeMaterializations.push(input.manifest.package_id);
+            convergePackage(state, catalog, input.manifest.package_id);
+          }
+          return fakeSurface(input.manifest) as any;
+        }) as any,
+      },
+    );
+    assert.ok(result);
+    assert.equal(result.status, 'completed', JSON.stringify(result, null, 2));
+    assert.equal(result.package_mutation_policy, 'per_root_native_materialization_with_legacy_compatibility');
+    assert.deepEqual(legacyInstalls, ['oma']);
+    assert.deepEqual(nativeMaterializations, ['opl-flow']);
+    assert.equal(
+      result.root_installs.find((entry) => entry.package_id === 'oma')?.reason,
+      'package_install_unit_completed',
+    );
+    assert.equal(
+      result.root_installs.find((entry) => entry.package_id === 'opl-flow')?.reason,
+      'native_package_materialization_completed',
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('native carrier disabled, ambiguous, source drift, and hidden exposure each trigger bounded repair', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-full-runtime-native-drift-'));
-  const catalog = readBundledFullRuntimePackageCatalog();
+  const catalog = descriptorBearingCatalog();
   const runtimeHome = runtimeHomeFixture(root, catalog);
   const state = currentState(catalog);
   const repairedRoots: string[] = [];
@@ -299,7 +369,7 @@ test('native carrier disabled, ambiguous, source drift, and hidden exposure each
 
 test('managed updates require fresh native and materialized readback after mutation transport returns', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-full-runtime-post-apply-readback-'));
-  const catalog = readBundledFullRuntimePackageCatalog();
+  const catalog = descriptorBearingCatalog();
   const runtimeHome = runtimeHomeFixture(root, catalog);
   const state = currentState(catalog);
   state.materialized.delete('oma');
