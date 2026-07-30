@@ -111,7 +111,7 @@
     {
       "module_id": "scholarskills",
       "package_id": "mas-scholar-skills",
-      "kind": "capability_package",
+      "kind": "framework_capability_package",
       "required": true,
       "dependency_kind": "hard_runtime_dependency",
       "version_requirement": ">=0.2.12 <0.3.0",

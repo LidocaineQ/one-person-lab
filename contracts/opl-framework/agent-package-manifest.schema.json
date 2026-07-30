@@ -580,7 +580,10 @@
             "minLength": 1
           },
           "kind": {
-            "const": "capability_package"
+            "enum": [
+              "capability_package",
+              "framework_capability_package"
+            ]
           },
           "required": {
             "type": "boolean"

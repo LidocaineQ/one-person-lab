@@ -1538,6 +1538,18 @@ test('MAS first-party agent package manifest fails closed for unsafe dependency 
       .capability_dependencies[0].dependency_kind,
     'hard_runtime_dependency',
   );
+  assert.equal(
+    normalizeFirstPartyAgentPackageManifest(manifest)
+      .capability_dependencies[0].kind,
+    'framework_capability_package',
+  );
+  const capabilityDependencyKindManifest = structuredClone(manifest);
+  capabilityDependencyKindManifest.capability_dependencies[0].kind = 'capability_package';
+  assert.equal(
+    normalizeFirstPartyAgentPackageManifest(capabilityDependencyKindManifest)
+      .capability_dependencies[0].kind,
+    'capability_package',
+  );
   const optionalManifest = structuredClone(manifest);
   delete optionalManifest.distribution_payload;
   optionalManifest.capability_dependencies = [{

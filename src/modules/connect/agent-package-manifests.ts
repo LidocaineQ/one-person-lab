@@ -159,7 +159,13 @@ function normalizeDistributionPayload(value: unknown) {
 }
 
 function normalizeCapabilityDependency(value: unknown): ModuleCapabilityDependency {
-  if (!isRecord(value) || value.kind !== 'capability_package') {
+  if (
+    !isRecord(value)
+    || (
+      value.kind !== 'capability_package'
+      && value.kind !== 'framework_capability_package'
+    )
+  ) {
     throw new FrameworkContractError('contract_shape_invalid', 'Agent package manifest capability dependency must be a framework capability package.', {
       contract_ref: 'contracts/opl-framework/agent-package-manifest.schema.json',
       field: 'capability_dependencies.kind',
@@ -208,7 +214,7 @@ function normalizeCapabilityDependency(value: unknown): ModuleCapabilityDependen
   return {
     module_id: requiredString(value.module_id, 'capability_dependencies.module_id') as ModuleCapabilityDependency['module_id'],
     package_id: requiredString(value.package_id, 'capability_dependencies.package_id'),
-    kind: 'capability_package',
+    kind: value.kind,
     required: value.required,
     dependency_kind: expectedDependencyKind,
     version_requirement: requiredString(value.version_requirement, 'capability_dependencies.version_requirement'),

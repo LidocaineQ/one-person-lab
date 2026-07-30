@@ -398,7 +398,7 @@ test('packages manifest exposes canonical Release Set coordinates for Package in
       {
         module_id: 'scholarskills',
         package_id: 'mas-scholar-skills',
-        kind: 'capability_package',
+        kind: 'framework_capability_package',
         codex_distribution: 'bundled',
         opl_distribution: 'managed_dependency',
         developer_distribution: 'source_checkout',
