@@ -39,12 +39,13 @@ test('system ignores retired Hermes env outside family runtime provider selectio
   }
 });
 
-test('system update skips ready targets updates available targets and reports dirty module skips', () => {
+test('system update keeps external Codex detect-only while updating available targets and reporting dirty module skips', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-system-update-home-'));
   const modulesRoot = path.join(homeRoot, 'managed-modules');
   const frameworkSourceRoot = path.join(homeRoot, 'framework-source');
   const frameworkTargetRoot = path.join(homeRoot, 'framework-target');
   const turnkeyLogPath = path.join(homeRoot, 'turnkey.log');
+  const npmLogPath = path.join(homeRoot, 'npm.log');
   const codexFixture = createFakeCodexFixture(`
 if [[ "$1" == "--version" ]]; then
   echo "codex-cli 0.125.0"
@@ -53,6 +54,14 @@ fi
 echo "Unsupported codex fixture command: $*" >&2
 exit 1
 `);
+  fs.writeFileSync(
+    path.join(codexFixture.fixtureRoot, 'npm'),
+    `#!/usr/bin/env bash
+printf '%s\\n' "$*" >> ${JSON.stringify(npmLogPath)}
+exit 89
+`,
+    { mode: 0o755 },
+  );
   const moduleExtraFiles = {
     'plugins/med-autoscience/.codex-plugin/plugin.json': JSON.stringify({
       name: 'med-autoscience',
@@ -120,7 +129,9 @@ EOF
     OPL_FRAMEWORK_UPDATE_SOURCE: frameworkSourceRoot,
     OPL_FRAMEWORK_UPDATE_TARGET_ROOT: frameworkTargetRoot,
     OPL_FRAMEWORK_UPDATE_SKIP_DEPENDENCY_INSTALL: '1',
-    OPL_CODEX_CLI_LATEST_VERSION: '0.125.0',
+    OPL_CODEX_UPDATE_COMMAND: '',
+    OPL_MIN_CODEX_CLI_VERSION: '0.125.0',
+    OPL_CODEX_CLI_LATEST_VERSION: '0.134.0',
     PATH: `${codexFixture.fixtureRoot}:${path.dirname(process.execPath)}:/usr/bin:/bin`,
   };
 
@@ -151,7 +162,10 @@ EOF
     assert.equal(targets.get('framework:opl-framework')?.status, 'completed');
     assert.equal(targets.get('framework:opl-framework')?.reason, 'framework_runtime_source_refreshed');
     assert.equal(targets.get('engine:codex')?.status, 'skipped');
-    assert.equal(targets.get('engine:codex')?.reason, 'selected_codex_ready');
+    assert.equal(targets.get('engine:codex')?.reason, 'selected_external_codex_carrier_detect_only');
+    assert.equal(targets.get('engine:codex')?.result, null);
+    assert.equal(fs.existsSync(npmLogPath), false);
+    assert.equal(fs.existsSync(path.join(homeRoot, 'runtime', 'current', 'bin', 'codex')), false);
     assert.equal(targets.has('engine:hermes'), false);
     assert.equal(targets.get('module:medautoscience')?.status, 'completed');
     assert.equal(targets.get('module:medautogrant')?.status, 'skipped');
