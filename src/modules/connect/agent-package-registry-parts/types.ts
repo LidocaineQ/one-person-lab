@@ -968,8 +968,6 @@ export type AgentPackageOwnerRouteReadbackItem = {
     writes_performed: boolean;
     reload_required: boolean;
     failure_reason: string | null;
-    profile_migration: AgentPackageProfileMigration;
-    managed_policy_migration: AgentPackageManagedPolicyMigration;
     managed_policy_currentness: AgentPackageManagedPolicyCurrentness;
   };
   lifecycle_ux: AgentPackageLifecycleUxReadback;

@@ -839,11 +839,6 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
     assert.equal(fs.existsSync(path.join(stateDir, 'workflow-packages')), false);
     const current = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
     const statusMaterializer = current.opl_agent_package_status.owner_route_readback.packages[0].materializer;
-    assert.equal(statusMaterializer.managed_policy_migration.status, 'applied');
-    assert.equal(
-      statusMaterializer.managed_policy_migration.policy_sha256,
-      migration.policy_sha256,
-    );
     assert.equal(
       statusMaterializer.managed_policy_currentness.status,
       'current',

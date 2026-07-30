@@ -8,7 +8,7 @@ import {
 } from '../managed-update-owner-boundary.ts';
 import { dependencyReadiness } from './dependency-closure.ts';
 import { agentPackageCarrierAuthorityStatus } from './carrier-authority.ts';
-import { managedPolicyCurrentness, noManagedPolicyMigration } from './managed-policy-surface.ts';
+import { managedPolicyCurrentness } from './managed-policy-surface.ts';
 import { scopeMaterializationReadiness } from './scope-materialization.ts';
 import { managedRuntimeSourceReadiness } from './managed-runtime-source-carrier.ts';
 import { refsOnlyAuthorityBoundary, uniqueStrings } from './shared.ts';
@@ -264,24 +264,6 @@ function ownerRouteReadbackItem(input: {
     writes_performed: surface?.writes_performed ?? false,
     reload_required: surface?.reload_required ?? false,
     failure_reason: surface?.failure_reason ?? null,
-    profile_migration: surface?.profile_migration ?? {
-      surface_kind: 'opl_package_profile_migration',
-      status: 'not_requested',
-      source_path: null,
-      target_path: null,
-      source_sha256: null,
-      target_sha256: null,
-      receipt_path: null,
-      merge_packet_path: null,
-      apply_command: null,
-      authoring_source_paths: [],
-      mutation_actions: [],
-      rollback_backups_retained: false,
-      writes_performed: false,
-      note: 'Package does not request a profile surface.',
-    },
-    managed_policy_migration: surface?.workflow_policy_migration
-      ?? noManagedPolicyMigration('Package does not request a managed policy surface.'),
     managed_policy_currentness: policyCurrentness,
   };
   const lifecycleUx = agentPackageLifecycleUxReadback({

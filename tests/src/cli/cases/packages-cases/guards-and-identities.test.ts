@@ -862,6 +862,12 @@ test('packages preserves installed lock and returns an operation receipt when up
         assert.equal(Object.hasOwn(adapter, field), false);
       }
     }
+    for (const field of ['profile_migration', 'managed_policy_migration']) {
+      assert.equal(Object.hasOwn(ownerPackage.materializer, field), false);
+      for (const adapter of ownerPackage.carrier_adapters) {
+        assert.equal(Object.hasOwn(adapter, field), false);
+      }
+    }
     assert.equal(Object.hasOwn(ownerPackage.materializer, 'managed_policy_currentness'), true);
     assert.equal(
       Object.hasOwn(ownerPackage.package_core.lifecycle, 'latest_receipt_ref'),
