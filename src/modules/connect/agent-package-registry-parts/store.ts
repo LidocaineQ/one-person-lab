@@ -214,10 +214,6 @@ export function writePackageTransaction(
   const previousLock = fs.existsSync(paths.agent_package_lock_file)
     ? fs.readFileSync(paths.agent_package_lock_file)
     : null;
-  const legacyLedgerPath = path.join(paths.state_dir, 'agent-package-lifecycle-ledger.json');
-  const previousLegacyLedger = fs.existsSync(legacyLedgerPath)
-    ? fs.readFileSync(legacyLedgerPath)
-    : null;
   const normalizedIndex = normalizeLockIndex(index, paths.agent_package_lock_file);
   try {
     if (
@@ -228,12 +224,9 @@ export function writePackageTransaction(
     } else {
       writeJsonPayloadFile(paths.agent_package_lock_file, normalizedIndex);
     }
-    fs.rmSync(legacyLedgerPath, { force: true });
   } catch (error) {
     if (previousLock) fs.writeFileSync(paths.agent_package_lock_file, previousLock);
     else fs.rmSync(paths.agent_package_lock_file, { force: true });
-    if (previousLegacyLedger) fs.writeFileSync(legacyLedgerPath, previousLegacyLedger);
-    else fs.rmSync(legacyLedgerPath, { force: true });
     throw error;
   }
 }

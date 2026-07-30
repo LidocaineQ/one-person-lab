@@ -116,7 +116,7 @@ test('package lifecycle SQLite writer mutex times out on live contention and rec
   }
 });
 
-test('package lock authority rejects corruption while legacy receipt history is not an authority', async () => {
+test('package lock authority rejects corruption and leaves legacy receipt history untouched', async () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-authority-corrupt-state-'));
   const lockPath = path.join(stateDir, 'agent-package-locks.json');
   const ledgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
@@ -143,11 +143,12 @@ test('package lock authority rejects corruption while legacy receipt history is 
       assert.equal(fs.existsSync(ledgerPath), false);
 
       fs.writeFileSync(lockPath, formatJsonPayload(emptyLockIndex()));
-      fs.writeFileSync(ledgerPath, '{ obsolete receipt history\n');
+      const legacyLedgerBytes = Buffer.from('{ obsolete receipt history\n');
+      fs.writeFileSync(ledgerPath, legacyLedgerBytes);
       const validLockBytes = fs.readFileSync(lockPath);
       writePackageTransaction(emptyLockIndex());
       assert.deepEqual(fs.readFileSync(lockPath), validLockBytes);
-      assert.equal(fs.existsSync(ledgerPath), false);
+      assert.deepEqual(fs.readFileSync(ledgerPath), legacyLedgerBytes);
     });
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
