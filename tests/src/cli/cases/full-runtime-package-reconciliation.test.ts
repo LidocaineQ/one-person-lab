@@ -20,10 +20,7 @@ import {
   CANONICAL_PACKAGE_CONTENT_LOCK,
   packageContentLockDigest,
 } from '../../../../src/modules/connect/agent-package-registry-parts/payload-content-lock.ts';
-import type {
-  AgentPackageLock,
-  AgentPackageManifest,
-} from '../../../../src/modules/connect/agent-package-registry-parts/types.ts';
+import type { AgentPackageManifest } from '../../../../src/modules/connect/agent-package-registry-parts/types.ts';
 import { reconcileBundledFullRuntimePackagesIfAvailable } from '../../../../src/modules/connect/system-installation/full-runtime-package-reconciliation.ts';
 
 function manifestProjection(entry: BundledFullRuntimeCatalogEntry) {
@@ -81,6 +78,14 @@ function fakeSurface(manifest: AgentPackageManifest) {
     materialized_required_skill_ids: [...manifest.required_skill_ids],
     materialized_required_skill_paths: manifest.required_skill_ids.map((skillId) =>
       path.join(cachePath, 'skills', skillId, 'SKILL.md')),
+    profile_migration: {
+      status: 'not_requested',
+    },
+    workflow_policy_migration: {
+      detected_conflicts: [],
+    },
+    writes_performed: true,
+    reload_required: true,
   };
 }
 
@@ -134,28 +139,6 @@ function convergePackage(
   state.policyDrift.delete(packageId);
 }
 
-function convergeClosure(
-  state: ProjectionState,
-  catalog: BundledFullRuntimePackageCatalog,
-  rootPackageId: string,
-) {
-  for (const packageId of closure(catalog, rootPackageId)) {
-    convergePackage(state, catalog, packageId);
-  }
-}
-
-function mutationLocks(
-  catalog: BundledFullRuntimePackageCatalog,
-  rootPackageId: string,
-) {
-  return closure(catalog, rootPackageId).map((packageId) => ({
-    package_id: packageId,
-    package_version: 'stale-transport-is-not-currentness',
-    manifest_sha256: '0'.repeat(64),
-    content_digest: `sha256:${'0'.repeat(64)}`,
-  })) as AgentPackageLock[];
-}
-
 function projectionOptions(state: ProjectionState) {
   return {
     readInstalledCarrierEntries: () => structuredClone(state.entries),
@@ -177,31 +160,6 @@ function projectionOptions(state: ProjectionState) {
       reason: 'fixture',
     })) as any,
   };
-}
-
-function lifecycleResult(
-  action: 'install' | 'update',
-  catalog: BundledFullRuntimePackageCatalog,
-  rootPackageId: string,
-) {
-  const locks = mutationLocks(catalog, rootPackageId);
-  return action === 'update'
-    ? {
-        version: 'g2',
-        opl_agent_package_update: {
-          status: 'updated',
-          dependency_transaction_id: `fixture-${rootPackageId}`,
-          dependency_package_locks: locks,
-        },
-      }
-    : {
-        version: 'g2',
-        opl_agent_package_install: {
-          status: 'installed',
-          dependency_transaction_id: `fixture-${rootPackageId}`,
-          dependency_package_locks: locks,
-        },
-      };
 }
 
 async function withEnvironment<T>(
@@ -240,17 +198,22 @@ test('Full runtime currentness ignores legacy lock state and installs each missi
         {
           ...projectionOptions(state),
           readCatalog: () => catalog,
-          installPackage: (async (input: { packageId: string }) => {
-            installCalls.push(input.packageId);
-            convergeClosure(state, catalog, input.packageId);
-            return lifecycleResult('install', catalog, input.packageId) as any;
+          materializePackage: ((input: { manifest: AgentPackageManifest; dryRun: boolean }) => {
+            if (!input.dryRun) {
+              installCalls.push(input.manifest.package_id);
+              convergePackage(state, catalog, input.manifest.package_id);
+            }
+            return fakeSurface(input.manifest) as any;
           }) as any,
         },
       );
       assert.ok(first);
-      assert.equal(first.status, 'completed');
+      assert.equal(first.status, 'completed', JSON.stringify(first, null, 2));
       assert.equal(first.summary.installed, 7);
-      assert.deepEqual(installCalls, ['mag', 'mas', 'obf', 'oma', 'opl-flow', 'rca']);
+      assert.deepEqual(
+        installCalls,
+        ['mag', 'mas-scholar-skills', 'mas', 'obf', 'oma', 'opl-flow', 'rca'],
+      );
       assert.equal(
         first.items.find((item) => item.package_id === 'mas-scholar-skills')?.exposure_state,
         'hidden',
@@ -263,7 +226,7 @@ test('Full runtime currentness ignores legacy lock state and installs each missi
         {
           ...projectionOptions(state),
           readCatalog: () => catalog,
-          installPackage: (async () => {
+          materializePackage: (async () => {
             throw new Error('current native projection must not mutate');
           }) as any,
         },
@@ -285,22 +248,25 @@ test('native carrier disabled, ambiguous, source drift, and hidden exposure each
   const runtimeHome = runtimeHomeFixture(root, catalog);
   const state = currentState(catalog);
   const repairedRoots: string[] = [];
-  const installPackage = async (input: { packageId: string }) => {
-    repairedRoots.push(input.packageId);
-    convergeClosure(state, catalog, input.packageId);
-    return lifecycleResult('install', catalog, input.packageId) as any;
+  const materializePackage = (input: { manifest: AgentPackageManifest; dryRun: boolean }) => {
+    if (!input.dryRun) {
+      repairedRoots.push(input.manifest.package_id);
+      convergePackage(state, catalog, input.manifest.package_id);
+    }
+    return fakeSurface(input.manifest) as any;
   };
   const reconcile = () => reconcileBundledFullRuntimePackagesIfAvailable(
     { OPL_FULL_RUNTIME_HOME: runtimeHome },
     {
       ...projectionOptions(state),
       readCatalog: () => catalog,
-      installPackage: installPackage as any,
+      materializePackage: materializePackage as any,
     },
   );
   try {
     state.entries.find((entry) => entry.pluginId.startsWith('med-autogrant@'))!.enabled = false;
-    assert.equal((await reconcile())?.status, 'completed');
+    const disabledRepair = await reconcile();
+    assert.equal(disabledRepair?.status, 'completed', JSON.stringify(disabledRepair, null, 2));
     assert.deepEqual(repairedRoots.splice(0), ['mag']);
 
     state.entries.find((entry) => entry.pluginId.startsWith('opl-meta-agent@'))!.sourcePath = '/stale/source';
@@ -321,7 +287,7 @@ test('native carrier disabled, ambiguous, source drift, and hidden exposure each
       marketplaceSource: '/unexpected/global',
     });
     assert.equal((await reconcile())?.status, 'completed');
-    assert.deepEqual(repairedRoots.splice(0), ['mas']);
+    assert.deepEqual(repairedRoots.splice(0), ['mas-scholar-skills']);
 
     state.policyDrift.add('opl-flow');
     assert.equal((await reconcile())?.status, 'completed');
@@ -344,10 +310,8 @@ test('managed updates require fresh native and materialized readback after mutat
         ...projectionOptions(state),
         lifecycleAction: 'update',
         readCatalog: () => catalog,
-        updatePackage: (async (input: Record<string, any>) => {
-          await input.verifyAppliedPackageLocks(mutationLocks(catalog, input.packageId));
-          return lifecycleResult('update', catalog, input.packageId);
-        }) as any,
+        materializePackage: ((input: { manifest: AgentPackageManifest }) =>
+          fakeSurface(input.manifest)) as any,
       },
     );
     assert.ok(staleTransport);
@@ -368,15 +332,14 @@ test('managed updates require fresh native and materialized readback after mutat
         ...projectionOptions(state),
         lifecycleAction: 'update',
         readCatalog: () => catalog,
-        updatePackage: (async (input: Record<string, any>) => {
-          convergeClosure(state, catalog, input.packageId);
-          await input.verifyAppliedPackageLocks(mutationLocks(catalog, input.packageId));
-          return lifecycleResult('update', catalog, input.packageId);
+        materializePackage: ((input: { manifest: AgentPackageManifest; dryRun: boolean }) => {
+          if (!input.dryRun) convergePackage(state, catalog, input.manifest.package_id);
+          return fakeSurface(input.manifest);
         }) as any,
       },
     );
     assert.ok(verified);
-    assert.equal(verified.status, 'completed');
+    assert.equal(verified.status, 'completed', JSON.stringify(verified, null, 2));
     assert.equal(
       verified.root_installs.find((entry) => entry.package_id === 'oma')?.status,
       'completed',

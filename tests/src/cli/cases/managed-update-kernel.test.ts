@@ -949,7 +949,14 @@ function writeManagedBundledCatalogFixture(input: {
     const canonicalPayload = readJsonFile(canonicalPayloadPath) as Record<string, any>;
     const sourceRoot = canonicalPayload.source_root as string;
     const sourcePath = sourceRoot === '.' ? root : path.join(root, sourceRoot);
+    const sourceCommit = managedBundledSourceCommit(fixture.packageId, input.revision);
+    manifest.codex_surface = {
+      ...manifest.codex_surface,
+      carrier_source_commit: sourceCommit,
+      plugin_payload_manifest_url: `payloads/${fixture.packageId}.json`,
+    };
     fs.mkdirSync(sourcePath, { recursive: true });
+    writeJsonPayload(path.join(sourcePath, 'opl-package.json'), manifest);
     fs.writeFileSync(path.join(sourcePath, '.opl-managed-bundled-revision'), `${input.revision}\n`, 'utf8');
     for (const skillPath of filesUnder(sourcePath).filter((entry) => entry.endsWith('/SKILL.md'))) {
       const current = fs.readFileSync(path.join(sourcePath, skillPath), 'utf8')
@@ -960,7 +967,6 @@ function writeManagedBundledCatalogFixture(input: {
         'utf8',
       );
     }
-    const sourceCommit = managedBundledSourceCommit(fixture.packageId, input.revision);
     writeJsonPayload(path.join(root, 'opl-runtime-module.json'), {
       marker_version: 1,
       module_id: fixture.moduleId,
@@ -990,11 +996,6 @@ function writeManagedBundledCatalogFixture(input: {
         content: fs.readFileSync(path.join(sourcePath, entry.path)),
       })),
     );
-    manifest.codex_surface = {
-      ...manifest.codex_surface,
-      carrier_source_commit: sourceCommit,
-      plugin_payload_manifest_url: `payloads/${fixture.packageId}.json`,
-    };
     if (fixture.packageId === 'mas-scholar-skills') {
       manifest.content_lock = {
         ...manifest.content_lock,
@@ -1138,69 +1139,25 @@ function managedBundledStateFingerprint(input: {
   ]));
 }
 
-function packageMutationUnitFingerprint(input: {
-  stateRoot: string;
+function installedPackageDescriptorReadback(input: {
+  items: Array<Record<string, any>>;
   packageIds: string[];
-  rootPackageId: string;
 }) {
   const packageIds = new Set(input.packageIds);
-  const lockIndex = readJsonFile(path.join(input.stateRoot, 'agent-package-locks.json')) as any;
-  const lifecyclePath = path.join(input.stateRoot, 'agent-package-lifecycle-ledger.json');
-  const lifecycle = fs.existsSync(lifecyclePath)
-    ? readJsonFile(lifecyclePath) as any
-    : { receipts: [] };
-  const locks = lockIndex.packages
-    .filter((entry: any) => packageIds.has(entry.package_id))
-    .sort((left: any, right: any) => left.package_id.localeCompare(right.package_id));
-  const ownedPaths = new Set<string>();
-  const addPath = (candidate: unknown) => {
-    if (typeof candidate === 'string' && path.isAbsolute(candidate)) ownedPaths.add(candidate);
-  };
-  for (const lock of locks) {
-    const surface = lock.physical_surface ?? {};
-    for (const key of [
-      'codex_plugin_cache_path',
-      'marketplace_path',
-      'marketplace_plugin_path',
-      'plugin_payload_cache_path',
-    ]) addPath(surface[key]);
-    for (const candidate of surface.materialized_required_skill_paths ?? []) addPath(candidate);
-    for (const candidate of surface.removed_paths ?? []) addPath(candidate);
-    const profile = surface.profile_migration ?? {};
-    for (const key of ['target_path', 'receipt_path', 'merge_packet_path']) addPath(profile[key]);
-    for (const action of profile.mutation_actions ?? []) {
-      addPath(action.target_path);
-      addPath(action.backup_ref);
-    }
-    const managedPolicy = surface.workflow_policy_migration ?? {};
-    addPath(managedPolicy.backup_root);
-    for (const action of managedPolicy.actions ?? []) {
-      addPath(action.source_ref);
-      addPath(action.backup_ref);
-    }
-    for (const scope of lock.scope_materializations ?? []) {
-      for (const skillId of [...(scope.managed_skill_ids ?? []), ...(scope.retired_skill_ids ?? [])]) {
-        addPath(path.join(scope.target_root, '.codex', 'skills', skillId));
-      }
-      addPath(path.join(
-        scope.target_root,
-        '.codex',
-        '.opl-package-transactions',
-        scope.transaction_id,
-      ));
-    }
-    addPath(path.join(input.stateRoot, 'agent-package-transactions', lock.package_id));
-  }
-  return {
-    package_locks: locks,
-    last_known_good_transactions: (lockIndex.last_known_good_transactions ?? [])
-      .filter((entry: any) => entry.root_package_id === input.rootPackageId),
-    lifecycle_receipts: (lifecycle.receipts ?? [])
-      .filter((entry: any) => packageIds.has(entry.package_id)),
-    owned_path_digests: Object.fromEntries([...ownedPaths]
-      .sort()
-      .map((targetPath) => [targetPath, pathBytesDigest(targetPath)])),
-  };
+  return input.items
+    .filter((item) => packageIds.has(item.package_id))
+    .map((item) => {
+      const descriptorPath = path.join(item.codex_plugin_cache_path, 'opl-package.json');
+      const manifest = readJsonFile(descriptorPath) as any;
+      return {
+        package_id: manifest.package_id,
+        descriptor_ref: descriptorPath,
+        descriptor_sha256: pathBytesDigest(descriptorPath),
+        package_root_sha256: pathBytesDigest(path.dirname(descriptorPath)),
+        carrier_source_commit: manifest.codex_surface?.carrier_source_commit ?? null,
+      };
+    })
+    .sort((left, right) => left.package_id.localeCompare(right.package_id));
 }
 
 test('public update apply retains successful bundled roots when another root restores its local prestate', async () => {
@@ -1292,6 +1249,8 @@ test('public update apply retains successful bundled roots when another root res
     assert.equal(installed?.status, 'completed', JSON.stringify(installed, null, 2));
     assert.deepEqual(installed?.root_package_ids, ['mag', 'mas', 'obf', 'oma', 'opl-flow', 'rca']);
     assert.equal(installed?.summary.installed_package_count, 7);
+    const legacyLockPath = path.join(stateRoot, 'agent-package-locks.json');
+    assert.equal(fs.existsSync(legacyLockPath), false);
 
     const bound = runCli([
       'workspace',
@@ -1313,18 +1272,11 @@ test('public update apply retains successful bundled roots when another root res
       '--target-workspace',
       scopeRoot,
     ], commonEnv) as any;
-    const activatedScopes = activated.opl_agent_package_activation.package_lock.scope_materializations
-      .filter((entry: any) => entry.target_root === scopeRoot);
-    assert.equal(activatedScopes.length, 1);
-    assert.equal(activatedScopes[0].provider_package_id, 'mas-scholar-skills');
-
-    const oldLockIndex = readJsonFile(path.join(stateRoot, 'agent-package-locks.json')) as any;
-    const oldMasLock = oldLockIndex.packages.find((entry: any) => entry.package_id === 'mas');
-    const oldScholarLock = oldLockIndex.packages.find((entry: any) => entry.package_id === 'mas-scholar-skills');
-    assert.equal(typeof oldMasLock.dependency_transaction_id, 'string');
-    assert.equal(typeof oldMasLock.dependency_closure_digest, 'string');
-    assert.equal(oldMasLock.dependency_transaction_id, oldScholarLock.dependency_transaction_id);
-    assert.equal(oldMasLock.dependency_closure_digest, oldScholarLock.dependency_closure_digest);
+    assert.equal(activated.opl_agent_package_activation.status, 'already_activated');
+    assert.equal(activated.opl_agent_package_activation.writes_performed, false);
+    assert.equal(activated.opl_agent_package_activation.package_lock, null);
+    assert.equal(activated.opl_agent_package_activation.lifecycle_receipt, null);
+    assert.equal(fs.existsSync(legacyLockPath), false);
 
     const newCatalog = writeManagedBundledCatalogFixture({
       workspaceRoot: family.workspaceRoot,
@@ -1382,15 +1334,7 @@ test('public update apply retains successful bundled roots when another root res
       assert.deepEqual(fs.readFileSync(filePath), content);
     }
     assert.equal(fs.existsSync(launchctlLog), false);
-    const profileLocks = readJsonFile(path.join(stateRoot, 'agent-package-locks.json')) as any;
-    assert.equal(
-      profileLocks.packages.find((entry: any) => entry.package_id === 'opl-flow').owner_source_commit,
-      oldCatalog.sourceCommits['opl-flow'],
-    );
-    assert.equal(
-      profileLocks.packages.find((entry: any) => entry.package_id === 'mag').owner_source_commit,
-      newCatalog.sourceCommits.mag,
-    );
+    assert.equal(fs.existsSync(legacyLockPath), false);
     for (const [filePath, content] of packageOwnedProfiles) fs.writeFileSync(filePath, content);
 
     const servicePath = path.join(homeRoot, 'Library', 'LaunchAgents', 'codexcont.plist');
@@ -1467,13 +1411,10 @@ test('public update apply retains successful bundled roots when another root res
       base: pathBytesDigest(baseSentinelRoot),
       app: pathBytesDigest(appSentinelRoot),
     };
-    const packageUnitPrestate = packageMutationUnitFingerprint({
-      stateRoot,
+    const packageUnitPrestate = installedPackageDescriptorReadback({
+      items: installed.items,
       packageIds: ['mas'],
-      rootPackageId: 'mas',
     });
-    const preFaultLocks = readJsonFile(path.join(stateRoot, 'agent-package-locks.json')) as any;
-    const preFaultMasLock = preFaultLocks.packages.find((entry: any) => entry.package_id === 'mas');
     const scopeSkillsPreFault = pathBytesDigest(path.join(scopeRoot, '.codex', 'skills'));
     const componentLedgerPath = path.join(stateRoot, 'managed-update-component-receipts.json');
     const componentReceiptCountBeforeFault = (readJsonFile(componentLedgerPath) as any).receipts.length;
@@ -1497,50 +1438,36 @@ test('public update apply retains successful bundled roots when another root res
     assert.equal(partialReconciliation.orchestration_policy, 'fail_open_per_root_package');
     assert.equal(
       partialReconciliation.package_mutation_policy,
-      'fail_closed_per_required_dependency_closure',
+      'package_local_atomic_root_retryable',
     );
     assert.deepEqual(
       partialReconciliation.root_installs.map((entry: any) => entry.status),
       ['completed', 'failed', 'completed', 'completed', 'completed', 'completed'],
     );
     const failedMas = partialAdapter.result.targets.find((entry: any) => entry.target_id === 'mas');
-    assert.equal(failedMas.result.failure.failure_code, 'agent_package_bundled_full_runtime_package_rolled_back');
-    assert.equal(
-      failedMas.result.failure.details.original_error.error.details.failure_code,
-      'test_managed_bundled_update_post_verify_interrupted',
-    );
-    assert.equal(failedMas.result.package_mutation_unit.status, 'rolled_back');
-    assert.equal(failedMas.result.package_mutation_unit.local_prestate_restored, true);
-    assert.deepEqual(packageMutationUnitFingerprint({
-      stateRoot,
+    assert.equal(failedMas.result.failure.failure_code, 'test_managed_bundled_update_post_verify_interrupted');
+    assert.deepEqual(failedMas.result.failure.details.completed_package_ids, ['mas-scholar-skills', 'mas']);
+    assert.equal(failedMas.result.package_mutation_unit.status, 'partially_materialized_retryable');
+    assert.equal(failedMas.result.package_mutation_unit.local_prestate_restored, null);
+    assert.equal(failedMas.result.package_mutation_unit.mutation_started, true);
+    const packageUnitPoststate = installedPackageDescriptorReadback({
+      items: partialReconciliation.items,
       packageIds: ['mas'],
-      rootPackageId: 'mas',
-    }), packageUnitPrestate);
+    });
+    assert.notDeepEqual(packageUnitPoststate, packageUnitPrestate);
     assert.equal(pathBytesDigest(path.join(scopeRoot, '.codex', 'skills')), scopeSkillsPreFault);
-    const locksAfterPartial = readJsonFile(path.join(stateRoot, 'agent-package-locks.json')) as any;
-    for (const packageId of ['mag', 'obf', 'oma', 'opl-flow', 'rca']) {
+    const descriptorReadbackAfterPartial = installedPackageDescriptorReadback({
+      items: partialReconciliation.items,
+      packageIds: MANAGED_BUNDLED_PACKAGE_FIXTURES.map((entry) => entry.packageId),
+    });
+    assert.equal(descriptorReadbackAfterPartial.length, MANAGED_BUNDLED_PACKAGE_FIXTURES.length);
+    for (const descriptor of descriptorReadbackAfterPartial) {
       assert.equal(
-        locksAfterPartial.packages.find((entry: any) => entry.package_id === packageId).owner_source_commit,
-        faultCatalog.sourceCommits[packageId],
+        descriptor.carrier_source_commit,
+        faultCatalog.sourceCommits[descriptor.package_id],
       );
     }
-    assert.deepEqual(
-      locksAfterPartial.packages.find((entry: any) => entry.package_id === 'mas'),
-      preFaultMasLock,
-    );
-    const updatedScholarLock = locksAfterPartial.packages.find(
-      (entry: any) => entry.package_id === 'mas-scholar-skills',
-    );
-    assert.equal(
-      updatedScholarLock.owner_source_commit,
-      faultCatalog.sourceCommits['mas-scholar-skills'],
-    );
-    assert.equal(
-      locksAfterPartial.packages.find((entry: any) => entry.package_id === 'mag')
-        .resolved_dependencies.find((entry: any) => entry.package_id === 'mas-scholar-skills')
-        .manifest_sha256,
-      updatedScholarLock.manifest_sha256,
-    );
+    assert.equal(fs.existsSync(legacyLockPath), false);
     assert.equal((readJsonFile(componentLedgerPath) as any).receipts.length, componentReceiptCountBeforeFault + 1);
     assert.equal(partial.managed_update.execution.receipt_record.recorded_receipt_count, 1);
     const partialReceiptRef = partial.managed_update.execution.receipt_record.receipt_refs[0];
@@ -1583,16 +1510,11 @@ test('public update apply retains successful bundled roots when another root res
       OPL_TEST_MANAGED_BUNDLED_UPDATE_POST_VERIFY_FAIL_PACKAGE_ID: 'mas',
     }) as any;
     const isolatedAdapter = isolatedFault.managed_update.execution.adapter_results[0];
-    assert.equal(isolatedFault.managed_update.execution.status, 'failed_with_repair');
-    assert.equal(isolatedAdapter.status, 'failed');
+    assert.equal(isolatedFault.managed_update.execution.status, 'skipped');
+    assert.equal(isolatedAdapter.status, 'skipped');
     assert.deepEqual(
       isolatedAdapter.result.targets.map((entry: any) => entry.status),
-      ['skipped', 'failed', 'skipped', 'skipped', 'skipped', 'skipped'],
-    );
-    assert.equal(
-      isolatedAdapter.result.targets.find((entry: any) => entry.target_id === 'mas')
-        .result.package_mutation_unit.local_prestate_restored,
-      true,
+      ['skipped', 'skipped', 'skipped', 'skipped', 'skipped', 'skipped'],
     );
     assert.deepEqual(managedBundledStateFingerprint({
       homeRoot,
@@ -1602,7 +1524,7 @@ test('public update apply retains successful bundled roots when another root res
       baseSentinelRoot,
       appSentinelRoot,
     }), isolatedFaultPrestate);
-    assert.equal((readJsonFile(componentLedgerPath) as any).receipts.length, isolatedReceiptCount + 1);
+    assert.equal((readJsonFile(componentLedgerPath) as any).receipts.length, isolatedReceiptCount);
     assert.equal(fs.existsSync(path.join(stateRoot, 'managed-update-kernel.lock')), false);
 
     const output = runCli(['update', 'apply'], faultEnv) as any;
@@ -1617,13 +1539,13 @@ test('public update apply retains successful bundled roots when another root res
     const adapter = output.managed_update.execution.adapter_results[0];
     assert.equal(output.managed_update.operation, 'apply');
     assert.equal(output.managed_update.operation_mode, 'controlled_apply');
-    assert.equal(output.managed_update.execution.status, 'completed');
+    assert.equal(output.managed_update.execution.status, 'skipped');
     assert.equal(output.managed_update.authority_boundary.can_mutate_app_owned_runtime_root, false);
     assert.equal(output.managed_update.authority_boundary.can_mutate_installation_carrier, false);
     assert.equal(output.managed_update.authority_boundary.can_silently_update_clean_managed_modules, true);
-    assert.equal(adapter.status, 'completed');
-    assert.equal(adapter.apply_mode, 'auto_apply');
-    assert.equal(adapter.result.app_background_safe, true);
+    assert.equal(adapter.status, 'skipped');
+    assert.equal(adapter.apply_mode, 'projection_only');
+    assert.equal(adapter.result.app_background_safe, false);
     assert.equal(
       adapter.result.framework_commit,
       execFileSync('git', ['rev-parse', 'HEAD'], { cwd: path.resolve('.'), encoding: 'utf8' }).trim(),
@@ -1636,25 +1558,9 @@ test('public update apply retains successful bundled roots when another root res
       adapter.result.targets.map((entry: any) => entry.target_id),
       ['mag', 'mas', 'obf', 'oma', 'opl-flow', 'rca'],
     );
-    assert.deepEqual(
-      adapter.result.targets.map((entry: any) => entry.status),
-      ['skipped', 'completed', 'skipped', 'skipped', 'skipped', 'skipped'],
-    );
+    assert.deepEqual(adapter.result.targets.map((entry: any) => entry.status), Array(6).fill('skipped'));
     const updatedTargets = adapter.result.targets.filter((entry: any) => entry.status === 'completed');
-    assert.equal(updatedTargets.length, 1);
-    assert.equal(updatedTargets[0].target_id, 'mas');
-    assert.equal(updatedTargets[0].action, 'update');
-    assert.equal(updatedTargets.every((entry: any) => (
-      entry.result.lifecycle_receipt.action === 'update'
-      && entry.result.lifecycle_receipt.trigger === 'managed_update_kernel_apply'
-      && entry.result.lifecycle_receipt.initiator === 'opl_managed_update_kernel'
-      && entry.result.lifecycle_receipt.writes_performed === true
-      && entry.result.lifecycle_receipt.network_accessed === false
-      && entry.result.lifecycle_receipt.remote_dependency_policy === 'forbidden'
-      && typeof entry.result.lifecycle_receipt.dependency_transaction_id === 'string'
-      && typeof entry.result.lifecycle_receipt.dependency_closure_digest === 'string'
-      && typeof entry.result.lifecycle_receipt.rollback_ref === 'string'
-    )), true);
+    assert.equal(updatedTargets.length, 0);
     const reconciliation = adapter.result.bundled_full_runtime_reconciliation;
     assert.equal(reconciliation.status, 'completed');
     assert.deepEqual(reconciliation.root_package_ids, ['mag', 'mas', 'obf', 'oma', 'opl-flow', 'rca']);
@@ -1664,11 +1570,7 @@ test('public update apply retains successful bundled roots when another root res
     assert.deepEqual(reconciliation.failures, []);
     assert.equal(reconciliation.summary.installed_package_count, 7);
     assert.equal(Object.hasOwn(adapter.result, 'component_transaction'), false);
-    assert.equal(adapter.post_apply_actions.every((entry: any) => entry.status === 'completed'), true);
-    assert.deepEqual(
-      adapter.post_apply_actions.map((entry: any) => entry.command_ref),
-      Array(3).fill('opl packages status --json'),
-    );
+    assert.deepEqual(adapter.post_apply_actions, []);
     assert.equal(
       adapter.post_apply_actions.some((entry: any) => /packages update|configure-codex/.test(entry.command_ref)),
       false,
@@ -1679,15 +1581,6 @@ test('public update apply retains successful bundled roots when another root res
         .every((entry: any) => entry.result.writes_performed === false),
       true,
     );
-    const masResult = adapter.result.targets.find((entry: any) => entry.target_id === 'mas').result;
-    assert.deepEqual(
-      masResult.dependency_package_locks.map((entry: any) => entry.package_id),
-      ['mas-scholar-skills', 'mas'],
-    );
-    assert.equal(
-      new Set(masResult.dependency_package_locks.map((entry: any) => entry.dependency_transaction_id)).size,
-      1,
-    );
     const newCatalogPayload = readJsonFile(faultCatalog.catalogPath) as any;
     const expectedCatalogDigest = sha256Value(fs.readFileSync(faultCatalog.catalogPath));
     const masTarget = adapter.result.targets.find((entry: any) => entry.target_id === 'mas');
@@ -1695,11 +1588,7 @@ test('public update apply retains successful bundled roots when another root res
     assert.equal(masTarget.target_version, expectedMas.package_version);
     assert.equal(masTarget.target_manifest_sha256, expectedMas.manifest_sha256.replace(/^sha256:/, ''));
     assert.equal(masTarget.release_catalog_digest, expectedCatalogDigest);
-    assert.equal(output.managed_update.execution.receipt_record.recorded_receipt_count, 1);
-    const receiptRef = output.managed_update.execution.receipt_record.receipt_refs[0];
-    assert.equal(output.managed_update.components[0].receipt.last_receipt_ref, receiptRef);
-    assert.equal(output.managed_update.components[0].receipt.verify_result, 'passed');
-    assert.equal(output.managed_update.components[0].receipt.apply_mode, 'auto_apply');
+    assert.equal(output.managed_update.execution.receipt_record.recorded_receipt_count, 0);
     assert.equal(output.managed_update.idempotency_lock.status, 'released');
     assert.equal(fs.existsSync(path.join(stateRoot, 'managed-update-kernel.lock')), false);
     assert.equal(pathBytesDigest(baseSentinelRoot), authoritySentinels.base);
@@ -1708,15 +1597,18 @@ test('public update apply retains successful bundled roots when another root res
       ([key, filePath]) => [key, pathBytesDigest(filePath)],
     )), unrelatedSurfacePrestate);
     assert.equal(fs.existsSync(launchctlLog), false);
-    assert.notEqual(pathBytesDigest(path.join(scopeRoot, '.codex', 'skills')), scopeSkillsPreFault);
+    assert.equal(pathBytesDigest(path.join(scopeRoot, '.codex', 'skills')), scopeSkillsPreFault);
     const scopeTransactionRoot = path.join(scopeRoot, '.codex', '.opl-package-transactions');
     assert.equal(
       fs.existsSync(scopeTransactionRoot) ? fs.readdirSync(scopeTransactionRoot).length : 0,
       0,
     );
 
-    const finalLocks = readJsonFile(path.join(stateRoot, 'agent-package-locks.json')) as any;
-    assert.deepEqual(finalLocks.packages.map((entry: any) => entry.package_id).sort(), [
+    const finalDescriptors = installedPackageDescriptorReadback({
+      items: reconciliation.items,
+      packageIds: MANAGED_BUNDLED_PACKAGE_FIXTURES.map((entry) => entry.packageId),
+    });
+    assert.deepEqual(finalDescriptors.map((entry) => entry.package_id), [
       'mag',
       'mas',
       'mas-scholar-skills',
@@ -1725,72 +1617,20 @@ test('public update apply retains successful bundled roots when another root res
       'opl-flow',
       'rca',
     ]);
-    for (const lock of finalLocks.packages) {
-      assert.equal(lock.source_kind, 'bundled_full_runtime_modules');
-      assert.equal(lock.owner_source_commit, faultCatalog.sourceCommits[lock.package_id]);
-      assert.equal(lock.carrier_authority.catalog_ref, `file://${faultCatalog.catalogPath}`);
-      assert.equal(lock.carrier_authority.catalog_sha256, expectedCatalogDigest);
+    for (const descriptor of finalDescriptors) {
+      assert.equal(descriptor.carrier_source_commit, faultCatalog.sourceCommits[descriptor.package_id]);
     }
-    const finalMasLock = finalLocks.packages.find((entry: any) => entry.package_id === 'mas');
-    const finalScholarLock = finalLocks.packages.find((entry: any) => entry.package_id === 'mas-scholar-skills');
-    const expectedScholar = newCatalogPayload.packages['mas-scholar-skills'];
-    const expectedScholarManifest = readJsonFile(path.join(
-      path.dirname(faultCatalog.catalogPath),
-      expectedScholar.manifest_ref,
-    )) as any;
-    const expectedScholarPayload = readJsonFile(path.join(
-      path.dirname(faultCatalog.catalogPath),
-      expectedScholar.payload_manifest_ref,
-    )) as any;
-    assert.equal(finalMasLock.dependency_transaction_id, finalScholarLock.dependency_transaction_id);
-    assert.equal(finalMasLock.dependency_closure_digest, finalScholarLock.dependency_closure_digest);
-    assert.equal(finalScholarLock.package_version, expectedScholar.package_version);
-    assert.equal(finalScholarLock.owner_source_commit, expectedScholar.owner_source_commit);
-    assert.equal(
-      finalScholarLock.manifest_sha256,
-      expectedScholar.manifest_sha256.replace(/^sha256:/, ''),
-    );
-    assert.equal(finalScholarLock.content_digest, expectedScholarPayload.content_lock.digest);
-    assert.equal(finalScholarLock.source_kind, 'bundled_full_runtime_modules');
-    assert.equal(finalScholarLock.physical_surface.status, 'materialized');
-    assert.equal(finalScholarLock.physical_surface.plugin_id, expectedScholarManifest.codex_surface.plugin_id);
-    assert.equal(fs.existsSync(finalScholarLock.physical_surface.codex_plugin_cache_path), true);
-    const finalMasLkg = finalLocks.last_known_good_transactions.find((entry: any) => (
-      entry.root_package_id === 'mas'
-    ));
-    assert.deepEqual(
-      finalMasLkg.package_locks.map((entry: any) => entry.package_id),
-      ['mas-scholar-skills', 'mas'],
-    );
-    const finalMasLkgScholar = finalMasLkg.package_locks[0];
-    const finalMasLkgRoot = finalMasLkg.package_locks[1];
-    assert.deepEqual(finalMasLkgRoot, preFaultMasLock);
-    assert.equal(
-      finalMasLkgScholar.owner_source_commit,
-      faultCatalog.sourceCommits['mas-scholar-skills'],
-    );
-    assert.equal(
-      new Set(finalMasLkg.package_locks.map((entry: any) => entry.dependency_transaction_id)).size,
-      2,
-    );
-    assert.equal(finalMasLkgRoot.dependency_transaction_id, preFaultMasLock.dependency_transaction_id);
+    assert.equal(fs.existsSync(legacyLockPath), false);
     assert.equal(
       fs.existsSync(path.join(stateRoot, 'agent-package-lifecycle-ledger.json')),
       false,
     );
     const componentLedger = readJsonFile(path.join(stateRoot, 'managed-update-component-receipts.json')) as any;
-    const finalComponentReceipt = componentLedger.receipts.find((entry: any) => (
-      entry.receipt_ref === receiptRef
+    const retainedPartialReceipt = componentLedger.receipts.find((entry: any) => (
+      entry.receipt_ref === partialReceiptRef
     ));
-    assert.equal(finalComponentReceipt.surface_kind, 'opl_managed_update_component_receipt');
-    assert.equal(finalComponentReceipt.schema_version, 'opl_managed_update_component_receipt.v1');
-    assert.equal(finalComponentReceipt.receipt_ref, receiptRef);
-    assert.equal(finalComponentReceipt.operation, 'apply');
-    assert.equal(finalComponentReceipt.apply_mode, 'auto_apply');
-    assert.equal(finalComponentReceipt.verify_result, 'passed');
-    assert.equal(typeof finalComponentReceipt.rollback_ref, 'string');
-    assert.equal(finalComponentReceipt.adapter_result_ref, adapter.result_ref);
-    assert.equal(output.managed_update.execution.receipt_record.receipts[0].receipt_ref, receiptRef);
+    assert.equal(retainedPartialReceipt.receipt_ref, partialReceiptRef);
+    assert.equal(retainedPartialReceipt.verify_result, 'failed');
   } finally {
     removeFixtureTree(root);
     removeFixtureTree(family.workspaceRoot);

@@ -18,15 +18,27 @@ import {
 } from '../agent-package-registry-parts/installed-codex-plugin-directory.ts';
 import { managedPolicyCurrentnessFromDescriptor } from '../agent-package-registry-parts/managed-policy-surface.ts';
 import { normalizePackageManifest } from '../agent-package-registry-parts/manifest-normalizers.ts';
-import { inspectMaterializedPhysicalCodexSurface } from '../agent-package-registry-parts/physical-surface.ts';
-import type { AgentPackageLock, AgentPackageManifest } from '../agent-package-registry-parts/types.ts';
+import {
+  inspectMaterializedPhysicalCodexSurface,
+  materializePhysicalCodexSurface,
+  resolveBundledFullRuntimeManifestPhysicalSource,
+} from '../agent-package-registry-parts/physical-surface.ts';
+import type {
+  AgentPackageLock,
+  AgentPackageManifest,
+} from '../agent-package-registry-parts/types.ts';
 
 type FullRuntimePackageInstaller = typeof runOplBundledFullRuntimeAgentPackageInstall;
 type FullRuntimePackageUpdater = typeof runOplBundledFullRuntimeAgentPackageUpdate;
+type FullRuntimePackageMaterializer = (input: {
+  manifest: AgentPackageManifest;
+  dryRun: boolean;
+}) => ReturnType<typeof materializePhysicalCodexSurface>;
 
 type FullRuntimePackageReconciliationOptions = {
   installPackage?: FullRuntimePackageInstaller;
   updatePackage?: FullRuntimePackageUpdater;
+  materializePackage?: FullRuntimePackageMaterializer;
   readCatalog?: () => BundledFullRuntimePackageCatalog;
   readInstalledCarrierEntries?: () => InstalledCarrierEntry[];
   inspectMaterializedSurface?: typeof inspectMaterializedPhysicalCodexSurface;
@@ -123,8 +135,7 @@ function assertMutationClosure(
   catalog: BundledFullRuntimePackageCatalog,
 ) {
   for (const lock of locks) {
-    const entry = catalog.entries.get(lock.package_id);
-    if (!entry) {
+    if (!catalog.entries.has(lock.package_id)) {
       fail('Managed bundled Full runtime update returned a lock outside the catalog closure.', {
         package_id: rootPackageId,
         updated_package_id: lock.package_id,
@@ -132,6 +143,15 @@ function assertMutationClosure(
       });
     }
   }
+}
+
+function catalogCarriesOwnerDescriptors(catalog: BundledFullRuntimePackageCatalog) {
+  return [...catalog.entries.values()].every((entry) => {
+    const payload = parseJsonText(entry.payloadManifestJson);
+    return isRecord(payload)
+      && Array.isArray(payload.files)
+      && payload.files.some((file) => isRecord(file) && file.path === 'opl-package.json');
+  });
 }
 
 function pluginBareName(pluginId: string) {
@@ -343,6 +363,10 @@ async function reconcileBundledFullRuntimePackages(
   const failures: ReturnType<typeof failureReadback>[] = [];
   const installPackage = options.installPackage ?? runOplBundledFullRuntimeAgentPackageInstall;
   const updatePackage = options.updatePackage ?? runOplBundledFullRuntimeAgentPackageUpdate;
+  const materializePackage = options.materializePackage ?? ((input) =>
+    materializePhysicalCodexSurface(input.manifest, input.dryRun));
+  const useNativeMaterialization = options.materializePackage !== undefined
+    || catalogCarriesOwnerDescriptors(catalog);
   const rootClosures = new Map(roots.map((packageId) => [packageId, catalogClosure(catalog, packageId)]));
 
   for (const packageId of roots) {
@@ -361,6 +385,7 @@ async function reconcileBundledFullRuntimePackages(
       });
       continue;
     }
+    const completedPackageIds: string[] = [];
     try {
       const missingClosureRoots = closure.filter((closurePackageId) =>
         !resolvedRoots.roots[closurePackageId]);
@@ -382,56 +407,153 @@ async function reconcileBundledFullRuntimePackages(
         .map((closurePackageId) => currentProjection.get(closurePackageId)!)
         .find((projection) => projection.carrierReadFailed);
       if (carrierReadFailure?.error) throw carrierReadFailure.error;
-      let updateFinalVerificationCompleted = false;
-      const result = lifecycleAction === 'update'
-        ? await updatePackage({
-            packageId,
-            agentRoot: resolvedRoots.roots[packageId],
-            packageRoots: resolvedRoots.roots,
-            operationId,
-            verifyAppliedPackageLocks: async (locks) => {
-              assertMutationClosure(locks, packageId, catalog);
-              verifyCurrentClosure(packageId, closure);
-              updateFinalVerificationCompleted = true;
-            },
-          })
-        : await installPackage({
-            packageId,
-            agentRoot: resolvedRoots.roots[packageId],
-            packageRoots: resolvedRoots.roots,
+      if (!useNativeMaterialization) {
+        let updateFinalVerificationCompleted = false;
+        const result = lifecycleAction === 'update'
+          ? await updatePackage({
+              packageId,
+              agentRoot: resolvedRoots.roots[packageId],
+              packageRoots: resolvedRoots.roots,
+              operationId,
+              verifyAppliedPackageLocks: async (locks) => {
+                assertMutationClosure(locks, packageId, catalog);
+                verifyCurrentClosure(packageId, closure);
+                updateFinalVerificationCompleted = true;
+              },
+            })
+          : await installPackage({
+              packageId,
+              agentRoot: resolvedRoots.roots[packageId],
+              packageRoots: resolvedRoots.roots,
+            });
+        const lifecycleResult = 'opl_agent_package_update' in result
+          ? result.opl_agent_package_update
+          : result.opl_agent_package_install;
+        if (lifecycleAction === 'update' && !updateFinalVerificationCompleted) {
+          fail('Managed bundled Full runtime updater returned before final verification completed.', {
+            package_id: packageId,
+            mutation_started: null,
+            failure_code: 'full_runtime_package_final_verification_not_executed',
           });
-      const lifecycleResult = 'opl_agent_package_update' in result
-        ? result.opl_agent_package_update
-        : result.opl_agent_package_install;
-      if (lifecycleAction === 'update' && !updateFinalVerificationCompleted) {
-        fail('Managed bundled Full runtime updater returned before final verification completed.', {
+        }
+        if (lifecycleAction === 'install') {
+          assertMutationClosure(lifecycleResult.dependency_package_locks, packageId, catalog);
+          verifyCurrentClosure(packageId, closure);
+        }
+        for (const closurePackageId of closure) touchedPackageIds.add(closurePackageId);
+        rootInstalls.push({
+          target_id: packageId,
           package_id: packageId,
-          mutation_started: null,
-          failure_code: 'full_runtime_package_final_verification_not_executed',
+          status: 'completed',
+          reason: lifecycleAction === 'update'
+            ? 'package_mutation_unit_completed'
+            : 'package_install_unit_completed',
+          action: lifecycleAction,
+          result: lifecycleResult,
+          ...rootTargetIdentity(catalog, packageId),
+          dependency_transaction_id: lifecycleResult.dependency_transaction_id,
+          dependency_package_ids: lifecycleResult.dependency_package_locks
+            .map((lock) => lock.package_id),
+        });
+        continue;
+      }
+      const pendingPackageIds = closure.filter((closurePackageId) => !isCurrent(closurePackageId));
+      const physicalManifests = new Map(pendingPackageIds.map((closurePackageId) => [
+        closurePackageId,
+        options.materializePackage
+          ? manifests.get(closurePackageId)!
+          : resolveBundledFullRuntimeManifestPhysicalSource({
+              manifest: manifests.get(closurePackageId)!,
+              catalogEntry: catalog.entries.get(closurePackageId)!,
+              packageRoot: resolvedRoots.roots[closurePackageId],
+            }),
+      ]));
+      const physicalPreviews = new Map(pendingPackageIds.map((closurePackageId) => [
+        closurePackageId,
+        materializePackage({
+          manifest: physicalManifests.get(closurePackageId)!,
+          dryRun: true,
+        }),
+      ]));
+      if (lifecycleAction === 'update') {
+        for (const closurePackageId of pendingPackageIds) {
+          const preview = physicalPreviews.get(closurePackageId)!;
+          const serviceConflicts = preview.workflow_policy_migration.detected_conflicts
+            .filter((entry) => entry.surface_kind === 'service');
+          const profileRequiresOwnerMerge = preview.profile_migration.status === 'semantic_merge_required';
+          if (profileRequiresOwnerMerge || serviceConflicts.length > 0) {
+            throw new FrameworkContractError(
+              'contract_shape_invalid',
+              'Managed bundled package update requires an owner-visible profile or service migration.',
+              {
+                package_id: closurePackageId,
+                profile_migration_status: preview.profile_migration.status,
+                service_conflicts: serviceConflicts,
+                mutation_started: false,
+                failure_code: 'agent_package_bundled_managed_surface_manual_required',
+              },
+            );
+          }
+        }
+      }
+      const materializations: Array<Record<string, unknown>> = [];
+      for (const closurePackageId of pendingPackageIds) {
+        const surface = materializePackage({
+          manifest: physicalManifests.get(closurePackageId)!,
+          dryRun: false,
+        });
+        completedPackageIds.push(closurePackageId);
+        touchedPackageIds.add(closurePackageId);
+        materializations.push({
+          package_id: closurePackageId,
+          status: surface.status,
+          writes_performed: surface.writes_performed,
+          reload_required: surface.reload_required,
         });
       }
-      if (lifecycleAction === 'install') {
-        assertMutationClosure(lifecycleResult.dependency_package_locks, packageId, catalog);
-        verifyCurrentClosure(packageId, closure);
-      }
-      for (const closurePackageId of closure) touchedPackageIds.add(closurePackageId);
+      verifyCurrentClosure(packageId, closure);
       rootInstalls.push({
         target_id: packageId,
         package_id: packageId,
         status: 'completed',
-        reason: lifecycleAction === 'update'
-          ? 'package_mutation_unit_completed'
-          : 'package_install_unit_completed',
+        reason: 'native_package_materialization_completed',
         action: lifecycleAction,
-        result: lifecycleResult,
+        result: {
+          surface_kind: 'opl_full_runtime_native_package_materialization.v1',
+          status: 'completed',
+          package_materializations: materializations,
+        },
         ...rootTargetIdentity(catalog, packageId),
-        dependency_transaction_id: lifecycleResult.dependency_transaction_id,
-        dependency_package_ids: lifecycleResult.dependency_package_locks
-          .map((lock) => lock.package_id),
+        dependency_transaction_id: null,
+        dependency_package_ids: closure,
       });
     } catch (error) {
-      const failure = failureReadback(error, packageId);
-      const failureDetails = isRecord(failure.details) ? failure.details : {};
+      const initialFailure = failureReadback(error, packageId);
+      const initialFailureDetails: Record<string, unknown> = isRecord(initialFailure.details)
+        ? initialFailure.details
+        : {};
+      const failure = useNativeMaterialization
+        ? {
+            ...initialFailure,
+            details: {
+              ...initialFailureDetails,
+              completed_package_ids: completedPackageIds,
+              mutation_started: completedPackageIds.length > 0
+                ? true
+                : initialFailureDetails.mutation_started === false
+                  ? false
+                  : null,
+              package_mutation_status: completedPackageIds.length > 0
+                ? 'partially_materialized_retryable'
+                : initialFailureDetails.package_mutation_status
+                  ?? 'not_started_or_package_local_rollback',
+              local_prestate_restored: null,
+            },
+          }
+        : initialFailure;
+      const failureDetails: Record<string, unknown> = isRecord(failure.details)
+        ? failure.details
+        : {};
       const manualRequired = failure.failure_code === 'agent_package_bundled_managed_surface_manual_required';
       const mutationStarted = failureDetails.mutation_started === true
         ? true
@@ -450,12 +572,16 @@ async function reconcileBundledFullRuntimePackages(
         status: manualRequired ? 'manual_required' : 'failed',
         reason: manualRequired
           ? 'package_mutation_blocked_before_write'
-          : 'package_mutation_unit_failed_without_rolling_back_other_roots',
+          : useNativeMaterialization
+            ? 'package_mutation_unit_failed_retryable'
+            : 'package_mutation_unit_failed_without_rolling_back_other_roots',
         action: lifecycleAction,
         result: {
           failure,
           package_mutation_unit: {
-            scope: 'root_package_and_required_dependency_closure',
+            scope: useNativeMaterialization
+              ? 'package_local_atomic_materialization_with_root_retry'
+              : 'root_package_and_required_dependency_closure',
             status: typeof failureDetails.package_mutation_status === 'string'
               ? failureDetails.package_mutation_status
               : mutationStarted === false
@@ -516,7 +642,9 @@ async function reconcileBundledFullRuntimePackages(
     surface_kind: 'opl_full_runtime_package_reconciliation.v1' as const,
     status,
     orchestration_policy: 'fail_open_per_root_package' as const,
-    package_mutation_policy: 'fail_closed_per_required_dependency_closure' as const,
+    package_mutation_policy: useNativeMaterialization
+      ? 'package_local_atomic_root_retryable' as const
+      : 'fail_closed_per_required_dependency_closure' as const,
     lifecycle_action: lifecycleAction,
     catalog_ref: catalog.catalogRef,
     catalog_sha256: catalog.catalogSha256,
@@ -553,7 +681,7 @@ export async function reconcileBundledFullRuntimePackagesIfAvailable(
       surface_kind: 'opl_full_runtime_package_reconciliation.v1' as const,
       status: 'failed' as 'failed' | 'incomplete',
       orchestration_policy: 'fail_open_per_root_package' as const,
-      package_mutation_policy: 'fail_closed_per_required_dependency_closure' as const,
+      package_mutation_policy: 'package_local_atomic_root_retryable' as const,
       catalog_ref: null,
       catalog_sha256: null,
       root_package_ids: [] as string[],

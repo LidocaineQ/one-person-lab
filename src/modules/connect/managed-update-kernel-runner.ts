@@ -456,7 +456,7 @@ async function runAgentPackageAdapter(
             ? 'bundled_full_runtime_target_applied'
             : entry.status === 'manual_required'
               ? 'bundled_full_runtime_target_manual_required_without_mutation'
-              : 'bundled_full_runtime_target_failed_with_local_rollback',
+              : 'bundled_full_runtime_target_failed_retryable',
       }))
     : null;
   const packageTargets = bundledTargets ?? [];
