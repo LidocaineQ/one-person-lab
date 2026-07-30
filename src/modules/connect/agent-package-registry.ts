@@ -127,7 +127,6 @@ import {
 import {
   maybeRetireDescriptorOwnedLegacyState,
 } from './agent-package-registry-parts/descriptor-owned-legacy-state-retirement.ts';
-import { readLegacyAgentPackageLockIndex } from './agent-package-registry-parts/legacy-lock-projection.ts';
 import {
   runConfiguredCodexPluginCarrier,
   type ConfiguredCodexPluginCarrierAction,
@@ -5122,20 +5121,6 @@ export function listOplAgentPackages(input: {
       },
       authority_boundary: refsOnlyAuthorityBoundary(),
     },
-  };
-}
-
-export function readManagedUpdateOplAgentPackageProjection() {
-  const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
-  const snapshot = readStatusLockIndex(
-    installedCodexPluginDescriptors,
-    installedCodexPluginDescriptors.size > 0,
-  );
-  return {
-    packages: publicLegacyPackages(
-      snapshot.lockIndex.packages,
-      installedCodexPluginDescriptors,
-    ),
   };
 }
 
