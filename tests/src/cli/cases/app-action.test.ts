@@ -484,6 +484,9 @@ test('dependency-free activation returns operation receipt refs without a lifecy
   };
   try {
     installRuntimePackageFixture(stateRoot, 'rca');
+    const ledgerPath = path.join(stateRoot, 'agent-package-lifecycle-ledger.json');
+    fs.rmSync(ledgerPath, { force: true });
+    assert.equal(fs.existsSync(ledgerPath), false);
     const activation = (await runCliAsync([
       'app', 'action', 'execute', '--action', 'agent_package_activate',
       '--payload', JSON.stringify({
@@ -493,7 +496,6 @@ test('dependency-free activation returns operation receipt refs without a lifecy
         use_boundary_id: 'dependency-free-use',
       }),
     ], env) as any).app_action_execution.result.opl_agent_package_activation;
-    const ledgerPath = path.join(stateRoot, 'agent-package-lifecycle-ledger.json');
 
     assert.equal(activation.lifecycle_receipt, null);
     assert.equal(Object.hasOwn(activation, 'lifecycle_receipt_ref'), false);
