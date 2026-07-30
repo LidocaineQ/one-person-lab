@@ -249,13 +249,6 @@ function ownerRouteReadbackItem(input: {
   targetQuest?: string | null;
 }): AgentPackageOwnerRouteReadbackItem {
   const surface = input.lock?.physical_surface ?? input.receipt?.physical_surface;
-  const descriptor = {
-    manifest_url: input.lock?.manifest_url ?? input.receipt?.manifest_url ?? input.manifestUrl ?? null,
-    package_version: input.lock?.package_version ?? null,
-    owner_language_version: input.lock?.owner_language_version ?? null,
-    source_kind: input.lock?.source_kind ?? input.receipt?.source_kind ?? input.sourceKind ?? null,
-    trust_tier: input.lock?.trust_tier ?? input.receipt?.trust_tier ?? input.trustTier ?? null,
-  };
   const policyCurrentness = managedPolicyCurrentness(input.lock);
   const materializer = {
     status: surface?.status ?? 'not_requested',
@@ -355,7 +348,6 @@ function ownerRouteReadbackItem(input: {
     package_core: {
       core_kind: 'opl_agent_package_core',
       package_id: input.packageId,
-      descriptor,
       dependencies: {
         required_skill_ids: input.lock?.bundled_required_skill_ids ?? surface?.materialized_required_skill_ids ?? [],
         optional_skill_refs: input.lock?.optional_skill_refs ?? [],

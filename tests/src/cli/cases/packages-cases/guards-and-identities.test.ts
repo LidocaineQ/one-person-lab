@@ -819,7 +819,6 @@ test('packages preserves installed lock and returns an operation receipt when up
           packages: Array<{
             materializer: Record<string, unknown>;
             package_core: {
-              descriptor: Record<string, unknown>;
               lifecycle: Record<string, unknown>;
             };
             carrier_adapters: Array<Record<string, unknown>>;
@@ -846,10 +845,8 @@ test('packages preserves installed lock and returns an operation receipt when up
     assert.equal(Object.hasOwn(ownerPackage.package_core, 'trust'), false);
     assert.equal(Object.hasOwn(ownerPackage.package_core, 'exposure'), false);
     assert.equal(Object.hasOwn(ownerPackage, 'descriptor'), false);
+    assert.equal(Object.hasOwn(ownerPackage.package_core, 'descriptor'), false);
     assert.equal(Object.hasOwn(ownerPackage, 'carrier_authority_readiness'), true);
-    for (const field of ['manifest_sha256', 'registry_url', 'rollback_ref']) {
-      assert.equal(Object.hasOwn(ownerPackage.package_core.descriptor, field), false);
-    }
     const physicalDetailFields = [
       'plugin_source_path',
       'plugin_manifest_path',

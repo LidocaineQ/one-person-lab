@@ -684,14 +684,6 @@ export type AgentPackagePhysicalSurface = {
   authority_boundary: AgentPackageAuthorityBoundary;
 };
 
-export type AgentPackageDescriptorReadback = {
-  manifest_url: string | null;
-  package_version: string | null;
-  owner_language_version: AgentPackageOwnerLanguageVersion | null;
-  source_kind: AgentPackageLifecycleReceipt['source_kind'] | AgentPackageSourceKind | null;
-  trust_tier: string | null;
-};
-
 export type AgentPackageCarrierAdapterReadback = {
   adapter_kind: 'codex_plugin_carrier' | 'managed_runtime_source_carrier';
   carrier: 'codex_plugin' | 'opl_managed_module_source';
@@ -764,7 +756,6 @@ export type AgentPackageLock = {
 export type AgentPackageCoreReadback = {
   core_kind: 'opl_agent_package_core';
   package_id: string;
-  descriptor: AgentPackageDescriptorReadback;
   dependencies: {
     required_skill_ids: string[];
     optional_skill_refs: string[];
