@@ -370,8 +370,8 @@ process.stdout.write(JSON.stringify({ installed: [{
     assert.equal(disabledResult.status, 'disabled');
     assert.equal(disabledResult.action, 'disable');
     assert.equal(disabledResult.package_id, 'fixture-native-carrier');
-    assert.equal(disabledResult.package_lock, null);
-    assert.equal(disabledResult.lifecycle_receipt, null);
+    assert.equal(Object.hasOwn(disabledResult, 'package_lock'), false);
+    assert.equal(Object.hasOwn(disabledResult, 'lifecycle_receipt'), false);
     assert.equal(disabledResult.configured_carrier.enabled, false);
     assert.equal(Object.hasOwn(disabledResult, 'opl_private_state_writes'), false);
     assert.equal(fs.existsSync(stateDir), false);
@@ -379,8 +379,8 @@ process.stdout.write(JSON.stringify({ installed: [{
     const enabled = runCli(['packages', 'enable', 'fixture-native-carrier'], env) as any;
     const enabledResult = enabled.opl_agent_package_exposure;
     assert.equal(enabledResult.status, 'enabled');
-    assert.equal(enabledResult.package_lock, null);
-    assert.equal(enabledResult.lifecycle_receipt, null);
+    assert.equal(Object.hasOwn(enabledResult, 'package_lock'), false);
+    assert.equal(Object.hasOwn(enabledResult, 'lifecycle_receipt'), false);
     assert.equal(enabledResult.configured_carrier.enabled, true);
     assert.equal(enabledResult.configured_carrier.executor.status, 'callable');
     assert.equal(fs.existsSync(stateDir), false);

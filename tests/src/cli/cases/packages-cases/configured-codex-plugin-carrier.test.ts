@@ -627,8 +627,8 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     ], env) as any;
     assert.equal(install.opl_agent_package_install.status, 'installed');
     assert.equal(install.opl_agent_package_install.package_id, packageId);
-    assert.equal(install.opl_agent_package_install.package_lock, null);
-    assert.equal(install.opl_agent_package_install.lifecycle_receipt, null);
+    assert.equal(Object.hasOwn(install.opl_agent_package_install, 'package_lock'), false);
+    assert.equal(Object.hasOwn(install.opl_agent_package_install, 'lifecycle_receipt'), false);
     assert.equal(Object.hasOwn(install.opl_agent_package_install, 'opl_private_state_writes'), false);
     assertNoPrivateState();
 
@@ -664,8 +664,8 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     }
     assert.equal(readinessActivation.status, 'already_activated');
     assert.equal(readinessActivation.writes_performed, false);
-    assert.equal(readinessActivation.package_lock, null);
-    assert.equal(readinessActivation.lifecycle_receipt, null);
+    assert.equal(Object.hasOwn(readinessActivation, 'package_lock'), false);
+    assert.equal(Object.hasOwn(readinessActivation, 'lifecycle_receipt'), false);
     assert.equal(readinessActivation.package_use_binding, null);
     assert.equal(readinessActivation.use_receipt, null);
     assert.equal(readinessActivation.package_status.launch_allowed, true);
@@ -684,8 +684,8 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     ], env) as any;
     assert.equal(activate.opl_agent_package_activation.status, 'already_activated');
     assert.equal(activate.opl_agent_package_activation.writes_performed, false);
-    assert.equal(activate.opl_agent_package_activation.package_lock, null);
-    assert.equal(activate.opl_agent_package_activation.lifecycle_receipt, null);
+    assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'package_lock'), false);
+    assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'lifecycle_receipt'), false);
     assert.equal(activate.opl_agent_package_activation.package_use_binding, null);
     assert.equal(activate.opl_agent_package_activation.use_receipt, null);
     assert.equal(activate.opl_agent_package_activation.launch_state, 'ready');
@@ -697,21 +697,21 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     ], env) as any;
     assert.equal(activateDryRun.opl_agent_package_activation.status, 'validated_no_write');
     assert.equal(activateDryRun.opl_agent_package_activation.writes_performed, false);
-    assert.equal(activateDryRun.opl_agent_package_activation.package_lock, null);
-    assert.equal(activateDryRun.opl_agent_package_activation.lifecycle_receipt, null);
+    assert.equal(Object.hasOwn(activateDryRun.opl_agent_package_activation, 'package_lock'), false);
+    assert.equal(Object.hasOwn(activateDryRun.opl_agent_package_activation, 'lifecycle_receipt'), false);
     assertNoPrivateState();
 
     const hideDryRun = runCli(['packages', 'hide', '--package-id', packageId, '--dry-run'], env) as any;
     assert.equal(hideDryRun.opl_agent_package_exposure.status, 'validated_no_write');
-    assert.equal(hideDryRun.opl_agent_package_exposure.package_lock, null);
-    assert.equal(hideDryRun.opl_agent_package_exposure.lifecycle_receipt, null);
+    assert.equal(Object.hasOwn(hideDryRun.opl_agent_package_exposure, 'package_lock'), false);
+    assert.equal(Object.hasOwn(hideDryRun.opl_agent_package_exposure, 'lifecycle_receipt'), false);
     assert.equal(hideDryRun.opl_agent_package_exposure.home_shortcut_preferences[0].visible, false);
     assertNoPrivateState();
 
     const hidden = runCli(['packages', 'hide', '--package-id', packageId], env) as any;
     assert.equal(hidden.opl_agent_package_exposure.status, 'hidden');
-    assert.equal(hidden.opl_agent_package_exposure.package_lock, null);
-    assert.equal(hidden.opl_agent_package_exposure.lifecycle_receipt, null);
+    assert.equal(Object.hasOwn(hidden.opl_agent_package_exposure, 'package_lock'), false);
+    assert.equal(Object.hasOwn(hidden.opl_agent_package_exposure, 'lifecycle_receipt'), false);
     assert.equal(hidden.opl_agent_package_exposure.home_shortcut_preferences[0].visible, false);
     assertNoPrivateState();
 
@@ -733,8 +733,8 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
 
     const unhidden = runCli(['packages', 'unhide', '--package-id', packageId], env) as any;
     assert.equal(unhidden.opl_agent_package_exposure.status, 'visible');
-    assert.equal(unhidden.opl_agent_package_exposure.package_lock, null);
-    assert.equal(unhidden.opl_agent_package_exposure.lifecycle_receipt, null);
+    assert.equal(Object.hasOwn(unhidden.opl_agent_package_exposure, 'package_lock'), false);
+    assert.equal(Object.hasOwn(unhidden.opl_agent_package_exposure, 'lifecycle_receipt'), false);
     assert.equal(unhidden.opl_agent_package_exposure.home_shortcut_preferences[0].visible, true);
     assertNoPrivateState();
 
@@ -765,8 +765,8 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
 
     for (const action of ['update', 'repair']) {
       const readback = runCli(['packages', action, packageId], env) as any;
-      assert.equal(readback[`opl_agent_package_${action}`].package_lock, null);
-      assert.equal(readback[`opl_agent_package_${action}`].lifecycle_receipt, null);
+      assert.equal(Object.hasOwn(readback[`opl_agent_package_${action}`], 'package_lock'), false);
+      assert.equal(Object.hasOwn(readback[`opl_agent_package_${action}`], 'lifecycle_receipt'), false);
       assertNoPrivateState();
     }
     const uninstall = runCli(['packages', 'uninstall', packageId], env) as any;
@@ -860,8 +860,8 @@ if (args.join(' ') === 'plugin list --json') {
     const updateSurface = update.opl_agent_package_update;
     assert.equal(updateSurface.package_id, 'rca');
     assert.equal(updateSurface.status, 'updated');
-    assert.equal(updateSurface.package_lock, null);
-    assert.equal(updateSurface.lifecycle_receipt, null);
+    assert.equal(Object.hasOwn(updateSurface, 'package_lock'), false);
+    assert.equal(Object.hasOwn(updateSurface, 'lifecycle_receipt'), false);
     assert.equal(Object.hasOwn(updateSurface, 'opl_private_state_writes'), false);
     assert.equal(updateSurface.configured_carrier.status, 'installed');
     assert.equal(updateSurface.configured_carrier.operation, 'update');
@@ -879,8 +879,8 @@ if (args.join(' ') === 'plugin list --json') {
     assert.equal(surface.package_id, 'rca');
     assert.equal(surface.status, 'already_activated');
     assert.equal(surface.writes_performed, false);
-    assert.equal(surface.package_lock, null);
-    assert.equal(surface.lifecycle_receipt, null);
+    assert.equal(Object.hasOwn(surface, 'package_lock'), false);
+    assert.equal(Object.hasOwn(surface, 'lifecycle_receipt'), false);
     assert.equal(surface.package_use_binding, null);
     assert.equal(surface.use_receipt, null);
     const status = runCli(['packages', 'status', '--package-id', 'rca'], env) as any;
@@ -979,23 +979,23 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
     ], env) as any;
     assert.equal(activated.opl_agent_package_activation.status, 'already_activated');
     assert.equal(activated.opl_agent_package_activation.writes_performed, false);
-    assert.equal(activated.opl_agent_package_activation.package_lock, null);
-    assert.equal(activated.opl_agent_package_activation.lifecycle_receipt, null);
+    assert.equal(Object.hasOwn(activated.opl_agent_package_activation, 'package_lock'), false);
+    assert.equal(Object.hasOwn(activated.opl_agent_package_activation, 'lifecycle_receipt'), false);
     assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
     assert.equal(fs.existsSync(legacyLedgerPath), false);
 
     const hidden = runCli(['packages', 'hide', '--package-id', packageId], env) as any;
     assert.equal(hidden.opl_agent_package_exposure.status, 'hidden');
-    assert.equal(hidden.opl_agent_package_exposure.package_lock, null);
-    assert.equal(hidden.opl_agent_package_exposure.lifecycle_receipt, null);
+    assert.equal(Object.hasOwn(hidden.opl_agent_package_exposure, 'package_lock'), false);
+    assert.equal(Object.hasOwn(hidden.opl_agent_package_exposure, 'lifecycle_receipt'), false);
     assert.deepEqual(hidden.opl_agent_package_exposure.home_shortcut_preferences.map((entry: any) => entry.visible), [false]);
     assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
     assert.equal(fs.existsSync(legacyLedgerPath), false);
 
     const unhidden = runCli(['packages', 'unhide', '--package-id', packageId], env) as any;
     assert.equal(unhidden.opl_agent_package_exposure.status, 'visible');
-    assert.equal(unhidden.opl_agent_package_exposure.package_lock, null);
-    assert.equal(unhidden.opl_agent_package_exposure.lifecycle_receipt, null);
+    assert.equal(Object.hasOwn(unhidden.opl_agent_package_exposure, 'package_lock'), false);
+    assert.equal(Object.hasOwn(unhidden.opl_agent_package_exposure, 'lifecycle_receipt'), false);
     assert.deepEqual(unhidden.opl_agent_package_exposure.home_shortcut_preferences.map((entry: any) => entry.visible), [true]);
     assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
     assert.equal(fs.existsSync(legacyLedgerPath), false);
