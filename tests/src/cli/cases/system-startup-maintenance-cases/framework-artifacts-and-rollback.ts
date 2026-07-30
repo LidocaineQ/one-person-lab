@@ -1,7 +1,12 @@
+import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
 import { assert, fs, os, path, runCli, test } from '../../helpers.ts';
 import { createCurrentCodexFixture, currentCodexEnvironment, withCliTimeout } from './shared.ts';
+import {
+  fetchFrameworkArtifactFromChannel,
+  readFrameworkChannelEntry,
+} from '../../../../../src/modules/connect/system-installation/framework-self-update-parts/channel-artifact.ts';
 import { readOplFrameworkRuntimeUpdateStatus } from '../../../../../src/modules/connect/system-installation/framework-self-update.ts';
 
 function writeMinimalFrameworkRoot(root: string, marker: string) {
@@ -41,12 +46,30 @@ function sha256(filePath: string) {
   return execFileSync('shasum', ['-a', '256', filePath], { encoding: 'utf8' }).trim().split(/\s+/)[0];
 }
 
-function writeFakeFrameworkChannel(input: { root: string; version: string; archivePath: string; archiveSha256: string }) {
+function writeFakeFrameworkChannel(input: {
+  root: string;
+  version: string;
+  archivePath: string;
+  archiveSha256: string;
+  advertisedArtifactDigest?: string;
+}) {
   const fakeBin = path.join(input.root, 'bin');
   const blobRoot = path.join(input.root, 'blobs');
   const curlLogPath = path.join(input.root, 'curl.jsonl');
   fs.mkdirSync(fakeBin, { recursive: true });
   fs.mkdirSync(blobRoot, { recursive: true });
+  const frameworkManifest = {
+    schemaVersion: 2,
+    mediaType: 'application/vnd.oci.image.manifest.v1+json',
+    layers: [{
+      mediaType: 'application/vnd.onepersonlab.framework.source.v1+gzip',
+      digest: `sha256:${input.archiveSha256}`,
+      annotations: { 'org.opencontainers.image.title': 'dist/opl-packages/framework/one-person-lab-framework-0.2.0.tar.gz' },
+    }],
+  };
+  const frameworkManifestDigest = `sha256:${crypto.createHash('sha256')
+    .update(JSON.stringify(frameworkManifest))
+    .digest('hex')}`;
   const channelManifestPath = path.join(blobRoot, 'opl-channel-manifest.json');
   fs.writeFileSync(channelManifestPath, JSON.stringify({
     manifest_version: 1,
@@ -59,7 +82,7 @@ function writeFakeFrameworkChannel(input: { root: string; version: string; archi
           version: '0.2.0',
           source_commit: 'f'.repeat(40),
           artifact_ref: 'ghcr.io/owner/one-person-lab-framework:0.2.0',
-          artifact_digest: `sha256:${'a'.repeat(64)}`,
+          artifact_digest: input.advertisedArtifactDigest ?? frameworkManifestDigest,
         },
       },
     },
@@ -85,15 +108,7 @@ function writeFakeFrameworkChannel(input: { root: string; version: string; archi
         annotations: { 'org.opencontainers.image.title': 'dist/opl-packages/opl-channel-manifest.json' },
       }],
     },
-    'owner/one-person-lab-framework': {
-      schemaVersion: 2,
-      mediaType: 'application/vnd.oci.image.manifest.v1+json',
-      layers: [{
-        mediaType: 'application/vnd.onepersonlab.framework.source.v1+gzip',
-        digest: archiveDigest,
-        annotations: { 'org.opencontainers.image.title': 'dist/opl-packages/framework/one-person-lab-framework-0.2.0.tar.gz' },
-      }],
-    },
+    'owner/one-person-lab-framework': frameworkManifest,
   };
   const blobsByDigest = {
     [channelDigest]: channelManifestPath,
@@ -125,8 +140,59 @@ function writeFakeFrameworkChannel(input: { root: string; version: string; archi
     "}",
     "process.exit(22);",
   ].join('\n'), { mode: 0o755 });
-  return { fakeBin, curlLogPath };
+  return { fakeBin, curlLogPath, frameworkManifestDigest };
 }
+
+test('Framework channel artifacts require and verify an immutable OCI manifest digest', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-pinned-oci-'));
+  const archivePath = path.join(root, 'one-person-lab-framework.tar.gz');
+  fs.writeFileSync(archivePath, 'framework archive\n');
+  const channel = writeFakeFrameworkChannel({
+    root: path.join(root, 'channel'),
+    version: '26.7.30',
+    archivePath,
+    archiveSha256: sha256(archivePath),
+    advertisedArtifactDigest: `sha256:${'b'.repeat(64)}`,
+  });
+  const previous = {
+    OPL_CURL_BIN: process.env.OPL_CURL_BIN,
+    OPL_PACKAGE_CHANNEL_MANIFEST_REF: process.env.OPL_PACKAGE_CHANNEL_MANIFEST_REF,
+  };
+  process.env.OPL_CURL_BIN = path.join(channel.fakeBin, 'curl');
+  process.env.OPL_PACKAGE_CHANNEL_MANIFEST_REF = 'ghcr.io/owner/one-person-lab-manifest:26.7.30';
+  try {
+    const entry = readFrameworkChannelEntry();
+    const target = path.join(root, 'target');
+    fs.mkdirSync(target);
+    assert.throws(
+      () => fetchFrameworkArtifactFromChannel(target, entry),
+      /OCI manifest digest mismatch/,
+    );
+    assert.deepEqual(fs.readdirSync(target), []);
+    for (const artifactDigest of [null, 'sha256:not-a-digest']) {
+      assert.throws(
+        () => fetchFrameworkArtifactFromChannel(target, {
+          ...entry,
+          artifact_digest: artifactDigest as string,
+        }),
+        /immutable SHA-256 digest/,
+      );
+    }
+    assert.throws(
+      () => fetchFrameworkArtifactFromChannel(target, {
+        ...entry,
+        artifact: `ghcr.io/owner/one-person-lab-framework@sha256:${'c'.repeat(64)}`,
+      }),
+      /artifact ref conflicts/,
+    );
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('Framework currentness ignores Release Set revision when Base content digest is unchanged', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-currentness-'));
@@ -306,6 +372,11 @@ test('system startup-maintenance applies OPL Framework runtime artifact from pac
     const curlLog = fs.readFileSync(channel.curlLogPath, 'utf8');
     assert.match(curlLog, /one-person-lab-manifest/);
     assert.match(curlLog, /one-person-lab-framework/);
+    assert.match(
+      curlLog,
+      new RegExp(`one-person-lab-framework/manifests/${channel.frameworkManifestDigest}`),
+    );
+    assert.doesNotMatch(curlLog, /one-person-lab-framework\/manifests\/0\.2\.0/);
   } finally {
     fs.rmSync(codexFixture.fixtureRoot, { recursive: true, force: true });
     fs.rmSync(homeRoot, { recursive: true, force: true });

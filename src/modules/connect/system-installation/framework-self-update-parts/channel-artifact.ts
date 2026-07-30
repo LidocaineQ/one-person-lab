@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -107,6 +108,30 @@ function fetchOciManifest(imageRef: OciImageRef, token: string) {
   return isRecord(parsed) ? parsed as { layers?: OciLayer[] } : {};
 }
 
+function fetchPinnedOciManifest(imageRef: OciImageRef, token: string, expectedDigest: string) {
+  const manifestUrl = `https://${imageRef.registry}/v2/${imageRef.repository}/manifests/${imageRef.tag}`;
+  const raw = runCurl([
+    '-fsSL',
+    '-H',
+    `Authorization: Bearer ${token}`,
+    '-H',
+    'Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json',
+    manifestUrl,
+  ], 'oci_manifest', { image: imageRef.image, reference: imageRef.tag });
+  const actualDigest = `sha256:${crypto.createHash('sha256').update(raw).digest('hex')}`;
+  if (actualDigest !== expectedDigest) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Pinned OPL Framework OCI manifest digest mismatch.', {
+      image: imageRef.image,
+      reference: imageRef.tag,
+      expected_artifact_digest: expectedDigest,
+      actual_artifact_digest: actualDigest,
+      failure_code: 'opl_framework_artifact_manifest_digest_mismatch',
+    });
+  }
+  const parsed = parseJsonText(raw);
+  return isRecord(parsed) ? parsed as { layers?: OciLayer[] } : {};
+}
+
 function fetchOciBlob(imageRef: OciImageRef, token: string, digest: string, targetPath: string) {
   const blobUrl = `https://${imageRef.registry}/v2/${imageRef.repository}/blobs/${digest}`;
   runCurl([
@@ -126,6 +151,18 @@ function selectLayer(manifest: { layers?: OciLayer[] }, mediaType: string, title
       ? layers.find((layer) => String(layer.annotations?.['org.opencontainers.image.title'] ?? '').endsWith(titleSuffix))
       : null)
     ?? null;
+}
+
+function requireFrameworkArtifactDigest(value: string | null | undefined, details: Record<string, unknown>) {
+  const digest = normalizeOptionalString(value);
+  if (!digest || !/^sha256:[0-9a-f]{64}$/.test(digest)) {
+    throw new FrameworkContractError('contract_shape_invalid', 'OPL channel manifest must bind the Framework artifact to an immutable SHA-256 digest.', {
+      ...details,
+      artifact_digest: digest,
+      failure_code: 'opl_framework_artifact_digest_invalid',
+    });
+  }
+  return digest;
 }
 
 export function readFrameworkChannelEntry() {
@@ -176,11 +213,15 @@ export function readFrameworkChannelEntry() {
         channel_version: channelManifest.release_set_generation ?? null,
       });
     }
+    const artifactDigest = requireFrameworkArtifactDigest(base?.artifact_digest, {
+      channel_version: channelManifest.release_set_generation ?? null,
+      artifact,
+    });
     return {
       channel_version: normalizeOptionalString(base?.version ?? framework?.version ?? channelManifest.release_set_generation),
       release_set_generation: normalizeOptionalString(channelManifest.release_set_generation),
       artifact,
-      artifact_digest: normalizeOptionalString(base?.artifact_digest),
+      artifact_digest: artifactDigest,
       source_archive_sha256: normalizeOptionalString(framework?.source_archive?.sha256),
       source_git_head_sha: normalizeOptionalString(base?.source_commit ?? framework?.source_git?.head_sha),
     };
@@ -193,9 +234,23 @@ export function fetchFrameworkArtifactFromChannel(
   tempRoot: string,
   entry: ReturnType<typeof readFrameworkChannelEntry> = readFrameworkChannelEntry(),
 ) {
-  const imageRef = parseImageRef(entry.artifact);
+  const artifactDigest = requireFrameworkArtifactDigest(entry.artifact_digest, {
+    channel_version: entry.channel_version,
+    artifact: entry.artifact,
+  });
+  const explicitDigest = entry.artifact.match(/@([^/]+)$/)?.[1] ?? null;
+  if (explicitDigest && explicitDigest !== artifactDigest) {
+    throw new FrameworkContractError('contract_shape_invalid', 'OPL Framework artifact ref conflicts with the Release Set digest.', {
+      artifact_ref: entry.artifact,
+      artifact_ref_digest: explicitDigest,
+      artifact_digest: artifactDigest,
+      failure_code: 'opl_framework_artifact_ref_digest_mismatch',
+    });
+  }
+  const pinnedArtifactRef = `${entry.artifact.replace(/@[^/]+$/, '')}@${artifactDigest}`;
+  const imageRef = parseImageRef(pinnedArtifactRef);
   const token = fetchGhcrToken(imageRef);
-  const manifest = fetchOciManifest(imageRef, token);
+  const manifest = fetchPinnedOciManifest(imageRef, token, artifactDigest);
   const layer = selectLayer(manifest, FRAMEWORK_LAYER_MEDIA_TYPE, `one-person-lab-framework-${entry.channel_version ?? imageRef.tag}.tar.gz`);
   if (!layer?.digest) {
     throw new FrameworkContractError('contract_shape_invalid', 'OPL Framework runtime artifact layer is missing.', {
