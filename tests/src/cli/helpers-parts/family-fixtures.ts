@@ -36,7 +36,6 @@ export function installRuntimePackageFixture(stateRoot: string, packageId: strin
         surface_kind: 'opl_agent_package_lock_index',
         version: 'opl-agent-package-lock-index.v1',
         packages: [],
-        last_known_good_transactions: [],
       };
   if (lockIndex.packages.some((entry: any) => entry.package_id === canonicalPackageId)) return;
 

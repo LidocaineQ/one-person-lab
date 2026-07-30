@@ -386,7 +386,7 @@ test('MAS dependency readiness is presence and callability only, not SemVer or A
   }
 });
 
-test('MAS dependency closure update and rollback atomically rematerialize known scopes', async () => {
+test('MAS dependency closure update atomically rematerializes known scopes', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-dependency-rollback-'));
   const stateDir = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
@@ -436,78 +436,6 @@ test('MAS dependency closure update and rollback atomically rematerialize known 
       '--scope', 'workspace', '--target-workspace', secondWorkspace,
     ], env) as any;
     assert.equal(secondUpdatedStatus.opl_agent_package_status.materialization_readiness.status, 'current');
-
-    const lockPath = path.join(stateDir, 'agent-package-locks.json');
-    const beforeRollbackIndex = parseJsonText(fs.readFileSync(lockPath, 'utf8')) as any;
-    const rollbackGeneration = beforeRollbackIndex.last_known_good_transactions.find(
-      (entry: any) => entry.root_package_id === FIXTURE_CONSUMER_PACKAGE_ID,
-    );
-    assert.ok(rollbackGeneration);
-    const legacyOptimizedRoot = beforeRollbackIndex.packages.find(
-      (entry: any) => entry.package_id === FIXTURE_CONSUMER_PACKAGE_ID,
-    );
-    assert.ok(legacyOptimizedRoot);
-    legacyOptimizedRoot.physical_surface.optimization_receipt_ref =
-      legacyOptimizedRoot.action_receipt_id;
-    fs.writeFileSync(lockPath, formatJsonPayload(beforeRollbackIndex), 'utf8');
-    for (const packageLock of rollbackGeneration.package_locks) {
-      assert.ok(packageLock.physical_surface.codex_plugin_cache_path);
-      assert.equal(fs.existsSync(packageLock.physical_surface.codex_plugin_cache_path), true);
-    }
-    for (const transientRoot of [providerV1Root, consumerV1Root, providerV2Root, consumerV2Root]) {
-      fs.rmSync(transientRoot, { recursive: true, force: true });
-    }
-
-    const rolledBack = runCli(['packages', 'rollback', FIXTURE_CONSUMER_PACKAGE_ID], env) as any;
-    assert.equal(rolledBack.opl_agent_package_rollback.status, 'rolled_back');
-    assert.deepEqual(
-      rolledBack.opl_agent_package_rollback.dependency_package_locks
-        .map((entry: any) => `${entry.package_id}@${entry.package_version}`).sort(),
-      [`${FIXTURE_PROVIDER_PACKAGE_ID}@0.1.0`, `${FIXTURE_CONSUMER_PACKAGE_ID}@0.1.0-alpha.4`],
-    );
-    assert.equal(
-      Object.hasOwn(
-        rolledBack.opl_agent_package_rollback.dependency_package_locks.find(
-          (entry: any) => entry.package_id === FIXTURE_CONSUMER_PACKAGE_ID,
-        ).physical_surface,
-        'optimization_receipt_ref',
-      ),
-      false,
-    );
-    for (const packageLock of rolledBack.opl_agent_package_rollback.dependency_package_locks) {
-      const generationLock = rollbackGeneration.package_locks.find(
-        (entry: any) => entry.package_id === packageLock.package_id,
-      );
-      assert.equal(
-        packageLock.physical_surface.codex_plugin_cache_path,
-        generationLock.physical_surface.codex_plugin_cache_path,
-      );
-    }
-    assert.match(fs.readFileSync(helperPath, 'utf8'), /0\.1\.0/);
-    const rollbackStatus = runCli([
-      'packages', 'status', '--package-id', FIXTURE_CONSUMER_PACKAGE_ID,
-      '--scope', 'workspace', '--target-workspace', workspace,
-    ], env) as any;
-    assert.equal(rollbackStatus.opl_agent_package_status.materialization_readiness.status, 'current');
-    assert.equal(rollbackStatus.opl_agent_package_status.operational_ready, true);
-    const secondRollbackStatus = runCli([
-      'packages', 'status', '--package-id', FIXTURE_CONSUMER_PACKAGE_ID,
-      '--scope', 'workspace', '--target-workspace', secondWorkspace,
-    ], env) as any;
-    assert.equal(secondRollbackStatus.opl_agent_package_status.materialization_readiness.status, 'current');
-    assert.equal(secondRollbackStatus.opl_agent_package_status.operational_ready, true);
-    const afterRollbackIndex = parseJsonText(fs.readFileSync(
-      path.join(stateDir, 'agent-package-locks.json'),
-      'utf8',
-    )) as any;
-    const updatedGeneration = afterRollbackIndex.last_known_good_transactions.find(
-      (entry: any) => entry.root_package_id === FIXTURE_CONSUMER_PACKAGE_ID
-        && entry.package_locks.some((packageLock: any) => packageLock.package_version === '0.1.1'),
-    );
-    assert.ok(updatedGeneration);
-    for (const packageLock of updatedGeneration.package_locks) {
-      assert.equal(fs.existsSync(packageLock.physical_surface.codex_plugin_cache_path), true);
-    }
   } finally {
     removeFixtureTree(root);
   }
@@ -531,72 +459,6 @@ test('MAS scope materialization never overwrites an unowned local Skill', async 
     assert.equal(blocked.payload.error.details.failure_code, 'agent_package_scope_unowned_skill_collision');
     assert.deepEqual(blocked.payload.error.details.collision_skill_ids, ['medical-manuscript-writing']);
     assert.equal(fs.readFileSync(path.join(localSkill, 'SKILL.md'), 'utf8'), '# user-owned local Skill\n');
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('MAS scope materialization adopts verified legacy OPL-managed Skills and rollback restores them', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-scope-legacy-managed-'));
-  const stateDir = path.join(root, 'state');
-  const workspace = path.join(root, 'workspace');
-  const providerRoot = path.join(root, 'provider');
-  const providerManifest = writeFixtureCapabilityProvider(providerRoot);
-  const consumerManifest = writeFixtureMasConsumer(path.join(root, 'consumer'), providerManifest);
-  const targetSkillsRoot = path.join(workspace, '.codex', 'skills');
-  const aggregateSkill = path.join(targetSkillsRoot, 'mas-scholar-skills');
-  const specialistSkill = path.join(targetSkillsRoot, 'medical-manuscript-writing');
-  const env = { OPL_STATE_DIR: stateDir, CODEX_HOME: path.join(root, 'codex-home') };
-  try {
-    fs.cpSync(path.join(providerRoot, 'skills', 'mas-scholar-skills'), aggregateSkill, { recursive: true });
-    fs.writeFileSync(path.join(aggregateSkill, 'helper.txt'), 'legacy aggregate helper\n');
-    fs.writeFileSync(path.join(aggregateSkill, '.opl-install-receipt.json'), formatJsonPayload({
-      receipt_kind: 'opl_scholarskills_workspace_or_quest_local_install_receipt',
-      schema_version: 'g1',
-      source_repo_path: providerRoot,
-      source_plugin_path: providerRoot,
-      target_scope: 'workspace',
-      target_root: workspace,
-      skill_root: aggregateSkill,
-      skill_entry: path.join(aggregateSkill, 'SKILL.md'),
-    }));
-
-    fs.cpSync(path.join(providerRoot, 'skills', 'medical-manuscript-writing'), specialistSkill, { recursive: true });
-    fs.writeFileSync(path.join(specialistSkill, 'helper.txt'), 'legacy specialist helper\n');
-    fs.writeFileSync(path.join(specialistSkill, '.opl-connect-skill-sync.json'), formatJsonPayload({
-      surface_kind: 'opl_connect_managed_mas_scholar_skills_specialist_dir',
-      schema_version: 'g1',
-      pack_id: 'medical-manuscript-writing',
-      source_skill_dir: path.join(providerRoot, 'skills', 'medical-manuscript-writing'),
-    }));
-
-    bindMasWorkspace(workspace, env);
-
-    await runCliAsync([
-      'packages', 'install', '--manifest-url', providerManifest, '--trust-tier', 'first_party',
-    ], env);
-    const installed = await runCliAsync([
-      'packages', 'install', '--manifest-url', consumerManifest, '--trust-tier', 'first_party',
-      '--scope', 'workspace', '--target-workspace', workspace,
-    ], env) as any;
-    assert.equal(installed.opl_agent_package_install.status, 'installed');
-    assert.equal(
-      fs.readFileSync(path.join(aggregateSkill, 'helper.txt'), 'utf8'),
-      'mas-scholar-skills helper 0.1.0\n',
-    );
-    assert.equal(
-      fs.readFileSync(path.join(specialistSkill, 'helper.txt'), 'utf8'),
-      'medical-manuscript-writing helper 0.1.0\n',
-    );
-
-    const rolledBack = runCli(['packages', 'rollback', FIXTURE_CONSUMER_PACKAGE_ID], env) as any;
-    assert.equal(rolledBack.opl_agent_package_rollback.status, 'rolled_back');
-    assert.equal(fs.readFileSync(path.join(aggregateSkill, 'helper.txt'), 'utf8'), 'legacy aggregate helper\n');
-    assert.equal(fs.readFileSync(path.join(specialistSkill, 'helper.txt'), 'utf8'), 'legacy specialist helper\n');
-    assert.equal(
-      JSON.parse(fs.readFileSync(path.join(specialistSkill, '.opl-connect-skill-sync.json'), 'utf8')).pack_id,
-      'medical-manuscript-writing',
-    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -632,56 +494,7 @@ test('MAS scope materialization rejects forged legacy OPL management markers', a
   }
 });
 
-test('initial MAS rollback preserves a preinstalled provider and restores the workspace prestate', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-initial-rollback-'));
-  const stateDir = path.join(root, 'state');
-  const codexHome = path.join(root, 'codex-home');
-  const workspace = path.join(root, 'workspace');
-  const providerManifest = writeFixtureCapabilityProvider(path.join(root, 'provider'));
-  const consumerManifest = writeFixtureMasConsumer(path.join(root, 'consumer'), providerManifest);
-  const originalSkillRoot = path.join(workspace, '.codex', 'skills', 'workspace-user-skill');
-  const env = { OPL_STATE_DIR: stateDir, CODEX_HOME: codexHome };
-  try {
-    fs.mkdirSync(originalSkillRoot, { recursive: true });
-    fs.writeFileSync(path.join(originalSkillRoot, 'SKILL.md'), '# workspace-owned prestate\n');
-    fs.writeFileSync(path.join(originalSkillRoot, 'local.txt'), 'preserve me\n');
-    bindMasWorkspace(workspace, env);
-
-    await runCliAsync([
-      'packages', 'install', '--manifest-url', providerManifest, '--trust-tier', 'first_party',
-    ], env);
-    const providerBefore = runCli([
-      'packages', 'status', '--package-id', FIXTURE_PROVIDER_PACKAGE_ID,
-    ], env).opl_agent_package_status.installed_packages[0];
-
-    await runCliAsync([
-      'packages', 'install', '--manifest-url', consumerManifest, '--trust-tier', 'first_party',
-      '--scope', 'workspace', '--target-workspace', workspace,
-    ], env);
-    assert.equal(fs.existsSync(path.join(originalSkillRoot, 'local.txt')), true);
-
-    const rolledBack = runCli(['packages', 'rollback', FIXTURE_CONSUMER_PACKAGE_ID], env) as any;
-    assert.equal(rolledBack.opl_agent_package_rollback.package_lock, null);
-    assert.deepEqual(
-      rolledBack.opl_agent_package_rollback.dependency_package_locks.map((entry: any) => entry.package_id),
-      [FIXTURE_PROVIDER_PACKAGE_ID],
-    );
-    assert.equal(fs.readFileSync(path.join(originalSkillRoot, 'SKILL.md'), 'utf8'), '# workspace-owned prestate\n');
-    assert.equal(fs.readFileSync(path.join(originalSkillRoot, 'local.txt'), 'utf8'), 'preserve me\n');
-
-    const masStatus = runCli(['packages', 'status', '--package-id', FIXTURE_CONSUMER_PACKAGE_ID], env) as any;
-    assert.equal(masStatus.opl_agent_package_status.installed_package_count, 0);
-    const providerAfter = runCli([
-      'packages', 'status', '--package-id', FIXTURE_PROVIDER_PACKAGE_ID,
-    ], env).opl_agent_package_status.installed_packages[0];
-    assert.equal(providerAfter.package_version, providerBefore.package_version);
-    assert.equal(providerAfter.lock_ref, providerBefore.lock_ref);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('fresh MAS install has no virtual rollback target and preserves its installed closure', async () => {
+test('fresh MAS install records only its installed closure', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-fresh-install-rollback-'));
   const workspace = path.join(root, 'workspace');
   const originalSkillRoot = path.join(workspace, '.codex', 'skills', 'workspace-user-skill');
@@ -702,9 +515,7 @@ test('fresh MAS install has no virtual rollback target and preserves its install
       path.join(env.OPL_STATE_DIR, 'agent-package-locks.json'),
       'utf8',
     ));
-    assert.deepEqual(lockIndex.last_known_good_transactions, []);
-    const rollbackFailure = runCliFailure(['packages', 'rollback', FIXTURE_CONSUMER_PACKAGE_ID], env);
-    assert.equal(rollbackFailure.payload.error.details.failure_code, 'agent_package_last_known_good_missing');
+    assert.equal('last_known_good_transactions' in lockIndex, false);
     assert.equal(runCli(['packages', 'status', '--package-id', FIXTURE_CONSUMER_PACKAGE_ID], env)
       .opl_agent_package_status.installed_package_count, 1);
     assert.equal(runCli(['packages', 'status', '--package-id', FIXTURE_PROVIDER_PACKAGE_ID], env)
@@ -712,54 +523,6 @@ test('fresh MAS install has no virtual rollback target and preserves its install
     assert.equal(fs.readFileSync(path.join(originalSkillRoot, 'SKILL.md'), 'utf8'), '# workspace prestate\n');
     assert.equal(fs.readFileSync(path.join(originalSkillRoot, 'local.txt'), 'utf8'), 'keep me\n');
     assert.equal(fs.existsSync(path.join(workspace, '.codex', 'skills', 'medical-manuscript-writing')), true);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('last-known-good generations are retained per root package', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-lkg-per-root-'));
-  const stateDir = path.join(root, 'state');
-  const providerManifest = writeFixtureCapabilityProvider(path.join(root, 'provider'));
-  const consumerManifest = writeFixtureMasConsumer(path.join(root, 'consumer'), providerManifest);
-  const env = { OPL_STATE_DIR: stateDir, CODEX_HOME: path.join(root, 'codex-home') };
-  try {
-    await runCliAsync(['packages', 'install', '--manifest-url', providerManifest, '--trust-tier', 'first_party'], env);
-    await runCliAsync(['packages', 'install', '--manifest-url', consumerManifest, '--trust-tier', 'first_party'], env);
-    const lockPath = path.join(stateDir, 'agent-package-locks.json');
-    const lockIndex = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
-    const masLkg = lockIndex.last_known_good_transactions.find((entry: any) => entry.root_package_id === FIXTURE_CONSUMER_PACKAGE_ID);
-    lockIndex.last_known_good_transactions = [0, 1, 2, 3, 4].map((index) => ({
-      root_package_id: `unrelated-${index}`,
-      transaction_id: `transaction-${index}`,
-      closure_digest: `digest-${index}`,
-      package_locks: [],
-    })).concat([
-      masLkg,
-      structuredClone(masLkg),
-      structuredClone(masLkg),
-      structuredClone(masLkg),
-    ]);
-    fs.writeFileSync(lockPath, formatJsonPayload(lockIndex));
-
-    assert.equal(runCli(['packages', 'rollback', FIXTURE_CONSUMER_PACKAGE_ID], env).opl_agent_package_rollback.status, 'rolled_back');
-    const rolledBackIndex = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
-    const identities = rolledBackIndex.last_known_good_transactions.map((entry: any) =>
-      JSON.stringify([
-        entry.root_package_id,
-        entry.transaction_id,
-        entry.closure_digest,
-        ...entry.package_locks
-          .map((lock: any) => `${lock.package_id}:${lock.lock_ref}`)
-          .sort(),
-      ]));
-    assert.equal(new Set(identities).size, identities.length);
-    assert.equal(
-      rolledBackIndex.last_known_good_transactions.filter(
-        (entry: any) => entry.root_package_id === FIXTURE_CONSUMER_PACKAGE_ID,
-      ).length,
-      1,
-    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -873,7 +636,7 @@ test('install cannot overwrite a provider that has installed required dependents
   }
 });
 
-test('failed MAS closure update and rollback restore package state and scope files together', async () => {
+test('failed MAS closure update restores package state and scope files together', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-dependency-failure-'));
   const stateDir = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
@@ -930,13 +693,6 @@ test('failed MAS closure update and rollback restore package state and scope fil
       'packages', 'update', FIXTURE_CONSUMER_PACKAGE_ID, '--manifest-url', consumerV2, '--trust-tier', 'first_party',
     ], env);
     assert.match(fs.readFileSync(helperPath, 'utf8'), /0\.1\.1/);
-
-    withReadOnlyState(() => {
-      runCliFailure(['packages', 'rollback', FIXTURE_CONSUMER_PACKAGE_ID], env);
-    });
-    assert.match(fs.readFileSync(helperPath, 'utf8'), /0\.1\.1/);
-    assert.equal(status().materialization_readiness.status, 'current');
-    assert.equal(status().installed_packages[0].package_version, '0.1.0');
   } finally {
     if (fs.existsSync(stateDir)) fs.chmodSync(stateDir, 0o755);
     fs.rmSync(root, { recursive: true, force: true });

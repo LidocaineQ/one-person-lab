@@ -1554,7 +1554,6 @@ test('scope-less list and App workspace context project different activation sta
       surface_kind: 'opl_agent_package_lock_index',
       version: 'opl-agent-package-lock-index.v1',
       packages: [lock],
-      last_known_good_transactions: [],
     }));
     const scopeLess = listOplAgentPackages({ detail: 'fast', readStatus: statusReader as any })
       .opl_agent_packages.directory.entries.find((entry) => entry.package_id === lock.package_id)!;

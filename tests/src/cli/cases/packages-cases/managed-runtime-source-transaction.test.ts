@@ -821,7 +821,7 @@ test('developer checkout source switch does not validate a displaced managed car
   }
 });
 
-test('interrupted developer snapshot activation removes only the uncommitted snapshot and retains LKG', () => {
+test('interrupted developer snapshot activation removes only the uncommitted snapshot', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-developer-snapshot-recovery-'));
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-developer-snapshot-source-'));
   const checkoutPath = path.join(fixtureRoot, 'med-autogrant');
@@ -895,7 +895,6 @@ test('interrupted developer snapshot activation removes only the uncommitted sna
         package_id: FIXTURE_MAG_PACKAGE_ID,
         managed_runtime_source: installed.after,
       }],
-      last_known_good_transactions: [],
     } as any);
     assert.equal(recovery.status, 'recovered');
     assert.equal(recovery.recovered_transaction_count, 1);
@@ -926,7 +925,6 @@ test('interrupted developer snapshot activation removes only the uncommitted sna
         package_id: FIXTURE_MAG_PACKAGE_ID,
         managed_runtime_source: pathMismatchedLock,
       }],
-      last_known_good_transactions: [],
     } as any);
     assert.equal(physicalRecovery.recovered_transaction_count, 1);
     assert.equal(fs.existsSync(physicalAppliedPath), false);
@@ -990,7 +988,6 @@ test('developer snapshot garbage collection ignores forged and symlinked persist
         lock('fixture.linked-module', 'medautogrant', path.join(snapshotRoot, 'medautogrant', linkedModuleDigest)),
         lock('fixture.forged', 'redcube', forgedOutsidePath),
       ],
-      last_known_good_transactions: [],
     } as any;
     const current = {
       packages: [
@@ -1000,7 +997,6 @@ test('developer snapshot garbage collection ignores forged and symlinked persist
           `${redcubeRoot}${path.sep}.${path.sep}${retainedDigest}`,
         ),
       ],
-      last_known_good_transactions: [],
     } as any;
 
     cleanupUnreferencedDeveloperRuntimeSnapshots(previous, current);
@@ -1161,7 +1157,7 @@ test('bundled Full runtime source requires a matching carrier marker and rejects
   }
 });
 
-test('ordinary-user explicit update advances MAS and ScholarSkills by immutable V1 V2 V3 generations', () => {
+test('ordinary-user update advances immutable runtime generations and retires superseded Package caches', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-ordinary-generation-history-'));
   const stateDir = path.join(root, 'state');
   const homeDir = path.join(root, 'home');
@@ -1228,8 +1224,8 @@ test('ordinary-user explicit update advances MAS and ScholarSkills by immutable 
       providerPlugin: v2Provider.physical_surface.codex_plugin_cache_path,
     };
     for (const [key, generationPath] of Object.entries(v1Paths)) {
-      assert.equal(fs.existsSync(generationPath), true, generationPath);
-      assert.equal(exactTreeDigest(generationPath), v1Digests[key]);
+      assert.equal(fs.existsSync(generationPath), key === 'runtime', generationPath);
+      if (key === 'runtime') assert.equal(exactTreeDigest(generationPath), v1Digests[key]);
       assert.notEqual(generationPath, v2Paths[key as keyof typeof v2Paths]);
     }
     const v2Digests = Object.fromEntries(
@@ -1282,7 +1278,8 @@ test('ordinary-user explicit update advances MAS and ScholarSkills by immutable 
     });
     assert.deepEqual(exactTreeInventory(pluginCacheRoot), beforeFailedUpdatePluginInventory);
     for (const [key, generationPath] of Object.entries(v1Paths)) {
-      assert.equal(exactTreeDigest(generationPath), v1Digests[key]);
+      assert.equal(fs.existsSync(generationPath), key === 'runtime', generationPath);
+      if (key === 'runtime') assert.equal(exactTreeDigest(generationPath), v1Digests[key]);
     }
     for (const [key, generationPath] of Object.entries(v2Paths)) {
       assert.equal(exactTreeDigest(generationPath), v2Digests[key]);
@@ -1342,10 +1339,12 @@ test('ordinary-user explicit update advances MAS and ScholarSkills by immutable 
     );
     fs.rmSync(unexpectedPayloadFile);
     for (const [key, generationPath] of Object.entries(v1Paths)) {
-      assert.equal(exactTreeDigest(generationPath), v1Digests[key]);
+      assert.equal(fs.existsSync(generationPath), key === 'runtime', generationPath);
+      if (key === 'runtime') assert.equal(exactTreeDigest(generationPath), v1Digests[key]);
     }
     for (const [key, generationPath] of Object.entries(v2Paths)) {
-      assert.equal(exactTreeDigest(generationPath), v2Digests[key]);
+      assert.equal(fs.existsSync(generationPath), key === 'runtime', generationPath);
+      if (key === 'runtime') assert.equal(exactTreeDigest(generationPath), v2Digests[key]);
     }
   } finally {
     removeFixtureTree(root);
@@ -1386,7 +1385,7 @@ test('new managed runtime generation refuses a symlinked generation ancestor', (
   }
 });
 
-test('Packages compensates managed runtime source across downstream failure update rollback and uninstall', () => {
+test('Packages compensates managed runtime source across downstream failure update and uninstall', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-source-transaction-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-source-transaction-home-'));
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-source-transaction-fixture-'));
@@ -1644,26 +1643,7 @@ test('Packages compensates managed runtime source across downstream failure upda
       assert.equal(fs.existsSync(`${path.join(modulesRoot, 'redcube-ai')}.revert-${process.pid}`), false);
     }
 
-    const rolledBack = runCli(['packages', 'rollback', '--package-id', FIXTURE_RCA_PACKAGE_ID], {
-      ...env,
-      OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED: '1',
-      OPL_TEST_RUNTIME_SOURCE_FINALIZE_FAIL: '1',
-    }) as any;
-    assert.equal(rolledBack.opl_agent_package_rollback.runtime_source_cleanup.status, 'cleanup_pending');
-    assert.equal(rolledBack.opl_agent_package_rollback.package_lock.managed_runtime_source.source_git_head_sha, 'source-transaction-v1');
-    assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.0');
-    assert.equal(
-      fs.readFileSync(path.join(previousCheckout, 'failed-update-diagnostic.txt'), 'utf8').trim(),
-      'retain failed RCA generation for diagnosis',
-    );
-    const preservedFailureLifecycle = readPackageChannelLifecycle(previousCheckout, spec);
-    assert.equal(preservedFailureLifecycle?.current.tree_sha256, dirtyCurrentTreeSha256);
-    const rollbackCleanup = runCli(['packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
-    const rollbackRecovery = inspectPrivateRuntimeSourceRecovery(rollbackCleanup, env);
-    assert.equal(rollbackRecovery.status, 'recovery_required');
-    assert.equal(rollbackRecovery.pending_transaction_count, 1);
-    assert.equal(rollbackRecovery.cleanup_completed_count, 0);
-
+    fs.rmSync(preservedFailurePath);
     const moduleRuntimeEnvRoot = path.join(stateDir, 'agent-package-runtime-envs', 'redcube');
     assert.ok(fs.readdirSync(moduleRuntimeEnvRoot).length >= 2);
     runCli(['packages', 'uninstall', '--package-id', FIXTURE_RCA_PACKAGE_ID], env);
@@ -1802,23 +1782,6 @@ test('Packages recovers durable runtime-source markers after interrupted apply a
     assert.deepEqual(fs.readFileSync(appliedMarkerPath), appliedMarkerBytes);
 
     runCli(['packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID], env);
-    assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.1');
-    const preparedRollback = runCliFailure(['packages', 'rollback', '--package-id', FIXTURE_RCA_PACKAGE_ID], {
-      ...env,
-      OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED: '1',
-      OPL_TEST_RUNTIME_SOURCE_INTERRUPT_AFTER_PREPARE_ROLLBACK: '1',
-    });
-    assert.equal(preparedRollback.payload.error.details.failure_code, 'test_runtime_source_interrupted_after_prepare_rollback');
-    assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.1');
-    const preparedRollbackRecovery = runCli(['packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
-    const rollbackPreparedRecovery = inspectPrivateRuntimeSourceRecovery(
-      preparedRollbackRecovery,
-      env,
-    );
-    assert.equal(rollbackPreparedRecovery.status, 'recovery_required');
-    assert.equal(rollbackPreparedRecovery.pending_transaction_count, 1);
-    assert.equal(rollbackPreparedRecovery.cleared_prepared_transaction_count, 0);
-    assert.equal(rollbackPreparedRecovery.recovered_transaction_count, 0);
     assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.1');
 
     const interruptedUninstall = runCliFailure(['packages', 'uninstall', '--package-id', FIXTURE_RCA_PACKAGE_ID], {

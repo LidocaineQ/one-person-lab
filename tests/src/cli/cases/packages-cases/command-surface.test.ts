@@ -43,7 +43,6 @@ test('package help surface keeps lifecycle commands ordinary and routes internal
     'packages enable',
     'packages disable',
     'packages repair',
-    'packages rollback',
     'packages uninstall',
   ]);
   assert.deepEqual(defaultHelpCommands, ordinaryCommands);

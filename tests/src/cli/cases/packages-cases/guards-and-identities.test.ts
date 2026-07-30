@@ -70,7 +70,7 @@ test('package registry uses version_source_ref and rejects mutable latest_versio
   );
 });
 
-test('local manifest fixtures own runtime source install repair rollback and uninstall', () => {
+test('local manifest fixtures own runtime source install repair update and uninstall', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-positional-state-'));
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-runtime-source-'));
   const modulesRoot = path.join(fixtureRoot, 'modules');
@@ -125,10 +125,6 @@ test('local manifest fixtures own runtime source install repair rollback and uni
     assert.equal(Object.hasOwn(updated.opl_agent_package_update, 'lock_file'), false);
     assert.equal(Object.hasOwn(updated.opl_agent_package_update, 'lifecycle_ledger_file'), false);
     assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.1');
-
-    const rolledBack = runCli(['packages', 'rollback', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
-    assert.equal(rolledBack.opl_agent_package_rollback.package_lock.managed_runtime_source.source_git_head_sha, 'runtime-source-v1');
-    assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.0');
 
     const removed = runCli(['packages', 'uninstall', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as {
       opl_agent_package_uninstall: { removed_package_lock: { package_id: string } };

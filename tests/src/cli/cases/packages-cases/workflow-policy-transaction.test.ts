@@ -681,33 +681,13 @@ test('OPL Flow package lifecycle advances workflow policy v1 v2 v3 and reaches a
       'packages', 'uninstall', '--package-id', 'fixture.opl-flow',
     ], env) as any;
     assert.equal(uninstalled.opl_agent_package_uninstall.status, 'uninstalled');
-    assert.equal(fs.existsSync(v3CachePath), true);
+    assert.equal(fs.existsSync(v3CachePath), false);
     const uninstalledIndex = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
     assert.equal(
       uninstalledIndex.packages.some((entry: any) => entry.package_id === 'fixture.opl-flow'),
       false,
     );
-    assert.ok(uninstalledIndex.last_known_good_transactions.some(
-      (entry: any) =>
-        entry.root_package_id === 'fixture.opl-flow'
-        && entry.package_locks.some((lock: any) => lock.package_id === 'fixture.opl-flow'),
-    ));
-    fs.rmSync(path.join(root, 'fixture.opl-flow-source'), { recursive: true, force: true });
-
-    const recovered = runCli([
-      'packages', 'rollback', '--package-id', 'fixture.opl-flow',
-    ], env) as any;
-    assert.equal(recovered.opl_agent_package_rollback.status, 'rolled_back');
-    assert.equal(recovered.opl_agent_package_rollback.package_lock.package_version, '0.1.26');
-    const recoveredStatus = runCli([
-      'packages', 'status', '--package-id', 'fixture.opl-flow',
-    ], env) as any;
-    assert.equal(recoveredStatus.opl_agent_package_status.operational_ready, true);
-    assert.equal(
-      recoveredStatus.opl_agent_package_status.owner_route_readback.packages[0]
-        .materializer.managed_policy_currentness.status,
-      'current',
-    );
+    assert.equal('last_known_good_transactions' in uninstalledIndex, false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
   }
@@ -855,7 +835,7 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
     assert.match(installedConfig, /\[plugins\."documents@openai-primary-runtime"\]/);
 
     const lockIndex = JSON.parse(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'));
-    assert.deepEqual(lockIndex.last_known_good_transactions, []);
+    assert.equal('last_known_good_transactions' in lockIndex, false);
     assert.equal(fs.existsSync(path.join(stateDir, 'workflow-packages')), false);
     const current = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
     const statusMaterializer = current.opl_agent_package_status.owner_route_readback.packages[0].materializer;
@@ -911,8 +891,6 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
     ].join('\n');
     fs.writeFileSync(configPath, postInstallConfig, 'utf8');
 
-    const rollbackFailure = runCliFailure(['packages', 'rollback', 'fixture.opl-flow'], env);
-    assert.equal(rollbackFailure.payload.error.details.failure_code, 'agent_package_last_known_good_missing');
     const status = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
     assert.equal(status.opl_agent_package_status.installed_package_count, 1);
   } finally {
@@ -920,7 +898,7 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
   }
 });
 
-test('fresh install rollback has no virtual target', async () => {
+test('fresh install writes no legacy generation field', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-clean-prestate-'));
   const home = path.join(root, 'home');
   const codexHome = path.join(home, '.codex');
@@ -938,9 +916,7 @@ test('fresh install rollback has no virtual target', async () => {
     assert.equal(fs.existsSync(path.join(codexHome, 'config.toml')), true);
 
     const lockIndex = JSON.parse(fs.readFileSync(path.join(env.OPL_STATE_DIR, 'agent-package-locks.json'), 'utf8'));
-    assert.deepEqual(lockIndex.last_known_good_transactions, []);
-    const failure = runCliFailure(['packages', 'rollback', 'fixture.opl-flow'], env);
-    assert.equal(failure.payload.error.details.failure_code, 'agent_package_last_known_good_missing');
+    assert.equal('last_known_good_transactions' in lockIndex, false);
     assert.equal(runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env)
       .opl_agent_package_status.installed_package_count, 1);
   } finally {

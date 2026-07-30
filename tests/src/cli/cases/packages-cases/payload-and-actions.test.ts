@@ -111,14 +111,6 @@ test('packages materializes manifest-declared remote plugin payloads', async () 
         'third.party.research',
       ], env);
       assert.equal(fs.existsSync(physicalSurface.plugin_payload_cache_path), true);
-      const rolledBack = runCli([
-        'packages',
-        'rollback',
-        '--package-id',
-        'third.party.research',
-      ], env) as any;
-      assert.equal(rolledBack.opl_agent_package_rollback.status, 'rolled_back');
-      assert.equal(fs.existsSync(physicalSurface.plugin_payload_cache_path), true);
 
       const uninstall = runCli([
         'packages',

@@ -11,7 +11,6 @@ import {
   runOplAgentPackageInstall,
   runOplAgentPackageManifestValidate,
   runOplAgentPackageRepair,
-  runOplAgentPackageRollback,
   runOplAgentPackageStatus,
   runOplAgentPackageActivate,
   runOplAgentPackageUninstall,
@@ -507,17 +506,6 @@ export function buildPackagesCommandSpecs(
       handler: (args) => runOplAgentPackageRepair(admitMasWorkspaceScopedPackageMutation(
         'packages repair',
         parsePackageRepair(args, getCommandSpec('packages repair')),
-      )),
-    },
-    'packages rollback': {
-      usage: 'opl packages rollback <package_id> [--scope workspace|quest --target-workspace <path>|--target-quest <path>] [--dry-run]',
-      summary: 'Atomically restore one OPL Package dependency closure from its last-known-good generation.',
-      examples: ['opl packages rollback mas --scope workspace --target-workspace /path/to/study --json'],
-      group: 'packages',
-      help_surface: 'default',
-      handler: (args) => runOplAgentPackageRollback(admitMasWorkspaceScopedPackageMutation(
-        'packages rollback',
-        parsePackageAction('packages rollback', args, getCommandSpec('packages rollback')),
       )),
     },
     'packages uninstall': {

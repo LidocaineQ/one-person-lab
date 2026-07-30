@@ -109,7 +109,6 @@ import {
   managedRuntimeSourceReadiness,
   recoverManagedRuntimeSourceTransactions,
   removeManagedRuntimeSourceCarrier,
-  restoreManagedRuntimeSourceCarrier,
   rollbackManagedRuntimeSourceMutation,
 } from './agent-package-registry-parts/managed-runtime-source-carrier.ts';
 import {
@@ -136,7 +135,6 @@ import {
   resolveFirstPartyPackageCatalogSnapshot,
 } from './agent-package-registry-parts/release-catalog-cache.ts';
 import { resolveAgentPackageEffectiveSourcePolicy } from './agent-package-registry-parts/source-policy.ts';
-import { packageRoleFromInstalledLock } from './agent-package-registry-parts/package-role.ts';
 import {
   loadDeveloperCheckoutPackageSource,
   mergeDeveloperCheckoutPackageManifest,
@@ -169,7 +167,6 @@ import type {
   AgentPackageCarrierAuthority,
   AgentPackageInstallInput,
   AgentPackageLifecycleUxReadback,
-  AgentPackageLastKnownGood,
   AgentPackageLock,
   AgentPackageLockIndex,
   AgentPackageManifestValidateInput,
@@ -386,33 +383,6 @@ function readRecoveredLockIndex(dryRun = false) {
       ? inspectManagedRuntimeSourceTransactions()
       : recoverManagedRuntimeSourceTransactions(index),
   };
-}
-
-function retainLastKnownGoodPerRoot(
-  entries: AgentPackageLastKnownGood[],
-  next: AgentPackageLastKnownGood,
-) {
-  const counts = new Map<string, number>();
-  const identities = new Set<string>();
-  return [next, ...entries].filter((entry) => {
-    const identity = lastKnownGoodIdentity(entry);
-    if (identities.has(identity)) return false;
-    identities.add(identity);
-    const count = counts.get(entry.root_package_id) ?? 0;
-    counts.set(entry.root_package_id, count + 1);
-    return count < 4;
-  });
-}
-
-function lastKnownGoodIdentity(entry: AgentPackageLastKnownGood) {
-  return [
-    entry.root_package_id,
-    entry.transaction_id,
-    entry.closure_digest,
-    ...entry.package_locks
-      .map((lock) => `${lock.package_id}:${lock.lock_ref}`)
-      .sort(),
-  ].join('\0');
 }
 
 function installedLockClosure(index: AgentPackageLockIndex, root: AgentPackageLock) {
@@ -1438,23 +1408,6 @@ async function applyManifestPackageLock(
   if (!input.dryRun) {
     const previousLocks = previousClosureLocks;
     const nextIndex = structuredClone(index);
-    const previousClosureDigest = dependencyClosureDigest(previousLocks);
-    if (action !== 'repair' && previousLocks.length > 0) {
-      nextIndex.last_known_good_transactions = retainLastKnownGoodPerRoot(
-        nextIndex.last_known_good_transactions ?? [],
-        {
-          root_package_id: root.manifest.package_id,
-          transaction_id: sha256Text([
-            'lkg-snapshot',
-            root.manifest.package_id,
-            previousClosureDigest,
-            ...previousLocks.map((entry) => entry.lock_ref).sort(),
-          ].join('\n')),
-          closure_digest: previousClosureDigest,
-          package_locks: previousLocks,
-        },
-      );
-    }
     for (const nextLock of locks) {
       const currentIndex = nextIndex.packages.findIndex((entry) => entry.package_id === nextLock.package_id);
       if (currentIndex >= 0) nextIndex.packages[currentIndex] = nextLock;
@@ -1507,7 +1460,6 @@ async function applyManifestPackageLock(
     }
     const retainedPhysicalPaths = new Set([
       ...nextIndex.packages,
-      ...(nextIndex.last_known_good_transactions ?? []).flatMap((entry) => entry.package_locks),
     ].flatMap((entry) => [
       entry.physical_surface?.codex_plugin_cache_path,
       entry.physical_surface?.marketplace_plugin_path,
@@ -1750,53 +1702,6 @@ async function maybeRunConfiguredCarrierLifecycle(input: {
   });
 }
 
-type ConfiguredCarrierPrivateAction = 'rollback'; // reuse-first: exception - this is a native carrier action label, not Framework updater authority.
-
-function configuredCarrierPrivateActionReadback(input: {
-  action: ConfiguredCarrierPrivateAction;
-  dryRun: boolean;
-  carrier: ConfiguredCodexPluginCarrierReadback;
-}) {
-  const nativeReady = input.carrier.status === 'installed'
-    && input.carrier.executor.status === 'callable'
-    && input.carrier.carrier.precedence === 'exact_single_source';
-  return {
-    status: nativeReady
-      ? input.dryRun ? 'validated_no_write' : 'carrier_owned'
-      : 'attention_needed',
-    dry_run: input.dryRun,
-    package_id: input.carrier.package_id,
-    writes_performed: false,
-    lifecycle_authority: 'carrier_owned' as const,
-    package_lock: null,
-    lifecycle_receipt: null,
-    configured_carrier: input.carrier,
-    reason: nativeReady ? null : input.carrier.reason ?? 'native_carrier_not_ready',
-    authority_boundary: refsOnlyAuthorityBoundary(),
-  };
-}
-
-async function maybeRunConfiguredCarrierPrivateAction(input: {
-  selectionInput: ConfiguredCarrierSelectionInput;
-  action: ConfiguredCarrierPrivateAction;
-}) {
-  const selected = await resolveFreshConfiguredCarrier(input.selectionInput);
-  if (!selected) return null;
-  const dryRun = input.selectionInput.dryRun === true;
-  // Private Framework lifecycle actions are read-only for carrier-owned
-  // Packages. The native carrier remains the sole action authority.
-  const carrier = runConfiguredCodexPluginCarrier({
-    descriptor: selected.descriptor,
-    action: 'list',
-    dryRun: true,
-  });
-  return configuredCarrierPrivateActionReadback({
-    action: input.action,
-    dryRun,
-    carrier,
-  });
-}
-
 export async function runOplAgentPackageInstall(input: AgentPackageInstallInput) {
   const configured = await maybeRunConfiguredCarrierLifecycle({
     selectionInput: input,
@@ -1998,9 +1903,6 @@ function bundledFullRuntimeAffectedLocks(input: {
     ...input.index.packages.filter((lock) =>
       prospectiveIds.has(lock.package_id)
       || previousTransactionIds.has(lock.dependency_transaction_id)),
-    ...(input.index.last_known_good_transactions ?? [])
-      .filter((entry) => rootIds.has(entry.root_package_id))
-      .flatMap((entry) => entry.package_locks),
   ];
   const byLockRef = new Map([...previous, ...input.prospectiveLocks]
     .map((lock) => [lock.lock_ref, lock]));
@@ -3138,7 +3040,6 @@ export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
         opl_private_state_writes: {
           ...configured.opl_private_state_writes,
           package_lock: retired && retirement.retired.package_lock,
-          last_known_good: retired && retirement.retired.last_known_good_transactions > 0,
           transaction_mutex: retired,
         },
       },
@@ -3147,423 +3048,6 @@ export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
   return withAgentPackageLifecycleTransaction(
     input.dryRun === true,
     async () => await runOplAgentPackageRepairUnlocked(input),
-  );
-}
-
-function runOplAgentPackageRollbackUnlocked(input: AgentPackagePackageActionInput) {
-  const packageId = requirePackageId(input.packageId, 'rollback');
-  const { index } = readRecoveredLockIndex(input.dryRun === true);
-  assertNoRequiredInstalledDependents(index, packageId, 'rollback');
-  const lastKnownGood = (index.last_known_good_transactions ?? [])
-    .find((entry) => entry.root_package_id === packageId);
-  let runtimeSourceCleanup: {
-    status: 'not_required' | 'cleanup_completed' | 'cleanup_pending';
-    cleanup_paths: string[];
-  } = { status: 'not_required', cleanup_paths: [] };
-  if (!lastKnownGood) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package rollback requires a recorded dependency-closure last-known-good generation.', {
-      package_id: packageId,
-      failure_code: 'agent_package_last_known_good_missing',
-    });
-  }
-  const restoredLocks = structuredClone(lastKnownGood.package_locks);
-  const installedLock = index.packages.find((entry) => entry.package_id === packageId) ?? null;
-  const restoredRoot = restoredLocks.find((entry) => entry.package_id === packageId);
-  if (!installedLock && !restoredRoot) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package rollback last-known-good generation does not contain its root package lock.', {
-      package_id: packageId,
-      transaction_id: lastKnownGood.transaction_id,
-      failure_code: 'agent_package_last_known_good_root_missing',
-    });
-  }
-  const lock = installedLock ?? restoredRoot!;
-  const currentLocks = installedLock
-    ? index.packages.filter((entry) =>
-        entry.package_id === packageId
-        || entry.dependency_transaction_id === installedLock.dependency_transaction_id)
-    : [];
-  const currentIds = new Set(currentLocks.map((entry) => entry.package_id));
-  if (!restoredRoot) {
-    restoreManagedRuntimeSourceCarrier({
-      current: lock.managed_runtime_source,
-      restored: null,
-      transactionId: `rollback-preinstall-${lock.dependency_transaction_id.slice(0, 16)}`,
-      dryRun: true,
-      packageId,
-    });
-    for (const restoredLock of restoredLocks) rematerializePhysicalCodexSurfaceFromLock(restoredLock, true);
-    const restoredIds = new Set(restoredLocks.map((entry) => entry.package_id));
-    const closureDigest = dependencyClosureDigest(restoredLocks);
-    const transactionId = sha256Text(`rollback\n${packageId}\npreinstall\n${lock.dependency_transaction_id}`);
-    const dependencyPackages = restoredLocks.map((entry) => ({
-      package_id: entry.package_id,
-      package_version: entry.package_version,
-      manifest_sha256: entry.manifest_sha256,
-      content_digest: entry.content_digest,
-      package_lock_ref: entry.lock_ref,
-      source_artifact_ref: entry.source_artifact_ref ?? null,
-      artifact_digest: entry.artifact_digest ?? null,
-      owner_source_commit: entry.owner_source_commit ?? null,
-      carrier_authority: entry.carrier_authority ?? null,
-      source_kind: entry.source_kind,
-      developer_checkout_source: entry.developer_checkout_source ?? null,
-    }));
-    const receipt = lifecycleReceipt({
-      action: 'rollback',
-      actionStatus: input.dryRun ? 'validated' : 'completed',
-      packageId,
-      manifestUrl: lock.manifest_url,
-      manifestSha256: lock.manifest_sha256,
-      packageLockRef: null,
-      rollbackRef: lock.rollback_ref,
-      sourceKind: lock.source_kind,
-      trustTier: lock.trust_tier,
-      sourceSha256: transactionId,
-      writesPerformed: !input.dryRun,
-      dependencyTransactionId: transactionId,
-      dependencyClosureDigest: closureDigest,
-      dependencyPackages,
-      managedRuntimeSource: null,
-      sourceArtifactRef: lock.source_artifact_ref ?? null,
-      artifactDigest: lock.artifact_digest ?? null,
-      ownerSourceCommit: lock.owner_source_commit ?? null,
-      developerCheckoutSource: lock.developer_checkout_source ?? null,
-      carrierAuthority: lock.carrier_authority ?? null,
-      releaseChannelRef: lock.release_channel_ref ?? null,
-      releaseChannelDigest: lock.release_channel_digest ?? null,
-    });
-    if (!input.dryRun) {
-      const newlyInstalledLocks = currentLocks.filter((entry) => !restoredIds.has(entry.package_id));
-      for (const currentLock of newlyInstalledLocks) {
-        assertManagedPolicyRollbackReady(currentLock.physical_surface?.workflow_policy_migration);
-        assertPackageProfileRollbackReady(currentLock.physical_surface?.profile_migration);
-      }
-      const rolledBackScopes: AgentPackageScopeMaterialization[] = [];
-      const retainedPolicyRollbacks: ReturnType<typeof rollbackManagedPolicyMigration>[] = [];
-      const retainedProfileRollbacks: ReturnType<typeof rollbackPackageProfileMigration>[] = [];
-      const restoredPhysicalSurfaces = new Map<string, AgentPackagePhysicalSurface>();
-      let runtimeSourceMutation: ReturnType<typeof restoreManagedRuntimeSourceCarrier> | null = null;
-      try {
-        for (const scopeMaterialization of [...(lock.scope_materializations ?? [])].reverse()) {
-          rollbackCapabilityScopeTransaction(scopeMaterialization);
-          rolledBackScopes.push(scopeMaterialization);
-        }
-        for (const currentLock of [...currentLocks].reverse()) {
-          removePhysicalCodexSurface(
-            currentLock.physical_surface,
-            false,
-            currentLock.package_id,
-            { retainPayloadSource: true, retainPluginCache: true },
-          );
-          if (!restoredIds.has(currentLock.package_id)) {
-            retainedPolicyRollbacks.push(rollbackManagedPolicyMigration(
-              currentLock.physical_surface?.workflow_policy_migration,
-              { retainBackups: true },
-            ));
-            retainedProfileRollbacks.push(rollbackPackageProfileMigration(
-              currentLock.physical_surface?.profile_migration,
-              { retainBackups: true },
-            ));
-          }
-        }
-        for (const previousLock of restoredLocks) {
-          restoredPhysicalSurfaces.set(
-            previousLock.package_id,
-            rematerializePhysicalCodexSurfaceFromLock(previousLock, false),
-          );
-        }
-        runtimeSourceMutation = restoreManagedRuntimeSourceCarrier({
-          current: lock.managed_runtime_source,
-          restored: null,
-          transactionId: `rollback-preinstall-${lock.dependency_transaction_id.slice(0, 16)}`,
-          dryRun: false,
-          packageId,
-        });
-        const nextIndex = structuredClone(index);
-        nextIndex.packages = [
-          ...restoredLocks,
-          ...nextIndex.packages.filter((entry) => !currentIds.has(entry.package_id) && !restoredIds.has(entry.package_id)),
-        ];
-        nextIndex.last_known_good_transactions = retainLastKnownGoodPerRoot(
-          (nextIndex.last_known_good_transactions ?? []).filter((entry) =>
-            lastKnownGoodIdentity(entry) !== lastKnownGoodIdentity(lastKnownGood)),
-          {
-          root_package_id: packageId,
-          transaction_id: lock.dependency_transaction_id,
-          closure_digest: lock.dependency_closure_digest,
-          package_locks: structuredClone(currentLocks),
-          },
-        );
-        writePackageTransaction(nextIndex);
-      } catch (error) {
-        if (runtimeSourceMutation) rollbackManagedRuntimeSourceMutation(runtimeSourceMutation);
-        for (const surface of restoredPhysicalSurfaces.values()) {
-          assertManagedPolicyRollbackReady(surface.workflow_policy_migration);
-          assertPackageProfileRollbackReady(surface.profile_migration);
-        }
-        for (const [restoredPackageId, surface] of [...restoredPhysicalSurfaces.entries()].reverse()) {
-          removePhysicalCodexSurface(surface, false, restoredPackageId, {
-            retainPayloadSource: true,
-            retainPluginCache: true,
-          });
-          rollbackManagedPolicyMigration(surface.workflow_policy_migration);
-          rollbackPackageProfileMigration(surface.profile_migration);
-        }
-        for (const currentLock of currentLocks) rematerializePhysicalCodexSurfaceFromLock(currentLock, false);
-        for (const scopeRecord of [...rolledBackScopes].reverse()) {
-          const provider = currentLocks.find((entry) => entry.package_id === scopeRecord.provider_package_id);
-          if (!provider) continue;
-          const materialization = materializeCapabilityScopeFromLock({
-            provider,
-            consumerProfileId: scopeRecord.consumer_profile_id ?? null,
-            scope: scopeRecord.scope,
-            targetRoot: scopeRecord.target_root,
-            transactionId: scopeRecord.transaction_id,
-            dryRun: false,
-            retainTransactionBackup: true,
-          });
-        }
-        throw error;
-      }
-      if (runtimeSourceMutation) {
-        runtimeSourceCleanup = finalizeManagedRuntimeSourceMutation(runtimeSourceMutation);
-      }
-      for (const migration of retainedPolicyRollbacks) {
-        if (migration.status === 'rolled_back') finalizeManagedPolicyRollback(migration);
-      }
-      for (const migration of retainedProfileRollbacks) {
-        if (migration.status === 'rolled_back') finalizePackageProfileRollback(migration);
-      }
-    }
-    return {
-      version: 'g2',
-      opl_agent_package_rollback: {
-        surface_kind: 'opl_agent_package_rollback',
-        status: input.dryRun ? 'validated_no_write' : 'rolled_back',
-        dry_run: input.dryRun === true,
-        package_lock: null,
-        dependency_package_locks: restoredLocks,
-        dependency_transaction_id: transactionId,
-        dependency_closure_digest: closureDigest,
-        lifecycle_receipt: receipt,
-        runtime_source_cleanup: runtimeSourceCleanup,
-        authority_boundary: refsOnlyAuthorityBoundary(),
-      },
-    };
-  }
-  restoreManagedRuntimeSourceCarrier({
-    current: installedLock?.managed_runtime_source ?? null,
-    restored: restoredRoot.managed_runtime_source,
-    transactionId: `rollback-${lock.dependency_transaction_id.slice(0, 16)}`,
-    dryRun: true,
-    packageId,
-  });
-  for (const restoredLock of restoredLocks) rematerializePhysicalCodexSurfaceFromLock(restoredLock, true);
-  const closureDigest = dependencyClosureDigest(restoredLocks);
-  const transactionId = sha256Text(`rollback\n${packageId}\n${closureDigest}\n${lock.dependency_transaction_id}`);
-  const dependencyPackages = restoredLocks.map((entry) => ({
-    package_id: entry.package_id,
-    package_version: entry.package_version,
-    manifest_sha256: entry.manifest_sha256,
-    content_digest: entry.content_digest,
-    package_lock_ref: entry.lock_ref,
-    source_artifact_ref: entry.source_artifact_ref ?? null,
-    artifact_digest: entry.artifact_digest ?? null,
-    owner_source_commit: entry.owner_source_commit ?? null,
-    carrier_authority: entry.carrier_authority ?? null,
-    source_kind: entry.source_kind,
-    developer_checkout_source: entry.developer_checkout_source ?? null,
-  }));
-  const receipts = restoredLocks.map((restoredLock) => lifecycleReceipt({
-    action: 'rollback',
-    actionStatus: input.dryRun ? 'validated' : 'completed',
-    packageId: restoredLock.package_id,
-    manifestUrl: restoredLock.manifest_url,
-    manifestSha256: restoredLock.manifest_sha256,
-    packageLockRef: restoredLock.lock_ref,
-    rollbackRef: restoredLock.rollback_ref,
-    sourceKind: restoredLock.source_kind,
-    trustTier: restoredLock.trust_tier,
-    sourceSha256: sha256Text(`${transactionId}\n${restoredLock.package_id}`),
-    writesPerformed: !input.dryRun,
-    dependencyTransactionId: transactionId,
-    dependencyClosureDigest: closureDigest,
-    dependencyPackages,
-    managedRuntimeSource: restoredLock.managed_runtime_source,
-    sourceArtifactRef: restoredLock.source_artifact_ref ?? null,
-    artifactDigest: restoredLock.artifact_digest ?? null,
-    ownerSourceCommit: restoredLock.owner_source_commit ?? null,
-    developerCheckoutSource: restoredLock.developer_checkout_source ?? null,
-    carrierAuthority: restoredLock.carrier_authority ?? null,
-    releaseChannelRef: restoredLock.release_channel_ref ?? null,
-    releaseChannelDigest: restoredLock.release_channel_digest ?? null,
-  }));
-  restoredLocks.forEach((restoredLock) => {
-    restoredLock.dependency_transaction_id = transactionId;
-    restoredLock.dependency_closure_digest = closureDigest;
-    restoredLock.action_receipt_id = receipts.find((receipt) => receipt.package_id === restoredLock.package_id)!.receipt_ref;
-  });
-  const rootReceipt = receipts.find((entry) => entry.package_id === packageId)!;
-  const explicitScopeTarget = packageScopeTarget(input);
-  const restoredScopeRecords = restoredRoot.scope_materializations ?? [];
-  const scopeRecords = explicitScopeTarget && input.scope
-    ? restoredScopeRecords.filter((entry) =>
-        entry.scope === input.scope && entry.target_root === explicitScopeTarget)
-    : restoredScopeRecords;
-  const scopeMaterializations: AgentPackageScopeMaterialization[] = [];
-  try {
-    for (const record of scopeRecords) {
-      const provider = restoredLocks.find((entry) => entry.package_id === record.provider_package_id);
-      if (!provider) {
-        throw new FrameworkContractError('contract_shape_invalid', 'Agent package rollback cannot restore a scope without its provider lock.', {
-          package_id: packageId,
-          provider_package_id: record.provider_package_id,
-          scope: record.scope,
-          target_root: record.target_root,
-          failure_code: 'agent_package_rollback_scope_provider_missing',
-        });
-      }
-      const materialization = materializeCapabilityScopeFromLock({
-        provider,
-        consumerProfileId: record.consumer_profile_id ?? null,
-        scope: record.scope,
-        targetRoot: record.target_root,
-        transactionId: sha256Text(`${transactionId}\n${provider.package_id}\n${record.scope}\n${record.target_root}`),
-        dryRun: input.dryRun === true,
-        retainTransactionBackup: input.dryRun !== true,
-        previousMaterialization: (lock.scope_materializations ?? []).find((entry) =>
-          entry.scope === record.scope
-          && entry.target_root === record.target_root
-          && entry.provider_package_id === record.provider_package_id) ?? null,
-      });
-      scopeMaterializations.push(materialization);
-    }
-  } catch (error) {
-    if (!input.dryRun) {
-      for (const materialization of [...scopeMaterializations].reverse()) {
-        rollbackCapabilityScopeTransaction(materialization);
-      }
-    }
-    throw error;
-  }
-  restoredRoot.scope_materializations = scopeMaterializations;
-  if (scopeMaterializations.length > 0) {
-    rootReceipt.scope_materialization = scopeMaterializations[0];
-    rootReceipt.scope_materializations = scopeMaterializations;
-  }
-  if (!input.dryRun) {
-    const restoredIds = new Set(restoredLocks.map((entry) => entry.package_id));
-    const restoredPhysicalSurfaces = new Map<string, AgentPackagePhysicalSurface>();
-    let runtimeSourceMutation: ReturnType<typeof restoreManagedRuntimeSourceCarrier> | null = null;
-    try {
-      for (const currentLock of currentLocks) {
-        removePhysicalCodexSurface(
-          currentLock.physical_surface,
-          false,
-          currentLock.package_id,
-          { retainPayloadSource: true, retainPluginCache: true },
-        );
-      }
-      for (const restoredLock of restoredLocks) {
-        const surface = rematerializePhysicalCodexSurfaceFromLock(restoredLock, false);
-        restoredLock.physical_surface = surface;
-        restoredPhysicalSurfaces.set(restoredLock.package_id, surface);
-      }
-      runtimeSourceMutation = restoreManagedRuntimeSourceCarrier({
-        current: installedLock?.managed_runtime_source ?? null,
-        restored: restoredRoot.managed_runtime_source,
-        transactionId: `rollback-${lock.dependency_transaction_id.slice(0, 16)}`,
-        dryRun: false,
-        packageId,
-      });
-      restoredRoot.managed_runtime_source = runtimeSourceMutation.after;
-      rootReceipt.managed_runtime_source = runtimeSourceMutation.after;
-      const nextIndex = structuredClone(index);
-      nextIndex.packages = [
-        ...restoredLocks,
-        ...nextIndex.packages.filter((entry) => !currentIds.has(entry.package_id) && !restoredIds.has(entry.package_id)),
-      ];
-      const remainingLastKnownGood = (nextIndex.last_known_good_transactions ?? [])
-        .filter((entry) =>
-          lastKnownGoodIdentity(entry) !== lastKnownGoodIdentity(lastKnownGood));
-      nextIndex.last_known_good_transactions = currentLocks.length > 0
-        ? retainLastKnownGoodPerRoot(
-            remainingLastKnownGood,
-            {
-              root_package_id: packageId,
-              transaction_id: lock.dependency_transaction_id,
-              closure_digest: lock.dependency_closure_digest,
-              package_locks: structuredClone(currentLocks),
-            },
-          )
-        : remainingLastKnownGood;
-      writePackageTransaction(nextIndex);
-    } catch (error) {
-      if (runtimeSourceMutation) rollbackManagedRuntimeSourceMutation(runtimeSourceMutation);
-      for (const surface of restoredPhysicalSurfaces.values()) {
-        assertManagedPolicyRollbackReady(surface.workflow_policy_migration);
-        assertPackageProfileRollbackReady(surface.profile_migration);
-      }
-      for (const materialization of scopeMaterializations) rollbackCapabilityScopeTransaction(materialization);
-      for (const [restoredPackageId, surface] of [...restoredPhysicalSurfaces.entries()].reverse()) {
-        removePhysicalCodexSurface(surface, false, restoredPackageId, {
-          retainPayloadSource: true,
-          retainPluginCache: true,
-        });
-        rollbackManagedPolicyMigration(surface.workflow_policy_migration);
-        rollbackPackageProfileMigration(surface.profile_migration);
-      }
-      for (const currentLock of currentLocks) rematerializePhysicalCodexSurfaceFromLock(currentLock, false);
-      throw error;
-    }
-    if (runtimeSourceMutation) {
-      runtimeSourceCleanup = finalizeManagedRuntimeSourceMutation(runtimeSourceMutation);
-    }
-    for (const materialization of scopeMaterializations) finalizeCapabilityScopeTransaction(materialization);
-  }
-  return {
-    version: 'g2',
-    opl_agent_package_rollback: {
-      surface_kind: 'opl_agent_package_rollback',
-      status: input.dryRun ? 'validated_no_write' : 'rolled_back',
-      dry_run: input.dryRun === true,
-      package_lock: restoredRoot,
-      dependency_package_locks: restoredLocks,
-      dependency_transaction_id: transactionId,
-      dependency_closure_digest: closureDigest,
-      scope_materializations: scopeMaterializations,
-      lifecycle_receipt: rootReceipt,
-      runtime_source_cleanup: runtimeSourceCleanup,
-      owner_route_readback: ownerRouteReadback({
-        selectedPackageId: packageId,
-        packages: restoredLocks.map((entry) => ({
-          packageId: entry.package_id,
-          lock: entry,
-          receipt: receipts.find((receipt) => receipt.package_id === entry.package_id) ?? null,
-        })),
-      }),
-      authority_boundary: refsOnlyAuthorityBoundary(),
-    },
-  };
-}
-
-export async function runOplAgentPackageRollback(input: AgentPackagePackageActionInput) {
-  const configured = await maybeRunConfiguredCarrierPrivateAction({
-    selectionInput: input,
-    action: 'rollback', // reuse-first: exception - route the existing command vocabulary through native carrier preflight.
-  });
-  if (configured) {
-    return {
-      version: 'g2',
-      opl_agent_package_rollback: {
-        surface_kind: 'opl_agent_package_rollback',
-        ...configured,
-      },
-    };
-  }
-  return withAgentPackageLifecycleTransaction(
-    input.dryRun === true,
-    async () => runOplAgentPackageRollbackUnlocked(input),
   );
 }
 
@@ -4091,25 +3575,6 @@ function runOplAgentPackageUninstallUnlocked(input: AgentPackagePackageActionInp
   const { index } = readRecoveredLockIndex(input.dryRun === true);
   assertNoRequiredInstalledDependents(index, packageId, 'uninstall');
   const { lockIndex, lock } = requireInstalledPackage(index, packageId, 'uninstall');
-  const retainLastKnownGood = packageRoleFromInstalledLock(lock) === 'workflow_profile';
-  const retainedGeneration = retainLastKnownGood
-    ? (() => {
-        const retainedClosure = installedLockClosure(index, lock);
-        const retainedClosureDigest = dependencyClosureDigest(retainedClosure);
-        return {
-          root_package_id: packageId,
-          transaction_id: sha256Text([
-            'lkg-snapshot',
-            'uninstall',
-            packageId,
-            retainedClosureDigest,
-            ...retainedClosure.map((entry) => entry.lock_ref).sort(),
-          ].join('\n')),
-          closure_digest: retainedClosureDigest,
-          package_locks: retainedClosure,
-        } satisfies AgentPackageLastKnownGood;
-      })()
-    : null;
   const physicalSurface = removePhysicalCodexSurface(
     lock.physical_surface,
     input.dryRun === true,
@@ -4123,7 +3588,6 @@ function runOplAgentPackageUninstallUnlocked(input: AgentPackagePackageActionInp
       transactionId: packageActionSourceSha256('uninstall', lock).slice(0, 16),
       dryRun: input.dryRun === true,
       packageId,
-      retainLastKnownGood,
     });
   } catch (error) {
     if (!input.dryRun) rematerializePhysicalCodexSurfaceFromLock(lock, false);
@@ -4164,13 +3628,6 @@ function runOplAgentPackageUninstallUnlocked(input: AgentPackagePackageActionInp
   if (!input.dryRun) {
     const nextIndex = structuredClone(index);
     nextIndex.packages.splice(lockIndex, 1);
-    nextIndex.last_known_good_transactions = retainedGeneration
-      ? retainLastKnownGoodPerRoot(
-          nextIndex.last_known_good_transactions ?? [],
-          retainedGeneration,
-        )
-      : (nextIndex.last_known_good_transactions ?? [])
-          .filter((entry) => entry.root_package_id !== packageId);
     try {
       writePackageTransaction(nextIndex);
     } catch (error) {
@@ -4430,7 +3887,6 @@ function emptyStatusLockIndex(): AgentPackageLockIndex {
     surface_kind: 'opl_agent_package_lock_index',
     version: 'opl-agent-package-lock-index.v1',
     packages: [],
-    last_known_good_transactions: [],
   };
 }
 
@@ -4456,7 +3912,6 @@ function retainedDescriptorLockCount(
   const descriptorIds = new Set(installedCodexPluginDescriptors.keys());
   return new Set([
     ...lockIndex.packages,
-    ...(lockIndex.last_known_good_transactions ?? []).flatMap((entry) => entry.package_locks),
   ].filter((lock) => descriptorIds.has(lock.package_id)).map((lock) => lock.package_id)).size;
 }
 
