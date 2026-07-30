@@ -1,10 +1,6 @@
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
-import {
-  parseJsonText,
-  readJsonFileOrNull,
-} from '../../../kernel/json-file.ts';
+import { parseJsonText } from '../../../kernel/json-file.ts';
 import { stringValue } from '../../../kernel/json-record.ts';
-import { resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
 import { resolveFirstPartyPackageCatalog } from '../agent-package-first-party.ts';
 import {
   managedPackageCatalogDigest,
@@ -13,118 +9,6 @@ import {
 import type { FirstPartyDirectoryCatalogSnapshot } from './directory.ts';
 import { normalizePackageManifest } from './manifest-normalizers.ts';
 import { readOplPackageArtifactWithMetadata } from '../system-installation/module-package-channel.ts';
-
-const LIVE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-const SHA256_DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
-
-type ReleaseCatalogCacheV2 = {
-  surface_kind: 'opl_agent_package_release_catalog_cache.v2';
-  catalog_ref: string;
-  release_set_descriptor_digest: string | null;
-  channel_manifest_layer_digest: string;
-  package_catalog_digest: string;
-  checked_at: string;
-  catalog_payload: unknown;
-};
-
-type NormalizedReleaseCatalogCache = {
-  source_version: 'v1' | 'v2';
-  catalog_ref: string;
-  release_set_descriptor_digest: string | null;
-  channel_manifest_layer_digest: string;
-  package_catalog_digest: string;
-  checked_at: string;
-  catalog_payload: unknown;
-};
-
-type ReleaseCatalogCacheV1 = {
-  surface_kind: 'opl_agent_package_release_catalog_cache.v1';
-  catalog_ref: string;
-  catalog_digest: string;
-  checked_at: string;
-  catalog_payload: unknown;
-};
-
-function cacheIsFresh(checkedAt: string) {
-  const checkedAtMs = Date.parse(checkedAt);
-  const ageMs = Date.now() - checkedAtMs;
-  return Number.isFinite(checkedAtMs) && ageMs >= 0 && ageMs <= LIVE_CACHE_MAX_AGE_MS;
-}
-
-function normalizeCache(value: unknown): NormalizedReleaseCatalogCache | null {
-  if (!isRecord(value)) return null;
-  const catalogRef = stringValue(value.catalog_ref);
-  const checkedAt = stringValue(value.checked_at);
-  if (!catalogRef || !checkedAt || value.catalog_payload === undefined) return null;
-  try {
-    const packageCatalogDigest = managedPackageCatalogDigest(value.catalog_payload);
-    if (value.surface_kind === 'opl_agent_package_release_catalog_cache.v2') {
-      if (!('release_set_descriptor_digest' in value)) return null;
-      const descriptorDigest = value.release_set_descriptor_digest === null
-        ? null
-        : stringValue(value.release_set_descriptor_digest);
-      const layerDigest = stringValue(value.channel_manifest_layer_digest);
-      const declaredPackageCatalogDigest = stringValue(value.package_catalog_digest);
-      if (
-        (descriptorDigest !== null && !SHA256_DIGEST_PATTERN.test(descriptorDigest))
-        || !layerDigest
-        || !SHA256_DIGEST_PATTERN.test(layerDigest)
-        || !declaredPackageCatalogDigest
-        || !SHA256_DIGEST_PATTERN.test(declaredPackageCatalogDigest)
-        || declaredPackageCatalogDigest !== packageCatalogDigest
-      ) {
-        return null;
-      }
-      return {
-        source_version: 'v2',
-        catalog_ref: catalogRef,
-        release_set_descriptor_digest: descriptorDigest,
-        channel_manifest_layer_digest: layerDigest,
-        package_catalog_digest: packageCatalogDigest,
-        checked_at: checkedAt,
-        catalog_payload: value.catalog_payload,
-      };
-    }
-    if (value.surface_kind === 'opl_agent_package_release_catalog_cache.v1') {
-      const legacy = value as ReleaseCatalogCacheV1;
-      const legacyLayerDigest = stringValue(legacy.catalog_digest);
-      if (!legacyLayerDigest) return null;
-      return {
-        source_version: 'v1',
-        catalog_ref: catalogRef,
-        release_set_descriptor_digest: null,
-        channel_manifest_layer_digest: legacyLayerDigest,
-        package_catalog_digest: packageCatalogDigest,
-        checked_at: checkedAt,
-        catalog_payload: value.catalog_payload,
-      };
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-export function readFirstPartyPackageCatalogSnapshot(): FirstPartyDirectoryCatalogSnapshot | null {
-  const cache = normalizeCache(readJsonFileOrNull(
-    resolveOplStatePaths().agent_package_release_catalog_cache_file,
-  ));
-  if (!cache || !cacheIsFresh(cache.checked_at)) return null;
-  try {
-    return {
-      catalog: normalizeManagedPackageCatalog(cache.catalog_payload),
-      freshness: 'cached',
-      catalog_ref: cache.catalog_ref,
-      release_set_descriptor_digest: cache.release_set_descriptor_digest,
-      channel_manifest_layer_digest: cache.channel_manifest_layer_digest,
-      package_catalog_digest: cache.package_catalog_digest,
-      catalog_digest: cache.channel_manifest_layer_digest,
-      checked_at: cache.checked_at,
-    };
-  } catch {
-    return null;
-  }
-}
 
 export async function refreshFirstPartyPackageCatalogSnapshot(
   packageId = 'mas',
@@ -254,8 +138,7 @@ export async function resolveFirstPartyPackageCatalogSnapshot(input: {
   persist?: boolean;
   timeoutMs?: number;
 }): Promise<FirstPartyDirectoryCatalogSnapshot | null> {
-  if (input.refresh) {
-    if (!input.packageId) return readFirstPartyPackageCatalogSnapshot();
+  if (input.refresh && input.packageId) {
     try {
       return await refreshFirstPartyPackageCatalogSnapshot(input.packageId, {
         persist: input.persist,
@@ -265,5 +148,5 @@ export async function resolveFirstPartyPackageCatalogSnapshot(input: {
       return null;
     }
   }
-  return input.packageId ? null : readFirstPartyPackageCatalogSnapshot();
+  return null;
 }

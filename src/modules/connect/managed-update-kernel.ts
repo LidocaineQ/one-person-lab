@@ -40,12 +40,7 @@ import {
 } from './managed-update-owner-boundary.ts';
 import { buildInstallationCarrierComponent } from './managed-update-kernel-parts/installation-carrier.ts';
 import { buildRuntimeSubstrateComponent } from './managed-update-kernel-parts/runtime-substrate.ts';
-import {
-  readFirstPartyPackageCatalogSnapshot,
-  resolveFirstPartyPackageCatalogSnapshot,
-} from './agent-package-registry-parts/release-catalog-cache.ts';
 import { readBundledFullRuntimePackageCatalog } from './agent-package-registry-parts/bundled-full-runtime-catalog.ts';
-import type { FirstPartyDirectoryCatalogSnapshot } from './agent-package-registry-parts/directory.ts';
 import { asRecord, booleanValue, stringValue } from './managed-update-kernel-parts/shared.ts';
 
 function requestedComponentId(componentId: string | undefined) {
@@ -100,7 +95,6 @@ function moduleState(module: Record<string, unknown>): ManagedUpdateComponentSta
 function buildCapabilityPackagesComponent(
   modules: Record<string, unknown>[],
   channel: string,
-  releaseCatalog: FirstPartyDirectoryCatalogSnapshot | null,
 ): ManagedUpdateComponent {
   const defaultModules = modules.filter((entry) => booleanValue(entry, 'default_install') === true);
   const moduleStates = defaultModules.map((entry) => ({
@@ -243,12 +237,6 @@ function buildCapabilityPackagesComponent(
       managed_module_count: targetStates.length,
       projection_source: 'native_module_directory',
       module_states: moduleStates,
-      release_catalog: releaseCatalog ? {
-        freshness: releaseCatalog.freshness,
-        catalog_ref: releaseCatalog.catalog_ref,
-        catalog_digest: releaseCatalog.catalog_digest,
-        checked_at: releaseCatalog.checked_at,
-      } : null,
       bundled_full_runtime_catalog: bundledCatalog ? {
         catalog_ref: bundledCatalog.catalogRef,
         catalog_digest: bundledCatalog.catalogSha256,
@@ -411,18 +399,7 @@ export async function buildManagedUpdateKernelProjection(
   if (shouldBuildComponent(requested, 'opl_packages')) {
     const modulesPayload = buildOplModules({ profile: 'fast' }).modules;
     const modules = modulesPayload.modules as Record<string, unknown>[];
-    const refreshReleaseCatalog = input.refreshReleaseCatalog ?? (
-      input.operation === 'check'
-      || input.operation === 'plan'
-      || (input.operation === 'apply' && !input.componentId)
-    );
-    const releaseCatalog = refreshReleaseCatalog
-      ? await resolveFirstPartyPackageCatalogSnapshot({
-          refresh: true,
-          persist: input.persistReleaseCatalog !== false,
-        })
-      : readFirstPartyPackageCatalogSnapshot();
-    const capabilityPackages = buildCapabilityPackagesComponent(modules, channel, releaseCatalog);
+    const capabilityPackages = buildCapabilityPackagesComponent(modules, channel);
     const projectionStatus = buildCodexProjectionStatus(capabilityPackages);
     components.push({
       ...capabilityPackages,

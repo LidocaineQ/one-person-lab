@@ -545,6 +545,7 @@ test('OPL Packages reads developer checkout readiness from the native module pro
     assert.equal(currentPackages.state, 'current');
     assert.equal(currentPackages.plan.action, 'none');
     assert.equal(currentPackages.current.projection_source, 'native_module_directory');
+    assert.equal(Object.hasOwn(currentPackages.current, 'release_catalog'), false);
     assert.equal(Object.hasOwn(currentPackages.current, 'package_lock_states'), false);
     assert.equal(magCurrent.install_origin, 'invalid_checkout');
 

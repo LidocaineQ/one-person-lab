@@ -77,7 +77,7 @@ type AgentPackageUpdateReconciliation = {
   };
   catalogRef: string | null;
   catalogDigest: string | null;
-  catalogFreshness: 'live' | 'cached' | null;
+  catalogFreshness: 'live' | null;
   checkedAt: string;
 };
 

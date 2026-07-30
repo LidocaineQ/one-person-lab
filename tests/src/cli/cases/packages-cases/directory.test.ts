@@ -29,7 +29,6 @@ import {
   normalizeRegistryDocument,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
 import { fetchAndValidateRegistry } from '../../../../../src/modules/connect/agent-package-registry-parts/selection.ts';
-import { readFirstPartyPackageCatalogSnapshot } from '../../../../../src/modules/connect/agent-package-registry-parts/release-catalog-cache.ts';
 import {
   defaultHomeShortcutPreferences,
   mergedHomeShortcutPreferences,
@@ -925,7 +924,7 @@ test('external registry selectors reject forged claims and never become a direct
 });
 
 
-test('ordinary list, status, App, and Home surfaces reject non-current Release Catalog caches', () => {
+test('ordinary list, status, App, and Home surfaces ignore retired Release Catalog cache files', () => {
   const fixture = isolatedPackageEnv('opl-package-directory');
   const codexFixture = createFakeCodexFixture(`
 if [[ "$1" == "--version" ]]; then
@@ -1092,23 +1091,6 @@ exit 1
           checked_at: checkedAt,
           catalog_payload: catalogPayload,
         }));
-      const snapshot = readFirstPartyPackageCatalogSnapshot();
-      if (cacheCase !== 'valid') {
-        assert.equal(snapshot, null);
-      } else {
-        assert.ok(snapshot);
-        assert.equal(snapshot.freshness, 'cached');
-        assert.equal(
-          buildAgentPackageDirectory({
-            locks: [],
-            detail: 'fast',
-            firstPartyCatalog: snapshot,
-          }).entries.find((entry) => entry.package_id === 'mas')
-            ?.home_shortcuts[0]?.shortcut_id,
-          'future-main',
-        );
-      }
-
       const actual = readOrdinarySurfaces();
       assert.deepEqual(actual, baseline, `${cacheCase} Release Catalog cache changed ordinary read models`);
       for (const profile of ['fast', 'full'] as const) {
@@ -1334,7 +1316,7 @@ test('static owner presentation projects only when no selected catalog manifest 
   assert.deepEqual(selectedMag.home_shortcuts, []);
   }));
 
-test('expired legacy v1 Release Set cache is rejected', () => {
+test('legacy v1 Release Set cache file is ignored by package directory reads', () => {
   const fixture = isolatedPackageEnv('opl-package-directory-legacy-release-cache');
   const previousStateDir = process.env.OPL_STATE_DIR;
   const packageCatalog = {};
@@ -1356,8 +1338,6 @@ test('expired legacy v1 Release Set cache is rejected', () => {
         catalog_payload: catalogPayload,
       }),
     );
-    const snapshot = readFirstPartyPackageCatalogSnapshot();
-    assert.equal(snapshot, null);
     assert.equal(
       listOplAgentPackages().opl_agent_packages.directory.first_party_release_currentness.status,
       'unknown',
