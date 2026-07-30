@@ -239,18 +239,32 @@ test('packages rejects local package payloads missing bundled required skills', 
   }
 });
 
-test('packages owns profile install, semantic merge apply, and non-destructive uninstall', () => {
+test('legacy profile apply requires a native owner and leaves Package state unchanged', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-profile-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-profile-home-'));
   const codexHome = path.join(homeDir, '.codex');
   const pluginSourcePath = createPluginSourceFixture();
   const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-profile-manifest-'));
+  const codexBinary = path.join(fixtureDir, 'empty-codex.mjs');
   const existingProfile = '# User profile\n\nKeep this local instruction.\n';
   const candidateProfile = '# Package profile\n\nUse the managed package preference.\n';
   const authoringSource = '# Authoring source\n';
-  const env = { OPL_STATE_DIR: stateDir, HOME: homeDir, CODEX_HOME: codexHome };
+  const env = {
+    OPL_STATE_DIR: stateDir,
+    HOME: homeDir,
+    CODEX_HOME: codexHome,
+    OPL_CODEX_PLUGIN_BIN: codexBinary,
+  };
 
   try {
+    fs.writeFileSync(codexBinary, `#!/usr/bin/env node
+if (process.argv.slice(2).join(' ') === 'plugin list --json') {
+  process.stdout.write(JSON.stringify({ installed: [], available: [] }));
+} else {
+  process.exitCode = 2;
+}
+`);
+    fs.chmodSync(codexBinary, 0o755);
     fs.mkdirSync(path.join(pluginSourcePath, 'templates'), { recursive: true });
     fs.mkdirSync(path.join(pluginSourcePath, 'profile'), { recursive: true });
     fs.writeFileSync(path.join(pluginSourcePath, 'templates', 'AGENTS.md'), candidateProfile, 'utf8');
@@ -288,63 +302,25 @@ test('packages owns profile install, semantic merge apply, and non-destructive u
     const mergedFile = path.join(migration.merge_packet_path, 'merged', 'AGENTS.md');
     const mergedProfile = `${existingProfile}\n${candidateProfile}`;
     fs.writeFileSync(mergedFile, mergedProfile, 'utf8');
-    const applied = runCli([
+    const lockPath = path.join(stateDir, 'agent-package-locks.json');
+    const lockBefore = fs.readFileSync(lockPath, 'utf8');
+    const failure = runCliFailure([
       'packages',
       'profile',
       'apply',
       'third.party.research',
       '--merged-file',
       mergedFile,
-    ], env) as any;
-    assert.equal(applied.opl_agent_package_profile_apply.status, 'profile_applied');
-    assert.equal(applied.opl_agent_package_profile_apply.profile_migration.status, 'semantic_merge_applied');
-    assert.equal(fs.readFileSync(path.join(codexHome, 'AGENTS.md'), 'utf8'), mergedProfile);
-    assert.equal(fs.existsSync(applied.opl_agent_package_profile_apply.profile_migration.receipt_path), true);
-
-    const uninstall = runCli(['packages', 'uninstall', 'third.party.research'], env) as any;
-    assert.equal(uninstall.opl_agent_package_uninstall.physical_surface.profile_migration.status, 'retained_on_uninstall');
-    assert.equal(fs.readFileSync(path.join(codexHome, 'AGENTS.md'), 'utf8'), mergedProfile);
-    assert.equal(fs.readFileSync(path.join(codexHome, 'TASTE.md'), 'utf8'), authoringSource);
-
-    const appliedMigration = applied.opl_agent_package_profile_apply.profile_migration;
-    const previousCodexHome = process.env.CODEX_HOME;
-    process.env.CODEX_HOME = codexHome;
-    let rolledBack: ReturnType<typeof rollbackPackageProfileMigration>;
-    try {
-      assert.doesNotThrow(() => assertPackageProfileRollbackReady(appliedMigration));
-      rolledBack = rollbackPackageProfileMigration(
-        appliedMigration,
-        { retainBackups: true },
-      );
-    } finally {
-      if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
-      else process.env.CODEX_HOME = previousCodexHome;
-    }
-    assert.equal(rolledBack.status, 'rolled_back');
-    assert.equal(rolledBack.rollback_backups_retained, true);
+    ], env);
+    assert.equal(failure.payload.error.code, 'contract_shape_invalid');
     assert.equal(
-      rolledBack.mutation_actions.filter((entry: any) => entry.backup_ref)
-        .every((entry: any) => fs.existsSync(entry.backup_ref)),
-      true,
+      failure.payload.error.details.failure_code,
+      'agent_package_profile_apply_native_carrier_required',
     );
+    assert.equal('repair_command' in failure.payload.error.details, false);
     assert.equal(fs.readFileSync(path.join(codexHome, 'AGENTS.md'), 'utf8'), existingProfile);
-    assert.equal(fs.existsSync(path.join(codexHome, 'TASTE.md')), false);
-    assert.equal(fs.existsSync(applied.opl_agent_package_profile_apply.profile_migration.receipt_path), false);
-    const finalizePreviousCodexHome = process.env.CODEX_HOME;
-    process.env.CODEX_HOME = codexHome;
-    let finalized: ReturnType<typeof finalizePackageProfileRollback>;
-    try {
-      finalized = finalizePackageProfileRollback(rolledBack);
-    } finally {
-      if (finalizePreviousCodexHome === undefined) delete process.env.CODEX_HOME;
-      else process.env.CODEX_HOME = finalizePreviousCodexHome;
-    }
-    assert.equal(finalized.rollback_backups_retained, false);
-    assert.equal(
-      rolledBack.mutation_actions.filter((entry: any) => entry.backup_ref)
-        .every((entry: any) => !fs.existsSync(entry.backup_ref)),
-      true,
-    );
+    assert.equal(fs.readFileSync(path.join(codexHome, 'TASTE.md'), 'utf8'), authoringSource);
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBefore);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
     fs.rmSync(homeDir, { recursive: true, force: true });

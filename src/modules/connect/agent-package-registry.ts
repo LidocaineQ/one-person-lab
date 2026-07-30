@@ -91,7 +91,6 @@ import {
   buildAgentPackageCarrierAuthority,
 } from './agent-package-registry-parts/carrier-authority.ts';
 import {
-  applyPackageProfile,
   assertPackageProfileRollbackReady,
   finalizePackageProfileRollback,
   rollbackPackageProfileMigration,
@@ -4109,72 +4108,6 @@ export async function runOplAgentPackageActivate(input: AgentPackagePackageActio
   return runOplAgentPackageActivateUnlocked(input);
 }
 
-function runOplAgentPackageProfileApplyUnlocked(input: AgentPackageProfileApplyInput) {
-  const packageId = requirePackageId(input.packageId, 'profile_apply');
-  const { index } = readRecoveredLockIndex(input.dryRun === true);
-  const { lockIndex, lock } = requireInstalledPackage(index, packageId, 'profile_apply');
-  const profileMigration = applyPackageProfile({
-    lock,
-    mergedFile: input.mergedFile,
-    dryRun: input.dryRun === true,
-  });
-  const physicalSurface = {
-    ...lock.physical_surface!,
-    profile_migration: profileMigration,
-    writes_performed: !input.dryRun,
-    reload_required: !input.dryRun,
-  };
-  const receipt = lifecycleReceipt({
-    action: 'profile_apply',
-    actionStatus: input.dryRun ? 'validated' : 'completed',
-    packageId,
-    manifestUrl: lock.manifest_url,
-    manifestSha256: lock.manifest_sha256,
-    packageLockRef: lock.lock_ref,
-    rollbackRef: lock.rollback_ref,
-    sourceKind: lock.source_kind,
-    trustTier: lock.trust_tier,
-    sourceSha256: sha256Text([
-      packageActionSourceSha256('profile_apply', lock),
-      profileMigration.target_sha256 ?? '',
-    ].join('\n')),
-    writesPerformed: !input.dryRun,
-    physicalSurface,
-    sourceArtifactRef: lock.source_artifact_ref ?? null,
-    artifactDigest: lock.artifact_digest ?? null,
-    ownerSourceCommit: lock.owner_source_commit ?? null,
-    carrierAuthority: lock.carrier_authority ?? null,
-    releaseChannelRef: lock.release_channel_ref ?? null,
-    releaseChannelDigest: lock.release_channel_digest ?? null,
-  });
-  const updatedLock = {
-    ...lock,
-    updated_at: input.dryRun ? lock.updated_at : nowIso(),
-    action_receipt_id: receipt.receipt_ref,
-    physical_surface: physicalSurface,
-  };
-  if (!input.dryRun) {
-    index.packages[lockIndex] = updatedLock;
-    writePackageTransaction(index);
-  }
-  return {
-    version: 'g2',
-    opl_agent_package_profile_apply: {
-      surface_kind: 'opl_agent_package_profile_apply',
-      status: input.dryRun ? 'validated_no_write' : 'profile_applied',
-      dry_run: input.dryRun === true,
-      package_lock: updatedLock,
-      profile_migration: profileMigration,
-      lifecycle_receipt: receipt,
-      owner_route_readback: ownerRouteReadback({
-        selectedPackageId: updatedLock.package_id,
-        packages: [{ packageId: updatedLock.package_id, lock: updatedLock, receipt }],
-      }),
-      authority_boundary: refsOnlyAuthorityBoundary(),
-    },
-  };
-}
-
 export async function runOplAgentPackageProfileApply(input: AgentPackageProfileApplyInput) {
   const configured = await maybeRunConfiguredCarrierPrivateAction({
     selectionInput: input,
@@ -4189,9 +4122,14 @@ export async function runOplAgentPackageProfileApply(input: AgentPackageProfileA
       },
     };
   }
-  return withAgentPackageLifecycleTransaction(
-    input.dryRun === true,
-    async () => runOplAgentPackageProfileApplyUnlocked(input),
+  const packageId = requirePackageId(input.packageId, 'profile_apply');
+  throw new FrameworkContractError(
+    'contract_shape_invalid',
+    'Agent package profile apply requires a fresh callable native owner descriptor.',
+    {
+      package_id: packageId,
+      failure_code: 'agent_package_profile_apply_native_carrier_required',
+    },
   );
 }
 
