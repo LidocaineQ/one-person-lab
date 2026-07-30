@@ -57,6 +57,7 @@ test('agent availability is package health only in fast and full profiles', () =
     codex_visible: true,
     package_version: '1.0.0',
     package_lock_ref: `/locks/${package_id}.json`,
+    lock_ref: `opl://legacy-lock/${package_id}`,
   }]));
   const descriptorByAgent = new Map<string, StandardAgentDescriptorInterface | null>([
     ['mas', masDescriptor()],
@@ -75,6 +76,7 @@ test('agent availability is package health only in fast and full profiles', () =
   assert.equal(fast.every((entry) => entry.availability === 'available'), true);
   assert.equal(fast.every((entry) => entry.last_checked_at === '2026-07-13T08:00:00.000Z'), true);
   assert.equal(fast.every((entry) => entry.independent_from_work_item_state), true);
+  assert.equal(fast.every((entry) => entry.source_ref === `/packages/${entry.package_id}`), true);
   assert.equal(fast.find((entry) => entry.agent_id === 'mag')?.inventory_descriptor.status, 'readable');
 
   const fullStatuses = Object.fromEntries(Object.entries(fastStatuses).map(([packageId, status]) => [packageId, {

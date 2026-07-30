@@ -145,9 +145,7 @@ export function buildAgentCatalog(input: {
       source: profile === 'fast' ? 'package_directory' : 'package_status',
       independent_from_work_item_state: true,
       package_id: descriptorPackageId,
-      source_ref: stringValue(packageStatus?.package_lock_ref)
-        ?? stringValue(packageStatus?.lock_ref)
-        ?? stringValue(packageItem?.source_path)
+      source_ref: stringValue(packageItem?.source_path)
         ?? stringValue(packageItem?.managed_source_path),
       inventory_descriptor: {
         status: descriptorStatus,
