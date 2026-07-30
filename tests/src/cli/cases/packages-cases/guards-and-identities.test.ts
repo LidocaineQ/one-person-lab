@@ -818,7 +818,6 @@ test('packages preserves installed lock and returns an operation receipt when up
         owner_route_readback: {
           packages: Array<{
             materializer: Record<string, unknown>;
-            package_core: Record<string, unknown>;
             carrier_adapters: Array<Record<string, unknown>>;
           }>;
         };
@@ -836,14 +835,9 @@ test('packages preserves installed lock and returns an operation receipt when up
     assert.equal(installReadback.owner_route_readback.packages.length, 1);
     const ownerPackage = installReadback.owner_route_readback.packages[0];
     assert.equal(Object.hasOwn(ownerPackage, 'lock'), false);
-    assert.equal(Object.hasOwn(ownerPackage.package_core, 'lock'), false);
     assert.equal(Object.hasOwn(ownerPackage, 'digest'), false);
-    assert.equal(Object.hasOwn(ownerPackage.package_core, 'digest'), false);
-    assert.equal(Object.hasOwn(ownerPackage.package_core, 'carrier_authority'), false);
-    assert.equal(Object.hasOwn(ownerPackage.package_core, 'trust'), false);
-    assert.equal(Object.hasOwn(ownerPackage.package_core, 'exposure'), false);
     assert.equal(Object.hasOwn(ownerPackage, 'descriptor'), false);
-    assert.equal(Object.hasOwn(ownerPackage.package_core, 'descriptor'), false);
+    assert.equal(Object.hasOwn(ownerPackage, 'package_core'), false);
     assert.equal(Object.hasOwn(ownerPackage, 'carrier_authority_readiness'), true);
     const physicalDetailFields = [
       'plugin_source_path',
@@ -870,7 +864,6 @@ test('packages preserves installed lock and returns an operation receipt when up
     for (const adapter of ownerPackage.carrier_adapters) {
       assert.equal(Object.hasOwn(adapter, 'managed_policy_currentness'), false);
     }
-    assert.equal(Object.hasOwn(ownerPackage.package_core, 'lifecycle'), false);
 
     const failure = runCliFailure([
       'packages',

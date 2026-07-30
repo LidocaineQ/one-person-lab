@@ -753,18 +753,6 @@ export type AgentPackageLock = {
   developer_checkout_source?: AgentPackageDeveloperCheckoutSource | null;
 };
 
-export type AgentPackageCoreReadback = {
-  core_kind: 'opl_agent_package_core';
-  package_id: string;
-  dependencies: {
-    required_skill_ids: string[];
-    optional_skill_refs: string[];
-    capability_dependencies: AgentPackageCapabilityDependency[];
-    resolved_dependencies: AgentPackageResolvedDependency[];
-    dependency_readiness: AgentPackageDependencyReadiness;
-  };
-};
-
 export type AgentPackageLifecycleReceipt = {
   surface_kind: 'opl_agent_package_lifecycle_receipt';
   receipt_ref: string;
@@ -947,7 +935,6 @@ export type AgentPackageOwnerRouteReadbackItem = {
     managed_policy_currentness: AgentPackageManagedPolicyCurrentness;
   };
   lifecycle_ux: AgentPackageLifecycleUxReadback;
-  package_core: AgentPackageCoreReadback;
   carrier_adapters: AgentPackageCarrierAdapterReadback[];
   authority_boundary: AgentPackageAuthorityBoundary;
 };

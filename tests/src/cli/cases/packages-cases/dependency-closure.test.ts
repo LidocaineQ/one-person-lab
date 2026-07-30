@@ -142,15 +142,16 @@ test('MAS package lifecycle atomically installs and repairs its 11-core capabili
     assert.equal(current.opl_agent_package_status.operational_ready, true);
     assert.equal(current.opl_agent_package_status.launch_allowed, true);
     assert.equal(current.opl_agent_package_status.owner_route_readback.packages.length, 1);
+    const ownerRoutePackage = current.opl_agent_package_status.owner_route_readback.packages[0];
     assert.equal(
-      current.opl_agent_package_status.owner_route_readback.packages[0].package_core.package_id,
+      ownerRoutePackage.package_id,
       FIXTURE_CONSUMER_PACKAGE_ID,
     );
     assert.deepEqual(
-      current.opl_agent_package_status.owner_route_readback.packages[0]
-        .package_core.dependencies.dependency_readiness,
+      ownerRoutePackage.package_dependency_readiness,
       current.opl_agent_package_status.package_dependency_readiness,
     );
+    assert.equal(Object.hasOwn(ownerRoutePackage, 'package_core'), false);
 
     const currentFromWorkspace = runCliInCwd([
       'packages', 'status', '--package-id', FIXTURE_CONSUMER_PACKAGE_ID,

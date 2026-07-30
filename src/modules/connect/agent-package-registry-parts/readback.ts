@@ -345,17 +345,6 @@ function ownerRouteReadbackItem(input: {
     allowed_when_blocked: ['status', 'doctor', 'repair'],
     materializer,
     lifecycle_ux: lifecycleUx,
-    package_core: {
-      core_kind: 'opl_agent_package_core',
-      package_id: input.packageId,
-      dependencies: {
-        required_skill_ids: input.lock?.bundled_required_skill_ids ?? surface?.materialized_required_skill_ids ?? [],
-        optional_skill_refs: input.lock?.optional_skill_refs ?? [],
-        capability_dependencies: input.lock?.capability_dependencies ?? [],
-        resolved_dependencies: input.lock?.resolved_dependencies ?? [],
-        dependency_readiness: readiness,
-      },
-    },
     carrier_adapters: [{
       adapter_kind: 'codex_plugin_carrier',
       carrier: 'codex_plugin',
