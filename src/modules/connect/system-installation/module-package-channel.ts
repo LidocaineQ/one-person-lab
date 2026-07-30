@@ -887,6 +887,76 @@ function validateArchiveEntries(
       failure_code: 'opl_package_source_archive_entry_invalid',
     });
   }
+  const verbose = runCommand('tar', ['-tvzf', archivePath]);
+  if (verbose.exitCode !== 0) {
+    throw new FrameworkContractError('build_command_failed', 'Failed to inspect OPL package source archive entry types.', {
+      ...details,
+      archive_path: archivePath,
+      stdout: verbose.stdout,
+      stderr: verbose.stderr,
+    });
+  }
+  const entryTypes = verbose.stdout.split('\n').filter(Boolean).map((entry) => entry.trimStart()[0]);
+  const invalidTypeCount = entryTypes.filter((entry) => entry !== '-' && entry !== 'd').length;
+  if (entryTypes.length !== entries.length || invalidTypeCount > 0) {
+    throw new FrameworkContractError('contract_shape_invalid', 'OPL package source archive may contain only regular files and directories.', {
+      ...details,
+      archive_path: archivePath,
+      archive_root: expectedRoot,
+      entry_count: entries.length,
+      inspected_entry_count: entryTypes.length,
+      invalid_entry_type_count: invalidTypeCount,
+      failure_code: 'opl_package_source_archive_entry_type_invalid',
+    });
+  }
+}
+
+function validateExtractedArchiveRoot(
+  unpackPath: string,
+  sourcePath: string,
+  details: Record<string, unknown>,
+) {
+  const unpackRealPath = fs.realpathSync.native(unpackPath);
+  const sourceStat = fs.lstatSync(sourcePath);
+  const sourceRealPath = fs.realpathSync.native(sourcePath);
+  if (sourceStat.isSymbolicLink()
+    || !sourceStat.isDirectory()
+    || !sourceRealPath.startsWith(`${unpackRealPath}${path.sep}`)) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Extracted OPL package source root is not a contained physical directory.', {
+      ...details,
+      source_path: sourcePath,
+      source_real_path: sourceRealPath,
+      failure_code: 'opl_package_source_archive_root_unsafe',
+    });
+  }
+  const visit = (directory: string) => {
+    for (const entry of fs.readdirSync(directory)) {
+      const candidate = path.join(directory, entry);
+      const stat = fs.lstatSync(candidate);
+      const realPath = fs.realpathSync.native(candidate);
+      if (!realPath.startsWith(`${sourceRealPath}${path.sep}`)) {
+        throw new FrameworkContractError('contract_shape_invalid', 'Extracted OPL package source entry escapes its physical root.', {
+          ...details,
+          source_path: sourcePath,
+          entry_path: candidate,
+          entry_real_path: realPath,
+          failure_code: 'opl_package_source_archive_entry_unsafe',
+        });
+      }
+      if (stat.isDirectory() && !stat.isSymbolicLink()) {
+        visit(candidate);
+      } else if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) {
+        throw new FrameworkContractError('contract_shape_invalid', 'Extracted OPL package source may contain only physical single-link files and directories.', {
+          ...details,
+          source_path: sourcePath,
+          entry_path: candidate,
+          entry_type: stat.isSymbolicLink() ? 'symbolic_link' : stat.isFile() ? 'hard_link' : 'special',
+          failure_code: 'opl_package_source_archive_entry_type_invalid',
+        });
+      }
+    }
+  };
+  visit(sourcePath);
 }
 
 function extractArchiveToStage(
@@ -913,7 +983,7 @@ function extractArchiveToStage(
 
   const expectedRoot = safeArchiveRoot(archiveRoot);
   const sourcePath = path.join(unpackPath, expectedRoot);
-  if (!fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isDirectory()) {
+  if (!fs.existsSync(sourcePath) || !fs.lstatSync(sourcePath).isDirectory()) {
     fs.rmSync(unpackPath, { recursive: true, force: true });
     throw new FrameworkContractError('contract_shape_invalid', 'OPL package source archive is missing its declared root.', {
       ...details,
@@ -921,6 +991,12 @@ function extractArchiveToStage(
       archive_root: expectedRoot,
       failure_code: 'opl_package_source_archive_root_missing',
     });
+  }
+  try {
+    validateExtractedArchiveRoot(unpackPath, sourcePath, details);
+  } catch (error) {
+    fs.rmSync(unpackPath, { recursive: true, force: true });
+    throw error;
   }
 
   fs.mkdirSync(path.dirname(stagePath), { recursive: true });

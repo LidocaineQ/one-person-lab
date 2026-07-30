@@ -52,6 +52,7 @@ function writePackageChannelFixture(input: {
   version: string;
   sourceHeadSha: string;
   sourceFiles?: Record<string, string>;
+  mutateSource?: (sourceRoot: string) => void;
 }) {
   const blobRoot = path.join(input.root, 'blobs');
   const fakeBin = path.join(input.root, 'bin');
@@ -70,6 +71,7 @@ function writePackageChannelFixture(input: {
     fs.mkdirSync(path.dirname(targetPath), { recursive: true });
     fs.writeFileSync(targetPath, contents, 'utf8');
   }
+  input.mutateSource?.(sourceRoot);
 
   execFileSync('tar', ['-czf', archivePath, input.repoName], {
     cwd: path.dirname(sourceRoot),
@@ -390,6 +392,48 @@ test('managed module install and update consume the package channel by default',
     assert.match(rollbackMarker.package_channel_lifecycle.rollback_ref ?? '', /^opl:\/\/managed-module-package-channel\/medautoscience\/rollback\//);
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
+  }
+});
+
+test('managed package channel rejects symbolic-link and hard-link source archive entries', () => {
+  for (const linkType of ['symbolic', 'hard'] as const) {
+    const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), `opl-module-package-${linkType}-home-`));
+    const modulesRoot = path.join(homeRoot, 'managed-modules');
+    const channel = writePackageChannelFixture({
+      root: path.join(homeRoot, `channel-${linkType}`),
+      moduleId: 'medautoscience',
+      repoName: 'med-autoscience',
+      version: `26.7.30-${linkType}`,
+      sourceHeadSha: `package-channel-${linkType}-sha`,
+      mutateSource(sourceRoot) {
+        const linkPath = path.join(sourceRoot, `${linkType}-entry`);
+        if (linkType === 'symbolic') {
+          fs.symlinkSync('/tmp/opl-package-archive-escape', linkPath);
+        } else {
+          fs.linkSync(path.join(sourceRoot, 'README.md'), linkPath);
+        }
+      },
+    });
+    try {
+      const failure = runCliFailure(['connect', 'install', '--module', 'medautoscience'], {
+        HOME: homeRoot,
+        CODEX_HOME: path.join(homeRoot, 'codex-home'),
+        OPL_MODULES_ROOT: modulesRoot,
+        OPL_PACKAGE_CHANNEL_MANIFEST_REF: `ghcr.io/owner/one-person-lab-manifest:26.7.30-${linkType}`,
+        OPL_STATE_DIR: path.join(homeRoot, 'opl-state'),
+        PATH: `${channel.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
+      });
+      assert.equal(failure.status, 3);
+      assert.equal(failure.payload.error.code, 'contract_shape_invalid');
+      assert.equal(
+        failure.payload.error.details.failure_code,
+        'opl_package_source_archive_entry_type_invalid',
+      );
+      assert.equal(fs.existsSync(path.join(modulesRoot, 'med-autoscience')), false);
+      assert.equal(fs.existsSync(path.join(modulesRoot, 'med-autoscience.stage')), false);
+    } finally {
+      fs.rmSync(homeRoot, { recursive: true, force: true });
+    }
   }
 });
 
