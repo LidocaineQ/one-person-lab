@@ -39,7 +39,6 @@ export type AgentPackageLifecycleAction =
   | 'activate'
   | 'use'
   | 'rollback'
-  | 'profile_apply'
   | 'uninstall'
   | 'hide'
   | 'unhide'
@@ -120,12 +119,6 @@ export type AgentPackagePackageActionInput = {
 };
 
 export type AgentPackageRepairInput = AgentPackagePackageActionInput & AgentPackageManifestValidateInput;
-
-export type AgentPackageProfileApplyInput = {
-  packageId: string;
-  mergedFile: string;
-  dryRun?: boolean;
-};
 
 export type AgentPackageHomeShortcutPreferencesSetInput = {
   packageId: string;

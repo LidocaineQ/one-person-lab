@@ -54,7 +54,6 @@ test('package help surface keeps lifecycle commands ordinary and routes internal
     'packages hide',
     'packages unhide',
     'packages preferences set',
-    'packages profile apply',
   ]);
   assert.equal(commandSpecs['packages activate']?.help_surface, 'migration_compatibility');
 });

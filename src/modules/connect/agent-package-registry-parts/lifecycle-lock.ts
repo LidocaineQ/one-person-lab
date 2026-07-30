@@ -60,7 +60,6 @@ export function packageActionStatus(action: AgentPackageLifecycleAction) {
     activate: 'activated',
     use: 'used',
     rollback: 'rolled_back',
-    profile_apply: 'profile_applied',
     uninstall: 'uninstalled',
     hide: 'hidden',
     unhide: 'visible',

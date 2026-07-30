@@ -67,7 +67,6 @@ export {
   runOplAgentPackageHomeShortcutPreferencesSet,
   runOplAgentPackageInstall,
   runOplAgentPackageManifestValidate,
-  runOplAgentPackageProfileApply,
   runOplAgentPackageRepair,
   runOplAgentPackageRollback,
   runOplAgentPackageStatus,
@@ -80,7 +79,6 @@ export type {
   AgentPackageInstallInput,
   AgentPackageManifestValidateInput,
   AgentPackagePackageActionInput,
-  AgentPackageProfileApplyInput,
   AgentPackageRepairInput,
 } from './agent-package-registry.ts';
 export {

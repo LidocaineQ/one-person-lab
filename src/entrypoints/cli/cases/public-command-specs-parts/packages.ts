@@ -10,7 +10,6 @@ import {
   runOplAgentPackageHomeShortcutPreferencesSet,
   runOplAgentPackageInstall,
   runOplAgentPackageManifestValidate,
-  runOplAgentPackageProfileApply,
   runOplAgentPackageRepair,
   runOplAgentPackageRollback,
   runOplAgentPackageStatus,
@@ -21,7 +20,6 @@ import {
   type AgentPackageHomeShortcutPreferencesSetInput,
   type AgentPackageManifestValidateInput,
   type AgentPackagePackageActionInput,
-  type AgentPackageProfileApplyInput,
   type AgentPackageRepairInput,
 } from '../../../../modules/connect/index.ts';
 import { FrameworkContractError } from '../../../../kernel/contract-validation.ts';
@@ -332,29 +330,6 @@ function parsePreferences(
   };
 }
 
-function parseProfileApply(args: string[], spec: CommandSpec): AgentPackageProfileApplyInput {
-  const positional = takePositionalPackageId(args, 'packages profile apply', spec);
-  const parsed = parseRegisteredCommandOptions('packages profile apply', positional.args, spec);
-  const optionPackageId = readOptionalString(parsed['package-id']);
-  if (positional.packageId && optionPackageId) {
-    throw buildUsageError('packages profile apply accepts a positional package id or --package-id, not both.', spec, {
-      conflicting: ['<package_id>', '--package-id'],
-    });
-  }
-  const packageId = positional.packageId ?? optionPackageId;
-  const mergedFile = readOptionalString(parsed['merged-file']);
-  if (!packageId || !mergedFile) {
-    throw buildUsageError('packages profile apply requires a package id and --merged-file.', spec, {
-      required: ['<package_id> or --package-id', '--merged-file'],
-    });
-  }
-  return {
-    packageId,
-    mergedFile,
-    dryRun: parsed['dry-run'] === true,
-  };
-}
-
 export function buildPackagesCommandSpecs(
   getContracts: () => FrameworkContracts,
   getCommandSpec: (command: string) => CommandSpec,
@@ -544,16 +519,6 @@ export function buildPackagesCommandSpecs(
         'packages rollback',
         parsePackageAction('packages rollback', args, getCommandSpec('packages rollback')),
       )),
-    },
-    'packages profile apply': {
-      usage: 'opl packages profile apply <package_id> --merged-file <path> [--dry-run]',
-      summary: 'Apply a reviewed semantic profile merge through the installed OPL Package lifecycle.',
-      examples: ['opl packages profile apply opl-flow --merged-file /path/to/merged/AGENTS.md --json'],
-      group: 'packages',
-      help_surface: 'diagnostic_drilldown',
-      handler: (args) => runOplAgentPackageProfileApply(
-        parseProfileApply(args, getCommandSpec('packages profile apply')),
-      ),
     },
     'packages uninstall': {
       usage: 'opl packages uninstall <package_id> [--dry-run]',

@@ -34,7 +34,6 @@ const PACKAGE_LIFECYCLE_ACTION_REFS: AgentPackageLifecycleAction[] = [
   'optimize',
   'repair',
   'rollback',
-  'profile_apply',
   'uninstall',
   'hide',
   'unhide',
@@ -141,7 +140,7 @@ export function agentPackageLifecycleUxReadback(input: {
       package_id: input.lock.package_id,
       status: 'attention_needed',
       reason: surface.profile_migration.note,
-      action_ref: 'profile_apply',
+      action_ref: null,
     }));
   } else if (surface?.profile_migration.status && surface.profile_migration.status !== 'not_requested') {
     conditions.push(lifecycleCondition({

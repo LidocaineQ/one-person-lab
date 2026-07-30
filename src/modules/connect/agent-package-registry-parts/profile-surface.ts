@@ -245,14 +245,13 @@ function writeMergePacket(input: {
     fs.copyFileSync(source, target);
     return target;
   });
-  const applyCommand = `opl packages profile apply ${input.packageId} --merged-file ${JSON.stringify(mergedPath)}`;
   fs.writeFileSync(
     path.join(packetRoot, 'MERGE.md'),
     [
       `Merge ${existingPath} with ${candidatePath}.`,
       'Preserve user-owned instructions and incorporate the candidate OPL package profile semantics.',
-      `Write the reviewed result to ${mergedPath}, then run:`,
-      applyCommand,
+      `Write the reviewed result to ${mergedPath}.`,
+      'The Framework Package lifecycle does not apply user profile bytes; retain this packet for an owner-controlled profile workflow.',
       '',
     ].join('\n'),
     'utf8',
@@ -269,9 +268,9 @@ function writeMergePacket(input: {
     target_path: input.targetPath,
     existing_sha256: sha256File(existingPath),
     candidate_sha256: sha256File(candidatePath),
-    apply_command: applyCommand,
+    apply_command: null,
   });
-  return { packetRoot, applyCommand };
+  return { packetRoot };
 }
 
 export function noPackageProfileMigration(note: string): AgentPackageProfileMigration {
@@ -337,7 +336,6 @@ export function materializePackageProfile(input: {
     let status: AgentPackageProfileMigration['status'];
     let writesPerformed = mutationActions.length > 0;
     let mergePacketPath: string | null = null;
-    let applyCommand: string | null = null;
     let note: string;
 
     if (!targetExists) {
@@ -406,7 +404,7 @@ export function materializePackageProfile(input: {
       }
     } else {
       status = 'semantic_merge_required';
-      note = 'Existing user profile was preserved; semantic merge and explicit package apply are required.';
+      note = 'Existing user profile was preserved; the merge packet is diagnostic and requires an owner-controlled profile workflow.';
       if (!input.dryRun) {
         const packet = writeMergePacket({
           packageId: input.manifest.package_id,
@@ -418,7 +416,6 @@ export function materializePackageProfile(input: {
           codexHome: input.codexHome,
         });
         mergePacketPath = packet.packetRoot;
-        applyCommand = packet.applyCommand;
         writesPerformed = true;
       }
     }
@@ -432,7 +429,7 @@ export function materializePackageProfile(input: {
       target_sha256: fs.existsSync(targetPath) ? sha256File(targetPath) : null,
       receipt_path: fs.existsSync(receiptPath) ? receiptPath : null,
       merge_packet_path: mergePacketPath,
-      apply_command: applyCommand,
+      apply_command: null,
       authoring_source_paths: authoringSourcePaths,
       mutation_actions: mutationActions,
       rollback_backups_retained: false,
@@ -449,119 +446,6 @@ export function materializePackageProfile(input: {
     }
     throw error;
   }
-}
-
-export function applyPackageProfile(input: {
-  lock: AgentPackageLock;
-  mergedFile: string;
-  dryRun: boolean;
-}): AgentPackageProfileMigration {
-  const current = input.lock.physical_surface?.profile_migration;
-  if (!current?.source_path || !current.target_path) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Package does not declare an installed runtime profile.', {
-      package_id: input.lock.package_id,
-      failure_code: 'agent_package_profile_not_requested',
-    });
-  }
-  if (current.status !== 'semantic_merge_required' || !current.merge_packet_path) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Package profile apply requires a pending semantic merge packet.', {
-      package_id: input.lock.package_id,
-      profile_status: current.status,
-      failure_code: 'agent_package_profile_merge_not_pending',
-    });
-  }
-  const codexHome = input.lock.physical_surface?.codex_home;
-  if (!codexHome) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Package profile apply requires the installed Codex home.', {
-      package_id: input.lock.package_id,
-      failure_code: 'agent_package_profile_state_missing',
-    });
-  }
-  if (path.resolve(codexHome) !== path.resolve(resolveCodexHome())) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Installed package profile belongs to a different Codex home.', {
-      package_id: input.lock.package_id,
-      codex_home: codexHome,
-      active_codex_home: resolveCodexHome(),
-      failure_code: 'agent_package_persisted_path_unsafe',
-    });
-  }
-  const targetPath = path.resolve(current.target_path);
-  const resolvedCodexHome = path.resolve(codexHome);
-  if (!targetPath.startsWith(`${resolvedCodexHome}${path.sep}`)) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Installed package profile target escapes the Codex home.', {
-      package_id: input.lock.package_id,
-      target_path: targetPath,
-      codex_home: resolvedCodexHome,
-      failure_code: 'agent_package_profile_path_invalid',
-    });
-  }
-  const mergedFile = path.resolve(input.mergedFile);
-  if (!fs.existsSync(mergedFile) || !fs.statSync(mergedFile).isFile()) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Merged package profile file does not exist.', {
-      package_id: input.lock.package_id,
-      merged_file: mergedFile,
-      failure_code: 'agent_package_merged_profile_missing',
-    });
-  }
-  const mergedContent = fs.readFileSync(mergedFile);
-  if (mergedContent.length === 0) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Merged package profile file must not be empty.', {
-      package_id: input.lock.package_id,
-      merged_file: mergedFile,
-      failure_code: 'agent_package_merged_profile_empty',
-    });
-  }
-  const resolvedPacketRoot = path.resolve(current.merge_packet_path);
-  assertSafePersistedPackagePath({
-    candidatePath: current.merge_packet_path,
-    allowedRoots: [path.join(resolveCodexHome(), 'state')],
-    pathKind: 'profile_migration.merge_packet_path',
-  });
-  if (!mergedFile.startsWith(`${resolvedPacketRoot}${path.sep}`)) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Merged profile file must come from the pending package merge packet.', {
-      package_id: input.lock.package_id,
-      merged_file: mergedFile,
-      merge_packet_path: resolvedPacketRoot,
-      failure_code: 'agent_package_merged_profile_outside_packet',
-    });
-  }
-  const actualReceiptPath = current.receipt_path ?? profileReceiptPath(codexHome, input.lock.package_id);
-  const backupRoot = profileBackupRoot(codexHome, input.lock.package_id);
-  const mutationActions = [...current.mutation_actions];
-  if (!input.dryRun) {
-    mutationActions.push(writeProfileMutation({
-      targetPath,
-      content: mergedContent,
-      surfaceKind: 'runtime_profile',
-      backupRoot,
-    }));
-    const receipt = recordProfileReceipt({
-      packageId: input.lock.package_id,
-      packageVersion: input.lock.package_version,
-      sourcePath: current.source_path,
-      targetPath,
-      status: 'semantic_merge_applied',
-      receiptPath: actualReceiptPath,
-      backupRoot,
-    });
-    mutationActions.push(receipt.mutation);
-    removePersistedProfilePath(current.merge_packet_path, 'profile_migration.merge_packet_path', true);
-  }
-  return {
-    ...current,
-    status: input.dryRun ? 'validated_no_write' : 'semantic_merge_applied',
-    target_sha256: input.dryRun
-      ? crypto.createHash('sha256').update(mergedContent).digest('hex')
-      : sha256File(targetPath),
-    receipt_path: input.dryRun ? current.receipt_path : actualReceiptPath,
-    merge_packet_path: input.dryRun ? current.merge_packet_path : null,
-    apply_command: null,
-    mutation_actions: mutationActions,
-    writes_performed: !input.dryRun,
-    note: input.dryRun
-      ? 'Reviewed semantic merge validates without writing.'
-      : 'Reviewed semantic merge applied with a rollback-verified profile backup.',
-  };
 }
 
 export function retainedPackageProfile(previous: AgentPackageProfileMigration | undefined) {

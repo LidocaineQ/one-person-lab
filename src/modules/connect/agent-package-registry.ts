@@ -179,7 +179,6 @@ import type {
   AgentPackagePackageActionInput,
   AgentPackagePhysicalSurface,
   AgentPackageScopeMaterialization,
-  AgentPackageProfileApplyInput,
   AgentPackageRepairInput,
   AgentPackageRegistryEntry,
 } from './agent-package-registry-parts/types.ts';
@@ -189,7 +188,6 @@ export type {
   AgentPackageInstallInput,
   AgentPackageManifestValidateInput,
   AgentPackagePackageActionInput,
-  AgentPackageProfileApplyInput,
   AgentPackageRepairInput,
 } from './agent-package-registry-parts/types.ts';
 
@@ -1622,8 +1620,7 @@ async function runOplAgentPackageInstallUnlocked(input: AgentPackageInstallInput
 type ConfiguredCarrierSelectionInput =
   | AgentPackageInstallInput
   | AgentPackageRepairInput
-  | AgentPackagePackageActionInput
-  | AgentPackageProfileApplyInput;
+  | AgentPackagePackageActionInput;
 
 async function resolveFreshConfiguredCarrier(input: ConfiguredCarrierSelectionInput) {
   const packageId = canonicalAgentPackageId(input.packageId);
@@ -1753,7 +1750,7 @@ async function maybeRunConfiguredCarrierLifecycle(input: {
   });
 }
 
-type ConfiguredCarrierPrivateAction = 'rollback' | 'profile_apply'; // reuse-first: exception - these are native carrier action labels, not Framework updater authority.
+type ConfiguredCarrierPrivateAction = 'rollback'; // reuse-first: exception - this is a native carrier action label, not Framework updater authority.
 
 function configuredCarrierPrivateActionReadback(input: {
   action: ConfiguredCarrierPrivateAction;
@@ -4080,31 +4077,6 @@ function packageActivationPreflightHardStopReason(packageStatus: any) {
 
 export async function runOplAgentPackageActivate(input: AgentPackagePackageActionInput) {
   return runOplAgentPackageActivateUnlocked(input);
-}
-
-export async function runOplAgentPackageProfileApply(input: AgentPackageProfileApplyInput) {
-  const configured = await maybeRunConfiguredCarrierPrivateAction({
-    selectionInput: input,
-    action: 'profile_apply',
-  });
-  if (configured) {
-    return {
-      version: 'g2',
-      opl_agent_package_profile_apply: {
-        surface_kind: 'opl_agent_package_profile_apply',
-        ...configured,
-      },
-    };
-  }
-  const packageId = requirePackageId(input.packageId, 'profile_apply');
-  throw new FrameworkContractError(
-    'contract_shape_invalid',
-    'Agent package profile apply requires a fresh callable native owner descriptor.',
-    {
-      package_id: packageId,
-      failure_code: 'agent_package_profile_apply_native_carrier_required',
-    },
-  );
 }
 
 export async function runOplAgentPackageFrameworkLink(input: { agentRoot: string; dryRun?: boolean; checkOnly?: boolean }) {

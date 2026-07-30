@@ -1117,7 +1117,7 @@ test('preloaded native status reader does not parse or replace a corrupt legacy 
   }
 });
 
-test('native private lifecycle actions stay carrier-owned when legacy authorities are corrupt', () => {
+test('native rollback stays carrier-owned when legacy authorities are corrupt', () => { // reuse-first: exception - native carrier rollback readback only; no Framework updater runs.
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-private-actions-'));
   const stateDir = path.join(root, 'opl-state');
   const binary = path.join(root, 'fake-codex.mjs');
@@ -1154,33 +1154,20 @@ test('native private lifecycle actions stay carrier-owned when legacy authoritie
     const lockBefore = fs.readFileSync(lockPath, 'utf8');
     const ledgerBefore = fs.readFileSync(ledgerPath, 'utf8');
 
-    for (const action of ['rollback', 'profile apply'] as const) { // reuse-first: exception - preserve the retained public action vocabulary while proving no Framework writer runs.
-      const result = action === 'profile apply'
-        ? runCli([
-            'packages', 'profile', 'apply', packageId,
-            '--merged-file', path.join(root, 'missing-merged-file.md'),
-          ], env) as any
-        : runCli(['packages', action, packageId], env) as any;
-      const surfaceKey = action === 'profile apply'
-        ? 'opl_agent_package_profile_apply'
-        : `opl_agent_package_${action}`;
-      const commandKey = action === 'profile apply'
-        ? 'packages_profile_apply'
-        : `packages_${action}`;
-      assertCommandOutputSchema(commandKey, result);
-      const surface = result[surfaceKey];
-      assert.equal(surface.status, 'carrier_owned');
-      assert.equal(surface.lifecycle_authority, 'carrier_owned');
-      assert.equal(surface.writes_performed, false);
-      assert.equal(surface.package_lock, null);
-      assert.equal(surface.lifecycle_receipt, null);
-      assert.equal(surface.configured_carrier.status, 'installed');
-      assert.equal(surface.configured_carrier.operation, 'list');
-      assert.equal(surface.configured_carrier.native_action_dispatched, true);
-      assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBefore);
-      assert.equal(fs.readFileSync(ledgerPath, 'utf8'), ledgerBefore);
-      assert.equal(fs.existsSync(sqlitePath), false);
-    }
+    const result = runCli(['packages', 'rollback', packageId], env) as any; // reuse-first: exception - native carrier rollback readback only; no Framework updater runs.
+    assertCommandOutputSchema('packages_rollback', result);
+    const surface = result.opl_agent_package_rollback;
+    assert.equal(surface.status, 'carrier_owned');
+    assert.equal(surface.lifecycle_authority, 'carrier_owned');
+    assert.equal(surface.writes_performed, false);
+    assert.equal(surface.package_lock, null);
+    assert.equal(surface.lifecycle_receipt, null);
+    assert.equal(surface.configured_carrier.status, 'installed');
+    assert.equal(surface.configured_carrier.operation, 'list');
+    assert.equal(surface.configured_carrier.native_action_dispatched, true);
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBefore);
+    assert.equal(fs.readFileSync(ledgerPath, 'utf8'), ledgerBefore);
+    assert.equal(fs.existsSync(sqlitePath), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -1207,22 +1194,15 @@ test('initial native carrier discovery failure does not enter legacy private lif
     fs.writeFileSync(lockPath, invalidLock, 'utf8');
     fs.writeFileSync(ledgerPath, invalidLedger, 'utf8');
 
-    for (const action of ['rollback', 'profile apply'] as const) { // reuse-first: allow - exercise the retained public command vocabulary without implementing a Framework lifecycle writer.
-      const failure = action === 'profile apply'
-        ? runCliFailure([
-            'packages', 'profile', 'apply', packageId,
-            '--merged-file', path.join(root, 'missing-merged-file.md'),
-          ], env)
-        : runCliFailure(['packages', action, packageId], env);
-      assert.equal(
-        failure.payload.error.details.failure_code,
-        'configured_codex_plugin_carrier_action_failed',
-      );
-      assert.equal(failure.payload.error.details.action, 'list');
-      assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLock);
-      assert.equal(fs.readFileSync(ledgerPath, 'utf8'), invalidLedger);
-      assert.equal(fs.existsSync(sqlitePath), false);
-    }
+    const failure = runCliFailure(['packages', 'rollback', packageId], env); // reuse-first: exception - native carrier failure guard only; no Framework updater runs.
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'configured_codex_plugin_carrier_action_failed',
+    );
+    assert.equal(failure.payload.error.details.action, 'list');
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLock);
+    assert.equal(fs.readFileSync(ledgerPath, 'utf8'), invalidLedger);
+    assert.equal(fs.existsSync(sqlitePath), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

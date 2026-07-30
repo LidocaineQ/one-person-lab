@@ -21,15 +21,26 @@ import {
   rollbackPackageProfileMigration,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/profile-surface.ts';
 
+function writeEmptyCodexPluginCarrier(binary: string) {
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+if (process.argv.slice(2).join(' ') !== 'plugin list --json') process.exit(2);
+process.stdout.write(JSON.stringify({ installed: [], available: [] }));
+`, 'utf8');
+  fs.chmodSync(binary, 0o755);
+}
+
 test('packages materializes manifest-declared remote plugin payloads', async () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-remote-payload-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-remote-payload-home-'));
+  const codexBinary = path.join(homeDir, 'empty-codex.mjs');
   const env = {
     OPL_STATE_DIR: stateDir,
     HOME: homeDir,
     CODEX_HOME: path.join(homeDir, '.codex'),
+    OPL_CODEX_PLUGIN_BIN: codexBinary,
   };
   try {
+    writeEmptyCodexPluginCarrier(codexBinary);
     await withRemotePayloadAgentPackageServer(async (baseUrl) => {
       const install = await runCliAsync([
         'packages',
@@ -239,7 +250,7 @@ test('packages rejects local package payloads missing bundled required skills', 
   }
 });
 
-test('legacy profile apply requires a native owner and leaves Package state unchanged', () => {
+test('legacy profile merge packet is diagnostic and exposes no Framework apply command', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-profile-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-profile-home-'));
   const codexHome = path.join(homeDir, '.codex');
@@ -297,27 +308,17 @@ if (process.argv.slice(2).join(' ') === 'plugin list --json') {
     assert.equal(fs.readFileSync(path.join(codexHome, 'AGENTS.md'), 'utf8'), existingProfile);
     assert.equal(fs.readFileSync(path.join(codexHome, 'TASTE.md'), 'utf8'), authoringSource);
     assert.equal(fs.existsSync(path.join(migration.merge_packet_path, 'packet.json')), true);
-    assert.match(migration.apply_command, /^opl packages profile apply third\.party\.research /);
-
-    const mergedFile = path.join(migration.merge_packet_path, 'merged', 'AGENTS.md');
-    const mergedProfile = `${existingProfile}\n${candidateProfile}`;
-    fs.writeFileSync(mergedFile, mergedProfile, 'utf8');
+    assert.equal(migration.apply_command, null);
+    const packet = parseJsonText(
+      fs.readFileSync(path.join(migration.merge_packet_path, 'packet.json'), 'utf8'),
+    ) as any;
+    assert.equal(packet.apply_command, null);
+    assert.match(
+      fs.readFileSync(path.join(migration.merge_packet_path, 'MERGE.md'), 'utf8'),
+      /does not apply user profile bytes/,
+    );
     const lockPath = path.join(stateDir, 'agent-package-locks.json');
     const lockBefore = fs.readFileSync(lockPath, 'utf8');
-    const failure = runCliFailure([
-      'packages',
-      'profile',
-      'apply',
-      'third.party.research',
-      '--merged-file',
-      mergedFile,
-    ], env);
-    assert.equal(failure.payload.error.code, 'contract_shape_invalid');
-    assert.equal(
-      failure.payload.error.details.failure_code,
-      'agent_package_profile_apply_native_carrier_required',
-    );
-    assert.equal('repair_command' in failure.payload.error.details, false);
     assert.equal(fs.readFileSync(path.join(codexHome, 'AGENTS.md'), 'utf8'), existingProfile);
     assert.equal(fs.readFileSync(path.join(codexHome, 'TASTE.md'), 'utf8'), authoringSource);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBefore);
@@ -491,10 +492,17 @@ test('app action execute routes install_from_manifest_url to Framework package l
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-app-action-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-app-action-home-'));
   const codexHome = path.join(homeDir, '.codex');
+  const codexBinary = path.join(homeDir, 'empty-codex.mjs');
   const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-manifest-'));
   const pluginSourcePath = createPluginSourceFixture();
-  const env = { OPL_STATE_DIR: stateDir, HOME: homeDir, CODEX_HOME: codexHome };
+  const env = {
+    OPL_STATE_DIR: stateDir,
+    HOME: homeDir,
+    CODEX_HOME: codexHome,
+    OPL_CODEX_PLUGIN_BIN: codexBinary,
+  };
   try {
+    writeEmptyCodexPluginCarrier(codexBinary);
     const manifestPath = path.join(fixtureDir, 'manifest.json');
     fs.writeFileSync(manifestPath, formatJsonPayload(agentPackageManifest({ pluginSourcePath })), 'utf8');
     const manifestUrl = pathToFileURL(manifestPath).href;
