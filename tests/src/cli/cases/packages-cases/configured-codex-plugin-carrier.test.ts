@@ -630,6 +630,7 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     assert.equal(Object.hasOwn(install.opl_agent_package_install, 'package_lock'), false);
     assert.equal(Object.hasOwn(install.opl_agent_package_install, 'lifecycle_receipt'), false);
     assert.equal(Object.hasOwn(install.opl_agent_package_install, 'opl_private_state_writes'), false);
+    assert.equal(Object.hasOwn(install.opl_agent_package_install, 'registry_entry'), false);
     assertNoPrivateState();
 
     const lockPath = path.join(stateDir, 'agent-package-locks.json');
@@ -869,6 +870,7 @@ if (args.join(' ') === 'plugin list --json') {
     assert.equal(Object.hasOwn(updateSurface, 'package_lock'), false);
     assert.equal(Object.hasOwn(updateSurface, 'lifecycle_receipt'), false);
     assert.equal(Object.hasOwn(updateSurface, 'opl_private_state_writes'), false);
+    assert.equal(Object.hasOwn(updateSurface, 'registry_entry'), false);
     assert.equal(updateSurface.configured_carrier.status, 'installed');
     assert.equal(updateSurface.configured_carrier.operation, 'update');
     assert.deepEqual(

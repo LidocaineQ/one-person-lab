@@ -1587,12 +1587,7 @@ async function resolveFreshConfiguredCarrier(input: ConfiguredCarrierSelectionIn
     });
     const descriptor = packageId ? discovered.get(packageId) : null;
     if (descriptor) {
-      return {
-        descriptor: descriptor.carrier,
-        selection: {
-          registryEntry: null,
-        },
-      };
+      return descriptor.carrier;
     }
   }
   // Bare actions must use a fresh installed owner descriptor; an uninstalled
@@ -1621,16 +1616,13 @@ async function resolveFreshConfiguredCarrier(input: ConfiguredCarrierSelectionIn
       },
     );
   }
-  return manifest.configured_codex_plugin_carrier
-    ? { descriptor: manifest.configured_codex_plugin_carrier, selection }
-    : null;
+  return manifest.configured_codex_plugin_carrier ?? null;
 }
 
 function configuredCarrierLifecycleReadback(input: {
   action: Exclude<ConfiguredCodexPluginCarrierAction, 'list'>;
   dryRun: boolean;
   carrier: ConfiguredCodexPluginCarrierReadback;
-  registryEntry: AgentPackageRegistryEntry | null;
 }) {
   const nativeReady = input.carrier.status === 'installed'
     && input.carrier.executor.status === 'callable'
@@ -1663,7 +1655,6 @@ function configuredCarrierLifecycleReadback(input: {
     dry_run: input.dryRun,
     package_id: input.carrier.package_id,
     configured_carrier: input.carrier,
-    registry_entry: input.registryEntry,
     authority_boundary: refsOnlyAuthorityBoundary(),
   };
 }
@@ -1676,7 +1667,7 @@ async function maybeRunConfiguredCarrierLifecycle(input: {
   if (!selected) return null;
   const dryRun = input.selectionInput.dryRun === true;
   const carrier = runConfiguredCodexPluginCarrier({
-    descriptor: selected.descriptor,
+    descriptor: selected,
     action: input.action,
     dryRun,
   });
@@ -1684,7 +1675,6 @@ async function maybeRunConfiguredCarrierLifecycle(input: {
     action: input.action,
     dryRun,
     carrier,
-    registryEntry: selected.selection.registryEntry,
   });
 }
 
