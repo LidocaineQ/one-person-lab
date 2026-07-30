@@ -1666,14 +1666,6 @@ function configuredCarrierLifecycleReadback(input: {
     lifecycle_receipt: null,
     configured_carrier: input.carrier,
     registry_entry: input.registryEntry,
-    opl_private_state_writes: {
-      package_lock: false,
-      lifecycle_receipt: false,
-      lifecycle_ledger: false,
-      last_known_good: false,
-      rollback: false, // reuse-first: allow - reports that the legacy OPL writer stayed inactive.
-      transaction_mutex: false,
-    },
     authority_boundary: refsOnlyAuthorityBoundary(),
   };
 }
@@ -3024,18 +3016,12 @@ export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
       configured,
       dryRun: input.dryRun === true,
     });
-    const retired = retirement.writes_performed;
     return {
       version: 'g2',
       opl_agent_package_repair: {
         surface_kind: 'opl_agent_package_repair',
         ...configured,
         legacy_state_retirement: retirement,
-        opl_private_state_writes: {
-          ...configured.opl_private_state_writes,
-          package_lock: retired && retirement.retired.package_lock,
-          transaction_mutex: retired,
-        },
       },
     };
   }

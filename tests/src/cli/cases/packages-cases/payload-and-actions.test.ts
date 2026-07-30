@@ -373,8 +373,7 @@ process.stdout.write(JSON.stringify({ installed: [{
     assert.equal(disabledResult.package_lock, null);
     assert.equal(disabledResult.lifecycle_receipt, null);
     assert.equal(disabledResult.configured_carrier.enabled, false);
-    assert.equal(disabledResult.opl_private_state_writes.package_lock, false);
-    assert.equal(disabledResult.opl_private_state_writes.lifecycle_receipt, false);
+    assert.equal(Object.hasOwn(disabledResult, 'opl_private_state_writes'), false);
     assert.equal(fs.existsSync(stateDir), false);
 
     const enabled = runCli(['packages', 'enable', 'fixture-native-carrier'], env) as any;

@@ -165,8 +165,7 @@ test('explicit native-confirmed repair retires descriptor-owned lock and strips 
     assert.equal(retirement.retired.package_lock, true);
     assert.equal('last_known_good_transactions' in retirement.retired, false);
     assert.equal('last_known_good_transactions' in retirement.retained, false);
-    assert.equal(repaired.opl_agent_package_repair.opl_private_state_writes.package_lock, true);
-    assert.equal(repaired.opl_agent_package_repair.opl_private_state_writes.transaction_mutex, true);
+    assert.equal(Object.hasOwn(repaired.opl_agent_package_repair, 'opl_private_state_writes'), false);
 
     assert.equal(fs.existsSync(fixture.lockPath), false);
     assert.equal(fs.existsSync(legacyLedgerPath), false);
