@@ -117,7 +117,6 @@ test('Codex user instructions restore from one installed owner descriptor withou
     assert.equal(defaultInstructions.source_root, fixture.sourceRoot);
     assert.equal(defaultInstructions.source_path, fs.realpathSync(fixture.profilePath));
     assert.equal(defaultInstructions.package_version, '1.2.3');
-    assert.equal(defaultInstructions.package_lock_ref, null);
     assert.equal(defaultInstructions.content, 'Descriptor-owned default instructions.\n');
     assert.equal(fs.existsSync(path.join(process.env.OPL_STATE_DIR, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(process.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json')), false);
@@ -199,7 +198,6 @@ test('Codex user instructions use SHA preconditions, backup, and atomic readback
     const lockOnlyDefault = readOplFlowDefaultUserInstructions();
     assert.equal(lockOnlyDefault.status, 'unavailable');
     assert.equal(lockOnlyDefault.source, 'installed_owner_descriptor');
-    assert.equal(lockOnlyDefault.package_lock_ref, null);
     assert.equal(lockOnlyDefault.content, null);
 
     const missing = readCodexUserInstructions();
@@ -229,7 +227,6 @@ test('Codex user instructions use SHA preconditions, backup, and atomic readback
     assert.equal(oplFlowDefault.status, 'available');
     assert.equal(oplFlowDefault.source, 'installed_owner_descriptor');
     assert.equal(oplFlowDefault.package_version, '1.2.3');
-    assert.equal(oplFlowDefault.package_lock_ref, null);
     assert.equal(oplFlowDefault.content, 'Descriptor-owned default instructions.\n');
     assert.equal(oplFlowDefault.plugin_payload_manifest_sha256, null);
 

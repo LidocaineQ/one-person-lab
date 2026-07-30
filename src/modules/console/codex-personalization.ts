@@ -181,7 +181,6 @@ export function restoreCodexUserInstructionsFromOplFlowDefault(input: {
         status: defaultInstructions.status,
         reason: defaultInstructions.reason,
         source_path: defaultInstructions.source_path,
-        package_lock_ref: defaultInstructions.package_lock_ref,
       },
     );
   }
