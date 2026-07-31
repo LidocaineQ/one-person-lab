@@ -287,16 +287,26 @@ export function prepareLegacyOplSkillsMigration(input: {
   };
 }
 
+export function isOplFlowCoreSkillsTarget(input: {
+  packageId: string;
+  requiredSkillIds: string[];
+}) {
+  return input.packageId === FLOW_PACKAGE_ID
+    && MIGRATED_SKILL_IDS.every((skillId) => input.requiredSkillIds.includes(skillId));
+}
+
 function requiresLegacyMigration(input: {
   descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
   action: ConfiguredCodexPluginCarrierAction;
 }) {
-  return input.descriptor.packageId === FLOW_PACKAGE_ID
-    && (input.action === 'install' || input.action === 'update' || input.action === 'repair')
-    && MIGRATED_SKILL_IDS.every((skillId) => input.descriptor.executor.requiredSkillIds.includes(skillId));
+  return isOplFlowCoreSkillsTarget({
+    packageId: input.descriptor.packageId,
+    requiredSkillIds: input.descriptor.executor.requiredSkillIds,
+  })
+    && (input.action === 'install' || input.action === 'update' || input.action === 'repair');
 }
 
-function assertMigrationCarrierReadback(readback: ConfiguredCodexPluginCarrierReadback) {
+export function assertOplFlowCoreSkillsCarrierReadback(readback: ConfiguredCodexPluginCarrierReadback) {
   if (
     readback.status !== 'installed'
     || readback.executor.status !== 'callable'
@@ -342,7 +352,7 @@ export function runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration(inpu
   });
   try {
     const carrier = runConfiguredCodexPluginCarrier({ ...input, env });
-    if (input.dryRun !== true) assertMigrationCarrierReadback(carrier);
+    if (input.dryRun !== true) assertOplFlowCoreSkillsCarrierReadback(carrier);
     return {
       carrier,
       legacySkillMigration: migration.commit(),

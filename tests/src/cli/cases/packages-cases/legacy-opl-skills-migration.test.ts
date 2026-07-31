@@ -137,6 +137,10 @@ if (command === 'plugin add ${flowPluginSelector} --json') {
     process.exit(42);
   }
 }
+if (command === 'plugin list --json' && process.env.FIXTURE_FAIL_PLUGIN_LIST === '1') {
+  process.stderr.write('fixture plugin list failure');
+  process.exit(43);
+}
 const result = spawnSync(${JSON.stringify(input.delegate)}, args, {
   env: process.env,
   encoding: 'utf8',
@@ -296,6 +300,33 @@ function writeDeveloperFlowCheckout(root: string) {
     'commit', '-qm', 'fixture Flow 0.1.30',
   ], { cwd: checkout });
   return checkout;
+}
+
+function projectStaleInstalledFlowDescriptor(surface: any) {
+  const pluginRoot = surface.marketplace_plugin_path;
+  const requiredSkillIds = ['opl-flow', 'coordinate-concurrent-tasks'];
+  const makeWritable = (target: string) => {
+    const stat = fs.lstatSync(target);
+    if (stat.isDirectory()) {
+      fs.chmodSync(target, 0o755);
+      for (const entry of fs.readdirSync(target)) makeWritable(path.join(target, entry));
+    } else {
+      fs.chmodSync(target, stat.mode & 0o111 ? 0o755 : 0o644);
+    }
+  };
+  makeWritable(pluginRoot);
+  const pluginManifestPath = path.join(pluginRoot, '.codex-plugin', 'plugin.json');
+  const pluginManifest = JSON.parse(fs.readFileSync(pluginManifestPath, 'utf8'));
+  pluginManifest.version = '0.1.29';
+  fs.writeFileSync(pluginManifestPath, formatJsonPayload(pluginManifest));
+  fs.writeFileSync(path.join(pluginRoot, 'opl-package.json'), formatJsonPayload(flowManifest({
+    version: '0.1.29',
+    requiredSkillIds,
+    marketplaceRoot: surface.marketplace_root,
+  })));
+  for (const skillId of skillIds) {
+    fs.rmSync(path.join(pluginRoot, 'skills', skillId), { recursive: true, force: true });
+  }
 }
 
 function fixture(label: string, source = 'gaofeng21cn/opl-skills') {
@@ -538,7 +569,7 @@ test('OPL Flow 0.1.29 descriptor does not retire Skills that it does not bundle'
   }
 });
 
-test('public packages update migrates legacy Skills before exposing the five-Skill Flow target', () => {
+test('descriptor-only packages update migrates legacy Skills before exposing the configured five-Skill Flow target', () => {
   const state = publicLifecycleFixture('update-success');
   try {
     const next = writeFlowMarketplace({
@@ -685,6 +716,113 @@ test('public packages install from a developer checkout retires legacy Skills be
       `${surface.physical_surface.plugin_id}@${surface.physical_surface.marketplace_id}`,
     );
     assert.equal(pluginList.installed[0].source.path, surface.physical_surface.marketplace_plugin_path);
+  } finally {
+    removeFixtureTree(state.root);
+  }
+});
+
+test('managed Flow update keeps the managed owner when an installed descriptor is also present', () => {
+  const state = publicLifecycleFixture('managed-update');
+  try {
+    const previousCheckout = writeDeveloperFlowCheckout(path.join(state.root, 'workspace-previous'));
+    const legacyAgentsRoot = path.join(state.root, 'legacy-agents');
+    fs.renameSync(state.agentsRoot, legacyAgentsRoot);
+    const previous = runCli(['packages', 'install', 'opl-flow'], {
+      ...state.env,
+      OPL_MODULE_PATH_OPLFLOW: previousCheckout,
+      OPL_MODULE_SOURCE_MODE: 'git_checkout',
+    }) as any;
+    fs.renameSync(legacyAgentsRoot, state.agentsRoot);
+    assert.equal(previous.opl_agent_package_install.package_lock.package_version, '0.1.30');
+    for (const skillId of skillIds) {
+      assert.equal(fs.existsSync(path.join(state.skillsRoot, skillId)), true);
+    }
+    projectStaleInstalledFlowDescriptor(previous.opl_agent_package_install.physical_surface);
+
+    const nextCheckout = writeDeveloperFlowCheckout(path.join(state.root, 'workspace-next'));
+    const update = runCli(['packages', 'update', 'opl-flow'], {
+      ...state.env,
+      OPL_MODULE_PATH_OPLFLOW: nextCheckout,
+      OPL_MODULE_SOURCE_MODE: 'git_checkout',
+    }) as any;
+    const surface = update.opl_agent_package_update;
+    assert.equal(surface.status, 'updated');
+    assert.equal(surface.reconciliation_action, 'source_reconcile');
+    assert.equal(surface.package_lock.package_version, '0.1.30');
+    assert.equal(surface.package_lock.source_kind, 'developer_checkout_override');
+    assert.equal(surface.legacy_skill_migration.status, 'migrated');
+    assert.equal(Object.hasOwn(surface, 'configured_carrier'), false);
+    assert.deepEqual(surface.physical_surface.materialized_required_skill_ids, flowSkillIds);
+    for (const skillId of skillIds) {
+      assert.equal(fs.existsSync(path.join(state.skillsRoot, skillId)), false);
+    }
+    const pluginList = JSON.parse(execFileSync(state.codex.codexPath, ['plugin', 'list', '--json'], {
+      env: { ...process.env, ...state.env },
+      encoding: 'utf8',
+    }));
+    assert.equal(pluginList.installed.length, 1);
+    assert.equal(pluginList.installed[0].version, '0.1.30');
+  } finally {
+    removeFixtureTree(state.root);
+  }
+});
+
+test('managed Flow update restores the managed owner and legacy projections when native readback fails', () => {
+  const state = publicLifecycleFixture('managed-update-readback-rollback');
+  try {
+    const previousCheckout = writeDeveloperFlowCheckout(path.join(state.root, 'workspace-previous'));
+    const legacyAgentsRoot = path.join(state.root, 'legacy-agents');
+    fs.renameSync(state.agentsRoot, legacyAgentsRoot);
+    const previous = runCli(['packages', 'install', 'opl-flow'], {
+      ...state.env,
+      OPL_MODULE_PATH_OPLFLOW: previousCheckout,
+      OPL_MODULE_SOURCE_MODE: 'git_checkout',
+    }) as any;
+    fs.renameSync(legacyAgentsRoot, state.agentsRoot);
+    const previousSurface = previous.opl_agent_package_install.physical_surface;
+    const packageLockPath = path.join(state.env.OPL_STATE_DIR, 'agent-package-locks.json');
+    projectStaleInstalledFlowDescriptor(previousSurface);
+    const packageLockBefore = fs.readFileSync(packageLockPath);
+    const skillLockBefore = fs.readFileSync(state.lockPath);
+    const pluginBefore = JSON.parse(execFileSync(state.codex.codexPath, ['plugin', 'list', '--json'], {
+      env: { ...process.env, ...state.env },
+      encoding: 'utf8',
+    }));
+    assert.equal(pluginBefore.installed.length, 1);
+    assert.equal(pluginBefore.installed[0].version, '0.1.29');
+    assert.equal(pluginBefore.installed[0].source.path, previousSurface.marketplace_plugin_path);
+
+    const nextCheckout = writeDeveloperFlowCheckout(path.join(state.root, 'workspace-next'));
+    const failure = runCliFailure(['packages', 'update', 'opl-flow'], {
+      ...state.env,
+      OPL_MODULE_PATH_OPLFLOW: nextCheckout,
+      OPL_MODULE_SOURCE_MODE: 'git_checkout',
+      FIXTURE_FAIL_PLUGIN_LIST: '1',
+    });
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'opl_flow_legacy_skill_native_readback_failed',
+    );
+    assert.deepEqual(fs.readFileSync(packageLockPath), packageLockBefore);
+    assert.deepEqual(fs.readFileSync(state.lockPath), skillLockBefore);
+    for (const skillId of skillIds) {
+      assert.equal(fs.existsSync(path.join(state.skillsRoot, skillId)), true);
+    }
+    assert.equal(fs.existsSync(previousSurface.codex_plugin_cache_path), true);
+    assert.equal(fs.existsSync(previousSurface.marketplace_plugin_path), true);
+
+    const pluginAfter = JSON.parse(execFileSync(state.codex.codexPath, ['plugin', 'list', '--json'], {
+      env: { ...process.env, ...state.env },
+      encoding: 'utf8',
+    }));
+    assert.equal(pluginAfter.installed.length, 1);
+    assert.equal(pluginAfter.installed[0].version, '0.1.30');
+    assert.equal(pluginAfter.installed[0].source.path, previousSurface.marketplace_plugin_path);
+    assert.deepEqual(
+      flowSkillIds.filter((skillId) =>
+        fs.existsSync(path.join(pluginAfter.installed[0].source.path, 'skills', skillId, 'SKILL.md'))),
+      flowSkillIds,
+    );
   } finally {
     removeFixtureTree(state.root);
   }

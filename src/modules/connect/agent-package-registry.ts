@@ -121,6 +121,8 @@ import {
   type ConfiguredCodexPluginCarrierReadback,
 } from './agent-package-registry-parts/configured-codex-plugin-carrier.ts';
 import {
+  assertOplFlowCoreSkillsCarrierReadback,
+  isOplFlowCoreSkillsTarget,
   prepareLegacyOplSkillsMigration,
   runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration,
   type PreparedLegacyOplSkillsMigration,
@@ -1110,6 +1112,43 @@ async function applyManifestPackageLockUnlocked(
         }),
       );
     }
+    if (!input.dryRun && isOplFlowCoreSkillsTarget({
+      packageId: root.manifest.package_id,
+      requiredSkillIds: root.manifest.required_skill_ids,
+    })) {
+      const surface = physicalSurfaces.get(root.manifest.package_id)!;
+      const pluginId = surface.plugin_id && surface.marketplace_id
+        ? `${surface.plugin_id}@${surface.marketplace_id}`
+        : null;
+      if (!pluginId || !surface.marketplace_root) {
+        throw new FrameworkContractError(
+          'contract_shape_invalid',
+          'OPL Flow core Skill migration requires one materialized native carrier.',
+          {
+            package_id: root.manifest.package_id,
+            plugin_id: surface.plugin_id,
+            marketplace_id: surface.marketplace_id,
+            failure_code: 'opl_flow_legacy_skill_native_readback_failed',
+          },
+        );
+      }
+      assertOplFlowCoreSkillsCarrierReadback(runConfiguredCodexPluginCarrier({
+        descriptor: {
+          packageId: root.manifest.package_id,
+          carrier: {
+            kind: 'codex_plugin_manager',
+            pluginId,
+            marketplaceSource: surface.marketplace_root,
+          },
+          executor: {
+            route: 'codex_cli',
+            requiredSkillIds: [...root.manifest.required_skill_ids],
+          },
+          publicationRef: null,
+        },
+        action: 'list',
+      }));
+    }
   } catch (error) {
     for (const prepared of [...ordered].reverse()) {
       const surface = physicalSurfaces.get(prepared.manifest.package_id);
@@ -1702,6 +1741,26 @@ async function maybeRunConfiguredCarrierLifecycle(input: {
   selectionInput: ConfiguredCarrierSelectionInput;
   action: Exclude<ConfiguredCodexPluginCarrierAction, 'list'>;
 }) {
+  const packageId = canonicalAgentPackageId(input.selectionInput.packageId);
+  let managedFirstPartyLockPresent = false;
+  if (packageId && resolveFirstPartyPackageCatalog(packageId)) {
+    try {
+      managedFirstPartyLockPresent = readLockIndex().packages.some(
+        (entry) => entry.package_id === packageId,
+      );
+    } catch (error) {
+      if (!isCorruptLegacyLockAuthority(error) || !canProjectDescriptorsWithCorruptLock(error)) {
+        throw error;
+      }
+    }
+  }
+  if (
+    packageId
+    && (input.action === 'update' || input.action === 'repair' || input.action === 'remove')
+    && managedFirstPartyLockPresent
+  ) {
+    return null;
+  }
   const selected = await resolveFreshConfiguredCarrier(input.selectionInput);
   if (!selected) return null;
   const dryRun = input.selectionInput.dryRun === true;
