@@ -12,6 +12,7 @@ import path from 'node:path';
 import { parseJsonText } from '../../../../src/kernel/json-file.ts';
 
 import { cliPath, repoRoot } from './constants.ts';
+import { createFakeCodexPluginManagerFixture } from './fixtures.ts';
 
 const CLI_TEST_MAX_BUFFER = 16 * 1024 * 1024;
 const DEFAULT_CLI_TEST_TIMEOUT_MS = 30_000;
@@ -23,6 +24,7 @@ type InProcessCliResponse = {
 
 let readOnlyInvocationQueue = Promise.resolve();
 let isolatedStateDir: string | null = null;
+let isolatedCodexPluginBin: string | null = null;
 
 type DetachedSpawnSyncOptions = SpawnSyncOptionsWithStringEncoding & {
   detached: true;
@@ -40,11 +42,21 @@ function cliTestStateDir() {
   return isolatedStateDir;
 }
 
+function cliTestCodexPluginBin() {
+  if (!isolatedCodexPluginBin) {
+    isolatedCodexPluginBin = createFakeCodexPluginManagerFixture(
+      path.join(cliTestStateDir(), 'codex-plugin-manager'),
+    ).codexPath;
+  }
+  return isolatedCodexPluginBin;
+}
+
 function cliTestEnvOverrides(envOverrides: Record<string, string> = {}) {
   return {
     NODE_NO_WARNINGS: '1',
     OPL_STATE_DIR: cliTestStateDir(),
     OPL_DEVELOPER_MODE_GH_BINARY: path.join(cliTestStateDir(), 'missing-gh'),
+    OPL_CODEX_PLUGIN_BIN: process.env.OPL_CODEX_PLUGIN_BIN?.trim() || cliTestCodexPluginBin(),
     ...envOverrides,
   };
 }

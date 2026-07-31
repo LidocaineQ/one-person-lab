@@ -15,6 +15,14 @@
     "skills/coordinate-concurrent-tasks/agents/openai.yaml",
     "skills/opl-flow/SKILL.md",
     "skills/opl-flow/agents/openai.yaml",
+    "scripts/install_local_plugin.py",
+    "scripts/opl_workflow.py",
+    "scripts/opl_fleet.py",
+    "scripts/fleet_inventory.py",
+    "scripts/repo_profile.py",
+    "scripts/worktree_absorption_audit.py",
+    "scripts/worktree_fleet_audit.py",
+    "scripts/worktree_lifecycle.py",
     "templates/AGENTS.md",
     "templates/TASTE.md"
   ]

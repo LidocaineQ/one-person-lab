@@ -42,16 +42,15 @@ export function createFakeCodexPluginManagerFixture(
   fs.writeFileSync(
     codexPath,
     `#!/usr/bin/env node
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
 if (args.length === 1 && args[0] === '--version') {
   process.stdout.write('codex-cli 0.134.0\\n');
   process.exit(0);
-}
-if (args.join(' ') !== 'plugin list --json') {
-  process.exit(2);
 }
 
 const configPath = path.join(process.env.CODEX_HOME || '', 'config.toml');
@@ -88,7 +87,37 @@ for (const [header, lines] of sections) {
   const source = stringValue(lines, 'source');
   if (id && source) marketplaces.set(id, source);
 }
-const installed = [];
+const stateRoot = process.env.OPL_STATE_DIR || process.env.CODEX_HOME || process.cwd();
+const homeKey = crypto.createHash('sha256')
+  .update(process.env.CODEX_HOME || process.env.HOME || '')
+  .digest('hex');
+const statePath = path.join(stateRoot, 'fake-codex-plugin-manager', homeKey + '.json');
+const state = fs.existsSync(statePath)
+  ? JSON.parse(fs.readFileSync(statePath, 'utf8'))
+  : { marketplaces: [], installed: [] };
+for (const entry of state.marketplaces) marketplaces.set(entry.id, entry.source);
+
+const writeState = () => {
+  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+  fs.writeFileSync(statePath, JSON.stringify(state));
+};
+const localMarketplaceRoot = (source) => {
+  try {
+    if (source.startsWith('file:')) return fileURLToPath(source);
+  } catch {}
+  return fs.existsSync(source) ? source : null;
+};
+const marketplaceId = (source) => {
+  const root = localMarketplaceRoot(source);
+  const manifestPath = root && path.join(root, '.agents', 'plugins', 'marketplace.json');
+  if (manifestPath && fs.existsSync(manifestPath)) {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    if (typeof manifest.name === 'string' && manifest.name) return manifest.name;
+  }
+  const withoutRef = source.split('@')[0];
+  return path.basename(withoutRef).replace(/\\.git$/, '') || source;
+};
+const configuredInstalled = [];
 for (const [header, lines] of sections) {
   if (!header.startsWith('plugins.')) continue;
   const selector = unquote(header.slice('plugins.'.length));
@@ -102,7 +131,7 @@ for (const [header, lines] of sections) {
   const manifestPath = path.join(sourcePath, '.codex-plugin', 'plugin.json');
   if (!fs.existsSync(manifestPath)) continue;
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); // reuse-first: allow disposable fake Codex CLI to parse its own copied plugin manifest.
-  installed.push({
+  configuredInstalled.push({
     pluginId: selector,
     version: typeof manifest.version === 'string' ? manifest.version : null,
     installed: true,
@@ -111,7 +140,73 @@ for (const [header, lines] of sections) {
     marketplaceSource: { sourceType: 'local', source: marketplaceRoot },
   });
 }
-process.stdout.write(JSON.stringify({ installed, available: [] }));
+
+const command = args.join(' ');
+if (command === 'plugin marketplace list --json') {
+  const entries = [...marketplaces].map(([id, source]) => ({
+    name: id,
+    marketplaceSource: { sourceType: localMarketplaceRoot(source) ? 'local' : 'remote', source },
+  }));
+  process.stdout.write(JSON.stringify({ marketplaces: entries }));
+} else if (args.length === 5
+    && args[0] === 'plugin'
+    && args[1] === 'marketplace'
+    && args[2] === 'add'
+    && args[4] === '--json') {
+  const source = args[3];
+  const id = marketplaceId(source);
+  state.marketplaces = state.marketplaces.filter((entry) => entry.source !== source && entry.id !== id);
+  state.marketplaces.push({ id, source });
+  writeState();
+  process.stdout.write(JSON.stringify({ status: 'ok' }));
+} else if (args.length === 4
+    && args[0] === 'plugin'
+    && args[1] === 'add'
+    && args[3] === '--json') {
+  const selector = args[2];
+  const separator = selector.lastIndexOf('@');
+  const pluginId = selector.slice(0, separator);
+  const requestedMarketplace = selector.slice(separator + 1);
+  const candidate = state.marketplaces.find((entry) => entry.id === requestedMarketplace)
+    || (state.marketplaces.length === 1 ? state.marketplaces[0] : null);
+  const root = candidate && localMarketplaceRoot(candidate.source);
+  const sourcePath = root ? path.join(root, 'plugins', pluginId) : null;
+  const manifestPath = sourcePath && path.join(sourcePath, '.codex-plugin', 'plugin.json');
+  const manifest = manifestPath && fs.existsSync(manifestPath)
+    ? JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    : {};
+  state.installed = state.installed.filter((entry) => entry.pluginId !== selector);
+  state.installed.push({
+    pluginId: selector,
+    version: typeof manifest.version === 'string' ? manifest.version : null,
+    installed: true,
+    enabled: true,
+    source: { source: 'local', path: sourcePath },
+    marketplaceSource: candidate
+      ? { sourceType: root ? 'local' : 'remote', source: candidate.source }
+      : null,
+  });
+  writeState();
+  process.stdout.write(JSON.stringify({ status: 'ok' }));
+} else if (args.length === 4
+    && args[0] === 'plugin'
+    && args[1] === 'remove'
+    && args[3] === '--json') {
+  state.installed = state.installed.filter((entry) => entry.pluginId !== args[2]);
+  writeState();
+  process.stdout.write(JSON.stringify({ status: 'ok' }));
+} else if (command === 'plugin list --json') {
+  const installed = new Map();
+  for (const entry of [...configuredInstalled, ...state.installed]) installed.set(entry.pluginId, entry);
+  for (const entry of installed.values()) {
+    const lines = sections.get('plugins.' + entry.pluginId) || [];
+    entry.enabled = !lines.some((line) => /^\\s*enabled\\s*=\\s*false\\s*$/.test(line));
+  }
+  process.stdout.write(JSON.stringify({ installed: [...installed.values()], available: [] }));
+} else {
+  process.stderr.write('unexpected fake Codex Plugin Manager command: ' + command + '\\n');
+  process.exitCode = 2;
+}
 `,
     { mode: 0o755 },
   );

@@ -683,6 +683,7 @@ test('provider-hosted attempt launch consumes typed capability readout without c
   process.env.OPL_FAMILY_WORKSPACE_ROOT = familyRoot;
   process.env.OPL_STATE_DIR = path.join(familyRoot, 'state');
   process.env.CODEX_HOME = path.join(familyRoot, 'codex-home');
+  fs.mkdirSync(process.env.CODEX_HOME, { recursive: true });
   writeOplDeveloperSupervisorConfig({
     module_source_preferences: { medautoscience: 'managed' },
   });
