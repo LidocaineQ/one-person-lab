@@ -117,6 +117,26 @@ const marketplaceId = (source) => {
   const withoutRef = source.split('@')[0];
   return path.basename(withoutRef).replace(/\\.git$/, '') || source;
 };
+const marketplacePluginSourcePath = (source, pluginId) => {
+  const root = localMarketplaceRoot(source);
+  if (!root) return null;
+  const manifestPath = path.join(root, '.agents', 'plugins', 'marketplace.json');
+  if (fs.existsSync(manifestPath)) {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); // reuse-first: allow disposable fake Codex CLI to parse its marketplace contract.
+    const plugin = Array.isArray(manifest.plugins)
+      ? manifest.plugins.find((entry) => entry && entry.name === pluginId)
+      : null;
+    const declaredPath = plugin && plugin.source && typeof plugin.source.path === 'string'
+      ? plugin.source.path
+      : null;
+    if (declaredPath) {
+      return path.isAbsolute(declaredPath)
+        ? path.normalize(declaredPath)
+        : path.resolve(root, declaredPath);
+    }
+  }
+  return path.join(root, 'plugins', pluginId);
+};
 const configuredInstalled = [];
 for (const [header, lines] of sections) {
   if (!header.startsWith('plugins.')) continue;
@@ -127,7 +147,8 @@ for (const [header, lines] of sections) {
   const marketplaceId = selector.slice(separator + 1);
   const marketplaceRoot = marketplaces.get(marketplaceId);
   if (!marketplaceRoot) continue;
-  const sourcePath = path.join(marketplaceRoot, 'plugins', pluginId);
+  const sourcePath = marketplacePluginSourcePath(marketplaceRoot, pluginId);
+  if (!sourcePath) continue;
   const manifestPath = path.join(sourcePath, '.codex-plugin', 'plugin.json');
   if (!fs.existsSync(manifestPath)) continue;
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); // reuse-first: allow disposable fake Codex CLI to parse its own copied plugin manifest.
@@ -169,8 +190,8 @@ if (command === 'plugin marketplace list --json') {
   const requestedMarketplace = selector.slice(separator + 1);
   const candidate = state.marketplaces.find((entry) => entry.id === requestedMarketplace)
     || (state.marketplaces.length === 1 ? state.marketplaces[0] : null);
-  const root = candidate && localMarketplaceRoot(candidate.source);
-  const sourcePath = root ? path.join(root, 'plugins', pluginId) : null;
+  const marketplaceRoot = candidate && localMarketplaceRoot(candidate.source);
+  const sourcePath = candidate ? marketplacePluginSourcePath(candidate.source, pluginId) : null;
   const manifestPath = sourcePath && path.join(sourcePath, '.codex-plugin', 'plugin.json');
   const manifest = manifestPath && fs.existsSync(manifestPath)
     ? JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
@@ -183,7 +204,7 @@ if (command === 'plugin marketplace list --json') {
     enabled: true,
     source: { source: 'local', path: sourcePath },
     marketplaceSource: candidate
-      ? { sourceType: root ? 'local' : 'remote', source: candidate.source }
+      ? { sourceType: marketplaceRoot ? 'local' : 'remote', source: candidate.source }
       : null,
   });
   writeState();

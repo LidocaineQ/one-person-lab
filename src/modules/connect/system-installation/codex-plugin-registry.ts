@@ -379,7 +379,19 @@ export function removeSupersededOplFamilyCodexPluginPaths(
 
 function writeJsonFile(filePath: string, value: unknown) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  const temporaryPath = path.join(
+    path.dirname(filePath),
+    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`,
+  );
+  try {
+    fs.writeFileSync(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, {
+      encoding: 'utf8',
+      mode: 0o600,
+    });
+    fs.renameSync(temporaryPath, filePath);
+  } finally {
+    if (fs.existsSync(temporaryPath)) fs.rmSync(temporaryPath, { force: true });
+  }
 }
 
 function resolveFirstExistingPath(candidates: string[]) {
@@ -456,6 +468,57 @@ export function materializeLocalCodexPluginMarketplace(
     marketplace_path: marketplacePath,
     plugin_manifest_path: pluginManifestPath,
     marketplace_plugin_path: linkPath,
+  };
+}
+
+export function materializeLocalCodexPluginMarketplaceRoute(
+  spec: LocalCodexPluginMarketplaceSpec,
+  pluginSourcePath: string,
+  marketplaceRoot: string,
+): LocalCodexPluginMarketplace {
+  const requestedSourcePath = path.resolve(pluginSourcePath);
+  const requestedSourceStat = fs.lstatSync(requestedSourcePath);
+  if (!requestedSourceStat.isDirectory() || requestedSourceStat.isSymbolicLink()) {
+    throw new Error(`Plugin source must be a real directory: ${pluginSourcePath}`);
+  }
+  const sourcePath = fs.realpathSync.native(requestedSourcePath);
+  const pluginManifestPath = path.join(sourcePath, '.codex-plugin', 'plugin.json');
+  const pluginManifestStat = fs.lstatSync(pluginManifestPath);
+  if (!pluginManifestStat.isFile() || pluginManifestStat.isSymbolicLink()) {
+    throw new Error(`Plugin manifest must be a regular file: ${pluginManifestPath}`);
+  }
+  const sourceManifest = readJsonRecord(pluginManifestPath);
+  if (sourceManifest.name !== spec.plugin_id) {
+    throw new Error(`Plugin manifest name mismatch: expected ${spec.plugin_id}, got ${String(sourceManifest.name)}`);
+  }
+
+  const marketplacePath = path.join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json');
+  writeJsonFile(marketplacePath, {
+    name: spec.marketplace_id,
+    interface: {
+      displayName: spec.display_name,
+    },
+    plugins: [
+      {
+        name: spec.plugin_id,
+        source: {
+          source: 'local',
+          path: sourcePath,
+        },
+        policy: {
+          installation: 'AVAILABLE',
+          authentication: 'ON_INSTALL',
+        },
+        category: spec.category,
+      },
+    ],
+  });
+
+  return {
+    marketplace_root: marketplaceRoot,
+    marketplace_path: marketplacePath,
+    plugin_manifest_path: pluginManifestPath,
+    marketplace_plugin_path: sourcePath,
   };
 }
 
