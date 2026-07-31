@@ -1647,50 +1647,6 @@ export function finalizeManagedRuntimeSourceMutation(
   }
 }
 
-function developerRuntimeSnapshotRefs(index: AgentPackageLockIndex) {
-  return index.packages.flatMap((lock) => {
-    const state = lock.managed_runtime_source;
-    return state?.source_mode === 'developer_checkout'
-      && state.preparation_scope === 'developer_snapshot_root'
-      ? [{ moduleId: state.module_id, checkoutPath: state.checkout_path }]
-      : [];
-  });
-}
-
-export function cleanupUnreferencedDeveloperRuntimeSnapshots(
-  previous: AgentPackageLockIndex,
-  current: AgentPackageLockIndex,
-) {
-  const root = developerRuntimeSnapshotRoot();
-  const rootStat = lstatOrNull(root);
-  if (!rootStat || rootStat.isSymbolicLink() || !rootStat.isDirectory()) return;
-  const retained = new Set(developerRuntimeSnapshotRefs(current).flatMap((entry) => {
-    const resolved = safeDeveloperRuntimeSnapshotPath(entry.checkoutPath, entry.moduleId);
-    return resolved ? [resolved] : [];
-  }));
-  for (const entry of developerRuntimeSnapshotRefs(previous)) {
-    const resolved = safeDeveloperRuntimeSnapshotPath(entry.checkoutPath, entry.moduleId);
-    if (!resolved || retained.has(resolved)) continue;
-    const moduleRoot = developerRuntimeSnapshotModuleRoot(entry.moduleId);
-    const moduleRootStat = lstatOrNull(moduleRoot);
-    const candidateStat = lstatOrNull(resolved);
-    if (!moduleRootStat
-      || moduleRootStat.isSymbolicLink()
-      || !moduleRootStat.isDirectory()
-      || !candidateStat
-      || candidateStat.isSymbolicLink()
-      || !candidateStat.isDirectory()) continue;
-    try {
-      if (path.dirname(fs.realpathSync(moduleRoot)) !== fs.realpathSync(root)
-        || path.dirname(fs.realpathSync(resolved)) !== fs.realpathSync(moduleRoot)) continue;
-    } catch {
-      continue;
-    }
-    makeDeveloperCheckoutRuntimeSnapshotWritable(resolved);
-    fs.rmSync(resolved, { recursive: true, force: true });
-  }
-}
-
 function transactionMarkerFailure(filePath: string, reason: string, details: Record<string, unknown> = {}) {
   return new FrameworkContractError(
     'contract_shape_invalid',
