@@ -283,6 +283,51 @@ test('checkpoint preserves exact operation controls while legacy checkpoints rem
   }
 });
 
+test('a portable Standard built checkpoint admits a distinct append_full operation after import', () => {
+  const fixture = createFixture();
+  try {
+    const bundleDigest = fixture.frozen.release_bundle_freeze.bundle_digest;
+    buildReleaseBundle({
+      bundleDigest,
+      executorReceiptPath: writeBuildReceipt({ root: fixture.root, bundleDigest }),
+      storeRoot: fixture.storeRoot,
+      now: '2026-07-21T00:04:00.000Z',
+    });
+    const checkpointDirectory = path.join(fixture.root, 'standard-built-before-append');
+    const exported = exportReleaseBundleCheckpoint({
+      bundleDigest,
+      outputDirectory: checkpointDirectory,
+      storeRoot: fixture.storeRoot,
+    }).release_bundle_checkpoint_export;
+    assert.equal(exported.checkpoint_stage, 'standard_built');
+
+    const importedStore = path.join(fixture.root, 'imported-standard-built-before-append');
+    const imported = importReleaseBundleCheckpoint({
+      checkpointPath: path.join(checkpointDirectory, 'checkpoint.json'),
+      storeRoot: importedStore,
+    }).release_bundle_checkpoint_import;
+    assert.equal(imported.checkpoint_stage, 'standard_built');
+    assert.equal(imported.live_mutation_compatible, true);
+    assert.equal(
+      readReleaseBundleStatus({ bundleDigest, storeRoot: importedStore })
+        .release_bundle_status.tracks.standard.built,
+      true,
+    );
+
+    const append = admitReleaseBundleOperation({
+      bundleDigest,
+      storeRoot: importedStore,
+      now: '2026-07-21T00:04:30.000Z',
+      ...appendFullOperation,
+    }).release_bundle_operation_admit.operation_control;
+    assert.equal(append.operation_kind, 'append_full');
+    assert.equal(append.track, 'full');
+    assert.notEqual(append.operation_id, standardOperation.operationId);
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test('Bundle state transitions use one cross-process lock and public mutations cannot reenter it', () => {
   const fixture = createFixture();
   try {

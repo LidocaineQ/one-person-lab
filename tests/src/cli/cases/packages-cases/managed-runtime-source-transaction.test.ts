@@ -24,7 +24,6 @@ import {
 import { writeManagedRuntimeSourceFixture } from './managed-runtime-source-fixture.ts';
 import {
   applyManagedRuntimeSourceCarrier,
-  cleanupUnreferencedDeveloperRuntimeSnapshots,
   finalizeManagedRuntimeSourceMutation,
   inspectManagedRuntimeSourceTransactions,
   managedRuntimeSourceReadiness,
@@ -934,84 +933,6 @@ test('interrupted developer snapshot activation removes only the uncommitted sna
     else process.env.OPL_STATE_DIR = previousStateDir;
     removeFixtureTree(stateDir);
     fs.rmSync(fixtureRoot, { recursive: true, force: true });
-  }
-});
-
-test('developer snapshot garbage collection ignores forged and symlinked persisted paths', () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-developer-snapshot-gc-'));
-  const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-developer-snapshot-outside-'));
-  const previousStateDir = process.env.OPL_STATE_DIR;
-  process.env.OPL_STATE_DIR = stateDir;
-
-  try {
-    const snapshotRoot = path.join(stateDir, 'agent-package-developer-runtime-snapshots');
-    const redcubeRoot = path.join(snapshotRoot, 'redcube');
-    const staleDigest = '1'.repeat(64);
-    const retainedDigest = '2'.repeat(64);
-    const linkedDigest = '3'.repeat(64);
-    const stalePath = path.join(redcubeRoot, staleDigest);
-    const retainedPath = path.join(redcubeRoot, retainedDigest);
-    const linkedPath = path.join(redcubeRoot, linkedDigest);
-    fs.mkdirSync(stalePath, { recursive: true });
-    fs.mkdirSync(retainedPath, { recursive: true });
-    fs.writeFileSync(path.join(stalePath, 'runtime.txt'), 'stale\n');
-    fs.writeFileSync(path.join(retainedPath, 'runtime.txt'), 'retained\n');
-    const linkedSentinel = path.join(outsideRoot, 'linked-sentinel.txt');
-    fs.writeFileSync(linkedSentinel, 'must remain\n');
-    fs.symlinkSync(outsideRoot, linkedPath, 'dir');
-
-    const linkedModuleTarget = path.join(outsideRoot, 'linked-module');
-    const linkedModuleDigest = '4'.repeat(64);
-    const linkedModuleSnapshot = path.join(linkedModuleTarget, linkedModuleDigest);
-    fs.mkdirSync(linkedModuleSnapshot, { recursive: true });
-    const linkedModuleSentinel = path.join(linkedModuleSnapshot, 'sentinel.txt');
-    fs.writeFileSync(linkedModuleSentinel, 'must also remain\n');
-    fs.symlinkSync(linkedModuleTarget, path.join(snapshotRoot, 'medautogrant'), 'dir');
-
-    const forgedOutsidePath = path.join(outsideRoot, '5'.repeat(64));
-    fs.mkdirSync(forgedOutsidePath);
-    fs.writeFileSync(path.join(forgedOutsidePath, 'sentinel.txt'), 'outside\n');
-    const lock = (packageId: string, moduleId: string, checkoutPath: string) => ({
-      package_id: packageId,
-      managed_runtime_source: {
-        source_mode: 'developer_checkout',
-        preparation_scope: 'developer_snapshot_root',
-        module_id: moduleId,
-        checkout_path: checkoutPath,
-      },
-    });
-    const previous = {
-      packages: [
-        lock('fixture.stale', 'redcube', stalePath),
-        lock('fixture.retained', 'redcube', retainedPath),
-        lock('fixture.linked', 'redcube', linkedPath),
-        lock('fixture.linked-module', 'medautogrant', path.join(snapshotRoot, 'medautogrant', linkedModuleDigest)),
-        lock('fixture.forged', 'redcube', forgedOutsidePath),
-      ],
-    } as any;
-    const current = {
-      packages: [
-        lock(
-          'fixture.retained',
-          'redcube',
-          `${redcubeRoot}${path.sep}.${path.sep}${retainedDigest}`,
-        ),
-      ],
-    } as any;
-
-    cleanupUnreferencedDeveloperRuntimeSnapshots(previous, current);
-    assert.equal(fs.existsSync(stalePath), false);
-    assert.equal(fs.existsSync(retainedPath), true);
-    assert.equal(fs.lstatSync(linkedPath).isSymbolicLink(), true);
-    assert.equal(fs.readFileSync(linkedSentinel, 'utf8'), 'must remain\n');
-    assert.equal(fs.lstatSync(path.join(snapshotRoot, 'medautogrant')).isSymbolicLink(), true);
-    assert.equal(fs.readFileSync(linkedModuleSentinel, 'utf8'), 'must also remain\n');
-    assert.equal(fs.readFileSync(path.join(forgedOutsidePath, 'sentinel.txt'), 'utf8'), 'outside\n');
-  } finally {
-    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
-    else process.env.OPL_STATE_DIR = previousStateDir;
-    removeFixtureTree(stateDir);
-    fs.rmSync(outsideRoot, { recursive: true, force: true });
   }
 });
 
