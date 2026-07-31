@@ -199,7 +199,6 @@ export function assertNoRequiredInstalledDependents(
     action,
     dependent_package_ids: dependentPackageIds,
     failure_code: 'agent_package_required_by_installed_dependents',
-    repair_commands: dependentPackageIds.map((dependent) => `opl packages repair --package-id ${dependent}`),
     uninstall_policy: 'remove_dependents_in_the_same_transaction_or_uninstall_dependents_first',
   });
 }

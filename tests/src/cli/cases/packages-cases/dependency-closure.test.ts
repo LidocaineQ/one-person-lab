@@ -205,6 +205,11 @@ test('MAS package lifecycle atomically installs and repairs its 11-core capabili
       uninstallBlocked.payload.error.details.dependent_package_ids,
       [FIXTURE_CONSUMER_PACKAGE_ID],
     );
+    assert.equal(Object.hasOwn(uninstallBlocked.payload.error.details, 'repair_commands'), false);
+    assert.equal(
+      uninstallBlocked.payload.error.details.uninstall_policy,
+      'remove_dependents_in_the_same_transaction_or_uninstall_dependents_first',
+    );
 
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
     const receiptIndependent = runCli([
@@ -631,6 +636,11 @@ test('install cannot overwrite a provider that has installed required dependents
     ], env);
     assert.equal(failure.payload.error.details.failure_code, 'agent_package_required_by_installed_dependents');
     assert.deepEqual(failure.payload.error.details.dependent_package_ids, [FIXTURE_CONSUMER_PACKAGE_ID]);
+    assert.equal(Object.hasOwn(failure.payload.error.details, 'repair_commands'), false);
+    assert.equal(
+      failure.payload.error.details.uninstall_policy,
+      'remove_dependents_in_the_same_transaction_or_uninstall_dependents_first',
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
