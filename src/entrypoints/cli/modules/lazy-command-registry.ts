@@ -9,6 +9,7 @@ import {
   buildCommandHelp,
   buildRootHelp,
 } from './help-output.ts';
+import { bindCommandRegistryMetadata } from './command-registry.ts';
 import type { CommandSpec, ParsedCliInput } from './types.ts';
 import type { FrameworkContracts } from '../../../kernel/types.ts';
 
@@ -20,6 +21,7 @@ const APP_COMMANDS = new Set([
   'app contribution read',
   'app contribution execute',
   'app view read',
+  'app compatibility receipt',
 ]);
 
 type ExecutableCommandLoader = () => Promise<CommandSpecs>;
@@ -103,7 +105,21 @@ function buildAppCommandLoader(
     loaded ??= (async () => {
       const contracts = await loadContracts();
       const appModule = await import('../cases/app-public-command-specs.ts');
-      return appModule.buildPublicAppCommandSpecs(() => contracts);
+      const appSpecs = appModule.buildPublicAppCommandSpecs(() => contracts);
+      bindCommandRegistryMetadata(
+        appSpecs,
+        Object.fromEntries(
+          Object.entries(contracts.cliCommandRegistry.commands)
+            .filter(([, entry]) => (
+              typeof entry === 'object'
+              && entry !== null
+              && !Array.isArray(entry)
+              && typeof (entry as Record<string, unknown>).command_id === 'string'
+              && Boolean(appSpecs[(entry as Record<string, unknown>).command_id as string])
+            )),
+        ),
+      );
+      return appSpecs;
     })();
     return loaded;
   };

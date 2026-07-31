@@ -20,6 +20,7 @@ type CliCommandRegistryContract = {
 };
 
 const registryCases = [
+  ['app compatibility receipt', 'app_compatibility_receipt', ['requirements-file', 'subject-file', 'output', 'ttl-seconds'], 'OPL Framework'],
   ['connect scientific search', 'connect_scientific_search', ['provider', 'query', 'limit'], undefined],
   ['connect references verify', 'connect_references_verify', ['references-file', 'providers', 'cache-root', 'max-retries'], undefined],
   ['connect install', 'connect_install', ['module'], undefined],

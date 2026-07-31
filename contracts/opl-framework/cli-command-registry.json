@@ -6,6 +6,7 @@
   "state": "active_contract",
   "machine_boundary": "This registry describes command metadata and output schemas. It does not execute commands, write domain truth, create owner receipts, create typed blockers, or claim domain, artifact, App, production, release, or L5 readiness.",
   "protected_command_prefixes": [
+    "app compatibility receipt",
     "connect scientific",
     "connect references",
     "connect external-skills",
@@ -24,6 +25,148 @@
     "workspace work-item readback"
   ],
   "commands": {
+    "app_compatibility_receipt": {
+      "command_id": "app compatibility receipt",
+      "owner": "OPL Framework",
+      "parser_adapter": "node_util_parse_args",
+      "options": [
+        {
+          "name": "requirements-file",
+          "flag": "--requirements-file",
+          "value_kind": "string",
+          "required": true,
+          "summary": "App-owned opl_component_compatibility_requirements.v1 JSON file."
+        },
+        {
+          "name": "subject-file",
+          "flag": "--subject-file",
+          "value_kind": "string",
+          "required": true,
+          "summary": "App-owned selected artifact, installed app.asar and build receipt subject binding."
+        },
+        {
+          "name": "output",
+          "flag": "--output",
+          "value_kind": "string",
+          "required": true,
+          "summary": "New independent compatibility receipt JSON path."
+        },
+        {
+          "name": "ttl-seconds",
+          "flag": "--ttl-seconds",
+          "value_kind": "integer",
+          "required": false,
+          "default": 900,
+          "allowed_range": {
+            "min": 60,
+            "max": 86400
+          },
+          "summary": "Receipt freshness window in seconds."
+        }
+      ],
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "version",
+          "app_component_compatibility_receipt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "const": "g2"
+          },
+          "app_component_compatibility_receipt": {
+            "type": "object",
+            "required": [
+              "receipt_file",
+              "receipt_sha256",
+              "sha256_file",
+              "producer_identity",
+              "status",
+              "issued_at",
+              "expires_at",
+              "requirement_count",
+              "failure_count"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "receipt_file": {
+                "type": "string"
+              },
+              "receipt_sha256": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "sha256_file": {
+                "type": "string"
+              },
+              "producer_identity": {
+                "type": "object",
+                "required": [
+                  "command_surface",
+                  "executable_path",
+                  "executable_sha256",
+                  "framework_version",
+                  "package_ref"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "command_surface": {
+                    "const": "opl app compatibility receipt"
+                  },
+                  "executable_path": {
+                    "type": "string"
+                  },
+                  "executable_sha256": {
+                    "type": "string",
+                    "pattern": "^sha256:[0-9a-f]{64}$"
+                  },
+                  "framework_version": {
+                    "type": "string"
+                  },
+                  "package_ref": {
+                    "type": "string",
+                    "pattern": "^file://"
+                  }
+                }
+              },
+              "status": {
+                "enum": [
+                  "compatible",
+                  "incompatible"
+                ]
+              },
+              "issued_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "requirement_count": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "failure_count": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      },
+      "authority_boundary": {
+        "can_write_domain_truth": false,
+        "can_create_owner_receipt": false,
+        "can_create_typed_blocker": false,
+        "can_claim_domain_ready": false,
+        "can_claim_production_ready": false,
+        "can_claim_component_compatibility": true,
+        "owner": "OPL Framework",
+        "surface": "app_component_compatibility_receipt_producer"
+      }
+    },
     "release_freeze": {
       "command_id": "release freeze",
       "owner": "OPL Release",

@@ -1,10 +1,13 @@
 import type { FrameworkContracts } from '../../../kernel/types.ts';
-import type { CommandSpec } from '../modules/support.ts';
+import {
+  parseRegisteredCommandOptions,
+  type CommandSpec,
+} from '../modules/support.ts';
 
 export function buildPublicAppCommandSpecs(
   getContracts: () => FrameworkContracts,
 ): Record<string, CommandSpec> {
-  return {
+  const commandSpecs: Record<string, CommandSpec> = {
     'app state': {
       usage: 'opl app state [--profile runtime|fast|full]',
       summary: 'Read the canonical OPL App state projection for GUI pages without page-local probing.',
@@ -87,5 +90,32 @@ export function buildPublicAppCommandSpecs(
         return buildDomainDetailViewReadback(parseAppViewReadArgs(args));
       },
     },
+    'app compatibility receipt': {
+      usage:
+        'opl app compatibility receipt --requirements-file <path> --subject-file <path> --output <path> [--ttl-seconds <n>]',
+      summary:
+        'Produce a short-lived Framework compatibility receipt from App-owned requirements and Framework-owned observations.',
+      examples: [
+        'opl app compatibility receipt --requirements-file app-compatibility-requirements.json --subject-file installed-app-subject.json --output /tmp/opl-component-compatibility-receipt.json --ttl-seconds 900 --json',
+      ],
+      group: 'app',
+      handler: async (args) => {
+        const spec = commandSpecs['app compatibility receipt'];
+        const options = parseRegisteredCommandOptions('app compatibility receipt', args, spec);
+        const { writeAppComponentCompatibilityReceipt } = await import(
+          '../../../modules/console/app-compatibility-receipt.ts'
+        );
+        return {
+          version: 'g2',
+          app_component_compatibility_receipt: writeAppComponentCompatibilityReceipt({
+            requirementsFile: String(options['requirements-file']),
+            subjectFile: String(options['subject-file']),
+            outputFile: String(options.output),
+            ttlSeconds: Number(options['ttl-seconds']),
+          }),
+        };
+      },
+    },
   };
+  return commandSpecs;
 }
