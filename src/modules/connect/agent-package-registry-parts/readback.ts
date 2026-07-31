@@ -13,7 +13,6 @@ const PACKAGE_LIFECYCLE_ACTION_REFS: AgentPackageLifecycleAction[] = [
   'install',
   'activate',
   'update',
-  'optimize',
   'repair',
   'rollback',
   'uninstall',
