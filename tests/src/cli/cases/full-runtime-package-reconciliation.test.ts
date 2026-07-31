@@ -79,6 +79,18 @@ function descriptorlessPackageCatalog(packageId: string) {
   return catalog;
 }
 
+test('canonical Full catalog carries only immutable owner descriptors that have been projected', () => {
+  const catalog = readBundledFullRuntimePackageCatalog();
+  const descriptorPackageIds = [...catalog.entries]
+    .filter(([, entry]) => {
+      const payload = parseJsonText(entry.payloadManifestJson) as Record<string, any>;
+      return payload.files.some((file: Record<string, unknown>) => file.path === 'opl-package.json');
+    })
+    .map(([packageId]) => packageId)
+    .sort();
+  assert.deepEqual(descriptorPackageIds, ['oma', 'opl-flow']);
+});
+
 function runtimeHomeFixture(root: string, catalog: BundledFullRuntimePackageCatalog) {
   const runtimeHome = path.join(root, 'runtime');
   for (const entry of catalog.entries.values()) {
@@ -369,12 +381,12 @@ test('Full runtime currentness ignores legacy lock state and installs each missi
 test('descriptor-bearing roots use native carriers while legacy roots retain their installer', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-full-runtime-mixed-materialization-'));
   const stateDir = path.join(root, 'state');
-  const catalog = descriptorlessPackageCatalog('oma');
+  const catalog = descriptorlessPackageCatalog('obf');
   const runtimeHome = runtimeHomeFixture(root, catalog);
   const state = currentState(catalog, stateDir);
   const legacyInstalls: string[] = [];
   const nativeCarrierActions: string[] = [];
-  state.materialized.delete('oma');
+  state.materialized.delete('obf');
   state.entries = state.entries.filter((entry) => !entry.pluginId.startsWith('opl-flow@'));
   try {
     const result = await reconcileBundledFullRuntimePackagesIfAvailable(
@@ -400,10 +412,10 @@ test('descriptor-bearing roots use native carriers while legacy roots retain the
     assert.ok(result);
     assert.equal(result.status, 'completed', JSON.stringify(result, null, 2));
     assert.equal(result.package_mutation_policy, 'per_root_native_carrier_with_legacy_compatibility');
-    assert.deepEqual(legacyInstalls, ['oma']);
+    assert.deepEqual(legacyInstalls, ['obf']);
     assert.deepEqual(nativeCarrierActions, ['opl-flow']);
     assert.equal(
-      result.root_installs.find((entry) => entry.package_id === 'oma')?.reason,
+      result.root_installs.find((entry) => entry.package_id === 'obf')?.reason,
       'package_install_unit_completed',
     );
     assert.equal(
