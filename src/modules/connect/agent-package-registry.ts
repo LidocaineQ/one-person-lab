@@ -122,6 +122,11 @@ import {
   type ConfiguredCodexPluginCarrierReadback,
 } from './agent-package-registry-parts/configured-codex-plugin-carrier.ts';
 import {
+  prepareLegacyOplSkillsMigration,
+  runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration,
+  type PreparedLegacyOplSkillsMigration,
+} from './agent-package-registry-parts/legacy-opl-skills-migration.ts';
+import {
   refreshFirstPartyPackageCatalogSnapshot,
   resolveFirstPartyPackageCatalogSnapshot,
 } from './agent-package-registry-parts/first-party-release-catalog.ts';
@@ -410,19 +415,39 @@ function installedClosurePrestate(
   return ordered;
 }
 
+type ApplyManifestPackageLockOptions = {
+  catalog?: ManagedPackageCatalog | null;
+  rootVersion?: ManagedCatalogVersion | null;
+  catalogSource?: AgentPackageManagedVersionCatalogSource | null;
+  channelRef?: string | null;
+  channelDigest?: string | null;
+  trustedBundledFullRuntimeInstall?: TrustedBundledFullRuntimeInstall | null;
+  sourceReconcile?: boolean;
+};
+
 async function applyManifestPackageLock(
   input: AgentPackageInstallInput,
   action: 'install' | 'update' | 'repair',
-  options: {
-    catalog?: ManagedPackageCatalog | null;
-    rootVersion?: ManagedCatalogVersion | null;
-    catalogSource?: AgentPackageManagedVersionCatalogSource | null;
-    channelRef?: string | null;
-    channelDigest?: string | null;
-    trustedBundledFullRuntimeInstall?: TrustedBundledFullRuntimeInstall | null;
-    sourceReconcile?: boolean;
-  } = {},
+  options: ApplyManifestPackageLockOptions = {},
 ) {
+  const transaction: { legacySkillMigration: PreparedLegacyOplSkillsMigration | null } = {
+    legacySkillMigration: null,
+  };
+  try {
+    return await applyManifestPackageLockUnlocked(input, action, options, transaction);
+  } catch (error) {
+    transaction.legacySkillMigration?.rollback();
+    throw error;
+  }
+}
+
+async function applyManifestPackageLockUnlocked(
+  input: AgentPackageInstallInput,
+  action: 'install' | 'update' | 'repair',
+  options: ApplyManifestPackageLockOptions,
+  transaction: { legacySkillMigration: PreparedLegacyOplSkillsMigration | null },
+) {
+  let legacySkillMigration: PreparedLegacyOplSkillsMigration | null = null;
   const packageId = canonicalAgentPackageId(stringValue(input.packageId));
   const trustedBundledInstall = options.trustedBundledFullRuntimeInstall ?? null;
   const bundledFullRuntimeCatalog = trustedBundledInstall
@@ -1068,6 +1093,13 @@ async function applyManifestPackageLock(
 
   const physicalSurfaces = new Map<string, ReturnType<typeof materializePhysicalCodexSurface>>();
   try {
+    legacySkillMigration = prepareLegacyOplSkillsMigration({
+      packageId: root.manifest.package_id,
+      requiredSkillIds: root.manifest.required_skill_ids,
+      dryRun: input.dryRun === true,
+      env: process.env,
+    });
+    transaction.legacySkillMigration = legacySkillMigration;
     for (const prepared of ordered) {
       physicalSurfaces.set(
         prepared.manifest.package_id,
@@ -1098,6 +1130,7 @@ async function applyManifestPackageLock(
     for (const prepared of ordered) {
       if (prepared.previousLock && !input.dryRun) rematerializePhysicalCodexSurfaceFromLock(prepared.previousLock, false);
     }
+    legacySkillMigration?.rollback();
     throw error;
   }
 
@@ -1150,6 +1183,7 @@ async function applyManifestPackageLock(
       for (const prepared of ordered) {
         if (prepared.previousLock) rematerializePhysicalCodexSurfaceFromLock(prepared.previousLock, false);
       }
+      legacySkillMigration?.rollback();
     }
     throw error;
   }
@@ -1318,6 +1352,7 @@ async function applyManifestPackageLock(
         for (const mutation of [...runtimeSourceMutations.values()].reverse()) {
           rollbackManagedRuntimeSourceMutation(mutation);
         }
+        legacySkillMigration?.rollback();
       }
       throw error;
     }
@@ -1436,6 +1471,7 @@ async function applyManifestPackageLock(
       for (const mutation of [...runtimeSourceMutations.values()].reverse()) {
         rollbackManagedRuntimeSourceMutation(mutation);
       }
+      legacySkillMigration?.rollback();
       throw error;
     }
     for (const mutation of runtimeSourceMutations.values()) {
@@ -1492,6 +1528,7 @@ async function applyManifestPackageLock(
     dependencyTransactionId: transactionId,
     dependencyClosureDigest: closureDigest,
     scopeMaterializations,
+    legacySkillMigration: legacySkillMigration?.commit() ?? null,
   };
 }
 
@@ -1641,16 +1678,19 @@ async function maybeRunConfiguredCarrierLifecycle(input: {
   const selected = await resolveFreshConfiguredCarrier(input.selectionInput);
   if (!selected) return null;
   const dryRun = input.selectionInput.dryRun === true;
-  const carrier = runConfiguredCodexPluginCarrier({
+  const execution = runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration({
     descriptor: selected,
     action: input.action,
     dryRun,
   });
-  return configuredCarrierLifecycleReadback({
-    action: input.action,
-    dryRun,
-    carrier,
-  });
+  return {
+    ...configuredCarrierLifecycleReadback({
+      action: input.action,
+      dryRun,
+      carrier: execution.carrier,
+    }),
+    legacy_skill_migration: execution.legacySkillMigration,
+  };
 }
 
 export async function runOplAgentPackageInstall(input: AgentPackageInstallInput) {
@@ -1692,6 +1732,7 @@ function agentPackageInstallReadback(
       dependency_transaction_id: result.dependencyTransactionId,
       dependency_closure_digest: result.dependencyClosureDigest,
       dependency_package_locks: result.closureLocks,
+      ...(result.legacySkillMigration ? { legacy_skill_migration: result.legacySkillMigration } : {}),
       registry_entry: result.registryEntry,
       authority_boundary: refsOnlyAuthorityBoundary(),
     },
@@ -2862,6 +2903,7 @@ function packageRepairResult(
       dependency_transaction_id: result.dependencyTransactionId,
       dependency_closure_digest: result.dependencyClosureDigest,
       dependency_package_locks: result.closureLocks,
+      ...(result.legacySkillMigration ? { legacy_skill_migration: result.legacySkillMigration } : {}),
       authority_boundary: refsOnlyAuthorityBoundary(),
     },
   };
