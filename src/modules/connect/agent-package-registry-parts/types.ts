@@ -32,7 +32,6 @@ export type AgentPackageCarrierAuthority = {
 export type AgentPackageLifecycleAction =
   | 'install'
   | 'update'
-  | 'optimize'
   | 'repair'
   | 'activate'
   | 'use'
