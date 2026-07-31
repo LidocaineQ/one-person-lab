@@ -605,7 +605,7 @@ test('workflow policy v3 projects a generic install action when a required Skill
     assert.match(migration.dependency_sync.items[0].note, /skills\/fixture-managed-skill/);
 
     const status = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
-    const packageReadback = status.opl_agent_package_status.owner_route_readback.packages[0];
+    const currentness = status.opl_agent_package_status.managed_policy_currentness;
     assert.equal(status.opl_agent_package_status.operational_ready, false);
     assert.equal(status.opl_agent_package_status.status, 'attention_needed');
     assert.equal(
@@ -615,7 +615,7 @@ test('workflow policy v3 projects a generic install action when a required Skill
     assert.equal(status.opl_agent_package_status.repair_action, 'opl packages repair --package-id fixture.opl-flow');
     assert.equal(status.opl_agent_package_status.lifecycle_ux.status, 'attention_needed');
     assert.equal(status.opl_agent_package_status.lifecycle_ux.recommended_action, 'repair');
-    const currentness = packageReadback.managed_policy_currentness;
+    assert.equal(Object.hasOwn(status.opl_agent_package_status, 'owner_route_readback'), false);
     assert.equal(currentness.status, 'drifted');
     assert.equal(currentness.required_dependencies_operational, false);
     assert.deepEqual(currentness.required_dependency_failure_ids, ['fixture-managed-skill']);
@@ -684,8 +684,7 @@ test('OPL Flow package lifecycle advances workflow policy v1 v2 v3 and reaches a
       const status = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
       assert.equal(status.opl_agent_package_status.operational_ready, true);
       assert.equal(
-        status.opl_agent_package_status.owner_route_readback.packages[0]
-          .managed_policy_currentness.status,
+        status.opl_agent_package_status.managed_policy_currentness.status,
         'current',
       );
     }
@@ -736,8 +735,7 @@ test('workflow policy v3 keeps a missing recommended Skill non-blocking', async 
       'first_party',
     ], env);
     const status = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
-    const packageReadback = status.opl_agent_package_status.owner_route_readback.packages[0];
-    const currentness = packageReadback.managed_policy_currentness;
+    const currentness = status.opl_agent_package_status.managed_policy_currentness;
     assert.equal(status.opl_agent_package_status.operational_ready, true);
     assert.equal(status.opl_agent_package_status.launch_blocked_reason, null);
     assert.equal(currentness.status, 'drifted');
@@ -860,8 +858,7 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
     assert.equal('last_known_good_transactions' in lockIndex, false);
     assert.equal(fs.existsSync(path.join(stateDir, 'workflow-packages')), false);
     const current = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
-    const statusCurrentness = current.opl_agent_package_status.owner_route_readback.packages[0]
-      .managed_policy_currentness;
+    const statusCurrentness = current.opl_agent_package_status.managed_policy_currentness;
     assert.equal(
       statusCurrentness.status,
       'current',
@@ -872,8 +869,7 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
     const restoredPonytailPath = path.join(codexHome, 'plugins', 'cache', 'ponytail');
     writeFile(path.join(restoredPonytailPath, 'restored.txt'), 'restored after install\n');
     const drifted = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
-    const driftedPackage = drifted.opl_agent_package_status.owner_route_readback.packages[0];
-    const driftedCurrentness = driftedPackage.managed_policy_currentness;
+    const driftedCurrentness = drifted.opl_agent_package_status.managed_policy_currentness;
     assert.equal(drifted.opl_agent_package_status.status, 'available');
     assert.equal(drifted.opl_agent_package_status.operational_ready, true);
     assert.equal(drifted.opl_agent_package_status.launch_blocked_reason, null);
@@ -893,9 +889,8 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
     assert.equal(repaired.opl_agent_package_repair.status, 'repaired');
     assert.equal(fs.existsSync(restoredPonytailPath), false);
     const repairedStatus = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
-    const repairedPackage = repairedStatus.opl_agent_package_status.owner_route_readback.packages[0];
     assert.equal(repairedStatus.opl_agent_package_status.operational_ready, true);
-    assert.equal(repairedPackage.managed_policy_currentness.status, 'current');
+    assert.equal(repairedStatus.opl_agent_package_status.managed_policy_currentness.status, 'current');
     assert.notEqual(repairedStatus.opl_agent_package_status.lifecycle_ux.recommended_action, 'repair');
 
     const postInstallConfig = [
@@ -986,8 +981,7 @@ test('managed policy currentness detects and repairs a missing global Codex skil
     assert.equal(fs.existsSync(agentsSkillRoot), false);
 
     const current = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
-    const currentness = current.opl_agent_package_status.owner_route_readback.packages[0]
-      .managed_policy_currentness;
+    const currentness = current.opl_agent_package_status.managed_policy_currentness;
     assert.equal(currentness.status, 'current');
     assert.equal(currentness.dependency_sync.items[0].source_authority, 'github_repository');
     assert.equal(currentness.dependency_sync.items[0].payload_currentness, 'current');
@@ -995,8 +989,7 @@ test('managed policy currentness detects and repairs a missing global Codex skil
 
     fs.rmSync(codexSkillRoot, { recursive: true, force: true });
     const drifted = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
-    const driftedPackage = drifted.opl_agent_package_status.owner_route_readback.packages[0];
-    const driftedCurrentness = driftedPackage.managed_policy_currentness;
+    const driftedCurrentness = drifted.opl_agent_package_status.managed_policy_currentness;
     assert.equal(drifted.opl_agent_package_status.status, 'available');
     assert.equal(drifted.opl_agent_package_status.operational_ready, true);
     assert.equal(drifted.opl_agent_package_status.launch_blocked_reason, null);
@@ -1020,8 +1013,7 @@ test('managed policy currentness detects and repairs a missing global Codex skil
     assert.equal(fs.existsSync(agentsSkillRoot), false);
     const repairedStatus = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
     assert.equal(
-      repairedStatus.opl_agent_package_status.owner_route_readback.packages[0]
-        .managed_policy_currentness.status,
+      repairedStatus.opl_agent_package_status.managed_policy_currentness.status,
       'current',
     );
   } finally {

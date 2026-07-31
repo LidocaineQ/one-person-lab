@@ -815,12 +815,6 @@ test('packages preserves installed lock and returns an operation receipt when up
         lifecycle_receipt: {
           receipt_ref: string;
         };
-        owner_route_readback: {
-          packages: Array<{
-            managed_policy_currentness: Record<string, unknown>;
-            carrier_adapters: Array<Record<string, unknown>>;
-          }>;
-        };
       };
     };
     const installReadback = install.opl_agent_package_install;
@@ -832,37 +826,7 @@ test('packages preserves installed lock and returns an operation receipt when up
     assert.doesNotMatch(lockFileBefore, /"action_receipt_id"/);
     assert.equal(Object.hasOwn(installReadback, 'lock_file'), false);
     assert.equal(Object.hasOwn(installReadback, 'lifecycle_ledger_file'), false);
-    assert.equal(installReadback.owner_route_readback.packages.length, 1);
-    const ownerPackage = installReadback.owner_route_readback.packages[0];
-    assert.equal(Object.hasOwn(ownerPackage, 'lock'), false);
-    assert.equal(Object.hasOwn(ownerPackage, 'digest'), false);
-    assert.equal(Object.hasOwn(ownerPackage, 'descriptor'), false);
-    assert.equal(Object.hasOwn(ownerPackage, 'package_core'), false);
-    assert.equal(Object.hasOwn(ownerPackage, 'carrier_authority_readiness'), true);
-    const physicalDetailFields = [
-      'plugin_source_path',
-      'plugin_manifest_path',
-      'codex_plugin_cache_path',
-      'plugin_payload_manifest_url',
-      'plugin_payload_manifest_sha256',
-      'plugin_payload_cache_path',
-      'materialized_required_skill_paths',
-    ];
-    for (const field of physicalDetailFields) {
-      for (const adapter of ownerPackage.carrier_adapters) {
-        assert.equal(Object.hasOwn(adapter, field), false);
-      }
-    }
-    for (const field of ['profile_migration', 'managed_policy_migration']) {
-      for (const adapter of ownerPackage.carrier_adapters) {
-        assert.equal(Object.hasOwn(adapter, field), false);
-      }
-    }
-    assert.equal(Object.hasOwn(ownerPackage, 'materializer'), false);
-    assert.equal(Object.hasOwn(ownerPackage, 'managed_policy_currentness'), true);
-    for (const adapter of ownerPackage.carrier_adapters) {
-      assert.equal(Object.hasOwn(adapter, 'managed_policy_currentness'), false);
-    }
+    assert.equal(Object.hasOwn(installReadback, 'owner_route_readback'), false);
 
     const failure = runCliFailure([
       'packages',

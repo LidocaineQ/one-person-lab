@@ -4,10 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import {
-  agentPackageLifecycleUxReadback,
-  ownerRouteReadback,
-} from '../../src/modules/connect/agent-package-registry-parts/readback.ts';
+import { agentPackageLifecycleUxReadback } from '../../src/modules/connect/agent-package-registry-parts/readback.ts';
 import {
   dependencyReadiness,
   requiredDependents,
@@ -93,23 +90,6 @@ test('carrier authority and policy currentness remain independent of lifecycle r
   assert.equal(carrierCondition?.status, 'ok');
   assert.equal(carrierCondition?.action_ref, null);
   assert.match(carrierCondition?.reason ?? '', /carrier authority are current/);
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-progress-readback-'));
-  const previousStateDir = process.env.OPL_STATE_DIR;
-  process.env.OPL_STATE_DIR = stateDir;
-  try {
-    const ownerReadback = ownerRouteReadback({
-      selectedPackageId: 'fixture.mas',
-      packages: [{ packageId: 'fixture.mas', lock, receipt: null }],
-    }).packages[0];
-    assert.equal(ownerReadback.carrier_authority_readiness.status, 'current');
-    assert.equal(ownerReadback.operational_ready, true);
-    assert.equal(ownerReadback.launch_allowed, true);
-    assert.equal(ownerReadback.launch_blocked_reason, null);
-  } finally {
-    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
-    else process.env.OPL_STATE_DIR = previousStateDir;
-    fs.rmSync(stateDir, { recursive: true, force: true });
-  }
 
   const policyDrift = agentPackageLifecycleUxReadback({
     packageId: 'fixture.opl-flow',

@@ -111,10 +111,7 @@ import {
   removeManagedRuntimeSourceCarrier,
   rollbackManagedRuntimeSourceMutation,
 } from './agent-package-registry-parts/managed-runtime-source-carrier.ts';
-import {
-  agentPackageLifecycleSummaryReadback,
-  ownerRouteReadback,
-} from './agent-package-registry-parts/readback.ts';
+import { agentPackageLifecycleSummaryReadback } from './agent-package-registry-parts/readback.ts';
 import {
   buildAgentPackageDirectory,
 } from './agent-package-registry-parts/directory.ts';
@@ -1536,15 +1533,6 @@ export async function runOplAgentPackageManifestValidate(input: AgentPackageMani
       distribution_payload: manifest.distribution_payload,
       rollback_ref: manifest.rollback_ref,
       registry_entry: selection.registryEntry,
-      owner_route_readback: ownerRouteReadback({
-        selectedPackageId: manifest.package_id,
-        packages: [{
-          packageId: manifest.package_id,
-          manifestUrl: selection.manifestUrl,
-          sourceKind,
-          trustTier: effectiveTrustTier,
-        }],
-      }),
       validation_policy: {
         manifest_required_fields: [...MANIFEST_REQUIRED_FIELDS],
         forbidden_fields: [...FORBIDDEN_AGENT_PACKAGE_FIELDS],
@@ -1711,17 +1699,6 @@ function agentPackageInstallReadback(
       physical_surface: result.physicalSurface,
       framework_link: result.frameworkLink,
       lifecycle_receipt: result.receipt,
-      owner_route_readback: ownerRouteReadback({
-        selectedPackageId: result.lock.package_id,
-        scope: input.scope,
-        targetWorkspace: input.targetWorkspace,
-        targetQuest: input.targetQuest,
-        packages: result.closureLocks.map((lock) => ({
-          packageId: lock.package_id,
-          lock,
-          receipt: result.closureReceipts.find((receipt) => receipt.package_id === lock.package_id) ?? null,
-        })),
-      }),
       dependency_transaction_id: result.dependencyTransactionId,
       dependency_closure_digest: result.dependencyClosureDigest,
       dependency_package_locks: result.closureLocks,
@@ -2300,13 +2277,6 @@ function bundledFullRuntimeRepairReadback(
       physical_surface: lock.physical_surface,
       framework_link: null,
       lifecycle_receipt: receipt,
-      owner_route_readback: ownerRouteReadback({
-        selectedPackageId: lock.package_id,
-        scope: input.scope,
-        targetWorkspace: input.targetWorkspace,
-        targetQuest: input.targetQuest,
-        packages: [{ packageId: lock.package_id, lock, receipt }],
-      }),
       repair_source_validation: {
         status: 'validated_no_write',
         source_role: 'source_only',
@@ -2899,17 +2869,6 @@ function packageRepairResult(
       physical_surface: result.physicalSurface,
       framework_link: result.frameworkLink,
       lifecycle_receipt: result.receipt,
-      owner_route_readback: ownerRouteReadback({
-        selectedPackageId: result.lock.package_id,
-        scope: input.scope,
-        targetWorkspace: input.targetWorkspace,
-        targetQuest: input.targetQuest,
-        packages: result.closureLocks.map((lock) => ({
-          packageId: lock.package_id,
-          lock,
-          receipt: result.closureReceipts.find((receipt) => receipt.package_id === lock.package_id) ?? null,
-        })),
-      }),
       dependency_transaction_id: result.dependencyTransactionId,
       dependency_closure_digest: result.dependencyClosureDigest,
       dependency_package_locks: result.closureLocks,
@@ -2979,13 +2938,6 @@ async function runOplAgentPackageRepairUnlocked(input: AgentPackageRepairInput) 
       physical_surface: physicalSurface,
       framework_link: frameworkLink,
       lifecycle_receipt: receipt,
-      owner_route_readback: ownerRouteReadback({
-        selectedPackageId: repairedLock.package_id,
-        scope: input.scope,
-        targetWorkspace: input.targetWorkspace,
-        targetQuest: input.targetQuest,
-        packages: [{ packageId: repairedLock.package_id, lock: repairedLock, receipt }],
-      }),
       authority_boundary: refsOnlyAuthorityBoundary(),
     },
   };
@@ -3608,10 +3560,6 @@ function runOplAgentPackageUninstallUnlocked(input: AgentPackagePackageActionInp
       physical_surface: physicalSurface,
       lifecycle_receipt: receipt,
       runtime_source_cleanup: runtimeSourceCleanup,
-      owner_route_readback: ownerRouteReadback({
-        selectedPackageId: lock.package_id,
-        packages: [{ packageId: lock.package_id, lock, receipt }],
-      }),
       authority_boundary: refsOnlyAuthorityBoundary(),
     },
   };
@@ -4215,27 +4163,6 @@ function buildOplAgentPackageStatus(
       allowed_when_blocked: ['status', 'doctor', 'repair'],
       repair_action: repairAction,
       home_shortcut_preferences: homeShortcutPreferences,
-      owner_route_readback: input.detail === 'fast'
-        ? {
-            surface_kind: 'opl_agent_package_owner_route_readback',
-            status: 'deferred_fast_profile',
-            selected_package_id: packageId ?? null,
-            package_count: installedPackages.length,
-            packages: [],
-            detail_surface: 'opl packages status --package-id <package_id> --json',
-            authority_boundary: refsOnlyAuthorityBoundary(),
-          }
-        : ownerRouteReadback({
-            selectedPackageId: packageId ?? null,
-            scope: input.scope,
-            targetWorkspace: input.targetWorkspace,
-            targetQuest: input.targetQuest,
-            allLocks: lockIndex.packages,
-            packages: installedPackages.map((lock) => ({
-              packageId: lock.package_id,
-              lock,
-            })),
-          }),
       files: {
         home_shortcut_preferences_file: paths.agent_package_home_shortcut_preferences_file,
       },
@@ -4350,22 +4277,6 @@ export function listOplAgentPackages(input: {
       lifecycle_action_refs: lifecycleUx.lifecycle_action_refs,
       lifecycle_ux: lifecycleUx,
       home_shortcut_preferences: homeShortcutPreferences,
-      owner_route_readback: input.detail === 'fast'
-        ? {
-            surface_kind: 'opl_agent_package_owner_route_readback',
-            status: 'deferred_fast_profile',
-            selected_package_id: null,
-            package_count: installedPackages.length,
-            packages: [],
-            detail_surface: 'opl packages status --package-id <package_id> --json',
-            authority_boundary: refsOnlyAuthorityBoundary(),
-          }
-        : ownerRouteReadback({
-            packages: installedPackages.map((lock) => ({
-              packageId: lock.package_id,
-              lock,
-            })),
-          }),
       files: {
         home_shortcut_preferences_file: paths.agent_package_home_shortcut_preferences_file,
       },

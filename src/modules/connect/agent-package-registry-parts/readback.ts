@@ -1,17 +1,5 @@
-import {
-  CAPABILITY_PACKAGE_APPLY_COMMAND,
-  CAPABILITY_PACKAGE_OWNER_FORBIDDEN_CLAIMS,
-  CAPABILITY_PACKAGE_READBACK_REF,
-  CAPABILITY_PACKAGE_REPAIR_COMMAND,
-  CAPABILITY_PACKAGE_STATUS_READBACK_REF,
-  capabilityPackageOwnerRoute,
-} from '../managed-update-owner-boundary.ts';
-import { dependencyReadiness } from './dependency-closure.ts';
 import { agentPackageCarrierAuthorityStatus } from './carrier-authority.ts';
 import { managedPolicyCurrentness } from './managed-policy-surface.ts';
-import { scopeMaterializationReadiness } from './scope-materialization.ts';
-import { managedRuntimeSourceReadiness } from './managed-runtime-source-carrier.ts';
-import { refsOnlyAuthorityBoundary, uniqueStrings } from './shared.ts';
 import type {
   AgentPackageLifecycleAction,
   AgentPackageLifecycleCondition,
@@ -19,9 +7,6 @@ import type {
   AgentPackageLifecycleUxReadback,
   AgentPackageLock,
   AgentPackageManagedPolicyCurrentness,
-  AgentPackageOwnerRouteReadback,
-  AgentPackageOwnerRouteReadbackItem,
-  AgentPackageSourceKind,
 } from './types.ts';
 
 const PACKAGE_LIFECYCLE_ACTION_REFS: AgentPackageLifecycleAction[] = [
@@ -37,15 +22,6 @@ const PACKAGE_LIFECYCLE_ACTION_REFS: AgentPackageLifecycleAction[] = [
   'enable',
   'disable',
 ];
-
-function ownerRouteReadbackCommands() {
-  return {
-    list: CAPABILITY_PACKAGE_READBACK_REF,
-    status: CAPABILITY_PACKAGE_STATUS_READBACK_REF,
-    apply: CAPABILITY_PACKAGE_APPLY_COMMAND,
-    repair: CAPABILITY_PACKAGE_REPAIR_COMMAND,
-  };
-}
 
 function lifecycleCondition(input: AgentPackageLifecycleCondition) {
   return input;
@@ -233,171 +209,5 @@ export function agentPackageLifecycleSummaryReadback(input: {
     conditions: packageReadbacks.flatMap((entry) => entry.conditions),
     recommended_action: recommendedAction,
     lifecycle_action_refs: [...PACKAGE_LIFECYCLE_ACTION_REFS],
-  };
-}
-
-function ownerRouteReadbackItem(input: {
-  packageId: string;
-  lock?: AgentPackageLock | null;
-  receipt?: AgentPackageLifecycleReceipt | null;
-  manifestUrl?: string | null;
-  sourceKind?: AgentPackageLifecycleReceipt['source_kind'] | AgentPackageSourceKind | null;
-  trustTier?: string | null;
-  allLocks?: AgentPackageLock[];
-  scope?: 'workspace' | 'quest' | null;
-  targetWorkspace?: string | null;
-  targetQuest?: string | null;
-}): AgentPackageOwnerRouteReadbackItem {
-  const surface = input.lock?.physical_surface ?? input.receipt?.physical_surface;
-  const policyCurrentness = managedPolicyCurrentness(input.lock);
-  const readiness = input.lock
-    ? dependencyReadiness(input.lock, {
-        surface_kind: 'opl_agent_package_lock_index',
-        version: 'opl-agent-package-lock-index.v1',
-        packages: input.allLocks ?? [input.lock],
-      })
-    : {
-        status: 'missing' as const,
-        operational_ready: false,
-        repair_command: `opl packages repair --package-id ${input.packageId}`,
-        dependencies: [],
-      };
-  const materializationReadiness = input.lock
-    ? scopeMaterializationReadiness(input.lock, {
-        surface_kind: 'opl_agent_package_lock_index',
-        version: 'opl-agent-package-lock-index.v1',
-        packages: input.allLocks ?? [input.lock],
-      }, {
-        scope: input.scope,
-        targetWorkspace: input.targetWorkspace,
-        targetQuest: input.targetQuest,
-      })
-    : {
-        status: 'missing' as const,
-        scope: input.scope ?? null,
-        target_root: null,
-        required_skill_ids: [],
-        materialized_skill_ids: [],
-        expected_digest: null,
-        actual_digest: null,
-        repair_command: `opl packages repair --package-id ${input.packageId}`,
-        core_readiness: { status: 'missing' as const, required_skill_ids: [], materialized_skill_ids: [] },
-        specialty_exposure: {
-          status: 'not_required' as const,
-          declared_skill_ids: [],
-          materialized_skill_ids: [],
-          missing_skill_ids: [],
-        },
-      };
-  const runtimeSourceReadiness = managedRuntimeSourceReadiness(
-    input.lock?.managed_runtime_source,
-    input.lock?.runtime_source_carrier,
-  );
-  const carrierAuthorityReadiness = input.lock
-    ? agentPackageCarrierAuthorityStatus(input.lock)
-    : { status: 'not_required' as const, reasons: [] as string[] };
-  const requiredPolicyDependenciesOperational = policyCurrentness.required_dependencies_operational !== false;
-  const managedPolicyReady = policyCurrentness.status === 'current'
-    || policyCurrentness.status === 'not_requested'
-    || policyCurrentness.status === 'drifted'
-      ? requiredPolicyDependenciesOperational
-      : false;
-  const operationalReady = readiness.operational_ready
-    && (materializationReadiness.status === 'current' || materializationReadiness.status === 'not_required')
-    && runtimeSourceReadiness.operational_ready
-    && managedPolicyReady;
-  const runtimeSource = input.lock?.managed_runtime_source ?? input.receipt?.managed_runtime_source ?? null;
-  return {
-    package_id: input.packageId,
-    package_dependency_readiness: readiness,
-    materialization_readiness: materializationReadiness,
-    runtime_source_readiness: runtimeSourceReadiness,
-    carrier_authority_readiness: carrierAuthorityReadiness,
-    managed_policy_currentness: policyCurrentness,
-    operational_ready: operationalReady,
-    operational_ready_scope: 'package_dependency_scope_runtime_source_and_managed_policy',
-    launch_allowed: operationalReady,
-    launch_blocked_reason: !readiness.operational_ready
-      ? `package_dependency_${readiness.status}`
-      : materializationReadiness.status !== 'current' && materializationReadiness.status !== 'not_required'
-        ? `scope_materialization_${materializationReadiness.status}`
-        : !runtimeSourceReadiness.operational_ready
-          ? `runtime_source_${runtimeSourceReadiness.status}`
-          : !managedPolicyReady
-            ? requiredPolicyDependenciesOperational
-              ? `managed_policy_${policyCurrentness.status}`
-              : 'managed_policy_required_dependency_unavailable'
-            : null,
-    allowed_when_blocked: ['status', 'doctor', 'repair'],
-    carrier_adapters: [{
-      adapter_kind: 'codex_plugin_carrier',
-      carrier: 'codex_plugin',
-      source_surface: 'codex_surface',
-      projection_role: 'package_carrier_adapter',
-      owns_package_core: false,
-      owns_domain_truth: false,
-      status: surface?.status ?? 'not_requested',
-      plugin_id: surface?.plugin_id ?? null,
-      materialized_required_skill_ids: surface?.materialized_required_skill_ids ?? [],
-      writes_performed: surface?.writes_performed ?? false,
-      reload_required: surface?.reload_required ?? false,
-      failure_reason: surface?.failure_reason ?? null,
-    }, ...(runtimeSource ? [{
-      adapter_kind: 'managed_runtime_source_carrier' as const,
-      carrier: 'opl_managed_module_source' as const,
-      source_surface: 'runtime_source_carrier' as const,
-      projection_role: 'package_carrier_adapter' as const,
-      owns_package_core: false as const,
-      owns_domain_truth: false as const,
-      status: runtimeSource.status === 'removed' ? 'removed' as const : 'materialized' as const,
-      plugin_id: null,
-      materialized_required_skill_ids: [],
-      writes_performed: runtimeSource.status !== 'validated_no_write',
-      reload_required: false,
-      failure_reason: runtimeSourceReadiness.reason,
-      module_id: runtimeSource.module_id,
-      checkout_path: runtimeSource.checkout_path,
-      ownership: runtimeSource.ownership,
-      tree_sha256: runtimeSource.tree_sha256,
-    }] : [])],
-    authority_boundary: refsOnlyAuthorityBoundary(),
-  };
-}
-
-export function ownerRouteReadback(input: {
-  selectedPackageId?: string | null;
-  scope?: 'workspace' | 'quest' | null;
-  targetWorkspace?: string | null;
-  targetQuest?: string | null;
-  allLocks?: AgentPackageLock[];
-  packages: Array<{
-    packageId: string;
-    lock?: AgentPackageLock | null;
-    receipt?: AgentPackageLifecycleReceipt | null;
-    manifestUrl?: string | null;
-    sourceKind?: AgentPackageLifecycleReceipt['source_kind'] | AgentPackageSourceKind | null;
-    trustTier?: string | null;
-  }>;
-}): AgentPackageOwnerRouteReadback {
-  return {
-    surface_kind: 'opl_agent_package_owner_route_readback',
-    owner_route: capabilityPackageOwnerRoute(),
-    command_refs: ownerRouteReadbackCommands(),
-    selected_package_id: input.selectedPackageId ?? null,
-    package_count: input.packages.length,
-    packages: input.packages.map((entry) => ownerRouteReadbackItem({
-      ...entry,
-      allLocks: input.allLocks
-        ?? input.packages.flatMap((candidate) => candidate.lock ? [candidate.lock] : []),
-      scope: input.scope,
-      targetWorkspace: input.targetWorkspace,
-      targetQuest: input.targetQuest,
-    })),
-    no_package_manager_boundary: {
-      package_manager_claim: false,
-      clean_managed_scope: 'clean_opl_managed_module_roots_only',
-      forbidden_claims: uniqueStrings([...CAPABILITY_PACKAGE_OWNER_FORBIDDEN_CLAIMS]),
-    },
-    authority_boundary: refsOnlyAuthorityBoundary(),
   };
 }

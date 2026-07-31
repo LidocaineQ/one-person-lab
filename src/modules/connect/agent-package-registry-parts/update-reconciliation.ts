@@ -17,7 +17,6 @@ import {
   loadDeveloperCheckoutPackageSource,
 } from './developer-checkout-package-source.ts';
 import { normalizePackageManifest } from './manifest-normalizers.ts';
-import { ownerRouteReadback } from './readback.ts';
 import { refsOnlyAuthorityBoundary } from './shared.ts';
 import { resolveAgentPackageEffectiveSourcePolicy } from './source-policy.ts';
 import type {
@@ -96,17 +95,6 @@ export function agentPackageUpdateReadback(
       physical_surface: result.physicalSurface,
       framework_link: result.frameworkLink,
       lifecycle_receipt: result.receipt,
-      owner_route_readback: ownerRouteReadback({
-        selectedPackageId: result.lock.package_id,
-        scope: input.scope,
-        targetWorkspace: input.targetWorkspace,
-        targetQuest: input.targetQuest,
-        packages: result.closureLocks.map((lock) => ({
-          packageId: lock.package_id,
-          lock,
-          receipt: result.closureReceipts.find((receipt) => receipt.package_id === lock.package_id) ?? null,
-        })),
-      }),
       dependency_transaction_id: result.dependencyTransactionId,
       dependency_closure_digest: result.dependencyClosureDigest,
       dependency_package_locks: result.closureLocks,

@@ -3692,7 +3692,6 @@
               "conditions",
               "recommended_action",
               "lifecycle_ux",
-              "owner_route_readback",
               "authority_boundary"
             ],
             "additionalProperties": true,
@@ -3809,7 +3808,6 @@
               "status",
               "installed_package_count",
               "installed_packages",
-              "owner_route_readback",
               "authority_boundary"
             ],
             "additionalProperties": true,
@@ -3890,7 +3888,6 @@
               "codex_visible_entry",
               "bundled_required_skill_ids",
               "rollback_ref",
-              "owner_route_readback",
               "authority_boundary"
             ],
             "additionalProperties": true
@@ -4079,8 +4076,7 @@
             "oneOf": [
               {
                 "required": [
-                  "physical_surface",
-                  "owner_route_readback"
+                  "physical_surface"
                 ]
               },
               {
@@ -4273,7 +4269,6 @@
               "package_lock",
               "physical_surface",
               "lifecycle_receipt",
-              "owner_route_readback",
               "authority_boundary"
             ],
             "additionalProperties": true
@@ -4472,7 +4467,6 @@
               "package_lock",
               "physical_surface",
               "lifecycle_receipt",
-              "owner_route_readback",
               "authority_boundary"
             ],
             "additionalProperties": true
@@ -4536,7 +4530,6 @@
               "removed_package_lock",
               "physical_surface",
               "lifecycle_receipt",
-              "owner_route_readback",
               "authority_boundary"
             ],
             "additionalProperties": true

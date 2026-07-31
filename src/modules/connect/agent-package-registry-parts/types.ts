@@ -1,5 +1,3 @@
-import type { ManagedUpdateOwnerRoute } from '../managed-update-owner-boundary.ts';
-
 export type AgentPackageAuthorityBoundary = {
   refs_only: true;
   can_write_domain_truth: false;
@@ -684,25 +682,6 @@ export type AgentPackagePhysicalSurface = {
   authority_boundary: AgentPackageAuthorityBoundary;
 };
 
-export type AgentPackageCarrierAdapterReadback = {
-  adapter_kind: 'codex_plugin_carrier' | 'managed_runtime_source_carrier';
-  carrier: 'codex_plugin' | 'opl_managed_module_source';
-  source_surface: 'codex_surface' | 'runtime_source_carrier';
-  projection_role: 'package_carrier_adapter';
-  owns_package_core: false;
-  owns_domain_truth: false;
-  status: AgentPackagePhysicalSurface['status'];
-  plugin_id: string | null;
-  materialized_required_skill_ids: string[];
-  writes_performed: boolean;
-  reload_required: boolean;
-  failure_reason: string | null;
-  module_id?: string | null;
-  checkout_path?: string | null;
-  ownership?: AgentPackageManagedRuntimeSourceState['ownership'] | null;
-  tree_sha256?: string | null;
-};
-
 export type AgentPackageLock = {
   surface_kind: 'opl_agent_package_lock';
   package_id: string;
@@ -907,45 +886,4 @@ export type AgentPackageLockIndex = {
   surface_kind: 'opl_agent_package_lock_index';
   version: 'opl-agent-package-lock-index.v1';
   packages: AgentPackageLock[];
-};
-
-export type AgentPackageOwnerRouteReadbackItem = {
-  package_id: string;
-  package_dependency_readiness: AgentPackageDependencyReadiness;
-  materialization_readiness: AgentPackageMaterializationReadiness;
-  runtime_source_readiness: AgentPackageManagedRuntimeSourceReadiness;
-  carrier_authority_readiness: {
-    status: 'not_required' | 'current' | 'invalid';
-    reasons: string[];
-  };
-  managed_policy_currentness: AgentPackageManagedPolicyCurrentness;
-  operational_ready: boolean;
-  operational_ready_scope:
-    | 'package_dependency_scope_runtime_source_and_managed_policy'
-    | 'package_dependency_scope_runtime_source_managed_policy_and_carrier_authority';
-  launch_allowed: boolean;
-  launch_blocked_reason: string | null;
-  allowed_when_blocked: Array<'status' | 'doctor' | 'repair'>;
-  carrier_adapters: AgentPackageCarrierAdapterReadback[];
-  authority_boundary: AgentPackageAuthorityBoundary;
-};
-
-export type AgentPackageOwnerRouteReadback = {
-  surface_kind: 'opl_agent_package_owner_route_readback';
-  owner_route: ManagedUpdateOwnerRoute;
-  command_refs: {
-    list: string;
-    status: string;
-    apply: string;
-    repair: string;
-  };
-  selected_package_id: string | null;
-  package_count: number;
-  packages: AgentPackageOwnerRouteReadbackItem[];
-  no_package_manager_boundary: {
-    package_manager_claim: false;
-    clean_managed_scope: 'clean_opl_managed_module_roots_only';
-    forbidden_claims: string[];
-  };
-  authority_boundary: AgentPackageAuthorityBoundary;
 };
