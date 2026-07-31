@@ -1028,8 +1028,6 @@ export function buildAgentPackageDirectory(input: {
       legacy_private_lifecycle_state_present: Boolean(configuredCarrier && lock),
       ...(input.detail === 'full' ? {
         lifecycle_ux: lifecycle,
-        lock_ref: legacyLock?.lock_ref ?? null,
-        scope_materialization_count: legacyLock?.scope_materializations?.length ?? 0,
       } : {}),
       authority_boundary: refsOnlyAuthorityBoundary(),
     };

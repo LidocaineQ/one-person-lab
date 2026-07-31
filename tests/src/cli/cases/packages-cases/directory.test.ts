@@ -1665,6 +1665,8 @@ test('installed-only directory entries retain persisted role and consume canonic
   assert.equal(fullyVerified.readiness.status, 'ready');
   assert.equal(fullyVerified.readiness.verification_deferred, false);
   assert.equal(fullyVerified.readiness.reason, null);
+  assert.equal(Object.hasOwn(fullyVerified, 'lock_ref'), false);
+  assert.equal(Object.hasOwn(fullyVerified, 'scope_materialization_count'), false);
   assert.equal(fullyVerified.available_actions.some(
     (action) => action.action_id === 'agent_package_activate'
   ), true);
