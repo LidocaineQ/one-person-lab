@@ -29,12 +29,6 @@ import {
   validateUrlLike,
 } from './shared.ts';
 import {
-  materializePackageProfile,
-  noPackageProfileMigration,
-  retainedPackageProfile,
-  rollbackPackageProfileMigration,
-} from './profile-surface.ts';
-import {
   admitPackagePayloadManifest,
   payloadFileMode,
   type PackagePayloadAdmission,
@@ -69,6 +63,7 @@ import type {
   AgentPackageLockIndex,
   AgentPackageManifest,
   AgentPackagePayloadFile,
+  AgentPackageProfileMigration,
   AgentPackagePhysicalSurface,
 } from './types.ts';
 import type { OplCompanionNetworkAccess } from '../install-companions.ts';
@@ -83,6 +78,38 @@ type PhysicalMaterializationOptions = {
 };
 
 const PACKAGE_SOURCE_FETCH_TIMEOUT_MS = 60_000;
+
+function noPackageProfileMigration(note: string): AgentPackageProfileMigration {
+  return {
+    surface_kind: 'opl_package_profile_migration',
+    status: 'not_requested',
+    source_path: null,
+    target_path: null,
+    source_sha256: null,
+    target_sha256: null,
+    receipt_path: null,
+    merge_packet_path: null,
+    apply_command: null,
+    authoring_source_paths: [],
+    mutation_actions: [],
+    rollback_backups_retained: false,
+    writes_performed: false,
+    note,
+  };
+}
+
+function retainedPackageProfile(previous: AgentPackageProfileMigration | undefined) {
+  if (!previous || previous.status === 'not_requested') {
+    return noPackageProfileMigration('Package did not own a user profile surface.');
+  }
+  return {
+    ...previous,
+    status: 'retained_on_uninstall' as const,
+    writes_performed: false,
+    apply_command: null,
+    note: 'User profile and historical profile artifacts were retained during package uninstall.',
+  };
+}
 
 function resolveLocalPath(value: string) {
   return value.startsWith('file:') ? fileURLToPath(value) : path.resolve(value);
@@ -1445,7 +1472,9 @@ export function materializePhysicalCodexSurface(
   validateProjectedSkillContentClosure(manifest, materializationSourcePath);
   const materializedRequiredSkills = validateMaterializedRequiredSkills(manifest, materializationSourcePath);
 
-  let profileMigration = noPackageProfileMigration('Package profile materialization has not run.');
+  const profileMigration = noPackageProfileMigration(
+    'Package profile metadata is owner-managed; Framework Package lifecycle performs no user profile writes.',
+  );
   let managedPolicyMigration = noManagedPolicyMigration('Managed policy materialization has not run.');
   let removedSupersededPaths: string[] = [];
   let pluginCacheCreated = false;
@@ -1487,14 +1516,6 @@ export function materializePhysicalCodexSurface(
     const removedHiddenExposurePaths = codexDefaultExposure
       ? []
       : removeHiddenPackageGlobalExposure(manifest, paths, dryRun, codexConfigPreexisting);
-    if (!options.skipManagedSurfaces) {
-      profileMigration = materializePackageProfile({
-        manifest,
-        sourceRoot: materializedSourceRoot,
-        codexHome: paths.codexHome,
-        dryRun,
-      });
-    }
     removedSupersededPaths = [
       ...removedHiddenExposurePaths,
       ...removeSupersededOplFamilyCodexPluginPaths(
@@ -1506,7 +1527,6 @@ export function materializePhysicalCodexSurface(
     ];
   } catch (error) {
     if (!dryRun) {
-      rollbackPackageProfileMigration(profileMigration);
       unregisterLocalCodexPlugin(paths.codexConfigPath, paths.marketplaceId, manifest.plugin_id);
       removeCreatedEmptyCodexConfig(paths.codexConfigPath, codexConfigPreexisting);
       fs.rmSync(paths.marketplaceRoot, { recursive: true, force: true });
@@ -1711,10 +1731,6 @@ export function cleanupUnreferencedPackagePayloadSources(
 
 export function rollbackManagedPolicySurface(surface: AgentPackagePhysicalSurface | undefined) {
   return rollbackManagedPolicyMigration(surface?.workflow_policy_migration);
-}
-
-export function rollbackNewPackageProfileSurface(surface: AgentPackagePhysicalSurface | undefined) {
-  return rollbackPackageProfileMigration(surface?.profile_migration);
 }
 
 export function rematerializePhysicalCodexSurfaceFromLock(

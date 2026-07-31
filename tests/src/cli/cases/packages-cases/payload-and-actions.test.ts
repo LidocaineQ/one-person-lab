@@ -15,12 +15,6 @@ import {
   withAgentPackageServer,
   withRemotePayloadAgentPackageServer,
 } from './helpers.ts';
-import {
-  assertPackageProfileRollbackReady,
-  finalizePackageProfileRollback,
-  rollbackPackageProfileMigration,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/profile-surface.ts';
-
 function writeEmptyCodexPluginCarrier(binary: string) {
   fs.writeFileSync(binary, `#!/usr/bin/env node
 if (process.argv.slice(2).join(' ') !== 'plugin list --json') process.exit(2);
@@ -242,7 +236,7 @@ test('packages rejects local package payloads missing bundled required skills', 
   }
 });
 
-test('legacy profile merge packet is diagnostic and exposes no Framework apply command', () => {
+test('package profile metadata remains owner-managed without Framework profile artifacts', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-profile-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-profile-home-'));
   const codexHome = path.join(homeDir, '.codex');
@@ -295,24 +289,24 @@ if (process.argv.slice(2).join(' ') === 'plugin list --json') {
       '--trust-tier',
       'third_party_verified',
     ], env) as any;
-    const migration = install.opl_agent_package_install.physical_surface.profile_migration;
-    assert.equal(migration.status, 'semantic_merge_required');
+    const surface = install.opl_agent_package_install.physical_surface;
+    const migration = surface.profile_migration;
+    assert.equal(surface.profile_config.runtime_profile.source_path, 'templates/AGENTS.md');
+    assert.equal(migration.status, 'not_requested');
+    assert.equal(migration.writes_performed, false);
+    assert.equal(migration.receipt_path, null);
+    assert.equal(migration.merge_packet_path, null);
+    assert.deepEqual(migration.mutation_actions, []);
     assert.equal(fs.readFileSync(path.join(codexHome, 'AGENTS.md'), 'utf8'), existingProfile);
-    assert.equal(fs.readFileSync(path.join(codexHome, 'TASTE.md'), 'utf8'), authoringSource);
-    assert.equal(fs.existsSync(path.join(migration.merge_packet_path, 'packet.json')), true);
-    assert.equal(migration.apply_command, null);
-    const packet = parseJsonText(
-      fs.readFileSync(path.join(migration.merge_packet_path, 'packet.json'), 'utf8'),
-    ) as any;
-    assert.equal(packet.apply_command, null);
-    assert.match(
-      fs.readFileSync(path.join(migration.merge_packet_path, 'MERGE.md'), 'utf8'),
-      /does not apply user profile bytes/,
+    assert.equal(fs.existsSync(path.join(codexHome, 'TASTE.md')), false);
+    assert.equal(
+      fs.existsSync(path.join(codexHome, 'state', 'third.party.research')),
+      false,
     );
     const lockPath = path.join(stateDir, 'agent-package-locks.json');
     const lockBefore = fs.readFileSync(lockPath, 'utf8');
     assert.equal(fs.readFileSync(path.join(codexHome, 'AGENTS.md'), 'utf8'), existingProfile);
-    assert.equal(fs.readFileSync(path.join(codexHome, 'TASTE.md'), 'utf8'), authoringSource);
+    assert.equal(fs.existsSync(path.join(codexHome, 'TASTE.md')), false);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBefore);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
@@ -389,7 +383,7 @@ process.stdout.write(JSON.stringify({ installed: [{
   }
 });
 
-test('packages installs a declared profile directly on an empty Codex home', () => {
+test('packages retain declared profile metadata without materializing an empty Codex home', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-fresh-profile-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-fresh-profile-home-'));
   const pluginSourcePath = createPluginSourceFixture();
@@ -418,26 +412,19 @@ test('packages installs a declared profile directly on an empty Codex home', () 
       '--trust-tier',
       'third_party_verified',
     ], { OPL_STATE_DIR: stateDir, HOME: homeDir, CODEX_HOME: codexHome }) as any;
-    const migration = install.opl_agent_package_install.physical_surface.profile_migration;
-    assert.equal(migration.status, 'installed');
-    assert.equal(fs.readFileSync(path.join(codexHome, 'AGENTS.md'), 'utf8'), candidateProfile);
-    assert.equal(fs.existsSync(path.join(codexHome, 'state', 'third.party.research', 'profile-install-receipt.json')), true);
-
-    const editedAuthoringSource = '# User edited authoring source\n';
-    fs.writeFileSync(path.join(codexHome, 'TASTE.md'), editedAuthoringSource, 'utf8');
-    const previousCodexHome = process.env.CODEX_HOME;
-    process.env.CODEX_HOME = codexHome;
-    try {
-      assert.throws(
-        () => rollbackPackageProfileMigration(migration),
-        /target changed after the package write/,
-      );
-    } finally {
-      if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
-      else process.env.CODEX_HOME = previousCodexHome;
-    }
-    assert.equal(fs.readFileSync(path.join(codexHome, 'TASTE.md'), 'utf8'), editedAuthoringSource);
-    assert.equal(fs.readFileSync(path.join(codexHome, 'AGENTS.md'), 'utf8'), candidateProfile);
+    const surface = install.opl_agent_package_install.physical_surface;
+    const migration = surface.profile_migration;
+    assert.equal(surface.profile_config.runtime_profile.source_path, 'templates/AGENTS.md');
+    assert.equal(migration.status, 'not_requested');
+    assert.equal(migration.writes_performed, false);
+    assert.equal(migration.receipt_path, null);
+    assert.equal(migration.merge_packet_path, null);
+    assert.equal(fs.existsSync(path.join(codexHome, 'AGENTS.md')), false);
+    assert.equal(fs.existsSync(path.join(codexHome, 'TASTE.md')), false);
+    assert.equal(
+      fs.existsSync(path.join(codexHome, 'state', 'third.party.research')),
+      false,
+    );
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
     fs.rmSync(homeDir, { recursive: true, force: true });
@@ -446,7 +433,7 @@ test('packages installs a declared profile directly on an empty Codex home', () 
   }
 });
 
-test('profile installation compensates earlier writes when a later profile mutation fails', async () => {
+test('legacy profile receipt collisions do not affect package installation after writer retirement', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-profile-failure-state-'));
   const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-profile-failure-home-'));
   const pluginSourcePath = createPluginSourceFixture();
@@ -466,12 +453,19 @@ test('profile installation compensates earlier writes when a later profile mutat
       },
     })));
 
-    const failure = await runCliFailure([
+    const install = runCli([
       'packages', 'install', '--manifest-url', manifestPath, '--trust-tier', 'third_party',
-    ], { OPL_STATE_DIR: stateDir, CODEX_HOME: codexHome });
-    assert.equal(failure.payload.error.code, 'unexpected_error');
+    ], { OPL_STATE_DIR: stateDir, CODEX_HOME: codexHome }) as any;
+    const migration = install.opl_agent_package_install.physical_surface.profile_migration;
+    assert.equal(install.opl_agent_package_install.status, 'installed');
+    assert.equal(migration.status, 'not_requested');
+    assert.equal(migration.writes_performed, false);
     assert.equal(fs.existsSync(path.join(codexHome, 'AGENTS.md')), false);
     assert.equal(fs.existsSync(path.join(codexHome, 'TASTE.md')), false);
+    assert.equal(
+      fs.statSync(path.join(codexHome, 'state', 'third.party.research', 'profile-install-receipt.json')).isDirectory(),
+      true,
+    );
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
     fs.rmSync(codexHome, { recursive: true, force: true });

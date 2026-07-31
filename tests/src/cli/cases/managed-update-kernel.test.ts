@@ -1286,17 +1286,14 @@ test('public update apply retains successful bundled roots when another root res
       ...commonEnv,
       OPL_TEST_BUNDLED_FULL_RUNTIME_PACKAGE_CATALOG: newCatalog.catalogPath,
     };
-    const packageOwnedProfiles = new Map(['AGENTS.md', 'TASTE.md'].map((fileName) => {
+    const userOwnedProfiles = new Map(['AGENTS.md', 'TASTE.md'].map((fileName) => {
       const filePath = path.join(codexHome, fileName);
-      return [filePath, fs.readFileSync(filePath)];
-    }));
-    const userOwnedProfiles = new Map<string, Buffer>();
-    for (const [filePath] of packageOwnedProfiles) {
       const content = Buffer.from(`# User-owned ${path.basename(filePath)}\n`);
-      userOwnedProfiles.set(filePath, content);
-      fs.writeFileSync(filePath, content);
-    }
-    const profileBlocked = runCli(['update', 'apply'], {
+      return [filePath, content] as const;
+    }));
+    fs.mkdirSync(codexHome, { recursive: true });
+    for (const [filePath, content] of userOwnedProfiles) fs.writeFileSync(filePath, content);
+    const profileSafe = runCli(['update', 'apply'], {
       ...updateEnv,
       OPL_RUNTIME_ROOT: baseRuntimeRoot,
       OPL_CODEX_BIN: baseRuntimeCodex,
@@ -1304,37 +1301,34 @@ test('public update apply retains successful bundled roots when another root res
       PATH: `${baseFixtureBin}${path.delimiter}${updateEnv.PATH}`,
     }) as any;
     assert.deepEqual(
-      profileBlocked.managed_update.execution.adapter_results.map((entry: any) => entry.component_id),
+      profileSafe.managed_update.execution.adapter_results.map((entry: any) => entry.component_id),
       ['opl_packages'],
     );
     assert.deepEqual(
-      profileBlocked.managed_update.components.map((entry: any) => entry.component_id),
+      profileSafe.managed_update.components.map((entry: any) => entry.component_id),
       ['opl_packages'],
     );
-    const profileAdapter = profileBlocked.managed_update.execution.adapter_results.find(
+    const profileAdapter = profileSafe.managed_update.execution.adapter_results.find(
       (entry: any) => entry.component_id === 'opl_packages',
     );
     assert.equal(profileAdapter.adapter_id, 'capability_packages_adapter');
     const profileReconciliation = profileAdapter.result.bundled_full_runtime_reconciliation;
-    const profileFailure = profileReconciliation.failures.find((entry: any) => (
-      entry.package_id === 'opl-flow'
-    ));
-    assert.equal(profileBlocked.managed_update.execution.status, 'partial_success');
-    assert.equal(profileAdapter.status, 'partial_success');
-    assert.equal(profileReconciliation.status, 'partial');
+    assert.equal(profileSafe.managed_update.execution.status, 'completed');
+    assert.equal(profileAdapter.status, 'completed');
+    assert.equal(profileReconciliation.status, 'completed');
     assert.deepEqual(
       profileReconciliation.root_installs.map((entry: any) => entry.status),
-      ['completed', 'completed', 'completed', 'completed', 'manual_required', 'completed'],
+      ['completed', 'completed', 'completed', 'completed', 'completed', 'completed'],
     );
-    assert.equal(profileFailure.failure_code, 'agent_package_bundled_managed_surface_manual_required');
-    assert.equal(profileFailure.details.profile_migration_status, 'semantic_merge_required');
-    assert.equal(profileFailure.details.mutation_started, false);
+    assert.equal(
+      profileReconciliation.failures.some((entry: any) => entry.package_id === 'opl-flow'),
+      false,
+    );
     for (const [filePath, content] of userOwnedProfiles) {
       assert.deepEqual(fs.readFileSync(filePath), content);
     }
     assert.equal(fs.existsSync(launchctlLog), false);
     assert.equal(fs.existsSync(legacyLockPath), false);
-    for (const [filePath, content] of packageOwnedProfiles) fs.writeFileSync(filePath, content);
 
     const servicePath = path.join(homeRoot, 'Library', 'LaunchAgents', 'codexcont.plist');
     const serviceStateSentinel = path.join(root, 'codexcont-runtime-state.sentinel');
@@ -1365,7 +1359,7 @@ test('public update apply retains successful bundled roots when another root res
       ['skipped', 'skipped', 'skipped', 'skipped', 'manual_required', 'skipped'],
     );
     assert.equal(serviceFailure.failure_code, 'agent_package_bundled_managed_surface_manual_required');
-    assert.equal(serviceFailure.details.profile_migration_status, 'validated_no_write');
+    assert.equal(serviceFailure.details.profile_migration_status, 'not_requested');
     assert.equal(serviceFailure.details.service_conflicts.length, 1);
     assert.equal(serviceFailure.details.service_conflicts[0].physical_ref, servicePath);
     assert.equal(serviceFailure.details.mutation_started, false);
