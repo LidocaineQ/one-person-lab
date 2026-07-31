@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process';
+
 import {
   assert,
   fs,
@@ -5,14 +7,26 @@ import {
   os,
   path,
   removeFixtureTree,
+  repoRoot,
+  runCli,
+  runCliFailure,
   test,
 } from './helpers.ts';
+import { createFakeCodexPluginManagerFixture } from '../../helpers.ts';
 import {
   runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/legacy-opl-skills-migration.ts';
 import type { CodexPluginCommandRunner } from '../../../../../src/modules/connect/agent-package-registry-parts/configured-codex-plugin-carrier.ts';
 
 const skillIds = ['develop-and-deliver', 'task-mode-gate', 'recover-codex-tasks'];
+const flowSkillIds = [
+  'coordinate-concurrent-tasks',
+  'develop-and-deliver',
+  'opl-flow',
+  'recover-codex-tasks',
+  'task-mode-gate',
+];
+const flowPluginSelector = 'opl-flow@opl-flow-local';
 const descriptor = {
   packageId: 'opl-flow',
   carrier: {
@@ -26,6 +40,263 @@ const descriptor = {
   },
   publicationRef: null,
 };
+
+function flowManifest(input: {
+  version: string;
+  requiredSkillIds: string[];
+  marketplaceRoot: string;
+}) {
+  const manifest = JSON.parse(fs.readFileSync(
+    path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'opl-flow.json'),
+    'utf8',
+  ));
+  manifest.version = input.version;
+  manifest.codex_surface.required_skill_ids = input.requiredSkillIds;
+  manifest.codex_surface.configured_codex_plugin_carrier = {
+    kind: 'codex_plugin_manager',
+    plugin_selector: flowPluginSelector,
+    executor_route: 'codex_cli',
+    marketplace_source: input.marketplaceRoot,
+    publication_ref: null,
+  };
+  return manifest;
+}
+
+function writeFlowMarketplace(input: {
+  root: string;
+  version: string;
+  requiredSkillIds: string[];
+  configuredMarketplaceRoot?: string;
+}) {
+  const marketplaceRoot = path.join(input.root, 'marketplace');
+  const pluginSource = path.join(marketplaceRoot, 'plugins', 'opl-flow');
+  const marketplaceManifest = path.join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json');
+  const manifestPath = path.join(input.root, 'flow-manifest.json');
+  const manifest = flowManifest({
+    version: input.version,
+    requiredSkillIds: input.requiredSkillIds,
+    marketplaceRoot: input.configuredMarketplaceRoot ?? marketplaceRoot,
+  });
+  fs.rmSync(pluginSource, { recursive: true, force: true });
+  fs.mkdirSync(path.join(pluginSource, '.codex-plugin'), { recursive: true });
+  for (const skillId of input.requiredSkillIds) {
+    fs.mkdirSync(path.join(pluginSource, 'skills', skillId), { recursive: true });
+    fs.writeFileSync(path.join(pluginSource, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`);
+  }
+  fs.writeFileSync(path.join(pluginSource, '.codex-plugin', 'plugin.json'), formatJsonPayload({
+    name: 'opl-flow',
+    version: input.version,
+    skills: './skills/',
+  }));
+  fs.writeFileSync(path.join(pluginSource, 'opl-package.json'), formatJsonPayload(manifest));
+  fs.mkdirSync(path.dirname(marketplaceManifest), { recursive: true });
+  fs.writeFileSync(marketplaceManifest, formatJsonPayload({
+    name: 'opl-flow-local',
+    plugins: [{
+      name: 'opl-flow',
+      source: { source: 'local', path: './plugins/opl-flow' },
+    }],
+  }));
+  fs.writeFileSync(manifestPath, formatJsonPayload(manifest));
+  return { marketplaceRoot, pluginSource, manifestPath };
+}
+
+function writeObservedCodexPluginManager(input: {
+  root: string;
+  delegate: string;
+}) {
+  const binary = path.join(input.root, 'observed-codex');
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+
+const args = process.argv.slice(2);
+const command = args.join(' ');
+if (process.env.FIXTURE_COMMAND_LOG) {
+  fs.appendFileSync(process.env.FIXTURE_COMMAND_LOG, command + '\\n');
+}
+if (command === 'plugin add ${flowPluginSelector} --json') {
+  const agentsRoot = path.join(process.env.HOME, '.agents');
+  const lockPath = path.join(agentsRoot, '.skill-lock.json');
+  if (process.env.FIXTURE_REQUIRE_LEGACY_ABSENT === '1') {
+    const remaining = ${JSON.stringify(skillIds)}.filter((skillId) =>
+      fs.existsSync(path.join(agentsRoot, 'skills', skillId))
+    );
+    const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+    const declared = ${JSON.stringify(skillIds)}.filter((skillId) =>
+      Object.hasOwn(lock.skills, skillId)
+    );
+    if (remaining.length || declared.length) {
+      process.stderr.write('legacy Skills remained discoverable before Flow exposure');
+      process.exit(41);
+    }
+  }
+  if (process.env.FIXTURE_FAIL_PLUGIN_ADD === '1') {
+    process.stderr.write('fixture plugin add failure');
+    process.exit(42);
+  }
+}
+const result = spawnSync(${JSON.stringify(input.delegate)}, args, {
+  env: process.env,
+  encoding: 'utf8',
+});
+process.stdout.write(result.stdout || '');
+process.stderr.write(result.stderr || '');
+process.exit(result.status ?? 1);
+`, { mode: 0o755 });
+  return binary;
+}
+
+function publicLifecycleFixture(label: string, source = 'gaofeng21cn/opl-skills') {
+  const state = fixture(`public-${label}`, source);
+  const codex = createFakeCodexPluginManagerFixture(path.join(state.root, 'fake-codex'));
+  const commandLog = path.join(state.root, 'codex-commands.log');
+  const observedCodex = writeObservedCodexPluginManager({ root: state.root, delegate: codex.codexPath });
+  const env = {
+    HOME: state.root,
+    CODEX_HOME: path.join(state.root, 'codex-home'),
+    OPL_STATE_DIR: path.join(state.root, 'opl-state'),
+    OPL_CODEX_PLUGIN_BIN: observedCodex,
+    FIXTURE_COMMAND_LOG: commandLog,
+  };
+  return { ...state, codex, commandLog, env };
+}
+
+function seedMarketplace(input: {
+  codexPath: string;
+  marketplaceRoot: string;
+  env: Record<string, string>;
+}) {
+  execFileSync(input.codexPath, [
+    'plugin', 'marketplace', 'add', input.marketplaceRoot, '--json',
+  ], { env: { ...process.env, ...input.env }, stdio: 'ignore' });
+}
+
+function seedInstalledFlow(input: {
+  state: ReturnType<typeof publicLifecycleFixture>;
+  oldMarketplaceRoot: string;
+}) {
+  seedMarketplace({
+    codexPath: input.state.codex.codexPath,
+    marketplaceRoot: input.oldMarketplaceRoot,
+    env: input.state.env,
+  });
+  execFileSync(input.state.codex.codexPath, [
+    'plugin', 'add', flowPluginSelector, '--json',
+  ], { env: { ...process.env, ...input.state.env }, stdio: 'ignore' });
+  fs.rmSync(input.state.commandLog, { force: true });
+}
+
+function writeDeveloperFlowCheckout(root: string) {
+  const checkout = path.join(root, 'opl-flow');
+  const policy = {
+    schema: 'opl_flow_workflow_policy.v3',
+    package: {
+      id: 'opl-flow',
+      version: '0.1.30',
+      owner: 'opl-flow',
+      kind: 'workflow_profile',
+    },
+    workflow_generation: 'fixture',
+    provides: [
+      {
+        id: 'opl-flow',
+        kind: 'codex_plugin',
+        online_install_default: true,
+        activation: 'always',
+      },
+      ...flowSkillIds.map((skillId) => ({
+        id: skillId,
+        kind: 'codex_skill',
+        source: 'https://github.com/gaofeng21cn/opl-flow',
+        source_path: `skills/${skillId}`,
+        online_install_default: true,
+        activation: 'task_routed',
+      })),
+    ],
+    requires: [],
+    recommends: [],
+    compatible_optional: [],
+    conflicts: [],
+    retires: [{
+      id: 'fixture-retirement',
+      discovery_ids: [
+        'fixture-legacy-plugin',
+        'fixture-legacy-skill',
+        'fixture-legacy-service',
+        'fixture-legacy-config',
+        'fixture-legacy-prompt',
+      ],
+      auto_retire_on_optimize: false,
+      reason: 'Classify isolated fixture fingerprints.',
+    }],
+    codex_model_policy: {
+      authority: 'opl-flow',
+      configured_default: { model: 'fixture', reasoning_effort: 'high' },
+      override_precedence: ['explicit_user_override'],
+    },
+    migration_policy: {
+      trigger: 'explicit_opl_flow_install_update_optimize_or_generic_app_post_update_reconcile',
+      default_action: 'backup_disable_and_remove_from_discovery',
+      physical_delete: false,
+      receipt_owner: 'opl-framework',
+      rollback_required: true,
+      keep_override_supported: true,
+      fresh_discovery_required: true,
+    },
+    historical_fingerprints: {
+      plugin_ids: ['fixture-legacy-plugin'],
+      skill_ids: ['fixture-legacy-skill'],
+      service_ids: ['fixture-legacy-service'],
+      config_markers: ['fixture-legacy-config'],
+      legacy_prompt_ids: ['fixture-legacy-prompt'],
+    },
+  };
+  fs.mkdirSync(path.join(checkout, '.codex-plugin'), { recursive: true });
+  fs.mkdirSync(path.join(checkout, 'contracts'), { recursive: true });
+  fs.mkdirSync(path.join(checkout, 'profile', 'modules'), { recursive: true });
+  fs.mkdirSync(path.join(checkout, 'templates'), { recursive: true });
+  fs.writeFileSync(path.join(checkout, '.codex-plugin', 'plugin.json'), formatJsonPayload({
+    name: 'opl-flow',
+    version: '0.1.30',
+    skills: './skills/',
+  }));
+  fs.writeFileSync(path.join(checkout, 'contracts', 'workflow-policy.json'), formatJsonPayload(policy));
+  fs.writeFileSync(path.join(checkout, 'contracts', 'workflow-policy.schema.json'), formatJsonPayload({
+    type: 'object',
+    required: ['schema', 'package'],
+    properties: {
+      schema: { const: 'opl_flow_workflow_policy.v3' },
+      package: {
+        type: 'object',
+        required: ['id', 'version', 'owner', 'kind'],
+      },
+    },
+  }));
+  fs.writeFileSync(path.join(checkout, 'profile', 'manifest.json'), formatJsonPayload({
+    surface_kind: 'fixture_profile',
+  }));
+  fs.writeFileSync(
+    path.join(checkout, 'profile', 'modules', '01-user-preferences.md'),
+    '# Fixture preferences\n',
+  );
+  fs.writeFileSync(path.join(checkout, 'templates', 'AGENTS.md'), '# Fixture AGENTS\n');
+  fs.writeFileSync(path.join(checkout, 'templates', 'TASTE.md'), '# Fixture TASTE\n');
+  for (const skillId of flowSkillIds) {
+    const skillRoot = path.join(checkout, 'skills', skillId);
+    fs.mkdirSync(skillRoot, { recursive: true });
+    fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), `# ${skillId}\n`);
+  }
+  execFileSync('git', ['init', '-q'], { cwd: checkout });
+  execFileSync('git', ['add', '.'], { cwd: checkout });
+  execFileSync('git', [
+    '-c', 'user.name=OPL Fixture',
+    '-c', 'user.email=opl-fixture@example.invalid',
+    'commit', '-qm', 'fixture Flow 0.1.30',
+  ], { cwd: checkout });
+  return checkout;
+}
 
 function fixture(label: string, source = 'gaofeng21cn/opl-skills') {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `opl-flow-skill-migration-${label}-`));
@@ -262,6 +533,158 @@ test('OPL Flow 0.1.29 descriptor does not retire Skills that it does not bundle'
     assert.equal(execution.legacySkillMigration.status, 'not_required');
     assert.deepEqual(fs.readFileSync(state.lockPath), before);
     for (const skillId of skillIds) assert.equal(fs.existsSync(path.join(state.skillsRoot, skillId)), true);
+  } finally {
+    removeFixtureTree(state.root);
+  }
+});
+
+test('public packages update migrates legacy Skills before exposing the five-Skill Flow target', () => {
+  const state = publicLifecycleFixture('update-success');
+  try {
+    const next = writeFlowMarketplace({
+      root: path.join(state.root, 'flow-next'),
+      version: '0.1.30',
+      requiredSkillIds: flowSkillIds,
+    });
+    const previous = writeFlowMarketplace({
+      root: path.join(state.root, 'flow-previous'),
+      version: '0.1.29',
+      requiredSkillIds: ['opl-flow', 'coordinate-concurrent-tasks'],
+      configuredMarketplaceRoot: next.marketplaceRoot,
+    });
+    seedInstalledFlow({ state, oldMarketplaceRoot: previous.marketplaceRoot });
+
+    const update = runCli(['packages', 'update', 'opl-flow'], {
+      ...state.env,
+      FIXTURE_REQUIRE_LEGACY_ABSENT: '1',
+    }) as any;
+    assert.equal(update.opl_agent_package_update.status, 'updated');
+    assert.equal(update.opl_agent_package_update.legacy_skill_migration.status, 'migrated');
+    assert.deepEqual(
+      update.opl_agent_package_update.configured_carrier.executor.required_skill_ids,
+      flowSkillIds,
+    );
+    assert.equal(update.opl_agent_package_update.configured_carrier.installed_version, '0.1.30');
+    for (const skillId of skillIds) {
+      assert.equal(fs.existsSync(path.join(state.skillsRoot, skillId)), false);
+      assert.equal(fs.existsSync(path.join(next.pluginSource, 'skills', skillId, 'SKILL.md')), true);
+    }
+    assert.match(fs.readFileSync(state.commandLog, 'utf8'), /plugin add opl-flow@opl-flow-local --json/);
+  } finally {
+    removeFixtureTree(state.root);
+  }
+});
+
+test('public packages update fails closed on a conflicting legacy source before native add', () => {
+  const state = publicLifecycleFixture('update-conflict', 'example/other-skills');
+  const before = fs.readFileSync(state.lockPath);
+  try {
+    const next = writeFlowMarketplace({
+      root: path.join(state.root, 'flow-next'),
+      version: '0.1.30',
+      requiredSkillIds: flowSkillIds,
+    });
+    const previous = writeFlowMarketplace({
+      root: path.join(state.root, 'flow-previous'),
+      version: '0.1.29',
+      requiredSkillIds: ['opl-flow', 'coordinate-concurrent-tasks'],
+      configuredMarketplaceRoot: next.marketplaceRoot,
+    });
+    seedInstalledFlow({ state, oldMarketplaceRoot: previous.marketplaceRoot });
+
+    const failure = runCliFailure(['packages', 'update', 'opl-flow'], state.env);
+    assert.equal(failure.payload.error.details.failure_code, 'opl_flow_legacy_skill_source_conflict');
+    assert.deepEqual(fs.readFileSync(state.lockPath), before);
+    for (const skillId of skillIds) assert.equal(fs.existsSync(path.join(state.skillsRoot, skillId)), true);
+    assert.doesNotMatch(fs.readFileSync(state.commandLog, 'utf8'), /plugin add opl-flow@opl-flow-local --json/);
+  } finally {
+    removeFixtureTree(state.root);
+  }
+});
+
+test('public packages update restores legacy directories and lock bytes after native add failure', () => {
+  const state = publicLifecycleFixture('update-rollback');
+  const before = fs.readFileSync(state.lockPath);
+  try {
+    const next = writeFlowMarketplace({
+      root: path.join(state.root, 'flow-next'),
+      version: '0.1.30',
+      requiredSkillIds: flowSkillIds,
+    });
+    const previous = writeFlowMarketplace({
+      root: path.join(state.root, 'flow-previous'),
+      version: '0.1.29',
+      requiredSkillIds: ['opl-flow', 'coordinate-concurrent-tasks'],
+      configuredMarketplaceRoot: next.marketplaceRoot,
+    });
+    seedInstalledFlow({ state, oldMarketplaceRoot: previous.marketplaceRoot });
+
+    const failure = runCliFailure(['packages', 'update', 'opl-flow'], {
+      ...state.env,
+      FIXTURE_REQUIRE_LEGACY_ABSENT: '1',
+      FIXTURE_FAIL_PLUGIN_ADD: '1',
+    });
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'configured_codex_plugin_carrier_action_failed',
+    );
+    assert.deepEqual(fs.readFileSync(state.lockPath), before);
+    for (const skillId of skillIds) assert.equal(fs.existsSync(path.join(state.skillsRoot, skillId)), true);
+  } finally {
+    removeFixtureTree(state.root);
+  }
+});
+
+test('public packages install from a developer checkout retires legacy Skills before exposing five Flow Skills', () => {
+  const state = publicLifecycleFixture('install-developer-checkout');
+  try {
+    const checkout = writeDeveloperFlowCheckout(path.join(state.root, 'workspace'));
+    const installed = runCli(['packages', 'install', 'opl-flow'], {
+      ...state.env,
+      OPL_MODULE_PATH_OPLFLOW: checkout,
+      OPL_MODULE_SOURCE_MODE: 'git_checkout',
+    }) as any;
+    const surface = installed.opl_agent_package_install;
+    assert.equal(surface.status, 'installed');
+    assert.equal(surface.package_lock.source_kind, 'developer_checkout_override');
+    assert.equal(surface.legacy_skill_migration.status, 'migrated');
+    assert.deepEqual(
+      surface.physical_surface.materialized_required_skill_ids,
+      flowSkillIds,
+    );
+    assert.equal(surface.physical_surface.workflow_policy_migration.status, 'current');
+    const installedPolicy = JSON.parse(fs.readFileSync(
+      path.join(surface.physical_surface.codex_plugin_cache_path, 'contracts', 'workflow-policy.json'),
+      'utf8',
+    ));
+    assert.equal(installedPolicy.schema, 'opl_flow_workflow_policy.v3');
+    assert.deepEqual(installedPolicy.package, {
+      id: 'opl-flow',
+      version: '0.1.30',
+      owner: 'opl-flow',
+      kind: 'workflow_profile',
+    });
+    for (const skillId of flowSkillIds) {
+      assert.equal(
+        fs.existsSync(path.join(surface.physical_surface.codex_plugin_cache_path, 'skills', skillId, 'SKILL.md')),
+        true,
+      );
+    }
+    for (const skillId of skillIds) {
+      assert.equal(fs.existsSync(path.join(state.skillsRoot, skillId)), false);
+    }
+    const lock = JSON.parse(fs.readFileSync(state.lockPath, 'utf8'));
+    assert.deepEqual(Object.keys(lock.skills), ['unrelated-skill']);
+    const pluginList = JSON.parse(execFileSync(state.codex.codexPath, ['plugin', 'list', '--json'], {
+      env: { ...process.env, ...state.env },
+      encoding: 'utf8',
+    }));
+    assert.equal(pluginList.installed.length, 1);
+    assert.equal(
+      pluginList.installed[0].pluginId,
+      `${surface.physical_surface.plugin_id}@${surface.physical_surface.marketplace_id}`,
+    );
+    assert.equal(pluginList.installed[0].source.path, surface.physical_surface.marketplace_plugin_path);
   } finally {
     removeFixtureTree(state.root);
   }

@@ -72,12 +72,12 @@
     "opl-flow": {
       "package_id": "opl-flow",
       "package_role": "workflow_profile",
-      "package_version": "0.1.29",
-      "owner_source_commit": "5b1bae85f54cd133dc1e69b804f7679fc820e31d",
+      "package_version": "0.1.30",
+      "owner_source_commit": "f8efd7f0655d62a9d5017a124feb92dd611f430b",
       "manifest_ref": "packages/opl-flow.json",
-      "manifest_sha256": "sha256:63e16c5758dc3155a350f66da547e543905e311c69b973e0f7b2cf7608296ecf",
-      "payload_manifest_ref": "packages/payloads/opl-flow-0.1.29.json",
-      "payload_manifest_sha256": "sha256:fc43d84c5ca97e51b23571aa543d4f404d113a4da6cf1d178e3b06b985f7bb5a",
+      "manifest_sha256": "sha256:1cc13754b86a0d5dd8f4c29c0e37df0880513f8d14a6c8a9a8ca04901d982f9f",
+      "payload_manifest_ref": "packages/payloads/opl-flow-0.1.30.json",
+      "payload_manifest_sha256": "sha256:4aed70d996274c750fe11689ec651e031f0686023804323e71bbd75cb9383ba2",
       "runtime_module_relative_path": "modules/opl-flow"
     }
   }

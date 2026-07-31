@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { deriveAgentPackageLaunchState } from '../../kernel/agent-package-launch-state.ts';
 import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
@@ -155,6 +156,7 @@ import {
   writePackageTransaction,
 } from './agent-package-registry-parts/store.ts';
 import type {
+  AgentPackageConfiguredCodexPluginCarrierDescriptor,
   AgentPackageHomeShortcutPreferenceFile,
   AgentPackageHomeShortcutPreferencesSetInput,
   AgentPackageStoredHomeShortcutPreference,
@@ -1580,6 +1582,33 @@ type ConfiguredCarrierSelectionInput =
   | AgentPackageRepairInput
   | AgentPackagePackageActionInput;
 
+const frameworkPackageManifestRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../contracts/opl-framework/packages',
+);
+
+function configuredCarrierTargetDescriptor(
+  descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor,
+  action: Exclude<ConfiguredCodexPluginCarrierAction, 'list'>,
+) {
+  if (descriptor.packageId !== 'opl-flow'
+    || (action !== 'install' && action !== 'update' && action !== 'repair')) {
+    return descriptor;
+  }
+  const manifestPath = path.join(frameworkPackageManifestRoot, 'opl-flow.json');
+  const target = normalizePackageManifest(
+    parseJsonText(fs.readFileSync(manifestPath, 'utf8')),
+    pathToFileURL(manifestPath).toString(),
+  );
+  return {
+    ...descriptor,
+    executor: {
+      ...descriptor.executor,
+      requiredSkillIds: [...target.required_skill_ids],
+    },
+  };
+}
+
 async function resolveFreshConfiguredCarrier(input: ConfiguredCarrierSelectionInput) {
   const packageId = canonicalAgentPackageId(input.packageId);
   const explicitManifestUrl = 'manifestUrl' in input ? stringValue(input.manifestUrl) : null;
@@ -1677,7 +1706,7 @@ async function maybeRunConfiguredCarrierLifecycle(input: {
   if (!selected) return null;
   const dryRun = input.selectionInput.dryRun === true;
   const execution = runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration({
-    descriptor: selected,
+    descriptor: configuredCarrierTargetDescriptor(selected, input.action),
     action: input.action,
     dryRun,
   });

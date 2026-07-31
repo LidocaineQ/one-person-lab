@@ -1339,15 +1339,21 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
     'utf8',
   )) as Record<string, any>;
   assert.equal(manifest.surface_kind, 'opl_workflow_profile_package_manifest.v1');
-  assert.equal(manifest.version, '0.1.29');
-  assert.equal(manifest.codex_surface.carrier_source_commit, '5b1bae85f54cd133dc1e69b804f7679fc820e31d');
-  assert.deepEqual(manifest.codex_surface.required_skill_ids, ['coordinate-concurrent-tasks', 'opl-flow']);
+  assert.equal(manifest.version, '0.1.30');
+  assert.equal(manifest.codex_surface.carrier_source_commit, 'f8efd7f0655d62a9d5017a124feb92dd611f430b');
+  assert.deepEqual(manifest.codex_surface.required_skill_ids, [
+    'coordinate-concurrent-tasks',
+    'develop-and-deliver',
+    'opl-flow',
+    'recover-codex-tasks',
+    'task-mode-gate',
+  ]);
   assert.equal(schema.properties.codex_surface.required.includes('carrier_source_commit'), true);
   assert.equal(Object.hasOwn(manifest, 'agent_id'), false);
   assert.equal(normalized.agent_id, null);
   assert.equal(normalized.profile_surface?.existing_profile_policy, 'semantic_merge_required');
   assert.equal(payload.surface_kind, 'opl_package_payload_manifest.v2');
-  assert.equal(payload.source_commit, '5b1bae85f54cd133dc1e69b804f7679fc820e31d');
+  assert.equal(payload.source_commit, 'f8efd7f0655d62a9d5017a124feb92dd611f430b');
   assert.equal(payload.files.some((file: Record<string, unknown>) => file.path === 'opl-package.json'), true);
   assert.deepEqual(
     payload.files
@@ -1356,8 +1362,18 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
     [
       'skills/coordinate-concurrent-tasks/SKILL.md',
       'skills/coordinate-concurrent-tasks/agents/openai.yaml',
+      'skills/develop-and-deliver/SKILL.md',
+      'skills/develop-and-deliver/agents/openai.yaml',
       'skills/opl-flow/SKILL.md',
       'skills/opl-flow/agents/openai.yaml',
+      'skills/opl-flow/references/start-onboarding.json',
+      'skills/opl-flow/scripts/validate_start_onboarding.py',
+      'skills/recover-codex-tasks/SKILL.md',
+      'skills/recover-codex-tasks/agents/openai.yaml',
+      'skills/recover-codex-tasks/references/evidence-and-prompts.md',
+      'skills/recover-codex-tasks/scripts/inspect_codex_recovery.py',
+      'skills/task-mode-gate/SKILL.md',
+      'skills/task-mode-gate/agents/openai.yaml',
     ],
   );
   assert.equal(

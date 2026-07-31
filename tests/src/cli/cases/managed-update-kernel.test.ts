@@ -753,6 +753,14 @@ function writeManagedBundledScholarSource(root: string, manifest: Record<string,
   }
 }
 
+const managedBundledFlowSkillIds = [
+  'coordinate-concurrent-tasks',
+  'develop-and-deliver',
+  'opl-flow',
+  'recover-codex-tasks',
+  'task-mode-gate',
+];
+
 function writeManagedBundledFlowSource(root: string, version: string, revision: string) {
   const capability = (input: {
     id: string;
@@ -769,7 +777,7 @@ function writeManagedBundledFlowSource(root: string, version: string, revision: 
     id: input.id,
     kind: input.kind,
     owner: input.id === 'opl-base' ? 'one-person-lab' : input.id === 'officecli' ? 'iofficeai' : 'opl-flow',
-    version_requirement: input.id === 'opl-flow' || input.id === 'coordinate-concurrent-tasks'
+    version_requirement: input.id === 'opl-flow' || managedBundledFlowSkillIds.includes(input.id)
       ? `=${version}`
       : 'release_lock_exact',
     source: input.source,
@@ -791,17 +799,11 @@ function writeManagedBundledFlowSource(root: string, version: string, revision: 
         installSource: 'package_payload', lifecycleOwner: 'opl-framework', offlineBundle: 'full',
         onlineInstallDefault: true, activation: 'always', conflictPolicy: 'fail_closed_on_collision',
       }),
-      capability({
-        id: 'opl-flow', kind: 'codex_skill', source: 'package:opl-flow/skills/opl-flow',
+      ...managedBundledFlowSkillIds.map((skillId) => capability({
+        id: skillId, kind: 'codex_skill', source: `package:opl-flow/skills/${skillId}`,
         installSource: 'package_payload', lifecycleOwner: 'opl-framework', offlineBundle: 'full',
         onlineInstallDefault: true, activation: 'task_routed', conflictPolicy: 'fail_closed_on_collision',
-      }),
-      capability({
-        id: 'coordinate-concurrent-tasks', kind: 'codex_skill',
-        source: 'package:opl-flow/skills/coordinate-concurrent-tasks', installSource: 'package_payload',
-        lifecycleOwner: 'opl-framework', offlineBundle: 'full', onlineInstallDefault: true,
-        activation: 'task_routed', conflictPolicy: 'fail_closed_on_collision',
-      }),
+      })),
     ],
     requires: [capability({
       id: 'opl-base', kind: 'base', source: 'gaofeng21cn/one-person-lab',
@@ -877,7 +879,7 @@ function writeManagedBundledFlowSource(root: string, version: string, revision: 
     version,
     skills: './skills/',
   });
-  for (const skillId of ['coordinate-concurrent-tasks', 'opl-flow']) {
+  for (const skillId of managedBundledFlowSkillIds) {
     fs.mkdirSync(path.join(root, 'skills', skillId), { recursive: true });
     fs.writeFileSync(
       path.join(root, 'skills', skillId, 'SKILL.md'),
