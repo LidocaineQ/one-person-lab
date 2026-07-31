@@ -155,8 +155,8 @@
         "framework_version",
         "package_ref"
       ],
-      "executable_path_policy": "actual_producer_entrypoint_realpath",
-      "executable_digest_policy": "sha256_of_actual_producer_entrypoint_bytes",
+      "executable_path_policy": "actual_app_executed_framework_launcher_realpath_with_direct_package_entrypoint_fallback",
+      "executable_digest_policy": "sha256_of_actual_app_executed_framework_launcher_or_direct_entrypoint_bytes",
       "package_ref_policy": "realpath_bound_framework_package_root",
       "caller_must_match_executed_runtime": true,
       "self_declared_contract_ref_alone_is_authority": false

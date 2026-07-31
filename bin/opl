@@ -12,13 +12,14 @@ while [[ -L "$SOURCE_PATH" ]]; do
   fi
 done
 ROOT_DIR="$(cd "$(dirname "$SOURCE_PATH")/.." && pwd)"
+LAUNCHER_PATH="$(cd "$(dirname "$SOURCE_PATH")" && pwd)/$(basename "$SOURCE_PATH")"
 
 run_opl() {
   if [[ -f "$ROOT_DIR/src/entrypoints/cli.ts" ]]; then
-    exec node --experimental-strip-types "$ROOT_DIR/src/entrypoints/cli.ts" "$@"
+    exec -a "$LAUNCHER_PATH" node --experimental-strip-types "$ROOT_DIR/src/entrypoints/cli.ts" "$@"
   fi
 
-  exec node "$ROOT_DIR/dist/entrypoints/cli.js" "$@"
+  exec -a "$LAUNCHER_PATH" node "$ROOT_DIR/dist/entrypoints/cli.js" "$@"
 }
 
 run_opl_mcp_stdio() {

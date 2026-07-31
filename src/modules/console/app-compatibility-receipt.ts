@@ -176,7 +176,20 @@ function assertContainedFile(root: string, candidate: string, label: string) {
   }
 }
 
-function buildProducerIdentity(entrypointFile = process.argv[1]) {
+function currentProducerEntrypointFile() {
+  const argv0 = process.argv0?.trim();
+  if (!argv0 || !path.isAbsolute(argv0)) return process.argv[1];
+  try {
+    if (fs.realpathSync(argv0) === fs.realpathSync(process.execPath)) {
+      return process.argv[1];
+    }
+  } catch {
+    return argv0;
+  }
+  return argv0;
+}
+
+function buildProducerIdentity(entrypointFile = currentProducerEntrypointFile()) {
   const entrypoint = readRegularFile(
     nonEmptyString(entrypointFile, 'Framework producer entrypoint'),
     'Framework producer entrypoint',

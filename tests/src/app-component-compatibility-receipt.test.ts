@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -355,4 +356,57 @@ test('CLI envelope binds the exact receipt producer identity and SHA-256 sidecar
   assert.equal(envelope.receipt_sha256, sha256(fs.readFileSync(outputFile)));
   assert.equal(envelope.sha256_file, `${fs.realpathSync(outputFile)}.sha256`);
   assert.equal(receipt.receipt_ref, pathToFileURL(fs.realpathSync(outputFile)).href);
+});
+
+test('bin/opl binds receipt producer identity to the exact App-executed launcher bytes', (t) => {
+  const state = fixture(t);
+  const launcher = fs.realpathSync(path.join(repoRoot, 'bin', 'opl'));
+  const requirementsFile = path.join(state.root, 'launcher-requirements.json');
+  const outputFile = path.join(state.root, 'launcher-receipt.json');
+  writeJson(requirementsFile, {
+    schema: 'opl_component_compatibility_requirements.v1',
+    owner: 'one-person-lab-app',
+    contract_ref: contractRef,
+    requirements: [
+      frameworkCapability(
+        'gui-installed-acceptance',
+        'opl_component_compatibility_receipt',
+        '>=1.0.0 <2.0.0',
+      ),
+    ],
+  });
+
+  const launched = spawnSync(
+    launcher,
+    [
+      'app',
+      'compatibility',
+      'receipt',
+      '--requirements-file',
+      requirementsFile,
+      '--subject-file',
+      state.subjectFile,
+      '--output',
+      outputFile,
+      '--ttl-seconds',
+      '300',
+      '--json',
+    ],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        HOME: state.root,
+        OPL_STATE_DIR: path.join(state.root, 'state'),
+      },
+    },
+  );
+  assert.equal(launched.status, 0, launched.stderr);
+  const envelope = (parseJsonText(launched.stdout) as JsonRecord)
+    .app_component_compatibility_receipt;
+  const receipt = readJson(outputFile);
+  assert.equal(receipt.producer_identity.executable_path, launcher);
+  assert.equal(receipt.producer_identity.executable_sha256, sha256(fs.readFileSync(launcher)));
+  assert.deepEqual(envelope.producer_identity, receipt.producer_identity);
 });

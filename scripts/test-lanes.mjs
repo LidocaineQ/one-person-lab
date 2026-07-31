@@ -190,6 +190,7 @@ const fastTestFiles = [
   'tests/src/opl-connect-mcp-stdio.test.ts',
   ...expandTestFiles(['tests/src/cli/cases/connect-scientific.test.ts', 'tests/src/cli/cases/connect-reference-verification.test.ts', 'tests/src/cli/cases/connect-external-skills.test.ts', 'tests/src/cli/cases/connect-foundation-skills.test.ts', 'tests/src/cli/cases/packages.test.ts']),
   'tests/src/standard-agent-framework-link.test.ts',
+  'tests/src/app-component-compatibility-receipt.test.ts',
   'tests/src/cli/cases/cli-command-registry.test.ts',
   'tests/src/cli/cases/release-cohort-closure.test.ts',
   'tests/src/cli/cases/release-bundle.test.ts',
