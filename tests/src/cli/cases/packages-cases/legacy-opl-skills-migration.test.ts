@@ -767,6 +767,66 @@ test('managed Flow update keeps the managed owner when an installed descriptor i
   }
 });
 
+test('foreign managed Flow lock does not override the current Codex home native owner', () => {
+  const state = publicLifecycleFixture('foreign-managed-update');
+  try {
+    const foreignCodexHome = path.join(state.root, 'foreign-codex-home');
+    const previousCheckout = writeDeveloperFlowCheckout(path.join(state.root, 'workspace-foreign'));
+    const legacyAgentsRoot = path.join(state.root, 'legacy-agents');
+    fs.renameSync(state.agentsRoot, legacyAgentsRoot);
+    const foreign = runCli(['packages', 'install', 'opl-flow'], {
+      ...state.env,
+      CODEX_HOME: foreignCodexHome,
+      OPL_MODULE_PATH_OPLFLOW: previousCheckout,
+      OPL_MODULE_SOURCE_MODE: 'git_checkout',
+    }) as any;
+    fs.renameSync(legacyAgentsRoot, state.agentsRoot);
+    assert.equal(foreign.opl_agent_package_install.physical_surface.codex_home, foreignCodexHome);
+
+    const marketplaceRoot = path.join(state.root, 'current-marketplace-source');
+    const previous = writeFlowMarketplace({
+      root: marketplaceRoot,
+      version: '0.1.29',
+      requiredSkillIds: ['opl-flow', 'coordinate-concurrent-tasks'],
+    });
+    seedInstalledFlow({
+      state,
+      oldMarketplaceRoot: previous.marketplaceRoot,
+    });
+    writeFlowMarketplace({
+      root: marketplaceRoot,
+      version: '0.1.30',
+      requiredSkillIds: flowSkillIds,
+    });
+
+    const packageLockPath = path.join(state.env.OPL_STATE_DIR, 'agent-package-locks.json');
+    const packageLockBefore = fs.readFileSync(packageLockPath);
+    const update = runCli(['packages', 'update', 'opl-flow'], state.env) as any;
+    const surface = update.opl_agent_package_update;
+    assert.equal(surface.status, 'updated');
+    assert.equal(surface.configured_carrier.installed_version, '0.1.30');
+    assert.equal(surface.configured_carrier.plugin_source_path, previous.pluginSource);
+    assert.equal(surface.legacy_skill_migration.status, 'migrated');
+    assert.deepEqual(fs.readFileSync(packageLockPath), packageLockBefore);
+    for (const skillId of skillIds) {
+      assert.equal(fs.existsSync(path.join(state.skillsRoot, skillId)), false);
+    }
+    const currentPlugin = JSON.parse(execFileSync(state.codex.codexPath, ['plugin', 'list', '--json'], {
+      env: { ...process.env, ...state.env },
+      encoding: 'utf8',
+    }));
+    assert.equal(currentPlugin.installed.length, 1);
+    assert.equal(currentPlugin.installed[0].version, '0.1.30');
+    assert.deepEqual(
+      flowSkillIds.filter((skillId) =>
+        fs.existsSync(path.join(currentPlugin.installed[0].source.path, 'skills', skillId, 'SKILL.md'))),
+      flowSkillIds,
+    );
+  } finally {
+    removeFixtureTree(state.root);
+  }
+});
+
 test('managed Flow update restores the managed owner and legacy projections when native readback fails', () => {
   const state = publicLifecycleFixture('managed-update-readback-rollback');
   try {

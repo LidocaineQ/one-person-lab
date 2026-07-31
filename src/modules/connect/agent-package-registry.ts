@@ -150,6 +150,7 @@ import {
   normalizeSourceKind,
   nowIso,
   refsOnlyAuthorityBoundary,
+  resolveCodexHome,
   sha256Text,
 } from './agent-package-registry-parts/shared.ts';
 import {
@@ -1745,8 +1746,13 @@ async function maybeRunConfiguredCarrierLifecycle(input: {
   let managedFirstPartyLockPresent = false;
   if (packageId && resolveFirstPartyPackageCatalog(packageId)) {
     try {
+      const currentCodexHome = path.resolve(resolveCodexHome());
       managedFirstPartyLockPresent = readLockIndex().packages.some(
-        (entry) => entry.package_id === packageId,
+        (entry) => {
+          if (entry.package_id !== packageId) return false;
+          const lockCodexHome = stringValue(entry.physical_surface?.codex_home);
+          return lockCodexHome === null || path.resolve(lockCodexHome) === currentCodexHome;
+        },
       );
     } catch (error) {
       if (!isCorruptLegacyLockAuthority(error) || !canProjectDescriptorsWithCorruptLock(error)) {
