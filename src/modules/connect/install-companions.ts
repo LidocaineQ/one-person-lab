@@ -279,7 +279,7 @@ function isPathWithin(parentPath: string, childPath: string) {
   return relativePath === '' || (relativePath !== '' && !relativePath.startsWith('..') && !path.isAbsolute(relativePath));
 }
 
-const SKILL_FRONTMATTER_FIELDS = new Set(['name', 'description', 'license', 'allowed-tools', 'metadata']);
+const SKILL_FRONTMATTER_FIELDS = new Set(['name', 'description', 'license', 'allowed-tools', 'metadata', 'triggers']);
 const SKILL_RESOURCE_PATTERN = /(?:^|[^/A-Za-z0-9_.-])((?:references|scripts|templates|assets)\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*)/gm;
 
 type SkillPayloadInspection = {

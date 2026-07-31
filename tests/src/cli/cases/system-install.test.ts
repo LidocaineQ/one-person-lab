@@ -246,6 +246,45 @@ test('managed companion sync prefers Skills Manager packages over fallback mater
   }
 });
 
+test('managed companion sync accepts upstream trigger metadata without interpreting it', () => {
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-skill-trigger-metadata-home-'));
+  const env = createFakeCompanionInstallEnv(homeRoot);
+  const managerSkillRoot = path.join(homeRoot, '.skills-manager', 'skills', 'officecli-docx');
+  const skill = [
+    '---',
+    'name: officecli-docx',
+    'description: Skills Manager skill with upstream trigger metadata.',
+    'triggers:',
+    '  - document editing',
+    '  - docx creation',
+    'metadata:',
+    '  owner: upstream',
+    '---',
+    '',
+    '# officecli-docx',
+    '',
+  ].join('\n');
+  fs.mkdirSync(managerSkillRoot, { recursive: true });
+  fs.writeFileSync(path.join(managerSkillRoot, 'SKILL.md'), skill, 'utf8');
+
+  try {
+    const output = runCli(['skill', 'companion', 'apply', '--mode', 'managed'], {
+      HOME: homeRoot,
+      CODEX_HOME: path.join(homeRoot, 'codex-home'),
+      PATH: '/usr/bin:/bin',
+      ...env,
+    }) as any;
+    const item = output.companion_skills.items.find((entry: any) => entry.skill_id === 'officecli-docx');
+    assert.equal(item.status, 'synced');
+    assert.equal(item.frontmatter_schema_status, 'valid');
+    assert.equal(item.payload_currentness, 'current');
+    assert.equal(item.entrypoint_authority_status, 'converged');
+    assert.equal(fs.readFileSync(item.source_path, 'utf8'), skill);
+  } finally {
+    fs.rmSync(homeRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  }
+});
+
 test('companion status exposes the user-level Codex skill-creator helper without project projection', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-skill-creator-global-home-'));
   const codexHome = path.join(homeRoot, 'codex-home');
