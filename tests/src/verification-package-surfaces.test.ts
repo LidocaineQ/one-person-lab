@@ -32,6 +32,28 @@ test('new-machine bootstrap smoke uses Foundry Agent command surface fields', ()
   assert.doesNotMatch(smokeScript, /Foundry Agent series frontdoor/);
 });
 
+test('new-machine bootstrap smoke proves an isolated unknown Package through its native carrier', () => {
+  const smokeScript = read('scripts/new-machine-codex-bootstrap-docker-smoke.mjs');
+
+  assert.match(smokeScript, /opl packages install future\.agent-lab/);
+  assert.match(smokeScript, /opl app state --profile fast --json/);
+  assert.match(smokeScript, /opl packages uninstall future\.agent-lab/);
+  assert.match(smokeScript, /opl_unknown_package_isolation/);
+  assert.match(smokeScript, /legacy_private_lifecycle_state_present/);
+  assert.match(smokeScript, /future-agent-private-state-snapshot\.mjs/);
+  assert.match(smokeScript, /after-install-readback/);
+  assert.match(smokeScript, /after-uninstall-readback/);
+  assert.match(smokeScript, /no_framework_private_lifecycle_state_writes/);
+  for (const forbiddenStateFile of [
+    'agent-package-registry-cache.json',
+    'agent-package-locks.json',
+    'agent-package-lifecycle-ledger.json',
+    'agent-package-lifecycle.sqlite',
+  ]) {
+    assert.match(smokeScript, new RegExp(forbiddenStateFile.replaceAll('.', '\\.')));
+  }
+});
+
 test('OPL Python helpers are part of Framework and have no package manifest', () => {
   assert.equal(fs.existsSync(path.join(repoRoot, 'python', 'opl_framework', '__init__.py')), true);
   assert.equal(fs.existsSync(path.join(repoRoot, 'python', 'pyproject.toml')), false);
