@@ -287,96 +287,6 @@ function summarizeUserTaskStates(tasks: ReadonlyArray<JsonRecord>) {
   };
 }
 
-function scopeOption(scopeKind: string, scopeId: string, label: string, extra: JsonRecord = {}) {
-  return {
-    scope_kind: scopeKind,
-    scope_id: scopeId,
-    label,
-    ...extra,
-  };
-}
-
-function pathLeaf(value: string | null): string | null {
-  const parts = value?.split(/[\\/]+/).filter(Boolean);
-  return parts?.at(-1) ?? null;
-}
-
-function buildRuntimeScope(tasks: ReadonlyArray<JsonRecord>) {
-  const options = new Map<string, JsonRecord>();
-  const addOption = (option: JsonRecord) => {
-    const kind = asString(option.scope_kind) ?? 'scope';
-    const identity = kind === 'workspace'
-      ? (asString(option.workspace_path) ?? asString(option.scope_id) ?? 'default')
-      : (asString(option.scope_id) ?? 'default');
-    const key = `${kind}:${identity}`;
-    if (!options.has(key)) {
-      options.set(key, option);
-    }
-  };
-
-  const allProjects = scopeOption('all_projects', 'all_projects', '全部项目');
-  addOption(allProjects);
-  for (const task of tasks) {
-    const domainId = asString(task.domain_id) ?? 'opl';
-    const domainLabel = domainAgentDisplayLabel(
-      domainId,
-      asString(task.agent_display_name) ?? asString(task.domain_label),
-    );
-    addOption(scopeOption('agent', asString(task.agent_scope_id) ?? `agent:${domainId}`, domainLabel, {
-      domain_id: domainId,
-    }));
-
-    const workspaceLabel = asString(task.workspace_label);
-    const workspacePath = asString(task.workspace_path);
-    const projectScopeId = asString(task.project_scope_id);
-    const projectLabel = workspaceLabel ?? asString(task.project_display_name) ?? domainLabel;
-    if (workspacePath) {
-      addOption(scopeOption(
-        'workspace',
-        asString(task.workspace_scope_id) ?? `workspace:${workspacePath}`,
-        pathLeaf(workspacePath) ?? workspaceLabel ?? 'Workspace',
-        {
-          workspace_binding_id: asString(task.workspace_binding_id),
-          workspace_path: workspacePath,
-          workspace_label: workspaceLabel,
-        },
-      ));
-    }
-    if (projectScopeId) {
-      addOption(scopeOption('project', projectScopeId, projectLabel, {
-        scope_value: projectLabel,
-        project_id: domainId,
-        workspace_binding_id: asString(task.workspace_binding_id),
-        workspace_path: workspacePath,
-        workspace_label: workspaceLabel,
-      }));
-    }
-  }
-
-  const inferredWorkspace = tasks.find((task) => asBoolean(task.workspace_binding_active) && Boolean(asString(task.project_scope_id)));
-  return {
-    scope_options: [...options.values()],
-    current_scope: allProjects,
-    scope_source: 'default_global',
-    inferred_scope_hint: inferredWorkspace
-      ? scopeOption(
-          'project',
-          asString(inferredWorkspace.project_scope_id) ?? 'project:inferred',
-          asString(inferredWorkspace.workspace_label)
-            ?? asString(inferredWorkspace.project_display_name)
-            ?? pathLeaf(asString(inferredWorkspace.workspace_path))
-            ?? '当前项目',
-          {
-            workspace_binding_id: asString(inferredWorkspace.workspace_binding_id),
-            workspace_path: asString(inferredWorkspace.workspace_path),
-            workspace_label: asString(inferredWorkspace.workspace_label),
-            project_id: asString(inferredWorkspace.domain_id),
-            hint_source: 'workspace_registry_active_binding',
-          },
-        )
-      : null,
-  };
-}
 function sourceRefCount(item: JsonRecord) {
   return asRecordArray(item.source_refs).length;
 }
@@ -805,7 +715,6 @@ export function buildOplAppOperatorViewModel(input: OplAppOperatorViewModelInput
   const status = temporal.ready === true ? 'ready' : 'attention_needed';
   const safeActionRoutes = buildSafeActionRoutes(input);
   const runtimeTasks = runtimeActivityDrilldowns(input);
-  const runtimeScope = buildRuntimeScope(runtimeTasks);
   const userTaskStatusSummary = summarizeUserTaskStates(runtimeTasks);
   const activityCenter = buildActivityCenter(input);
   const domainLaneMap = buildDomainLaneMap(input);
@@ -861,7 +770,6 @@ export function buildOplAppOperatorViewModel(input: OplAppOperatorViewModelInput
         read_model_ref: 'app_state.settings_control_center.app_settings_read_model',
       },
       ...currentOwnerDeltaTopline,
-      runtime_scope: runtimeScope,
       user_task_status_summary: userTaskStatusSummary,
       summary_cards: buildSummaryCards(input, userTaskStatusSummary),
       sections: buildSections(input),

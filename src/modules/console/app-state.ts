@@ -853,7 +853,6 @@ function compactFastOperatorRuntimeProjection(operator: JsonRecord) {
     workbench: {
       ...pickRecordFields(workbench, [
         'view_model_schema',
-        'runtime_scope',
         'user_task_status_summary',
         'summary_cards',
         'sections',

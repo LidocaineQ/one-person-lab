@@ -21,58 +21,6 @@ function buildOperatorForRuntimeItems(runtimeActivityItems: Array<Record<string,
   });
 }
 
-test('runtime scope dedupes workspace options by workspace path', () => {
-  const workspacePath = '/Users/example/Yang/DM-CVD-Mortality-Risk';
-  const operator = buildOperatorForRuntimeItems([
-      {
-        domain_id: 'medautoscience',
-        agent_display_name: 'MAS',
-        workspace_scope_id: 'workspace:real-project-binding',
-        workspace_label: 'dm-cvd-mortality-risk',
-        workspace_path: workspacePath,
-        workspace_binding_id: 'real-project-binding',
-        workspace_binding_active: true,
-        task_id: 'task-a',
-        task_scope_id: 'task:a',
-        title: 'Task A',
-        study_id: '001-dm-cvd-mortality-risk',
-        project_scope_id: 'project:a',
-        project_display_name: '001-dm-cvd-mortality-risk',
-        state: 'running',
-      },
-      {
-        domain_id: 'medautoscience',
-        agent_display_name: 'MAS',
-        workspace_scope_id: 'workspace:autopush-binding',
-        workspace_label: 'dm-paper-mission-milestone-autopush-20260626',
-        workspace_path: workspacePath,
-        workspace_binding_id: 'autopush-binding',
-        task_id: 'task-b',
-        task_scope_id: 'task:b',
-        title: 'Task B',
-        study_id: '002-dm-china-us-mortality-attribution',
-        project_scope_id: 'project:b',
-        project_display_name: '002-dm-china-us-mortality-attribution',
-        state: 'running',
-      },
-    ]);
-
-  const workspaceOptions = operator.workbench.runtime_scope.scope_options.filter(
-    (entry: Record<string, unknown>) => entry.scope_kind === 'workspace',
-  );
-  assert.equal(workspaceOptions.length, 1);
-  assert.equal(workspaceOptions[0]?.label, 'DM-CVD-Mortality-Risk');
-  const inferredScope = operator.workbench.runtime_scope.inferred_scope_hint;
-  assert.ok(inferredScope);
-  assert.equal(inferredScope.label, 'dm-cvd-mortality-risk');
-  const task = operator.workbench.task_drilldowns.find((entry: any) => entry.task_id === 'task-a');
-  assert.ok(task);
-  assert.deepEqual(
-    [task.task_identity.work_item.work_item_id, task.task_identity.work_item.kind, task.active_path[0].node_kind],
-    ['task-a', 'runtime_activity', 'runtime_activity_projection'],
-  );
-});
-
 test('runtime tasks derive standard-agent labels from the canonical registry', () => {
   const operator = buildOperatorForRuntimeItems([
     {
@@ -88,12 +36,6 @@ test('runtime tasks derive standard-agent labels from the canonical registry', (
   ) as Record<string, any>;
   assert.equal(task.task_identity.agent.label, 'MAS Scholar Skills');
   assert.equal(task.agent_display_name, 'MAS Scholar Skills');
-  assert.equal(
-    operator.workbench.runtime_scope.scope_options.find(
-      (entry: Record<string, unknown>) => entry.scope_kind === 'agent',
-    )?.label,
-    'MAS Scholar Skills',
-  );
 });
 
 test('runtime task drilldowns dedupe duplicate MAS bindings for the same workspace study', () => {
