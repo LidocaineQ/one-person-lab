@@ -72,7 +72,7 @@ GitHub `Verify` workflow 按 gate 拆开运行 build/typecheck、fast、read-mod
 
 `read-model-gates` 只放 owner/currentness/provider lifecycle、App/read-model 默认路径、StageRun closeout、workspace topology、domain-pack compiler、agent conformance 等会影响普通执行正确性的大边界。root help 是否列出某个细粒度入口、示例文案是否完整、报告措辞和 display-only discoverability 属于 `meta` / advisory 范围；命令本身 fail-closed、scoped help 可解析、JSON/usage shape 和 contract/API 行为仍可测试，但不应让 root help 展示细节阻断 default-branch hard CI。
 
-`.github/workflows/sentrux-advisory.yml` 是非阻断 advisory signal：它发布 Sentrux 和 OPL quality details sidecar，帮助定位结构变化，但不替代显式 strict 维护入口，也不改变 `.sentrux/rules.toml`、line budget、reasonable-refactor 分类口径或 lane registry 的 owner。
+GitHub `Verify` 只按每日 schedule 或手动 dispatch 运行上述完整 hosted gates，不在每次 push/PR 重复启动。结构 findings 仍是非阻断 advisory signal，不替代显式 strict 维护入口，也不改变 `.sentrux/rules.toml`、line budget、reasonable-refactor 分类口径或 lane registry 的 owner；需要 JSON artifact 时显式消费 `.github/actions/quality-details`，本仓不再维护独立 advisory workflow。
 
 更新测试文件时，先运行：
 

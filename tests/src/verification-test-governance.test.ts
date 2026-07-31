@@ -31,6 +31,12 @@ const structuralGatePatterns = [
   /'--compare-ref',\s*compareRef/,
 ];
 
+const verifyWorkflowTriggerPatterns = [
+  /on:\n\s+workflow_dispatch:\n\s+schedule:\n\s+- cron: '7 19 \* \* \*'/,
+  /concurrency:\n\s+group: \$\{\{ github\.workflow \}\}-\$\{\{ github\.ref \}\}/,
+  /cancel-in-progress: true/,
+];
+
 const verifyWorkflowBuildAndJsLanePatterns = [
   /npm ci/,
   /npm run build/,
@@ -56,24 +62,6 @@ const verifyWorkflowNativeAndStructurePatterns = [
   /OPL_QUALITY_DETAILS_TIMEOUT_SECONDS: '240'/,
   /fetch-depth: 0/,
   /git fetch --no-tags origin \+main:refs\/remotes\/origin\/main/,
-];
-
-const sentruxAdvisoryWorkflowPatterns = [
-  /fetch-depth: 0/,
-  /git fetch --no-tags origin \+main:refs\/remotes\/origin\/main/,
-  /timeout-minutes: 30/,
-  /sentrux gate \./,
-  /sentrux check \./,
-  /\.\/scripts\/install-sentrux-ci\.sh/,
-  /uses: \.\/\.github\/actions\/quality-details/,
-  /timeout-minutes: 5/,
-  /continue-on-error: true/,
-  /compare-ref: origin\/main/,
-  /json-limit: '50'/,
-  /timeout-seconds: '120'/,
-  /path: artifacts\/opl-quality-details\/quality-details\.json/,
-  /actions\/upload-artifact@v7/,
-  /name: opl-quality-details/,
 ];
 
 const qualityDetailsActionPatterns = [
@@ -153,6 +141,13 @@ test('local structural quality gate emits compare-ref quality details on Sentrux
   assertFilePatterns('scripts/run-structural-quality-gate.sh', structuralGatePatterns);
 });
 
+test('GitHub verification workflow runs daily or manually without per-change duplication', () => {
+  const workflow = read('.github/workflows/verify.yml');
+  assertFilePatterns('.github/workflows/verify.yml', verifyWorkflowTriggerPatterns);
+  assert.doesNotMatch(workflow, /^  push:/m);
+  assert.doesNotMatch(workflow, /^  pull_request:/m);
+});
+
 test('GitHub verification workflow runs build and JavaScript test gates', () => {
   assertFilePatterns('.github/workflows/verify.yml', verifyWorkflowBuildAndJsLanePatterns);
 });
@@ -167,8 +162,11 @@ test('canonical native verification keeps fixture smoke in the same isolated env
   ]);
 });
 
-test('Sentrux advisory workflow publishes OPL quality details sidecar', () => {
-  assertFilePatterns('.github/workflows/sentrux-advisory.yml', sentruxAdvisoryWorkflowPatterns);
+test('quality details action stays reusable without a duplicate advisory workflow', () => {
+  assert.equal(
+    fs.existsSync(path.join(repoRoot, '.github/workflows/sentrux-advisory.yml')),
+    false,
+  );
   assertFilePatterns('.github/actions/quality-details/action.yml', qualityDetailsActionPatterns);
   assertFilePatterns('.github/actions/quality-details/emit-quality-details.mjs', qualityDetailsActionScriptPatterns);
 });

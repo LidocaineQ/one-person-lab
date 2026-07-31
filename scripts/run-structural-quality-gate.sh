@@ -85,7 +85,7 @@ emit_quality_details() {
   run_quality_details_with_timeout "$resolved_compare_ref"
   local details_status=$?
   if [ "$details_status" -eq 124 ]; then
-    echo "::warning::OPL quality details exceeded ${quality_details_timeout_seconds}s in the local structure gate; use the Sentrux Advisory workflow for the full quality-details artifact." >&2
+    echo "::warning::OPL quality details exceeded ${quality_details_timeout_seconds}s in the local structure gate; rerun opl quality details directly with a larger timeout for full output." >&2
   elif [ "$details_status" -ne 0 ]; then
     echo "::warning::OPL quality details failed for compare ref: ${resolved_compare_ref}" >&2
   fi

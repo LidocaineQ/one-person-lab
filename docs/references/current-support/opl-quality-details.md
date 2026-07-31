@@ -9,7 +9,7 @@ Machine boundary: 本文是人读 reference 支撑材料。机器 truth 继续�
 
 该命令不 fork Sentrux、不绕过 Sentrux 授权、不依赖 Sentrux Pro，也不创建第二套质量分数。它只读取目标仓库，并只写 stdout 或 caller 指定的 artifact。
 
-Currentness rule：本文只解释当前诊断边界。命令 shape 以 `opl quality details --help` 和 `src/cli/cases/public-command-specs.ts` 为准；默认 advisory / explicit strict 行为归 `scripts/run-structural-quality-gate.sh`、`scripts/verify.sh`、`.github/workflows/verify.yml`、`scripts/line-budget.mjs` 和 `.sentrux/rules.toml`；GitHub advisory 发布行为归 `.github/actions/quality-details/action.yml` 和 `.github/workflows/sentrux-advisory.yml`。本文不能被读成 merge policy、Sentrux replacement、quality verdict、CI pass/fail state、frozen rules score、fixed baseline counter 或 domain readiness proof。
+Currentness rule：本文只解释当前诊断边界。命令 shape 以 `opl quality details --help` 和 `src/cli/cases/public-command-specs.ts` 为准；默认 advisory / explicit strict 行为归 `scripts/run-structural-quality-gate.sh`、`scripts/verify.sh`、`.github/workflows/verify.yml`、`scripts/line-budget.mjs` 和 `.sentrux/rules.toml`；可复用的 GitHub sidecar action 归 `.github/actions/quality-details/`，本仓不再为它维护独立的自动触发 workflow。本文不能被读成 merge policy、Sentrux replacement、quality verdict、CI pass/fail state、frozen rules score、fixed baseline counter 或 domain readiness proof。
 
 ## 命令
 
@@ -65,7 +65,7 @@ opl quality details --root . --format markdown --limit 30 --focus auto --compare
 
 这保持 Sentrux 作为 structural source，并让 function-level regression 在开发时可见，同时保留当前 policy split：默认开发入口 advisory，显式 strict 维护入口 blocking。
 
-GitHub `Sentrux Advisory` workflow 刻意保持 non-blocking。它发布 Sentrux output 和该 sidecar 供 review visibility 使用，但不替代显式 strict 维护入口。Verify workflow 的 `lint-and-structure` job 运行 `./scripts/verify.sh lint` 和默认 advisory `./scripts/verify.sh structure`；blocking policy 只在 `line-budget:strict`、`structure:strict` 或显式 strict 环境变量中启用。
+GitHub `Verify` 只在每日 schedule 或手动 dispatch 时运行完整 hosted 验证，避免单人开发中每次 push/PR 都重复启动八个 macOS job。它的 `lint-and-structure` job 运行 `./scripts/verify.sh lint` 和默认 advisory `./scripts/verify.sh structure`；本地入口始终可用，blocking policy 只在 `line-budget:strict`、`structure:strict` 或显式 strict 环境变量中启用。`.github/actions/quality-details` 继续作为其他明确需要 artifact 的 workflow 可选消费面，但本仓不再重复运行独立 `Sentrux Advisory`。
 
 GitHub composite action 会向 step summary 写 Markdown，并把 JSON sidecar 写到 `output-dir` 的 `quality-details.json`；默认 `limit=20` 只影响 Markdown，`json-limit=50` 影响 artifact JSON，`timeout-seconds=240` 分别约束 Markdown 与 JSON 生成。若 JSON 生成超时或失败，action 仍会写入同一 `quality-details.json` 路径，但内容保持 CLI JSON envelope，并在 `quality_details` 内带 `surface_kind=opl_code_quality_details.v1` 与 `diagnostic.status=timeout|failed`，避免 advisory workflow 因整段 composite step 被杀掉而丢失 artifact/readback。它需要目标分支实际包含本 action 和 OPL 依赖安装面，并在 action 内运行本仓 `bin/opl`。不要把 action artifact 的某次 findings 数量、triage target、baseline diff、diagnostic sidecar 或 upload 成功写成长期结构健康、release readiness、domain readiness 或 App readiness。
 
