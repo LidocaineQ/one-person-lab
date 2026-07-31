@@ -13,8 +13,6 @@ import type {
   AgentPackageResolvedDependency,
 } from './types.ts';
 
-type NumericVersion = [number, number, number];
-
 const DEPENDENCY_HARD_FAILURE_REASONS = new Set([
   'package_id_mismatch',
   'dependency_lock_missing',
@@ -25,50 +23,6 @@ const DEPENDENCY_HARD_FAILURE_REASONS = new Set([
   'required_exports_missing',
   'required_modules_missing',
 ]);
-
-function numericVersion(value: string): NumericVersion | null {
-  const match = value.match(/^(\d+)\.(\d+)\.(\d+)/);
-  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
-}
-
-function compareVersions(left: NumericVersion, right: NumericVersion) {
-  for (let index = 0; index < 3; index += 1) {
-    if (left[index] !== right[index]) return left[index] < right[index] ? -1 : 1;
-  }
-  return 0;
-}
-
-export function versionSatisfiesRequirement(version: string, requirement: string) {
-  const candidate = numericVersion(version);
-  if (!candidate) return version === requirement;
-  const trimmed = requirement.trim();
-  if (trimmed.startsWith('^')) {
-    const floor = numericVersion(trimmed.slice(1));
-    if (!floor) return false;
-    const ceiling: NumericVersion = floor[0] > 0
-      ? [floor[0] + 1, 0, 0]
-      : floor[1] > 0
-        ? [0, floor[1] + 1, 0]
-        : [0, 0, floor[2] + 1];
-    return compareVersions(candidate, floor) >= 0 && compareVersions(candidate, ceiling) < 0;
-  }
-  const terms = trimmed.split(/\s+/).filter(Boolean);
-  if (terms.some((term) => /^[<>]=?/.test(term))) {
-    return terms.every((term) => {
-      const match = term.match(/^(>=|<=|>|<|=)?(.+)$/);
-      const target = match ? numericVersion(match[2]) : null;
-      if (!match || !target) return false;
-      const comparison = compareVersions(candidate, target);
-      return match[1] === '>=' ? comparison >= 0
-        : match[1] === '<=' ? comparison <= 0
-          : match[1] === '>' ? comparison > 0
-            : match[1] === '<' ? comparison < 0
-              : comparison === 0;
-    });
-  }
-  const exact = numericVersion(trimmed);
-  return exact ? compareVersions(candidate, exact) === 0 : version === trimmed;
-}
 
 export function manifestContentDigest(manifest: AgentPackageManifest, manifestSha256: string) {
   return manifest.content_digest
