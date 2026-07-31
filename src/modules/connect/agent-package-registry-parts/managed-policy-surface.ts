@@ -1338,7 +1338,7 @@ function removeManagedPolicyBackupRoot(backupRoot: string) {
   });
 }
 
-export function assertManagedPolicyRollbackReady(
+function assertManagedPolicyRollbackReady(
   migration: AgentPackageManagedPolicyMigration | undefined,
 ) {
   if (!migration?.backup_active) return;
@@ -1383,25 +1383,13 @@ export function assertManagedPolicyRollbackReady(
   }
 }
 
-function restoreManagedBackup(action: AgentPackageManagedPolicyMigrationAction, retainBackup: boolean) {
+function restoreManagedBackup(action: AgentPackageManagedPolicyMigrationAction) {
   fs.mkdirSync(path.dirname(action.source_ref), { recursive: true });
-  if (!retainBackup) {
-    fs.renameSync(action.backup_ref, action.source_ref);
-    return;
-  }
-  const stat = fs.lstatSync(action.backup_ref);
-  if (stat.isDirectory()) {
-    fs.cpSync(action.backup_ref, action.source_ref, { recursive: true, verbatimSymlinks: true });
-  } else if (stat.isSymbolicLink()) {
-    fs.symlinkSync(fs.readlinkSync(action.backup_ref), action.source_ref);
-  } else {
-    fs.copyFileSync(action.backup_ref, action.source_ref);
-  }
+  fs.renameSync(action.backup_ref, action.source_ref);
 }
 
 export function rollbackManagedPolicyMigration(
   migration: AgentPackageManagedPolicyMigration | undefined,
-  options: { retainBackups?: boolean } = {},
 ): AgentPackageManagedPolicyMigration {
   if (!migration?.backup_active) return migration ?? noManagedPolicyMigration('No managed policy backup required rollback.');
   assertManagedPolicyBackupPaths(migration);
@@ -1423,37 +1411,16 @@ export function rollbackManagedPolicyMigration(
       }
       continue;
     }
-    restoreManagedBackup(action, options.retainBackups === true);
+    restoreManagedBackup(action);
   }
-  if (!options.retainBackups && migration.backup_root) {
+  if (migration.backup_root) {
     removeManagedPolicyBackupRoot(migration.backup_root);
   }
   return {
     ...migration,
     status: 'rolled_back',
-    backup_active: options.retainBackups === true,
-    writes_performed: true,
-    note: options.retainBackups
-      ? 'Managed policy migration surfaces were restored; rollback backups remain active until state commit.'
-      : 'Managed policy migration surfaces were restored from the generic package transaction backup.',
-  };
-}
-
-export function finalizeManagedPolicyRollback(
-  migration: AgentPackageManagedPolicyMigration | undefined,
-): AgentPackageManagedPolicyMigration {
-  if (!migration) return noManagedPolicyMigration('No managed policy rollback required finalization.');
-  if (migration.status !== 'rolled_back') {
-    throw new FrameworkContractError('contract_shape_invalid', 'Managed policy rollback must complete before backup finalization.', {
-      status: migration.status,
-      backup_root: migration.backup_root,
-      failure_code: 'agent_package_managed_policy_rollback_not_completed',
-    });
-  }
-  if (migration.backup_root) removeManagedPolicyBackupRoot(migration.backup_root);
-  return {
-    ...migration,
     backup_active: false,
-    note: 'Managed policy rollback committed and retained backups were finalized.',
+    writes_performed: true,
+    note: 'Managed policy migration surfaces were restored from the generic package transaction backup.',
   };
 }
