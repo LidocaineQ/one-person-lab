@@ -90,8 +90,6 @@ import {
   buildAgentPackageCarrierAuthority,
 } from './agent-package-registry-parts/carrier-authority.ts';
 import {
-  assertManagedPolicyRollbackReady,
-  finalizeManagedPolicyRollback,
   managedPolicyCurrentness,
   rollbackManagedPolicyMigration,
 } from './agent-package-registry-parts/managed-policy-surface.ts';

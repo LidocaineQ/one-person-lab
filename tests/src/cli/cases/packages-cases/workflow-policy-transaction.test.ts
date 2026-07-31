@@ -11,11 +11,7 @@ import {
   test,
 } from '../../helpers.ts';
 import { formatJsonPayload } from '../../../../../src/kernel/json-file.ts';
-import {
-  assertManagedPolicyRollbackReady,
-  finalizeManagedPolicyRollback,
-  rollbackManagedPolicyMigration,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/managed-policy-surface.ts';
+import { rollbackManagedPolicyMigration } from '../../../../../src/modules/connect/agent-package-registry-parts/managed-policy-surface.ts';
 
 function writeFile(filePath: string, content: string) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -1047,7 +1043,7 @@ test('managed policy rollback helpers refuse conflicting TOML tables and recreat
     assert.equal(fs.existsSync(installed.opl_agent_package_install.physical_surface.codex_plugin_cache_path), true);
     const previousStateDir = process.env.OPL_STATE_DIR;
     process.env.OPL_STATE_DIR = env.OPL_STATE_DIR;
-    let retained: ReturnType<typeof rollbackManagedPolicyMigration>;
+    let rolledBack: ReturnType<typeof rollbackManagedPolicyMigration>;
     try {
       assert.throws(
         () => rollbackManagedPolicyMigration(migration),
@@ -1069,26 +1065,14 @@ test('managed policy rollback helpers refuse conflicting TOML tables and recreat
       assert.equal(fs.readFileSync(path.join(legacyPath, 'replacement.txt'), 'utf8'), 'replacement\n');
 
       fs.rmSync(legacyPath, { recursive: true, force: true });
-      assert.doesNotThrow(() => assertManagedPolicyRollbackReady(migration));
-      retained = rollbackManagedPolicyMigration(migration, { retainBackups: true });
+      rolledBack = rollbackManagedPolicyMigration(migration);
     } finally {
       if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
       else process.env.OPL_STATE_DIR = previousStateDir;
     }
-    assert.equal(retained.backup_active, true);
+    assert.equal(rolledBack.backup_active, false);
     assert.equal(fs.readFileSync(path.join(legacyPath, 'legacy.txt'), 'utf8'), 'legacy\n');
-    assert.equal(fs.existsSync(retained.backup_root!), true);
-    const finalizePreviousStateDir = process.env.OPL_STATE_DIR;
-    process.env.OPL_STATE_DIR = env.OPL_STATE_DIR;
-    let finalized: ReturnType<typeof finalizeManagedPolicyRollback>;
-    try {
-      finalized = finalizeManagedPolicyRollback(retained);
-    } finally {
-      if (finalizePreviousStateDir === undefined) delete process.env.OPL_STATE_DIR;
-      else process.env.OPL_STATE_DIR = finalizePreviousStateDir;
-    }
-    assert.equal(finalized.backup_active, false);
-    assert.equal(fs.existsSync(retained.backup_root!), false);
+    assert.equal(fs.existsSync(rolledBack.backup_root!), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
