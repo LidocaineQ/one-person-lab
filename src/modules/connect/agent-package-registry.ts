@@ -76,7 +76,6 @@ import {
   removePhysicalCodexSurface,
   rematerializePhysicalCodexSurfaceFromLock,
   rollbackManagedPolicySurface,
-  rollbackNewPackageProfileSurface,
   resolveBundledFullRuntimeManifestPhysicalSource,
   resolveManifestPhysicalSource,
 } from './agent-package-registry-parts/physical-surface.ts';
@@ -90,11 +89,6 @@ import {
   agentPackageCarrierAuthorityStatus,
   buildAgentPackageCarrierAuthority,
 } from './agent-package-registry-parts/carrier-authority.ts';
-import {
-  assertPackageProfileRollbackReady,
-  finalizePackageProfileRollback,
-  rollbackPackageProfileMigration,
-} from './agent-package-registry-parts/profile-surface.ts';
 import {
   assertManagedPolicyRollbackReady,
   finalizeManagedPolicyRollback,
@@ -1099,7 +1093,6 @@ async function applyManifestPackageLock(
           ),
         });
         rollbackManagedPolicySurface(surface);
-        rollbackNewPackageProfileSurface(surface);
       }
     }
     for (const prepared of ordered) {
@@ -1153,7 +1146,6 @@ async function applyManifestPackageLock(
           ),
         });
         rollbackManagedPolicySurface(surface);
-        rollbackNewPackageProfileSurface(surface);
       }
       for (const prepared of ordered) {
         if (prepared.previousLock) rematerializePhysicalCodexSurfaceFromLock(prepared.previousLock, false);
@@ -1319,7 +1311,6 @@ async function applyManifestPackageLock(
             ),
           });
           rollbackManagedPolicySurface(nextLock.physical_surface);
-          rollbackNewPackageProfileSurface(nextLock.physical_surface);
         }
         for (const prepared of ordered) {
           if (prepared.previousLock) rematerializePhysicalCodexSurfaceFromLock(prepared.previousLock, false);
@@ -1440,7 +1431,6 @@ async function applyManifestPackageLock(
           ),
         });
         rollbackManagedPolicySurface(nextLock.physical_surface);
-        rollbackNewPackageProfileSurface(nextLock.physical_surface);
       }
       for (const previousLock of previousLocks) rematerializePhysicalCodexSurfaceFromLock(previousLock, false);
       for (const mutation of [...runtimeSourceMutations.values()].reverse()) {

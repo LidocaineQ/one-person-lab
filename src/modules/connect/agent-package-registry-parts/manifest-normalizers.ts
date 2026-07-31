@@ -1511,8 +1511,11 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
       failure_code: 'invalid_capability_package_manifest',
     });
   }
-  if (payload.package_role !== 'capability_package') {
-    throw new FrameworkContractError('contract_shape_invalid', 'Capability package manifest package_role must be capability_package.', {
+  if (
+    payload.package_role !== 'capability_package'
+    && payload.package_role !== 'framework_capability_package'
+  ) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Capability package manifest package_role must identify a Framework capability package.', {
       manifest_url: manifestUrl,
       package_role: payload.package_role,
       failure_code: 'invalid_capability_package_manifest',

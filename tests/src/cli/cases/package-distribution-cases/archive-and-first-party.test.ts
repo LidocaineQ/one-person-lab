@@ -1268,6 +1268,19 @@ test('MAS Scholar Skills provider manifest separates core Skill exports from mod
   const normalized = normalizeCapabilityPackageManifest(manifest, manifestPath);
   assert.equal(manifest.package_role, 'capability_package');
   assert.equal(normalized.package_role, 'capability_package');
+  const frameworkRoleManifest = {
+    ...manifest,
+    package_role: 'framework_capability_package',
+  };
+  assert.doesNotThrow(() => assertJsonSchemaPayload({
+    schemaId: schema.$id,
+    schema,
+    sourceRef: 'contracts/opl-framework/capability-package-manifest.schema.json',
+  }, frameworkRoleManifest));
+  assert.equal(
+    normalizeCapabilityPackageManifest(frameworkRoleManifest, manifestPath).package_role,
+    'capability_package',
+  );
   assert.deepEqual(
     manifest.consumer_profiles.map((profile: Record<string, any>) => ({
       profile_id: profile.profile_id,
@@ -1283,7 +1296,7 @@ test('MAS Scholar Skills provider manifest separates core Skill exports from mod
       ...manifest,
       package_role: 'optional_agent_capability_package',
     }, manifestPath),
-    /package_role must be capability_package/,
+    /package_role must identify a Framework capability package/,
   );
   const payloadPath = path.join(path.dirname(manifestPath), manifest.codex_surface.plugin_payload_manifest_url);
   const payload = parseJsonText(fs.readFileSync(payloadPath, 'utf8')) as Record<string, any>;
