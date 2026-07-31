@@ -250,12 +250,6 @@ function ownerRouteReadbackItem(input: {
 }): AgentPackageOwnerRouteReadbackItem {
   const surface = input.lock?.physical_surface ?? input.receipt?.physical_surface;
   const policyCurrentness = managedPolicyCurrentness(input.lock);
-  const lifecycleUx = agentPackageLifecycleUxReadback({
-    packageId: input.packageId,
-    lock: input.lock,
-    receipt: input.receipt,
-    managedPolicyCurrentness: policyCurrentness,
-  });
   const readiness = input.lock
     ? dependencyReadiness(input.lock, {
         surface_kind: 'opl_agent_package_lock_index',
@@ -335,7 +329,6 @@ function ownerRouteReadbackItem(input: {
               : 'managed_policy_required_dependency_unavailable'
             : null,
     allowed_when_blocked: ['status', 'doctor', 'repair'],
-    lifecycle_ux: lifecycleUx,
     carrier_adapters: [{
       adapter_kind: 'codex_plugin_carrier',
       carrier: 'codex_plugin',

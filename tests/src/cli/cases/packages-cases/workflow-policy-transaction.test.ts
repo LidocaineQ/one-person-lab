@@ -613,8 +613,8 @@ test('workflow policy v3 projects a generic install action when a required Skill
       'managed_policy_required_dependency_unavailable',
     );
     assert.equal(status.opl_agent_package_status.repair_action, 'opl packages repair --package-id fixture.opl-flow');
-    assert.equal(packageReadback.lifecycle_ux.status, 'attention_needed');
-    assert.equal(packageReadback.lifecycle_ux.recommended_action, 'repair');
+    assert.equal(status.opl_agent_package_status.lifecycle_ux.status, 'attention_needed');
+    assert.equal(status.opl_agent_package_status.lifecycle_ux.recommended_action, 'repair');
     const currentness = packageReadback.managed_policy_currentness;
     assert.equal(currentness.status, 'drifted');
     assert.equal(currentness.required_dependencies_operational, false);
@@ -878,8 +878,8 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
     assert.equal(drifted.opl_agent_package_status.operational_ready, true);
     assert.equal(drifted.opl_agent_package_status.launch_blocked_reason, null);
     assert.equal(drifted.opl_agent_package_status.recommended_action, null);
-    assert.equal(driftedPackage.lifecycle_ux.status, 'installed');
-    assert.equal(driftedPackage.lifecycle_ux.recommended_action, null);
+    assert.equal(drifted.opl_agent_package_status.lifecycle_ux.status, 'available');
+    assert.equal(drifted.opl_agent_package_status.lifecycle_ux.recommended_action, null);
     assert.equal(driftedCurrentness.status, 'drifted');
     assert.equal(driftedCurrentness.repair_command, null);
     assert.deepEqual(driftedCurrentness.detected_conflicts, [{
@@ -896,7 +896,7 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
     const repairedPackage = repairedStatus.opl_agent_package_status.owner_route_readback.packages[0];
     assert.equal(repairedStatus.opl_agent_package_status.operational_ready, true);
     assert.equal(repairedPackage.managed_policy_currentness.status, 'current');
-    assert.notEqual(repairedPackage.lifecycle_ux.recommended_action, 'repair');
+    assert.notEqual(repairedStatus.opl_agent_package_status.lifecycle_ux.recommended_action, 'repair');
 
     const postInstallConfig = [
       'reasoning_effort = "high"',
@@ -1001,8 +1001,8 @@ test('managed policy currentness detects and repairs a missing global Codex skil
     assert.equal(drifted.opl_agent_package_status.operational_ready, true);
     assert.equal(drifted.opl_agent_package_status.launch_blocked_reason, null);
     assert.equal(drifted.opl_agent_package_status.recommended_action, null);
-    assert.equal(driftedPackage.lifecycle_ux.status, 'installed');
-    assert.equal(driftedPackage.lifecycle_ux.recommended_action, null);
+    assert.equal(drifted.opl_agent_package_status.lifecycle_ux.status, 'available');
+    assert.equal(drifted.opl_agent_package_status.lifecycle_ux.recommended_action, null);
     assert.equal(driftedCurrentness.status, 'drifted');
     assert.equal(driftedCurrentness.dependency_sync.items[0].entrypoint_authority_status, 'missing');
     assert.equal(driftedCurrentness.repair_command, null);

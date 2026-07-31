@@ -926,7 +926,6 @@ export type AgentPackageOwnerRouteReadbackItem = {
   launch_allowed: boolean;
   launch_blocked_reason: string | null;
   allowed_when_blocked: Array<'status' | 'doctor' | 'repair'>;
-  lifecycle_ux: AgentPackageLifecycleUxReadback;
   carrier_adapters: AgentPackageCarrierAdapterReadback[];
   authority_boundary: AgentPackageAuthorityBoundary;
 };
