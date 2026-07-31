@@ -81,6 +81,31 @@ function runtimeDirectoryEntry(input: {
   } as const;
 }
 
+function writeRuntimeDescriptor(repoDir: string, packageId: string) {
+  const descriptor = runtimeDescriptor(packageId);
+  fs.mkdirSync(path.join(repoDir, 'contracts'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repoDir, 'contracts', 'domain_descriptor.json'),
+    `${JSON.stringify({
+      domain_id: descriptor.domain_id,
+      kind: descriptor.kind,
+      agent_id: descriptor.agent_id,
+      package_id: descriptor.package_id,
+      standard_agent_interface: {
+        ...descriptor.interface,
+        version: 'opl_standard_agent_interface.v1',
+        workspace_binding: {
+          ...descriptor.interface.workspace_binding,
+          locator_surface_kind: 'fixture_workspace_locator',
+          default_profile_id: 'one_off',
+          required_locator_fields: ['profile_ref'],
+          optional_locator_fields: ['workspace_root'],
+        },
+      },
+    }, null, 2)}\n`,
+  );
+}
+
 function writeStageAttemptFixture(input: {
   stateDir: string;
   workspaceRoot: string;
@@ -313,6 +338,79 @@ test('runtime membership follows one installed standard-Agent directory cohort',
     if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateDir;
     fs.rmSync(stateDir, { recursive: true, force: true });
+  }
+});
+
+test('runtime discovers an unknown Agent from its installed carrier source', () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-carrier-agent-state-'));
+  const carrierRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-carrier-agent-source-'));
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = stateDir;
+  writeRuntimeDescriptor(carrierRepo, 'future-carrier-agent');
+  try {
+    const statusReader = ((input: { packageId?: string }) => ({
+      opl_agent_package_status: {
+        installed_package_count: 1,
+        installed_packages: [],
+        installed_carrier_readback: {
+          kind: 'codex_plugin_manager',
+          identity: input.packageId,
+          source_ref: input.packageId === 'future-carrier-agent'
+            ? carrierRepo
+            : path.join(carrierRepo, 'missing'),
+          version: '1.0.0',
+          enabled: true,
+          lifecycle_authority: 'carrier_owned',
+        },
+        installed_readiness: {
+          installed: true,
+          physical_status: 'available',
+          callability: 'callable',
+          legacy_lifecycle_state_present: false,
+        },
+        runtime_source_readiness: {
+          status: 'not_required',
+          operational_ready: true,
+          checkout_path: null,
+        },
+      },
+    })) as any;
+    const output = buildOplRuntimeAppState({
+      generatedAt: '2026-07-31T00:00:00.000Z',
+      listBindings: () => [],
+      createPackageStatusReader: () => statusReader,
+      listPackages: (() => ({
+        opl_agent_packages: {
+          directory: {
+            entries: [
+              runtimeDirectoryEntry({ packageId: 'future-carrier-agent' }),
+              runtimeDirectoryEntry({ packageId: 'broken-carrier-agent' }),
+            ],
+          },
+        },
+      })) as any,
+    }) as any;
+
+    const projection = output.app_state.operator.workbench.work_item_projection_v2;
+    assert.deepEqual(
+      projection.agent_catalog.map((entry: any) => entry.package_id),
+      ['future-carrier-agent'],
+    );
+    assert.equal(
+      projection.agent_availability.find(
+        (entry: any) => entry.package_id === 'future-carrier-agent',
+      )?.availability,
+      'available',
+    );
+    assert.equal(
+      projection.agent_catalog.some((entry: any) => entry.package_id === 'broken-carrier-agent'),
+      false,
+    );
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    fs.rmSync(stateDir, { recursive: true, force: true });
+    fs.rmSync(carrierRepo, { recursive: true, force: true });
   }
 });
 

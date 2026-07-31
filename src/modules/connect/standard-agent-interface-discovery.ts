@@ -228,6 +228,24 @@ function canonicalCheckoutPath(value: string) {
   }
 }
 
+function installedCarrierSourceFromStatus(
+  status: ReturnType<PackageStatusReader>['opl_agent_package_status'],
+) {
+  const carrier = status.installed_carrier_readback;
+  if (!carrier) return { selected: false as const, checkout_path: null };
+  const readiness = status.installed_readiness;
+  const sourceRef = carrier.lifecycle_authority === 'carrier_owned'
+    && readiness?.installed === true
+    && readiness.physical_status === 'available'
+    && typeof carrier.source_ref === 'string'
+    ? carrier.source_ref
+    : null;
+  return {
+    selected: true as const,
+    checkout_path: sourceRef ? canonicalCheckoutPath(sourceRef) : null,
+  };
+}
+
 function defaultSelectedModuleSource(moduleId: string): SelectedModuleSource {
   return inspectOplModule(moduleId, { profile: 'fast' });
 }
@@ -544,9 +562,12 @@ export function readInstalledStandardAgentDescriptorForPackage(
   if (typeof status.installed_package_count !== 'number' || status.installed_package_count < 1) {
     return null;
   }
-  const checkoutPath = typeof status.runtime_source_readiness?.checkout_path === 'string'
-    ? canonicalCheckoutPath(status.runtime_source_readiness.checkout_path)
-    : null;
+  const installedCarrierSource = installedCarrierSourceFromStatus(status);
+  const checkoutPath = installedCarrierSource.selected
+    ? installedCarrierSource.checkout_path
+    : typeof status.runtime_source_readiness?.checkout_path === 'string'
+      ? canonicalCheckoutPath(status.runtime_source_readiness.checkout_path)
+      : null;
   const descriptor = checkoutPath ? readStandardAgentDescriptorInterface(checkoutPath) : null;
   if (descriptor?.kind !== 'agent') return null;
   const target = normalizedIdentity(packageId);

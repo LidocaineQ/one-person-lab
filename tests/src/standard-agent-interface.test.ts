@@ -679,6 +679,62 @@ test('installed package descriptor discovery bypasses registry-selected module r
   }
 });
 
+test('installed carrier source owns descriptor discovery without legacy runtime source readiness', () => {
+  const carrierRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-standard-interface-carrier-'));
+  const legacyRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-standard-interface-legacy-'));
+  try {
+    writeStandardAgentDescriptor(carrierRepo, {
+      ...standardAgentDescriptor('future-agent'),
+      kind: 'agent',
+      agent_id: 'future-agent',
+      package_id: 'future-package',
+    });
+    writeStandardAgentDescriptor(legacyRepo, {
+      ...standardAgentDescriptor('legacy-agent'),
+      kind: 'agent',
+      agent_id: 'legacy-agent',
+      package_id: 'future-package',
+    });
+    const carrierSource = { current: carrierRepo };
+    const statusReader = (() => ({
+      version: 'g2',
+      opl_agent_package_status: {
+        installed_package_count: 1,
+        installed_packages: [],
+        installed_carrier_readback: {
+          kind: 'codex_plugin_manager',
+          identity: 'future-package',
+          source_ref: carrierSource.current,
+          version: '1.0.0',
+          enabled: true,
+          lifecycle_authority: 'carrier_owned',
+        },
+        installed_readiness: {
+          installed: true,
+          physical_status: 'available',
+          callability: 'callable',
+          legacy_lifecycle_state_present: false,
+        },
+        runtime_source_readiness: {
+          status: 'not_required',
+          operational_ready: true,
+          checkout_path: legacyRepo,
+        },
+      },
+    })) as unknown as PackageStatusReaderFixture;
+
+    const descriptor = readInstalledStandardAgentDescriptorForPackage('future-package', statusReader);
+    assert.equal(descriptor?.agent_id, 'future-agent');
+    assert.equal(fs.realpathSync.native(descriptor?.repo_dir ?? ''), fs.realpathSync.native(carrierRepo));
+
+    carrierSource.current = path.join(carrierRepo, 'missing');
+    assert.equal(readInstalledStandardAgentDescriptorForPackage('future-package', statusReader), null);
+  } finally {
+    fs.rmSync(carrierRepo, { recursive: true, force: true });
+    fs.rmSync(legacyRepo, { recursive: true, force: true });
+  }
+});
+
 test('standard Agent contract checkout prefers the OPL-selected developer source', () => {
   const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-standard-contract-checkout-'));
   const statusReads: string[] = [];
