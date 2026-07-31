@@ -481,6 +481,7 @@ test('workflow policy v3 installs a GitHub Skill from its declared repository so
   const env = {
     HOME: home,
     CODEX_HOME: path.join(home, '.codex'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
     OPL_STATE_DIR: path.join(root, 'state'),
     GIT_CONFIG_COUNT: '1',
     GIT_CONFIG_KEY_0: `url.file://${upstreamRoot}.insteadOf`,
@@ -582,6 +583,7 @@ test('workflow policy v3 projects a generic install action when a required Skill
   const env = {
     HOME: home,
     CODEX_HOME: path.join(home, '.codex'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
     OPL_STATE_DIR: path.join(root, 'state'),
     OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
   };
@@ -719,6 +721,7 @@ test('workflow policy v3 keeps a missing recommended Skill non-blocking', async 
   const env = {
     HOME: home,
     CODEX_HOME: path.join(home, '.codex'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
     OPL_STATE_DIR: path.join(root, 'state'),
     OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
   };

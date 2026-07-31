@@ -52,21 +52,11 @@ function cliTestCodexPluginBin() {
 }
 
 function cliTestEnvOverrides(envOverrides: Record<string, string> = {}) {
-  const processCodexPluginBin = process.env.OPL_CODEX_PLUGIN_BIN?.trim();
-  const hasIsolatedPackageHome = Boolean(
-    envOverrides.HOME?.trim()
-    && envOverrides.CODEX_HOME?.trim()
-    && envOverrides.OPL_STATE_DIR?.trim(),
-  );
   return {
     NODE_NO_WARNINGS: '1',
     OPL_STATE_DIR: cliTestStateDir(),
     OPL_DEVELOPER_MODE_GH_BINARY: path.join(cliTestStateDir(), 'missing-gh'),
-    ...(processCodexPluginBin
-      ? { OPL_CODEX_PLUGIN_BIN: processCodexPluginBin }
-      : hasIsolatedPackageHome
-        ? {}
-        : { OPL_CODEX_PLUGIN_BIN: cliTestCodexPluginBin() }),
+    OPL_CODEX_PLUGIN_BIN: process.env.OPL_CODEX_PLUGIN_BIN?.trim() || cliTestCodexPluginBin(),
     ...envOverrides,
   };
 }
