@@ -39,12 +39,12 @@
     "oma": {
       "package_id": "oma",
       "package_role": "standard_agent",
-      "package_version": "0.4.3",
-      "owner_source_commit": "d58fee532bc0ccce4b7a4f1c5a5e521dd2e50a41",
-      "manifest_ref": "packages/oma-0.4.3.json",
-      "manifest_sha256": "sha256:1bcf5bc6a1998bc90c82dd9127267cb14d25a5d0d5f8756ddd24ed0265af473c",
-      "payload_manifest_ref": "packages/payloads/oma-0.4.3.json",
-      "payload_manifest_sha256": "sha256:6c6a4a0c6f2452ec1ba605811776dfcede6e1fcdeab477e4f1c72e439b403dc7",
+      "package_version": "0.4.5",
+      "owner_source_commit": "54553b49f2e8a032d7492d04728eb3382ab4317f",
+      "manifest_ref": "packages/oma-0.4.5.json",
+      "manifest_sha256": "sha256:379aca98bc58b6401eee723acb148c2f026c2fea3aa3d0a3c72558d6845e0492",
+      "payload_manifest_ref": "packages/payloads/oma-0.4.5.json",
+      "payload_manifest_sha256": "sha256:3dfc29d10ca7ec9164b0695e29fbf0e16cee9f2dc440da5a8307e29f77cea73e",
       "runtime_module_relative_path": "modules/meta-agent"
     },
     "obf": {

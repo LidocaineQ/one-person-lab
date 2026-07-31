@@ -1523,7 +1523,7 @@ test('bundled Full RCA snapshot keeps its frozen manifest bytes while ordinary p
   assert.equal(ordinaryManifest.version, '0.2.9');
 });
 
-test('bundled Full OMA snapshot keeps its frozen manifest bytes while ordinary publication advances', () => {
+test('bundled Full OMA source projection advances independently of ordinary publication', () => {
   const catalog = parseJsonText(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
     'utf8',
@@ -1537,11 +1537,11 @@ test('bundled Full OMA snapshot keeps its frozen manifest bytes while ordinary p
     'utf8',
   )) as Record<string, any>;
 
-  assert.equal(frozenRef, 'packages/oma-0.4.3.json');
+  assert.equal(frozenRef, 'packages/oma-0.4.5.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    '1bcf5bc6a1998bc90c82dd9127267cb14d25a5d0d5f8756ddd24ed0265af473c');
-  assert.equal(frozenManifest.version, '0.4.3');
-  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/oma-0.4.3.json');
+    '379aca98bc58b6401eee723acb148c2f026c2fea3aa3d0a3c72558d6845e0492');
+  assert.equal(frozenManifest.version, '0.4.5');
+  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/oma-0.4.5.json');
   assert.equal(ordinaryManifest.version, '0.4.4');
 });
 
