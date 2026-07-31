@@ -560,7 +560,6 @@ export type AgentPackageDependencyReadinessItem = {
 export type AgentPackageDependencyReadiness = {
   status: 'missing' | 'current' | 'incompatible';
   operational_ready: boolean;
-  repair_command: string;
   dependencies: AgentPackageDependencyReadinessItem[];
 };
 

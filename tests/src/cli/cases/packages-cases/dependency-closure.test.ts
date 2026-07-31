@@ -11,7 +11,7 @@ import {
   runCliFailure,
   test,
 } from './helpers.ts';
-import { runCliInCwd } from '../../helpers.ts';
+import { createFakeCodexPluginManagerFixture, runCliInCwd } from '../../helpers.ts';
 import {
   scholarSkillsCoreSkillIds as coreSkillIds,
   scholarSkillsModuleIds as moduleIds,
@@ -106,7 +106,11 @@ test('MAS package lifecycle atomically installs and repairs its 11-core capabili
   const providerRoot = path.join(root, 'provider');
   const providerManifestPath = writeFixtureCapabilityProvider(providerRoot);
   const consumerManifestPath = writeFixtureMasConsumer(root, providerManifestPath);
-  const env = { OPL_STATE_DIR: stateDir, CODEX_HOME: codexHome };
+  const env = {
+    OPL_STATE_DIR: stateDir,
+    CODEX_HOME: codexHome,
+    OPL_CODEX_PLUGIN_BIN: createFakeCodexPluginManagerFixture(path.join(root, 'fake-codex')).codexPath,
+  };
   try {
     bindMasWorkspace(workspace, env);
     const install = await runCliAsync([
@@ -178,6 +182,11 @@ test('MAS package lifecycle atomically installs and repairs its 11-core capabili
     assert.equal(dependencyItem.status, 'incompatible');
     assert.deepEqual(dependencyItem.missing_required_export_ids, []);
     assert.deepEqual(dependencyItem.missing_required_module_ids, ['mas-scholar-skills.display']);
+    assert.equal(
+      Object.hasOwn(moduleMissing.opl_agent_package_status.package_dependency_readiness, 'repair_command'),
+      false,
+    );
+    assert.equal(moduleMissing.opl_agent_package_status.repair_action, null);
     assert.equal(moduleMissing.opl_agent_package_status.operational_ready, false);
     providerLock.capability_provider.module_export_ids = moduleIds;
     fs.writeFileSync(lockPath, formatJsonPayload(lockIndex));

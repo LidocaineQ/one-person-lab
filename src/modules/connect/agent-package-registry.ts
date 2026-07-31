@@ -4053,7 +4053,7 @@ function buildOplAgentPackageStatus(
     ? !materializationOperational
       ? materializationReadiness?.repair_command ?? null
       : packageDependencyReadiness && !packageDependencyReadiness.operational_ready
-        ? packageDependencyReadiness.repair_command
+        ? null
         : !managedPolicyOperational
           ? policyCurrentness.repair_command
           : null

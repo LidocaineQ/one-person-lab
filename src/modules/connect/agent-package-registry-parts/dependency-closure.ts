@@ -251,7 +251,6 @@ export function dependencyReadiness(
     status,
     operational_ready: items.every((entry) => !entry.required
       || !entry.reasons.some((reason) => DEPENDENCY_HARD_FAILURE_REASONS.has(reason))),
-    repair_command: `opl packages repair --package-id ${lock.package_id}`,
     dependencies: items,
   };
 }
