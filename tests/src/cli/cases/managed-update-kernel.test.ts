@@ -921,6 +921,7 @@ function writeManagedBundledCatalogFixture(input: {
   revision: string;
 }) {
   const packages: Record<string, unknown> = {};
+  const sourcePaths: Record<string, string> = {};
   const roots = Object.fromEntries(MANAGED_BUNDLED_PACKAGE_FIXTURES.map((entry) => [
     entry.packageId,
     path.join(input.workspaceRoot, entry.project),
@@ -950,6 +951,7 @@ function writeManagedBundledCatalogFixture(input: {
     const canonicalPayload = readJsonFile(canonicalPayloadPath) as Record<string, any>;
     const sourceRoot = canonicalPayload.source_root as string;
     const sourcePath = sourceRoot === '.' ? root : path.join(root, sourceRoot);
+    sourcePaths[fixture.packageId] = sourcePath;
     const sourceCommit = managedBundledSourceCommit(fixture.packageId, input.revision);
     manifest.codex_surface = {
       ...manifest.codex_surface,
@@ -957,6 +959,11 @@ function writeManagedBundledCatalogFixture(input: {
       plugin_payload_manifest_url: `payloads/${fixture.packageId}.json`,
     };
     fs.mkdirSync(sourcePath, { recursive: true });
+    const pluginManifestPath = path.join(sourcePath, '.codex-plugin', 'plugin.json');
+    if (fs.existsSync(pluginManifestPath)) {
+      const pluginManifest = readJsonFile(pluginManifestPath) as Record<string, unknown>;
+      writeJsonPayload(pluginManifestPath, { ...pluginManifest, version: manifest.version });
+    }
     writeJsonPayload(path.join(sourcePath, 'opl-package.json'), manifest);
     fs.writeFileSync(path.join(sourcePath, '.opl-managed-bundled-revision'), `${input.revision}\n`, 'utf8');
     for (const skillPath of filesUnder(sourcePath).filter((entry) => entry.endsWith('/SKILL.md'))) {
@@ -1050,6 +1057,7 @@ function writeManagedBundledCatalogFixture(input: {
   return {
     catalogPath,
     roots,
+    sourcePaths,
     sourceCommits: Object.fromEntries(MANAGED_BUNDLED_PACKAGE_FIXTURES.map((entry) => [
       entry.packageId,
       managedBundledSourceCommit(entry.packageId, input.revision),
@@ -1096,6 +1104,24 @@ function pathBytesDigest(targetPath: string) {
   return digest.digest('hex');
 }
 
+function markFakeCodexPluginManagerVersionsStale(input: {
+  stateRoot: string;
+  codexHome: string;
+  pluginIds?: string[];
+}) {
+  const homeKey = crypto.createHash('sha256').update(input.codexHome).digest('hex');
+  const statePath = path.join(input.stateRoot, 'fake-codex-plugin-manager', `${homeKey}.json`);
+  const state = readJsonFile(statePath) as {
+    marketplaces: Array<Record<string, unknown>>;
+    installed: Array<{ pluginId: string; version: string | null }>;
+  };
+  const pluginIds = input.pluginIds ? new Set(input.pluginIds) : null;
+  for (const entry of state.installed) {
+    if (!pluginIds || pluginIds.has(entry.pluginId.split('@', 1)[0])) entry.version = '0.0.0';
+  }
+  writeJsonPayload(statePath, state);
+}
+
 function managedBundledStateFingerprint(input: {
   homeRoot: string;
   stateRoot: string;
@@ -1140,15 +1166,13 @@ function managedBundledStateFingerprint(input: {
   ]));
 }
 
-function installedPackageDescriptorReadback(input: {
-  items: Array<Record<string, any>>;
+function ownerPackageDescriptorReadback(input: {
+  sourcePaths: Record<string, string>;
   packageIds: string[];
 }) {
-  const packageIds = new Set(input.packageIds);
-  return input.items
-    .filter((item) => packageIds.has(item.package_id))
-    .map((item) => {
-      const descriptorPath = path.join(item.codex_plugin_cache_path, 'opl-package.json');
+  return input.packageIds
+    .map((packageId) => {
+      const descriptorPath = path.join(input.sourcePaths[packageId], 'opl-package.json');
       const manifest = readJsonFile(descriptorPath) as any;
       return {
         package_id: manifest.package_id,
@@ -1161,7 +1185,7 @@ function installedPackageDescriptorReadback(input: {
     .sort((left, right) => left.package_id.localeCompare(right.package_id));
 }
 
-test('public update apply retains successful bundled roots when another root restores its local prestate', async () => {
+test('public update apply retains successful bundled roots when another native carrier verification fails', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-bundled-public-apply-'));
   const captureRoot = path.join(root, 'capture');
   const homeRoot = path.join(root, 'home');
@@ -1288,6 +1312,7 @@ test('public update apply retains successful bundled roots when another root res
       ...commonEnv,
       OPL_TEST_BUNDLED_FULL_RUNTIME_PACKAGE_CATALOG: newCatalog.catalogPath,
     };
+    markFakeCodexPluginManagerVersionsStale({ stateRoot, codexHome });
     const userOwnedProfiles = new Map(['AGENTS.md', 'TASTE.md'].map((fileName) => {
       const filePath = path.join(codexHome, fileName);
       const content = Buffer.from(`# User-owned ${path.basename(filePath)}\n`);
@@ -1337,6 +1362,11 @@ test('public update apply retains successful bundled roots when another root res
     fs.mkdirSync(path.dirname(servicePath), { recursive: true });
     fs.writeFileSync(servicePath, '<plist><string>managed-service-sentinel</string></plist>\n', 'utf8');
     fs.writeFileSync(serviceStateSentinel, 'enabled-and-running\n', 'utf8');
+    markFakeCodexPluginManagerVersionsStale({
+      stateRoot,
+      codexHome,
+      pluginIds: ['opl-flow'],
+    });
     const serviceDefinitionDigest = pathBytesDigest(servicePath);
     const serviceStateDigest = pathBytesDigest(serviceStateSentinel);
     const serviceConflictPrestate = managedBundledStateFingerprint({
@@ -1347,24 +1377,20 @@ test('public update apply retains successful bundled roots when another root res
       baseSentinelRoot,
       appSentinelRoot,
     });
-    const serviceBlocked = runCli(['update', 'apply'], updateEnv) as any;
-    const serviceAdapter = serviceBlocked.managed_update.execution.adapter_results[0];
+    const serviceIsolated = runCli(['update', 'apply'], updateEnv) as any;
+    const serviceAdapter = serviceIsolated.managed_update.execution.adapter_results[0];
     const serviceReconciliation = serviceAdapter.result.bundled_full_runtime_reconciliation;
-    const serviceFailure = serviceReconciliation.failures.find((entry: any) => (
-      entry.package_id === 'opl-flow'
-    ));
-    assert.equal(serviceBlocked.managed_update.execution.status, 'manual_required');
-    assert.equal(serviceAdapter.status, 'manual_required');
-    assert.equal(serviceReconciliation.status, 'partial');
+    assert.equal(serviceIsolated.managed_update.execution.status, 'completed');
+    assert.equal(serviceAdapter.status, 'completed');
+    assert.equal(serviceReconciliation.status, 'completed');
     assert.deepEqual(
       serviceReconciliation.root_installs.map((entry: any) => entry.status),
-      ['skipped', 'skipped', 'skipped', 'skipped', 'manual_required', 'skipped'],
+      ['skipped', 'skipped', 'skipped', 'skipped', 'completed', 'skipped'],
     );
-    assert.equal(serviceFailure.failure_code, 'agent_package_bundled_managed_surface_manual_required');
-    assert.equal(serviceFailure.details.profile_migration_status, 'not_requested');
-    assert.equal(serviceFailure.details.service_conflicts.length, 1);
-    assert.equal(serviceFailure.details.service_conflicts[0].physical_ref, servicePath);
-    assert.equal(serviceFailure.details.mutation_started, false);
+    assert.equal(
+      serviceReconciliation.failures.some((entry: any) => entry.package_id === 'opl-flow'),
+      false,
+    );
     assert.equal(fs.existsSync(launchctlLog), false);
     assert.equal(pathBytesDigest(servicePath), serviceDefinitionDigest);
     assert.equal(pathBytesDigest(serviceStateSentinel), serviceStateDigest);
@@ -1389,6 +1415,7 @@ test('public update apply retains successful bundled roots when another root res
       ...commonEnv,
       OPL_TEST_BUNDLED_FULL_RUNTIME_PACKAGE_CATALOG: faultCatalog.catalogPath,
     };
+    markFakeCodexPluginManagerVersionsStale({ stateRoot, codexHome });
     const unrelatedSurfacePaths = {
       family_carrier: path.join(stateRoot, 'codex-plugin-carriers', 'unrelated-family', 'sentinel.bin'),
       plugin_registry: path.join(codexHome, 'plugins', 'unrelated-family', 'sentinel.bin'),
@@ -1406,10 +1433,6 @@ test('public update apply retains successful bundled roots when another root res
       base: pathBytesDigest(baseSentinelRoot),
       app: pathBytesDigest(appSentinelRoot),
     };
-    const packageUnitPrestate = installedPackageDescriptorReadback({
-      items: installed.items,
-      packageIds: ['mas'],
-    });
     const scopeSkillsPreFault = pathBytesDigest(path.join(scopeRoot, '.codex', 'skills'));
     const componentLedgerPath = path.join(stateRoot, 'managed-update-component-receipts.json');
     const componentReceiptCountBeforeFault = (readJsonFile(componentLedgerPath) as any).receipts.length;
@@ -1433,7 +1456,7 @@ test('public update apply retains successful bundled roots when another root res
     assert.equal(partialReconciliation.orchestration_policy, 'fail_open_per_root_package');
     assert.equal(
       partialReconciliation.package_mutation_policy,
-      'package_local_atomic_root_retryable',
+      'package_local_native_carrier_root_retryable',
     );
     assert.deepEqual(
       partialReconciliation.root_installs.map((entry: any) => entry.status),
@@ -1441,18 +1464,13 @@ test('public update apply retains successful bundled roots when another root res
     );
     const failedMas = partialAdapter.result.targets.find((entry: any) => entry.target_id === 'mas');
     assert.equal(failedMas.result.failure.failure_code, 'test_managed_bundled_update_post_verify_interrupted');
-    assert.deepEqual(failedMas.result.failure.details.completed_package_ids, ['mas-scholar-skills', 'mas']);
-    assert.equal(failedMas.result.package_mutation_unit.status, 'partially_materialized_retryable');
+    assert.deepEqual(failedMas.result.failure.details.completed_package_ids, ['mas']);
+    assert.equal(failedMas.result.package_mutation_unit.status, 'partially_applied_native_carrier_retryable');
     assert.equal(failedMas.result.package_mutation_unit.local_prestate_restored, null);
     assert.equal(failedMas.result.package_mutation_unit.mutation_started, true);
-    const packageUnitPoststate = installedPackageDescriptorReadback({
-      items: partialReconciliation.items,
-      packageIds: ['mas'],
-    });
-    assert.notDeepEqual(packageUnitPoststate, packageUnitPrestate);
     assert.equal(pathBytesDigest(path.join(scopeRoot, '.codex', 'skills')), scopeSkillsPreFault);
-    const descriptorReadbackAfterPartial = installedPackageDescriptorReadback({
-      items: partialReconciliation.items,
+    const descriptorReadbackAfterPartial = ownerPackageDescriptorReadback({
+      sourcePaths: faultCatalog.sourcePaths,
       packageIds: MANAGED_BUNDLED_PACKAGE_FIXTURES.map((entry) => entry.packageId),
     });
     assert.equal(descriptorReadbackAfterPartial.length, MANAGED_BUNDLED_PACKAGE_FIXTURES.length);
@@ -1599,8 +1617,8 @@ test('public update apply retains successful bundled roots when another root res
       0,
     );
 
-    const finalDescriptors = installedPackageDescriptorReadback({
-      items: reconciliation.items,
+    const finalDescriptors = ownerPackageDescriptorReadback({
+      sourcePaths: faultCatalog.sourcePaths,
       packageIds: MANAGED_BUNDLED_PACKAGE_FIXTURES.map((entry) => entry.packageId),
     });
     assert.deepEqual(finalDescriptors.map((entry) => entry.package_id), [
