@@ -55,7 +55,6 @@ export function packageActionStatus(action: AgentPackageLifecycleAction) {
   return {
     install: 'installed',
     update: 'updated',
-    optimize: 'optimized',
     repair: 'repaired',
     activate: 'activated',
     use: 'used',
