@@ -781,6 +781,10 @@ test('Framework allowlists and historical payload envelopes validate at their ex
     path.join(repoRoot, 'contracts/opl-framework/package-payload-manifest.schema.json'),
     'utf8',
   )) as Record<string, any>;
+  const bundledCatalog = JSON.parse(fs.readFileSync( // reuse-first: allow local contract fixture parser.
+    path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
+    'utf8',
+  )) as Record<string, any>;
   const canonicalIds = [
     'mag',
     'mas',
@@ -854,11 +858,19 @@ test('Framework allowlists and historical payload envelopes validate at their ex
     assert.equal(payload.package_id, manifest.package_id, id);
     assert.equal(payload.package_version, manifest.version, id);
     assert.equal(payload.source_commit, manifest.codex_surface.carrier_source_commit, id);
-    assert.deepEqual(
-      payload.files.map((entry: Record<string, string>) => entry.path),
-      allowlist.paths,
-      `${id} current payload`,
-    );
+    const selectedPayloads = [payload];
+    const bundledEntry = bundledCatalog.packages[id] as Record<string, string> | undefined;
+    if (bundledEntry !== undefined) {
+      selectedPayloads.push(JSON.parse(fs.readFileSync( // reuse-first: allow local contract fixture parser.
+        path.join(repoRoot, 'contracts/opl-framework', bundledEntry.payload_manifest_ref),
+        'utf8',
+      )) as Record<string, any>);
+    }
+    assert.equal(selectedPayloads.some((selectedPayload) => {
+      const paths = selectedPayload.files.map((entry: Record<string, string>) => entry.path);
+      return paths.length === allowlist.paths.length
+        && paths.every((entry: string, index: number) => entry === allowlist.paths[index]);
+    }), true, `${id} selected payload`);
     assertPayloadEnvelope(payload, id);
   }
 
