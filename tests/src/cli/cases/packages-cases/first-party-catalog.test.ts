@@ -17,6 +17,7 @@ import {
 } from './helpers.ts';
 import { resolveFirstPartyPackageCatalog } from '../../../../../src/modules/connect/agent-package-first-party.ts';
 import { refreshFirstPartyPackageCatalogSnapshot } from '../../../../../src/modules/connect/agent-package-registry-parts/first-party-release-catalog.ts';
+import { normalizeManifest } from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
 import { materializeAgentPackageSkillProjection } from '../../../../../src/modules/connect/agent-package-registry-parts/skill-projection.ts';
 import {
   normalizeOplReleaseChannelTag,
@@ -515,7 +516,6 @@ test('first-party package selection resolves the managed Release Set catalog', (
         kind: 'managed_version_catalog',
         transport: 'opl_oci_channel',
         catalog_ref: 'ghcr.io/gaofeng21cn/one-person-lab-manifest:latest-stable',
-        selection_policy: 'highest_stable',
         digest_authority: 'manifest_and_content_digest',
       },
     });
@@ -531,6 +531,28 @@ test('first-party package selection resolves the managed Release Set catalog', (
       else process.env[key] = value;
     }
   }
+});
+
+test('legacy catalog selection policy is accepted as input but omitted from normalized manifests', () => {
+  const manifestUrl = 'https://packages.example.test/third-party-research/manifest.json';
+  const manifest = normalizeManifest({
+    ...agentPackageManifest(),
+    managed_update_source: {
+      kind: 'managed_version_catalog',
+      transport: 'json_url',
+      catalog_ref: './catalog.json',
+      selection_policy: 'highest_stable',
+      digest_authority: 'manifest_and_content_digest',
+    },
+  }, manifestUrl);
+
+  assert.deepEqual(manifest.managed_update_source, {
+    kind: 'managed_version_catalog',
+    transport: 'json_url',
+    catalog_ref: 'https://packages.example.test/third-party-research/catalog.json',
+    digest_authority: 'manifest_and_content_digest',
+  });
+  assert.equal('selection_policy' in manifest.managed_update_source!, false);
 });
 
 test('release channels normalize stable and preview aliases and reject bare latest', () => {

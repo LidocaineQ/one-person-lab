@@ -20,7 +20,6 @@ export function resolveFirstPartyPackageCatalog(packageId: string | null | undef
       kind: 'managed_version_catalog',
       transport: 'opl_oci_channel',
       catalog_ref: resolveOplReleaseManifestRef(),
-      selection_policy: 'highest_stable',
       digest_authority: 'manifest_and_content_digest',
     } satisfies AgentPackageManagedVersionCatalogSource,
   };
