@@ -27,6 +27,17 @@ const flowSkillIds = [
   'recover-codex-tasks',
   'task-mode-gate',
 ];
+const flowPayloadPaths = (JSON.parse(fs.readFileSync(
+  path.join(repoRoot, 'contracts', 'opl-framework', 'package-payload-allowlists', 'opl-flow.json'),
+  'utf8',
+)) as { paths: string[] }).paths;
+const executableFlowPayloadPaths = new Set([
+  'scripts/opl_fleet.py',
+  'scripts/worktree_absorption_audit.py',
+  'scripts/worktree_lifecycle.py',
+  'skills/opl-flow/scripts/validate_start_onboarding.py',
+  'skills/recover-codex-tasks/scripts/inspect_codex_recovery.py',
+]);
 const flowPluginSelector = 'opl-flow@opl-flow-local';
 const descriptor = {
   packageId: 'opl-flow',
@@ -301,6 +312,18 @@ function writeDeveloperFlowCheckout(
     fs.mkdirSync(skillRoot, { recursive: true });
     fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), `# ${skillId}\n`);
   }
+  for (const relativePath of flowPayloadPaths) {
+    const target = path.join(checkout, relativePath);
+    if (fs.existsSync(target)) continue;
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    const content = relativePath.endsWith('.json')
+      ? formatJsonPayload({ fixture: relativePath })
+      : `# Fixture ${relativePath}\n`;
+    fs.writeFileSync(target, content, {
+      mode: executableFlowPayloadPaths.has(relativePath) ? 0o755 : 0o644,
+    });
+  }
+  fs.writeFileSync(path.join(checkout, 'not-in-flow-payload.txt'), 'must not be copied\n');
   execFileSync('git', ['init', '-q'], { cwd: checkout });
   execFileSync('git', ['add', '.'], { cwd: checkout });
   execFileSync('git', [
@@ -753,6 +776,52 @@ test('public packages install accepts a v4 Flow developer checkout', () => {
       'utf8',
     ));
     assert.equal(installedPolicy.schema, 'opl_flow_workflow_policy.v4');
+    assert.deepEqual(
+      surface.package_lock.developer_checkout_source.copy_paths,
+      [...flowPayloadPaths].sort(),
+    );
+    for (const requiredPath of [
+      'scripts/opl_workflow.py',
+      'scripts/opl_fleet.py',
+      'scripts/profile_compose.py',
+      'contracts/code-review-policy.json',
+      'contracts/code-review-policy.schema.json',
+      'contracts/fleet-telemetry-protocol.json',
+      'contracts/fleet-telemetry-protocol.schema.json',
+    ]) {
+      assert.equal(
+        fs.existsSync(path.join(surface.physical_surface.codex_plugin_cache_path, requiredPath)),
+        true,
+        requiredPath,
+      );
+    }
+    assert.equal(
+      fs.existsSync(path.join(surface.physical_surface.codex_plugin_cache_path, 'not-in-flow-payload.txt')),
+      false,
+    );
+  } finally {
+    removeFixtureTree(state.root);
+  }
+});
+
+test('Flow developer checkout fails closed when its shared payload allowlist is incomplete', () => {
+  const state = publicLifecycleFixture('install-developer-checkout-missing-allowlisted-file');
+  try {
+    const checkout = writeDeveloperFlowCheckout(
+      path.join(state.root, 'workspace'),
+      'opl_flow_workflow_policy.v4',
+    );
+    fs.rmSync(path.join(checkout, 'contracts', 'fleet-telemetry-protocol.json'));
+    const failure = runCliFailure(['packages', 'install', 'opl-flow'], {
+      ...state.env,
+      OPL_MODULE_PATH_OPLFLOW: checkout,
+      OPL_MODULE_SOURCE_MODE: 'git_checkout',
+    });
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'agent_package_developer_checkout_source_invalid',
+    );
+    assert.match(failure.payload.error.message, /missing an allowlisted payload file/);
   } finally {
     removeFixtureTree(state.root);
   }

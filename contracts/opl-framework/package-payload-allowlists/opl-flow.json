@@ -9,6 +9,8 @@
     "opl-package.json",
     "contracts/code-review-policy.json",
     "contracts/code-review-policy.schema.json",
+    "contracts/fleet-telemetry-protocol.json",
+    "contracts/fleet-telemetry-protocol.schema.json",
     "contracts/workflow-policy.json",
     "contracts/workflow-policy.schema.json",
     "profile/manifest.json",
