@@ -17,12 +17,12 @@
     "mag": {
       "package_id": "mag",
       "package_role": "standard_agent",
-      "package_version": "0.3.5",
-      "owner_source_commit": "d707f4a46880ee1b195e43a40169165507a585b4",
-      "manifest_ref": "packages/mag-0.3.5.json",
-      "manifest_sha256": "sha256:aa6b49a22fa44b87e5f7864bedb8fe275760a064963d96689d188047f751064f",
-      "payload_manifest_ref": "packages/payloads/mag-0.3.5.json",
-      "payload_manifest_sha256": "sha256:7f54a9b652084151c622bdeb5776e71d74bd58ea9907c33f6aae55d98d9b9270",
+      "package_version": "0.3.6",
+      "owner_source_commit": "115c0286d09e6b3663c82848dfca119f264104f8",
+      "manifest_ref": "packages/mag-0.3.6.json",
+      "manifest_sha256": "sha256:f4d817f4f5cb8c6b440505d8e43afb3e6ca91547934bef262781007da31481ec",
+      "payload_manifest_ref": "packages/payloads/mag-0.3.6.json",
+      "payload_manifest_sha256": "sha256:c944cd8bf8413c0f369c78142dd2f27f11479098cf397c0a6d02d9104af40a7a",
       "runtime_module_relative_path": "modules/mag"
     },
     "rca": {
