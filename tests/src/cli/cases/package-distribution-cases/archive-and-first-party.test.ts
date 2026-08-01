@@ -1340,10 +1340,11 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
   )) as Record<string, any>;
   assert.equal(manifest.surface_kind, 'opl_workflow_profile_package_manifest.v1');
   assert.equal(manifest.version, '0.1.30');
-  assert.equal(manifest.codex_surface.carrier_source_commit, 'f8efd7f0655d62a9d5017a124feb92dd611f430b');
+  assert.equal(manifest.codex_surface.carrier_source_commit, 'acaff1965a49a2a0b858f8c73968d211f2955093');
   assert.deepEqual(manifest.codex_surface.required_skill_ids, [
     'coordinate-concurrent-tasks',
     'develop-and-deliver',
+    'opl-fleet',
     'opl-flow',
     'recover-codex-tasks',
     'task-mode-gate',
@@ -1353,8 +1354,19 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
   assert.equal(normalized.agent_id, null);
   assert.equal(normalized.profile_surface?.existing_profile_policy, 'semantic_merge_required');
   assert.equal(payload.surface_kind, 'opl_package_payload_manifest.v2');
-  assert.equal(payload.source_commit, 'f8efd7f0655d62a9d5017a124feb92dd611f430b');
+  assert.equal(payload.source_commit, 'acaff1965a49a2a0b858f8c73968d211f2955093');
   assert.equal(payload.files.some((file: Record<string, unknown>) => file.path === 'opl-package.json'), true);
+  for (const requiredPath of [
+    'contracts/code-review-policy.json',
+    'contracts/code-review-policy.schema.json',
+    'scripts/profile_compose.py',
+  ]) {
+    assert.equal(
+      payload.files.some((file: Record<string, unknown>) => file.path === requiredPath),
+      true,
+      requiredPath,
+    );
+  }
   assert.deepEqual(
     payload.files
       .filter((file: Record<string, unknown>) => String(file.path).startsWith('skills/'))
@@ -1364,9 +1376,17 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
       'skills/coordinate-concurrent-tasks/agents/openai.yaml',
       'skills/develop-and-deliver/SKILL.md',
       'skills/develop-and-deliver/agents/openai.yaml',
+      'skills/opl-fleet/SKILL.md',
+      'skills/opl-fleet/agents/openai.yaml',
       'skills/opl-flow/SKILL.md',
       'skills/opl-flow/agents/openai.yaml',
+      'skills/opl-flow/references/app-integration.md',
+      'skills/opl-flow/references/codex-baseline.md',
+      'skills/opl-flow/references/ledger-start.md',
+      'skills/opl-flow/references/package-lifecycle.md',
+      'skills/opl-flow/references/setup-update.md',
       'skills/opl-flow/references/start-onboarding.json',
+      'skills/opl-flow/references/terminal-readback.md',
       'skills/opl-flow/scripts/validate_start_onboarding.py',
       'skills/recover-codex-tasks/SKILL.md',
       'skills/recover-codex-tasks/agents/openai.yaml',

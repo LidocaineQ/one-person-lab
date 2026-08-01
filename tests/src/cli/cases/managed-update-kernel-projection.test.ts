@@ -587,7 +587,7 @@ test('generic apply selects only eligible background-safe components while expli
   assert.deepEqual(selectedManagedUpdateComponentIds({ operation: 'apply', componentId: 'opl_base' }, components), ['opl_base']);
 });
 
-test('canonical bundled projection freezes root6 closure7 and OPL Flow five-Skill policy', () => {
+test('canonical bundled projection freezes root6 closure7 and OPL Flow six-Skill policy', () => {
   const catalog = parseJsonText(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
     'utf8',
@@ -612,6 +612,7 @@ test('canonical bundled projection freezes root6 closure7 and OPL Flow five-Skil
   assert.deepEqual(manifest.codex_surface.required_skill_ids, [
     'coordinate-concurrent-tasks',
     'develop-and-deliver',
+    'opl-fleet',
     'opl-flow',
     'recover-codex-tasks',
     'task-mode-gate',
