@@ -713,6 +713,109 @@
         "surface": "immutable_release_bundle_status_readback"
       }
     },
+    "release_events": {
+      "command_id": "release events",
+      "owner": "OPL Release",
+      "parser_adapter": "node_util_parse_args",
+      "options": [
+        {
+          "name": "bundle",
+          "flag": "--bundle",
+          "value_kind": "string",
+          "required": true,
+          "summary": "Exact sha256 Release Bundle digest."
+        },
+        {
+          "name": "after-event",
+          "flag": "--after-event",
+          "value_kind": "string",
+          "required": false,
+          "summary": "Last acknowledged event id; only later immutable events are returned."
+        },
+        {
+          "name": "store",
+          "flag": "--store",
+          "value_kind": "string",
+          "required": false,
+          "summary": "Optional Release Bundle store root."
+        }
+      ],
+      "output_schema": {
+        "type": "object",
+        "required": ["version", "release_bundle_events"],
+        "additionalProperties": false,
+        "properties": {
+          "version": { "const": "g2" },
+          "release_bundle_events": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "authority_boundary": {
+        "can_write_domain_truth": false,
+        "can_create_owner_receipt": false,
+        "can_create_typed_blocker": false,
+        "can_claim_domain_ready": false,
+        "can_claim_production_ready": false,
+        "owner": "OPL Release",
+        "surface": "immutable_release_bundle_event_readback"
+      }
+    },
+    "release_consumer_envelope": {
+      "command_id": "release consumer envelope",
+      "owner": "OPL Release",
+      "parser_adapter": "node_util_parse_args",
+      "options": [
+        {
+          "name": "bundle",
+          "flag": "--bundle",
+          "value_kind": "string",
+          "required": true,
+          "summary": "Exact sha256 Release Bundle digest."
+        },
+        {
+          "name": "track",
+          "flag": "--track",
+          "value_kind": "string",
+          "required": true,
+          "allowed_values": ["standard", "full"],
+          "summary": "Consumer track; Standard and Full always retain distinct operation identity."
+        },
+        {
+          "name": "source-checkpoint-run-id",
+          "flag": "--source-checkpoint-run-id",
+          "value_kind": "string",
+          "required": false,
+          "summary": "Exact source checkpoint run id required for a Full consumer envelope."
+        },
+        {
+          "name": "store",
+          "flag": "--store",
+          "value_kind": "string",
+          "required": false,
+          "summary": "Optional Release Bundle store root."
+        }
+      ],
+      "output_schema": {
+        "type": "object",
+        "required": ["version", "release_bundle_consumer_envelope"],
+        "additionalProperties": false,
+        "properties": {
+          "version": { "const": "g2" },
+          "release_bundle_consumer_envelope": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "authority_boundary": {
+        "can_write_domain_truth": false,
+        "can_create_owner_receipt": false,
+        "can_create_typed_blocker": false,
+        "can_claim_domain_ready": false,
+        "can_claim_production_ready": false,
+        "owner": "OPL Release",
+        "surface": "immutable_release_bundle_consumer_trigger_envelope"
+      }
+    },
     "pack_provision_submission_resource": {
       "command_id": "pack provision-submission-resource",
       "owner": "OPL Pack",
