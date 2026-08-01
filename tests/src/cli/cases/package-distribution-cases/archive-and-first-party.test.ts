@@ -1340,7 +1340,7 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
   )) as Record<string, any>;
   assert.equal(manifest.surface_kind, 'opl_workflow_profile_package_manifest.v1');
   assert.equal(manifest.version, '0.1.30');
-  assert.equal(manifest.codex_surface.carrier_source_commit, 'acaff1965a49a2a0b858f8c73968d211f2955093');
+  assert.equal(manifest.codex_surface.carrier_source_commit, '9d730bd674e6f7a7952f9c86a0ece388fb41d54a');
   assert.deepEqual(manifest.codex_surface.required_skill_ids, [
     'coordinate-concurrent-tasks',
     'develop-and-deliver',
@@ -1354,11 +1354,13 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
   assert.equal(normalized.agent_id, null);
   assert.equal(normalized.profile_surface?.existing_profile_policy, 'semantic_merge_required');
   assert.equal(payload.surface_kind, 'opl_package_payload_manifest.v2');
-  assert.equal(payload.source_commit, 'acaff1965a49a2a0b858f8c73968d211f2955093');
+  assert.equal(payload.source_commit, '9d730bd674e6f7a7952f9c86a0ece388fb41d54a');
   assert.equal(payload.files.some((file: Record<string, unknown>) => file.path === 'opl-package.json'), true);
   for (const requiredPath of [
     'contracts/code-review-policy.json',
     'contracts/code-review-policy.schema.json',
+    'contracts/fleet-telemetry-protocol.json',
+    'contracts/fleet-telemetry-protocol.schema.json',
     'scripts/profile_compose.py',
   ]) {
     assert.equal(

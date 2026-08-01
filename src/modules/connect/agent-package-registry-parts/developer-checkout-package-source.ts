@@ -3,9 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import workflowProfilePayloadAllowlistSchema from '../../../../contracts/opl-framework/package-payload-allowlist.schema.json' with { type: 'json' };
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { stringValue } from '../../../kernel/json-record.ts';
+import { assertJsonSchemaPayload } from '../../../kernel/schema-registry.ts';
 import { getOplPackageSpecs } from '../package-distribution.ts';
 import { readDeveloperCheckoutSourceIdentity } from './developer-checkout-runtime-source.ts';
 import { normalizePackageManifest } from './manifest-normalizers.ts';
@@ -31,6 +33,8 @@ const IGNORED_SOURCE_NAMES = new Set([
 ]);
 
 const frameworkRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+const WORKFLOW_PROFILE_PAYLOAD_ALLOWLIST_SCHEMA_REF =
+  'contracts/opl-framework/package-payload-allowlist.schema.json';
 
 function sha256(value: string | Buffer) {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -217,6 +221,164 @@ function collectFiles(root: string, candidate: string, files: Map<string, Develo
   }
 }
 
+function assertPortablePayloadPaths(packageId: string, paths: string[]) {
+  const seen = new Map<string, string>();
+  for (const candidate of paths) {
+    const segments = candidate.split('/');
+    if (path.posix.isAbsolute(candidate)
+      || candidate.includes('\\')
+      || /[\u0000-\u001f\u007f]/.test(candidate)
+      || segments.some((segment) => !segment || segment === '.' || segment === '..')
+      || path.posix.normalize(candidate) !== candidate
+      || candidate.normalize('NFC') !== candidate) {
+      throw sourceFailure('Workflow profile payload allowlist contains an unsafe path.', {
+        package_id: packageId,
+        payload_path: candidate,
+      });
+    }
+    const collisionKey = candidate.normalize('NFKC').toLowerCase();
+    const previous = seen.get(collisionKey);
+    if (previous !== undefined) {
+      throw sourceFailure('Workflow profile payload allowlist contains a portable path collision.', {
+        package_id: packageId,
+        first_path: previous,
+        second_path: candidate,
+      });
+    }
+    seen.set(collisionKey, candidate);
+  }
+}
+
+function collectAllowlistedFile(
+  root: string,
+  relativePath: string,
+  files: Map<string, DeveloperCheckoutPayloadFile>,
+) {
+  const candidate = path.resolve(root, ...relativePath.split('/'));
+  if (!isInside(root, candidate) || !fs.existsSync(candidate)) {
+    throw sourceFailure('Workflow profile developer checkout is missing an allowlisted payload file.', {
+      plugin_source_path: root,
+      payload_path: relativePath,
+    });
+  }
+  const realCandidate = fs.realpathSync(candidate);
+  if (realCandidate !== candidate || !isInside(root, realCandidate)) {
+    throw sourceFailure('Workflow profile payload allowlist does not admit symbolic-link traversal.', {
+      plugin_source_path: root,
+      payload_path: relativePath,
+      resolved_path: realCandidate,
+    });
+  }
+  let descriptor: number | null = null;
+  try {
+    descriptor = fs.openSync(candidate, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
+    const stat = fs.fstatSync(descriptor);
+    if (!stat.isFile()) {
+      throw sourceFailure('Workflow profile payload allowlist only admits regular files.', {
+        plugin_source_path: root,
+        payload_path: relativePath,
+      });
+    }
+    files.set(relativePath, {
+      path: relativePath,
+      content: fs.readFileSync(descriptor),
+      mode: stat.mode & 0o111 ? '100755' : '100644',
+    });
+  } finally {
+    if (descriptor !== null) fs.closeSync(descriptor);
+  }
+}
+
+function workflowProfilePayloadPaths(input: {
+  spec: ReturnType<typeof getOplPackageSpecs>[number];
+  checkoutRoot: string;
+  pluginRoot: string;
+  pluginId: string;
+  ownerManifest: AgentPackageManifest;
+  ownerManifestPath: string;
+  pluginManifestPath: string;
+}) {
+  const allowlistPath = path.resolve(
+    frameworkRoot,
+    'contracts',
+    'opl-framework',
+    'package-payload-allowlists',
+    `${input.spec.package_id}.json`,
+  );
+  if (!isInside(frameworkRoot, allowlistPath)
+    || !fs.existsSync(allowlistPath)
+    || !fs.lstatSync(allowlistPath).isFile()
+    || fs.lstatSync(allowlistPath).isSymbolicLink()) {
+    throw sourceFailure('Framework workflow profile payload allowlist is unavailable.', {
+      package_id: input.spec.package_id,
+      allowlist_path: allowlistPath,
+    });
+  }
+  const allowlist = parseJsonText(fs.readFileSync(allowlistPath, 'utf8'));
+  try {
+    assertJsonSchemaPayload({
+      schemaId: workflowProfilePayloadAllowlistSchema.$id,
+      schema: workflowProfilePayloadAllowlistSchema,
+      sourceRef: WORKFLOW_PROFILE_PAYLOAD_ALLOWLIST_SCHEMA_REF,
+    }, allowlist);
+  } catch (error) {
+    if (!(error instanceof FrameworkContractError)) throw error;
+    throw sourceFailure('Framework workflow profile payload allowlist is invalid.', {
+      package_id: input.spec.package_id,
+      allowlist_path: allowlistPath,
+      schema_errors: error.details?.errors ?? [],
+    });
+  }
+  if (!isRecord(allowlist)) {
+    throw sourceFailure('Framework workflow profile payload allowlist is invalid.', {
+      package_id: input.spec.package_id,
+      allowlist_path: allowlistPath,
+    });
+  }
+  const paths = allowlist.paths as string[];
+  assertPortablePayloadPaths(input.spec.package_id, paths);
+  if (allowlist.package_id !== input.spec.package_id
+    || allowlist.plugin_id !== input.pluginId
+    || allowlist.source_repo !== input.spec.repo_url
+    || (input.ownerManifest.source_repo !== null
+      && allowlist.source_repo !== input.ownerManifest.source_repo)) {
+    throw sourceFailure('Workflow profile payload allowlist identity does not match its Package.', {
+      package_id: input.spec.package_id,
+      plugin_id: input.pluginId,
+      allowlist_path: allowlistPath,
+    });
+  }
+  const sourceRootCandidate = path.resolve(input.checkoutRoot, String(allowlist.source_root));
+  if (!isInside(input.checkoutRoot, sourceRootCandidate)
+    || !fs.existsSync(sourceRootCandidate)
+    || !fs.lstatSync(sourceRootCandidate).isDirectory()
+    || fs.lstatSync(sourceRootCandidate).isSymbolicLink()
+    || fs.realpathSync(sourceRootCandidate) !== input.pluginRoot) {
+    throw sourceFailure('Workflow profile payload allowlist source root does not match its plugin root.', {
+      package_id: input.spec.package_id,
+      checkout_path: input.checkoutRoot,
+      plugin_source_path: input.pluginRoot,
+      allowlist_source_root: allowlist.source_root,
+    });
+  }
+  const requiredPaths = [
+    path.relative(input.pluginRoot, input.pluginManifestPath).split(path.sep).join('/'),
+    path.relative(input.pluginRoot, input.ownerManifestPath).split(path.sep).join('/'),
+    'opl-package.json',
+    ...input.ownerManifest.required_skill_ids.map((skillId) => `skills/${skillId}/SKILL.md`),
+    ...declaredPackageSurfacePaths(input.ownerManifest),
+  ];
+  const missingRequiredPaths = [...new Set(requiredPaths)].filter((candidate) => !paths.includes(candidate));
+  if (missingRequiredPaths.length > 0) {
+    throw sourceFailure('Workflow profile payload allowlist omits a required Package surface.', {
+      package_id: input.spec.package_id,
+      allowlist_path: allowlistPath,
+      missing_paths: missingRequiredPaths,
+    });
+  }
+  return paths;
+}
+
 function fallbackDeveloperIdentity(checkoutPath: string) {
   const hash = crypto.createHash('sha256');
   const visit = (current: string) => {
@@ -337,22 +499,36 @@ export function loadDeveloperCheckoutPackageSource(packageId: string, checkoutPa
     });
   }
   const files = new Map<string, DeveloperCheckoutPayloadFile>();
-  collectFiles(pluginRoot, pluginManifestPath, files);
-  for (const skillId of ownerManifest.required_skill_ids) {
-    collectFiles(pluginRoot, path.join(pluginRoot, 'skills', skillId), files);
-  }
-  for (const relativePath of declaredPackageSurfacePaths(ownerManifest)) {
-    const sourcePath = path.resolve(checkoutReal, relativePath);
-    if (!isInside(pluginRoot, sourcePath)) {
-      throw sourceFailure('Developer checkout declared package surface escapes its plugin root.', {
-        package_id: packageId,
-        plugin_source_path: pluginRoot,
-        declared_source_path: sourcePath,
-      });
+  if (spec.owner_manifest_kind === 'workflow_profile') {
+    for (const relativePath of workflowProfilePayloadPaths({
+      spec,
+      checkoutRoot: checkoutReal,
+      pluginRoot,
+      pluginId,
+      ownerManifest,
+      ownerManifestPath,
+      pluginManifestPath,
+    })) {
+      collectAllowlistedFile(pluginRoot, relativePath, files);
     }
-    collectFiles(pluginRoot, sourcePath, files);
+  } else {
+    collectFiles(pluginRoot, pluginManifestPath, files);
+    for (const skillId of ownerManifest.required_skill_ids) {
+      collectFiles(pluginRoot, path.join(pluginRoot, 'skills', skillId), files);
+    }
+    for (const relativePath of declaredPackageSurfacePaths(ownerManifest)) {
+      const sourcePath = path.resolve(checkoutReal, relativePath);
+      if (!isInside(pluginRoot, sourcePath)) {
+        throw sourceFailure('Developer checkout declared package surface escapes its plugin root.', {
+          package_id: packageId,
+          plugin_source_path: pluginRoot,
+          declared_source_path: sourcePath,
+        });
+      }
+      collectFiles(pluginRoot, sourcePath, files);
+    }
+    if (isInside(pluginRoot, ownerManifestPath)) collectFiles(pluginRoot, ownerManifestPath, files);
   }
-  if (isInside(pluginRoot, ownerManifestPath)) collectFiles(pluginRoot, ownerManifestPath, files);
   const copyPaths = [...files.keys()].sort();
   const payloadFiles = copyPaths.map((relativePath) => {
     const file = files.get(relativePath)!;

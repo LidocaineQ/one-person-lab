@@ -80,18 +80,18 @@ function writeDeveloperPackageFixture(root: string, packageId: 'mag' | 'opl-flow
     `# ${skillId}\n`,
   ));
   if (packageId === 'opl-flow') {
-    const declaredPaths = [
-      frameworkManifest.profile_surface.runtime_profile.source_path,
-      ...frameworkManifest.profile_surface.authoring_sources.map((entry: any) => entry.source_path),
-      ...frameworkManifest.profile_surface.merge_context_paths,
-      frameworkManifest.managed_policy_surface.schema_path,
-    ] as string[];
-    for (const relativePath of new Set(declaredPaths)) {
-      writeFixtureFile(
-        checkoutPath,
-        relativePath,
-        relativePath.endsWith('.json') ? formatJsonPayload({ type: 'object' }) : '# Fixture\n',
-      );
+    const allowlist = parseJsonText(fs.readFileSync(
+      path.join(repoRoot, 'contracts', 'opl-framework', 'package-payload-allowlists', 'opl-flow.json'),
+      'utf8',
+    )) as { paths: string[] };
+    for (const relativePath of allowlist.paths) {
+      if (!fs.existsSync(path.join(checkoutPath, relativePath))) {
+        writeFixtureFile(
+          checkoutPath,
+          relativePath,
+          relativePath.endsWith('.json') ? formatJsonPayload({ type: 'object' }) : '# Fixture\n',
+        );
+      }
     }
   }
   return {

@@ -41,7 +41,7 @@
   "codex_surface": {
     "plugin_id": "opl-flow",
     "plugin_payload_manifest_url": "payloads/opl-flow-0.1.30.json",
-    "carrier_source_commit": "acaff1965a49a2a0b858f8c73968d211f2955093",
+    "carrier_source_commit": "9d730bd674e6f7a7952f9c86a0ece388fb41d54a",
     "required_skill_ids": [
       "coordinate-concurrent-tasks",
       "develop-and-deliver",

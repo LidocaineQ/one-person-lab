@@ -267,7 +267,6 @@ test('developer package snapshots cover Agent and Flow owners while excluding lo
       )) as Record<string, any>;
       const pluginId = frameworkManifest.codex_surface.plugin_id as string;
       const requiredSkillIds = frameworkManifest.codex_surface.required_skill_ids as string[];
-      const ownerManifestPath = path.join(checkoutPath, spec.owner_package_manifest_ref);
       const ownerPayload = packageId === 'oma'
         ? {
             surface_kind: 'opl_agent_package_manifest.v1',
@@ -316,15 +315,12 @@ test('developer package snapshots cover Agent and Flow owners while excluding lo
       }
 
       if (packageId === 'opl-flow') {
-        const declaredPaths = [
-          frameworkManifest.profile_surface.runtime_profile.source_path,
-          ...frameworkManifest.profile_surface.authoring_sources.map((entry: any) => entry.source_path),
-          ...frameworkManifest.profile_surface.merge_context_paths,
-          frameworkManifest.managed_policy_surface.source_path,
-          frameworkManifest.managed_policy_surface.schema_path,
-        ] as string[];
-        for (const relativePath of new Set(declaredPaths)) {
-          if (path.resolve(checkoutPath, relativePath) !== path.resolve(ownerManifestPath)) {
+        const allowlist = JSON.parse(fs.readFileSync(
+          path.join(repoRoot, 'contracts', 'opl-framework', 'package-payload-allowlists', 'opl-flow.json'),
+          'utf8',
+        )) as { paths: string[] };
+        for (const relativePath of allowlist.paths) {
+          if (!fs.existsSync(path.join(checkoutPath, relativePath))) {
             writeFixtureFile(checkoutPath, relativePath);
           }
         }
@@ -356,6 +352,8 @@ test('developer package snapshots cover Agent and Flow owners while excluding lo
           'templates/TASTE.md',
           'profile/manifest.json',
           'profile/modules/01-user-preferences.md',
+          'scripts/opl_workflow.py',
+          'contracts/fleet-telemetry-protocol.json',
         ]) {
           assert.equal(loaded.source.copy_paths.includes(relativePath), true, relativePath);
         }
