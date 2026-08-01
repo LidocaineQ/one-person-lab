@@ -88,7 +88,7 @@ test('canonical Full catalog carries only immutable owner descriptors that have 
     })
     .map(([packageId]) => packageId)
     .sort();
-  assert.deepEqual(descriptorPackageIds, ['oma', 'opl-flow', 'rca']);
+  assert.deepEqual(descriptorPackageIds, ['obf', 'oma', 'opl-flow', 'rca']);
 });
 
 function runtimeHomeFixture(root: string, catalog: BundledFullRuntimePackageCatalog) {
