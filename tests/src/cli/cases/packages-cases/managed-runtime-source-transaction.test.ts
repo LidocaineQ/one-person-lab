@@ -89,10 +89,16 @@ test('developer plugin cache publishes one stage directly into its immutable gen
       mode: '100644' as const,
     },
   ];
-  const renameCalls: Array<{ from: string; to: string }> = [];
+  const renameCalls: Array<{ from: string; to: string; sourceMode: number }> = [];
   const originalRenameSync = fs.renameSync;
   fs.renameSync = ((from: fs.PathLike, to: fs.PathLike) => {
-    renameCalls.push({ from: String(from), to: String(to) });
+    const sourceMode = fs.lstatSync(from).mode & 0o777;
+    renameCalls.push({ from: String(from), to: String(to), sourceMode });
+    if ((sourceMode & 0o200) === 0) {
+      const error = new Error('simulated macOS frozen-directory rename denial') as NodeJS.ErrnoException;
+      error.code = 'EACCES';
+      throw error;
+    }
     originalRenameSync(from, to);
   }) as typeof fs.renameSync;
   try {
@@ -113,11 +119,13 @@ test('developer plugin cache publishes one stage directly into its immutable gen
     });
     assert.equal(created, true);
     assert.deepEqual(renameCalls.map((entry) => entry.to), [targetPath]);
+    assert.deepEqual(renameCalls.map((entry) => entry.sourceMode), [0o755]);
     assert.match(
       path.basename(renameCalls[0].from),
       new RegExp(`^\\.${path.basename(targetPath)}\\.stage-`),
     );
     assert.equal(fs.existsSync(targetPath), true);
+    assert.equal(fs.lstatSync(targetPath).mode & 0o777, 0o555);
     assert.equal(
       fs.readdirSync(path.dirname(targetPath)).some((entry) => entry.includes('.stage-')),
       false,
