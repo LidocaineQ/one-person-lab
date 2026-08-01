@@ -4216,6 +4216,8 @@ function buildOplAgentPackageStatus(
           : null;
   const degradedReason = unavailableReason
     ? null
+    : policyCurrentness.experience_baseline?.status === 'degraded'
+      ? 'experience_baseline_degraded'
     : optionalDependencyMissing
       ? 'optional_dependency_missing'
       : materializationObservationReason
@@ -4277,6 +4279,23 @@ function buildOplAgentPackageStatus(
       runtime_source_readiness: runtimeSourceReadiness,
       carrier_authority_readiness: carrierAuthorityReadiness,
       managed_policy_currentness: policyCurrentness,
+      package_operational: {
+        status: operationalReady ? 'operational' : 'unavailable',
+        operational_ready: operationalReady,
+        failure_reason: operationalReady ? null : launchBlockedReason,
+        repair_command: operationalReady ? null : repairAction,
+      },
+      experience_baseline: policyCurrentness.experience_baseline ?? {
+        status: 'not_declared',
+        failure_ids: [],
+        repair_command: null,
+        capabilities: [],
+      },
+      specialized_capabilities: policyCurrentness.specialized_capabilities ?? {
+        status: 'not_declared',
+        repair_command: null,
+        capabilities: [],
+      },
       operational_ready: operationalReady,
       operational_ready_scope: configuredCarrier
         ? 'configured_native_carrier_presence_callability_identity_and_precedence'

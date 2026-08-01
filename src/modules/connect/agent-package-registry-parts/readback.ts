@@ -152,6 +152,36 @@ export function agentPackageLifecycleUxReadback(input: {
     }));
   }
 
+  const experienceBaseline = policyCurrentness.experience_baseline;
+  if (experienceBaseline?.status === 'current') {
+    conditions.push(lifecycleCondition({
+      condition_id: 'experience_baseline_current',
+      package_id: input.lock.package_id,
+      status: 'ok',
+      reason: 'The OPL Flow recommended Codex experience baseline is current.',
+      action_ref: null,
+    }));
+  } else if (experienceBaseline?.status === 'degraded') {
+    conditions.push(lifecycleCondition({
+      condition_id: 'experience_baseline_degraded',
+      package_id: input.lock.package_id,
+      status: 'attention_needed',
+      reason: `The OPL Flow experience baseline is degraded: ${experienceBaseline.failure_ids.join(', ')}. Flow remains operational.`,
+      action_ref: 'repair',
+    }));
+  }
+
+  const specializedCapabilities = policyCurrentness.specialized_capabilities;
+  if (specializedCapabilities && specializedCapabilities.status !== 'not_declared') {
+    conditions.push(lifecycleCondition({
+      condition_id: 'specialized_capabilities_observed',
+      package_id: input.lock.package_id,
+      status: 'ok',
+      reason: `Optional specialized capabilities are ${specializedCapabilities.status}; absence is normal and does not require repair.`,
+      action_ref: null,
+    }));
+  }
+
   if (surface?.reload_required) {
     conditions.push(lifecycleCondition({
       condition_id: 'codex_reload_observed',

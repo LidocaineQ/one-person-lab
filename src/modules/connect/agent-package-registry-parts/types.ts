@@ -53,6 +53,9 @@ export type AgentPackageLifecycleCondition = {
     | 'profile_current'
     | 'managed_policy_current'
     | 'managed_policy_drift_detected'
+    | 'experience_baseline_current'
+    | 'experience_baseline_degraded'
+    | 'specialized_capabilities_observed'
     | 'carrier_authority_current'
     | 'carrier_authority_invalid'
     | 'configured_native_carrier_present'
@@ -421,6 +424,26 @@ export type AgentPackageManagedPolicyDependency = {
   relationship?: 'required' | 'recommended';
 };
 
+export type AgentPackageManagedPolicyCapabilityReadbackItem = {
+  id: string;
+  kind: AgentPackageManagedPolicyDependency['kind'];
+  status: 'available' | 'missing' | 'drifted' | 'unobserved';
+  reason: string | null;
+};
+
+export type AgentPackageExperienceBaselineReadback = {
+  status: 'not_declared' | 'current' | 'degraded';
+  failure_ids: string[];
+  repair_command: string | null;
+  capabilities: AgentPackageManagedPolicyCapabilityReadbackItem[];
+};
+
+export type AgentPackageSpecializedCapabilitiesReadback = {
+  status: 'not_declared' | 'available' | 'partial' | 'absent' | 'unobserved';
+  repair_command: null;
+  capabilities: AgentPackageManagedPolicyCapabilityReadbackItem[];
+};
+
 export type AgentPackageManagedPolicyMigrationAction = {
   surface_kind: 'plugin' | 'skill' | 'service' | 'config_table' | 'prompt_or_agent' | 'historical_self_carrier';
   canonical_id: string;
@@ -482,6 +505,8 @@ export type AgentPackageManagedPolicyCurrentness = {
   dependency_sync: Record<string, unknown> | null;
   required_dependencies_operational?: boolean;
   required_dependency_failure_ids?: string[];
+  experience_baseline?: AgentPackageExperienceBaselineReadback;
+  specialized_capabilities?: AgentPackageSpecializedCapabilitiesReadback;
   repair_command: string | null;
   reason: string;
 };

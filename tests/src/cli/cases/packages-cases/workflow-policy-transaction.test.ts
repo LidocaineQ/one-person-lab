@@ -38,13 +38,16 @@ function writeOplFlowPackage(
     includeMissingManagedSkillCompanion?: boolean;
     includeKindCollision?: boolean;
     includeUnsupportedDefaultMcp?: boolean;
-    policyVersion?: 'v1' | 'v2' | 'v3';
+    includeOptionalArchitectureSkill?: boolean;
+    includeOptionalRuntimeCapability?: boolean;
+    policyVersion?: 'v1' | 'v2' | 'v3' | 'v4';
     packageVersion?: string;
   } = {},
 ) {
   const sourceRoot = path.join(root, 'fixture.opl-flow-source');
   const v2 = options.policyVersion === 'v2';
   const v3 = options.policyVersion === 'v3';
+  const v4 = options.policyVersion === 'v4';
   const packageVersion = options.packageVersion ?? '0.1.16';
   const dependency = (
     value: Record<string, unknown>,
@@ -146,10 +149,12 @@ function writeOplFlowPackage(
       ? 'opl_flow_workflow_policy.v2'
       : v3
         ? 'opl_flow_workflow_policy.v3'
+        : v4
+          ? 'opl_flow_workflow_policy.v4'
         : 'opl_flow_workflow_policy.v1',
     package: { id: 'fixture.opl-flow', version: packageVersion, owner: 'opl-flow', kind: 'workflow_profile' },
     workflow_generation: 'model-native-test',
-    ...(v2 || v3 ? {
+    ...(v2 || v3 || v4 ? {
       provides: [
         dependency({
           id: 'fixture.opl-flow',
@@ -210,8 +215,26 @@ function writeOplFlowPackage(
           })]
         : []),
     ],
-    recommends: recommendations,
-    compatible_optional: [],
+    ...(v4 ? { experience_baseline: recommendations } : { recommends: recommendations }),
+    compatible_optional: [
+      ...(options.includeOptionalArchitectureSkill ? [dependency({
+          id: 'architect-and-simplify',
+          kind: 'codex_skill',
+          owner: 'opl-skills',
+          online_install_default: false,
+          activation: 'task_routed',
+          source: 'https://github.com/gaofeng21cn/opl-skills',
+          source_path: 'skills/architect-and-simplify',
+        })] : []),
+      ...(options.includeOptionalRuntimeCapability ? [dependency({
+          id: 'openai-primary-runtime-office-pdf',
+          kind: 'runtime_capability',
+          owner: 'openai',
+          online_install_default: false,
+          activation: 'task_routed',
+          source: 'openai-primary-runtime',
+        })] : []),
+    ],
     conflicts: [
       {
         id: 'upstream-superpowers',
@@ -331,14 +354,14 @@ function writeOplFlowPackage(
       'schema',
       'package',
       'requires',
-      'recommends',
+      ...(v4 ? ['experience_baseline'] : ['recommends']),
       'compatible_optional',
       'conflicts',
       'retires',
       'migration_policy',
       'historical_fingerprints',
       'codex_model_policy',
-      ...(v2 ? ['provides', 'installation_convergence'] : v3 ? ['provides'] : []),
+      ...(v2 ? ['provides', 'installation_convergence'] : v3 || v4 ? ['provides'] : []),
     ],
     properties: {
       schema: {
@@ -346,6 +369,8 @@ function writeOplFlowPackage(
           ? 'opl_flow_workflow_policy.v2'
           : v3
             ? 'opl_flow_workflow_policy.v3'
+            : v4
+              ? 'opl_flow_workflow_policy.v4'
             : 'opl_flow_workflow_policy.v1',
       },
       package: { type: 'object' },
@@ -353,6 +378,7 @@ function writeOplFlowPackage(
       installation_convergence: { type: 'object' },
       requires: { type: 'array' },
       recommends: { type: 'array' },
+      experience_baseline: { type: 'array' },
       compatible_optional: { type: 'array' },
       conflicts: { type: 'array' },
       retires: { type: 'array' },
@@ -626,7 +652,7 @@ test('workflow policy v3 projects a generic install action when a required Skill
   }
 });
 
-test('OPL Flow package lifecycle advances workflow policy v1 v2 v3 and reaches a fixed point', async () => {
+test('OPL Flow package lifecycle advances workflow policy v1 v2 v3 v4 and reaches a fixed point', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-policy-history-'));
   const stateDir = path.join(root, 'state');
   const env = {
@@ -674,6 +700,24 @@ test('OPL Flow package lifecycle advances workflow policy v1 v2 v3 and reaches a
       'opl_flow_workflow_policy.v3',
     );
 
+    writeOplFlowPackage(root, {
+      policyVersion: 'v4',
+      packageVersion: '0.1.30',
+    });
+    const updatedV4 = runCli([
+      'packages', 'update', 'fixture.opl-flow',
+      '--manifest-url', manifestPath, '--trust-tier', 'first_party',
+    ], env) as any;
+    const v4Lock = updatedV4.opl_agent_package_update.package_lock;
+    assert.equal(v4Lock.package_version, '0.1.30');
+    assert.equal(
+      JSON.parse(fs.readFileSync(
+        path.join(v4Lock.physical_surface.codex_plugin_cache_path, 'contracts', 'workflow-policy.json'),
+        'utf8',
+      )).schema,
+      'opl_flow_workflow_policy.v4',
+    );
+
     const lockPath = path.join(stateDir, 'agent-package-locks.json');
     const beforeFixedPoint = {
       lock: fs.readFileSync(lockPath),
@@ -694,12 +738,12 @@ test('OPL Flow package lifecycle advances workflow policy v1 v2 v3 and reaches a
       (entry: any) => entry.package_id === 'fixture.opl-flow',
     ).package_role = 'workflow_profile';
     fs.writeFileSync(lockPath, formatJsonPayload(workflowProfileIndex));
-    const v3CachePath = v3Lock.physical_surface.codex_plugin_cache_path;
+    const v4CachePath = v4Lock.physical_surface.codex_plugin_cache_path;
     const uninstalled = runCli([
       'packages', 'uninstall', '--package-id', 'fixture.opl-flow',
     ], env) as any;
     assert.equal(uninstalled.opl_agent_package_uninstall.status, 'uninstalled');
-    assert.equal(fs.existsSync(v3CachePath), false);
+    assert.equal(fs.existsSync(v4CachePath), false);
     const uninstalledIndex = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
     assert.equal(
       uninstalledIndex.packages.some((entry: any) => entry.package_id === 'fixture.opl-flow'),
@@ -741,6 +785,192 @@ test('workflow policy v3 keeps a missing recommended Skill non-blocking', async 
     assert.equal(currentness.required_dependencies_operational, true);
     assert.deepEqual(currentness.required_dependency_failure_ids, []);
     assert.equal(currentness.dependency_sync.items[0].status, 'missing_source');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  }
+});
+
+test('workflow policy v4 reports a missing experience baseline as degraded without blocking Flow', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-policy-v4-baseline-'));
+  const home = path.join(root, 'home');
+  const env = {
+    HOME: home,
+    CODEX_HOME: path.join(home, '.codex'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
+    OPL_STATE_DIR: path.join(root, 'state'),
+    OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
+  };
+  try {
+    await runCliAsync([
+      'packages',
+      'install',
+      '--manifest-url',
+      writeOplFlowPackage(root, {
+        policyVersion: 'v4',
+        includeManagedSkillCompanion: true,
+      }),
+      '--trust-tier',
+      'first_party',
+    ], env);
+    const status = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
+    const packageStatus = status.opl_agent_package_status;
+    assert.equal(packageStatus.operational_ready, true);
+    assert.equal(packageStatus.launch_allowed, true);
+    assert.equal(packageStatus.launch_blocked_reason, null);
+    assert.deepEqual(packageStatus.package_operational, {
+      status: 'operational',
+      operational_ready: true,
+      failure_reason: null,
+      repair_command: null,
+    });
+    assert.equal(packageStatus.experience_baseline.status, 'degraded');
+    assert.deepEqual(packageStatus.experience_baseline.failure_ids, ['ui-ux-pro-max']);
+    assert.equal(
+      packageStatus.experience_baseline.repair_command,
+      'opl packages repair --package-id fixture.opl-flow',
+    );
+    assert.equal(packageStatus.launch_state, 'degraded');
+    assert.equal(packageStatus.launch_state_reason, 'experience_baseline_degraded');
+    assert.equal(packageStatus.recommended_action, 'repair');
+    assert.equal(
+      packageStatus.conditions.some((entry: { condition_id: string; action_ref: string | null }) => (
+        entry.condition_id === 'experience_baseline_degraded' && entry.action_ref === 'repair'
+      )),
+      true,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  }
+});
+
+test('workflow policy v4 observes missing specialized capabilities without installing or repairing them', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-policy-v4-optional-'));
+  const home = path.join(root, 'home');
+  const env = {
+    HOME: home,
+    CODEX_HOME: path.join(home, '.codex'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
+    OPL_STATE_DIR: path.join(root, 'state'),
+    OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
+  };
+  try {
+    const installed = await runCliAsync([
+      'packages',
+      'install',
+      '--manifest-url',
+      writeOplFlowPackage(root, {
+        policyVersion: 'v4',
+        includeOptionalArchitectureSkill: true,
+      }),
+      '--trust-tier',
+      'first_party',
+    ], env) as any;
+    const migration = installed.opl_agent_package_install.physical_surface.workflow_policy_migration;
+    assert.deepEqual(migration.optional_dependency_ids, ['architect-and-simplify']);
+    assert.equal(
+      migration.dependencies.some((entry: { id: string }) => entry.id === 'architect-and-simplify'),
+      false,
+    );
+    assert.equal(migration.dependency_sync.items.length, 0);
+
+    const status = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
+    const packageStatus = status.opl_agent_package_status;
+    assert.equal(packageStatus.operational_ready, true);
+    assert.equal(packageStatus.experience_baseline.status, 'current');
+    assert.equal(packageStatus.specialized_capabilities.status, 'absent');
+    assert.equal(packageStatus.specialized_capabilities.repair_command, null);
+    assert.deepEqual(packageStatus.specialized_capabilities.capabilities, [{
+      id: 'architect-and-simplify',
+      kind: 'codex_skill',
+      status: 'missing',
+      reason: 'optional_capability_not_installed',
+    }]);
+    assert.equal(packageStatus.recommended_action, null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  }
+});
+
+test('workflow policy v4 still blocks Flow when a required Skill is missing', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-policy-v4-required-'));
+  const home = path.join(root, 'home');
+  const env = {
+    HOME: home,
+    CODEX_HOME: path.join(home, '.codex'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
+    OPL_STATE_DIR: path.join(root, 'state'),
+    OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
+  };
+  try {
+    await runCliAsync([
+      'packages',
+      'install',
+      '--manifest-url',
+      writeOplFlowPackage(root, {
+        policyVersion: 'v4',
+        includeMissingManagedSkillCompanion: true,
+      }),
+      '--trust-tier',
+      'first_party',
+    ], env);
+    const status = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
+    const packageStatus = status.opl_agent_package_status;
+    assert.equal(packageStatus.operational_ready, false);
+    assert.equal(packageStatus.package_operational.status, 'unavailable');
+    assert.equal(
+      packageStatus.package_operational.failure_reason,
+      'managed_policy_required_dependency_unavailable',
+    );
+    assert.deepEqual(
+      packageStatus.managed_policy_currentness.required_dependency_failure_ids,
+      ['fixture-managed-skill'],
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  }
+});
+
+test('workflow policy v4 preserves unobserved optional runtime capabilities without claiming absence', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-policy-v4-optional-runtime-'));
+  const home = path.join(root, 'home');
+  const env = {
+    HOME: home,
+    CODEX_HOME: path.join(home, '.codex'),
+    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
+    OPL_STATE_DIR: path.join(root, 'state'),
+    OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
+  };
+  try {
+    await runCliAsync([
+      'packages',
+      'install',
+      '--manifest-url',
+      writeOplFlowPackage(root, {
+        policyVersion: 'v4',
+        includeOptionalArchitectureSkill: true,
+        includeOptionalRuntimeCapability: true,
+      }),
+      '--trust-tier',
+      'first_party',
+    ], env);
+    const status = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
+    const specialized = status.opl_agent_package_status.specialized_capabilities;
+    assert.equal(specialized.status, 'partial');
+    assert.deepEqual(specialized.capabilities, [
+      {
+        id: 'architect-and-simplify',
+        kind: 'codex_skill',
+        status: 'missing',
+        reason: 'optional_capability_not_installed',
+      },
+      {
+        id: 'openai-primary-runtime-office-pdf',
+        kind: 'runtime_capability',
+        status: 'unobserved',
+        reason: 'no_generic_presence_probe',
+      },
+    ]);
+    assert.equal(specialized.repair_command, null);
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
   }

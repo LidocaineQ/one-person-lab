@@ -16,13 +16,16 @@ import {
   removeSafePersistedPackagePath,
 } from './persisted-path-safety.ts';
 import type {
+  AgentPackageExperienceBaselineReadback,
   AgentPackageLock,
   AgentPackageManagedPolicyCurrentness,
+  AgentPackageManagedPolicyCapabilityReadbackItem,
   AgentPackageManagedPolicyDependency,
   AgentPackageManagedPolicyDetectedConflict,
   AgentPackageManagedPolicyMigration,
   AgentPackageManagedPolicyMigrationAction,
   AgentPackageManifest,
+  AgentPackageSpecializedCapabilitiesReadback,
 } from './types.ts';
 
 type MigrationGroup = {
@@ -41,12 +44,17 @@ type HistoricalFingerprints = {
 };
 
 type OplFlowPolicy = {
-  schema: 'opl_flow_workflow_policy.v1' | 'opl_flow_workflow_policy.v2' | 'opl_flow_workflow_policy.v3';
+  schema:
+    | 'opl_flow_workflow_policy.v1'
+    | 'opl_flow_workflow_policy.v2'
+    | 'opl_flow_workflow_policy.v3'
+    | 'opl_flow_workflow_policy.v4';
   package: { id: string; version: string; owner: string; kind: string };
   workflow_generation: string;
   provides: AgentPackageManagedPolicyDependency[];
   requires: AgentPackageManagedPolicyDependency[];
   recommends: AgentPackageManagedPolicyDependency[];
+  experience_baseline: AgentPackageManagedPolicyDependency[];
   compatible_optional: AgentPackageManagedPolicyDependency[];
   conflicts: MigrationGroup[];
   retires: MigrationGroup[];
@@ -175,7 +183,8 @@ function normalizeDependency(
   const supportedKinds = schema !== 'opl_flow_workflow_policy.v1'
     ? ['base', 'codex_skill', 'codex_plugin', 'mcp_server', 'cli', 'runtime_capability']
     : ['base', 'codex_skill', 'cli', 'runtime_capability'];
-  const openComposition = schema === 'opl_flow_workflow_policy.v3';
+  const openComposition = schema === 'opl_flow_workflow_policy.v3'
+    || schema === 'opl_flow_workflow_policy.v4';
   if (
     typeof value.id !== 'string'
     || !value.id.trim()
@@ -202,7 +211,7 @@ function normalizeDependency(
     conflict_policy: value.conflict_policy,
     credential_policy: value.credential_policy,
   };
-  if (schema === 'opl_flow_workflow_policy.v3' && (
+  if (openComposition && (
     (value.owner !== undefined && (typeof value.owner !== 'string' || !value.owner.trim()))
     || (value.version_requirement !== undefined
       && (typeof value.version_requirement !== 'string' || !value.version_requirement.trim()))
@@ -258,7 +267,7 @@ function normalizeDependency(
           conflict_policy: v2Fields.conflict_policy as NonNullable<AgentPackageManagedPolicyDependency['conflict_policy']>,
           credential_policy: v2Fields.credential_policy as NonNullable<AgentPackageManagedPolicyDependency['credential_policy']>,
         }
-      : schema === 'opl_flow_workflow_policy.v3'
+      : openComposition
         ? {
             ...(value.owner === undefined ? {} : { owner: String(value.owner).trim() }),
             ...(value.version_requirement === undefined
@@ -374,7 +383,12 @@ function normalizePolicy(
   }
   const schema = payload.schema;
   if (
-    !['opl_flow_workflow_policy.v1', 'opl_flow_workflow_policy.v2', 'opl_flow_workflow_policy.v3']
+    ![
+      'opl_flow_workflow_policy.v1',
+      'opl_flow_workflow_policy.v2',
+      'opl_flow_workflow_policy.v3',
+      'opl_flow_workflow_policy.v4',
+    ]
       .includes(String(schema))
     || payload.package.id !== identity.packageId
     || payload.package.version !== identity.packageVersion
@@ -418,10 +432,18 @@ function normalizePolicy(
     ? normalizeDependencies(payload.provides, 'provides')
     : [];
   const requires = normalizeDependencies(payload.requires, 'requires');
-  const recommends = normalizeDependencies(payload.recommends, 'recommends');
+  const recommends = normalizedSchema === 'opl_flow_workflow_policy.v4'
+    ? []
+    : normalizeDependencies(payload.recommends, 'recommends');
+  const experienceBaseline = normalizedSchema === 'opl_flow_workflow_policy.v4'
+    ? normalizeDependencies(payload.experience_baseline, 'experience_baseline')
+    : [];
   const compatibleOptional = normalizeDependencies(payload.compatible_optional, 'compatible_optional');
   assertUniqueDependencyIdentities(provides, 'provides');
-  assertUniqueDependencyIdentities([...requires, ...recommends, ...compatibleOptional], 'dependencies');
+  assertUniqueDependencyIdentities(
+    [...requires, ...recommends, ...experienceBaseline, ...compatibleOptional],
+    'dependencies',
+  );
   if (normalizedSchema === 'opl_flow_workflow_policy.v2') {
     const invalidProvided = provides.filter((entry) => (
       !['codex_plugin', 'codex_skill'].includes(entry.kind)
@@ -457,6 +479,7 @@ function normalizePolicy(
     provides,
     requires,
     recommends,
+    experience_baseline: experienceBaseline,
     compatible_optional: compatibleOptional,
     conflicts: normalizeGroups(payload.conflicts, 'conflicts'),
     retires: normalizeGroups(payload.retires, 'retires'),
@@ -820,13 +843,24 @@ function managedPolicyDependencySelection(input: {
   schema: OplFlowPolicy['schema'];
   requires: AgentPackageManagedPolicyDependency[];
   recommends: AgentPackageManagedPolicyDependency[];
+  experienceBaseline: AgentPackageManagedPolicyDependency[];
 }) {
+  const baseline = input.schema === 'opl_flow_workflow_policy.v4'
+    ? input.experienceBaseline
+    : input.recommends;
   const selected = [
-    ...input.requires.map((dependency) => ({ dependency, required: true })),
-    ...input.recommends.map((dependency) => ({ dependency, required: false })),
+    ...input.requires.map((dependency) => ({
+      dependency,
+      relationship: 'required' as const,
+    })),
+    ...baseline.map((dependency) => ({
+      dependency,
+      relationship: 'recommended' as const,
+    })),
   ].filter((entry) => entry.dependency.online_install_default);
   const managedSkillDependencies = input.schema === 'opl_flow_workflow_policy.v3'
-    ? selected.flatMap(({ dependency, required }) => {
+    || input.schema === 'opl_flow_workflow_policy.v4'
+    ? selected.flatMap(({ dependency, relationship }) => {
     if (dependency.kind !== 'codex_skill') return [];
     const repositoryUrl = dependency.source?.trim() ?? '';
     const repositorySourcePath = dependency.source_path?.trim() ?? '';
@@ -852,10 +886,10 @@ function managedPolicyDependencySelection(input: {
       repositorySourcePath,
       versionRequirement: dependency.version_requirement,
       installSource: dependency.install_source,
-      required,
+      required: relationship === 'required',
     }];
   })
-    : selected.flatMap(({ dependency, required }) => {
+    : selected.flatMap(({ dependency, relationship }) => {
       if (dependency.kind !== 'codex_skill') return [];
       const expectedSource = `skills-manager:${dependency.id}`;
       if (dependency.source?.startsWith('skills-manager:') && dependency.source !== expectedSource) {
@@ -871,10 +905,13 @@ function managedPolicyDependencySelection(input: {
         legacySource: dependency.source ?? dependency.id,
         versionRequirement: dependency.version_requirement,
         installSource: dependency.install_source,
-        required,
+        required: relationship === 'required',
       }];
     });
-  if (input.schema !== 'opl_flow_workflow_policy.v3') {
+  if (
+    input.schema !== 'opl_flow_workflow_policy.v3'
+    && input.schema !== 'opl_flow_workflow_policy.v4'
+  ) {
     const unsupported = selected
       .map(({ dependency }) => dependency)
       .filter((dependency) => {
@@ -892,9 +929,9 @@ function managedPolicyDependencySelection(input: {
     }
   }
   return {
-    dependencies: selected.map(({ dependency, required }) => ({
+    dependencies: selected.map(({ dependency, relationship }) => ({
       ...dependency,
-      relationship: required ? 'required' as const : 'recommended' as const,
+      relationship,
     })),
     skillIds: selected
       .filter(({ dependency }) => dependency.kind === 'codex_skill')
@@ -1013,6 +1050,7 @@ export function materializeManagedPolicySurface(input: {
       schema: policy.schema,
       requires: policy.requires,
       recommends: policy.recommends,
+      experienceBaseline: policy.experience_baseline,
     });
     const dependencySync = syncOplCompanionSkills(home, {
       mode: input.dryRun ? 'ask_to_apply' : 'managed',
@@ -1143,6 +1181,136 @@ function dependencySyncDriftReasons(
   return reasons;
 }
 
+function capabilityReadbackFromSync(input: {
+  dependency: AgentPackageManagedPolicyDependency;
+  sync: ReturnType<typeof syncOplCompanionSkills>;
+}): AgentPackageManagedPolicyCapabilityReadbackItem {
+  const { dependency, sync } = input;
+  if (dependency.kind === 'codex_skill') {
+    const item = sync.items.find((entry) => entry.skill_id === dependency.id);
+    if (!item) {
+      return {
+        id: dependency.id,
+        kind: dependency.kind,
+        status: 'missing',
+        reason: 'missing_skill_readback',
+      };
+    }
+    if (skillSyncItemCurrent(item)) {
+      return { id: dependency.id, kind: dependency.kind, status: 'available', reason: null };
+    }
+    return {
+      id: dependency.id,
+      kind: dependency.kind,
+      status: item.source_authority === 'missing' || item.status === 'missing_source'
+        ? 'missing'
+        : 'drifted',
+      reason: item.note ?? `skill_${item.status}`,
+    };
+  }
+  if (dependency.kind === 'cli'
+    && (dependency.id === 'officecli' || dependency.id === 'mineru-open-api')) {
+    const tool = sync.tools.find((entry) => entry.tool_id === dependency.id);
+    if (!tool || tool.status === 'missing' || tool.currentness === 'missing') {
+      return { id: dependency.id, kind: dependency.kind, status: 'missing', reason: 'tool_missing' };
+    }
+    if (['ready', 'installed', 'updated'].includes(tool.status)
+      && tool.currentness !== 'update_available') {
+      return { id: dependency.id, kind: dependency.kind, status: 'available', reason: null };
+    }
+    return {
+      id: dependency.id,
+      kind: dependency.kind,
+      status: 'drifted',
+      reason: `tool_${tool.status}:${tool.currentness}`,
+    };
+  }
+  return {
+    id: dependency.id,
+    kind: dependency.kind,
+    status: 'unobserved',
+    reason: 'no_generic_presence_probe',
+  };
+}
+
+function experienceBaselineReadback(input: {
+  manifest: AgentPackageManifest;
+  policy: OplFlowPolicy;
+  sync: ReturnType<typeof syncOplCompanionSkills>;
+}): AgentPackageExperienceBaselineReadback {
+  if (input.policy.schema !== 'opl_flow_workflow_policy.v4') {
+    return {
+      status: 'not_declared',
+      failure_ids: [],
+      repair_command: null,
+      capabilities: [],
+    };
+  }
+  const capabilities = input.policy.experience_baseline.map((dependency) =>
+    capabilityReadbackFromSync({ dependency, sync: input.sync })
+  );
+  const failureIds = capabilities
+    .filter((entry) => entry.status === 'missing' || entry.status === 'drifted')
+    .map((entry) => entry.id);
+  return {
+    status: failureIds.length > 0 ? 'degraded' : 'current',
+    failure_ids: failureIds,
+    repair_command: failureIds.length > 0
+      ? `opl packages repair --package-id ${input.manifest.package_id}`
+      : null,
+    capabilities,
+  };
+}
+
+function specializedCapabilitiesReadback(input: {
+  home: string;
+  policy: OplFlowPolicy;
+}): AgentPackageSpecializedCapabilitiesReadback {
+  if (input.policy.compatible_optional.length === 0) {
+    return {
+      status: 'not_declared',
+      repair_command: null,
+      capabilities: [],
+    };
+  }
+  const optionalSkills = input.policy.compatible_optional
+    .filter((dependency) => dependency.kind === 'codex_skill');
+  const optionalSync = syncOplCompanionSkills(input.home, {
+    mode: 'observe',
+    skillIds: optionalSkills.map((dependency) => dependency.id),
+    toolIds: [],
+    managedSkillDependencies: optionalSkills.map((dependency) => ({
+      id: dependency.id,
+      sourceMode: 'observe_existing' as const,
+      legacySource: dependency.source ?? dependency.id,
+      versionRequirement: dependency.version_requirement,
+      installSource: dependency.install_source,
+      required: false,
+    })),
+    networkAccess: 'forbidden',
+  });
+  const capabilities = input.policy.compatible_optional.map((dependency) => {
+    const readback = capabilityReadbackFromSync({ dependency, sync: optionalSync });
+    return readback.status === 'missing'
+      ? { ...readback, reason: 'optional_capability_not_installed' }
+      : readback;
+  });
+  const observed = capabilities.filter((entry) => entry.status !== 'unobserved');
+  const availableCount = observed.filter((entry) => entry.status === 'available').length;
+  const status: AgentPackageSpecializedCapabilitiesReadback['status'] = capabilities.every(
+    (entry) => entry.status === 'unobserved',
+  )
+    ? 'unobserved'
+    : capabilities.every((entry) => entry.status === 'available')
+      ? 'available'
+      : capabilities.some((entry) => entry.status === 'unobserved')
+        ? 'partial'
+      : availableCount === 0 && observed.length > 0
+        ? 'absent'
+        : 'partial';
+  return { status, repair_command: null, capabilities };
+}
+
 export function managedPolicyCurrentnessFromDescriptor(input: {
   manifest: AgentPackageManifest;
   sourceRoot: string;
@@ -1205,6 +1373,7 @@ export function managedPolicyCurrentnessFromDescriptor(input: {
       schema: inspection.policy.schema,
       requires: inspection.policy.requires,
       recommends: inspection.policy.recommends,
+      experienceBaseline: inspection.policy.experience_baseline,
     });
     const dependencySync = syncOplCompanionSkills(inspection.home, {
       mode: 'observe',
@@ -1214,6 +1383,15 @@ export function managedPolicyCurrentnessFromDescriptor(input: {
       networkAccess: 'forbidden',
     });
     const dependencyDriftReasons = dependencySyncDriftReasons(dependencySync, skillIds, toolIds);
+    const experienceBaseline = experienceBaselineReadback({
+      manifest,
+      policy: inspection.policy,
+      sync: dependencySync,
+    });
+    const specializedCapabilities = specializedCapabilitiesReadback({
+      home: inspection.home,
+      policy: inspection.policy,
+    });
     const requiredSkillIds = inspection.policy.requires
       .filter((dependency) => dependency.kind === 'codex_skill' && dependency.online_install_default)
       .map((dependency) => dependency.id);
@@ -1241,6 +1419,8 @@ export function managedPolicyCurrentnessFromDescriptor(input: {
       dependency_sync: dependencySync as unknown as Record<string, unknown>,
       required_dependencies_operational: requiredDependenciesOperational,
       required_dependency_failure_ids: requiredDependencyFailureIds,
+      experience_baseline: experienceBaseline,
+      specialized_capabilities: specializedCapabilities,
       repair_command: requiredDependenciesOperational
         ? null
         : `opl packages repair --package-id ${manifest.package_id}`,
