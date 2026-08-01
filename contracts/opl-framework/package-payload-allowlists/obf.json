@@ -6,6 +6,7 @@
   "source_root": "plugins/opl-bookforge",
   "paths": [
     ".codex-plugin/plugin.json",
+    "opl-package.json",
     "assets/icon.svg",
     "skills/opl-bookforge/SKILL.md"
   ]

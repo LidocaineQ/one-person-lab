@@ -1545,6 +1545,28 @@ test('bundled Full OMA source projection advances independently of ordinary publ
   assert.equal(ordinaryManifest.version, '0.4.4');
 });
 
+test('bundled Full OBF source projection advances independently of ordinary publication', () => {
+  const catalog = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
+    'utf8',
+  )) as Record<string, any>;
+  const frozenRef = catalog.packages.obf.manifest_ref;
+  const frozenPath = path.join(repoRoot, 'contracts/opl-framework', frozenRef);
+  const frozenBytes = fs.readFileSync(frozenPath);
+  const frozenManifest = parseJsonText(frozenBytes.toString('utf8')) as Record<string, any>;
+  const ordinaryManifest = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/packages/obf.json'),
+    'utf8',
+  )) as Record<string, any>;
+
+  assert.equal(frozenRef, 'packages/obf-0.3.7.json');
+  assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
+    '37fa02b55b94a85b4612dac78271355accdaff803935d24af5fb2ab8c1259aad');
+  assert.equal(frozenManifest.version, '0.3.7');
+  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/obf-0.3.7.json');
+  assert.equal(ordinaryManifest.version, '0.3.6');
+});
+
 test('MAS first-party agent package manifest fails closed for unsafe dependency declarations', () => {
   const manifest = parseJsonText(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/packages/mas.json'),
