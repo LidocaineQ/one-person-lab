@@ -26,6 +26,98 @@ function lifecycleCondition(input: AgentPackageLifecycleCondition) {
   return input;
 }
 
+export function managedPolicyLifecycleConditions(input: {
+  packageId: string | null;
+  currentness: AgentPackageManagedPolicyCurrentness;
+}): AgentPackageLifecycleCondition[] {
+  const conditions: AgentPackageLifecycleCondition[] = [];
+  const policyCurrentness = input.currentness;
+  const requiredPolicyDependenciesOperational = policyCurrentness.required_dependencies_operational !== false;
+  if (policyCurrentness.status === 'current') {
+    conditions.push(lifecycleCondition({
+      condition_id: 'managed_policy_current',
+      package_id: input.packageId,
+      status: 'ok',
+      reason: policyCurrentness.reason,
+      action_ref: null,
+    }));
+  } else if (policyCurrentness.status === 'drifted') {
+    conditions.push(lifecycleCondition({
+      condition_id: 'managed_policy_drift_detected',
+      package_id: input.packageId,
+      status: requiredPolicyDependenciesOperational ? 'ok' : 'attention_needed',
+      reason: requiredPolicyDependenciesOperational
+        ? `${policyCurrentness.reason} Currentness drift remains observable but does not block a functionally runnable package generation.`
+        : `${policyCurrentness.reason} Required managed dependencies block operational readiness until repaired.`,
+      action_ref: requiredPolicyDependenciesOperational ? null : 'repair',
+    }));
+  } else if (policyCurrentness.status === 'invalid') {
+    conditions.push(lifecycleCondition({
+      condition_id: 'managed_policy_drift_detected',
+      package_id: input.packageId,
+      status: 'attention_needed',
+      reason: policyCurrentness.reason,
+      action_ref: 'repair',
+    }));
+  }
+
+  const experienceBaseline = policyCurrentness.experience_baseline;
+  if (experienceBaseline?.status === 'current') {
+    conditions.push(lifecycleCondition({
+      condition_id: 'experience_baseline_current',
+      package_id: input.packageId,
+      status: 'ok',
+      reason: 'The OPL Flow recommended Codex experience baseline is current.',
+      action_ref: null,
+    }));
+  } else if (experienceBaseline?.status === 'degraded') {
+    conditions.push(lifecycleCondition({
+      condition_id: 'experience_baseline_degraded',
+      package_id: input.packageId,
+      status: 'attention_needed',
+      reason: `The OPL Flow experience baseline is degraded: ${experienceBaseline.failure_ids.join(', ')}. Flow remains operational.`,
+      action_ref: 'repair',
+    }));
+  }
+
+  const specializedCapabilities = policyCurrentness.specialized_capabilities;
+  if (specializedCapabilities && specializedCapabilities.status !== 'not_declared') {
+    conditions.push(lifecycleCondition({
+      condition_id: 'specialized_capabilities_observed',
+      package_id: input.packageId,
+      status: 'ok',
+      reason: `Optional specialized capabilities are ${specializedCapabilities.status}; absence is normal and does not require repair.`,
+      action_ref: null,
+    }));
+  }
+  return conditions;
+}
+
+export function withManagedPolicyLifecycleUx(input: {
+  packageId: string | null;
+  base: AgentPackageLifecycleUxReadback;
+  currentness: AgentPackageManagedPolicyCurrentness;
+}): AgentPackageLifecycleUxReadback {
+  const conditions = [
+    ...input.base.conditions,
+    ...managedPolicyLifecycleConditions({
+      packageId: input.packageId,
+      currentness: input.currentness,
+    }),
+  ];
+  const recommendedAction = conditions.find(
+    (condition) => condition.status === 'attention_needed' && condition.action_ref,
+  )?.action_ref ?? input.base.recommended_action;
+  return {
+    ...input.base,
+    status: conditions.some((condition) => condition.status === 'attention_needed')
+      ? 'attention_needed'
+      : input.base.status,
+    conditions,
+    recommended_action: recommendedAction,
+  };
+}
+
 export function agentPackageLifecycleUxReadback(input: {
   packageId: string | null;
   lock?: AgentPackageLock | null;
@@ -123,64 +215,10 @@ export function agentPackageLifecycleUxReadback(input: {
   }
 
   const policyCurrentness = input.managedPolicyCurrentness ?? managedPolicyCurrentness(input.lock);
-  const requiredPolicyDependenciesOperational = policyCurrentness.required_dependencies_operational !== false;
-  if (policyCurrentness.status === 'current') {
-    conditions.push(lifecycleCondition({
-      condition_id: 'managed_policy_current',
-      package_id: input.lock.package_id,
-      status: 'ok',
-      reason: policyCurrentness.reason,
-      action_ref: null,
-    }));
-  } else if (policyCurrentness.status === 'drifted') {
-    conditions.push(lifecycleCondition({
-      condition_id: 'managed_policy_drift_detected',
-      package_id: input.lock.package_id,
-      status: requiredPolicyDependenciesOperational ? 'ok' : 'attention_needed',
-      reason: requiredPolicyDependenciesOperational
-        ? `${policyCurrentness.reason} Currentness drift remains observable but does not block a functionally runnable package generation.`
-        : `${policyCurrentness.reason} Required managed dependencies block operational readiness until repaired.`,
-      action_ref: requiredPolicyDependenciesOperational ? null : 'repair',
-    }));
-  } else if (policyCurrentness.status === 'invalid') {
-    conditions.push(lifecycleCondition({
-      condition_id: 'managed_policy_drift_detected',
-      package_id: input.lock.package_id,
-      status: 'attention_needed',
-      reason: policyCurrentness.reason,
-      action_ref: 'repair',
-    }));
-  }
-
-  const experienceBaseline = policyCurrentness.experience_baseline;
-  if (experienceBaseline?.status === 'current') {
-    conditions.push(lifecycleCondition({
-      condition_id: 'experience_baseline_current',
-      package_id: input.lock.package_id,
-      status: 'ok',
-      reason: 'The OPL Flow recommended Codex experience baseline is current.',
-      action_ref: null,
-    }));
-  } else if (experienceBaseline?.status === 'degraded') {
-    conditions.push(lifecycleCondition({
-      condition_id: 'experience_baseline_degraded',
-      package_id: input.lock.package_id,
-      status: 'attention_needed',
-      reason: `The OPL Flow experience baseline is degraded: ${experienceBaseline.failure_ids.join(', ')}. Flow remains operational.`,
-      action_ref: 'repair',
-    }));
-  }
-
-  const specializedCapabilities = policyCurrentness.specialized_capabilities;
-  if (specializedCapabilities && specializedCapabilities.status !== 'not_declared') {
-    conditions.push(lifecycleCondition({
-      condition_id: 'specialized_capabilities_observed',
-      package_id: input.lock.package_id,
-      status: 'ok',
-      reason: `Optional specialized capabilities are ${specializedCapabilities.status}; absence is normal and does not require repair.`,
-      action_ref: null,
-    }));
-  }
+  conditions.push(...managedPolicyLifecycleConditions({
+    packageId: input.lock.package_id,
+    currentness: policyCurrentness,
+  }));
 
   if (surface?.reload_required) {
     conditions.push(lifecycleCondition({

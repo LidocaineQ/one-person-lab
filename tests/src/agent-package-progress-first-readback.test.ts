@@ -68,6 +68,7 @@ function policyCurrentness(status: 'drifted' | 'invalid'): AgentPackageManagedPo
     enabled_migration_ids: [],
     detected_conflicts: [],
     dependency_sync: null,
+    model_projection: null,
     repair_command: 'opl packages repair --package-id fixture.opl-flow',
     reason: status === 'drifted'
       ? 'Managed policy currentness changed after activation.'

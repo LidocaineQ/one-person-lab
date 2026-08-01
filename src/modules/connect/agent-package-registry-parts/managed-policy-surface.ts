@@ -17,6 +17,7 @@ import {
 } from './persisted-path-safety.ts';
 import type {
   AgentPackageExperienceBaselineReadback,
+  AgentPackageCodexModelPolicyProjection,
   AgentPackageLock,
   AgentPackageManagedPolicyCurrentness,
   AgentPackageManagedPolicyCapabilityReadbackItem,
@@ -60,9 +61,65 @@ type OplFlowPolicy = {
   retires: MigrationGroup[];
   migration_policy: Record<string, unknown>;
   historical_fingerprints: HistoricalFingerprints;
-  codex_model_policy: Record<string, unknown>;
+  codex_model_policy: Omit<
+    AgentPackageCodexModelPolicyProjection,
+    'surface_kind' | 'role'
+  >;
   installation_convergence: Record<string, unknown> | null;
 };
+
+function normalizeCodexModelPolicy(
+  value: Record<string, unknown>,
+): OplFlowPolicy['codex_model_policy'] {
+  const configuredDefault = isRecord(value.configured_default)
+    ? value.configured_default
+    : null;
+  const model = configuredDefault && typeof configuredDefault.model === 'string'
+    ? configuredDefault.model.trim()
+    : '';
+  const reasoningEffort = configuredDefault && typeof configuredDefault.reasoning_effort === 'string'
+    ? configuredDefault.reasoning_effort.trim()
+    : '';
+  const overridePrecedence = stringArray(
+    value.override_precedence,
+    'codex_model_policy.override_precedence',
+  );
+  if (
+    value.authority !== 'opl-flow'
+    || value.mode_default !== 'auto'
+    || !model
+    || !reasoningEffort
+    || overridePrecedence.length === 0
+    || new Set(overridePrecedence).size !== overridePrecedence.length
+    || !isRecord(value.catalog_policy)
+  ) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Managed policy Codex model recommendation is invalid.',
+      { failure_code: 'agent_package_managed_policy_model_projection_invalid' },
+    );
+  }
+  return {
+    authority: 'opl-flow',
+    mode_default: 'auto',
+    configured_default: {
+      model,
+      reasoning_effort: reasoningEffort,
+    },
+    override_precedence: overridePrecedence,
+    catalog_policy: structuredClone(value.catalog_policy),
+  };
+}
+
+function codexModelPolicyProjection(
+  policy: OplFlowPolicy['codex_model_policy'],
+): AgentPackageCodexModelPolicyProjection {
+  return {
+    surface_kind: 'opl_codex_model_policy_projection.v1',
+    ...structuredClone(policy),
+    role: 'package_recommendation_consumed_from_framework_projection',
+  };
+}
 
 type InventoryItem = {
   surfaceKind: AgentPackageManagedPolicyMigrationAction['surface_kind'];
@@ -491,7 +548,7 @@ function normalizePolicy(
       config_markers: stringArray(fingerprints.config_markers, 'historical_fingerprints.config_markers'),
       legacy_prompt_ids: stringArray(fingerprints.legacy_prompt_ids, 'historical_fingerprints.legacy_prompt_ids'),
     },
-    codex_model_policy: payload.codex_model_policy,
+    codex_model_policy: normalizeCodexModelPolicy(payload.codex_model_policy),
     installation_convergence: normalizedSchema === 'opl_flow_workflow_policy.v2'
       ? normalizeInstallationConvergence(payload.installation_convergence)
       : null,
@@ -1078,12 +1135,7 @@ export function materializeManagedPolicySurface(input: {
       actions,
       service_actions: serviceActions,
       dependency_sync: dependencySync as unknown as Record<string, unknown>,
-      model_projection: {
-        authority: policy.codex_model_policy.authority,
-        configured_default: policy.codex_model_policy.configured_default,
-        override_precedence: policy.codex_model_policy.override_precedence,
-        role: 'package_recommendation_consumed_by_opl_base',
-      },
+      model_projection: codexModelPolicyProjection(policy.codex_model_policy),
       backup_root: actions.length > 0 ? backupRoot : null,
       backup_active: actions.length > 0,
       writes_performed: writesPerformed,
@@ -1125,6 +1177,7 @@ function noManagedPolicyCurrentness(reason: string): AgentPackageManagedPolicyCu
     dependency_sync: null,
     required_dependencies_operational: true,
     required_dependency_failure_ids: [],
+    model_projection: null,
     repair_command: null,
     reason,
   };
@@ -1234,7 +1287,7 @@ function capabilityReadbackFromSync(input: {
 }
 
 function experienceBaselineReadback(input: {
-  manifest: AgentPackageManifest;
+  manifest: Pick<AgentPackageManifest, 'package_id'>;
   policy: OplFlowPolicy;
   sync: ReturnType<typeof syncOplCompanionSkills>;
 }): AgentPackageExperienceBaselineReadback {
@@ -1312,7 +1365,10 @@ function specializedCapabilitiesReadback(input: {
 }
 
 export function managedPolicyCurrentnessFromDescriptor(input: {
-  manifest: AgentPackageManifest;
+  manifest: Pick<
+    AgentPackageManifest,
+    'package_id' | 'version' | 'plugin_id' | 'required_skill_ids' | 'managed_policy_surface'
+  >;
   sourceRoot: string;
   enabledMigrationIds?: string[];
   expectedPolicySha256?: string | null;
@@ -1343,6 +1399,7 @@ export function managedPolicyCurrentnessFromDescriptor(input: {
     dependency_sync: null,
     required_dependencies_operational: false,
     required_dependency_failure_ids: [],
+    model_projection: null,
     repair_command: `opl packages repair --package-id ${manifest.package_id}`,
     reason,
   });
@@ -1421,6 +1478,7 @@ export function managedPolicyCurrentnessFromDescriptor(input: {
       required_dependency_failure_ids: requiredDependencyFailureIds,
       experience_baseline: experienceBaseline,
       specialized_capabilities: specializedCapabilities,
+      model_projection: codexModelPolicyProjection(inspection.policy.codex_model_policy),
       repair_command: requiredDependenciesOperational
         ? null
         : `opl packages repair --package-id ${manifest.package_id}`,

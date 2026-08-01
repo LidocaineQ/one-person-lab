@@ -444,6 +444,19 @@ export type AgentPackageSpecializedCapabilitiesReadback = {
   capabilities: AgentPackageManagedPolicyCapabilityReadbackItem[];
 };
 
+export type AgentPackageCodexModelPolicyProjection = {
+  surface_kind: 'opl_codex_model_policy_projection.v1';
+  authority: 'opl-flow';
+  mode_default: 'auto';
+  configured_default: {
+    model: string;
+    reasoning_effort: string;
+  };
+  override_precedence: string[];
+  catalog_policy: Record<string, unknown>;
+  role: 'package_recommendation_consumed_from_framework_projection';
+};
+
 export type AgentPackageManagedPolicyMigrationAction = {
   surface_kind: 'plugin' | 'skill' | 'service' | 'config_table' | 'prompt_or_agent' | 'historical_self_carrier';
   canonical_id: string;
@@ -507,6 +520,7 @@ export type AgentPackageManagedPolicyCurrentness = {
   required_dependency_failure_ids?: string[];
   experience_baseline?: AgentPackageExperienceBaselineReadback;
   specialized_capabilities?: AgentPackageSpecializedCapabilitiesReadback;
+  model_projection: AgentPackageCodexModelPolicyProjection | null;
   repair_command: string | null;
   reason: string;
 };

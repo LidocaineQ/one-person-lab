@@ -240,7 +240,8 @@ export function projectAppAgentPackageStatus(input: {
   const capabilityExposure = exposureProjection(status, presence.present);
   const lifecycleActionRefs = [...(status.lifecycle_action_refs ?? [])];
   const nativeCarrierReadiness =
-    status.operational_ready_scope === 'configured_native_carrier_presence_callability_identity_and_precedence';
+    status.operational_ready_scope === 'configured_native_carrier_presence_callability_identity_and_precedence'
+    || status.operational_ready_scope === 'installed_carrier_presence_callability_and_managed_policy';
   const readinessDeferred = profile === 'fast'
     && !nativeCarrierReadiness
     && presence.callable
@@ -278,6 +279,10 @@ export function projectAppAgentPackageStatus(input: {
       status.package_dependency_readiness,
     ),
     runtime_source_readiness: compactRuntimeSourceReadiness(status),
+    package_operational: status.package_operational,
+    experience_baseline: status.experience_baseline,
+    specialized_capabilities: status.specialized_capabilities,
+    model_projection: status.model_projection,
     operational_ready: readinessDeferred ? false : presence.installed && status.operational_ready === true,
     operational_ready_scope: status.operational_ready_scope,
     launch_allowed: readinessDeferred ? false : presence.callable,

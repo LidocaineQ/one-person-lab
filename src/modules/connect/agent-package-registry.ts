@@ -92,6 +92,7 @@ import {
 } from './agent-package-registry-parts/carrier-authority.ts';
 import {
   managedPolicyCurrentness,
+  managedPolicyCurrentnessFromDescriptor,
   rollbackManagedPolicyMigration,
 } from './agent-package-registry-parts/managed-policy-surface.ts';
 import {
@@ -104,7 +105,10 @@ import {
   removeManagedRuntimeSourceCarrier,
   rollbackManagedRuntimeSourceMutation,
 } from './agent-package-registry-parts/managed-runtime-source-carrier.ts';
-import { agentPackageLifecycleSummaryReadback } from './agent-package-registry-parts/readback.ts';
+import {
+  agentPackageLifecycleSummaryReadback,
+  withManagedPolicyLifecycleUx,
+} from './agent-package-registry-parts/readback.ts';
 import {
   buildAgentPackageDirectory,
 } from './agent-package-registry-parts/directory.ts';
@@ -4087,13 +4091,28 @@ function buildOplAgentPackageStatus(
   const installedReadiness = carrierReadiness;
   const installedCarrierReadback = installedDescriptor?.carrier_readback ?? null;
   const legacySelectedLock = installedDescriptor ? null : selectedLock;
-  const lifecycleUx = configuredCarrier
-    ? configuredCarrierLifecycleUxReadback(configuredCarrier, false)
-    : legacyLifecycleUx;
   const carrierAuthorityReadiness = legacySelectedLock
     ? agentPackageCarrierAuthorityStatus(legacySelectedLock)
     : null;
-  const policyCurrentness = managedPolicyCurrentness(legacySelectedLock);
+  const policyCurrentness = installedDescriptor
+    ? managedPolicyCurrentnessFromDescriptor({
+        manifest: {
+          package_id: installedDescriptor.manifest.package_id,
+          version: installedDescriptor.manifest.version,
+          plugin_id: stringValue(installedDescriptor.manifest.codex_surface.plugin_id),
+          required_skill_ids: installedDescriptor.manifest.required_skill_ids,
+          managed_policy_surface: installedDescriptor.manifest.managed_policy_surface,
+        },
+        sourceRoot: installedDescriptor.sourcePath,
+      })
+    : managedPolicyCurrentness(legacySelectedLock);
+  const lifecycleUx = configuredCarrier
+    ? withManagedPolicyLifecycleUx({
+        packageId,
+        base: configuredCarrierLifecycleUxReadback(configuredCarrier, false),
+        currentness: policyCurrentness,
+      })
+    : legacyLifecycleUx;
   const packageDependencyReadiness = legacySelectedLock ? dependencyReadiness(legacySelectedLock, lockIndex) : null;
   const materializationReadiness = legacySelectedLock
     ? scopeMaterializationReadiness(legacySelectedLock, lockIndex, input)
@@ -4133,7 +4152,7 @@ function buildOplAgentPackageStatus(
     && !carrierReadiness.legacy_lifecycle_state_present,
   );
   const operationalReady = carrierReadiness
-    ? neutralCarrierReady
+    ? neutralCarrierReady && managedPolicyOperational
     : configuredCarrier
     ? configuredCarrierReady
     : Boolean(
@@ -4146,7 +4165,11 @@ function buildOplAgentPackageStatus(
       );
   const launchBlockedReason = carrierReadiness
     ? neutralCarrierReady
-      ? null
+      ? managedPolicyOperational
+        ? null
+        : requiredPolicyDependenciesOperational
+          ? `managed_policy_${policyCurrentness.status}`
+          : 'managed_policy_required_dependency_unavailable'
       : carrierReadiness.physical_status !== 'available'
         ? 'carrier_source_unavailable'
         : carrierReadiness.callability !== 'callable'
@@ -4173,14 +4196,14 @@ function buildOplAgentPackageStatus(
                 ? `managed_policy_${policyCurrentness.status}`
                 : 'managed_policy_required_dependency_unavailable'
               : null;
-  const repairAction = legacySelectedLock && launchBlockedReason
-    ? !materializationOperational
+  const repairAction = launchBlockedReason
+    ? !managedPolicyOperational
+      ? policyCurrentness.repair_command
+      : legacySelectedLock && !materializationOperational
       ? materializationReadiness?.repair_command ?? null
-      : packageDependencyReadiness && !packageDependencyReadiness.operational_ready
+      : legacySelectedLock && packageDependencyReadiness && !packageDependencyReadiness.operational_ready
         ? null
-        : !managedPolicyOperational
-          ? policyCurrentness.repair_command
-          : null
+        : null
     : null;
   const requiredSkillIds = materializationReadiness?.core_readiness?.required_skill_ids
     ?? materializationReadiness?.required_skill_ids
@@ -4296,8 +4319,11 @@ function buildOplAgentPackageStatus(
         repair_command: null,
         capabilities: [],
       },
+      model_projection: policyCurrentness.model_projection,
       operational_ready: operationalReady,
-      operational_ready_scope: configuredCarrier
+      operational_ready_scope: installedDescriptor
+        ? 'installed_carrier_presence_callability_and_managed_policy'
+        : configuredCarrier
         ? 'configured_native_carrier_presence_callability_identity_and_precedence'
         : 'package_dependency_scope_runtime_source_and_managed_policy',
       launch_allowed: operationalReady,

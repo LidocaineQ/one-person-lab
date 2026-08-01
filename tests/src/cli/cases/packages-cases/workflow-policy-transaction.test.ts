@@ -29,6 +29,24 @@ function writeAbsentCodexPluginManager(root: string) {
   return binary;
 }
 
+function writeInstalledCodexPluginManager(root: string, sourcePath: string) {
+  const binary = path.join(root, 'fake-codex-installed-plugin-manager');
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(binary, [
+    '#!/usr/bin/env node',
+    "if (process.argv.slice(2).join(' ') !== 'plugin list --json') process.exit(2);",
+    `process.stdout.write(JSON.stringify({ installed: [{`,
+    "  pluginId: 'fixture.opl-flow@fixture-marketplace',",
+    "  version: '0.1.16',",
+    '  installed: true,',
+    '  enabled: true,',
+    `  source: { source: 'local', path: ${JSON.stringify(sourcePath)} },`,
+    "  marketplaceSource: { sourceType: 'local', source: 'fixture-marketplace' },",
+    '}], available: [] }));',
+  ].join('\n'), { mode: 0o755 });
+  return binary;
+}
+
 function writeOplFlowPackage(
   root: string,
   options: {
@@ -829,6 +847,67 @@ test('workflow policy v4 reports a missing experience baseline as degraded witho
       packageStatus.experience_baseline.repair_command,
       'opl packages repair --package-id fixture.opl-flow',
     );
+    assert.equal(packageStatus.launch_state, 'degraded');
+    assert.equal(packageStatus.launch_state_reason, 'experience_baseline_degraded');
+    assert.equal(packageStatus.recommended_action, 'repair');
+    assert.equal(
+      packageStatus.conditions.some((entry: { condition_id: string; action_ref: string | null }) => (
+        entry.condition_id === 'experience_baseline_degraded' && entry.action_ref === 'repair'
+      )),
+      true,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  }
+});
+
+test('installed native descriptor projects Flow policy planes and model recommendation without a legacy lock', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-native-descriptor-policy-'));
+  const home = path.join(root, 'home');
+  const sourceRoot = path.join(root, 'fixture.opl-flow-source');
+  const manifestPath = writeOplFlowPackage(root, {
+    policyVersion: 'v4',
+    includeManagedSkillCompanion: true,
+  });
+  const env = {
+    HOME: home,
+    CODEX_HOME: path.join(home, '.codex'),
+    OPL_CODEX_PLUGIN_BIN: writeInstalledCodexPluginManager(root, sourceRoot),
+    OPL_STATE_DIR: path.join(root, 'state'),
+    OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
+  };
+  try {
+    fs.copyFileSync(manifestPath, path.join(sourceRoot, 'opl-package.json'));
+    const packageStatus = (runCli([
+      'packages',
+      'status',
+      '--package-id',
+      'fixture.opl-flow',
+    ], env) as any).opl_agent_package_status;
+
+    assert.equal(packageStatus.installed_readiness.installed, true);
+    assert.equal(packageStatus.managed_policy_currentness.status, 'drifted');
+    assert.equal(packageStatus.managed_policy_currentness.required_dependencies_operational, true);
+    assert.deepEqual(packageStatus.package_operational, {
+      status: 'operational',
+      operational_ready: true,
+      failure_reason: null,
+      repair_command: null,
+    });
+    assert.equal(packageStatus.experience_baseline.status, 'degraded');
+    assert.deepEqual(packageStatus.experience_baseline.failure_ids, ['ui-ux-pro-max']);
+    assert.equal(packageStatus.specialized_capabilities.status, 'not_declared');
+    assert.deepEqual(packageStatus.model_projection, {
+      surface_kind: 'opl_codex_model_policy_projection.v1',
+      authority: 'opl-flow',
+      mode_default: 'auto',
+      configured_default: { model: 'gpt-5.6-sol', reasoning_effort: 'max' },
+      override_precedence: ['explicit_user_override', 'opl_flow_recommendation'],
+      catalog_policy: {},
+      role: 'package_recommendation_consumed_from_framework_projection',
+    });
+    assert.equal(packageStatus.operational_ready, true);
+    assert.equal(packageStatus.launch_allowed, true);
     assert.equal(packageStatus.launch_state, 'degraded');
     assert.equal(packageStatus.launch_state_reason, 'experience_baseline_degraded');
     assert.equal(packageStatus.recommended_action, 'repair');

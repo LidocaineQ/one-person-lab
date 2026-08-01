@@ -279,6 +279,64 @@ test('Fast App status keeps configured native carrier readiness from the same fr
   assertLegacyManagerFieldsAbsent(status);
 });
 
+test('Fast App status preserves Flow policy planes and model recommendation from Framework', () => {
+  const ownerStatus = installedStatus({
+    packageId: 'opl-flow',
+    operationalReadyScope: 'installed_carrier_presence_callability_and_managed_policy',
+    recommendedAction: 'repair',
+  }) as any;
+  Object.assign(ownerStatus.opl_agent_package_status, {
+    package_operational: {
+      status: 'operational',
+      operational_ready: true,
+      failure_reason: null,
+      repair_command: null,
+    },
+    experience_baseline: {
+      status: 'degraded',
+      failure_ids: ['ui-ux-pro-max'],
+      repair_command: 'opl packages repair --package-id opl-flow',
+      capabilities: [],
+    },
+    specialized_capabilities: {
+      status: 'absent',
+      repair_command: null,
+      capabilities: [],
+    },
+    model_projection: {
+      surface_kind: 'opl_codex_model_policy_projection.v1',
+      authority: 'opl-flow',
+      mode_default: 'auto',
+      configured_default: { model: 'gpt-5.6-sol', reasoning_effort: 'max' },
+      override_precedence: [
+        'explicit_user_override',
+        'opl_flow_recommendation',
+        'fresh_codex_model_catalog',
+        'app_fallback_when_flow_unavailable',
+      ],
+      catalog_policy: { source: 'codex_cli_model_list' },
+      role: 'package_recommendation_consumed_from_framework_projection',
+    },
+  });
+
+  const status = buildAppAgentPackageStatuses({
+    packageIds: ['opl-flow'],
+    profile: 'fast',
+    readStatus: (() => ownerStatus) as any,
+  })['opl-flow'] as any;
+
+  assert.equal(status.status, 'available');
+  assert.equal(status.operational_ready, true);
+  assert.equal(Object.hasOwn(status, 'currentness_detail_deferred'), false);
+  assert.deepEqual(status.package_operational, ownerStatus.opl_agent_package_status.package_operational);
+  assert.deepEqual(status.experience_baseline, ownerStatus.opl_agent_package_status.experience_baseline);
+  assert.deepEqual(
+    status.specialized_capabilities,
+    ownerStatus.opl_agent_package_status.specialized_capabilities,
+  );
+  assert.deepEqual(status.model_projection, ownerStatus.opl_agent_package_status.model_projection);
+});
+
 test('App package status preserves canonical role-neutral app contributions', () => {
   const appContributions = {
     schema_version: 'opl-app-contributions.v1',
