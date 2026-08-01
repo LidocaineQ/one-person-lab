@@ -3,7 +3,7 @@
   "package_id": "mas-scholar-skills",
   "display_name": "MAS Scholar Skills",
   "publisher": "one-person-lab",
-  "version": "0.2.22",
+  "version": "0.2.23",
   "source": "first_party_owner_projection",
   "source_repo": "https://github.com/gaofeng21cn/mas-scholar-skills.git",
   "package_role": "capability_package",
@@ -23,6 +23,9 @@
     {
       "profile_id": "mas-medical-paper.v1",
       "consumer_agent_id": "mas",
+      "profile_kind": "optional_refs_only_enhancement",
+      "required": false,
+      "dependency_kind": "optional_enhancement",
       "required_export_ids": [
         "mas-scholar-skills",
         "medical-manuscript-writing",
@@ -47,11 +50,34 @@
         "mas-scholar-skills.data",
         "mas-scholar-skills.reference-provider-adapters",
         "mas-scholar-skills.scientific-search-adapters"
-      ]
+      ],
+      "required_ids_semantics": "selected_profile_compatibility_set_not_consumer_readiness",
+      "missing_or_incompatible_behavior": "consumer_fail_open",
+      "diagnostic_role": "consumer_owned_non_blocking_diagnostic",
+      "distribution_behavior": "consumer_may_bundle_or_materialize_without_dependency_or_readiness_effect",
+      "blocks_install": false,
+      "blocks_activation": false,
+      "blocks_admission": false,
+      "blocks_route": false,
+      "blocks_launch": false,
+      "blocks_readiness": false,
+      "authority_boundary": {
+        "can_write_consumer_domain_truth": false,
+        "can_claim_consumer_fundability": false,
+        "can_claim_consumer_quality_verdict": false,
+        "can_claim_consumer_export_or_publication_readiness": false,
+        "can_sign_consumer_owner_receipt": false,
+        "can_create_consumer_typed_blocker": false,
+        "can_write_consumer_strategy_memory": false,
+        "can_claim_consumer_owner_authority": false
+      }
     },
     {
       "profile_id": "mag-medical-grant.v1",
       "consumer_agent_id": "mag",
+      "profile_kind": "optional_refs_only_enhancement",
+      "required": false,
+      "dependency_kind": "optional_enhancement",
       "required_export_ids": [
         "medical-research-lit",
         "medical-statistical-review",
@@ -67,7 +93,27 @@
         "mas-scholar-skills.data",
         "mas-scholar-skills.reference-provider-adapters",
         "mas-scholar-skills.scientific-search-adapters"
-      ]
+      ],
+      "required_ids_semantics": "selected_profile_compatibility_set_not_consumer_readiness",
+      "missing_or_incompatible_behavior": "consumer_fail_open",
+      "diagnostic_role": "consumer_owned_non_blocking_diagnostic",
+      "distribution_behavior": "consumer_may_bundle_or_materialize_without_dependency_or_readiness_effect",
+      "blocks_install": false,
+      "blocks_activation": false,
+      "blocks_admission": false,
+      "blocks_route": false,
+      "blocks_launch": false,
+      "blocks_readiness": false,
+      "authority_boundary": {
+        "can_write_consumer_domain_truth": false,
+        "can_claim_consumer_fundability": false,
+        "can_claim_consumer_quality_verdict": false,
+        "can_claim_consumer_export_or_publication_readiness": false,
+        "can_sign_consumer_owner_receipt": false,
+        "can_create_consumer_typed_blocker": false,
+        "can_write_consumer_strategy_memory": false,
+        "can_claim_consumer_owner_authority": false
+      }
     }
   ],
   "capability_abi": {
@@ -407,17 +453,17 @@
       "skills/medical-data-freeze-and-analysis-readiness-reviewer/kernel.py",
       "skills/medical-research-portfolio-memory-curator/SKILL.md"
     ],
-    "digest": "sha256:89234c47e7663fad4313fd5171cac7e7763fbbe0ec13d5dff0ae0b7ff3a04f21"
+    "digest": "sha256:c05e81aa08cc4b54737a109e0b1a4d80174f2933851575bf8c87c2313f166e88"
   },
   "codex_surface": {
     "plugin_id": "mas-scholar-skills",
-    "carrier_source_commit": "0c7f523c36222a9a3f08572dcead58e7b2953686",
+    "carrier_source_commit": "1214a37b03cf31656076a5a1d04204fb1bae0a8f",
     "carrier_source_role": "codex_plugin_carrier_not_package_truth",
     "consumer_profiles_ref": "#/consumer_profiles",
     "default_materialized_skill_ids_ref": "#/exports/all_skill_ids",
     "codex_default_exposure": false,
     "optional_install_policy": "all_exported_skills",
-    "plugin_payload_manifest_url": "payloads/mas-scholar-skills-0.2.22.json"
+    "plugin_payload_manifest_url": "payloads/mas-scholar-skills-0.2.23.json"
   },
   "authority_boundary": {
     "can_write_domain_truth": false,
@@ -432,5 +478,7 @@
     "can_claim_mag_quality_verdict": false,
     "can_claim_mag_export_readiness": false
   },
+  "owner_package_manifest_ref": "contracts/opl_capability_package_manifest.json",
+  "owner_package_descriptor_ref": "opl-package.json",
   "source_manifest_ref": "mas-scholar-skills/contracts/opl_capability_package_manifest.json"
 }

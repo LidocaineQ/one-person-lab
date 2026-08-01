@@ -6,6 +6,7 @@
   "source_root": ".",
   "paths": [
     ".codex-plugin/plugin.json",
+    "opl-package.json",
     "contracts/scholar-skills-capability-modules.json",
     "contracts/publication-layout-profile.schema.json",
     "contracts/scholarskills-page-hash-evidence-candidate-v3.schema.json",

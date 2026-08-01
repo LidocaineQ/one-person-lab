@@ -31,6 +31,9 @@ type SourceFixture = {
   sourceCommit: string;
   sourceRoot: string;
   paths: string[];
+  contentLockPaths?: string[];
+  ownerPackageManifestRef?: string;
+  ownerPackageDescriptorRef?: string;
 };
 
 type AuthorityFixture = {
@@ -68,6 +71,8 @@ function createSourceRepo(root: string, input: {
   pluginBytes?: Buffer;
   executableSkill?: boolean;
   symlinkSkill?: boolean;
+  portableOwnerDescriptor?: boolean;
+  symlinkOwnerDescriptor?: boolean;
   assetBytes?: Buffer;
   extraFile?: { path: string; content: string | Buffer };
 } = {}): SourceFixture {
@@ -98,24 +103,51 @@ function createSourceRepo(root: string, input: {
   }
   writeFile(repo, rootedPath(sourceRoot, 'README.md'), 'not part of the carrier payload\n');
   writeFile(repo, 'docs/repository-only.md', 'must never be discovered recursively\n');
+  const contentLockPaths = [
+    '.codex-plugin/plugin.json',
+    'assets/icon.bin',
+    ...(input.extraFile ? [input.extraFile.path] : []),
+    `skills/${pluginId}/SKILL.md`,
+  ];
+  const ownerPackageManifestRef = input.portableOwnerDescriptor ? 'contracts/owner-package.json' : undefined;
+  const ownerPackageDescriptorRef = input.portableOwnerDescriptor ? 'opl-package.json' : undefined;
+  if (ownerPackageManifestRef && ownerPackageDescriptorRef) {
+    if (sourceRoot !== '.') throw new Error('Portable owner descriptor fixture requires source_root=.');
+    const ownerManifestBytes = `${JSON.stringify({
+      package_id: packageId,
+      version: packageVersion,
+      content_lock: {
+        algorithm: 'sha256',
+        canonicalization: 'ordered_path_length_file_length_bytes',
+        paths: contentLockPaths,
+        digest: lengthPrefixedContentLock({ repo, sourceRoot, paths: contentLockPaths }),
+      },
+    }, null, 2)}\n`;
+    writeFile(repo, ownerPackageManifestRef, ownerManifestBytes);
+    if (input.symlinkOwnerDescriptor) {
+      fs.symlinkSync(ownerPackageManifestRef, path.join(repo, ownerPackageDescriptorRef));
+    } else {
+      writeFile(repo, ownerPackageDescriptorRef, ownerManifestBytes);
+    }
+  }
   const sourceCommit = commitAll(repo, 'example payload source');
   git(repo, ['update-ref', 'refs/remotes/origin/main', sourceCommit]);
   return {
     repo,
     sourceCommit,
     sourceRoot,
-    paths: [
-      '.codex-plugin/plugin.json',
-      'assets/icon.bin',
-      ...(input.extraFile ? [input.extraFile.path] : []),
-      `skills/${pluginId}/SKILL.md`,
-    ],
+    paths: ownerPackageDescriptorRef
+      ? [contentLockPaths[0], ownerPackageDescriptorRef, ...contentLockPaths.slice(1)]
+      : contentLockPaths,
+    contentLockPaths,
+    ownerPackageManifestRef,
+    ownerPackageDescriptorRef,
   };
 }
 
-function lengthPrefixedContentLock(source: Pick<SourceFixture, 'repo' | 'sourceRoot' | 'paths'>) {
+function lengthPrefixedContentLock(source: Pick<SourceFixture, 'repo' | 'sourceRoot' | 'paths' | 'contentLockPaths'>) {
   const contentLock = crypto.createHash('sha256');
-  for (const relativePath of source.paths) {
+  for (const relativePath of source.contentLockPaths ?? source.paths) {
     const pathBytes = Buffer.from(relativePath, 'utf8');
     const fileBytes = fs.readFileSync(path.join(source.repo, rootedPath(source.sourceRoot, relativePath)));
     const pathLength = Buffer.allocUnsafe(8);
@@ -158,8 +190,15 @@ function createAuthority(root: string, source: SourceFixture, input: {
   if (manifest.codex_surface.required_skill_ids !== undefined) manifest.codex_surface.required_skill_ids = [plugin];
   if (manifest.content_lock !== undefined) {
     manifest.content_lock.canonicalization = 'ordered_path_length_file_length_bytes';
-    manifest.content_lock.paths = source.paths;
+    manifest.content_lock.paths = source.contentLockPaths ?? source.paths;
     manifest.content_lock.digest = lengthPrefixedContentLock(source);
+  }
+  if (source.ownerPackageManifestRef && source.ownerPackageDescriptorRef) {
+    manifest.owner_package_manifest_ref = source.ownerPackageManifestRef;
+    manifest.owner_package_descriptor_ref = source.ownerPackageDescriptorRef;
+  } else {
+    delete manifest.owner_package_manifest_ref;
+    delete manifest.owner_package_descriptor_ref;
   }
   const allowlist = {
     surface_kind: 'opl_package_payload_allowlist.v1',
@@ -366,6 +405,52 @@ test('source_root dot still reads only allowlisted blobs instead of recursively 
     assert.equal(payload.files.some((entry: Record<string, string>) => entry.path.startsWith('docs/')), false, surface);
     assert.equal(payload.files.some((entry: Record<string, string>) => entry.path === 'README.md'), false, surface);
   }
+});
+
+test('capability payload carries one portable owner descriptor outside the non-self-referential content lock', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-payload-owner-descriptor-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const source = createSourceRepo(root, { sourceRoot: '.', portableOwnerDescriptor: true });
+  const authority = createAuthority(root, source, { surface: 'capability', manifestSourceRepo: false });
+
+  runGenerator({ authority, repo: source.repo, sourceCommit: source.sourceCommit });
+  const payload = JSON.parse(fs.readFileSync( // reuse-first: allow local generated fixture parser.
+    authority.output,
+    'utf8',
+  )) as Record<string, any>;
+  const descriptor = payload.files.find((entry: Record<string, string>) => entry.path === 'opl-package.json');
+
+  assert.deepEqual(payload.files.map((entry: Record<string, string>) => entry.path), source.paths);
+  assert.equal(descriptor.mode, '100644');
+  assert.equal(
+    descriptor.sha256,
+    sha256(fs.readFileSync(path.join(source.repo, source.ownerPackageManifestRef!))),
+  );
+  assert.equal(payload.content_lock.digest, lengthPrefixedContentLock(source));
+  assert.equal(source.contentLockPaths!.includes('opl-package.json'), false);
+
+  editJson(authority.manifest, (manifest) => {
+    delete manifest.owner_package_descriptor_ref;
+  });
+  const missingPair = runFailure({ authority, repo: source.repo, sourceCommit: source.sourceCommit });
+  assert.notEqual(missingPair.status, 0);
+  assert.match(missingPair.stderr, /manifest and descriptor refs must be declared together/);
+});
+
+test('capability payload rejects a symlinked owner descriptor instead of weakening the regular-file boundary', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-payload-owner-descriptor-symlink-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const source = createSourceRepo(root, {
+    sourceRoot: '.',
+    portableOwnerDescriptor: true,
+    symlinkOwnerDescriptor: true,
+  });
+  const authority = createAuthority(root, source, { surface: 'capability', manifestSourceRepo: false });
+
+  const result = runFailure({ authority, repo: source.repo, sourceCommit: source.sourceCommit });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /only 100644 and 100755 blobs are allowed/);
+  assert.equal(fs.existsSync(authority.output), false);
 });
 
 test('generator preserves executable Git blobs as the canonical 100755 mode', (t) => {
