@@ -738,8 +738,8 @@ test('first-party install and update read one owner channel without shared-manif
       ...first.env,
     }) as any;
     assert.equal(activated.opl_agent_package_activation.package_use_binding.root_package.owner_source_commit, '1'.repeat(40));
-    assert.equal(activated.opl_agent_package_activation.use_receipt.owner_source_commit, '1'.repeat(40));
-    assert.equal(activated.opl_agent_package_activation.use_receipt.use_binding.root_package.owner_source_commit, '1'.repeat(40));
+    assert.equal(Object.hasOwn(activated.opl_agent_package_activation.package_use_binding, 'use_receipt_ref'), false);
+    assert.equal(Object.hasOwn(activated.opl_agent_package_activation, 'use_receipt'), false);
 
     const updated = runCli(['packages', 'update', 'opl-flow'], {
       ...commonEnv,

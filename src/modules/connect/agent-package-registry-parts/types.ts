@@ -34,7 +34,6 @@ export type AgentPackageLifecycleAction =
   | 'update'
   | 'repair'
   | 'activate'
-  | 'use'
   | 'rollback'
   | 'uninstall'
   | 'hide'
@@ -819,8 +818,6 @@ export type AgentPackageLifecycleReceipt = {
   scope_materializations?: AgentPackageScopeMaterialization[];
   managed_runtime_source?: AgentPackageManagedRuntimeSourceState | null;
   developer_checkout_source?: AgentPackageDeveloperCheckoutSource | null;
-  use_binding?: AgentPackageUseBinding;
-  source_selection?: 'installed_package_lock';
   network_accessed?: false;
   remote_dependency_policy?: 'forbidden';
 };
@@ -828,7 +825,6 @@ export type AgentPackageLifecycleReceipt = {
 export type AgentPackageUseBinding = {
   surface_kind: 'opl_agent_package_use_binding.v1';
   use_boundary_id: string;
-  use_receipt_ref: string;
   root_package: {
     package_id: string;
     package_version: string;

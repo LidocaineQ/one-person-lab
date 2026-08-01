@@ -57,7 +57,6 @@ export function packageActionStatus(action: AgentPackageLifecycleAction) {
     update: 'updated',
     repair: 'repaired',
     activate: 'activated',
-    use: 'used',
     rollback: 'rolled_back',
     uninstall: 'uninstalled',
     hide: 'hidden',
@@ -118,8 +117,6 @@ export function lifecycleReceipt(input: {
   carrierAuthority?: AgentPackageCarrierAuthority | null;
   releaseChannelRef?: string | null;
   releaseChannelDigest?: string | null;
-  useBinding?: AgentPackageLifecycleReceipt['use_binding'];
-  sourceSelection?: AgentPackageLifecycleReceipt['source_selection'];
   networkAccessed?: AgentPackageLifecycleReceipt['network_accessed'];
   remoteDependencyPolicy?: AgentPackageLifecycleReceipt['remote_dependency_policy'];
   provenance?: AgentPackageInstallInput['provenance'];
@@ -176,8 +173,6 @@ export function lifecycleReceipt(input: {
   if (input.developerCheckoutSource !== undefined) {
     receipt.developer_checkout_source = input.developerCheckoutSource;
   }
-  if (input.useBinding) receipt.use_binding = input.useBinding;
-  if (input.sourceSelection) receipt.source_selection = input.sourceSelection;
   if (input.networkAccessed !== undefined) receipt.network_accessed = input.networkAccessed;
   if (input.remoteDependencyPolicy) receipt.remote_dependency_policy = input.remoteDependencyPolicy;
   return receipt;

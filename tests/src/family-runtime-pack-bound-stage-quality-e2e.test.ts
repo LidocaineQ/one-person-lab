@@ -234,7 +234,6 @@ function packageUseBinding(packRoot: string, version = '0.0.0-test') {
   return {
     surface_kind: 'opl_agent_package_use_binding.v1',
     use_boundary_id: 'package-use:pack-bound-quality-e2e',
-    use_receipt_ref: 'opl://agent-package/use/pack-bound-quality-e2e',
     root_package: {
       package_id: 'medautoscience',
       package_version: version,

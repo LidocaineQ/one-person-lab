@@ -68,7 +68,6 @@ const WORKSPACE_OBSERVATION_FIELDS = new Set([
   'runtime_source_readiness',
   'stage_run_currentness_admission',
   'use_boundary_id',
-  'use_receipt_ref',
 ]);
 
 function text(value: unknown, field: string) {

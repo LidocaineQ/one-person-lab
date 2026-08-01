@@ -297,7 +297,6 @@ function hostedRuntimeProvenanceRecord(
       ? [
           'package_id',
           'package_use_boundary_id',
-          'package_use_receipt_ref',
           'package_version',
           'package_lock_ref',
           'package_manifest_sha256',
@@ -361,12 +360,6 @@ function hostedRuntimeProvenanceRecord(
       target_domain_id: targetDomainId,
       package_id: packageId,
       package_use_boundary_id: text(value.package_use_boundary_id, 'provenance.package_use_boundary_id'),
-      ...(value.package_use_receipt_ref === undefined ? {} : {
-        package_use_receipt_ref: text(
-          value.package_use_receipt_ref,
-          'provenance.package_use_receipt_ref',
-        ),
-      }),
       package_version: text(value.package_version, 'provenance.package_version'),
       package_lock_ref: text(value.package_lock_ref, 'provenance.package_lock_ref'),
       ...(value.package_manifest_sha256 === undefined ? {} : {
@@ -868,10 +861,6 @@ function assertPlanRuntimeIdentity(
     if (
       packageBinding.surface_kind !== 'opl_agent_package_use_binding.v1'
       || rootPackage.package_id !== provenance.package_id
-      || (
-        provenance.package_use_receipt_ref !== undefined
-        && packageBinding.use_receipt_ref !== provenance.package_use_receipt_ref
-      )
       || nullableRecordText(rootPackage, 'package_version') !== provenance.package_version
       || nullableRecordText(rootPackage, 'package_lock_ref') !== provenance.package_lock_ref
       || (

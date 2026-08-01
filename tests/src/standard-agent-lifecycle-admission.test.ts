@@ -141,7 +141,6 @@ function packageUseBinding() {
   return {
     surface_kind: 'opl_agent_package_use_binding.v1',
     use_boundary_id: 'package-use:lifecycle-fixture',
-    use_receipt_ref: 'opl://agent-package/use/lifecycle-fixture',
     root_package: {
       package_id: 'mas',
       package_version: '0.2.15',

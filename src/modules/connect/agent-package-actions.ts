@@ -93,7 +93,7 @@ const AGENT_PACKAGE_ACTION_CATALOG = [
     taxonomy: 'settings.capabilities.agent_package.activate',
     delegated_surface: 'opl packages activate --package-id <package_id> --scope <workspace|quest>',
     payload_fields: ['package_id', 'scope', 'target_workspace', 'target_quest', 'use_boundary_id'],
-    mutates: 'opl_agent_package_closure_scope_and_use_receipt',
+    mutates: 'opl_agent_package_closure_and_scope',
     dry_run_supported: true,
     confirmation_required: false,
     danger_level: 'low',

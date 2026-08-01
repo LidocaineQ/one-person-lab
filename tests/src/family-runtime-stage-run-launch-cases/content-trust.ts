@@ -419,7 +419,6 @@ test('every child Attempt preserves parent evidence and binds the latest executi
   );
   const currentUseBinding = packageUseBinding({
     packageVersion: '0.2.2',
-    useReceiptRef: 'opl://agent-package/use/fixture/current',
   });
   const materializationOptions = {
     ensurePackageLaunchReady: async () => ({
@@ -552,7 +551,6 @@ test('Temporal materialization retry reuses the first child Attempt and package-
     ...packageUseBinding({
       checkedAt: '2026-07-14T00:00:00.000Z',
       packageVersion: '0.2.2',
-      useReceiptRef: 'opl://agent-package/use/fixture/retry-first',
     }),
     use_boundary_id: 'package-use:retry-first',
   };
@@ -560,7 +558,6 @@ test('Temporal materialization retry reuses the first child Attempt and package-
     ...packageUseBinding({
       checkedAt: '2026-07-14T00:01:00.000Z',
       packageVersion: '0.2.3',
-      useReceiptRef: 'opl://agent-package/use/fixture/retry-later',
     }),
     use_boundary_id: 'package-use:retry-later',
   };
@@ -629,8 +626,8 @@ test('Temporal materialization retry reuses the first child Attempt and package-
       firstUseBinding.use_boundary_id,
     );
     assert.equal(
-      (retry.workflow_input.workspace_locator.package_use_binding as any)?.use_receipt_ref,
-      firstUseBinding.use_receipt_ref,
+      Object.hasOwn(retry.workflow_input.workspace_locator.package_use_binding as object, 'use_receipt_ref'),
+      false,
     );
 
     const db = new DatabaseSync(path.join(stateRoot, 'family-runtime', 'queue.sqlite'));

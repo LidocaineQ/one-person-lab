@@ -362,8 +362,9 @@ test('generic package activation action returns the launch binding at the App bo
     });
     assert.equal(activation.use_boundary_id, 'app-conversation-create-1');
     assert.equal(activation.package_use_binding.use_boundary_id, activation.use_boundary_id);
-    assert.equal(activation.package_use_binding.use_receipt_ref, activation.use_receipt_ref);
-    assert.match(activation.use_receipt_ref, /^opl:\/\/agent-package\/use\/fixture\.app-action-consumer\//);
+    assert.equal(Object.hasOwn(activation.package_use_binding, 'use_receipt_ref'), false);
+    assert.equal(Object.hasOwn(activation, 'use_receipt_ref'), false);
+    assert.equal(Object.hasOwn(activation, 'use_receipt'), false);
 
     const lockPath = path.join(env.OPL_STATE_DIR, 'agent-package-locks.json');
     const lockIndex = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
@@ -474,7 +475,7 @@ test('generic package activation action returns the launch binding at the App bo
   }
 });
 
-test('dependency-free activation returns operation receipt refs without a lifecycle ledger', async () => {
+test('dependency-free activation returns an immutable use binding without a lifecycle ledger', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-action-package-use-receipt-'));
   const stateRoot = path.join(root, 'state');
   const workspace = path.join(root, 'workspace');
@@ -499,12 +500,11 @@ test('dependency-free activation returns operation receipt refs without a lifecy
 
     assert.equal(activation.lifecycle_receipt, null);
     assert.equal(Object.hasOwn(activation, 'lifecycle_receipt_ref'), false);
-    assert.equal(activation.package_use_binding.use_receipt_ref, activation.use_receipt_ref);
-    assert.match(activation.use_receipt_ref, /^opl:\/\/agent-package\/use\/rca\//);
-    assert.equal(activation.use_receipt?.receipt_ref, activation.use_receipt_ref);
-    assert.equal(activation.use_receipt?.package_lock_ref, activation.package_lock.lock_ref);
+    assert.equal(Object.hasOwn(activation.package_use_binding, 'use_receipt_ref'), false);
+    assert.equal(Object.hasOwn(activation, 'use_receipt_ref'), false);
+    assert.equal(Object.hasOwn(activation, 'use_receipt'), false);
     assert.equal(
-      activation.use_receipt?.use_binding.root_package.package_lock_ref,
+      activation.package_use_binding.root_package.package_lock_ref,
       activation.package_lock.lock_ref,
     );
     assert.equal(fs.existsSync(ledgerPath), false);

@@ -117,7 +117,6 @@
       "excludes": [
         "checked_at",
         "use_boundary_id",
-        "use_receipt_ref",
         "checkout_currentness_observation",
         "runtime_source_readiness_observation",
         "materialization_or_checkout_path"

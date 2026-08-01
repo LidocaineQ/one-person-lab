@@ -168,7 +168,6 @@ function managedCheckout(input: {
   const packageUseBinding = {
     surface_kind: 'opl_agent_package_use_binding.v1',
     use_boundary_id: useBoundaryId,
-    use_receipt_ref: `opl://agent-package/use/${encodeURIComponent(useBoundaryId)}`,
     root_package: rootPackage,
     dependency_closure_digest: '4'.repeat(64),
     ...input.bindingOverrides,

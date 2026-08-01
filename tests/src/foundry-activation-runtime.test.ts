@@ -71,7 +71,6 @@ test('HostedFoundryActivationRuntime prepares an exact runtime binding before ac
           surface_kind: 'opl_agent_package_use_binding.v1',
           binding_origin: 'foundry_active_agent_version',
           use_boundary_id: 'foundry:generated-agent',
-          use_receipt_ref: 'opl://foundry/package-use/generated-agent',
           root_package: {
             package_id: version.target_agent_id,
             package_version: version.version_id,

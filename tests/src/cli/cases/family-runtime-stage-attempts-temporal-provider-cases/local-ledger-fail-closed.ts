@@ -22,7 +22,6 @@ function packageLaunchRuntime() {
           package_use_binding: {
             surface_kind: 'opl_agent_package_use_binding.v1',
             use_boundary_id: `package-use:test:${useBoundarySequence}`,
-            use_receipt_ref: `opl://agent-package/use/test/${useBoundarySequence}`,
             root_package: { package_id: 'rca' },
             provider_packages: [],
             dependency_closure_digest: `sha256:${'0'.repeat(64)}`,
