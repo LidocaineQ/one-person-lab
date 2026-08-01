@@ -1501,7 +1501,7 @@ test('bundled Full MAG snapshot keeps its frozen manifest bytes while ordinary p
   assert.equal(ordinaryManifest.version, '0.3.6');
 });
 
-test('bundled Full RCA snapshot keeps its frozen manifest bytes while ordinary publication advances', () => {
+test('bundled Full RCA source projection advances independently of ordinary publication', () => {
   const catalog = parseJsonText(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
     'utf8',
@@ -1515,11 +1515,11 @@ test('bundled Full RCA snapshot keeps its frozen manifest bytes while ordinary p
     'utf8',
   )) as Record<string, any>;
 
-  assert.equal(frozenRef, 'packages/rca-0.2.8.json');
+  assert.equal(frozenRef, 'packages/rca-0.2.10.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    '87f73b832411933848b16c1dad70bf96279c35208b62404063d887603e5fe08f');
-  assert.equal(frozenManifest.version, '0.2.8');
-  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/rca-0.2.8.json');
+    '8be12a6d95e7d1ef2216f7d4ad982cae1056f5cb7efe0d4db570b595842a595b');
+  assert.equal(frozenManifest.version, '0.2.10');
+  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/rca-0.2.10.json');
   assert.equal(ordinaryManifest.version, '0.2.9');
 });
 

@@ -28,12 +28,12 @@
     "rca": {
       "package_id": "rca",
       "package_role": "standard_agent",
-      "package_version": "0.2.8",
-      "owner_source_commit": "d41360070fd2f02b85f2eed5761670746d10e25e",
-      "manifest_ref": "packages/rca-0.2.8.json",
-      "manifest_sha256": "sha256:87f73b832411933848b16c1dad70bf96279c35208b62404063d887603e5fe08f",
-      "payload_manifest_ref": "packages/payloads/rca-0.2.8.json",
-      "payload_manifest_sha256": "sha256:141fbca6ac17a20571af06d19c64a9e19052e4765b83606e685586d625086d48",
+      "package_version": "0.2.10",
+      "owner_source_commit": "467c5c028eaa11de5e63d2c6e4401b786e240b19",
+      "manifest_ref": "packages/rca-0.2.10.json",
+      "manifest_sha256": "sha256:8be12a6d95e7d1ef2216f7d4ad982cae1056f5cb7efe0d4db570b595842a595b",
+      "payload_manifest_ref": "packages/payloads/rca-0.2.10.json",
+      "payload_manifest_sha256": "sha256:ad40754bc9f427a0447758a7aa1cb7ea0e2ff6a23406fbe5990787d02554fc2d",
       "runtime_module_relative_path": "modules/rca"
     },
     "oma": {

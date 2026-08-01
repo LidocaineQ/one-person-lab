@@ -6,6 +6,7 @@
   "source_root": "plugins/redcube-ai",
   "paths": [
     ".codex-plugin/plugin.json",
+    "opl-package.json",
     "assets/icon.png",
     "skills/redcube-ai/SKILL.md",
     "skills/redcube-ai/agents/openai.yaml"
