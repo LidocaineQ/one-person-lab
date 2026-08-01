@@ -1000,9 +1000,9 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
   const manifest = manifests.mas;
   const expectedReleases: Record<string, { version: string; sourceCommit: string; payloadRef: string }> = {
     mas: {
-      version: '0.2.21',
-      sourceCommit: 'd32a437c96916ba9f232084d1492229b4bf8603b',
-      payloadRef: 'payloads/mas-0.2.21.json',
+      version: '0.2.22',
+      sourceCommit: '58001db778fd249af5758b190d6b6106cba1dc46',
+      payloadRef: 'payloads/mas-0.2.22.json',
     },
     mag: {
       version: '0.3.6',
@@ -1029,7 +1029,7 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
   assert.equal(manifest.schema_ref, 'contracts/opl-framework/agent-package-manifest.schema.json');
   assert.equal(manifest.package_id, 'mas');
   assert.equal(manifest.agent_id, 'mas');
-  assert.equal(manifest.version, '0.2.21');
+  assert.equal(manifest.version, '0.2.22');
   assert.equal(manifest.carrier_source_role, 'codex_plugin_default_carrier_not_package_truth');
   assert.equal(schema.required.includes('distribution_payload'), false);
   assert.equal(schema.properties.distribution_payload.properties.install_truth.const, 'resolved_digest_lock');
@@ -1447,7 +1447,7 @@ test('first-party agent package manifest rejects unknown Codex carrier distribut
   );
 });
 
-test('bundled Full MAS snapshot keeps its frozen manifest bytes while ordinary publication advances', () => {
+test('bundled Full MAS source projection advances to the immutable ordinary package version', () => {
   const catalog = parseJsonText(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
     'utf8',
@@ -1467,16 +1467,16 @@ test('bundled Full MAS snapshot keeps its frozen manifest bytes while ordinary p
     'utf8',
   )) as Record<string, any>;
 
-  assert.equal(frozenRef, 'packages/mas-0.2.19.json');
+  assert.equal(frozenRef, 'packages/mas-0.2.22.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    '12e3ec3f3307a083d490179656a455605d1e040e96cc77b379f9b9b4daf59a20');
-  assert.equal(frozenManifest.version, '0.2.19');
-  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mas-0.2.19.json');
+    'a115a38a1cf30b9ad1d42e9949dcaa8cb522a042726d1cf01f27f3a97e516f2e');
+  assert.equal(frozenManifest.version, '0.2.22');
+  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mas-0.2.22.json');
   assert.equal(crypto.createHash('sha256').update(priorOrdinaryBytes).digest('hex'),
     '1fda4a1e6942037809e8637306d01661149d320ca586798138292a9903b37be2');
   assert.equal(priorOrdinaryManifest.version, '0.2.20');
   assert.equal(priorOrdinaryManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mas-0.2.20.json');
-  assert.equal(ordinaryManifest.version, '0.2.21');
+  assert.equal(ordinaryManifest.version, '0.2.22');
 });
 
 test('bundled Full MAG source projection advances to the immutable ordinary package version', () => {

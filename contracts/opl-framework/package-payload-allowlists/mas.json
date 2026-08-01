@@ -6,6 +6,7 @@
   "source_root": "plugins/med-autoscience",
   "paths": [
     ".codex-plugin/plugin.json",
+    "opl-package.json",
     "assets/icon.png",
     "assets/icon.svg",
     "skills/med-autoscience/SKILL.md",
