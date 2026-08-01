@@ -309,6 +309,73 @@ export type ReleaseBundleOperationReceipt = {
   details: Record<string, unknown>;
 };
 
+export type ReleaseBundleOperationEventNextAction =
+  | 'build'
+  | 'verify'
+  | 'publish'
+  | 'reconcile'
+  | 'checkpoint_export'
+  | 'wait_for_distinct_operation'
+  | 'consumer_readback'
+  | 'none';
+
+export type ReleaseBundleOperationEvent = {
+  surface_kind: 'opl_release_bundle_operation_event.v1';
+  schema_ref: 'contracts/opl-framework/release-bundle-operation-event.schema.json';
+  event_id: string;
+  event_idempotency_key: string;
+  bundle_digest: string;
+  operation_id: string | null;
+  operation_kind: ReleaseBundleCanonicalOperation | null;
+  operation: ReleaseBundleOperationReceipt['operation'];
+  track: ReleaseBundleTrackName | null;
+  checkpoint_stage: ReleaseBundleCheckpointStage;
+  status: ReleaseBundleOperationReceipt['status'];
+  next_action: ReleaseBundleOperationEventNextAction;
+  deadline_at: string | null;
+  recorded_at: string;
+  evidence: Array<{
+    kind: 'operation_receipt';
+    ref: string;
+    sha256: string;
+  }>;
+};
+
+export type ReleaseBundleConsumerEnvelope = {
+  surface_kind: 'opl_release_bundle_consumer_envelope.v1';
+  schema_ref: 'contracts/opl-framework/release-bundle-consumer-envelope.schema.json';
+  envelope_digest: string;
+  bundle_digest: string;
+  release: Pick<ReleaseBundle['release'], 'channel' | 'version' | 'display_version' | 'updater_version' | 'tag'>;
+  cohort: {
+    app_source_commit: string;
+    shell_source_commit: string;
+    framework_source_commit: string;
+  };
+  track: 'standard' | 'full';
+  operation: {
+    operation_id: string;
+    operation_kind: ReleaseBundleCanonicalOperation;
+    deadline_at: string;
+  } | null;
+  checkpoint_stage: ReleaseBundleCheckpointStage;
+  source_checkpoint_run_id: string | null;
+  assets: Array<Pick<StoredReleaseBundleAsset, 'name' | 'size_bytes' | 'sha256'>>;
+  qualified: boolean;
+  published: boolean;
+  reconcile_required: boolean;
+  next_action: ReleaseBundleOperationEventNextAction;
+  latest_event_id: string | null;
+  evidence: Array<{
+    kind: 'operation_receipt' | 'bundle';
+    ref: string;
+    sha256: string;
+  }>;
+  consumer_trigger_only: true;
+  consumer_may_dispatch: false;
+  recovery_command: 'opl release status then exact opl release reconcile';
+};
+
 export type ReleaseBundleCheckpointStage =
   | 'frozen'
   | 'standard_built'

@@ -1,10 +1,12 @@
 import {
   admitReleaseBundleOperation,
   buildReleaseBundle,
+  buildReleaseBundleConsumerEnvelope,
   exportReleaseBundleCheckpoint,
   freezeReleaseBundle,
   importReleaseBundleCheckpoint,
   publishReleaseBundle,
+  readReleaseBundleEvents,
   readReleaseBundleStatus,
   reconcileReleaseBundle,
   verifyReleaseBundle,
@@ -189,6 +191,41 @@ export function buildReleaseCommandSpecs(
         const values = parse('release status', args);
         return readReleaseBundleStatus({
           bundleDigest: String(values.bundle),
+          storeRoot: stringOption(values, 'store'),
+        });
+      },
+    },
+    'release events': {
+      usage: 'opl release events --bundle <sha256:digest> [--after-event <sha256:event>] [--store <directory>]',
+      summary: 'Read immutable operation-receipt events after one consumer cursor without polling or mutation authority.',
+      examples: [
+        'opl release events --bundle sha256:<digest> --json',
+        'opl release events --bundle sha256:<digest> --after-event sha256:<event> --json',
+      ],
+      group: 'release',
+      handler: (args) => {
+        const values = parse('release events', args);
+        return readReleaseBundleEvents({
+          bundleDigest: String(values.bundle),
+          afterEventId: stringOption(values, 'after-event'),
+          storeRoot: stringOption(values, 'store'),
+        });
+      },
+    },
+    'release consumer envelope': {
+      usage: 'opl release consumer envelope --bundle <sha256:digest> --track <standard|full> [--source-checkpoint-run-id <run-id>] [--store <directory>]',
+      summary: 'Project one digest-bound consumer trigger envelope without granting dispatch or release authority.',
+      examples: [
+        'opl release consumer envelope --bundle sha256:<digest> --track standard --json',
+        'opl release consumer envelope --bundle sha256:<digest> --track full --source-checkpoint-run-id 123456 --json',
+      ],
+      group: 'release',
+      handler: (args) => {
+        const values = parse('release consumer envelope', args);
+        return buildReleaseBundleConsumerEnvelope({
+          bundleDigest: String(values.bundle),
+          track: requiredString(values, 'track') as 'standard' | 'full',
+          sourceCheckpointRunId: stringOption(values, 'source-checkpoint-run-id'),
           storeRoot: stringOption(values, 'store'),
         });
       },
