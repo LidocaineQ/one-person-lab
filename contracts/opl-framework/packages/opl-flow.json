@@ -41,10 +41,11 @@
   "codex_surface": {
     "plugin_id": "opl-flow",
     "plugin_payload_manifest_url": "payloads/opl-flow-0.1.30.json",
-    "carrier_source_commit": "f8efd7f0655d62a9d5017a124feb92dd611f430b",
+    "carrier_source_commit": "acaff1965a49a2a0b858f8c73968d211f2955093",
     "required_skill_ids": [
       "coordinate-concurrent-tasks",
       "develop-and-deliver",
+      "opl-fleet",
       "opl-flow",
       "recover-codex-tasks",
       "task-mode-gate"

@@ -412,6 +412,7 @@ test('OPL Flow manifest resolves its package-owned 0.1.30 carrier and managed po
   assert.deepEqual(manifest.required_skill_ids, [
     'coordinate-concurrent-tasks',
     'develop-and-deliver',
+    'opl-fleet',
     'opl-flow',
     'recover-codex-tasks',
     'task-mode-gate',

@@ -22,6 +22,7 @@ const skillIds = ['develop-and-deliver', 'task-mode-gate', 'recover-codex-tasks'
 const flowSkillIds = [
   'coordinate-concurrent-tasks',
   'develop-and-deliver',
+  'opl-fleet',
   'opl-flow',
   'recover-codex-tasks',
   'task-mode-gate',
@@ -36,7 +37,7 @@ const descriptor = {
   },
   executor: {
     route: 'codex_cli' as const,
-    requiredSkillIds: ['opl-flow', 'coordinate-concurrent-tasks', ...skillIds],
+    requiredSkillIds: flowSkillIds,
   },
   publicationRef: null,
 };
@@ -192,10 +193,16 @@ function seedInstalledFlow(input: {
   fs.rmSync(input.state.commandLog, { force: true });
 }
 
-function writeDeveloperFlowCheckout(root: string) {
+function writeDeveloperFlowCheckout(
+  root: string,
+  policySchema:
+    | 'opl_flow_workflow_policy.v3'
+    | 'opl_flow_workflow_policy.v4' = 'opl_flow_workflow_policy.v3',
+) {
   const checkout = path.join(root, 'opl-flow');
+  const v4 = policySchema === 'opl_flow_workflow_policy.v4';
   const policy = {
-    schema: 'opl_flow_workflow_policy.v3',
+    schema: policySchema,
     package: {
       id: 'opl-flow',
       version: '0.1.30',
@@ -220,7 +227,7 @@ function writeDeveloperFlowCheckout(root: string) {
       })),
     ],
     requires: [],
-    recommends: [],
+    ...(v4 ? { experience_baseline: [] } : { recommends: [] }),
     compatible_optional: [],
     conflicts: [],
     retires: [{
@@ -237,8 +244,10 @@ function writeDeveloperFlowCheckout(root: string) {
     }],
     codex_model_policy: {
       authority: 'opl-flow',
-      configured_default: { model: 'fixture', reasoning_effort: 'high' },
-      override_precedence: ['explicit_user_override'],
+      mode_default: 'auto',
+      configured_default: { model: 'gpt-5.6-sol', reasoning_effort: 'max' },
+      override_precedence: ['explicit_user_override', 'opl_flow_recommendation'],
+      catalog_policy: {},
     },
     migration_policy: {
       trigger: 'explicit_opl_flow_install_update_optimize_or_generic_app_post_update_reconcile',
@@ -271,7 +280,7 @@ function writeDeveloperFlowCheckout(root: string) {
     type: 'object',
     required: ['schema', 'package'],
     properties: {
-      schema: { const: 'opl_flow_workflow_policy.v3' },
+      schema: { const: policySchema },
       package: {
         type: 'object',
         required: ['id', 'version', 'owner', 'kind'],
@@ -569,7 +578,7 @@ test('OPL Flow 0.1.29 descriptor does not retire Skills that it does not bundle'
   }
 });
 
-test('descriptor-only packages update migrates legacy Skills before exposing the configured five-Skill Flow target', () => {
+test('descriptor-only packages update migrates legacy Skills before exposing the configured six-Skill Flow target', () => {
   const state = publicLifecycleFixture('update-success');
   try {
     const next = writeFlowMarketplace({
@@ -666,7 +675,7 @@ test('public packages update restores legacy directories and lock bytes after na
   }
 });
 
-test('public packages install from a developer checkout retires legacy Skills before exposing five Flow Skills', () => {
+test('public packages install from a developer checkout retires legacy Skills before exposing six Flow Skills', () => {
   const state = publicLifecycleFixture('install-developer-checkout');
   try {
     const checkout = writeDeveloperFlowCheckout(path.join(state.root, 'workspace'));
@@ -716,6 +725,34 @@ test('public packages install from a developer checkout retires legacy Skills be
       `${surface.physical_surface.plugin_id}@${surface.physical_surface.marketplace_id}`,
     );
     assert.equal(pluginList.installed[0].source.path, surface.physical_surface.marketplace_plugin_path);
+  } finally {
+    removeFixtureTree(state.root);
+  }
+});
+
+test('public packages install accepts a v4 Flow developer checkout', () => {
+  const state = publicLifecycleFixture('install-developer-checkout-v4');
+  try {
+    const checkout = writeDeveloperFlowCheckout(
+      path.join(state.root, 'workspace'),
+      'opl_flow_workflow_policy.v4',
+    );
+    const installed = runCli(['packages', 'install', 'opl-flow'], {
+      ...state.env,
+      OPL_MODULE_PATH_OPLFLOW: checkout,
+      OPL_MODULE_SOURCE_MODE: 'git_checkout',
+    }) as any;
+    const surface = installed.opl_agent_package_install;
+    assert.equal(surface.status, 'installed');
+    assert.equal(surface.package_lock.source_kind, 'developer_checkout_override');
+    assert.equal(surface.legacy_skill_migration.status, 'migrated');
+    assert.deepEqual(surface.physical_surface.materialized_required_skill_ids, flowSkillIds);
+    assert.equal(surface.physical_surface.workflow_policy_migration.status, 'current');
+    const installedPolicy = JSON.parse(fs.readFileSync(
+      path.join(surface.physical_surface.codex_plugin_cache_path, 'contracts', 'workflow-policy.json'),
+      'utf8',
+    ));
+    assert.equal(installedPolicy.schema, 'opl_flow_workflow_policy.v4');
   } finally {
     removeFixtureTree(state.root);
   }

@@ -99,6 +99,7 @@ function normalizeDeveloperOwnerManifest(input: {
       'opl_flow_workflow_policy.v1',
       'opl_flow_workflow_policy.v2',
       'opl_flow_workflow_policy.v3',
+      'opl_flow_workflow_policy.v4',
     ].includes(String(policy?.schema))
       || policyPackage?.id !== input.spec.package_id
       || policyPackage.kind !== 'workflow_profile'
