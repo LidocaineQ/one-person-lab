@@ -1479,7 +1479,7 @@ test('bundled Full MAS snapshot keeps its frozen manifest bytes while ordinary p
   assert.equal(ordinaryManifest.version, '0.2.21');
 });
 
-test('bundled Full MAG snapshot keeps its frozen manifest bytes while ordinary publication advances', () => {
+test('bundled Full MAG source projection advances to the immutable ordinary package version', () => {
   const catalog = parseJsonText(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
     'utf8',
@@ -1493,11 +1493,11 @@ test('bundled Full MAG snapshot keeps its frozen manifest bytes while ordinary p
     'utf8',
   )) as Record<string, any>;
 
-  assert.equal(frozenRef, 'packages/mag-0.3.5.json');
+  assert.equal(frozenRef, 'packages/mag-0.3.6.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    'aa6b49a22fa44b87e5f7864bedb8fe275760a064963d96689d188047f751064f');
-  assert.equal(frozenManifest.version, '0.3.5');
-  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mag-0.3.5.json');
+    'f4d817f4f5cb8c6b440505d8e43afb3e6ca91547934bef262781007da31481ec');
+  assert.equal(frozenManifest.version, '0.3.6');
+  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mag-0.3.6.json');
   assert.equal(ordinaryManifest.version, '0.3.6');
 });
 
