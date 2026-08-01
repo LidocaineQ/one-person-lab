@@ -7,6 +7,20 @@ Machine boundary: This document is a human-readable support index for OPL Framew
 
 This directory preserves the active `OPL Framework` runtime and family control-plane contract corpus. `One Person Lab App` and Foundry Agents may consume these contracts, but this directory does not define a second runtime truth for the App or any domain agent.
 
+## Release event and consumer boundary
+
+`release-bundle-operation-event.schema.json` and
+`release-bundle-consumer-envelope.schema.json` are read-only projections over
+the existing immutable Release Bundle store. `opl release events` derives a
+cursor-based append-only feed from operation receipts; replay is idempotent and
+consumer acknowledgement never mutates Framework state. `opl release consumer
+envelope` binds one Standard or Full consumer trigger to the Bundle, distinct
+operation control, checkpoint stage, exact assets, source pins, evidence refs,
+and latest event id. Full also requires the exact source checkpoint run id.
+Neither surface grants dispatch, retry, reconcile, publication, or release-state
+authority. Recovery remains `opl release status` followed by exact `opl release
+reconcile` when an owner-authoritative unknown marker exists.
+
 ## Planned package composition boundary
 
 The 2026-07-24 planned target treats Package as the installation unit and

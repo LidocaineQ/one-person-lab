@@ -7,9 +7,11 @@ import checkpointSchema from '../../../../contracts/opl-framework/release-bundle
 import executorReceiptSchema from '../../../../contracts/opl-framework/release-bundle-executor-receipt.schema.json' with { type: 'json' };
 import freezeRequestSchema from '../../../../contracts/opl-framework/release-bundle-freeze-request.schema.json' with { type: 'json' };
 import operationControlSchema from '../../../../contracts/opl-framework/release-bundle-operation-control.schema.json' with { type: 'json' };
+import operationEventSchema from '../../../../contracts/opl-framework/release-bundle-operation-event.schema.json' with { type: 'json' };
 import operationReceiptSchema from '../../../../contracts/opl-framework/release-bundle-operation-receipt.schema.json' with { type: 'json' };
 import qualificationReceiptSchema from '../../../../contracts/opl-framework/release-bundle-qualification-receipt.schema.json' with { type: 'json' };
 import unknownOutcomeSchema from '../../../../contracts/opl-framework/release-bundle-unknown-outcome.schema.json' with { type: 'json' };
+import consumerEnvelopeSchema from '../../../../contracts/opl-framework/release-bundle-consumer-envelope.schema.json' with { type: 'json' };
 import ownerCohortLockSchema from '../../../../contracts/opl-framework/package-owner-cohort-lock.schema.json' with { type: 'json' };
 import releaseSetSchema from '../../../../contracts/opl-framework/release-set-v2.schema.json' with { type: 'json' };
 import { canonicalJsonBytes } from '../../../kernel/canonical-json.ts';
@@ -26,7 +28,9 @@ import {
   type ReleaseBundleExecutorReceipt,
   type ReleaseBundleFreezeRequestDocument,
   type ReleaseBundleOperationControl,
+  type ReleaseBundleOperationEvent,
   type ReleaseBundleOperationReceipt,
+  type ReleaseBundleConsumerEnvelope,
   type ReleaseBundleQualificationReceipt,
   type ReleaseBundleTrackName,
   type ReleaseBundleUnknownOutcomeMarker,
@@ -44,10 +48,14 @@ export const RELEASE_BUNDLE_OPERATION_RECEIPT_SCHEMA_REF =
   'contracts/opl-framework/release-bundle-operation-receipt.schema.json' as const;
 export const RELEASE_BUNDLE_OPERATION_CONTROL_SCHEMA_REF =
   'contracts/opl-framework/release-bundle-operation-control.schema.json' as const;
+export const RELEASE_BUNDLE_OPERATION_EVENT_SCHEMA_REF =
+  'contracts/opl-framework/release-bundle-operation-event.schema.json' as const;
 export const RELEASE_BUNDLE_QUALIFICATION_RECEIPT_SCHEMA_REF =
   'contracts/opl-framework/release-bundle-qualification-receipt.schema.json' as const;
 export const RELEASE_BUNDLE_UNKNOWN_OUTCOME_SCHEMA_REF =
   'contracts/opl-framework/release-bundle-unknown-outcome.schema.json' as const;
+export const RELEASE_BUNDLE_CONSUMER_ENVELOPE_SCHEMA_REF =
+  'contracts/opl-framework/release-bundle-consumer-envelope.schema.json' as const;
 
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
 
@@ -953,6 +961,69 @@ export function assertOperationReceipt(receipt: ReleaseBundleOperationReceipt) {
     RELEASE_BUNDLE_OPERATION_RECEIPT_SCHEMA_REF,
     receipt,
   );
+}
+
+export function releaseBundleOperationEventCore(event: ReleaseBundleOperationEvent) {
+  const {
+    event_id: _eventId,
+    event_idempotency_key: _eventIdempotencyKey,
+    ...core
+  } = event;
+  return core;
+}
+
+export function assertReleaseBundleOperationEvent(
+  value: unknown,
+): asserts value is ReleaseBundleOperationEvent {
+  assertSchema(
+    operationEventSchema as Record<string, unknown>,
+    RELEASE_BUNDLE_OPERATION_EVENT_SCHEMA_REF,
+    value,
+  );
+  const event = value as ReleaseBundleOperationEvent;
+  const digest = sha256(canonicalJsonBytes(releaseBundleOperationEventCore(event)));
+  if (event.event_id !== digest || event.event_idempotency_key !== digest) {
+    fail('Release Bundle operation event identity does not match its canonical contents.', {
+      expected_event_id: event.event_id,
+      expected_idempotency_key: event.event_idempotency_key,
+      actual_event_id: digest,
+    });
+  }
+}
+
+export function releaseBundleConsumerEnvelopeCore(envelope: ReleaseBundleConsumerEnvelope) {
+  const { envelope_digest: _envelopeDigest, ...core } = envelope;
+  return core;
+}
+
+export function assertReleaseBundleConsumerEnvelope(
+  value: unknown,
+): asserts value is ReleaseBundleConsumerEnvelope {
+  assertSchema(
+    consumerEnvelopeSchema as Record<string, unknown>,
+    RELEASE_BUNDLE_CONSUMER_ENVELOPE_SCHEMA_REF,
+    value,
+  );
+  const envelope = value as ReleaseBundleConsumerEnvelope;
+  const digest = sha256(canonicalJsonBytes(releaseBundleConsumerEnvelopeCore(envelope)));
+  if (envelope.envelope_digest !== digest) {
+    fail('Release Bundle consumer envelope digest does not match its canonical contents.', {
+      expected_envelope_digest: envelope.envelope_digest,
+      actual_envelope_digest: digest,
+    });
+  }
+  if (
+    envelope.operation
+    && (
+      (envelope.track === 'standard' && envelope.operation.operation_kind !== 'standard')
+      || (envelope.track === 'full' && envelope.operation.operation_kind !== 'append_full')
+    )
+  ) {
+    fail('Release Bundle consumer envelope track and operation kind do not match.', {
+      track: envelope.track,
+      operation_kind: envelope.operation.operation_kind,
+    });
+  }
 }
 
 export function readReleaseBundleQualificationReceipt(

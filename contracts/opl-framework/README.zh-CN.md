@@ -7,6 +7,19 @@ Machine boundary: 本文是 OPL Framework contracts 的人读支撑索引。机�
 
 这个目录保留 `OPL Framework` 当前活跃的 framework、runtime 与 family control-plane 合同语料。`One Person Lab App` 和 Foundry Agents 可以消费这些合同，但不在本目录定义自己的第二套运行时真相。
 
+## Release event 与 consumer 边界
+
+`release-bundle-operation-event.schema.json` 与
+`release-bundle-consumer-envelope.schema.json` 是现有 immutable Release Bundle
+store 的只读投影。`opl release events` 从 operation receipts 确定性派生带 cursor
+的 append-only feed；重复读取幂等，consumer ack 不修改 Framework 状态。`opl
+release consumer envelope` 把 Standard 或 Full consumer trigger 绑定到 Bundle、
+独立 operation control、checkpoint stage、精确 asset、source pin、evidence refs 和
+latest event id；Full 还必须绑定精确 source checkpoint run id。两个 surface 都不
+授予 dispatch、retry、reconcile、publication 或 release-state authority。恢复入口仍是
+`opl release status`，只有 owner-authoritative unknown marker 存在时才进入 exact
+`opl release reconcile`。
+
 它继续被仓库跟踪，是因为当前 framework 需要稳定的机器可读输入：
 
 - stage-led 任务选择

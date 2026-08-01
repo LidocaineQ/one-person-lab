@@ -550,6 +550,41 @@ export function readReleaseBundleOperation(
   return isRecord(state.receipt) ? state.receipt as ReleaseBundleOperationReceipt : null;
 }
 
+export function listReleaseBundleOperationReceipts(
+  paths: ReturnType<typeof releaseBundleStorePaths>,
+) {
+  if (!fs.existsSync(paths.receipts)) return [];
+  return fs.readdirSync(paths.receipts, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+    .map((entry) => {
+      const receiptPath = path.join(paths.receipts, entry.name);
+      const receipt = readJsonObject(
+        receiptPath,
+        'Release Bundle operation receipt',
+      ) as ReleaseBundleOperationReceipt;
+      assertOperationReceipt(receipt);
+      const receiptSha256 = sha256(canonicalJsonBytes(receipt));
+      const expectedName = `${receipt.operation}-${receipt.track ?? 'bundle'}-${receiptSha256.slice(7)}.json`;
+      if (entry.name !== expectedName) {
+        fail('Release Bundle operation receipt filename does not match its immutable bytes.', {
+          receipt_path: receiptPath,
+          expected_name: expectedName,
+          actual_name: entry.name,
+        });
+      }
+      return {
+        receipt,
+        receiptPath,
+        receiptRef: path.posix.join('receipts', entry.name),
+        receiptSha256,
+      };
+    })
+    .sort((left, right) => (
+      left.receipt.recorded_at.localeCompare(right.receipt.recorded_at)
+      || left.receiptSha256.localeCompare(right.receiptSha256)
+    ));
+}
+
 export function clearReleaseBundleOperation(
   paths: ReturnType<typeof releaseBundleStorePaths>,
   operation: string,
