@@ -3,6 +3,7 @@ import { Client, Connection } from '@temporalio/client';
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
 import { resolveTemporalNamespace } from './family-runtime-temporal.ts';
 import { resolveTemporalAddressForPaths } from './family-runtime-temporal-service.ts';
+import { readTemporalWorkerState } from './family-runtime-temporal-provider-parts/worker-state.ts';
 import type { familyRuntimePaths } from './family-runtime-store.ts';
 
 export type TemporalWorkerPaths = Pick<ReturnType<typeof familyRuntimePaths>, 'root'>;
@@ -10,6 +11,7 @@ export type TemporalWorkerPaths = Pick<ReturnType<typeof familyRuntimePaths>, 'r
 export type TemporalClientOptions = {
   paths?: TemporalWorkerPaths;
   addressOverride?: string | null;
+  namespaceOverride?: string | null;
   connectTimeoutMs?: number;
   rpcTimeoutMs?: number;
 };
@@ -59,6 +61,30 @@ export function requireTemporalAddress() {
   return address;
 }
 
+export function resolveTemporalClientNamespace(options: {
+  paths?: TemporalWorkerPaths;
+  addressOverride?: string | null;
+  namespaceOverride?: string | null;
+  env?: NodeJS.ProcessEnv;
+} = {}) {
+  const env = options.env ?? process.env;
+  const explicitNamespace = options.namespaceOverride?.trim()
+    || env.OPL_TEMPORAL_NAMESPACE?.trim();
+  if (explicitNamespace) {
+    return explicitNamespace;
+  }
+  const workerState = options.paths ? readTemporalWorkerState(options.paths) : null;
+  const resolvedAddress = options.addressOverride
+    ?? (options.paths ? resolveTemporalAddressForPaths(options.paths, env).address : null);
+  if (
+    workerState?.namespace
+    && (!resolvedAddress || workerState.address === resolvedAddress)
+  ) {
+    return workerState.namespace;
+  }
+  return options.env ? 'default' : resolveTemporalNamespace();
+}
+
 export async function withTemporalClient<T>(
   fn: (client: Client, connection: Connection) => Promise<T>,
   options: TemporalClientOptions = {},
@@ -70,7 +96,10 @@ export async function withTemporalClient<T>(
     connectTimeout: options.connectTimeoutMs ?? resolveTemporalClientConnectTimeoutMs(),
   });
   try {
-    return await fn(new Client({ connection, namespace: resolveTemporalNamespace() }), connection);
+    return await fn(new Client({
+      connection,
+      namespace: resolveTemporalClientNamespace(options),
+    }), connection);
   } finally {
     await connection.close();
   }
