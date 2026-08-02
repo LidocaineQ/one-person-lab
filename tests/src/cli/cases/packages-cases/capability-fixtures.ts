@@ -516,7 +516,6 @@ export function writeMasConsumer(
         kind: 'managed_version_catalog',
         transport: 'json_url',
         catalog_ref: options.packageCatalogRef ?? options.capabilityCatalogRef,
-        selection_policy: 'highest_stable',
         digest_authority: 'manifest_and_content_digest',
       },
     } : {}),
@@ -550,7 +549,6 @@ export function writeMasConsumer(
           kind: 'managed_version_catalog',
           transport: 'json_url',
           catalog_ref: options.capabilityCatalogRef,
-          selection_policy: 'highest_compatible',
           digest_authority: 'manifest_and_content_digest',
         },
       } : {

@@ -129,6 +129,28 @@ function packageAuthorityCorrupt(
   );
 }
 
+function withoutLegacyCatalogSelectionPolicy(value: unknown) {
+  if (!isRecord(value) || value.kind !== 'managed_version_catalog') return value;
+  const normalized = { ...value };
+  delete normalized.selection_policy;
+  return normalized;
+}
+
+function withoutLegacyCatalogSelectionPolicies(value: Record<string, unknown>) {
+  const normalized = { ...value };
+  normalized.managed_update_source = withoutLegacyCatalogSelectionPolicy(value.managed_update_source);
+  if (Array.isArray(value.capability_dependencies)) {
+    normalized.capability_dependencies = value.capability_dependencies.map((dependency) => {
+      if (!isRecord(dependency)) return dependency;
+      return {
+        ...dependency,
+        dependency_source: withoutLegacyCatalogSelectionPolicy(dependency.dependency_source),
+      };
+    });
+  }
+  return normalized;
+}
+
 function normalizeLockEntry(
   value: unknown,
   filePath: string,
@@ -159,7 +181,7 @@ function normalizeLockEntry(
       declared_agent_id: declaredAgentId,
     });
   }
-  const normalizedValue = { ...value };
+  const normalizedValue = withoutLegacyCatalogSelectionPolicies(value);
   delete normalizedValue.action_receipt_id;
   return {
     ...normalizedValue,
