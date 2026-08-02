@@ -1009,6 +1009,33 @@ function freezeDeveloperPluginGeneration(root: string) {
   fs.chmodSync(root, 0o555);
 }
 
+function renameDeveloperPluginGeneration(source: string, target: string) {
+  const stat = fs.lstatSync(source);
+  const sourceMode = stat.mode & 0o777;
+  const needsTemporaryOwnerWrite = stat.isDirectory() && (sourceMode & 0o200) === 0;
+  if (!needsTemporaryOwnerWrite) {
+    fs.renameSync(source, target);
+    return;
+  }
+
+  // macOS can reject rename for a frozen directory with inherited provenance.
+  // Thaw only the generation root around the atomic move and restore its exact mode.
+  fs.chmodSync(source, sourceMode | 0o200);
+  try {
+    fs.renameSync(source, target);
+  } catch (error) {
+    fs.chmodSync(source, sourceMode);
+    throw error;
+  }
+  try {
+    fs.chmodSync(target, sourceMode);
+  } catch (error) {
+    fs.renameSync(target, source);
+    fs.chmodSync(source, sourceMode);
+    throw error;
+  }
+}
+
 function expectedDeveloperPluginDirectories(paths: string[]) {
   const directories = new Set<string>();
   for (const relativePath of paths) {
@@ -1277,10 +1304,10 @@ function copyDeveloperCheckoutSurface(
       });
     }
     if (fs.existsSync(target)) {
-      fs.renameSync(target, displaced);
+      renameDeveloperPluginGeneration(target, displaced);
       targetDisplaced = true;
     }
-    fs.renameSync(stage, target);
+    renameDeveloperPluginGeneration(stage, target);
     if (targetDisplaced) {
       makeGenerationTreeWritable(displaced);
       fs.rmSync(displaced, { recursive: true, force: true });
@@ -1289,7 +1316,7 @@ function copyDeveloperCheckoutSurface(
     makeGenerationTreeWritable(stage);
     fs.rmSync(stage, { recursive: true, force: true });
     if (!fs.existsSync(target) && targetDisplaced && fs.existsSync(displaced)) {
-      fs.renameSync(displaced, target);
+      renameDeveloperPluginGeneration(displaced, target);
     }
     throw error;
   }
