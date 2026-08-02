@@ -4816,7 +4816,7 @@
           "flag": "--dry-run",
           "value_kind": "boolean",
           "required": false,
-          "summary": "Validate and preview receipt output without writing state."
+          "summary": "Validate the action output without writing state."
         }
       ],
       "output_schema": {
@@ -4836,7 +4836,6 @@
               "surface_kind",
               "status",
               "dry_run",
-              "lifecycle_receipt",
               "authority_boundary"
             ],
             "additionalProperties": true
@@ -4877,7 +4876,7 @@
           "flag": "--dry-run",
           "value_kind": "boolean",
           "required": false,
-          "summary": "Validate and preview receipt output without writing state."
+          "summary": "Validate the action output without writing state."
         }
       ],
       "output_schema": {
@@ -4897,7 +4896,6 @@
               "surface_kind",
               "status",
               "dry_run",
-              "lifecycle_receipt",
               "authority_boundary"
             ],
             "additionalProperties": true
@@ -4938,7 +4936,7 @@
           "flag": "--dry-run",
           "value_kind": "boolean",
           "required": false,
-          "summary": "Validate and preview receipt output without writing state."
+          "summary": "Validate the action output without writing state."
         }
       ],
       "output_schema": {
@@ -4958,7 +4956,6 @@
               "surface_kind",
               "status",
               "dry_run",
-              "lifecycle_receipt",
               "authority_boundary"
             ],
             "additionalProperties": true
@@ -4999,7 +4996,7 @@
           "flag": "--dry-run",
           "value_kind": "boolean",
           "required": false,
-          "summary": "Validate and preview receipt output without writing state."
+          "summary": "Validate the action output without writing state."
         }
       ],
       "output_schema": {
@@ -5019,7 +5016,6 @@
               "surface_kind",
               "status",
               "dry_run",
-              "lifecycle_receipt",
               "authority_boundary"
             ],
             "additionalProperties": true
