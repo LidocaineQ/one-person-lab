@@ -126,18 +126,6 @@ async function readGatewayCredentialsStdin() {
   };
 }
 
-function parseGatewayGroupId(args: string[], spec: CommandSpec, required: boolean) {
-  const index = args.indexOf('--group-id');
-  const groupId = index >= 0 ? args[index + 1]?.trim() : undefined;
-  const allowedLength = index >= 0 ? 2 : 0;
-  if (args.length !== allowedLength || (required && !groupId)) {
-    throw buildUsageError(required ? 'connect gateway complete-setup requires --group-id.' : 'Invalid gateway command options.', spec, {
-      required: required ? ['--group-id'] : [],
-    });
-  }
-  return groupId;
-}
-
 function parseScientificSearchArgs(args: string[], spec: CommandSpec): ScientificSearchArgs {
   const parsed = parseRegisteredCommandOptions('connect scientific search', args, spec);
   const provider = String(parsed.provider ?? '').trim().toLowerCase();
@@ -466,11 +454,7 @@ export function buildConnectCommandSpecs(
       examples: ['printf <credentials-json> | opl connect gateway login --credentials-stdin --json'],
       group: 'connect',
       handler: async (args) => {
-        if (args.length !== 1 || args[0] !== '--credentials-stdin') {
-          throw buildUsageError('connect gateway login requires --credentials-stdin.', connectCommandSpecs['connect gateway login'], {
-            required: ['--credentials-stdin'],
-          });
-        }
+        parseRegisteredCommandOptions('connect gateway login', args, connectCommandSpecs['connect gateway login']);
         return loginOplGatewayAccount(await readGatewayCredentialsStdin());
       },
     },
@@ -479,9 +463,11 @@ export function buildConnectCommandSpecs(
       summary: 'Complete managed key setup with an explicitly selected Gateway group.',
       examples: ['opl connect gateway complete-setup --group-id 1 --json'],
       group: 'connect',
-      handler: (args) => completeOplGatewaySetup(
-        parseGatewayGroupId(args, connectCommandSpecs['connect gateway complete-setup'], true)!,
-      ),
+      handler: (args) => {
+        const groupId = String(parseRegisteredCommandOptions('connect gateway complete-setup', args, connectCommandSpecs['connect gateway complete-setup'])['group-id'] ?? '').trim();
+        if (!groupId) throw buildUsageError('connect gateway complete-setup requires --group-id.', connectCommandSpecs['connect gateway complete-setup'], { required: ['--group-id'] });
+        return completeOplGatewaySetup(groupId);
+      },
     },
     'connect gateway refresh': buildNoArgSpec(
       {
@@ -498,7 +484,7 @@ export function buildConnectCommandSpecs(
       examples: ['opl connect gateway repair --json'],
       group: 'connect',
       handler: (args) => repairOplGatewayAccount(
-        parseGatewayGroupId(args, connectCommandSpecs['connect gateway repair'], false),
+        String(parseRegisteredCommandOptions('connect gateway repair', args, connectCommandSpecs['connect gateway repair'])['group-id'] ?? '').trim() || undefined,
       ),
     },
     'connect gateway use-for-model-access': buildNoArgSpec(
