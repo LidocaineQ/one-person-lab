@@ -1,3 +1,4 @@
+import { FrameworkContractError } from '../../kernel/contract-validation.ts';
 import type {
   FamilyStageProofBundle,
 } from './family-stage-proof-bundle.ts';
@@ -98,6 +99,36 @@ export type FamilyStagePackLibraryLifecycleStatus =
   | 'reused'
   | 'deprecated'
   | 'superseded';
+
+export function normalizeMigrationPolicy(value: string | undefined): FamilyStagePackMigrationPolicy | null {
+  if (!value) {
+    return null;
+  }
+  if (value === 'continue_old_hash' || value === 'migrate_to_new_hash' || value === 'blocked_human_gate') {
+    return value;
+  }
+  throw new FrameworkContractError('cli_usage_error', `Unsupported stage pack migration policy: ${value}.`, {
+    allowed_policies: ['continue_old_hash', 'migrate_to_new_hash', 'blocked_human_gate'],
+  });
+}
+
+export function normalizeLibraryLifecycleStatus(value: string | undefined): FamilyStagePackLibraryLifecycleStatus | null {
+  if (!value) {
+    return null;
+  }
+  if (
+    value === 'candidate'
+    || value === 'admitted'
+    || value === 'reused'
+    || value === 'deprecated'
+    || value === 'superseded'
+  ) {
+    return value;
+  }
+  throw new FrameworkContractError('cli_usage_error', `Unsupported stage pack library lifecycle status: ${value}.`, {
+    allowed_statuses: ['candidate', 'admitted', 'reused', 'deprecated', 'superseded'],
+  });
+}
 
 export interface FamilyStagePackLibraryLifecycle {
   status: FamilyStagePackLibraryLifecycleStatus;

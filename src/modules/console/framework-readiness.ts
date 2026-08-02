@@ -93,7 +93,7 @@ function buildStageReadinessDiagnostic(
     return {
       readiness: record(buildFamilyStageReadinessInspect(
         contracts,
-        ['--domain', domain],
+        { domain },
         { domainManifests },
       ).family_stage_readiness),
       failure: null,
@@ -199,7 +199,7 @@ export async function buildFrameworkReadinessSummary(
   ).family_stages);
   const familyStageReadiness = record(buildFamilyStageReadinessInspect(
     contracts,
-    ['--family-defaults', '--detail', 'full'],
+    { 'family-defaults': true, detail: 'full' },
     { domainManifests: standardAgentDomainManifests },
   ).family_stage_readiness);
   const standardAgentIds = listStandardDomainAgentIds();

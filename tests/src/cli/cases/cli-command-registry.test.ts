@@ -1,4 +1,5 @@
 import { assert, fs, os, parseJsonText, path, repoRoot, runCli, runCliFailure, test } from '../helpers.ts';
+import { buildStageCommandSpecs } from '../../../../src/entrypoints/cli/cases/public-command-specs-parts/stages.ts';
 import { FrameworkContractError } from '../../../../src/modules/charter/contracts.ts';
 import type { CommandSpec } from '../../../../src/entrypoints/cli/modules/support.ts';
 import {
@@ -312,6 +313,41 @@ test('stage commands reject options outside their registry entry', () => {
   const invalid = runCliFailure(['stages', 'proof-bundle', '--domain', 'mas', '--unknown', 'value']);
   assert.equal(invalid.payload.error.code, 'cli_usage_error');
   assert.match(invalid.payload.error.message, /Unknown option/);
+});
+
+test('stage command registry returns normalized boolean and repeated options', () => {
+  const specs = buildStageCommandSpecs(() => {
+    throw new Error('stage command handler must not run while reading registry metadata');
+  });
+
+  assert.deepEqual(
+    parseRegisteredCommandOptions(
+      'stages readiness',
+      ['--family-defaults', '--detail', 'full'],
+      specs['stages readiness'],
+    ),
+    {
+      'family-defaults': true,
+      detail: 'full',
+    },
+  );
+  assert.deepEqual(
+    parseRegisteredCommandOptions(
+      'stages replay-certification',
+      [
+        '--domain', 'mas',
+        '--append-only-event-log-ref', 'first',
+        '--append-only-event-log-ref', 'second',
+        '--attempt-ledger-ref', 'attempt',
+      ],
+      specs['stages replay-certification'],
+    ),
+    {
+      domain: 'mas',
+      'append-only-event-log-ref': ['first', 'second'],
+      'attempt-ledger-ref': ['attempt'],
+    },
+  );
 });
 
 test('update commands parse registered options and reject cross-command options', () => {

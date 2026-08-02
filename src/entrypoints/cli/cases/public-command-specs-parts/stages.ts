@@ -99,7 +99,7 @@ function assertRegisteredStageArgs(
   args: string[],
   specs: Record<string, CommandSpec>,
 ) {
-  parseRegisteredCommandOptions(commandId, args, specs[commandId]);
+  return parseRegisteredCommandOptions(commandId, args, specs[commandId]);
 }
 
 export function buildStageCommandSpecs(
@@ -138,8 +138,11 @@ export function buildStageCommandSpecs(
         },
       ]),
       handler: (args) => {
-        assertRegisteredStageArgs('stages inspect', args, stageCommandSpecs);
-        return buildFamilyStageInspect(getContracts(), args, { loadDomainManifests });
+        return buildFamilyStageInspect(
+          getContracts(),
+          assertRegisteredStageArgs('stages inspect', args, stageCommandSpecs),
+          { loadDomainManifests },
+        );
       },
     },
     'stages readiness': {
@@ -163,8 +166,11 @@ export function buildStageCommandSpecs(
         },
       ]),
       handler: (args) => {
-        assertRegisteredStageArgs('stages readiness', args, stageCommandSpecs);
-        return buildFamilyStageReadinessInspect(getContracts(), args, { loadDomainManifests });
+        return buildFamilyStageReadinessInspect(
+          getContracts(),
+          assertRegisteredStageArgs('stages readiness', args, stageCommandSpecs),
+          { loadDomainManifests },
+        );
       },
     },
     'stages proof-bundle': {
@@ -175,8 +181,11 @@ export function buildStageCommandSpecs(
       help_surface: 'diagnostic_drilldown',
       registry: stageRegistry('stages proof-bundle', 'stages_proof_bundle', [DOMAIN_OPTION]),
       handler: (args) => {
-        assertRegisteredStageArgs('stages proof-bundle', args, stageCommandSpecs);
-        return buildFamilyStageProofBundleInspect(getContracts(), args, { loadDomainManifests });
+        return buildFamilyStageProofBundleInspect(
+          getContracts(),
+          assertRegisteredStageArgs('stages proof-bundle', args, stageCommandSpecs),
+          { loadDomainManifests },
+        );
       },
     },
     'stages graph': {
@@ -187,8 +196,11 @@ export function buildStageCommandSpecs(
       help_surface: 'diagnostic_drilldown',
       registry: stageRegistry('stages graph', 'stages_graph', [DOMAIN_OPTION]),
       handler: (args) => {
-        assertRegisteredStageArgs('stages graph', args, stageCommandSpecs);
-        return buildFamilyStageGraphInspect(getContracts(), args, { loadDomainManifests });
+        return buildFamilyStageGraphInspect(
+          getContracts(),
+          assertRegisteredStageArgs('stages graph', args, stageCommandSpecs),
+          { loadDomainManifests },
+        );
       },
     },
     'stages assumptions': {
@@ -199,8 +211,11 @@ export function buildStageCommandSpecs(
       help_surface: 'diagnostic_drilldown',
       registry: stageRegistry('stages assumptions', 'stages_assumptions', [DOMAIN_OPTION]),
       handler: (args) => {
-        assertRegisteredStageArgs('stages assumptions', args, stageCommandSpecs);
-        return buildFamilyStageAssumptionsInspect(getContracts(), args, { loadDomainManifests });
+        return buildFamilyStageAssumptionsInspect(
+          getContracts(),
+          assertRegisteredStageArgs('stages assumptions', args, stageCommandSpecs),
+          { loadDomainManifests },
+        );
       },
     },
     'stages cohort-loop': {
@@ -211,8 +226,11 @@ export function buildStageCommandSpecs(
       help_surface: 'diagnostic_drilldown',
       registry: stageRegistry('stages cohort-loop', 'stages_cohort_loop', [DOMAIN_OPTION]),
       handler: (args) => {
-        assertRegisteredStageArgs('stages cohort-loop', args, stageCommandSpecs);
-        return buildFamilyStageCohortLoopInspect(getContracts(), args, { loadDomainManifests });
+        return buildFamilyStageCohortLoopInspect(
+          getContracts(),
+          assertRegisteredStageArgs('stages cohort-loop', args, stageCommandSpecs),
+          { loadDomainManifests },
+        );
       },
     },
     'stages runtime-budget': {
@@ -223,8 +241,11 @@ export function buildStageCommandSpecs(
       help_surface: 'diagnostic_drilldown',
       registry: stageRegistry('stages runtime-budget', 'stages_runtime_budget', [DOMAIN_OPTION]),
       handler: (args) => {
-        assertRegisteredStageArgs('stages runtime-budget', args, stageCommandSpecs);
-        return buildFamilyStageRuntimeBudgetInspect(getContracts(), args, { loadDomainManifests });
+        return buildFamilyStageRuntimeBudgetInspect(
+          getContracts(),
+          assertRegisteredStageArgs('stages runtime-budget', args, stageCommandSpecs),
+          { loadDomainManifests },
+        );
       },
     },
     'stages registry': {
@@ -263,8 +284,11 @@ export function buildStageCommandSpecs(
         },
       ]),
       handler: (args) => {
-        assertRegisteredStageArgs('stages registry', args, stageCommandSpecs);
-        return buildFamilyStagePackRegistryInspect(getContracts(), args, { loadDomainManifests });
+        return buildFamilyStagePackRegistryInspect(
+          getContracts(),
+          assertRegisteredStageArgs('stages registry', args, stageCommandSpecs),
+          { loadDomainManifests },
+        );
       },
     },
     'stages source-spec': {
@@ -280,8 +304,11 @@ export function buildStageCommandSpecs(
         ...REF_OPTIONS,
       ]),
       handler: (args) => {
-        assertRegisteredStageArgs('stages source-spec', args, stageCommandSpecs);
-        return buildFamilyStagePackSourceSpecInspect(getContracts(), args, { loadDomainManifests });
+        return buildFamilyStagePackSourceSpecInspect(
+          getContracts(),
+          assertRegisteredStageArgs('stages source-spec', args, stageCommandSpecs),
+          { loadDomainManifests },
+        );
       },
     },
     'stages replay-certification': {
@@ -295,8 +322,11 @@ export function buildStageCommandSpecs(
         ...REF_OPTIONS,
       ]),
       handler: (args) => {
-        assertRegisteredStageArgs('stages replay-certification', args, stageCommandSpecs);
-        return buildFamilyStageReplayCertificationInspect(getContracts(), args, { loadDomainManifests });
+        return buildFamilyStageReplayCertificationInspect(
+          getContracts(),
+          assertRegisteredStageArgs('stages replay-certification', args, stageCommandSpecs),
+          { loadDomainManifests },
+        );
       },
     },
   };

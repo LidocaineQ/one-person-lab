@@ -134,7 +134,7 @@ async function buildFrameworkReadinessCompactCoreModel(
   ).family_stages);
   const familyStageReadiness = record(buildFamilyStageReadinessInspect(
     contracts,
-    ['--family-defaults', '--detail', 'full'],
+    { 'family-defaults': true, detail: 'full' },
     { domainManifests: standardAgentDomainManifests },
   ).family_stage_readiness);
   const runtimeSnapshot = await runtimeSnapshotProvider(contracts, {

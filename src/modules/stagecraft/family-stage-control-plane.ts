@@ -24,16 +24,12 @@ import { buildFamilyStageRuntimeBudgetProjection } from './family-stage-runtime-
 import {
   buildFamilyStagePackRegistryEntry,
   buildFamilyStagePackRegistryProjection,
+  normalizeLibraryLifecycleStatus,
+  normalizeMigrationPolicy,
 } from './family-stage-pack-registry.ts';
 import {
   buildFamilyStageProofBundle,
 } from './family-stage-proof-bundle.ts';
-import {
-  normalizeLibraryLifecycleStatus,
-  normalizeMigrationPolicy,
-  parseOptionArgs,
-  parseRepeatedOptionArgs,
-} from './family-stage-cli-args.ts';
 import {
   buildFamilyStageReplayCertification,
   buildFamilyStageReplayEvidenceFromControlPlane,
@@ -84,6 +80,8 @@ export type {
 } from './family-stage-control-plane-graph.ts';
 
 type JsonRecord = Record<string, unknown>;
+type StageCommandOptionValue = string | number | boolean | Array<string | number | boolean>;
+type StageCommandOptions = Record<string, StageCommandOptionValue>;
 
 function uniqueStringValues(values: string[]) {
   return [...new Set(values.filter((value) => value.trim().length > 0))];
@@ -665,20 +663,23 @@ type StageReadinessArgs =
       familyDefaults: false;
     };
 
-function parseStageReadinessArgs(args: string[]): StageReadinessArgs {
-  const { parsed, flags } = parseOptionArgs(args, [], ['family-defaults']);
-  const familyDefaults = flags.has('family-defaults');
-  if (familyDefaults && parsed.domain) {
+function parseStageReadinessArgs(options: {
+  domain?: string;
+  'family-defaults'?: boolean;
+  detail?: string;
+}): StageReadinessArgs {
+  const familyDefaults = options['family-defaults'] === true;
+  if (familyDefaults && options.domain) {
     throw new FrameworkContractError('cli_usage_error', 'stages readiness accepts --family-defaults or --domain, not both.', {
       mutually_exclusive: ['--family-defaults', '--domain'],
     });
   }
-  if (!familyDefaults && !parsed.domain) {
+  if (!familyDefaults && !options.domain) {
     throw new FrameworkContractError('cli_usage_error', 'stages readiness requires --domain or --family-defaults.', {
       required_one_of: ['--domain', '--family-defaults'],
     });
   }
-  const detail = parsed.detail ?? 'summary';
+  const detail = options.detail ?? 'summary';
   if (detail !== 'summary' && detail !== 'full') {
     throw new FrameworkContractError('cli_usage_error', `Unsupported stage readiness detail level: ${detail}.`, {
       allowed_detail: ['summary', 'full'],
@@ -692,14 +693,14 @@ function parseStageReadinessArgs(args: string[]): StageReadinessArgs {
     };
   }
   return {
-    domain: parsed.domain,
+    domain: options.domain as string,
     detail,
     familyDefaults: false,
   };
 }
 
-export function buildFamilyStageInspect(contracts: FrameworkContracts, args: string[], options: ManifestCatalogOptions = {}) {
-  const { parsed } = parseOptionArgs(args, ['domain', 'stage']);
+export function buildFamilyStageInspect(contracts: FrameworkContracts, normalizedOptions: StageCommandOptions, options: ManifestCatalogOptions = {}) {
+  const parsed = normalizedOptions as Record<string, string>;
   const { entry, plane } = findDomainEntry(contracts, parsed.domain, options);
   const stage = findStage(plane, parsed.stage);
   const conformance: FamilyStageConformanceReview = buildFamilyStageConformanceReview(plane, entry.manifest);
@@ -761,8 +762,8 @@ export function buildFamilyStageInspect(contracts: FrameworkContracts, args: str
   };
 }
 
-export function buildFamilyStageProofBundleInspect(contracts: FrameworkContracts, args: string[], options: ManifestCatalogOptions = {}) {
-  const { parsed } = parseOptionArgs(args, ['domain']);
+export function buildFamilyStageProofBundleInspect(contracts: FrameworkContracts, normalizedOptions: StageCommandOptions, options: ManifestCatalogOptions = {}) {
+  const parsed = normalizedOptions as Record<string, string>;
   const { entry, plane } = findDomainEntry(contracts, parsed.domain, options);
   const conformance = buildFamilyStageConformanceReview(plane, entry.manifest);
   return {
@@ -778,8 +779,8 @@ export function buildFamilyStageProofBundleInspect(contracts: FrameworkContracts
   };
 }
 
-export function buildFamilyStageGraphInspect(contracts: FrameworkContracts, args: string[], options: ManifestCatalogOptions = {}) {
-  const { parsed } = parseOptionArgs(args, ['domain']);
+export function buildFamilyStageGraphInspect(contracts: FrameworkContracts, normalizedOptions: StageCommandOptions, options: ManifestCatalogOptions = {}) {
+  const parsed = normalizedOptions as Record<string, string>;
   const { entry, plane } = findDomainEntry(contracts, parsed.domain, options);
   return {
     version: 'g2',
@@ -787,8 +788,12 @@ export function buildFamilyStageGraphInspect(contracts: FrameworkContracts, args
   };
 }
 
-export function buildFamilyStageReadinessInspect(contracts: FrameworkContracts, args: string[], options: ManifestCatalogOptions = {}): { version: 'g2'; family_stage_readiness: Record<string, unknown> } {
-  const parsed = parseStageReadinessArgs(args);
+export function buildFamilyStageReadinessInspect(contracts: FrameworkContracts, normalizedOptions: StageCommandOptions, options: ManifestCatalogOptions = {}): { version: 'g2'; family_stage_readiness: Record<string, unknown> } {
+  const parsed = parseStageReadinessArgs(normalizedOptions as {
+    domain?: string;
+    'family-defaults'?: boolean;
+    detail?: string;
+  });
   if (parsed.familyDefaults) {
     const index = buildStageIndex(contracts, options);
     return {
@@ -815,8 +820,8 @@ export function buildFamilyStageReadinessInspect(contracts: FrameworkContracts, 
   };
 }
 
-export function buildFamilyStageAssumptionsInspect(contracts: FrameworkContracts, args: string[], options: ManifestCatalogOptions = {}) {
-  const { parsed } = parseOptionArgs(args, ['domain']);
+export function buildFamilyStageAssumptionsInspect(contracts: FrameworkContracts, normalizedOptions: StageCommandOptions, options: ManifestCatalogOptions = {}) {
+  const parsed = normalizedOptions as Record<string, string>;
   const { entry, plane } = findDomainEntry(contracts, parsed.domain, options);
   return {
     version: 'g2',
@@ -828,8 +833,8 @@ export function buildFamilyStageAssumptionsInspect(contracts: FrameworkContracts
   };
 }
 
-export function buildFamilyStageCohortLoopInspect(contracts: FrameworkContracts, args: string[], options: ManifestCatalogOptions = {}) {
-  const { parsed } = parseOptionArgs(args, ['domain']);
+export function buildFamilyStageCohortLoopInspect(contracts: FrameworkContracts, normalizedOptions: StageCommandOptions, options: ManifestCatalogOptions = {}) {
+  const parsed = normalizedOptions as Record<string, string>;
   const { entry, plane } = findDomainEntry(contracts, parsed.domain, options);
   return {
     version: 'g2',
@@ -841,8 +846,8 @@ export function buildFamilyStageCohortLoopInspect(contracts: FrameworkContracts,
   };
 }
 
-export function buildFamilyStageRuntimeBudgetInspect(contracts: FrameworkContracts, args: string[], options: ManifestCatalogOptions = {}) {
-  const { parsed } = parseOptionArgs(args, ['domain']);
+export function buildFamilyStageRuntimeBudgetInspect(contracts: FrameworkContracts, normalizedOptions: StageCommandOptions, options: ManifestCatalogOptions = {}) {
+  const parsed = normalizedOptions as Record<string, string>;
   const { entry, plane } = findDomainEntry(contracts, parsed.domain, options);
   return {
     version: 'g2',
@@ -854,9 +859,10 @@ export function buildFamilyStageRuntimeBudgetInspect(contracts: FrameworkContrac
   };
 }
 
-export function buildFamilyStagePackRegistryInspect(contracts: FrameworkContracts, args: string[], options: ManifestCatalogOptions = {}) {
-  const { parsed, repeated } = parseRepeatedOptionArgs(args, ['domain'], ['reused-by-ref']);
-  const { entry, plane } = findDomainEntry(contracts, parsed.domain, options);
+export function buildFamilyStagePackRegistryInspect(contracts: FrameworkContracts, normalizedOptions: StageCommandOptions, options: ManifestCatalogOptions = {}) {
+  const parsed = normalizedOptions as Record<string, string | undefined>;
+  const reusedByRefs = (normalizedOptions['reused-by-ref'] as string[] | undefined) ?? [];
+  const { entry, plane } = findDomainEntry(contracts, parsed.domain as string, options);
   const conformance = buildFamilyStageConformanceReview(plane, entry.manifest);
   const proofBundle = buildFamilyStageProofBundle(plane, {
     actionCatalog: entry.manifest?.family_action_catalog ?? null,
@@ -881,7 +887,7 @@ export function buildFamilyStagePackRegistryInspect(contracts: FrameworkContract
     deprecationRef: parsed['deprecation-ref'] ?? null,
     supersessionRef: parsed['supersession-ref'] ?? null,
     supersededByStagePackRef: parsed['superseded-by-stage-pack-ref'] ?? null,
-    reusedByRefs: repeated['reused-by-ref'],
+    reusedByRefs,
   });
   return {
     version: 'g2',
@@ -893,15 +899,16 @@ export function buildFamilyStagePackRegistryInspect(contracts: FrameworkContract
   };
 }
 
-export function buildFamilyStagePackSourceSpecInspect(contracts: FrameworkContracts, args: string[], options: ManifestCatalogOptions = {}) {
-  const { parsed, repeated } = parseRepeatedOptionArgs(args, ['domain'], [
-    'append-only-event-log-ref',
-    'attempt-ledger-ref',
-    'recorded-runtime-event-ref',
-    'closeout-receipt-ref',
-    'reused-by-ref',
-  ]);
-  const { entry, plane } = findDomainEntry(contracts, parsed.domain, options);
+export function buildFamilyStagePackSourceSpecInspect(contracts: FrameworkContracts, normalizedOptions: StageCommandOptions, options: ManifestCatalogOptions = {}) {
+  const parsed = normalizedOptions as Record<string, string | undefined>;
+  const repeated: Record<string, string[]> = {
+    'append-only-event-log-ref': (normalizedOptions['append-only-event-log-ref'] as string[] | undefined) ?? [],
+    'attempt-ledger-ref': (normalizedOptions['attempt-ledger-ref'] as string[] | undefined) ?? [],
+    'recorded-runtime-event-ref': (normalizedOptions['recorded-runtime-event-ref'] as string[] | undefined) ?? [],
+    'closeout-receipt-ref': (normalizedOptions['closeout-receipt-ref'] as string[] | undefined) ?? [],
+    'reused-by-ref': (normalizedOptions['reused-by-ref'] as string[] | undefined) ?? [],
+  };
+  const { entry, plane } = findDomainEntry(contracts, parsed.domain as string, options);
   const conformance = buildFamilyStageConformanceReview(plane, entry.manifest);
   const proofBundle = buildFamilyStageProofBundle(plane, {
     actionCatalog: entry.manifest?.family_action_catalog ?? null,
@@ -942,14 +949,15 @@ export function buildFamilyStagePackSourceSpecInspect(contracts: FrameworkContra
   };
 }
 
-export function buildFamilyStageReplayCertificationInspect(contracts: FrameworkContracts, args: string[], options: ManifestCatalogOptions = {}) {
-  const { parsed, repeated } = parseRepeatedOptionArgs(args, ['domain'], [
-    'append-only-event-log-ref',
-    'attempt-ledger-ref',
-    'recorded-runtime-event-ref',
-    'closeout-receipt-ref',
-  ]);
-  const { entry, plane } = findDomainEntry(contracts, parsed.domain, options);
+export function buildFamilyStageReplayCertificationInspect(contracts: FrameworkContracts, normalizedOptions: StageCommandOptions, options: ManifestCatalogOptions = {}) {
+  const parsed = normalizedOptions as Record<string, string | undefined>;
+  const repeated: Record<string, string[]> = {
+    'append-only-event-log-ref': (normalizedOptions['append-only-event-log-ref'] as string[] | undefined) ?? [],
+    'attempt-ledger-ref': (normalizedOptions['attempt-ledger-ref'] as string[] | undefined) ?? [],
+    'recorded-runtime-event-ref': (normalizedOptions['recorded-runtime-event-ref'] as string[] | undefined) ?? [],
+    'closeout-receipt-ref': (normalizedOptions['closeout-receipt-ref'] as string[] | undefined) ?? [],
+  };
+  const { entry, plane } = findDomainEntry(contracts, parsed.domain as string, options);
   const conformance = buildFamilyStageConformanceReview(plane, entry.manifest);
   const proofBundle = buildFamilyStageProofBundle(plane, {
     actionCatalog: entry.manifest?.family_action_catalog ?? null,

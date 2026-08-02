@@ -43,7 +43,7 @@ export function stageReadinessForWorklist(
   }
   return record(buildFamilyStageReadinessInspect(
     contracts,
-    ['--family-defaults', '--detail', 'full'],
+    { 'family-defaults': true, detail: 'full' },
     {
       ...(domainManifests ? { domainManifests } : {}),
       manifestCommandTimeoutMs: EVIDENCE_WORKLIST_MANIFEST_COMMAND_TIMEOUT_MS,

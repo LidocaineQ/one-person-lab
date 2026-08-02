@@ -1,4 +1,4 @@
-import { assert, buildManifestCommand, createFamilyContractsFixtureRoot, fs, loadFamilyManifestFixtures, os, path, runCli, test } from '../helpers.ts';
+import { assert, buildManifestCommand, createFamilyContractsFixtureRoot, fs, loadFamilyManifestFixtures, os, path, runCli, runCliFailure, test } from '../helpers.ts';
 import {
   createAdmittedStagePackFixture,
   type JsonRecord,
@@ -30,8 +30,46 @@ test('family stage replay drilldowns expose missing runtime evidence from genera
       buildManifestCommand(stagePack.manifest),
     ], env);
 
+    const invalidMigrationPolicy = runCliFailure([
+      'stages',
+      'registry',
+      '--domain', 'mas',
+      '--migration-policy', 'invalid',
+    ], env);
+    assert.equal(invalidMigrationPolicy.payload.error.code, 'cli_usage_error');
+    assert.deepEqual(invalidMigrationPolicy.payload.error.details.allowed_policies, [
+      'continue_old_hash',
+      'migrate_to_new_hash',
+      'blocked_human_gate',
+    ]);
+    const invalidLibraryStatus = runCliFailure([
+      'stages',
+      'registry',
+      '--domain', 'mas',
+      '--library-status', 'invalid',
+    ], env);
+    assert.equal(invalidLibraryStatus.payload.error.code, 'cli_usage_error');
+    assert.deepEqual(invalidLibraryStatus.payload.error.details.allowed_statuses, [
+      'candidate',
+      'admitted',
+      'reused',
+      'deprecated',
+      'superseded',
+    ]);
+
     const replay = runCli(
       ['stages', 'replay-certification', '--domain', 'mas'],
+      env,
+    ).family_stage_replay_certification.certification;
+    const replayWithCliRefs = runCli(
+      [
+        'stages',
+        'replay-certification',
+        '--domain', 'mas',
+        '--append-only-event-log-ref', 'cli:first',
+        '--append-only-event-log-ref', 'cli:second',
+        '--attempt-ledger-ref', 'cli:attempt',
+      ],
       env,
     ).family_stage_replay_certification.certification;
     const sourceSpec = runCli(
@@ -45,6 +83,8 @@ test('family stage replay drilldowns expose missing runtime evidence from genera
     assert.equal(replay.summary.attempt_ledger_ref_count, 0);
     assert.equal(replay.summary.missing_runtime_event_ref_count, 0);
     assert.equal(replay.summary.missing_receipt_ref_count, 6);
+    assert.equal(replayWithCliRefs.summary.append_only_event_log_ref_count, 2);
+    assert.equal(replayWithCliRefs.summary.attempt_ledger_ref_count, 1);
     assert.equal(sourceSpec.diff_keys.replay_status, 'blocked');
     assert.deepEqual(sourceSpec.diff_keys.replay_evidence_refs, []);
     assert.equal(replay.authority_boundary.can_write_domain_truth, false);
@@ -91,11 +131,27 @@ test('family stage readiness exposes missing human gate replay refs as refs-only
       ['stages', 'readiness', '--domain', 'mas', '--detail', 'full'],
       env,
     ).family_stage_readiness.family_stage_readiness;
+    const readinessSummary = runCli(
+      ['stages', 'readiness', '--domain', 'mas'],
+      env,
+    ).family_stage_readiness;
+    const invalidReadinessSelection = runCliFailure([
+      'stages',
+      'readiness',
+      '--domain', 'mas',
+      '--family-defaults',
+    ], env);
     const replay = runCli(
       ['stages', 'replay-certification', '--domain', 'mas'],
       env,
     ).family_stage_replay_certification.certification;
 
+    assert.equal(readinessSummary.detail_level, 'summary');
+    assert.equal(invalidReadinessSelection.payload.error.code, 'cli_usage_error');
+    assert.deepEqual(invalidReadinessSelection.payload.error.details.mutually_exclusive, [
+      '--family-defaults',
+      '--domain',
+    ]);
     assert.equal(readiness.launch_readiness_status, 'launch_warning');
     assert.equal(readiness.summary.hard_blocker_count, 0);
     assert.equal(readiness.summary.replay_evidence_warning_count, 13);
