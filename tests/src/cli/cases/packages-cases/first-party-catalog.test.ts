@@ -287,8 +287,23 @@ function writeFirstPartyCatalogFixture(
     },
     codex_model_policy: {
       authority: 'opl-flow',
-      configured_default: 'fixture',
-      override_precedence: [],
+      mode_default: 'auto',
+      configured_default: {
+        model: 'gpt-5.6-sol',
+        reasoning_effort: 'max',
+      },
+      override_precedence: [
+        'explicit_user_override',
+        'opl_flow_recommendation',
+        'fresh_codex_model_catalog',
+        'app_fallback_when_flow_unavailable',
+      ],
+      catalog_policy: {
+        source: 'codex_cli_model_list',
+        prefer_live_default_when_user_has_not_pinned: true,
+        unknown_model_reasoning_effort: 'highest_supported',
+        preserve_unavailable_fixed_selection_until_user_changes_it: true,
+      },
     },
   });
   const workflowPolicySchema = formatJsonPayload({ type: 'object' });
