@@ -3,6 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   assert,
   fs,
+  insertFamilyRuntimeTaskProjectionFixture,
   installRuntimePackageFixture,
   os,
   path,
@@ -73,6 +74,13 @@ test('family-runtime monitoring projection remains callable without the tasks ta
   };
   try {
     installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    const task = insertFamilyRuntimeTaskProjectionFixture({
+      stateRoot,
+      domainId: 'redcube',
+      taskKind: 'stage/scout',
+      payload: { study_id: 'quest-artifact-owner' },
+      dedupeKey: 'redcube:quest-artifact-owner:stage:scout',
+    });
     runCli([
       'family-runtime',
       'attempt',
@@ -85,6 +93,8 @@ test('family-runtime monitoring projection remains callable without the tasks ta
       'temporal',
       '--workspace-locator',
       '{"workspace_root":"/tmp/redcube-runtime","study_id":"quest-artifact-owner"}',
+      '--task',
+      task.task_id,
       '--blocked-reason',
       'zero_readable_artifact',
     ], env);
