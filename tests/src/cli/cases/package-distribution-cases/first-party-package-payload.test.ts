@@ -905,6 +905,9 @@ test('Framework allowlists and historical payload envelopes validate at their ex
     'scripts/profile_compose.py',
     'scripts/repo_profile.py',
   ];
+  const historicalPortableOwnerDescriptorPaths: Record<string, string[]> = {
+    'oma@0.4.5': ['opl-package.json'],
+  };
 
   function assertPayloadEnvelope(payload: Record<string, any>, label: string) {
     if (payload.surface_kind === 'opl_package_payload_manifest.v2') {
@@ -962,27 +965,33 @@ test('Framework allowlists and historical payload envelopes validate at their ex
         'utf8',
       )) as Record<string, any>);
     }
-    const selectedPayloadMatchesCurrentAllowlist = (selectedPayload: Record<string, any>) => {
+    const selectedPayloadCoverage = selectedPayloads.map((selectedPayload) => {
       const paths = selectedPayload.files.map((entry: Record<string, string>) => entry.path);
       const currentPaths = new Set(allowlist.paths);
       const selectedCurrentPaths = paths.filter((entry: string) => currentPaths.has(entry));
       const extraPaths = paths.filter((entry: string) => !currentPaths.has(entry));
-      const allowedExtraPaths = selectedPayload.package_id === 'opl-flow'
+      const identity = `${selectedPayload.package_id}@${selectedPayload.package_version}`;
+      const portableOwnerDescriptorPaths = historicalPortableOwnerDescriptorPaths[identity] ?? [];
+      const retiredPaths = selectedPayload.package_id === 'opl-flow'
         && selectedPayload.package_version === '0.1.30'
         ? oplFlow0130RetiredPaths
         : [];
+      const allowedExtraPaths = [...portableOwnerDescriptorPaths, ...retiredPaths];
       const allowedExtraPathSet = new Set(allowedExtraPaths);
-      return selectedCurrentPaths.length === allowlist.paths.length
-        && selectedCurrentPaths.every((entry: string, index: number) => entry === allowlist.paths[index])
-        && extraPaths.length === allowedExtraPaths.length
+      assert.equal(
+        extraPaths.length === allowedExtraPaths.length
         && new Set(extraPaths).size === extraPaths.length
-        && extraPaths.every((entry: string) => allowedExtraPathSet.has(entry));
-    };
-    const selectedPayloadMatches = selectedPayloads.map(selectedPayloadMatchesCurrentAllowlist);
+        && extraPaths.every((entry: string) => allowedExtraPathSet.has(entry)),
+        true,
+        `${selectedPayload.package_id}@${selectedPayload.package_version} selected payload extras`,
+      );
+      return selectedCurrentPaths.length === allowlist.paths.length
+        && selectedCurrentPaths.every((entry: string, index: number) => entry === allowlist.paths[index]);
+    });
     assert.equal(
-      id === 'opl-flow' ? selectedPayloadMatches.every(Boolean) : selectedPayloadMatches.some(Boolean),
+      id === 'opl-flow' ? selectedPayloadCoverage.every(Boolean) : selectedPayloadCoverage.some(Boolean),
       true,
-      `${id} selected payload`,
+      `${id} selected payload current allowlist coverage`,
     );
     assertPayloadEnvelope(payload, id);
   }
