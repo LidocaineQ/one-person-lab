@@ -20,7 +20,7 @@ import type {
   WorkspaceRegistryCliInput,
   WorkspaceRootCliInput,
 } from './types.ts';
-import { parseCommandOptions } from './command-registry.ts';
+import { parseCommandOptions, parseRegisteredCommandOptions } from './command-registry.ts';
 import { buildUsageError } from './runtime-helpers.ts';
 
 function parseWorkspaceInitializeArgs(
@@ -444,51 +444,21 @@ function parseWorkspaceRegistryArgs(
 
 function parseTurnkeyInstallArgs(
   args: string[],
-  spec: Pick<CommandSpec, 'usage' | 'examples'>,
+  spec: CommandSpec,
 ): TurnkeyInstallCliInput {
-  const parsed: TurnkeyInstallCliInput = {};
-  let explicitHeadless = false;
-
-  for (let index = 0; index < args.length; index += 1) {
-    const token = args[index];
-
-    if (token === '--skip-packages') {
-      parsed.skipPackages = true;
-      continue;
-    }
-    if (token === '--headless') {
-      explicitHeadless = true;
-      parsed.headless = true;
-      continue;
-    }
-    if (token === '--with-app') {
-      parsed.withApp = true;
-      continue;
-    }
-    if (token === '--skip-engines') {
-      parsed.skipEngines = true;
-      continue;
-    }
-    if (token === '--no-online-runtime') {
-      parsed.noOnlineRuntime = true;
-      continue;
-    }
-    if (token === '--skip-native-helper-repair') {
-      parsed.skipNativeHelperRepair = true;
-      continue;
-    }
-
-    if (!token.startsWith('--')) {
-      throw buildUsageError(`Unexpected positional argument: ${token}.`, spec, { token });
-    }
-
-    throw buildUsageError(`Unknown option for install command: ${token}.`, spec, { option: token });
-  }
-
-  if (explicitHeadless && parsed.withApp) {
+  const values = parseRegisteredCommandOptions('install', args, spec);
+  const withApp = values['with-app'] === true;
+  if (values.headless === true && withApp) {
     throw buildUsageError('--headless and --with-app are mutually exclusive.', spec);
   }
-  parsed.headless = !parsed.withApp;
+  const parsed: TurnkeyInstallCliInput = { headless: !withApp };
+  if (withApp) {
+    parsed.withApp = true;
+  }
+  if (values['skip-packages'] === true) parsed.skipPackages = true;
+  if (values['skip-engines'] === true) parsed.skipEngines = true;
+  if (values['no-online-runtime'] === true) parsed.noOnlineRuntime = true;
+  if (values['skip-native-helper-repair'] === true) parsed.skipNativeHelperRepair = true;
   return parsed;
 }
 

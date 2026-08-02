@@ -1,6 +1,7 @@
 import { assert, contractsDir, createCodexConfigFixture, fs, loadFrameworkContracts, os, path, runCli, runCliFailure, test } from '../helpers.ts';
 import { buildInternalCommandSpecs } from '../../../../src/entrypoints/cli/cases/private-command-specs.ts';
 import { buildPublicCommandSpecs } from '../../../../src/entrypoints/cli/cases/public-command-specs.ts';
+import { parseTurnkeyInstallArgs } from '../../../../src/entrypoints/cli/modules/support.ts';
 import { OPL_GATEWAY_BASE_URL, readBundledCodexDefaultProfile } from '../../../../src/kernel/local-codex-defaults.ts';
 import { listDefaultOplDomainModuleSpecs } from '../../../../src/modules/connect/system-installation/modules.ts';
 import { createFakeCompanionInstallEnv } from './system-install-fixtures.ts';
@@ -71,12 +72,22 @@ test('public command specs expose the one-shot install command', () => {
   const publicSpecs = buildPublicCommandSpecs(internalSpecs, () => contracts);
 
   assert.equal(typeof publicSpecs.install.handler, 'function');
+  assert.deepEqual(parseTurnkeyInstallArgs([], publicSpecs.install), { headless: true });
+  assert.deepEqual(parseTurnkeyInstallArgs(['--with-app'], publicSpecs.install), {
+    headless: false,
+    withApp: true,
+  });
+  assert.throws(
+    () => parseTurnkeyInstallArgs(['--headless', '--with-app'], publicSpecs.install),
+    /--headless and --with-app are mutually exclusive\./,
+  );
 });
 
 test('install rejects the retired --skip-modules alias', () => {
   const failure = runCliFailure(['install', '--skip-modules']);
   assert.equal(failure.payload.error.code, 'cli_usage_error');
-  assert.equal(failure.payload.error.details.option, '--skip-modules');
+  assert.match(failure.payload.error.message, /Unknown option '--skip-modules'/);
+  assert.equal(failure.payload.error.details.parser_adapter, 'node_util_parse_args');
 });
 
 test('ScholarSkills is dependency-managed and is not a global default module', () => {
@@ -93,8 +104,19 @@ test('install rejects retired --modules and --module package selection flags', (
   ]) {
     const failure = runCliFailure(args);
     assert.equal(failure.payload.error.code, 'cli_usage_error');
-    assert.equal(failure.payload.error.details.option, args[1]);
+    assert.match(failure.payload.error.message, /Unknown option/);
+    assert.equal(failure.payload.error.details.parser_adapter, 'node_util_parse_args');
   }
+});
+
+test('install parser reports standard node parseArgs errors for positionals and boolean values', () => {
+  const positionalFailure = runCliFailure(['install', 'package-id']);
+  assert.match(positionalFailure.payload.error.message, /Unexpected argument 'package-id'/);
+  assert.equal(positionalFailure.payload.error.details.parser_adapter, 'node_util_parse_args');
+
+  const booleanValueFailure = runCliFailure(['install', '--headless=true']);
+  assert.match(booleanValueFailure.payload.error.message, /Option '--headless' does not take an argument/);
+  assert.equal(booleanValueFailure.payload.error.details.parser_adapter, 'node_util_parse_args');
 });
 
 test('install defaults to headless Base and delegates Agent installation to opl packages', () => {
