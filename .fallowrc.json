@@ -3,7 +3,6 @@
   "entry": [
     "bin/opl",
     "src/entrypoints/cli.ts",
-    "src/modules/console/automation-companions.ts",
     "src/modules/foundry/protocol.ts",
     "src/modules/foundry/control.ts",
     "src/modules/connect/capability-registry-resolver.ts",
@@ -18,9 +17,6 @@
     "src/modules/runway/family-orchestration.ts",
     "src/modules/runway/managed-runtime-contract.ts",
     "src/modules/console/product-entry-companions.ts",
-    "src/modules/console/product-entry-program-companions.ts",
-    "src/modules/runway/runtime-task-companions.ts",
-    "src/modules/pack/skill-catalog.ts",
     "scripts/*.mjs",
     "src/entrypoints/cli/main.ts",
     "src/modules/console/aionui-acp-shell.ts",
