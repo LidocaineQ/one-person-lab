@@ -618,13 +618,30 @@ test('corrupt pending runtime metadata becomes attention instead of aborting sta
 test('dirty OPL-managed skill source is reported and never materialized as a successful update', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-skill-dirty-'));
   const codexHome = path.join(root, '.codex');
-  const sourceRoot = path.join(codexHome, 'opl-companion-sources', 'OfficeCLI');
+  const sourceRoot = path.join(root, 'OfficeCLI');
   fs.mkdirSync(sourceRoot, { recursive: true });
-  fs.writeFileSync(path.join(sourceRoot, 'SKILL.md'), '# OfficeCLI\n', 'utf8');
+  fs.writeFileSync(path.join(sourceRoot, 'SKILL.md'), [
+    '---',
+    'name: officecli',
+    'description: OfficeCLI test fixture.',
+    '---',
+    '',
+    '# OfficeCLI',
+    '',
+  ].join('\n'), 'utf8');
   execFileSync('git', ['init', '--initial-branch', 'main'], { cwd: sourceRoot, stdio: 'ignore' });
   execFileSync('git', ['add', 'SKILL.md'], { cwd: sourceRoot });
   execFileSync('git', ['-c', 'user.name=OPL Test', '-c', 'user.email=opl@example.test', 'commit', '-m', 'seed'], { cwd: sourceRoot, stdio: 'ignore' });
-  fs.appendFileSync(path.join(sourceRoot, 'SKILL.md'), 'dirty\n', 'utf8');
+  const managedSkillDependency = {
+    id: 'officecli',
+    sourceMode: 'github' as const,
+    repositoryUrl: sourceRoot,
+    repositorySourcePath: '.',
+    owner: 'iofficeai',
+    requiredTools: [],
+    installSource: 'framework_git_projection',
+    required: false,
+  };
   try {
     withEnvironment({
       HOME: root,
@@ -634,10 +651,22 @@ test('dirty OPL-managed skill source is reported and never materialized as a suc
       OPL_COMPANION_SOURCES_ROOT: undefined,
       OPL_OFFICECLI_SOURCE_ROOT: undefined,
     }, () => {
-      const result = syncOplCompanionSkills(root, { mode: 'managed', skillIds: ['officecli'], toolIds: [] });
-      assert.equal(result.items[0].status, 'failed');
-      assert.equal(result.items[0].action, 'update_and_symlink');
-      assert.match(result.items[0].note ?? '', /dirty/);
+      const options = {
+        mode: 'managed' as const,
+        skillIds: ['officecli'],
+        toolIds: [],
+        managedSkillDependencies: [managedSkillDependency],
+      };
+      const initial = syncOplCompanionSkills(root, options);
+      assert.equal(initial.items[0]?.status, 'synced');
+      assert.ok(initial.items[0]?.source_path);
+      fs.rmSync(path.join(codexHome, 'skills', 'officecli'), { recursive: true, force: true });
+      fs.appendFileSync(path.join(initial.items[0].source_path, 'SKILL.md'), 'dirty\n', 'utf8');
+
+      const result = syncOplCompanionSkills(root, options);
+      assert.equal(result.items[0]?.status, 'failed');
+      assert.equal(result.items[0]?.action, 'update_and_symlink');
+      assert.match(result.items[0]?.note ?? '', /dirty/);
       assert.equal(fs.existsSync(path.join(codexHome, 'skills', 'officecli')), false);
     });
   } finally {
