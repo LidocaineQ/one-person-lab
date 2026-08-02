@@ -100,7 +100,6 @@ export function agentPackageUpdateReadback(
       dependency_transaction_id: result.dependencyTransactionId,
       dependency_closure_digest: result.dependencyClosureDigest,
       dependency_package_locks: result.closureLocks,
-      ...(result.legacySkillMigration ? { legacy_skill_migration: result.legacySkillMigration } : {}),
       ...(result.carrierEnsure ? { carrier_ensure: result.carrierEnsure } : {}),
       registry_entry: result.registryEntry,
       ...(reconciliation ? {
