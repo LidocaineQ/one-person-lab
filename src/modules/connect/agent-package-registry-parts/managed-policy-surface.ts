@@ -9,15 +9,21 @@ import { resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
 import {
   syncOplCompanionSkills,
   type OplCompanionNetworkAccess,
+  type OplManagedSkillDependency,
 } from '../install-companions.ts';
 import { resolveCodexConfigPath, resolveCodexHome, sha256Text } from './shared.ts';
 import {
   assertSafePersistedPackagePath,
   removeSafePersistedPackagePath,
 } from './persisted-path-safety.ts';
+import {
+  compileFlowCapabilityStrategy,
+  normalizeFlowCapabilityBundles,
+} from './flow-capability-compiler.ts';
 import type {
   AgentPackageExperienceBaselineReadback,
   AgentPackageCodexModelPolicyProjection,
+  AgentPackageFlowCapabilityBundle,
   AgentPackageLock,
   AgentPackageManagedPolicyCurrentness,
   AgentPackageManagedPolicyCapabilityReadbackItem,
@@ -57,6 +63,7 @@ type OplFlowPolicy = {
   recommends: AgentPackageManagedPolicyDependency[];
   experience_baseline: AgentPackageManagedPolicyDependency[];
   compatible_optional: AgentPackageManagedPolicyDependency[];
+  capability_bundles: AgentPackageFlowCapabilityBundle[];
   conflicts: MigrationGroup[];
   retires: MigrationGroup[];
   migration_policy: Record<string, unknown>;
@@ -281,6 +288,15 @@ function normalizeDependency(
         .includes(String(value.conflict_policy)))
     || (value.credential_policy !== undefined
       && !['none', 'user_or_provider_owned_not_bundled'].includes(String(value.credential_policy)))
+    || (value.bundle_id !== undefined
+      && (typeof value.bundle_id !== 'string' || !value.bundle_id.trim()))
+    || (value.readiness_adapter !== undefined
+      && ![
+        'codex_skill_payload',
+        'binary_version',
+        'agent_reach_doctor',
+        'runtime_observation',
+      ].includes(String(value.readiness_adapter)))
   )) {
     throw new FrameworkContractError('contract_shape_invalid', `${field} has invalid optional lifecycle hints.`, {
       field,
@@ -348,6 +364,16 @@ function normalizeDependency(
               : {
                   credential_policy: value.credential_policy as NonNullable<
                     AgentPackageManagedPolicyDependency['credential_policy']
+                  >,
+                }),
+            ...(value.bundle_id === undefined
+              ? {}
+              : { bundle_id: String(value.bundle_id).trim() }),
+            ...(value.readiness_adapter === undefined
+              ? {}
+              : {
+                  readiness_adapter: value.readiness_adapter as NonNullable<
+                    AgentPackageManagedPolicyDependency['readiness_adapter']
                   >,
                 }),
           }
@@ -496,6 +522,9 @@ function normalizePolicy(
     ? normalizeDependencies(payload.experience_baseline, 'experience_baseline')
     : [];
   const compatibleOptional = normalizeDependencies(payload.compatible_optional, 'compatible_optional');
+  const capabilityBundles = normalizedSchema === 'opl_flow_workflow_policy.v4'
+    ? normalizeFlowCapabilityBundles(payload.capability_bundles)
+    : [];
   assertUniqueDependencyIdentities(provides, 'provides');
   assertUniqueDependencyIdentities(
     [...requires, ...recommends, ...experienceBaseline, ...compatibleOptional],
@@ -538,6 +567,7 @@ function normalizePolicy(
     recommends,
     experience_baseline: experienceBaseline,
     compatible_optional: compatibleOptional,
+    capability_bundles: capabilityBundles,
     conflicts: normalizeGroups(payload.conflicts, 'conflicts'),
     retires: normalizeGroups(payload.retires, 'retires'),
     migration_policy: payload.migration_policy,
@@ -889,6 +919,7 @@ export function noManagedPolicyMigration(note: string): AgentPackageManagedPolic
     service_actions: [],
     dependency_sync: null,
     model_projection: null,
+    capability_strategy: null,
     backup_root: null,
     backup_active: false,
     writes_performed: false,
@@ -915,10 +946,36 @@ function managedPolicyDependencySelection(input: {
       relationship: 'recommended' as const,
     })),
   ].filter((entry) => entry.dependency.online_install_default);
-  const managedSkillDependencies = input.schema === 'opl_flow_workflow_policy.v3'
+  const supportedToolIds = new Set(['officecli', 'mineru-open-api', 'agent-reach']);
+  const toolIdsByBundle = new Map<string, Array<'officecli' | 'mineru-open-api' | 'agent-reach'>>();
+  for (const { dependency } of selected) {
+    if (dependency.kind !== 'cli' || !supportedToolIds.has(dependency.id) || !dependency.bundle_id) continue;
+    const current = toolIdsByBundle.get(dependency.bundle_id) ?? [];
+    current.push(dependency.id as 'officecli' | 'mineru-open-api' | 'agent-reach');
+    toolIdsByBundle.set(dependency.bundle_id, current);
+  }
+  const managedSkillDependencies: OplManagedSkillDependency[] = input.schema === 'opl_flow_workflow_policy.v3'
     || input.schema === 'opl_flow_workflow_policy.v4'
-    ? selected.flatMap(({ dependency, relationship }) => {
+    ? selected.flatMap(({ dependency, relationship }): OplManagedSkillDependency[] => {
     if (dependency.kind !== 'codex_skill') return [];
+    if (input.schema === 'opl_flow_workflow_policy.v4' && dependency.install_source === 'owner_cli') {
+      if (dependency.id !== 'agent-reach' || dependency.lifecycle_owner !== 'agent-reach') {
+        throw new FrameworkContractError('contract_shape_invalid', 'Owner CLI Skill adapter is not registered for this Flow capability.', {
+          dependency_key: dependencyKey(dependency),
+          failure_code: 'agent_package_managed_policy_dependency_adapter_missing',
+        });
+      }
+      return [{
+        id: dependency.id,
+        sourceMode: 'owner_cli' as const,
+        ownerToolId: 'agent-reach' as const,
+        owner: dependency.owner,
+        requiredTools: dependency.bundle_id ? toolIdsByBundle.get(dependency.bundle_id) ?? [] : [],
+        versionRequirement: dependency.version_requirement,
+        installSource: dependency.install_source,
+        required: relationship === 'required',
+      }];
+    }
     const repositoryUrl = dependency.source?.trim() ?? '';
     const repositorySourcePath = dependency.source_path?.trim() ?? '';
     const sourcePathSegments = repositorySourcePath.split('/');
@@ -941,12 +998,14 @@ function managedPolicyDependencySelection(input: {
       sourceMode: 'github' as const,
       repositoryUrl,
       repositorySourcePath,
+      owner: dependency.owner,
+      requiredTools: dependency.bundle_id ? toolIdsByBundle.get(dependency.bundle_id) ?? [] : [],
       versionRequirement: dependency.version_requirement,
       installSource: dependency.install_source,
       required: relationship === 'required',
     }];
   })
-    : selected.flatMap(({ dependency, relationship }) => {
+    : selected.flatMap(({ dependency, relationship }): OplManagedSkillDependency[] => {
       if (dependency.kind !== 'codex_skill') return [];
       const expectedSource = `skills-manager:${dependency.id}`;
       if (dependency.source?.startsWith('skills-manager:') && dependency.source !== expectedSource) {
@@ -960,6 +1019,8 @@ function managedPolicyDependencySelection(input: {
         id: dependency.id,
         sourceMode: 'observe_existing' as const,
         legacySource: dependency.source ?? dependency.id,
+        owner: dependency.owner,
+        requiredTools: [],
         versionRequirement: dependency.version_requirement,
         installSource: dependency.install_source,
         required: relationship === 'required',
@@ -985,6 +1046,23 @@ function managedPolicyDependencySelection(input: {
       });
     }
   }
+  if (input.schema === 'opl_flow_workflow_policy.v3'
+    || input.schema === 'opl_flow_workflow_policy.v4') {
+    const unsupported = selected
+      .map(({ dependency }) => dependency)
+      .filter((dependency) => {
+        if (dependency.kind === 'base') return dependency.id !== 'opl-base';
+        if (dependency.kind === 'codex_skill') return false;
+        if (dependency.kind === 'cli') return !supportedToolIds.has(dependency.id);
+        return true;
+      });
+    if (unsupported.length > 0) {
+      throw new FrameworkContractError('contract_shape_invalid', 'Managed policy dependency has no lifecycle adapter.', {
+        dependency_keys: unsupported.map(dependencyKey),
+        failure_code: 'agent_package_managed_policy_dependency_adapter_missing',
+      });
+    }
+  }
   return {
     dependencies: selected.map(({ dependency, relationship }) => ({
       ...dependency,
@@ -995,8 +1073,8 @@ function managedPolicyDependencySelection(input: {
       .map(({ dependency }) => dependency.id),
     toolIds: selected
       .filter(({ dependency }) => dependency.kind === 'cli'
-        && (dependency.id === 'officecli' || dependency.id === 'mineru-open-api'))
-      .map(({ dependency }) => dependency.id as 'officecli' | 'mineru-open-api'),
+        && supportedToolIds.has(dependency.id))
+      .map(({ dependency }) => dependency.id as 'officecli' | 'mineru-open-api' | 'agent-reach'),
     managedSkillDependencies,
   };
 }
@@ -1118,6 +1196,17 @@ export function materializeManagedPolicySurface(input: {
     });
     const dependencyWrites = dependencySync.items.some((entry) => ['synced', 'installed'].includes(entry.status))
       || dependencySync.tools.some((entry) => entry.action === 'install' || entry.action === 'update');
+    const capabilityStrategy = policy.schema === 'opl_flow_workflow_policy.v4'
+      ? compileFlowCapabilityStrategy({
+          schema: policy.schema,
+          package: policy.package,
+          requires: policy.requires,
+          experienceBaseline: policy.experience_baseline,
+          compatibleOptional: policy.compatible_optional,
+          capabilityBundles: policy.capability_bundles,
+          policySha256,
+        })
+      : null;
     const writesPerformed = !input.dryRun && (actions.length > 0 || dependencyWrites);
     return {
       surface_kind: 'opl_package_managed_policy_migration',
@@ -1136,6 +1225,7 @@ export function materializeManagedPolicySurface(input: {
       service_actions: serviceActions,
       dependency_sync: dependencySync as unknown as Record<string, unknown>,
       model_projection: codexModelPolicyProjection(policy.codex_model_policy),
+      capability_strategy: capabilityStrategy,
       backup_root: actions.length > 0 ? backupRoot : null,
       backup_active: actions.length > 0,
       writes_performed: writesPerformed,
@@ -1178,6 +1268,7 @@ function noManagedPolicyCurrentness(reason: string): AgentPackageManagedPolicyCu
     required_dependencies_operational: true,
     required_dependency_failure_ids: [],
     model_projection: null,
+    capability_strategy: null,
     repair_command: null,
     reason,
   };
@@ -1209,7 +1300,7 @@ function skillSyncItemCurrent(item: ReturnType<typeof syncOplCompanionSkills>['i
 function dependencySyncDriftReasons(
   sync: ReturnType<typeof syncOplCompanionSkills>,
   skillIds: string[],
-  toolIds: Array<'officecli' | 'mineru-open-api'>,
+  toolIds: Array<'officecli' | 'mineru-open-api' | 'agent-reach'>,
 ) {
   const reasons: string[] = [];
   const itemsById = new Map(sync.items.map((entry) => [entry.skill_id, entry]));
@@ -1262,7 +1353,9 @@ function capabilityReadbackFromSync(input: {
     };
   }
   if (dependency.kind === 'cli'
-    && (dependency.id === 'officecli' || dependency.id === 'mineru-open-api')) {
+    && (dependency.id === 'officecli'
+      || dependency.id === 'mineru-open-api'
+      || dependency.id === 'agent-reach')) {
     const tool = sync.tools.find((entry) => entry.tool_id === dependency.id);
     if (!tool || tool.status === 'missing' || tool.currentness === 'missing') {
       return { id: dependency.id, kind: dependency.kind, status: 'missing', reason: 'tool_missing' };
@@ -1302,9 +1395,9 @@ function experienceBaselineReadback(input: {
   const capabilities = input.policy.experience_baseline.map((dependency) =>
     capabilityReadbackFromSync({ dependency, sync: input.sync })
   );
-  const failureIds = capabilities
+  const failureIds = [...new Set(capabilities
     .filter((entry) => entry.status === 'missing' || entry.status === 'drifted')
-    .map((entry) => entry.id);
+    .map((entry) => entry.id))];
   return {
     status: failureIds.length > 0 ? 'degraded' : 'current',
     failure_ids: failureIds,
@@ -1400,6 +1493,7 @@ export function managedPolicyCurrentnessFromDescriptor(input: {
     required_dependencies_operational: false,
     required_dependency_failure_ids: [],
     model_projection: null,
+    capability_strategy: null,
     repair_command: `opl packages repair --package-id ${manifest.package_id}`,
     reason,
   });
@@ -1462,6 +1556,17 @@ export function managedPolicyCurrentnessFromDescriptor(input: {
     const requiredDependenciesOperational = requiredDependencyFailureIds.length === 0;
     const conflictDrifted = inspection.detectedConflicts.length > 0;
     const drifted = conflictDrifted || dependencyDriftReasons.length > 0;
+    const capabilityStrategy = inspection.policy.schema === 'opl_flow_workflow_policy.v4'
+      ? compileFlowCapabilityStrategy({
+          schema: inspection.policy.schema,
+          package: inspection.policy.package,
+          requires: inspection.policy.requires,
+          experienceBaseline: inspection.policy.experience_baseline,
+          compatibleOptional: inspection.policy.compatible_optional,
+          capabilityBundles: inspection.policy.capability_bundles,
+          policySha256: inspection.policySha256,
+        })
+      : null;
     return {
       surface_kind: 'opl_package_managed_policy_currentness',
       status: drifted ? 'drifted' : 'current',
@@ -1479,6 +1584,7 @@ export function managedPolicyCurrentnessFromDescriptor(input: {
       experience_baseline: experienceBaseline,
       specialized_capabilities: specializedCapabilities,
       model_projection: codexModelPolicyProjection(inspection.policy.codex_model_policy),
+      capability_strategy: capabilityStrategy,
       repair_command: requiredDependenciesOperational
         ? null
         : `opl packages repair --package-id ${manifest.package_id}`,

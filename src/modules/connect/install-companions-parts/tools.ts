@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
 
 export type OplCompanionToolActionStatus = 'ready' | 'installed' | 'updated' | 'missing' | 'failed';
-export type OplCompanionToolId = 'officecli' | 'mineru-open-api';
+export type OplCompanionToolId = 'officecli' | 'mineru-open-api' | 'agent-reach';
 export type OplCompanionToolCurrentness = 'current' | 'update_available' | 'unknown' | 'missing';
 export type OplCompanionNetworkAccess = 'allowed' | 'forbidden';
 
@@ -22,6 +22,13 @@ export type OplCompanionToolSyncItem = {
   latest_version: string | null;
   currentness: OplCompanionToolCurrentness;
   latest_version_source: 'github_tags' | 'npm_registry' | 'configured' | null;
+  health_check?: {
+    adapter: 'agent_reach_doctor';
+    status: 'ready' | 'degraded' | 'invalid';
+    required_channels: string[];
+    ready_channels: string[];
+    failed_channels: string[];
+  };
 };
 
 type ParsedVersion = {
@@ -142,7 +149,9 @@ function maxVersion(values: string[]) {
 function configuredLatestVersion(toolId: OplCompanionToolId) {
   const key = toolId === 'officecli'
     ? 'OPL_OFFICECLI_LATEST_VERSION'
-    : 'OPL_MINERU_OPEN_API_LATEST_VERSION';
+    : toolId === 'mineru-open-api'
+      ? 'OPL_MINERU_OPEN_API_LATEST_VERSION'
+      : 'OPL_AGENT_REACH_LATEST_VERSION';
   const value = process.env[key]?.trim();
   return value ? parseVersion(value)?.version ?? value : null;
 }
@@ -152,6 +161,9 @@ function resolveLatestToolVersion(toolId: OplCompanionToolId): LatestToolVersion
   if (configured) return { version: configured, source: 'configured' };
   if (process.env.OPL_COMPANION_SKIP_LATEST_LOOKUP === '1') {
     return { version: null, source: null };
+  }
+  if (toolId === 'agent-reach') {
+    return readLatestToolVersionReceipt(toolId) ?? { version: null, source: null };
   }
   if (toolId === 'officecli') {
     const output = runCommandForOutput(
@@ -224,6 +236,44 @@ function inspectMineruOpenApiBinary(binaryPath: string | null): OplCompanionTool
   return inspectToolBinary('mineru-open-api', binaryPath, ['version']);
 }
 
+const AGENT_REACH_CORE_CHANNELS = ['web', 'youtube', 'rss', 'github', 'bilibili', 'v2ex'] as const;
+
+function inspectAgentReachBinary(binaryPath: string | null): OplCompanionToolSyncItem | null {
+  const inspected = inspectToolBinary('agent-reach', binaryPath, ['--version']);
+  if (!inspected || !binaryPath) return null;
+  const doctorOutput = runCommandForOutput(binaryPath, ['doctor', '--json'], 15_000);
+  let doctor: Record<string, unknown> | null = null;
+  try {
+    doctor = doctorOutput ? JSON.parse(doctorOutput) as Record<string, unknown> : null;
+  } catch {
+    doctor = null;
+  }
+  const readyChannels = doctor
+    ? AGENT_REACH_CORE_CHANNELS.filter((channel) => {
+        const entry = doctor?.[channel];
+        return Boolean(entry && typeof entry === 'object' && (entry as Record<string, unknown>).status === 'ok');
+      })
+    : [];
+  const failedChannels = AGENT_REACH_CORE_CHANNELS.filter((channel) => !readyChannels.includes(channel));
+  const healthStatus = !doctor ? 'invalid' : failedChannels.length === 0 ? 'ready' : 'degraded';
+  return {
+    ...inspected,
+    status: healthStatus === 'ready' ? 'ready' : 'failed',
+    note: healthStatus === 'ready'
+      ? null
+      : healthStatus === 'invalid'
+        ? 'agent-reach doctor --json did not return a valid readiness document.'
+        : `Agent Reach core channels are unavailable: ${failedChannels.join(', ')}.`,
+    health_check: {
+      adapter: 'agent_reach_doctor',
+      status: healthStatus,
+      required_channels: [...AGENT_REACH_CORE_CHANNELS],
+      ready_channels: readyChannels,
+      failed_channels: failedChannels,
+    },
+  };
+}
+
 export function resolveOfficeCliTool(home: string): OplCompanionToolSyncItem | null {
   const runtimeHome = process.env.OPL_FULL_RUNTIME_HOME?.trim();
   const candidates = [
@@ -258,6 +308,43 @@ export function resolveMineruOpenApiTool(home: string): OplCompanionToolSyncItem
     }
   }
   return null;
+}
+
+export function resolveAgentReachTool(home: string): OplCompanionToolSyncItem | null {
+  const candidates = [
+    process.env.OPL_AGENT_REACH_BIN?.trim() || null,
+    findExecutableInPath('agent-reach'),
+    path.join(home, '.local', 'bin', 'agent-reach'),
+  ];
+  for (const candidate of candidates) {
+    const inspected = inspectAgentReachBinary(candidate);
+    if (inspected) return inspected;
+  }
+  return null;
+}
+
+export function installAgentReachSkill(home: string) {
+  const tool = resolveAgentReachTool(home);
+  if (!tool?.binary_path) {
+    return { status: 'missing' as const, note: 'Agent Reach owner CLI is not installed.' };
+  }
+  const result = spawnSync(tool.binary_path, ['skill', '--install'], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      HOME: home,
+      CODEX_HOME: process.env.CODEX_HOME?.trim() || path.join(home, '.codex'),
+    },
+    stdio: 'pipe',
+    timeout: 30_000,
+  });
+  return result.status === 0
+    ? { status: 'installed' as const, note: null }
+    : {
+        status: 'failed' as const,
+        note: [result.stderr, result.stdout].filter(Boolean).join('\n').trim()
+          || 'agent-reach skill --install failed.',
+      };
 }
 
 function buildOfficeCliInstallCommand() {
@@ -403,12 +490,42 @@ export function ensureMineruOpenApiTool(
   return installMineruOpenApiTool();
 }
 
+export function ensureAgentReachTool(
+  home: string,
+  _options: { networkAccess?: OplCompanionNetworkAccess } = {},
+): OplCompanionToolSyncItem {
+  return resolveAgentReachTool(home) ?? {
+    tool_id: 'agent-reach',
+    binary_path: null,
+    version: null,
+    status: 'missing',
+    action: 'none',
+    note: 'Install Agent Reach through its owner-supported installer, then rerun OPL Flow repair.',
+    ownership: 'missing',
+    content_sha256: null,
+    latest_version: null,
+    currentness: 'missing',
+    latest_version_source: null,
+    health_check: {
+      adapter: 'agent_reach_doctor',
+      status: 'invalid',
+      required_channels: [...AGENT_REACH_CORE_CHANNELS],
+      ready_channels: [],
+      failed_channels: [...AGENT_REACH_CORE_CHANNELS],
+    },
+  };
+}
+
 export function inspectManagedCompanionToolCurrentness(
   home: string,
   toolIds: OplCompanionToolId[] = ['officecli', 'mineru-open-api'],
 ) {
   return toolIds.map((toolId) => {
-    const current = toolId === 'officecli' ? resolveOfficeCliTool(home) : resolveMineruOpenApiTool(home);
+    const current = toolId === 'officecli'
+      ? resolveOfficeCliTool(home)
+      : toolId === 'mineru-open-api'
+        ? resolveMineruOpenApiTool(home)
+        : resolveAgentReachTool(home);
     return current?.ownership === 'opl_managed'
       ? withCurrentness(current, resolveLatestToolVersion(toolId))
       : current;
@@ -420,7 +537,14 @@ export function reconcileManagedCompanionTools(
   toolIds: OplCompanionToolId[] = ['officecli', 'mineru-open-api'],
 ) {
   return toolIds.map((toolId) => {
-    const current = toolId === 'officecli' ? resolveOfficeCliTool(home) : resolveMineruOpenApiTool(home);
+    const current = toolId === 'officecli'
+      ? resolveOfficeCliTool(home)
+      : toolId === 'mineru-open-api'
+        ? resolveMineruOpenApiTool(home)
+        : resolveAgentReachTool(home);
+    if (toolId === 'agent-reach') {
+      return current ?? ensureAgentReachTool(home);
+    }
     if (current?.ownership === 'app_bundled' && current.binary_path) {
       const targetPath = path.join(managedToolHome(), '.local', 'bin', toolId);
       fs.mkdirSync(path.dirname(targetPath), { recursive: true });

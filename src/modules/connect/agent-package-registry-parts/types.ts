@@ -409,6 +409,7 @@ export type AgentPackageManagedPolicySurfaceConfig = {
 export type AgentPackageManagedPolicyDependency = {
   id: string;
   kind: 'base' | 'codex_skill' | 'codex_plugin' | 'mcp_server' | 'cli' | 'runtime_capability';
+  bundle_id?: string;
   offline_bundle?: 'none' | 'full';
   online_install_default: boolean;
   activation: 'always' | 'task_routed' | 'explicit';
@@ -420,8 +421,74 @@ export type AgentPackageManagedPolicyDependency = {
   lifecycle_owner?: string;
   conflict_policy?: 'managed_reconcile' | 'preserve_user_surface' | 'fail_closed_on_collision';
   credential_policy?: 'none' | 'user_or_provider_owned_not_bundled';
+  readiness_adapter?:
+    | 'codex_skill_payload'
+    | 'binary_version'
+    | 'agent_reach_doctor'
+    | 'runtime_observation';
   /** Recorded at materialization so projections never infer requiredness from a legacy catalog. */
   relationship?: 'required' | 'recommended';
+};
+
+export type AgentPackageFlowCapabilityBundle = {
+  id: string;
+  label: string;
+  relationship: 'experience_baseline' | 'compatible_optional';
+  member_refs: string[];
+  online_materialization: 'members_marked_default' | 'observe_only';
+  full_distribution: 'members_marked_full' | 'none';
+  readiness: {
+    aggregation: 'all_members' | 'observe_members';
+    absence_effect: 'degraded_non_blocking' | 'optional_absent';
+    repair_policy: 'framework_or_owner_adapter' | 'none';
+  };
+};
+
+export type AgentPackageFlowCapabilityPlanItem = AgentPackageManagedPolicyDependency & {
+  capability_ref: string;
+  relationship: 'required' | 'recommended' | 'compatible_optional';
+};
+
+export type AgentPackageFlowCapabilityStrategyProjection = {
+  surface_kind: 'opl_flow_capability_strategy_projection.v1';
+  authority: 'opl-flow';
+  policy_schema: 'opl_flow_workflow_policy.v4';
+  policy_sha256: string;
+  package: {
+    id: string;
+    version: string;
+  };
+  bundles: AgentPackageFlowCapabilityBundle[];
+  materialization_plan: {
+    target: 'online_default';
+    items: AgentPackageFlowCapabilityPlanItem[];
+  };
+  full_distribution_plan: {
+    target: 'full_offline_seed';
+    items: AgentPackageFlowCapabilityPlanItem[];
+  };
+  strategy_digest: string;
+};
+
+export type AgentPackageFlowCapabilityBuildResolution = {
+  capability_ref: string;
+  source_ref: string;
+  source_sha256: string;
+  version: string | null;
+};
+
+export type AgentPackageFlowCapabilityBuildLock = {
+  surface_kind: 'opl_flow_capability_build_lock.v1';
+  authority: 'opl-framework';
+  target: 'full_offline_seed';
+  flow_package: {
+    id: string;
+    version: string;
+    policy_sha256: string;
+    strategy_digest: string;
+  };
+  items: Array<AgentPackageFlowCapabilityPlanItem & AgentPackageFlowCapabilityBuildResolution>;
+  lock_digest: string;
 };
 
 export type AgentPackageManagedPolicyCapabilityReadbackItem = {
@@ -498,6 +565,7 @@ export type AgentPackageManagedPolicyMigration = {
   service_actions: Array<Record<string, unknown>>;
   dependency_sync: Record<string, unknown> | null;
   model_projection: Record<string, unknown> | null;
+  capability_strategy: AgentPackageFlowCapabilityStrategyProjection | null;
   backup_root: string | null;
   backup_active: boolean;
   writes_performed: boolean;
@@ -521,6 +589,7 @@ export type AgentPackageManagedPolicyCurrentness = {
   experience_baseline?: AgentPackageExperienceBaselineReadback;
   specialized_capabilities?: AgentPackageSpecializedCapabilitiesReadback;
   model_projection: AgentPackageCodexModelPolicyProjection | null;
+  capability_strategy: AgentPackageFlowCapabilityStrategyProjection | null;
   repair_command: string | null;
   reason: string;
 };

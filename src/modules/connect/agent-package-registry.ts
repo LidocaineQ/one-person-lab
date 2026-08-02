@@ -4320,6 +4320,7 @@ function buildOplAgentPackageStatus(
         capabilities: [],
       },
       model_projection: policyCurrentness.model_projection,
+      capability_strategy: policyCurrentness.capability_strategy,
       operational_ready: operationalReady,
       operational_ready_scope: installedDescriptor
         ? 'installed_carrier_presence_callability_and_managed_policy'

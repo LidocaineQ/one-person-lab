@@ -2,14 +2,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 
-import { buildOplRecommendedSkillSpecs } from './install-companions/catalog.ts';
 export { buildOplGuiShellSurface } from './install-companions/gui-shell.ts';
 import { runGit } from './system-installation/shared.ts';
 import {
   ensureMineruOpenApiTool,
   ensureOfficeCliTool,
+  ensureAgentReachTool,
+  installAgentReachSkill,
+  resolveAgentReachTool,
   resolveMineruOpenApiTool,
   resolveOfficeCliTool,
   type OplCompanionToolId,
@@ -91,9 +92,9 @@ export type OplRecommendedSkill = {
   owner: string;
   label: string;
   required: boolean;
-  source: 'skills_manager' | 'codex_builtin' | 'github' | 'existing_entrypoint';
+  source: 'skills_manager' | 'codex_builtin' | 'github' | 'existing_entrypoint' | 'flow_capability_strategy';
   managed_dependency?: boolean;
-  managed_dependency_mode?: 'github' | 'observe_existing';
+  managed_dependency_mode?: 'github' | 'observe_existing' | 'owner_cli';
   repository_url?: string;
   repository_source_path?: string;
   expected_paths: string[];
@@ -110,6 +111,8 @@ type OplManagedSkillDependencyBase = {
   versionRequirement?: string;
   installSource?: string;
   required: boolean;
+  owner?: string;
+  requiredTools?: OplCompanionToolId[];
 };
 
 export type OplManagedSkillDependency = OplManagedSkillDependencyBase & (
@@ -121,6 +124,10 @@ export type OplManagedSkillDependency = OplManagedSkillDependencyBase & (
   | {
       sourceMode: 'observe_existing';
       legacySource: string;
+    }
+  | {
+      sourceMode: 'owner_cli';
+      ownerToolId: 'agent-reach';
     }
 );
 
@@ -186,28 +193,6 @@ function resolveManagedGithubSourcesRoot(home: string) {
   return path.join(resolveCompanionSourcesRoot(home), 'github');
 }
 
-function resolvePackagedSkillsRoot() {
-  const explicit = process.env.OPL_PACKAGED_SKILLS_ROOT?.trim();
-  if (explicit) {
-    return explicit;
-  }
-  const runtimeHome = process.env.OPL_FULL_RUNTIME_HOME?.trim();
-  return runtimeHome ? path.join(runtimeHome, 'skills') : null;
-}
-
-function getOfficeCliRepoUrl() {
-  return process.env.OPL_OFFICECLI_REPO_URL?.trim() || 'https://github.com/iOfficeAI/OfficeCLI.git';
-}
-
-function getUiUxProMaxRepoUrl() {
-  return process.env.OPL_UI_UX_PRO_MAX_REPO_URL?.trim() || 'https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git';
-}
-
-function getMineruDocumentExtractorArchiveUrl() {
-  return process.env.OPL_MINERU_DOCUMENT_EXTRACTOR_ARCHIVE_URL?.trim()
-    || 'https://github.com/MinerU-Extract/mineru-document-extractor/archive/refs/heads/main.tar.gz';
-}
-
 function remoteCompanionInstallDisabled(networkAccess: OplCompanionNetworkAccess = 'allowed') {
   return networkAccess === 'forbidden' || process.env.OPL_COMPANION_DISABLE_REMOTE_INSTALL === '1';
 }
@@ -254,24 +239,6 @@ function pickFirstExistingSkillSource(paths: string[]) {
   }
 
   return null;
-}
-
-function normalizeMaterializedSkillPermissions(root: string) {
-  if (!fs.existsSync(root)) {
-    return;
-  }
-  const stat = fs.statSync(root);
-  if (stat.isDirectory()) {
-    fs.chmodSync(root, 0o755);
-    for (const entry of fs.readdirSync(root)) {
-      normalizeMaterializedSkillPermissions(path.join(root, entry));
-    }
-    return;
-  }
-  if (stat.isFile()) {
-    const executableBits = stat.mode & 0o111;
-    fs.chmodSync(root, executableBits ? 0o755 : 0o644);
-  }
 }
 
 function isPathWithin(parentPath: string, childPath: string) {
@@ -468,12 +435,9 @@ function inspectSkillPayload(
 
 function skillSourceAuthority(home: string, skillRoot: string): OplCompanionSkillSourceAuthority {
   const resolvedRoot = realPathOrNull(skillRoot) ?? path.resolve(skillRoot);
-  const packagedSkillsRoot = resolvePackagedSkillsRoot();
   const candidates: Array<[string | null, OplCompanionSkillSourceAuthority]> = [
     [path.join(home, '.skills-manager', 'skills'), 'skills_manager'],
     [resolveManagedGithubSourcesRoot(home), 'github_repository'],
-    [packagedSkillsRoot, 'packaged_runtime'],
-    [resolveCompanionSourcesRoot(home), 'framework_materialized_fallback'],
     [path.join(resolveCodexHome(home), 'plugins', 'cache'), 'codex_builtin'],
     [resolveCodexSkillsDir(home), 'existing_codex_entry'],
   ];
@@ -533,64 +497,6 @@ function convergeSkillEntrypoints(sourcePath: string, targetPaths: string[]) {
     throw error;
   }
   return changed.length;
-}
-
-function normalizeManagedCompanionSourcePermissions(home: string, sourceRoot: string) {
-  const companionSourcesRoot = resolveCompanionSourcesRoot(home);
-  const resolvedCompanionSourcesRoot = fs.existsSync(companionSourcesRoot)
-    ? fs.realpathSync(companionSourcesRoot)
-    : path.resolve(companionSourcesRoot);
-  const resolvedSourceRoot = fs.existsSync(sourceRoot)
-    ? fs.realpathSync(sourceRoot)
-    : path.resolve(sourceRoot);
-  if (isPathWithin(resolvedCompanionSourcesRoot, resolvedSourceRoot)) {
-    normalizeMaterializedSkillPermissions(resolvedSourceRoot);
-  }
-}
-
-function writeMaterializedFile(sourceFile: string, targetFile: string) {
-  fs.mkdirSync(path.dirname(targetFile), { recursive: true });
-  fs.writeFileSync(targetFile, fs.readFileSync(sourceFile), { mode: 0o644 });
-  fs.chmodSync(targetFile, 0o644);
-}
-
-function copyMaterializedTree(sourceRoot: string, targetRoot: string) {
-  const stat = fs.statSync(sourceRoot);
-  if (stat.isDirectory()) {
-    fs.mkdirSync(targetRoot, { recursive: true, mode: 0o755 });
-    fs.chmodSync(targetRoot, 0o755);
-    for (const entry of fs.readdirSync(sourceRoot)) {
-      copyMaterializedTree(path.join(sourceRoot, entry), path.join(targetRoot, entry));
-    }
-    return;
-  }
-  if (stat.isFile()) {
-    writeMaterializedFile(sourceRoot, targetRoot);
-  }
-}
-
-function materializeSkillDir(sourceRoot: string, targetRoot: string) {
-  fs.rmSync(targetRoot, { recursive: true, force: true });
-  copyMaterializedTree(sourceRoot, targetRoot);
-  normalizeMaterializedSkillPermissions(targetRoot);
-}
-
-function materializeSkillFile(sourceFile: string, targetRoot: string) {
-  fs.rmSync(targetRoot, { recursive: true, force: true });
-  fs.mkdirSync(targetRoot, { recursive: true });
-  writeMaterializedFile(sourceFile, path.join(targetRoot, 'SKILL.md'));
-  normalizeMaterializedSkillPermissions(targetRoot);
-}
-
-function materializeSingleSkillRoot(sourceRoot: string, targetRoot: string) {
-  fs.rmSync(targetRoot, { recursive: true, force: true });
-  fs.mkdirSync(targetRoot, { recursive: true });
-  writeMaterializedFile(path.join(sourceRoot, 'SKILL.md'), path.join(targetRoot, 'SKILL.md'));
-  const metaPath = path.join(sourceRoot, '_meta.json');
-  if (fs.existsSync(metaPath)) {
-    writeMaterializedFile(metaPath, path.join(targetRoot, '_meta.json'));
-  }
-  normalizeMaterializedSkillPermissions(targetRoot);
 }
 
 function canonicalGithubRepositoryUrl(value: string) {
@@ -729,198 +635,19 @@ function materializeManagedGithubSkillSource(
   };
 }
 
-function downloadArchiveToDirectory(archiveUrl: string, targetRoot: string) {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-companion-archive-'));
-  const archivePath = path.join(tempRoot, 'source.tar.gz');
-  const unpackRoot = path.join(tempRoot, 'unpack');
-  try {
-    const curlResult = spawnSync('curl', ['-fsSL', archiveUrl, '-o', archivePath], {
-      encoding: 'utf8',
-      stdio: 'pipe',
-    });
-    if (curlResult.status !== 0) {
-      return { ok: false, note: curlResult.stderr || curlResult.stdout || 'archive download failed', sourceDigest: null };
-    }
-    fs.mkdirSync(unpackRoot, { recursive: true });
-    const tarResult = spawnSync('tar', ['-xzf', archivePath, '-C', unpackRoot], {
-      encoding: 'utf8',
-      stdio: 'pipe',
-    });
-    if (tarResult.status !== 0) {
-      return { ok: false, note: tarResult.stderr || tarResult.stdout || 'archive extraction failed', sourceDigest: null };
-    }
-    const unpackedRoot = fs.readdirSync(unpackRoot)
-      .map((entry) => path.join(unpackRoot, entry))
-      .find((entryPath) => fs.statSync(entryPath).isDirectory());
-    if (!unpackedRoot || !fs.existsSync(path.join(unpackedRoot, 'SKILL.md'))) {
-      return { ok: false, note: 'archive does not contain a Skill root', sourceDigest: null };
-    }
-    const incomingRoot = `${targetRoot}.incoming-${process.pid}-${Date.now()}`;
-    const previousRoot = `${targetRoot}.previous`;
-    fs.rmSync(incomingRoot, { recursive: true, force: true });
-    copyMaterializedTree(unpackedRoot, incomingRoot);
-    fs.rmSync(previousRoot, { recursive: true, force: true });
-    if (fs.existsSync(targetRoot)) fs.renameSync(targetRoot, previousRoot);
-    try {
-      fs.renameSync(incomingRoot, targetRoot);
-    } catch (error) {
-      if (!fs.existsSync(targetRoot) && fs.existsSync(previousRoot)) fs.renameSync(previousRoot, targetRoot);
-      throw error;
-    }
-    fs.rmSync(previousRoot, { recursive: true, force: true });
-    return {
-      ok: true,
-      note: null,
-      sourceDigest: crypto.createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex'),
-    };
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
-}
-
-function resolveOfficeCliSourceRoot(home: string) {
-  return process.env.OPL_OFFICECLI_SOURCE_ROOT?.trim() || path.join(resolveCompanionSourcesRoot(home), 'OfficeCLI');
-}
-
-function resolveUiUxProMaxSourceRoot(home: string) {
-  return process.env.OPL_UI_UX_PRO_MAX_SOURCE_ROOT?.trim() || path.join(resolveCompanionSourcesRoot(home), 'ui-ux-pro-max-skill');
-}
-
-function resolveMineruDocumentExtractorSourceRoot(home: string) {
-  return process.env.OPL_MINERU_DOCUMENT_EXTRACTOR_SOURCE_ROOT?.trim()
-    || path.join(resolveCompanionSourcesRoot(home), 'mineru-document-extractor');
-}
-
-function materializeOfficeCliSkillSource(
-  home: string,
-  skillId: string,
-  networkAccess: OplCompanionNetworkAccess,
-): OplCompanionSkillSourceCandidate | null {
-  const repoDir = resolveOfficeCliSourceRoot(home);
-  let refresh: ReturnType<typeof cloneOrUpdateRepo> | null = null;
-  if (isPathWithin(resolveCompanionSourcesRoot(home), repoDir) && !remoteCompanionInstallDisabled(networkAccess)) {
-    refresh = cloneOrUpdateRepo(getOfficeCliRepoUrl(), repoDir);
-    if (!refresh.ok) {
-      return {
-        report_path: repoDir,
-        link_path: repoDir,
-        refresh_status: 'manual_required' as const,
-        refresh_note: refresh.note,
-        source_digest: null,
-      };
-    }
-  }
-  const materializedRoot = path.join(resolveCompanionSourcesRoot(home), 'materialized', skillId);
-  const sourceRoot = skillId === 'officecli'
-    ? repoDir
-    : path.join(repoDir, 'skills', skillId);
-  if (!fs.existsSync(repoDir) || !fs.existsSync(path.join(sourceRoot, 'SKILL.md'))) {
-    return null;
-  }
-  normalizeManagedCompanionSourcePermissions(home, sourceRoot);
-  if (skillId === 'officecli') {
-    materializeSkillFile(path.join(sourceRoot, 'SKILL.md'), materializedRoot);
-  } else {
-    materializeSkillDir(sourceRoot, materializedRoot);
-  }
-  const source = resolveSkillSourceCandidate(materializedRoot);
-  return source ? {
-    ...source,
-    refresh_status: refresh?.status ?? 'current',
-    refresh_note: refresh?.note ?? null,
-    source_digest: refresh?.sourceDigest ?? null,
-  } : null;
-}
-
-function materializeUiUxProMaxSkillSource(
-  home: string,
-  networkAccess: OplCompanionNetworkAccess,
-): OplCompanionSkillSourceCandidate | null {
-  const repoDir = resolveUiUxProMaxSourceRoot(home);
-  let refresh: ReturnType<typeof cloneOrUpdateRepo> | null = null;
-  if (isPathWithin(resolveCompanionSourcesRoot(home), repoDir) && !remoteCompanionInstallDisabled(networkAccess)) {
-    refresh = cloneOrUpdateRepo(getUiUxProMaxRepoUrl(), repoDir);
-    if (!refresh.ok) return {
-      report_path: repoDir, link_path: repoDir, refresh_status: 'manual_required' as const,
-      refresh_note: refresh.note, source_digest: null,
-    };
-  }
-  const skillFile = path.join(repoDir, '.claude', 'skills', 'ui-ux-pro-max', 'SKILL.md');
-  const skillRoot = path.dirname(skillFile);
-  const sourceRoot = path.join(repoDir, 'src', 'ui-ux-pro-max');
-  if (!fs.existsSync(skillFile) || !fs.existsSync(sourceRoot)) {
-    return null;
-  }
-  normalizeManagedCompanionSourcePermissions(home, repoDir);
-  const materializedRoot = path.join(resolveCompanionSourcesRoot(home), 'materialized', 'ui-ux-pro-max');
-  fs.rmSync(materializedRoot, { recursive: true, force: true });
-  fs.mkdirSync(materializedRoot, { recursive: true });
-  writeMaterializedFile(skillFile, path.join(materializedRoot, 'SKILL.md'));
-  const referencesRoot = path.join(skillRoot, 'references');
-  if (fs.existsSync(referencesRoot)) {
-    copyMaterializedTree(referencesRoot, path.join(materializedRoot, 'references'));
-  }
-  for (const entry of ['data', 'scripts', 'templates']) {
-    const source = path.join(sourceRoot, entry);
-    if (fs.existsSync(source)) {
-      copyMaterializedTree(source, path.join(materializedRoot, entry));
-    }
-  }
-  normalizeMaterializedSkillPermissions(materializedRoot);
-  const source = resolveSkillSourceCandidate(materializedRoot);
-  return source ? { ...source, refresh_status: refresh?.status ?? 'current', refresh_note: refresh?.note ?? null, source_digest: refresh?.sourceDigest ?? null } : null;
-}
-
-function materializeMineruDocumentExtractorSkillSource(
-  home: string,
-  networkAccess: OplCompanionNetworkAccess,
-): OplCompanionSkillSourceCandidate | null {
-  const repoDir = resolveMineruDocumentExtractorSourceRoot(home);
-  let refresh: ReturnType<typeof downloadArchiveToDirectory> | null = null;
-  if (isPathWithin(resolveCompanionSourcesRoot(home), repoDir) && !remoteCompanionInstallDisabled(networkAccess)) {
-    refresh = downloadArchiveToDirectory(getMineruDocumentExtractorArchiveUrl(), repoDir);
-    if (!refresh.ok) return {
-      report_path: repoDir, link_path: repoDir, refresh_status: 'manual_required' as const,
-      refresh_note: refresh.note, source_digest: null,
-    };
-  }
-  if (!fs.existsSync(path.join(repoDir, 'SKILL.md'))) {
-    return null;
-  }
-  normalizeManagedCompanionSourcePermissions(home, repoDir);
-  const materializedRoot = path.join(resolveCompanionSourcesRoot(home), 'materialized', 'mineru-document-extractor');
-  materializeSingleSkillRoot(repoDir, materializedRoot);
-  const source = resolveSkillSourceCandidate(materializedRoot);
-  return source ? { ...source, refresh_status: refresh ? 'updated' : 'current', refresh_note: refresh?.note ?? null, source_digest: refresh?.sourceDigest ?? null } : null;
-}
-
 function ensureRecommendedSkillSource(
   home: string,
   skill: OplRecommendedSkill,
   networkAccess: OplCompanionNetworkAccess,
 ): OplCompanionSkillSourceCandidate | null {
-  if (skill.managed_dependency_mode === 'observe_existing') {
+  if (skill.managed_dependency_mode === 'observe_existing'
+    || skill.managed_dependency_mode === 'owner_cli') {
     return pickFirstExistingSkillSource(skill.expected_paths);
   }
   if (skill.managed_dependency_mode === 'github') {
     return materializeManagedGithubSkillSource(home, skill, networkAccess);
   }
-  const installed = pickFirstExistingSkillSource(skill.install_source_paths ?? skill.expected_paths);
-  if (installed) return installed;
-
-  if (skill.skill_id === 'ui-ux-pro-max') {
-    const managed = materializeUiUxProMaxSkillSource(home, networkAccess);
-    if (managed) return managed;
-  }
-  if (skill.skill_id === 'officecli' || skill.skill_id.startsWith('officecli-')) {
-    const managed = materializeOfficeCliSkillSource(home, skill.skill_id, networkAccess);
-    if (managed) return managed;
-  }
-  if (skill.skill_id === 'mineru-document-extractor') {
-    const managed = materializeMineruDocumentExtractorSkillSource(home, networkAccess);
-    if (managed) return managed;
-  }
-  return null;
+  return pickFirstExistingSkillSource(skill.install_source_paths ?? skill.expected_paths);
 }
 
 function buildFreshCompanionItem(
@@ -995,6 +722,7 @@ function buildObservedCompanionItem(
       action: skill.source === 'codex_builtin'
         ? 'discover_only'
         : skill.managed_dependency_mode === 'observe_existing'
+          || skill.managed_dependency_mode === 'owner_cli'
           ? 'package_update_or_repair'
         : skill.managed_dependency
           ? 'install'
@@ -1027,7 +755,8 @@ function buildObservedCompanionItem(
     action: 'none',
     note: null,
   });
-  if (skill.managed_dependency_mode === 'observe_existing') {
+  if (skill.managed_dependency_mode === 'observe_existing'
+    || skill.managed_dependency_mode === 'owner_cli') {
     return {
       ...observed,
       source_authority: 'existing_codex_entry',
@@ -1054,13 +783,17 @@ function buildNoApplyCompanionResult(
   managedSkillDependencies: OplManagedSkillDependency[] = [],
 ): OplCompanionSkillSyncResult {
   const selectedSkills = skillIds ? new Set(skillIds) : null;
-  const selectedTools = toolIds ? new Set(toolIds) : null;
+  const selectedTools = new Set(toolIds ?? []);
   const items = buildOplRecommendedSkills(home, managedSkillDependencies)
     .filter((skill) => !selectedSkills || selectedSkills.has(skill.skill_id))
     .map((skill) => buildObservedCompanionItem(home, skill, mode));
-  const tools = [resolveOfficeCliTool(home), resolveMineruOpenApiTool(home)]
+  const tools = [
+    ...(selectedTools.has('officecli') ? [resolveOfficeCliTool(home)] : []),
+    ...(selectedTools.has('mineru-open-api') ? [resolveMineruOpenApiTool(home)] : []),
+    ...(selectedTools.has('agent-reach') ? [resolveAgentReachTool(home)] : []),
+  ]
     .filter((tool): tool is OplCompanionToolSyncItem => Boolean(tool))
-    .filter((tool) => !selectedTools || selectedTools.has(tool.tool_id));
+    .filter((tool) => selectedTools.has(tool.tool_id));
   return buildCompanionResult(home, mode, items, tools);
 }
 
@@ -1068,34 +801,7 @@ function buildCompanionResult(
   home: string,
   mode: OplCompanionSkillApplyMode,
   items: OplCompanionSkillSyncItem[],
-  tools: OplCompanionToolSyncItem[] = [
-    resolveOfficeCliTool(home) ?? {
-      tool_id: 'officecli',
-      binary_path: null,
-      version: null,
-      status: 'missing',
-      action: 'none',
-      note: 'officecli binary is not available.',
-      ownership: 'missing',
-      content_sha256: null,
-      latest_version: null,
-      currentness: 'missing',
-      latest_version_source: null,
-    },
-    resolveMineruOpenApiTool(home) ?? {
-      tool_id: 'mineru-open-api',
-      binary_path: null,
-      version: null,
-      status: 'missing',
-      action: 'none',
-      note: 'mineru-open-api binary is not available.',
-      ownership: 'missing',
-      content_sha256: null,
-      latest_version: null,
-      currentness: 'missing',
-      latest_version_source: null,
-    },
-  ],
+  tools: OplCompanionToolSyncItem[] = [],
 ): OplCompanionSkillSyncResult {
   return {
     surface_id: 'opl_companion_skill_sync',
@@ -1142,12 +848,17 @@ export function syncOplCompanionSkills(
   const recommendedSkills = buildOplRecommendedSkills(home, options.managedSkillDependencies)
     .filter((skill) => !selectedSkills || selectedSkills.has(skill.skill_id));
   const items: OplCompanionSkillSyncItem[] = [];
-  const selectedTools = options.toolIds ? new Set(options.toolIds) : null;
+  const selectedTools = new Set(options.toolIds ?? []);
   const networkAccess = options.networkAccess ?? 'allowed';
   const tools = [
-    ...(selectedTools && !selectedTools.has('officecli') ? [] : [ensureOfficeCliTool(home, { networkAccess })]),
-    ...(selectedTools && !selectedTools.has('mineru-open-api') ? [] : [ensureMineruOpenApiTool(home, { networkAccess })]),
+    ...(selectedTools.has('officecli') ? [ensureOfficeCliTool(home, { networkAccess })] : []),
+    ...(selectedTools.has('mineru-open-api') ? [ensureMineruOpenApiTool(home, { networkAccess })] : []),
+    ...(selectedTools.has('agent-reach') ? [ensureAgentReachTool(home, { networkAccess })] : []),
   ];
+  const ownerCliInstall = recommendedSkills.some((skill) => skill.managed_dependency_mode === 'owner_cli')
+    && tools.some((tool) => tool.tool_id === 'agent-reach' && tool.status === 'ready')
+    ? installAgentReachSkill(home)
+    : null;
 
   for (const skill of recommendedSkills) {
     const source = ensureRecommendedSkillSource(home, skill, networkAccess);
@@ -1157,15 +868,17 @@ export function syncOplCompanionSkills(
         source: null,
         status: 'missing_source',
         action: skill.managed_dependency_mode === 'observe_existing'
+          || skill.managed_dependency_mode === 'owner_cli'
           ? 'package_update_or_repair'
           : skill.managed_dependency ? 'install' : 'none',
-        note: skill.install_hint,
+        note: ownerCliInstall?.status === 'failed' ? ownerCliInstall.note : skill.install_hint,
       }));
       continue;
     }
 
     try {
-      if (skill.managed_dependency_mode === 'observe_existing') {
+      if (skill.managed_dependency_mode === 'observe_existing'
+        || skill.managed_dependency_mode === 'owner_cli') {
         const inspection = inspectSkillPayload(source.link_path, skill.skill_id);
         items.push(buildFreshCompanionItem(home, skill, {
           source,
@@ -1173,7 +886,9 @@ export function syncOplCompanionSkills(
           action: 'none',
           note: inspection.errors.length > 0
             ? `Existing Skill payload validation failed: ${inspection.errors.join(', ')}`
-            : 'Existing compatible Skill entrypoint observed; legacy policy sources are not used to fetch, copy, or update bytes.',
+            : skill.managed_dependency_mode === 'owner_cli'
+              ? 'Skill entrypoint is owned and materialized by the Agent Reach CLI.'
+              : 'Existing compatible Skill entrypoint observed; legacy policy sources are not used to fetch, copy, or update bytes.',
         }));
         const observed = items.at(-1);
         if (observed) {
@@ -1239,25 +954,26 @@ export function buildOplRecommendedSkills(
   home = resolveHomeDir(),
   managedSkillDependencies: OplManagedSkillDependency[] = [],
 ): OplRecommendedSkill[] {
-  const codexHome = resolveCodexHome(home);
-  const skillsManagerHome = path.join(home, '.skills-manager');
-  const packagedSkillsRoot = resolvePackagedSkillsRoot();
+  if (managedSkillDependencies.length === 0) return [];
+  const selectedToolIds = new Set(managedSkillDependencies.flatMap((dependency) => dependency.requiredTools ?? []));
   const toolReadyById: Record<OplCompanionToolId, boolean> = {
-    officecli: Boolean(resolveOfficeCliTool(home)),
-    'mineru-open-api': Boolean(resolveMineruOpenApiTool(home)),
+    officecli: selectedToolIds.has('officecli') && Boolean(resolveOfficeCliTool(home)),
+    'mineru-open-api': selectedToolIds.has('mineru-open-api') && Boolean(resolveMineruOpenApiTool(home)),
+    'agent-reach': selectedToolIds.has('agent-reach') && Boolean(resolveAgentReachTool(home)),
   };
 
   const managedSpecs = managedSkillDependencies.map((dependency): Omit<OplRecommendedSkill, 'status'> => {
     const github = dependency.sourceMode === 'github';
+    const ownerCli = dependency.sourceMode === 'owner_cli';
     return {
       skill_id: dependency.id,
-      scope: 'domain_project',
-      owner: 'declared-domain-owner',
+      scope: 'global_user',
+      owner: dependency.owner ?? 'declared-capability-owner',
       label: dependency.id,
       required: dependency.required,
       source: github ? 'github' : 'existing_entrypoint',
       managed_dependency: true,
-      managed_dependency_mode: github ? 'github' : 'observe_existing',
+      managed_dependency_mode: github ? 'github' : ownerCli ? 'owner_cli' : 'observe_existing',
       ...(github
         ? {
             repository_url: dependency.repositoryUrl,
@@ -1277,41 +993,23 @@ export function buildOplRecommendedSkills(
             path.join(resolveAgentsSkillsDir(home), dependency.id, 'SKILL.md'),
             path.join(home, '.skills-manager', 'skills', dependency.id, 'SKILL.md'),
           ],
+      required_tools: dependency.requiredTools,
       install_hint: github
         ? [
             `Install ${dependency.id} from ${dependency.repositoryUrl} (${dependency.repositorySourcePath}).`,
             dependency.versionRequirement ? `Requested version: ${dependency.versionRequirement}.` : null,
             dependency.installSource ? `Preferred source: ${dependency.installSource}.` : null,
           ].filter(Boolean).join(' ')
-        : `Update or repair the package to migrate ${dependency.id} to a public repository source; only an existing compatible entrypoint is observed for this legacy policy.`,
+        : ownerCli
+          ? `Install the ${dependency.ownerToolId} owner CLI, then run ${dependency.ownerToolId} skill --install.`
+          : `Update or repair the package to migrate ${dependency.id} to a public repository source; only an existing compatible entrypoint is observed for this legacy policy.`,
       supports: [dependency.id],
     };
   });
-  const managedIds = new Set(managedSpecs.map((entry) => entry.skill_id));
-  const specs = [
-    ...buildOplRecommendedSkillSpecs({
-      codexHome,
-      skillsManagerHome,
-      packagedSkillsRoot,
-    }).filter((entry) => !managedIds.has(entry.skill_id)),
-    ...managedSpecs,
-  ];
+  const specs = managedSpecs;
 
   return specs.map((spec) => {
-    const independentlyResolved = spec.source === 'codex_builtin'
-      || spec.managed_dependency === true;
-    const expectedPaths = independentlyResolved
-      ? spec.expected_paths
-      : [
-          ...spec.expected_paths,
-          path.join(codexHome, 'skills', spec.skill_id, 'SKILL.md'),
-        ];
-    const installSourcePaths = independentlyResolved
-      ? expectedPaths
-      : [
-          ...expectedPaths,
-          ...(packagedSkillsRoot ? [path.join(packagedSkillsRoot, spec.skill_id, 'SKILL.md')] : []),
-        ];
+    const expectedPaths = spec.expected_paths;
     const skillStatus = buildSkillStatus(expectedPaths);
     const toolStatus = spec.required_tools?.every((toolId) => toolReadyById[toolId]) ?? true;
     return {
@@ -1319,7 +1017,7 @@ export function buildOplRecommendedSkills(
       scope: spec.scope ?? 'global_user',
       owner: spec.owner ?? 'one-person-lab',
       expected_paths: expectedPaths,
-      install_source_paths: installSourcePaths,
+      install_source_paths: expectedPaths,
       status: skillStatus === 'ready' && toolStatus ? 'ready' : 'missing',
     };
   });

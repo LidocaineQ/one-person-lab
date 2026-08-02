@@ -4,7 +4,8 @@ import {
   readOplWorkspaceRoot,
 } from '../../../kernel/system-preferences.ts';
 import { readOplRuntimeModes } from '../../../kernel/runtime-modes.ts';
-import { buildOplGuiShellSurface, buildOplRecommendedSkills } from '../install-companions.ts';
+import { buildOplGuiShellSurface, type OplRecommendedSkill } from '../install-companions.ts';
+import { runOplAgentPackageStatus } from '../agent-package-registry.ts';
 import type { FrameworkContracts } from '../../../kernel/types.ts';
 
 import { buildOplEnvironment } from './environment.ts';
@@ -52,8 +53,54 @@ function buildInitializeOptionalStatus(installedCount: number) {
   return installedCount > 0 ? 'ready' : 'attention_needed';
 }
 
-function buildRecommendedSkillsStatus(recommendedSkills: ReturnType<typeof buildOplRecommendedSkills>) {
-  return recommendedSkills.some((skill) => skill.status === 'ready') ? 'ready' : 'attention_needed';
+function buildRecommendedSkillsStatus(recommendedSkills: OplRecommendedSkill[]) {
+  return recommendedSkills.every((skill) => skill.status === 'ready') ? 'ready' : 'attention_needed';
+}
+
+export function buildOplRecommendedSkillsFromFlowStatus(): OplRecommendedSkill[] {
+  const packageStatus = runOplAgentPackageStatus({ packageId: 'opl-flow', detail: 'fast' })
+    .opl_agent_package_status;
+  const strategy = packageStatus.capability_strategy;
+  if (!strategy) return [];
+  const dependencySync = packageStatus.managed_policy_currentness?.dependency_sync;
+  const syncItems = dependencySync && typeof dependencySync === 'object'
+    && Array.isArray((dependencySync as Record<string, unknown>).items)
+    ? (dependencySync as { items: Array<Record<string, unknown>> }).items
+    : [];
+  const syncBySkillId = new Map(syncItems
+    .filter((item) => typeof item.skill_id === 'string')
+    .map((item) => [String(item.skill_id), item]));
+  return strategy.materialization_plan.items
+    .filter((item) => item.kind === 'codex_skill' && item.relationship === 'recommended')
+    .map((item): OplRecommendedSkill => {
+      const sync = syncBySkillId.get(item.id);
+      const status = sync && ['ready', 'synced', 'installed', 'available'].includes(String(sync.status))
+        ? 'ready'
+        : 'missing';
+      const requiredTools = strategy.materialization_plan.items
+        .filter((candidate) => candidate.kind === 'cli' && candidate.bundle_id === item.bundle_id)
+        .map((candidate) => candidate.id)
+        .filter((toolId): toolId is 'officecli' | 'mineru-open-api' | 'agent-reach' => (
+          toolId === 'officecli' || toolId === 'mineru-open-api' || toolId === 'agent-reach'
+        ));
+      return {
+        skill_id: item.id,
+        scope: 'global_user',
+        owner: item.owner ?? 'declared-capability-owner',
+        label: item.id,
+        required: false,
+        source: 'flow_capability_strategy',
+        managed_dependency: true,
+        expected_paths: [sync?.target_path, sync?.agents_target_path, sync?.source_path]
+          .filter((candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0),
+        status,
+        required_tools: requiredTools,
+        install_hint: typeof sync?.note === 'string'
+          ? sync.note
+          : `Repair the OPL Flow experience baseline with opl packages repair --package-id opl-flow.`,
+        supports: [item.bundle_id ?? item.id],
+      };
+    });
 }
 
 function buildInitializeChecklistItem(input: OplInitializeChecklistItem): OplInitializeChecklistItem {
@@ -138,7 +185,7 @@ export async function buildOplInitialize(
     events,
     'recommended_skills',
     'Inspect recommended skill bundle',
-    () => buildOplRecommendedSkills(),
+    () => buildOplRecommendedSkillsFromFlowStatus(),
     (skills) => ({
       total: skills.length,
       ready: skills.filter((skill) => skill.status === 'ready').length,
@@ -436,7 +483,7 @@ export async function buildOplInitialize(
         ? 'Recommended Codex skills are visible.'
         : 'Run startup maintenance to sync missing companion skills when their sources are available.',
       section_id: 'modules',
-      detail_summary: `${recommendedSkills.filter((skill) => skill.status === 'ready').length}/${recommendedSkills.length} companion skill groups detected for MAS/MAG/RCA workflows.`,
+      detail_summary: `${recommendedSkills.filter((skill) => skill.status === 'ready').length}/${recommendedSkills.length} OPL Flow-declared experience baseline Skills are ready.`,
       endpoint: endpoints.system_initialize,
       action_endpoint: endpoints.system_initialize,
       action: reviewInitializeAction,

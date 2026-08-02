@@ -153,9 +153,10 @@ exit 1
     assert.deepEqual(output.system_initialize.setup_flow.blocking_items, []);
     const nativeHelperItem = output.system_initialize.checklist.find((entry) => entry.item_id === 'native_helpers');
     assert.ok(nativeHelperItem);
-    const expectedMaintenanceItems = ['family_runtime_provider', ...(nativeHelperItem.severity === 'maintenance' ? ['native_helpers'] : []), 'domain_modules', 'recommended_skills'];
+    const expectedMaintenanceItems = ['family_runtime_provider', ...(nativeHelperItem.severity === 'maintenance' ? ['native_helpers'] : []), 'domain_modules'];
     if (!output.system_initialize.gui_shell.sibling_checkout_found) expectedMaintenanceItems.push('gui_shell');
     assert.deepEqual(output.system_initialize.setup_flow.maintenance_items, expectedMaintenanceItems);
+    assert.deepEqual((output.system_initialize as any).recommended_skills.skills, []);
     assert.equal(output.system_initialize.setup_flow.progress.ready_required_count, 3);
     assert.equal(output.system_initialize.setup_flow.progress.total_required_count, 3);
     assert.equal(output.system_initialize.setup_flow.progress.ready_full_readiness_count, 0);

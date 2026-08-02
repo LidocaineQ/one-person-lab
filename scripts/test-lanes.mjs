@@ -64,6 +64,7 @@ const fastTestFiles = [
   'tests/src/opl-gateway-account.test.ts',
   'tests/src/verification-package-surfaces.test.ts',
   'tests/src/base-managed-dependencies.test.ts',
+  'tests/src/flow-capability-compiler.test.ts',
   'tests/src/managed-dependencies-descriptor.test.ts',
   'tests/src/foundry-agent-series-policy.test.ts',
   'tests/src/foundry-baseline-adoption.test.ts',

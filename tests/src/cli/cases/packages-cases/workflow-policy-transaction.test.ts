@@ -70,7 +70,7 @@ function writeOplFlowPackage(
   const dependency = (
     value: Record<string, unknown>,
     overrides: Record<string, unknown> = {},
-  ) => ({
+  ): Record<string, unknown> => ({
     ...value,
     ...(v2 ? {
       owner: 'fixture-owner',
@@ -162,6 +162,46 @@ function writeOplFlowPackage(
               }, { credential_policy: 'user_or_provider_owned_not_bundled' }),
             ]
           : [];
+  const v4Recommendations: Record<string, unknown>[] = v4
+    ? recommendations.map((entry) => ({
+        ...entry,
+        bundle_id: 'fixture-experience-baseline',
+        install_source: entry.kind === 'codex_skill' ? 'framework_git_projection' : 'owner_release',
+        lifecycle_owner: 'opl-framework',
+        readiness_adapter: entry.kind === 'codex_skill' ? 'codex_skill_payload' : 'binary_version',
+        conflict_policy: 'managed_reconcile',
+        credential_policy: 'none',
+        ...(entry.kind === 'codex_skill' && !String(entry.source).startsWith('https://github.com/')
+          ? {
+              source: `https://github.com/fixture/${entry.id}`,
+              source_path: entry.source_path ?? 'skill',
+            }
+          : {}),
+      }))
+    : recommendations;
+  const optionalCapabilities: Record<string, unknown>[] = [
+    ...(options.includeOptionalArchitectureSkill ? [dependency({
+      id: 'architect-and-simplify',
+      kind: 'codex_skill',
+      owner: 'opl-skills',
+      online_install_default: false,
+      activation: 'task_routed',
+      source: 'https://github.com/gaofeng21cn/opl-skills',
+      source_path: 'skills/architect-and-simplify',
+    })] : []),
+    ...(options.includeOptionalRuntimeCapability ? [dependency({
+      id: 'openai-primary-runtime-office-pdf',
+      kind: 'runtime_capability',
+      owner: 'openai',
+      online_install_default: false,
+      activation: 'task_routed',
+      source: 'openai-primary-runtime',
+    })] : []),
+  ].map((entry) => v4 ? {
+    ...entry,
+    bundle_id: 'fixture-compatible-optional',
+    readiness_adapter: entry.kind === 'codex_skill' ? 'codex_skill_payload' : 'runtime_observation',
+  } : entry);
   const policy = {
     schema: v2
       ? 'opl_flow_workflow_policy.v2'
@@ -233,26 +273,38 @@ function writeOplFlowPackage(
           })]
         : []),
     ],
-    ...(v4 ? { experience_baseline: recommendations } : { recommends: recommendations }),
-    compatible_optional: [
-      ...(options.includeOptionalArchitectureSkill ? [dependency({
-          id: 'architect-and-simplify',
-          kind: 'codex_skill',
-          owner: 'opl-skills',
-          online_install_default: false,
-          activation: 'task_routed',
-          source: 'https://github.com/gaofeng21cn/opl-skills',
-          source_path: 'skills/architect-and-simplify',
-        })] : []),
-      ...(options.includeOptionalRuntimeCapability ? [dependency({
-          id: 'openai-primary-runtime-office-pdf',
-          kind: 'runtime_capability',
-          owner: 'openai',
-          online_install_default: false,
-          activation: 'task_routed',
-          source: 'openai-primary-runtime',
-        })] : []),
-    ],
+    ...(v4 ? { experience_baseline: v4Recommendations } : { recommends: recommendations }),
+    compatible_optional: optionalCapabilities,
+    ...(v4 ? {
+      capability_bundles: [
+        ...(v4Recommendations.length > 0 ? [{
+          id: 'fixture-experience-baseline',
+          label: 'Fixture experience baseline',
+          relationship: 'experience_baseline',
+          member_refs: v4Recommendations.map((entry) => `${entry.kind}:${entry.id}`),
+          online_materialization: 'members_marked_default',
+          full_distribution: 'members_marked_full',
+          readiness: {
+            aggregation: 'all_members',
+            absence_effect: 'degraded_non_blocking',
+            repair_policy: 'framework_or_owner_adapter',
+          },
+        }] : []),
+        ...(optionalCapabilities.length > 0 ? [{
+          id: 'fixture-compatible-optional',
+          label: 'Fixture compatible optional',
+          relationship: 'compatible_optional',
+          member_refs: optionalCapabilities.map((entry) => `${entry.kind}:${entry.id}`),
+          online_materialization: 'observe_only',
+          full_distribution: 'none',
+          readiness: {
+            aggregation: 'observe_members',
+            absence_effect: 'optional_absent',
+            repair_policy: 'none',
+          },
+        }] : []),
+      ],
+    } : {}),
     conflicts: [
       {
         id: 'upstream-superpowers',
@@ -372,7 +424,7 @@ function writeOplFlowPackage(
       'schema',
       'package',
       'requires',
-      ...(v4 ? ['experience_baseline'] : ['recommends']),
+      ...(v4 ? ['experience_baseline', 'capability_bundles'] : ['recommends']),
       'compatible_optional',
       'conflicts',
       'retires',
@@ -397,6 +449,7 @@ function writeOplFlowPackage(
       requires: { type: 'array' },
       recommends: { type: 'array' },
       experience_baseline: { type: 'array' },
+      capability_bundles: { type: 'array' },
       compatible_optional: { type: 'array' },
       conflicts: { type: 'array' },
       retires: { type: 'array' },
