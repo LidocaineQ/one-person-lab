@@ -229,6 +229,7 @@ function blockLinkedDefaultExecutorTaskForDurableRow(
     || hasLaterAcceptedCloseoutAttempt(db, row)
     || !['blocked', 'failed'].includes(row.status)
     || row.blocked_reason !== input.reason
+    || terminalEventAlreadyWritten(db, row, input.eventType)
   ) {
     return;
   }

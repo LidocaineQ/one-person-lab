@@ -183,3 +183,41 @@ test('Older terminal blocker cannot overwrite newer live redrive attempt for the
     assert.equal(blockerTaskEvents.count, 0);
   });
 });
+
+test('Duplicate linked terminal block/cancel calls write one event and notification', () => {
+  withStageAttemptDb((db) => {
+    createQueueTables(db);
+    for (const [kind, reason, taskDeadLetterReason, eventType] of [
+      ['failed', 'temporal_workflow_failed', 'temporal_stage_attempt_failed', 'stage_attempt_terminal_failed_task'],
+      ['canceled', 'temporal_workflow_canceled', 'temporal_stage_attempt_canceled', 'stage_attempt_terminal_canceled_task'],
+    ] as const) {
+      const createdAt = new Date().toISOString();
+      const taskId = `task-mas-default-duplicate-${kind}`;
+      insertMasDefaultExecutorTask(db, { taskId, status: 'running', createdAt });
+      const attempt = createMasDefaultExecutorAttempt(db, { taskId });
+      db.prepare(`
+        UPDATE stage_attempts SET status = 'failed', blocked_reason = ?, updated_at = ?
+        WHERE stage_attempt_id = ?
+      `).run(reason, createdAt, attempt.stage_attempt_id);
+      const input = {
+        row: getStageAttemptRow(db, attempt.stage_attempt_id)!,
+        reason,
+        observedAt: createdAt,
+        taskDeadLetterReason,
+        eventType,
+      };
+      blockLinkedDefaultExecutorTask(db, input);
+      blockLinkedDefaultExecutorTask(db, input);
+
+      assert.equal((db.prepare(`
+        SELECT COUNT(*) AS count FROM events
+        WHERE task_id = ? AND event_type = ?
+          AND json_extract(payload_json, '$.stage_attempt_id') = ?
+      `).get(taskId, eventType, attempt.stage_attempt_id) as { count: number }).count, 1);
+      assert.equal((db.prepare(`
+        SELECT COUNT(*) AS count FROM notifications
+        WHERE task_id = ? AND json_extract(payload_json, '$.stage_attempt_id') = ?
+      `).get(taskId, attempt.stage_attempt_id) as { count: number }).count, 1);
+    }
+  });
+});
