@@ -236,7 +236,7 @@ function writeDeveloperFlowCheckout(
       })),
     ],
     requires: [],
-    ...(v4 ? { experience_baseline: [] } : { recommends: [] }),
+    ...(v4 ? { experience_baseline: [], capability_bundles: [] } : { recommends: [] }),
     compatible_optional: [],
     conflicts: [],
     retires: [{

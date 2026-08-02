@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 
 import { removeFixtureTree } from '../../helpers.ts';
+import { parseJsonText } from '../../../../../src/kernel/json-file.ts';
 import {
   agentPackageManifest,
   assert,
@@ -30,8 +31,19 @@ import {
   recoverManagedRuntimeSourceTransactions,
   rollbackManagedRuntimeSourceMutation,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/managed-runtime-source-carrier.ts';
-import { materializeImmutablePluginCache } from '../../../../../src/modules/connect/agent-package-registry-parts/physical-surface.ts';
+import {
+  finalizePluginGenerationMutation,
+  materializeImmutablePluginCache,
+  materializeImmutablePluginCacheTransaction,
+  restorePluginGenerationMutation,
+} from '../../../../../src/modules/connect/agent-package-registry-parts/physical-surface.ts';
 import { developerCheckoutPayloadDigest } from '../../../../../src/modules/connect/agent-package-registry-parts/developer-checkout-package-source.ts';
+import { installedPackageContentLockCanonicalization } from '../../../../../src/modules/connect/agent-package-registry-parts/installed-plugin-source.ts';
+import {
+  CANONICAL_PACKAGE_CONTENT_LOCK,
+  LEGACY_PACKAGE_CONTENT_LOCK,
+  packageContentLockDigest,
+} from '../../../../../src/modules/connect/agent-package-registry-parts/payload-content-lock.ts';
 import {
   computePackageChannelTreeSha256,
   readPackageChannelLifecycle,
@@ -133,6 +145,177 @@ test('developer plugin cache publishes one stage directly into its immutable gen
   } finally {
     fs.renameSync = originalRenameSync;
     removeFixtureTree(root);
+  }
+});
+
+test('installed content lock honors explicit canonicalization and limits probing to legacy omissions', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-content-lock-canonicalization-'));
+  const relativePath = 'skills/fixture.plugin/SKILL.md';
+  const content = Buffer.from('# Fixture Plugin\n');
+  const targetPath = path.join(root, relativePath);
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  fs.writeFileSync(targetPath, content);
+  const files = [{ path: relativePath, content }];
+  const lock = {
+    package_id: 'fixture.plugin',
+    content_lock_paths: [relativePath],
+    content_lock_canonicalization: CANONICAL_PACKAGE_CONTENT_LOCK,
+    content_digest: packageContentLockDigest(CANONICAL_PACKAGE_CONTENT_LOCK, files),
+    bundled_required_skill_ids: ['fixture.plugin'],
+    capability_provider: null,
+  } as any;
+  try {
+    assert.equal(
+      installedPackageContentLockCanonicalization(lock, root),
+      CANONICAL_PACKAGE_CONTENT_LOCK,
+    );
+    lock.content_lock_canonicalization = LEGACY_PACKAGE_CONTENT_LOCK;
+    assert.throws(
+      () => installedPackageContentLockCanonicalization(lock, root),
+      (error: any) => error.details?.failure_code === 'capability_package_content_digest_mismatch',
+    );
+    lock.content_digest = packageContentLockDigest(LEGACY_PACKAGE_CONTENT_LOCK, files);
+    delete lock.content_lock_canonicalization;
+    assert.equal(
+      installedPackageContentLockCanonicalization(lock, root),
+      LEGACY_PACKAGE_CONTENT_LOCK,
+    );
+    lock.content_lock_canonicalization = null;
+    assert.throws(
+      () => installedPackageContentLockCanonicalization(lock, root),
+      (error: any) => error.details?.failure_code
+        === 'capability_package_content_lock_canonicalization_invalid',
+    );
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
+test('developer plugin generation transaction rolls back created, replaced, reused, and symlink targets', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-plugin-generation-transaction-'));
+  const pluginSourcePath = createPluginSourceFixture({ pluginId: 'fixture.plugin' });
+  const payloadFiles = [
+    {
+      path: '.codex-plugin/plugin.json',
+      content: Buffer.from(formatJsonPayload({ name: 'fixture.plugin', version: '0.1.0' })),
+      mode: '100644' as const,
+    },
+    {
+      path: 'skills/fixture.plugin/SKILL.md',
+      content: Buffer.from('# Fixture Plugin\n'),
+      mode: '100755' as const,
+    },
+  ];
+  const manifest = {
+    ...agentPackageManifest({
+      packageId: 'fixture.plugin',
+      agentId: 'fixture.plugin',
+      pluginId: 'fixture.plugin',
+      pluginSourcePath,
+      distributionPayload: null,
+    }),
+    version: '0.1.0',
+    codex_default_exposure: false,
+    codex_visible_entry: 'fixture.plugin',
+    required_skill_ids: ['fixture.plugin'],
+    optional_skill_refs: [],
+    plugin_id: 'fixture.plugin',
+    plugin_source_path: pluginSourcePath,
+    plugin_payload_manifest_url: null,
+    plugin_payload_manifest_sha256: null,
+    plugin_payload_cache_path: null,
+    profile_surface: null,
+    managed_policy_surface: null,
+    capability_provider: null,
+    content_lock_paths: [],
+    developer_checkout_source: {
+      surface_kind: 'opl_agent_package_developer_checkout_source.v1',
+      checkout_path: pluginSourcePath,
+      owner_manifest_path: path.join(pluginSourcePath, 'package.json'),
+      owner_manifest_sha256: 'sha256:fixture',
+      plugin_source_path: pluginSourcePath,
+      source_git_head_sha: null,
+      tree_sha256: 'fixture',
+      payload_digest: developerCheckoutPayloadDigest(payloadFiles),
+      declared_content_digest: null,
+      copy_paths: payloadFiles.map((entry) => entry.path),
+      copy_file_modes: Object.fromEntries(payloadFiles.map((entry) => [entry.path, entry.mode])),
+    },
+  } as any;
+  const targetPath = path.join(root, 'cache', 'fixture.plugin', '0.1.0-dev');
+  try {
+    fs.mkdirSync(targetPath, { recursive: true, mode: 0o711 });
+    fs.writeFileSync(path.join(targetPath, 'old.txt'), 'old bytes\n', { mode: 0o600 });
+    fs.chmodSync(targetPath, 0o711);
+    const oldInventory = exactTreeInventory(targetPath);
+    const replaced = materializeImmutablePluginCacheTransaction({
+      manifest,
+      sourcePath: pluginSourcePath,
+      targetPath,
+      developerCheckoutPayloadFiles: payloadFiles,
+      transactionId: 'replace-transaction',
+    });
+    assert.equal(replaced.ownership, 'replaced');
+    assert.equal(fs.existsSync(path.join(targetPath, 'old.txt')), false);
+    assert.equal(path.basename(replaced.displaced_path!), `${path.basename(targetPath)}.displaced-replace-transaction`);
+    restorePluginGenerationMutation(replaced);
+    assert.deepEqual(exactTreeInventory(targetPath), oldInventory);
+
+    removeFixtureTree(targetPath);
+    const created = materializeImmutablePluginCacheTransaction({
+      manifest,
+      sourcePath: pluginSourcePath,
+      targetPath,
+      developerCheckoutPayloadFiles: payloadFiles,
+      transactionId: 'create-transaction',
+    });
+    assert.equal(created.ownership, 'created');
+    restorePluginGenerationMutation(created);
+    assert.equal(fs.existsSync(targetPath), false);
+
+    const committed = materializeImmutablePluginCacheTransaction({
+      manifest,
+      sourcePath: pluginSourcePath,
+      targetPath,
+      developerCheckoutPayloadFiles: payloadFiles,
+      transactionId: 'commit-transaction',
+    });
+    finalizePluginGenerationMutation(committed);
+    const reused = materializeImmutablePluginCacheTransaction({
+      manifest,
+      sourcePath: pluginSourcePath,
+      targetPath,
+      developerCheckoutPayloadFiles: payloadFiles,
+      transactionId: 'reuse-transaction',
+    });
+    assert.equal(reused.ownership, 'reused');
+    restorePluginGenerationMutation(reused);
+    assert.equal(fs.existsSync(targetPath), true);
+
+    removeFixtureTree(targetPath);
+    const externalTarget = path.join(root, 'external-target');
+    fs.mkdirSync(externalTarget, { recursive: true, mode: 0o750 });
+    fs.writeFileSync(path.join(externalTarget, 'external.txt'), 'external bytes\n', { mode: 0o640 });
+    const externalMode = fs.lstatSync(externalTarget).mode & 0o777;
+    const externalFileMode = fs.lstatSync(path.join(externalTarget, 'external.txt')).mode & 0o777;
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+    fs.symlinkSync(externalTarget, targetPath);
+    const replacedLink = materializeImmutablePluginCacheTransaction({
+      manifest,
+      sourcePath: pluginSourcePath,
+      targetPath,
+      developerCheckoutPayloadFiles: payloadFiles,
+      transactionId: 'symlink-transaction',
+    });
+    restorePluginGenerationMutation(replacedLink);
+    assert.equal(fs.lstatSync(targetPath).isSymbolicLink(), true);
+    assert.equal(fs.readlinkSync(targetPath), externalTarget);
+    assert.equal(fs.readFileSync(path.join(externalTarget, 'external.txt'), 'utf8'), 'external bytes\n');
+    assert.equal(fs.lstatSync(externalTarget).mode & 0o777, externalMode);
+    assert.equal(fs.lstatSync(path.join(externalTarget, 'external.txt')).mode & 0o777, externalFileMode);
+  } finally {
+    removeFixtureTree(root);
+    removeFixtureTree(pluginSourcePath);
   }
 });
 
@@ -271,6 +454,91 @@ function writeOrdinaryUserMasRelease(root: string, version: string) {
   writeFakeMasUv(release.env.PATH.split(path.delimiter)[0]!);
   return release;
 }
+
+test('first-party repair preserves the installed immutable closure without reading latest-stable', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-exact-repair-'));
+  const stateDir = path.join(root, 'state');
+  const homeDir = path.join(root, 'home');
+  const workspace = path.join(root, 'workspace');
+  const release = writeOrdinaryUserMasRelease(path.join(root, 'release'), '0.1.0');
+  const commonEnv = {
+    HOME: homeDir,
+    CODEX_HOME: path.join(homeDir, '.codex'),
+    OPL_STATE_DIR: stateDir,
+    OPL_MODULE_SOURCE_MODE: 'package_channel',
+  };
+  const exactIdentity = (lock: any) => ({
+    package_id: lock.package_id,
+    package_version: lock.package_version,
+    source_artifact_ref: lock.source_artifact_ref,
+    artifact_digest: lock.artifact_digest,
+    package_content_digest: lock.package_content_digest,
+    manifest_sha256: lock.manifest_sha256,
+    owner_source_commit: lock.owner_source_commit,
+  });
+  try {
+    bindMasWorkspace(workspace, commonEnv);
+    const installed = runCli(['packages', 'install', 'mas'], {
+      ...commonEnv,
+      ...release.env,
+    }) as any;
+    const installedRoot = installed.opl_agent_package_install.package_lock;
+    const installedDependencies = installed.opl_agent_package_install.dependency_package_locks;
+    assert.match(installedRoot.package_content_digest, /^sha256:[0-9a-f]{64}$/);
+    assert.equal(Object.hasOwn(installedRoot, 'content_lock_canonicalization'), true);
+    for (const dependency of installedDependencies) {
+      assert.match(dependency.package_content_digest, /^sha256:[0-9a-f]{64}$/);
+      assert.equal(Object.hasOwn(dependency, 'content_lock_canonicalization'), true);
+    }
+    const lockPath = path.join(stateDir, 'agent-package-locks.json');
+    const legacyIndex = parseJsonText(fs.readFileSync(lockPath, 'utf8')) as any;
+    for (const legacyLock of legacyIndex.packages) {
+      delete legacyLock.package_content_digest;
+      delete legacyLock.content_lock_canonicalization;
+    }
+    fs.writeFileSync(lockPath, formatJsonPayload(legacyIndex));
+
+    const wrapperBin = path.join(root, 'repair-bin');
+    const curlLog = path.join(root, 'repair-curl.log');
+    const originalCurl = path.join(release.env.PATH.split(path.delimiter)[0]!, 'curl');
+    fs.mkdirSync(wrapperBin, { recursive: true });
+    fs.writeFileSync(path.join(wrapperBin, 'curl'), [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      'printf "%s\\n" "$*" >> "$OPL_TEST_CURL_LOG"',
+      'case "$*" in',
+      '  *"/manifests/latest-stable"*) exit 97 ;;',
+      'esac',
+      'exec "$OPL_TEST_ORIGINAL_CURL" "$@"',
+    ].join('\n'), { mode: 0o755 });
+    const repairEnv = {
+      ...commonEnv,
+      ...release.env,
+      PATH: `${wrapperBin}${path.delimiter}${release.env.PATH}`,
+      OPL_TEST_CURL_LOG: curlLog,
+      OPL_TEST_ORIGINAL_CURL: originalCurl,
+    };
+
+    const preview = runCli(['packages', 'repair', 'mas', '--dry-run'], repairEnv) as any;
+    assert.deepEqual(exactIdentity(preview.opl_agent_package_repair.package_lock), exactIdentity(installedRoot));
+    assert.deepEqual(
+      preview.opl_agent_package_repair.dependency_package_locks.map(exactIdentity),
+      installedDependencies.map(exactIdentity),
+    );
+    const repaired = runCli(['packages', 'repair', 'mas'], repairEnv) as any;
+    assert.deepEqual(exactIdentity(repaired.opl_agent_package_repair.package_lock), exactIdentity(installedRoot));
+    assert.equal(Object.hasOwn(repaired.opl_agent_package_repair.package_lock, 'content_lock_canonicalization'), true);
+    assert.deepEqual(
+      repaired.opl_agent_package_repair.dependency_package_locks.map(exactIdentity),
+      installedDependencies.map(exactIdentity),
+    );
+    const curlCalls = fs.readFileSync(curlLog, 'utf8');
+    assert.doesNotMatch(curlCalls, /\/manifests\/latest-stable/);
+    assert.match(curlCalls, /\/manifests\/sha256%3A|\/manifests\/sha256:/);
+  } finally {
+    removeFixtureTree(root);
+  }
+});
 
 function writeStandardAgentPackProbeFixture(root: string, version: string) {
   for (const relativePath of [
@@ -1265,6 +1533,7 @@ test('ordinary-user update advances immutable runtime generations and retires su
     assert.equal(
       exactPayloadFailure.payload.error.details.failure_code,
       'agent_package_payload_generation_digest_mismatch',
+      JSON.stringify(exactPayloadFailure.payload.error.details),
     );
     fs.rmSync(unexpectedPayloadFile);
     for (const [key, generationPath] of Object.entries(v1Paths)) {
