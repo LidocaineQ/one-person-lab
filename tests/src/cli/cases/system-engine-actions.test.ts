@@ -13,6 +13,7 @@ import {
   test,
 } from '../helpers.ts';
 import { resolveEngineActionSpec } from '../../../../src/modules/connect/system-installation/engine-helpers.ts';
+import { parseOplEngineArgs } from '../../../../src/entrypoints/cli/modules/support.ts';
 
 function parseRuntimeCodexUpdateReceipt(stdout: string) {
   const receiptLine = stdout
@@ -22,6 +23,29 @@ function parseRuntimeCodexUpdateReceipt(stdout: string) {
   assert.ok(receiptLine, stdout);
   return (parseJsonText(receiptLine) as any).opl_runtime_codex_update;
 }
+
+test('engine parser requires canonical --engine and rejects aliases or positionals', () => {
+  const spec = {
+    usage: 'opl engine install --engine codex',
+    examples: ['opl engine install --engine codex'],
+  };
+
+  assert.deepEqual(parseOplEngineArgs(['--engine', 'codex'], spec), { engineId: 'codex' });
+  assert.throws(() => parseOplEngineArgs([], spec), (error: any) => {
+    assert.equal(error.code, 'cli_usage_error');
+    assert.equal(error.message, 'engine commands require --engine.');
+    assert.deepEqual(error.details.required, ['--engine']);
+    return true;
+  });
+
+  for (const args of [['--engine-id', 'codex'], ['codex']]) {
+    assert.throws(() => parseOplEngineArgs(args, spec), (error: any) => {
+      assert.equal(error.code, 'cli_usage_error');
+      assert.equal(error.details.parser_adapter, 'node_util_parse_args');
+      return true;
+    });
+  }
+});
 
 function writeFakeNpmRuntimeInstaller(fakeNpm: string, logPath: string) {
   fs.writeFileSync(

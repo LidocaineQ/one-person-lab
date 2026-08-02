@@ -512,39 +512,15 @@ function parseOplEngineArgs(
   args: string[],
   spec: Pick<CommandSpec, 'usage' | 'examples'>,
 ): OplEngineCliInput {
-  const parsed: OplEngineCliInput = {};
-
-  for (let index = 0; index < args.length; index += 1) {
-    const token = args[index];
-
-    if (!token.startsWith('--')) {
-      throw buildUsageError(`Unexpected positional argument: ${token}.`, spec, {
-        token,
-      });
-    }
-
-    const value = args[index + 1];
-    if (!value || value.startsWith('--')) {
-      throw buildUsageError(`Missing value for option: ${token}.`, spec, {
-        option: token,
-      });
-    }
-
-    switch (token) {
-      case '--engine':
-      case '--engine-id':
-        parsed.engineId = value;
-        break;
-      default:
-        throw buildUsageError(`Unknown option for engine command: ${token}.`, spec, {
-          option: token,
-        });
-    }
-
-    index += 1;
+  const engineId = parseCommandOptions(args, spec, {
+    engine: { type: 'string' },
+  }).engine as string | undefined;
+  if (!engineId) {
+    throw buildUsageError('engine commands require --engine.', spec, {
+      required: ['--engine'],
+    });
   }
-
-  return parsed;
+  return { engineId };
 }
 
 function parseSessionRuntimeArgs(
