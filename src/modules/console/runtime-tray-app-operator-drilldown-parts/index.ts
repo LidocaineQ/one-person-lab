@@ -59,7 +59,6 @@ export {
   routeTransitionDrilldown,
   runtimeManagerRouteSupportRefs,
 } from './route-transition-context.ts';
-export { buildRuntimeVisualizationProjection } from './runtime-visualization-projection.ts';
 export { buildWorkstreamOperatingLoop } from './workstream-operating-loop.ts';
 export { buildMemoryTraceProjection } from './memory-trace-projection.ts';
 export {

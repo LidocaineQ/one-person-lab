@@ -714,10 +714,6 @@ export function applyAppOperatorDrilldownDetail<T extends JsonRecord>(
       evidence_envelope: markFullRefsObject(record(fullDrilldown.evidence_envelope), 'envelopes'),
       domain_dispatch_evidence: markFullRefsObject(record(fullDrilldown.domain_dispatch_evidence), 'attempts'),
       stage_production_evidence: markFullRefsObject(record(fullDrilldown.stage_production_evidence), 'stages'),
-      runtime_visualization_projection: {
-        ...record(fullDrilldown.runtime_visualization_projection),
-        detail_policy: 'complete_graph_and_timeline_explicit_full_detail',
-      },
       ...buildAppOperatorOwnerDeltaTopline({ attentionFirstPayload }),
       attention_first_payload: attentionFirstPayload,
     } as AppOperatorDrilldownDetailResult<T>;

@@ -31,7 +31,7 @@ App 仓库拆分 closeout 已归档到 [One Person Lab App 仓库拆分 Closeout
 - 消费 `one-person-lab-app` GitHub Releases 中的 One Person Lab App release artifact，但不构建、不上传、不维护 updater metadata。
 - 为 GUI 提供可消费的机器可读输出；新增安装、修复、状态或更新能力时，先落到 CLI，再由 GUI 调用。
 - 持有 App 可读状态与 action 协议：普通 summary / refresh 读取 `opl app state --profile fast --json`，显式 full-state 诊断或 release evidence 读取 `opl app state --profile full --json`，App mutation 统一走 `opl app action execute --action <id> [--payload <json>] [--dry-run] --json`。
-- `runtime_visualization_projection`、`runtime_tray_snapshot.app_operator_drilldown` 和 `opl runtime app-operator-drilldown --detail full --json` 继续作为 refs-only runtime/operator diagnostic detail；不再写成普通 GUI page-state 默认来源，也不把 GUI shell 的私有状态作为 runtime truth。
+- `runtime_tray_snapshot.app_operator_drilldown` 和 `opl runtime app-operator-drilldown --detail full --json` 继续作为 refs-only runtime/operator diagnostic detail；普通 GUI page-state 默认来源是 `app_state.operator.workbench`，不把 GUI shell 的私有状态作为 runtime truth。
 
 ### `one-person-lab-app`
 

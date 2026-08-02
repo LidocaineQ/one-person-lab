@@ -33,7 +33,6 @@ import {
   buildMemoryArtifactLifecycleEvidence,
   buildMemoryTraceProjection,
   buildProviderActionRoutes,
-  buildRuntimeVisualizationProjection,
   buildStageProductionAttemptRoutes,
   buildStageProductionAttemptStartRoutes,
   buildStageProductionEvidence,
@@ -239,23 +238,6 @@ export function buildAppOperatorDrilldown(input: {
   const lifecycleRefs = buildLifecycleLedgerRefs();
   const safeActions = safeActionRefs(actionRefs, lifecycleRefs);
   const executionBridge = buildAppExecutionBridge(actionRefs, periodicRefs, lifecycleRefs);
-  const runtimeVisualizationProjection = buildRuntimeVisualizationProjection({
-    attempts,
-    routeRefs,
-    decisionRefs,
-    artifactRefs,
-    packageLifecycle,
-    memoryRefs,
-    qualityRefs,
-    actionRefs,
-    ownerReceipts,
-    typedBlockers,
-    domainProjectionIngestion: input.domainProjectionIngestion,
-    routeTransitionDrilldown: routeTransitionDrilldownRefs,
-    stageProductionEvidence,
-    domainDispatchEvidence,
-    safeActions,
-  });
   const workstreamOperatingLoop = buildWorkstreamOperatingLoop({
     attempts,
     domainDispatchEvidence,
@@ -439,18 +421,6 @@ export function buildAppOperatorDrilldown(input: {
       numberValue(record(familyStallLineage.summary).repeated_lineage_count),
     family_stall_lineage_terminal_count:
       numberValue(record(familyStallLineage.summary).terminal_lineage_count),
-    runtime_visualization_node_count:
-      record(runtimeVisualizationProjection.summary).node_count,
-    runtime_visualization_edge_count:
-      record(runtimeVisualizationProjection.summary).edge_count,
-    runtime_visualization_timeline_event_count:
-      record(runtimeVisualizationProjection.summary).timeline_event_count,
-    runtime_visualization_operator_route_lens_ref_count:
-      record(runtimeVisualizationProjection.summary).operator_route_lens_ref_count,
-    runtime_visualization_stage_progress_event_count:
-      record(runtimeVisualizationProjection.summary).stage_progress_event_count,
-    runtime_visualization_temporal_stage_progress_ref_count:
-      record(runtimeVisualizationProjection.summary).temporal_stage_progress_ref_count,
     attempt_true_path_proof_count: truePathProofs.length,
     attempt_true_path_observed_count: truePathProofs.filter((proof) =>
       stringValue(proof.proof_status) === 'observed'
@@ -526,10 +496,6 @@ export function buildAppOperatorDrilldown(input: {
     sourceRef(
       '/runtime_tray_snapshot/app_operator_drilldown/semantic_conventions',
       'semantic_conventions',
-    ),
-    sourceRef(
-      '/runtime_tray_snapshot/app_operator_drilldown/runtime_visualization_projection',
-      'runtime_visualization_projection',
     ),
     sourceRef(
       '/runtime_tray_snapshot/app_operator_drilldown/standard_agent_template_consumption_refs',
@@ -647,19 +613,16 @@ export function buildAppOperatorDrilldown(input: {
     production_evidence_tail_ledger: productionEvidenceTailLedger,
     evidence_envelope: evidenceEnvelope,
     semantic_conventions: record(record(evidenceEnvelope).semantic_conventions),
-    runtime_visualization_projection: runtimeVisualizationProjection,
     workstream_operating_loop: workstreamOperatingLoop,
     current_work_unit_first_read_model: currentWorkUnitFirstReadModel,
     domain_current_work_unit_projection: domainCurrentWorkUnitProjection,
     runtime_workbench: {
-      ...record(runtimeVisualizationProjection.runtime_workbench),
       archived_attempts: recordList(input.stageAttemptWorkbench.archived_attempts),
       memory_trace_projection: memoryTrace,
       workstream_operating_loop: workstreamOperatingLoop,
       current_work_unit_first_read_model: currentWorkUnitFirstReadModel,
       domain_current_work_unit_projection: domainCurrentWorkUnitProjection,
     },
-    visual_ref_groups: record(runtimeVisualizationProjection.visual_ref_groups),
     domain_legacy_cleanup_plan_refs: legacyCleanupPlans,
     cleanup_retirement: cleanupRetirement,
     standard_agent_template_consumption_refs: standardAgentTemplateConsumption,

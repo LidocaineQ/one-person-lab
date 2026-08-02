@@ -27,7 +27,7 @@ exit 1
           availability: string;
           source_surface: string;
           runtime_workbench: {
-            surface_kind: string;
+            view_model_schema: string;
             summary_cards: Array<{ card_id: string }>;
             action_queue_item_count: number;
             domain_lane_count: number;
@@ -69,7 +69,7 @@ exit 1
     assert.equal(summary.surface_kind, 'opl_app_state_runtime_workbench_summary');
     assert.equal(summary.availability, 'available');
     assert.equal(summary.source_surface, 'opl runtime app-operator-drilldown --detail full --json');
-    assert.equal(summary.runtime_workbench?.surface_kind, 'opl_app_runtime_workbench_visualization_model');
+    assert.equal(summary.runtime_workbench?.view_model_schema, 'opl_app_operator_workbench.v1');
     assert.equal(summary.runtime_workbench?.summary_cards.length > 0, true);
     assert.equal(summary.runtime_workbench?.action_queue_item_count >= 0, true);
     assert.equal(summary.runtime_workbench?.domain_lane_count >= 0, true);

@@ -1,94 +1,46 @@
 import {
   assert,
+  fs,
+  os,
+  path,
   test,
 } from '../helpers.ts';
 import {
-  buildRuntimeVisualizationProjection,
-} from '../../../../src/modules/console/runtime-tray-app-operator-drilldown-parts/index.ts';
+  buildAppOperatorDrilldown,
+} from '../../../../src/modules/console/runtime-tray-app-operator-drilldown.ts';
 
-test('runtime visualization projection exposes canonical stage progress and Temporal refs only', () => {
-  const projection = buildRuntimeVisualizationProjection({
-    attempts: [
-      {
-        domain_id: 'medautoscience',
-        stage_id: 'write',
-        stage_attempt_id: 'attempt-stage-progress',
-        task_id: 'task-stage-progress',
-        status: 'running',
-        stage_progress_log: {
-          actual_work: { status: 'running' },
-          timeline: {
-            duration_telemetry_status: 'observed',
-            events: [
-              {
-                activity_kind: 'codex_stage_activity',
-                activity_status: 'running',
-                runner_event_kind: 'codex_delta',
-                observed_at: '2026-05-27T00:00:00.000Z',
-                ref: 'stage_attempt:attempt-stage-progress#activity_events[0]',
-              },
-            ],
-          },
-          temporal_webui_ref: {
-            url: 'http://localhost:8233/namespaces/default/workflows/attempt-stage-progress/run-1/history',
-          },
-          memory_body: 'must-not-be-projected',
-          artifact_body: 'must-not-be-projected',
-        },
-      },
-    ],
-    routeRefs: [],
-    decisionRefs: [],
-    artifactRefs: [],
-    packageLifecycle: {},
-    memoryRefs: {},
-    qualityRefs: {},
-    actionRefs: [],
-    ownerReceipts: [],
-    typedBlockers: {},
-    domainProjectionIngestion: {
-      items: [{
-        domain_id: 'medautoscience',
-        operator_route_lens_refs: ['example://operator/lens'],
-        paper_route_lens_refs: ['example://retired/paper-lens'],
-      }],
-    },
-    routeTransitionDrilldown: {},
-    stageProductionEvidence: {},
-    domainDispatchEvidence: {},
-    safeActions: [],
-  });
+test('runtime App drilldown retains the canonical workbench shell', () => {
+  const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-drilldown-workbench-shell-'));
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = stateRoot;
+  try {
+    const projection = buildAppOperatorDrilldown({
+      stageAttemptWorkbench: { attempts: [] },
+      providerContinuousProof: {},
+      domainProjectionIngestion: {},
+      domainManifestProjects: [],
+      detailLevel: 'full',
+    });
 
-  assert.equal(projection.visual_ref_groups.stage_progress_log_refs.length, 1);
-  assert.equal(
-    projection.visual_ref_groups.stage_progress_log_refs[0].ref,
-    '/stage_attempt_workbench/attempts/attempt-stage-progress/stage_progress_log',
-  );
-  assert.equal(
-    projection.visual_ref_groups.stage_progress_log_refs[0].temporal_webui_url,
-    'http://localhost:8233/namespaces/default/workflows/attempt-stage-progress/run-1/history',
-  );
-  assert.equal(projection.summary.stage_progress_event_count, 1);
-  assert.equal(projection.summary.temporal_stage_progress_ref_count, 1);
-  assert.equal(
-    projection.graph.nodes.some((node: any) =>
-      node.node_kind === 'stage_progress_log' && node.stage_attempt_id === 'attempt-stage-progress'
-    ),
-    true,
-  );
-  assert.equal(
-    projection.graph.edges.some((edge: any) =>
-      edge.edge_kind === 'attempt_has_stage_progress_log'
-      && edge.stage_attempt_id === 'attempt-stage-progress'
-    ),
-    true,
-  );
-  assert.equal(JSON.stringify(projection).includes('must-not-be-projected'), false);
-  assert.equal(projection.authority_boundary.can_read_memory_body, false);
-  assert.equal(projection.authority_boundary.can_read_artifact_body, false);
-  assert.equal(projection.authority_boundary.can_claim_domain_ready, false);
-  assert.equal(projection.operator_lens.surface_kind, 'opl_app_runtime_operator_lens_refs');
-  assert.equal(projection.summary.operator_route_lens_ref_count, 1);
-  assert.equal(projection.operator_lens.operator_route_lens_refs[0].ref, 'example://operator/lens');
-  assert.equal(JSON.stringify(projection).includes('retired/paper-lens'), false);
+    assert.equal(projection.detail_level, 'full');
+    assert.equal(projection.surface_kind, 'opl_app_operator_drilldown_read_model');
+    assert.ok(Array.isArray(projection.runtime_workbench.archived_attempts));
+    assert.equal(projection.runtime_workbench.memory_trace_projection.surface_kind, 'opl_memory_trace_projection');
+    assert.equal(projection.runtime_workbench.workstream_operating_loop.surface_kind, 'opl_workstream_operating_loop_projection');
+    assert.equal(
+      projection.runtime_workbench.current_work_unit_first_read_model.surface_kind,
+      'opl_app_current_work_unit_first_read_model',
+    );
+    assert.equal(
+      projection.runtime_workbench.domain_current_work_unit_projection.surface_kind,
+      'opl_domain_current_work_unit_projection',
+    );
+    assert.equal(projection.authority_boundary.can_write_domain_truth, false);
+    assert.equal(projection.authority_boundary.can_read_memory_body, false);
+    assert.equal(projection.authority_boundary.can_read_artifact_body, false);
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    fs.rmSync(stateRoot, { recursive: true, force: true });
+  }
 });

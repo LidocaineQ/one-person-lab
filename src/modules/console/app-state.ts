@@ -308,7 +308,10 @@ function buildUiDefaults() {
   };
 }
 
-function fullRuntimeWorkbenchSummary(fullDrilldown: JsonRecord | null) {
+function fullRuntimeWorkbenchSummary(
+  fullDrilldown: JsonRecord | null,
+  operator: JsonRecord,
+) {
   if (!fullDrilldown) {
     return {
       surface_kind: 'opl_app_state_runtime_workbench_summary',
@@ -321,25 +324,7 @@ function fullRuntimeWorkbenchSummary(fullDrilldown: JsonRecord | null) {
       },
     };
   }
-  const runtimeWorkbench = isRecord(fullDrilldown.runtime_workbench)
-    ? fullDrilldown.runtime_workbench
-    : null;
-  const visualization = isRecord(fullDrilldown.runtime_visualization_projection)
-    ? fullDrilldown.runtime_visualization_projection
-    : {};
-  const nestedRuntimeWorkbench = isRecord(visualization.runtime_workbench)
-    ? visualization.runtime_workbench
-    : null;
-  const effectiveRuntimeWorkbench = runtimeWorkbench ?? nestedRuntimeWorkbench;
-  const visualRefGroups = isRecord(fullDrilldown.visual_ref_groups)
-    ? fullDrilldown.visual_ref_groups
-    : isRecord(visualization.visual_ref_groups)
-      ? visualization.visual_ref_groups
-      : {};
-  const visualizationSummary = isRecord(visualization.summary) ? visualization.summary : {};
-  const stageProgressRefs = Array.isArray(visualRefGroups.stage_progress_log_refs)
-    ? visualRefGroups.stage_progress_log_refs
-    : [];
+  const runtimeWorkbench = isRecord(operator.workbench) ? operator.workbench : null;
   const stageProgressSummary = isRecord(fullDrilldown.stage_progress_log)
     ? fullDrilldown.stage_progress_log
     : null;
@@ -357,25 +342,25 @@ function fullRuntimeWorkbenchSummary(fullDrilldown: JsonRecord | null) {
     : {};
   return {
     surface_kind: 'opl_app_state_runtime_workbench_summary',
-    availability: effectiveRuntimeWorkbench ? 'available' : 'unavailable',
+    availability: runtimeWorkbench ? 'available' : 'unavailable',
     source_surface: 'opl runtime app-operator-drilldown --detail full --json',
-    runtime_workbench: effectiveRuntimeWorkbench
+    runtime_workbench: runtimeWorkbench
       ? {
-          surface_kind: effectiveRuntimeWorkbench.surface_kind,
-          summary_cards: Array.isArray(effectiveRuntimeWorkbench.summary_cards)
-            ? effectiveRuntimeWorkbench.summary_cards
+          view_model_schema: runtimeWorkbench.view_model_schema,
+          summary_cards: Array.isArray(runtimeWorkbench.summary_cards)
+            ? runtimeWorkbench.summary_cards
             : [],
           action_queue_item_count:
-            Array.isArray(isRecord(effectiveRuntimeWorkbench.action_queue)
-              ? effectiveRuntimeWorkbench.action_queue.items
+            Array.isArray(isRecord(runtimeWorkbench.action_queue)
+              ? runtimeWorkbench.action_queue.items
               : null)
-            ? ((effectiveRuntimeWorkbench.action_queue as JsonRecord).items as unknown[]).length
+            ? ((runtimeWorkbench.action_queue as JsonRecord).items as unknown[]).length
             : 0,
           domain_lane_count:
-            Array.isArray(isRecord(effectiveRuntimeWorkbench.domain_lane_map)
-              ? effectiveRuntimeWorkbench.domain_lane_map.lanes
+            Array.isArray(isRecord(runtimeWorkbench.domain_lane_map)
+              ? runtimeWorkbench.domain_lane_map.lanes
               : null)
-            ? ((effectiveRuntimeWorkbench.domain_lane_map as JsonRecord).lanes as unknown[]).length
+            ? ((runtimeWorkbench.domain_lane_map as JsonRecord).lanes as unknown[]).length
             : 0,
         }
       : null,
@@ -386,9 +371,11 @@ function fullRuntimeWorkbenchSummary(fullDrilldown: JsonRecord | null) {
       temporal_webui_refs: Array.isArray(stageProgressSummary?.temporal_webui_refs)
         ? stageProgressSummary.temporal_webui_refs
         : [],
-      visual_ref_count: stageProgressRefs.length,
-      temporal_stage_progress_ref_count: Number(visualizationSummary.temporal_stage_progress_ref_count ?? 0),
-      stage_progress_event_count: Number(visualizationSummary.stage_progress_event_count ?? 0),
+      visual_ref_count: Array.isArray(stageProgressSummary?.attempt_refs)
+        ? stageProgressSummary.attempt_refs.length
+        : 0,
+      temporal_stage_progress_ref_count: Number(stageProgressSummary?.temporal_webui_ref_count ?? 0),
+      stage_progress_event_count: Number(stageProgressSummary?.activity_event_count ?? 0),
     },
     effective_current_context: {
       surface_kind: effectiveCurrentContext.surface_kind ?? 'opl_effective_current_context_packet',
@@ -1136,7 +1123,7 @@ export async function buildOplAppState(input: {
       settings_control_center: settingsControlCenter,
       operator,
       foundry,
-      runtime_workbench: fullRuntimeWorkbenchSummary(fullRuntimeDrilldown),
+      runtime_workbench: fullRuntimeWorkbenchSummary(fullRuntimeDrilldown, operator),
       paths,
       actions,
       ui_defaults: uiDefaults,

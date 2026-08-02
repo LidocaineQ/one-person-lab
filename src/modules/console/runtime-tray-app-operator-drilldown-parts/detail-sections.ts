@@ -26,7 +26,6 @@ export const SUMMARY_DRILLDOWN_KEYS = [
   'domain_evidence_request_refs',
   'production_evidence_tail_ledger',
   'evidence_envelope',
-  'runtime_visualization_projection',
   'domain_legacy_cleanup_plan_refs',
   'standard_agent_template_consumption_refs',
   'codex_app_runtime_role',
