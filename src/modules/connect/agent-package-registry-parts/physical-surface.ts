@@ -1,12 +1,12 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { recordList, stringValue } from '../../../kernel/json-record.ts';
+import { makeNativeTemporaryDirectory } from '../../../kernel/native-temp-root.ts';
 import { resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
 import {
   materializeLocalCodexPluginMarketplace,
@@ -499,7 +499,7 @@ async function materializePayloadManifestSource(input: {
     payloadManifestUrl: input.payloadManifestUrl,
     catalogSelection: input.catalogSelection,
   });
-  const artifactStageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-source-'));
+  const artifactStageRoot = makeNativeTemporaryDirectory('opl-agent-package-source-');
   let files: AgentPackagePayloadFile[];
   try {
     const artifactSource = materializeArtifactPayloadSource({
@@ -534,7 +534,7 @@ async function materializePayloadManifestSource(input: {
     });
   }
   const payloadRoot = input.dryRun
-    ? fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-payload-'))
+    ? makeNativeTemporaryDirectory('opl-agent-package-payload-')
     : `${persistentPayloadRoot}.stage-${process.pid}-${crypto.randomBytes(8).toString('hex')}`;
   if (!input.dryRun && fs.existsSync(persistentPayloadRoot)) {
     if (!exactPayloadGenerationMatches(persistentPayloadRoot, files)) {
