@@ -23,6 +23,8 @@
     "publisher": { "type": "string", "minLength": 1 },
     "version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$" },
     "source": { "type": "string", "minLength": 1 },
+    "owner_package_manifest_ref": { "type": "string", "minLength": 1 },
+    "owner_package_descriptor_ref": { "type": "string", "minLength": 1 },
     "package_role": {
       "enum": ["capability_package", "framework_capability_package"]
     },
@@ -81,6 +83,9 @@
         "properties": {
           "profile_id": { "type": "string", "minLength": 1 },
           "consumer_agent_id": { "type": "string", "minLength": 1 },
+          "profile_kind": { "const": "optional_refs_only_enhancement" },
+          "required": { "const": false },
+          "dependency_kind": { "const": "optional_enhancement" },
           "required_export_ids": {
             "type": "array",
             "items": { "type": "string", "minLength": 1 },
@@ -92,6 +97,40 @@
             "items": { "type": "string", "minLength": 1 },
             "minItems": 1,
             "uniqueItems": true
+          },
+          "required_ids_semantics": { "const": "selected_profile_compatibility_set_not_consumer_readiness" },
+          "missing_or_incompatible_behavior": { "const": "consumer_fail_open" },
+          "diagnostic_role": { "const": "consumer_owned_non_blocking_diagnostic" },
+          "distribution_behavior": { "const": "consumer_may_bundle_or_materialize_without_dependency_or_readiness_effect" },
+          "blocks_install": { "const": false },
+          "blocks_activation": { "const": false },
+          "blocks_admission": { "const": false },
+          "blocks_route": { "const": false },
+          "blocks_launch": { "const": false },
+          "blocks_readiness": { "const": false },
+          "authority_boundary": {
+            "type": "object",
+            "required": [
+              "can_write_consumer_domain_truth",
+              "can_claim_consumer_fundability",
+              "can_claim_consumer_quality_verdict",
+              "can_claim_consumer_export_or_publication_readiness",
+              "can_sign_consumer_owner_receipt",
+              "can_create_consumer_typed_blocker",
+              "can_write_consumer_strategy_memory",
+              "can_claim_consumer_owner_authority"
+            ],
+            "properties": {
+              "can_write_consumer_domain_truth": { "const": false },
+              "can_claim_consumer_fundability": { "const": false },
+              "can_claim_consumer_quality_verdict": { "const": false },
+              "can_claim_consumer_export_or_publication_readiness": { "const": false },
+              "can_sign_consumer_owner_receipt": { "const": false },
+              "can_create_consumer_typed_blocker": { "const": false },
+              "can_write_consumer_strategy_memory": { "const": false },
+              "can_claim_consumer_owner_authority": { "const": false }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false
@@ -135,6 +174,10 @@
     "app_contributions": {
       "$ref": "#/$defs/app_contributions"
     }
+  },
+  "dependentRequired": {
+    "owner_package_manifest_ref": ["owner_package_descriptor_ref"],
+    "owner_package_descriptor_ref": ["owner_package_manifest_ref"]
   },
   "$defs": {
     "app_contributions": {

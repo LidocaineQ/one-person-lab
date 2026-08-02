@@ -8,7 +8,7 @@ import {
   getOplPackageSpecs,
   normalizeDistributionVersion,
 } from '../src/modules/connect/package-distribution.ts';
-import { readJsonFile } from './script-json-boundary.mjs';
+import { parseJsonText, readJsonFile } from './script-json-boundary.mjs';
 
 export const TEST_ONLY_PACKAGE_RELEASE_GATE = 'test_owner_sha_release_gate';
 
@@ -155,7 +155,7 @@ function sourceTreePath(ownerRepoPath, sourceRoot, filePath, packageId) {
   return relative;
 }
 
-function readCommitBlob({ packageId, ownerRepoPath, sourceCommit, treePath, failureCode }) {
+function readCommitRegularFile({ packageId, ownerRepoPath, sourceCommit, treePath, failureCode }) {
   const entry = gitValue(ownerRepoPath, ['ls-tree', '--full-tree', sourceCommit, '--', treePath], true);
   const match = /^([0-9]{6}) blob ([0-9a-f]+)\t(.+)$/.exec(entry ?? '');
   if (!match || match[3] !== treePath || !allowedPayloadModes.has(match[1])) {
@@ -165,7 +165,14 @@ function readCommitBlob({ packageId, ownerRepoPath, sourceCommit, treePath, fail
       tree_entry: entry,
     });
   }
-  return gitBytes(ownerRepoPath, ['cat-file', 'blob', match[2]]);
+  return {
+    bytes: gitBytes(ownerRepoPath, ['cat-file', 'blob', match[2]]),
+    mode: match[1],
+  };
+}
+
+function readCommitBlob(input) {
+  return readCommitRegularFile(input).bytes;
 }
 
 function projectedCarrierSourceCommit(packageId, projectedManifest) {
@@ -209,6 +216,7 @@ function resolveCarrierSourceCommit({ spec, ownerRepoPath, owner, projectedManif
 
 function validateContentLock({
   packageId,
+  ownerPackageManifestRef,
   ownerManifestKind,
   ownerPluginManifestRef,
   ownerRepoPath,
@@ -229,7 +237,30 @@ function validateContentLock({
     || !/^sha256:[0-9a-f]{64}$/.test(ownerLock?.digest ?? '')) {
     fail('content_lock_invalid', packageId, 'owner content lock contract is invalid');
   }
-  if (JSON.stringify(payload.files.map((entry) => entry.path)) !== JSON.stringify(ownerLock.paths)) {
+  const descriptorRef = projectedManifest.owner_package_descriptor_ref === undefined
+    ? null
+    : safeRelativePath(projectedManifest.owner_package_descriptor_ref, 'owner_package_descriptor_ref', packageId);
+  const projectedOwnerManifestRef = projectedManifest.owner_package_manifest_ref === undefined
+    ? null
+    : safeRelativePath(projectedManifest.owner_package_manifest_ref, 'owner_package_manifest_ref', packageId);
+  if ((descriptorRef === null) !== (projectedOwnerManifestRef === null)) {
+    fail('owner_package_descriptor_invalid', packageId, 'owner package manifest and descriptor refs must be declared together');
+  }
+  if (projectedOwnerManifestRef !== null && projectedOwnerManifestRef !== ownerPackageManifestRef) {
+    fail('owner_package_descriptor_invalid', packageId, 'Framework owner package manifest ref differs from the canonical owner surface', {
+      expected: ownerPackageManifestRef,
+      actual: projectedOwnerManifestRef,
+    });
+  }
+  const payloadPaths = payload.files.map((entry) => entry.path);
+  const contentPaths = descriptorRef === null
+    ? payloadPaths
+    : payloadPaths.filter((entry) => entry !== descriptorRef);
+  const descriptorOccurrences = descriptorRef === null
+    ? 0
+    : payloadPaths.filter((entry) => entry === descriptorRef).length;
+  if ((descriptorRef !== null && descriptorOccurrences !== 1)
+    || JSON.stringify(contentPaths) !== JSON.stringify(ownerLock.paths)) {
     fail('content_lock_drift', packageId, 'payload files do not match the ordered content lock paths');
   }
   const hash = crypto.createHash('sha256');
@@ -239,6 +270,37 @@ function validateContentLock({
     packageId,
   );
   const carrierRoot = path.posix.dirname(path.posix.dirname(pluginManifestPath));
+  if (descriptorRef !== null) {
+    const descriptorPath = carrierRoot === '.' ? descriptorRef : path.posix.join(carrierRoot, descriptorRef);
+    const descriptorBytes = readCommitBlob({
+      packageId,
+      ownerRepoPath,
+      sourceCommit,
+      treePath: descriptorPath,
+      failureCode: 'owner_package_descriptor_invalid',
+    });
+    const ownerManifestBytes = readCommitBlob({
+      packageId,
+      ownerRepoPath,
+      sourceCommit,
+      treePath: ownerPackageManifestRef,
+      failureCode: 'owner_package_manifest_invalid',
+    });
+    if (!descriptorBytes.equals(ownerManifestBytes)) {
+      fail('owner_package_descriptor_drift', packageId, 'owner package descriptor bytes differ from the canonical owner package manifest');
+    }
+    let descriptor;
+    try {
+      descriptor = parseJsonText(descriptorBytes.toString('utf8'));
+    } catch {
+      fail('owner_package_descriptor_invalid', packageId, 'owner package descriptor is not valid JSON');
+    }
+    if (descriptor.package_id !== packageId
+      || descriptor.version !== projectedManifest.version
+      || JSON.stringify(descriptor.content_lock) !== JSON.stringify(ownerLock)) {
+      fail('owner_package_descriptor_drift', packageId, 'owner package descriptor identity, version, or content_lock differs from the Framework projection');
+    }
+  }
   for (const declaredPath of ownerLock.paths) {
     const relative = safeRelativePath(declaredPath, 'content_lock.paths[]', packageId);
     const bytes = readCommitBlob({
@@ -339,13 +401,20 @@ export function validatePackageSourceProjection({
     }
     seen.add(relativePath);
     const sourcePath = sourceTreePath(ownerRepoPath, sourceRoot, relativePath, spec.package_id);
-    const sourceBytes = readCommitBlob({
+    const sourceEntry = readCommitRegularFile({
       packageId: spec.package_id,
       ownerRepoPath,
       sourceCommit: carrierSourceCommit,
       treePath: sourcePath,
       failureCode: 'payload_source_missing',
     });
+    const sourceBytes = sourceEntry.bytes;
+    if (entry.mode !== undefined && entry.mode !== sourceEntry.mode) {
+      fail('payload_source_mode_mismatch', spec.package_id, `payload mode differs from owner Git bytes: ${relativePath}`, {
+        expected: sourceEntry.mode,
+        actual: entry.mode,
+      });
+    }
     const expectedUrl = `https://raw.githubusercontent.com/${coordinates.owner}/${coordinates.repo}/${carrierSourceCommit}/${sourcePath}`;
     if (entry.source_url !== expectedUrl) {
       fail('payload_source_url_drift', spec.package_id, `payload source URL is not bound to carrier authority: ${relativePath}`, {
@@ -363,6 +432,7 @@ export function validatePackageSourceProjection({
   }
   validateContentLock({
     packageId: spec.package_id,
+    ownerPackageManifestRef: spec.owner_package_manifest_ref,
     ownerManifestKind: spec.owner_manifest_kind,
     ownerPluginManifestRef: spec.owner_plugin_manifest_ref,
     ownerRepoPath,
