@@ -598,7 +598,7 @@ test('opl connect sync-skills registers tracked family plugin sources without wr
     }
     assert.equal(output.skill_sync.companion_skills.surface_id, 'opl_companion_skill_sync');
     assert.equal(output.skill_sync.companion_skills.mode, 'observe');
-    assert.equal(output.skill_sync.companion_skills.summary.total >= 6, true);
+    assert.equal(output.skill_sync.companion_skills.summary.total, 0);
     for (const skillName of ['mas', 'mag', 'rca', 'oma', 'obf', 'med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-meta-agent', 'opl-bookforge']) {
       assert.equal(fs.existsSync(path.join(homeDir, '.codex', 'skills', skillName, 'SKILL.md')), false);
     }
