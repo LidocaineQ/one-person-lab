@@ -324,19 +324,6 @@ function studyIdFromAttempt(attempt: StageAttemptPayload) {
     : null;
 }
 
-function taskPayloadForAttempt(db: DatabaseSync, taskId: string | null) {
-  if (!taskId) {
-    return null;
-  }
-  const row = db.prepare('SELECT payload_json FROM tasks WHERE task_id = ?').get(taskId) as
-    | { payload_json: string }
-    | undefined;
-  if (!row) {
-    return null;
-  }
-  return parseStageAttemptJsonObject(row.payload_json);
-}
-
 function addStudyIdentity(values: string[], value: unknown) {
   if (typeof value === 'string' && value.trim()) {
     values.push(value.trim());
@@ -375,22 +362,17 @@ function firstStudyIdentityFromRecord(record: Record<string, unknown> | null) {
   return studyIdentitiesFromRecord(record)[0] ?? null;
 }
 
-function attemptStudyIdentities(db: DatabaseSync, attempt: StageAttemptPayload) {
-  const values = [
-    ...studyIdentitiesFromRecord(attempt.workspace_locator),
-    ...studyIdentitiesFromRecord(taskPayloadForAttempt(db, attempt.task_id)),
-  ];
+function attemptStudyIdentities(attempt: StageAttemptPayload) {
+  const values = studyIdentitiesFromRecord(attempt.workspace_locator);
   return [...new Set(values)];
 }
 
-function attemptStudyId(db: DatabaseSync, attempt: StageAttemptPayload) {
+function attemptStudyId(attempt: StageAttemptPayload) {
   return studyIdFromAttempt(attempt)
-    ?? firstStudyIdentityFromRecord(taskPayloadForAttempt(db, attempt.task_id))
     ?? firstStudyIdentityFromRecord(attempt.workspace_locator);
 }
 
 function attemptMatchesMonitoringFilters(
-  db: DatabaseSync,
   attempt: StageAttemptPayload,
   filters: StageAttemptMonitoringFilters = {},
   sinceIso: string | null,
@@ -398,7 +380,7 @@ function attemptMatchesMonitoringFilters(
   return (!filters.domainId || attempt.domain_id === filters.domainId)
     && (!filters.status || attempt.status === filters.status)
     && (!sinceIso || attempt.updated_at >= sinceIso || attempt.created_at >= sinceIso)
-    && (!filters.studyId || attemptStudyIdentities(db, attempt).includes(filters.studyId));
+    && (!filters.studyId || attemptStudyIdentities(attempt).includes(filters.studyId));
 }
 
 function latestCloseoutPacket(db: DatabaseSync, stageAttemptId: string) {
@@ -658,7 +640,7 @@ function compactTimelineForAttempt(
   currentProviderReadiness: CurrentProviderReadiness | null,
   options: { auditSafe?: boolean } = {},
 ) {
-  const studyId = attemptStudyId(db, attempt);
+  const studyId = attemptStudyId(attempt);
   const stageProgressLog = buildStageProgressLog({
     stageAttemptId: attempt.stage_attempt_id,
     projectionScope: 'attempt_list_compact_timeline',
@@ -810,7 +792,7 @@ export async function listStageAttemptsWithMonitoringProjection(
   const auditSafeTimeline = effectiveCompactTimeline && filters.compactTimeline !== true;
   const baseAttempts = listStageAttemptRows(db).map(stageAttemptToPayload);
   const filteredAttempts = baseAttempts.filter((attempt) =>
-    attemptMatchesMonitoringFilters(db, attempt, filters, sinceIso)
+    attemptMatchesMonitoringFilters(attempt, filters, sinceIso)
   );
   const compactTimelineAttempts = effectiveCompactTimeline
     ? [...filteredAttempts]
