@@ -84,6 +84,11 @@ test('workspace source-hygiene is the public fail-closed transport', () => {
     assert.equal(output.surface_kind, 'opl_repo_source_byproduct_guard');
     assert.equal(output.status, 'passed');
 
+    assert.throws(
+      () => runCli(['workspace', 'source-hygiene', root]),
+      /Unexpected argument/,
+    );
+
     fs.mkdirSync(path.join(root, '.venv'));
     assert.throws(
       () => runCli(['workspace', 'source-hygiene', '--source-root', root]),

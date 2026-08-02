@@ -1,5 +1,3 @@
-import { parseArgs } from 'node:util';
-
 import {
   buildWorkspaceInitializeInterfaces,
   ensureWorkspace,
@@ -33,42 +31,16 @@ import { buildHostedWorkItemReadback } from '../../../modules/console/work-item-
 import type { FrameworkContracts } from '../../../kernel/types.ts';
 import {
   assertNoArgs,
-  buildUsageError,
   parseWorkspaceAdoptArgs,
   parseWorkspaceArtifactLifecycleArgs,
   parseWorkspaceInitializeArgs,
   parseWorkspaceLifecycleArgs,
   parseWorkspaceSourceIngestArgs,
   parseWorkspaceValidationArgs,
+  parseCommandOptions,
   parseRegisteredCommandOptions,
 } from '../modules/support.ts';
 import type { CommandSpec } from '../modules/support.ts';
-
-function parseRepoSourceHygieneArgs(
-  args: string[],
-  spec: Pick<CommandSpec, 'usage' | 'examples'>,
-) {
-  try {
-    const { values } = parseArgs({
-      args,
-      options: {
-        'source-root': { type: 'string' },
-        fix: { type: 'boolean' },
-      },
-      strict: true,
-      allowPositionals: false,
-    });
-    return {
-      sourceRoot: values['source-root'] ?? process.cwd(),
-      fix: values.fix === true,
-    };
-  } catch (error) {
-    throw buildUsageError(
-      error instanceof Error ? error.message : String(error),
-      spec,
-    );
-  }
-}
 
 export function buildWorkspaceInitializeCommandSpecs(
   getContracts: () => FrameworkContracts,
@@ -167,10 +139,14 @@ export function buildWorkspaceInitializeCommandSpecs(
         'opl workspace source-hygiene --source-root /Users/gaofeng/workspace/opl-meta-agent --fix',
       ],
       handler: (args) => {
-        const parsed = parseRepoSourceHygieneArgs(args, specs['workspace source-hygiene']);
-        return parsed.fix
-          ? fixRepoSourceByproducts(parsed.sourceRoot)
-          : assertRepoSourceByproductsClean(parsed.sourceRoot);
+        const parsed = parseCommandOptions(args, specs['workspace source-hygiene'], {
+          'source-root': { type: 'string' },
+          fix: { type: 'boolean' },
+        }) as { 'source-root'?: string; fix?: boolean };
+        const sourceRoot = parsed['source-root'] ?? process.cwd();
+        return parsed.fix === true
+          ? fixRepoSourceByproducts(sourceRoot)
+          : assertRepoSourceByproductsClean(sourceRoot);
       },
     },
     'workspace adopt': {
