@@ -1079,6 +1079,55 @@ function managedPolicyDependencySelection(input: {
   };
 }
 
+function removeManagedPolicyPath(pathRef: string) {
+  const stat = fs.lstatSync(pathRef);
+  if (stat.isDirectory() && !stat.isSymbolicLink()) {
+    fs.rmSync(pathRef, { recursive: true });
+    return;
+  }
+  fs.unlinkSync(pathRef);
+}
+
+export function moveManagedPolicyPath(
+  sourceRef: string,
+  targetRef: string,
+  operations: { renameSync?: typeof fs.renameSync } = {},
+) {
+  const renameSync = operations.renameSync ?? fs.renameSync;
+  try {
+    renameSync(sourceRef, targetRef);
+    return;
+  } catch (error) {
+    if (!(error instanceof Error) || (error as NodeJS.ErrnoException).code !== 'EXDEV') {
+      throw error;
+    }
+  }
+
+  const temporaryRef = path.join(
+    path.dirname(targetRef),
+    `.${path.basename(targetRef)}.cross-device-${crypto.randomUUID()}`,
+  );
+  try {
+    fs.cpSync(sourceRef, temporaryRef, {
+      recursive: true,
+      errorOnExist: true,
+      force: false,
+      preserveTimestamps: true,
+      verbatimSymlinks: true,
+    });
+    renameSync(temporaryRef, targetRef);
+    try {
+      removeManagedPolicyPath(sourceRef);
+    } catch (error) {
+      removeManagedPolicyPath(targetRef);
+      throw error;
+    }
+  } catch (error) {
+    if (fs.existsSync(temporaryRef)) removeManagedPolicyPath(temporaryRef);
+    throw error;
+  }
+}
+
 export function materializeManagedPolicySurface(input: {
   manifest: AgentPackageManifest;
   sourceRoot: string;
@@ -1129,7 +1178,7 @@ export function materializeManagedPolicySurface(input: {
         const backupRef = backupPath(backupRoot, item.physicalRef);
         const backupSha256 = sha256Path(item.physicalRef);
         fs.mkdirSync(path.dirname(backupRef), { recursive: true });
-        fs.renameSync(item.physicalRef, backupRef);
+        moveManagedPolicyPath(item.physicalRef, backupRef);
         actions.push({
           surface_kind: item.surfaceKind,
           canonical_id: item.canonicalId,
@@ -1729,7 +1778,7 @@ function assertManagedPolicyRollbackReady(
 
 function restoreManagedBackup(action: AgentPackageManagedPolicyMigrationAction) {
   fs.mkdirSync(path.dirname(action.source_ref), { recursive: true });
-  fs.renameSync(action.backup_ref, action.source_ref);
+  moveManagedPolicyPath(action.backup_ref, action.source_ref);
 }
 
 export function rollbackManagedPolicyMigration(

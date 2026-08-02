@@ -11,7 +11,10 @@ import {
   test,
 } from '../../helpers.ts';
 import { formatJsonPayload } from '../../../../../src/kernel/json-file.ts';
-import { rollbackManagedPolicyMigration } from '../../../../../src/modules/connect/agent-package-registry-parts/managed-policy-surface.ts';
+import {
+  moveManagedPolicyPath,
+  rollbackManagedPolicyMigration,
+} from '../../../../../src/modules/connect/agent-package-registry-parts/managed-policy-surface.ts';
 
 function writeFile(filePath: string, content: string) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -1440,5 +1443,46 @@ test('managed policy rollback helpers refuse conflicting TOML tables and recreat
     assert.equal(fs.existsSync(rolledBack.backup_root!), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('managed policy path movement preserves paths across filesystems', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-policy-exdev-'));
+  const legacyPath = path.join(root, 'legacy', 'superpowers');
+  const backupPath = path.join(root, 'state', 'agent-package-transactions', 'superpowers');
+  let backupExdevCount = 0;
+  let restoreExdevCount = 0;
+  try {
+    writeFile(path.join(legacyPath, 'legacy.txt'), 'legacy\n');
+    fs.symlinkSync('legacy.txt', path.join(legacyPath, 'legacy-link.txt'));
+    const renameSync = ((source: fs.PathLike, target: fs.PathLike) => {
+      const sourcePath = String(source);
+      const targetPath = String(target);
+      if (sourcePath === legacyPath && targetPath === backupPath) {
+        backupExdevCount += 1;
+        throw Object.assign(new Error('simulated cross-device backup'), { code: 'EXDEV' });
+      }
+      if (sourcePath === backupPath && targetPath === legacyPath) {
+        restoreExdevCount += 1;
+        throw Object.assign(new Error('simulated cross-device restore'), { code: 'EXDEV' });
+      }
+      return fs.renameSync(source, target);
+    }) as typeof fs.renameSync;
+
+    fs.mkdirSync(path.dirname(backupPath), { recursive: true });
+    moveManagedPolicyPath(legacyPath, backupPath, { renameSync });
+    assert.equal(backupExdevCount, 1);
+    assert.equal(fs.existsSync(legacyPath), false);
+    assert.equal(fs.readFileSync(path.join(backupPath, 'legacy.txt'), 'utf8'), 'legacy\n');
+    assert.equal(fs.readlinkSync(path.join(backupPath, 'legacy-link.txt')), 'legacy.txt');
+
+    fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
+    moveManagedPolicyPath(backupPath, legacyPath, { renameSync });
+    assert.equal(restoreExdevCount, 1);
+    assert.equal(fs.readFileSync(path.join(legacyPath, 'legacy.txt'), 'utf8'), 'legacy\n');
+    assert.equal(fs.readlinkSync(path.join(legacyPath, 'legacy-link.txt')), 'legacy.txt');
+    assert.equal(fs.existsSync(backupPath), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
   }
 });
