@@ -63,7 +63,6 @@ test('StageRun identity ignores currentness observations but binds immutable pac
   const refreshedLocator = {
     ...workspaceLocator(packageUseBinding({
       checkedAt: '2026-07-14T01:00:00.000Z',
-      useReceiptRef: 'opl://agent-package/use/fixture/two',
       targetRoot: '/tmp/other-materialization-path',
     })),
     domain_pack_root: '/tmp/managed-checkout-two',

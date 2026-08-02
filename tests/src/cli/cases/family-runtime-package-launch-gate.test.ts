@@ -455,7 +455,7 @@ test('family-runtime quest first start activates every Skill while a new attempt
     const resumed = queryAttempt(resumedSummary.stage_attempt_id, env);
     assert.notEqual(resumed.stage_attempt_id, created.stage_attempt_id);
     assert.match(resumed.workspace_locator.package_use_binding.use_boundary_id, /^package-use[_:]/);
-    assert.match(resumed.workspace_locator.package_use_binding.use_receipt_ref, /^opl:\/\/agent-package\/use\//);
+    assert.equal(Object.hasOwn(resumed.workspace_locator.package_use_binding, 'use_receipt_ref'), false);
     assert.equal(resumed.workspace_locator.package_use_binding.scope, 'quest');
     assert.equal(resumed.workspace_locator.package_use_binding.target_root, quest);
     assert.equal(
@@ -513,7 +513,7 @@ test('family-runtime invocation keeps the installed provider until an explicit u
       env,
     ).attempt;
     assertInstalledOnlyUseBinding(created.workspace_locator.package_use_binding);
-    assert.match(created.workspace_locator.package_use_binding.use_receipt_ref, /^opl:\/\/agent-package\/use\//);
+    assert.equal(Object.hasOwn(created.workspace_locator.package_use_binding, 'use_receipt_ref'), false);
     assert.equal(created.workspace_locator.package_use_binding.provider_packages[0].package_version, '0.1.1');
     assert.match(created.workspace_locator.package_use_binding.provider_packages[0].artifact_digest, /^sha256:[0-9a-f]{64}$/);
     assert.equal(
@@ -899,7 +899,7 @@ test('family-runtime use boundary ignores owner channels when the legacy shared 
       env,
     ).attempt;
     assertInstalledOnlyUseBinding(offline.workspace_locator.package_use_binding);
-    assert.match(offline.workspace_locator.package_use_binding.use_receipt_ref, /^opl:\/\/agent-package\/use\//);
+    assert.equal(Object.hasOwn(offline.workspace_locator.package_use_binding, 'use_receipt_ref'), false);
   } finally {
     removeFixtureTree(root);
   }
@@ -938,10 +938,7 @@ test('family-runtime treats operation receipts as observation-only without a lif
       createSessionArgs(workspace, 'tampered-receipt'),
       env,
     ).attempt;
-    assert.match(
-      attempt.workspace_locator.package_use_binding.use_receipt_ref,
-      /^opl:\/\/agent-package\/use\//,
-    );
+    assert.equal(Object.hasOwn(attempt.workspace_locator.package_use_binding, 'use_receipt_ref'), false);
     assert.equal(fs.existsSync(ledgerPath), false);
 
     const resumedFailure = runCliFailure([

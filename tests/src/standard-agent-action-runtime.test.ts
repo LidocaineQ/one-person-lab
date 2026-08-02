@@ -186,7 +186,6 @@ function stagePackageUseBinding() {
   return {
     surface_kind: 'opl_agent_package_use_binding.v1',
     use_boundary_id: 'package-use:hosted-stage-test',
-    use_receipt_ref: 'opl://agent-package/use/hosted-stage-test',
     root_package: {
       package_id: 'mas',
       package_version: '0.2.2',
@@ -326,7 +325,6 @@ function hostedSnapshot(input: {
     target_domain_id: 'medautoscience',
     package_id: 'mas',
     package_use_boundary_id: `package-use:${input.label}`,
-    package_use_receipt_ref: `opl://agent-package/use/${encodeURIComponent(input.label)}`,
     package_version: input.label,
     package_lock_ref: `opl://agent-package-lock/mas/${input.label}`,
     package_manifest_sha256: '1'.repeat(64),
@@ -345,8 +343,7 @@ function hostedSnapshot(input: {
     catalog_target_domain_ids: ['mas', 'medautoscience'],
     package_use_binding: {
       ...stagePackageUseBinding(),
-      use_boundary_id: provenance.package_use_boundary_id,
-      use_receipt_ref: `opl://agent-package/use/${encodeURIComponent(input.label)}`,
+      use_boundary_id: `package-use:${input.label}`,
       root_package: {
         ...stagePackageUseBinding().root_package,
         package_version: input.label,
@@ -473,8 +470,6 @@ test('Hosted Handler action validates schemas, runs the callable, and persists e
     });
     assert.deepEqual(durableBinding?.hosted_runtime_binding, run.hosted_runtime_binding);
     if (durableBinding?.hosted_runtime_binding.source_kind !== 'managed_package_checkout') assert.fail();
-    assert.equal(durableBinding.hosted_runtime_binding.package_use_receipt_ref,
-      'opl://agent-package/use/hosted-stage-test');
     assert.equal(durableBinding.hosted_runtime_binding.package_manifest_sha256, '1'.repeat(64));
     assert.equal(durableBinding.hosted_runtime_binding.package_dependency_closure_digest, '4'.repeat(64));
     assert.equal(durableBinding.hosted_runtime_binding.package_source_kind,
@@ -716,7 +711,6 @@ test('completed managed Handler replay survives package replacement from durable
           package_use_binding: {
             ...resolved.package_use_binding,
             use_boundary_id: useBoundaryId,
-            use_receipt_ref: `opl://agent-package/use/${activeVersion}`,
           },
           use_boundary_id: useBoundaryId,
         };
@@ -1096,7 +1090,6 @@ test('legacy v1 developer checkout binding remains readable without an unbound v
     const legacyProvenance = structuredClone(
       currentSnapshot.provenance,
     ) as unknown as Record<string, unknown>;
-    delete legacyProvenance.package_use_receipt_ref;
     delete legacyProvenance.package_manifest_sha256;
     delete legacyProvenance.package_dependency_closure_digest;
     legacyProvenance.package_source_kind = 'developer_checkout_override';

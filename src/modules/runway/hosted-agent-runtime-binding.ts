@@ -68,7 +68,6 @@ export type PackageHostedAgentRuntimeBindingProvenance = {
   target_domain_id: string;
   package_id: string;
   package_use_boundary_id: string;
-  package_use_receipt_ref?: string;
   package_version: string;
   package_lock_ref: string;
   package_manifest_sha256?: string;
@@ -100,7 +99,6 @@ export type FoundryHostedAgentPackageUseBinding = Readonly<{
   surface_kind: 'opl_agent_package_use_binding.v1';
   binding_origin: 'foundry_active_agent_version';
   use_boundary_id: string;
-  use_receipt_ref: string;
   root_package: Readonly<{
     package_id: string;
     package_version: string;
@@ -486,7 +484,6 @@ function foundryPackageUseBinding(
     surface_kind: 'opl_agent_package_use_binding.v1' as const,
     binding_origin: 'foundry_active_agent_version' as const,
     use_boundary_id: `foundry-package-use:${versionHash}`,
-    use_receipt_ref: `opl://foundry/runtime-binding/sha256/${versionHash}`,
     root_package: {
       package_id: version.target_agent_id,
       package_version: version.version_id,
@@ -706,7 +703,6 @@ function managedPackageProvenance(managed: ManagedCheckout): PackageHostedAgentR
     target_domain_id: managed.agent.target_domain_id,
     package_id: managed.package_id,
     package_use_boundary_id: managed.use_boundary_id,
-    package_use_receipt_ref: requireString(useBinding.use_receipt_ref, 'package_use_binding.use_receipt_ref'),
     package_version: requireString(rootPackage.package_version, 'package_use_binding.root_package.package_version'),
     package_lock_ref: requireString(rootPackage.package_lock_ref, 'package_use_binding.root_package.package_lock_ref'),
     package_manifest_sha256: requirePackageDigest(rootPackage.manifest_sha256, 'root_package.manifest_sha256'),

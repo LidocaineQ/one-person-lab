@@ -127,14 +127,12 @@ function binding(
 
 function packageUseBinding(input: {
   checkedAt?: string;
-  useReceiptRef?: string;
   targetRoot?: string;
   packageVersion?: string;
 } = {}) {
   return {
     surface_kind: 'opl_agent_package_use_binding.v1',
     use_boundary_id: 'package-use:fixture',
-    use_receipt_ref: input.useReceiptRef ?? 'opl://agent-package/use/fixture/one',
     root_package: {
       package_id: 'mas',
       package_version: input.packageVersion ?? '0.2.1',

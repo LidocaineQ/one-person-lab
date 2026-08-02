@@ -3283,7 +3283,6 @@ async function ensureOplAgentPackageScopeActivationUnlocked(input: AgentPackageP
     surface_kind: 'opl_agent_package_use_binding.v1' as const,
     use_boundary_id: input.useBoundaryId
       ?? sha256Text(`${packageId}\n${input.scope}\n${targetRoot}\n${Date.now()}`),
-    use_receipt_ref: '',
     root_package: {
       package_id: activatedLock.package_id,
       package_version: activatedLock.package_version,
@@ -3314,35 +3313,6 @@ async function ensureOplAgentPackageScopeActivationUnlocked(input: AgentPackageP
     core_readiness: materializationReadiness.core_readiness,
     specialty_exposure: materializationReadiness.specialty_exposure,
   };
-  const useReceipt = lifecycleReceipt({
-    action: 'use',
-    actionStatus: input.dryRun ? 'validated' : 'completed',
-    packageId,
-    manifestUrl: activatedLock.manifest_url,
-    manifestSha256: activatedLock.manifest_sha256,
-    packageLockRef: activatedLock.lock_ref,
-    rollbackRef: activatedLock.rollback_ref,
-    sourceKind: activatedLock.source_kind,
-    trustTier: activatedLock.trust_tier,
-    sourceSha256: sha256Text(JSON.stringify(useBinding)),
-    writesPerformed: !input.dryRun,
-    dependencyTransactionId: activatedLock.dependency_transaction_id,
-    dependencyClosureDigest: activatedLock.dependency_closure_digest,
-    dependencyPackages,
-    sourceArtifactRef: activatedLock.source_artifact_ref ?? null,
-    artifactDigest: activatedLock.artifact_digest ?? null,
-    ownerSourceCommit: activatedLock.owner_source_commit ?? null,
-    developerCheckoutSource: activatedLock.developer_checkout_source ?? null,
-    carrierAuthority: activatedLock.carrier_authority ?? null,
-    releaseChannelRef: activatedLock.release_channel_ref ?? null,
-    releaseChannelDigest: activatedLock.release_channel_digest ?? null,
-    useBinding,
-    sourceSelection: 'installed_package_lock',
-    networkAccessed: false,
-    remoteDependencyPolicy: 'forbidden',
-  });
-  useBinding.use_receipt_ref = useReceipt.receipt_ref;
-  useReceipt.use_binding = useBinding;
   if (!input.dryRun) {
     try {
       writePackageTransaction(nextIndex);
@@ -3365,7 +3335,6 @@ async function ensureOplAgentPackageScopeActivationUnlocked(input: AgentPackageP
     package_lock: activatedLock,
     materialization_readiness: materializationReadiness,
     package_use_binding: useBinding,
-    use_receipt: useReceipt,
   };
 }
 
@@ -3489,7 +3458,6 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
         ...launchState,
         package_use_binding: null,
         use_boundary_id: input.useBoundaryId ?? null,
-        use_receipt_ref: null,
         authority_boundary: refsOnlyAuthorityBoundary(),
       },
     };
@@ -3546,7 +3514,6 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
       launch_state: packageStatus.launch_state,
       launch_state_reason: packageStatus.launch_state_reason,
       use_boundary_id: packageUseBinding?.use_boundary_id ?? null,
-      use_receipt_ref: packageUseBinding?.use_receipt_ref ?? null,
       authority_boundary: refsOnlyAuthorityBoundary(),
     },
   };
