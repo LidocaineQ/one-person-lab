@@ -379,6 +379,20 @@ test('protocol closeout resume is failed when the returned packet does not bind 
 });
 
 test('protocol closeout resume rejects tool execution and preserves only the original raw progress artifact', async () => {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-protocol-raw-work-item-'));
+  const canonicalWorkItemRoot = path.join(workspaceRoot, 'studies', 'study-raw-progress');
+  fs.mkdirSync(canonicalWorkItemRoot, { recursive: true });
+  const executionScope = createWorkItemExecutionScopeSnapshot({
+    projectScopeId: 'project:protocol-raw-progress',
+    workspaceBindingId: 'binding:protocol-raw-progress',
+    bindingVersionId: 'binding-version:protocol-raw-progress',
+    domainId: 'example-domain',
+    workspaceRoot,
+    canonicalWorkItemRoot,
+    inventoryDigest: `sha256:${'c'.repeat(64)}`,
+    payload: { work_item_id: 'study-raw-progress' },
+    requirement: { kind: 'work_item', alias_fields: ['work_item_id'] },
+  });
   const closeout = {
     surface_kind: 'stage_attempt_closeout_packet',
     stage_attempt_id: 'sat-protocol-tool-violation',
@@ -459,7 +473,10 @@ test('protocol closeout resume rejects tool execution and preserves only the ori
         quality_round_index: 0,
         stage_id: 'authoring',
         domain_id: 'example-domain',
-        workspace_locator: { workspace_root: fixtureRoot },
+        scope_kind: 'work_item',
+        execution_scope: executionScope,
+        identity_state: 'resolved',
+        workspace_locator: { workspace_root: workspaceRoot, execution_scope: executionScope },
         checkpoint_refs: ['packet:authoring'],
       },
       runnerMode: 'codex_cli',
@@ -488,6 +505,7 @@ test('protocol closeout resume rejects tool execution and preserves only the ori
     restoreEnv('OPL_CODEX_SESSION_RECOVERY_TIMEOUT_MS', previousRecoveryTimeout);
     restoreEnv('OPL_CODEX_SESSION_RECOVERY_INTERVAL_MS', previousRecoveryInterval);
     fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    fs.rmSync(workspaceRoot, { recursive: true, force: true });
   }
 });
 

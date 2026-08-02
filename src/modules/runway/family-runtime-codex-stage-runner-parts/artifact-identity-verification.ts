@@ -265,6 +265,17 @@ function transportIdentityReceiptRoot() {
   return path.join(state.state_dir, 'runtime-state', 'stage-artifact-identities');
 }
 
+function rawExecutorOutputPath(attemptId: string) {
+  const state = ensureOplStateDir();
+  return path.join(
+    state.state_dir,
+    'runtime-state',
+    'stage-attempt-artifacts',
+    safeIdentityDirectory(attemptId, 'attempt'),
+    'raw-executor-output.txt',
+  );
+}
+
 function domainAuthorityReceiptRoot(domainId: string) {
   const state = ensureOplStateDir();
   const configuredRoot = process.env.OPL_DOMAIN_ARTIFACT_IDENTITY_RECEIPT_ROOT?.trim();
@@ -302,6 +313,47 @@ function pathIsInside(filePath: string, rootPath: string) {
   }
   const relative = path.relative(realRoot, realFile);
   return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+}
+
+function verifyFrameworkRawExecutorOutputBytes(input: {
+  artifactRef: string;
+  artifactSha256: string;
+  workspaceRoot: string;
+  attemptId: string;
+  declaredSizeBytes?: number | null;
+}) {
+  const localPath = localPathForRef(input.artifactRef, input.workspaceRoot);
+  const expectedPath = rawExecutorOutputPath(input.attemptId);
+  const expectedRoot = path.dirname(path.dirname(expectedPath));
+  let isRegularFrameworkArtifact = false;
+  try {
+    isRegularFrameworkArtifact = Boolean(
+      localPath
+      && path.resolve(localPath) === path.resolve(expectedPath)
+      && !fs.lstatSync(localPath).isSymbolicLink()
+      && pathIsInside(localPath, expectedRoot),
+    );
+  } catch {
+    isRegularFrameworkArtifact = false;
+  }
+  if (!localPath || !isRegularFrameworkArtifact) {
+    throw artifactIdentityError({
+      message: 'Raw executor output must be the exact framework-owned Attempt artifact in OPL state.',
+      blockedReason: 'raw_executor_output_ref_outside_opl_state_authority_violation',
+      hardStopClass: 'authority_boundary_violation',
+      artifactRef: input.artifactRef,
+      details: {
+        resolved_path: localPath,
+        expected_path: expectedPath,
+      },
+    });
+  }
+  return verifyCurrentArtifactBytes({
+    artifactRef: input.artifactRef,
+    artifactSha256: input.artifactSha256,
+    workspaceRoot: input.workspaceRoot,
+    declaredSizeBytes: input.declaredSizeBytes,
+  });
 }
 
 function readTrustedIdentityReceipt(input: {
@@ -710,6 +762,7 @@ export function verifyStageQualityCloseoutArtifactIdentity(input: {
     === 'raw_executor_output_progress_envelope_only'
     ? metadata.filter((entry) => optionalString(entry.ref_kind) === 'raw_executor_output')
     : [];
+  const frameworkRawProgressEnvelope = rawArtifactMetadata.length > 0;
   const declaredRefs = Array.isArray(qualityEnvelope.artifact_refs)
     ? qualityEnvelope.artifact_refs
     : rawArtifactMetadata.map((entry) => entry.ref ?? entry.uri);
@@ -736,16 +789,24 @@ export function verifyStageQualityCloseoutArtifactIdentity(input: {
       });
     }
 
-    const observed = verifyCurrentArtifactBytes({
-      artifactRef,
-      artifactSha256,
-      workspaceRoot: input.workspaceRoot,
-      declaredSizeBytes: typeof entry.size_bytes === 'number' ? entry.size_bytes : null,
-      canonicalWorkItemRoot: executionIdentity.executionScope?.canonical_work_item_root ?? null,
-      canonicalWorkItemRootIdentity:
-        executionIdentity.executionScope?.canonical_work_item_root_identity ?? null,
-      scopeWorkspaceRoot: executionIdentity.executionScope?.workspace_root ?? null,
-    });
+    const observed = frameworkRawProgressEnvelope && optionalString(entry.ref_kind) === 'raw_executor_output'
+      ? verifyFrameworkRawExecutorOutputBytes({
+          artifactRef,
+          artifactSha256,
+          workspaceRoot: input.workspaceRoot,
+          attemptId,
+          declaredSizeBytes: typeof entry.size_bytes === 'number' ? entry.size_bytes : null,
+        })
+      : verifyCurrentArtifactBytes({
+          artifactRef,
+          artifactSha256,
+          workspaceRoot: input.workspaceRoot,
+          declaredSizeBytes: typeof entry.size_bytes === 'number' ? entry.size_bytes : null,
+          canonicalWorkItemRoot: executionIdentity.executionScope?.canonical_work_item_root ?? null,
+          canonicalWorkItemRootIdentity:
+            executionIdentity.executionScope?.canonical_work_item_root_identity ?? null,
+          scopeWorkspaceRoot: executionIdentity.executionScope?.workspace_root ?? null,
+        });
     if (observed) {
       const receiptRef = persistTransportIdentityReceipt({
         surface_kind: 'opl_transport_artifact_identity_receipt',

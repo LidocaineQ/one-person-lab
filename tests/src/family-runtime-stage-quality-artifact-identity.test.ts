@@ -20,6 +20,7 @@ import {
   verifyStageQualityCloseoutArtifactIdentity,
 } from '../../src/modules/runway/family-runtime-codex-stage-runner-parts/artifact-identity-verification.ts';
 import type { TypedStageCloseoutPacket } from '../../src/modules/runway/family-runtime-codex-stage-runner-parts/closeout-normalization.ts';
+import { persistRawStageOutput } from '../../src/modules/runway/family-runtime-codex-stage-runner-parts/stage-closeout-capture.ts';
 import { runWithWorkItemFileBoundaryInterlock } from './work-item-file-boundary-test-support.ts';
 
 function sha256(value: Buffer | string) {
@@ -154,6 +155,39 @@ function producerCloseout(input: {
   };
 }
 
+function rawExecutorOutputCloseout(input: {
+  attemptId: string;
+  artifactRef: string;
+  artifactHash: string;
+  sizeBytes: number;
+}): TypedStageCloseoutPacket {
+  return {
+    surface_kind: 'stage_attempt_closeout_packet',
+    stage_attempt_id: input.attemptId,
+    closeout_refs: [input.artifactRef],
+    closeout_ref_metadata: [{
+      ref: input.artifactRef,
+      ref_kind: 'raw_executor_output',
+      sha256: input.artifactHash,
+      size_bytes: input.sizeBytes,
+    }],
+    consumed_refs: [],
+    consumed_memory_refs: [],
+    writeback_receipt_refs: [],
+    rejected_writes: [],
+    next_owner: null,
+    domain_ready_verdict: 'completed_with_quality_debt',
+    route_impact: {
+      framework_generated_envelope: true,
+      quality_debt_refs: ['opl://quality-debt/typed-closeout-unavailable'],
+    },
+    authority_boundary: {
+      opl: 'raw_executor_output_progress_envelope_only',
+      domain: 'truth_quality_route_back_and_artifact_authority_owner',
+    },
+  };
+}
+
 function workItemScope(workspaceRoot: string, workItemId: string) {
   const canonicalWorkItemRoot = path.join(workspaceRoot, 'studies', workItemId);
   fs.mkdirSync(canonicalWorkItemRoot, { recursive: true });
@@ -176,6 +210,68 @@ const attempt = {
   stage_id: 'authoring',
   attempt_role: 'producer',
 };
+
+test('framework raw executor output is verified outside the work-item root without domain artifact authority', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-quality-raw-output-scope-'));
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  const stateRoot = path.join(root, 'opl-state-outside-workspace');
+  process.env.OPL_STATE_DIR = stateRoot;
+  try {
+    const workspaceRoot = path.join(root, 'workspace');
+    const executionScope = workItemScope(workspaceRoot, 'study-001');
+    const producerAttempt = {
+      stage_attempt_id: 'sat-study-001-raw',
+      stage_run_id: 'sr-study-001-raw',
+      domain_id: 'medautoscience',
+      stage_id: 'manuscript_authoring',
+      attempt_role: 'producer',
+      scope_kind: 'work_item',
+      execution_scope: executionScope,
+      identity_state: 'resolved',
+      workspace_locator: { workspace_root: workspaceRoot, execution_scope: executionScope },
+    };
+    const rawArtifact = persistRawStageOutput({
+      attempt: producerAttempt,
+      content: 'producer output persisted by OPL after typed closeout recovery failed',
+    });
+    assert.ok(rawArtifact);
+    const rawOutputBytes = fs.readFileSync(new URL(rawArtifact.output_ref));
+    const artifactRef = rawArtifact.output_ref;
+
+    const verified = verifyStageQualityCloseoutArtifactIdentity({
+      closeoutPacket: rawExecutorOutputCloseout({
+        attemptId: producerAttempt.stage_attempt_id,
+        artifactRef,
+        artifactHash: rawArtifact.sha256,
+        sizeBytes: rawArtifact.size_bytes,
+      }),
+      attempt: producerAttempt,
+      workspaceRoot,
+    });
+    const metadata = verified?.closeout_ref_metadata?.[0];
+    assert.equal(metadata?.ref_kind, 'raw_executor_output');
+    assert.equal(metadata?.sha256, sha256(rawOutputBytes));
+    assert.equal(metadata?.size_bytes, rawOutputBytes.length);
+    assert.match(String(metadata?.artifact_identity_receipt_ref), /^file:\/\//);
+    const receipt = JSON.parse(
+      fs.readFileSync(new URL(String(metadata?.artifact_identity_receipt_ref)), 'utf8'),
+    );
+    assert.equal(receipt.artifact_ref, artifactRef);
+    assert.equal(receipt.sha256, sha256(rawOutputBytes));
+    assert.equal(receipt.stage_attempt_id, producerAttempt.stage_attempt_id);
+    assert.equal(receipt.scope_kind, 'work_item');
+    assert.equal(receipt.work_item_scope_id, executionScope.work_item_scope_id);
+    assert.equal(
+      verified?.route_impact?.stage_quality_cycle,
+      undefined,
+      'framework raw progress must not be projected as a domain-declared quality artifact',
+    );
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('local Stage artifact identity is bound to final bytes and a transport receipt', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-quality-artifact-identity-'));
