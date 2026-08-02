@@ -15,8 +15,12 @@ import { runOplAgentPackageInstall } from '../../src/modules/connect/agent-packa
 import { sha256Fixture } from './cli/cases/packages-cases/helpers.ts';
 import { writeManagedRuntimeSourceFixture } from './cli/cases/packages-cases/managed-runtime-source-fixture.ts';
 import { removeFixtureTree } from './cli/helpers-parts/filesystem.ts';
-import { ensureProviderHostedStageAttempt } from '../../src/modules/runway/family-runtime-provider-hosted-attempts.ts';
-import { createStageAttempt } from '../../src/modules/runway/family-runtime-stage-attempts.ts';
+import {
+  DEFAULT_EXECUTOR_DISPATCH_TASK_KIND,
+  ensureProviderHostedStageAttempt,
+  findBlockingLiveDefaultExecutorWorkUnitAttempt,
+} from '../../src/modules/runway/family-runtime-provider-hosted-attempts.ts';
+import { createStageAttempt, createStageAttemptTable } from '../../src/modules/runway/family-runtime-stage-attempts.ts';
 import { persistStageAttemptLaunchBinding } from '../../src/modules/runway/family-runtime-parts/stage-attempt-launch.ts';
 import {
   buildCapabilityRegistryStageContextReceipt,
@@ -26,6 +30,7 @@ import {
   createFamilyRuntimeQueueTables,
   type FamilyRuntimeTaskRow,
 } from '../../src/modules/runway/family-runtime-store.ts';
+import { resolveFamilyRuntimeProviderKind } from '../../src/modules/runway/family-runtime-providers.ts';
 
 const emptyRegistry: CapabilityRegistryCatalog = {
   registry_id: 'opl.capability_registry.runtime-gate-test',
@@ -87,6 +92,56 @@ function resolvedRouteReadout() {
     }],
   });
 }
+
+test('default executor cross-task admission reads only StageAttempt state', () => {
+  const db = new DatabaseSync(':memory:');
+  createStageAttemptTable(db);
+  try {
+    const providerKind = resolveFamilyRuntimeProviderKind();
+    const liveAttempt = createStageAttempt(db, {
+      domainId: 'redcube',
+      stageId: DEFAULT_EXECUTOR_DISPATCH_TASK_KIND,
+      providerKind,
+      workspaceLocator: {
+        workspace_root: '/tmp/no-tasks-table',
+        work_unit_id: 'work-unit:shared',
+        action_type: 'old-action',
+      },
+      sourceFingerprint: 'source:old',
+      executorKind: 'codex_cli',
+      taskId: 'external-task:old',
+      newAttempt: true,
+    }).attempt;
+    const candidateRow = {
+      task_id: 'external-task:new',
+      domain_id: 'redcube',
+      task_kind: DEFAULT_EXECUTOR_DISPATCH_TASK_KIND,
+    } as FamilyRuntimeTaskRow;
+    const candidatePayload = {
+      dispatch_ref: 'dispatch:new',
+      source_fingerprint: 'source:new',
+      next_executable_owner: 'codex_cli',
+      executor_kind: 'codex_cli',
+      workspace_root: '/tmp/no-tasks-table',
+      work_unit_id: 'work-unit:shared',
+      action_type: 'new-action',
+    };
+
+    const blockingAttempt = findBlockingLiveDefaultExecutorWorkUnitAttempt(
+      db,
+      candidateRow,
+      candidatePayload,
+    );
+
+    assert.equal(blockingAttempt?.stage_attempt_id, liveAttempt.stage_attempt_id);
+    assert.equal(
+      db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'tasks'").get(),
+      undefined,
+    );
+  } finally {
+    db.close();
+  }
+});
 
 test('capability launch gate is not applicable during planning without current delta or typed readout', () => {
   const receipt = buildCapabilityRegistryStageContextReceipt({

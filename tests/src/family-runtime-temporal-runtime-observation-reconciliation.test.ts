@@ -16,6 +16,7 @@ import {
   insertEvent,
   listEvents,
 } from '../../src/modules/runway/family-runtime-store.ts';
+import { syncStageAttemptFromTemporalUnavailableObservation } from '../../src/modules/runway/family-runtime-temporal-observation-sync.ts';
 import {
   DEFAULT_TEMPORAL_STAGE_ATTEMPT_RUNTIME_OBSERVATION_TTL_MS,
   readFreshTemporalStageAttemptRuntimeObservation,
@@ -104,6 +105,41 @@ function bindAttemptToStageRun(
     '2026-07-21T00:00:00.000Z',
   );
 }
+
+test('Temporal workflow absence fails a registered StageAttempt without a tasks table', () => {
+  const db = new DatabaseSync(':memory:');
+  createStageAttemptTable(db);
+  try {
+    const attempt = createStageAttempt(db, {
+      domainId: 'redcube',
+      stageId: 'runtime-reconciliation',
+      providerKind: 'temporal',
+      workspaceLocator: { workspace_root: '/tmp/no-tasks-table' },
+      sourceFingerprint: 'sha256:no-tasks-table',
+      executorKind: 'codex_cli',
+      taskId: 'external-task:temporal-history',
+      newAttempt: true,
+    }).attempt;
+    const result = syncStageAttemptFromTemporalUnavailableObservation(db, {
+      surface_kind: 'temporal_stage_attempt_query_unavailable',
+      provider_kind: 'temporal',
+      stage_attempt_id: attempt.stage_attempt_id,
+      workflow_id: attempt.workflow_id,
+      status: 'unavailable',
+      reason: 'temporal_workflow_not_started_or_not_found',
+    });
+
+    assert.equal(result?.status, 'failed');
+    assert.equal(result?.task_id, 'external-task:temporal-history');
+    assert.equal(result?.provider_run.provider_status, 'failed');
+    assert.equal(
+      db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'tasks'").get(),
+      undefined,
+    );
+  } finally {
+    db.close();
+  }
+});
 
 test('Temporal running query refreshes a TTL-bound cache without changing ledger status', async () => {
   await withDb(async (db) => {

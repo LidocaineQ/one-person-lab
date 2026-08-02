@@ -1,6 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
 
-import { blockLinkedDefaultExecutorTask } from './family-runtime-linked-task-sync.ts';
 import {
   getStageAttemptRow,
   parseStageAttemptJsonObject,
@@ -10,11 +9,6 @@ import {
 import { nowIso } from './family-runtime-store.ts';
 import { requireResolvedPersistedStageAttemptIdentity } from './family-runtime-persisted-identity-admission.ts';
 import { appendActivityEventToRow } from './family-runtime-stage-attempts-parts/shared.ts';
-import {
-  FAMILY_RUNTIME_TASK_COLUMNS,
-  taskLeaseProjectionSelectSql,
-  type TaskLeaseProjectionRow,
-} from './family-runtime-queue-projection-boundary.ts';
 
 type TemporalStageAttemptUnavailableObservation = {
   surface_kind: 'temporal_stage_attempt_query_unavailable';
@@ -57,44 +51,25 @@ function stageAttemptHasProviderStarted(row: StageAttemptRow) {
   return ['running', 'checkpointed', 'human_gate'].includes(row.status);
 }
 
-function linkedRunningTaskLeaseState(db: DatabaseSync, row: StageAttemptRow) {
-  if (!row.task_id) {
-    return null;
-  }
-  return db.prepare(`
-    SELECT ${taskLeaseProjectionSelectSql()}
-    FROM tasks
-    WHERE task_id = ?
-  `).get(row.task_id) as TaskLeaseProjectionRow | undefined ?? null;
-}
-
-function isExpiredOrUnleasedDefaultExecutorAdmission(db: DatabaseSync, row: StageAttemptRow) {
+function hasRegisteredTemporalQueueAdmission(row: StageAttemptRow) {
+  const providerRun = parseStageAttemptJsonObject(row.provider_run_json);
   if (
-    row.executor_kind !== 'codex_cli'
+    !row.task_id
+    || row.provider_kind !== 'temporal'
+    || row.executor_kind !== 'codex_cli'
     || row.status !== 'queued'
-    || parseStageAttemptJsonObject(row.provider_run_json).provider_status !== 'registered'
+    || providerRun.provider_status !== 'registered'
   ) {
     return false;
   }
-  const task = linkedRunningTaskLeaseState(db, row);
-  if (task?.status !== 'running') {
-    return false;
-  }
-  const leaseOwner = task[FAMILY_RUNTIME_TASK_COLUMNS.leaseOwner];
-  const leaseExpiresAtText = task[FAMILY_RUNTIME_TASK_COLUMNS.leaseExpiresAt];
-  if (!leaseOwner || !leaseExpiresAtText) {
-    return true;
-  }
-  const leaseExpiresAt = Date.parse(leaseExpiresAtText);
-  return Number.isFinite(leaseExpiresAt) && leaseExpiresAt <= Date.now();
+  return providerRun.provider_kind === 'temporal'
+    && typeof providerRun.task_queue === 'string'
+    && providerRun.task_queue.trim().length > 0;
 }
 
-function canFailStageAttemptForWorkflowMissing(
-  db: DatabaseSync,
-  row: StageAttemptRow,
-) {
+function canFailStageAttemptForWorkflowMissing(row: StageAttemptRow) {
   return stageAttemptHasProviderStarted(row)
-    || isExpiredOrUnleasedDefaultExecutorAdmission(db, row);
+    || hasRegisteredTemporalQueueAdmission(row);
 }
 
 export function syncStageAttemptFromTemporalUnavailableObservation(
@@ -121,7 +96,7 @@ export function syncStageAttemptFromTemporalUnavailableObservation(
     stageAttemptId: observation.stage_attempt_id,
     operation: 'sync_stage_attempt_from_temporal_unavailable_observation',
   });
-  if (!canFailStageAttemptForWorkflowMissing(db, row)) return null;
+  if (!canFailStageAttemptForWorkflowMissing(row)) return null;
   const observedAt = nowIso();
   const providerRun = {
     ...parseStageAttemptJsonObject(row.provider_run_json),
@@ -161,13 +136,6 @@ export function syncStageAttemptFromTemporalUnavailableObservation(
     observedAt,
     observation.stage_attempt_id,
   );
-  blockLinkedDefaultExecutorTask(db, {
-    row,
-    reason: failureReason,
-    observedAt,
-    taskDeadLetterReason: 'temporal_stage_attempt_start_failed',
-    eventType: 'stage_attempt_temporal_workflow_missing_task',
-  });
   return stageAttemptToPayload({
     ...row,
     status: 'failed',

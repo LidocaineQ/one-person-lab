@@ -3,13 +3,9 @@ import type { DatabaseSync } from 'node:sqlite';
 import { loadFrameworkContracts } from '../charter/index.ts';
 import { buildFamilyStageContextObservation } from '../stagecraft/index.ts';
 import type { FamilyRuntimeTaskRow } from './family-runtime-store.ts';
-import { insertEvent, nowIso, stableId } from './family-runtime-store.ts';
+import { insertEvent, stableId } from './family-runtime-store.ts';
 import {
   FAMILY_RUNTIME_STAGE_ATTEMPT_STATUS,
-  FAMILY_RUNTIME_TASK_COLUMNS,
-  FAMILY_RUNTIME_TASK_STATUS,
-  taskLeaseProjectionSelectSql,
-  type TaskLeaseProjectionRow,
 } from './family-runtime-queue-projection-boundary.ts';
 import {
   domainRouteActionRef,
@@ -119,53 +115,23 @@ const DEFAULT_EXECUTOR_CROSS_TASK_STARTED_ATTEMPT_STATUSES = new Set<string>([
   FAMILY_RUNTIME_STAGE_ATTEMPT_STATUS.checkpointed,
   FAMILY_RUNTIME_STAGE_ATTEMPT_STATUS.humanGate,
 ]);
-const DEFAULT_EXECUTOR_CROSS_TASK_LIVE_TASK_STATUSES = new Set<string>([
-  FAMILY_RUNTIME_TASK_STATUS.queued,
-  FAMILY_RUNTIME_TASK_STATUS.running,
-  FAMILY_RUNTIME_TASK_STATUS.retryWaiting,
-  FAMILY_RUNTIME_TASK_STATUS.succeeded,
-]);
 const DEFAULT_EXECUTOR_TERMINAL_PROVIDER_STATUSES = new Set(['completed', 'failed', 'blocked', 'timed_out']);
 const DEFAULT_EXECUTOR_SUPERSEDED_REASON = 'default_executor_superseded_by_current_source';
-const DEFAULT_EXECUTOR_TASK_LEASE_MS = 5 * 60 * 1000;
-
-function hasActiveDefaultExecutorTaskLease(db: DatabaseSync, taskId: string | null) {
-  if (!taskId) {
-    return false;
-  }
-  const row = db.prepare(`
-    SELECT ${taskLeaseProjectionSelectSql()}
-    FROM tasks
-    WHERE task_id = ?
-  `).get(taskId) as TaskLeaseProjectionRow | undefined;
-  const leaseExpiresAtText = row?.[FAMILY_RUNTIME_TASK_COLUMNS.leaseExpiresAt] ?? null;
-  if (
-    row?.status !== FAMILY_RUNTIME_TASK_STATUS.running
-    || !row[FAMILY_RUNTIME_TASK_COLUMNS.leaseOwner]
-    || !leaseExpiresAtText
-  ) {
-    return false;
-  }
-  const leaseExpiresAt = Date.parse(leaseExpiresAtText);
-  return Number.isFinite(leaseExpiresAt) && leaseExpiresAt > Date.now();
-}
 
 function isCrossTaskLiveDefaultExecutorAttempt(
-  db: DatabaseSync,
   attempt: ReturnType<typeof listStageAttempts>[number],
   workspaceLocator: Record<string, unknown>,
 ) {
   if (DEFAULT_EXECUTOR_TERMINAL_PROVIDER_STATUSES.has(optionalString(attempt.provider_run.provider_status) ?? '')) {
     return false;
   }
-  if (!hasLiveDefaultExecutorLinkedTask(db, attempt.task_id)) {
+  if (!attempt.task_id) {
     return false;
   }
   if (DEFAULT_EXECUTOR_CROSS_TASK_STARTED_ATTEMPT_STATUSES.has(attempt.status)) {
     return true;
   }
   return attempt.status === 'queued'
-    && hasActiveDefaultExecutorTaskLease(db, attempt.task_id)
     && (
       sameOptionalStringField(attempt.workspace_locator, workspaceLocator, 'domain_source_fingerprint')
       || (
@@ -173,40 +139,6 @@ function isCrossTaskLiveDefaultExecutorAttempt(
         && !isSameDefaultExecutorWorkUnitActionStage(attempt.workspace_locator, workspaceLocator)
       )
     );
-}
-
-function liveDefaultExecutorAttemptBlocksCandidate(
-  attempt: ReturnType<typeof listStageAttempts>[number],
-  candidateRow: FamilyRuntimeTaskRow,
-  candidatePayload: Record<string, unknown>,
-) {
-  if (attempt.blocked_reason === DEFAULT_EXECUTOR_SUPERSEDED_REASON) {
-    return false;
-  }
-  if (
-    optionalString(candidatePayload.action_type) === 'run_quality_repair_batch'
-    && isStageNativeOwnerActionFromDomainProfile({
-      row: {
-        domain_id: attempt.domain_id,
-        task_kind: attempt.stage_id,
-      },
-      payload: attempt.workspace_locator,
-    })
-    && payloadReferencesStageNativeOwnerAnswerFromDomainProfile({
-      domainId: attempt.domain_id,
-      payload: attempt.workspace_locator,
-    })
-  ) {
-    return false;
-  }
-  const candidateLocator = workspaceLocatorForProviderHostedTask(candidateRow, candidatePayload);
-  if (
-    isSameDefaultExecutorDispatch(attempt.workspace_locator, candidateLocator)
-    || isSameDefaultExecutorWorkUnitActionStage(attempt.workspace_locator, candidateLocator)
-  ) {
-    return sameDefaultExecutorStageRunIdentity(attempt, candidateRow, candidatePayload);
-  }
-  return isSameDefaultExecutorWorkUnitStage(attempt.workspace_locator, candidateLocator);
 }
 
 function blockingLiveDefaultExecutorAttemptBlocksCandidate(
@@ -296,18 +228,6 @@ function sameExplicitDefaultExecutorStageRunIdentityOrUnspecified(
     return true;
   }
   return sameDefaultExecutorStageRunIdentity(attempt, candidateRow, candidatePayload);
-}
-
-function hasLiveDefaultExecutorLinkedTask(db: DatabaseSync, taskId: string | null) {
-  if (!taskId) {
-    return false;
-  }
-  const row = db.prepare(`
-    SELECT status
-    FROM tasks
-    WHERE task_id = ?
-  `).get(taskId) as Pick<FamilyRuntimeTaskRow, 'status'> | undefined;
-  return Boolean(row && DEFAULT_EXECUTOR_CROSS_TASK_LIVE_TASK_STATUSES.has(row.status));
 }
 
 function transitionBridgeEvidence(transition: Record<string, unknown>) {
@@ -458,7 +378,7 @@ export function findLiveDefaultExecutorDispatchAttempt(
     && attempt.executor_kind === 'codex_cli'
     && attempt.domain_id === row.domain_id
     && attempt.stage_id === stageId
-    && isCrossTaskLiveDefaultExecutorAttempt(db, attempt, workspaceLocator)
+    && isCrossTaskLiveDefaultExecutorAttempt(attempt, workspaceLocator)
     && sameDefaultExecutorStageRunIdentity(attempt, row, payload)
     && isSameDefaultExecutorDispatch(attempt.workspace_locator, workspaceLocator)
   )) ?? null;
@@ -484,35 +404,9 @@ export function findBlockingLiveDefaultExecutorDispatchAttempt(
     && attempt.executor_kind === 'codex_cli'
     && attempt.domain_id === row.domain_id
     && attempt.stage_id === stageId
-    && isCrossTaskLiveDefaultExecutorAttempt(db, attempt, workspaceLocator)
+    && isCrossTaskLiveDefaultExecutorAttempt(attempt, workspaceLocator)
     && isSameDefaultExecutorDispatch(attempt.workspace_locator, workspaceLocator)
     && sameExplicitDefaultExecutorStageRunIdentityOrUnspecified(attempt, row, payload)
-  )) ?? null;
-}
-
-export function findLiveDefaultExecutorStudyAttempt(
-  db: DatabaseSync,
-  row: FamilyRuntimeTaskRow,
-  payload: Record<string, unknown>,
-) {
-  if (!isDefaultExecutorDispatchTask(row, payload)) {
-    return null;
-  }
-  const providerKind = resolveFamilyRuntimeProviderKind();
-  const stageId = stageIdForProviderHostedTask(row, payload);
-  if (!stageId) {
-    return null;
-  }
-  const workspaceLocator = workspaceLocatorForProviderHostedTask(row, payload);
-  return listStageAttempts(db).find((attempt) => (
-    attempt.task_id !== row.task_id
-    && attempt.provider_kind === providerKind
-    && attempt.executor_kind === 'codex_cli'
-    && attempt.domain_id === row.domain_id
-    && attempt.stage_id === stageId
-    && isCrossTaskLiveDefaultExecutorAttempt(db, attempt, workspaceLocator)
-    && isSameDefaultExecutorWorkUnitStage(attempt.workspace_locator, workspaceLocator)
-    && liveDefaultExecutorAttemptBlocksCandidate(attempt, row, payload)
   )) ?? null;
 }
 
@@ -536,78 +430,10 @@ export function findBlockingLiveDefaultExecutorWorkUnitAttempt(
     && attempt.executor_kind === 'codex_cli'
     && attempt.domain_id === row.domain_id
     && attempt.stage_id === stageId
-    && isCrossTaskLiveDefaultExecutorAttempt(db, attempt, workspaceLocator)
+    && isCrossTaskLiveDefaultExecutorAttempt(attempt, workspaceLocator)
     && isSameDefaultExecutorWorkUnitStage(attempt.workspace_locator, workspaceLocator)
     && blockingLiveDefaultExecutorAttemptBlocksCandidate(attempt, row, payload)
   )) ?? null;
-}
-
-export function refreshDefaultExecutorLiveAttemptTaskLease(
-  db: DatabaseSync,
-  input: {
-    attempt: ReturnType<typeof listStageAttempts>[number] | null;
-    source?: string;
-    reason: string;
-  },
-) {
-  const taskId = input.attempt?.task_id;
-  if (!taskId) {
-    return null;
-  }
-  const row = db.prepare(`
-    SELECT *
-    FROM tasks
-    WHERE task_id = ?
-  `).get(taskId) as FamilyRuntimeTaskRow | undefined;
-  const refreshableTaskStatuses = new Set<string>([
-    FAMILY_RUNTIME_TASK_STATUS.queued,
-    FAMILY_RUNTIME_TASK_STATUS.retryWaiting,
-    FAMILY_RUNTIME_TASK_STATUS.running,
-  ]);
-  if (!row || !refreshableTaskStatuses.has(row.status)) {
-    return null;
-  }
-  const leaseOwner = row[FAMILY_RUNTIME_TASK_COLUMNS.leaseOwner] || `opl-family-runtime:${process.pid}`;
-  const leaseExpiresAt = new Date(Date.now() + DEFAULT_EXECUTOR_TASK_LEASE_MS).toISOString();
-  const refreshedAt = nowIso();
-  const attemptCount = Math.max(row.attempts, input.attempt?.attempt_count ?? 0, 1);
-  db.prepare(`
-    UPDATE tasks
-    SET status = 'running', attempts = max(attempts, ?), ${FAMILY_RUNTIME_TASK_COLUMNS.leaseOwner} = ?,
-      ${FAMILY_RUNTIME_TASK_COLUMNS.leaseExpiresAt} = ?, last_error = NULL, ${FAMILY_RUNTIME_TASK_COLUMNS.deadLetterReason} = NULL, updated_at = ?
-    WHERE task_id = ? AND status IN ('queued', 'retry_waiting', 'running')
-  `).run(attemptCount, leaseOwner, leaseExpiresAt, refreshedAt, taskId);
-  insertEvent(db, {
-    taskId,
-    domainId: row.domain_id,
-    eventType: 'task_default_executor_live_attempt_lease_refreshed',
-    source: input.source ?? 'opl-family-runtime',
-    payload: {
-      reason: input.reason,
-      stage_attempt_id: input.attempt?.stage_attempt_id ?? null,
-      previous_status: row.status,
-      next_status: 'running',
-      previous_lease_owner: row[FAMILY_RUNTIME_TASK_COLUMNS.leaseOwner],
-      previous_lease_expires_at: row[FAMILY_RUNTIME_TASK_COLUMNS.leaseExpiresAt],
-      [FAMILY_RUNTIME_TASK_COLUMNS.leaseOwner]: leaseOwner,
-      [FAMILY_RUNTIME_TASK_COLUMNS.leaseExpiresAt]: leaseExpiresAt,
-      authority_boundary: {
-        opl: 'provider_transport_lease_refresh_only',
-        domain: 'truth_quality_artifact_gate_owner',
-        domain_truth_mutation: false,
-        publication_quality_mutation: false,
-        artifact_gate_mutation: false,
-        current_package_mutation: false,
-        provider_stage_attempt_started: false,
-        provider_completion_is_domain_ready: false,
-      },
-    },
-  });
-  return {
-    task_id: taskId,
-    [FAMILY_RUNTIME_TASK_COLUMNS.leaseOwner]: leaseOwner,
-    [FAMILY_RUNTIME_TASK_COLUMNS.leaseExpiresAt]: leaseExpiresAt,
-  };
 }
 
 export function stageIdForProviderHostedTask(row: FamilyRuntimeTaskRow, payload: Record<string, unknown>) {
