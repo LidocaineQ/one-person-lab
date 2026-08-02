@@ -48,6 +48,7 @@ import { normalizeManifest, normalizePackageManifest } from './agent-package-reg
 import {
   installedImmutableRepairCatalog,
   installedPackageLockClosure,
+  installedPackagePluginSourcePath,
 } from './agent-package-registry-parts/installed-plugin-source.ts';
 import {
   assertNoRequiredInstalledDependents,
@@ -209,6 +210,12 @@ type PreparedPackage = {
   developerCheckoutPath: string | null;
   developerCheckoutPayloadFiles: ReturnType<typeof loadDeveloperCheckoutPackageSource>['payloadFiles'] | null;
 };
+
+function previousPhysicalSurfaceCanBeRematerialized(lock: AgentPackageLock) {
+  if (!lock.physical_surface?.plugin_id) return true;
+  const sourcePath = installedPackagePluginSourcePath(lock);
+  return sourcePath !== null && fs.existsSync(sourcePath);
+}
 
 type TrustedBundledFullRuntimeInstall = {
   packageId: string;
@@ -1190,7 +1197,11 @@ async function applyManifestPackageLockUnlocked(
       }
     }
     for (const prepared of ordered) {
-      if (prepared.previousLock && !input.dryRun) rematerializePhysicalCodexSurfaceFromLock(prepared.previousLock, false);
+      if (prepared.previousLock
+        && !input.dryRun
+        && previousPhysicalSurfaceCanBeRematerialized(prepared.previousLock)) {
+        rematerializePhysicalCodexSurfaceFromLock(prepared.previousLock, false);
+      }
     }
     legacySkillMigration?.rollback();
     throw error;
@@ -1244,7 +1255,10 @@ async function applyManifestPackageLockUnlocked(
         rollbackManagedPolicySurface(surface);
       }
       for (const prepared of ordered) {
-        if (prepared.previousLock) rematerializePhysicalCodexSurfaceFromLock(prepared.previousLock, false);
+        if (prepared.previousLock
+          && previousPhysicalSurfaceCanBeRematerialized(prepared.previousLock)) {
+          rematerializePhysicalCodexSurfaceFromLock(prepared.previousLock, false);
+        }
       }
       legacySkillMigration?.rollback();
     }
@@ -1414,7 +1428,10 @@ async function applyManifestPackageLockUnlocked(
           rollbackManagedPolicySurface(nextLock.physical_surface);
         }
         for (const prepared of ordered) {
-          if (prepared.previousLock) rematerializePhysicalCodexSurfaceFromLock(prepared.previousLock, false);
+          if (prepared.previousLock
+            && previousPhysicalSurfaceCanBeRematerialized(prepared.previousLock)) {
+            rematerializePhysicalCodexSurfaceFromLock(prepared.previousLock, false);
+          }
         }
         for (const mutation of [...runtimeSourceMutations.values()].reverse()) {
           rollbackManagedRuntimeSourceMutation(mutation);
@@ -1535,7 +1552,11 @@ async function applyManifestPackageLockUnlocked(
         });
         rollbackManagedPolicySurface(nextLock.physical_surface);
       }
-      for (const previousLock of previousLocks) rematerializePhysicalCodexSurfaceFromLock(previousLock, false);
+      for (const previousLock of previousLocks) {
+        if (previousPhysicalSurfaceCanBeRematerialized(previousLock)) {
+          rematerializePhysicalCodexSurfaceFromLock(previousLock, false);
+        }
+      }
       for (const mutation of [...runtimeSourceMutations.values()].reverse()) {
         rollbackManagedRuntimeSourceMutation(mutation);
       }

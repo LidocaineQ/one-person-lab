@@ -34,6 +34,8 @@ type CodexPluginMarketplaceListEntry = {
   marketplaceSource: string | null;
 };
 
+type TomlTable = ReturnType<typeof parseTomlDocument>['tables'][number];
+
 export type ConfiguredCodexPluginCarrierObservedSource = {
   plugin_id: string;
   marketplace_source: string | null;
@@ -236,6 +238,265 @@ function configuredCodexHome(env: NodeJS.ProcessEnv) {
   if (configured) return path.resolve(configured);
   const home = env.HOME?.trim() || os.homedir();
   return path.join(path.resolve(home), '.codex');
+}
+
+function localReadbackFailure(failureCode: string, message: string, details: Record<string, unknown> = {}): never {
+  throw new FrameworkContractError('contract_shape_invalid', message, { ...details, failure_code: failureCode });
+}
+
+function tomlTableValue(table: TomlTable, key: string, required: boolean) {
+  const matches = table.content.split('\n').slice(1).flatMap((line) => {
+    const match = line.match(new RegExp(`^\\s*${key}\\s*=\\s*(.+?)\\s*$`));
+    return match ? [match[1]] : [];
+  });
+  if (matches.length > 1 || (required && matches.length !== 1)) {
+    localReadbackFailure('configured_codex_plugin_carrier_local_config_invalid',
+      'Configured Codex local carrier table has a missing or duplicate required key.', {
+        table: table.header, key, value_count: matches.length,
+      });
+  }
+  return matches[0] ?? null;
+}
+
+function tomlStringValue(table: TomlTable, key: string) {
+  const raw = tomlTableValue(table, key, true)!;
+  try {
+    const parsed = parseJsonText(raw);
+    if (typeof parsed === 'string' && parsed.trim()) return parsed;
+  } catch {
+    // The owner-generated local carrier uses TOML basic strings compatible with JSON string syntax.
+  }
+  return localReadbackFailure(
+    'configured_codex_plugin_carrier_local_config_invalid',
+    'Configured Codex local carrier string is invalid.',
+    { table: table.header, key },
+  );
+}
+
+function tomlEnabledValue(table: TomlTable) {
+  const raw = tomlTableValue(table, 'enabled', false);
+  if (raw === null || raw === 'true') return true;
+  if (raw === 'false') return false;
+  return localReadbackFailure(
+    'configured_codex_plugin_carrier_local_config_invalid',
+    'Configured Codex local carrier enabled flag is invalid.',
+    { table: table.header },
+  );
+}
+
+function safeRealDirectory(candidatePath: string, rootPath?: string) {
+  const resolved = path.resolve(candidatePath);
+  try {
+    const stat = fs.lstatSync(resolved);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('not a real directory');
+    const real = fs.realpathSync(resolved);
+    if (rootPath) {
+      const root = path.resolve(rootPath);
+      const rootReal = fs.realpathSync(root);
+      if (real === rootReal || !real.startsWith(`${rootReal}${path.sep}`)) {
+        throw new Error('directory escapes owner root');
+      }
+    }
+    return resolved;
+  } catch {
+    return localReadbackFailure(
+      'configured_codex_plugin_carrier_local_source_unsafe',
+      'Configured Codex local carrier source directory is missing or unsafe.',
+      { candidate_path: resolved, owner_root: rootPath ?? null },
+    );
+  }
+}
+
+function safeJsonRecord(filePath: string, rootPath: string) {
+  const resolved = path.resolve(filePath);
+  const root = path.resolve(rootPath);
+  try {
+    const stat = fs.lstatSync(resolved);
+    const real = fs.realpathSync(resolved);
+    const rootReal = fs.realpathSync(root);
+    if (!stat.isFile() || stat.isSymbolicLink() || !real.startsWith(`${rootReal}${path.sep}`)) {
+      throw new Error('JSON path is not a real file inside its owner root');
+    }
+    const parsed = parseJsonText(fs.readFileSync(resolved, 'utf8'));
+    if (!isRecord(parsed)) throw new Error('JSON root is not an object');
+    return parsed;
+  } catch {
+    return localReadbackFailure(
+      'configured_codex_plugin_carrier_local_manifest_invalid',
+      'Configured Codex local carrier manifest is missing, unsafe, or invalid.',
+      { manifest_path: resolved, owner_root: root },
+    );
+  }
+}
+
+function assertSafeRequiredSkills(sourcePath: string, requiredSkillIds: string[]) {
+  const sourceRoot = path.resolve(sourcePath);
+  const sourceRootReal = fs.realpathSync(sourceRoot);
+  for (const skillId of requiredSkillIds) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(skillId)) {
+      localReadbackFailure(
+        'configured_codex_plugin_carrier_local_required_skill_invalid',
+        'Configured Codex local carrier has an invalid required Skill identity.',
+        { required_skill_id: skillId },
+      );
+    }
+    const skillPath = path.join(sourceRoot, 'skills', skillId, 'SKILL.md');
+    try {
+      const stat = fs.lstatSync(skillPath);
+      const real = fs.realpathSync(skillPath);
+      if (!stat.isFile() || stat.isSymbolicLink() || !real.startsWith(`${sourceRootReal}${path.sep}`)) {
+        throw new Error('Skill is not a real file inside the plugin source');
+      }
+    } catch {
+      localReadbackFailure(
+        'configured_codex_plugin_carrier_local_required_skill_invalid',
+        'Configured Codex local carrier required Skill is missing or unsafe.',
+        { required_skill_id: skillId, required_skill_path: skillPath },
+      );
+    }
+  }
+}
+
+function assertSafePluginTree(sourcePath: string) {
+  const sourceRootReal = fs.realpathSync(sourcePath);
+  const visit = (current: string) => {
+    for (const entry of fs.readdirSync(current)) {
+      const candidate = path.join(current, entry);
+      const stat = fs.lstatSync(candidate);
+      const real = fs.realpathSync(candidate);
+      if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())
+        || !real.startsWith(`${sourceRootReal}${path.sep}`)) {
+        localReadbackFailure(
+          'configured_codex_plugin_carrier_local_source_unsafe',
+          'Configured Codex local plugin tree contains an unsafe filesystem entry.',
+          { plugin_source_path: sourcePath, unsafe_path: candidate },
+        );
+      }
+      if (stat.isDirectory()) visit(candidate);
+    }
+  };
+  visit(sourcePath);
+}
+
+function readConfiguredLocalPluginEntry(input: {
+  descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor; env: NodeJS.ProcessEnv;
+}): CodexPluginListEntry {
+  const pluginId = input.descriptor.carrier.pluginId;
+  const separator = pluginId.lastIndexOf('@');
+  const pluginName = pluginId.slice(0, separator);
+  const marketplaceId = pluginId.slice(separator + 1);
+  const codexHome = safeRealDirectory(configuredCodexHome(input.env));
+  const configPath = path.join(codexHome, 'config.toml');
+  let configText: string;
+  try {
+    const stat = fs.lstatSync(configPath);
+    const real = fs.realpathSync(configPath);
+    const codexHomeReal = fs.realpathSync(codexHome);
+    if (!stat.isFile() || stat.isSymbolicLink() || !real.startsWith(`${codexHomeReal}${path.sep}`)) {
+      throw new Error('config is not a real file inside Codex home');
+    }
+    configText = fs.readFileSync(configPath, 'utf8');
+  } catch {
+    localReadbackFailure(
+      'configured_codex_plugin_carrier_local_config_missing',
+      'Configured Codex local carrier config is missing or unsafe.',
+      { config_path: configPath },
+    );
+  }
+  const document = parseTomlDocument(configText);
+  const sameNamePluginTables = document.tables.filter((table) => {
+    if (!table.header.startsWith('plugins.')) return false;
+    return pluginBareName(table.header.slice('plugins.'.length)) === pluginName;
+  });
+  const pluginTables = sameNamePluginTables.filter((table) => table.header === `plugins.${pluginId}`);
+  const marketplaceTables = document.tables.filter(
+    (table) => table.header === `marketplaces.${marketplaceId}`,
+  );
+  if (sameNamePluginTables.length !== 1
+    || pluginTables.length !== 1
+    || marketplaceTables.length !== 1) {
+    localReadbackFailure(
+      'configured_codex_plugin_carrier_local_config_ambiguous',
+      'Configured Codex local carrier does not have one exact plugin and marketplace table.',
+      {
+        plugin_id: pluginId,
+        same_name_plugin_table_count: sameNamePluginTables.length,
+        exact_plugin_table_count: pluginTables.length,
+        marketplace_table_count: marketplaceTables.length,
+      },
+    );
+  }
+  const marketplaceTable = marketplaceTables[0];
+  if (tomlStringValue(marketplaceTable, 'source_type') !== 'local') {
+    localReadbackFailure(
+      'configured_codex_plugin_carrier_local_marketplace_required',
+      'Configured Codex filesystem readback only accepts a local marketplace.',
+      { marketplace_id: marketplaceId },
+    );
+  }
+  const configuredSource = tomlStringValue(marketplaceTable, 'source');
+  const declaredSource = input.descriptor.carrier.marketplaceSource;
+  if (!declaredSource
+    || !path.isAbsolute(configuredSource)
+    || path.resolve(configuredSource) !== path.resolve(declaredSource)) {
+    localReadbackFailure(
+      'configured_codex_plugin_carrier_local_marketplace_identity_mismatch',
+      'Configured Codex local marketplace does not match the owner descriptor.',
+      {
+        marketplace_id: marketplaceId,
+        configured_source: configuredSource,
+        declared_source: declaredSource,
+      },
+    );
+  }
+  const marketplaceRoot = safeRealDirectory(configuredSource);
+  const marketplaceManifest = safeJsonRecord(
+    path.join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json'), marketplaceRoot);
+  if (stringValue(marketplaceManifest.name) !== marketplaceId
+    || !Array.isArray(marketplaceManifest.plugins)) {
+    localReadbackFailure(
+      'configured_codex_plugin_carrier_local_marketplace_identity_mismatch',
+      'Configured Codex local marketplace manifest identity is invalid.',
+      { marketplace_id: marketplaceId },
+    );
+  }
+  const matchingPlugins = marketplaceManifest.plugins.flatMap((value) => {
+    const entry = isRecord(value) ? value : null;
+    return entry && stringValue(entry.name) === pluginName ? [entry] : [];
+  });
+  if (matchingPlugins.length !== 1) {
+    localReadbackFailure(
+      'configured_codex_plugin_carrier_local_marketplace_identity_mismatch',
+      'Configured Codex local marketplace must declare one exact plugin source.',
+      { plugin_id: pluginId, matching_plugin_count: matchingPlugins.length },
+    );
+  }
+  const source = isRecord(matchingPlugins[0].source) ? matchingPlugins[0].source : null;
+  const relativeSourcePath = stringValue(source?.path);
+  if (stringValue(source?.source) !== 'local'
+    || !relativeSourcePath
+    || path.isAbsolute(relativeSourcePath)) {
+    localReadbackFailure(
+      'configured_codex_plugin_carrier_local_source_unsafe',
+      'Configured Codex local marketplace plugin source is not a safe relative local path.',
+      { plugin_id: pluginId, source_path: relativeSourcePath },
+    );
+  }
+  const pluginSourcePath = safeRealDirectory(path.resolve(marketplaceRoot, relativeSourcePath), marketplaceRoot);
+  const pluginManifest = safeJsonRecord(
+    path.join(pluginSourcePath, '.codex-plugin', 'plugin.json'), pluginSourcePath);
+  const version = stringValue(pluginManifest.version);
+  if (stringValue(pluginManifest.name) !== pluginName || !version) {
+    localReadbackFailure(
+      'configured_codex_plugin_carrier_local_plugin_identity_mismatch',
+      'Configured Codex local plugin manifest identity is invalid.',
+      { plugin_id: pluginId },
+    );
+  }
+  assertSafePluginTree(pluginSourcePath);
+  assertSafeRequiredSkills(pluginSourcePath, input.descriptor.executor.requiredSkillIds);
+  return { pluginId, version, installed: true, enabled: tomlEnabledValue(pluginTables[0]),
+    sourcePath: pluginSourcePath, marketplaceSource: marketplaceRoot };
 }
 
 function replacePluginEnabledTable(input: {
@@ -505,6 +766,31 @@ function readConfiguredPluginEntries(input: {
   const listArgs = ['plugin', 'list', '--json'];
   const list = input.runner({ binary: input.binary, args: listArgs, env: input.env });
   if (list.status !== 0 || list.error) {
+    if (input.action === 'list' && list.error) {
+      try {
+        return {
+          ...configuredPluginReadback({
+            descriptor: input.descriptor,
+            action: input.action,
+            dryRun: false,
+            dispatchAction: false,
+            actionArgs: listArgs,
+            entries: [readConfiguredLocalPluginEntry({
+              descriptor: input.descriptor,
+              env: input.env,
+            })],
+          }),
+          native_action_dispatched: false,
+        };
+      } catch (error) {
+        return invalidListReadback({
+          descriptor: input.descriptor,
+          action: input.action,
+          listArgs,
+          error,
+        });
+      }
+    }
     if (input.dispatchAction) {
       commandFailure({
         packageId: input.descriptor.packageId,

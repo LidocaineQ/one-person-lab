@@ -340,19 +340,20 @@ function writeDeveloperFlowCheckout(
   return checkout;
 }
 
+function makeTreeWritable(target: string) {
+  const stat = fs.lstatSync(target);
+  if (stat.isDirectory()) {
+    fs.chmodSync(target, 0o755);
+    for (const entry of fs.readdirSync(target)) makeTreeWritable(path.join(target, entry));
+  } else {
+    fs.chmodSync(target, stat.mode & 0o111 ? 0o755 : 0o644);
+  }
+}
+
 function projectStaleInstalledFlowDescriptor(surface: any) {
   const pluginRoot = surface.marketplace_plugin_path;
   const requiredSkillIds = ['opl-flow', 'coordinate-concurrent-tasks'];
-  const makeWritable = (target: string) => {
-    const stat = fs.lstatSync(target);
-    if (stat.isDirectory()) {
-      fs.chmodSync(target, 0o755);
-      for (const entry of fs.readdirSync(target)) makeWritable(path.join(target, entry));
-    } else {
-      fs.chmodSync(target, stat.mode & 0o111 ? 0o755 : 0o644);
-    }
-  };
-  makeWritable(pluginRoot);
+  makeTreeWritable(pluginRoot);
   const pluginManifestPath = path.join(pluginRoot, '.codex-plugin', 'plugin.json');
   const pluginManifest = JSON.parse(fs.readFileSync(pluginManifestPath, 'utf8'));
   pluginManifest.version = '0.1.29';
@@ -1041,6 +1042,97 @@ test('managed Flow update restores the managed owner and legacy projections when
         fs.existsSync(path.join(pluginAfter.installed[0].source.path, 'skills', skillId, 'SKILL.md'))),
       flowSkillIds,
     );
+  } finally {
+    removeFixtureTree(state.root);
+  }
+});
+
+test('managed Flow update uses validated local carrier readback when the previous cache and Codex CLI are unavailable', () => {
+  const state = publicLifecycleFixture('managed-update-local-readback');
+  try {
+    const previousCheckout = writeDeveloperFlowCheckout(path.join(state.root, 'workspace-previous'));
+    const legacyAgentsRoot = path.join(state.root, 'legacy-agents');
+    fs.renameSync(state.agentsRoot, legacyAgentsRoot);
+    const previous = runCli(['packages', 'install', 'opl-flow'], {
+      ...state.env,
+      OPL_MODULE_PATH_OPLFLOW: previousCheckout,
+      OPL_MODULE_SOURCE_MODE: 'git_checkout',
+    }) as any;
+    fs.renameSync(legacyAgentsRoot, state.agentsRoot);
+    const previousSurface = previous.opl_agent_package_install.physical_surface;
+    makeTreeWritable(previousSurface.codex_plugin_cache_path);
+    fs.rmSync(previousSurface.codex_plugin_cache_path, { recursive: true, force: true });
+
+    const nextCheckout = writeDeveloperFlowCheckout(path.join(state.root, 'workspace-next'));
+    fs.appendFileSync(
+      path.join(nextCheckout, 'scripts', 'opl_workflow.py'),
+      '# local carrier readback fixture revision\n',
+      'utf8',
+    );
+    const update = runCli(['packages', 'update', 'opl-flow'], {
+      ...state.env,
+      OPL_CODEX_PLUGIN_BIN: path.join(state.root, 'missing-codex-cli'),
+      OPL_MODULE_PATH_OPLFLOW: nextCheckout,
+      OPL_MODULE_SOURCE_MODE: 'git_checkout',
+    }) as any;
+    const surface = update.opl_agent_package_update;
+    assert.equal(surface.status, 'updated');
+    assert.equal(surface.package_lock.package_version, '0.1.30');
+    assert.equal(surface.package_lock.source_kind, 'developer_checkout_override');
+    assert.equal(fs.existsSync(previousSurface.codex_plugin_cache_path), false);
+    assert.equal(fs.existsSync(surface.physical_surface.codex_plugin_cache_path), true);
+    assert.deepEqual(surface.physical_surface.materialized_required_skill_ids, flowSkillIds);
+    for (const skillId of flowSkillIds) {
+      assert.equal(
+        fs.existsSync(path.join(surface.physical_surface.codex_plugin_cache_path, 'skills', skillId, 'SKILL.md')),
+        true,
+      );
+    }
+    for (const skillId of skillIds) {
+      assert.equal(fs.existsSync(path.join(state.skillsRoot, skillId)), false);
+    }
+  } finally {
+    removeFixtureTree(state.root);
+  }
+});
+
+test('managed Flow update preserves a missing previous cache and reports the primary native readback failure', () => { // reuse-first: allow owner-routed package transaction rollback regression.
+  const state = publicLifecycleFixture('managed-update-missing-previous-cache-restore');
+  try {
+    const previousCheckout = writeDeveloperFlowCheckout(path.join(state.root, 'workspace-previous'));
+    const legacyAgentsRoot = path.join(state.root, 'legacy-agents');
+    fs.renameSync(state.agentsRoot, legacyAgentsRoot);
+    const previous = runCli(['packages', 'install', 'opl-flow'], {
+      ...state.env,
+      OPL_MODULE_PATH_OPLFLOW: previousCheckout,
+      OPL_MODULE_SOURCE_MODE: 'git_checkout',
+    }) as any;
+    fs.renameSync(legacyAgentsRoot, state.agentsRoot);
+    const previousSurface = previous.opl_agent_package_install.physical_surface;
+    const packageLockPath = path.join(state.env.OPL_STATE_DIR, 'agent-package-locks.json');
+    const packageLockBefore = fs.readFileSync(packageLockPath);
+    const skillLockBefore = fs.readFileSync(state.lockPath);
+    makeTreeWritable(previousSurface.codex_plugin_cache_path);
+    fs.rmSync(previousSurface.codex_plugin_cache_path, { recursive: true, force: true });
+    assert.equal(fs.existsSync(previousSurface.codex_plugin_cache_path), false);
+
+    const nextCheckout = writeDeveloperFlowCheckout(path.join(state.root, 'workspace-next'));
+    const failure = runCliFailure(['packages', 'update', 'opl-flow'], {
+      ...state.env,
+      OPL_MODULE_PATH_OPLFLOW: nextCheckout,
+      OPL_MODULE_SOURCE_MODE: 'git_checkout',
+      FIXTURE_FAIL_PLUGIN_LIST: '1',
+    });
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'opl_flow_legacy_skill_native_readback_failed',
+    );
+    assert.deepEqual(fs.readFileSync(packageLockPath), packageLockBefore);
+    assert.deepEqual(fs.readFileSync(state.lockPath), skillLockBefore);
+    assert.equal(fs.existsSync(previousSurface.codex_plugin_cache_path), false);
+    for (const skillId of skillIds) {
+      assert.equal(fs.existsSync(path.join(state.skillsRoot, skillId)), true);
+    }
   } finally {
     removeFixtureTree(state.root);
   }

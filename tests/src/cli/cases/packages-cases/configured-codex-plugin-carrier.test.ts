@@ -1135,6 +1135,143 @@ function writeNativeMarketplace(root: string, version: string) {
   writePluginManifest(pluginRoot, version);
 }
 
+function unavailableCodexRunner(): CodexPluginCommandRunner {
+  return () => ({
+    status: null,
+    stdout: '',
+    stderr: '',
+    error: Object.assign(new Error('spawnSync codex ENOENT'), { code: 'ENOENT' }),
+  });
+}
+
+test('configured Codex carrier validates a local readback when the CLI is unavailable without extending the fallback to writes', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-local-readback-'));
+  const marketplaceRoot = path.join(root, 'marketplace');
+  const codexHome = path.join(root, 'codex-home');
+  const configPath = path.join(codexHome, 'config.toml');
+  const nativeDescriptor = {
+    ...descriptor,
+    carrier: {
+      ...descriptor.carrier,
+      marketplaceSource: marketplaceRoot,
+    },
+  };
+  const env = { CODEX_HOME: codexHome };
+  try {
+    writeNativeMarketplace(marketplaceRoot, '1.0.7');
+    fs.mkdirSync(codexHome, { recursive: true });
+    fs.writeFileSync(configPath, [
+      '[marketplaces.fixture-carrier]',
+      'source_type = "local"',
+      `source = ${JSON.stringify(marketplaceRoot)}`,
+      '',
+      '[plugins."third-party-research@fixture-carrier"]',
+      'enabled = true',
+      '',
+    ].join('\n'), 'utf8');
+
+    const readback = runConfiguredCodexPluginCarrier({
+      descriptor: nativeDescriptor,
+      action: 'list',
+      env,
+      runner: unavailableCodexRunner(),
+    });
+    assert.equal(readback.status, 'installed');
+    assert.equal(readback.installed_version, '1.0.7');
+    assert.equal(readback.enabled, true);
+    assert.equal(readback.executor.status, 'callable');
+    assert.equal(readback.carrier.precedence, 'exact_single_source');
+    assert.equal(readback.carrier.marketplace_source, marketplaceRoot);
+    assert.equal(
+      readback.plugin_source_path,
+      path.join(marketplaceRoot, 'plugins', 'third-party-research'),
+    );
+    assert.equal(readback.native_action_dispatched, false);
+
+    assert.throws(
+      () => runConfiguredCodexPluginCarrier({
+        descriptor: nativeDescriptor,
+        action: 'update',
+        env,
+        runner: unavailableCodexRunner(),
+      }),
+      (error: any) => error?.details?.failure_code
+        === 'configured_codex_plugin_carrier_unavailable',
+    );
+
+    fs.appendFileSync(configPath, [
+      '[plugins."third-party-research@other-marketplace"]',
+      'enabled = true',
+      '',
+    ].join('\n'), 'utf8');
+    const ambiguous = runConfiguredCodexPluginCarrier({
+      descriptor: nativeDescriptor,
+      action: 'list',
+      env,
+      runner: unavailableCodexRunner(),
+    });
+    assert.equal(ambiguous.status, 'physical_unavailable');
+    assert.equal(ambiguous.reason, 'configured_codex_plugin_carrier_local_config_ambiguous');
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
+test('configured Codex carrier local readback rejects marketplace path escape and symlink sources', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-local-readback-safety-'));
+  const marketplaceRoot = path.join(root, 'marketplace');
+  const codexHome = path.join(root, 'codex-home');
+  const configPath = path.join(codexHome, 'config.toml');
+  const marketplacePath = path.join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json');
+  const nativeDescriptor = {
+    ...descriptor,
+    carrier: {
+      ...descriptor.carrier,
+      marketplaceSource: marketplaceRoot,
+    },
+  };
+  const env = { CODEX_HOME: codexHome };
+  const readback = () => runConfiguredCodexPluginCarrier({
+    descriptor: nativeDescriptor,
+    action: 'list',
+    env,
+    runner: unavailableCodexRunner(),
+  });
+  try {
+    writeNativeMarketplace(marketplaceRoot, '1.0.7');
+    fs.mkdirSync(codexHome, { recursive: true });
+    fs.writeFileSync(configPath, [
+      '[marketplaces.fixture-carrier]',
+      'source_type = "local"',
+      `source = ${JSON.stringify(marketplaceRoot)}`,
+      '',
+      '[plugins."third-party-research@fixture-carrier"]',
+      'enabled = true',
+      '',
+    ].join('\n'), 'utf8');
+
+    const manifest = parseJsonText(fs.readFileSync(marketplacePath, 'utf8')) as any;
+    manifest.plugins[0].source.path = '../../outside';
+    fs.writeFileSync(marketplacePath, formatJsonPayload(manifest));
+    assert.equal(
+      readback().reason,
+      'configured_codex_plugin_carrier_local_source_unsafe',
+    );
+
+    writeNativeMarketplace(marketplaceRoot, '1.0.7');
+    const pluginRoot = path.join(marketplaceRoot, 'plugins', 'third-party-research');
+    const displaced = path.join(root, 'displaced-plugin');
+    fs.renameSync(pluginRoot, displaced);
+    fs.symlinkSync(displaced, pluginRoot, 'dir');
+    assert.equal(
+      readback().reason,
+      'configured_codex_plugin_carrier_local_source_unsafe',
+    );
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
 test('configured Codex carrier executes native install/list/update/repair/remove with fresh readback', {
   skip: process.env.OPL_RUN_CODEX_PLUGIN_CARRIER_INTEGRATION === '1'
     ? false
