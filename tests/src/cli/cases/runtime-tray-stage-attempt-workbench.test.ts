@@ -1,5 +1,7 @@
 import { spawnSync } from 'node:child_process';
+import { DatabaseSync } from 'node:sqlite';
 
+import { buildStageAttemptWorkbench } from '../../../../src/modules/console/runtime-tray-stage-attempt-workbench.ts';
 import { buildFamilyRuntimeControlledApplyContract } from '../../../../src/modules/runway/index.ts';
 import { assert, createFamilyContractsFixtureRoot, fs, installRuntimePackageFixture, os, path, repoRoot, runCli, test } from '../helpers.ts';
 
@@ -33,7 +35,7 @@ test('controlled apply projects one generic return contract across domains', () 
   }
 });
 
-test('runtime snapshot projects stage attempt workbench without owning domain verdicts', () => {
+test('runtime snapshot projects stage attempt workbench without owning domain verdicts', async () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-attempt-workbench-state-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
   installRuntimePackageFixture(stateRoot, 'mas');
@@ -156,6 +158,29 @@ test('runtime snapshot projects stage attempt workbench without owning domain ve
         .some((item: { item_id: string }) => item.item_id === `opl:stage-attempt:${attemptId}`),
       false,
     );
+
+    const db = new DatabaseSync(path.join(stateRoot, 'family-runtime', 'queue.sqlite'));
+    try {
+      db.prepare('UPDATE stage_attempts SET task_id = NULL WHERE stage_attempt_id = ?').run(attemptId);
+      db.exec('DROP TABLE tasks');
+    } finally {
+      db.close();
+    }
+    const previousStateRoot = process.env.OPL_STATE_DIR;
+    process.env.OPL_STATE_DIR = stateRoot;
+    try {
+      const tasklessWorkbench = await buildStageAttemptWorkbench();
+      const tasklessAttempt = tasklessWorkbench.attempts[0];
+      assert.equal(tasklessWorkbench.availability, 'available');
+      assert.equal(tasklessAttempt.stage_attempt_id, attemptId);
+      assert.equal(tasklessAttempt.task_id, null);
+      assert.equal(tasklessAttempt.current_control_state.current_stage_attempt_id, attemptId);
+      assert.equal(tasklessAttempt.current_control_state.reconciliation_status, 'blocked_missing_identity');
+      assert.deepEqual(tasklessAttempt.consumed_memory_refs, ['memory:route-policy']);
+    } finally {
+      if (previousStateRoot === undefined) delete process.env.OPL_STATE_DIR;
+      else process.env.OPL_STATE_DIR = previousStateRoot;
+    }
   } finally {
     fs.rmSync(stateRoot, { recursive: true, force: true });
     fs.rmSync(fixtureRoot, { recursive: true, force: true });

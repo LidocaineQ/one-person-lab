@@ -1,5 +1,4 @@
 import * as fs from 'fs';
-import type { DatabaseSync } from 'node:sqlite';
 
 import { isRecord } from '../../kernel/contract-validation.ts';
 import {
@@ -23,7 +22,6 @@ import {
   buildStageAttemptUsageProjection,
   buildStageProgressLog,
   deriveCurrentControlStateForAttempt,
-  deriveCurrentControlStateForTask,
   familyRuntimePaths,
   inspectFamilyRuntimeProviderWithLifecycle,
   isFamilyRuntimeProviderKind,
@@ -430,7 +428,7 @@ function attemptProjection(
   latestCloseout: JsonRecord | null,
   signals: JsonRecord[],
   providerReadiness: Awaited<ReturnType<typeof inspectFamilyRuntimeProviderWithLifecycle>> | null,
-  taskPayload: JsonRecord | null = null,
+  domainSourceFingerprint: string | null = null,
   ownerAnswerProfile: DomainOwnerAnswerProjectionProfile | null = null,
   progressDeltaKeys: StandardAgentProgressDeltaKeySet | null = null,
 ) {
@@ -444,7 +442,7 @@ function attemptProjection(
   const workspaceLocator = normalizedWorkspaceLocator(
     row,
     parseRecord(row.workspace_locator_json),
-    taskPayload,
+    domainSourceFingerprint,
     ownerAnswerProfile,
   );
   const activity = latestActivity(activityEvents);
@@ -757,7 +755,7 @@ function attemptProjection(
 function normalizedWorkspaceLocator(
   row: StageAttemptWorkbenchRow,
   workspaceLocator: JsonRecord,
-  taskPayload: JsonRecord | null,
+  domainSourceFingerprint: string | null,
   profile: DomainOwnerAnswerProjectionProfile | null,
 ) {
   if (
@@ -767,28 +765,9 @@ function normalizedWorkspaceLocator(
   ) {
     return workspaceLocator;
   }
-  const domainSourceFingerprint = optionalString(taskPayload?.source_fingerprint);
   return domainSourceFingerprint
     ? { ...workspaceLocator, domain_source_fingerprint: domainSourceFingerprint }
     : workspaceLocator;
-}
-
-function taskPayloadsById(db: DatabaseSync, taskIds: string[]) {
-  const uniqueTaskIds = [...new Set(taskIds.filter((taskId) => taskId.trim().length > 0))];
-  if (uniqueTaskIds.length === 0) {
-    return new Map<string, JsonRecord>();
-  }
-  const rows = db.prepare(`
-    SELECT task_id, payload_json
-    FROM tasks
-    WHERE task_id IN (${uniqueTaskIds.map(() => '?').join(',')})
-  `).all(...uniqueTaskIds) as Array<{ task_id: string; payload_json: string }>;
-  return new Map(rows.map((row) => [row.task_id, parseRecord(row.payload_json)]));
-}
-
-function currentControlStatesByTaskId(db: DatabaseSync, taskIds: string[]) {
-  const uniqueTaskIds = [...new Set(taskIds.filter((taskId) => taskId.trim().length > 0))];
-  return new Map(uniqueTaskIds.map((taskId) => [taskId, deriveCurrentControlStateForTask(db, taskId)]));
 }
 
 export async function buildStageAttemptWorkbench(options: ProviderReadinessOptions = {}) {
@@ -844,14 +823,6 @@ export async function buildStageAttemptWorkbench(options: ProviderReadinessOptio
     ) as StageAttemptWorkbenchRow[];
     const rows = evidenceRows.slice(0, WORKBENCH_ATTEMPT_LIST_LIMIT);
     const attemptIds = evidenceRows.map((row) => row.stage_attempt_id);
-    const taskPayloads = taskPayloadsById(
-      db,
-      evidenceRows.map((row) => row.task_id).filter((taskId): taskId is string => Boolean(taskId)),
-    );
-    const currentControlStates = currentControlStatesByTaskId(
-      db,
-      evidenceRows.map((row) => row.task_id).filter((taskId): taskId is string => Boolean(taskId)),
-    );
     const latestCloseouts = latestStageAttemptCloseoutPacketsByAttempt(db, attemptIds);
     const signals = stageAttemptSignalsByAttempt(db, attemptIds);
     const providerReadiness = await currentProviderReadinessByKind(evidenceRows, paths, options);
@@ -867,24 +838,23 @@ export async function buildStageAttemptWorkbench(options: ProviderReadinessOptio
         standardAgentProgressDeltaKeySet(domainId),
       ]),
     );
-    const evidenceAttempts = evidenceRows.map((row) => {
+    const evidenceAttemptsWithControlState = evidenceRows.map((row) => {
+      const currentControlState = deriveCurrentControlStateForAttempt(db, row.stage_attempt_id);
+      const currentnessIdentity = currentControlState.stage_run_currentness_identity;
       const providerKind = providerKindForRow(row);
-      return attemptProjection(
-        row,
-        latestCloseouts.get(row.stage_attempt_id) ?? null,
-        signals.get(row.stage_attempt_id) ?? [],
-        providerKind ? providerReadiness.get(providerKind) ?? null : null,
-        row.task_id ? taskPayloads.get(row.task_id) ?? null : null,
-        ownerAnswerProfilesByDomainId.get(row.domain_id) ?? null,
-        progressDeltaKeysByDomainId.get(row.domain_id) ?? null,
-      );
+      return {
+        ...attemptProjection(
+          row,
+          latestCloseouts.get(row.stage_attempt_id) ?? null,
+          signals.get(row.stage_attempt_id) ?? [],
+          providerKind ? providerReadiness.get(providerKind) ?? null : null,
+          isRecord(currentnessIdentity) ? optionalString(currentnessIdentity.source_fingerprint) : null,
+          ownerAnswerProfilesByDomainId.get(row.domain_id) ?? null,
+          progressDeltaKeysByDomainId.get(row.domain_id) ?? null,
+        ),
+        current_control_state: currentControlState,
+      };
     });
-    const evidenceAttemptsWithControlState = evidenceAttempts.map((attempt) => ({
-      ...attempt,
-      current_control_state: attempt.task_id
-        ? currentControlStates.get(attempt.task_id) ?? null
-        : deriveCurrentControlStateForAttempt(db, attempt.stage_attempt_id),
-    }));
     const attempts = evidenceAttemptsWithControlState.slice(0, WORKBENCH_ATTEMPT_LIST_LIMIT);
     const projectedEvidenceAttempts = selectEvidenceAttempts(evidenceAttemptsWithControlState);
     const attemptHistoryRead = attemptHistoryReadProjection(

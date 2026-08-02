@@ -35,7 +35,6 @@ function seedBoundedAttemptHistory(stateRoot: string, count: number) {
         stageId: `bounded-history-${index}`,
         providerKind: 'temporal',
         workspaceLocator: { workspace_root: `/tmp/bounded-history-${index}` },
-        taskId: `task-bounded-history-${index}`,
       }).attempt;
       const timestamp = new Date(Date.parse('2026-01-01T00:00:00.000Z') + index * 1_000).toISOString();
       updateTimestamps.run(timestamp, timestamp, attempt.stage_attempt_id);
@@ -43,6 +42,7 @@ function seedBoundedAttemptHistory(stateRoot: string, count: number) {
       latestAttemptStatus = attempt.status;
     }
     db.exec('COMMIT');
+    db.exec('DROP TABLE tasks');
     return { latestAttemptId, latestAttemptStatus };
   } catch (error) {
     db.exec('ROLLBACK');
