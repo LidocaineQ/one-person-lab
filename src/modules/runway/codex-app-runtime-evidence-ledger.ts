@@ -1,5 +1,8 @@
-import fs from 'node:fs';
-import { readJsonPayloadFile, writeJsonPayloadFile } from '../../kernel/json-file.ts';
+import {
+  readJsonReceiptLedger,
+  upsertJsonReceipts,
+  writeJsonReceiptLedger,
+} from '../../kernel/json-file.ts';
 import { record, stringList, stringValue as optionalString } from '../../kernel/json-record.ts';
 import { ensureOplStateDir, resolveOplStatePaths } from './runtime-state-paths.ts';
 
@@ -130,29 +133,12 @@ function normalizeReceipt(value: unknown): CodexAppRuntimeEvidenceReceipt | null
 }
 
 function readCodexAppRuntimeEvidenceLedger(): CodexAppRuntimeEvidenceLedger {
-  const file = ledgerPath();
-  if (!fs.existsSync(file)) {
-    return emptyLedger();
-  }
-  try {
-    const parsed = record(readJsonPayloadFile(file));
-    if (!Array.isArray(parsed.receipts)) {
-      return emptyLedger();
-    }
-    return {
-      ...emptyLedger(),
-      receipts: parsed.receipts
-        .map(normalizeReceipt)
-        .filter((receipt): receipt is CodexAppRuntimeEvidenceReceipt => Boolean(receipt)),
-    };
-  } catch {
-    return emptyLedger();
-  }
+  return readJsonReceiptLedger(ledgerPath(), emptyLedger, normalizeReceipt);
 }
 
 function writeCodexAppRuntimeEvidenceLedger(ledger: CodexAppRuntimeEvidenceLedger) {
   const paths = ensureOplStateDir();
-  writeJsonPayloadFile(paths.codex_app_runtime_evidence_ledger_file, ledger);
+  writeJsonReceiptLedger(paths.codex_app_runtime_evidence_ledger_file, ledger);
 }
 
 function normalizeInput(
@@ -191,16 +177,9 @@ export function recordCodexAppRuntimeEvidenceReceipts(
   }
 
   const ledger = readCodexAppRuntimeEvidenceLedger();
-  for (const receipt of receipts) {
-    const existingIndex = ledger.receipts.findIndex((entry) =>
-      entry.receipt_ref === receipt.receipt_ref
-    );
-    if (existingIndex >= 0) {
-      ledger.receipts[existingIndex] = receipt;
-    } else {
-      ledger.receipts.unshift(receipt);
-    }
-  }
+  upsertJsonReceipts(ledger.receipts, receipts, (entry, receipt) =>
+    entry.receipt_ref === receipt.receipt_ref
+  );
   writeCodexAppRuntimeEvidenceLedger(ledger);
   return {
     surface_kind: 'opl_codex_app_runtime_evidence_ledger_record',

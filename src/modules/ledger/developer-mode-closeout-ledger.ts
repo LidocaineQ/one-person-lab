@@ -1,8 +1,9 @@
 import { isRecord } from '../../kernel/contract-validation.ts';
 import {
   optionalString,
-  readJsonFileOrNull,
-  writeJsonPayloadFile,
+  readJsonReceiptLedger,
+  upsertJsonReceipts,
+  writeJsonReceiptLedger,
 } from '../../kernel/json-file.ts';
 import {
   stringList as arrayStringList,
@@ -419,22 +420,12 @@ function normalizeReceipt(value: unknown): DeveloperModeCloseoutReceipt | null {
 }
 
 function readDeveloperModeCloseoutLedger(): DeveloperModeCloseoutLedger {
-  const file = ledgerPath();
-  const parsed = readJsonFileOrNull(file);
-  if (!isRecord(parsed) || !Array.isArray(parsed.receipts)) {
-    return emptyLedger();
-  }
-  return {
-    ...emptyLedger(),
-    receipts: parsed.receipts
-      .map(normalizeReceipt)
-      .filter((receipt): receipt is DeveloperModeCloseoutReceipt => Boolean(receipt)),
-  };
+  return readJsonReceiptLedger(ledgerPath(), emptyLedger, normalizeReceipt);
 }
 
 function writeDeveloperModeCloseoutLedger(ledger: DeveloperModeCloseoutLedger) {
   const paths = ensureOplStateDir();
-  writeJsonPayloadFile(paths.developer_mode_closeout_ledger_file, ledger);
+  writeJsonReceiptLedger(paths.developer_mode_closeout_ledger_file, ledger);
 }
 
 export function recordDeveloperModeCloseoutReceipts(
@@ -464,16 +455,9 @@ export function recordDeveloperModeCloseoutReceipts(
   }
 
   const ledger = readDeveloperModeCloseoutLedger();
-  for (const receipt of receipts) {
-    const existingIndex = ledger.receipts.findIndex((entry) =>
-      entry.receipt_ref === receipt.receipt_ref
-    );
-    if (existingIndex >= 0) {
-      ledger.receipts[existingIndex] = receipt;
-    } else {
-      ledger.receipts.unshift(receipt);
-    }
-  }
+  upsertJsonReceipts(ledger.receipts, receipts, (entry, receipt) =>
+    entry.receipt_ref === receipt.receipt_ref
+  );
   writeDeveloperModeCloseoutLedger(ledger);
   return {
     surface_kind: 'opl_developer_mode_closeout_ledger_record',
