@@ -30,6 +30,33 @@ test('family stage replay drilldowns expose missing runtime evidence from genera
       buildManifestCommand(stagePack.manifest),
     ], env);
 
+    const invalidMigrationPolicy = runCliFailure([
+      'stages',
+      'registry',
+      '--domain', 'mas',
+      '--migration-policy', 'invalid',
+    ], env);
+    assert.equal(invalidMigrationPolicy.payload.error.code, 'cli_usage_error');
+    assert.deepEqual(invalidMigrationPolicy.payload.error.details.allowed_policies, [
+      'continue_old_hash',
+      'migrate_to_new_hash',
+      'blocked_human_gate',
+    ]);
+    const invalidLibraryStatus = runCliFailure([
+      'stages',
+      'registry',
+      '--domain', 'mas',
+      '--library-status', 'invalid',
+    ], env);
+    assert.equal(invalidLibraryStatus.payload.error.code, 'cli_usage_error');
+    assert.deepEqual(invalidLibraryStatus.payload.error.details.allowed_statuses, [
+      'candidate',
+      'admitted',
+      'reused',
+      'deprecated',
+      'superseded',
+    ]);
+
     const replay = runCli(
       ['stages', 'replay-certification', '--domain', 'mas'],
       env,
