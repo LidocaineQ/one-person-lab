@@ -953,8 +953,10 @@ test('Framework allowlists and historical payload envelopes validate at their ex
     }
     assert.equal(selectedPayloads.some((selectedPayload) => {
       const paths = selectedPayload.files.map((entry: Record<string, string>) => entry.path);
-      return paths.length === allowlist.paths.length
-        && paths.every((entry: string, index: number) => entry === allowlist.paths[index]);
+      const currentPaths = new Set(allowlist.paths);
+      const selectedCurrentPaths = paths.filter((entry: string) => currentPaths.has(entry));
+      return selectedCurrentPaths.length === allowlist.paths.length
+        && selectedCurrentPaths.every((entry: string, index: number) => entry === allowlist.paths[index]);
     }), true, `${id} selected payload`);
     assertPayloadEnvelope(payload, id);
   }

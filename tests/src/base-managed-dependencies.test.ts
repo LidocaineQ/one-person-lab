@@ -195,14 +195,20 @@ test('Temporal stable cohort reports exact installed SDK package drift against i
   const expectedDriftedPackages = TEMPORAL_SDK_PACKAGE_NAMES.filter((packageName) => (
     installedVersions[packageName.slice('@temporalio/'.length)] !== cohort.sdk.packages[packageName]
   ));
+  const completeInstallation = Object.values(installedVersions).every(Boolean);
+  const expectedCurrentness = !completeInstallation
+    ? 'missing'
+    : expectedDriftedPackages.length === 0
+      ? 'current'
+      : 'update_available';
 
   assert.equal(cohort.server.version, '1.31.2');
   assert.equal(cohort.cli.version, '1.8.1');
   assert.equal(cohort.sdk.version, '1.20.3');
   assert.deepEqual(Object.keys(cohort.sdk.packages).sort(), [...TEMPORAL_SDK_PACKAGE_NAMES].sort());
   assert.deepEqual(temporal.latest_version, expectedVersions);
-  assert.equal(temporal.currentness, expectedDriftedPackages.length === 0 ? 'current' : 'update_available');
-  assert.equal(temporal.status, expectedDriftedPackages.length === 0 ? 'ready' : 'attention_needed');
+  assert.equal(temporal.currentness, expectedCurrentness);
+  assert.equal(temporal.status, expectedCurrentness === 'current' ? 'ready' : 'attention_needed');
   assert.equal(temporal.stable_cohort_ref, cohort.contract_ref);
   assert.deepEqual(temporal.drifted_packages, expectedDriftedPackages);
 
