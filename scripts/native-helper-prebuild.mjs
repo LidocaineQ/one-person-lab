@@ -4,6 +4,8 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { parseArgs as parseNodeArgs } from 'node:util';
 import { parseJsonText, readJsonFile } from './script-json-boundary.mjs';
@@ -51,7 +53,7 @@ try {
   } else if (command === 'archive') {
     writeJson(archivePrebuild());
   } else if (command === 'install') {
-    writeJson(installPrebuild());
+    writeJson(await installPrebuild());
   } else if (command === 'check') {
     writeJson(checkPrebuild());
   } else {
@@ -88,18 +90,18 @@ function packPrebuild() {
   return manifest;
 }
 
-function installPrebuild() {
+async function installPrebuild() {
   const restoreAttempts = [];
   let check = checkPrebuild();
   if (check.status !== 'available') {
-    const restore = restoreReleaseArchive();
+    const restore = await restoreReleaseArchive();
     if (restore) {
       restoreAttempts.push(restore);
       check = checkPrebuild();
     }
   }
   if (check.status !== 'available') {
-    const restore = restoreOciArchive();
+    const restore = await restoreOciArchive();
     if (restore) {
       restoreAttempts.push(restore);
       check = checkPrebuild();
@@ -271,7 +273,7 @@ function resolveSourceDir() {
   return path.join(cargoTargetRoot, 'release');
 }
 
-function restoreReleaseArchive() {
+async function restoreReleaseArchive() {
   const archiveUrl = resolveReleaseArchiveUrl();
   if (!archiveUrl) {
     return null;
@@ -279,7 +281,7 @@ function restoreReleaseArchive() {
 
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-prebuild-archive-'));
   try {
-    const archivePath = archivePathFromUrl(archiveUrl, tempRoot);
+    const archivePath = await archivePathFromUrl(archiveUrl, tempRoot);
     const extract = extractArchiveIntoPrebuildDir(archivePath);
     if (extract.status !== 'ok') {
       return {
@@ -316,7 +318,7 @@ function resolveReleaseArchiveUrl() {
   return `${base.replace(/\/$/, '')}/${archiveFileName()}`;
 }
 
-function restoreOciArchive() {
+async function restoreOciArchive() {
   const imageRef = resolveOciImageRef();
   if (!imageRef) {
     return null;
@@ -332,11 +334,11 @@ function restoreOciArchive() {
 
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-prebuild-oci-'));
   try {
-    const tokenResult = fetchGhcrToken(imageRef);
+    const tokenResult = await fetchGhcrToken(imageRef);
     if (tokenResult.status !== 'ok') {
       return tokenResult;
     }
-    const manifestResult = fetchOciManifest(imageRef, tokenResult.token);
+    const manifestResult = await fetchOciManifest(imageRef, tokenResult.token);
     if (manifestResult.status !== 'ok') {
       return manifestResult;
     }
@@ -351,7 +353,7 @@ function restoreOciArchive() {
     }
 
     const archivePath = path.join(tempRoot, archiveFileName());
-    const blobResult = fetchOciBlob(imageRef, tokenResult.token, layer.digest, archivePath);
+    const blobResult = await fetchOciBlob(imageRef, tokenResult.token, layer.digest, archivePath);
     if (blobResult.status !== 'ok') {
       return blobResult;
     }
@@ -404,18 +406,13 @@ function extractArchiveIntoPrebuildDir(archivePath) {
   return { status: 'ok' };
 }
 
-function archivePathFromUrl(archiveUrl, tempRoot) {
+async function archivePathFromUrl(archiveUrl, tempRoot) {
   if (archiveUrl.startsWith('file://')) {
     return fileURLToPath(archiveUrl);
   }
   if (/^https?:\/\//.test(archiveUrl)) {
     const target = path.join(tempRoot, archiveFileName());
-    const result = spawnSync('curl', ['-fsSL', archiveUrl, '-o', target], {
-      encoding: 'utf8',
-    });
-    if (result.status !== 0) {
-      throw new Error(result.stderr.trim() || `curl exited with status ${result.status}`);
-    }
+    await fetchToFile(archiveUrl, target);
     return target;
   }
   return path.resolve(archiveUrl);
@@ -446,23 +443,23 @@ function resolveOciImageRef() {
   };
 }
 
-function fetchGhcrToken(imageRef) {
+async function fetchGhcrToken(imageRef) {
   const scope = `repository:${imageRef.repository}:pull`;
   const tokenUrl = `https://${imageRef.registry}/token?service=${encodeURIComponent(imageRef.registry)}&scope=${encodeURIComponent(scope)}`;
-  const result = spawnSync('curl', ['-fsSL', tokenUrl], {
-    encoding: 'utf8',
-    maxBuffer: 8 * 1024 * 1024,
-  });
-  if (result.status !== 0) {
+  let body;
+  try {
+    const response = await fetchResponse(tokenUrl);
+    body = await response.text();
+  } catch (error) {
     return {
       status: 'oci_token_fetch_failed',
       image: imageRef.image,
       tag: imageRef.tag,
-      error: result.stderr.trim() || `curl exited with status ${result.status}`,
+      error: error instanceof Error ? error.message : String(error),
     };
   }
   try {
-    const payload = parseJsonText(result.stdout);
+    const payload = parseJsonText(body);
     const token = typeof payload.token === 'string' ? payload.token : '';
     if (!token) {
       throw new Error('missing token field');
@@ -481,31 +478,29 @@ function fetchGhcrToken(imageRef) {
   }
 }
 
-function fetchOciManifest(imageRef, token) {
+async function fetchOciManifest(imageRef, token) {
   const manifestUrl = `https://${imageRef.registry}/v2/${imageRef.repository}/manifests/${imageRef.tag}`;
-  const result = spawnSync('curl', [
-    '-fsSL',
-    '-H',
-    `Authorization: Bearer ${token}`,
-    '-H',
-    'Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json',
-    manifestUrl,
-  ], {
-    encoding: 'utf8',
-    maxBuffer: 8 * 1024 * 1024,
-  });
-  if (result.status !== 0) {
+  let body;
+  try {
+    const response = await fetchResponse(manifestUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json',
+      },
+    });
+    body = await response.text();
+  } catch (error) {
     return {
       status: 'oci_manifest_fetch_failed',
       image: imageRef.image,
       tag: imageRef.tag,
-      error: result.stderr.trim() || `curl exited with status ${result.status}`,
+      error: error instanceof Error ? error.message : String(error),
     };
   }
   try {
     return {
       status: 'ok',
-      manifest: parseJsonText(result.stdout),
+      manifest: parseJsonText(body),
     };
   } catch (error) {
     return {
@@ -524,31 +519,46 @@ function selectNativeHelperLayer(manifest) {
     ?? null;
 }
 
-function fetchOciBlob(imageRef, token, digest, target) {
+async function fetchOciBlob(imageRef, token, digest, target) {
   const blobUrl = `https://${imageRef.registry}/v2/${imageRef.repository}/blobs/${digest}`;
-  const result = spawnSync('curl', [
-    '-fsSL',
-    '-H',
-    `Authorization: Bearer ${token}`,
-    blobUrl,
-    '-o',
-    target,
-  ], {
-    encoding: 'utf8',
-    maxBuffer: 8 * 1024 * 1024,
-  });
-  if (result.status !== 0) {
+  try {
+    await fetchToFile(blobUrl, target, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (error) {
     return {
       status: 'oci_blob_fetch_failed',
       image: imageRef.image,
       tag: imageRef.tag,
       digest,
-      error: result.stderr.trim() || `curl exited with status ${result.status}`,
+      error: error instanceof Error ? error.message : String(error),
     };
   }
   return {
     status: 'ok',
   };
+}
+
+async function fetchResponse(url, init = {}) {
+  const response = await globalThis.fetch(url, { redirect: 'follow', ...init });
+  if (!response.ok) {
+    throw new Error(fetchResponseError(response));
+  }
+  return response;
+}
+
+async function fetchToFile(url, target, init = {}) {
+  const response = await fetchResponse(url, init);
+  if (!response.body) {
+    throw new Error('HTTP response body missing');
+  }
+  await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(target));
+}
+
+function fetchResponseError(response) {
+  return `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`;
 }
 
 function verifyOciDigest(filePath, digest) {
