@@ -75,6 +75,7 @@ test('opl index rebuild materializes refs-only SQLite sidecar databases', () => 
 
     const runtimeRoot = path.join(root, 'family-runtime');
     assert.equal(fs.existsSync(path.join(runtimeRoot, 'queue.sqlite')), true);
+    assert.equal(tableNames(path.join(runtimeRoot, 'queue.sqlite')).includes('queue_holds'), false);
     assert.equal(fs.existsSync(path.join(runtimeRoot, 'lifecycle-index.sqlite')), true);
     assert.equal(fs.existsSync(path.join(runtimeRoot, 'artifact-index.sqlite')), true);
     assert.equal(fs.existsSync(path.join(runtimeRoot, 'read-model.sqlite')), true);

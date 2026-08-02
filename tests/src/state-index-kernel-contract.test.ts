@@ -52,6 +52,7 @@ test('OPL State Index Kernel declares bounded refs-only SQLite databases and req
 
   assert.equal(databases.get('stage_attempt_index')?.path, '${OPL_STATE_DIR}/family-runtime/queue.sqlite');
   assert.equal(databases.get('stage_attempt_index')?.path_status, 'legacy_filename_retained_for_migration_compat');
+  assert.equal(databases.get('stage_attempt_index')?.owned_tables.includes('queue_holds'), false);
   assert.ok(databases.get('stage_attempt_index')?.owned_tables.includes('stage_attempts'));
   assert.ok(databases.get('stage_attempt_index')?.owned_tables.includes('stage_run_launches'));
   assert.equal(contract.stage_run_launch_registry.register_before_provider_start, true);

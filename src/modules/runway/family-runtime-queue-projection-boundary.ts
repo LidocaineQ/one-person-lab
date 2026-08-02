@@ -34,7 +34,6 @@ export const FAMILY_RUNTIME_QUEUE_PROJECTION_FIELDS = {
 } as const;
 
 const TASKS_TABLE = 'tasks';
-const QUEUE_HOLDS_TABLE = 'queue_holds';
 
 export const FAMILY_RUNTIME_QUEUE_PROJECTION_BOUNDARY = {
   surface_kind: 'family_runtime_queue_projection_boundary',
@@ -43,14 +42,12 @@ export const FAMILY_RUNTIME_QUEUE_PROJECTION_BOUNDARY = {
   local_store_role: 'projection_cache_and_operator_audit_index',
   tables: {
     tasks: TASKS_TABLE, // reuse-first: allow local projection table vocabulary; not durable queue truth.
-    queue_holds: QUEUE_HOLDS_TABLE, // reuse-first: allow local projection table vocabulary; not durable queue truth.
   },
   forbidden_claims: [
     'local_tasks_table_is_production_durable_queue',
     'local_lease_columns_are_worker_or_activity_truth',
     'local_dead_letter_columns_are_temporal_failure_history',
     'local_max_attempts_replaces_temporal_retry_policy',
-    'queue_hold_projection_can_close_stage_or_owner_route',
   ],
 } as const;
 

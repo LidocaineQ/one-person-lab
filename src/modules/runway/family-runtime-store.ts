@@ -249,19 +249,9 @@ export function createFamilyRuntimeQueueTables(db: DatabaseSync) {
         payload_json TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
-      CREATE TABLE IF NOT EXISTS ${tables.queue_holds} (
-        hold_id TEXT PRIMARY KEY,
-        scope_json TEXT NOT NULL,
-        reason TEXT NOT NULL,
-        source TEXT NOT NULL,
-        status TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
       CREATE INDEX IF NOT EXISTS idx_tasks_status_priority ON tasks(status, priority DESC, created_at ASC);
       CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at);
       CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
-      CREATE INDEX IF NOT EXISTS idx_queue_holds_status ON queue_holds(status, updated_at);
     `);
     createStageAttemptTable(db);
     createStageRunLaunchTable(db);

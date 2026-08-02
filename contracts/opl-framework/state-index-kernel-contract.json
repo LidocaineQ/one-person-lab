@@ -65,7 +65,6 @@
           "tasks",
           "events",
           "notifications",
-          "queue_holds",
           "stage_attempts",
           "stage_quality_cycles",
           "stage_run_launches"
