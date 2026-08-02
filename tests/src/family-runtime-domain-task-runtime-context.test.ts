@@ -9,7 +9,10 @@ import {
   createFamilyRuntimeQueueTables,
   inspectTask,
 } from '../../src/modules/runway/family-runtime-store.ts';
-import { createStageAttempt } from '../../src/modules/runway/family-runtime-stage-attempts.ts';
+import {
+  createStageAttempt,
+  createStageAttemptTable,
+} from '../../src/modules/runway/family-runtime-stage-attempts.ts';
 import { queryStageAttempt } from '../../src/modules/runway/family-runtime-stage-attempt-query.ts';
 
 const identity = {
@@ -250,6 +253,44 @@ test('attempt query and task inspect keep incomplete identity blocked and body-f
     assert.equal(serialized.includes('body'), false);
     assert.equal(serialized.includes('stdout'), false);
     assert.equal(serialized.includes('sqlite'), false);
+  } finally {
+    db.close();
+  }
+});
+
+test('dead-letter attempt query remains readable without the tasks table', () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    createStageAttemptTable(db);
+    const attempt = createStageAttempt(db, {
+      domainId: 'medautoscience',
+      stageId: 'domain_owner/default-executor-dispatch',
+      providerKind: 'temporal',
+      workspaceLocator: { workspace_root: '/tmp/mas', study_id: 'study-dead-letter' },
+      sourceFingerprint: 'sha256:dead-letter-query',
+      executorKind: 'codex_cli',
+    }).attempt;
+    db.prepare(`
+      UPDATE stage_attempts
+      SET status = 'dead_lettered', blocked_reason = 'retry_budget_exhausted'
+      WHERE stage_attempt_id = ?
+    `).run(attempt.stage_attempt_id);
+
+    const query = queryStageAttempt(db, attempt.stage_attempt_id).stage_attempt_query;
+    const deadLetter = query.operator_visibility.dead_letter as Record<string, unknown>;
+
+    assert.equal(deadLetter.reason, 'retry_budget_exhausted');
+    assert.equal(deadLetter.task_id, null);
+    assert.equal(deadLetter.stage_attempt_id, attempt.stage_attempt_id);
+    assert.equal(deadLetter.task, undefined);
+    assert.deepEqual(query.attempt.workspace_locator, attempt.workspace_locator);
+    assert.equal(query.attempt.provider_kind, 'temporal');
+    assert.deepEqual(query.attempt.closeout_refs, []);
+    assert.ok(query.temporal_durable_lifecycle_readback);
+    assert.equal(
+      query.temporal_durable_lifecycle_readback.workflow_history_identity.workflow_id,
+      attempt.workflow_id,
+    );
   } finally {
     db.close();
   }

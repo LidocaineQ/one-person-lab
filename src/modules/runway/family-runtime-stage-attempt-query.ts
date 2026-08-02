@@ -34,7 +34,6 @@ import {
 import {
   FAMILY_RUNTIME_QUEUE_PROJECTION_FIELDS,
   FAMILY_RUNTIME_STAGE_ATTEMPT_STATUS,
-  FAMILY_RUNTIME_TASK_COLUMNS,
 } from './family-runtime-queue-projection-boundary.ts';
 import { deriveCurrentControlStateForAttempt } from './family-runtime-current-control-state.ts';
 import { projectOplDomainTaskRuntimeContext } from './family-runtime-domain-task-runtime-context.ts';
@@ -69,21 +68,14 @@ function signalPayloadsByKind(db: DatabaseSync, stageAttemptId: string, signalKi
   return listStageAttemptSignals(db, stageAttemptId).filter((signal) => signal.signal_kind === signalKind);
 }
 
-function taskDeadLetterForAttempt(db: DatabaseSync, attempt: NonNullable<ReturnType<typeof inspectStageAttemptPayload>>) {
+function deadLetterForAttempt(attempt: NonNullable<ReturnType<typeof inspectStageAttemptPayload>>) {
   if (attempt.status !== FAMILY_RUNTIME_STAGE_ATTEMPT_STATUS.deadLettered) {
     return null;
   }
-  const taskId = typeof attempt.task_id === 'string' ? attempt.task_id : null;
-  const task = taskId
-    ? db.prepare(`
-      SELECT task_id, domain_id, task_kind, status, attempts, ${FAMILY_RUNTIME_TASK_COLUMNS.maxAttempts}, last_error, dead_letter_reason, updated_at
-      FROM tasks
-      WHERE task_id = ?
-    `).get(taskId) as Record<string, unknown> | undefined
-    : undefined;
   return {
-    reason: attempt.blocked_reason ?? (typeof task?.dead_letter_reason === 'string' ? task.dead_letter_reason : null),
-    task: task ?? null,
+    reason: attempt.blocked_reason,
+    task_id: attempt.task_id,
+    stage_attempt_id: attempt.stage_attempt_id,
   };
 }
 
@@ -268,7 +260,7 @@ export function queryStageAttempt(
     human_gate_refs: stringListFrom(attempt.human_gate_refs),
     human_gate_ledger: humanGateLedger,
     resume_ledger: resumeLedger,
-    [FAMILY_RUNTIME_QUEUE_PROJECTION_FIELDS.deadLetter]: taskDeadLetterForAttempt(db, attempt),
+    [FAMILY_RUNTIME_QUEUE_PROJECTION_FIELDS.deadLetter]: deadLetterForAttempt(attempt),
     domain_ready_verdict: domainReadyVerdict,
     controlled_apply_contract: controlledApplyContract,
     lifecycle_primitives: lifecyclePrimitives,
@@ -288,7 +280,7 @@ export function queryStageAttempt(
     blockedReason: attempt.blocked_reason,
     humanGateRefs: stringListFrom(attempt.human_gate_refs),
     humanGateLedger,
-    deadLetter: taskDeadLetterForAttempt(db, attempt),
+    deadLetter: deadLetterForAttempt(attempt),
     rejectedWrites,
     domainReadyVerdict,
     closeoutRefs,
@@ -469,7 +461,7 @@ export function queryStageAttempt(
         resume_ledger: resumeLedger,
         user_instructions: userInstructionLedger,
         resume_signals: resumeLedger,
-        [FAMILY_RUNTIME_QUEUE_PROJECTION_FIELDS.deadLetter]: taskDeadLetterForAttempt(db, attempt),
+        [FAMILY_RUNTIME_QUEUE_PROJECTION_FIELDS.deadLetter]: deadLetterForAttempt(attempt),
         canonical_outcome: canonicalOutcome,
         operator_conflicts: conflictOrBlockerEnvelopes,
         usage_projection: attempt.usage_projection,
