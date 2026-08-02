@@ -9,6 +9,7 @@ docs/site/latest/
 dist/
 build/
 out/
+/src/entrypoints/cli/command-surface-manifest.ts
 node_modules/
 target/
 .venv/

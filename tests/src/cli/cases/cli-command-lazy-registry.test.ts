@@ -51,7 +51,7 @@ test('CLI command surface is generated and covers every executable command', () 
   }
 });
 
-test('lazy command registry does not load contracts for metadata-only help', async () => {
+test('lazy command registry keeps root, scoped, and unknown help metadata-only', async () => {
   let loadCount = 0;
   const commandSpecs = buildLazyCommandSpecs(parsedInput, async () => {
     loadCount += 1;
@@ -59,8 +59,14 @@ test('lazy command registry does not load contracts for metadata-only help', asy
   });
 
   assert.equal(Object.keys(commandSpecs).length, CLI_COMMAND_SURFACE_COMMAND_COUNT);
-  const help = await commandSpecs.help.handler([]) as { help: { command: string | null } };
-  assert.equal(help.help.command, null);
+  const rootHelp = await commandSpecs.help.handler([]) as { help: { command: string | null } };
+  assert.equal(rootHelp.help.command, null);
+  const scopedHelp = await commandSpecs.help.handler(['contract', 'validate']) as { help: { command: string | null } };
+  assert.equal(scopedHelp.help.command, 'contract validate');
+  await assert.rejects(
+    async () => commandSpecs.help.handler(['unknown-command']),
+    /Unknown command: unknown-command\./,
+  );
   assert.equal(loadCount, 0);
 });
 
