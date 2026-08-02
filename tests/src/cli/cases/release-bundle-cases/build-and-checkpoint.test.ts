@@ -443,6 +443,73 @@ test('portable checkpoint covers every executor handoff stage', () => {
   }
 });
 
+test('independent Full qualification does not require Standard qualification', () => {
+  const fixture = createFixture();
+  try {
+    const bundleDigest = fixture.frozen.release_bundle_freeze.bundle_digest;
+    buildReleaseBundle({
+      bundleDigest,
+      executorReceiptPath: writeBuildReceipt({
+        root: fixture.root,
+        bundleDigest,
+        attemptId: 'independent-standard-build',
+      }),
+      storeRoot: fixture.storeRoot,
+    });
+    admitReleaseBundleOperation({
+      bundleDigest,
+      storeRoot: fixture.storeRoot,
+      ...appendFullOperation,
+    });
+    buildReleaseBundle({
+      ...appendFullOperation,
+      bundleDigest,
+      executorReceiptPath: writeBuildReceipt({
+        root: fixture.root,
+        bundleDigest,
+        track: 'full',
+        attemptId: 'independent-full-build',
+      }),
+      storeRoot: fixture.storeRoot,
+    });
+    verifyReleaseBundle({
+      ...appendFullOperation,
+      bundleDigest,
+      track: 'full',
+      qualificationReceiptPath: writeQualification({
+        root: fixture.root,
+        bundle: fixture.request,
+        bundleDigest,
+        track: 'full',
+      }),
+      storeRoot: fixture.storeRoot,
+    });
+
+    const checkpointDirectory = path.join(fixture.root, 'independent-full-checkpoint');
+    const exported = exportReleaseBundleCheckpoint({
+      bundleDigest,
+      outputDirectory: checkpointDirectory,
+      storeRoot: fixture.storeRoot,
+    }).release_bundle_checkpoint_export;
+    assert.equal(exported.checkpoint_stage, 'full_qualified');
+
+    const importedStore = path.join(fixture.root, 'independent-full-imported-store');
+    const imported = importReleaseBundleCheckpoint({
+      checkpointPath: path.join(checkpointDirectory, 'checkpoint.json'),
+      storeRoot: importedStore,
+    }).release_bundle_checkpoint_import;
+    assert.equal(imported.checkpoint_stage, 'full_qualified');
+    const status = readReleaseBundleStatus({ bundleDigest, storeRoot: importedStore })
+      .release_bundle_status;
+    assert.equal(status.tracks.standard.built, true);
+    assert.equal(status.tracks.standard.verified, false);
+    assert.equal(status.tracks.full.built, true);
+    assert.equal(status.tracks.full.verified, true);
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test('checkpoint export is idempotent only while the complete store state is unchanged', () => {
   const fixture = createFixture();
   try {

@@ -427,12 +427,6 @@ function assertCheckpointSemantics(input: ReturnType<typeof readCheckpointJson>)
       fail('Unverified checkpoint track must not contain qualification evidence.', { track });
     }
   }
-  if (
-    checkpoint.tracks.full.built
-    && stableRequiredTrackNames(bundleValue).some((track) => !checkpoint.tracks[track]?.verified)
-  ) {
-    fail('Full checkpoint bytes require every Stable carrier track to be verified.');
-  }
   if (checkpoint.checkpoint_stage !== derivedStage(checkpoint.tracks)) {
     fail('Release Bundle checkpoint stage does not match its completed track state.');
   }
@@ -511,15 +505,6 @@ function exportReleaseBundleCheckpointUnlocked(input: {
       const staged = readStagedReleaseBundleAssets(stored.paths, track);
       const qualification = qualificationPath(stored.paths, track);
       if (qualification && !staged) fail('Verified track has no staged assets.', { track });
-      if (
-        track === 'full'
-        && staged
-        && stableRequiredTrackNames(stored.bundle).some(
-          (requiredTrack) => !qualificationPath(stored.paths, requiredTrack),
-        )
-      ) {
-        fail('Full checkpoint bytes require every Stable carrier track to be verified.');
-      }
       const trackAssetEntries: ReleaseBundleCheckpointEntry[] = [];
       for (const asset of staged?.assets ?? []) {
         const entry = checkpointEntry({
