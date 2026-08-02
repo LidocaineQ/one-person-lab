@@ -861,7 +861,7 @@ export function buildFamilyStageRuntimeBudgetInspect(contracts: FrameworkContrac
 
 export function buildFamilyStagePackRegistryInspect(contracts: FrameworkContracts, normalizedOptions: StageCommandOptions, options: ManifestCatalogOptions = {}) {
   const parsed = normalizedOptions as Record<string, string | undefined>;
-  const reusedByRefs = (normalizedOptions['reused-by-ref'] as string[] | undefined) ?? [];
+  const repeated = normalizedOptions as Record<string, string[]>;
   const { entry, plane } = findDomainEntry(contracts, parsed.domain as string, options);
   const conformance = buildFamilyStageConformanceReview(plane, entry.manifest);
   const proofBundle = buildFamilyStageProofBundle(plane, {
@@ -887,7 +887,7 @@ export function buildFamilyStagePackRegistryInspect(contracts: FrameworkContract
     deprecationRef: parsed['deprecation-ref'] ?? null,
     supersessionRef: parsed['supersession-ref'] ?? null,
     supersededByStagePackRef: parsed['superseded-by-stage-pack-ref'] ?? null,
-    reusedByRefs,
+    reusedByRefs: repeated['reused-by-ref'] ?? [],
   });
   return {
     version: 'g2',
@@ -901,13 +901,7 @@ export function buildFamilyStagePackRegistryInspect(contracts: FrameworkContract
 
 export function buildFamilyStagePackSourceSpecInspect(contracts: FrameworkContracts, normalizedOptions: StageCommandOptions, options: ManifestCatalogOptions = {}) {
   const parsed = normalizedOptions as Record<string, string | undefined>;
-  const repeated: Record<string, string[]> = {
-    'append-only-event-log-ref': (normalizedOptions['append-only-event-log-ref'] as string[] | undefined) ?? [],
-    'attempt-ledger-ref': (normalizedOptions['attempt-ledger-ref'] as string[] | undefined) ?? [],
-    'recorded-runtime-event-ref': (normalizedOptions['recorded-runtime-event-ref'] as string[] | undefined) ?? [],
-    'closeout-receipt-ref': (normalizedOptions['closeout-receipt-ref'] as string[] | undefined) ?? [],
-    'reused-by-ref': (normalizedOptions['reused-by-ref'] as string[] | undefined) ?? [],
-  };
+  const repeated = normalizedOptions as Record<string, string[]>;
   const { entry, plane } = findDomainEntry(contracts, parsed.domain as string, options);
   const conformance = buildFamilyStageConformanceReview(plane, entry.manifest);
   const proofBundle = buildFamilyStageProofBundle(plane, {
@@ -951,12 +945,7 @@ export function buildFamilyStagePackSourceSpecInspect(contracts: FrameworkContra
 
 export function buildFamilyStageReplayCertificationInspect(contracts: FrameworkContracts, normalizedOptions: StageCommandOptions, options: ManifestCatalogOptions = {}) {
   const parsed = normalizedOptions as Record<string, string | undefined>;
-  const repeated: Record<string, string[]> = {
-    'append-only-event-log-ref': (normalizedOptions['append-only-event-log-ref'] as string[] | undefined) ?? [],
-    'attempt-ledger-ref': (normalizedOptions['attempt-ledger-ref'] as string[] | undefined) ?? [],
-    'recorded-runtime-event-ref': (normalizedOptions['recorded-runtime-event-ref'] as string[] | undefined) ?? [],
-    'closeout-receipt-ref': (normalizedOptions['closeout-receipt-ref'] as string[] | undefined) ?? [],
-  };
+  const repeated = normalizedOptions as Record<string, string[]>;
   const { entry, plane } = findDomainEntry(contracts, parsed.domain as string, options);
   const conformance = buildFamilyStageConformanceReview(plane, entry.manifest);
   const proofBundle = buildFamilyStageProofBundle(plane, {

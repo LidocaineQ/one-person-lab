@@ -137,13 +137,10 @@ export function buildStageCommandSpecs(
           required: true,
         },
       ]),
-      handler: (args) => {
-        return buildFamilyStageInspect(
-          getContracts(),
-          assertRegisteredStageArgs('stages inspect', args, stageCommandSpecs),
-          { loadDomainManifests },
-        );
-      },
+      handler: (args) => buildFamilyStageInspect(
+        getContracts(), assertRegisteredStageArgs('stages inspect', args, stageCommandSpecs),
+        { loadDomainManifests },
+      ),
     },
     'stages readiness': {
       usage: 'opl stages readiness (--family-defaults | --domain <domain>) [--detail summary|full]',
@@ -165,13 +162,10 @@ export function buildStageCommandSpecs(
           summary: 'Detail level: summary or full.',
         },
       ]),
-      handler: (args) => {
-        return buildFamilyStageReadinessInspect(
-          getContracts(),
-          assertRegisteredStageArgs('stages readiness', args, stageCommandSpecs),
-          { loadDomainManifests },
-        );
-      },
+      handler: (args) => buildFamilyStageReadinessInspect(
+        getContracts(), assertRegisteredStageArgs('stages readiness', args, stageCommandSpecs),
+        { loadDomainManifests },
+      ),
     },
     'stages proof-bundle': {
       usage: 'opl stages proof-bundle --domain <domain>',
@@ -180,13 +174,10 @@ export function buildStageCommandSpecs(
       group: 'domain',
       help_surface: 'diagnostic_drilldown',
       registry: stageRegistry('stages proof-bundle', 'stages_proof_bundle', [DOMAIN_OPTION]),
-      handler: (args) => {
-        return buildFamilyStageProofBundleInspect(
-          getContracts(),
-          assertRegisteredStageArgs('stages proof-bundle', args, stageCommandSpecs),
-          { loadDomainManifests },
-        );
-      },
+      handler: (args) => buildFamilyStageProofBundleInspect(
+        getContracts(), assertRegisteredStageArgs('stages proof-bundle', args, stageCommandSpecs),
+        { loadDomainManifests },
+      ),
     },
     'stages graph': {
       usage: 'opl stages graph --domain <domain>',
@@ -195,13 +186,10 @@ export function buildStageCommandSpecs(
       group: 'domain',
       help_surface: 'diagnostic_drilldown',
       registry: stageRegistry('stages graph', 'stages_graph', [DOMAIN_OPTION]),
-      handler: (args) => {
-        return buildFamilyStageGraphInspect(
-          getContracts(),
-          assertRegisteredStageArgs('stages graph', args, stageCommandSpecs),
-          { loadDomainManifests },
-        );
-      },
+      handler: (args) => buildFamilyStageGraphInspect(
+        getContracts(), assertRegisteredStageArgs('stages graph', args, stageCommandSpecs),
+        { loadDomainManifests },
+      ),
     },
     'stages assumptions': {
       usage: 'opl stages assumptions --domain <domain>',
@@ -210,13 +198,10 @@ export function buildStageCommandSpecs(
       group: 'domain',
       help_surface: 'diagnostic_drilldown',
       registry: stageRegistry('stages assumptions', 'stages_assumptions', [DOMAIN_OPTION]),
-      handler: (args) => {
-        return buildFamilyStageAssumptionsInspect(
-          getContracts(),
-          assertRegisteredStageArgs('stages assumptions', args, stageCommandSpecs),
-          { loadDomainManifests },
-        );
-      },
+      handler: (args) => buildFamilyStageAssumptionsInspect(
+        getContracts(), assertRegisteredStageArgs('stages assumptions', args, stageCommandSpecs),
+        { loadDomainManifests },
+      ),
     },
     'stages cohort-loop': {
       usage: 'opl stages cohort-loop --domain <domain>',
@@ -225,13 +210,10 @@ export function buildStageCommandSpecs(
       group: 'domain',
       help_surface: 'diagnostic_drilldown',
       registry: stageRegistry('stages cohort-loop', 'stages_cohort_loop', [DOMAIN_OPTION]),
-      handler: (args) => {
-        return buildFamilyStageCohortLoopInspect(
-          getContracts(),
-          assertRegisteredStageArgs('stages cohort-loop', args, stageCommandSpecs),
-          { loadDomainManifests },
-        );
-      },
+      handler: (args) => buildFamilyStageCohortLoopInspect(
+        getContracts(), assertRegisteredStageArgs('stages cohort-loop', args, stageCommandSpecs),
+        { loadDomainManifests },
+      ),
     },
     'stages runtime-budget': {
       usage: 'opl stages runtime-budget --domain <domain>',
@@ -240,13 +222,10 @@ export function buildStageCommandSpecs(
       group: 'domain',
       help_surface: 'diagnostic_drilldown',
       registry: stageRegistry('stages runtime-budget', 'stages_runtime_budget', [DOMAIN_OPTION]),
-      handler: (args) => {
-        return buildFamilyStageRuntimeBudgetInspect(
-          getContracts(),
-          assertRegisteredStageArgs('stages runtime-budget', args, stageCommandSpecs),
-          { loadDomainManifests },
-        );
-      },
+      handler: (args) => buildFamilyStageRuntimeBudgetInspect(
+        getContracts(), assertRegisteredStageArgs('stages runtime-budget', args, stageCommandSpecs),
+        { loadDomainManifests },
+      ),
     },
     'stages registry': {
       usage: 'opl stages registry --domain <domain> [--library-status <candidate|admitted|reused|deprecated|superseded>] [--promotion-ref <ref>] [--deprecation-ref <ref>] [--supersession-ref <ref>] [--superseded-by-stage-pack-ref <ref>] [--reused-by-ref <ref>] [--previous-stage-pack-hash <hash>] [--migration-policy <continue_old_hash|migrate_to_new_hash|blocked_human_gate>] [--migration-policy-ref <ref>]',
@@ -283,13 +262,10 @@ export function buildStageCommandSpecs(
           summary: 'Creation ref for attempt projection binding.',
         },
       ]),
-      handler: (args) => {
-        return buildFamilyStagePackRegistryInspect(
-          getContracts(),
-          assertRegisteredStageArgs('stages registry', args, stageCommandSpecs),
-          { loadDomainManifests },
-        );
-      },
+      handler: (args) => buildFamilyStagePackRegistryInspect(
+        getContracts(), assertRegisteredStageArgs('stages registry', args, stageCommandSpecs),
+        { loadDomainManifests },
+      ),
     },
     'stages source-spec': {
       usage: 'opl stages source-spec --domain <domain> [--library-status <candidate|admitted|reused|deprecated|superseded>] [--promotion-ref <ref>] [--deprecation-ref <ref>] [--supersession-ref <ref>] [--superseded-by-stage-pack-ref <ref>] [--reused-by-ref <ref>] [--append-only-event-log-ref <ref>] [--attempt-ledger-ref <ref>] [--recorded-runtime-event-ref <ref>] [--closeout-receipt-ref <ref>]',
@@ -303,13 +279,10 @@ export function buildStageCommandSpecs(
         REUSED_BY_OPTION,
         ...REF_OPTIONS,
       ]),
-      handler: (args) => {
-        return buildFamilyStagePackSourceSpecInspect(
-          getContracts(),
-          assertRegisteredStageArgs('stages source-spec', args, stageCommandSpecs),
-          { loadDomainManifests },
-        );
-      },
+      handler: (args) => buildFamilyStagePackSourceSpecInspect(
+        getContracts(), assertRegisteredStageArgs('stages source-spec', args, stageCommandSpecs),
+        { loadDomainManifests },
+      ),
     },
     'stages replay-certification': {
       usage: 'opl stages replay-certification --domain <domain> [--append-only-event-log-ref <ref>] [--attempt-ledger-ref <ref>] [--recorded-runtime-event-ref <ref>] [--closeout-receipt-ref <ref>]',
@@ -321,13 +294,10 @@ export function buildStageCommandSpecs(
         DOMAIN_OPTION,
         ...REF_OPTIONS,
       ]),
-      handler: (args) => {
-        return buildFamilyStageReplayCertificationInspect(
-          getContracts(),
-          assertRegisteredStageArgs('stages replay-certification', args, stageCommandSpecs),
-          { loadDomainManifests },
-        );
-      },
+      handler: (args) => buildFamilyStageReplayCertificationInspect(
+        getContracts(), assertRegisteredStageArgs('stages replay-certification', args, stageCommandSpecs),
+        { loadDomainManifests },
+      ),
     },
   };
 

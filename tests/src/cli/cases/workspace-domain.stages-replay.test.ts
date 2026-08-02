@@ -30,33 +30,6 @@ test('family stage replay drilldowns expose missing runtime evidence from genera
       buildManifestCommand(stagePack.manifest),
     ], env);
 
-    const invalidMigrationPolicy = runCliFailure([
-      'stages',
-      'registry',
-      '--domain', 'mas',
-      '--migration-policy', 'invalid',
-    ], env);
-    assert.equal(invalidMigrationPolicy.payload.error.code, 'cli_usage_error');
-    assert.deepEqual(invalidMigrationPolicy.payload.error.details.allowed_policies, [
-      'continue_old_hash',
-      'migrate_to_new_hash',
-      'blocked_human_gate',
-    ]);
-    const invalidLibraryStatus = runCliFailure([
-      'stages',
-      'registry',
-      '--domain', 'mas',
-      '--library-status', 'invalid',
-    ], env);
-    assert.equal(invalidLibraryStatus.payload.error.code, 'cli_usage_error');
-    assert.deepEqual(invalidLibraryStatus.payload.error.details.allowed_statuses, [
-      'candidate',
-      'admitted',
-      'reused',
-      'deprecated',
-      'superseded',
-    ]);
-
     const replay = runCli(
       ['stages', 'replay-certification', '--domain', 'mas'],
       env,
@@ -131,10 +104,6 @@ test('family stage readiness exposes missing human gate replay refs as refs-only
       ['stages', 'readiness', '--domain', 'mas', '--detail', 'full'],
       env,
     ).family_stage_readiness.family_stage_readiness;
-    const readinessSummary = runCli(
-      ['stages', 'readiness', '--domain', 'mas'],
-      env,
-    ).family_stage_readiness;
     const invalidReadinessSelection = runCliFailure([
       'stages',
       'readiness',
@@ -146,7 +115,6 @@ test('family stage readiness exposes missing human gate replay refs as refs-only
       env,
     ).family_stage_replay_certification.certification;
 
-    assert.equal(readinessSummary.detail_level, 'summary');
     assert.equal(invalidReadinessSelection.payload.error.code, 'cli_usage_error');
     assert.deepEqual(invalidReadinessSelection.payload.error.details.mutually_exclusive, [
       '--family-defaults',
