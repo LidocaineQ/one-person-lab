@@ -3113,7 +3113,7 @@ export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
     action: 'repair',
   });
   if (configured) {
-    const retirement = await maybeRetireDescriptorOwnedLegacyState({
+    await maybeRetireDescriptorOwnedLegacyState({
       configured,
       dryRun: input.dryRun === true,
     });
@@ -3122,7 +3122,6 @@ export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
       opl_agent_package_repair: {
         surface_kind: 'opl_agent_package_repair',
         ...configured,
-        legacy_state_retirement: retirement,
       },
     };
   }

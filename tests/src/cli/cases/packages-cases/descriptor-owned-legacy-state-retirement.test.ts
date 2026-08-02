@@ -153,26 +153,18 @@ test('explicit native-confirmed repair retires descriptor-owned lock and strips 
     assert.equal(fs.existsSync(legacyLedgerPath), false);
 
     const preview = runCli(['packages', 'repair', packageId, '--dry-run'], fixture.env) as any;
-    assert.equal(preview.opl_agent_package_repair.legacy_state_retirement.status, 'validated_no_write');
-    assert.equal(preview.opl_agent_package_repair.legacy_state_retirement.mutation_required, true);
+    assert.equal(Object.hasOwn(preview.opl_agent_package_repair, 'legacy_state_retirement'), false);
     assert.deepEqual(fs.readFileSync(fixture.lockPath), originalLockBytes);
     assert.equal(fs.existsSync(legacyLedgerPath), false);
 
     const repaired = runCli(['packages', 'repair', packageId], fixture.env) as any;
-    const retirement = repaired.opl_agent_package_repair.legacy_state_retirement;
     assert.equal(repaired.opl_agent_package_repair.status, 'repaired');
-    assert.equal(retirement.status, 'retired');
-    assert.equal(retirement.retired.package_lock, true);
-    assert.equal('last_known_good_transactions' in retirement.retired, false);
-    assert.equal('last_known_good_transactions' in retirement.retained, false);
+    assert.equal(Object.hasOwn(repaired.opl_agent_package_repair, 'legacy_state_retirement'), false);
     assert.equal(Object.hasOwn(repaired.opl_agent_package_repair, 'opl_private_state_writes'), false);
 
     assert.equal(fs.existsSync(fixture.lockPath), false);
     assert.equal(fs.existsSync(legacyLedgerPath), false);
     assert.equal(fs.existsSync(path.join(fixture.pluginSource, 'opl-package.json')), true);
-    for (const removedPath of retirement.retired.physical_paths) {
-      assert.equal(fs.existsSync(removedPath), false);
-    }
   } finally {
     removeFixtureTree(fixture.root);
   }
@@ -200,11 +192,7 @@ test('legacy LKG bytes are ignored on read and stripped by the next native-confi
     fs.writeFileSync(fixture.lockPath, formatJsonPayload(index));
 
     const repaired = runCli(['packages', 'repair', packageId], fixture.env) as any;
-    const retirement = repaired.opl_agent_package_repair.legacy_state_retirement;
-    assert.equal(retirement.status, 'retired');
-    assert.equal(retirement.retired.package_lock, true);
-    assert.equal('last_known_good_transactions' in retirement.retired, false);
-    assert.equal('last_known_good_transactions' in retirement.retained, false);
+    assert.equal(Object.hasOwn(repaired.opl_agent_package_repair, 'legacy_state_retirement'), false);
 
     const nextIndex = parseJsonText(fs.readFileSync(fixture.lockPath, 'utf8')) as any;
     assert.equal(nextIndex.packages.some((entry: any) => entry.package_id === packageId), false);
@@ -252,11 +240,7 @@ test('dependent locks and native source overlap retain legacy state without dele
     const before = fs.readFileSync(fixture.lockPath);
 
     const dependent = runCli(['packages', 'repair', packageId], fixture.env) as any;
-    assert.equal(dependent.opl_agent_package_repair.legacy_state_retirement.status, 'retained');
-    assert.equal(
-      dependent.opl_agent_package_repair.legacy_state_retirement.reason,
-      'retained_by_package_dependency:legacy.consumer',
-    );
+    assert.equal(Object.hasOwn(dependent.opl_agent_package_repair, 'legacy_state_retirement'), false);
     assert.deepEqual(fs.readFileSync(fixture.lockPath), before);
 
     const sourceProtectedIndex = parseJsonText(before.toString()) as any;
@@ -265,11 +249,7 @@ test('dependent locks and native source overlap retain legacy state without dele
     fs.writeFileSync(fixture.lockPath, formatJsonPayload(sourceProtectedIndex));
     const sourceProtectedBytes = fs.readFileSync(fixture.lockPath);
     const sourceProtected = runCli(['packages', 'repair', packageId], fixture.env) as any;
-    assert.equal(sourceProtected.opl_agent_package_repair.legacy_state_retirement.status, 'retained');
-    assert.equal(
-      sourceProtected.opl_agent_package_repair.legacy_state_retirement.reason,
-      'retained_to_protect_native_descriptor_source',
-    );
+    assert.equal(Object.hasOwn(sourceProtected.opl_agent_package_repair, 'legacy_state_retirement'), false);
     assert.deepEqual(fs.readFileSync(fixture.lockPath), sourceProtectedBytes);
     assert.equal(fs.existsSync(path.join(fixture.pluginSource, 'opl-package.json')), true);
   } finally {

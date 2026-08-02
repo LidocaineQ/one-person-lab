@@ -4328,67 +4328,8 @@
               {
                 "required": [
                   "configured_carrier",
-                  "registry_entry",
-                  "legacy_state_retirement",
-                  "opl_private_state_writes"
-                ],
-                "properties": {
-                  "legacy_state_retirement": {
-                    "type": "object",
-                    "required": [
-                      "surface_kind",
-                      "status",
-                      "package_id",
-                      "reason",
-                      "descriptor_source_path",
-                      "writes_performed",
-                      "mutation_required",
-                      "retired",
-                      "retained"
-                    ],
-                    "additionalProperties": false,
-                    "properties": {
-                      "surface_kind": {
-                        "const": "opl_descriptor_owned_legacy_state_retirement.v1"
-                      },
-                      "status": {
-                        "enum": [
-                          "not_present",
-                          "retained",
-                          "validated_no_write",
-                          "retired"
-                        ]
-                      },
-                      "package_id": {
-                        "type": "string"
-                      },
-                      "reason": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "descriptor_source_path": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "writes_performed": {
-                        "type": "boolean"
-                      },
-                      "mutation_required": {
-                        "type": "boolean"
-                      },
-                      "retired": {
-                        "type": "object"
-                      },
-                      "retained": {
-                        "type": "object"
-                      }
-                    }
-                  }
-                }
+                  "registry_entry"
+                ]
               }
             ],
             "additionalProperties": true

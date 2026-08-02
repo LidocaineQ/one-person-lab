@@ -147,6 +147,21 @@ test('registered command help mirrors the canonical command registry', () => {
   }
 });
 
+test('Package lifecycle schemas do not expose legacy private retirement state', () => {
+  const contract = loadCliCommandRegistryContract();
+  const install = contract.commands.packages_install.output_schema.properties.opl_agent_package_install;
+  const configuredCarrier = install.oneOf.find(
+    (entry: { required?: string[] }) => entry.required?.includes('configured_carrier'),
+  );
+
+  assert.deepEqual(configuredCarrier?.required, ['configured_carrier', 'registry_entry']);
+  for (const command of ['packages_install', 'packages_update', 'packages_repair', 'packages_uninstall']) {
+    const outputSchema = contract.commands[command].output_schema;
+    assert.equal(JSON.stringify(outputSchema).includes('legacy_state_retirement'), false, command);
+    assert.equal(JSON.stringify(outputSchema).includes('opl_private_state_writes'), false, command);
+  }
+});
+
 test('Release mutation help examples carry the complete immutable operation identity', () => {
   for (const command of [
     'release operation admit',
