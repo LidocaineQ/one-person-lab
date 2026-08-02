@@ -828,7 +828,12 @@ export type AgentPackageLock = {
   dependency_closure_digest: string;
   dependency_transaction_id: string;
   content_digest: string;
+  content_lock_canonicalization?:
+    | 'ordered_path_nul_file_bytes'
+    | 'ordered_path_length_file_length_bytes'
+    | null;
   content_lock_paths: string[];
+  package_content_digest?: string | null;
   scope_materializations: AgentPackageScopeMaterialization[];
   runtime_source_carrier: AgentPackageManagedRuntimeSourceCarrier | null;
   managed_runtime_source: AgentPackageManagedRuntimeSourceState | null;

@@ -75,9 +75,72 @@ type PhysicalMaterializationOptions = {
   reuseExistingPluginCache?: boolean;
   existingPluginCachePath?: string;
   developerCheckoutPayloadFiles?: DeveloperCheckoutPayloadFile[];
+  transactionId?: string;
 };
 
 const PACKAGE_SOURCE_FETCH_TIMEOUT_MS = 60_000;
+
+export type PluginGenerationMutation = {
+  ownership: 'reused' | 'created' | 'replaced';
+  target_path: string;
+  displaced_path: string | null;
+  transaction_id: string;
+};
+
+const physicalSurfaceGenerationMutations = new WeakMap<
+  AgentPackagePhysicalSurface,
+  PluginGenerationMutation
+>();
+const settledPluginGenerationMutations = new WeakSet<PluginGenerationMutation>();
+
+function pathEntryExists(candidatePath: string) {
+  try {
+    fs.lstatSync(candidatePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+function removePluginGeneration(candidatePath: string) {
+  if (!pathEntryExists(candidatePath)) return;
+  makeGenerationTreeWritable(candidatePath);
+  fs.rmSync(candidatePath, { recursive: true, force: true });
+}
+
+export function restorePluginGenerationMutation(mutation: PluginGenerationMutation) {
+  if (settledPluginGenerationMutations.has(mutation)) return;
+  if (mutation.ownership === 'reused') {
+    settledPluginGenerationMutations.add(mutation);
+    return;
+  }
+  removePluginGeneration(mutation.target_path);
+  if (mutation.ownership === 'replaced') {
+    if (!mutation.displaced_path || !pathEntryExists(mutation.displaced_path)) {
+      throw new FrameworkContractError(
+        'contract_shape_invalid',
+        'Package plugin generation restore is missing its displaced generation.',
+        {
+          target_path: mutation.target_path,
+          displaced_path: mutation.displaced_path,
+          transaction_id: mutation.transaction_id,
+          failure_code: 'agent_package_plugin_cache_restore_generation_missing',
+        },
+      );
+    }
+    renameDeveloperPluginGeneration(mutation.displaced_path, mutation.target_path);
+  }
+  settledPluginGenerationMutations.add(mutation);
+}
+
+export function finalizePluginGenerationMutation(mutation: PluginGenerationMutation) {
+  if (settledPluginGenerationMutations.has(mutation)) return;
+  if (mutation.ownership === 'replaced' && mutation.displaced_path) {
+    removePluginGeneration(mutation.displaced_path);
+  }
+  settledPluginGenerationMutations.add(mutation);
+}
 
 function noPackageProfileMigration(note: string): AgentPackageProfileMigration {
   return {
@@ -1109,35 +1172,56 @@ function verifyImmutablePluginCache(manifest: AgentPackageManifest, cachePath: s
   validateMaterializedRequiredSkills(cachedManifest, cachePath);
 }
 
-export function materializeImmutablePluginCache(input: {
+export function materializeImmutablePluginCacheTransaction(input: {
   manifest: AgentPackageManifest;
   sourcePath: string;
   targetPath: string;
   developerCheckoutPayloadFiles?: DeveloperCheckoutPayloadFile[];
-}) {
-  if (fs.existsSync(input.targetPath)) {
+  transactionId?: string;
+}): PluginGenerationMutation {
+  const transactionId = (input.transactionId ?? crypto.randomBytes(12).toString('hex'))
+    .replace(/[^a-zA-Z0-9._-]/g, '-')
+    .slice(0, 96);
+  if (pathEntryExists(input.targetPath)) {
     try {
       verifyImmutablePluginCache(input.manifest, input.targetPath);
-      return false;
+      return {
+        ownership: 'reused',
+        target_path: input.targetPath,
+        displaced_path: null,
+        transaction_id: transactionId,
+      };
     } catch (error) {
       if (!input.manifest.developer_checkout_source || !input.developerCheckoutPayloadFiles) throw error;
-      copyDeveloperCheckoutSurface(
+      const mutation = copyDeveloperCheckoutSurface(
         input.targetPath,
         input.manifest,
         input.developerCheckoutPayloadFiles,
+        transactionId,
       );
-      verifyImmutablePluginCache(input.manifest, input.targetPath);
-      return true;
+      try {
+        verifyImmutablePluginCache(input.manifest, input.targetPath);
+        return mutation;
+      } catch (verifyError) {
+        restorePluginGenerationMutation(mutation);
+        throw verifyError;
+      }
     }
   }
   if (input.manifest.developer_checkout_source) {
-    copyDeveloperCheckoutSurface(
+    const mutation = copyDeveloperCheckoutSurface(
       input.targetPath,
       input.manifest,
       input.developerCheckoutPayloadFiles,
+      transactionId,
     );
-    verifyImmutablePluginCache(input.manifest, input.targetPath);
-    return true;
+    try {
+      verifyImmutablePluginCache(input.manifest, input.targetPath);
+      return mutation;
+    } catch (error) {
+      restorePluginGenerationMutation(mutation);
+      throw error;
+    }
   }
   const stagePath = `${input.targetPath}.stage-${process.pid}-${crypto.randomBytes(8).toString('hex')}`;
   try {
@@ -1149,12 +1233,28 @@ export function materializeImmutablePluginCache(input: {
     verifyImmutablePluginCache(input.manifest, stagePath);
     fs.mkdirSync(path.dirname(input.targetPath), { recursive: true });
     fs.renameSync(stagePath, input.targetPath);
-    return true;
+    return {
+      ownership: 'created',
+      target_path: input.targetPath,
+      displaced_path: null,
+      transaction_id: transactionId,
+    };
   } catch (error) {
     makeGenerationTreeWritable(stagePath);
     fs.rmSync(stagePath, { recursive: true, force: true });
     throw error;
   }
+}
+
+export function materializeImmutablePluginCache(input: {
+  manifest: AgentPackageManifest;
+  sourcePath: string;
+  targetPath: string;
+  developerCheckoutPayloadFiles?: DeveloperCheckoutPayloadFile[];
+}) {
+  const mutation = materializeImmutablePluginCacheTransaction(input);
+  finalizePluginGenerationMutation(mutation);
+  return mutation.ownership !== 'reused';
 }
 
 function verifiedDeveloperCheckoutPayloadFiles(
@@ -1278,12 +1378,13 @@ function copyDeveloperCheckoutSurface(
   target: string,
   manifest: AgentPackageManifest,
   payloadFiles: DeveloperCheckoutPayloadFile[] | undefined,
-) {
+  transactionId: string,
+): PluginGenerationMutation {
   const ordered = verifiedDeveloperCheckoutPayloadFiles(manifest, payloadFiles);
   const parent = path.dirname(target);
   fs.mkdirSync(parent, { recursive: true });
   const stage = fs.mkdtempSync(path.join(parent, `.${path.basename(target)}.stage-`));
-  const displaced = `${target}.displaced-${process.pid}-${Date.now()}`;
+  const displaced = `${target}.displaced-${transactionId}`;
   let targetDisplaced = false;
   try {
     for (const entry of ordered) {
@@ -1303,19 +1404,35 @@ function copyDeveloperCheckoutSurface(
         failure_code: 'agent_package_developer_checkout_source_invalid',
       });
     }
-    if (fs.existsSync(target)) {
+    if (pathEntryExists(target)) {
+      if (pathEntryExists(displaced)) {
+        throw new FrameworkContractError(
+          'contract_shape_invalid',
+          'Package plugin generation transaction already has a displaced path.',
+          {
+            package_id: manifest.package_id,
+            target_path: target,
+            displaced_path: displaced,
+            transaction_id: transactionId,
+            failure_code: 'agent_package_plugin_cache_displaced_generation_collision',
+          },
+        );
+      }
       renameDeveloperPluginGeneration(target, displaced);
       targetDisplaced = true;
     }
     renameDeveloperPluginGeneration(stage, target);
-    if (targetDisplaced) {
-      makeGenerationTreeWritable(displaced);
-      fs.rmSync(displaced, { recursive: true, force: true });
-    }
+    return {
+      ownership: targetDisplaced ? 'replaced' : 'created',
+      target_path: target,
+      displaced_path: targetDisplaced ? displaced : null,
+      transaction_id: transactionId,
+    };
   } catch (error) {
     makeGenerationTreeWritable(stage);
     fs.rmSync(stage, { recursive: true, force: true });
-    if (!fs.existsSync(target) && targetDisplaced && fs.existsSync(displaced)) {
+    if (targetDisplaced && pathEntryExists(target)) removePluginGeneration(target);
+    if (!pathEntryExists(target) && targetDisplaced && pathEntryExists(displaced)) {
       renameDeveloperPluginGeneration(displaced, target);
     }
     throw error;
@@ -1505,14 +1622,17 @@ export function materializePhysicalCodexSurface(
   let managedPolicyMigration = noManagedPolicyMigration('Managed policy materialization has not run.');
   let removedSupersededPaths: string[] = [];
   let pluginCacheCreated = false;
+  let pluginGenerationMutation: PluginGenerationMutation | null = null;
   try {
     if (!dryRun && !options.reuseExistingPluginCache) {
-      pluginCacheCreated = materializeImmutablePluginCache({
+      pluginGenerationMutation = materializeImmutablePluginCacheTransaction({
         manifest,
         sourcePath: pluginSourcePath,
         targetPath: paths.codexPluginCachePath!,
         developerCheckoutPayloadFiles: options.developerCheckoutPayloadFiles,
+        transactionId: options.transactionId,
       });
+      pluginCacheCreated = pluginGenerationMutation.ownership !== 'reused';
     }
     const materializedSourceRoot = dryRun ? materializationSourcePath : paths.codexPluginCachePath!;
     if (!options.skipManagedSurfaces) {
@@ -1557,16 +1677,13 @@ export function materializePhysicalCodexSurface(
       unregisterLocalCodexPlugin(paths.codexConfigPath, paths.marketplaceId, manifest.plugin_id);
       removeCreatedEmptyCodexConfig(paths.codexConfigPath, codexConfigPreexisting);
       fs.rmSync(paths.marketplaceRoot, { recursive: true, force: true });
-      if (pluginCacheCreated) {
-        makeGenerationTreeWritable(paths.codexPluginCachePath!);
-        fs.rmSync(paths.codexPluginCachePath!, { recursive: true, force: true });
-      }
+      if (pluginGenerationMutation) restorePluginGenerationMutation(pluginGenerationMutation);
       rollbackManagedPolicyMigration(managedPolicyMigration);
     }
     throw error;
   }
 
-  return {
+  const surface: AgentPackagePhysicalSurface = {
     surface_kind: 'opl_agent_package_physical_codex_surface',
     status: dryRun ? 'validated_no_write' : 'materialized',
     package_id: manifest.package_id,
@@ -1605,6 +1722,24 @@ export function materializePhysicalCodexSurface(
     workflow_policy_migration: managedPolicyMigration,
     authority_boundary: refsOnlyAuthorityBoundary(),
   };
+  if (pluginGenerationMutation) physicalSurfaceGenerationMutations.set(surface, pluginGenerationMutation);
+  return surface;
+}
+
+export function restorePhysicalCodexSurfaceMutation(surface: AgentPackagePhysicalSurface | undefined) {
+  if (!surface) return;
+  const mutation = physicalSurfaceGenerationMutations.get(surface);
+  if (!mutation) return;
+  restorePluginGenerationMutation(mutation);
+  physicalSurfaceGenerationMutations.delete(surface);
+}
+
+export function finalizePhysicalCodexSurfaceMutation(surface: AgentPackagePhysicalSurface | undefined) {
+  if (!surface) return;
+  const mutation = physicalSurfaceGenerationMutations.get(surface);
+  if (!mutation) return;
+  finalizePluginGenerationMutation(mutation);
+  physicalSurfaceGenerationMutations.delete(surface);
 }
 
 export function removePhysicalCodexSurface(

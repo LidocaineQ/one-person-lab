@@ -46,6 +46,10 @@ import {
 } from './agent-package-registry-parts/home-shortcuts.ts';
 import { normalizeManifest, normalizePackageManifest } from './agent-package-registry-parts/manifest-normalizers.ts';
 import {
+  installedImmutableRepairCatalog,
+  installedPackageLockClosure,
+} from './agent-package-registry-parts/installed-plugin-source.ts';
+import {
   assertNoRequiredInstalledDependents,
   dependencyClosureDigest,
   dependencyReadiness,
@@ -74,8 +78,10 @@ import { materializeAgentPackageSkillProjection } from './agent-package-registry
 import {
   cleanupUnreferencedPackagePayloadSources,
   materializePhysicalCodexSurface,
+  finalizePhysicalCodexSurfaceMutation,
   removePhysicalCodexSurface,
   rematerializePhysicalCodexSurfaceFromLock,
+  restorePhysicalCodexSurfaceMutation,
   rollbackManagedPolicySurface,
   resolveBundledFullRuntimeManifestPhysicalSource,
   resolveManifestPhysicalSource,
@@ -388,23 +394,6 @@ function readRecoveredLockIndex(dryRun = false) {
   };
 }
 
-function installedLockClosure(index: AgentPackageLockIndex, root: AgentPackageLock) {
-  const byId = new Map(index.packages.map((entry) => [entry.package_id, entry]));
-  const visited = new Set<string>();
-  const ordered: AgentPackageLock[] = [];
-  const visit = (lock: AgentPackageLock) => {
-    if (visited.has(lock.package_id)) return;
-    visited.add(lock.package_id);
-    for (const dependency of lock.resolved_dependencies ?? []) {
-      const provider = byId.get(dependency.package_id);
-      if (provider) visit(provider);
-    }
-    ordered.push(structuredClone(lock));
-  };
-  visit(root);
-  return ordered;
-}
-
 function installedClosurePrestate(
   index: AgentPackageLockIndex,
   preparedPackages: PreparedPackage[],
@@ -413,7 +402,7 @@ function installedClosurePrestate(
   const ordered: AgentPackageLock[] = [];
   for (const prepared of preparedPackages) {
     if (!prepared.previousLock) continue;
-    for (const lock of installedLockClosure(index, prepared.previousLock)) {
+    for (const lock of installedPackageLockClosure(index, prepared.previousLock)) {
       if (seen.has(lock.package_id)) continue;
       seen.add(lock.package_id);
       ordered.push(lock);
@@ -430,6 +419,12 @@ type ApplyManifestPackageLockOptions = {
   channelDigest?: string | null;
   trustedBundledFullRuntimeInstall?: TrustedBundledFullRuntimeInstall | null;
   sourceReconcile?: boolean;
+  preserveInstalledImmutableIdentity?: boolean;
+};
+
+type ApplyManifestPackageLockTransaction = {
+  legacySkillMigration: PreparedLegacyOplSkillsMigration | null;
+  physicalSurfaces: AgentPackagePhysicalSurface[];
 };
 
 async function applyManifestPackageLock(
@@ -437,12 +432,16 @@ async function applyManifestPackageLock(
   action: 'install' | 'update' | 'repair',
   options: ApplyManifestPackageLockOptions = {},
 ) {
-  const transaction: { legacySkillMigration: PreparedLegacyOplSkillsMigration | null } = {
+  const transaction: ApplyManifestPackageLockTransaction = {
     legacySkillMigration: null,
+    physicalSurfaces: [],
   };
   try {
     return await applyManifestPackageLockUnlocked(input, action, options, transaction);
   } catch (error) {
+    for (const surface of [...transaction.physicalSurfaces].reverse()) {
+      restorePhysicalCodexSurfaceMutation(surface);
+    }
     transaction.legacySkillMigration?.rollback();
     throw error;
   }
@@ -452,7 +451,7 @@ async function applyManifestPackageLockUnlocked(
   input: AgentPackageInstallInput,
   action: 'install' | 'update' | 'repair',
   options: ApplyManifestPackageLockOptions,
-  transaction: { legacySkillMigration: PreparedLegacyOplSkillsMigration | null },
+  transaction: ApplyManifestPackageLockTransaction,
 ) {
   let legacySkillMigration: PreparedLegacyOplSkillsMigration | null = null;
   const packageId = canonicalAgentPackageId(stringValue(input.packageId));
@@ -571,7 +570,10 @@ async function applyManifestPackageLockUnlocked(
       )
     );
   const firstParty = shouldUseFirstPartyCatalog ? firstPartyOwner : null;
-  const rootSourcePolicy = firstParty && packageId && !trustedBundledInstall
+  const rootSourcePolicy = firstParty
+    && packageId
+    && !trustedBundledInstall
+    && !options.preserveInstalledImmutableIdentity
     ? resolveAgentPackageEffectiveSourcePolicy(packageId)
     : null;
   const requestedRootDeveloperCheckoutPath = packageId
@@ -678,7 +680,9 @@ async function applyManifestPackageLockUnlocked(
     const selectedFirstPartyOwner = nextSelection.packageId
       ? resolveFirstPartyPackageCatalog(nextSelection.packageId)
       : null;
-    const selectedSourcePolicy = selectedFirstPartyOwner && !trustedBundledInstall
+    const selectedSourcePolicy = selectedFirstPartyOwner
+      && !trustedBundledInstall
+      && !options.preserveInstalledImmutableIdentity
       ? resolveAgentPackageEffectiveSourcePolicy(selectedFirstPartyOwner.canonicalId)
       : null;
     const selectedDeveloperCheckoutPath = selectedSourcePolicy?.desired_source_kind
@@ -1108,14 +1112,27 @@ async function applyManifestPackageLockUnlocked(
     });
     transaction.legacySkillMigration = legacySkillMigration;
     for (const prepared of ordered) {
-      physicalSurfaces.set(
-        prepared.manifest.package_id,
-        materializePhysicalCodexSurface(prepared.manifest, input.dryRun === true, {
+      const physicalSurface = materializePhysicalCodexSurface(
+        prepared.manifest,
+        input.dryRun === true,
+        {
           keepMigrationIds: input.keepMigrationIds,
           developerCheckoutPayloadFiles: prepared.developerCheckoutPayloadFiles ?? undefined,
           companionNetworkAccess: trustedBundledInstall ? 'forbidden' : undefined,
-        }),
+          transactionId: sha256Text([
+            'plugin-generation',
+            action,
+            prepared.manifest.package_id,
+            prepared.manifestSha256,
+            prepared.previousLock?.lock_ref ?? '',
+          ].join('\n')).slice(0, 24),
+        },
       );
+      physicalSurfaces.set(
+        prepared.manifest.package_id,
+        physicalSurface,
+      );
+      transaction.physicalSurfaces.push(physicalSurface);
     }
     if (!input.dryRun && isOplFlowCoreSkillsTarget({
       packageId: root.manifest.package_id,
@@ -1158,6 +1175,7 @@ async function applyManifestPackageLockUnlocked(
     for (const prepared of [...ordered].reverse()) {
       const surface = physicalSurfaces.get(prepared.manifest.package_id);
       if (surface && !input.dryRun) {
+        restorePhysicalCodexSurfaceMutation(surface);
         removePhysicalCodexSurface(surface, false, prepared.manifest.package_id, {
           retainPayloadSource: Boolean(
             surface.plugin_payload_cache_path
@@ -1215,6 +1233,7 @@ async function applyManifestPackageLockUnlocked(
       for (const prepared of [...ordered].reverse()) {
         const surface = physicalSurfaces.get(prepared.manifest.package_id);
         if (!surface) continue;
+        restorePhysicalCodexSurfaceMutation(surface);
         removePhysicalCodexSurface(surface, false, prepared.manifest.package_id, {
           retainPayloadSource: true,
           retainPluginCache: Boolean(
@@ -1284,6 +1303,9 @@ async function applyManifestPackageLockUnlocked(
       managedRuntimeSource: runtimeSourceMutations.get(prepared.manifest.package_id)?.after ?? null,
       sourceArtifactRef: preparedCatalogArtifactRef(prepared),
       artifactDigest: preparedCatalogArtifactDigest(prepared),
+      packageContentDigest: prepared.catalogVersion?.package_content_digest
+        ?? prepared.previousLock?.package_content_digest
+        ?? null,
       ownerSourceCommit: preparedOwnerSourceCommit(prepared),
       carrierAuthority,
       releaseChannelRef: prepared.catalogVersion
@@ -1376,6 +1398,7 @@ async function applyManifestPackageLockUnlocked(
           rollbackCapabilityScopeTransaction(materialization);
         }
         for (const nextLock of [...locks].reverse()) {
+          restorePhysicalCodexSurfaceMutation(nextLock.physical_surface);
           removePhysicalCodexSurface(nextLock.physical_surface, false, nextLock.package_id, {
             retainPayloadSource: Boolean(
               nextLock.physical_surface?.plugin_payload_cache_path
@@ -1497,6 +1520,7 @@ async function applyManifestPackageLockUnlocked(
         rollbackCapabilityScopeTransaction(scopeMaterialization);
       }
       for (const nextLock of [...locks].reverse()) {
+        restorePhysicalCodexSurfaceMutation(nextLock.physical_surface);
         removePhysicalCodexSurface(nextLock.physical_surface, false, nextLock.package_id, {
           retainPayloadSource: Boolean(
             nextLock.physical_surface?.plugin_payload_cache_path
@@ -1517,6 +1541,9 @@ async function applyManifestPackageLockUnlocked(
       }
       legacySkillMigration?.rollback();
       throw error;
+    }
+    for (const surface of physicalSurfaces.values()) {
+      finalizePhysicalCodexSurfaceMutation(surface);
     }
     for (const mutation of runtimeSourceMutations.values()) {
       finalizeManagedRuntimeSourceMutation(mutation);
@@ -3020,7 +3047,16 @@ async function runOplAgentPackageRepairUnlocked(input: AgentPackageRepairInput) 
     || stringValue(input.manifestUrl)
     || stringValue(input.registryUrl)
   ) {
-    const result = await applyManifestPackageLock({ ...input, packageId }, 'repair');
+    const repairCatalog = lock.source_kind === 'first_party_managed_cohort'
+      ? installedImmutableRepairCatalog(index, lock)
+      : null;
+    const result = await applyManifestPackageLock(
+      { ...input, packageId },
+      'repair',
+      repairCatalog
+        ? { ...repairCatalog, preserveInstalledImmutableIdentity: true }
+        : {},
+    );
     return packageRepairResult(input, result);
   }
   const physicalSurface = rematerializePhysicalCodexSurfaceFromLock(lock, input.dryRun === true);

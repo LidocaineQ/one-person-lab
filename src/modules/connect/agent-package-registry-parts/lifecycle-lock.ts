@@ -223,6 +223,7 @@ export function buildLock(input: {
   managedRuntimeSource?: AgentPackageManagedRuntimeSourceState | null;
   sourceArtifactRef?: string | null;
   artifactDigest?: string | null;
+  packageContentDigest?: string | null;
   ownerSourceCommit?: string | null;
   carrierAuthority?: AgentPackageCarrierAuthority | null;
   releaseChannelRef?: string | null;
@@ -286,7 +287,11 @@ export function buildLock(input: {
     content_digest: input.manifest.content_digest
       ?? input.manifest.distribution_payload?.payload_digest_ref
       ?? `sha256:${input.manifestSha256}`,
+    content_lock_canonicalization: input.manifest.content_lock_canonicalization,
     content_lock_paths: input.manifest.content_lock_paths,
+    package_content_digest: input.packageContentDigest
+      ?? input.previousLock?.package_content_digest
+      ?? null,
     scope_materializations: input.scopeMaterialization
       ? [
           input.scopeMaterialization,
