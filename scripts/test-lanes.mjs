@@ -527,7 +527,15 @@ const commandHandlers = {
 };
 
 function runLane(laneName) {
-  requireLane(laneName).forEach((step, index) => runLaneStep(laneName, step, index));
+  const steps = requireLane(laneName);
+  const generationResult = spawnStep(
+    process.execPath,
+    ['--experimental-strip-types', 'scripts/generate-cli-command-surface.mjs'],
+    { laneName, stepIndex: -1, stepKind: 'cli:surface:generate' },
+    { env: createTestStepEnv() },
+  );
+  exitOnFailure(generationResult);
+  steps.forEach((step, index) => runLaneStep(laneName, step, index));
 }
 
 function requireLane(laneName) {
