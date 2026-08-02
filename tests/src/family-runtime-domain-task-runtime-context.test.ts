@@ -271,7 +271,7 @@ test('dead-letter attempt query remains readable after the linked task row is de
     db.prepare('DELETE FROM tasks WHERE task_id = ?').run(taskId);
 
     const query = queryStageAttempt(db, attempt.stage_attempt_id).stage_attempt_query;
-    const deadLetter = query.operator_visibility.dead_letter as Record<string, unknown>;
+    const deadLetter = query.operator_visibility.dead_letter as Record<string, unknown>; // reuse-first: allow Temporal attempt projection read after compatibility task-row deletion.
 
     assert.deepEqual(deadLetter, {
       reason: 'retry_budget_exhausted',
