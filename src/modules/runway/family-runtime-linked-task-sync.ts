@@ -1,20 +1,13 @@
 import type { DatabaseSync } from 'node:sqlite';
 
-import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
-import { parseJsonText } from '../../kernel/json-file.ts';
+import { FrameworkContractError } from '../../kernel/contract-validation.ts';
 import {
   insertEvent,
   insertNotification,
-  type FamilyRuntimeTaskRow,
 } from './family-runtime-store.ts';
 import {
-  clearTaskLeaseProjectionSql,
-  FAMILY_RUNTIME_TASK_COLUMNS,
-  FAMILY_RUNTIME_TASK_STATUS,
-  taskFailureProjectionSql,
-} from './family-runtime-queue-projection-boundary.ts';
-import {
   getStageAttemptRow,
+  parseStageAttemptJsonObject,
   type StageAttemptRow,
 } from './family-runtime-stage-attempt-ledger.ts';
 import { requireRuntimeExecutionScopeMutationAllowed } from './family-runtime-execution-scope-persistence.ts';
@@ -23,37 +16,18 @@ import {
   stageAttemptRowHasStageNativeProgressOrOwnerAnswerFromDomainProfile,
 } from './family-runtime-stage-native-owner-answer.ts';
 
-type LinkedTask = Pick<
-  FamilyRuntimeTaskRow,
-  'task_id' | 'domain_id' | 'task_kind' | 'payload_json' | 'status' | 'last_error' | 'dead_letter_reason'
->;
-
-const PROVIDER_ONLY_TASK_DEAD_LETTER_REASONS = new Set([
-  'temporal_stage_attempt_start_failed',
-  'temporal_stage_attempt_not_completed',
-  'temporal_stage_attempt_failed',
-  'temporal_stage_attempt_canceled',
-]);
-
-function linkedDefaultExecutorTask(
-  db: DatabaseSync,
-  row: StageAttemptRow,
-) {
-  if (!row.task_id) {
+function linkedDefaultExecutorPayload(row: StageAttemptRow) {
+  if (!row.task_id || row.executor_kind !== 'codex_cli') {
     return null;
   }
-  const task = db.prepare(`
-    SELECT task_id, domain_id, task_kind, payload_json, status, last_error, dead_letter_reason
-    FROM tasks
-    WHERE task_id = ?
-  `).get(row.task_id) as LinkedTask | undefined;
-  if (!task || !isStageNativeOwnerActionFromDomainProfile({
-    row: task,
-    payload: parseTaskPayload(task),
-  })) {
-    return null;
-  }
-  return task;
+  const payload = parseStageAttemptJsonObject(row.workspace_locator_json);
+  return isStageNativeOwnerActionFromDomainProfile({
+    row: {
+      domain_id: row.domain_id,
+      task_kind: row.stage_id,
+    },
+    payload,
+  }) ? payload : null;
 }
 
 function laterAttemptPredicate() {
@@ -112,40 +86,18 @@ function hasLaterAcceptedCloseoutAttempt(
   return Boolean(newerCloseout);
 }
 
-function canBlockFromProviderTerminalObservation(task: LinkedTask) {
-  if (task.status === 'queued' || task.status === 'running' || task.status === 'succeeded') {
-    return true;
-  }
-  return task.status === 'blocked'
-    && task.dead_letter_reason !== null
-    && PROVIDER_ONLY_TASK_DEAD_LETTER_REASONS.has(task.dead_letter_reason);
-}
-
-function canSucceedFromTypedCloseout(task: LinkedTask) {
-  if (task.status === 'queued' || task.status === 'running' || task.status === 'succeeded') {
-    return true;
-  }
-  return task.status === 'blocked'
-    && task.dead_letter_reason !== null
-    && PROVIDER_ONLY_TASK_DEAD_LETTER_REASONS.has(task.dead_letter_reason);
-}
-
-function parseTaskPayload(task: LinkedTask) {
-  try {
-    const parsed = parseJsonText(task.payload_json);
-    return isRecord(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function isMissingStageNativeProgressOrOwnerAnswer(task: LinkedTask, row: StageAttemptRow) {
-  const payload = parseTaskPayload(task);
-  return isStageNativeOwnerActionFromDomainProfile({ row: task, payload })
-    && !stageAttemptRowHasStageNativeProgressOrOwnerAnswerFromDomainProfile({
-      row,
-      currentPayload: payload,
-    });
+function terminalEventAlreadyWritten(
+  db: DatabaseSync,
+  row: StageAttemptRow,
+  eventType: string,
+) {
+  return Boolean(row.task_id && db.prepare(`
+    SELECT 1
+    FROM events
+    WHERE task_id = ? AND event_type = ?
+      AND json_extract(payload_json, '$.stage_attempt_id') = ?
+    LIMIT 1
+  `).get(row.task_id, eventType, row.stage_attempt_id));
 }
 
 function withAdmittedDurableStageAttempt<T>(
@@ -182,32 +134,31 @@ function markLinkedDefaultExecutorTaskCompletedForDurableRow(
     observedAt: string;
   },
 ) {
-  const task = linkedDefaultExecutorTask(db, input.row);
-  if (!task || hasLaterLinkedAttempt(db, input.row)) {
+  const row = input.row;
+  const payload = linkedDefaultExecutorPayload(row);
+  if (
+    !payload
+    || hasLaterLinkedAttempt(db, row)
+    || row.status !== 'completed'
+    || !row.closeout_receipt_status
+    || terminalEventAlreadyWritten(db, row, 'stage_attempt_terminal_completed_task')
+  ) {
     return;
   }
-  const alreadySucceeded = task.status === 'succeeded'
-    && task.last_error === null
-    && task.dead_letter_reason === null;
-  if (alreadySucceeded || !canSucceedFromTypedCloseout(task)) {
-    return;
-  }
-  const missingRecognizedEnvelope = isMissingStageNativeProgressOrOwnerAnswer(task, input.row);
-  db.prepare(`
-    UPDATE tasks
-    SET status = ?, ${clearTaskLeaseProjectionSql()},
-      last_error = NULL, ${FAMILY_RUNTIME_TASK_COLUMNS.deadLetterReason} = NULL, updated_at = ?
-    WHERE task_id = ?
-  `).run(FAMILY_RUNTIME_TASK_STATUS.succeeded, input.observedAt, input.row.task_id);
+  const missingRecognizedEnvelope = !stageAttemptRowHasStageNativeProgressOrOwnerAnswerFromDomainProfile({
+    row,
+    currentPayload: payload,
+  });
   insertEvent(db, {
-    taskId: input.row.task_id,
-    domainId: input.row.domain_id,
+    taskId: row.task_id,
+    domainId: row.domain_id,
     eventType: 'stage_attempt_terminal_completed_task',
     source: 'opl-family-runtime',
     payload: {
-      stage_attempt_id: input.row.stage_attempt_id,
-      workflow_id: input.row.workflow_id,
+      stage_attempt_id: row.stage_attempt_id,
+      workflow_id: row.workflow_id,
       reason: 'temporal_stage_attempt_completed',
+      provider_status: parseStageAttemptJsonObject(row.provider_run_json).provider_status ?? null,
       ...(missingRecognizedEnvelope
         ? {
             quality_debt: 'stage_native_progress_envelope_missing_but_provider_attempt_completed',
@@ -215,7 +166,6 @@ function markLinkedDefaultExecutorTaskCompletedForDurableRow(
             framework_should_derive_progress_envelope: true,
           }
         : {}),
-      cleared_dead_letter_reason: task.dead_letter_reason,
       authority_boundary: {
         opl: 'provider_attempt_status_projection_only',
         domain: 'truth_quality_artifact_gate_owner',
@@ -224,14 +174,14 @@ function markLinkedDefaultExecutorTaskCompletedForDurableRow(
     },
   });
   insertNotification(db, {
-    taskId: input.row.task_id,
+    taskId: row.task_id,
     severity: missingRecognizedEnvelope ? 'warning' : 'info',
     title: missingRecognizedEnvelope
       ? 'Family runtime attempt completed with derived progress debt'
       : 'Family runtime default executor attempt completed',
-    body: input.row.stage_attempt_id,
+    body: row.stage_attempt_id,
     payload: {
-      stage_attempt_id: input.row.stage_attempt_id,
+      stage_attempt_id: row.stage_attempt_id,
       reason: 'temporal_stage_attempt_completed',
       ...(missingRecognizedEnvelope
         ? { quality_debt: 'stage_native_progress_envelope_missing_nonblocking' }
@@ -272,37 +222,27 @@ function blockLinkedDefaultExecutorTaskForDurableRow(
     eventType: string;
   },
 ) {
-  const task = linkedDefaultExecutorTask(db, input.row);
+  const row = input.row;
   if (
-    !task
-    || hasLaterLinkedAttempt(db, input.row)
-    || hasLaterAcceptedCloseoutAttempt(db, input.row)
-    || !canBlockFromProviderTerminalObservation(task)
+    !linkedDefaultExecutorPayload(row)
+    || hasLaterLinkedAttempt(db, row)
+    || hasLaterAcceptedCloseoutAttempt(db, row)
+    || !['blocked', 'failed'].includes(row.status)
+    || row.blocked_reason !== input.reason
   ) {
     return;
   }
-  if (
-    task.status === 'blocked'
-    && task.last_error === input.reason
-    && task.dead_letter_reason === input.taskDeadLetterReason
-  ) {
-    return;
-  }
-  db.prepare(`
-    UPDATE tasks
-    SET status = ?, ${taskFailureProjectionSql()}
-    WHERE task_id = ?
-  `).run(FAMILY_RUNTIME_TASK_STATUS.blocked, input.reason, input.taskDeadLetterReason, input.observedAt, input.row.task_id);
   insertEvent(db, {
-    taskId: input.row.task_id,
-    domainId: input.row.domain_id,
+    taskId: row.task_id,
+    domainId: row.domain_id,
     eventType: input.eventType,
     source: 'opl-family-runtime',
     payload: {
-      stage_attempt_id: input.row.stage_attempt_id,
-      workflow_id: input.row.workflow_id,
+      stage_attempt_id: row.stage_attempt_id,
+      workflow_id: row.workflow_id,
       reason: input.reason,
       task_dead_letter_reason: input.taskDeadLetterReason,
+      provider_status: parseStageAttemptJsonObject(row.provider_run_json).provider_status ?? null,
       authority_boundary: {
         opl: 'provider_attempt_status_projection_only',
         domain: 'truth_quality_artifact_gate_owner',
@@ -311,12 +251,12 @@ function blockLinkedDefaultExecutorTaskForDurableRow(
     },
   });
   insertNotification(db, {
-    taskId: input.row.task_id,
+    taskId: row.task_id,
     severity: 'error',
     title: 'Family runtime default executor attempt blocked',
     body: input.reason,
     payload: {
-      stage_attempt_id: input.row.stage_attempt_id,
+      stage_attempt_id: row.stage_attempt_id,
       reason: input.reason,
       task_dead_letter_reason: input.taskDeadLetterReason,
     },

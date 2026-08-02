@@ -6,6 +6,11 @@ import {
   inspectStageAttempt,
   syncStageAttemptFromTemporalTerminalObservation,
 } from '../../../src/modules/runway/family-runtime-stage-attempts.ts';
+import { getStageAttemptRow } from '../../../src/modules/runway/family-runtime-stage-attempt-ledger.ts';
+import {
+  blockLinkedDefaultExecutorTask,
+  markLinkedDefaultExecutorTaskCompleted,
+} from '../../../src/modules/runway/family-runtime-linked-task-sync.ts';
 import {
   blockedTemporalObservation,
   createMasDefaultExecutorAttempt,
@@ -100,9 +105,18 @@ test('Older terminal failure cannot overwrite newer accepted closeout for the sa
         createdAt,
       }),
     );
-    const task = db.prepare('SELECT status, last_error, dead_letter_reason FROM tasks WHERE task_id = ?').get(
-      'task-mas-default-newer-closeout-wins',
-    ) as { status: string; last_error: string | null; dead_letter_reason: string | null };
+    db.exec('DROP TABLE tasks');
+    markLinkedDefaultExecutorTaskCompleted(db, {
+      row: getStageAttemptRow(db, newerAttempt.stage_attempt_id)!,
+      observedAt: createdAt,
+    });
+    blockLinkedDefaultExecutorTask(db, {
+      row: getStageAttemptRow(db, olderAttempt.stage_attempt_id)!,
+      reason: 'temporal_workflow_failed',
+      observedAt: createdAt,
+      taskDeadLetterReason: 'temporal_stage_attempt_failed',
+      eventType: 'stage_attempt_terminal_failed_task',
+    });
     const olderSynced = inspectStageAttempt(db, olderAttempt.stage_attempt_id);
     const failureTaskEvents = db.prepare(
       "SELECT COUNT(*) AS count FROM events WHERE task_id = ? AND event_type = 'stage_attempt_terminal_failed_task'",
@@ -111,9 +125,6 @@ test('Older terminal failure cannot overwrite newer accepted closeout for the sa
     assert.equal(olderSynced.status, 'completed');
     assert.equal(olderSynced.blocked_reason, null);
     assert.ok(olderSynced.closeout_refs.some((ref) => ref.endsWith('/failure-diagnostic')));
-    assert.equal(task.status, 'succeeded');
-    assert.equal(task.last_error, null);
-    assert.equal(task.dead_letter_reason, null);
     assert.equal(failureTaskEvents.count, 0);
   });
 });
@@ -152,9 +163,14 @@ test('Older terminal blocker cannot overwrite newer live redrive attempt for the
         createdAt,
       }),
     );
-    const task = db.prepare('SELECT status, last_error, dead_letter_reason FROM tasks WHERE task_id = ?').get(
-      'task-mas-default-newer-redrive-running',
-    ) as { status: string; last_error: string | null; dead_letter_reason: string | null };
+    db.exec('DROP TABLE tasks');
+    blockLinkedDefaultExecutorTask(db, {
+      row: getStageAttemptRow(db, olderAttempt.stage_attempt_id)!,
+      reason: 'zero_readable_artifact',
+      observedAt: createdAt,
+      taskDeadLetterReason: 'temporal_stage_attempt_not_completed',
+      eventType: 'stage_attempt_terminal_blocked_task',
+    });
     const olderSynced = inspectStageAttempt(db, olderAttempt.stage_attempt_id);
     const blockerTaskEvents = db.prepare(
       "SELECT COUNT(*) AS count FROM events WHERE task_id = ? AND event_type = 'stage_attempt_terminal_blocked_task'",
@@ -164,9 +180,6 @@ test('Older terminal blocker cannot overwrite newer live redrive attempt for the
     assert.equal(olderSynced.blocked_reason, null);
     assert.ok(olderSynced.closeout_refs.some((ref) => ref.includes('quality-debt-diagnostics')));
     assert.equal(inspectStageAttempt(db, newerAttempt.stage_attempt_id).status, 'running');
-    assert.equal(task.status, 'succeeded');
-    assert.equal(task.last_error, null);
-    assert.equal(task.dead_letter_reason, null);
     assert.equal(blockerTaskEvents.count, 0);
   });
 });

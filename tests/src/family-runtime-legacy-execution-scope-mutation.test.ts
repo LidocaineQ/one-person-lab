@@ -299,12 +299,13 @@ test('legacy v1 top-level cancel rejects before provider or persisted side effec
   }
 });
 
-test('linked task exports reread and admit the durable Attempt instead of trusting caller rows', () => {
+test('linked terminal exports admit the durable Attempt instead of trusting caller rows', () => {
   const db = new DatabaseSync(':memory:');
   try {
     const fixture = installLegacyV1RuntimeFixture(db, {
       taskId: 'task:legacy-v1-linked',
     });
+    db.exec('DROP TABLE tasks');
     const persisted = getStageAttemptRow(db, fixture.stageAttemptId)!;
     const forgedCallerRow = {
       ...persisted,
@@ -327,7 +328,6 @@ test('linked task exports reread and admit the durable Attempt instead of trusti
       'execution_scopes',
       'stage_run_launches',
       'stage_attempts',
-      'tasks',
       'events',
       'notifications',
     ];

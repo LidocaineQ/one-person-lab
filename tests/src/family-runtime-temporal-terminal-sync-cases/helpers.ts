@@ -285,7 +285,12 @@ export function createMasDefaultExecutorAttempt(
     domainId: 'medautoscience',
     stageId: 'domain_owner/default-executor-dispatch',
     providerKind: 'temporal',
-    workspaceLocator: { workspace_root: '/tmp/mas' },
+    workspaceLocator: {
+      workspace_root: '/tmp/mas',
+      action_type: 'complete_medical_paper_readiness_surface',
+      work_unit_id: 'complete_medical_paper_readiness_surface',
+      next_executable_owner: 'medautoscience',
+    },
     sourceFingerprint: input.sourceFingerprint ?? 'sha256:mas-default-dispatch',
     executorKind: 'codex_cli',
     taskId: input.taskId,
