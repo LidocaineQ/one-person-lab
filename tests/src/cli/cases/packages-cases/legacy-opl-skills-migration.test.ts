@@ -620,7 +620,7 @@ test('descriptor-only packages update migrates legacy Skills before exposing the
       FIXTURE_REQUIRE_LEGACY_ABSENT: '1',
     }) as any;
     assert.equal(update.opl_agent_package_update.status, 'updated');
-    assert.equal(update.opl_agent_package_update.legacy_skill_migration.status, 'migrated');
+    assert.equal(Object.hasOwn(update.opl_agent_package_update, 'legacy_skill_migration'), false);
     assert.deepEqual(
       update.opl_agent_package_update.configured_carrier.executor.required_skill_ids,
       flowSkillIds,
@@ -708,7 +708,7 @@ test('public packages install from a developer checkout retires legacy Skills be
     const surface = installed.opl_agent_package_install;
     assert.equal(surface.status, 'installed');
     assert.equal(surface.package_lock.source_kind, 'developer_checkout_override');
-    assert.equal(surface.legacy_skill_migration.status, 'migrated');
+    assert.equal(Object.hasOwn(surface, 'legacy_skill_migration'), false);
     assert.deepEqual(
       surface.physical_surface.materialized_required_skill_ids,
       flowSkillIds,
@@ -766,7 +766,7 @@ test('public packages install accepts a v4 Flow developer checkout', () => {
     const surface = installed.opl_agent_package_install;
     assert.equal(surface.status, 'installed');
     assert.equal(surface.package_lock.source_kind, 'developer_checkout_override');
-    assert.equal(surface.legacy_skill_migration.status, 'migrated');
+    assert.equal(Object.hasOwn(surface, 'legacy_skill_migration'), false);
     assert.deepEqual(surface.physical_surface.materialized_required_skill_ids, flowSkillIds);
     assert.equal(surface.physical_surface.workflow_policy_migration.status, 'current');
     const installedPolicy = JSON.parse(fs.readFileSync(
@@ -851,7 +851,7 @@ test('managed Flow update keeps the managed owner when an installed descriptor i
     assert.equal(surface.reconciliation_action, 'source_reconcile');
     assert.equal(surface.package_lock.package_version, '0.1.30');
     assert.equal(surface.package_lock.source_kind, 'developer_checkout_override');
-    assert.equal(surface.legacy_skill_migration.status, 'migrated');
+    assert.equal(Object.hasOwn(surface, 'legacy_skill_migration'), false);
     assert.equal(Object.hasOwn(surface, 'configured_carrier'), false);
     assert.deepEqual(surface.physical_surface.materialized_required_skill_ids, flowSkillIds);
     for (const skillId of skillIds) {
@@ -907,7 +907,7 @@ test('foreign managed Flow lock does not override the current Codex home native 
     assert.equal(surface.status, 'updated');
     assert.equal(surface.configured_carrier.installed_version, '0.1.30');
     assert.equal(surface.configured_carrier.plugin_source_path, previous.pluginSource);
-    assert.equal(surface.legacy_skill_migration.status, 'migrated');
+    assert.equal(Object.hasOwn(surface, 'legacy_skill_migration'), false);
     assert.deepEqual(fs.readFileSync(packageLockPath), packageLockBefore);
     for (const skillId of skillIds) {
       assert.equal(fs.existsSync(path.join(state.skillsRoot, skillId)), false);

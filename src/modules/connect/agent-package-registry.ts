@@ -1812,7 +1812,6 @@ async function maybeRunConfiguredCarrierLifecycle(input: {
       dryRun,
       carrier: execution.carrier,
     }),
-    legacy_skill_migration: execution.legacySkillMigration,
   };
 }
 
@@ -1855,7 +1854,6 @@ function agentPackageInstallReadback(
       dependency_transaction_id: result.dependencyTransactionId,
       dependency_closure_digest: result.dependencyClosureDigest,
       dependency_package_locks: result.closureLocks,
-      ...(result.legacySkillMigration ? { legacy_skill_migration: result.legacySkillMigration } : {}),
       registry_entry: result.registryEntry,
       authority_boundary: refsOnlyAuthorityBoundary(),
     },
@@ -3026,7 +3024,6 @@ function packageRepairResult(
       dependency_transaction_id: result.dependencyTransactionId,
       dependency_closure_digest: result.dependencyClosureDigest,
       dependency_package_locks: result.closureLocks,
-      ...(result.legacySkillMigration ? { legacy_skill_migration: result.legacySkillMigration } : {}),
       authority_boundary: refsOnlyAuthorityBoundary(),
     },
   };
