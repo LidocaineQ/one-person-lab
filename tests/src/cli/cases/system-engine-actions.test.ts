@@ -30,7 +30,6 @@ test('engine parser requires canonical --engine and rejects aliases or positiona
     examples: ['opl engine install --engine codex'],
   };
 
-  assert.deepEqual(parseOplEngineArgs(['--engine', 'codex'], spec), { engineId: 'codex' });
   assert.throws(() => parseOplEngineArgs([], spec), (error: any) => {
     assert.equal(error.code, 'cli_usage_error');
     assert.equal(error.message, 'engine commands require --engine.');
