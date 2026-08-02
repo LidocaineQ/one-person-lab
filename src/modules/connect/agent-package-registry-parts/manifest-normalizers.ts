@@ -715,7 +715,6 @@ function normalizeManagedVersionCatalogSource(
   if (!isRecord(value)
     || value.kind !== 'managed_version_catalog'
     || (value.transport !== 'json_url' && value.transport !== 'opl_oci_channel')
-    || (value.selection_policy !== 'highest_stable' && value.selection_policy !== 'highest_compatible')
     || value.digest_authority !== 'manifest_and_content_digest') {
     throw new FrameworkContractError('contract_shape_invalid', 'Managed package update source must declare a digest-authoritative version catalog.', {
       failure_code: 'agent_package_managed_version_catalog_invalid',
@@ -728,7 +727,6 @@ function normalizeManagedVersionCatalogSource(
     catalog_ref: value.transport === 'json_url'
       ? resolveManifestRelativeSource(catalogRef, manifestUrl)
       : catalogRef,
-    selection_policy: value.selection_policy as AgentPackageManagedVersionCatalogSource['selection_policy'],
     digest_authority: 'manifest_and_content_digest' as const,
   };
 }

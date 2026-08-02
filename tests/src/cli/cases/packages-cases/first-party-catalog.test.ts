@@ -17,6 +17,7 @@ import {
 } from './helpers.ts';
 import { resolveFirstPartyPackageCatalog } from '../../../../../src/modules/connect/agent-package-first-party.ts';
 import { refreshFirstPartyPackageCatalogSnapshot } from '../../../../../src/modules/connect/agent-package-registry-parts/first-party-release-catalog.ts';
+import { normalizeManifest } from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
 import { materializeAgentPackageSkillProjection } from '../../../../../src/modules/connect/agent-package-registry-parts/skill-projection.ts';
 import {
   normalizeOplReleaseChannelTag,
@@ -286,8 +287,23 @@ function writeFirstPartyCatalogFixture(
     },
     codex_model_policy: {
       authority: 'opl-flow',
-      configured_default: 'fixture',
-      override_precedence: [],
+      mode_default: 'auto',
+      configured_default: {
+        model: 'gpt-5.6-sol',
+        reasoning_effort: 'max',
+      },
+      override_precedence: [
+        'explicit_user_override',
+        'opl_flow_recommendation',
+        'fresh_codex_model_catalog',
+        'app_fallback_when_flow_unavailable',
+      ],
+      catalog_policy: {
+        source: 'codex_cli_model_list',
+        prefer_live_default_when_user_has_not_pinned: true,
+        unknown_model_reasoning_effort: 'highest_supported',
+        preserve_unavailable_fixed_selection_until_user_changes_it: true,
+      },
     },
   });
   const workflowPolicySchema = formatJsonPayload({ type: 'object' });
@@ -515,7 +531,6 @@ test('first-party package selection resolves the managed Release Set catalog', (
         kind: 'managed_version_catalog',
         transport: 'opl_oci_channel',
         catalog_ref: 'ghcr.io/gaofeng21cn/one-person-lab-manifest:latest-stable',
-        selection_policy: 'highest_stable',
         digest_authority: 'manifest_and_content_digest',
       },
     });
@@ -531,6 +546,28 @@ test('first-party package selection resolves the managed Release Set catalog', (
       else process.env[key] = value;
     }
   }
+});
+
+test('legacy catalog selection policy is accepted as input but omitted from normalized manifests', () => {
+  const manifestUrl = 'https://packages.example.test/third-party-research/manifest.json';
+  const manifest = normalizeManifest({
+    ...agentPackageManifest(),
+    managed_update_source: {
+      kind: 'managed_version_catalog',
+      transport: 'json_url',
+      catalog_ref: './catalog.json',
+      selection_policy: 'highest_stable',
+      digest_authority: 'manifest_and_content_digest',
+    },
+  }, manifestUrl);
+
+  assert.deepEqual(manifest.managed_update_source, {
+    kind: 'managed_version_catalog',
+    transport: 'json_url',
+    catalog_ref: 'https://packages.example.test/third-party-research/catalog.json',
+    digest_authority: 'manifest_and_content_digest',
+  });
+  assert.equal('selection_policy' in manifest.managed_update_source!, false);
 });
 
 test('release channels normalize stable and preview aliases and reject bare latest', () => {

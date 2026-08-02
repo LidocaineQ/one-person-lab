@@ -344,7 +344,6 @@ export type AgentPackageManagedVersionCatalogSource = {
   kind: 'managed_version_catalog';
   transport: 'json_url' | 'opl_oci_channel';
   catalog_ref: string;
-  selection_policy: 'highest_stable' | 'highest_compatible';
   digest_authority: 'manifest_and_content_digest';
 };
 

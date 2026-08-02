@@ -1314,8 +1314,10 @@ test('MAS Scholar Skills provider manifest separates core Skill exports from mod
   assert.equal(payload.package_id, manifest.package_id);
   assert.equal(payload.package_version, manifest.version);
   assert.equal(payload.source_commit, manifest.codex_surface.carrier_source_commit);
+  const payloadPaths = payload.files.map((entry: Record<string, any>) => entry.path);
+  assert.equal(payloadPaths.filter((filePath: string) => filePath === 'opl-package.json').length, 1);
   assert.deepEqual(
-    payload.files.map((entry: Record<string, any>) => entry.path).sort(),
+    payloadPaths.filter((filePath: string) => filePath !== 'opl-package.json').sort(),
     manifest.content_lock.paths.slice().sort(),
   );
   assert.equal(payload.files.every((entry: Record<string, any>) => /^sha256:[0-9a-f]{64}$/.test(entry.sha256)), true);

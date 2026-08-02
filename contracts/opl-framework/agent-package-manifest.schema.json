@@ -358,12 +358,11 @@
     },
     "managed_update_source": {
       "type": "object",
-      "required": ["kind", "transport", "catalog_ref", "selection_policy", "digest_authority"],
+      "required": ["kind", "transport", "catalog_ref", "digest_authority"],
       "properties": {
         "kind": { "const": "managed_version_catalog" },
         "transport": { "enum": ["json_url", "opl_oci_channel"] },
         "catalog_ref": { "type": "string", "minLength": 1 },
-        "selection_policy": { "enum": ["highest_stable", "highest_compatible"] },
         "digest_authority": { "const": "manifest_and_content_digest" }
       },
       "additionalProperties": false
@@ -630,12 +629,11 @@
           },
           "dependency_source": {
             "type": "object",
-            "required": ["kind", "transport", "catalog_ref", "selection_policy", "digest_authority"],
+            "required": ["kind", "transport", "catalog_ref", "digest_authority"],
             "properties": {
               "kind": { "const": "managed_version_catalog" },
               "transport": { "enum": ["json_url", "opl_oci_channel"] },
               "catalog_ref": { "type": "string", "minLength": 1 },
-              "selection_policy": { "const": "highest_compatible" },
               "digest_authority": { "const": "manifest_and_content_digest" }
             },
             "additionalProperties": false

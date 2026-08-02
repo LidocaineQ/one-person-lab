@@ -326,6 +326,22 @@ function loadAuthority(options) {
     return value;
   });
   assertNoPortablePathCollisions(paths);
+  const ownerPackageManifestRef = manifest.owner_package_manifest_ref === undefined
+    ? null
+    : requireString(manifest.owner_package_manifest_ref, 'Framework owner package manifest ref');
+  const ownerPackageDescriptorRef = manifest.owner_package_descriptor_ref === undefined
+    ? null
+    : requireString(manifest.owner_package_descriptor_ref, 'Framework owner package descriptor ref');
+  if ((ownerPackageManifestRef === null) !== (ownerPackageDescriptorRef === null)) {
+    throw new Error('Framework owner package manifest and descriptor refs must be declared together');
+  }
+  if (ownerPackageManifestRef !== null && ownerPackageDescriptorRef !== null) {
+    assertSafePosixPath(ownerPackageManifestRef, 'Framework owner package manifest ref');
+    assertSafePosixPath(ownerPackageDescriptorRef, 'Framework owner package descriptor ref');
+    if (!paths.includes(ownerPackageDescriptorRef)) {
+      throw new Error('Framework payload allowlist must include the owner package descriptor');
+    }
+  }
   let contentLock = null;
   if (manifest.content_lock !== undefined) {
     const declared = requireObject(manifest.content_lock, 'Framework package content_lock');
@@ -335,13 +351,29 @@ function loadAuthority(options) {
       || !/^sha256:[0-9a-f]{64}$/.test(declared.digest)) {
       throw new Error('Framework package content_lock must use a supported sha256 canonicalization');
     }
-    if (!Array.isArray(declared.paths)
-      || declared.paths.length !== paths.length
-      || declared.paths.some((candidate, index) => candidate !== paths[index])) {
+    if (!Array.isArray(declared.paths)) {
+      throw new Error('Framework package content_lock paths do not match the payload allowlist');
+    }
+    const contentLockPaths = declared.paths.map((candidate, index) => {
+      const value = requireString(candidate, `Framework package content_lock path ${index}`);
+      assertSafePosixPath(value, `Framework package content_lock path ${index}`);
+      return value;
+    });
+    const payloadContentPaths = ownerPackageDescriptorRef === null
+      ? paths
+      : paths.filter((candidate) => candidate !== ownerPackageDescriptorRef);
+    const descriptorOccurrences = ownerPackageDescriptorRef === null
+      ? 0
+      : paths.filter((candidate) => candidate === ownerPackageDescriptorRef).length;
+    if (descriptorOccurrences > 1
+      || contentLockPaths.length !== payloadContentPaths.length
+      || contentLockPaths.some((candidate, index) => candidate !== payloadContentPaths[index])) {
       throw new Error('Framework package content_lock paths do not match the payload allowlist');
     }
     contentLock = {
+      algorithm: declared.algorithm,
       canonicalization: declared.canonicalization,
+      paths: contentLockPaths,
       digest: declared.digest,
     };
   }
@@ -378,6 +410,8 @@ function loadAuthority(options) {
     sourceRoot,
     paths,
     contentLock,
+    ownerPackageManifestRef,
+    ownerPackageDescriptorRef,
     ...sourceAuthority,
     output: path.resolve(path.dirname(options.manifest), outputRef),
   };
@@ -596,6 +630,32 @@ function readSourceSnapshot(options, authority) {
   if (pluginVersion !== authority.packageVersion) {
     throw new Error(`Committed plugin version does not match Framework package version: expected=${authority.packageVersion} actual=${pluginVersion}`);
   }
+  if (authority.ownerPackageDescriptorRef !== null) {
+    const descriptorBytes = blobs.get(authority.ownerPackageDescriptorRef);
+    const [ownerManifestEntry] = allowlistedTreeEntries(
+      options.repo,
+      authority.expectedCommit,
+      '.',
+      [authority.ownerPackageManifestRef],
+    );
+    const ownerManifestBytes = gitBytes(
+      options.repo,
+      ['cat-file', 'blob', ownerManifestEntry.objectId],
+      `Cannot read owner package manifest blob ${ownerManifestEntry.objectId}`,
+    );
+    if (!descriptorBytes.equals(ownerManifestBytes)) {
+      throw new Error('Committed owner package descriptor bytes differ from the canonical owner package manifest');
+    }
+    const descriptor = requireObject(
+      parseJsonBytes(descriptorBytes, 'Committed owner package descriptor'),
+      'Committed owner package descriptor',
+    );
+    if (descriptor.package_id !== authority.packageId
+      || descriptor.version !== authority.packageVersion
+      || JSON.stringify(descriptor.content_lock) !== JSON.stringify(authority.contentLock)) {
+      throw new Error('Committed owner package descriptor identity, version, or content_lock differs from Framework projection');
+    }
+  }
   return { blobs, entries };
 }
 
@@ -608,14 +668,15 @@ function verifyDeclaredContentLock(authority, snapshot, { allowLegacy }) {
     }
     const actual = contentLockDigest(
       authority.contentLock.canonicalization,
-      authority.paths,
+      authority.contentLock.paths,
       snapshot.blobs,
     );
     if (actual !== authority.contentLock.digest) {
       throw new Error(`Exact commit does not match Framework package content_lock: expected=${authority.contentLock.digest} actual=${actual}`);
     }
   }
-  return contentLockDigest(CANONICAL_CONTENT_LOCK, authority.paths, snapshot.blobs);
+  const lockedPaths = authority.contentLock?.paths ?? authority.paths;
+  return contentLockDigest(CANONICAL_CONTENT_LOCK, lockedPaths, snapshot.blobs);
 }
 
 function buildPayload(authority, snapshot) {

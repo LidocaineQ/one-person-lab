@@ -9,6 +9,7 @@ import {
   formatJsonPayload,
   fs,
   os,
+  parseJsonText,
   path,
   runCli,
   runCliAsync,
@@ -149,6 +150,63 @@ test('package lock authority rejects corruption and leaves legacy receipt histor
       writePackageTransaction(emptyLockIndex());
       assert.deepEqual(fs.readFileSync(lockPath), validLockBytes);
       assert.deepEqual(fs.readFileSync(ledgerPath), legacyLedgerBytes);
+    });
+  } finally {
+    fs.rmSync(stateDir, { recursive: true, force: true });
+  }
+});
+
+test('package lock normalization stops propagating legacy catalog selection policies without mutating on read', async () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-selection-policy-state-'));
+  const lockPath = path.join(stateDir, 'agent-package-locks.json');
+  try {
+    await withProcessEnv({ OPL_STATE_DIR: stateDir }, async () => {
+      const legacyIndex = {
+        surface_kind: 'opl_agent_package_lock_index',
+        version: 'opl-agent-package-lock-index.v1',
+        packages: [{
+          surface_kind: 'opl_agent_package_lock',
+          package_id: 'example-package',
+          agent_id: null,
+          lock_ref: 'package-lock-ref:example-package',
+          managed_update_source: {
+            kind: 'managed_version_catalog',
+            transport: 'json_url',
+            catalog_ref: 'https://packages.example.test/catalog.json',
+            selection_policy: 'highest_stable',
+            digest_authority: 'manifest_and_content_digest',
+          },
+          capability_dependencies: [{
+            package_id: 'example-provider',
+            dependency_source: {
+              kind: 'managed_version_catalog',
+              transport: 'json_url',
+              catalog_ref: 'https://packages.example.test/provider-catalog.json',
+              selection_policy: 'highest_compatible',
+              digest_authority: 'manifest_and_content_digest',
+            },
+          }],
+        }],
+      };
+      const legacyBytes = Buffer.from(formatJsonPayload(legacyIndex));
+      fs.mkdirSync(stateDir, { recursive: true });
+      fs.writeFileSync(lockPath, legacyBytes);
+
+      const normalized = readLockIndex() as any;
+      assert.equal(normalized.packages[0].managed_update_source.selection_policy, undefined);
+      assert.equal(
+        normalized.packages[0].capability_dependencies[0].dependency_source.selection_policy,
+        undefined,
+      );
+      assert.deepEqual(fs.readFileSync(lockPath), legacyBytes);
+
+      writePackageTransaction(normalized);
+      const persisted = parseJsonText(fs.readFileSync(lockPath, 'utf8')) as any;
+      assert.equal(persisted.packages[0].managed_update_source.selection_policy, undefined);
+      assert.equal(
+        persisted.packages[0].capability_dependencies[0].dependency_source.selection_policy,
+        undefined,
+      );
     });
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
