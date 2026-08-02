@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -20,6 +20,42 @@ const helperBinaries = [
   'opl-artifact-indexer',
   'opl-state-indexer',
 ];
+
+function writeFetchPreload(fixtureRoot: string, routes: Array<Record<string, unknown>>) {
+  const configFile = path.join(fixtureRoot, 'fetch-fixture.json');
+  const logFile = path.join(fixtureRoot, 'fetch-log.jsonl');
+  const preloadFile = path.join(fixtureRoot, 'fetch-preload.mjs');
+  fs.rmSync(logFile, { force: true });
+  fs.writeFileSync(configFile, JSON.stringify({ logFile, routes }));
+  fs.writeFileSync(preloadFile, [
+    "import fs from 'node:fs';",
+    "const config = JSON.parse(fs.readFileSync(process.env.OPL_TEST_FETCH_FIXTURE, 'utf8'));",
+    'globalThis.fetch = async (input, init = {}) => {',
+    '  const url = String(input);',
+    '  const headers = new Headers(init.headers);',
+    "  const authorization = headers.get('authorization') ?? '';",
+    '  fs.appendFileSync(config.logFile, JSON.stringify({',
+    '    url,',
+    "    accept: headers.get('accept'),",
+    "    bearer: authorization.startsWith('Bearer '),",
+    "  }) + '\\n');",
+    '  const route = config.routes.find((entry) => url.includes(entry.includes));',
+    "  if (!route) return new Response('not found', { status: 404 });",
+    "  const body = route.file ? fs.readFileSync(route.file) : (route.body ?? '');",
+    '  return new Response(body);',
+    '};',
+  ].join('\n'));
+  return {
+    logFile,
+    env: {
+      ...process.env,
+      NODE_OPTIONS: [process.env.NODE_OPTIONS, `--import=${pathToFileURL(preloadFile).href}`]
+        .filter(Boolean)
+        .join(' '),
+      OPL_TEST_FETCH_FIXTURE: configFile,
+    },
+  };
+}
 
 test('native helper prebuild help uses stdlib parser without touching prebuild or cache state', () => {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-prebuild-help-'));
@@ -172,10 +208,9 @@ test('native helper prebuild script restores GHCR OCI archive assets before inst
   const packRoot = path.join(fixtureRoot, 'pack-root');
   const installRoot = path.join(fixtureRoot, 'install-root');
   const stateDir = path.join(fixtureRoot, 'state');
-  const curlLog = path.join(fixtureRoot, 'curl-log.jsonl');
-  const fakeBin = path.join(fixtureRoot, 'bin');
+  const tempRoot = path.join(fixtureRoot, 'tmp');
   fs.mkdirSync(sourceDir, { recursive: true });
-  fs.mkdirSync(fakeBin, { recursive: true });
+  fs.mkdirSync(tempRoot, { recursive: true });
 
   for (const binary of helperBinaries) {
     fs.writeFileSync(path.join(sourceDir, binary), `#!/bin/sh\necho ${binary}\n`, { mode: 0o755 });
@@ -217,27 +252,11 @@ test('native helper prebuild script restores GHCR OCI archive assets before inst
         },
       ],
     };
-    const fakeCurl = path.join(fakeBin, 'curl');
-    fs.writeFileSync(
-      fakeCurl,
-      [
-        '#!/usr/bin/env node',
-        "const fs = require('fs');",
-        "const args = process.argv.slice(2);",
-        `fs.appendFileSync(${JSON.stringify(curlLog)}, JSON.stringify(args) + '\\n');`,
-        "const url = args.find((arg) => arg.startsWith('http://') || arg.startsWith('https://')) || '';",
-        "if (url.includes('/token?')) { process.stdout.write(JSON.stringify({ token: 'fixture-token' })); process.exit(0); }",
-        "if (url.includes('/manifests/')) { process.stdout.write(JSON.stringify(" + JSON.stringify(manifest) + ")); process.exit(0); }",
-        "if (url.includes('/blobs/')) {",
-        "  const outIndex = args.indexOf('-o');",
-        "  if (outIndex < 0) process.exit(2);",
-        `  fs.copyFileSync(${JSON.stringify(archiveOutput.archive_file)}, args[outIndex + 1]);`,
-        "  process.exit(0);",
-        "}",
-        "process.exit(22);",
-      ].join('\n'),
-      { mode: 0o755 },
-    );
+    const fetchFixture = writeFetchPreload(fixtureRoot, [
+      { includes: '/token?', body: JSON.stringify({ token: 'fixture-token' }) },
+      { includes: '/manifests/', body: JSON.stringify(manifest) },
+      { includes: '/blobs/', file: archiveOutput.archive_file },
+    ]);
 
     const install = spawnSync(process.execPath, [
       path.join(repoRoot, 'scripts/native-helper-prebuild.mjs'),
@@ -252,8 +271,8 @@ test('native helper prebuild script restores GHCR OCI archive assets before inst
       cwd: repoRoot,
       encoding: 'utf8',
       env: {
-        ...process.env,
-        PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
+        ...fetchFixture.env,
+        TMPDIR: tempRoot,
       },
     });
     assert.equal(install.status, 0, install.stderr);
@@ -262,7 +281,17 @@ test('native helper prebuild script restores GHCR OCI archive assets before inst
     assert.equal(installOutput.restore_attempts[0].status, 'restored_oci_archive');
     assert.equal(installOutput.restore_attempts[0].tag, `${targetTriple}-${crateVersion}`);
     assert.equal(fs.existsSync(path.join(installOutput.cache_dir, 'opl-state-indexer')), true);
-    assert.match(fs.readFileSync(curlLog, 'utf8'), /one-person-lab-native-helper/);
+    const requestLog = fs.readFileSync(fetchFixture.logFile, 'utf8');
+    const requests = requestLog.trim().split('\n').map((line) => parseJsonText(line) as any);
+    assert.equal(requests.find((entry) => entry.url.includes('/token?'))?.bearer, false);
+    assert.equal(requests.find((entry) => entry.url.includes('/manifests/'))?.bearer, true);
+    assert.match(
+      requests.find((entry) => entry.url.includes('/manifests/'))?.accept ?? '',
+      /application\/vnd\.oci\.image\.manifest\.v1\+json/,
+    );
+    assert.equal(requests.find((entry) => entry.url.includes('/blobs/'))?.bearer, true);
+    assert.equal(requestLog.includes('fixture-token'), false);
+    assert.deepEqual(fs.readdirSync(tempRoot), []);
   } finally {
     fs.rmSync(fixtureRoot, { recursive: true, force: true });
   }
