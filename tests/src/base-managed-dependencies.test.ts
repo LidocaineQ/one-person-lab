@@ -195,7 +195,9 @@ test('Temporal stable cohort reports exact installed SDK package drift against i
   const expectedDriftedPackages = TEMPORAL_SDK_PACKAGE_NAMES.filter((packageName) => (
     installedVersions[packageName.slice('@temporalio/'.length)] !== cohort.sdk.packages[packageName]
   ));
-  const completeInstallation = Object.values(installedVersions).every(Boolean);
+  const completeInstallation = TEMPORAL_SDK_PACKAGE_NAMES.every((packageName) => (
+    Boolean(installedVersions[packageName.slice('@temporalio/'.length)])
+  ));
   const expectedCurrentness = !completeInstallation
     ? 'missing'
     : expectedDriftedPackages.length === 0
