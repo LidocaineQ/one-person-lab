@@ -325,3 +325,98 @@ test('package source projection gate verifies every capability Package ordered c
     (error: unknown) => (error as { code?: string }).code === 'content_lock_drift',
   );
 });
+
+test('package source projection gate binds one regular owner descriptor outside capability content-lock paths', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-owner-descriptor-projection-gate-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const ownerRoot = path.join(root, 'owner');
+  const frameworkRoot = path.join(root, 'framework');
+  const packageId = 'mas-scholar-skills';
+  const version = '0.2.23';
+  const repoUrl = 'https://github.com/example/mas-scholar-skills.git';
+  const lockPaths = ['.codex-plugin/plugin.json', 'skills/mas-scholar-skills/SKILL.md'];
+  writeJson(path.join(ownerRoot, lockPaths[0]), { name: packageId, version });
+  fs.mkdirSync(path.dirname(path.join(ownerRoot, lockPaths[1])), { recursive: true });
+  fs.writeFileSync(path.join(ownerRoot, lockPaths[1]), '# Scholar Skills\n');
+  const lockHash = crypto.createHash('sha256');
+  for (const declaredPath of lockPaths) {
+    const pathBytes = Buffer.from(declaredPath);
+    const fileBytes = fs.readFileSync(path.join(ownerRoot, declaredPath));
+    const pathLength = Buffer.allocUnsafe(8);
+    const fileLength = Buffer.allocUnsafe(8);
+    pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
+    fileLength.writeBigUInt64BE(BigInt(fileBytes.length));
+    lockHash.update(pathLength);
+    lockHash.update(pathBytes);
+    lockHash.update(fileLength);
+    lockHash.update(fileBytes);
+  }
+  const contentLock = {
+    algorithm: 'sha256',
+    canonicalization: 'ordered_path_length_file_length_bytes',
+    paths: lockPaths,
+    digest: `sha256:${lockHash.digest('hex')}`,
+  };
+  const ownerPackageManifestRef = 'contracts/owner-package.json';
+  const ownerPackageDescriptorRef = 'opl-package.json';
+  const ownerPackage = { package_id: packageId, version, content_lock: contentLock };
+  writeJson(path.join(ownerRoot, ownerPackageManifestRef), ownerPackage);
+  writeJson(path.join(ownerRoot, ownerPackageDescriptorRef), ownerPackage);
+  git(ownerRoot, ['init', '-q']);
+  git(ownerRoot, ['config', 'user.name', 'OPL Test']);
+  git(ownerRoot, ['config', 'user.email', 'test@example.com']);
+  git(ownerRoot, ['add', '.']);
+  git(ownerRoot, ['commit', '-qm', 'portable owner descriptor']);
+  const head = git(ownerRoot, ['rev-parse', 'HEAD']);
+  git(ownerRoot, ['tag', '-a', `v${version}`, '-m', `v${version}`]);
+
+  const manifestPath = path.join(frameworkRoot, `contracts/opl-framework/packages/${packageId}.json`);
+  const payloadRef = `payloads/${packageId}-${version}.json`;
+  writeJson(manifestPath, {
+    package_id: packageId,
+    version,
+    source_repo: repoUrl,
+    content_lock: contentLock,
+    owner_package_manifest_ref: ownerPackageManifestRef,
+    owner_package_descriptor_ref: ownerPackageDescriptorRef,
+    codex_surface: { plugin_payload_manifest_url: payloadRef, carrier_source_commit: head },
+  });
+  const payloadPath = path.join(path.dirname(manifestPath), payloadRef);
+  const payloadPaths = [lockPaths[0], ownerPackageDescriptorRef, lockPaths[1]];
+  writeJson(payloadPath, {
+    package_id: packageId,
+    package_version: version,
+    source_repo: repoUrl,
+    source_commit: head,
+    source_root: '.',
+    files: payloadPaths.map((declaredPath) => ({
+      path: declaredPath,
+      mode: '100644',
+      source_url: `https://raw.githubusercontent.com/example/mas-scholar-skills/${head}/${declaredPath}`,
+      sha256: digest(path.join(ownerRoot, declaredPath)),
+    })),
+  });
+  const spec = {
+    package_id: packageId,
+    repo_url: repoUrl,
+    package_manifest_ref: `contracts/opl-framework/packages/${packageId}.json`,
+    owner_package_manifest_ref: ownerPackageManifestRef,
+    owner_plugin_manifest_ref: lockPaths[0],
+    owner_manifest_kind: 'capability_package',
+  };
+
+  const result = validatePackageSourceProjection({ frameworkRoot, spec, ownerRepoPath: ownerRoot });
+  assert.equal(result.status, 'validated');
+  assert.equal(result.file_count, 3);
+
+  const payload = JSON.parse(fs.readFileSync( // reuse-first: allow local generated fixture parser.
+    payloadPath,
+    'utf8',
+  ));
+  payload.files[1].mode = '100755';
+  writeJson(payloadPath, payload);
+  assert.throws(
+    () => validatePackageSourceProjection({ frameworkRoot, spec, ownerRepoPath: ownerRoot }),
+    (error: unknown) => (error as { code?: string }).code === 'payload_source_mode_mismatch',
+  );
+});
