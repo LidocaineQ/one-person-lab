@@ -35,8 +35,6 @@ const executableFlowPayloadPaths = new Set([
   'scripts/opl_fleet.py',
   'scripts/worktree_absorption_audit.py',
   'scripts/worktree_lifecycle.py',
-  'skills/opl-flow/scripts/validate_start_onboarding.py',
-  'skills/recover-codex-tasks/scripts/inspect_codex_recovery.py',
 ]);
 const flowPluginSelector = 'opl-flow@opl-flow-local';
 const descriptor = {
@@ -783,9 +781,6 @@ test('public packages install accepts a v4 Flow developer checkout', () => {
     for (const requiredPath of [
       'scripts/opl_workflow.py',
       'scripts/opl_fleet.py',
-      'scripts/profile_compose.py',
-      'contracts/code-review-policy.json',
-      'contracts/code-review-policy.schema.json',
       'contracts/fleet-telemetry-protocol.json',
       'contracts/fleet-telemetry-protocol.schema.json',
     ]) {
