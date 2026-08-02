@@ -52,9 +52,8 @@
     "scripts/compile-opl-flow-capability-projections.mjs"
   ],
   "scripts": {
-    "build": "npm run cli:surface:generate && tsc -p tsconfig.build.json",
-    "typecheck": "npm run cli:surface:generate && tsc --noEmit",
-    "cli:surface:generate": "node --experimental-strip-types ./scripts/generate-cli-command-surface.mjs",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
     "prepare": "npm run build",
     "native:build": "cargo build --workspace",
     "native:cache": "node ./scripts/native-helper-cache.mjs",

@@ -13,7 +13,8 @@ import {
 } from './modules/help-output.ts';
 import { buildUsageError } from './modules/cli-errors.ts';
 import { printJson, type CliOutputStream } from './modules/cli-output.ts';
-import { buildLazyCommandSpecs } from './modules/lazy-command-registry.ts';
+import { buildInternalCommandSpecs } from './cases/private-command-specs.ts';
+import { buildPublicCommandSpecs } from './cases/public-command-specs.ts';
 
 async function runCodexPassthroughHandled(args: string[]) {
   const runtimeHelpers = await import('./modules/runtime-helpers.ts');
@@ -129,7 +130,9 @@ export async function main(options: CliMainOptions = {}) {
     return contractsPromise;
   };
 
-  const publicCommandSpecs = buildLazyCommandSpecs(parsedInput, loadContracts);
+  const contracts = await loadContracts();
+  const internalCommandSpecs = buildInternalCommandSpecs(parsedInput, () => contracts);
+  const publicCommandSpecs = buildPublicCommandSpecs(internalCommandSpecs, () => contracts);
   const inputTokens = parsedInput.command ? [parsedInput.command, ...parsedInput.args] : [];
 
   if (inputTokens.length === 0) {

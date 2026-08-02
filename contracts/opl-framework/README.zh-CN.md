@@ -94,7 +94,7 @@ latest event id；Full 还必须绑定精确 source checkpoint run id。两个 s
 - `evidence-ledger-event.schema.json`：raw evidence、provider trace、replay、receipt ledger、typed blocker group、soak、no-regression、cleanup 与 diagnostic refs 的 passive audit-only event envelope。
 - `observability-semantic-conventions-contract.json`：OPL Ledger / Runway / Console 共享的 trace、metric、log/event 语义词汇，固定 `stage_run_id`、`attempt_id`、`domain_id`、`owner_id`、`route_ref`、`receipt_ref`、`typed_blocker_ref`、`workflow_id`、`task_queue`、`generation`、`source_fingerprint` 等 refs-only 字段；它不创建私有 ledger UI，不保存 payload body，不写 domain truth，不创建 owner receipt / typed blocker，也不声明 readiness。
 - `cli-command-registry.json`：受保护 CLI 的 canonical metadata registry，记录 parser adapter、options、output schema ref 与 authority boundary。command spec 直接绑定该 metadata，不再内联重复；registry 不执行命令，也不声明 readiness。
-- `src/entrypoints/cli/command-surface-manifest.ts`：完整 CLI surface 的生成式 metadata-only registry。`npm run cli:surface:generate` 从 executable builder 派生命令条目；`main.ts` 只有在命令选定后才加载这些 builder。
+- `src/entrypoints/cli/main.ts`：直接从 executable command builder（`private-command-specs.ts` / `public-command-specs.ts`）构建完整 CLI surface，不再维护生成式 metadata-only 镜像。
 
 ### Golden Path
 

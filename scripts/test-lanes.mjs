@@ -122,7 +122,6 @@ const fastTestFiles = [
   'tests/src/native-helper-family-smoke.test.ts',
   'tests/src/native-helper-prebuild.test.ts',
   'tests/src/cli/cases/cli-broken-pipe.test.ts',
-  'tests/src/cli/cases/cli-command-lazy-registry.test.ts',
   'tests/src/cli/cases/family-manifest-fixtures.test.ts',
   'tests/src/cli/cases/read-only-cli-invocation.test.ts',
   'tests/src/standard-agent-registry-contract-boundaries.test.ts',
@@ -525,13 +524,6 @@ const commandHandlers = {
 
 function runLane(laneName) {
   const steps = requireLane(laneName);
-  const generationResult = spawnStep(
-    process.execPath,
-    ['--experimental-strip-types', 'scripts/generate-cli-command-surface.mjs'],
-    { laneName, stepIndex: -1, stepKind: 'cli:surface:generate' },
-    { env: createTestStepEnv() },
-  );
-  exitOnFailure(generationResult);
   steps.forEach((step, index) => runLaneStep(laneName, step, index));
 }
 
