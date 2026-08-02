@@ -13,9 +13,18 @@ import {
 import type { AgentPackageConfiguredCodexPluginCarrierDescriptor } from './types.ts';
 
 const FLOW_PACKAGE_ID = 'opl-flow';
-const LEGACY_SOURCE = 'gaofeng21cn/opl-skills';
 const LEGACY_SOURCE_TYPE = 'github';
-const LEGACY_SOURCE_URL = 'https://github.com/gaofeng21cn/opl-skills.git';
+const LEGACY_SOURCES = [
+  {
+    source: 'gaofeng21cn/opl-skills',
+    sourceUrl: 'https://github.com/gaofeng21cn/opl-skills.git',
+  },
+  {
+    source: 'gaofeng21cn/codex-skills-public',
+    sourceUrl: 'https://github.com/gaofeng21cn/codex-skills-public.git',
+  },
+] as const;
+const LEGACY_SOURCE = LEGACY_SOURCES[0].source;
 const MIGRATED_SKILL_IDS = [
   'develop-and-deliver',
   'task-mode-gate',
@@ -90,10 +99,10 @@ function readSkillLock(lockPath: string, targetPathsPresent: boolean) {
 
 function exactLegacyEntry(skillId: string, value: unknown) {
   return isRecord(value)
-    && value.source === LEGACY_SOURCE
     && value.sourceType === LEGACY_SOURCE_TYPE
-    && value.sourceUrl === LEGACY_SOURCE_URL
-    && value.skillPath === `skills/${skillId}/SKILL.md`;
+    && value.skillPath === `skills/${skillId}/SKILL.md`
+    && LEGACY_SOURCES.some((source) =>
+      value.source === source.source && value.sourceUrl === source.sourceUrl);
 }
 
 function writeFileCas(filePath: string, expected: Buffer, next: Buffer, failureCode: string) {

@@ -37,6 +37,10 @@ const executableFlowPayloadPaths = new Set([
   'scripts/worktree_lifecycle.py',
 ]);
 const flowPluginSelector = 'opl-flow@opl-flow-local';
+const legacySourceUrls: Record<string, string> = {
+  'gaofeng21cn/opl-skills': 'https://github.com/gaofeng21cn/opl-skills.git',
+  'gaofeng21cn/codex-skills-public': 'https://github.com/gaofeng21cn/codex-skills-public.git',
+};
 const descriptor = {
   packageId: 'opl-flow',
   carrier: {
@@ -162,8 +166,12 @@ process.exit(result.status ?? 1);
   return binary;
 }
 
-function publicLifecycleFixture(label: string, source = 'gaofeng21cn/opl-skills') {
-  const state = fixture(`public-${label}`, source);
+function publicLifecycleFixture(
+  label: string,
+  source = 'gaofeng21cn/opl-skills',
+  sourceUrl = legacySourceUrls[source],
+) {
+  const state = fixture(`public-${label}`, source, sourceUrl);
   const codex = createFakeCodexPluginManagerFixture(path.join(state.root, 'fake-codex'));
   const commandLog = path.join(state.root, 'codex-commands.log');
   const observedCodex = writeObservedCodexPluginManager({ root: state.root, delegate: codex.codexPath });
@@ -359,7 +367,11 @@ function projectStaleInstalledFlowDescriptor(surface: any) {
   }
 }
 
-function fixture(label: string, source = 'gaofeng21cn/opl-skills') {
+function fixture(
+  label: string,
+  source = 'gaofeng21cn/opl-skills',
+  sourceUrl = legacySourceUrls[source],
+) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `opl-flow-skill-migration-${label}-`));
   const agentsRoot = path.join(root, '.agents');
   const skillsRoot = path.join(agentsRoot, 'skills');
@@ -378,7 +390,7 @@ function fixture(label: string, source = 'gaofeng21cn/opl-skills') {
     sourceType: 'github',
     sourceUrl: skillId === 'unrelated-skill'
       ? 'https://github.com/example/unrelated.git'
-      : 'https://github.com/gaofeng21cn/opl-skills.git',
+      : sourceUrl,
     skillPath: `skills/${skillId}/SKILL.md`,
   }]));
   fs.mkdirSync(agentsRoot, { recursive: true });
@@ -464,6 +476,51 @@ test('OPL Flow migration removes exact legacy OPL Skills projections before nati
     }
     const lock = JSON.parse(fs.readFileSync(state.lockPath, 'utf8'));
     assert.deepEqual(Object.keys(lock.skills), ['unrelated-skill']);
+  } finally {
+    removeFixtureTree(state.root);
+  }
+});
+
+test('OPL Flow migration accepts the exact pre-rename codex-skills-public identity', () => {
+  const state = fixture('pre-rename-source', 'gaofeng21cn/codex-skills-public');
+  try {
+    const execution = runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration({
+      descriptor,
+      action: 'update',
+      env: state.env,
+      runner: runnerFor({ pluginSource: state.pluginSource }),
+    });
+    assert.equal(execution.legacySkillMigration.status, 'migrated');
+    assert.deepEqual(execution.legacySkillMigration.skill_ids, skillIds);
+    for (const skillId of skillIds) {
+      assert.equal(fs.existsSync(path.join(state.skillsRoot, skillId)), false);
+    }
+  } finally {
+    removeFixtureTree(state.root);
+  }
+});
+
+test('OPL Flow migration rejects a mixed legacy source identity', () => {
+  const state = fixture(
+    'mixed-source-identity',
+    'gaofeng21cn/codex-skills-public',
+    legacySourceUrls['gaofeng21cn/opl-skills'],
+  );
+  const before = fs.readFileSync(state.lockPath);
+  try {
+    assert.throws(
+      () => runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration({
+        descriptor,
+        action: 'update',
+        env: state.env,
+        runner: runnerFor({ pluginSource: state.pluginSource }),
+      }),
+      (error: any) => error?.details?.failure_code === 'opl_flow_legacy_skill_source_conflict',
+    );
+    assert.deepEqual(fs.readFileSync(state.lockPath), before);
+    for (const skillId of skillIds) {
+      assert.equal(fs.existsSync(path.join(state.skillsRoot, skillId)), true);
+    }
   } finally {
     removeFixtureTree(state.root);
   }
