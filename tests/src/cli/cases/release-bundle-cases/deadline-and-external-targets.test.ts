@@ -16,7 +16,7 @@ import {
   assertTypedContractFailure,
 } from './fixtures.ts';
 
-test('resume_standard exactly reconciles a Standard unknown after deadline without refreshing or advancing state', () => {
+test('resume_standard reconciles a Standard unknown before rotating the expired execution window', () => {
   const fixture = createFixture({ admitStandard: false });
   try {
     const bundleDigest = fixture.frozen.release_bundle_freeze.bundle_digest;
@@ -74,6 +74,17 @@ test('resume_standard exactly reconciles a Standard unknown after deadline witho
         now: '2026-07-21T00:11:00.000Z',
       }),
       /immutable and does not match/,
+    );
+    assertTypedContractFailure(
+      () => admitReleaseBundleOperation({
+        ...resume,
+        operationStartedAt: '2026-07-21T00:11:00.000Z',
+        operationDeadlineAt: '2026-07-21T00:41:00.000Z',
+        bundleDigest,
+        storeRoot: fixture.storeRoot,
+        now: '2026-07-21T00:11:00.000Z',
+      }),
+      /active Release Bundle unknown outcome blocks every ordinary mutation/,
     );
     assert.equal(
       readReleaseBundleStatus({ bundleDigest, storeRoot: fixture.storeRoot })
@@ -134,9 +145,23 @@ test('resume_standard exactly reconciles a Standard unknown after deadline witho
     assert.equal(status.active_unknown_markers.length, 0);
     assert.equal(status.tracks.standard.built, false);
     assert.equal(status.latest_eligible, false);
+    const rotated = admitReleaseBundleOperation({
+      ...resume,
+      operationStartedAt: '2026-07-21T00:11:00.000Z',
+      operationDeadlineAt: '2026-07-21T00:41:00.000Z',
+      bundleDigest,
+      storeRoot: fixture.storeRoot,
+      now: '2026-07-21T00:11:00.000Z',
+    }).release_bundle_operation_admit;
+    assert.equal(rotated.status, 'complete');
+    assert.equal(rotated.receipt.details.resume_window_rotated, true);
+    assert.equal(rotated.operation_control.operation_id, expiringStandard.operationId);
+    assert.equal(rotated.operation_control.operation_deadline_at, '2026-07-21T00:41:00.000Z');
     assertTypedContractFailure(
       () => reconcileReleaseBundle({
         ...resume,
+        operationStartedAt: '2026-07-21T00:11:00.000Z',
+        operationDeadlineAt: '2026-07-21T00:41:00.000Z',
         bundleDigest,
         executorReceiptPath: completeObservation,
         storeRoot: fixture.storeRoot,
@@ -151,7 +176,7 @@ test('resume_standard exactly reconciles a Standard unknown after deadline witho
         storeRoot: fixture.storeRoot,
         now: '2026-07-21T00:12:00.000Z',
       }),
-      /absolute operation deadline has elapsed/,
+      /cannot rotate an active Standard operation window/,
     );
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });

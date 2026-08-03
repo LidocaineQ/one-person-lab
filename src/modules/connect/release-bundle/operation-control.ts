@@ -14,6 +14,7 @@ import {
   readStagedReleaseBundleAssets,
   readStoredReleaseBundle,
   recordReleaseBundleOperation,
+  replaceReleaseBundleOperationControl,
   releaseBundleLegacyCheckpointReadOnly,
   releaseBundleStorePaths,
   withReleaseBundleStateLock,
@@ -122,6 +123,46 @@ function assertExactControl(
   }
 }
 
+function assertResumeWindowRotation(
+  current: ReleaseBundleOperationControl,
+  replacement: ReleaseBundleOperationControl,
+  now?: string | Date,
+) {
+  if (!releaseBundleOperationDeadlineElapsed(current, now)) {
+    fail('resume_standard cannot rotate an active Standard operation window.', {
+      operation_id: current.operation_id,
+      operation_deadline_at: current.operation_deadline_at,
+    });
+  }
+  if (current.bundle_digest !== replacement.bundle_digest
+    || current.operation_id !== replacement.operation_id
+    || current.operation_kind !== 'standard'
+    || replacement.operation_kind !== 'standard'
+    || current.track !== 'standard'
+    || replacement.track !== 'standard') {
+    fail('resume_standard window rotation must preserve the exact Standard identity.', {
+      current_control_digest: current.control_digest,
+      replacement_control_digest: replacement.control_digest,
+    });
+  }
+  const startedAt = Date.parse(replacement.operation_started_at);
+  const deadlineAt = Date.parse(replacement.operation_deadline_at);
+  const observedAt = nowMilliseconds(now);
+  if (startedAt < Date.parse(current.operation_deadline_at) || startedAt > observedAt) {
+    fail('resume_standard window rotation must start after the expired window and no later than the current clock.', {
+      previous_operation_deadline_at: current.operation_deadline_at,
+      replacement_operation_started_at: replacement.operation_started_at,
+      observed_at: new Date(observedAt).toISOString(),
+    });
+  }
+  if (deadlineAt <= observedAt) {
+    fail('resume_standard replacement window must still be active.', {
+      replacement_operation_deadline_at: replacement.operation_deadline_at,
+      observed_at: new Date(observedAt).toISOString(),
+    });
+  }
+}
+
 function assertNoActiveUnknownOutcome(paths: StorePaths) {
   const markers = listReleaseBundleUnknownOutcomes(paths);
   if (markers.length > 0) {
@@ -202,16 +243,24 @@ function admitReleaseBundleOperationUnlocked(
   if (!current && canonicalOperation === 'append_full') {
     assertAppendFullAdmission(stored.paths, stored.bundle, candidate);
   }
-  if (current) assertExactControl(current, candidate, input.releaseOperation);
-  assertDeadlineActive(current ?? candidate, input.now);
-
-  const installed = current
-    ? { status: 'idempotent' as const }
-    : installReleaseBundleOperationControl(stored.paths, candidate);
-  const control = current ?? candidate;
+  let installed: { status: 'created' | 'idempotent' | 'replaced' };
+  let control: ReleaseBundleOperationControl;
+  if (current && input.releaseOperation === 'resume_standard'
+    && !canonicalJsonBytes(current).equals(canonicalJsonBytes(candidate))) {
+    assertResumeWindowRotation(current, candidate, input.now);
+    installed = replaceReleaseBundleOperationControl(stored.paths, current, candidate);
+    control = candidate;
+  } else {
+    if (current) assertExactControl(current, candidate, input.releaseOperation);
+    assertDeadlineActive(current ?? candidate, input.now);
+    installed = current
+      ? { status: 'idempotent' as const }
+      : installReleaseBundleOperationControl(stored.paths, candidate);
+    control = current ?? candidate;
+  }
   const receipt = releaseBundleOperationReceipt({
     operation: 'operation_admit',
-    status: installed.status === 'created' ? 'complete' : 'idempotent',
+    status: installed.status === 'idempotent' ? 'idempotent' : 'complete',
     bundle_digest: input.bundleDigest,
     track: control.track,
     executor: null,
@@ -222,7 +271,9 @@ function admitReleaseBundleOperationUnlocked(
     details: {
       control_digest: control.control_digest,
       deadline_frozen_once: true,
-      deadline_refresh_allowed: false,
+      deadline_refresh_allowed: input.releaseOperation === 'resume_standard',
+      resume_window_rotated: installed.status === 'replaced',
+      previous_control_digest: installed.status === 'replaced' ? current?.control_digest ?? null : null,
       resume_of: input.releaseOperation === 'resume_standard' ? control.operation_id : null,
       append_full_independent_deadline: input.releaseOperation === 'append_full',
     },
