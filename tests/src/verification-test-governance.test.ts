@@ -19,7 +19,7 @@ const structuralGatePatterns = [
   /OPL_QUALITY_DETAILS_TIMEOUT_SECONDS/,
   /quality_details_timeout_seconds="\$\{OPL_QUALITY_DETAILS_TIMEOUT_SECONDS:-240\}"/,
   /run_quality_details_with_timeout\(\)/,
-  /process\.exit\(124\)/,
+  /node \.\/scripts\/run-quality-details-with-timeout\.mjs/,
   /sentrux gate \./,
   /Compare ref \$\{compare_ref\} is unavailable; using HEAD\^ for quality details\./,
   /Sentrux baseline regression reported structural drift/,
@@ -27,6 +27,15 @@ const structuralGatePatterns = [
   /default structure lane is advisory/,
   /OPL_STRUCTURAL_QUALITY_STRICT=1/,
   /sentrux check \./,
+];
+
+const qualityDetailsTimeoutHelperPatterns = [
+  /const \[timeoutRaw, qualityDetailsBin, compareRef, limit, focus\] = process\.argv\.slice\(2\)/,
+  /spawnSync\(/,
+  /timeout: timeoutSeconds \* 1000/,
+  /killSignal: 'SIGKILL'/,
+  /result\.error\?\.code === 'ETIMEDOUT'/,
+  /process\.exit\(124\)/,
   /'quality',\s*'details',\s*'--root',\s*'\.'/,
   /'--compare-ref',\s*compareRef/,
 ];
@@ -139,6 +148,10 @@ function assertFilePatterns(relativePath: string, patterns: RegExp[]) {
 
 test('local structural quality gate emits compare-ref quality details on Sentrux failures', () => {
   assertFilePatterns('scripts/run-structural-quality-gate.sh', structuralGatePatterns);
+  assertFilePatterns('scripts/run-quality-details-with-timeout.mjs', qualityDetailsTimeoutHelperPatterns);
+  const shell = read('scripts/run-structural-quality-gate.sh');
+  assert.doesNotMatch(shell, /spawnSync\(/);
+  assert.doesNotMatch(shell, /<<'NODE'/);
 });
 
 test('GitHub verification workflow runs daily or manually without per-change duplication', () => {
