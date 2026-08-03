@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
 import { assertJsonSchemaPayload } from '../../../kernel/schema-registry.ts';
+import { readLocalCodexDefaultsIfAvailable } from '../../../kernel/local-codex-defaults.ts';
 import { resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
 import {
   syncOplCompanionSkills,
@@ -70,7 +71,7 @@ type OplFlowPolicy = {
   historical_fingerprints: HistoricalFingerprints;
   codex_model_policy: Omit<
     AgentPackageCodexModelPolicyProjection,
-    'surface_kind' | 'role'
+    'surface_kind' | 'configured_default_role' | 'effective_selection' | 'role'
   >;
   installation_convergence: Record<string, unknown> | null;
 };
@@ -121,9 +122,27 @@ function normalizeCodexModelPolicy(
 function codexModelPolicyProjection(
   policy: OplFlowPolicy['codex_model_policy'],
 ): AgentPackageCodexModelPolicyProjection {
+  const localSelection = readLocalCodexDefaultsIfAvailable();
   return {
     surface_kind: 'opl_codex_model_policy_projection.v1',
     ...structuredClone(policy),
+    configured_default_role: 'recommendation_only',
+    effective_selection: localSelection
+      ? {
+          mode: 'fixed',
+          model: localSelection.model,
+          reasoning_effort: localSelection.reasoning_effort,
+          source: 'local_codex_config',
+          overrides_recommendation: localSelection.model !== policy.configured_default.model
+            || localSelection.reasoning_effort !== policy.configured_default.reasoning_effort,
+        }
+      : {
+          mode: 'unavailable',
+          model: null,
+          reasoning_effort: null,
+          source: 'local_codex_config_unavailable',
+          overrides_recommendation: null,
+        },
     role: 'package_recommendation_consumed_from_framework_projection',
   };
 }
