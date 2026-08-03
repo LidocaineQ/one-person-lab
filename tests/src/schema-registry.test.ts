@@ -25,6 +25,10 @@ const referenceDesignPatternPacketSchemaRef =
   'contracts/opl-framework/reference-design-pattern-packet.schema.json';
 const sourceMaterialIngestContractRef =
   'contracts/opl-framework/source-material-ingest-contract.json';
+const reviewerSnapshotRequestSchemaRef =
+  'contracts/opl-framework/reviewer-input-snapshot-materialization-request.schema.json';
+const reviewerSnapshotManifestSchemaRef =
+  'contracts/opl-framework/reviewer-input-snapshot-manifest.schema.json';
 
 function readJson(relativePath: string): Record<string, unknown> {
   return parseJsonText(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')) as Record<string, unknown>;
@@ -142,6 +146,73 @@ test('Ajv schema registry rejects invalid payloads through the contract schema',
     () => assertJsonSchemaPayload(progressDeltaReceiptSchema(), invalidReceipt),
     FrameworkContractError,
   );
+});
+
+test('reviewer snapshot schemas accept controller lanes without breaking fixed-stage payloads', () => {
+  const digest = `sha256:${'a'.repeat(64)}`;
+  const authorityRef = {
+    kind: 'mas_review_input_snapshot_authority',
+    ref: 'workspace://study/review-authority.json',
+    size_bytes: 1,
+    sha256: digest,
+  };
+  const request = {
+    surface_kind: 'opl_reviewer_input_snapshot_materialization_request',
+    schema_version: 2,
+    owner_authority_ref: authorityRef,
+    producer_attempt_ref: 'opl://stage_attempts/producer',
+    execution_content_binding_sha256: digest,
+    review_lane: 'medical',
+    workspace_root: '/workspace',
+    members: [{
+      member_id: 'review-input',
+      source_ref: 'review-input.bin',
+      sha256: digest,
+      size_bytes: 1,
+    }],
+  };
+  const manifest = {
+    surface_kind: 'opl_reviewer_input_snapshot_manifest',
+    schema_version: 3,
+    owner_authority_ref: authorityRef,
+    producer_attempt_ref: 'opl://stage_attempts/producer',
+    execution_content_binding_sha256: digest,
+    review_lane: 'medical',
+    members: [{
+      member_id: 'review-input',
+      sha256: digest,
+      size_bytes: 1,
+      immutable_ref: {
+        kind: 'opl_reviewer_input_snapshot_member',
+        ref: 'snapshot://review-input.bin',
+        size_bytes: 1,
+        sha256: digest,
+      },
+    }],
+  };
+  const requestSchema = {
+    schemaId: 'opl.reviewer_input_snapshot_materialization_request.v2',
+    schema: readJson(reviewerSnapshotRequestSchemaRef),
+    sourceRef: reviewerSnapshotRequestSchemaRef,
+  };
+  const manifestSchema = {
+    schemaId: 'opl.reviewer_input_snapshot_manifest.v3',
+    schema: readJson(reviewerSnapshotManifestSchemaRef),
+    sourceRef: reviewerSnapshotManifestSchemaRef,
+  };
+
+  assert.equal(validateJsonSchemaPayload(requestSchema, request).ok, true);
+  assert.equal(validateJsonSchemaPayload(manifestSchema, manifest).ok, true);
+
+  const legacyRequest = structuredClone(request);
+  const legacyManifest = structuredClone(manifest);
+  delete (legacyRequest as Partial<typeof request>).review_lane;
+  delete (legacyManifest as Partial<typeof manifest>).review_lane;
+  assert.equal(validateJsonSchemaPayload(requestSchema, legacyRequest).ok, true);
+  assert.equal(validateJsonSchemaPayload(manifestSchema, legacyManifest).ok, true);
+
+  assert.equal(validateJsonSchemaPayload(requestSchema, { ...request, review_lane: '' }).ok, false);
+  assert.equal(validateJsonSchemaPayload(manifestSchema, { ...manifest, review_lane: '' }).ok, false);
 });
 
 test('Ajv schema registry validates refs-only ReferenceDesignPatternPacket authority', () => {
