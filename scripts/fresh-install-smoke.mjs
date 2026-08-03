@@ -161,7 +161,7 @@ function assertCodexBlockedInitializeState(output) {
   assertInitializeState(output, {
     phase: 'environment',
     blocking: ['codex', 'codex_config'],
-    maintenance: ['domain_modules', 'family_runtime_provider', 'recommended_skills'],
+    maintenance: ['domain_modules', 'family_runtime_provider'],
     conditionalMaintenance: ['native_helpers'],
     readyToLaunch: false,
     familyRuntimeProviderBlocking: true,
@@ -212,7 +212,7 @@ function compatibleCodexMissingModules(root) {
   assertInitializeState(output, {
     phase: 'environment',
     blocking: ['codex_config'],
-    maintenance: ['domain_modules', 'family_runtime_provider', 'recommended_skills'],
+    maintenance: ['domain_modules', 'family_runtime_provider'],
     conditionalMaintenance: ['native_helpers'],
     readyToLaunch: false,
     familyRuntimeProviderBlocking: true,
@@ -240,7 +240,7 @@ function readyBaseline(root) {
   assertInitializeState(output, {
     phase: 'environment',
     blocking: [],
-    maintenance: ['family_runtime_provider', 'recommended_skills'],
+    maintenance: ['family_runtime_provider'],
     conditionalMaintenance: ['native_helpers'],
     readyToLaunch: true,
     familyRuntimeProviderBlocking: true,

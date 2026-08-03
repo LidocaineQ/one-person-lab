@@ -97,8 +97,7 @@
       ],
       "expected_maintenance_items": [
         "domain_modules",
-        "family_runtime_provider",
-        "recommended_skills"
+        "family_runtime_provider"
       ],
       "expected_conditional_maintenance_items": [
         "native_helpers"
@@ -120,8 +119,7 @@
       ],
       "expected_maintenance_items": [
         "domain_modules",
-        "family_runtime_provider",
-        "recommended_skills"
+        "family_runtime_provider"
       ],
       "expected_conditional_maintenance_items": [
         "native_helpers"
@@ -144,8 +142,7 @@
       ],
       "expected_maintenance_items": [
         "domain_modules",
-        "family_runtime_provider",
-        "recommended_skills"
+        "family_runtime_provider"
       ],
       "expected_conditional_maintenance_items": [
         "native_helpers"
@@ -164,8 +161,7 @@
       "expected_ready_to_launch": true,
       "expected_core_blockers": [],
       "expected_maintenance_items": [
-        "family_runtime_provider",
-        "recommended_skills"
+        "family_runtime_provider"
       ],
       "expected_conditional_maintenance_items": [
         "native_helpers"
