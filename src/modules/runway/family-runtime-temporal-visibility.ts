@@ -9,6 +9,7 @@ import {
   resolveTemporalTaskQueue,
 } from './family-runtime-temporal.ts';
 import {
+  resolveTemporalClientNamespace,
   type TemporalWorkerPaths,
   withTemporalClient,
 } from './family-runtime-temporal-client.ts';
@@ -397,10 +398,14 @@ async function listTemporalCustomSearchAttributes(connection: Connection, namesp
 
 export async function inspectTemporalStageAttemptVisibilityReadiness(
   paths?: TemporalWorkerPaths,
-  input: { taskQueue?: string | null } = {},
+  input: { namespace?: string | null; taskQueue?: string | null } = {},
 ) {
   const resolved = resolveTemporalAddressForPaths(paths);
-  const namespace = resolveTemporalNamespace();
+  const namespace = resolveTemporalClientNamespace({
+    paths,
+    addressOverride: resolved.address,
+    namespaceOverride: input.namespace,
+  });
   const taskQueue = input.taskQueue ?? resolveTemporalTaskQueue();
   if (!resolved.address) {
     return buildTemporalStageAttemptVisibilityReadiness({
@@ -421,6 +426,7 @@ export async function inspectTemporalStageAttemptVisibilityReadiness(
       }), {
         paths,
         addressOverride: resolved.address,
+        namespaceOverride: namespace,
         connectTimeoutMs: TEMPORAL_VISIBILITY_INSPECTION_CONNECT_TIMEOUT_MS,
       });
   } catch (error) {

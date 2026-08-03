@@ -9,14 +9,115 @@ import {
   test,
 } from '../../helpers.ts';
 import {
+  inspectTemporalWorkerLifecycle,
   runTemporalWorkerForeground,
   startTemporalWorkerLifecycle,
   stopTemporalWorkerLifecycle,
 } from '../../../../../src/modules/runway/family-runtime-temporal-provider.ts';
 import {
+  currentWorkerSourceVersion,
+} from '../../../../../src/modules/runway/family-runtime-temporal-provider-parts/worker-state.ts';
+import {
   stopOrphanTemporalForegroundWorkers,
+  temporalForegroundWorkerModulePathFromCommand,
 } from '../../../../../src/modules/runway/family-runtime-temporal-provider-parts/worker-process.ts';
 import { createTemporalTestWorkflowEnvironment } from '../../../temporal-test-environment.ts';
+
+test('Temporal worker module path parser preserves unquoted macOS paths with spaces', () => {
+  const modulePath = '/Users/test/Library/Application Support/OPL/framework/one-person-lab/src/modules/runway/family-runtime-temporal-provider.ts';
+  const command = `/usr/local/bin/node --experimental-strip-types ${modulePath} --temporal-worker-foreground --family-runtime-root /Users/test/Library/Application Support/OPL/state/family-runtime`;
+
+  assert.equal(temporalForegroundWorkerModulePathFromCommand(command), modulePath);
+});
+
+test('Temporal worker lifecycle adopts the live managed worker namespace without counting it as duplicate', async () => {
+  const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-family-runtime-worker-managed-namespace-'));
+  const workerRoot = path.join(stateRoot, 'family-runtime');
+  const child = spawn(process.execPath, [
+    '-e',
+    'setTimeout(() => {}, 30_000);',
+    '--',
+    '--temporal-worker-foreground',
+    '--family-runtime-root',
+    workerRoot,
+  ], {
+    detached: true,
+    stdio: 'ignore',
+  });
+  child.unref();
+  const previousAddress = process.env.OPL_TEMPORAL_ADDRESS;
+  const previousAddressSource = process.env.OPL_TEMPORAL_ADDRESS_SOURCE;
+  const previousTemporalAddress = process.env.TEMPORAL_ADDRESS;
+  const previousNamespace = process.env.OPL_TEMPORAL_NAMESPACE;
+  const previousTaskQueue = process.env.OPL_TEMPORAL_TASK_QUEUE;
+  try {
+    assert.equal(typeof child.pid, 'number');
+    fs.mkdirSync(workerRoot, { recursive: true });
+    process.env.OPL_TEMPORAL_ADDRESS = '127.0.0.1:7233';
+    delete process.env.OPL_TEMPORAL_ADDRESS_SOURCE;
+    delete process.env.TEMPORAL_ADDRESS;
+    delete process.env.OPL_TEMPORAL_NAMESPACE;
+    process.env.OPL_TEMPORAL_TASK_QUEUE = 'opl-stage-attempts';
+    const providerModuleUrl = new URL(
+      '../../../../../src/modules/runway/family-runtime-temporal-provider.ts',
+      import.meta.url,
+    ).href;
+    const sourceVersion = currentWorkerSourceVersion(providerModuleUrl);
+    fs.writeFileSync(path.join(workerRoot, 'temporal-worker.json'), `${JSON.stringify({
+      provider_kind: 'temporal',
+      pid: child.pid,
+      address: '127.0.0.1:7233',
+      namespace: 'opl-stage-v2',
+      task_queue: 'opl-stage-attempts',
+      started_at: '2026-08-03T00:00:00.000Z',
+      status: 'ready',
+      source_version: sourceVersion,
+    }, null, 2)}\n`);
+
+    const status = await inspectTemporalWorkerLifecycle({ root: workerRoot });
+
+    assert.equal(status.namespace, 'opl-stage-v2');
+    assert.equal(status.managed_worker_pid, child.pid);
+    assert.equal(status.managed_worker_process_alive, true);
+    assert.equal(status.managed_worker_source_current, true);
+    assert.deepEqual(status.duplicate_worker_pids, []);
+    if (status.visibility_readiness) {
+      assert.equal(status.visibility_readiness.namespace, 'opl-stage-v2');
+    }
+  } finally {
+    try {
+      process.kill(child.pid!, 'SIGKILL');
+    } catch {
+      // The fixture process may already have exited.
+    }
+    if (previousAddress === undefined) {
+      delete process.env.OPL_TEMPORAL_ADDRESS;
+    } else {
+      process.env.OPL_TEMPORAL_ADDRESS = previousAddress;
+    }
+    if (previousAddressSource === undefined) {
+      delete process.env.OPL_TEMPORAL_ADDRESS_SOURCE;
+    } else {
+      process.env.OPL_TEMPORAL_ADDRESS_SOURCE = previousAddressSource;
+    }
+    if (previousTemporalAddress === undefined) {
+      delete process.env.TEMPORAL_ADDRESS;
+    } else {
+      process.env.TEMPORAL_ADDRESS = previousTemporalAddress;
+    }
+    if (previousNamespace === undefined) {
+      delete process.env.OPL_TEMPORAL_NAMESPACE;
+    } else {
+      process.env.OPL_TEMPORAL_NAMESPACE = previousNamespace;
+    }
+    if (previousTaskQueue === undefined) {
+      delete process.env.OPL_TEMPORAL_TASK_QUEUE;
+    } else {
+      process.env.OPL_TEMPORAL_TASK_QUEUE = previousTaskQueue;
+    }
+    fs.rmSync(stateRoot, { recursive: true, force: true });
+  }
+});
 
 test('Temporal worker stop cleans orphan foreground worker after state file is missing', async () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-family-runtime-worker-orphan-stop-'));

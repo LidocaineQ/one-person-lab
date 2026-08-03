@@ -19,6 +19,7 @@ import {
 } from '../family-runtime-temporal.ts';
 import {
   requireTemporalAddress,
+  resolveTemporalClientNamespace,
   type TemporalClientOptions,
   type TemporalWorkerPaths,
   withTemporalClient,
@@ -62,7 +63,7 @@ export async function startTemporalStageRunWorkflow(
   if (!resolveTemporalAddressForPaths(options.paths).address) requireTemporalAddress();
   return withTemporalClient(async (client, connection) => {
     const visibilityReadiness = await ensureTemporalStageAttemptVisibilityReady(connection, {
-      namespace: resolveTemporalNamespace(),
+      namespace: resolveTemporalClientNamespace(options),
       address: resolveTemporalAddressForPaths(options.paths).address,
       taskQueue,
     });
@@ -222,7 +223,7 @@ export async function startTemporalStageAttemptWorkflow(
   if (!resolveTemporalAddressForPaths(options.paths).address) requireTemporalAddress();
   return withTemporalClient(async (client, connection) => {
     const visibilityReadiness = await ensureTemporalStageAttemptVisibilityReady(connection, {
-      namespace: resolveTemporalNamespace(),
+      namespace: resolveTemporalClientNamespace(options),
       address: resolveTemporalAddressForPaths(options.paths).address,
       taskQueue,
     });
@@ -263,7 +264,7 @@ export async function startTemporalStageAttemptWorkflow(
       first_execution_run_id: handle.firstExecutionRunId,
       execution_scope: launchInput.execution_scope ?? null,
       eagerly_started: handle.eagerlyStarted,
-      namespace: resolveTemporalNamespace(),
+      namespace: resolveTemporalClientNamespace(options),
       task_queue: taskQueue,
       transport_identity: {
         stage_attempt_id: attempt.stage_attempt_id,

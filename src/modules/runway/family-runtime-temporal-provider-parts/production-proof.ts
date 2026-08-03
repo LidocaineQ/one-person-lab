@@ -226,12 +226,12 @@ export async function runTemporalProductionResidencyProofForWorker(
   }
 
   const address = worker.address || requireTemporalAddress();
-  const namespace = resolveTemporalNamespace();
+  const namespace = worker.namespace;
   const taskQueue = resolveTemporalTaskQueue();
   const suffix = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const completedWorkflowId = `wf-temporal-production-complete-${suffix}`;
   const diagnosticWorkflowId = `wf-temporal-production-diagnostic-${suffix}`;
-  const temporalClientOptions = { addressOverride: address };
+  const temporalClientOptions = { addressOverride: address, namespaceOverride: namespace };
   const temporalProofResultClientOptions: TemporalClientOptions = {
     ...temporalClientOptions,
     rpcTimeoutMs: Math.max(
