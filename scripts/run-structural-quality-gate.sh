@@ -11,63 +11,12 @@ strict_mode="${OPL_STRUCTURAL_QUALITY_STRICT:-0}"
 run_quality_details_with_timeout() {
   local resolved_compare_ref="$1"
 
-  node - "$quality_details_timeout_seconds" "$quality_details_bin" "$resolved_compare_ref" "$quality_details_limit" "$quality_details_focus" <<'NODE'
-const [timeoutRaw, qualityDetailsBin, compareRef, limit, focus] = process.argv.slice(2);
-const timeoutSeconds = Number(timeoutRaw);
-if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
-  console.error(`Invalid OPL_QUALITY_DETAILS_TIMEOUT_SECONDS: ${timeoutRaw}`);
-  process.exit(64);
-}
-
-const { spawn } = require('node:child_process');
-const child = spawn(
-  qualityDetailsBin,
-  [
-    'quality',
-    'details',
-    '--root',
-    '.',
-    '--format',
-    'markdown',
-    '--limit',
-    limit,
-    '--focus',
-    focus,
-    '--compare-ref',
-    compareRef,
-  ],
-  { stdio: 'inherit' },
-);
-
-let timedOut = false;
-let killTimer;
-const timer = setTimeout(() => {
-  timedOut = true;
-  child.kill('SIGTERM');
-  killTimer = setTimeout(() => child.kill('SIGKILL'), 5000);
-  killTimer.unref();
-}, timeoutSeconds * 1000);
-
-child.on('error', (error) => {
-  clearTimeout(timer);
-  if (killTimer) clearTimeout(killTimer);
-  console.error(error.message);
-  process.exit(127);
-});
-
-child.on('close', (code, signal) => {
-  clearTimeout(timer);
-  if (killTimer) clearTimeout(killTimer);
-  if (timedOut) {
-    process.exit(124);
-  }
-  if (signal) {
-    console.error(`OPL quality details terminated by signal: ${signal}`);
-    process.exit(1);
-  }
-  process.exit(code ?? 0);
-});
-NODE
+  node ./scripts/run-quality-details-with-timeout.mjs \
+    "$quality_details_timeout_seconds" \
+    "$quality_details_bin" \
+    "$resolved_compare_ref" \
+    "$quality_details_limit" \
+    "$quality_details_focus"
 }
 
 emit_quality_details() {
