@@ -10,7 +10,7 @@ import type {
   SkillPacksCliInput,
   StartCliInput,
 } from './types.ts';
-import { parseCommandOptions } from './command-registry.ts';
+import { parseCommandInput, parseCommandOptions } from './command-registry.ts';
 import { buildUsageError } from './runtime-helpers.ts';
 
 const PRODUCT_ENTRY_AGENT_HANDLE_MAP = {
@@ -32,30 +32,15 @@ function parseKeyValueArgs(
   args: string[],
   spec: Pick<CommandSpec, 'usage' | 'examples'>,
 ): ResolveRequestInput {
-  const parsed: Partial<Record<'intent' | 'target' | 'goal' | 'preferred-family' | 'request-kind', string>> =
-    {};
+  const values = parseCommandOptions(args, spec, {
+    intent: { type: 'string' },
+    target: { type: 'string' },
+    goal: { type: 'string' },
+    'preferred-family': { type: 'string' },
+    'request-kind': { type: 'string' },
+  });
 
-  for (let index = 0; index < args.length; index += 1) {
-    const token = args[index];
-
-    if (!token.startsWith('--')) {
-      throw buildUsageError(`Unexpected positional argument: ${token}.`, spec, {
-        token,
-      });
-    }
-
-    const value = args[index + 1];
-    if (!value || value.startsWith('--')) {
-      throw buildUsageError(`Missing value for option: ${token}.`, spec, {
-        option: token,
-      });
-    }
-
-    parsed[token.slice(2) as keyof typeof parsed] = value;
-    index += 1;
-  }
-
-  if (!parsed.intent || !parsed.target || !parsed.goal) {
+  if (!values.intent || !values.target || !values.goal) {
     throw buildUsageError(
       'domain select-entry and domain explain-boundary require --intent, --target, and --goal.',
       spec,
@@ -64,11 +49,11 @@ function parseKeyValueArgs(
   }
 
   return {
-    intent: parsed.intent,
-    target: parsed.target,
-    goal: parsed.goal,
-    preferredFamily: parsed['preferred-family'],
-    requestKind: parsed['request-kind'],
+    intent: values.intent as string,
+    target: values.target as string,
+    goal: values.goal as string,
+    preferredFamily: values['preferred-family'] as string | undefined,
+    requestKind: values['request-kind'] as string | undefined,
   };
 }
 
@@ -76,79 +61,35 @@ function parseProductEntryArgs(
   args: string[],
   spec: Pick<CommandSpec, 'usage' | 'examples'>,
 ): ProductEntryCliInput {
-  let dryRun = false;
-  let explicitGoal: string | undefined;
-  const positionalGoalParts: string[] = [];
+  const parsedInput = parseCommandInput(args, spec, {
+    'dry-run': { type: 'boolean' },
+    goal: { type: 'string' },
+    intent: { type: 'string' },
+    target: { type: 'string' },
+    'preferred-family': { type: 'string' },
+    'request-kind': { type: 'string' },
+    model: { type: 'string' },
+    provider: { type: 'string' },
+    'reasoning-effort': { type: 'string' },
+    'workspace-path': { type: 'string' },
+    skills: { type: 'string', multiple: true },
+  }, true);
+  const values = parsedInput.values;
+  const positionalGoalParts = parsedInput.positionals;
   const parsed: Omit<ProductEntryCliInput, 'goal' | 'dryRun'> = {
-    intent: 'create',
-    target: 'deliverable',
-    skills: [],
+    intent: (values.intent as string | undefined) ?? 'create',
+    target: (values.target as string | undefined) ?? 'deliverable',
+    skills: ((values.skills as string[] | undefined) ?? []).flatMap((value) =>
+      value.split(',').map((entry) => entry.trim()).filter(Boolean)),
   };
-
-  for (let index = 0; index < args.length; index += 1) {
-    const token = args[index];
-
-    if (token === '--dry-run') {
-      dryRun = true;
-      continue;
-    }
-
-    if (!token.startsWith('--')) {
-      positionalGoalParts.push(token);
-      continue;
-    }
-
-    const value = args[index + 1];
-    if (!value || value.startsWith('--')) {
-      throw buildUsageError(`Missing value for option: ${token}.`, spec, {
-        option: token,
-      });
-    }
-
-    switch (token) {
-      case '--goal':
-        explicitGoal = value;
-        break;
-      case '--intent':
-        parsed.intent = value;
-        break;
-      case '--target':
-        parsed.target = value;
-        break;
-      case '--preferred-family':
-        parsed.preferredFamily = value;
-        break;
-      case '--request-kind':
-        parsed.requestKind = value;
-        break;
-      case '--model':
-        parsed.model = value;
-        break;
-      case '--provider':
-        parsed.provider = value;
-        break;
-      case '--reasoning-effort':
-        parsed.reasoningEffort = value;
-        break;
-      case '--workspace-path':
-        parsed.workspacePath = value;
-        break;
-      case '--skills':
-        parsed.skills.push(
-          ...value
-            .split(',')
-            .map((entry) => entry.trim())
-            .filter(Boolean),
-        );
-        break;
-      default:
-        throw buildUsageError(`Unknown option for product entry: ${token}.`, spec, {
-          option: token,
-        });
-    }
-
-    index += 1;
-  }
+  const explicitGoal = values.goal as string | undefined;
+  const dryRun = values['dry-run'] === true;
+  if (values['preferred-family'] !== undefined) parsed.preferredFamily = values['preferred-family'] as string;
+  if (values['request-kind'] !== undefined) parsed.requestKind = values['request-kind'] as string;
+  if (values.model !== undefined) parsed.model = values.model as string;
+  if (values.provider !== undefined) parsed.provider = values.provider as string;
+  if (values['reasoning-effort'] !== undefined) parsed.reasoningEffort = values['reasoning-effort'] as string;
+  if (values['workspace-path'] !== undefined) parsed.workspacePath = values['workspace-path'] as string;
 
   if (explicitGoal && positionalGoalParts.length > 0) {
     throw buildUsageError(
@@ -419,60 +360,30 @@ function parseExecutorExecArgs(
   args: string[],
   spec: Pick<CommandSpec, 'usage' | 'examples'>,
 ): AgentExecutorCliInput {
-  const promptParts: string[] = [];
-  const parsed: Omit<AgentExecutorCliInput, 'prompt'> = {};
-
-  for (let index = 0; index < args.length; index += 1) {
-    const token = args[index];
-
-    if (!token.startsWith('--')) {
-      promptParts.push(token);
-      continue;
-    }
-
-    const value = args[index + 1];
-    if (!value || value.startsWith('--')) {
-      throw buildUsageError(`Missing value for option: ${token}.`, spec, {
-        option: token,
-      });
-    }
-
-    switch (token) {
-      case '--executor':
-        parsed.executorKind = value;
-        break;
-      case '--cd':
-        parsed.cwd = value;
-        break;
-      case '--model':
-        parsed.model = value;
-        break;
-      case '--provider':
-        parsed.provider = value;
-        break;
-      case '--reasoning-effort':
-        parsed.reasoningEffort = value;
-        break;
-      default:
-        throw buildUsageError(`Unknown option for executor command: ${token}.`, spec, {
-          option: token,
-        });
-    }
-
-    index += 1;
-  }
-
-  const prompt = promptParts.join(' ').trim();
+  const parsedInput = parseCommandInput(args, spec, {
+    executor: { type: 'string' },
+    cd: { type: 'string' },
+    model: { type: 'string' },
+    provider: { type: 'string' },
+    'reasoning-effort': { type: 'string' },
+  }, true);
+  const values = parsedInput.values;
+  const prompt = parsedInput.positionals.join(' ').trim();
   if (!prompt) {
     throw buildUsageError('opl exec requires a prompt.', spec, {
       required: ['<prompt...>'],
     });
   }
 
-  return {
-    ...parsed,
-    prompt,
-  };
+  const parsed: Omit<AgentExecutorCliInput, 'prompt'> = {};
+  if (values.executor !== undefined) parsed.executorKind = values.executor as string;
+  if (values.cd !== undefined) parsed.cwd = values.cd as string;
+  if (values.model !== undefined) parsed.model = values.model as string;
+  if (values.provider !== undefined) parsed.provider = values.provider as string;
+  if (values['reasoning-effort'] !== undefined) {
+    parsed.reasoningEffort = values['reasoning-effort'] as string;
+  }
+  return { ...parsed, prompt };
 }
 
 export {

@@ -3,7 +3,10 @@ import { FrameworkContractError } from '../../../../src/modules/charter/contract
 import type { CommandSpec } from '../../../../src/entrypoints/cli/modules/support.ts';
 import {
   parseLaunchDomainArgs,
+  parseExecutorExecArgs,
+  parseKeyValueArgs,
   parseOplModuleExecArgs,
+  parseProductEntryArgs,
   parseSessionLedgerArgs,
   parseSkillPackArgs,
   parseStartArgs,
@@ -482,6 +485,42 @@ test('core option parsers reuse node parseArgs without changing their value sema
     domains: ['mas', 'mag'],
     home: '  /tmp/codex home  ',
     quiet: true,
+  });
+  assert.deepEqual(parseKeyValueArgs([
+    '--intent', 'create',
+    '--target', 'deliverable',
+    '--goal', 'ship a draft',
+    '--preferred-family', 'redcube',
+  ], spec), {
+    intent: 'create',
+    target: 'deliverable',
+    goal: 'ship a draft',
+    preferredFamily: 'redcube',
+    requestKind: undefined,
+  });
+  assert.deepEqual(parseProductEntryArgs([
+    'prepare', 'a', 'deck',
+    '--skills', 'one,two',
+    '--skills', 'three',
+    '--dry-run',
+    '--model', 'gpt',
+  ], spec), {
+    intent: 'create',
+    target: 'deliverable',
+    goal: 'prepare a deck',
+    skills: ['one', 'two', 'three'],
+    dryRun: true,
+    model: 'gpt',
+    preferredFamily: undefined,
+  });
+  assert.deepEqual(parseExecutorExecArgs([
+    'prompt', 'with', 'spaces',
+    '--executor', 'codex',
+    '--model', 'gpt',
+  ], spec), {
+    executorKind: 'codex',
+    model: 'gpt',
+    prompt: 'prompt with spaces',
   });
   assert.deepEqual(parseOplModuleExecArgs(['--module', 'mas', '--', 'status'], spec), {
     moduleId: 'mas',

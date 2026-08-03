@@ -257,19 +257,28 @@ function parseCommandOptions(
   spec: Pick<CommandSpec, 'usage' | 'examples'>,
   options: ParseArgsOptionsConfig,
 ) {
+  return parseCommandInput(args, spec, options, false).values;
+}
+
+function parseCommandInput(
+  args: string[],
+  spec: Pick<CommandSpec, 'usage' | 'examples'>,
+  options: ParseArgsOptionsConfig,
+  allowPositionals: boolean,
+) {
   try {
-    const values = parseArgs({
+    const parsed = parseArgs({
       args: args.filter((arg) => arg !== '--json'),
-      allowPositionals: false,
+      allowPositionals,
       options,
       strict: true,
-    }).values;
-    for (const [name, value] of Object.entries(values)) {
+    });
+    for (const [name, value] of Object.entries(parsed.values)) {
       if (value === '' || (Array.isArray(value) && value.includes(''))) {
         throw new TypeError(`Option '--${name}' requires a non-empty value.`);
       }
     }
-    return values;
+    return parsed;
   } catch (error) {
     throw buildUsageError(
       error instanceof Error ? error.message : 'Command options could not be parsed.',
@@ -308,6 +317,7 @@ function parseRegisteredCommandOptions(command: string, args: string[], spec: Co
 
 export {
   bindCommandRegistryMetadata,
+  parseCommandInput,
   parseCommandOptions,
   parseRegisteredCommandOptions,
   validateCommandRegistryCoverage,
