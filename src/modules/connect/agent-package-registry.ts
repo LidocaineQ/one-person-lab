@@ -4092,8 +4092,16 @@ function packageNativeCarrierActivationState(
     && packageStatus.configured_carrier.carrier.precedence === 'exact_single_source';
   if (!nativeCarrierPresent) return 'legacy';
   const observedCarrierVersion = stringValue(packageStatus.configured_carrier.installed_version);
+  const observedCarrierPath = stringValue(packageStatus.configured_carrier.plugin_source_path);
   const managedPackageVersion = stringValue(managedLock?.package_version);
   const managedCachePath = stringValue(managedLock?.physical_surface?.codex_plugin_cache_path);
+  const managedMarketplacePath = stringValue(managedLock?.physical_surface?.marketplace_plugin_path);
+  const managedLockOwnsNativeCarrier = Boolean(
+    managedLock
+    && observedCarrierPath
+    && managedMarketplacePath
+    && sameConfiguredCarrierPath(observedCarrierPath, managedMarketplacePath),
+  );
   const managedCacheGeneration = managedCachePath ? path.basename(managedCachePath) : null;
   const managedCacheGenerationCurrent = Boolean(
     managedLock
@@ -4124,7 +4132,7 @@ function packageNativeCarrierActivationState(
       && descriptorReadiness.callability === 'callable'
       && packageStatus.operational_ready === true
       && packageStatus.launch_allowed === true
-      && (!managedLock || managedCarrierCurrent)
+      && (!managedLockOwnsNativeCarrier || managedCarrierCurrent)
       ? 'ready'
       : 'blocked';
   }
