@@ -57,7 +57,6 @@ import {
   indexUpdatedAt,
   indexWorkspaceId,
   normalizeProjectEntry,
-  normalizeWorkspaceLifecycle,
   profileFromIndex,
   profileIdFromIndex,
   readWorkspaceIndex,
