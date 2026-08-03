@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
 import { canonicalJsonBytes } from '../../src/kernel/canonical-json.ts';
+import { FrameworkContractError } from '../../src/kernel/contract-validation.ts';
 import { resolveStandardAgent } from '../../src/kernel/standard-agent-registry.ts';
 import {
   inspectStandardAgentActionRunBinding,
@@ -1789,7 +1790,10 @@ test('route launch requires fresh active lifecycle on first launch and persisted
       fs.writeFileSync(file, bytes);
     }
     const manifestSha256 = digest(fs.readFileSync(path.join(checkoutRoot, 'agent/stages/manifest.json')));
-    const binding = (stageId: string): StandardAgentStageQualityRuntimeBinding => ({
+    const binding = (
+      stageId: string,
+      reviewLaneBinding?: StandardAgentStageQualityRuntimeBinding['review_lane_binding'],
+    ): StandardAgentStageQualityRuntimeBinding => ({
       surface_kind: 'opl_pack_bound_stage_quality_runtime_binding',
       version: 'opl-pack-bound-stage-quality-runtime-binding.v1',
       stage_id: stageId,
@@ -1812,6 +1816,7 @@ test('route launch requires fresh active lifecycle on first launch and persisted
       stage_goal_refs: [`agent/goals/${stageId}.md`],
       source_refs: ['agent/sources/request.md'],
       lineage_refs: [`agent/lineage/${stageId}.json`],
+      ...(reviewLaneBinding === undefined ? {} : { review_lane_binding: reviewLaneBinding }),
       manifest_ref: 'agent/stages/manifest.json',
       manifest_sha256: manifestSha256,
     });
@@ -1910,6 +1915,149 @@ test('route launch requires fresh active lifecycle on first launch and persisted
     const launched = await materializeStageRunRoute(routeInput, dependencies);
     assert.equal(launched.materialization_status, 'launched');
     assert.equal(providerStarts, 1);
+
+    const fixedLane = (reviewLane: string) => ({
+      binding_kind: 'fixed' as const,
+      review_lane: reviewLane,
+      executor_may_select_lane: false as const,
+      lane_fallback: false as const,
+    });
+    const controllerLane = (allowedReviewLanes: string[]) => ({
+      binding_kind: 'controller_required' as const,
+      allowed_review_lanes: allowedReviewLanes,
+      executor_may_select_lane: false as const,
+      lane_fallback: false as const,
+    });
+    const laneRoute = (
+      parentReviewLane: string,
+      targetReviewLaneBinding: StandardAgentStageQualityRuntimeBinding['review_lane_binding'],
+      invocationSuffix: string,
+    ) => {
+      const laneParent = buildPackBoundTemporalStageRunInput({
+        binding: binding('intake', fixedLane(parentReviewLane)),
+        domainPackRoot: checkoutRoot,
+        domainId: 'mas',
+        stageId: 'intake',
+        stageRunInvocationId: `sri_lifecycle_route_lane_parent_${invocationSuffix}`,
+        workspaceLocator: {
+          workspace_root: workspaceRoot,
+          study_id: 'study-001',
+          domain_pack_root: checkoutRoot,
+          package_use_binding: packageUseBinding(),
+        },
+        sourceFingerprint: artifactSha256,
+        executorKind: 'codex_cli',
+        stageAttemptExecutorPolicy: { review_lane_binding: parentReviewLane },
+        actionId: 'launch_stage',
+        artifactRefs: ['artifacts/request.json'],
+        artifactHashes: [artifactSha256],
+      });
+      const laneDecisivePayload = {
+        parent_stage_run_spec_sha256: laneParent.stage_run_spec_sha256,
+        use_boundary_id: `package-use:lifecycle-route-lane-${invocationSuffix}`,
+        spec_sha256: stageRunSpecSha256(laneParent.stage_run_spec),
+        spec: laneParent.stage_run_spec,
+        declared_stage_ids: laneParent.declared_stage_ids,
+      };
+      return {
+        routeInput: {
+          parent_stage_run: laneParent,
+          decisive_attempt_ref: `opl://stage_attempts/lifecycle-route-lane-${invocationSuffix}`,
+          decisive_execution_content_binding: {
+            surface_kind: 'opl_stage_attempt_execution_content_binding' as const,
+            version: 'opl-stage-attempt-execution-content-binding.v1' as const,
+            ...laneDecisivePayload,
+            binding_sha256: stageAttemptExecutionContentBindingSha256(laneDecisivePayload),
+          },
+          decision: {
+            decision_kind: 'advance' as const,
+            target_stage_id: 'draft',
+            evidence_refs: ['artifact:request'],
+          },
+          artifact_refs: ['artifacts/request.json'],
+          artifact_hashes: [artifactSha256],
+          artifact_identity_receipt_refs: [],
+        },
+        targetReviewLaneBinding,
+      };
+    };
+    const launchLaneRoute = async (
+      parentReviewLane: string,
+      targetReviewLaneBinding: StandardAgentStageQualityRuntimeBinding['review_lane_binding'],
+      invocationSuffix: string,
+    ): Promise<{
+      laneResult: Awaited<ReturnType<typeof materializeStageRunRoute>>;
+      laneTarget: ReturnType<typeof buildPackBoundTemporalStageRunInput> | null;
+      laneStarts: number;
+    }> => {
+      const lane = laneRoute(parentReviewLane, targetReviewLaneBinding, invocationSuffix);
+      let laneTarget: ReturnType<typeof buildPackBoundTemporalStageRunInput> | null = null;
+      let laneStarts = 0;
+      const laneResult = await materializeStageRunRoute(lane.routeInput, {
+        findTargetStageRun: () => laneTarget,
+        ensurePackageLaunchReady: async () => ({
+          runtime_source_readiness: { checkout_path: checkoutRoot },
+          package_use_binding: packageUseBinding(),
+        }) as never,
+        resolveStageBinding: (_root: string, stageId: string) => (
+          stageId === 'draft' ? binding(stageId, targetReviewLaneBinding) : binding(stageId)
+        ),
+        launchTargetStageRun: async (target) => {
+          laneStarts += 1;
+          const existing = laneTarget !== null;
+          laneTarget ??= target;
+          return { start_status: existing ? 'existing' : 'started' };
+        },
+      });
+      return { laneResult, laneTarget, laneStarts };
+    };
+
+    const fixedOverride = await launchLaneRoute('medical', fixedLane('statistical'), 'fixed-override');
+    assert.equal(fixedOverride.laneStarts, 1);
+    assert.equal(
+      fixedOverride.laneTarget?.stage_run_spec.stage_attempt_executor_policy?.review_lane_binding,
+      'statistical',
+    );
+
+    const controllerAllowed = await launchLaneRoute('medical', controllerLane(['medical']), 'controller-allowed');
+    assert.equal(controllerAllowed.laneStarts, 1);
+    assert.equal(
+      controllerAllowed.laneTarget?.stage_run_spec.stage_attempt_executor_policy?.review_lane_binding,
+      'medical',
+    );
+
+    let controllerDisallowedStarts = 0;
+    const disallowedLane = laneRoute('statistical', controllerLane(['medical']), 'controller-disallowed');
+    await assert.rejects(
+      materializeStageRunRoute(disallowedLane.routeInput, {
+        ensurePackageLaunchReady: async () => {
+          controllerDisallowedStarts += 1;
+          return {
+            runtime_source_readiness: { checkout_path: checkoutRoot },
+            package_use_binding: packageUseBinding(),
+          } as never;
+        },
+        resolveStageBinding: (_root: string, stageId: string) => (
+          stageId === 'draft' ? binding(stageId, disallowedLane.targetReviewLaneBinding) : binding(stageId)
+        ),
+        launchTargetStageRun: async () => {
+          controllerDisallowedStarts += 1;
+          return { start_status: 'started' };
+        },
+      }),
+      (error: unknown) => (
+        error instanceof FrameworkContractError
+        && error.details?.failure_code === 'route_target_review_lane_binding_mismatch'
+      ),
+    );
+    assert.equal(controllerDisallowedStarts, 0);
+
+    const undeclaredTarget = await launchLaneRoute('medical', null, 'undeclared-target');
+    assert.equal(undeclaredTarget.laneStarts, 1);
+    assert.equal(
+      Object.hasOwn(undeclaredTarget.laneTarget?.stage_run_spec.stage_attempt_executor_policy ?? {}, 'review_lane_binding'),
+      false,
+    );
 
     writeJson(fileURLToPath(refs.lifecycle.ref), {
       study_id: 'study-001', lifecycle_state: 'paused', lifecycle_generation: 9,

@@ -2,6 +2,10 @@ import { canonicalJsonText } from '../../kernel/canonical-json.ts';
 import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
 import type { StandardAgentStageQualityRuntimeBinding } from '../pack/index.ts';
 import { resolveStandardAgentStageQualityRuntimeBinding } from '../pack/index.ts';
+import {
+  resolveStandardAgentStageReviewLane,
+  stageAttemptExecutorPolicyWithReviewLane,
+} from '../pack/standard-agent-stage-manifest.ts';
 import { buildPackBoundTemporalStageRunInput } from './family-runtime-pack-bound-stage-run.ts';
 import { ensureFamilyRuntimePackageLaunchReady } from './family-runtime-package-readiness.ts';
 import {
@@ -71,6 +75,7 @@ function expectedRouteReplayBusinessIdentity(input: {
   parentStageRun: TemporalStageRunWorkflowInput;
   targetStageId: string;
   parentRouteDecisionRef: string;
+  stageAttemptExecutorPolicy: Record<string, unknown> | null;
   artifactRefs: string[];
   artifactHashes: string[];
   artifactIdentityReceiptRefs: string[];
@@ -92,7 +97,7 @@ function expectedRouteReplayBusinessIdentity(input: {
       input.artifactIdentityReceiptRefs,
     ),
     executor_kind: parentSpec.executor_kind,
-    stage_attempt_executor_policy: parentSpec.stage_attempt_executor_policy,
+    stage_attempt_executor_policy: input.stageAttemptExecutorPolicy,
     parent_route_decision_ref: input.parentRouteDecisionRef,
     checkpoint_refs: [],
   };
@@ -131,6 +136,36 @@ function requireMatchingRouteReplay(input: {
 function isStageRunInvocationSpecConflict(error: unknown) {
   return error instanceof FrameworkContractError
     && error.details?.failure_code === 'stage_run_invocation_spec_conflict';
+}
+
+function parentStageRunReviewLane(input: TemporalStageRunWorkflowInput) {
+  const value = input.stage_run_spec.stage_attempt_executor_policy?.review_lane_binding;
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function resolveRouteTargetReviewLane(input: {
+  parentReviewLane: string | null;
+  targetBinding: StandardAgentStageQualityRuntimeBinding | null;
+  targetStageId: string;
+}) {
+  const binding = input.targetBinding?.review_lane_binding ?? null;
+  if (!binding) return null;
+  if (binding.binding_kind === 'fixed') {
+    return resolveStandardAgentStageReviewLane(binding, null);
+  }
+  if (!input.parentReviewLane || !binding.allowed_review_lanes.includes(input.parentReviewLane)) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'A controller-bound Stage route target can inherit only an allowed parent review lane.',
+      {
+        failure_code: 'route_target_review_lane_binding_mismatch',
+        target_stage_id: input.targetStageId,
+        parent_review_lane: input.parentReviewLane,
+        allowed_review_lanes: binding.allowed_review_lanes,
+      },
+    );
+  }
+  return input.parentReviewLane;
 }
 
 export async function materializeStageRunRoute(
@@ -226,10 +261,23 @@ export async function materializeStageRunRoute(
     stageId: targetStageId,
     stageRunInvocationId: invocation.stage_run_invocation_id,
   });
+  const resolveStageBinding = dependencies.resolveStageBinding
+    ?? resolveStandardAgentStageQualityRuntimeBinding;
+  const targetBinding = resolveStageBinding(parentStageRun.domain_pack_root, targetStageId);
+  const targetReviewLane = resolveRouteTargetReviewLane({
+    parentReviewLane: parentStageRunReviewLane(parentStageRun),
+    targetBinding,
+    targetStageId,
+  });
+  const targetStageAttemptExecutorPolicy = stageAttemptExecutorPolicyWithReviewLane(
+    parentStageRun.stage_run_spec.stage_attempt_executor_policy,
+    targetReviewLane,
+  );
   const expectedReplayIdentity = expectedRouteReplayBusinessIdentity({
     parentStageRun,
     targetStageId,
     parentRouteDecisionRef: invocation.parent_route_decision_ref,
+    stageAttemptExecutorPolicy: targetStageAttemptExecutorPolicy,
     artifactRefs: input.artifact_refs,
     artifactHashes: input.artifact_hashes,
     artifactIdentityReceiptRefs: input.artifact_identity_receipt_refs,
@@ -295,8 +343,6 @@ export async function materializeStageRunRoute(
     && packageReadiness.runtime_source_readiness.checkout_path.trim()
     ? packageReadiness.runtime_source_readiness.checkout_path.trim()
     : parentStageRun.domain_pack_root;
-  const resolveStageBinding = dependencies.resolveStageBinding
-    ?? resolveStandardAgentStageQualityRuntimeBinding;
   const binding = resolveStageBinding(domainPackRoot, targetStageId);
   if (!binding?.enabled) {
     throw new FrameworkContractError(
@@ -337,7 +383,7 @@ export async function materializeStageRunRoute(
     workspaceLocator,
     sourceFingerprint: parentStageRun.source_fingerprint,
     executorKind: parentStageRun.executor_kind,
-    stageAttemptExecutorPolicy: parentStageRun.stage_attempt_executor_policy,
+    stageAttemptExecutorPolicy: targetStageAttemptExecutorPolicy,
     artifactRefs: input.artifact_refs,
     artifactHashes: input.artifact_hashes,
     artifactIdentityReceiptRefs: input.artifact_identity_receipt_refs,

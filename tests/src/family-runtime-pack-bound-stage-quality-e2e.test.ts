@@ -43,7 +43,14 @@ function writeText(root: string, ref: string, value: string) {
   fs.writeFileSync(file, value, 'utf8');
 }
 
-function createPackFixture() {
+function createPackFixture(
+  reviewInputSnapshotTransport: Record<string, unknown> = {
+    review_lane_binding: 'controller_required',
+    allowed_review_lanes: ['medical', 'display'],
+    executor_may_select_lane: false,
+    lane_fallback: false,
+  },
+) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-pack-bound-quality-e2e-'));
   const requiredPackPaths = [
     'agent/stages/manifest.json',
@@ -219,12 +226,7 @@ Close prior findings against the repaired artifact.
       trust_lane: 'domain_agent',
       stage_quality_cycle_policy_ref: 'contracts/stage_quality_cycle_policy.json#/stages/draft',
       stage_contract_extension: {
-        review_input_snapshot_transport: {
-          review_lane_binding: 'controller_required',
-          allowed_review_lanes: ['medical', 'display'],
-          executor_may_select_lane: false,
-          lane_fallback: false,
-        },
+        review_input_snapshot_transport: reviewInputSnapshotTransport,
       },
     }],
   });
@@ -684,6 +686,68 @@ Close findings using the latest package.
     restoreEnv(previousEnv);
     await testEnv.teardown();
     for (const target of [stateRoot, workspaceRoot, familyWorkspaceRoot, packRoot]) {
+      fs.rmSync(target, { recursive: true, force: true });
+    }
+  }
+});
+
+test('fixed review lane is projected into StageRun identity and derived on replay', async () => {
+  const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-pack-bound-fixed-lane-state-'));
+  const familyWorkspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-pack-bound-fixed-lane-family-'));
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-pack-bound-fixed-lane-workspace-'));
+  const packRoot = createPackFixture({
+    review_lane_binding: 'mas_stage_fixed',
+    review_lane: 'statistical',
+  });
+  const useBinding = packageUseBinding(packRoot);
+  const envKeys = ['OPL_STATE_DIR', 'OPL_FAMILY_WORKSPACE_ROOT'];
+  const previousEnv = new Map(envKeys.map((key) => [key, process.env[key]]));
+  process.env.OPL_STATE_DIR = stateRoot;
+  process.env.OPL_FAMILY_WORKSPACE_ROOT = familyWorkspaceRoot;
+  const args = [
+    'attempt',
+    'create',
+    '--domain',
+    'medautoscience',
+    '--stage',
+    'draft',
+    '--provider',
+    'temporal',
+    '--workspace-locator',
+    JSON.stringify({ workspace_root: workspaceRoot, domain_pack_root: packRoot }),
+    '--source-fingerprint',
+    `sha256:${'a'.repeat(64)}`,
+  ];
+  try {
+    const runtime = {
+      ensurePackageLaunchReady: async () => ({
+        runtime_source_readiness: { operational_ready: true, checkout_path: packRoot },
+        package_use_binding: useBinding,
+      }) as never,
+    };
+    const first = await runFamilyRuntime(args, { stageRunRuntime: runtime });
+    const firstLaunch = first.family_runtime_stage_run as any;
+    assert.equal(
+      firstLaunch.stage_run_input.stage_attempt_executor_policy.review_lane_binding,
+      'statistical',
+    );
+    const replay = await runFamilyRuntime(args, { stageRunRuntime: runtime });
+    const replayLaunch = replay.family_runtime_stage_run as any;
+    assert.equal(replayLaunch.durable_launch.start_status, 'existing');
+    assert.equal(
+      replayLaunch.stage_run_input.stage_run_id,
+      firstLaunch.stage_run_input.stage_run_id,
+    );
+    await assert.rejects(
+      () => runFamilyRuntime([...args, '--review-lane', 'medical'], { stageRunRuntime: runtime }),
+      (error: unknown) => (
+        error instanceof FrameworkContractError
+        && error.details?.failure_code === 'stage_review_lane_binding_fixed_mismatch'
+      ),
+    );
+  } finally {
+    restoreEnv(previousEnv);
+    for (const target of [stateRoot, familyWorkspaceRoot, workspaceRoot, packRoot]) {
       fs.rmSync(target, { recursive: true, force: true });
     }
   }

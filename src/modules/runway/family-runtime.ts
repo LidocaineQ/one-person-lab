@@ -70,6 +70,10 @@ import {
 } from './family-runtime-parts/stage-attempt-launch.ts';
 import { ensureFamilyRuntimePackageLaunchReady } from './family-runtime-package-readiness.ts';
 import { resolveStandardAgentStageQualityRuntimeBinding } from '../pack/index.ts';
+import {
+  resolveStandardAgentStageReviewLane,
+  stageAttemptExecutorPolicyWithReviewLane,
+} from '../pack/standard-agent-stage-manifest.ts';
 import { buildPackBoundTemporalStageRunInput } from './family-runtime-pack-bound-stage-run.ts';
 import {
   bindTrustedCliFamilyRuntimeIngressIdentity,
@@ -704,9 +708,24 @@ export async function runFamilyRuntime(
         stageRunInvocationId,
       });
       const existingStageRunLaunch = findStageRunLaunch(db, stageRunId);
+      const requestedReviewLane = parsed.input.reviewLane?.trim() || null;
+      const explicitDomainPackRoot = typeof parsed.input.workspaceLocator.domain_pack_root === 'string'
+        ? parsed.input.workspaceLocator.domain_pack_root.trim()
+        : '';
+      const persistedDomainPackRoot = existingStageRunLaunch?.stage_run_input.domain_pack_root?.trim() ?? '';
+      const replayStageQualityBinding = existingStageRunLaunch && persistedDomainPackRoot
+        ? (options.stageRunRuntime?.resolveStageBinding
+          ?? resolveStandardAgentStageQualityRuntimeBinding)(persistedDomainPackRoot, parsed.input.stageId)
+        : null;
+      const replayReviewLane = existingStageRunLaunch
+        ? resolveStandardAgentStageReviewLane(replayStageQualityBinding?.review_lane_binding, requestedReviewLane)
+        : requestedReviewLane;
       if (existingStageRunLaunch && canonicalJsonText(
         stageRunReplayBusinessIdentity(existingStageRunLaunch.stage_run_input),
-      ) !== canonicalJsonText(stageRunReplayRequestBusinessIdentity(scopedAttemptInput))) {
+      ) !== canonicalJsonText(stageRunReplayRequestBusinessIdentity({
+        ...scopedAttemptInput,
+        reviewLane: replayReviewLane ?? undefined,
+      }))) {
         throw new FrameworkContractError(
           'contract_shape_invalid',
           'StageRun invocation is already bound to a different immutable spec.',
@@ -736,49 +755,26 @@ export async function runFamilyRuntime(
             ...(parsed.input.start ? { useBoundaryId } : {}),
             ...(pinnedUseBinding ? { pinnedUseBinding } : {}),
           });
-      const explicitDomainPackRoot = typeof parsed.input.workspaceLocator.domain_pack_root === 'string'
-        ? parsed.input.workspaceLocator.domain_pack_root.trim()
-        : '';
       const managedDomainPackRoot = typeof packageReadiness?.runtime_source_readiness?.checkout_path === 'string'
         ? packageReadiness.runtime_source_readiness.checkout_path.trim()
         : '';
-      const persistedDomainPackRoot = existingStageRunLaunch?.stage_run_input.domain_pack_root?.trim() ?? '';
       const domainPackRoot = persistedDomainPackRoot
         || (pinnedUseBinding
           ? explicitDomainPackRoot || managedDomainPackRoot
           : managedDomainPackRoot || explicitDomainPackRoot)
         || null;
-      const stageQualityBinding = !existingStageRunLaunch && domainPackRoot
-        ? (options.stageRunRuntime?.resolveStageBinding
-          ?? resolveStandardAgentStageQualityRuntimeBinding)(domainPackRoot, parsed.input.stageId)
-        : null;
-      const requestedReviewLane = parsed.input.reviewLane?.trim() || null;
+      const stageQualityBinding = existingStageRunLaunch
+        ? replayStageQualityBinding
+        : domainPackRoot
+          ? (options.stageRunRuntime?.resolveStageBinding
+            ?? resolveStandardAgentStageQualityRuntimeBinding)(domainPackRoot, parsed.input.stageId)
+          : null;
       if (!existingStageRunLaunch && requestedReviewLane) {
-        const laneBinding = stageQualityBinding?.review_lane_binding;
-        if (!laneBinding) {
-          throw new FrameworkContractError(
-            'cli_usage_error',
-            '--review-lane is only valid for a controller-bound review Stage.',
-            {
-              failure_code: 'stage_review_lane_binding_not_declared',
-              stage_id: parsed.input.stageId,
-              review_lane: requestedReviewLane,
-            },
-          );
-        }
-        if (!laneBinding.allowed_review_lanes.includes(requestedReviewLane)) {
-          throw new FrameworkContractError(
-            'cli_usage_error',
-            'The requested review lane is not declared by the Stage contract.',
-            {
-              failure_code: 'stage_review_lane_binding_invalid',
-              stage_id: parsed.input.stageId,
-              review_lane: requestedReviewLane,
-              allowed_review_lanes: laneBinding.allowed_review_lanes,
-            },
-          );
-        }
+        resolveStandardAgentStageReviewLane(stageQualityBinding?.review_lane_binding, requestedReviewLane);
       }
+      const effectiveReviewLane = existingStageRunLaunch
+        ? replayReviewLane
+        : resolveStandardAgentStageReviewLane(stageQualityBinding?.review_lane_binding, requestedReviewLane);
       const selectedPackageUseBinding = parsed.input.start || stageQualityBinding?.enabled
         ? pinnedUseBinding ?? packageReadiness?.package_use_binding
         : null;
@@ -898,12 +894,11 @@ export async function runFamilyRuntime(
             workspaceLocator: useBoundWorkspaceLocator,
             sourceFingerprint,
             executorKind: parsed.input.executorKind,
-            stageAttemptExecutorPolicy: {
+            stageAttemptExecutorPolicy: stageAttemptExecutorPolicyWithReviewLane({
               ...(parsed.input.executorBindingRef ? { executor_binding_ref: parsed.input.executorBindingRef } : {}),
               ...(parsed.input.invocationMode ? { invocation_mode: parsed.input.invocationMode } : {}),
               ...(parsed.input.boundedEditRef ? { bounded_edit_ref: parsed.input.boundedEditRef } : {}),
-              ...(requestedReviewLane ? { review_lane_binding: requestedReviewLane } : {}),
-            },
+            }, effectiveReviewLane) ?? {},
             checkpointRefs: parsed.input.checkpointRefs,
             artifactRefs: parsed.input.inputArtifactRefs,
             artifactHashes: parsed.input.inputArtifactHashes,
@@ -969,6 +964,7 @@ export async function runFamilyRuntime(
         || parsed.input.parentRouteDecisionRef
         || (parsed.input.inputArtifactRefs?.length ?? 0) > 0
         || (parsed.input.inputArtifactHashes?.length ?? 0) > 0
+        || Boolean(parsed.input.reviewLane?.trim())
       ) {
         throw new FrameworkContractError(
           'cli_usage_error',

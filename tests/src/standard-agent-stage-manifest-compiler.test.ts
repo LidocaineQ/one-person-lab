@@ -1350,6 +1350,51 @@ test('stage manifest compiler projects generic stage-contract extensions', () =>
   );
 });
 
+test('stage runtime binding projects an explicit review lane as a generic fixed binding', () => {
+  const root = fixture('target-fixed-review-lane');
+  writePrimaryOnlyDeliverPolicy(root);
+  const manifest = readManifest(root);
+  manifest.stages[1].stage_quality_cycle_policy_ref =
+    'contracts/stage_quality_cycle_policy.json#/stages/deliver';
+  manifest.stages[1].stage_contract_extension = {
+    review_input_snapshot_transport: {
+      review_lane_binding: 'mas_stage_fixed',
+      review_lane: 'statistical',
+    },
+  };
+  writeManifest(root, manifest);
+
+  assert.deepEqual(
+    resolveStandardAgentStageQualityRuntimeBinding(root, manifest.stages[1].stage_id)
+      ?.review_lane_binding,
+    {
+      binding_kind: 'fixed',
+      review_lane: 'statistical',
+      executor_may_select_lane: false,
+      lane_fallback: false,
+    },
+  );
+});
+
+test('stage runtime binding rejects an incomplete fixed review lane declaration', () => {
+  const root = fixture('target-fixed-review-lane-missing-value');
+  writePrimaryOnlyDeliverPolicy(root);
+  const manifest = readManifest(root);
+  manifest.stages[1].stage_quality_cycle_policy_ref =
+    'contracts/stage_quality_cycle_policy.json#/stages/deliver';
+  manifest.stages[1].stage_contract_extension = {
+    review_input_snapshot_transport: {
+      review_lane_binding: 'mas_stage_fixed',
+    },
+  };
+  writeManifest(root, manifest);
+
+  assert.throws(
+    () => resolveStandardAgentStageQualityRuntimeBinding(root, manifest.stages[1].stage_id),
+    FrameworkContractError,
+  );
+});
+
 test('stage runtime binding rejects unsafe controller review lane declarations', async (t) => {
   for (const [name, transport] of [
     ['empty', {

@@ -138,12 +138,7 @@ export type StandardAgentStageQualityRuntimeBinding = {
   stage_prompt_ref: string;
   quality_policy: StandardAgentStageQualityPolicy;
   handoff_review_boundary: StandardAgentHandoffReviewBoundary | null;
-  review_lane_binding?: {
-    binding_kind: 'controller_required';
-    allowed_review_lanes: string[];
-    executor_may_select_lane: false;
-    lane_fallback: false;
-  } | null;
+  review_lane_binding?: StandardAgentStageReviewLaneBinding | null;
   role_prompt_refs: {
     producer: string;
     reviewer: string;
@@ -158,16 +153,57 @@ export type StandardAgentStageQualityRuntimeBinding = {
   manifest_sha256: string;
 };
 
-function controllerReviewLaneBinding(
+export type StandardAgentStageReviewLaneBinding =
+  | {
+    binding_kind: 'fixed';
+    review_lane: string;
+    executor_may_select_lane: false;
+    lane_fallback: false;
+  }
+  | {
+    binding_kind: 'controller_required';
+    allowed_review_lanes: string[];
+    executor_may_select_lane: false;
+    lane_fallback: false;
+  };
+
+function reviewLaneBinding(
   stageContract: unknown,
   repoDir: string,
-): StandardAgentStageQualityRuntimeBinding['review_lane_binding'] {
+): StandardAgentStageReviewLaneBinding | null {
   if (!isRecord(stageContract)) return null;
   const transport = stageContract.review_input_snapshot_transport;
-  if (!isRecord(transport) || transport.review_lane_binding !== 'controller_required') {
+  if (!isRecord(transport)) {
     return null;
   }
   const field = 'stage.stage_contract.review_input_snapshot_transport';
+  const declaredBinding = optionalString(transport.review_lane_binding);
+  const hasDeclaredReviewLane = Object.hasOwn(transport, 'review_lane');
+  if (hasDeclaredReviewLane) {
+    const reviewLane = text(transport.review_lane, `${field}.review_lane`, repoDir);
+    if (declaredBinding !== undefined && declaredBinding !== 'mas_stage_fixed') {
+      fail(`${field}.review_lane requires review_lane_binding=mas_stage_fixed when a binding is declared.`, {
+        repo_dir: repoDir,
+        field,
+        review_lane_binding: declaredBinding,
+      });
+    }
+    return {
+      binding_kind: 'fixed',
+      review_lane: reviewLane,
+      executor_may_select_lane: false,
+      lane_fallback: false,
+    };
+  }
+  if (declaredBinding === 'mas_stage_fixed') {
+    fail(`${field}.review_lane is required for a mas_stage_fixed binding.`, {
+      repo_dir: repoDir,
+      field: `${field}.review_lane`,
+    });
+  }
+  if (declaredBinding !== 'controller_required') {
+    return null;
+  }
   const allowedReviewLanes = strings(
     transport.allowed_review_lanes,
     `${field}.allowed_review_lanes`,
@@ -194,6 +230,63 @@ function controllerReviewLaneBinding(
     executor_may_select_lane: false,
     lane_fallback: false,
   };
+}
+
+export function resolveStandardAgentStageReviewLane(
+  binding: StandardAgentStageReviewLaneBinding | null | undefined,
+  requestedReviewLane?: string | null,
+): string | null {
+  const requested = optionalString(requestedReviewLane);
+  if (!binding) {
+    if (requested) {
+      throw new FrameworkContractError(
+        'cli_usage_error',
+        '--review-lane is only valid for a Stage with a declared review lane binding.',
+        {
+          failure_code: 'stage_review_lane_binding_not_declared',
+          review_lane: requested,
+        },
+      );
+    }
+    return null;
+  }
+  if (binding.binding_kind === 'fixed') {
+    if (requested && requested !== binding.review_lane) {
+      throw new FrameworkContractError(
+        'cli_usage_error',
+        'The requested review lane conflicts with the Stage fixed review lane.',
+        {
+          failure_code: 'stage_review_lane_binding_fixed_mismatch',
+          review_lane: requested,
+          fixed_review_lane: binding.review_lane,
+        },
+      );
+    }
+    return binding.review_lane;
+  }
+  if (!requested) return null;
+  if (!binding.allowed_review_lanes.includes(requested)) {
+    throw new FrameworkContractError(
+      'cli_usage_error',
+      'The requested review lane is not declared by the Stage contract.',
+      {
+        failure_code: 'stage_review_lane_binding_invalid',
+        review_lane: requested,
+        allowed_review_lanes: binding.allowed_review_lanes,
+      },
+    );
+  }
+  return requested;
+}
+
+export function stageAttemptExecutorPolicyWithReviewLane(
+  policy: Record<string, unknown> | null | undefined,
+  reviewLane: string | null | undefined,
+): Record<string, unknown> | null {
+  const next = policy ? { ...policy } : {};
+  delete next.review_lane_binding;
+  if (reviewLane) next.review_lane_binding = reviewLane;
+  return Object.keys(next).length > 0 ? next : null;
 }
 
 function fail(message: string, details: JsonRecord = {}): never {
@@ -1573,7 +1666,7 @@ export function resolveStandardAgentStageQualityRuntimeBinding(
     stage_prompt_ref: policy.stage_prompt_ref,
     quality_policy: policy.quality_policy,
     handoff_review_boundary: policy.handoff_review_boundary,
-    review_lane_binding: controllerReviewLaneBinding(stage.stage_contract, repoDir),
+    review_lane_binding: reviewLaneBinding(stage.stage_contract, repoDir),
     role_prompt_refs: policy.role_prompt_refs,
     quality_rubric_refs: policy.quality_rubric_refs,
     stage_goal_refs: [`${compilation.source_binding.stage_manifest_ref}#/stages/${stageIndex}/goal`],
