@@ -519,6 +519,14 @@ export type AgentPackageCodexModelPolicyProjection = {
   };
   override_precedence: string[];
   catalog_policy: Record<string, unknown>;
+  configured_default_role: 'recommendation_only';
+  effective_selection: {
+    mode: 'fixed' | 'unavailable';
+    model: string | null;
+    reasoning_effort: string | null;
+    source: 'local_codex_config' | 'local_codex_config_unavailable';
+    overrides_recommendation: boolean | null;
+  };
   role: 'package_recommendation_consumed_from_framework_projection';
 };
 
