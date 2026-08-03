@@ -1005,7 +1005,7 @@ function buildPhysicalSurfacePaths(manifest: AgentPackageManifest) {
 export function inspectMaterializedPhysicalCodexSurface(manifest: AgentPackageManifest) {
   const paths = buildPhysicalSurfacePaths(manifest);
   const codexDefaultExposure = manifest.codex_default_exposure !== false;
-  if (!manifest.plugin_id || !manifest.plugin_source_path || !paths.codexPluginCachePath) {
+  if (!manifest.plugin_id || !paths.codexPluginCachePath) {
     throw new FrameworkContractError('contract_shape_invalid', 'Package descriptor has no materialized Codex plugin identity.', {
       package_id: manifest.package_id,
       plugin_id: manifest.plugin_id,
@@ -1013,23 +1013,25 @@ export function inspectMaterializedPhysicalCodexSurface(manifest: AgentPackageMa
     });
   }
   verifyImmutablePluginCache(manifest, paths.codexPluginCachePath);
-  const expectedProjectionDigest = (() => {
-    try {
-      const selectedPaths = manifest.developer_checkout_source?.copy_paths
-        ?? (manifest.content_lock_paths.length > 0 ? manifest.content_lock_paths : undefined);
-      return managedCarrierProjectionDigest(
-        resolveLocalPath(manifest.plugin_source_path!),
-        selectedPaths,
-      );
-    } catch (error) {
-      throw new FrameworkContractError('contract_shape_invalid', 'Package source cannot establish immutable projection currentness.', {
-        package_id: manifest.package_id,
-        plugin_id: manifest.plugin_id,
-        error: error instanceof Error ? error.message : String(error),
-        failure_code: 'full_runtime_package_projection_incomplete',
-      });
-    }
-  })();
+  const expectedProjectionDigest = manifest.plugin_source_path
+    ? (() => {
+        try {
+          const selectedPaths = manifest.developer_checkout_source?.copy_paths
+            ?? (manifest.content_lock_paths.length > 0 ? manifest.content_lock_paths : undefined);
+          return managedCarrierProjectionDigest(
+            resolveLocalPath(manifest.plugin_source_path!),
+            selectedPaths,
+          );
+        } catch (error) {
+          throw new FrameworkContractError('contract_shape_invalid', 'Package source cannot establish immutable projection currentness.', {
+            package_id: manifest.package_id,
+            plugin_id: manifest.plugin_id,
+            error: error instanceof Error ? error.message : String(error),
+            failure_code: 'full_runtime_package_projection_incomplete',
+          });
+        }
+      })()
+    : null;
   let cacheProjectionDigest: string;
   try {
     cacheProjectionDigest = managedCarrierProjectionDigest(paths.codexPluginCachePath);
@@ -1041,7 +1043,7 @@ export function inspectMaterializedPhysicalCodexSurface(manifest: AgentPackageMa
       failure_code: 'full_runtime_package_projection_incomplete',
     });
   }
-  if (cacheProjectionDigest !== expectedProjectionDigest) {
+  if (expectedProjectionDigest !== null && cacheProjectionDigest !== expectedProjectionDigest) {
     throw new FrameworkContractError('contract_shape_invalid', 'Package plugin cache projection does not match its immutable source.', {
       package_id: manifest.package_id,
       plugin_id: manifest.plugin_id,
@@ -1064,7 +1066,8 @@ export function inspectMaterializedPhysicalCodexSurface(manifest: AgentPackageMa
     && (() => {
       try {
         verifyImmutablePluginCache(manifest, paths.marketplacePluginPath!);
-        return managedCarrierProjectionDigest(paths.marketplacePluginPath!) === expectedProjectionDigest;
+        return managedCarrierProjectionDigest(paths.marketplacePluginPath!)
+          === (expectedProjectionDigest ?? cacheProjectionDigest);
       } catch {
         return false;
       }
