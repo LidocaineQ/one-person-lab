@@ -22,6 +22,7 @@
       "pattern": "^opl://stage_attempts/.+$"
     },
     "execution_content_binding_sha256": { "$ref": "#/$defs/sha256" },
+    "review_lane": { "type": "string", "minLength": 1 },
     "workspace_root": { "type": "string", "minLength": 1 },
     "members": {
       "type": "array",
