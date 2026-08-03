@@ -17,8 +17,8 @@ function createFakeNativeHelperRepairEnv(homeRoot: string) {
   const repairScript = path.join(homeRoot, 'repair-native.sh');
   fs.writeFileSync(
     repairScript,
-    `#!/usr/bin/env bash
-set -euo pipefail
+    `#!/bin/sh
+set -eu
 mkdir -p ${JSON.stringify(helperBinDir)}
 for binary in opl-doctor-native opl-runtime-watch opl-artifact-indexer opl-state-indexer; do
   cat > ${JSON.stringify(helperBinDir)}/$binary <<'EOS'
@@ -239,8 +239,8 @@ test('install command repairs native helpers and returns the refreshed lifecycle
   fs.mkdirSync(helperBinDir, { recursive: true });
   fs.writeFileSync(
     repairScript,
-    `#!/usr/bin/env bash
-set -euo pipefail
+    `#!/bin/sh
+set -eu
 for binary in opl-doctor-native opl-runtime-watch opl-artifact-indexer opl-state-indexer; do
   cat > "${helperBinDir}/$binary" <<'EOS'
 #!/bin/sh

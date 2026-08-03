@@ -359,6 +359,15 @@ test('managed carrier activation rejects stale cache generations and projections
     fs.rmSync(marketplaceRootParent);
     fs.renameSync(externalMarketplaceRoot, marketplaceRootParent);
 
+    const projectedOwnerDescriptorPath = path.join(marketplacePluginPath, 'opl-package.json');
+    fs.copyFileSync(consumerManifest, projectedOwnerDescriptorPath);
+    const descriptorStatus = runCli([
+      'packages', 'status', '--package-id', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
+    ], env).opl_agent_package_status;
+    assert.equal(descriptorStatus.installed_readiness.installed, true);
+    assertProjectionBlocked();
+    fs.rmSync(projectedOwnerDescriptorPath);
+
     const restoredActivation = runCli([
       'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
     ], env).opl_agent_package_activation;
