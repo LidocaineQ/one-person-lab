@@ -191,6 +191,76 @@ test('installed content lock honors explicit canonicalization and limits probing
   }
 });
 
+test('installed content lock rejects hard-linked files before digest admission', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-content-lock-hardlink-'));
+  const relativePath = 'skills/fixture.plugin/SKILL.md';
+  const content = Buffer.from('# Fixture Plugin\n');
+  const targetPath = path.join(root, relativePath);
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  const externalPath = path.join(root, 'external.txt');
+  fs.writeFileSync(externalPath, content);
+  fs.linkSync(externalPath, targetPath);
+  const lock = {
+    package_id: 'fixture.plugin',
+    content_lock_paths: [relativePath],
+    content_lock_canonicalization: CANONICAL_PACKAGE_CONTENT_LOCK,
+    content_digest: packageContentLockDigest(CANONICAL_PACKAGE_CONTENT_LOCK, [
+      { path: relativePath, content },
+    ]),
+    bundled_required_skill_ids: ['fixture.plugin'],
+    capability_provider: null,
+  } as any;
+  try {
+    assert.equal(fs.lstatSync(targetPath).nlink, 2);
+    assert.throws(
+      () => installedPackageContentLockCanonicalization(lock, root),
+      (error: any) => error.details?.failure_code
+        === 'capability_package_content_lock_hardlink_forbidden',
+    );
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
+test('installed content lock rejects a file that changes during readback', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-content-lock-race-'));
+  const relativePath = 'skills/fixture.plugin/SKILL.md';
+  const content = Buffer.from('# Fixture Plugin\n');
+  const targetPath = path.join(root, relativePath);
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  fs.writeFileSync(targetPath, content);
+  const lock = {
+    package_id: 'fixture.plugin',
+    content_lock_paths: [relativePath],
+    content_lock_canonicalization: CANONICAL_PACKAGE_CONTENT_LOCK,
+    content_digest: packageContentLockDigest(CANONICAL_PACKAGE_CONTENT_LOCK, [
+      { path: relativePath, content },
+    ]),
+    bundled_required_skill_ids: ['fixture.plugin'],
+    capability_provider: null,
+  } as any;
+  const originalFstatSync = fs.fstatSync;
+  let calls = 0;
+  fs.fstatSync = ((descriptor: number, ...args: unknown[]) => {
+    const stat = originalFstatSync(descriptor, { bigint: true }) as fs.BigIntStats;
+    calls += 1;
+    if (calls === 2) {
+      return { ...stat, mtimeNs: stat.mtimeNs + 1n } as unknown as fs.BigIntStats;
+    }
+    return stat;
+  }) as typeof fs.fstatSync;
+  try {
+    assert.throws(
+      () => installedPackageContentLockCanonicalization(lock, root),
+      (error: any) => error.details?.failure_code
+        === 'capability_package_content_lock_entry_changed',
+    );
+  } finally {
+    fs.fstatSync = originalFstatSync;
+    removeFixtureTree(root);
+  }
+});
+
 test('developer plugin generation transaction rolls back created, replaced, reused, and symlink targets', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-plugin-generation-transaction-'));
   const pluginSourcePath = createPluginSourceFixture({ pluginId: 'fixture.plugin' });

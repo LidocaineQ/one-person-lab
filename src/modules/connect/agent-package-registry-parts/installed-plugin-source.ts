@@ -320,6 +320,17 @@ function assertImmutableCacheRoot(lock: AgentPackageLock, cachePath: string) {
 function contentLockFiles(lock: AgentPackageLock, cachePath: string) {
   const cacheRoot = path.resolve(cachePath);
   const cacheRootReal = fs.realpathSync(cacheRoot);
+  const noFollow = fs.constants.O_NOFOLLOW ?? 0;
+  const sameFileIdentity = (
+    left: fs.BigIntStats,
+    right: fs.BigIntStats,
+  ) => left.dev === right.dev
+    && left.ino === right.ino
+    && left.nlink === right.nlink
+    && left.mode === right.mode
+    && left.size === right.size
+    && left.mtimeNs === right.mtimeNs
+    && left.ctimeNs === right.ctimeNs;
   return (lock.content_lock_paths ?? []).map((relativePath) => {
     const filePath = path.resolve(cacheRoot, relativePath);
     if (!relativePath.trim()
@@ -337,9 +348,10 @@ function contentLockFiles(lock: AgentPackageLock, cachePath: string) {
         },
       );
     }
-    if (!fs.existsSync(filePath)
-      || !fs.lstatSync(filePath).isFile()
-      || fs.lstatSync(filePath).isSymbolicLink()) {
+    const fileStat = fs.existsSync(filePath)
+      ? fs.lstatSync(filePath, { bigint: true })
+      : null;
+    if (!fileStat?.isFile() || fileStat.isSymbolicLink()) {
       throw new FrameworkContractError(
         'contract_shape_invalid',
         'Installed package immutable cache is missing a content lock path.',
@@ -348,6 +360,19 @@ function contentLockFiles(lock: AgentPackageLock, cachePath: string) {
           content_lock_path: relativePath,
           codex_plugin_cache_path: cachePath,
           failure_code: 'capability_package_content_lock_path_missing',
+        },
+      );
+    }
+    if (fileStat.nlink !== 1n) {
+      throw new FrameworkContractError(
+        'contract_shape_invalid',
+        'Installed package content lock paths must be single-link regular files.',
+        {
+          package_id: lock.package_id,
+          content_lock_path: relativePath,
+          codex_plugin_cache_path: cachePath,
+          link_count: fileStat.nlink,
+          failure_code: 'capability_package_content_lock_hardlink_forbidden',
         },
       );
     }
@@ -364,7 +389,40 @@ function contentLockFiles(lock: AgentPackageLock, cachePath: string) {
         },
       );
     }
-    return { path: relativePath, content: fs.readFileSync(fileReal) };
+    let descriptor: number | null = null;
+    try {
+      descriptor = fs.openSync(fileReal, fs.constants.O_RDONLY | noFollow);
+      const before = fs.fstatSync(descriptor, { bigint: true });
+      if (!before.isFile() || before.nlink !== 1n || !sameFileIdentity(fileStat, before)) {
+        throw new FrameworkContractError(
+          'contract_shape_invalid',
+          'Installed package content lock path changed while it was being read.',
+          {
+            package_id: lock.package_id,
+            content_lock_path: relativePath,
+            codex_plugin_cache_path: cachePath,
+            failure_code: 'capability_package_content_lock_entry_changed',
+          },
+        );
+      }
+      const content = fs.readFileSync(descriptor);
+      const after = fs.fstatSync(descriptor, { bigint: true });
+      if (!sameFileIdentity(before, after)) {
+        throw new FrameworkContractError(
+          'contract_shape_invalid',
+          'Installed package content lock path changed while it was being read.',
+          {
+            package_id: lock.package_id,
+            content_lock_path: relativePath,
+            codex_plugin_cache_path: cachePath,
+            failure_code: 'capability_package_content_lock_entry_changed',
+          },
+        );
+      }
+      return { path: relativePath, content };
+    } finally {
+      if (descriptor !== null) fs.closeSync(descriptor);
+    }
   });
 }
 
