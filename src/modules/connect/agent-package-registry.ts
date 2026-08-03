@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -4060,11 +4061,38 @@ function managedCarrierProjectionCurrent(
       || fs.realpathSync(observedPath) === fs.realpathSync(cachePath)) {
       return false;
     }
-    return computePackageChannelTreeSha256(observedPath)
-      === computePackageChannelTreeSha256(cachePath);
+    return managedCarrierProjectionDigest(observedPath)
+      === managedCarrierProjectionDigest(cachePath);
   } catch {
     return false;
   }
+}
+
+function managedCarrierProjectionDigest(rootPath: string) {
+  const digest = crypto.createHash('sha256');
+  const visit = (directory: string) => {
+    const entries = fs.readdirSync(directory, { withFileTypes: true })
+      .sort((left, right) => left.name.localeCompare(right.name, 'en'));
+    for (const entry of entries) {
+      const absolutePath = path.join(directory, entry.name);
+      const relativePath = path.relative(rootPath, absolutePath).split(path.sep).join('/');
+      const stat = fs.lstatSync(absolutePath);
+      if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())) {
+        throw new Error(`unsupported managed carrier projection entry: ${relativePath}`);
+      }
+      if (stat.isDirectory()) {
+        digest.update(`dir\0${Buffer.byteLength(relativePath)}\0${relativePath}\0`);
+        visit(absolutePath);
+        continue;
+      }
+      const mode = (stat.mode & 0o111) === 0 ? '100644' : '100755';
+      const content = fs.readFileSync(absolutePath);
+      digest.update(`file\0${Buffer.byteLength(relativePath)}\0${relativePath}\0${mode}\0${content.length}\0`);
+      digest.update(content);
+    }
+  };
+  visit(rootPath);
+  return digest.digest('hex');
 }
 
 function packageNativeCarrierActivationState(
