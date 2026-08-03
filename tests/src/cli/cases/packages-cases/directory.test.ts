@@ -924,9 +924,9 @@ test('external registry selectors reject forged claims and never become a direct
     );
     writeRegistry({ ...valid, package_id: 'mas' });
     const failure = runCliFailure([
-      'packages', 'validate-manifest', '--registry-url', registryUrl, '--package-id', 'mas',
+      'packages', 'install', '--registry-url', registryUrl, '--package-id', 'mas',
     ], fixture.env);
-    assert.equal(failure.payload.error.details.failure_code, 'agent_package_registry_first_party_identity_collision');
+    assert.equal(failure.payload.error.details.failure_code, 'first_party_package_explicit_source_forbidden');
     assert.equal(fs.existsSync(path.join(fixture.env.OPL_STATE_DIR, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json')), false);
   } finally {
