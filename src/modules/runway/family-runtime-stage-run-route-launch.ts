@@ -5,7 +5,7 @@ import { resolveStandardAgentStageQualityRuntimeBinding } from '../pack/index.ts
 import {
   resolveStandardAgentStageReviewLane,
   stageAttemptExecutorPolicyWithReviewLane,
-} from '../pack/standard-agent-stage-manifest.ts';
+} from '../pack/index.ts';
 import { buildPackBoundTemporalStageRunInput } from './family-runtime-pack-bound-stage-run.ts';
 import { ensureFamilyRuntimePackageLaunchReady } from './family-runtime-package-readiness.ts';
 import {
