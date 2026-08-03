@@ -16,6 +16,7 @@ import {
   runCliFailure,
   test,
 } from './helpers.ts';
+import { createFakeCodexPluginManagerFixture } from '../../helpers.ts';
 import { resolveFirstPartyPackageCatalog } from '../../../../../src/modules/connect/agent-package-first-party.ts';
 import { refreshFirstPartyPackageCatalogSnapshot } from '../../../../../src/modules/connect/agent-package-registry-parts/first-party-release-catalog.ts';
 import { normalizeManifest } from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
@@ -38,6 +39,14 @@ const PACKAGE_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.source.v1
 const PACKAGE_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.manifest.v1+json';
 const PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.payload.v1+json';
 const CHANNEL_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.release.channel-manifest.v1+json';
+const FLOW_SKILL_IDS = [
+  'coordinate-concurrent-tasks',
+  'develop-and-deliver',
+  'opl-fleet',
+  'opl-flow',
+  'recover-codex-tasks',
+  'task-mode-gate',
+];
 
 function writeMasOwnerGateFixture(checkoutPath: string, binRoot: string) {
   const packageRoot = path.join(checkoutPath, 'src', 'med_autoscience', 'authority_handlers');
@@ -245,7 +254,10 @@ function writeOmaOwnerReleaseFixture(input: {
 function writeFirstPartyCatalogFixture(
   version: string,
   ownerSourceCommit: string,
-  options: { manifestCarrierSourceCommit?: string | null } = {},
+  options: {
+    manifestCarrierSourceCommit?: string | null;
+    requiredSkillIds?: string[];
+  } = {},
 ) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `opl-first-party-catalog-${version}-`));
   const sourceParent = path.join(root, 'source');
@@ -258,7 +270,9 @@ function writeFirstPartyCatalogFixture(
     displayName: 'OPL Flow',
     description: 'First-party catalog fixture.',
   });
-  const skillMarkdown = '# OPL Flow\n\nFirst-party catalog fixture.\n';
+  const requiredSkillIds = options.requiredSkillIds ?? ['opl-flow'];
+  const skillMarkdown = (skillId: string) =>
+    `# ${skillId === 'opl-flow' ? 'OPL Flow' : skillId}\n\nFirst-party catalog fixture.\n`;
   const agentsMarkdown = '# OPL Flow fixture profile\n';
   const tasteMarkdown = '# OPL Flow fixture authoring source\n';
   const workflowPolicy = formatJsonPayload({
@@ -309,13 +323,17 @@ function writeFirstPartyCatalogFixture(
   });
   const workflowPolicySchema = formatJsonPayload({ type: 'object' });
   fs.mkdirSync(path.join(sourceRoot, '.codex-plugin'), { recursive: true });
-  fs.mkdirSync(path.join(sourceRoot, 'skills', 'opl-flow'), { recursive: true });
+  for (const skillId of requiredSkillIds) {
+    fs.mkdirSync(path.join(sourceRoot, 'skills', skillId), { recursive: true });
+  }
   fs.mkdirSync(path.join(sourceRoot, 'templates'), { recursive: true });
   fs.mkdirSync(path.join(sourceRoot, 'contracts'), { recursive: true });
   fs.mkdirSync(blobRoot, { recursive: true });
   fs.mkdirSync(fakeBin, { recursive: true });
   fs.writeFileSync(path.join(sourceRoot, '.codex-plugin', 'plugin.json'), pluginJson);
-  fs.writeFileSync(path.join(sourceRoot, 'skills', 'opl-flow', 'SKILL.md'), skillMarkdown);
+  for (const skillId of requiredSkillIds) {
+    fs.writeFileSync(path.join(sourceRoot, 'skills', skillId, 'SKILL.md'), skillMarkdown(skillId));
+  }
   fs.writeFileSync(path.join(sourceRoot, 'templates', 'AGENTS.md'), agentsMarkdown);
   fs.writeFileSync(path.join(sourceRoot, 'templates', 'TASTE.md'), tasteMarkdown);
   fs.writeFileSync(path.join(sourceRoot, 'contracts', 'workflow-policy.json'), workflowPolicy);
@@ -339,7 +357,7 @@ function writeFirstPartyCatalogFixture(
       ...(options.manifestCarrierSourceCommit === null ? {} : {
         carrier_source_commit: options.manifestCarrierSourceCommit ?? ownerSourceCommit,
       }),
-      required_skill_ids: ['opl-flow'],
+      required_skill_ids: requiredSkillIds,
     },
     profile_surface: {
       runtime_profile: { source_path: 'templates/AGENTS.md', target_id: 'user_agents_profile' },
@@ -373,13 +391,13 @@ function writeFirstPartyCatalogFixture(
         migration_source_url: `https://raw.githubusercontent.com/fixture/opl-flow/${ownerSourceCommit}/.codex-plugin/plugin.json`,
         sha256: `sha256:${crypto.createHash('sha256').update(pluginJson).digest('hex')}`,
       },
-      {
-        path: 'skills/opl-flow/SKILL.md',
-        source_path: 'skills/opl-flow/SKILL.md',
+      ...requiredSkillIds.map((skillId) => ({
+        path: `skills/${skillId}/SKILL.md`,
+        source_path: `skills/${skillId}/SKILL.md`,
         source_artifact_ref: sourceArtifactRef,
-        migration_source_url: `https://raw.githubusercontent.com/fixture/opl-flow/${ownerSourceCommit}/skills/opl-flow/SKILL.md`,
-        sha256: `sha256:${crypto.createHash('sha256').update(skillMarkdown).digest('hex')}`,
-      },
+        migration_source_url: `https://raw.githubusercontent.com/fixture/opl-flow/${ownerSourceCommit}/skills/${skillId}/SKILL.md`,
+        sha256: `sha256:${crypto.createHash('sha256').update(skillMarkdown(skillId)).digest('hex')}`,
+      })),
       ...[
         ['templates/AGENTS.md', agentsMarkdown],
         ['templates/TASTE.md', tasteMarkdown],
@@ -510,6 +528,88 @@ function writeFirstPartyCatalogFixture(
     sourceArtifactRef,
     curlLogPath,
   };
+}
+
+function writeDescriptorOwnedFlowCarrier(input: {
+  root: string;
+  version: string;
+}) {
+  const marketplaceId = 'opl-agent-opl-flow-local';
+  const marketplaceRoot = path.join(input.root, 'marketplace');
+  const pluginRoot = path.join(marketplaceRoot, 'plugins', 'opl-flow');
+  const selector = `opl-flow@${marketplaceId}`;
+  const manifest = JSON.parse(fs.readFileSync(
+    path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'opl-flow.json'),
+    'utf8',
+  ));
+  manifest.version = input.version;
+  manifest.codex_surface.required_skill_ids = FLOW_SKILL_IDS;
+  manifest.codex_surface.configured_codex_plugin_carrier = {
+    kind: 'codex_plugin_manager',
+    plugin_selector: selector,
+    executor_route: 'codex_cli',
+    marketplace_source: marketplaceRoot,
+    publication_ref: null,
+  };
+  fs.mkdirSync(path.join(pluginRoot, '.codex-plugin'), { recursive: true });
+  for (const skillId of FLOW_SKILL_IDS) {
+    fs.mkdirSync(path.join(pluginRoot, 'skills', skillId), { recursive: true });
+    fs.writeFileSync(path.join(pluginRoot, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`);
+  }
+  fs.writeFileSync(path.join(pluginRoot, '.codex-plugin', 'plugin.json'), formatJsonPayload({
+    name: 'opl-flow',
+    version: input.version,
+    skills: './skills/',
+  }));
+  fs.writeFileSync(path.join(pluginRoot, 'opl-package.json'), formatJsonPayload(manifest));
+  fs.mkdirSync(path.join(marketplaceRoot, '.agents', 'plugins'), { recursive: true });
+  fs.writeFileSync(
+    path.join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json'),
+    formatJsonPayload({
+      name: marketplaceId,
+      plugins: [{
+        name: 'opl-flow',
+        source: { source: 'local', path: './plugins/opl-flow' },
+      }],
+    }),
+  );
+  return { marketplaceRoot, pluginRoot, selector };
+}
+
+function seedDescriptorOwnedFlowCarrier(input: {
+  codexPath: string;
+  carrier: ReturnType<typeof writeDescriptorOwnedFlowCarrier>;
+  env: Record<string, string>;
+}) {
+  execFileSync(input.codexPath, [
+    'plugin', 'marketplace', 'add', input.carrier.marketplaceRoot, '--json',
+  ], { env: { ...process.env, ...input.env }, stdio: 'ignore' });
+  execFileSync(input.codexPath, [
+    'plugin', 'add', input.carrier.selector, '--json',
+  ], { env: { ...process.env, ...input.env }, stdio: 'ignore' });
+}
+
+function writeNoopPluginAddWrapper(root: string, delegate: string) {
+  const binary = path.join(root, 'noop-plugin-add-codex');
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+import { spawnSync } from 'node:child_process';
+
+const args = process.argv.slice(2);
+if (process.env.FIXTURE_PLUGIN_ADD_NOOP === '1'
+  && args[0] === 'plugin'
+  && args[1] === 'add') {
+  process.stdout.write(JSON.stringify({ status: 'ok' }));
+  process.exit(0);
+}
+const result = spawnSync(${JSON.stringify(delegate)}, args, {
+  env: process.env,
+  encoding: 'utf8',
+});
+process.stdout.write(result.stdout || '');
+process.stderr.write(result.stderr || '');
+process.exit(result.status ?? 1);
+`, { mode: 0o755 });
+  return binary;
 }
 
 function writeRelayOwnerFixture(root: string) {
@@ -957,6 +1057,127 @@ test('first-party install and update read one owner channel without shared-manif
     fs.rmSync(workspace, { recursive: true, force: true });
     fs.rmSync(first.root, { recursive: true, force: true });
     fs.rmSync(second.root, { recursive: true, force: true });
+  }
+});
+
+test('descriptor-owned Flow update adopts the exact live owner target and becomes a current no-op', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-flow-descriptor-adoption-'));
+  const stateDir = path.join(root, 'state');
+  const homeDir = path.join(root, 'home');
+  const codexHome = path.join(homeDir, '.codex');
+  const codex = createFakeCodexPluginManagerFixture(path.join(root, 'fake-codex'));
+  const currentOwner = writeFirstPartyCatalogFixture('0.1.31', '1'.repeat(40), {
+    requiredSkillIds: FLOW_SKILL_IDS,
+  });
+  const nextOwner = writeFirstPartyCatalogFixture('0.1.32', '2'.repeat(40), {
+    requiredSkillIds: FLOW_SKILL_IDS,
+  });
+  const carrier = writeDescriptorOwnedFlowCarrier({ root, version: '0.1.31' });
+  const commonEnv = {
+    HOME: homeDir,
+    CODEX_HOME: codexHome,
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: codex.codexPath,
+    OPL_CLI_TEST_TIMEOUT_MS: '90000',
+  };
+  try {
+    seedDescriptorOwnedFlowCarrier({ codexPath: codex.codexPath, carrier, env: commonEnv });
+
+    const current = runCli(['packages', 'update', 'opl-flow'], {
+      ...commonEnv,
+      ...currentOwner.env,
+    }) as any;
+    const currentSurface = current.opl_agent_package_update;
+    assert.equal(currentSurface.status, 'current_noop');
+    assert.equal(currentSurface.currentness.status, 'current');
+    assert.equal(currentSurface.target_version, '0.1.31');
+    assert.equal(currentSurface.observed_version, '0.1.31');
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+
+    const repaired = runCli(['packages', 'repair', '--package-id', 'opl-flow'], {
+      ...commonEnv,
+      ...currentOwner.env,
+    }) as any;
+    const repairedSurface = repaired.opl_agent_package_repair;
+    assert.equal(repairedSurface.status, 'repaired');
+    assert.equal(repairedSurface.currentness.status, 'current');
+    assert.equal(repairedSurface.target_version, '0.1.31');
+    assert.equal(repairedSurface.observed_version, '0.1.31');
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+
+    const updated = runCli(['packages', 'update', 'opl-flow'], {
+      ...commonEnv,
+      ...nextOwner.env,
+    }) as any;
+    const updatedSurface = updated.opl_agent_package_update;
+    assert.equal(updatedSurface.status, 'updated');
+    assert.equal(updatedSurface.currentness.status, 'update_available');
+    assert.ok(updatedSurface.currentness.reasons.includes('package_version_changed'));
+    assert.equal(updatedSurface.target_version, '0.1.32');
+    assert.equal(updatedSurface.package_lock.package_version, '0.1.32');
+    assert.equal(updatedSurface.package_lock.source_kind, 'first_party_managed_cohort');
+    assert.equal(updatedSurface.configured_carrier.installed_version, '0.1.32');
+    assert.equal(
+      updatedSurface.configured_carrier.plugin_source_path,
+      updatedSurface.physical_surface.marketplace_plugin_path,
+    );
+    assert.equal(updatedSurface.target_source_artifact_ref, nextOwner.sourceArtifactRef);
+
+    const status = runCli(['packages', 'status', '--package-id', 'opl-flow'], commonEnv) as any;
+    assert.equal(status.opl_agent_package_status.installed_packages[0].package_version, '0.1.32');
+    assert.equal(status.opl_agent_package_status.configured_carrier.installed_version, '0.1.32');
+  } finally {
+    removeFixtureTree(root);
+    fs.rmSync(currentOwner.root, { recursive: true, force: true });
+    fs.rmSync(nextOwner.root, { recursive: true, force: true });
+  }
+});
+
+test('descriptor-owned Flow update rejects a successful native no-op and preserves the previous carrier', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-flow-descriptor-noop-'));
+  const stateDir = path.join(root, 'state');
+  const homeDir = path.join(root, 'home');
+  const codex = createFakeCodexPluginManagerFixture(path.join(root, 'fake-codex'));
+  const noopCodex = writeNoopPluginAddWrapper(root, codex.codexPath);
+  const nextOwner = writeFirstPartyCatalogFixture('0.1.32', '2'.repeat(40), {
+    requiredSkillIds: FLOW_SKILL_IDS,
+  });
+  const carrier = writeDescriptorOwnedFlowCarrier({ root, version: '0.1.31' });
+  const commonEnv = {
+    HOME: homeDir,
+    CODEX_HOME: path.join(homeDir, '.codex'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: noopCodex,
+    OPL_CLI_TEST_TIMEOUT_MS: '90000',
+    FIXTURE_PLUGIN_ADD_NOOP: '1',
+  };
+  try {
+    seedDescriptorOwnedFlowCarrier({ codexPath: codex.codexPath, carrier, env: commonEnv });
+    for (const args of [
+      ['packages', 'update', 'opl-flow'],
+      ['packages', 'repair', '--package-id', 'opl-flow'],
+    ]) {
+      const failure = runCliFailure(args, {
+        ...commonEnv,
+        ...nextOwner.env,
+      });
+      assert.equal(
+        failure.payload.error.details.failure_code,
+        'configured_codex_plugin_carrier_target_currentness_mismatch',
+      );
+      assert.equal(failure.payload.error.details.target_version, '0.1.32');
+      assert.equal(failure.payload.error.details.observed_version, '0.1.31');
+      assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+      const pluginList = JSON.parse(execFileSync(codex.codexPath, ['plugin', 'list', '--json'], {
+        env: { ...process.env, ...commonEnv },
+        encoding: 'utf8',
+      }));
+      assert.equal(pluginList.installed.length, 1);
+      assert.equal(pluginList.installed[0].version, '0.1.31');
+    }
+  } finally {
+    removeFixtureTree(root);
+    fs.rmSync(nextOwner.root, { recursive: true, force: true });
   }
 });
 
