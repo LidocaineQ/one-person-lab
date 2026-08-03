@@ -40,6 +40,32 @@ function writeAbsentCodexPluginManager(root: string) {
   return binary;
 }
 
+function writeInstalledCodexPluginManager(root: string) {
+  const binary = path.join(root, 'fake-codex-installed-plugin-manager');
+  fs.writeFileSync(binary, [
+    '#!/usr/bin/env node',
+    "if (process.argv.slice(2).join(' ') !== 'plugin list --json') process.exit(2);",
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    `const counterPath = ${JSON.stringify(path.join(root, '.fake-codex-call-counts.json'))};`,
+    "let counters = {};",
+    "try { counters = JSON.parse(fs.readFileSync(counterPath, 'utf8')); } catch {}",
+    "const parent = String(process.ppid);",
+    "const call = Number(counters[parent] || 0) + 1;",
+    "counters = { [parent]: call };",
+    "fs.writeFileSync(counterPath, JSON.stringify(counters));",
+    "let index = { packages: [] };",
+    "try { index = JSON.parse(fs.readFileSync(path.join(process.env.OPL_STATE_DIR, 'agent-package-locks.json'), 'utf8')); } catch {}",
+    "const installed = call > 1 ? (index.packages || []).flatMap((entry) => {",
+    "  const surface = entry && entry.physical_surface;",
+    "  if (!surface || !surface.plugin_id || !surface.marketplace_id || !surface.marketplace_root || !surface.marketplace_plugin_path) return [];",
+    "  return [{ pluginId: `${surface.plugin_id}@${surface.marketplace_id}`, version: entry.package_version, installed: true, enabled: true, source: { source: 'local', path: surface.marketplace_plugin_path }, marketplaceSource: { sourceType: 'local', source: surface.marketplace_root } }];",
+    "}) : [];",
+    "process.stdout.write(JSON.stringify({ installed, available: [] }));",
+  ].join('\n'), { mode: 0o755 });
+  return binary;
+}
+
 test('default Home shortcut visibility follows registry starter_default', () => {
   const registry = normalizeRegistryDocument({
     ...registryPayload('https://registry.example'),
@@ -306,7 +332,7 @@ test('repair migrates legacy Framework manifests to one stable catalog selection
     OPL_MODULES_ROOT: modulesRoot,
     HOME: homeDir,
     CODEX_HOME: path.join(homeDir, '.codex'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(fixtureRoot),
+    OPL_CODEX_PLUGIN_BIN: writeInstalledCodexPluginManager(fixtureRoot),
     ...writeManagedRuntimeSourceFixture({
       root: fixtureRoot,
       moduleId: 'redcube',
