@@ -236,6 +236,79 @@ test('family-runtime attempt create fails closed when the canonical domain packa
   }
 });
 
+test('managed carrier activation rejects malformed cache generations before launch', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-carrier-generation-gate-'));
+  const workspace = path.join(root, 'workspace');
+  const providerManifest = writeCapabilityProvider(path.join(root, 'provider'));
+  const catalog = path.join(root, 'catalog', 'capability-catalog.json');
+  const consumerManifest = writeMasConsumer(path.join(root, 'consumer'), providerManifest, '0.1.0a4', {
+    capabilityCatalogRef: catalog,
+    packageCatalogRef: catalog,
+  });
+  const releaseSet = writeCapabilityCatalog(path.dirname(catalog), [consumerManifest, providerManifest]);
+  const env = {
+    OPL_STATE_DIR: path.join(root, 'state'),
+    CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_CODEX_PLUGIN_BIN: writeLockAwareCodexPluginManager(root),
+    ...releaseSet.env,
+  };
+  fs.mkdirSync(workspace, { recursive: true });
+  try {
+    runCli([
+      'workspace', 'bind', '--project', 'medautoscience', '--path', workspace,
+    ], env);
+    await runCliAsync([
+      'packages', 'install', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
+    ], env);
+    const lockPath = path.join(env.OPL_STATE_DIR, 'agent-package-locks.json');
+    const originalLockBytes = fs.readFileSync(lockPath, 'utf8');
+    const lockIndex = JSON.parse(originalLockBytes) as {
+      packages: Array<{
+        package_id: string;
+        package_version: string;
+        physical_surface?: { codex_plugin_cache_path?: string | null };
+      }>;
+    };
+    const packageLock = lockIndex.packages.find((entry) => entry.package_id === 'mas');
+    assert.ok(packageLock?.physical_surface?.codex_plugin_cache_path);
+    const cachePath = packageLock.physical_surface.codex_plugin_cache_path;
+    const cacheGeneration = path.basename(cachePath);
+    const cacheSuffix = cacheGeneration === packageLock.package_version
+      ? null
+      : cacheGeneration.slice(packageLock.package_version.length + 1);
+    assert.ok(
+      cacheGeneration === packageLock.package_version
+        || /^[0-9a-f]{64}$/.test(cacheSuffix ?? '')
+        || /^dev-[0-9a-f]{64}$/.test(cacheSuffix ?? ''),
+      cacheGeneration,
+    );
+
+    const validActivation = runCli([
+      'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
+    ], env).opl_agent_package_activation;
+    assert.equal(validActivation.launch_allowed, true);
+
+    packageLock.physical_surface.codex_plugin_cache_path = path.join(
+      path.dirname(cachePath),
+      `${packageLock.package_version}-bogus`,
+    );
+    fs.writeFileSync(lockPath, `${JSON.stringify(lockIndex, null, 2)}\n`);
+    const malformedStatus = runCli([
+      'packages', 'status', '--package-id', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
+    ], env).opl_agent_package_status;
+    assert.equal(malformedStatus.configured_carrier.installed_version, `${packageLock.package_version}-bogus`);
+    const activationFailure = runCliFailure([
+      'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
+    ], env);
+    assert.equal(
+      activationFailure.payload.error.details.failure_code,
+      'agent_package_scope_activation_blocked',
+    );
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
 test('family-runtime keeps duplicate create idempotent and refreshes the scope at actual start', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-package-scope-drift-'));
   const workspace = path.join(root, 'workspace');
