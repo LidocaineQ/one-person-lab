@@ -33,6 +33,42 @@ function sha256(value: string | Buffer) {
   return `sha256:${crypto.createHash('sha256').update(value).digest('hex')}`;
 }
 
+function createGenerationAwareCodexPluginManagerFixture(root: string) {
+  const delegate = createFakeCodexPluginManagerFixture(root);
+  const codexPath = path.join(root, 'codex-generation-aware');
+  fs.writeFileSync(codexPath, [
+    '#!/usr/bin/env node',
+    "import childProcess from 'node:child_process';",
+    "import fs from 'node:fs';",
+    "import path from 'node:path';",
+    `const delegate = ${JSON.stringify(delegate.codexPath)};`,
+    "const args = process.argv.slice(2);",
+    "const result = childProcess.spawnSync(delegate, args, { env: process.env, encoding: 'utf8' });",
+    "if (result.status !== 0 || args.join(' ') !== 'plugin list --json') {",
+    "  process.stdout.write(result.stdout || '');",
+    "  process.stderr.write(result.stderr || '');",
+    "  process.exit(result.status ?? 1);",
+    "}",
+    "const payload = JSON.parse(result.stdout || '{}');",
+    "const lockPath = path.join(process.env.OPL_STATE_DIR || '', 'agent-package-locks.json');",
+    "let locks = [];",
+    "try { locks = JSON.parse(fs.readFileSync(lockPath, 'utf8')).packages || []; } catch {}",
+    "for (const entry of payload.installed || []) {",
+    "  const lock = locks.find((candidate) => {",
+    "    const surface = candidate && candidate.physical_surface;",
+    "    return surface && entry.pluginId === surface.plugin_id + '@' + surface.marketplace_id;",
+    "  });",
+    "  const cachePath = lock && lock.physical_surface && lock.physical_surface.codex_plugin_cache_path;",
+    "  const generation = cachePath ? path.basename(cachePath) : null;",
+    "  if (generation && (generation === lock.package_version || generation.startsWith(lock.package_version + '-'))) {",
+    "    entry.version = generation;",
+    "  }",
+    "}",
+    "process.stdout.write(JSON.stringify(payload));",
+  ].join('\n'), { mode: 0o755 });
+  return { ...delegate, codexPath };
+}
+
 function writeJson(filePath: string, payload: unknown) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const json = `${JSON.stringify(payload, null, 2)}\n`;
@@ -228,7 +264,7 @@ function buildFullRuntimeFamilyFixture(input: { captureDir: string; homeRoot: st
       'utf8',
     );
   }
-  const codexFixture = createFakeCodexPluginManagerFixture(path.join(input.homeRoot, 'fixture-bin'));
+  const codexFixture = createGenerationAwareCodexPluginManagerFixture(path.join(input.homeRoot, 'fixture-bin'));
   return {
     familyWorkspace,
     runtimeHome,
@@ -1305,9 +1341,9 @@ test('system configure-codex delegates Full runtime Package and carrier reconcil
     assert.deepEqual(currentMasLock.managed_runtime_source.health_check_command, []);
     assert.deepEqual(currentMasLock.managed_runtime_source.handler_probe_command, []);
     assert.equal(statusReadback.opl_agent_package_status.carrier_authority_readiness.status, 'invalid');
-    assert.equal(statusReadback.opl_agent_package_status.lifecycle_ux.status, 'available');
+    assert.equal(statusReadback.opl_agent_package_status.lifecycle_ux.status, 'installed');
     const carrierObservation = statusReadback.opl_agent_package_status.conditions.find(
-      (condition: Record<string, any>) => condition.condition_id === 'carrier_authority_invalid',
+      (condition: Record<string, any>) => condition.condition_id === 'configured_native_carrier_present',
     );
     assert.equal(carrierObservation?.status, 'ok');
     assert.equal(carrierObservation?.action_ref, null);

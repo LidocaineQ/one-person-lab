@@ -3802,13 +3802,17 @@ export async function ensureOplAgentPackageScopeActivation(input: AgentPackagePa
       failure_code: 'agent_package_scope_target_required',
     });
   }
-  const nativeStatus = runOplAgentPackageStatus({
+  const nativeActivationReadback = packageStatusForActivation({
     packageId,
     scope: input.scope,
     targetWorkspace: input.targetWorkspace,
     targetQuest: input.targetQuest,
-  }).opl_agent_package_status;
-  const nativeCarrierState = packageNativeCarrierActivationState(nativeStatus);
+  });
+  const nativeStatus = nativeActivationReadback.packageStatus;
+  const nativeCarrierState = packageNativeCarrierActivationState(
+    nativeStatus,
+    nativeActivationReadback.managedLock,
+  );
   if (nativeCarrierState === 'ready') {
     return {
       status: input.dryRun ? 'validated_no_write' : 'already_activated',
@@ -3862,13 +3866,17 @@ export async function ensureOplAgentPackageScopeActivation(input: AgentPackagePa
 
 async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActionInput) {
   const packageId = requirePackageId(input.packageId, 'activate');
-  const beforeStatus = runOplAgentPackageStatus({
+  const nativeActivationReadback = packageStatusForActivation({
     packageId,
     scope: input.scope,
     targetWorkspace: input.targetWorkspace,
     targetQuest: input.targetQuest,
-  }).opl_agent_package_status;
-  const nativeCarrierState = packageNativeCarrierActivationState(beforeStatus);
+  });
+  const beforeStatus = nativeActivationReadback.packageStatus;
+  const nativeCarrierState = packageNativeCarrierActivationState(
+    beforeStatus,
+    nativeActivationReadback.managedLock,
+  );
   if (nativeCarrierState === 'ready') {
     return {
       version: 'g2',
@@ -3974,8 +3982,21 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
   };
 }
 
+function packageStatusForActivation(input: OplAgentPackageStatusInput) {
+  const snapshot = readAgentPackageStatusSnapshot(input.packageId);
+  const packageStatus = buildOplAgentPackageStatus(input, snapshot).opl_agent_package_status;
+  const packageId = canonicalAgentPackageId(input.packageId);
+  return {
+    packageStatus,
+    managedLock: packageId
+      ? snapshot.lockIndex.packages.find((entry) => entry.package_id === packageId) ?? null
+      : null,
+  };
+}
+
 function packageNativeCarrierActivationState(
   packageStatus: any,
+  managedLock: AgentPackageLock | null,
 ): 'ready' | 'blocked' | 'legacy' {
   const nativeCarrierPresent = packageStatus.configured_carrier?.carrier?.kind === 'codex_plugin_manager'
     && packageStatus.configured_carrier.status === 'installed'
@@ -3990,9 +4011,6 @@ function packageNativeCarrierActivationState(
       ? 'ready'
       : 'blocked';
   }
-  const managedLock = packageStatus.installed_packages?.find(
-    (entry: any) => entry?.package_id === packageStatus.package_id,
-  ) ?? null;
   const observedCarrierVersion = stringValue(packageStatus.configured_carrier.installed_version);
   const managedPackageVersion = stringValue(managedLock?.package_version);
   const managedCachePath = stringValue(managedLock?.physical_surface?.codex_plugin_cache_path);
