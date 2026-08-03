@@ -32,6 +32,7 @@ export type ReviewerInputSnapshotMaterializationRequest = {
   owner_authority_ref: ReviewTransportExactRef;
   producer_attempt_ref: string;
   execution_content_binding_sha256: string;
+  review_lane?: string;
   workspace_root: string;
   members: ReviewerInputSnapshotMember[];
 };
@@ -39,6 +40,7 @@ export type ReviewerInputSnapshotMaterializationRequest = {
 export type ReviewerInputSnapshotAuthorityBinding = {
   producer_attempt_ref: string;
   execution_content_binding_sha256: string;
+  review_lane_binding?: string | null;
   owner_authority_refs: ReviewTransportExactRef[];
 };
 
@@ -99,6 +101,12 @@ function normalizeAuthorityBinding(
       value.execution_content_binding_sha256,
       'expected_authority.execution_content_binding_sha256',
     ),
+    review_lane_binding: value.review_lane_binding == null
+      ? null
+      : requiredReviewTransportText(
+          value.review_lane_binding,
+          'expected_authority.review_lane_binding',
+        ),
     owner_authority_refs: value.owner_authority_refs.map((ref, index) => (
       normalizeExactRef(ref, `expected_authority.owner_authority_refs[${index}]`)
     )),
@@ -116,6 +124,7 @@ export function normalizeReviewerInputSnapshotRequest(
     'owner_authority_ref',
     'producer_attempt_ref',
     'execution_content_binding_sha256',
+    ...(request.review_lane === undefined ? [] : ['review_lane']),
     'workspace_root',
     'members',
   ], 'reviewer_input_snapshot_request');
@@ -152,6 +161,9 @@ export function normalizeReviewerInputSnapshotRequest(
       request.execution_content_binding_sha256,
       'execution_content_binding_sha256',
     ),
+    ...(request.review_lane === undefined
+      ? {}
+      : { review_lane: requiredReviewTransportText(request.review_lane, 'review_lane') }),
     workspace_root: requiredReviewTransportText(request.workspace_root, 'workspace_root'),
     members,
   };
@@ -164,6 +176,7 @@ export function normalizeReviewerInputSnapshotRequest(
       normalized.producer_attempt_ref !== expected.producer_attempt_ref
       || normalized.execution_content_binding_sha256
         !== expected.execution_content_binding_sha256
+      || (normalized.review_lane ?? null) !== expected.review_lane_binding
       || !authorityMetadataMatch
     ) {
       throw reviewTransportError(
@@ -195,6 +208,7 @@ function manifestForRequest(request: ReviewerInputSnapshotMaterializationRequest
     owner_authority_ref: request.owner_authority_ref,
     producer_attempt_ref: request.producer_attempt_ref,
     execution_content_binding_sha256: request.execution_content_binding_sha256,
+    ...(request.review_lane ? { review_lane: request.review_lane } : {}),
     members: request.members.map((member) => ({
       member_id: member.member_id,
       sha256: member.sha256,
@@ -215,6 +229,7 @@ function bindingForManifest(
     owner_authority_ref: manifest.owner_authority_ref,
     producer_attempt_ref: manifest.producer_attempt_ref,
     execution_content_binding_sha256: manifest.execution_content_binding_sha256,
+    ...('review_lane' in manifest ? { review_lane: manifest.review_lane } : {}),
   } as const;
 }
 
@@ -232,6 +247,7 @@ export function readReviewerInputSnapshotManifest(exactRef: unknown) {
     'owner_authority_ref',
     'producer_attempt_ref',
     'execution_content_binding_sha256',
+    ...(manifest.review_lane === undefined ? [] : ['review_lane']),
     'members',
   ], 'reviewer_input_snapshot_manifest');
   if (
@@ -298,6 +314,14 @@ export function readReviewerInputSnapshotManifest(exactRef: unknown) {
       manifest.execution_content_binding_sha256,
       'reviewer_input_snapshot_manifest.execution_content_binding_sha256',
     ),
+    ...(manifest.review_lane === undefined
+      ? {}
+      : {
+          review_lane: requiredReviewTransportText(
+            manifest.review_lane,
+            'reviewer_input_snapshot_manifest.review_lane',
+          ),
+        }),
     members,
   };
   return {

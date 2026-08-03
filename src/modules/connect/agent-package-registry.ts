@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -78,8 +77,9 @@ import {
 import { materializeAgentPackageSkillProjection } from './agent-package-registry-parts/skill-projection.ts';
 import {
   cleanupUnreferencedPackagePayloadSources,
-  materializePhysicalCodexSurface,
   finalizePhysicalCodexSurfaceMutation,
+  managedCarrierProjectionDigest,
+  materializePhysicalCodexSurface,
   removePhysicalCodexSurface,
   rematerializePhysicalCodexSurfaceFromLock,
   restorePhysicalCodexSurfaceMutation,
@@ -87,6 +87,7 @@ import {
   resolveBundledFullRuntimeManifestPhysicalSource,
   resolveManifestPhysicalSource,
 } from './agent-package-registry-parts/physical-surface.ts';
+import { assertSafePersistedPackagePath } from './agent-package-registry-parts/persisted-path-safety.ts';
 import {
   assertBundledFullRuntimePackageRoots,
   readBundledFullRuntimePackageCatalog,
@@ -4048,10 +4049,18 @@ function managedCarrierProjectionCurrent(
 ) {
   const observedPath = stringValue(packageStatus.configured_carrier?.plugin_source_path);
   const expectedPath = stringValue(lock.physical_surface?.marketplace_plugin_path);
+  const expectedDigest = stringValue(lock.physical_surface?.immutable_cache_digest);
   if (!observedPath || !expectedPath || !sameConfiguredCarrierPath(observedPath, expectedPath)) {
     return false;
   }
+  if (!expectedDigest || !/^sha256:[0-9a-f]{64}$/.test(expectedDigest)) return false;
   try {
+    const marketplaceRoot = path.join(resolveOplStatePaths().state_dir, 'codex-plugin-marketplaces');
+    assertSafePersistedPackagePath({
+      candidatePath: expectedPath,
+      allowedRoots: [marketplaceRoot],
+      pathKind: 'agent_package_marketplace_plugin_projection',
+    });
     const observedStat = fs.lstatSync(observedPath);
     const cacheStat = fs.lstatSync(cachePath);
     if (!observedStat.isDirectory()
@@ -4061,38 +4070,17 @@ function managedCarrierProjectionCurrent(
       || fs.realpathSync(observedPath) === fs.realpathSync(cachePath)) {
       return false;
     }
-    return managedCarrierProjectionDigest(observedPath)
-      === managedCarrierProjectionDigest(cachePath);
+    const cacheDigest = managedCarrierProjectionDigest(cachePath);
+    const observedDigest = managedCarrierProjectionDigest(observedPath);
+    assertSafePersistedPackagePath({
+      candidatePath: expectedPath,
+      allowedRoots: [marketplaceRoot],
+      pathKind: 'agent_package_marketplace_plugin_projection',
+    });
+    return cacheDigest === expectedDigest && observedDigest === expectedDigest;
   } catch {
     return false;
   }
-}
-
-function managedCarrierProjectionDigest(rootPath: string) {
-  const digest = crypto.createHash('sha256');
-  const visit = (directory: string) => {
-    const entries = fs.readdirSync(directory, { withFileTypes: true })
-      .sort((left, right) => left.name.localeCompare(right.name, 'en'));
-    for (const entry of entries) {
-      const absolutePath = path.join(directory, entry.name);
-      const relativePath = path.relative(rootPath, absolutePath).split(path.sep).join('/');
-      const stat = fs.lstatSync(absolutePath);
-      if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())) {
-        throw new Error(`unsupported managed carrier projection entry: ${relativePath}`);
-      }
-      if (stat.isDirectory()) {
-        digest.update(`dir\0${Buffer.byteLength(relativePath)}\0${relativePath}\0`);
-        visit(absolutePath);
-        continue;
-      }
-      const mode = (stat.mode & 0o111) === 0 ? '100644' : '100755';
-      const content = fs.readFileSync(absolutePath);
-      digest.update(`file\0${Buffer.byteLength(relativePath)}\0${relativePath}\0${mode}\0${content.length}\0`);
-      digest.update(content);
-    }
-  };
-  visit(rootPath);
-  return digest.digest('hex');
 }
 
 function packageNativeCarrierActivationState(

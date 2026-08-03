@@ -267,6 +267,7 @@ test('managed carrier activation rejects stale cache generations and projections
         package_version: string;
         physical_surface?: {
           codex_plugin_cache_path?: string | null;
+          immutable_cache_digest?: string | null;
           marketplace_plugin_path?: string | null;
         };
       }>;
@@ -276,6 +277,8 @@ test('managed carrier activation rejects stale cache generations and projections
     assert.ok(packageLock.physical_surface.marketplace_plugin_path);
     const cachePath = packageLock.physical_surface.codex_plugin_cache_path;
     const marketplacePluginPath = packageLock.physical_surface.marketplace_plugin_path;
+    const immutableCacheDigest = packageLock.physical_surface.immutable_cache_digest;
+    assert.match(immutableCacheDigest ?? '', /^sha256:[0-9a-f]{64}$/);
     const cacheGeneration = path.basename(cachePath);
     const cacheSuffix = cacheGeneration === packageLock.package_version
       ? null
@@ -297,6 +300,15 @@ test('managed carrier activation rejects stale cache generations and projections
       );
     };
 
+    packageLock.physical_surface.immutable_cache_digest = null;
+    fs.writeFileSync(lockPath, `${JSON.stringify(lockIndex, null, 2)}\n`);
+    assertProjectionBlocked();
+    packageLock.physical_surface.immutable_cache_digest = `sha256:${'0'.repeat(64)}`;
+    fs.writeFileSync(lockPath, `${JSON.stringify(lockIndex, null, 2)}\n`);
+    assertProjectionBlocked();
+    packageLock.physical_surface.immutable_cache_digest = immutableCacheDigest;
+    fs.writeFileSync(lockPath, `${JSON.stringify(lockIndex, null, 2)}\n`);
+
     const displacedMarketplacePath = `${marketplacePluginPath}.displaced`;
     fs.renameSync(marketplacePluginPath, displacedMarketplacePath);
     assertProjectionBlocked();
@@ -307,11 +319,45 @@ test('managed carrier activation rejects stale cache generations and projections
     assertProjectionBlocked();
     fs.rmSync(driftPath);
 
+    const cacheDriftPath = path.join(cachePath, 'carrier-currentness-drift.txt');
+    fs.writeFileSync(cacheDriftPath, 'coordinated drift\n');
+    fs.writeFileSync(driftPath, 'coordinated drift\n');
+    assertProjectionBlocked();
+    fs.rmSync(cacheDriftPath);
+    fs.rmSync(driftPath);
+
+    const pluginManifestPath = path.join(marketplacePluginPath, '.codex-plugin', 'plugin.json');
+    const originalPluginManifestMode = fs.statSync(pluginManifestPath).mode & 0o777;
+    fs.chmodSync(pluginManifestPath, originalPluginManifestMode | 0o111);
+    assertProjectionBlocked();
+    fs.chmodSync(pluginManifestPath, originalPluginManifestMode);
+
+    const displacedPluginManifestPath = `${pluginManifestPath}.displaced`;
+    fs.renameSync(pluginManifestPath, displacedPluginManifestPath);
+    fs.symlinkSync(path.join(cachePath, '.codex-plugin', 'plugin.json'), pluginManifestPath);
+    assertProjectionBlocked();
+    fs.rmSync(pluginManifestPath);
+    fs.renameSync(displacedPluginManifestPath, pluginManifestPath);
+
+    fs.renameSync(pluginManifestPath, displacedPluginManifestPath);
+    fs.linkSync(path.join(cachePath, '.codex-plugin', 'plugin.json'), pluginManifestPath);
+    assertProjectionBlocked();
+    fs.rmSync(pluginManifestPath);
+    fs.renameSync(displacedPluginManifestPath, pluginManifestPath);
+
     fs.renameSync(marketplacePluginPath, displacedMarketplacePath);
     fs.symlinkSync(cachePath, marketplacePluginPath, 'dir');
     assertProjectionBlocked();
     fs.rmSync(marketplacePluginPath);
     fs.renameSync(displacedMarketplacePath, marketplacePluginPath);
+
+    const marketplaceRootParent = path.join(env.OPL_STATE_DIR, 'codex-plugin-marketplaces');
+    const externalMarketplaceRoot = path.join(root, 'external-marketplaces');
+    fs.renameSync(marketplaceRootParent, externalMarketplaceRoot);
+    fs.symlinkSync(externalMarketplaceRoot, marketplaceRootParent, 'dir');
+    assertProjectionBlocked();
+    fs.rmSync(marketplaceRootParent);
+    fs.renameSync(externalMarketplaceRoot, marketplaceRootParent);
 
     const restoredActivation = runCli([
       'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', workspace,

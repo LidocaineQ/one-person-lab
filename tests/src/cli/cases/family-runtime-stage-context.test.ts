@@ -1,15 +1,17 @@
-import { assert, buildManifestCommand, createFamilyContractsFixtureRoot, fs, installRuntimePackageFixture, loadFamilyManifestFixtures, os, path, removeFixtureTree, runCli, test } from '../helpers.ts';
+import { assert, buildManifestCommand, createFamilyContractsFixtureRoot, fs, installRuntimePackageFixture, loadFamilyManifestFixtures, os, path, removeFixtureTree, runCli, runCliFailure, test } from '../helpers.ts';
 import {
   createMasScoutStage,
   createMedAutoScienceStageManifest,
   masScoutCohortLoopStageContractRefs,
 } from './family-runtime-stage-fixtures.ts';
 import { normalizeFamilyActionCatalog } from '../../../../src/kernel/family-action-catalog-contract.ts';
+import { FrameworkContractError } from '../../../../src/kernel/contract-validation.ts';
 import {
   buildFamilyStageConformanceReview,
   normalizeFamilyStageControlPlane,
 } from '../../../../src/modules/stagecraft/index.ts';
 import { createAdmittedStagePackFixture } from './workspace-domain-test-helper.ts';
+import { runFamilyRuntime } from '../../../../src/modules/runway/family-runtime.ts';
 
 const isolatedFamilyWorkspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-launch-family-'));
 const previousFamilyWorkspaceRoot = process.env.OPL_FAMILY_WORKSPACE_ROOT;
@@ -248,9 +250,76 @@ test('family-runtime attempt create projects launch invocation and gates non-def
     assert.equal(boundedEditInvocation.invocation_mode, 'authoring');
     assert.equal(boundedEditInvocation.bounded_edit_ref, 'bounded-edit:gfl/proposed-stage-pack-1');
     assert.equal(boundedEditInvocation.launch_refs.bounded_edit_ref, 'bounded-edit:gfl/proposed-stage-pack-1');
+
+    const unsupportedReviewLane = runCliFailure([
+      ...baseArgs,
+      '--new-attempt',
+      '--review-lane',
+      'medical',
+    ], env);
+    assert.equal(
+      unsupportedReviewLane.payload.error.details.failure_code,
+      'stage_review_lane_binding_not_declared',
+    );
   } finally {
     removeFixtureTree(stateRoot);
     if (repoDir) fs.rmSync(repoDir, { recursive: true, force: true });
+  }
+});
+
+test('family-runtime rejects review-lane identity options when quality runtime is disabled', async () => {
+  const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-family-runtime-disabled-review-lane-'));
+  const checkoutRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-family-runtime-disabled-review-lane-pack-'));
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-family-runtime-disabled-review-lane-workspace-'));
+  const previousStateRoot = process.env.OPL_STATE_DIR;
+  const previousFamilyRoot = process.env.OPL_FAMILY_WORKSPACE_ROOT;
+  process.env.OPL_STATE_DIR = stateRoot;
+  process.env.OPL_FAMILY_WORKSPACE_ROOT = path.join(stateRoot, 'family-workspace');
+  const disabledBinding = {
+    enabled: false,
+    review_lane_binding: {
+      binding_kind: 'controller_required' as const,
+      allowed_review_lanes: ['medical'],
+      executor_may_select_lane: false as const,
+      lane_fallback: false as const,
+    },
+  } as any;
+  try {
+    await assert.rejects(
+      () => runFamilyRuntime([
+        'attempt',
+        'create',
+        '--domain',
+        'medautoscience',
+        '--stage',
+        'disabled-quality-stage',
+        '--provider',
+        'temporal',
+        '--workspace-locator',
+        JSON.stringify({ workspace_root: workspaceRoot, domain_pack_root: checkoutRoot }),
+        '--review-lane',
+        'medical',
+      ], {
+        stageRunRuntime: {
+          ensurePackageLaunchReady: async () => ({
+            runtime_source_readiness: { operational_ready: true, checkout_path: checkoutRoot },
+          }) as never,
+          resolveStageBinding: () => disabledBinding,
+        },
+      }),
+      (error: unknown) => (
+        error instanceof FrameworkContractError
+        && error.details?.stage_quality_runtime_enabled === false
+      ),
+    );
+  } finally {
+    if (previousStateRoot === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateRoot;
+    if (previousFamilyRoot === undefined) delete process.env.OPL_FAMILY_WORKSPACE_ROOT;
+    else process.env.OPL_FAMILY_WORKSPACE_ROOT = previousFamilyRoot;
+    removeFixtureTree(stateRoot);
+    removeFixtureTree(checkoutRoot);
+    removeFixtureTree(workspaceRoot);
   }
 });
 

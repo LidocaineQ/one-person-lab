@@ -1,35 +1,76 @@
-import { assert, buildManifestCommand, createFamilyContractsFixtureRoot, fs, loadFamilyManifestFixtures, os, parseJsonText, path, runCli, runCliFailure, test } from '../helpers.ts';
+import { assert, buildManifestCommand, createFamilyContractsFixtureRoot, fs, loadFamilyManifestFixtures, os, parseJsonText, path, runCli, runCliFailure, shellSingleQuote, test } from '../helpers.ts';
 import { writeNativeHelperFixtureScripts } from './native-helper-fixtures.ts';
 import { createAdmittedStagePackFixture } from './workspace-domain-test-helper.ts';
 
 function createNativeHelperRepairScript(root: string, helperBinDir: string) {
   const repairScript = path.join(root, 'repair-native.sh');
+  const helperPayloads = {
+    'opl-doctor-native': {
+      protocol_version: 'opl_native_helper.v1',
+      helper_id: 'opl-doctor-native',
+      helper_version: '0.1.0',
+      crate_name: 'opl-native-helper',
+      crate_version: '0.1.0',
+      ok: true,
+      request_id: 'runtime-manager-doctor',
+      result: { surface_kind: 'native_doctor_snapshot' },
+      errors: [],
+    },
+    'opl-runtime-watch': {
+      protocol_version: 'opl_native_helper.v1',
+      helper_id: 'opl-runtime-watch',
+      helper_version: '0.1.0',
+      crate_name: 'opl-native-helper',
+      crate_version: '0.1.0',
+      ok: true,
+      request_id: 'runtime-manager-runtime-watch',
+      result: { surface_kind: 'runtime_health_snapshot_index', roots: [] },
+      errors: [],
+    },
+    'opl-artifact-indexer': {
+      protocol_version: 'opl_native_helper.v1',
+      helper_id: 'opl-artifact-indexer',
+      helper_version: '0.1.0',
+      crate_name: 'opl-native-helper',
+      crate_version: '0.1.0',
+      ok: true,
+      request_id: 'runtime-manager-artifact-index',
+      result: { surface_kind: 'native_artifact_manifest', summary: { total_files_count: 1 }, files: [] },
+      errors: [],
+    },
+    'opl-state-indexer': {
+      protocol_version: 'opl_native_helper.v1',
+      helper_id: 'opl-state-indexer',
+      helper_version: '0.1.0',
+      crate_name: 'opl-native-helper',
+      crate_version: '0.1.0',
+      ok: true,
+      request_id: 'runtime-manager-state-index',
+      result: {
+        surface_kind: 'native_state_index',
+        roots: [],
+        json_validation: { checked_files_count: 0, invalid_files_count: 0, files: [] },
+      },
+      errors: [],
+    },
+  };
+  const repairCommands = Object.entries(helperPayloads).map(([binary, payload]) => {
+    const helperPath = path.join(helperBinDir, binary);
+    const helperScript = `#!/bin/sh
+cat >/dev/null
+printf '%s\\n' ${shellSingleQuote(JSON.stringify(payload))}
+`;
+    return [
+      `printf '%s\\n' ${shellSingleQuote(helperScript)} > ${shellSingleQuote(helperPath)}`,
+      `chmod +x ${shellSingleQuote(helperPath)}`,
+    ].join('\n');
+  }).join('\n');
   fs.writeFileSync(
     repairScript,
     `#!/usr/bin/env bash
 set -euo pipefail
-mkdir -p "${helperBinDir}"
-for binary in opl-doctor-native opl-runtime-watch opl-artifact-indexer opl-state-indexer; do
-  cat > "${helperBinDir}/$binary" <<'EOS'
-#!/bin/sh
-cat >/dev/null
-case "$(basename "$0")" in
-  opl-doctor-native)
-    printf '%s\\n' '{"protocol_version":"opl_native_helper.v1","helper_id":"opl-doctor-native","helper_version":"0.1.0","crate_name":"opl-native-helper","crate_version":"0.1.0","ok":true,"request_id":"runtime-manager-doctor","result":{"surface_kind":"native_doctor_snapshot"},"errors":[]}'
-    ;;
-  opl-runtime-watch)
-    printf '%s\\n' '{"protocol_version":"opl_native_helper.v1","helper_id":"opl-runtime-watch","helper_version":"0.1.0","crate_name":"opl-native-helper","crate_version":"0.1.0","ok":true,"request_id":"runtime-manager-runtime-watch","result":{"surface_kind":"runtime_health_snapshot_index","roots":[]},"errors":[]}'
-    ;;
-  opl-artifact-indexer)
-    printf '%s\\n' '{"protocol_version":"opl_native_helper.v1","helper_id":"opl-artifact-indexer","helper_version":"0.1.0","crate_name":"opl-native-helper","crate_version":"0.1.0","ok":true,"request_id":"runtime-manager-artifact-index","result":{"surface_kind":"native_artifact_manifest","summary":{"total_files_count":1},"files":[]},"errors":[]}'
-    ;;
-  opl-state-indexer)
-    printf '%s\\n' '{"protocol_version":"opl_native_helper.v1","helper_id":"opl-state-indexer","helper_version":"0.1.0","crate_name":"opl-native-helper","crate_version":"0.1.0","ok":true,"request_id":"runtime-manager-state-index","result":{"surface_kind":"native_state_index","roots":[],"json_validation":{"checked_files_count":0,"invalid_files_count":0,"files":[]}},"errors":[]}'
-    ;;
-esac
-EOS
-  chmod +x "${helperBinDir}/$binary"
-done
+mkdir -p ${shellSingleQuote(helperBinDir)}
+${repairCommands}
 printf 'native helper repair completed\\n'
 `,
     { mode: 0o755 },
@@ -734,7 +775,7 @@ test('runtime manager action dry-run plans repairs without mutating native index
 });
 
 test('runtime manager action apply repairs available native surfaces without legacy provider actions', (t) => {
-  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-manager-action-apply-'));
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl runtime manager action apply-'));
   const stateRoot = path.join(fixtureRoot, 'state');
   const helperBinDir = path.join(fixtureRoot, 'native-bin');
   const repairScript = createNativeHelperRepairScript(fixtureRoot, helperBinDir);

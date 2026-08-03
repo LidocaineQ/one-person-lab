@@ -774,6 +774,7 @@ export type AgentPackagePhysicalSurface = {
   plugin_source_path: string | null;
   plugin_manifest_path: string | null;
   codex_plugin_cache_path: string | null;
+  immutable_cache_digest?: string | null;
   marketplace_root: string | null;
   marketplace_path: string | null;
   marketplace_plugin_path: string | null;

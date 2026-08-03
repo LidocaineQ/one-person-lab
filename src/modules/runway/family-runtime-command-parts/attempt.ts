@@ -283,6 +283,7 @@ function parseAttemptCreateArgs(rest: string[]): FamilyRuntimeCommandInput {
   let executorBindingRef: string | undefined;
   let invocationMode: 'invocation' | 'authoring' | undefined;
   let boundedEditRef: string | undefined;
+  let reviewLane: string | undefined;
   let taskId: string | undefined;
   let blockedReason: string | undefined;
   let newAttempt = false;
@@ -369,6 +370,9 @@ function parseAttemptCreateArgs(rest: string[]): FamilyRuntimeCommandInput {
     } else if (token === '--bounded-edit-ref' && value) {
       boundedEditRef = value;
       return true;
+    } else if (token === '--review-lane' && value) {
+      reviewLane = value;
+      return true;
     } else if (token === '--task' && value) {
       taskId = value;
       return true;
@@ -427,6 +431,7 @@ function parseAttemptCreateArgs(rest: string[]): FamilyRuntimeCommandInput {
       executorBindingRef,
       invocationMode,
       boundedEditRef,
+      ...(reviewLane ? { reviewLane } : {}),
       taskId,
       retryBudget: retryBudget || retryBudgetFile ? parsePayloadArg(retryBudget, retryBudgetFile) : undefined,
       checkpointRefs,
