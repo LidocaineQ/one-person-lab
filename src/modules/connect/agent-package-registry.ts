@@ -1891,6 +1891,29 @@ export async function runOplAgentPackageInstall(input: AgentPackageInstallInput)
       },
     };
   }
+  if (
+    !input.manifestUrl
+    && !input.registryUrl
+    && input.packageId
+    && !input.agentRoot
+    && process.env.OPL_FULL_RUNTIME_HOME
+  ) {
+    const packageId = canonicalAgentPackageId(input.packageId);
+    const firstParty = resolveFirstPartyPackageCatalog(packageId);
+    if (packageId && firstParty) {
+      const catalog = readBundledFullRuntimePackageCatalog();
+      const selection = resolveBundledFullRuntimePackageClosureRoots({
+        catalog,
+        rootPackageId: packageId,
+      });
+      return runOplBundledFullRuntimeAgentPackageInstall({
+        packageId,
+        agentRoot: selection.packageRoots[packageId],
+        packageRoots: selection.packageRoots,
+        dryRun: input.dryRun === true,
+      });
+    }
+  }
   return withAgentPackageLifecycleTransaction(
     input.dryRun === true,
     () => runOplAgentPackageInstallUnlocked(input),

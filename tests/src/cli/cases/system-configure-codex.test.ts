@@ -288,6 +288,79 @@ test('bundled Full runtime catalog owns the canonical seven and fails closed on 
   );
 });
 
+test('projected package-only actions preview all bundled Full packages without writing Package authority', () => {
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bundled-projected-install-home-'));
+  const captureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bundled-projected-install-capture-'));
+  const fixture = buildFullRuntimeFamilyFixture({ captureDir, homeRoot });
+  const lockPath = path.join(fixture.env.OPL_STATE_DIR, 'agent-package-locks.json');
+  const ledgerPath = path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json');
+  const lifecycleDbPath = path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite');
+  try {
+    for (const packageId of [...bundledPackageFixtures.map((entry) => entry.packageId), 'mas-scholar-skills']) {
+      const output = runCli([
+        'app', 'action', 'execute',
+        '--action', 'install_from_manifest_url',
+        '--payload', JSON.stringify({ package_id: packageId }),
+        '--dry-run',
+      ], fixture.env) as any;
+      const preview = output.app_action_execution.result.opl_agent_package_install;
+      assert.equal(preview.status, 'validated_no_write');
+      assert.equal(preview.package_id, packageId);
+      assert.equal(preview.package_lock.source_kind, 'bundled_full_runtime_modules');
+      if (packageId === 'mas-scholar-skills') {
+        assert.equal(preview.package_lock.managed_runtime_source, null);
+        assert.equal(
+          path.resolve(preview.physical_surface.plugin_source_path),
+          path.resolve(fixture.bundledCatalog.scholarRoot),
+        );
+      } else {
+        assert.equal(
+          path.resolve(preview.package_lock.managed_runtime_source.checkout_path),
+          path.resolve(fixture.env[{
+            mas: 'OPL_MODULE_PATH_MEDAUTOSCIENCE',
+            mag: 'OPL_MODULE_PATH_MEDAUTOGRANT',
+            rca: 'OPL_MODULE_PATH_REDCUBE',
+            oma: 'OPL_MODULE_PATH_OPLMETAAGENT',
+            obf: 'OPL_MODULE_PATH_OPLBOOKFORGE',
+          }[packageId] as keyof typeof fixture.env]),
+        );
+      }
+      assert.equal(preview.lifecycle_receipt.writes_performed, false);
+    }
+    const thirdParty = runCliFailure([
+      'app', 'action', 'execute',
+      '--action', 'install_from_manifest_url',
+      '--payload', JSON.stringify({ package_id: 'third.party.research' }),
+      '--dry-run',
+    ], fixture.env);
+    assert.equal(thirdParty.payload.error.code, 'cli_usage_error');
+    assert.deepEqual(
+      thirdParty.payload.error.details.required,
+      ['--manifest-url or --registry-url + --package-id'],
+    );
+    fs.rmSync(fixture.bundledCatalog.scholarRoot, { recursive: true, force: true });
+    const incompleteFull = runCliFailure([
+      'app', 'action', 'execute',
+      '--action', 'install_from_manifest_url',
+      '--payload', JSON.stringify({ package_id: 'mas' }),
+      '--dry-run',
+    ], fixture.env);
+    assert.equal(incompleteFull.payload.error.code, 'contract_shape_invalid');
+    assert.equal(
+      incompleteFull.payload.error.details.failure_code,
+      'agent_package_bundled_dependency_root_missing',
+    );
+    assert.equal(incompleteFull.payload.error.details.package_id, 'mas-scholar-skills');
+    for (const authorityPath of [lockPath, ledgerPath, lifecycleDbPath]) {
+      assert.equal(fs.existsSync(authorityPath), false, `${authorityPath} must remain absent`);
+    }
+  } finally {
+    fs.rmSync(homeRoot, { recursive: true, force: true });
+    fs.rmSync(captureDir, { recursive: true, force: true });
+    fs.rmSync(fixture.familyWorkspace.workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test('system configure-codex ignores Package roots and leaves reconciliation to startup maintenance', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configure-codex-missing-scholar-home-'));
   const captureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configure-codex-missing-scholar-capture-'));
