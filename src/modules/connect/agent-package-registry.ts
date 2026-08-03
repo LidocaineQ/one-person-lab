@@ -21,7 +21,6 @@ import {
 } from './system-installation/module-package-channel.ts';
 import { readPackagedModuleMarker } from './system-installation/module-packaged.ts';
 import { resolveOplDomainModuleSpec } from './system-installation/modules.ts';
-import { FORBIDDEN_AGENT_PACKAGE_FIELDS, MANIFEST_REQUIRED_FIELDS } from './agent-package-registry-parts/constants.ts';
 import {
   assertManifestMatchesRegistrySelection,
   assertTrustTierAssigned,
@@ -1622,45 +1621,6 @@ async function applyManifestPackageLockUnlocked(
     dependencyClosureDigest: closureDigest,
     scopeMaterializations,
     legacySkillMigration: legacySkillMigration?.commit() ?? null,
-  };
-}
-
-export async function runOplAgentPackageManifestValidate(input: AgentPackageManifestValidateInput) {
-  const selection = await resolveManifestSelection(input);
-  const fetched = await fetchJsonSource(selection.manifestUrl);
-  const manifest = normalizeManifest(fetched.payload, selection.manifestUrl);
-  assertManifestMatchesRegistrySelection(manifest, selection);
-  const effectiveTrustTier = stringValue(input.trustTier) ?? selection.trustTier;
-  const sourceKind = normalizeSourceKind(input.sourceKind, selection.manifestUrl);
-  return {
-    version: 'g2',
-    opl_agent_package_manifest: {
-      surface_kind: 'opl_agent_package_manifest_validation',
-      status: 'valid',
-      package_id: manifest.package_id,
-      agent_id: manifest.agent_id,
-      display_name: manifest.display_name,
-      publisher: manifest.publisher,
-      package_version: manifest.version,
-      registry_url: selection.registryUrl,
-      manifest_url: selection.manifestUrl,
-      manifest_sha256: fetched.source_sha256,
-      source_kind: sourceKind,
-      trust_tier: effectiveTrustTier,
-      codex_visible_entry: manifest.codex_visible_entry,
-      bundled_required_skill_ids: manifest.required_skill_ids,
-      optional_skill_refs: manifest.optional_skill_refs,
-      distribution_payload: manifest.distribution_payload,
-      rollback_ref: manifest.rollback_ref,
-      registry_entry: selection.registryEntry,
-      validation_policy: {
-        manifest_required_fields: [...MANIFEST_REQUIRED_FIELDS],
-        forbidden_fields: [...FORBIDDEN_AGENT_PACKAGE_FIELDS],
-        session_contract_allowed: false,
-        domain_authority_allowed: false,
-      },
-      authority_boundary: refsOnlyAuthorityBoundary(),
-    },
   };
 }
 

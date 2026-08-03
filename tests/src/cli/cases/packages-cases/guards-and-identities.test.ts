@@ -917,41 +917,6 @@ test('packages rejects invalid manifests before writing locks', () => {
   }
 });
 
-test('packages validates first-party agent package manifest shape', () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-first-party-manifest-state-'));
-  try {
-    const manifestPath = path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'oma.json');
-    const validation = runCli([
-      'packages',
-      'validate-manifest',
-      '--manifest-url',
-      pathToFileURL(manifestPath).href,
-      '--trust-tier',
-      'first_party',
-      '--source-kind',
-      'local_file',
-    ], { OPL_STATE_DIR: stateDir }) as {
-      opl_agent_package_manifest: {
-        status: string;
-        package_id: string;
-        codex_visible_entry: string;
-        bundled_required_skill_ids: string[];
-        distribution_payload: null;
-        rollback_ref: string;
-      };
-    };
-
-    assert.equal(validation.opl_agent_package_manifest.status, 'valid');
-    assert.equal(validation.opl_agent_package_manifest.package_id, 'oma');
-    assert.equal(validation.opl_agent_package_manifest.codex_visible_entry, 'opl-meta-agent');
-    assert.deepEqual(validation.opl_agent_package_manifest.bundled_required_skill_ids, ['opl-meta-agent']);
-    assert.equal(validation.opl_agent_package_manifest.distribution_payload, null);
-    assert.equal(validation.opl_agent_package_manifest.rollback_ref, 'rollback-ref:oma/unavailable'); // reuse-first: allow owner-routed package provenance assertion.
-  } finally {
-    fs.rmSync(stateDir, { recursive: true, force: true });
-  }
-});
-
 test('packages reject external registries that claim canonical public package identities', async () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-alias-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-alias-home-'));

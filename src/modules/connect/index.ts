@@ -66,7 +66,6 @@ export {
   runOplAgentPackageFrameworkLink,
   runOplAgentPackageHomeShortcutPreferencesSet,
   runOplAgentPackageInstall,
-  runOplAgentPackageManifestValidate,
   runOplAgentPackageRepair,
   runOplAgentPackageStatus,
   runOplAgentPackageActivate,

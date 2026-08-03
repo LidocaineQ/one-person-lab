@@ -1,8 +1,6 @@
 import {
+  createJsonReceiptLedgerAdapter,
   optionalString,
-  readJsonReceiptLedger,
-  upsertJsonReceipts,
-  writeJsonReceiptLedger,
 } from '../../kernel/json-file.ts';
 import { record, stringList } from '../../kernel/json-record.ts';
 import { ensureOplStateDir, resolveOplStatePaths } from '../../kernel/runtime-state-paths.ts';
@@ -273,17 +271,6 @@ function normalizeReceipt(value: unknown): AppReleaseUserPathEvidenceReceipt | n
   return allEvidenceRefs(receipt).length > 0 ? receipt : null;
 }
 
-function readAppReleaseUserPathEvidenceLedger(): AppReleaseUserPathEvidenceLedger {
-  return readJsonReceiptLedger(ledgerPath(), emptyLedger, normalizeReceipt);
-}
-
-function writeAppReleaseUserPathEvidenceLedger(
-  ledger: AppReleaseUserPathEvidenceLedger,
-) {
-  const paths = ensureOplStateDir();
-  writeJsonReceiptLedger(paths.app_release_user_path_evidence_ledger_file, ledger);
-}
-
 function normalizeInput(
   input: AppReleaseUserPathEvidenceReceiptInput,
 ): AppReleaseUserPathEvidenceReceipt {
@@ -308,85 +295,37 @@ function normalizeInput(
   };
 }
 
+const receiptLedger = createJsonReceiptLedgerAdapter({
+  ledgerPath,
+  ensureStateDir: ensureOplStateDir,
+  emptyLedger,
+  normalizeReceipt,
+  normalizeInput,
+  isEligible: (input) => appReleaseUserPathEvidencePayloadPreflight(input)
+    .can_record_refs_only_receipt,
+  recordSurfaceKind: 'opl_app_release_user_path_evidence_ledger_record',
+  noEligibleStatus: 'no_eligible_app_release_user_path_evidence_receipts',
+  verifySurfaceKind: 'opl_app_release_user_path_evidence_ledger_verify',
+  blocker: {
+    blocker_kind: 'app_release_user_path_evidence_receipt_gate',
+    blocker_id: 'app_release_user_path_evidence_receipt_not_found',
+    required_owner: 'app_live_operator_or_release_owner',
+  },
+  authorityBoundary: refsOnlyAuthorityBoundary,
+});
+
 export function recordAppReleaseUserPathEvidenceReceipts(
   inputs: AppReleaseUserPathEvidenceReceiptInput[],
 ) {
-  const receipts = inputs
-    .filter((input) => appReleaseUserPathEvidencePayloadPreflight(input).can_record_refs_only_receipt)
-    .map(normalizeInput);
-  if (receipts.length === 0) {
-    return {
-      surface_kind: 'opl_app_release_user_path_evidence_ledger_record',
-      status: 'no_eligible_app_release_user_path_evidence_receipts',
-      recorded_receipt_count: 0,
-      receipt_refs: [],
-      ledger_file: ledgerPath(),
-      receipts: [],
-    };
-  }
-
-  const ledger = readAppReleaseUserPathEvidenceLedger();
-  upsertJsonReceipts(ledger.receipts, receipts, (entry, next) =>
-    entry.receipt_ref === next.receipt_ref
-  );
-  writeAppReleaseUserPathEvidenceLedger(ledger);
-  return {
-    surface_kind: 'opl_app_release_user_path_evidence_ledger_record',
-    status: 'recorded',
-    recorded_receipt_count: receipts.length,
-    receipt_refs: receipts.map((receipt) => receipt.receipt_ref),
-    ledger_file: ledgerPath(),
-    receipts,
-  };
+  return receiptLedger.record(inputs);
 }
 
 export function verifyAppReleaseUserPathEvidenceReceipt(
   input: AppReleaseUserPathEvidenceReceiptVerifyInput = {},
 ) {
-  const ledger = readAppReleaseUserPathEvidenceLedger();
-  const requestedReceiptRef = optionalString(input.receipt_ref);
-  const receiptIndex = requestedReceiptRef
-    ? ledger.receipts.findIndex((receipt) => receipt.receipt_ref === requestedReceiptRef)
-    : ledger.receipts.findIndex((receipt) => receipt.receipt_status === 'recorded');
-  const fallbackIndex = requestedReceiptRef ? -1 : ledger.receipts.findIndex(Boolean);
-  const selectedIndex = receiptIndex >= 0 ? receiptIndex : fallbackIndex;
-
-  if (selectedIndex < 0) {
-    return {
-      surface_kind: 'opl_app_release_user_path_evidence_ledger_verify',
-      status: 'blocked',
-      writes_performed: false,
-      receipt_ref: requestedReceiptRef,
-      verified_receipt_count: 0,
-      ledger_file: ledgerPath(),
-      blocker: {
-        blocker_kind: 'app_release_user_path_evidence_receipt_gate',
-        blocker_id: 'app_release_user_path_evidence_receipt_not_found',
-        required_owner: 'app_live_operator_or_release_owner',
-      },
-      authority_boundary: refsOnlyAuthorityBoundary(),
-    };
-  }
-
-  const current = ledger.receipts[selectedIndex];
-  const verified = {
-    ...current,
-    receipt_status: 'verified' as const,
-  };
-  ledger.receipts[selectedIndex] = verified;
-  writeAppReleaseUserPathEvidenceLedger(ledger);
-  return {
-    surface_kind: 'opl_app_release_user_path_evidence_ledger_verify',
-    status: 'verified',
-    writes_performed: current.receipt_status !== 'verified',
-    receipt_ref: verified.receipt_ref,
-    verified_receipt_count: 1,
-    ledger_file: ledgerPath(),
-    receipt: verified,
-    authority_boundary: refsOnlyAuthorityBoundary(),
-  };
+  return receiptLedger.verify(input);
 }
 
 export function listAppReleaseUserPathEvidenceReceipts() {
-  return readAppReleaseUserPathEvidenceLedger().receipts;
+  return receiptLedger.list();
 }

@@ -9,7 +9,6 @@ import {
   runOplAgentPackageFrameworkLink,
   runOplAgentPackageHomeShortcutPreferencesSet,
   runOplAgentPackageInstall,
-  runOplAgentPackageManifestValidate,
   runOplAgentPackageRepair,
   runOplAgentPackageStatus,
   runOplAgentPackageActivate,
@@ -17,7 +16,6 @@ import {
   runOplAgentPackageUpdate,
   type AgentPackageInstallInput,
   type AgentPackageHomeShortcutPreferencesSetInput,
-  type AgentPackageManifestValidateInput,
   type AgentPackagePackageActionInput,
   type AgentPackageRepairInput,
 } from '../../../../modules/connect/index.ts';
@@ -277,17 +275,6 @@ async function installPackageWithActiveWorkspace(input: AgentPackageInstallInput
   };
 }
 
-function parseManifestValidation(args: string[], spec: CommandSpec): AgentPackageManifestValidateInput {
-  const parsed = parseRegisteredCommandOptions('packages validate-manifest', args, spec);
-  return {
-    manifestUrl: readOptionalString(parsed['manifest-url']),
-    registryUrl: readOptionalString(parsed['registry-url']),
-    packageId: readOptionalString(parsed['package-id']),
-    trustTier: readOptionalString(parsed['trust-tier']),
-    sourceKind: readOptionalString(parsed['source-kind']) as AgentPackageManifestValidateInput['sourceKind'],
-  };
-}
-
 function parseFrameworkLink(args: string[], spec: CommandSpec) {
   const parsed = parseRegisteredCommandOptions('packages link-framework', args, spec);
   const agentRoot = String(parsed['agent-root'] ?? '').trim();
@@ -362,16 +349,6 @@ export function buildPackagesCommandSpecs(
           targetQuest: readOptionalString(parsed['target-quest']),
         });
       },
-    },
-    'packages validate-manifest': {
-      usage: 'opl packages validate-manifest (--manifest-url <url>|--registry-url <url> --package-id <id>) [--trust-tier <tier>] [--source-kind <kind>]',
-      summary: 'Validate one OPL Package manifest and its trust/source boundary without installing it.',
-      examples: ['opl packages validate-manifest --manifest-url https://example.com/agent/manifest.json --trust-tier third_party_verified --json'],
-      group: 'packages',
-      help_surface: 'diagnostic_drilldown',
-      handler: (args) => runOplAgentPackageManifestValidate(
-        parseManifestValidation(args, getCommandSpec('packages validate-manifest')),
-      ),
     },
     'packages link-framework': {
       usage: 'opl packages link-framework --agent-root <repo> [--check|--dry-run]',

@@ -11,7 +11,7 @@ import {
   withAgentPackageServer,
 } from './helpers.ts';
 
-test('explicit registry selection validates and installs without a persistent discovery cache', async () => {
+test('explicit registry selection installs without a persistent discovery cache', async () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-packages-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-packages-home-'));
   const pluginSourcePath = createPluginSourceFixture();
@@ -25,13 +25,6 @@ test('explicit registry selection validates and installs without a persistent di
     await withAgentPackageServer(async (baseUrl) => {
       const registryUrl = `${baseUrl}/registry.json`;
       const args = ['--registry-url', registryUrl, '--package-id', 'third.party.research'];
-      const validation = await runCliAsync(['packages', 'validate-manifest', ...args], env) as any;
-      assert.equal(validation.opl_agent_package_manifest.status, 'valid');
-      assert.equal(validation.opl_agent_package_manifest.registry_url, registryUrl);
-      assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-registry-cache.json')), false);
-      assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
-      assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
-
       const install = await runCliAsync(['packages', 'install', ...args], env) as any;
       assert.equal(install.opl_agent_package_install.status, 'installed');
       assert.equal(install.opl_agent_package_install.package_lock.package_id, 'third.party.research');

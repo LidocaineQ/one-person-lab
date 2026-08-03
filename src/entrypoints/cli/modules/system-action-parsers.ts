@@ -23,394 +23,253 @@ import type {
 import { parseCommandOptions, parseRegisteredCommandOptions } from './command-registry.ts';
 import { buildUsageError } from './runtime-helpers.ts';
 
+function readLastStringOption(
+  args: string[],
+  values: Record<string, unknown>,
+  names: readonly string[],
+): string | undefined {
+  let token: string | undefined;
+  for (let index = args.length - 1; index >= 0; index -= 1) {
+    const candidate = args[index]!;
+    if (!candidate.startsWith('--')) continue;
+    if (names.includes(candidate.slice(2).split('=', 1)[0]!)) {
+      token = candidate;
+      break;
+    }
+  }
+  if (!token) return undefined;
+  return values[token.slice(2).split('=', 1)[0]!] as string | undefined;
+}
+
 function parseWorkspaceInitializeArgs(
   args: string[],
   spec: Pick<CommandSpec, 'usage' | 'examples'>,
 ): WorkspaceInitializeCliInput {
-  const parsed: WorkspaceInitializeCliInput = { mode: 'auto', bind: true };
-
-  for (let index = 0; index < args.length; index += 1) {
-    const token = args[index];
-
-    if (token === '--dry-run') {
-      parsed.dryRun = true;
-      continue;
-    }
-    if (token === '--no-bind') {
-      parsed.bind = false;
-      continue;
-    }
-    if (token === '--force') {
-      parsed.force = true;
-      continue;
-    }
-
-    if (!token.startsWith('--')) {
-      throw buildUsageError(`Unexpected positional argument: ${token}.`, spec, {
-        token,
-      });
-    }
-
-    const value = args[index + 1];
-    if (!value || value.startsWith('--')) {
-      throw buildUsageError(`Missing value for option: ${token}.`, spec, {
-        option: token,
-      });
-    }
-
-    switch (token) {
-      case '--agent':
-        parsed.agentId = value;
-        break;
-      case '--workspace':
-      case '--workspace-path':
-        parsed.workspacePath = value;
-        break;
-      case '--workspace-root':
-        parsed.workspaceRoot = value;
-        break;
-      case '--workspace-id':
-        parsed.workspaceId = value;
-        break;
-      case '--project-id':
-      case '--deliverable-id':
-      case '--study-id':
-        parsed.projectId = value;
-        break;
-      case '--title':
-        parsed.title = value;
-        break;
-      case '--mode':
-        if (value !== 'auto' && value !== 'one_off' && value !== 'series' && value !== 'portfolio') {
-          throw buildUsageError(
-            'workspace init --mode requires auto, one_off, series, or portfolio.',
-            spec,
-            { option: token, value },
-          );
-        }
-        parsed.mode = value;
-        break;
-      default:
-        throw buildUsageError(`Unknown option for workspace init command: ${token}.`, spec, {
-          option: token,
-        });
-    }
-
-    index += 1;
+  const values = parseCommandOptions(args, spec, {
+    agent: { type: 'string' },
+    workspace: { type: 'string' },
+    'workspace-path': { type: 'string' },
+    'workspace-root': { type: 'string' },
+    'workspace-id': { type: 'string' },
+    'project-id': { type: 'string' },
+    'deliverable-id': { type: 'string' },
+    'study-id': { type: 'string' },
+    title: { type: 'string' },
+    mode: { type: 'string' },
+    'dry-run': { type: 'boolean' },
+    'no-bind': { type: 'boolean' },
+    force: { type: 'boolean' },
+  });
+  const mode = values.mode as string | undefined;
+  if (mode !== undefined && mode !== 'auto' && mode !== 'one_off' && mode !== 'series' && mode !== 'portfolio') {
+    throw buildUsageError(
+      'workspace init --mode requires auto, one_off, series, or portfolio.',
+      spec,
+      { option: '--mode', value: mode },
+    );
   }
-
-  return parsed;
+  const workspacePath = readLastStringOption(args, values, ['workspace', 'workspace-path']);
+  const projectId = readLastStringOption(args, values, ['project-id', 'deliverable-id', 'study-id']);
+  return {
+    ...(values.agent !== undefined ? { agentId: values.agent as string } : {}),
+    ...(workspacePath !== undefined ? { workspacePath } : {}),
+    ...(values['workspace-root'] !== undefined ? { workspaceRoot: values['workspace-root'] as string } : {}),
+    ...(values['workspace-id'] !== undefined ? { workspaceId: values['workspace-id'] as string } : {}),
+    ...(projectId !== undefined ? { projectId } : {}),
+    ...(values.title !== undefined ? { title: values.title as string } : {}),
+    mode: (mode ?? 'auto') as WorkspaceInitializeCliInput['mode'],
+    bind: values['no-bind'] !== true,
+    ...(values['dry-run'] === true ? { dryRun: true } : {}),
+    ...(values.force === true ? { force: true } : {}),
+  };
 }
 
 function parseWorkspaceValidationArgs(
   args: string[],
   spec: Pick<CommandSpec, 'usage' | 'examples'>,
 ): WorkspaceValidationCliInput {
-  const parsed: WorkspaceValidationCliInput = {};
-
-  for (let index = 0; index < args.length; index += 1) {
-    const token = args[index];
-
-    if (!token.startsWith('--')) {
-      throw buildUsageError(`Unexpected positional argument: ${token}.`, spec, { token });
-    }
-
-    const value = args[index + 1];
-    if (!value || value.startsWith('--')) {
-      throw buildUsageError(`Missing value for option: ${token}.`, spec, { option: token });
-    }
-
-    switch (token) {
-      case '--workspace':
-      case '--workspace-path':
-        parsed.workspacePath = value;
-        break;
-      default:
-        throw buildUsageError(`Unknown option for workspace inspection command: ${token}.`, spec, {
-          option: token,
-        });
-    }
-
-    index += 1;
-  }
-
-  return parsed;
+  const values = parseCommandOptions(args, spec, {
+    workspace: { type: 'string' },
+    'workspace-path': { type: 'string' },
+  });
+  const workspacePath = readLastStringOption(args, values, ['workspace', 'workspace-path']);
+  return workspacePath === undefined ? {} : { workspacePath };
 }
 
 function parseWorkspaceAdoptArgs(
   args: string[],
   spec: Pick<CommandSpec, 'usage' | 'examples'>,
 ): WorkspaceAdoptCliInput {
-  const parsed: WorkspaceAdoptCliInput = { mode: 'auto' };
-
-  for (let index = 0; index < args.length; index += 1) {
-    const token = args[index];
-
-    if (token === '--dry-run') {
-      parsed.dryRun = true;
-      continue;
-    }
-    if (token === '--apply') {
-      parsed.apply = true;
-      continue;
-    }
-
-    if (!token.startsWith('--')) {
-      throw buildUsageError(`Unexpected positional argument: ${token}.`, spec, { token });
-    }
-
-    const value = args[index + 1];
-    if (!value || value.startsWith('--')) {
-      throw buildUsageError(`Missing value for option: ${token}.`, spec, { option: token });
-    }
-
-    switch (token) {
-      case '--agent':
-        parsed.agentId = value;
-        break;
-      case '--workspace':
-      case '--workspace-path':
-        parsed.workspacePath = value;
-        break;
-      case '--workspace-root':
-        parsed.workspaceRoot = value;
-        break;
-      case '--workspace-id':
-        parsed.workspaceId = value;
-        break;
-      case '--project-id':
-      case '--deliverable-id':
-      case '--study-id':
-        parsed.projectId = value;
-        break;
-      case '--title':
-        parsed.title = value;
-        break;
-      case '--mode':
-        if (value !== 'auto' && value !== 'one_off' && value !== 'series' && value !== 'portfolio') {
-          throw buildUsageError(
-            'workspace adopt --mode requires auto, one_off, series, or portfolio.',
-            spec,
-            { option: token, value },
-          );
-        }
-        parsed.mode = value;
-        break;
-      default:
-        throw buildUsageError(`Unknown option for workspace adopt command: ${token}.`, spec, {
-          option: token,
-        });
-    }
-
-    index += 1;
+  const values = parseCommandOptions(args, spec, {
+    agent: { type: 'string' },
+    workspace: { type: 'string' },
+    'workspace-path': { type: 'string' },
+    'workspace-root': { type: 'string' },
+    'workspace-id': { type: 'string' },
+    'project-id': { type: 'string' },
+    'deliverable-id': { type: 'string' },
+    'study-id': { type: 'string' },
+    title: { type: 'string' },
+    mode: { type: 'string' },
+    'dry-run': { type: 'boolean' },
+    apply: { type: 'boolean' },
+  });
+  const mode = values.mode as string | undefined;
+  if (mode !== undefined && mode !== 'auto' && mode !== 'one_off' && mode !== 'series' && mode !== 'portfolio') {
+    throw buildUsageError(
+      'workspace adopt --mode requires auto, one_off, series, or portfolio.',
+      spec,
+      { option: '--mode', value: mode },
+    );
   }
-
-  if (parsed.dryRun === true && parsed.apply === true) {
+  const dryRun = values['dry-run'] === true;
+  const apply = values.apply === true;
+  if (dryRun && apply) {
     throw buildUsageError('workspace adopt accepts either --dry-run or --apply, not both.', spec, {
       mutually_exclusive: ['--dry-run', '--apply'],
     });
   }
-
-  return parsed;
+  const workspacePath = readLastStringOption(args, values, ['workspace', 'workspace-path']);
+  const projectId = readLastStringOption(args, values, ['project-id', 'deliverable-id', 'study-id']);
+  return {
+    ...(values.agent !== undefined ? { agentId: values.agent as string } : {}),
+    ...(workspacePath !== undefined ? { workspacePath } : {}),
+    ...(values['workspace-root'] !== undefined ? { workspaceRoot: values['workspace-root'] as string } : {}),
+    ...(values['workspace-id'] !== undefined ? { workspaceId: values['workspace-id'] as string } : {}),
+    ...(projectId !== undefined ? { projectId } : {}),
+    ...(values.title !== undefined ? { title: values.title as string } : {}),
+    mode: (mode ?? 'auto') as WorkspaceAdoptCliInput['mode'],
+    ...(dryRun ? { dryRun: true } : {}),
+    ...(apply ? { apply: true } : {}),
+  };
 }
 
 function parseWorkspaceLifecycleArgs(
   args: string[],
   spec: Pick<CommandSpec, 'usage' | 'examples'>,
 ): WorkspaceLifecycleCliInput {
-  const parsed: WorkspaceLifecycleCliInput = {};
-
-  for (let index = 0; index < args.length; index += 1) {
-    const token = args[index];
-
-    if (token === '--dry-run') {
-      parsed.dryRun = true;
-      continue;
-    }
-    if (token === '--apply') {
-      parsed.apply = true;
-      continue;
-    }
-
-    if (!token.startsWith('--')) {
-      throw buildUsageError(`Unexpected positional argument: ${token}.`, spec, { token });
-    }
-
-    const value = args[index + 1];
-    if (!value || value.startsWith('--')) {
-      throw buildUsageError(`Missing value for option: ${token}.`, spec, { option: token });
-    }
-
-    switch (token) {
-      case '--workspace':
-      case '--workspace-path':
-        parsed.workspacePath = value;
-        break;
-      case '--project-id':
-      case '--deliverable-id':
-      case '--study-id':
-        parsed.projectId = value;
-        break;
-      case '--status':
-        if (
-          value !== 'active'
-          && value !== 'paused'
-          && value !== 'archived'
-          && value !== 'superseded'
-          && value !== 'locked'
-        ) {
-          throw buildUsageError(
-            'Workspace lifecycle --status requires active, paused, archived, superseded, or locked.',
-            spec,
-            { option: token, value },
-          );
-        }
-        parsed.status = value;
-        break;
-      case '--reason':
-        parsed.reason = value;
-        break;
-      case '--superseded-by':
-      case '--superseded-by-project-id':
-        parsed.supersededByProjectId = value;
-        break;
-      case '--owner-receipt-ref':
-        parsed.ownerReceiptRef = value;
-        break;
-      default:
-        throw buildUsageError(`Unknown option for workspace lifecycle command: ${token}.`, spec, {
-          option: token,
-        });
-    }
-
-    index += 1;
+  const values = parseCommandOptions(args, spec, {
+    workspace: { type: 'string' },
+    'workspace-path': { type: 'string' },
+    'project-id': { type: 'string' },
+    'deliverable-id': { type: 'string' },
+    'study-id': { type: 'string' },
+    status: { type: 'string' },
+    reason: { type: 'string' },
+    'superseded-by': { type: 'string' },
+    'superseded-by-project-id': { type: 'string' },
+    'owner-receipt-ref': { type: 'string' },
+    'dry-run': { type: 'boolean' },
+    apply: { type: 'boolean' },
+  });
+  const status = values.status as string | undefined;
+  if (
+    status !== undefined
+    && status !== 'active'
+    && status !== 'paused'
+    && status !== 'archived'
+    && status !== 'superseded'
+    && status !== 'locked'
+  ) {
+    throw buildUsageError(
+      'Workspace lifecycle --status requires active, paused, archived, superseded, or locked.',
+      spec,
+      { option: '--status', value: status },
+    );
   }
-
-  if (parsed.dryRun === true && parsed.apply === true) {
+  const dryRun = values['dry-run'] === true;
+  const apply = values.apply === true;
+  if (dryRun && apply) {
     throw buildUsageError('Workspace lifecycle commands accept either --dry-run or --apply, not both.', spec, {
       mutually_exclusive: ['--dry-run', '--apply'],
     });
   }
-
-  return parsed;
+  const workspacePath = readLastStringOption(args, values, ['workspace', 'workspace-path']);
+  const projectId = readLastStringOption(args, values, ['project-id', 'deliverable-id', 'study-id']);
+  const supersededByProjectId = readLastStringOption(
+    args,
+    values,
+    ['superseded-by', 'superseded-by-project-id'],
+  );
+  return {
+    ...(workspacePath !== undefined ? { workspacePath } : {}),
+    ...(projectId !== undefined ? { projectId } : {}),
+    ...(status !== undefined ? { status: status as WorkspaceLifecycleCliInput['status'] } : {}),
+    ...(values.reason !== undefined ? { reason: values.reason as string } : {}),
+    ...(supersededByProjectId !== undefined ? { supersededByProjectId } : {}),
+    ...(values['owner-receipt-ref'] !== undefined
+      ? { ownerReceiptRef: values['owner-receipt-ref'] as string }
+      : {}),
+    ...(dryRun ? { dryRun: true } : {}),
+    ...(apply ? { apply: true } : {}),
+  };
 }
 
 function parseWorkspaceArtifactLifecycleArgs(
   args: string[],
   spec: Pick<CommandSpec, 'usage' | 'examples'>,
 ): WorkspaceArtifactLifecycleCliInput {
-  const parsed: WorkspaceArtifactLifecycleCliInput = {};
-
-  for (let index = 0; index < args.length; index += 1) {
-    const token = args[index];
-
-    if (token === '--dry-run') {
-      parsed.dryRun = true;
-      continue;
-    }
-    if (token === '--apply') {
-      parsed.apply = true;
-      continue;
-    }
-
-    if (!token.startsWith('--')) {
-      throw buildUsageError(`Unexpected positional argument: ${token}.`, spec, { token });
-    }
-
-    const value = args[index + 1];
-    if (!value || value.startsWith('--')) {
-      throw buildUsageError(`Missing value for option: ${token}.`, spec, { option: token });
-    }
-
-    switch (token) {
-      case '--workspace':
-      case '--workspace-path':
-        parsed.workspacePath = value;
-        break;
-      case '--project-id':
-      case '--deliverable-id':
-      case '--study-id':
-        parsed.projectId = value;
-        break;
-      default:
-        throw buildUsageError(`Unknown option for workspace artifact lifecycle command: ${token}.`, spec, {
-          option: token,
-        });
-    }
-
-    index += 1;
-  }
-
-  if (parsed.dryRun === true && parsed.apply === true) {
+  const values = parseCommandOptions(args, spec, {
+    workspace: { type: 'string' },
+    'workspace-path': { type: 'string' },
+    'project-id': { type: 'string' },
+    'deliverable-id': { type: 'string' },
+    'study-id': { type: 'string' },
+    'dry-run': { type: 'boolean' },
+    apply: { type: 'boolean' },
+  });
+  const dryRun = values['dry-run'] === true;
+  const apply = values.apply === true;
+  if (dryRun && apply) {
     throw buildUsageError('workspace artifact-lifecycle accepts either --dry-run or --apply, not both.', spec, {
       mutually_exclusive: ['--dry-run', '--apply'],
     });
   }
-
-  return parsed;
+  const workspacePath = readLastStringOption(args, values, ['workspace', 'workspace-path']);
+  const projectId = readLastStringOption(args, values, ['project-id', 'deliverable-id', 'study-id']);
+  return {
+    ...(workspacePath !== undefined ? { workspacePath } : {}),
+    ...(projectId !== undefined ? { projectId } : {}),
+    ...(dryRun ? { dryRun: true } : {}),
+    ...(apply ? { apply: true } : {}),
+  };
 }
 
 function parseWorkspaceSourceIngestArgs(
   args: string[],
   spec: Pick<CommandSpec, 'usage' | 'examples'>,
 ): WorkspaceSourceIngestCliInput {
-  const parsed: WorkspaceSourceIngestCliInput = { apply: true };
-
-  for (let index = 0; index < args.length; index += 1) {
-    const token = args[index];
-
-    if (token === '--dry-run') {
-      parsed.dryRun = true;
-      parsed.apply = false;
-      continue;
-    }
-    if (token === '--apply') {
-      parsed.apply = true;
-      continue;
-    }
-
-    if (!token.startsWith('--')) {
-      throw buildUsageError(`Unexpected positional argument: ${token}.`, spec, { token });
-    }
-
-    const value = args[index + 1];
-    if (!value || value.startsWith('--')) {
-      throw buildUsageError(`Missing value for option: ${token}.`, spec, { option: token });
-    }
-
-    switch (token) {
-      case '--workspace':
-      case '--workspace-path':
-        parsed.workspacePath = value;
-        break;
-      case '--file':
-      case '--source-file':
-        parsed.filePath = value;
-        break;
-      case '--project-id':
-      case '--deliverable-id':
-      case '--study-id':
-        parsed.projectId = value;
-        break;
-      case '--role':
-        parsed.role = value;
-        break;
-      case '--title':
-        parsed.title = value;
-        break;
-      case '--note':
-        parsed.note = value;
-        break;
-      default:
-        throw buildUsageError(`Unknown option for workspace source ingest command: ${token}.`, spec, {
-          option: token,
-        });
-    }
-
-    index += 1;
-  }
-
-  return parsed;
+  const values = parseCommandOptions(args, spec, {
+    workspace: { type: 'string' },
+    'workspace-path': { type: 'string' },
+    file: { type: 'string' },
+    'source-file': { type: 'string' },
+    'project-id': { type: 'string' },
+    'deliverable-id': { type: 'string' },
+    'study-id': { type: 'string' },
+    role: { type: 'string' },
+    title: { type: 'string' },
+    note: { type: 'string' },
+    'dry-run': { type: 'boolean' },
+    apply: { type: 'boolean' },
+  });
+  const dryRun = values['dry-run'] === true;
+  const dryRunIndex = args.lastIndexOf('--dry-run');
+  const applyIndex = args.lastIndexOf('--apply');
+  const apply = dryRunIndex < 0 || applyIndex > dryRunIndex;
+  const workspacePath = readLastStringOption(args, values, ['workspace', 'workspace-path']);
+  const filePath = readLastStringOption(args, values, ['file', 'source-file']);
+  const projectId = readLastStringOption(args, values, ['project-id', 'deliverable-id', 'study-id']);
+  return {
+    apply,
+    ...(workspacePath !== undefined ? { workspacePath } : {}),
+    ...(filePath !== undefined ? { filePath } : {}),
+    ...(projectId !== undefined ? { projectId } : {}),
+    ...(values.role !== undefined ? { role: values.role as string } : {}),
+    ...(values.title !== undefined ? { title: values.title as string } : {}),
+    ...(values.note !== undefined ? { note: values.note as string } : {}),
+    ...(dryRun ? { dryRun: true } : {}),
+  };
 }
 
 
@@ -651,11 +510,11 @@ function parseDeveloperSupervisorArgs(
       value: moduleSource,
     });
   }
+  const githubLoginValues = parsed['auto-enable-github-login'] as string[] | undefined;
   return {
     developerSupervisorEnabled: enabled as DeveloperSupervisorCliInput['developerSupervisorEnabled'],
     developerSupervisorMode: mode as DeveloperSupervisorCliInput['developerSupervisorMode'],
-    developerSupervisorAutoEnableGithubLogin:
-      (parsed['auto-enable-github-login'] as string[] | undefined)?.at(-1),
+    developerSupervisorAutoEnableGithubLogin: githubLoginValues?.[githubLoginValues.length - 1],
     developerSupervisorModuleId: moduleId,
     developerSupervisorModuleSource:
       moduleSource as DeveloperSupervisorCliInput['developerSupervisorModuleSource'],
