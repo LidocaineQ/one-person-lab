@@ -9,6 +9,141 @@ import { buildDomainManifestCatalog } from '../../../../src/modules/atlas/domain
 import { buildCurrentDashboardSurfaceRefs, buildCurrentReadinessProjection } from '../../../../src/modules/console/management/readiness.ts';
 import { buildOplDashboard } from '../../../../src/modules/console/management/runtime-dashboard.ts';
 import { buildWorkspaceCatalog } from '../../../../src/modules/workspace/workspace-registry.ts';
+import {
+  parseWorkspaceAdoptArgs,
+  parseWorkspaceArtifactLifecycleArgs,
+  parseWorkspaceInitializeArgs,
+  parseWorkspaceLifecycleArgs,
+  parseWorkspaceSourceIngestArgs,
+  parseWorkspaceValidationArgs,
+} from '../../../../src/entrypoints/cli/modules/support.ts';
+
+const workspaceParserSpec = {
+  usage: 'opl workspace test',
+  examples: ['opl workspace test'],
+};
+
+test('workspace parsers preserve aliases, field mappings, and inline option values', () => {
+  assert.deepEqual(parseWorkspaceInitializeArgs([
+    '--agent=rca',
+    '--workspace-path=/tmp/workspace',
+    '--deliverable-id=deliverable-1',
+    '--mode=series',
+    '--dry-run',
+    '--no-bind',
+    '--force',
+  ], workspaceParserSpec), {
+    agentId: 'rca',
+    workspacePath: '/tmp/workspace',
+    projectId: 'deliverable-1',
+    mode: 'series',
+    bind: false,
+    dryRun: true,
+    force: true,
+  });
+  assert.equal(parseWorkspaceValidationArgs(['--workspace=/tmp/validated'], workspaceParserSpec).workspacePath, '/tmp/validated');
+  assert.deepEqual(parseWorkspaceAdoptArgs([
+    '--agent=mas',
+    '--workspace-path=/tmp/adopt',
+    '--study-id=study-1',
+    '--mode=portfolio',
+    '--apply',
+  ], workspaceParserSpec), {
+    agentId: 'mas',
+    workspacePath: '/tmp/adopt',
+    projectId: 'study-1',
+    mode: 'portfolio',
+    apply: true,
+  });
+  assert.equal(parseWorkspaceLifecycleArgs([
+    '--workspace=/tmp/lifecycle', '--study-id=study-2', '--status=paused', '--superseded-by-project-id=study-3',
+  ], workspaceParserSpec).supersededByProjectId, 'study-3');
+  assert.equal(parseWorkspaceArtifactLifecycleArgs([
+    '--workspace-path=/tmp/artifacts', '--project-id=project-1', '--dry-run',
+  ], workspaceParserSpec).dryRun, true);
+  assert.deepEqual(parseWorkspaceSourceIngestArgs([
+    '--workspace-path=/tmp/source', '--source-file=/tmp/source.pdf', '--role=reference_design', '--apply',
+  ], workspaceParserSpec), {
+    apply: true,
+    workspacePath: '/tmp/source',
+    filePath: '/tmp/source.pdf',
+    role: 'reference_design',
+  });
+});
+
+test('workspace parsers keep parseArgs duplicate, unknown, and missing-option semantics', () => {
+  assert.equal(
+    parseWorkspaceValidationArgs([
+      '--workspace-path=/tmp/alias',
+      '--workspace=/tmp/final',
+      '--workspace=/tmp/last',
+    ], workspaceParserSpec).workspacePath,
+    '/tmp/last',
+  );
+
+  for (const args of [['--unknown=value'], ['--workspace']]) {
+    assert.throws(
+      () => parseWorkspaceValidationArgs(args, workspaceParserSpec),
+      (error) => {
+        assert.equal(error instanceof FrameworkContractError, true);
+        const usageError = error as FrameworkContractError;
+        assert.equal(usageError.code, 'cli_usage_error');
+        assert.equal(usageError.details?.parser_adapter, 'node_util_parse_args');
+        return true;
+      },
+    );
+  }
+});
+
+test('workspace parsers retain mode and status validation after parseArgs migration', () => {
+  const cases: Array<{
+    parse: (args: string[], spec: typeof workspaceParserSpec) => unknown;
+    args: string[];
+    message: RegExp;
+  }> = [
+    { parse: parseWorkspaceInitializeArgs, args: ['--mode=invalid'], message: /workspace init --mode requires/ },
+    { parse: parseWorkspaceLifecycleArgs, args: ['--status=invalid'], message: /Workspace lifecycle --status requires/ },
+  ];
+  for (const { parse, args, message } of cases) {
+    assert.throws(() => parse(args, workspaceParserSpec), (error) => {
+      assert.equal(error instanceof FrameworkContractError, true);
+      const usageError = error as FrameworkContractError;
+      assert.equal(usageError.code, 'cli_usage_error');
+      assert.match(usageError.message, message);
+      assert.equal(usageError.details?.option, args[0]!.split('=', 1)[0]);
+      return true;
+    });
+  }
+});
+
+test('workspace parsers retain dry-run and apply precedence and mutual exclusion', () => {
+  assert.equal(parseWorkspaceSourceIngestArgs([], workspaceParserSpec).apply, true);
+  assert.deepEqual(
+    [
+      parseWorkspaceSourceIngestArgs(['--dry-run'], workspaceParserSpec).apply,
+      parseWorkspaceSourceIngestArgs(['--dry-run', '--apply'], workspaceParserSpec).apply,
+      parseWorkspaceSourceIngestArgs(['--apply', '--dry-run'], workspaceParserSpec).apply,
+    ],
+    [false, true, false],
+  );
+
+  for (const parse of [
+    parseWorkspaceAdoptArgs,
+    parseWorkspaceLifecycleArgs,
+    parseWorkspaceArtifactLifecycleArgs,
+  ]) {
+    assert.throws(
+      () => parse(['--dry-run', '--apply'], workspaceParserSpec),
+      (error) => {
+        assert.equal(error instanceof FrameworkContractError, true);
+        const usageError = error as FrameworkContractError;
+        assert.equal(usageError.code, 'cli_usage_error');
+        assert.deepEqual(usageError.details?.mutually_exclusive, ['--dry-run', '--apply']);
+        return true;
+      },
+    );
+  }
+});
 
 test('public and internal command specs no longer carry removed UI adapter command ids', () => {
   const contracts = loadFrameworkContracts({ contractsDir });
