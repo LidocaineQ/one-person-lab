@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { parseCloseoutFromCodexMessages } from '../../../src/modules/runway/family-runtime-codex-stage-runner-parts/session-closeout-recovery.ts';
 import { createFakeCodexFixture } from '../cli/helpers.ts';
 import { runPublicCodexStageRunner } from '../family-runtime-codex-stage-runner-helpers.ts';
 
@@ -637,16 +638,19 @@ exit 64
   assert.equal(receipt.process_output_summary?.final_message_chars, closeoutText.length + 19);
 });
 
-test('Codex stage runner advances final prose after an earlier closeout-shaped message', async () => {
-  const earlyCloseout = {
+test('Codex stage runner preserves a valid typed closeout before generic final prose', async () => {
+  const closeout = {
     surface_kind: 'stage_attempt_closeout_packet',
-    closeout_refs: ['receipt:not-terminal'],
+    stage_attempt_id: 'sat_nonterminal_closeout_test',
+    closeout_refs: ['receipt:typed-before-generic-final-prose'],
+    consumed_refs: ['artifact:reviewer-closeout'],
+    domain_ready_verdict: 'review_complete',
   };
   const { fixtureRoot, codexPath } = createFakeCodexFixture(`
 if [ "$1" = "exec" ]; then
   printf '{"type":"thread.started","thread_id":"thread-nonterminal-closeout"}\\n'
   printf '{"type":"turn.started"}\\n'
-  printf '%s\\n' '${JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', id: 'msg-1', text: JSON.stringify(earlyCloseout) } })}'
+  printf '%s\\n' '${JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', id: 'msg-1', text: JSON.stringify(closeout) } })}'
   printf '{"type":"item.completed","item":{"type":"agent_message","id":"msg-2","text":"final prose is not a closeout"}}\\n'
   printf '{"type":"turn.completed"}\\n'
   exit 0
@@ -669,10 +673,48 @@ exit 64
   });
 
   assert.equal(receipt.closeout_packet?.surface_kind, 'stage_attempt_closeout_packet');
-  assert.match(receipt.closeout_packet?.closeout_refs[0] ?? '', /^file:\/\//);
-  assert.equal(receipt.closeout_packet?.route_impact?.next_stage_may_start, true);
+  assert.deepEqual(receipt.closeout_packet?.closeout_refs, ['receipt:typed-before-generic-final-prose']);
+  assert.deepEqual(receipt.closeout_packet?.consumed_refs, ['artifact:reviewer-closeout']);
+  assert.equal(receipt.closeout_packet?.domain_ready_verdict, 'review_complete');
   assert.equal(
     receipt.process_output_summary?.progress_closeout_projection?.projection_status,
-    'derived_progress_envelope',
+    'typed_closeout_observed',
   );
+});
+
+test('Codex closeout selection keeps the latest normalized typed packet', () => {
+  const ordinaryJson = JSON.stringify({ status: 'ordinary-json-before-closeout' });
+  const earlierCloseout = {
+    surface_kind: 'stage_attempt_closeout_packet',
+    closeout_refs: ['receipt:earlier-closeout'],
+  };
+  const latestCloseout = {
+    surface_kind: 'domain_stage_closeout_packet',
+    closeout_refs: ['receipt:latest-closeout'],
+    consumed_refs: ['artifact:latest-review'],
+  };
+
+  const selected = parseCloseoutFromCodexMessages([
+    ordinaryJson,
+    JSON.stringify(earlierCloseout),
+    'generic runner progress',
+    JSON.stringify(latestCloseout),
+    JSON.stringify({ surface_kind: 'stage_attempt_closeout_packet' }),
+    'generic runner completion text',
+  ]);
+
+  assert.equal(parseCloseoutFromCodexMessages([ordinaryJson, 'generic runner completion text']), null);
+  assert.equal(selected?.surface_kind, 'domain_stage_closeout_packet');
+  assert.deepEqual(selected?.closeout_refs, ['receipt:latest-closeout']);
+  assert.deepEqual(selected?.consumed_refs, ['artifact:latest-review']);
+});
+
+test('Codex closeout selection does not join JSON fragments across an intervening message', () => {
+  const selected = parseCloseoutFromCodexMessages([
+    '{"surface_kind":"stage_attempt_closeout_packet",',
+    'generic runner progress separates the JSON fragments',
+    '"closeout_refs":["receipt:must-not-be-selected"]}',
+  ]);
+
+  assert.equal(selected, null);
 });
