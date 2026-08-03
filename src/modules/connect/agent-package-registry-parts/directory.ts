@@ -1,7 +1,9 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { recordList, stringList, stringValue } from '../../../kernel/json-record.ts';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
 import {
   assertFirstPartyPackageCatalogVersion,
@@ -125,6 +127,11 @@ const PACKAGE_ROLES = new Set<AgentPackageRole>([
   'workflow_profile',
 ]);
 
+const frameworkRepoRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../../',
+);
+
 function isFirstPartyDirectorySource(source: DirectorySource) {
   return source.source_kind === 'first_party_release_catalog'
     || source.source_kind === 'first_party_framework_projection';
@@ -172,6 +179,26 @@ function manifestDirectoryMetadata(payload: unknown, manifestUrl: string) {
     configured_codex_plugin_carrier: manifest.configured_codex_plugin_carrier ?? null,
     app_contributions: manifest.app_contributions,
   };
+}
+
+function staticProjectionCarrier(spec: { package_id: string; package_manifest_ref: string }) {
+  const manifestPath = path.resolve(frameworkRepoRoot, spec.package_manifest_ref);
+  if (!fs.existsSync(manifestPath)) return null;
+  const payload = parseJsonText(fs.readFileSync(manifestPath, 'utf8'));
+  const codexSurface = isRecord(payload) && isRecord(payload.codex_surface)
+    ? payload.codex_surface
+    : null;
+  if (!codexSurface || !Object.hasOwn(codexSurface, 'configured_codex_plugin_carrier')) return null;
+  const manifest = normalizeDirectoryOwnerManifest(payload, pathToFileURL(manifestPath).toString());
+  if (manifest.package_id !== spec.package_id) {
+    throw new FrameworkContractError('contract_shape_invalid', 'First-party static projection identity must match its Package spec.', {
+      package_id: spec.package_id,
+      manifest_package_id: manifest.package_id,
+      manifest_path: manifestPath,
+      failure_code: 'first_party_package_projection_manifest_mismatch',
+    });
+  }
+  return manifest.configured_codex_plugin_carrier ?? null;
 }
 
 function selectedCatalogVersion(entry: Record<string, unknown>, packageId: string) {
@@ -328,6 +355,7 @@ function firstPartyDirectorySources(snapshot: FirstPartyDirectoryCatalogSnapshot
     const selectedManifest = selected
       ? normalizeDirectoryOwnerManifest(catalogManifestPayload(selected), selected.manifest_url)
       : null;
+    const projectedCarrier = selected ? null : staticProjectionCarrier(spec);
     if (selected && selectedManifest
       && (selectedManifest.package_id !== spec.package_id || selectedManifest.version !== selected.package_version)) {
       throw new FrameworkContractError('contract_shape_invalid', 'First-party directory selection must match its owner manifest identity.', {
@@ -374,7 +402,7 @@ function firstPartyDirectorySources(snapshot: FirstPartyDirectoryCatalogSnapshot
       home_shortcut_ids: [],
       configured_codex_plugin_carrier: selected
         ? selectedManifest?.configured_codex_plugin_carrier ?? null
-        : null,
+        : projectedCarrier,
       app_contributions: selected
         ? selectedManifest?.app_contributions ?? null
         : null,
@@ -388,6 +416,16 @@ function firstPartyDirectorySources(snapshot: FirstPartyDirectoryCatalogSnapshot
       release_target: selected,
     };
   });
+}
+
+export function firstPartyConfiguredCarrierDescriptors() {
+  const descriptors = new Map<string, AgentPackageConfiguredCodexPluginCarrierDescriptor>();
+  for (const source of firstPartyDirectorySources(null)) {
+    if (source.configured_codex_plugin_carrier) {
+      descriptors.set(source.package_id, source.configured_codex_plugin_carrier);
+    }
+  }
+  return descriptors;
 }
 
 function lockDirectorySource(lock: AgentPackageLock, packageRole: AgentPackageRole | null): DirectorySource {
@@ -726,15 +764,27 @@ export function buildAgentPackageDirectory(input: {
   const entries = [...sources.values()].map((source) => {
     const lock = locksById.get(source.package_id) ?? null;
     const installedDescriptor = input.installedCodexPluginDescriptors?.get(source.package_id) ?? null;
-    const legacyLock = installedDescriptor ? null : lock;
+    const carrierOwned = Boolean(source.configured_codex_plugin_carrier || installedDescriptor);
+    const legacyLock = carrierOwned ? null : lock;
     const carrierReadiness = installedDescriptor?.readiness ?? null;
     const configuredCarrier = input.configuredCarrierReadbacks?.get(source.package_id) ?? null;
     const configuredCarrierInstalled = configuredCarrier?.status === 'installed';
-    const installed = Boolean(lock)
-      || configuredCarrierInstalled
-      || carrierReadiness?.installed === true;
+    const configuredCarrierNotInstalled = Boolean(
+      configuredCarrier
+      && (
+        configuredCarrier.status === 'not_installed'
+        || (
+          configuredCarrier.status === 'physical_unavailable'
+          && configuredCarrier.carrier.precedence === 'not_present'
+        )
+      ),
+    );
+    const installed = carrierOwned
+      ? configuredCarrierInstalled || carrierReadiness?.installed === true
+      : Boolean(lock);
     const configuredCarrierAttention = Boolean(
       configuredCarrier
+      && !configuredCarrierNotInstalled
       && (
         configuredCarrier.status === 'physical_unavailable'
         || configuredCarrier.executor.status !== 'callable'
@@ -779,14 +829,16 @@ export function buildAgentPackageDirectory(input: {
       };
     } else if (configuredCarrier) {
       status = {
-        status: configuredCarrierAttention ? 'attention_needed' : 'available',
+        status: configuredCarrierAttention
+          ? 'attention_needed'
+          : configuredCarrierNotInstalled
+            ? 'not_installed'
+            : 'available',
         recommended_action: configuredCarrierInstalled ? 'agent_package_repair' : null,
         operational_ready: configuredCarrierInstalled && !configuredCarrierAttention,
         launch_allowed: configuredCarrierInstalled && !configuredCarrierAttention,
         launch_blocked_reason: configuredCarrierAttention
-          ? lock
-            ? 'configured_native_carrier_legacy_state_present'
-            : configuredCarrier.reason ?? 'configured_native_carrier_attention_needed'
+          ? configuredCarrier.reason ?? 'configured_native_carrier_attention_needed'
           : configuredCarrierInstalled
             ? null
             : 'package_not_installed',

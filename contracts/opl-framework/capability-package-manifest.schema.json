@@ -167,7 +167,28 @@
         "plugin_payload_manifest_url": { "type": "string", "minLength": 1 },
         "carrier_source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "codex_default_exposure": { "const": false },
-        "optional_install_policy": { "const": "all_exported_skills" }
+        "optional_install_policy": { "const": "all_exported_skills" },
+        "configured_codex_plugin_carrier": {
+          "type": "object",
+          "required": [
+            "kind",
+            "plugin_selector",
+            "executor_route",
+            "marketplace_source",
+            "publication_ref"
+          ],
+          "properties": {
+            "kind": { "const": "codex_plugin_manager" },
+            "plugin_selector": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "executor_route": { "const": "codex_cli" },
+            "marketplace_source": { "type": ["string", "null"], "minLength": 1 },
+            "publication_ref": { "type": ["string", "null"], "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": true
     },

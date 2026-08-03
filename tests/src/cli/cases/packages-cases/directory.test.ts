@@ -1063,7 +1063,7 @@ exit 1
     });
     assert.equal(flow.package_role, 'workflow_profile');
     assert.equal(flow.capability_metadata, null);
-    assert.equal(flow.projected_version, '0.1.30');
+    assert.equal(flow.projected_version, '0.1.31');
     assert.equal(flow.selected_version, null);
     assert.equal(flow.stable_version, null);
     assert.equal(flow.source_explanation.kind, 'first_party_framework_projection');
@@ -1225,7 +1225,7 @@ test('first-party Directory versions come only from the managed Release Set sele
   assert.deepEqual(mas.session_routing_summary_i18n, thirdPartyPresentation.session_routing_summary_i18n);
   assert.deepEqual(mas.home_shortcuts, thirdPartyPresentation.home_shortcuts);
   assert.equal(Object.hasOwn(mas, 'presentation'), false);
-  assert.equal(flow.projected_version, '0.1.30');
+  assert.equal(flow.projected_version, '0.1.31');
   assert.equal(flow.selected_version, '0.1.19');
   assert.equal(flow.stable_version, '0.1.19');
   assert.equal(flow.version_currentness.status, 'live_release_set');
@@ -1325,6 +1325,63 @@ test('static owner presentation projects only when no selected catalog manifest 
   assert.equal(selectedMag.description_i18n, null);
   assert.equal(selectedMag.session_routing_summary_i18n, null);
   assert.deepEqual(selectedMag.home_shortcuts, []);
+  }));
+
+test('static Relay projection uses native readback and does not treat a stale lock as installed', () =>
+  withIsolatedStateDir('opl-package-directory-static-relay', () => {
+  const staleLock = {
+    surface_kind: 'opl_agent_package_lock',
+    package_id: 'opl-relay',
+    agent_id: null,
+    package_role: 'capability_package',
+    display_name: 'OPL Relay',
+    publisher: 'gaofeng21cn',
+    package_version: '0.5.2',
+    trust_tier: 'first_party',
+    source_kind: 'first_party_managed_cohort',
+    manifest_url: 'opl+oci://stale.example/opl-relay:0.5.2#/package-manifest.json',
+    lock_ref: 'opl://agent-package-lock/opl-relay/0.5.2/stale',
+    capability_provider: null,
+    scope_materializations: [],
+  } as any;
+  const nativeNotInstalled = {
+    surface_kind: 'opl_configured_codex_plugin_carrier_readback.v1',
+    package_id: 'opl-relay',
+    carrier: {
+      kind: 'codex_plugin_manager',
+      plugin_id: 'opl-relay@opl-relay',
+      marketplace_source: 'gaofeng21cn/opl-relay',
+      observed_sources: [],
+      precedence: 'not_present',
+    },
+    executor: {
+      route: 'codex_cli',
+      required_skill_ids: ['opl-relay'],
+      status: 'attention_needed',
+    },
+    publication_ref: 'ghcr.io/gaofeng21cn/one-person-lab-packages/opl-relay:latest-stable',
+    status: 'not_installed',
+    operation: 'list',
+    installed_version: null,
+    enabled: null,
+    plugin_source_path: null,
+    reason: 'native_carrier_reports_not_installed',
+  } as any;
+  const directory = buildAgentPackageDirectory({
+    locks: [staleLock],
+    detail: 'fast',
+    configuredCarrierReadbacks: new Map([['opl-relay', nativeNotInstalled]]),
+  });
+  const entry = directory.entries.find((candidate) => candidate.package_id === 'opl-relay')!;
+  assert.equal(entry.source_explanation.kind, 'first_party_framework_projection');
+  assert.equal(entry.configured_carrier?.status, 'not_installed');
+  assert.equal(entry.installed, false);
+  assert.equal(entry.installed_version, null);
+  assert.deepEqual(
+    entry.available_actions.map((action) => action.action_id),
+    ['install_from_manifest_url'],
+  );
+  assert.equal(entry.recommended_action, 'install_from_manifest_url');
   }));
 
 test('legacy v1 Release Set cache file is ignored by package directory reads', () => {

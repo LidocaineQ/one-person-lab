@@ -57,6 +57,13 @@
     "plugin_source_path": ".",
     "carrier_source_commit": "0b8e8961eedbf76b59deb952e5c42a53912836c9",
     "codex_default_exposure": false,
+    "configured_codex_plugin_carrier": {
+      "kind": "codex_plugin_manager",
+      "plugin_selector": "opl-relay@opl-relay",
+      "executor_route": "codex_cli",
+      "marketplace_source": "gaofeng21cn/opl-relay",
+      "publication_ref": "ghcr.io/gaofeng21cn/one-person-lab-packages/opl-relay:latest-stable"
+    },
     "optional_install_policy": "all_exported_skills",
     "plugin_payload_manifest_url": "payloads/opl-relay-0.5.2.json",
     "app_contribution_abi": {

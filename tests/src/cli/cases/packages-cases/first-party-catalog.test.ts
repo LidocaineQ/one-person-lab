@@ -10,6 +10,7 @@ import {
   os,
   parseJsonText,
   path,
+  repoRoot,
   removeFixtureTree,
   runCli,
   runCliFailure,
@@ -511,6 +512,69 @@ function writeFirstPartyCatalogFixture(
   };
 }
 
+function writeRelayOwnerFixture(root: string) {
+  const ownerRoot = path.join(root, 'relay-owner');
+  const manifest = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/packages/opl-relay.json'),
+    'utf8',
+  )) as Record<string, any>;
+  const manifestPath = path.join(ownerRoot, 'package-manifest.json');
+  fs.mkdirSync(path.join(ownerRoot, '.codex-plugin'), { recursive: true });
+  fs.mkdirSync(path.join(ownerRoot, 'skills', 'opl-relay'), { recursive: true });
+  fs.writeFileSync(manifestPath, formatJsonPayload(manifest));
+  fs.writeFileSync(path.join(ownerRoot, 'opl-package.json'), formatJsonPayload(manifest));
+  fs.writeFileSync(path.join(ownerRoot, '.codex-plugin', 'plugin.json'), formatJsonPayload({
+    name: 'opl-relay',
+    version: manifest.version,
+  }));
+  fs.writeFileSync(path.join(ownerRoot, 'skills', 'opl-relay', 'SKILL.md'), '# OPL Relay fixture\n');
+  return {
+    ownerRoot,
+    manifest,
+    releaseSet: writeCapabilityCatalog(path.join(root, 'relay-release-set'), [manifestPath]),
+  };
+}
+
+function writeRelayCodexFixture(binary: string, stateFile: string, sourcePath: string) {
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+const statePath = ${JSON.stringify(stateFile)};
+const sourcePath = ${JSON.stringify(sourcePath)};
+const state = fs.existsSync(statePath)
+  ? JSON.parse(fs.readFileSync(statePath, 'utf8'))
+  : { installed: false, marketplace: null };
+const command = args.join(' ');
+if (command === 'plugin marketplace list --json') {
+  process.stdout.write(JSON.stringify({
+    marketplaces: state.marketplace ? [{ marketplaceSource: { source: state.marketplace } }] : [],
+  }));
+} else if (args[0] === 'plugin' && args[1] === 'marketplace' && args[2] === 'add') {
+  state.marketplace = args[3];
+  fs.writeFileSync(statePath, JSON.stringify(state));
+  process.stdout.write('{}');
+} else if (args[0] === 'plugin' && args[1] === 'add') {
+  state.installed = true;
+  fs.writeFileSync(statePath, JSON.stringify(state));
+  process.stdout.write('{}');
+} else if (command === 'plugin list --json') {
+  process.stdout.write(JSON.stringify({
+    installed: state.installed ? [{
+      pluginId: 'opl-relay@opl-relay',
+      version: state.version || '0.5.2',
+      installed: true,
+      enabled: true,
+      source: { source: 'local', path: sourcePath },
+      marketplaceSource: { sourceType: 'local', source: state.marketplace },
+    }] : [],
+    available: [],
+  }));
+} else {
+  process.exitCode = 2;
+}
+`, { mode: 0o755 });
+}
+
 test('first-party package selection resolves the managed Release Set catalog', () => {
   const previousOwner = process.env.OPL_PACKAGES_OWNER;
   const previousTag = process.env.OPL_PACKAGE_CHANNEL_TAG;
@@ -546,6 +610,36 @@ test('first-party package selection resolves the managed Release Set catalog', (
       else process.env[key] = value;
     }
   }
+});
+
+test('Relay carrier projection is explicit in the Framework manifest and capability schema', () => {
+  const manifest = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/packages/opl-relay.json'),
+    'utf8',
+  )) as any;
+  const schema = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/capability-package-manifest.schema.json'),
+    'utf8',
+  )) as any;
+  const carrier = manifest.codex_surface.configured_codex_plugin_carrier;
+  const carrierSchema = schema.properties.codex_surface.properties.configured_codex_plugin_carrier;
+  assert.deepEqual(carrier, {
+    kind: 'codex_plugin_manager',
+    plugin_selector: 'opl-relay@opl-relay',
+    executor_route: 'codex_cli',
+    marketplace_source: 'gaofeng21cn/opl-relay',
+    publication_ref: 'ghcr.io/gaofeng21cn/one-person-lab-packages/opl-relay:latest-stable',
+  });
+  assert.deepEqual(carrierSchema.required, [
+    'kind',
+    'plugin_selector',
+    'executor_route',
+    'marketplace_source',
+    'publication_ref',
+  ]);
+  assert.equal(carrierSchema.properties.kind.const, 'codex_plugin_manager');
+  assert.equal(carrierSchema.properties.executor_route.const, 'codex_cli');
+  assert.equal(carrierSchema.additionalProperties, false);
 });
 
 test('legacy catalog selection policy is accepted as input but omitted from normalized manifests', () => {
@@ -629,6 +723,72 @@ test('live owner refresh stays ephemeral and does not request the shared manifes
     }
     fs.rmSync(stateDir, { recursive: true, force: true });
     fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('bare Relay install resolves its carrier from the live owner artifact', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-relay-bare-owner-'));
+  const fixture = writeRelayOwnerFixture(root);
+  const binary = path.join(root, 'fake-codex');
+  const stateFile = path.join(root, 'plugin-state.json');
+  const stateDir = path.join(root, 'opl-state');
+  writeRelayCodexFixture(binary, stateFile, fixture.ownerRoot);
+  const env = {
+    ...fixture.releaseSet.env,
+    HOME: root,
+    CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: binary,
+  };
+  try {
+    const installed = runCli(['packages', 'install', 'opl-relay'], env) as any;
+    const surface = installed.opl_agent_package_install;
+    assert.equal(surface.status, 'installed');
+    assert.equal(surface.package_id, 'opl-relay');
+    assert.equal(surface.configured_carrier.carrier.plugin_id, 'opl-relay@opl-relay');
+    assert.equal(
+      surface.configured_carrier.publication_ref,
+      'ghcr.io/gaofeng21cn/one-person-lab-packages/opl-relay:latest-stable',
+    );
+    assert.equal(Object.hasOwn(surface, 'package_lock'), false);
+    assert.equal(Object.hasOwn(surface, 'lifecycle_receipt'), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
+test('Relay owner source failure is typed and does not enter Framework lifecycle', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-relay-owner-failure-'));
+  const fixture = writeRelayOwnerFixture(root);
+  const binary = path.join(root, 'fake-codex');
+  const stateFile = path.join(root, 'plugin-state.json');
+  const stateDir = path.join(root, 'opl-state');
+  writeRelayCodexFixture(binary, stateFile, fixture.ownerRoot);
+  const env = {
+    ...fixture.releaseSet.env,
+    HOME: root,
+    CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: binary,
+    OPL_PACKAGES_OWNER: 'missing',
+    OPL_PACKAGE_CHANNEL_MANIFEST_REF: 'ghcr.io/missing/one-person-lab-manifest:latest-stable',
+  };
+  try {
+    const failure = runCliFailure(['packages', 'install', 'opl-relay'], env);
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'agent_package_capability_channel_unavailable',
+    );
+    assert.equal(
+      failure.payload.error.details.command.some((part: string) => part.includes(
+        'one-person-lab-packages/opl-relay',
+      )),
+      true,
+    );
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+  } finally {
+    removeFixtureTree(root);
   }
 });
 
