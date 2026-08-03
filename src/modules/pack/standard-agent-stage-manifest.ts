@@ -178,11 +178,10 @@ function reviewLaneBinding(
   }
   const field = 'stage.stage_contract.review_input_snapshot_transport';
   const declaredBinding = optionalString(transport.review_lane_binding);
-  const hasDeclaredReviewLane = Object.hasOwn(transport, 'review_lane');
-  if (hasDeclaredReviewLane) {
-    const reviewLane = text(transport.review_lane, `${field}.review_lane`, repoDir);
-    if (declaredBinding !== undefined && declaredBinding !== 'mas_stage_fixed') {
-      fail(`${field}.review_lane requires review_lane_binding=mas_stage_fixed when a binding is declared.`, {
+  const reviewLane = optionalString(transport.review_lane);
+  if (reviewLane) {
+    if (declaredBinding === 'controller_required') {
+      fail(`${field}.review_lane cannot be combined with controller_required.`, {
         repo_dir: repoDir,
         field,
         review_lane_binding: declaredBinding,
@@ -194,12 +193,6 @@ function reviewLaneBinding(
       executor_may_select_lane: false,
       lane_fallback: false,
     };
-  }
-  if (declaredBinding === 'mas_stage_fixed') {
-    fail(`${field}.review_lane is required for a mas_stage_fixed binding.`, {
-      repo_dir: repoDir,
-      field: `${field}.review_lane`,
-    });
   }
   if (declaredBinding !== 'controller_required') {
     return null;

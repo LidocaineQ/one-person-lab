@@ -50,6 +50,7 @@ import { buildPackBoundTemporalStageRunInput } from
 import { materializeStageRunRoute } from
   '../../src/modules/runway/family-runtime-stage-run-route-launch.ts';
 import {
+  buildRouteStageRunInvocation,
   stageAttemptExecutionContentBindingSha256,
   stageRunSpecSha256,
 } from '../../src/modules/runway/family-runtime-stage-run-identity.ts';
@@ -1755,14 +1756,20 @@ test('provider-hosted launch preserves currentness observation and gates before 
 test('route launch requires fresh active lifecycle on first launch and persisted replay', async () => {
   const fixtureRoot = temporaryRoot('opl-family-lifecycle-route-');
   const checkoutRoot = path.join(fixtureRoot, 'checkout');
+  const readinessCheckoutRoot = path.join(fixtureRoot, 'readiness-checkout');
+  const raceCheckoutRoot = path.join(fixtureRoot, 'race-checkout');
   const workspaceRoot = path.join(fixtureRoot, 'workspace');
   const stateRoot = path.join(fixtureRoot, 'state');
   const previousStateRoot = process.env.OPL_STATE_DIR;
   try {
     fs.mkdirSync(checkoutRoot, { recursive: true });
+    fs.mkdirSync(readinessCheckoutRoot, { recursive: true });
+    fs.mkdirSync(raceCheckoutRoot, { recursive: true });
     fs.mkdirSync(workspaceRoot, { recursive: true });
     process.env.OPL_STATE_DIR = stateRoot;
     writeLifecycleContracts(checkoutRoot);
+    writeLifecycleContracts(readinessCheckoutRoot);
+    writeLifecycleContracts(raceCheckoutRoot);
     const refs = writeLifecycleWorkspace(workspaceRoot);
     const files: Record<string, string> = {
       'contracts/stage-quality.json': '{}',
@@ -1789,6 +1796,8 @@ test('route launch requires fresh active lifecycle on first launch and persisted
       fs.mkdirSync(path.dirname(file), { recursive: true });
       fs.writeFileSync(file, bytes);
     }
+    fs.cpSync(checkoutRoot, readinessCheckoutRoot, { recursive: true });
+    fs.cpSync(checkoutRoot, raceCheckoutRoot, { recursive: true });
     const manifestSha256 = digest(fs.readFileSync(path.join(checkoutRoot, 'agent/stages/manifest.json')));
     const binding = (
       stageId: string,
@@ -2050,7 +2059,7 @@ test('route launch requires fresh active lifecycle on first launch and persisted
         && error.details?.failure_code === 'route_target_review_lane_binding_mismatch'
       ),
     );
-    assert.equal(controllerDisallowedStarts, 0);
+    assert.equal(controllerDisallowedStarts, 1);
 
     const undeclaredTarget = await launchLaneRoute('medical', null, 'undeclared-target');
     assert.equal(undeclaredTarget.laneStarts, 1);
@@ -2058,6 +2067,133 @@ test('route launch requires fresh active lifecycle on first launch and persisted
       Object.hasOwn(undeclaredTarget.laneTarget?.stage_run_spec.stage_attempt_executor_policy ?? {}, 'review_lane_binding'),
       false,
     );
+
+    const rootDrift = laneRoute('medical', controllerLane(['medical']), 'root-drift');
+    const rootDriftRoots: string[] = [];
+    let rootDriftTarget: ReturnType<typeof buildPackBoundTemporalStageRunInput> | null = null;
+    let rootDriftReadinessCalls = 0;
+    let rootDriftLaunches = 0;
+    const rootDriftResolveStageBinding = (root: string, stageId: string) => {
+      rootDriftRoots.push(root);
+      if (root === readinessCheckoutRoot && stageId === 'draft') {
+        return binding(stageId, rootDrift.targetReviewLaneBinding);
+      }
+      return binding(stageId, fixedLane('stale-parent-lane'));
+    };
+    const rootDriftFirst = await materializeStageRunRoute(rootDrift.routeInput, {
+      findTargetStageRun: () => rootDriftTarget,
+      ensurePackageLaunchReady: async () => {
+        rootDriftReadinessCalls += 1;
+        return {
+          runtime_source_readiness: { checkout_path: readinessCheckoutRoot },
+          package_use_binding: packageUseBinding(),
+        } as never;
+      },
+      resolveStageBinding: rootDriftResolveStageBinding,
+      launchTargetStageRun: async (target) => {
+        rootDriftLaunches += 1;
+        rootDriftTarget ??= target;
+        return { start_status: rootDriftLaunches === 1 ? 'started' : 'existing' };
+      },
+    });
+    assert.equal(rootDriftFirst.materialization_status, 'launched');
+    const rootDriftLaunchTarget = rootDriftTarget as unknown as ReturnType<
+      typeof buildPackBoundTemporalStageRunInput
+    >;
+    assert.equal(rootDriftLaunchTarget.domain_pack_root, readinessCheckoutRoot);
+    assert.equal(
+      rootDriftLaunchTarget.stage_run_spec.stage_attempt_executor_policy?.review_lane_binding,
+      'medical',
+    );
+    assert.deepEqual(rootDriftRoots, [readinessCheckoutRoot]);
+
+    const rootDriftReplay = await materializeStageRunRoute(rootDrift.routeInput, {
+      findTargetStageRun: () => rootDriftTarget,
+      ensurePackageLaunchReady: async () => {
+        rootDriftReadinessCalls += 1;
+        return {
+          runtime_source_readiness: { checkout_path: checkoutRoot },
+          package_use_binding: packageUseBinding(),
+        } as never;
+      },
+      resolveStageBinding: rootDriftResolveStageBinding,
+      launchTargetStageRun: async () => {
+        rootDriftLaunches += 1;
+        return { start_status: 'existing' };
+      },
+    });
+    assert.equal(rootDriftReplay.materialization_status, 'existing');
+    assert.equal(rootDriftReadinessCalls, 1);
+    assert.equal(rootDriftRoots.at(-1), readinessCheckoutRoot);
+    assert.equal(rootDriftLaunches, 2);
+
+    const raceRootDrift = laneRoute('medical', controllerLane(['medical']), 'race-root-drift');
+    const raceParent = raceRootDrift.routeInput.parent_stage_run;
+    const raceInvocation = buildRouteStageRunInvocation({
+      parentStageRunId: raceParent.stage_run_id,
+      decisiveAttemptRef: raceRootDrift.routeInput.decisive_attempt_ref,
+      decision: raceRootDrift.routeInput.decision,
+      targetStageId: 'draft',
+    });
+    const raceTarget = buildPackBoundTemporalStageRunInput({
+      binding: binding('draft', fixedLane('race-fixed-lane')),
+      domainPackRoot: raceCheckoutRoot,
+      domainId: raceParent.domain_id,
+      stageId: 'draft',
+      stageRunInvocationId: raceInvocation.stage_run_invocation_id,
+      parentRouteDecisionRef: raceInvocation.parent_route_decision_ref,
+      workspaceLocator: {
+        ...raceParent.workspace_locator,
+        domain_pack_root: raceCheckoutRoot,
+        package_use_binding: packageUseBinding(),
+      },
+      sourceFingerprint: raceParent.source_fingerprint,
+      executorKind: raceParent.executor_kind,
+      stageAttemptExecutorPolicy: { review_lane_binding: 'race-fixed-lane' },
+      artifactRefs: raceRootDrift.routeInput.artifact_refs,
+      artifactHashes: raceRootDrift.routeInput.artifact_hashes,
+      artifactIdentityReceiptRefs: raceRootDrift.routeInput.artifact_identity_receipt_refs,
+      actionId: raceParent.action_id,
+      taskId: raceParent.task_id,
+      scopeKind: raceParent.scope_kind,
+      executionScope: raceParent.execution_scope,
+    });
+    const raceRoots: string[] = [];
+    let raceCandidateAvailable = false;
+    let raceLaunches = 0;
+    const raceResult = await materializeStageRunRoute(raceRootDrift.routeInput, {
+      findTargetStageRun: () => raceCandidateAvailable ? raceTarget : null,
+      ensurePackageLaunchReady: async () => ({
+        runtime_source_readiness: { checkout_path: readinessCheckoutRoot },
+        package_use_binding: packageUseBinding(),
+      }) as never,
+      resolveStageBinding: (root: string, stageId: string) => {
+        raceRoots.push(root);
+        if (root === readinessCheckoutRoot && stageId === 'draft') {
+          return binding(stageId, controllerLane(['medical']));
+        }
+        if (root === raceCheckoutRoot && stageId === 'draft') {
+          return binding(stageId, fixedLane('race-fixed-lane'));
+        }
+        return binding(stageId, fixedLane('stale-parent-lane'));
+      },
+      launchTargetStageRun: async (target) => {
+        raceLaunches += 1;
+        if (raceLaunches === 1) {
+          raceCandidateAvailable = true;
+          throw new FrameworkContractError(
+            'contract_shape_invalid',
+            'test race conflict',
+            { failure_code: 'stage_run_invocation_spec_conflict' },
+          );
+        }
+        assert.equal(target.domain_pack_root, raceCheckoutRoot);
+        return { start_status: 'existing' };
+      },
+    });
+    assert.equal(raceResult.materialization_status, 'existing');
+    assert.equal(raceLaunches, 2);
+    assert.deepEqual(raceRoots, [readinessCheckoutRoot, raceCheckoutRoot]);
 
     writeJson(fileURLToPath(refs.lifecycle.ref), {
       study_id: 'study-001', lifecycle_state: 'paused', lifecycle_generation: 9,

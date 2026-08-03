@@ -168,6 +168,41 @@ function resolveRouteTargetReviewLane(input: {
   return input.parentReviewLane;
 }
 
+function resolveRouteTargetLaunchPlan(input: {
+  domainId: string;
+  domainPackRoot: string;
+  targetStageId: string;
+  parentReviewLane: string | null;
+  parentStageAttemptExecutorPolicy: Record<string, unknown> | null | undefined;
+  targetBinding: StandardAgentStageQualityRuntimeBinding | null;
+}) {
+  if (!input.targetBinding?.enabled) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'A decisive Stage route target must expose an enabled pack-bound Stage quality runtime.',
+      {
+        failure_code: 'route_target_stage_run_binding_unavailable',
+        domain_id: input.domainId,
+        target_stage_id: input.targetStageId,
+        domain_pack_root: input.domainPackRoot,
+      },
+    );
+  }
+  const targetReviewLane = resolveRouteTargetReviewLane({
+    parentReviewLane: input.parentReviewLane,
+    targetBinding: input.targetBinding,
+    targetStageId: input.targetStageId,
+  });
+  return {
+    targetBinding: input.targetBinding,
+    targetReviewLane,
+    targetStageAttemptExecutorPolicy: stageAttemptExecutorPolicyWithReviewLane(
+      input.parentStageAttemptExecutorPolicy,
+      targetReviewLane,
+    ),
+  };
+}
+
 export async function materializeStageRunRoute(
   input: TemporalStageRunRouteLaunchInput,
   dependencies: StageRunRouteLaunchDependencies,
@@ -263,25 +298,41 @@ export async function materializeStageRunRoute(
   });
   const resolveStageBinding = dependencies.resolveStageBinding
     ?? resolveStandardAgentStageQualityRuntimeBinding;
-  const targetBinding = resolveStageBinding(parentStageRun.domain_pack_root, targetStageId);
-  const targetReviewLane = resolveRouteTargetReviewLane({
-    parentReviewLane: parentStageRunReviewLane(parentStageRun),
-    targetBinding,
-    targetStageId,
-  });
-  const targetStageAttemptExecutorPolicy = stageAttemptExecutorPolicyWithReviewLane(
-    parentStageRun.stage_run_spec.stage_attempt_executor_policy,
-    targetReviewLane,
-  );
-  const expectedReplayIdentity = expectedRouteReplayBusinessIdentity({
-    parentStageRun,
-    targetStageId,
-    parentRouteDecisionRef: invocation.parent_route_decision_ref,
-    stageAttemptExecutorPolicy: targetStageAttemptExecutorPolicy,
-    artifactRefs: input.artifact_refs,
-    artifactHashes: input.artifact_hashes,
-    artifactIdentityReceiptRefs: input.artifact_identity_receipt_refs,
-  });
+  const parentReviewLane = parentStageRunReviewLane(parentStageRun);
+  const findPersistedTarget = async () => {
+    const candidate = await dependencies.findTargetStageRun?.(targetStageRunId) ?? null;
+    if (!candidate) return null;
+    const persisted = requireTemporalStageRunWorkflowInputLaunchable(candidate, {
+      revalidateContent: 'historical_evidence',
+    });
+    const targetPlan = resolveRouteTargetLaunchPlan({
+      domainId: persisted.domain_id,
+      domainPackRoot: persisted.domain_pack_root,
+      targetStageId,
+      parentReviewLane,
+      parentStageAttemptExecutorPolicy: parentStageRun.stage_run_spec.stage_attempt_executor_policy,
+      targetBinding: resolveStageBinding(persisted.domain_pack_root, targetStageId),
+    });
+    const expectedReplayIdentity = expectedRouteReplayBusinessIdentity({
+      parentStageRun,
+      targetStageId,
+      parentRouteDecisionRef: invocation.parent_route_decision_ref,
+      stageAttemptExecutorPolicy: targetPlan.targetStageAttemptExecutorPolicy,
+      artifactRefs: input.artifact_refs,
+      artifactHashes: input.artifact_hashes,
+      artifactIdentityReceiptRefs: input.artifact_identity_receipt_refs,
+    });
+    return {
+      target: requireMatchingRouteReplay({
+        persisted,
+        expectedStageRunId: targetStageRunId,
+        expectedStageRunInvocationId: invocation.stage_run_invocation_id,
+        expectedBusinessIdentity: expectedReplayIdentity,
+      }),
+      targetPlan,
+    };
+  };
+  const persistedTarget = await findPersistedTarget();
   const launchReceipt = (
     targetStageRun: TemporalStageRunWorkflowInput,
     durableLaunch: Record<string, unknown>,
@@ -302,31 +353,24 @@ export async function materializeStageRunRoute(
     durable_launch: durableLaunch,
     authority_boundary: authorityBoundary,
   });
-  const findPersistedTarget = async () => {
-    const persisted = await dependencies.findTargetStageRun?.(targetStageRunId) ?? null;
-    return persisted ? requireMatchingRouteReplay({
-      persisted,
-      expectedStageRunId: targetStageRunId,
-      expectedStageRunInvocationId: invocation.stage_run_invocation_id,
-      expectedBusinessIdentity: expectedReplayIdentity,
-    }) : null;
-  };
-  const persistedTarget = await findPersistedTarget();
-  if (persistedTarget) {
+  const preflightPersistedTarget = (target: TemporalStageRunWorkflowInput) => {
     preflightDomainWorkspaceCheckoutCurrentness({
-      domainId: persistedTarget.domain_id,
-      workspaceLocator: persistedTarget.workspace_locator,
+      domainId: target.domain_id,
+      workspaceLocator: target.workspace_locator,
     });
     preflightFamilyRuntimeDomainLifecycleAdmission({
-      domainId: persistedTarget.domain_id,
-      stageId: persistedTarget.stage_id,
+      domainId: target.domain_id,
+      stageId: target.stage_id,
       actionId: null,
-      domainPackRoot: persistedTarget.domain_pack_root,
-      workspaceLocator: persistedTarget.workspace_locator,
+      domainPackRoot: target.domain_pack_root,
+      workspaceLocator: target.workspace_locator,
     });
+  };
+  if (persistedTarget) {
+    preflightPersistedTarget(persistedTarget.target);
     return launchReceipt(
-      persistedTarget,
-      await dependencies.launchTargetStageRun(persistedTarget),
+      persistedTarget.target,
+      await dependencies.launchTargetStageRun(persistedTarget.target),
     );
   }
   const pinnedUseBinding = isRecord(parentStageRun.workspace_locator.package_use_binding)
@@ -343,19 +387,14 @@ export async function materializeStageRunRoute(
     && packageReadiness.runtime_source_readiness.checkout_path.trim()
     ? packageReadiness.runtime_source_readiness.checkout_path.trim()
     : parentStageRun.domain_pack_root;
-  const binding = resolveStageBinding(domainPackRoot, targetStageId);
-  if (!binding?.enabled) {
-    throw new FrameworkContractError(
-      'contract_shape_invalid',
-      'A decisive Stage route target must expose an enabled pack-bound Stage quality runtime.',
-      {
-        failure_code: 'route_target_stage_run_binding_unavailable',
-        domain_id: parentStageRun.domain_id,
-        target_stage_id: targetStageId,
-        domain_pack_root: domainPackRoot,
-      },
-    );
-  }
+  const targetPlan = resolveRouteTargetLaunchPlan({
+    domainId: parentStageRun.domain_id,
+    domainPackRoot,
+    targetStageId,
+    parentReviewLane,
+    parentStageAttemptExecutorPolicy: parentStageRun.stage_run_spec.stage_attempt_executor_policy,
+    targetBinding: resolveStageBinding(domainPackRoot, targetStageId),
+  });
   const packageUseBinding = packageReadiness?.package_use_binding ?? pinnedUseBinding;
   const workspaceLocator = {
     ...parentStageRun.workspace_locator,
@@ -374,7 +413,7 @@ export async function materializeStageRunRoute(
     workspaceLocator,
   });
   let targetStageRun = buildPackBoundTemporalStageRunInput({
-    binding,
+    binding: targetPlan.targetBinding,
     domainPackRoot,
     domainId: parentStageRun.domain_id,
     stageId: targetStageId,
@@ -383,7 +422,7 @@ export async function materializeStageRunRoute(
     workspaceLocator,
     sourceFingerprint: parentStageRun.source_fingerprint,
     executorKind: parentStageRun.executor_kind,
-    stageAttemptExecutorPolicy: targetStageAttemptExecutorPolicy,
+    stageAttemptExecutorPolicy: targetPlan.targetStageAttemptExecutorPolicy,
     artifactRefs: input.artifact_refs,
     artifactHashes: input.artifact_hashes,
     artifactIdentityReceiptRefs: input.artifact_identity_receipt_refs,
@@ -399,8 +438,9 @@ export async function materializeStageRunRoute(
     if (!isStageRunInvocationSpecConflict(error)) throw error;
     const concurrentTarget = await findPersistedTarget();
     if (!concurrentTarget) throw error;
-    targetStageRun = concurrentTarget;
-    durableLaunch = await dependencies.launchTargetStageRun(concurrentTarget);
+    targetStageRun = concurrentTarget.target;
+    preflightPersistedTarget(concurrentTarget.target);
+    durableLaunch = await dependencies.launchTargetStageRun(concurrentTarget.target);
   }
   return launchReceipt(targetStageRun, durableLaunch);
 }

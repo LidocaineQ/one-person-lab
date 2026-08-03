@@ -1358,7 +1358,7 @@ test('stage runtime binding projects an explicit review lane as a generic fixed 
     'contracts/stage_quality_cycle_policy.json#/stages/deliver';
   manifest.stages[1].stage_contract_extension = {
     review_input_snapshot_transport: {
-      review_lane_binding: 'mas_stage_fixed',
+      review_lane_binding: 'domain_fixed_review_lane',
       review_lane: 'statistical',
     },
   };
@@ -1376,7 +1376,7 @@ test('stage runtime binding projects an explicit review lane as a generic fixed 
   );
 });
 
-test('stage runtime binding rejects an incomplete fixed review lane declaration', () => {
+test('stage runtime binding preserves an opaque binding without an explicit review lane', () => {
   const root = fixture('target-fixed-review-lane-missing-value');
   writePrimaryOnlyDeliverPolicy(root);
   const manifest = readManifest(root);
@@ -1384,7 +1384,28 @@ test('stage runtime binding rejects an incomplete fixed review lane declaration'
     'contracts/stage_quality_cycle_policy.json#/stages/deliver';
   manifest.stages[1].stage_contract_extension = {
     review_input_snapshot_transport: {
-      review_lane_binding: 'mas_stage_fixed',
+      review_lane_binding: 'domain_fixed_review_lane',
+    },
+  };
+  writeManifest(root, manifest);
+
+  assert.equal(
+    resolveStandardAgentStageQualityRuntimeBinding(root, manifest.stages[1].stage_id)
+      ?.review_lane_binding,
+    null,
+  );
+});
+
+test('stage runtime binding rejects a controller-required lane with an explicit fixed lane', () => {
+  const root = fixture('target-fixed-review-lane-controller-conflict');
+  writePrimaryOnlyDeliverPolicy(root);
+  const manifest = readManifest(root);
+  manifest.stages[1].stage_quality_cycle_policy_ref =
+    'contracts/stage_quality_cycle_policy.json#/stages/deliver';
+  manifest.stages[1].stage_contract_extension = {
+    review_input_snapshot_transport: {
+      review_lane_binding: 'controller_required',
+      review_lane: 'statistical',
     },
   };
   writeManifest(root, manifest);
