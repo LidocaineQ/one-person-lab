@@ -466,7 +466,14 @@ function stateIndexDatabaseDefinitions(): DatabaseDefinition[] {
     {
       database_id: 'stage_attempt_index',
       path: paths.queue_db,
-      owned_tables: ['tasks', 'events', 'notifications', 'stage_attempts'],
+      owned_tables: [
+        'tasks',
+        'events',
+        'notifications',
+        'stage_attempts',
+        'stage_quality_cycles',
+        'stage_run_launches',
+      ],
       ensure: () => {
         fs.mkdirSync(paths.root, { recursive: true });
         const db = openFamilyRuntimeSqlite(paths.queue_db);

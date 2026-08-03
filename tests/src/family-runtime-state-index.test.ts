@@ -72,6 +72,18 @@ test('opl index rebuild materializes refs-only SQLite sidecar databases', () => 
     assert.equal(index.authority_boundary.sqlite_sidecar_source_of_truth, false);
     assert.equal(index.authority_boundary.stores_artifact_body, false);
     assert.equal(index.authority_boundary.sqlite_record_counts_as_stage_complete, false);
+    const stageAttemptIndex = index.databases.find(
+      (database: { database_id: string }) => database.database_id === 'stage_attempt_index',
+    );
+    assert.deepEqual(stageAttemptIndex?.owned_tables, [
+      'tasks',
+      'events',
+      'notifications',
+      'stage_attempts',
+      'stage_quality_cycles',
+      'stage_run_launches',
+    ]);
+    assert.deepEqual(stageAttemptIndex?.missing_tables, []);
 
     const runtimeRoot = path.join(root, 'family-runtime');
     assert.equal(fs.existsSync(path.join(runtimeRoot, 'queue.sqlite')), true);
