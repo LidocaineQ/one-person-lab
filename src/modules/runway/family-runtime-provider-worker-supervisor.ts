@@ -180,19 +180,19 @@ function providerSloTriggerCommandForDisplay() {
   return ['opl', 'family-runtime', 'provider-slo', 'tick', '--provider', 'temporal'];
 }
 
-function temporalWorkerForegroundModulePath() {
+function providerWorkerLauncherModulePath() {
   const currentModulePath = fileURLToPath(import.meta.url);
   const extension = path.extname(currentModulePath) || '.js';
-  return path.join(path.dirname(currentModulePath), `family-runtime-temporal-provider${extension}`);
+  return path.join(path.dirname(currentModulePath), `family-runtime-provider-worker-launcher${extension}`);
 }
 
 function workerSupervisorProgramArguments(paths: RuntimePaths) {
-  const workerModulePath = temporalWorkerForegroundModulePath();
+  const launcherModulePath = providerWorkerLauncherModulePath();
   return [
     process.execPath,
-    ...(workerModulePath.endsWith('.ts') ? ['--experimental-strip-types'] : []),
-    workerModulePath,
-    '--temporal-worker-foreground',
+    ...(launcherModulePath.endsWith('.ts') ? ['--experimental-strip-types'] : []),
+    launcherModulePath,
+    '--provider-worker-launcher',
     '--family-runtime-root',
     paths.root,
   ];
@@ -346,12 +346,14 @@ ${environmentXml}
   <true/>
   <key>RunAtLoad</key>
   <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
   <key>ThrottleInterval</key>
   <integer>${PROVIDER_WORKER_SUPERVISOR_THROTTLE_SECONDS}</integer>
   <key>StandardOutPath</key>
-  <string>${escapeXml(path.join(logsDir, 'provider-worker-supervisor.out.log'))}</string>
+  <string>/dev/null</string>
   <key>StandardErrorPath</key>
-  <string>${escapeXml(path.join(logsDir, 'provider-worker-supervisor.err.log'))}</string>
+  <string>/dev/null</string>
 </dict>
 </plist>
 `;
@@ -421,6 +423,9 @@ function basePayload(input: {
     run_at_load: true,
     throttle_interval_seconds: PROVIDER_WORKER_SUPERVISOR_THROTTLE_SECONDS,
     resident_worker_process: true,
+    memory_ceiling_bytes: 1610612736,
+    bounded_log_bytes_per_file: 10485760,
+    bounded_log_generations: 4,
     temporal_worker_dependency: true,
     provider_scheduler_dependency: false,
     primary_dispatcher: false,

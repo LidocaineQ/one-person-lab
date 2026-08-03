@@ -9,7 +9,7 @@ type RuntimePaths = ReturnType<typeof familyRuntimePaths>;
 
 export const PROVIDER_WORKER_SUPERVISOR_LABEL = 'ai.opl.family-runtime.provider-worker';
 export const LEGACY_PROVIDER_SLO_WATCHDOG_LABEL = 'ai.opl.family-runtime.provider-slo';
-export const PROVIDER_WORKER_SUPERVISOR_THROTTLE_SECONDS = 15;
+export const PROVIDER_WORKER_SUPERVISOR_THROTTLE_SECONDS = 60;
 
 export type ProviderWorkerSupervisorState = ReturnType<typeof inspectProviderWorkerSupervisorState>;
 

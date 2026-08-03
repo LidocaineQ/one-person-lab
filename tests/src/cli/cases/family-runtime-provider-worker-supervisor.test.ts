@@ -1,6 +1,8 @@
 import {
   chmodSync,
+  existsSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   rmSync,
   symlinkSync,
@@ -20,6 +22,12 @@ import {
   providerWorkerSupervisorEnvironmentVariables,
   redactProviderWorkerSupervisorLaunchctl,
 } from '../../../../src/modules/runway/family-runtime-provider-worker-supervisor.ts';
+import {
+  nextTemporalDependencyBackoffMs,
+  parseResidentSetBytes,
+  parseProviderWorkerLauncherRoot,
+  rotateBoundedLog,
+} from '../../../../src/modules/runway/family-runtime-provider-worker-launcher.ts';
 
 function runtimePaths(root: string) {
   return {
@@ -51,6 +59,45 @@ function plistEnvironmentValue(plist: string, key: string) {
   assert.ok(match?.[1] !== undefined);
   return decodeXml(match[1]);
 }
+
+test('provider-worker launcher uses bounded backoff and rotates logs without deleting recovery generations', () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'opl-provider-worker-launcher-'));
+  try {
+    assert.deepEqual(
+      [0, 1, 2, 3, 4, 5, 6].map(nextTemporalDependencyBackoffMs),
+      [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000],
+    );
+    assert.equal(parseProviderWorkerLauncherRoot(['--family-runtime-root', root]), root);
+    assert.throws(() => parseProviderWorkerLauncherRoot([]), /absolute --family-runtime-root/);
+    assert.equal(parseResidentSetBytes(' 2048\n'), 2 * 1024 * 1024);
+    assert.equal(parseResidentSetBytes('invalid'), null);
+
+    const log = path.join(root, 'worker.log');
+    writeFileSync(log, '1234567890');
+    assert.equal(rotateBoundedLog(log, 10, 2), true);
+    assert.equal(existsSync(log), false);
+    assert.equal(readFileSync(`${log}.1`, 'utf8'), '1234567890');
+    writeFileSync(log, 'abcdefghijkl');
+    assert.equal(rotateBoundedLog(log, 10, 2), true);
+    assert.equal(readFileSync(`${log}.1`, 'utf8'), 'cdefghijkl');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('provider-worker supervisor launches the guarded worker and delegates log ownership', () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'opl-provider-worker-supervisor-launcher-'));
+  try {
+    const plist = buildProviderWorkerSupervisorPlist(runtimePaths(root), {});
+    assert.match(plist, /family-runtime-provider-worker-launcher\.(?:ts|js)/);
+    assert.match(plist, /--provider-worker-launcher/);
+    assert.match(plist, /<integer>60<\/integer>/);
+    assert.match(plist, /<key>ProcessType<\/key>\s*<string>Background<\/string>/);
+    assert.equal(plist.match(/<string>\/dev\/null<\/string>/g)?.length, 2);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('provider-worker supervisor omits every OwnerGate variable when BIN is absent', () => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'opl-owner-gate-supervisor-omit-'));
