@@ -36,6 +36,18 @@ function normalizePermission(value: unknown) {
   return normalizeOptionalString(value)?.toLowerCase() ?? null;
 }
 
+function viewerPermission(value: unknown) {
+  if (!isRecord(value)) return { present: false, permission: null };
+  const knownKeys = ['admin', 'maintain', 'push', 'pull', 'triage'];
+  const present = knownKeys.some((key) => typeof value[key] === 'boolean');
+  if (!present) return { present: false, permission: null };
+  if (value.admin === true) return { present: true, permission: 'admin' };
+  if (value.maintain === true) return { present: true, permission: 'maintain' };
+  if (value.push === true) return { present: true, permission: 'write' };
+  if (value.pull === true) return { present: true, permission: 'read' };
+  return { present: true, permission: null };
+}
+
 function parseJsonRecord(raw: string | null | undefined) {
   const trimmed = raw?.trim();
   if (!trimmed) {
@@ -121,8 +133,10 @@ function readFixturePermission(fixture: DeveloperModeGhFixture | null, repo: str
   }
 
   const value = source[repo];
-  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-    return normalizePermission((value as Record<string, unknown>).permission);
+  if (isRecord(value)) {
+    return normalizePermission(value.permission)
+      ?? viewerPermission(value.permissions).permission
+      ?? viewerPermission(value).permission;
   }
 
   return normalizePermission(value);
@@ -246,18 +260,40 @@ export function readDeveloperModeRepoPermission(
     };
   }
 
-  const result = runGhApi([
+  const repositoryResult = runGhApi([`repos/${repo}`]);
+  if (repositoryResult.status === 'ready') {
+    const parsed = parseJsonRecord(repositoryResult.stdout);
+    const viewed = viewerPermission(parsed?.permissions);
+    if (viewed.permission) {
+      return {
+        status: 'ready' as const,
+        permission: viewed.permission,
+        reason: null,
+      };
+    }
+    if (viewed.present) {
+      return {
+        status: 'unavailable' as const,
+        permission: null,
+        reason: 'repository viewer permissions do not allow pull access.',
+      };
+    }
+  }
+
+  const collaboratorResult = runGhApi([
     `repos/${repo}/collaborators/${encodeURIComponent(login)}/permission`,
   ]);
-  if (result.status !== 'ready') {
+  if (collaboratorResult.status !== 'ready') {
     return {
       status: 'unavailable' as const,
       permission: null,
-      reason: result.reason,
+      reason: repositoryResult.status === 'ready'
+        ? collaboratorResult.reason
+        : repositoryResult.reason,
     };
   }
 
-  const parsed = parseJsonRecord(result.stdout);
+  const parsed = parseJsonRecord(collaboratorResult.stdout);
   const permission = parsed ? normalizePermission(parsed.permission) : null;
   if (!permission) {
     return {
