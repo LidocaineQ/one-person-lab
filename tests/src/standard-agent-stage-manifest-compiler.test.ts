@@ -1396,6 +1396,26 @@ test('stage runtime binding preserves an opaque binding without an explicit revi
   );
 });
 
+test('stage runtime binding rejects an explicit empty fixed review lane', () => {
+  const root = fixture('target-fixed-review-lane-empty-value');
+  writePrimaryOnlyDeliverPolicy(root);
+  const manifest = readManifest(root);
+  manifest.stages[1].stage_quality_cycle_policy_ref =
+    'contracts/stage_quality_cycle_policy.json#/stages/deliver';
+  manifest.stages[1].stage_contract_extension = {
+    review_input_snapshot_transport: {
+      review_lane_binding: 'domain_fixed_review_lane',
+      review_lane: '   ',
+    },
+  };
+  writeManifest(root, manifest);
+
+  assert.throws(
+    () => resolveStandardAgentStageQualityRuntimeBinding(root, manifest.stages[1].stage_id),
+    FrameworkContractError,
+  );
+});
+
 test('stage runtime binding rejects a controller-required lane with an explicit fixed lane', () => {
   const root = fixture('target-fixed-review-lane-controller-conflict');
   writePrimaryOnlyDeliverPolicy(root);

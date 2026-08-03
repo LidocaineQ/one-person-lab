@@ -431,7 +431,7 @@ function parseAttemptCreateArgs(rest: string[]): FamilyRuntimeCommandInput {
       executorBindingRef,
       invocationMode,
       boundedEditRef,
-      reviewLane,
+      ...(reviewLane ? { reviewLane } : {}),
       taskId,
       retryBudget: retryBudget || retryBudgetFile ? parsePayloadArg(retryBudget, retryBudgetFile) : undefined,
       checkpointRefs,

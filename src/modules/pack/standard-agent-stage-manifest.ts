@@ -178,8 +178,8 @@ function reviewLaneBinding(
   }
   const field = 'stage.stage_contract.review_input_snapshot_transport';
   const declaredBinding = optionalString(transport.review_lane_binding);
-  const reviewLane = optionalString(transport.review_lane);
-  if (reviewLane) {
+  if (Object.hasOwn(transport, 'review_lane')) {
+    const reviewLane = text(transport.review_lane, `${field}.review_lane`, repoDir);
     if (declaredBinding === 'controller_required') {
       fail(`${field}.review_lane cannot be combined with controller_required.`, {
         repo_dir: repoDir,

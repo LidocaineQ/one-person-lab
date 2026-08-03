@@ -696,7 +696,7 @@ test('fixed review lane is projected into StageRun identity and derived on repla
   const familyWorkspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-pack-bound-fixed-lane-family-'));
   const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-pack-bound-fixed-lane-workspace-'));
   const packRoot = createPackFixture({
-    review_lane_binding: 'mas_stage_fixed',
+    review_lane_binding: 'domain_fixed_review_lane',
     review_lane: 'statistical',
   });
   const useBinding = packageUseBinding(packRoot);
