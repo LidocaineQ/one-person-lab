@@ -236,7 +236,7 @@ test('family-runtime attempt create fails closed when the canonical domain packa
   }
 });
 
-test('managed carrier activation rejects malformed cache generations before launch', async () => {
+test('managed carrier activation rejects stale cache generations and projections before launch', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-carrier-generation-gate-'));
   const workspace = path.join(root, 'workspace');
   const providerManifest = writeCapabilityProvider(path.join(root, 'provider'));
@@ -265,12 +265,17 @@ test('managed carrier activation rejects malformed cache generations before laun
       packages: Array<{
         package_id: string;
         package_version: string;
-        physical_surface?: { codex_plugin_cache_path?: string | null };
+        physical_surface?: {
+          codex_plugin_cache_path?: string | null;
+          marketplace_plugin_path?: string | null;
+        };
       }>;
     };
     const packageLock = lockIndex.packages.find((entry) => entry.package_id === 'mas');
     assert.ok(packageLock?.physical_surface?.codex_plugin_cache_path);
+    assert.ok(packageLock.physical_surface.marketplace_plugin_path);
     const cachePath = packageLock.physical_surface.codex_plugin_cache_path;
+    const marketplacePluginPath = packageLock.physical_surface.marketplace_plugin_path;
     const cacheGeneration = path.basename(cachePath);
     const cacheSuffix = cacheGeneration === packageLock.package_version
       ? null
@@ -281,6 +286,37 @@ test('managed carrier activation rejects malformed cache generations before laun
       'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
     ], env).opl_agent_package_activation;
     assert.equal(validActivation.launch_allowed, true);
+
+    const assertProjectionBlocked = () => {
+      const activationFailure = runCliFailure([
+        'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
+      ], env);
+      assert.equal(
+        activationFailure.payload.error.details.failure_code,
+        'agent_package_scope_activation_blocked',
+      );
+    };
+
+    const displacedMarketplacePath = `${marketplacePluginPath}.displaced`;
+    fs.renameSync(marketplacePluginPath, displacedMarketplacePath);
+    assertProjectionBlocked();
+    fs.renameSync(displacedMarketplacePath, marketplacePluginPath);
+
+    const driftPath = path.join(marketplacePluginPath, 'carrier-currentness-drift.txt');
+    fs.writeFileSync(driftPath, 'drift\n');
+    assertProjectionBlocked();
+    fs.rmSync(driftPath);
+
+    fs.renameSync(marketplacePluginPath, displacedMarketplacePath);
+    fs.symlinkSync(cachePath, marketplacePluginPath, 'dir');
+    assertProjectionBlocked();
+    fs.rmSync(marketplacePluginPath);
+    fs.renameSync(displacedMarketplacePath, marketplacePluginPath);
+
+    const restoredActivation = runCli([
+      'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
+    ], env).opl_agent_package_activation;
+    assert.equal(restoredActivation.launch_allowed, true);
 
     const assertBlockedForCachePath = (nextCachePath: string) => {
       packageLock.physical_surface!.codex_plugin_cache_path = nextCachePath;

@@ -4040,6 +4040,33 @@ function managedCacheSurfaceCurrent(lock: AgentPackageLock) {
   }
 }
 
+function managedCarrierProjectionCurrent(
+  packageStatus: any,
+  lock: AgentPackageLock,
+  cachePath: string,
+) {
+  const observedPath = stringValue(packageStatus.configured_carrier?.plugin_source_path);
+  const expectedPath = stringValue(lock.physical_surface?.marketplace_plugin_path);
+  if (!observedPath || !expectedPath || !sameConfiguredCarrierPath(observedPath, expectedPath)) {
+    return false;
+  }
+  try {
+    const observedStat = fs.lstatSync(observedPath);
+    const cacheStat = fs.lstatSync(cachePath);
+    if (!observedStat.isDirectory()
+      || observedStat.isSymbolicLink()
+      || !cacheStat.isDirectory()
+      || cacheStat.isSymbolicLink()
+      || fs.realpathSync(observedPath) === fs.realpathSync(cachePath)) {
+      return false;
+    }
+    return computePackageChannelTreeSha256(observedPath)
+      === computePackageChannelTreeSha256(cachePath);
+  } catch {
+    return false;
+  }
+}
+
 function packageNativeCarrierActivationState(
   packageStatus: any,
   managedLock: AgentPackageLock | null,
@@ -4080,10 +4107,8 @@ function packageNativeCarrierActivationState(
     && managedCacheGenerationCurrent
     && managedCarrierVersionCurrent
     && managedCacheSurfaceCurrent(managedLock)
-    && sameConfiguredCarrierPath(
-      packageStatus.configured_carrier.plugin_source_path,
-      managedLock.physical_surface?.marketplace_plugin_path ?? null,
-    );
+    && managedCachePath
+    && managedCarrierProjectionCurrent(packageStatus, managedLock, managedCachePath);
   return managedCarrierCurrent
     && packageStatus.configured_carrier.executor.status === 'callable'
     ? 'legacy'
