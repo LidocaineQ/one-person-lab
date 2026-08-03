@@ -1,8 +1,6 @@
 import {
+  createJsonReceiptLedgerAdapter,
   optionalString,
-  readJsonReceiptLedger,
-  upsertJsonReceipts,
-  writeJsonReceiptLedger,
 } from '../../kernel/json-file.ts';
 import { record, stringList } from '../../kernel/json-record.ts';
 import { ensureOplStateDir, resolveOplStatePaths } from '../../kernel/runtime-state-paths.ts';
@@ -170,17 +168,6 @@ function normalizeReceipt(value: unknown): MemoryArtifactLifecycleEvidenceReceip
   return allEvidenceRefs(receipt).length > 0 ? receipt : null;
 }
 
-function readMemoryArtifactLifecycleEvidenceLedger(): MemoryArtifactLifecycleEvidenceLedger {
-  return readJsonReceiptLedger(ledgerPath(), emptyLedger, normalizeReceipt);
-}
-
-function writeMemoryArtifactLifecycleEvidenceLedger(
-  ledger: MemoryArtifactLifecycleEvidenceLedger,
-) {
-  const paths = ensureOplStateDir();
-  writeJsonReceiptLedger(paths.memory_artifact_lifecycle_evidence_ledger_file, ledger);
-}
-
 function normalizeInput(
   input: MemoryArtifactLifecycleEvidenceReceiptInput,
 ): MemoryArtifactLifecycleEvidenceReceipt {
@@ -205,87 +192,38 @@ function normalizeInput(
   };
 }
 
+const receiptLedger = createJsonReceiptLedgerAdapter({
+  ledgerPath,
+  ensureStateDir: ensureOplStateDir,
+  emptyLedger,
+  normalizeReceipt,
+  normalizeInput,
+  isEligible: (input) => allEvidenceRefs(input).length > 0,
+  recordSurfaceKind: 'opl_memory_artifact_lifecycle_evidence_ledger_record',
+  noEligibleStatus: 'no_eligible_memory_artifact_lifecycle_evidence_receipts',
+  verifySurfaceKind: 'opl_memory_artifact_lifecycle_evidence_ledger_verify',
+  blocker: {
+    blocker_kind: 'memory_artifact_lifecycle_evidence_receipt_gate',
+    blocker_id: 'memory_artifact_lifecycle_evidence_receipt_not_found',
+    required_owner: 'domain_repository_or_app_live_operator',
+  },
+  authorityBoundary: memoryArtifactLifecycleEvidenceAuthorityBoundary,
+});
+
 export function recordMemoryArtifactLifecycleEvidenceReceipts(
   inputs: MemoryArtifactLifecycleEvidenceReceiptInput[],
 ) {
-  const receipts = inputs
-    .filter((input) => allEvidenceRefs(input).length > 0)
-    .map(normalizeInput);
-  if (receipts.length === 0) {
-    return {
-      surface_kind: 'opl_memory_artifact_lifecycle_evidence_ledger_record',
-      status: 'no_eligible_memory_artifact_lifecycle_evidence_receipts',
-      recorded_receipt_count: 0,
-      receipt_refs: [],
-      ledger_file: ledgerPath(),
-      receipts: [],
-    };
-  }
-
-  const ledger = readMemoryArtifactLifecycleEvidenceLedger();
-  upsertJsonReceipts(ledger.receipts, receipts, (entry, next) =>
-    entry.receipt_ref === next.receipt_ref
-  );
-  writeMemoryArtifactLifecycleEvidenceLedger(ledger);
-  return {
-    surface_kind: 'opl_memory_artifact_lifecycle_evidence_ledger_record',
-    status: 'recorded',
-    recorded_receipt_count: receipts.length,
-    receipt_refs: receipts.map((receipt) => receipt.receipt_ref),
-    ledger_file: ledgerPath(),
-    receipts,
-  };
+  return receiptLedger.record(inputs);
 }
 
 export function verifyMemoryArtifactLifecycleEvidenceReceipt(
   input: MemoryArtifactLifecycleEvidenceReceiptVerifyInput = {},
 ) {
-  const ledger = readMemoryArtifactLifecycleEvidenceLedger();
-  const requestedReceiptRef = optionalString(input.receipt_ref);
-  const receiptIndex = requestedReceiptRef
-    ? ledger.receipts.findIndex((receipt) => receipt.receipt_ref === requestedReceiptRef)
-    : ledger.receipts.findIndex((receipt) => receipt.receipt_status === 'recorded');
-  const fallbackIndex = requestedReceiptRef ? -1 : ledger.receipts.findIndex(Boolean);
-  const selectedIndex = receiptIndex >= 0 ? receiptIndex : fallbackIndex;
-
-  if (selectedIndex < 0) {
-    return {
-      surface_kind: 'opl_memory_artifact_lifecycle_evidence_ledger_verify',
-      status: 'blocked',
-      writes_performed: false,
-      receipt_ref: requestedReceiptRef,
-      verified_receipt_count: 0,
-      ledger_file: ledgerPath(),
-      blocker: {
-        blocker_kind: 'memory_artifact_lifecycle_evidence_receipt_gate',
-        blocker_id: 'memory_artifact_lifecycle_evidence_receipt_not_found',
-        required_owner: 'domain_repository_or_app_live_operator',
-      },
-      authority_boundary: memoryArtifactLifecycleEvidenceAuthorityBoundary(),
-    };
-  }
-
-  const current = ledger.receipts[selectedIndex];
-  const verified = {
-    ...current,
-    receipt_status: 'verified' as const,
-  };
-  ledger.receipts[selectedIndex] = verified;
-  writeMemoryArtifactLifecycleEvidenceLedger(ledger);
-  return {
-    surface_kind: 'opl_memory_artifact_lifecycle_evidence_ledger_verify',
-    status: 'verified',
-    writes_performed: current.receipt_status !== 'verified',
-    receipt_ref: verified.receipt_ref,
-    verified_receipt_count: 1,
-    ledger_file: ledgerPath(),
-    receipt: verified,
-    authority_boundary: memoryArtifactLifecycleEvidenceAuthorityBoundary(),
-  };
+  return receiptLedger.verify(input);
 }
 
 export function listMemoryArtifactLifecycleEvidenceReceipts() {
-  return readMemoryArtifactLifecycleEvidenceLedger().receipts;
+  return receiptLedger.list();
 }
 
 function refShapes(input: {

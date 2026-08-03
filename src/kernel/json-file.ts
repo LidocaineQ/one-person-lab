@@ -5,6 +5,7 @@ import {
   isRecord,
 } from './contract-validation.ts';
 import type { JsonRecord } from './json-record.ts';
+import { stringValue } from './json-record.ts';
 
 export type { JsonRecord } from './json-record.ts';
 export { stringValue as optionalString } from './json-record.ts';
@@ -106,6 +107,147 @@ export function upsertJsonReceipts<Receipt>(
       receipts.unshift(next);
     }
   }
+}
+
+type JsonReceipt = {
+  receipt_ref: string;
+  receipt_status: 'recorded' | 'verified';
+};
+
+type JsonReceiptVerifyInput = {
+  receipt_ref?: string | null;
+};
+
+export type JsonReceiptLedgerAdapterOptions<
+  Receipt extends JsonReceipt,
+  Input,
+  Ledger extends JsonReceiptLedger<Receipt>,
+  AuthorityBoundary,
+> = {
+  ledgerPath: () => string;
+  ensureStateDir: () => void;
+  emptyLedger: () => Ledger;
+  normalizeReceipt: (value: unknown) => Receipt | null;
+  normalizeInput: (input: Input) => Receipt;
+  isEligible: (input: Input) => boolean;
+  recordSurfaceKind: string;
+  noEligibleStatus: string;
+  verifySurfaceKind: string;
+  blocker: {
+    blocker_kind: string;
+    blocker_id: string;
+    required_owner: string;
+  };
+  authorityBoundary: () => AuthorityBoundary;
+};
+
+export function createJsonReceiptLedgerAdapter<
+  Receipt extends JsonReceipt,
+  Input,
+  Ledger extends JsonReceiptLedger<Receipt>,
+  AuthorityBoundary,
+>(
+  options: JsonReceiptLedgerAdapterOptions<
+    Receipt,
+    Input,
+    Ledger,
+    AuthorityBoundary
+  >,
+) {
+  const read = () => readJsonReceiptLedger(
+    options.ledgerPath(),
+    options.emptyLedger,
+    options.normalizeReceipt,
+  );
+
+  const write = (ledger: Ledger) => {
+    options.ensureStateDir();
+    writeJsonReceiptLedger(options.ledgerPath(), ledger);
+  };
+
+  const upsert = (receipts: Receipt[], nextReceipts: Receipt[]) => {
+    upsertJsonReceipts(receipts, nextReceipts, (current, next) =>
+      current.receipt_ref === next.receipt_ref
+    );
+  };
+
+  const record = (inputs: Input[]) => {
+    const receipts = inputs
+      .filter(options.isEligible)
+      .map(options.normalizeInput);
+    if (receipts.length === 0) {
+      return {
+        surface_kind: options.recordSurfaceKind,
+        status: options.noEligibleStatus,
+        recorded_receipt_count: 0,
+        receipt_refs: [],
+        ledger_file: options.ledgerPath(),
+        receipts: [],
+      };
+    }
+
+    const ledger = read();
+    upsert(ledger.receipts, receipts);
+    write(ledger);
+    return {
+      surface_kind: options.recordSurfaceKind,
+      status: 'recorded',
+      recorded_receipt_count: receipts.length,
+      receipt_refs: receipts.map((receipt) => receipt.receipt_ref),
+      ledger_file: options.ledgerPath(),
+      receipts,
+    };
+  };
+
+  const verify = (input?: JsonReceiptVerifyInput) => {
+    const ledger = read();
+    const requestedReceiptRef = stringValue(input?.receipt_ref);
+    const receiptIndex = requestedReceiptRef
+      ? ledger.receipts.findIndex((receipt) => receipt.receipt_ref === requestedReceiptRef)
+      : ledger.receipts.findIndex((receipt) => receipt.receipt_status === 'recorded');
+    const fallbackIndex = requestedReceiptRef ? -1 : ledger.receipts.findIndex(Boolean);
+    const selectedIndex = receiptIndex >= 0 ? receiptIndex : fallbackIndex;
+
+    if (selectedIndex < 0) {
+      return {
+        surface_kind: options.verifySurfaceKind,
+        status: 'blocked',
+        writes_performed: false,
+        receipt_ref: requestedReceiptRef,
+        verified_receipt_count: 0,
+        ledger_file: options.ledgerPath(),
+        blocker: { ...options.blocker },
+        authority_boundary: options.authorityBoundary(),
+      };
+    }
+
+    const current = ledger.receipts[selectedIndex];
+    const verified = {
+      ...current,
+      receipt_status: 'verified' as const,
+    };
+    ledger.receipts[selectedIndex] = verified;
+    write(ledger);
+    return {
+      surface_kind: options.verifySurfaceKind,
+      status: 'verified',
+      writes_performed: current.receipt_status !== 'verified',
+      receipt_ref: verified.receipt_ref,
+      verified_receipt_count: 1,
+      ledger_file: options.ledgerPath(),
+      receipt: verified,
+      authority_boundary: options.authorityBoundary(),
+    };
+  };
+
+  return {
+    read,
+    write,
+    upsert,
+    record,
+    verify,
+    list: () => read().receipts,
+  };
 }
 
 export function readJsonFileResult(filePath: string): JsonFileReadResult {
