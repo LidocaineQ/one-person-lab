@@ -44,6 +44,7 @@ test('family-runtime service start waits for a delayed Temporal listener', async
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-family-runtime-service-start-'));
   const serverScript = path.join(stateRoot, 'delayed-server.mjs');
   const port = await reserveLocalPort();
+  let stopOutput: Record<string, any> | null = null;
   fs.writeFileSync(
     serverScript,
     [
@@ -70,9 +71,17 @@ test('family-runtime service start waits for a delayed Temporal listener', async
     assert.equal(service.status.service_status, 'running');
     assert.equal(service.status.server_reachable, true);
   } finally {
-    runCli(['family-runtime', 'service', 'stop', '--provider', 'temporal'], env);
-    fs.rmSync(stateRoot, { recursive: true, force: true });
+    try {
+      stopOutput = runCli(['family-runtime', 'service', 'stop', '--provider', 'temporal'], env);
+    } finally {
+      fs.rmSync(stateRoot, { recursive: true, force: true });
+    }
   }
+
+  const stoppedService = stopOutput?.family_runtime_service;
+  assert.equal(stoppedService?.stop_status, 'stopped');
+  assert.equal(Number.isInteger(stoppedService?.stopped_pid), true);
+  assert.equal(stoppedService?.status.server_reachable, false);
 });
 
 test('Temporal stable cohort gate materializes the shared workflow bundle and starts a real Worker', async () => {
