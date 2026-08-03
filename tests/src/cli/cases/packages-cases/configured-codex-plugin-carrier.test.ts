@@ -994,6 +994,31 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
     assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
     assert.equal(fs.existsSync(legacyLedgerPath), false);
 
+    const wrongPluginSource = path.join(root, 'wrong-plugin-source');
+    writePluginSource(wrongPluginSource, 'wrong-source');
+    fs.mkdirSync(path.join(wrongPluginSource, '.codex-plugin'), { recursive: true });
+    fs.writeFileSync(path.join(wrongPluginSource, '.codex-plugin', 'plugin.json'), formatJsonPayload({
+      name: 'third-party-research',
+      version: '1.0.1',
+      description: 'Wrong native source must not replace the persisted owner identity.',
+      skills: './skills/',
+    }));
+    fs.writeFileSync(
+      path.join(wrongPluginSource, 'opl-package.json'),
+      formatJsonPayload(installedOwnerDescriptor()),
+    );
+    env.FIXTURE_PLUGIN_SOURCE = wrongPluginSource;
+    const wrongSourceActivation = runCliFailure([
+      'packages', 'activate', packageId,
+      '--scope', 'workspace', '--target-workspace', workspace,
+    ], env);
+    assert.equal(
+      wrongSourceActivation.payload.error.details.failure_code,
+      'agent_package_scope_activation_blocked',
+    );
+    assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
+    env.FIXTURE_PLUGIN_SOURCE = pluginSource;
+
     const hidden = runCli(['packages', 'hide', '--package-id', packageId], env) as any;
     assert.equal(hidden.opl_agent_package_exposure.status, 'hidden');
     assert.equal(Object.hasOwn(hidden.opl_agent_package_exposure, 'package_lock'), false);

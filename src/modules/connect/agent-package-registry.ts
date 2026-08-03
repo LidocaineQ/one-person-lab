@@ -4095,7 +4095,14 @@ function packageNativeCarrierActivationState(
   const observedCarrierPath = stringValue(packageStatus.configured_carrier.plugin_source_path);
   const managedPackageVersion = stringValue(managedLock?.package_version);
   const managedCachePath = stringValue(managedLock?.physical_surface?.codex_plugin_cache_path);
+  const managedSourcePath = stringValue(managedLock?.physical_surface?.plugin_source_path);
   const managedMarketplacePath = stringValue(managedLock?.physical_surface?.marketplace_plugin_path);
+  const managedDescriptorSourceCurrent = Boolean(
+    managedLock
+    && observedCarrierPath
+    && managedSourcePath
+    && sameConfiguredCarrierPath(observedCarrierPath, managedSourcePath),
+  );
   const managedLockOwnsNativeCarrier = Boolean(
     managedLock
     && observedCarrierPath
@@ -4132,7 +4139,11 @@ function packageNativeCarrierActivationState(
       && descriptorReadiness.callability === 'callable'
       && packageStatus.operational_ready === true
       && packageStatus.launch_allowed === true
-      && (!managedLockOwnsNativeCarrier || managedCarrierCurrent)
+      && (
+        !managedLock
+        || managedDescriptorSourceCurrent
+        || (managedLockOwnsNativeCarrier && managedCarrierCurrent)
+      )
       ? 'ready'
       : 'blocked';
   }
