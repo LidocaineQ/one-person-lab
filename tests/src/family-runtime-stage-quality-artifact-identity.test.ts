@@ -158,12 +158,20 @@ function producerCloseout(input: {
 function rawExecutorOutputCloseout(input: {
   attemptId: string;
   artifactRef: string;
+  metadataRef: string;
   artifactHash: string;
   sizeBytes: number;
+  stageRunId?: string;
+  executionScope?: ReturnType<typeof workItemScope>;
 }): TypedStageCloseoutPacket {
+  const normalizationFindings = ['typed_closeout_not_required_raw_artifact_advanced'];
   return {
     surface_kind: 'stage_attempt_closeout_packet',
     stage_attempt_id: input.attemptId,
+    ...(input.stageRunId ? { stage_run_id: input.stageRunId } : {}),
+    ...(input.executionScope
+      ? { execution_scope: input.executionScope, scope_digest: input.executionScope.scope_digest }
+      : {}),
     closeout_refs: [input.artifactRef],
     closeout_ref_metadata: [{
       ref: input.artifactRef,
@@ -171,19 +179,34 @@ function rawExecutorOutputCloseout(input: {
       sha256: input.artifactHash,
       size_bytes: input.sizeBytes,
     }],
-    consumed_refs: [],
+    consumed_refs: ['packet:raw-artifact-test'],
     consumed_memory_refs: [],
     writeback_receipt_refs: [],
     rejected_writes: [],
-    next_owner: null,
+    next_owner: 'medautoscience',
     domain_ready_verdict: 'completed_with_quality_debt',
     route_impact: {
+      transition_outcome: 'completed_with_quality_debt',
+      consumable_artifact_refs: [input.artifactRef],
+      artifact_metadata_refs: [input.metadataRef],
+      quality_debt_refs: normalizationFindings.map(
+        (finding) => `opl://stage-attempts/${encodeURIComponent(input.attemptId)}/quality-debt/${encodeURIComponent(finding)}`,
+      ),
+      normalization_findings: normalizationFindings,
+      next_stage_may_start: true,
+      route_back_selection_owner: 'codex_cli',
+      route_back_may_target_any_declared_stage: true,
+      negative_or_partial_output_counts_as_progress: true,
       framework_generated_envelope: true,
-      quality_debt_refs: ['opl://quality-debt/typed-closeout-unavailable'],
     },
     authority_boundary: {
       opl: 'raw_executor_output_progress_envelope_only',
       domain: 'truth_quality_route_back_and_artifact_authority_owner',
+      can_write_domain_truth: false,
+      can_create_owner_receipt: false,
+      can_create_typed_blocker: false,
+      can_authorize_quality_verdict: false,
+      provider_completion_is_domain_ready: false,
     },
   };
 }
@@ -242,8 +265,11 @@ test('framework raw executor output is verified outside the work-item root witho
       closeoutPacket: rawExecutorOutputCloseout({
         attemptId: producerAttempt.stage_attempt_id,
         artifactRef,
+        metadataRef: rawArtifact.metadata_ref,
         artifactHash: rawArtifact.sha256,
         sizeBytes: rawArtifact.size_bytes,
+        stageRunId: producerAttempt.stage_run_id,
+        executionScope,
       }),
       attempt: producerAttempt,
       workspaceRoot,
