@@ -28,7 +28,7 @@ import {
   assertTypedContractFailure,
 } from './fixtures.ts';
 
-test('Standard operation control freezes once, resume cannot refresh it, and append_full is independent', () => {
+test('Standard operation control freezes once, expired resume rotates only its execution window, and append_full is independent', () => {
   const fixture = createFixture({ admitStandard: false });
   const missingResume = createFixture({ admitStandard: false });
   try {
@@ -76,8 +76,81 @@ test('Standard operation control freezes once, resume cannot refresh it, and app
           now: '2026-07-21T00:03:00.000Z',
           ...changed,
         }),
-        /immutable and does not match/,
+        /cannot rotate an active Standard operation window/,
       );
+    }
+
+    const expired = createFixture({ admitStandard: false });
+    try {
+      const expiredBundleDigest = expired.frozen.release_bundle_freeze.bundle_digest;
+      const expiredStandard = {
+        releaseOperation: 'standard' as const,
+        operationId: 'operation-standard-expired',
+        operationStartedAt: '2026-07-21T00:00:00.000Z',
+        operationDeadlineAt: '2026-07-21T00:10:00.000Z',
+      };
+      const expiredControl = admitReleaseBundleOperation({
+        bundleDigest: expiredBundleDigest,
+        storeRoot: expired.storeRoot,
+        now: '2026-07-21T00:01:00.000Z',
+        ...expiredStandard,
+      }).release_bundle_operation_admit.operation_control;
+      for (const invalid of [
+        {
+          ...expiredStandard,
+          releaseOperation: 'resume_standard' as const,
+          operationId: 'operation-standard-other',
+          operationStartedAt: '2026-07-21T00:11:00.000Z',
+          operationDeadlineAt: '2026-07-21T00:41:00.000Z',
+        },
+        {
+          ...expiredStandard,
+          releaseOperation: 'resume_standard' as const,
+          operationStartedAt: '2026-07-21T00:09:59.000Z',
+          operationDeadlineAt: '2026-07-21T00:39:59.000Z',
+        },
+      ]) {
+        assertTypedContractFailure(
+          () => admitReleaseBundleOperation({
+            bundleDigest: expiredBundleDigest,
+            storeRoot: expired.storeRoot,
+            now: '2026-07-21T00:11:00.000Z',
+            ...invalid,
+          }),
+          invalid.operationId === expiredStandard.operationId
+            ? /must start after the expired window/
+            : /must preserve the exact Standard identity/,
+        );
+      }
+      const rotated = admitReleaseBundleOperation({
+        bundleDigest: expiredBundleDigest,
+        storeRoot: expired.storeRoot,
+        now: '2026-07-21T00:11:00.000Z',
+        ...expiredStandard,
+        releaseOperation: 'resume_standard',
+        operationStartedAt: '2026-07-21T00:11:00.000Z',
+        operationDeadlineAt: '2026-07-21T00:41:00.000Z',
+      }).release_bundle_operation_admit;
+      assert.equal(rotated.status, 'complete');
+      assert.notEqual(rotated.operation_control.control_digest, expiredControl.control_digest);
+      assert.equal(rotated.operation_control.operation_id, expiredControl.operation_id);
+      assert.equal(rotated.operation_control.operation_started_at, '2026-07-21T00:11:00.000Z');
+      assert.equal(rotated.operation_control.operation_deadline_at, '2026-07-21T00:41:00.000Z');
+      assert.equal(rotated.receipt.details.resume_window_rotated, true);
+      assert.equal(rotated.receipt.details.previous_control_digest, expiredControl.control_digest);
+      const rotatedAgain = admitReleaseBundleOperation({
+        bundleDigest: expiredBundleDigest,
+        storeRoot: expired.storeRoot,
+        now: '2026-07-21T00:12:00.000Z',
+        ...expiredStandard,
+        releaseOperation: 'resume_standard',
+        operationStartedAt: '2026-07-21T00:11:00.000Z',
+        operationDeadlineAt: '2026-07-21T00:41:00.000Z',
+      }).release_bundle_operation_admit;
+      assert.equal(rotatedAgain.status, 'idempotent');
+      assert.equal(rotatedAgain.operation_control.control_digest, rotated.operation_control.control_digest);
+    } finally {
+      fs.rmSync(expired.root, { recursive: true, force: true });
     }
     assertTypedContractFailure(
       () => admitReleaseBundleOperation({
@@ -156,6 +229,19 @@ test('Standard operation control freezes once, resume cannot refresh it, and app
     const append = appendBeforeQualification;
     assert.notEqual(append.operation_id, admitted.operation_control.operation_id);
     assert.notEqual(append.operation_deadline_at, admitted.operation_control.operation_deadline_at);
+    assertTypedContractFailure(
+      () => admitReleaseBundleOperation({
+        bundleDigest,
+        storeRoot: fixture.storeRoot,
+        now: '2100-07-21T03:00:00.000Z',
+        ...appendFullOperation,
+        releaseOperation: 'resume_standard',
+        operationId: append.operation_id,
+        operationStartedAt: '2100-07-21T03:00:00.000Z',
+        operationDeadlineAt: '2100-07-21T03:30:00.000Z',
+      }),
+      /must preserve the exact Standard identity/,
+    );
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
     fs.rmSync(missingResume.root, { recursive: true, force: true });

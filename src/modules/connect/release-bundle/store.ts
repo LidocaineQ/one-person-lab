@@ -611,6 +611,38 @@ export function installReleaseBundleOperationControl(
   return { status, filePath };
 }
 
+export function replaceReleaseBundleOperationControl(
+  paths: ReturnType<typeof releaseBundleStorePaths>,
+  current: ReleaseBundleOperationControl,
+  replacement: ReleaseBundleOperationControl,
+) {
+  assertReleaseBundleOperationControl(current);
+  assertReleaseBundleOperationControl(replacement);
+  if (current.operation_kind !== replacement.operation_kind) {
+    fail('Release Bundle operation control replacement must preserve its canonical slot.', {
+      current_operation_kind: current.operation_kind,
+      replacement_operation_kind: replacement.operation_kind,
+    });
+  }
+  const filePath = operationControlStatePath(paths, current.operation_kind);
+  const stat = fs.lstatSync(filePath);
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    fail('Release Bundle operation control replacement target must be a regular file.', {
+      path: filePath,
+    });
+  }
+  const currentBytes = Buffer.from(formatJsonPayload(current), 'utf8');
+  const installedBytes = fs.readFileSync(filePath);
+  if (!installedBytes.equals(currentBytes)) {
+    fail('Release Bundle operation control changed before its bounded replacement.', {
+      path: filePath,
+      expected_control_digest: current.control_digest,
+    });
+  }
+  writeDurableJsonState(filePath, replacement);
+  return { status: 'replaced' as const, filePath };
+}
+
 export function readReleaseBundleOperationControl(
   paths: ReturnType<typeof releaseBundleStorePaths>,
   operation: ReleaseBundleCanonicalOperation,
