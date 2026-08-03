@@ -12,38 +12,50 @@ import {
   type JsonRecord,
 } from './shared.ts';
 
-export function parseTerminalJsonRecordFromCodexMessages(messages: string[]): JsonRecord | null {
-  const terminalMessages = messages.filter((entry) => entry.trim().length > 0);
-  if (terminalMessages.length === 0) {
-    return null;
-  }
-  const maxSuffixMessages = 64;
-  const maxSuffixChars = 128 * 1024;
+const MAX_CLOSEOUT_SUFFIX_MESSAGES = 64;
+const MAX_CLOSEOUT_SUFFIX_CHARS = 128 * 1024;
+
+function parseJsonRecordEndingAtCodexMessage(messages: string[], endIndex: number): JsonRecord | null {
   let suffix = '';
-  for (let index = terminalMessages.length - 1; index >= 0 && terminalMessages.length - index <= maxSuffixMessages; index -= 1) {
-    suffix = `${terminalMessages[index]}${suffix}`;
-    if (suffix.length > maxSuffixChars) {
+  for (
+    let index = endIndex;
+    index >= 0 && endIndex - index < MAX_CLOSEOUT_SUFFIX_MESSAGES;
+    index -= 1
+  ) {
+    suffix = `${messages[index]}${suffix}`;
+    if (suffix.length > MAX_CLOSEOUT_SUFFIX_CHARS) {
       break;
     }
     try {
       const parsed = parseJsonText(suffix.trim());
       if (isRecord(parsed)) return parsed;
     } catch {
-      // Keep scanning only adjacent terminal message chunks for one exact JSON object.
+      // A typed packet may be split only across messages adjacent to this end boundary.
     }
   }
   return null;
 }
 
-export function parseCloseoutFromCodexMessages(messages: string[]) {
-  const candidate = parseTerminalJsonRecordFromCodexMessages(messages);
-  if (!candidate) return null;
-  try {
-    return normalizeTypedStageCloseoutPacket(candidate);
-  } catch {
-    // Keep fail-closed: an exact JSON object still must satisfy the typed closeout contract.
-    return null;
+export function parseTerminalJsonRecordFromCodexMessages(messages: string[]): JsonRecord | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].trim().length === 0) continue;
+    return parseJsonRecordEndingAtCodexMessage(messages, index);
   }
+  return null;
+}
+
+export function parseCloseoutFromCodexMessages(messages: string[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].trim().length === 0) continue;
+    const candidate = parseJsonRecordEndingAtCodexMessage(messages, index);
+    if (!candidate) continue;
+    try {
+      return normalizeTypedStageCloseoutPacket(candidate);
+    } catch {
+      // Keep scanning older exact JSON objects; only a normalized typed packet is selectable.
+    }
+  }
+  return null;
 }
 
 function sleep(ms: number) {
