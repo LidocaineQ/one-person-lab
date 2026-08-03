@@ -4065,19 +4065,15 @@ function packageNativeCarrierActivationState(
     managedLock
     && isManagedCacheGeneration(managedLock, managedCacheGeneration),
   );
-  // Codex reports the immutable plugin-cache generation as its installed
-  // version for Framework-materialized local marketplaces. A managed
-  // developer cache must keep its `dev-` mode; normal caches must not borrow
-  // that mode. Normal carriers may still report the package version directly.
+  // Codex may report either the plugin manifest version or the immutable
+  // plugin-cache generation. Cache mode and digest identity are verified
+  // independently against the lock before either readback is accepted.
   const managedCarrierVersionCurrent = Boolean(
     observedCarrierVersion
     && managedPackageVersion
     && (
       observedCarrierVersion === managedCacheGeneration
-      || (
-        managedLock?.source_kind !== 'developer_checkout_override'
-        && observedCarrierVersion === managedPackageVersion
-      )
+      || observedCarrierVersion === managedPackageVersion
     ),
   );
   const managedCarrierCurrent = managedLock
