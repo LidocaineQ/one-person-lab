@@ -713,12 +713,30 @@ export async function runFamilyRuntime(
         ? parsed.input.workspaceLocator.domain_pack_root.trim()
         : '';
       const persistedDomainPackRoot = existingStageRunLaunch?.stage_run_input.domain_pack_root?.trim() ?? '';
-      const replayStageQualityBinding = existingStageRunLaunch && persistedDomainPackRoot
-        ? (options.stageRunRuntime?.resolveStageBinding
-          ?? resolveStandardAgentStageQualityRuntimeBinding)(persistedDomainPackRoot, parsed.input.stageId)
+      const persistedStageAttemptExecutorPolicy = isRecord(
+        existingStageRunLaunch?.stage_run_input.stage_run_spec.stage_attempt_executor_policy,
+      )
+        ? existingStageRunLaunch.stage_run_input.stage_run_spec.stage_attempt_executor_policy
         : null;
+      const persistedReviewLane = typeof persistedStageAttemptExecutorPolicy?.review_lane_binding === 'string'
+        ? persistedStageAttemptExecutorPolicy.review_lane_binding.trim() || null
+        : null;
+      if (existingStageRunLaunch && persistedReviewLane && requestedReviewLane) {
+        // Persisted lane identity is the replay authority; an explicit different
+        // lane must fail before immutable-spec comparison, without re-reading the
+        // current package manifest.
+        resolveStandardAgentStageReviewLane(
+          {
+            binding_kind: 'fixed',
+            review_lane: persistedReviewLane,
+            executor_may_select_lane: false,
+            lane_fallback: false,
+          },
+          requestedReviewLane,
+        );
+      }
       const replayReviewLane = existingStageRunLaunch
-        ? resolveStandardAgentStageReviewLane(replayStageQualityBinding?.review_lane_binding, requestedReviewLane)
+        ? requestedReviewLane ?? persistedReviewLane
         : requestedReviewLane;
       if (existingStageRunLaunch && canonicalJsonText(
         stageRunReplayBusinessIdentity(existingStageRunLaunch.stage_run_input),
@@ -763,12 +781,10 @@ export async function runFamilyRuntime(
           ? explicitDomainPackRoot || managedDomainPackRoot
           : managedDomainPackRoot || explicitDomainPackRoot)
         || null;
-      const stageQualityBinding = existingStageRunLaunch
-        ? replayStageQualityBinding
-        : domainPackRoot
-          ? (options.stageRunRuntime?.resolveStageBinding
-            ?? resolveStandardAgentStageQualityRuntimeBinding)(domainPackRoot, parsed.input.stageId)
-          : null;
+      const stageQualityBinding = !existingStageRunLaunch && domainPackRoot
+        ? (options.stageRunRuntime?.resolveStageBinding
+          ?? resolveStandardAgentStageQualityRuntimeBinding)(domainPackRoot, parsed.input.stageId)
+        : null;
       if (!existingStageRunLaunch && requestedReviewLane) {
         resolveStandardAgentStageReviewLane(stageQualityBinding?.review_lane_binding, requestedReviewLane);
       }

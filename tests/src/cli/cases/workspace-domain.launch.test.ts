@@ -415,15 +415,15 @@ test('workspace activation automatically ensures the installed MAS package scope
     assert.equal(current.materialization_readiness.status, 'current');
     assert.equal(current.launch_allowed, true);
     const appState = runCli(['app', 'state', '--profile', 'fast'], env).app_state;
-    assert.equal(appState.agent_packages.status_index.packages.mas.status, 'verification_deferred');
+    assert.equal(appState.agent_packages.status_index.packages.mas.status, 'available');
     assert.equal(
       appState.agent_packages.status_index.packages.mas.operational_ready,
-      false,
+      true,
     );
-    assert.equal(appState.agent_packages.status_index.packages.mas.launch_allowed, false);
+    assert.equal(appState.agent_packages.status_index.packages.mas.launch_allowed, true);
     assert.equal(
       appState.agent_packages.status_index.packages.mas.launch_blocked_reason,
-      'live_verification_deferred',
+      null,
     );
 
     fs.rmSync(path.join(workspaceA, '.codex', 'skills', 'medical-manuscript-writing'), {
