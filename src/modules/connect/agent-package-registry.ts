@@ -4091,15 +4091,6 @@ function packageNativeCarrierActivationState(
     && packageStatus.configured_carrier.status === 'installed'
     && packageStatus.configured_carrier.carrier.precedence === 'exact_single_source';
   if (!nativeCarrierPresent) return 'legacy';
-  const descriptorReadiness = packageStatus.installed_readiness;
-  if (descriptorReadiness) {
-    return descriptorReadiness.installed === true
-      && descriptorReadiness.callability === 'callable'
-      && packageStatus.operational_ready === true
-      && packageStatus.launch_allowed === true
-      ? 'ready'
-      : 'blocked';
-  }
   const observedCarrierVersion = stringValue(packageStatus.configured_carrier.installed_version);
   const managedPackageVersion = stringValue(managedLock?.package_version);
   const managedCachePath = stringValue(managedLock?.physical_surface?.codex_plugin_cache_path);
@@ -4119,12 +4110,24 @@ function packageNativeCarrierActivationState(
       || observedCarrierVersion === managedPackageVersion
     ),
   );
-  const managedCarrierCurrent = managedLock
+  const managedCarrierCurrent = Boolean(
+    managedLock
     && managedCacheGenerationCurrent
     && managedCarrierVersionCurrent
     && managedCacheSurfaceCurrent(managedLock)
     && managedCachePath
-    && managedCarrierProjectionCurrent(packageStatus, managedLock, managedCachePath);
+    && managedCarrierProjectionCurrent(packageStatus, managedLock, managedCachePath),
+  );
+  const descriptorReadiness = packageStatus.installed_readiness;
+  if (descriptorReadiness) {
+    return descriptorReadiness.installed === true
+      && descriptorReadiness.callability === 'callable'
+      && packageStatus.operational_ready === true
+      && packageStatus.launch_allowed === true
+      && (!managedLock || managedCarrierCurrent)
+      ? 'ready'
+      : 'blocked';
+  }
   return managedCarrierCurrent
     && packageStatus.configured_carrier.executor.status === 'callable'
     ? 'legacy'

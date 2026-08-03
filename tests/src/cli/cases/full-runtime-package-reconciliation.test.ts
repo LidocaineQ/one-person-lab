@@ -628,6 +628,15 @@ test('materialized readback verifies immutable bytes and keeps hidden Packages o
       assert.equal(current.codex_plugin_cache_path, materialized.codex_plugin_cache_path);
       assert.equal(current.marketplace_id, null);
 
+      fs.chmodSync(current.codex_plugin_cache_path, 0o755);
+      const unexpectedCachePath = path.join(current.codex_plugin_cache_path, 'unexpected.txt');
+      fs.writeFileSync(unexpectedCachePath, 'unexpected\n');
+      assert.throws(
+        () => inspectMaterializedPhysicalCodexSurface(manifest),
+        (error: any) => error?.details?.failure_code === 'full_runtime_package_projection_incomplete',
+      );
+      fs.rmSync(unexpectedCachePath);
+
       const marketplaceRoot = path.join(
         stateDir,
         'codex-plugin-marketplaces',
@@ -639,6 +648,29 @@ test('materialized readback verifies immutable bytes and keeps hidden Packages o
         (error: any) => error?.details?.failure_code === 'full_runtime_package_projection_incomplete',
       );
       fs.rmSync(marketplaceRoot, { recursive: true, force: true });
+
+      const visibleManifest = {
+        ...manifest,
+        package_id: 'fixture-visible-full-runtime',
+        codex_default_exposure: true,
+      };
+      const visible = materializePhysicalCodexSurface(visibleManifest, false, {
+        skipManagedSurfaces: true,
+      });
+      assert.ok(visible.codex_plugin_cache_path);
+      assert.ok(visible.marketplace_plugin_path);
+      fs.chmodSync(visible.codex_plugin_cache_path, 0o755);
+      fs.chmodSync(visible.marketplace_plugin_path, 0o755);
+      const cacheExtraPath = path.join(visible.codex_plugin_cache_path, 'coordinated-extra.txt');
+      const marketplaceExtraPath = path.join(visible.marketplace_plugin_path, 'coordinated-extra.txt');
+      fs.writeFileSync(cacheExtraPath, 'coordinated extra\n');
+      fs.writeFileSync(marketplaceExtraPath, 'coordinated extra\n');
+      assert.throws(
+        () => inspectMaterializedPhysicalCodexSurface(visibleManifest),
+        (error: any) => error?.details?.failure_code === 'full_runtime_package_projection_incomplete',
+      );
+      fs.rmSync(cacheExtraPath);
+      fs.rmSync(marketplaceExtraPath);
 
       const skillPath = path.join(
         current.codex_plugin_cache_path,

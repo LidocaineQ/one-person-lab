@@ -100,9 +100,39 @@ function pathEntryExists(candidatePath: string) {
   }
 }
 
-export function managedCarrierProjectionDigest(rootPath: string) {
+export function managedCarrierProjectionDigest(
+  rootPath: string,
+  includedFilePaths?: readonly string[],
+) {
   const digest = crypto.createHash('sha256');
   const noFollow = fs.constants.O_NOFOLLOW ?? 0;
+  const selectedEntries = includedFilePaths === undefined
+    ? null
+    : new Map<string, Map<string, 'directory' | 'file'>>();
+  for (const rawPath of includedFilePaths ?? []) {
+    const normalizedPath = path.posix.normalize(rawPath);
+    if (!rawPath
+      || rawPath.includes('\\')
+      || path.posix.isAbsolute(rawPath)
+      || normalizedPath !== rawPath
+      || normalizedPath === '.'
+      || normalizedPath.startsWith('../')) {
+      throw new Error(`invalid managed carrier projection path: ${rawPath}`);
+    }
+    const parts = normalizedPath.split('/');
+    for (let index = 0; index < parts.length; index += 1) {
+      const parent = parts.slice(0, index).join('/');
+      const name = parts[index]!;
+      const kind = index === parts.length - 1 ? 'file' : 'directory';
+      const entries = selectedEntries!.get(parent) ?? new Map();
+      const existing = entries.get(name);
+      if (existing && existing !== kind) {
+        throw new Error(`conflicting managed carrier projection path: ${rawPath}`);
+      }
+      entries.set(name, kind);
+      selectedEntries!.set(parent, entries);
+    }
+  }
   const sameIdentity = (
     left: fs.BigIntStats,
     right: fs.BigIntStats,
@@ -117,23 +147,30 @@ export function managedCarrierProjectionDigest(rootPath: string) {
     Buffer.from(left, 'utf8'),
     Buffer.from(right, 'utf8'),
   );
-  const visit = (directory: string) => {
+  const visit = (directory: string, relativeDirectory = '') => {
     const directoryBefore = fs.lstatSync(directory, { bigint: true });
     if (!directoryBefore.isDirectory() || directoryBefore.isSymbolicLink()) {
       throw new Error(`unsupported managed carrier projection directory: ${directory}`);
     }
-    const entries = fs.readdirSync(directory, { withFileTypes: true })
+    const entries = (selectedEntries
+      ? [...(selectedEntries.get(relativeDirectory)?.keys() ?? [])].map((name) => ({ name }))
+      : fs.readdirSync(directory, { withFileTypes: true }).map((entry) => ({ name: entry.name })))
       .sort((left, right) => byteOrder(left.name, right.name));
     for (const entry of entries) {
       const absolutePath = path.join(directory, entry.name);
       const relativePath = path.relative(rootPath, absolutePath).split(path.sep).join('/');
       const stat = fs.lstatSync(absolutePath, { bigint: true });
+      const expectedKind = selectedEntries?.get(relativeDirectory)?.get(entry.name);
       if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())) {
         throw new Error(`unsupported managed carrier projection entry: ${relativePath}`);
       }
+      if ((expectedKind === 'directory' && !stat.isDirectory())
+        || (expectedKind === 'file' && !stat.isFile())) {
+        throw new Error(`managed carrier projection entry kind changed: ${relativePath}`);
+      }
       if (stat.isDirectory()) {
         digest.update(`dir\0${Buffer.byteLength(relativePath)}\0${relativePath}\0`);
-        visit(absolutePath);
+        visit(absolutePath, relativePath);
         continue;
       }
       let descriptor: number | null = null;
@@ -170,10 +207,12 @@ export function managedCarrierProjectionDigest(rootPath: string) {
       }
     }
     const directoryAfter = fs.lstatSync(directory, { bigint: true });
-    const afterEntries = fs.readdirSync(directory).sort(byteOrder);
+    const afterEntries = selectedEntries ? null : fs.readdirSync(directory).sort(byteOrder);
     if (!sameIdentity(directoryBefore, directoryAfter)
-      || entries.length !== afterEntries.length
-      || entries.some((entry, index) => entry.name !== afterEntries[index])) {
+      || (afterEntries !== null && (
+        entries.length !== afterEntries.length
+        || entries.some((entry, index) => entry.name !== afterEntries[index])
+      ))) {
       throw new Error(`managed carrier projection directory changed: ${directory}`);
     }
   };
@@ -966,7 +1005,7 @@ function buildPhysicalSurfacePaths(manifest: AgentPackageManifest) {
 export function inspectMaterializedPhysicalCodexSurface(manifest: AgentPackageManifest) {
   const paths = buildPhysicalSurfacePaths(manifest);
   const codexDefaultExposure = manifest.codex_default_exposure !== false;
-  if (!manifest.plugin_id || !paths.codexPluginCachePath) {
+  if (!manifest.plugin_id || !manifest.plugin_source_path || !paths.codexPluginCachePath) {
     throw new FrameworkContractError('contract_shape_invalid', 'Package descriptor has no materialized Codex plugin identity.', {
       package_id: manifest.package_id,
       plugin_id: manifest.plugin_id,
@@ -974,6 +1013,43 @@ export function inspectMaterializedPhysicalCodexSurface(manifest: AgentPackageMa
     });
   }
   verifyImmutablePluginCache(manifest, paths.codexPluginCachePath);
+  const expectedProjectionDigest = (() => {
+    try {
+      const selectedPaths = manifest.developer_checkout_source?.copy_paths
+        ?? (manifest.content_lock_paths.length > 0 ? manifest.content_lock_paths : undefined);
+      return managedCarrierProjectionDigest(
+        resolveLocalPath(manifest.plugin_source_path!),
+        selectedPaths,
+      );
+    } catch (error) {
+      throw new FrameworkContractError('contract_shape_invalid', 'Package source cannot establish immutable projection currentness.', {
+        package_id: manifest.package_id,
+        plugin_id: manifest.plugin_id,
+        error: error instanceof Error ? error.message : String(error),
+        failure_code: 'full_runtime_package_projection_incomplete',
+      });
+    }
+  })();
+  let cacheProjectionDigest: string;
+  try {
+    cacheProjectionDigest = managedCarrierProjectionDigest(paths.codexPluginCachePath);
+  } catch (error) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Package plugin cache projection is not immutable.', {
+      package_id: manifest.package_id,
+      plugin_id: manifest.plugin_id,
+      error: error instanceof Error ? error.message : String(error),
+      failure_code: 'full_runtime_package_projection_incomplete',
+    });
+  }
+  if (cacheProjectionDigest !== expectedProjectionDigest) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Package plugin cache projection does not match its immutable source.', {
+      package_id: manifest.package_id,
+      plugin_id: manifest.plugin_id,
+      expected_projection_digest: expectedProjectionDigest,
+      actual_projection_digest: cacheProjectionDigest,
+      failure_code: 'full_runtime_package_projection_incomplete',
+    });
+  }
   const pluginManifestPath = path.join(paths.codexPluginCachePath, '.codex-plugin', 'plugin.json');
   const materializedRequiredSkills = validateMaterializedRequiredSkills(
     manifest,
@@ -988,7 +1064,7 @@ export function inspectMaterializedPhysicalCodexSurface(manifest: AgentPackageMa
     && (() => {
       try {
         verifyImmutablePluginCache(manifest, paths.marketplacePluginPath!);
-        return true;
+        return managedCarrierProjectionDigest(paths.marketplacePluginPath!) === expectedProjectionDigest;
       } catch {
         return false;
       }
