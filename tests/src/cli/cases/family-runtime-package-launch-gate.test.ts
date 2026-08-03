@@ -34,12 +34,24 @@ function writeMasUvFixture(binRoot: string) {
   ].join('\n'), { mode: 0o755 });
 }
 
-function writeAbsentCodexPluginManager(root: string) {
+function writeLockAwareCodexPluginManager(root: string) {
   const binary = path.join(root, 'fake-codex-plugin-manager');
+  fs.mkdirSync(root, { recursive: true });
   fs.writeFileSync(binary, [
     '#!/usr/bin/env node',
     "if (process.argv.slice(2).join(' ') !== 'plugin list --json') process.exit(2);",
-    "process.stdout.write(JSON.stringify({ installed: [], available: [] }));",
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    "let index = { packages: [] };",
+    "try { index = JSON.parse(fs.readFileSync(path.join(process.env.OPL_STATE_DIR, 'agent-package-locks.json'), 'utf8')); } catch {}",
+    "const installed = (index.packages || []).flatMap((entry) => {",
+    "  const surface = entry && entry.physical_surface;",
+    "  if (!surface || !surface.plugin_id || !surface.marketplace_id || !surface.marketplace_root || !surface.marketplace_plugin_path) return [];",
+    "  const generation = surface.codex_plugin_cache_path ? path.basename(surface.codex_plugin_cache_path) : entry.package_version;",
+    "  if (generation !== entry.package_version && !generation.startsWith(entry.package_version + '-')) return [];",
+    "  return [{ pluginId: surface.plugin_id + '@' + surface.marketplace_id, version: generation, installed: true, enabled: true, source: { source: 'local', path: surface.marketplace_plugin_path }, marketplaceSource: { sourceType: 'local', source: surface.marketplace_root } }];",
+    "});",
+    "process.stdout.write(JSON.stringify({ installed, available: [] }));",
   ].join('\n'), { mode: 0o755 });
   return binary;
 }
@@ -210,7 +222,7 @@ test('family-runtime attempt create fails closed when the canonical domain packa
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
+    OPL_CODEX_PLUGIN_BIN: writeLockAwareCodexPluginManager(root),
   };
   fs.mkdirSync(workspace, { recursive: true });
   try {
@@ -237,7 +249,7 @@ test('family-runtime keeps duplicate create idempotent and refreshes the scope a
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
+    OPL_CODEX_PLUGIN_BIN: writeLockAwareCodexPluginManager(root),
     OPL_TEMPORAL_ADDRESS: '',
     TEMPORAL_ADDRESS: '',
     ...releaseSet.env,
@@ -363,7 +375,7 @@ test('family-runtime quest first start activates every Skill while a new attempt
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
+    OPL_CODEX_PLUGIN_BIN: writeLockAwareCodexPluginManager(root),
     ...releaseSet.env,
   };
   try {
@@ -503,7 +515,7 @@ test('family-runtime invocation keeps the installed provider until an explicit u
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
+    OPL_CODEX_PLUGIN_BIN: writeLockAwareCodexPluginManager(root),
     ...releaseSet.env,
   };
   try {
@@ -626,7 +638,7 @@ test('family-runtime absorbs developer checkout changes only after an explicit u
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
+    OPL_CODEX_PLUGIN_BIN: writeLockAwareCodexPluginManager(root),
     OPL_MODULE_PATH_MEDAUTOSCIENCE: masCheckout,
     OPL_MODULE_PATH_SCHOLARSKILLS: scholarCheckout,
     ...withMasUvFixturePath(releaseSet.env, fakeBin),
@@ -737,7 +749,7 @@ test('family-runtime ignores an incomplete checkout until an explicit update', a
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
+    OPL_CODEX_PLUGIN_BIN: writeLockAwareCodexPluginManager(root),
     OPL_MODULE_PATH_MEDAUTOSCIENCE: masCheckout,
     OPL_MODULE_PATH_SCHOLARSKILLS: scholarCheckout,
     ...withMasUvFixturePath(releaseSet.env, fakeBin),
@@ -826,7 +838,7 @@ test('explicit provider update removes only unchanged package-owned Skills and p
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
+    OPL_CODEX_PLUGIN_BIN: writeLockAwareCodexPluginManager(root),
     ...releaseSet.env,
   };
   try {
@@ -863,7 +875,7 @@ test('family-runtime use boundary ignores owner channels when the legacy shared 
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
+    OPL_CODEX_PLUGIN_BIN: writeLockAwareCodexPluginManager(root),
     ...releaseSet.env,
   };
   try {
@@ -918,7 +930,7 @@ test('family-runtime treats operation receipts as observation-only without a lif
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
+    OPL_CODEX_PLUGIN_BIN: writeLockAwareCodexPluginManager(root),
     ...releaseSet.env,
   };
   try {
@@ -967,7 +979,7 @@ test('family-runtime keeps the installed provider callable without an ABI compat
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
+    OPL_CODEX_PLUGIN_BIN: writeLockAwareCodexPluginManager(root),
     ...releaseSet.env,
   };
   try {
@@ -1016,7 +1028,7 @@ test('family-runtime does not enter explicit update reconciliation during invoca
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(root),
+    OPL_CODEX_PLUGIN_BIN: writeLockAwareCodexPluginManager(root),
     ...releaseSet.env,
   };
   const helper = path.join(workspace, '.codex', 'skills', 'medical-manuscript-writing', 'helper.txt');
