@@ -3994,12 +3994,50 @@ function packageStatusForActivation(input: OplAgentPackageStatusInput) {
   };
 }
 
-function isManagedCacheGeneration(packageVersion: string, cacheGeneration: string | null) {
-  if (!cacheGeneration) return false;
-  if (cacheGeneration === packageVersion) return true;
-  if (!cacheGeneration.startsWith(`${packageVersion}-`)) return false;
-  const suffix = cacheGeneration.slice(packageVersion.length + 1);
-  return /^[0-9a-f]{64}$/.test(suffix) || /^dev-[0-9a-f]{64}$/.test(suffix);
+function managedCacheGenerationIdentity(lock: AgentPackageLock) {
+  const packageVersion = stringValue(lock.package_version);
+  if (!packageVersion) return null;
+  const developerCheckout = lock.source_kind === 'developer_checkout_override';
+  if (developerCheckout && !lock.developer_checkout_source) return null;
+  const contentDigest = stringValue(lock.content_digest);
+  const manifestDigest = stringValue(lock.manifest_sha256);
+  const contentDigestIsManifestFallback = Boolean(
+    contentDigest
+    && manifestDigest
+    && contentDigest.replace(/^sha256:/, '') === manifestDigest.replace(/^sha256:/, ''),
+  );
+  const payloadDigest = stringValue(lock.physical_surface?.plugin_payload_manifest_sha256);
+  const cacheIdentity = developerCheckout
+    ? stringValue(lock.developer_checkout_source?.payload_digest)
+    : contentDigest && !contentDigestIsManifestFallback
+      ? contentDigest
+      : payloadDigest;
+  if (!cacheIdentity) return packageVersion;
+  const digest = cacheIdentity.replace(/^sha256:/, '');
+  if (!/^[0-9a-f]{64}$/.test(digest)) return null;
+  return `${packageVersion}-${developerCheckout ? 'dev-' : ''}${digest}`;
+}
+
+function isManagedCacheGeneration(lock: AgentPackageLock, cacheGeneration: string | null) {
+  return Boolean(cacheGeneration && managedCacheGenerationIdentity(lock) === cacheGeneration);
+}
+
+function managedCacheSurfaceCurrent(lock: AgentPackageLock) {
+  const recordedCachePath = stringValue(lock.physical_surface?.codex_plugin_cache_path);
+  if (!recordedCachePath) return false;
+  try {
+    const rematerialized = rematerializePhysicalCodexSurfaceFromLock(
+      lock,
+      true,
+      { skipManagedSurfaces: true },
+    );
+    return rematerialized.status === 'validated_no_write'
+      && sameConfiguredCarrierPath(rematerialized.codex_plugin_cache_path, recordedCachePath);
+  } catch {
+    // Carrier status is a read-model path. Cache validation failures must only
+    // make activation blocked; they must not make status itself unreadable.
+    return false;
+  }
 }
 
 function packageNativeCarrierActivationState(
@@ -4023,25 +4061,29 @@ function packageNativeCarrierActivationState(
   const managedPackageVersion = stringValue(managedLock?.package_version);
   const managedCachePath = stringValue(managedLock?.physical_surface?.codex_plugin_cache_path);
   const managedCacheGeneration = managedCachePath ? path.basename(managedCachePath) : null;
+  const managedCacheGenerationCurrent = Boolean(
+    managedLock
+    && isManagedCacheGeneration(managedLock, managedCacheGeneration),
+  );
   // Codex reports the immutable plugin-cache generation as its installed
-  // version for Framework-materialized local marketplaces. Keep the strict
-  // identity check by accepting only the exact lock generation, alongside
-  // carriers that report the package version directly.
+  // version for Framework-materialized local marketplaces. A managed
+  // developer cache must keep its `dev-` mode; normal caches must not borrow
+  // that mode. Normal carriers may still report the package version directly.
   const managedCarrierVersionCurrent = Boolean(
     observedCarrierVersion
     && managedPackageVersion
     && (
-      observedCarrierVersion === managedPackageVersion
+      observedCarrierVersion === managedCacheGeneration
       || (
-        managedCacheGeneration
-        && managedCacheGeneration !== managedPackageVersion
-        && isManagedCacheGeneration(managedPackageVersion, managedCacheGeneration)
-        && observedCarrierVersion === managedCacheGeneration
+        managedLock?.source_kind !== 'developer_checkout_override'
+        && observedCarrierVersion === managedPackageVersion
       )
     ),
   );
   const managedCarrierCurrent = managedLock
+    && managedCacheGenerationCurrent
     && managedCarrierVersionCurrent
+    && managedCacheSurfaceCurrent(managedLock)
     && sameConfiguredCarrierPath(
       packageStatus.configured_carrier.plugin_source_path,
       managedLock.physical_surface?.marketplace_plugin_path ?? null,

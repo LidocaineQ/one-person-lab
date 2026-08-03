@@ -261,8 +261,7 @@ test('managed carrier activation rejects malformed cache generations before laun
       'packages', 'install', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
     ], env);
     const lockPath = path.join(env.OPL_STATE_DIR, 'agent-package-locks.json');
-    const originalLockBytes = fs.readFileSync(lockPath, 'utf8');
-    const lockIndex = JSON.parse(originalLockBytes) as {
+    const lockIndex = JSON.parse(fs.readFileSync(lockPath, 'utf8')) as {
       packages: Array<{
         package_id: string;
         package_version: string;
@@ -276,27 +275,129 @@ test('managed carrier activation rejects malformed cache generations before laun
     const cacheSuffix = cacheGeneration === packageLock.package_version
       ? null
       : cacheGeneration.slice(packageLock.package_version.length + 1);
-    assert.ok(
-      cacheGeneration === packageLock.package_version
-        || /^[0-9a-f]{64}$/.test(cacheSuffix ?? '')
-        || /^dev-[0-9a-f]{64}$/.test(cacheSuffix ?? ''),
-      cacheGeneration,
-    );
+    assert.match(cacheSuffix ?? '', /^[0-9a-f]{64}$/, cacheGeneration);
 
     const validActivation = runCli([
       'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
     ], env).opl_agent_package_activation;
     assert.equal(validActivation.launch_allowed, true);
 
-    packageLock.physical_surface.codex_plugin_cache_path = path.join(
+    const assertBlockedForCachePath = (nextCachePath: string) => {
+      packageLock.physical_surface!.codex_plugin_cache_path = nextCachePath;
+      fs.writeFileSync(lockPath, `${JSON.stringify(lockIndex, null, 2)}\n`);
+      const status = runCli([
+        'packages', 'status', '--package-id', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
+      ], env).opl_agent_package_status;
+      assert.equal(status.configured_carrier.installed_version, path.basename(nextCachePath));
+      const activationFailure = runCliFailure([
+        'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
+      ], env);
+      assert.equal(
+        activationFailure.payload.error.details.failure_code,
+        'agent_package_scope_activation_blocked',
+      );
+      packageLock.physical_surface!.codex_plugin_cache_path = cachePath;
+      fs.writeFileSync(lockPath, `${JSON.stringify(lockIndex, null, 2)}\n`);
+    };
+
+    const wrongDigest = `${cacheSuffix!.slice(0, -1)}${cacheSuffix!.endsWith('0') ? '1' : '0'}`;
+    const wrongDigestPath = path.join(
+      path.dirname(cachePath),
+      `${packageLock.package_version}-${wrongDigest}`,
+    );
+    fs.cpSync(cachePath, wrongDigestPath, { recursive: true });
+    assertBlockedForCachePath(wrongDigestPath);
+
+    const wrongDeveloperModePath = path.join(
+      path.dirname(cachePath),
+      `${packageLock.package_version}-dev-${cacheSuffix}`,
+    );
+    fs.cpSync(cachePath, wrongDeveloperModePath, { recursive: true });
+    assertBlockedForCachePath(wrongDeveloperModePath);
+
+    const externalCachePath = path.join(root, 'external-cache', cacheGeneration);
+    fs.cpSync(cachePath, externalCachePath, { recursive: true });
+    assertBlockedForCachePath(externalCachePath);
+
+    const missingCachePath = path.join(
+      path.dirname(cachePath),
+      `${packageLock.package_version}-${'f'.repeat(64)}`,
+    );
+    assertBlockedForCachePath(missingCachePath);
+
+    const malformedCachePath = path.join(
       path.dirname(cachePath),
       `${packageLock.package_version}-bogus`,
     );
+    assertBlockedForCachePath(malformedCachePath);
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
+test('managed carrier activation preserves developer cache mode identity', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-developer-carrier-generation-gate-'));
+  const workspace = path.join(root, 'workspace-target');
+  const masCheckout = path.join(root, 'workspace', 'med-autoscience');
+  const scholarCheckout = path.join(root, 'workspace', 'mas-scholar-skills');
+  const provider = writeCapabilityProvider(path.join(root, 'release-provider'), '0.1.0');
+  const consumer = writeMasConsumer(path.join(root, 'release-consumer'), provider, '0.1.0a4');
+  const releaseSet = writeCapabilityCatalog(path.join(root, 'release-set'), [consumer, provider]);
+  const fakeBin = path.join(root, 'bin');
+  writeMasUvFixture(fakeBin);
+  writeDeveloperCapabilityCheckoutClosure({
+    masCheckout,
+    scholarCheckout,
+    masManifestPath: consumer,
+    providerManifestPath: provider,
+  });
+  const env = {
+    OPL_STATE_DIR: path.join(root, 'state'),
+    CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_CODEX_PLUGIN_BIN: writeLockAwareCodexPluginManager(root),
+    OPL_MODULE_PATH_MEDAUTOSCIENCE: masCheckout,
+    OPL_MODULE_PATH_SCHOLARSKILLS: scholarCheckout,
+    ...withMasUvFixturePath(releaseSet.env, fakeBin),
+  };
+  fs.mkdirSync(workspace, { recursive: true });
+  try {
+    runCli([
+      'workspace', 'bind', '--project', 'medautoscience', '--path', workspace,
+    ], env);
+    await runCliAsync(['packages', 'install', 'mas'], env);
+    const lockPath = path.join(env.OPL_STATE_DIR, 'agent-package-locks.json');
+    const lockIndex = JSON.parse(fs.readFileSync(lockPath, 'utf8')) as {
+      packages: Array<{
+        package_id: string;
+        package_version: string;
+        source_kind?: string;
+        physical_surface?: { codex_plugin_cache_path?: string | null };
+      }>;
+    };
+    const packageLock = lockIndex.packages.find((entry) => entry.package_id === 'mas');
+    assert.ok(packageLock?.physical_surface?.codex_plugin_cache_path);
+    assert.equal(packageLock.source_kind, 'developer_checkout_override');
+    const cachePath = packageLock.physical_surface.codex_plugin_cache_path;
+    const cacheGeneration = path.basename(cachePath);
+    const cacheSuffix = cacheGeneration.slice(packageLock.package_version.length + 1);
+    assert.match(cacheSuffix, /^dev-[0-9a-f]{64}$/, cacheGeneration);
+
+    const validActivation = runCli([
+      'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
+    ], env).opl_agent_package_activation;
+    assert.equal(validActivation.launch_allowed, true);
+
+    const normalModePath = path.join(
+      path.dirname(cachePath),
+      `${packageLock.package_version}-${cacheSuffix.slice('dev-'.length)}`,
+    );
+    fs.cpSync(cachePath, normalModePath, { recursive: true });
+    packageLock.physical_surface.codex_plugin_cache_path = normalModePath;
     fs.writeFileSync(lockPath, `${JSON.stringify(lockIndex, null, 2)}\n`);
-    const malformedStatus = runCli([
+    const status = runCli([
       'packages', 'status', '--package-id', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
     ], env).opl_agent_package_status;
-    assert.equal(malformedStatus.configured_carrier.installed_version, `${packageLock.package_version}-bogus`);
+    assert.equal(status.configured_carrier.installed_version, path.basename(normalModePath));
     const activationFailure = runCliFailure([
       'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
     ], env);
