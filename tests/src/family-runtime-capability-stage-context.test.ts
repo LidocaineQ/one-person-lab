@@ -11,7 +11,10 @@ import {
   type CapabilityRegistryCatalog,
   type CurrentOwnerDeltaCapabilityBinding,
 } from '../../src/modules/connect/capability-registry-resolver.ts';
-import { runOplAgentPackageInstall } from '../../src/modules/connect/agent-package-registry.ts';
+import {
+  ensureOplAgentPackageScopeActivation,
+  runOplAgentPackageInstall,
+} from '../../src/modules/connect/agent-package-registry.ts';
 import { sha256Fixture } from './cli/cases/packages-cases/helpers.ts';
 import { writeManagedRuntimeSourceFixture } from './cli/cases/packages-cases/managed-runtime-source-fixture.ts';
 import { removeFixtureTree } from './cli/helpers-parts/filesystem.ts';
@@ -797,6 +800,53 @@ test('provider-hosted attempt launch consumes typed capability readout without c
     scope: 'workspace',
     targetWorkspace: familyRoot,
   });
+  const packageLockPath = path.join(process.env.OPL_STATE_DIR!, 'agent-package-locks.json');
+  const installedLockBytes = fs.readFileSync(packageLockPath);
+  const installedLockIndex = JSON.parse(installedLockBytes.toString('utf8')) as {
+    packages: Array<{
+      package_id: string;
+      physical_surface?: {
+        codex_plugin_cache_path?: string | null;
+        marketplace_plugin_path?: string | null;
+      };
+    }>;
+  };
+  const installedMasLock = installedLockIndex.packages.find((entry) => entry.package_id === 'mas');
+  assert.ok(installedMasLock?.physical_surface?.codex_plugin_cache_path);
+  assert.ok(installedMasLock?.physical_surface?.marketplace_plugin_path);
+  const assertCarrierActivationBlocked = async () => {
+    await assert.rejects(
+      () => ensureOplAgentPackageScopeActivation({
+        packageId: 'mas',
+        scope: 'workspace',
+        targetWorkspace: familyRoot,
+      }),
+      (error: any) => {
+        assert.equal(error.details?.failure_code, 'agent_package_scope_activation_blocked');
+        return true;
+      },
+    );
+  };
+  try {
+    installedMasLock.physical_surface!.codex_plugin_cache_path = path.join(
+      path.dirname(installedMasLock.physical_surface!.codex_plugin_cache_path!),
+      '0.2.1-invalid-generation',
+    );
+    fs.writeFileSync(packageLockPath, `${JSON.stringify(installedLockIndex, null, 2)}\n`);
+    await assertCarrierActivationBlocked();
+
+    const restoredLockIndex = JSON.parse(installedLockBytes.toString('utf8')) as typeof installedLockIndex;
+    const restoredMasLock = restoredLockIndex.packages.find((entry) => entry.package_id === 'mas');
+    assert.ok(restoredMasLock?.physical_surface?.marketplace_plugin_path);
+    restoredMasLock.physical_surface!.marketplace_plugin_path = path.join(
+      path.dirname(restoredMasLock.physical_surface!.marketplace_plugin_path!),
+      'wrong-marketplace-plugin-path',
+    );
+    fs.writeFileSync(packageLockPath, `${JSON.stringify(restoredLockIndex, null, 2)}\n`);
+    await assertCarrierActivationBlocked();
+  } finally {
+    fs.writeFileSync(packageLockPath, installedLockBytes);
+  }
   const db = new DatabaseSync(':memory:');
   createFamilyRuntimeQueueTables(db);
   const now = new Date().toISOString();

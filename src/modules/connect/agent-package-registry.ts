@@ -3993,8 +3993,29 @@ function packageNativeCarrierActivationState(
   const managedLock = packageStatus.installed_packages?.find(
     (entry: any) => entry?.package_id === packageStatus.package_id,
   ) ?? null;
+  const observedCarrierVersion = stringValue(packageStatus.configured_carrier.installed_version);
+  const managedPackageVersion = stringValue(managedLock?.package_version);
+  const managedCachePath = stringValue(managedLock?.physical_surface?.codex_plugin_cache_path);
+  const managedCacheGeneration = managedCachePath ? path.basename(managedCachePath) : null;
+  // Codex reports the immutable plugin-cache generation as its installed
+  // version for Framework-materialized local marketplaces. Keep the strict
+  // identity check by accepting only the exact lock generation, alongside
+  // carriers that report the package version directly.
+  const managedCarrierVersionCurrent = Boolean(
+    observedCarrierVersion
+    && managedPackageVersion
+    && (
+      observedCarrierVersion === managedPackageVersion
+      || (
+        managedCacheGeneration
+        && managedCacheGeneration !== managedPackageVersion
+        && managedCacheGeneration.startsWith(`${managedPackageVersion}-`)
+        && observedCarrierVersion === managedCacheGeneration
+      )
+    ),
+  );
   const managedCarrierCurrent = managedLock
-    && packageStatus.configured_carrier.installed_version === managedLock.package_version
+    && managedCarrierVersionCurrent
     && sameConfiguredCarrierPath(
       packageStatus.configured_carrier.plugin_source_path,
       managedLock.physical_surface?.marketplace_plugin_path ?? null,
