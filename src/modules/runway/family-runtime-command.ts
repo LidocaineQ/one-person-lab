@@ -165,6 +165,7 @@ export type FamilyRuntimeCommandInput =
       executorBindingRef?: string;
       invocationMode?: 'invocation' | 'authoring';
       boundedEditRef?: string;
+      reviewLane?: string;
       taskId?: string;
       retryBudget?: Record<string, unknown>;
       checkpointRefs?: string[];

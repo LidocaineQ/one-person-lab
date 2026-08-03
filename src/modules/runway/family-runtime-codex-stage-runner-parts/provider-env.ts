@@ -69,6 +69,9 @@ export function codexStageAttemptEnv(input: {
   const content = spec && isRecord(spec.package_closure)
     ? stageAttemptPackageClosureIdentity(binding)
     : null;
+  const stageAttemptExecutorPolicy = spec && isRecord(spec.stage_attempt_executor_policy)
+    ? spec.stage_attempt_executor_policy
+    : null;
   const scopeEnvironment = executionScope ? executionScopeEnvironment(executionScope) : {};
   return {
     OPL_STAGE_ATTEMPT_ID: optionalString(input.attempt.stage_attempt_id) ?? undefined,
@@ -81,6 +84,8 @@ export function codexStageAttemptEnv(input: {
     OPL_PACKAGE_USE_BOUNDARY_ID: content?.use_boundary_id,
     OPL_ROOT_PACKAGE_ID: content?.root_package.package_id,
     OPL_ROOT_PACKAGE_CONTENT_DIGEST: content?.root_package.package_content_digest,
+    OPL_REVIEW_LANE_BINDING:
+      optionalString(stageAttemptExecutorPolicy?.review_lane_binding) ?? undefined,
     OPL_PROVIDER_PACKAGES_JSON: content && content.provider_packages.length > 0
       ? JSON.stringify(content.provider_packages)
       : undefined,

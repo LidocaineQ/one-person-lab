@@ -50,6 +50,33 @@ function writeInstalledCodexPluginManager(root: string, sourcePath: string) {
   return binary;
 }
 
+function writeInstalledCodexPluginManagerFromLock(root: string) {
+  const binary = path.join(root, 'fake-codex-installed-plugin-manager');
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(binary, [
+    '#!/usr/bin/env node',
+    "if (process.argv.slice(2).join(' ') !== 'plugin list --json') process.exit(2);",
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    `const counterPath = ${JSON.stringify(path.join(root, '.fake-codex-call-counts.json'))};`,
+    "let counters = {};",
+    "try { counters = JSON.parse(fs.readFileSync(counterPath, 'utf8')); } catch {}",
+    "const parent = String(process.ppid);",
+    "const call = Number(counters[parent] || 0) + 1;",
+    "counters = { [parent]: call };",
+    "fs.writeFileSync(counterPath, JSON.stringify(counters));",
+    "let index = { packages: [] };",
+    "try { index = JSON.parse(fs.readFileSync(path.join(process.env.OPL_STATE_DIR, 'agent-package-locks.json'), 'utf8')); } catch {}",
+    "const installed = call > 1 ? (index.packages || []).flatMap((entry) => {",
+    "  const surface = entry && entry.physical_surface;",
+    "  if (!surface || !surface.plugin_id || !surface.marketplace_id || !surface.marketplace_root || !surface.marketplace_plugin_path) return [];",
+    "  return [{ pluginId: `${surface.plugin_id}@${surface.marketplace_id}`, version: entry.package_version, installed: true, enabled: true, source: { source: 'local', path: surface.marketplace_plugin_path }, marketplaceSource: { sourceType: 'local', source: surface.marketplace_root } }];",
+    "}) : [];",
+    "process.stdout.write(JSON.stringify({ installed, available: [] }));",
+  ].join('\n'), { mode: 0o755 });
+  return binary;
+}
+
 function writeOplFlowPackage(
   root: string,
   options: {
@@ -679,7 +706,7 @@ test('workflow policy v3 projects a generic install action when a required Skill
   const env = {
     HOME: home,
     CODEX_HOME: path.join(home, '.codex'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
+    OPL_CODEX_PLUGIN_BIN: writeInstalledCodexPluginManagerFromLock(path.join(root, 'fake-codex')),
     OPL_STATE_DIR: path.join(root, 'state'),
     OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
   };
@@ -732,7 +759,7 @@ test('OPL Flow package lifecycle advances workflow policy v1 v2 v3 v4 and reache
   const env = {
     HOME: path.join(root, 'home'),
     CODEX_HOME: path.join(root, 'home', '.codex'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
+    OPL_CODEX_PLUGIN_BIN: writeInstalledCodexPluginManagerFromLock(path.join(root, 'fake-codex')),
     OPL_STATE_DIR: stateDir,
     OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
   };
@@ -835,7 +862,7 @@ test('workflow policy v3 keeps a missing recommended Skill non-blocking', async 
   const env = {
     HOME: home,
     CODEX_HOME: path.join(home, '.codex'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
+    OPL_CODEX_PLUGIN_BIN: writeInstalledCodexPluginManagerFromLock(path.join(root, 'fake-codex')),
     OPL_STATE_DIR: path.join(root, 'state'),
     OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
   };
@@ -870,7 +897,7 @@ test('workflow policy v4 reports a missing experience baseline as degraded witho
   const env = {
     HOME: home,
     CODEX_HOME: path.join(home, '.codex'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
+    OPL_CODEX_PLUGIN_BIN: writeInstalledCodexPluginManagerFromLock(path.join(root, 'fake-codex')),
     OPL_STATE_DIR: path.join(root, 'state'),
     OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
   };
@@ -1004,7 +1031,7 @@ test('workflow policy v4 observes missing specialized capabilities without insta
   const env = {
     HOME: home,
     CODEX_HOME: path.join(home, '.codex'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
+    OPL_CODEX_PLUGIN_BIN: writeInstalledCodexPluginManagerFromLock(path.join(root, 'fake-codex')),
     OPL_STATE_DIR: path.join(root, 'state'),
     OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
   };
@@ -1052,7 +1079,7 @@ test('workflow policy v4 still blocks Flow when a required Skill is missing', as
   const env = {
     HOME: home,
     CODEX_HOME: path.join(home, '.codex'),
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
+    OPL_CODEX_PLUGIN_BIN: writeInstalledCodexPluginManagerFromLock(path.join(root, 'fake-codex')),
     OPL_STATE_DIR: path.join(root, 'state'),
     OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
   };
@@ -1174,7 +1201,7 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
   const env = {
     HOME: home,
     CODEX_HOME: codexHome,
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
+    OPL_CODEX_PLUGIN_BIN: writeInstalledCodexPluginManagerFromLock(path.join(root, 'fake-codex')),
     OPL_STATE_DIR: stateDir,
     OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
   };
@@ -1258,7 +1285,7 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
     assert.equal(drifted.opl_agent_package_status.operational_ready, true);
     assert.equal(drifted.opl_agent_package_status.launch_blocked_reason, null);
     assert.equal(drifted.opl_agent_package_status.recommended_action, null);
-    assert.equal(drifted.opl_agent_package_status.lifecycle_ux.status, 'available');
+    assert.equal(drifted.opl_agent_package_status.lifecycle_ux.status, 'installed');
     assert.equal(drifted.opl_agent_package_status.lifecycle_ux.recommended_action, null);
     assert.equal(driftedCurrentness.status, 'drifted');
     assert.equal(driftedCurrentness.repair_command, null);
@@ -1334,7 +1361,7 @@ test('managed policy currentness detects and repairs a missing global Codex skil
   const env = {
     HOME: home,
     CODEX_HOME: codexHome,
-    OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(path.join(root, 'fake-codex')),
+    OPL_CODEX_PLUGIN_BIN: writeInstalledCodexPluginManagerFromLock(path.join(root, 'fake-codex')),
     OPL_STATE_DIR: path.join(root, 'state'),
     GIT_CONFIG_COUNT: '1',
     GIT_CONFIG_KEY_0: `url.file://${upstreamRoot}.insteadOf`,
@@ -1378,7 +1405,7 @@ test('managed policy currentness detects and repairs a missing global Codex skil
     assert.equal(drifted.opl_agent_package_status.operational_ready, true);
     assert.equal(drifted.opl_agent_package_status.launch_blocked_reason, null);
     assert.equal(drifted.opl_agent_package_status.recommended_action, null);
-    assert.equal(drifted.opl_agent_package_status.lifecycle_ux.status, 'available');
+    assert.equal(drifted.opl_agent_package_status.lifecycle_ux.status, 'installed');
     assert.equal(drifted.opl_agent_package_status.lifecycle_ux.recommended_action, null);
     assert.equal(driftedCurrentness.status, 'drifted');
     assert.equal(driftedCurrentness.dependency_sync.items[0].entrypoint_authority_status, 'missing');

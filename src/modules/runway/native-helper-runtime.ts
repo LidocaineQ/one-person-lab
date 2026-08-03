@@ -359,7 +359,8 @@ export function runNativeHelperRepairAction(input: { skip?: boolean } = {}): Nat
       cwd: repoRoot(),
       env: process.env,
       encoding: 'utf8',
-      shell: true,
+      shell: false,
+      stdio: ['ignore', 'pipe', 'pipe'],
       maxBuffer: 8 * 1024 * 1024,
     })
     : spawnSync(npmCommand, ['run', 'native:repair'], {

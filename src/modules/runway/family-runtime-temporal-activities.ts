@@ -309,9 +309,13 @@ function reviewerSnapshotAuthorityBinding(
     db,
     [producer.stage_attempt_id],
   ).get(producer.stage_attempt_id) ?? {};
+  const stageAttemptExecutorPolicy = isRecord(spec.stage_attempt_executor_policy)
+    ? spec.stage_attempt_executor_policy
+    : null;
   return {
     producer_attempt_ref: artifactProducerAttemptRef,
     execution_content_binding_sha256: bindingSha256,
+    review_lane_binding: readString(stageAttemptExecutorPolicy?.review_lane_binding),
     owner_authority_refs: exactRefsFromCloseoutMetadata(
       producerCloseout.closeout_ref_metadata,
     ),
