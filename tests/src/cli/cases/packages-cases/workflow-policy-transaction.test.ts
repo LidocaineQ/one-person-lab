@@ -933,6 +933,17 @@ test('installed native descriptor projects Flow policy planes and model recommen
     OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
   };
   try {
+    const configPath = path.join(env.CODEX_HOME, 'config.toml');
+    const originalConfig = [
+      'model = "gpt-5.6-sol"',
+      'model_reasoning_effort = "xhigh"',
+      '',
+      '[features]',
+      'memories = true',
+      '',
+    ].join('\n');
+    fs.mkdirSync(env.CODEX_HOME, { recursive: true });
+    fs.writeFileSync(configPath, originalConfig, 'utf8');
     fs.copyFileSync(manifestPath, path.join(sourceRoot, 'opl-package.json'));
     const packageStatus = (runCli([
       'packages',
@@ -960,8 +971,17 @@ test('installed native descriptor projects Flow policy planes and model recommen
       configured_default: { model: 'gpt-5.6-sol', reasoning_effort: 'max' },
       override_precedence: ['explicit_user_override', 'opl_flow_recommendation'],
       catalog_policy: {},
+      configured_default_role: 'recommendation_only',
+      effective_selection: {
+        mode: 'fixed',
+        model: 'gpt-5.6-sol',
+        reasoning_effort: 'xhigh',
+        source: 'local_codex_config',
+        overrides_recommendation: true,
+      },
       role: 'package_recommendation_consumed_from_framework_projection',
     });
+    assert.equal(fs.readFileSync(configPath, 'utf8'), originalConfig);
     assert.equal(packageStatus.operational_ready, true);
     assert.equal(packageStatus.launch_allowed, true);
     assert.equal(packageStatus.launch_state, 'degraded');

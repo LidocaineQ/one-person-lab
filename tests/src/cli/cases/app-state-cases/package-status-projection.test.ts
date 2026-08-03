@@ -315,6 +315,14 @@ test('Fast App status preserves Flow policy planes and model recommendation from
         'app_fallback_when_flow_unavailable',
       ],
       catalog_policy: { source: 'codex_cli_model_list' },
+      configured_default_role: 'recommendation_only',
+      effective_selection: {
+        mode: 'fixed',
+        model: 'gpt-5.6-sol',
+        reasoning_effort: 'xhigh',
+        source: 'local_codex_config',
+        overrides_recommendation: true,
+      },
       role: 'package_recommendation_consumed_from_framework_projection',
     },
   });
