@@ -77,8 +77,9 @@ import {
 import { materializeAgentPackageSkillProjection } from './agent-package-registry-parts/skill-projection.ts';
 import {
   cleanupUnreferencedPackagePayloadSources,
-  materializePhysicalCodexSurface,
   finalizePhysicalCodexSurfaceMutation,
+  managedCarrierProjectionDigest,
+  materializePhysicalCodexSurface,
   removePhysicalCodexSurface,
   rematerializePhysicalCodexSurfaceFromLock,
   restorePhysicalCodexSurfaceMutation,
@@ -86,6 +87,7 @@ import {
   resolveBundledFullRuntimeManifestPhysicalSource,
   resolveManifestPhysicalSource,
 } from './agent-package-registry-parts/physical-surface.ts';
+import { assertSafePersistedPackagePath } from './agent-package-registry-parts/persisted-path-safety.ts';
 import {
   assertBundledFullRuntimePackageRoots,
   readBundledFullRuntimePackageCatalog,
@@ -3994,12 +3996,91 @@ function packageStatusForActivation(input: OplAgentPackageStatusInput) {
   };
 }
 
-function isManagedCacheGeneration(packageVersion: string, cacheGeneration: string | null) {
-  if (!cacheGeneration) return false;
-  if (cacheGeneration === packageVersion) return true;
-  if (!cacheGeneration.startsWith(`${packageVersion}-`)) return false;
-  const suffix = cacheGeneration.slice(packageVersion.length + 1);
-  return /^[0-9a-f]{64}$/.test(suffix) || /^dev-[0-9a-f]{64}$/.test(suffix);
+function managedCacheGenerationIdentity(lock: AgentPackageLock) {
+  const packageVersion = stringValue(lock.package_version);
+  if (!packageVersion) return null;
+  const developerCheckout = lock.source_kind === 'developer_checkout_override';
+  if (developerCheckout && !lock.developer_checkout_source) return null;
+  const contentDigest = stringValue(lock.content_digest);
+  const manifestDigest = stringValue(lock.manifest_sha256);
+  const contentDigestIsManifestFallback = Boolean(
+    contentDigest
+    && manifestDigest
+    && contentDigest.replace(/^sha256:/, '') === manifestDigest.replace(/^sha256:/, ''),
+  );
+  const payloadDigest = stringValue(lock.physical_surface?.plugin_payload_manifest_sha256);
+  const cacheIdentity = developerCheckout
+    ? stringValue(lock.developer_checkout_source?.payload_digest)
+    : contentDigest && !contentDigestIsManifestFallback
+      ? contentDigest
+      : payloadDigest;
+  if (!cacheIdentity) return packageVersion;
+  const digest = cacheIdentity.replace(/^sha256:/, '');
+  if (!/^[0-9a-f]{64}$/.test(digest)) return null;
+  return `${packageVersion}-${developerCheckout ? 'dev-' : ''}${digest}`;
+}
+
+function isManagedCacheGeneration(lock: AgentPackageLock, cacheGeneration: string | null) {
+  return Boolean(cacheGeneration && managedCacheGenerationIdentity(lock) === cacheGeneration);
+}
+
+function managedCacheSurfaceCurrent(lock: AgentPackageLock) {
+  const recordedCachePath = stringValue(lock.physical_surface?.codex_plugin_cache_path);
+  if (!recordedCachePath) return false;
+  try {
+    const rematerialized = rematerializePhysicalCodexSurfaceFromLock(
+      lock,
+      true,
+      { skipManagedSurfaces: true },
+    );
+    return rematerialized.status === 'validated_no_write'
+      && sameConfiguredCarrierPath(rematerialized.codex_plugin_cache_path, recordedCachePath);
+  } catch {
+    // Carrier status is a read-model path. Cache validation failures must only
+    // make activation blocked; they must not make status itself unreadable.
+    return false;
+  }
+}
+
+function managedCarrierProjectionCurrent(
+  packageStatus: any,
+  lock: AgentPackageLock,
+  cachePath: string,
+) {
+  const observedPath = stringValue(packageStatus.configured_carrier?.plugin_source_path);
+  const expectedPath = stringValue(lock.physical_surface?.marketplace_plugin_path);
+  const expectedDigest = stringValue(lock.physical_surface?.immutable_cache_digest);
+  if (!observedPath || !expectedPath || !sameConfiguredCarrierPath(observedPath, expectedPath)) {
+    return false;
+  }
+  if (!expectedDigest || !/^sha256:[0-9a-f]{64}$/.test(expectedDigest)) return false;
+  try {
+    const marketplaceRoot = path.join(resolveOplStatePaths().state_dir, 'codex-plugin-marketplaces');
+    assertSafePersistedPackagePath({
+      candidatePath: expectedPath,
+      allowedRoots: [marketplaceRoot],
+      pathKind: 'agent_package_marketplace_plugin_projection',
+    });
+    const observedStat = fs.lstatSync(observedPath);
+    const cacheStat = fs.lstatSync(cachePath);
+    if (!observedStat.isDirectory()
+      || observedStat.isSymbolicLink()
+      || !cacheStat.isDirectory()
+      || cacheStat.isSymbolicLink()
+      || fs.realpathSync(observedPath) === fs.realpathSync(cachePath)) {
+      return false;
+    }
+    const cacheDigest = managedCarrierProjectionDigest(cachePath);
+    const observedDigest = managedCarrierProjectionDigest(observedPath);
+    assertSafePersistedPackagePath({
+      candidatePath: expectedPath,
+      allowedRoots: [marketplaceRoot],
+      pathKind: 'agent_package_marketplace_plugin_projection',
+    });
+    return cacheDigest === expectedDigest && observedDigest === expectedDigest;
+  } catch {
+    return false;
+  }
 }
 
 function packageNativeCarrierActivationState(
@@ -4023,29 +4104,27 @@ function packageNativeCarrierActivationState(
   const managedPackageVersion = stringValue(managedLock?.package_version);
   const managedCachePath = stringValue(managedLock?.physical_surface?.codex_plugin_cache_path);
   const managedCacheGeneration = managedCachePath ? path.basename(managedCachePath) : null;
-  // Codex reports the immutable plugin-cache generation as its installed
-  // version for Framework-materialized local marketplaces. Keep the strict
-  // identity check by accepting only the exact lock generation, alongside
-  // carriers that report the package version directly.
+  const managedCacheGenerationCurrent = Boolean(
+    managedLock
+    && isManagedCacheGeneration(managedLock, managedCacheGeneration),
+  );
+  // Codex may report either the plugin manifest version or the immutable
+  // plugin-cache generation. Cache mode and digest identity are verified
+  // independently against the lock before either readback is accepted.
   const managedCarrierVersionCurrent = Boolean(
     observedCarrierVersion
     && managedPackageVersion
     && (
-      observedCarrierVersion === managedPackageVersion
-      || (
-        managedCacheGeneration
-        && managedCacheGeneration !== managedPackageVersion
-        && isManagedCacheGeneration(managedPackageVersion, managedCacheGeneration)
-        && observedCarrierVersion === managedCacheGeneration
-      )
+      observedCarrierVersion === managedCacheGeneration
+      || observedCarrierVersion === managedPackageVersion
     ),
   );
   const managedCarrierCurrent = managedLock
+    && managedCacheGenerationCurrent
     && managedCarrierVersionCurrent
-    && sameConfiguredCarrierPath(
-      packageStatus.configured_carrier.plugin_source_path,
-      managedLock.physical_surface?.marketplace_plugin_path ?? null,
-    );
+    && managedCacheSurfaceCurrent(managedLock)
+    && managedCachePath
+    && managedCarrierProjectionCurrent(packageStatus, managedLock, managedCachePath);
   return managedCarrierCurrent
     && packageStatus.configured_carrier.executor.status === 'callable'
     ? 'legacy'

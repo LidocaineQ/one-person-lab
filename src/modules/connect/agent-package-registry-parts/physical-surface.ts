@@ -40,10 +40,7 @@ import {
   noManagedPolicyMigration,
   rollbackManagedPolicyMigration,
 } from './managed-policy-surface.ts';
-import {
-  CANONICAL_PACKAGE_CONTENT_LOCK,
-  packageContentLockDigest,
-} from './payload-content-lock.ts';
+import { CANONICAL_PACKAGE_CONTENT_LOCK } from './payload-content-lock.ts';
 import {
   developerCheckoutPayloadDigest,
   type DeveloperCheckoutPayloadFile,
@@ -101,6 +98,87 @@ function pathEntryExists(candidatePath: string) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
     throw error;
   }
+}
+
+export function managedCarrierProjectionDigest(rootPath: string) {
+  const digest = crypto.createHash('sha256');
+  const noFollow = fs.constants.O_NOFOLLOW ?? 0;
+  const sameIdentity = (
+    left: fs.BigIntStats,
+    right: fs.BigIntStats,
+  ) => left.dev === right.dev
+    && left.ino === right.ino
+    && left.nlink === right.nlink
+    && left.mode === right.mode
+    && left.size === right.size
+    && left.mtimeNs === right.mtimeNs
+    && left.ctimeNs === right.ctimeNs;
+  const byteOrder = (left: string, right: string) => Buffer.compare(
+    Buffer.from(left, 'utf8'),
+    Buffer.from(right, 'utf8'),
+  );
+  const visit = (directory: string) => {
+    const directoryBefore = fs.lstatSync(directory, { bigint: true });
+    if (!directoryBefore.isDirectory() || directoryBefore.isSymbolicLink()) {
+      throw new Error(`unsupported managed carrier projection directory: ${directory}`);
+    }
+    const entries = fs.readdirSync(directory, { withFileTypes: true })
+      .sort((left, right) => byteOrder(left.name, right.name));
+    for (const entry of entries) {
+      const absolutePath = path.join(directory, entry.name);
+      const relativePath = path.relative(rootPath, absolutePath).split(path.sep).join('/');
+      const stat = fs.lstatSync(absolutePath, { bigint: true });
+      if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())) {
+        throw new Error(`unsupported managed carrier projection entry: ${relativePath}`);
+      }
+      if (stat.isDirectory()) {
+        digest.update(`dir\0${Buffer.byteLength(relativePath)}\0${relativePath}\0`);
+        visit(absolutePath);
+        continue;
+      }
+      let descriptor: number | null = null;
+      try {
+        descriptor = fs.openSync(absolutePath, fs.constants.O_RDONLY | noFollow);
+        const before = fs.fstatSync(descriptor, { bigint: true });
+        if (!before.isFile() || before.nlink !== 1n || !sameIdentity(stat, before)) {
+          throw new Error(`managed carrier projection entry changed: ${relativePath}`);
+        }
+        const mode = (before.mode & 0o111n) === 0n ? '100644' : '100755';
+        digest.update(`file\0${Buffer.byteLength(relativePath)}\0${relativePath}\0${mode}\0${before.size}\0`);
+        const buffer = Buffer.allocUnsafe(64 * 1024);
+        let offset = 0n;
+        while (offset < before.size) {
+          const read = fs.readSync(
+            descriptor,
+            buffer,
+            0,
+            Number(before.size - offset > BigInt(buffer.length)
+              ? BigInt(buffer.length)
+              : before.size - offset),
+            offset,
+          );
+          if (read === 0) break;
+          digest.update(buffer.subarray(0, read));
+          offset += BigInt(read);
+        }
+        const after = fs.fstatSync(descriptor, { bigint: true });
+        if (offset !== before.size || !sameIdentity(before, after)) {
+          throw new Error(`managed carrier projection entry changed: ${relativePath}`);
+        }
+      } finally {
+        if (descriptor !== null) fs.closeSync(descriptor);
+      }
+    }
+    const directoryAfter = fs.lstatSync(directory, { bigint: true });
+    const afterEntries = fs.readdirSync(directory).sort(byteOrder);
+    if (!sameIdentity(directoryBefore, directoryAfter)
+      || entries.length !== afterEntries.length
+      || entries.some((entry, index) => entry.name !== afterEntries[index])) {
+      throw new Error(`managed carrier projection directory changed: ${directory}`);
+    }
+  };
+  visit(rootPath);
+  return `sha256:${digest.digest('hex')}`;
 }
 
 function removePluginGeneration(candidatePath: string) {
@@ -1564,6 +1642,7 @@ export function materializePhysicalCodexSurface(
       plugin_source_path: pluginSourceInput,
       plugin_manifest_path: null,
       codex_plugin_cache_path: null,
+      immutable_cache_digest: null,
       marketplace_root: null,
       marketplace_path: null,
       marketplace_plugin_path: null,
@@ -1623,6 +1702,7 @@ export function materializePhysicalCodexSurface(
   let removedSupersededPaths: string[] = [];
   let pluginCacheCreated = false;
   let pluginGenerationMutation: PluginGenerationMutation | null = null;
+  let immutableCacheDigest: string | null = null;
   try {
     if (!dryRun && !options.reuseExistingPluginCache) {
       pluginGenerationMutation = materializeImmutablePluginCacheTransaction({
@@ -1672,6 +1752,9 @@ export function materializePhysicalCodexSurface(
         dryRun,
       ),
     ];
+    immutableCacheDigest = !dryRun || options.reuseExistingPluginCache
+      ? managedCarrierProjectionDigest(paths.codexPluginCachePath!)
+      : null;
   } catch (error) {
     if (!dryRun) {
       unregisterLocalCodexPlugin(paths.codexConfigPath, paths.marketplaceId, manifest.plugin_id);
@@ -1695,6 +1778,7 @@ export function materializePhysicalCodexSurface(
     plugin_source_path: pluginSourcePath,
     plugin_manifest_path: dryRun ? pluginManifestPath : path.join(paths.codexPluginCachePath!, '.codex-plugin', 'plugin.json'),
     codex_plugin_cache_path: paths.codexPluginCachePath,
+    immutable_cache_digest: immutableCacheDigest,
     marketplace_root: codexDefaultExposure ? paths.marketplaceRoot : null,
     marketplace_path: codexDefaultExposure ? paths.marketplacePath : null,
     marketplace_plugin_path: codexDefaultExposure ? paths.marketplacePluginPath : null,
@@ -1812,6 +1896,7 @@ export function removePhysicalCodexSurface(
     plugin_source_path: surface?.plugin_source_path ?? null,
     plugin_manifest_path: surface?.plugin_manifest_path ?? null,
     codex_plugin_cache_path: surface?.codex_plugin_cache_path ?? null,
+    immutable_cache_digest: surface?.immutable_cache_digest ?? null,
     marketplace_root: surface?.marketplace_root ?? null,
     marketplace_path: surface?.marketplace_path ?? null,
     marketplace_plugin_path: surface?.marketplace_plugin_path ?? null,
