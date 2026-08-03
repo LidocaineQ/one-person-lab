@@ -17,6 +17,7 @@ import {
   type WorkItemExecutionScopeSnapshot,
 } from '../family-runtime-execution-scope.ts';
 import type { TypedStageCloseoutPacket } from './closeout-normalization.ts';
+import { verifyFrameworkRawProgressEnvelope } from './raw-artifact-identity-verification.ts';
 import { isRecord, type JsonRecord } from './shared.ts';
 
 const SHA256_PATTERN = /^(?:sha256:)?([a-f0-9]{64})$/i;
@@ -274,7 +275,7 @@ function domainAuthorityReceiptRoot(domainId: string) {
   return path.join(root, safeIdentityDirectory(domainId, 'domain'));
 }
 
-function persistTransportIdentityReceipt(input: OplTransportArtifactIdentityReceipt) {
+function prepareTransportIdentityReceipt(input: OplTransportArtifactIdentityReceipt) {
   const receiptDir = path.join(
     transportIdentityReceiptRoot(),
     safeIdentityDirectory(input.stage_attempt_id, 'attempt'),
@@ -283,12 +284,23 @@ function persistTransportIdentityReceipt(input: OplTransportArtifactIdentityRece
   const bytes = Buffer.from(`${JSON.stringify(input, null, 2)}\n`, 'utf8');
   const receiptDigest = crypto.createHash('sha256').update(bytes).digest('hex');
   const receiptPath = path.join(receiptDir, `${receiptDigest}.json`);
-  if (!fs.existsSync(receiptPath)) {
-    const temporaryPath = `${receiptPath}.${process.pid}.tmp`;
-    fs.writeFileSync(temporaryPath, bytes);
-    fs.renameSync(temporaryPath, receiptPath);
-  }
-  return pathToFileURL(receiptPath).href;
+  return {
+    commit() {
+      let created = false;
+      if (!fs.existsSync(receiptPath)) {
+        const temporaryPath = `${receiptPath}.${process.pid}.tmp`;
+        fs.writeFileSync(temporaryPath, bytes);
+        fs.renameSync(temporaryPath, receiptPath);
+        created = true;
+      }
+      return {
+        receiptRef: pathToFileURL(receiptPath).href,
+        rollback() {
+          if (created) fs.rmSync(receiptPath, { force: true });
+        },
+      };
+    },
+  };
 }
 
 function pathIsInside(filePath: string, rootPath: string) {
@@ -706,16 +718,25 @@ export function verifyStageQualityCloseoutArtifactIdentity(input: {
   const routeImpact = isRecord(closeoutPacket.route_impact) ? closeoutPacket.route_impact : {};
   const qualityEnvelope = isRecord(routeImpact.stage_quality_cycle) ? routeImpact.stage_quality_cycle : {};
   const metadata = [...(closeoutPacket.closeout_ref_metadata ?? [])];
-  const rawArtifactMetadata = optionalString(closeoutPacket.authority_boundary.opl)
+  const rawProgress = optionalString(closeoutPacket.authority_boundary.opl)
     === 'raw_executor_output_progress_envelope_only'
-    ? metadata.filter((entry) => optionalString(entry.ref_kind) === 'raw_executor_output')
-    : [];
-  const declaredRefs = Array.isArray(qualityEnvelope.artifact_refs)
-    ? qualityEnvelope.artifact_refs
-    : rawArtifactMetadata.map((entry) => entry.ref ?? entry.uri);
-  const declaredHashes = Array.isArray(qualityEnvelope.artifact_hashes)
-    ? qualityEnvelope.artifact_hashes
-    : rawArtifactMetadata.map((entry) => entry.sha256);
+    ? verifyFrameworkRawProgressEnvelope({
+        closeoutPacket,
+        attempt: input.attempt,
+        routeImpact,
+        closeoutMetadata: metadata,
+      })
+    : null;
+  const declaredRefs = rawProgress
+    ? [rawProgress.artifactRef]
+    : Array.isArray(qualityEnvelope.artifact_refs)
+      ? qualityEnvelope.artifact_refs
+      : [];
+  const declaredHashes = rawProgress
+    ? [rawProgress.artifactSha256]
+    : Array.isArray(qualityEnvelope.artifact_hashes)
+      ? qualityEnvelope.artifact_hashes
+      : [];
   if (declaredRefs.length === 0 && declaredHashes.length === 0) return closeoutPacket;
   const pairs = exactArtifactPairs({ artifactRefs: declaredRefs, artifactHashes: declaredHashes });
   const domainId = optionalString(input.attempt.domain_id) ?? 'unknown-domain';
@@ -736,18 +757,20 @@ export function verifyStageQualityCloseoutArtifactIdentity(input: {
       });
     }
 
-    const observed = verifyCurrentArtifactBytes({
-      artifactRef,
-      artifactSha256,
-      workspaceRoot: input.workspaceRoot,
-      declaredSizeBytes: typeof entry.size_bytes === 'number' ? entry.size_bytes : null,
-      canonicalWorkItemRoot: executionIdentity.executionScope?.canonical_work_item_root ?? null,
-      canonicalWorkItemRootIdentity:
-        executionIdentity.executionScope?.canonical_work_item_root_identity ?? null,
-      scopeWorkspaceRoot: executionIdentity.executionScope?.workspace_root ?? null,
-    });
+    const observed = rawProgress && artifactRef === rawProgress.artifactRef
+      ? rawProgress.observed
+      : verifyCurrentArtifactBytes({
+          artifactRef,
+          artifactSha256,
+          workspaceRoot: input.workspaceRoot,
+          declaredSizeBytes: typeof entry.size_bytes === 'number' ? entry.size_bytes : null,
+          canonicalWorkItemRoot: executionIdentity.executionScope?.canonical_work_item_root ?? null,
+          canonicalWorkItemRootIdentity:
+            executionIdentity.executionScope?.canonical_work_item_root_identity ?? null,
+          scopeWorkspaceRoot: executionIdentity.executionScope?.workspace_root ?? null,
+        });
     if (observed) {
-      const receiptRef = persistTransportIdentityReceipt({
+      const receiptInput: OplTransportArtifactIdentityReceipt = {
         surface_kind: 'opl_transport_artifact_identity_receipt',
         version: 'opl-transport-artifact-identity-receipt.v1',
         domain_id: domainId,
@@ -759,7 +782,10 @@ export function verifyStageQualityCloseoutArtifactIdentity(input: {
         artifact_ref: artifactRef,
         sha256: observed.sha256,
         size_bytes: observed.sizeBytes,
-      });
+      };
+      const receiptRef = rawProgress && artifactRef === rawProgress.artifactRef
+        ? rawProgress.finalizeIdentityReceipt(() => prepareTransportIdentityReceipt(receiptInput))
+        : prepareTransportIdentityReceipt(receiptInput).commit().receiptRef;
       return {
         ...entry,
         ref: artifactRef,

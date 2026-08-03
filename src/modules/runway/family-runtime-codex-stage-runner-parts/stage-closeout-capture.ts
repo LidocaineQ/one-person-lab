@@ -5,7 +5,10 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { stringValue as optionalString } from '../../../kernel/json-record.ts';
-import { ensureOplStateDir } from '../../../kernel/runtime-state-paths.ts';
+import {
+  assertRawArtifactPhysicalLineage,
+  captureRawArtifactPhysicalLineage,
+} from './raw-artifact-identity-verification.ts';
 import { parseCloseoutFromCodexMessages } from './session-closeout-recovery.ts';
 import type { JsonRecord } from './shared.ts';
 
@@ -52,12 +55,6 @@ export function parseCapturedCloseoutMessage(filePath: string) {
   };
 }
 
-function safeAttemptDirectory(attemptId: string) {
-  const readable = attemptId.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'attempt';
-  const digest = crypto.createHash('sha256').update(attemptId).digest('hex').slice(0, 12);
-  return `${readable}-${digest}`;
-}
-
 export function persistRawStageOutput(input: {
   attempt: JsonRecord;
   content: string | null | undefined;
@@ -70,30 +67,24 @@ export function persistRawStageOutput(input: {
   const attemptId = optionalString(input.attempt.stage_attempt_id) ?? 'unknown-attempt';
   const stageId = optionalString(input.attempt.stage_id) ?? 'unknown-stage';
   const domainId = optionalString(input.attempt.domain_id) ?? 'unknown-domain';
-  const state = ensureOplStateDir();
-  const artifactDir = path.join(
-    state.state_dir,
-    'runtime-state',
-    'stage-attempt-artifacts',
-    safeAttemptDirectory(attemptId),
-  );
-  fs.mkdirSync(artifactDir, { recursive: true });
-  const outputFile = path.join(artifactDir, 'raw-executor-output.txt');
-  fs.writeFileSync(outputFile, `${content}\n`, 'utf8');
-  const bytes = fs.readFileSync(outputFile);
+  const capture = captureRawArtifactPhysicalLineage(attemptId);
+  assertRawArtifactPhysicalLineage(capture);
+  fs.writeFileSync(capture.outputPath, `${content}\n`, 'utf8');
+  assertRawArtifactPhysicalLineage(capture);
+  const bytes = fs.readFileSync(capture.outputPath);
+  assertRawArtifactPhysicalLineage(capture);
   const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
-  const outputRef = pathToFileURL(outputFile).href;
-  const metadataFile = path.join(artifactDir, 'raw-executor-output.metadata.json');
   const metadata = {
     surface_kind: 'opl_raw_stage_output_artifact',
     version: 'raw-stage-output-artifact.v1',
     domain_id: domainId,
     stage_id: stageId,
     stage_attempt_id: attemptId,
-    output_ref: outputRef,
+    output_ref: capture.outputRef,
     sha256,
     size_bytes: bytes.length,
     observed_at: input.observedAt ?? new Date().toISOString(),
+    physical_lineage: capture.physicalLineage,
     artifact_is_domain_truth: false,
     artifact_is_owner_receipt: false,
     artifact_is_quality_verdict: false,
@@ -103,9 +94,11 @@ export function persistRawStageOutput(input: {
       domain: 'semantic_interpretation_quality_and_route_back_owner',
     },
   };
-  fs.writeFileSync(metadataFile, `${JSON.stringify(metadata, null, 2)}\n`, 'utf8');
+  assertRawArtifactPhysicalLineage(capture);
+  fs.writeFileSync(capture.metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, 'utf8');
+  assertRawArtifactPhysicalLineage(capture);
   return {
     ...metadata,
-    metadata_ref: pathToFileURL(metadataFile).href,
+    metadata_ref: pathToFileURL(capture.metadataPath).href,
   };
 }
