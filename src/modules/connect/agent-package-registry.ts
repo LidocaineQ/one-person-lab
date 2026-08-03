@@ -3994,6 +3994,14 @@ function packageStatusForActivation(input: OplAgentPackageStatusInput) {
   };
 }
 
+function isManagedCacheGeneration(packageVersion: string, cacheGeneration: string | null) {
+  if (!cacheGeneration) return false;
+  if (cacheGeneration === packageVersion) return true;
+  if (!cacheGeneration.startsWith(`${packageVersion}-`)) return false;
+  const suffix = cacheGeneration.slice(packageVersion.length + 1);
+  return /^[0-9a-f]{64}$/.test(suffix) || /^dev-[0-9a-f]{64}$/.test(suffix);
+}
+
 function packageNativeCarrierActivationState(
   packageStatus: any,
   managedLock: AgentPackageLock | null,
@@ -4027,7 +4035,7 @@ function packageNativeCarrierActivationState(
       || (
         managedCacheGeneration
         && managedCacheGeneration !== managedPackageVersion
-        && managedCacheGeneration.startsWith(`${managedPackageVersion}-`)
+        && isManagedCacheGeneration(managedPackageVersion, managedCacheGeneration)
         && observedCarrierVersion === managedCacheGeneration
       )
     ),
