@@ -12,6 +12,7 @@ import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
 
 import { registerAgentPackageReadinessPort } from '../../src/kernel/agent-package-readiness-port.ts';
+import { FrameworkContractError } from '../../src/kernel/contract-validation.ts';
 import {
   ensureOplAgentPackageScopeActivation,
   runOplAgentPackageStatus,
@@ -217,6 +218,14 @@ Close prior findings against the repaired artifact.
       next_stage_refs: [],
       trust_lane: 'domain_agent',
       stage_quality_cycle_policy_ref: 'contracts/stage_quality_cycle_policy.json#/stages/draft',
+      stage_contract_extension: {
+        review_input_snapshot_transport: {
+          review_lane_binding: 'controller_required',
+          allowed_review_lanes: ['medical', 'display'],
+          executor_may_select_lane: false,
+          lane_fallback: false,
+        },
+      },
     }],
   });
   return root;
@@ -458,11 +467,22 @@ Close findings using the latest package.
         JSON.stringify(executionScope),
         '--source-fingerprint',
         'sha256:e69550085779bc9bd1bf36c55d7f3bf244254c3c8c8a8799ae97e55b86786289',
+        '--review-lane',
+        'medical',
         '--start',
       ];
       const connection = await Connection.connect({ address: testEnv.address });
       try {
         const client = new Client({ connection, namespace });
+        await assert.rejects(
+          () => runFamilyRuntime(baseArgs.map((value) => (
+            value === 'medical' ? 'reference' : value
+          ))),
+          (error: unknown) => (
+            error instanceof FrameworkContractError
+            && error.details?.failure_code === 'stage_review_lane_binding_invalid'
+          ),
+        );
         const executeNewStageRun = async (args: string[]) => {
           const cli = await runFamilyRuntime(args);
           const launch = cli.family_runtime_stage_run as any;
@@ -506,6 +526,7 @@ Close findings using the latest package.
       re_reviewer: 'agent/prompts/draft.md#re-reviewer',
     });
     assert.deepEqual(stageRunInput.quality_rubric_refs, ['agent/quality_gates/quality.md']);
+    assert.equal(stageRunInput.stage_attempt_executor_policy.review_lane_binding, 'medical');
     assert.equal(replayLaunch.stage_run_input.stage_run_id, stageRunInput.stage_run_id);
     assert.equal(replayLaunch.durable_launch.start_status, 'existing');
     assert.equal(replayLaunch.durable_launch.launch.launch_status, 'closed');
@@ -556,6 +577,8 @@ Close findings using the latest package.
       firstRunAttemptInputs.every((attempt) => (
         attempt.scope_kind === 'work_item'
         && attempt.execution_scope?.scope_digest === executionScope.scope_digest
+        && attempt.execution_content_binding?.spec.stage_attempt_executor_policy
+          ?.review_lane_binding === 'medical'
       )),
       true,
     );

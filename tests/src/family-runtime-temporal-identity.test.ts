@@ -202,7 +202,15 @@ test('Temporal query identity rejects a different StageRun or work-item scope', 
 });
 
 test('Codex environment uses persisted Attempt identity instead of locator guesses', () => {
-  const expected = attempt();
+  const expected = {
+    ...attempt(),
+    stage_attempt_executor_policy: { review_lane_binding: 'display' },
+    execution_content_binding: {
+      spec: {
+        stage_attempt_executor_policy: { review_lane_binding: 'medical' },
+      },
+    },
+  };
   const env = codexStageAttemptEnv({
     attempt: expected,
     workspaceRoot: expected.execution_scope.workspace_root,
@@ -216,6 +224,7 @@ test('Codex environment uses persisted Attempt identity instead of locator guess
     OPL_BINDING_VERSION_ID: env.OPL_BINDING_VERSION_ID,
     OPL_SCOPE_DIGEST: env.OPL_SCOPE_DIGEST,
     OPL_DOMAIN_WORK_ITEM_ID: env.OPL_DOMAIN_WORK_ITEM_ID,
+    OPL_REVIEW_LANE_BINDING: env.OPL_REVIEW_LANE_BINDING,
   }, {
     OPL_STAGE_ATTEMPT_ID: expected.stage_attempt_id,
     OPL_STAGE_RUN_ID: expected.stage_run_id,
@@ -225,6 +234,7 @@ test('Codex environment uses persisted Attempt identity instead of locator guess
     OPL_BINDING_VERSION_ID: expected.execution_scope.binding_version_id,
     OPL_SCOPE_DIGEST: expected.execution_scope.scope_digest,
     OPL_DOMAIN_WORK_ITEM_ID: expected.execution_scope.domain_work_item_id,
+    OPL_REVIEW_LANE_BINDING: 'medical',
   });
 });
 

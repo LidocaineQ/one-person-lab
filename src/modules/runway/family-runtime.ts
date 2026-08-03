@@ -236,6 +236,7 @@ function stageRunReplayRequestBusinessIdentity(input: {
   executorBindingRef?: string;
   invocationMode?: string;
   boundedEditRef?: string;
+  reviewLane?: string;
   parentRouteDecisionRef?: string;
   checkpointRefs?: string[];
   inputArtifactRefs?: string[];
@@ -285,6 +286,7 @@ function stageRunReplayRequestBusinessIdentity(input: {
     ...(input.executorBindingRef ? { executor_binding_ref: input.executorBindingRef } : {}),
     ...(input.invocationMode ? { invocation_mode: input.invocationMode } : {}),
     ...(input.boundedEditRef ? { bounded_edit_ref: input.boundedEditRef } : {}),
+    ...(input.reviewLane ? { review_lane_binding: input.reviewLane } : {}),
   };
   return {
     scope_kind: input.scopeKind ?? (input.executionScope ? 'work_item' : 'domain'),
@@ -660,7 +662,8 @@ export async function runFamilyRuntime(
         || parsed.input.stageRunInvocationId
         || parsed.input.parentRouteDecisionRef
         || (parsed.input.inputArtifactRefs?.length ?? 0) > 0
-        || (parsed.input.inputArtifactHashes?.length ?? 0) > 0,
+        || (parsed.input.inputArtifactHashes?.length ?? 0) > 0
+        || Boolean(parsed.input.reviewLane?.trim()),
       );
       const existingAttempt = usesExplicitStageRunIdentity
         ? null
@@ -749,6 +752,33 @@ export async function runFamilyRuntime(
         ? (options.stageRunRuntime?.resolveStageBinding
           ?? resolveStandardAgentStageQualityRuntimeBinding)(domainPackRoot, parsed.input.stageId)
         : null;
+      const requestedReviewLane = parsed.input.reviewLane?.trim() || null;
+      if (!existingStageRunLaunch && requestedReviewLane) {
+        const laneBinding = stageQualityBinding?.review_lane_binding;
+        if (!laneBinding) {
+          throw new FrameworkContractError(
+            'cli_usage_error',
+            '--review-lane is only valid for a controller-bound review Stage.',
+            {
+              failure_code: 'stage_review_lane_binding_not_declared',
+              stage_id: parsed.input.stageId,
+              review_lane: requestedReviewLane,
+            },
+          );
+        }
+        if (!laneBinding.allowed_review_lanes.includes(requestedReviewLane)) {
+          throw new FrameworkContractError(
+            'cli_usage_error',
+            'The requested review lane is not declared by the Stage contract.',
+            {
+              failure_code: 'stage_review_lane_binding_invalid',
+              stage_id: parsed.input.stageId,
+              review_lane: requestedReviewLane,
+              allowed_review_lanes: laneBinding.allowed_review_lanes,
+            },
+          );
+        }
+      }
       const selectedPackageUseBinding = parsed.input.start || stageQualityBinding?.enabled
         ? pinnedUseBinding ?? packageReadiness?.package_use_binding
         : null;
@@ -872,6 +902,7 @@ export async function runFamilyRuntime(
               ...(parsed.input.executorBindingRef ? { executor_binding_ref: parsed.input.executorBindingRef } : {}),
               ...(parsed.input.invocationMode ? { invocation_mode: parsed.input.invocationMode } : {}),
               ...(parsed.input.boundedEditRef ? { bounded_edit_ref: parsed.input.boundedEditRef } : {}),
+              ...(requestedReviewLane ? { review_lane_binding: requestedReviewLane } : {}),
             },
             checkpointRefs: parsed.input.checkpointRefs,
             artifactRefs: parsed.input.inputArtifactRefs,

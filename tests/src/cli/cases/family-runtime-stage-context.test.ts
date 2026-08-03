@@ -1,4 +1,4 @@
-import { assert, buildManifestCommand, createFamilyContractsFixtureRoot, fs, installRuntimePackageFixture, loadFamilyManifestFixtures, os, path, removeFixtureTree, runCli, test } from '../helpers.ts';
+import { assert, buildManifestCommand, createFamilyContractsFixtureRoot, fs, installRuntimePackageFixture, loadFamilyManifestFixtures, os, path, removeFixtureTree, runCli, runCliFailure, test } from '../helpers.ts';
 import {
   createMasScoutStage,
   createMedAutoScienceStageManifest,
@@ -248,6 +248,17 @@ test('family-runtime attempt create projects launch invocation and gates non-def
     assert.equal(boundedEditInvocation.invocation_mode, 'authoring');
     assert.equal(boundedEditInvocation.bounded_edit_ref, 'bounded-edit:gfl/proposed-stage-pack-1');
     assert.equal(boundedEditInvocation.launch_refs.bounded_edit_ref, 'bounded-edit:gfl/proposed-stage-pack-1');
+
+    const unsupportedReviewLane = runCliFailure([
+      ...baseArgs,
+      '--new-attempt',
+      '--review-lane',
+      'medical',
+    ], env);
+    assert.equal(
+      unsupportedReviewLane.payload.error.details.failure_code,
+      'stage_review_lane_binding_not_declared',
+    );
   } finally {
     removeFixtureTree(stateRoot);
     if (repoDir) fs.rmSync(repoDir, { recursive: true, force: true });

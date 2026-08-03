@@ -138,6 +138,12 @@ export type StandardAgentStageQualityRuntimeBinding = {
   stage_prompt_ref: string;
   quality_policy: StandardAgentStageQualityPolicy;
   handoff_review_boundary: StandardAgentHandoffReviewBoundary | null;
+  review_lane_binding?: {
+    binding_kind: 'controller_required';
+    allowed_review_lanes: string[];
+    executor_may_select_lane: false;
+    lane_fallback: false;
+  } | null;
   role_prompt_refs: {
     producer: string;
     reviewer: string;
@@ -151,6 +157,44 @@ export type StandardAgentStageQualityRuntimeBinding = {
   manifest_ref: typeof STANDARD_AGENT_STAGE_MANIFEST_REF;
   manifest_sha256: string;
 };
+
+function controllerReviewLaneBinding(
+  stageContract: unknown,
+  repoDir: string,
+): StandardAgentStageQualityRuntimeBinding['review_lane_binding'] {
+  if (!isRecord(stageContract)) return null;
+  const transport = stageContract.review_input_snapshot_transport;
+  if (!isRecord(transport) || transport.review_lane_binding !== 'controller_required') {
+    return null;
+  }
+  const field = 'stage.stage_contract.review_input_snapshot_transport';
+  const allowedReviewLanes = strings(
+    transport.allowed_review_lanes,
+    `${field}.allowed_review_lanes`,
+    repoDir,
+  );
+  if (
+    allowedReviewLanes.length === 0
+    || new Set(allowedReviewLanes).size !== allowedReviewLanes.length
+  ) {
+    fail(`${field}.allowed_review_lanes must contain unique values.`, {
+      repo_dir: repoDir,
+      field: `${field}.allowed_review_lanes`,
+    });
+  }
+  if (transport.executor_may_select_lane !== false || transport.lane_fallback !== false) {
+    fail(`${field} controller-required lane selection must fail closed.`, {
+      repo_dir: repoDir,
+      field,
+    });
+  }
+  return {
+    binding_kind: 'controller_required',
+    allowed_review_lanes: allowedReviewLanes,
+    executor_may_select_lane: false,
+    lane_fallback: false,
+  };
+}
 
 function fail(message: string, details: JsonRecord = {}): never {
   throw new FrameworkContractError('contract_shape_invalid', message, details);
@@ -1529,6 +1573,7 @@ export function resolveStandardAgentStageQualityRuntimeBinding(
     stage_prompt_ref: policy.stage_prompt_ref,
     quality_policy: policy.quality_policy,
     handoff_review_boundary: policy.handoff_review_boundary,
+    review_lane_binding: controllerReviewLaneBinding(stage.stage_contract, repoDir),
     role_prompt_refs: policy.role_prompt_refs,
     quality_rubric_refs: policy.quality_rubric_refs,
     stage_goal_refs: [`${compilation.source_binding.stage_manifest_ref}#/stages/${stageIndex}/goal`],

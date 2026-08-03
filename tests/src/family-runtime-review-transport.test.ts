@@ -40,14 +40,19 @@ const ownerAuthorityRef = exactRef(
 );
 const producerAttemptRef = 'opl://stage_attempts/producer';
 const executionBindingSha256 = sha256('producer execution binding');
-
-function requestFor(workspaceRoot: string, sourceRef: string, bytes: Buffer) {
+function requestFor(
+  workspaceRoot: string,
+  sourceRef: string,
+  bytes: Buffer,
+  reviewLane?: string,
+) {
   return {
     surface_kind: 'opl_reviewer_input_snapshot_materialization_request',
     schema_version: 2,
     owner_authority_ref: ownerAuthorityRef,
     producer_attempt_ref: producerAttemptRef,
     execution_content_binding_sha256: executionBindingSha256,
+    ...(reviewLane ? { review_lane: reviewLane } : {}),
     workspace_root: workspaceRoot,
     members: [{
       member_id: 'review-input',
@@ -57,6 +62,42 @@ function requestFor(workspaceRoot: string, sourceRef: string, bytes: Buffer) {
     }],
   } satisfies ReviewerInputSnapshotMaterializationRequest;
 }
+
+test('reviewer snapshot binds a controller-selected lane to immutable readback', () => {
+  withFixture(({ workspaceRoot }) => {
+    const bytes = Buffer.from('medical review bytes\n');
+    fs.writeFileSync(path.join(workspaceRoot, 'review.bin'), bytes);
+    const request = requestFor(workspaceRoot, 'review.bin', bytes, 'medical');
+    const materialized = materializeReviewerInputSnapshot(
+      request,
+      expectedAuthority({ review_lane_binding: 'medical' }),
+    );
+    assert.equal(materialized.manifest.review_lane, 'medical');
+    assert.equal(materialized.review_input_snapshot_binding.review_lane, 'medical');
+
+    assertFailureCode(
+      () => materializeReviewerInputSnapshot(
+        request,
+        expectedAuthority({ review_lane_binding: 'display' }),
+      ),
+      'reviewer_input_snapshot_authority_binding_mismatch',
+    );
+    assertFailureCode(
+      () => materializeReviewerInputSnapshot(
+        requestFor(workspaceRoot, 'review.bin', bytes),
+        expectedAuthority({ review_lane_binding: 'medical' }),
+      ),
+      'reviewer_input_snapshot_authority_binding_mismatch',
+    );
+    assertFailureCode(
+      () => materializeReviewerInputSnapshot(
+        request,
+        expectedAuthority(),
+      ),
+      'reviewer_input_snapshot_authority_binding_mismatch',
+    );
+  });
+});
 
 function expectedAuthority(overrides: Record<string, unknown> = {}) {
   return {
