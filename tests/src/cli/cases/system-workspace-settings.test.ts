@@ -126,6 +126,68 @@ test('developer supervisor persists direct-route developer mode only from explic
   }
 });
 
+test('manual developer mode routes a repository viewer without push permission through fork PRs', () => {
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-developer-viewer-home-'));
+  const stateDir = path.join(homeRoot, 'opl-state');
+  const fakeGh = path.join(homeRoot, 'gh');
+  const callLog = path.join(homeRoot, 'gh-calls.jsonl');
+  fs.writeFileSync(fakeGh, `#!/usr/bin/env node
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+fs.appendFileSync(${JSON.stringify(callLog)}, JSON.stringify(args) + '\\n');
+const endpoint = args[0] === 'api' ? args[1] : null;
+if (endpoint === 'user') {
+  process.stdout.write(JSON.stringify({ login: 'ordinary-contributor' }));
+  process.exit(0);
+}
+if (endpoint && endpoint.startsWith('repos/') && !endpoint.includes('/collaborators/')) {
+  process.stdout.write(JSON.stringify({
+    permissions: { admin: false, maintain: false, pull: true, push: false, triage: false },
+  }));
+  process.exit(0);
+}
+if (endpoint && endpoint.includes('/collaborators/')) {
+  process.stderr.write('Must have push access to view collaborator permission. (HTTP 403)');
+  process.exit(1);
+}
+process.exit(2);
+`, { mode: 0o755 });
+
+  try {
+    const result = runCli([
+      'system',
+      'developer-supervisor',
+      '--enabled',
+      'on',
+      '--mode',
+      'developer_apply_safe',
+      '--github-login',
+      'gaofeng21cn',
+    ], {
+      HOME: homeRoot,
+      OPL_STATE_DIR: stateDir,
+      OPL_DEVELOPER_MODE_GH_BINARY: fakeGh,
+    }).system_action.developer_mode;
+
+    assert.equal(result.status, 'limited');
+    assert.equal(result.effective_state, 'active_pr_only');
+    assert.equal(result.allowed_route, 'fork_pull_request');
+    assert.equal(result.repo_authority.direct_write_repo_count, 0);
+    assert.equal(result.repo_authority.pr_route_repo_count, result.repo_authority.required_repo_count);
+    assert.equal(result.repo_authority.blocked_repo_count, 0);
+    assert.equal(result.repo_authority.repos.every((entry: {
+      permission: string;
+      allowed_route: string;
+    }) => entry.permission === 'read' && entry.allowed_route === 'fork_pull_request'), true);
+
+    const calls = fs.readFileSync(callLog, 'utf8');
+    assert.match(calls, /"api","repos\//);
+    assert.doesNotMatch(calls, /collaborators/);
+  } finally {
+    fs.rmSync(homeRoot, { recursive: true, force: true });
+  }
+});
+
 test('automatic developer mode reports authority inspection pending on fast reads', () => {
   const projection = buildOplDeveloperModeProjection({
     version: 'g1',

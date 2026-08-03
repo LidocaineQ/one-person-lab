@@ -409,6 +409,8 @@ test('generic Flow-declared Git Skill projection preserves a user-managed global
   const userSkill = '---\nname: fixture-skill\ndescription: User fixture.\n---\n# user\n';
   fs.mkdirSync(userSkillRoot, { recursive: true });
   fs.writeFileSync(path.join(userSkillRoot, 'SKILL.md'), userSkill, 'utf8');
+  const previousCodexHome = process.env.CODEX_HOME;
+  process.env.CODEX_HOME = path.join(home, '.codex');
   try {
     const managed = syncOplCompanionSkills(home, {
       mode: 'managed',
@@ -420,6 +422,8 @@ test('generic Flow-declared Git Skill projection preserves a user-managed global
     assert.equal(fs.readFileSync(path.join(userSkillRoot, 'SKILL.md'), 'utf8'), userSkill);
     assert.equal(fs.existsSync(path.join(home, '.agents', 'skills', skillId)), false);
   } finally {
+    if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = previousCodexHome;
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
