@@ -54,6 +54,10 @@ test('package help surface keeps lifecycle commands ordinary and routes internal
     'packages preferences set',
   ]);
   assert.equal(commandSpecs['packages activate']?.help_surface, 'migration_compatibility');
+  assert.match(commandSpecs['packages install']!.summary, /owner OCI latest-stable channel/);
+  assert.match(commandSpecs['packages update']!.summary, /owner OCI latest-stable channel/);
+  assert.doesNotMatch(commandSpecs['packages install']!.summary, /Release Set/);
+  assert.doesNotMatch(commandSpecs['packages update']!.summary, /Release Set/);
 });
 
 test('legacy package activate invocation remains parseable and returns a dry-run compatibility result', async () => {

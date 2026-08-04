@@ -58,7 +58,7 @@ function capabilityDependency(): AgentPackageCapabilityDependency {
   };
 }
 
-test('Release Set catalog selects the exact declared root version without compatibility resolution', () => {
+test('Package owner catalog selects the exact declared root version without compatibility resolution', () => {
   const payload = releaseSetCatalog({
     example: {
       package_id: 'example',
@@ -86,7 +86,7 @@ test('Release Set catalog selects the exact declared root version without compat
   assert.equal(selected.selection_status, 'retained_history');
 });
 
-test('capability dependency uses its provider Release Set selection without ABI or range admission', () => {
+test('capability dependency uses its provider catalog selection without ABI or range admission', () => {
   const payload = releaseSetCatalog({
     provider: {
       package_id: 'provider',
@@ -138,7 +138,12 @@ test('catalog normalization rejects the retired Framework repository index', () 
 
   assert.throws(
     () => normalizeManagedPackageCatalog(payload),
-    (error: any) => error?.details?.failure_code === 'agent_package_repository_index_retired',
+    (error: any) => {
+      assert.equal(error?.details?.failure_code, 'agent_package_repository_index_retired');
+      assert.match(error.message, /Package owner's OCI latest-stable channel/);
+      assert.doesNotMatch(error.message, /Release Set/);
+      return true;
+    },
   );
 });
 

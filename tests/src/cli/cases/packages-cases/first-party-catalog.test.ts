@@ -21,6 +21,7 @@ import { resolveFirstPartyPackageCatalog } from '../../../../../src/modules/conn
 import { refreshFirstPartyPackageCatalogSnapshot } from '../../../../../src/modules/connect/agent-package-registry-parts/first-party-release-catalog.ts';
 import { normalizeManifest } from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
 import { materializeAgentPackageSkillProjection } from '../../../../../src/modules/connect/agent-package-registry-parts/skill-projection.ts';
+import { assertFirstPartyPackageUpdateSelection } from '../../../../../src/modules/connect/agent-package-registry-parts/update-reconciliation.ts';
 import {
   normalizeOplReleaseChannelTag,
   resolveOplReleaseManifestRef,
@@ -938,6 +939,34 @@ test('first-party identities reject explicit registries and unowned manifest bod
       registryInstall.payload.error.details.failure_code,
       'first_party_package_explicit_source_forbidden',
     );
+    assert.match(registryInstall.payload.error.message, /per-Package owner OCI latest-stable channel/);
+    assert.doesNotMatch(registryInstall.payload.error.message, /Release Set/);
+
+    const masOwner = resolveFirstPartyPackageCatalog('mas');
+    assert.ok(masOwner);
+    assert.throws(
+      () => assertFirstPartyPackageUpdateSelection(
+        { packageId: 'mas', registryUrl },
+        masOwner,
+        {
+          package_id: 'mas',
+          module_id: 'medautoscience',
+          desired_source_kind: 'first_party_managed_cohort',
+          effective_install_update_source: 'package_channel',
+          configured_by: 'package_distribution',
+          reason: 'package_distribution',
+          developer_checkout_path: null,
+          developer_checkout_available: false,
+          package_channel_auto_update: true,
+        },
+      ),
+      (error: any) => {
+        assert.equal(error?.details?.failure_code, 'first_party_package_explicit_source_forbidden');
+        assert.match(error.message, /per-Package owner OCI latest-stable channel/);
+        assert.doesNotMatch(error.message, /Release Set/);
+        return true;
+      },
+    );
 
     const registryAction = runCliFailure([
       'app', 'action', 'execute',
@@ -948,6 +977,8 @@ test('first-party identities reject explicit registries and unowned manifest bod
       registryAction.payload.error.details.failure_code,
       'first_party_package_explicit_source_forbidden',
     );
+    assert.match(registryAction.payload.error.message, /per-Package owner OCI latest-stable channel/);
+    assert.doesNotMatch(registryAction.payload.error.message, /Release Set/);
 
     const manifestAction = runCliFailure([
       'app', 'action', 'execute',
@@ -958,6 +989,8 @@ test('first-party identities reject explicit registries and unowned manifest bod
       manifestAction.payload.error.details.failure_code,
       'first_party_package_external_manifest_forbidden',
     );
+    assert.match(manifestAction.payload.error.message, /per-Package owner OCI latest-stable channel/);
+    assert.doesNotMatch(manifestAction.payload.error.message, /Release Set/);
     for (const fileName of [
       'agent-package-locks.json',
       'agent-package-lifecycle-ledger.json',
@@ -1801,7 +1834,7 @@ test('MAS owner refresh reads only MAS and required ScholarSkills owner channels
   }
 });
 
-test('single-package developer update reconciles from the live Release Set and becomes a byte-stable no-op', () => {
+test('single-package developer update reconciles from the live owner catalog and becomes a byte-stable no-op', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-single-developer-update-'));
   const homeDir = path.join(root, 'home');
   const stateDir = path.join(root, 'state');

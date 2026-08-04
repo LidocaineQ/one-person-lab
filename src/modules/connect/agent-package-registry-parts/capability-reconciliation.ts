@@ -51,7 +51,7 @@ function releaseSetPackageCatalog(payload: unknown) {
   if (payload.surface_kind === 'opl_package_repository_index.v1') {
     throw new FrameworkContractError(
       'contract_shape_invalid',
-      'The Framework Package repository compatibility index is retired; use an exact Release Set catalog.',
+      "The Framework Package repository compatibility index is retired; use each Package owner's OCI latest-stable channel.",
       { failure_code: 'agent_package_repository_index_retired' },
     );
   }
@@ -111,7 +111,7 @@ function normalizeCatalogVersion(value: unknown): ManagedCatalogVersion | null {
 export function normalizeManagedPackageCatalog(payload: unknown): ManagedPackageCatalog {
   const packageCatalog = releaseSetPackageCatalog(payload);
   if (!packageCatalog) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Managed Package source must declare a Release Set v1 catalog.', {
+    throw new FrameworkContractError('contract_shape_invalid', 'Managed Package source must declare a Package owner catalog.', {
       failure_code: 'agent_package_catalog_invalid',
     });
   }
