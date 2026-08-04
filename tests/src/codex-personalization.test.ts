@@ -10,7 +10,7 @@ import {
   writeCodexUserInstructions,
 } from '../../src/modules/console/codex-personalization.ts';
 import { readOplFlowDefaultUserInstructions } from '../../src/modules/connect/index.ts';
-import { runCli } from './cli/helpers.ts';
+import { createFakeCodexPluginManagerFixture, runCli } from './cli/helpers.ts';
 import { writeManagedRuntimeSourceFixture } from './cli/cases/packages-cases/managed-runtime-source-fixture.ts';
 import { agentPackageManifest, formatJsonPayload } from './cli/cases/packages-cases/helpers.ts';
 
@@ -19,42 +19,58 @@ function sha256(content: string) {
 }
 
 function writeOplFlowPackage(root: string) {
+  const version = '0.1.35';
+  const ownerSourceCommit = '6d8772cd9a8b2a14b2292c15afbf3c3cb5bfa8a4';
+  const requiredSkillIds = [
+    'develop-and-deliver',
+    'task-mode-gate',
+    'recover-codex-tasks',
+  ];
   const files = {
-    '.codex-plugin/plugin.json': `${JSON.stringify({ name: 'opl-flow', version: '0.1.16', skills: './skills/' })}\n`,
+    '.codex-plugin/plugin.json': `${JSON.stringify({ name: 'opl-flow', version, skills: './skills/' })}\n`,
     'skills/opl-flow/SKILL.md': '# OPL Flow\n',
+    ...Object.fromEntries(requiredSkillIds.map((skillId) => [
+      `skills/${skillId}/SKILL.md`,
+      `# ${skillId}\n`,
+    ])),
     'templates/AGENTS.md': 'OPL Flow default instructions.\n',
   };
-  return writeManagedRuntimeSourceFixture({
-    root,
-    moduleId: 'opl-flow',
-    repoName: 'opl-flow',
-    version: '0.1.16',
-    sourceHeadSha: 'f'.repeat(40),
-    packageManifest: {
-      surface_kind: 'opl_agent_package_manifest.v1',
-      agent_id: 'opl-flow',
-      package_id: 'opl-flow',
-      display_name: 'OPL Flow',
-      publisher: 'one-person-lab',
-      version: '0.1.16',
-      source: 'first_party',
-      carrier_source_role: 'codex_plugin_default_carrier_not_package_truth',
-      codex_surface: {
-        plugin_id: 'opl-flow',
-        required_skill_ids: ['opl-flow'],
+  return {
+    ...writeManagedRuntimeSourceFixture({
+      root,
+      moduleId: 'opl-flow',
+      repoName: 'opl-flow',
+      version,
+      sourceHeadSha: ownerSourceCommit,
+      packageManifest: {
+        surface_kind: 'opl_agent_package_manifest.v1',
+        agent_id: 'opl-flow',
+        package_id: 'opl-flow',
+        display_name: 'OPL Flow',
+        publisher: 'one-person-lab',
+        version,
+        source: 'first_party',
+        carrier_source_role: 'codex_plugin_default_carrier_not_package_truth',
+        codex_surface: {
+          plugin_id: 'opl-flow',
+          required_skill_ids: ['opl-flow', ...requiredSkillIds],
+        },
+        capability_dependencies: [],
       },
-      capability_dependencies: [],
-    },
-    payloadManifest: {
-      surface_kind: 'opl_agent_package_payload_manifest',
-      files: Object.entries(files).map(([relativePath, content]) => ({
-        path: relativePath,
-        source_path: relativePath,
-        sha256: sha256(content),
-      })),
-    },
-    sourceFiles: Object.entries(files).map(([sourcePath, content]) => ({ sourcePath, content })),
-  });
+      payloadManifest: {
+        surface_kind: 'opl_agent_package_payload_manifest',
+        files: Object.entries(files).map(([relativePath, content]) => ({
+          path: relativePath,
+          source_path: relativePath,
+          sha256: sha256(content),
+        })),
+      },
+      sourceFiles: Object.entries(files).map(([sourcePath, content]) => ({ sourcePath, content })),
+    }),
+    OPL_CODEX_PLUGIN_BIN: createFakeCodexPluginManagerFixture(
+      path.join(root, 'fake-codex-plugin-manager'),
+    ).codexPath,
+  };
 }
 
 function writeInstalledOwnerProfileFixture(root: string) {

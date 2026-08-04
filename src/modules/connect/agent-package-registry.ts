@@ -1730,6 +1730,11 @@ const frameworkPackageManifestRoot = path.resolve(
   '../../../contracts/opl-framework/packages',
 );
 
+const LEGACY_OPL_FLOW_NATIVE_CARRIER_BRIDGE = {
+  packageVersion: '0.1.35',
+  ownerSourceCommit: '6d8772cd9a8b2a14b2292c15afbf3c3cb5bfa8a4',
+} as const;
+
 function configuredCarrierTargetDescriptor(
   descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor,
   action: Exclude<ConfiguredCodexPluginCarrierAction, 'list'>,
@@ -1750,6 +1755,30 @@ function configuredCarrierTargetDescriptor(
       requiredSkillIds: [...target.required_skill_ids],
     },
   };
+}
+
+function isLegacyOplFlowNativeCarrierBridge(input: {
+  packageId: string;
+  selected: ManagedCatalogVersion;
+  manifest: AgentPackageManifest;
+}) {
+  if (input.packageId !== 'opl-flow'
+    || input.selected.package_version !== LEGACY_OPL_FLOW_NATIVE_CARRIER_BRIDGE.packageVersion
+    || input.selected.owner_source_commit !== LEGACY_OPL_FLOW_NATIVE_CARRIER_BRIDGE.ownerSourceCommit
+    || input.manifest.version !== LEGACY_OPL_FLOW_NATIVE_CARRIER_BRIDGE.packageVersion
+    || input.manifest.carrier_source_commit !== LEGACY_OPL_FLOW_NATIVE_CARRIER_BRIDGE.ownerSourceCommit
+    || !isOplFlowCoreSkillsTarget({
+      packageId: input.manifest.package_id,
+      requiredSkillIds: input.manifest.required_skill_ids,
+    })) {
+    return false;
+  }
+  assertFirstPartyPackageCatalogVersion(input.packageId, input.selected);
+  const payload = parseJsonText(catalogPayloadManifestJson(input.selected)!);
+  return isRecord(payload)
+    && payload.package_id === input.packageId
+    && payload.package_version === LEGACY_OPL_FLOW_NATIVE_CARRIER_BRIDGE.packageVersion
+    && payload.source_commit === LEGACY_OPL_FLOW_NATIVE_CARRIER_BRIDGE.ownerSourceCommit;
 }
 
 async function resolveFreshConfiguredCarrier(input: ConfiguredCarrierSelectionInput) {
@@ -1839,6 +1868,87 @@ async function resolveFreshConfiguredCarrier(input: ConfiguredCarrierSelectionIn
     });
   }
   return manifest.configured_codex_plugin_carrier ?? null;
+}
+
+async function maybeInstallOplFlowOwnerSnapshot(input: AgentPackageInstallInput) {
+  const packageId = canonicalAgentPackageId(input.packageId);
+  if (packageId !== 'opl-flow'
+    || input.manifestUrl
+    || input.registryUrl
+    || input.agentRoot
+    || configuredCarrierUsesDeveloperCheckout(packageId)
+    || discoverInstalledCodexPluginDescriptors({
+      packageId,
+      failClosedOnCarrierError: true,
+    }).has(packageId)) return null;
+  let snapshot: Awaited<ReturnType<typeof refreshFirstPartyPackageCatalogSnapshot>>;
+  try {
+    snapshot = await refreshFirstPartyPackageCatalogSnapshot(packageId);
+  } catch (error) {
+    if (error instanceof FrameworkContractError) throw error;
+    throw new FrameworkContractError('codex_command_failed', 'Declared native carrier owner Package source is unavailable.', {
+      package_id: packageId,
+      owner_source: 'per_package_live_owner',
+      failure_code: 'agent_package_capability_channel_unavailable',
+      cause: error instanceof Error ? error.message : String(error),
+    });
+  }
+  const selected = selectManagedCatalogPackageVersion(snapshot.catalog, packageId);
+  const manifest = normalizePackageManifest(
+    catalogManifestPayload(selected),
+    selected.manifest_url,
+  );
+  if (manifest.configured_codex_plugin_carrier) {
+    const dryRun = input.dryRun === true;
+    const execution = runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration({
+      descriptor: configuredCarrierTargetDescriptor(
+        manifest.configured_codex_plugin_carrier,
+        'install',
+      ),
+      action: 'install',
+      dryRun,
+    });
+    const configured = configuredCarrierLifecycleReadback({
+      action: 'install',
+      dryRun,
+      carrier: execution.carrier,
+    });
+    if (!dryRun) {
+      await maybeRetireDescriptorOwnedLegacyState({
+        configured,
+        dryRun: false,
+      });
+    }
+    return {
+      version: 'g2' as const,
+      opl_agent_package_install: {
+        surface_kind: 'opl_agent_package_install' as const,
+        ...configured,
+      },
+    };
+  }
+  if (!isLegacyOplFlowNativeCarrierBridge({ packageId, selected, manifest })) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Native carrier owner Package manifest must declare its carrier.', {
+      package_id: packageId,
+      manifest_url: selected.manifest_url,
+      failure_code: 'configured_codex_plugin_carrier_owner_descriptor_missing',
+    });
+  }
+  const firstParty = resolveFirstPartyPackageCatalog(packageId)!;
+  const result = await withAgentPackageLifecycleTransaction(
+    input.dryRun === true,
+    () => applyManifestPackageLock(input, 'install', {
+      catalog: snapshot.catalog,
+      rootVersion: selected,
+      catalogSource: {
+        ...firstParty.catalogSource,
+        catalog_ref: snapshot.catalog_ref,
+      },
+      channelRef: snapshot.catalog_ref,
+      channelDigest: snapshot.catalog_digest,
+    }),
+  );
+  return agentPackageInstallReadback(input, result);
 }
 
 function configuredCarrierLifecycleReadback(input: {
@@ -2566,6 +2676,8 @@ async function maybeRunConfiguredCarrierLifecycle(input: {
 }
 
 export async function runOplAgentPackageInstall(input: AgentPackageInstallInput) {
+  const ownerSelectedOplFlow = await maybeInstallOplFlowOwnerSnapshot(input);
+  if (ownerSelectedOplFlow) return ownerSelectedOplFlow;
   const configured = await maybeRunConfiguredCarrierLifecycle({
     selectionInput: input,
     action: 'install',
