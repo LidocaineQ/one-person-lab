@@ -2139,7 +2139,6 @@ export function rematerializePhysicalCodexSurfaceFromLock(
     permissions: [],
     distribution_payload: null,
     update_channel: '',
-    rollback_ref: `rollback-ref:${lock.package_id}/unavailable`,
     codex_visible_entry: lock.codex_visible_entry,
     required_skill_ids: lock.bundled_required_skill_ids,
     optional_skill_refs: lock.optional_skill_refs,

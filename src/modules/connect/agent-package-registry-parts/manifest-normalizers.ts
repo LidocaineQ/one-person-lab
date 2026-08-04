@@ -1472,7 +1472,6 @@ export function normalizeManifest(payload: unknown, manifestUrl: string): AgentP
     permissions: rawPermissions,
     distribution_payload: distributionPayload,
     update_channel: stringValue(payload.update_channel) ?? 'manifest_url',
-    rollback_ref: stringValue(payload.rollback_ref) ?? `rollback-ref:${canonicalManifestIdentity(payload.package_id, 'package_id')}/unavailable`, // reuse-first: allow owner-routed package provenance ref, not package-manager rollback.
     codex_visible_entry: codexVisibleEntry,
     required_skill_ids: requiredSkillIds,
     optional_skill_refs: uniqueStrings([
@@ -1649,7 +1648,6 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
     permissions: [],
     distribution_payload: null,
     update_channel: 'manifest_url',
-    rollback_ref: `rollback-ref:${packageId}/dependency-closure-lkg`,
     codex_visible_entry: pluginId,
     required_skill_ids: allSkillIds,
     optional_skill_refs: [assertStringValue(payload.exports.optional_skill_policy_ref, 'exports.optional_skill_policy_ref')],
@@ -1753,7 +1751,6 @@ export function normalizeWorkflowProfilePackageManifest(payload: unknown, manife
     permissions: [],
     distribution_payload: normalizeDistributionPayload(payload.distribution_payload),
     update_channel: 'manifest_url',
-    rollback_ref: `rollback-ref:${packageId}/profile-migration-lkg`,
     codex_visible_entry: pluginId,
     required_skill_ids: requiredSkillIds,
     optional_skill_refs: [],
