@@ -7,16 +7,13 @@ import { unregisterLocalCodexPlugin } from '../system-installation/codex-plugin-
 import { removeSafePersistedPackagePath } from './persisted-path-safety.ts';
 import {
   nowIso,
-  refsOnlyAuthorityBoundary,
   resolveCodexConfigPath,
   resolveCodexHome,
   sha256Text,
 } from './shared.ts';
 import type {
-  AgentPackageInstallInput,
   AgentPackageCarrierAuthority,
   AgentPackageLifecycleAction,
-  AgentPackageLifecycleReceipt,
   AgentPackageLock,
   AgentPackageLockIndex,
   AgentPackageManifest,
@@ -26,15 +23,6 @@ import type {
   AgentPackageScopeMaterialization,
   AgentPackageSourceKind,
 } from './types.ts';
-
-export function packageReceiptRef(input: {
-  action: AgentPackageLifecycleAction;
-  packageId?: string | null;
-  sourceSha256: string;
-}) {
-  const subject = canonicalAgentPackageId(input.packageId) ?? 'registry';
-  return `opl://agent-package/${input.action}/${encodeURIComponent(subject)}/${input.sourceSha256.slice(0, 16)}`;
-}
 
 export function packageLockRef(packageId: string, version: string, sourceSha256: string) {
   const canonicalPackageId = canonicalAgentPackageId(packageId) ?? packageId;
@@ -87,92 +75,6 @@ export function requireInstalledPackage(index: AgentPackageLockIndex, packageId:
     });
   }
   return { lockIndex, lock: index.packages[lockIndex] };
-}
-
-export function lifecycleReceipt(input: {
-  action: AgentPackageLifecycleAction;
-  actionStatus: 'completed' | 'validated';
-  packageId?: string | null;
-  registryUrl?: string | null;
-  manifestUrl?: string | null;
-  manifestSha256?: string | null;
-  packageLockRef?: string | null;
-  sourceKind: AgentPackageLifecycleReceipt['source_kind'];
-  trustTier?: string | null;
-  sourceSha256: string;
-  writesPerformed: boolean;
-  physicalSurface?: AgentPackagePhysicalSurface;
-  dependencyTransactionId?: string;
-  dependencyClosureDigest?: string;
-  dependencyPackages?: AgentPackageLifecycleReceipt['dependency_packages'];
-  scopeMaterialization?: AgentPackageScopeMaterialization;
-  scopeMaterializations?: AgentPackageScopeMaterialization[];
-  managedRuntimeSource?: AgentPackageManagedRuntimeSourceState | null;
-  developerCheckoutSource?: AgentPackageLifecycleReceipt['developer_checkout_source'];
-  sourceArtifactRef?: string | null;
-  artifactDigest?: string | null;
-  ownerSourceCommit?: string | null;
-  carrierAuthority?: AgentPackageCarrierAuthority | null;
-  releaseChannelRef?: string | null;
-  releaseChannelDigest?: string | null;
-  networkAccessed?: AgentPackageLifecycleReceipt['network_accessed'];
-  remoteDependencyPolicy?: AgentPackageLifecycleReceipt['remote_dependency_policy'];
-  provenance?: AgentPackageInstallInput['provenance'];
-}): AgentPackageLifecycleReceipt {
-  const operationId = input.provenance?.operation_id ?? packageReceiptRef({
-    action: input.action,
-    packageId: input.packageId,
-    sourceSha256: input.sourceSha256,
-  });
-  const receipt: AgentPackageLifecycleReceipt = {
-    surface_kind: 'opl_agent_package_lifecycle_receipt',
-    receipt_ref: packageReceiptRef({
-      action: input.action,
-      packageId: input.packageId,
-      sourceSha256: input.sourceSha256,
-    }),
-    receipt_status: 'recorded',
-    recorded_at: nowIso(),
-    action: input.action,
-    action_status: input.actionStatus,
-    package_id: input.packageId ?? null,
-    registry_url: input.registryUrl ?? null,
-    manifest_url: input.manifestUrl ?? null,
-    manifest_sha256: input.manifestSha256 ?? null,
-    source_artifact_ref: input.sourceArtifactRef ?? null,
-    artifact_digest: input.artifactDigest ?? null,
-    owner_source_commit: input.ownerSourceCommit ?? null,
-    carrier_authority: input.carrierAuthority ?? null,
-    release_channel_ref: input.releaseChannelRef ?? null,
-    release_channel_digest: input.releaseChannelDigest ?? null,
-    package_lock_ref: input.packageLockRef ?? null,
-    source_kind: input.sourceKind,
-    trust_tier: input.trustTier ?? null,
-    writes_performed: input.writesPerformed,
-    source_surface: 'opl_connect_agent_package_registry',
-    trigger: input.provenance?.trigger ?? 'explicit_package_action',
-    initiator: input.provenance?.initiator ?? 'opl_cli_or_app_action',
-    source_policy: input.provenance?.source_policy ?? input.sourceKind,
-    source_policy_reason: input.provenance?.source_policy_reason ?? 'explicit_package_action_selection',
-    operation_id: operationId,
-    correlation_id: input.provenance?.correlation_id ?? operationId,
-    authority_boundary: refsOnlyAuthorityBoundary(),
-  };
-  if (input.physicalSurface) {
-    receipt.physical_surface = input.physicalSurface;
-  }
-  if (input.dependencyTransactionId) receipt.dependency_transaction_id = input.dependencyTransactionId;
-  if (input.dependencyClosureDigest) receipt.dependency_closure_digest = input.dependencyClosureDigest;
-  if (input.dependencyPackages) receipt.dependency_packages = input.dependencyPackages;
-  if (input.scopeMaterialization) receipt.scope_materialization = input.scopeMaterialization;
-  if (input.scopeMaterializations) receipt.scope_materializations = input.scopeMaterializations;
-  if (input.managedRuntimeSource !== undefined) receipt.managed_runtime_source = input.managedRuntimeSource;
-  if (input.developerCheckoutSource !== undefined) {
-    receipt.developer_checkout_source = input.developerCheckoutSource;
-  }
-  if (input.networkAccessed !== undefined) receipt.network_accessed = input.networkAccessed;
-  if (input.remoteDependencyPolicy) receipt.remote_dependency_policy = input.remoteDependencyPolicy;
-  return receipt;
 }
 
 export function permissionScopeSha256(manifest: AgentPackageManifest) {

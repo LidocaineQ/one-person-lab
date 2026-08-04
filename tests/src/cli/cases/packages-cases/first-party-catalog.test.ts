@@ -2072,7 +2072,7 @@ test('single-package developer update reconciles from the live owner catalog and
     assert.ok(previewUpdate.currentness.reasons.includes('package_version_changed'));
     assert.equal(previewUpdate.target_version, '0.1.1');
     assert.equal(previewUpdate.package_lock.package_version, '0.1.1');
-    assert.equal(previewUpdate.lifecycle_receipt.writes_performed, false);
+    assert.equal(Object.hasOwn(previewUpdate, 'lifecycle_receipt'), false);
     assert.equal(fs.existsSync(releaseCatalogCache), false);
     assert.equal(fs.readFileSync(lockFile, 'utf8'), installedLockBytes);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
@@ -2140,7 +2140,7 @@ test('single-package developer update reconciles from the live owner catalog and
     assert.equal(currentUpdate.status, 'current_noop');
     assert.equal(currentUpdate.currentness.status, 'current');
     assert.equal(currentUpdate.reconciliation_action, null);
-    assert.equal(currentUpdate.lifecycle_receipt, null);
+    assert.equal(Object.hasOwn(currentUpdate, 'lifecycle_receipt'), false);
     assert.deepEqual(
       currentUpdate.dependency_package_locks.map((lock: any) => [lock.package_id, lock.source_kind]),
       [

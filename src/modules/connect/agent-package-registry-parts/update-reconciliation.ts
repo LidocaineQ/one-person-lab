@@ -21,7 +21,6 @@ import { refsOnlyAuthorityBoundary } from './shared.ts';
 import { resolveAgentPackageEffectiveSourcePolicy } from './source-policy.ts';
 import type {
   AgentPackageInstallInput,
-  AgentPackageLifecycleReceipt,
   AgentPackageLock,
   AgentPackagePhysicalSurface,
 } from './types.ts';
@@ -32,10 +31,8 @@ type AgentPackageUpdateApplicationResult = {
   lock: AgentPackageLock;
   physicalSurface: AgentPackagePhysicalSurface | undefined;
   frameworkLink: unknown;
-  receipt: AgentPackageLifecycleReceipt | null;
   registryEntry: unknown;
   closureLocks: AgentPackageLock[];
-  closureReceipts: AgentPackageLifecycleReceipt[];
   dependencyTransactionId: string;
   dependencyClosureDigest: string;
   legacySkillMigration?: LegacyOplSkillsMigrationReadback | null;
@@ -96,7 +93,6 @@ export function agentPackageUpdateReadback(
       package_lock: result.lock,
       physical_surface: result.physicalSurface,
       framework_link: result.frameworkLink,
-      lifecycle_receipt: result.receipt,
       dependency_transaction_id: result.dependencyTransactionId,
       dependency_closure_digest: result.dependencyClosureDigest,
       dependency_package_locks: result.closureLocks,

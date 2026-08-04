@@ -805,59 +805,6 @@ export type AgentPackageLock = {
   developer_checkout_source?: AgentPackageDeveloperCheckoutSource | null;
 };
 
-export type AgentPackageLifecycleReceipt = {
-  surface_kind: 'opl_agent_package_lifecycle_receipt';
-  receipt_ref: string;
-  receipt_status: 'recorded';
-  recorded_at: string;
-  action: AgentPackageLifecycleAction;
-  action_status: 'completed' | 'validated';
-  package_id: string | null;
-  registry_url: string | null;
-  manifest_url: string | null;
-  manifest_sha256: string | null;
-  source_artifact_ref?: string | null;
-  artifact_digest?: string | null;
-  owner_source_commit?: string | null;
-  carrier_authority?: AgentPackageCarrierAuthority | null;
-  release_channel_ref?: string | null;
-  release_channel_digest?: string | null;
-  package_lock_ref: string | null;
-  source_kind: AgentPackageSourceKind | 'registry_url';
-  trust_tier: string | null;
-  writes_performed: boolean;
-  source_surface: 'opl_connect_agent_package_registry';
-  trigger: string;
-  initiator: string;
-  source_policy: string;
-  source_policy_reason: string;
-  operation_id: string;
-  correlation_id: string;
-  authority_boundary: AgentPackageAuthorityBoundary;
-  physical_surface?: AgentPackagePhysicalSurface;
-  dependency_transaction_id?: string;
-  dependency_closure_digest?: string;
-  dependency_packages?: Array<{
-    package_id: string;
-    package_version: string;
-    manifest_sha256: string;
-    content_digest: string;
-    package_lock_ref: string;
-    source_artifact_ref?: string | null;
-    artifact_digest?: string | null;
-    owner_source_commit?: string | null;
-    carrier_authority?: AgentPackageCarrierAuthority | null;
-    source_kind?: AgentPackageSourceKind;
-    developer_checkout_source?: AgentPackageDeveloperCheckoutSource | null;
-  }>;
-  scope_materialization?: AgentPackageScopeMaterialization;
-  scope_materializations?: AgentPackageScopeMaterialization[];
-  managed_runtime_source?: AgentPackageManagedRuntimeSourceState | null;
-  developer_checkout_source?: AgentPackageDeveloperCheckoutSource | null;
-  network_accessed?: false;
-  remote_dependency_policy?: 'forbidden';
-};
-
 export type AgentPackageUseBinding = {
   surface_kind: 'opl_agent_package_use_binding.v1';
   use_boundary_id: string;

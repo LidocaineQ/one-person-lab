@@ -38,7 +38,7 @@ test('package read models stay compact without exposing lifecycle history', (con
       '--trust-tier',
       'third_party_verified',
     ], env) as any;
-    assert.equal(install.opl_agent_package_install.lifecycle_receipt.action, 'install');
+    assert.equal(Object.hasOwn(install.opl_agent_package_install, 'lifecycle_receipt'), false);
     assert.equal(fs.existsSync(ledgerPath), false);
 
     const status = runCli([

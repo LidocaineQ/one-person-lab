@@ -843,7 +843,7 @@ test('packages rejects developer checkout auto-update and permission scope drift
   }
 });
 
-test('packages preserves installed lock and returns an operation receipt when update materialization fails', () => {
+test('packages preserves the installed lock without exposing an operation receipt when update materialization fails', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-update-failure-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-update-failure-home-'));
   const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-update-failure-fixtures-'));
@@ -873,18 +873,13 @@ test('packages preserves installed lock and returns an operation receipt when up
           lock_ref: string;
           physical_surface: { codex_plugin_cache_path: string };
         };
-        lifecycle_receipt: {
-          receipt_ref: string;
-          rollback_ref?: unknown;
-        };
       };
     };
     const installReadback = install.opl_agent_package_install;
     const lockFile = path.join(stateDir, 'agent-package-locks.json');
     const lockFileBefore = fs.readFileSync(lockFile, 'utf8');
     const installedCachePath = install.opl_agent_package_install.package_lock.physical_surface.codex_plugin_cache_path;
-    assert.match(installReadback.lifecycle_receipt.receipt_ref, /^opl:\/\/agent-package\/install\//);
-    assert.equal(Object.hasOwn(installReadback.lifecycle_receipt, 'rollback_ref'), false);
+    assert.equal(Object.hasOwn(installReadback, 'lifecycle_receipt'), false);
     assert.equal(Object.hasOwn(installReadback.package_lock, 'action_receipt_id'), false);
     assert.doesNotMatch(lockFileBefore, /"action_receipt_id"/);
     assert.equal(Object.hasOwn(installReadback, 'lock_file'), false);

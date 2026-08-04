@@ -1746,10 +1746,7 @@ test('Packages compensates managed runtime source across downstream failure upda
     assert.equal(installedSource.preparation_status, 'completed');
     assert.match(installedSource.health_output_sha256, /^sha256:/);
     assert.match(installedSource.handler_probe_output_sha256, /^sha256:/);
-    assert.equal(
-      installed.opl_agent_package_install.lifecycle_receipt.managed_runtime_source.tree_sha256,
-      installedSource.tree_sha256,
-    );
+    assert.equal(Object.hasOwn(installed.opl_agent_package_install, 'lifecycle_receipt'), false);
 
     const failedCurrentUpdate = runCliFailure([
       'packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID,
@@ -2427,10 +2424,8 @@ test('uninstall validates but never deletes a preexisting adopted runtime source
     fs.writeFileSync(lockPath, formatJsonPayload(lockIndex));
 
     const removed = runCli(['packages', 'uninstall', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
-    assert.equal(
-      removed.opl_agent_package_uninstall.lifecycle_receipt.managed_runtime_source.status,
-      'retained_on_uninstall',
-    );
+    assert.equal(removed.opl_agent_package_uninstall.runtime_source_cleanup.status, 'not_required');
+    assert.equal(Object.hasOwn(removed.opl_agent_package_uninstall, 'lifecycle_receipt'), false);
     assert.equal(fs.existsSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared')), true);
   } finally {
     removeFixtureTree(stateDir);
