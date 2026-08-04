@@ -37,17 +37,10 @@ const DEFAULT_REPOS = [
   repoEntry('med-autogrant', path.join(workspaceRoot, 'med-autogrant'), 'standard_foundry_agent'),
   repoEntry('redcube-ai', path.join(workspaceRoot, 'redcube-ai'), 'standard_foundry_agent'),
   repoEntry('opl-meta-agent', path.join(workspaceRoot, 'opl-meta-agent'), 'standard_foundry_agent'),
-  repoEntry('one-person-lab-app', path.join(workspaceRoot, 'one-person-lab-app'), 'app_product_release_owner'),
-  repoEntry('opl-agui-codex-shell', path.join(workspaceRoot, 'opl-agui-codex-shell'), 'app_shell_archived_technical_proof'),
-  repoEntry('opl-doc', path.join(workspaceRoot, 'opl-doc'), 'plugin_workflow_support'),
-  repoEntry('opl-flow', path.join(workspaceRoot, 'opl-flow'), 'plugin_workflow_support'),
-  repoEntry('homebrew-one-person-lab', path.join(workspaceRoot, 'homebrew-one-person-lab'), 'distribution_tap_support', {
-    verifyEntryPolicy: 'not_required',
+  repoEntry('one-person-lab-app', path.join(workspaceRoot, 'one-person-lab-app'), 'app_product_release_owner', {
+    excludedPaths: ['shells/aionui/', '_external/hermes-agent/'],
   }),
-  repoEntry('OPL-PPT', path.join(workspaceRoot, 'OPL-PPT'), 'artifact_reference_support', {
-    cleanupScope: 'reference_artifact_support',
-    verifyEntryPolicy: 'not_required',
-  }),
+  repoEntry('opl-bookforge', path.join(workspaceRoot, 'opl-bookforge'), 'standard_foundry_agent'),
 ];
 
 const DEFAULT_EXCLUDED_REPOS = [
@@ -58,16 +51,10 @@ const DEFAULT_EXCLUDED_REPOS = [
     exclusion_reason: 'user_excluded_external_fork',
   },
   {
-    repo: 'med-deepscientist',
-    root: path.join(workspaceRoot, 'med-deepscientist'),
-    repo_role: 'mas_archive_reference_fixture',
-    exclusion_reason: 'archive_reference_not_active_opl_cleanup_scope',
-  },
-  {
-    repo: 'DeepScientist',
-    root: path.join(workspaceRoot, 'DeepScientist'),
-    repo_role: 'external_upstream_reference',
-    exclusion_reason: 'external_reference_not_active_opl_cleanup_scope',
+    repo: 'opl-hermes-shell',
+    root: path.join(workspaceRoot, 'opl-hermes-shell'),
+    repo_role: 'external_fork_app_shell_carrier',
+    exclusion_reason: 'user_excluded_external_fork',
   },
 ];
 
@@ -78,6 +65,7 @@ function repoEntry(name, root, role, options = {}) {
     role,
     cleanupScope: options.cleanupScope ?? 'governed_opl_related',
     verifyEntryPolicy: options.verifyEntryPolicy ?? 'required',
+    excludedPaths: options.excludedPaths ?? [],
   };
 }
 
@@ -147,6 +135,7 @@ function scanRepository(entry) {
     repo_role: entry.role,
     cleanup_scope: entry.cleanupScope,
     verify_entry_policy: entry.verifyEntryPolicy,
+    excluded_paths: entry.excludedPaths,
     status: 'scanned',
     categories: {
       safe_to_keep: [],
@@ -184,7 +173,11 @@ function scanRepository(entry) {
 
   for (const relativePath of files) {
     const absolutePath = path.join(entry.root, relativePath);
-    if (!fs.existsSync(absolutePath) || shouldIgnore(relativePath)) {
+    if (
+      !fs.existsSync(absolutePath)
+      || shouldIgnore(relativePath)
+      || entry.excludedPaths.some((prefix) => pathHasPrefix(relativePath, prefix))
+    ) {
       continue;
     }
 
@@ -225,6 +218,11 @@ function scanRepository(entry) {
   }
 
   return repo;
+}
+
+function pathHasPrefix(relativePath, prefix) {
+  const normalized = prefix.endsWith('/') ? prefix : `${prefix}/`;
+  return relativePath === normalized.slice(0, -1) || relativePath.startsWith(normalized);
 }
 
 function shouldIgnore(relativePath) {

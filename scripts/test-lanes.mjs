@@ -447,6 +447,7 @@ const lanes = {
       'tests/src/target-architecture-schema-contracts.test.ts',
       'tests/src/cognitive-computation-kernel-contract.test.ts',
       'tests/src/verification-test-governance.test.ts',
+      'tests/src/refactor-patrol-state.test.ts',
       'tests/src/reuse-first-scan.test.ts',
       'tests/src/cli-modularization.test.ts',
       'tests/src/runtime-state-paths.test.ts',

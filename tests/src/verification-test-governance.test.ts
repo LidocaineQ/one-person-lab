@@ -237,6 +237,46 @@ test('line-budget advisory is backed by a reviewed strict-ratchet contract', () 
   assert.match(script, /reviewed baseline contract entry/);
 });
 
+test('reasonable refactor patrol keeps selection evidence-led and fork bodies excluded', () => {
+  const contract = parseJsonText(
+    read('contracts/opl-framework/reasonable-refactor-patrol.json'),
+  ) as {
+    contract_kind?: string;
+    owner?: string;
+    state?: string;
+    scope?: {
+      excluded_repositories?: string[];
+      excluded_path_prefixes?: Record<string, string[]>;
+    };
+    execution_policy?: Record<string, unknown>;
+    forbidden_patterns?: string[];
+  };
+
+  assert.equal(contract.contract_kind, 'opl_reasonable_refactor_patrol.v1');
+  assert.equal(contract.owner, 'one-person-lab');
+  assert.equal(contract.state, 'active_contract');
+  assert.equal(contract.execution_policy?.mode, 'wide_probe_narrow_mutate');
+  assert.equal(contract.execution_policy?.fixed_candidate_quota, false);
+  assert.equal(contract.execution_policy?.fixed_selected_package_quota, false);
+  assert.equal(contract.execution_policy?.fixed_line_budget_percentage, false);
+  assert.equal(contract.execution_policy?.single_package_policy, 'allowed_when_it_is_the_highest_value_coherent_executable_batch');
+  assert.deepEqual(contract.scope?.excluded_repositories, ['opl-aion-shell', 'opl-hermes-shell']);
+  assert.deepEqual(
+    contract.scope?.excluded_path_prefixes?.['one-person-lab-app'],
+    ['shells/aionui/', '_external/hermes-agent/'],
+  );
+  assert.ok(contract.forbidden_patterns?.includes('codex_ops_kit_default_methodology'));
+  assert.ok(contract.forbidden_patterns?.includes('fixed_subagent_choreography'));
+  assert.equal(
+    packageJson.scripts?.['refactor:patrol:contract'],
+    'node ./scripts/refactor-patrol-state.mjs contract',
+  );
+  assert.equal(
+    packageJson.scripts?.['refactor:patrol:validate'],
+    'node ./scripts/refactor-patrol-state.mjs validate',
+  );
+});
+
 test('package.json exposes repo hygiene check and cleanup entrypoints', () => {
   assert.equal(packageJson.scripts?.['repo:hygiene'], 'scripts/repo-hygiene.sh');
   assert.equal(packageJson.scripts?.['repo:hygiene:fix'], 'scripts/repo-hygiene.sh --fix');

@@ -92,11 +92,7 @@ test('default family structure advisory scope follows the current OPL series', (
       'redcube-ai',
       'opl-meta-agent',
       'one-person-lab-app',
-      'opl-agui-codex-shell',
-      'opl-doc',
-      'opl-flow',
-      'homebrew-one-person-lab',
-      'OPL-PPT',
+      'opl-bookforge',
     ],
   );
   assert.deepEqual(
@@ -108,26 +104,20 @@ test('default family structure advisory scope follows the current OPL series', (
       'standard_foundry_agent',
       'standard_foundry_agent',
       'app_product_release_owner',
-      'app_shell_archived_technical_proof',
-      'plugin_workflow_support',
-      'plugin_workflow_support',
-      'distribution_tap_support',
-      'artifact_reference_support',
+      'standard_foundry_agent',
     ],
   );
   assert.deepEqual(
     generatedReport.excluded_repositories.map((repo: { repo: string }) => repo.repo),
     [
       'opl-aion-shell',
-      'med-deepscientist',
-      'DeepScientist',
+      'opl-hermes-shell',
     ],
   );
-  const homebrew = generatedReport.repositories.find(
-    (repo: { repo: string }) => repo.repo === 'homebrew-one-person-lab',
+  const app = generatedReport.repositories.find(
+    (repo: { repo: string }) => repo.repo === 'one-person-lab-app',
   );
-  assert.equal(homebrew.verify_entry_policy, 'not_required');
-  assert.equal(homebrew.summary.missing_verify_entry, false);
+  assert.deepEqual(app.excluded_paths, ['shells/aionui/', '_external/hermes-agent/']);
 });
 
 function writeLines(root: string, relativePath: string, lines: number) {

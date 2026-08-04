@@ -1,0 +1,140 @@
+{
+  "contract_kind": "opl_reasonable_refactor_patrol.v1",
+  "surface_kind": "opl_reasonable_refactor_patrol",
+  "owner": "one-person-lab",
+  "state": "active_contract",
+  "purpose": "Keep the scheduled OPL family refactor patrol complexity-first, SSOT-aware, authority-safe, and bounded without encoding fixed candidate quotas or a second development methodology in the Automation prompt.",
+  "machine_boundary": "This contract owns the OPL-family refactor patrol scope, candidate vocabulary, authority gates, batch-state shape, and closeout invariants. It does not authorize domain truth changes, release or installation, upstream fork-body edits, or physical deletion without current owner evidence.",
+  "authority_order": [
+    "latest_direct_user_instruction",
+    "repo_local_agents_contracts_canonical_source_runtime",
+    "current_lifecycle_owner_and_real_callers",
+    "advisory_scan_evidence"
+  ],
+  "scope": {
+    "start_repo": "one-person-lab",
+    "default_repositories": [
+      "one-person-lab",
+      "med-autoscience",
+      "med-autogrant",
+      "redcube-ai",
+      "opl-meta-agent",
+      "one-person-lab-app",
+      "opl-bookforge"
+    ],
+    "excluded_repositories": [
+      "opl-aion-shell",
+      "opl-hermes-shell"
+    ],
+    "excluded_path_prefixes": {
+      "one-person-lab-app": [
+        "shells/aionui/",
+        "_external/hermes-agent/"
+      ]
+    },
+    "dynamic_admission": "existing_sibling_repo_with_repo_local_owner_and_opl_owned_surface",
+    "missing_or_retired_repo_policy": "not_a_backlog_item",
+    "fork_body_policy": "read_only_excluded"
+  },
+  "routing": {
+    "complexity_and_shape": "refactor_patrol",
+    "docs_ssot_or_history_pollution": "governance_ssot_handoff",
+    "domain_or_release_authority": "owner_lane",
+    "confirmed_behavior_bug": "develop_and_deliver_owner_lane"
+  },
+  "evidence_sources": [
+    "family_structure_advisory",
+    "line_budget",
+    "reuse_first_scan",
+    "ponytail_audit_when_installed",
+    "codegraph_callers_and_dependencies",
+    "repo_native_tests_and_contracts",
+    "git_worktree_lifecycle_and_remote_readback"
+  ],
+  "candidate": {
+    "tags": [
+      "delete",
+      "shrink",
+      "yagni",
+      "stdlib",
+      "native"
+    ],
+    "statuses": [
+      "candidate",
+      "selected",
+      "done",
+      "deleted",
+      "shrunk",
+      "done_gate_no_delete",
+      "no_safe_change",
+      "blocked_owner_gated",
+      "not_safe",
+      "watch_only",
+      "rejected_not_complexity_debt"
+    ],
+    "required_authority_fields": [
+      "id",
+      "repo",
+      "truth_owner",
+      "owner_surface",
+      "candidate",
+      "tag",
+      "route",
+      "active_caller_evidence",
+      "authority_blocker",
+      "allowed_write_set",
+      "forbidden_write_set",
+      "risk_class",
+      "verification_command",
+      "estimated_complexity_reduction",
+      "status",
+      "selected_or_skipped_reason"
+    ]
+  },
+  "execution_policy": {
+    "mode": "wide_probe_narrow_mutate",
+    "selection": "highest_value_coherent_packages_that_fit_current_verification_and_integration_budget",
+    "fixed_candidate_quota": false,
+    "fixed_selected_package_quota": false,
+    "fixed_line_budget_percentage": false,
+    "line_budget_role": "maintenance_signal_not_split_or_selection_authority",
+    "mutation_gate": "ssot_aligned_current_owner_known_safe_semantic_boundary_and_repo_native_verification",
+    "single_package_policy": "allowed_when_it_is_the_highest_value_coherent_executable_batch",
+    "parallelism": "only_when_independent_worktrees_have_distinct_execution_owners_and_verification_fan_in",
+    "shared_mutation": "short_single_operation_owner",
+    "unselected_backlog": "next_scheduled_run_or_explicit_user_instruction"
+  },
+  "reuse_first": {
+    "order": [
+      "existing_project_primitive",
+      "standard_library",
+      "native_platform",
+      "installed_dependency",
+      "stable_external_dependency_after_owner_review"
+    ],
+    "new_dependency": "owner_review_required",
+    "keep_custom": "record_reason_scope_and_retirement_trigger"
+  },
+  "state_contract": {
+    "schema": "contracts/opl-framework/reasonable-refactor-patrol-state.schema.json",
+    "validator": "node scripts/refactor-patrol-state.mjs validate --input <state.json>",
+    "selected_batch_invariant": "every_selected_package_has_exactly_one_burn_down_entry",
+    "terminal_invariant": "every_selected_package_is_terminal_verified_absorbed_or_explicitly_gated",
+    "memory_policy": "compact_current_state_plus_append_only_history"
+  },
+  "forbidden_patterns": [
+    "codex_ops_kit_default_methodology",
+    "fixed_subagent_choreography",
+    "quota_driven_candidate_invention",
+    "threshold_only_file_splitting",
+    "fork_body_refactor",
+    "docs_or_tests_as_runtime_or_release_truth",
+    "lane_success_as_run_closeout"
+  ],
+  "terminal_states": [
+    "completed",
+    "no_safe_batch",
+    "checkpointed",
+    "blocked"
+  ]
+}
