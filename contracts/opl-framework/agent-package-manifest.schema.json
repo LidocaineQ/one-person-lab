@@ -116,7 +116,6 @@
         "identity_fields",
         "content_identity_fields",
         "dependency_source",
-        "lock_owner",
         "exposure_owner"
       ],
       "properties": {
@@ -141,18 +140,14 @@
             "enum": [
               "manifest_sha256",
               "payload_digest_ref",
-              "required_skill_pack_lock_refs",
-              "package_lock_ref"
+              "required_skill_pack_lock_refs"
             ]
           },
-          "minItems": 4,
+          "minItems": 3,
           "uniqueItems": true
         },
         "dependency_source": {
           "const": "manifest_declared_capability_dependencies"
-        },
-        "lock_owner": {
-          "const": "opl_connect_agent_package_registry"
         },
         "exposure_owner": {
           "const": "opl_connect_agent_package_registry"
