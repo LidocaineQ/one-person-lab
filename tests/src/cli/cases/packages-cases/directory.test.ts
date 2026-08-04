@@ -270,7 +270,7 @@ test('carrier-neutral producer discovers an unknown installed carrier without Fr
       legacy_lifecycle_state_present: false,
     });
     assert.equal(entry?.installed_carrier_readback?.kind, 'future-carrier');
-    assert.equal(entry?.legacy_private_lifecycle_state_present, false);
+    assert.equal(Object.hasOwn(entry ?? {}, 'legacy_private_lifecycle_state_present'), false);
   } finally {
     if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateDir;
