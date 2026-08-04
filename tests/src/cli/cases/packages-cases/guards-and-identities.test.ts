@@ -875,6 +875,7 @@ test('packages preserves installed lock and returns an operation receipt when up
         };
         lifecycle_receipt: {
           receipt_ref: string;
+          rollback_ref?: unknown;
         };
       };
     };
@@ -883,6 +884,7 @@ test('packages preserves installed lock and returns an operation receipt when up
     const lockFileBefore = fs.readFileSync(lockFile, 'utf8');
     const installedCachePath = install.opl_agent_package_install.package_lock.physical_surface.codex_plugin_cache_path;
     assert.match(installReadback.lifecycle_receipt.receipt_ref, /^opl:\/\/agent-package\/install\//);
+    assert.equal(Object.hasOwn(installReadback.lifecycle_receipt, 'rollback_ref'), false);
     assert.equal(Object.hasOwn(installReadback.package_lock, 'action_receipt_id'), false);
     assert.doesNotMatch(lockFileBefore, /"action_receipt_id"/);
     assert.equal(Object.hasOwn(installReadback, 'lock_file'), false);

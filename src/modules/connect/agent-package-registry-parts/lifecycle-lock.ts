@@ -57,7 +57,6 @@ export function packageActionStatus(action: AgentPackageLifecycleAction) {
     update: 'updated',
     repair: 'repaired',
     activate: 'activated',
-    rollback: 'rolled_back',
     uninstall: 'uninstalled',
     hide: 'hidden',
     unhide: 'visible',
@@ -98,7 +97,6 @@ export function lifecycleReceipt(input: {
   manifestUrl?: string | null;
   manifestSha256?: string | null;
   packageLockRef?: string | null;
-  rollbackRef?: string | null;
   sourceKind: AgentPackageLifecycleReceipt['source_kind'];
   trustTier?: string | null;
   sourceSha256: string;
@@ -148,7 +146,6 @@ export function lifecycleReceipt(input: {
     release_channel_ref: input.releaseChannelRef ?? null,
     release_channel_digest: input.releaseChannelDigest ?? null,
     package_lock_ref: input.packageLockRef ?? null,
-    rollback_ref: input.rollbackRef ?? null,
     source_kind: input.sourceKind,
     trust_tier: input.trustTier ?? null,
     writes_performed: input.writesPerformed,
