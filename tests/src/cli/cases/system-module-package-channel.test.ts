@@ -20,7 +20,6 @@ import {
 const PACKAGE_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.source.v1+gzip';
 const PACKAGE_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.manifest.v1+json';
 const PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.payload.v1+json';
-const CHANNEL_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.release.channel-manifest.v1+json';
 
 const MAS_MODULE_SPEC = {
   module_id: 'medautoscience' as const,
@@ -62,7 +61,6 @@ function writePackageChannelFixture(input: {
   const archivePath = path.join(input.root, `${input.repoName}-${input.version}.tar.gz`);
   const packageManifestPath = path.join(blobRoot, 'package-manifest.json');
   const payloadManifestPath = path.join(blobRoot, 'payload-manifest.json');
-  const channelManifestPath = path.join(blobRoot, 'channel-manifest.json');
   const curlLogPath = path.join(input.root, 'curl.jsonl');
 
   fs.mkdirSync(blobRoot, { recursive: true });
@@ -119,53 +117,10 @@ function writePackageChannelFixture(input: {
       },
     ],
   };
-  const packageArtifactDigest = crypto
-    .createHash('sha256')
-    .update(JSON.stringify(packageArtifactManifest))
-    .digest('hex');
-
-  const channelManifest = {
-    manifest_version: 1,
-    release_set_generation: input.version,
-    package_catalog_surface_kind: 'opl_package_catalog.v1',
-    packages: {
-      package_catalog: {
-        mas: {
-          package_id: 'mas',
-          selected_version: input.version,
-          versions: [{
-            package_version: input.version,
-            selection_status: 'selected_for_release_set',
-            source_artifact_ref: `ghcr.io/owner/one-person-lab-packages/mas:${input.version}`,
-            artifact_digest: `sha256:${packageArtifactDigest}`,
-            artifact_status: 'published_immutable',
-            package_content_digest: `sha256:${archiveDigest}`,
-            owner_source_commit: input.sourceHeadSha,
-          }],
-        },
-      },
-    },
-  };
-  fs.writeFileSync(channelManifestPath, JSON.stringify(channelManifest), 'utf8');
-  const channelDigest = sha256(channelManifestPath);
   const manifests = {
-    'owner/one-person-lab-manifest': {
-      schemaVersion: 2,
-      mediaType: 'application/vnd.oci.image.manifest.v1+json',
-      layers: [
-        {
-          mediaType: CHANNEL_MANIFEST_LAYER_MEDIA_TYPE,
-          digest: `sha256:${channelDigest}`,
-          annotations: {
-            'org.opencontainers.image.title': 'dist/opl-packages/opl-channel-manifest.json',
-          },
-        },
-      ],
-    },
     'owner/one-person-lab-packages/mas': packageArtifactManifest,
   };
   const blobsByDigest = {
-    [`sha256:${channelDigest}`]: channelManifestPath,
     [`sha256:${archiveDigest}`]: archivePath,
     [`sha256:${packageManifestDigest}`]: packageManifestPath,
     [`sha256:${payloadManifestDigest}`]: payloadManifestPath,

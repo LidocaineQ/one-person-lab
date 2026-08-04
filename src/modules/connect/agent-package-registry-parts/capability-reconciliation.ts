@@ -145,25 +145,6 @@ export function normalizeManagedPackageCatalog(payload: unknown): ManagedPackage
   return result;
 }
 
-export function managedPackageCatalogDigest(payload: unknown) {
-  const packageCatalog = releaseSetPackageCatalog(payload);
-  if (!isRecord(payload) || !packageCatalog) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Managed package catalog must declare packages.package_catalog.', {
-      failure_code: 'agent_package_catalog_invalid',
-    });
-  }
-  const actualDigest = sha256(JSON.stringify(packageCatalog));
-  const declaredDigest = normalizedSha256(payload.package_catalog_digest);
-  if (declaredDigest && declaredDigest !== actualDigest) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Managed package catalog digest is invalid.', {
-      expected_package_catalog_digest: declaredDigest,
-      actual_package_catalog_digest: actualDigest,
-      failure_code: 'agent_package_catalog_digest_mismatch',
-    });
-  }
-  return actualDigest;
-}
-
 function selectedCatalogVersion(
   catalog: ManagedPackageCatalog,
   packageId: string,
