@@ -3,7 +3,7 @@
   "package_id": "opl-flow",
   "display_name": "OPL Flow",
   "publisher": "one-person-lab",
-  "version": "0.1.35",
+  "version": "0.1.36",
   "source": "first_party",
   "package_role": "workflow_profile",
   "registry_entry": {
@@ -40,8 +40,15 @@
   },
   "codex_surface": {
     "plugin_id": "opl-flow",
-    "plugin_payload_manifest_url": "payloads/opl-flow-0.1.35.json",
-    "carrier_source_commit": "6d8772cd9a8b2a14b2292c15afbf3c3cb5bfa8a4",
+    "plugin_payload_manifest_url": "payloads/opl-flow-0.1.36.json",
+    "carrier_source_commit": "8dfd77fe357f520aa0e56eebcd5925c3f5cde549",
+    "configured_codex_plugin_carrier": {
+      "kind": "codex_plugin_manager",
+      "plugin_selector": "opl-flow@opl-flow-local",
+      "executor_route": "codex_cli",
+      "marketplace_source": "gaofeng21cn/opl-flow",
+      "publication_ref": "ghcr.io/gaofeng21cn/one-person-lab-packages/opl-flow:latest-stable"
+    },
     "required_skill_ids": [
       "coordinate-concurrent-tasks",
       "develop-and-deliver",

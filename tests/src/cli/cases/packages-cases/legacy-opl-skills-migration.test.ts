@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 
 import {
   assert,
@@ -114,6 +115,69 @@ function writeFlowMarketplace(input: {
   }));
   fs.writeFileSync(manifestPath, formatJsonPayload(manifest));
   return { marketplaceRoot, pluginSource, manifestPath };
+}
+
+function writeFlowOwnerChannelFixture(root: string, manifestPath: string) {
+  const blobRoot = path.join(root, 'blobs');
+  const fakeBin = path.join(root, 'bin');
+  const manifestJson = fs.readFileSync(manifestPath, 'utf8');
+  const manifest = JSON.parse(manifestJson);
+  const payloadJson = formatJsonPayload({
+    surface_kind: 'opl_agent_package_payload_manifest',
+    package_id: 'opl-flow',
+    package_version: manifest.version,
+    source_commit: manifest.codex_surface.carrier_source_commit,
+    files: [],
+  });
+  const manifestDigest = `sha256:${crypto.createHash('sha256').update(manifestJson).digest('hex')}`;
+  const payloadDigest = `sha256:${crypto.createHash('sha256').update(payloadJson).digest('hex')}`;
+  const sourceDigest = `sha256:${crypto.createHash('sha256').update('flow-source').digest('hex')}`;
+  const payloadPath = path.join(blobRoot, 'payload-manifest.json');
+  fs.mkdirSync(blobRoot, { recursive: true });
+  fs.mkdirSync(fakeBin, { recursive: true });
+  fs.writeFileSync(payloadPath, payloadJson);
+  const descriptor = {
+    schemaVersion: 2,
+    layers: [
+      { mediaType: 'application/vnd.onepersonlab.package.source.v1+gzip', digest: sourceDigest },
+      {
+        mediaType: 'application/vnd.onepersonlab.package.manifest.v1+json',
+        digest: manifestDigest,
+        annotations: { 'org.opencontainers.image.title': 'package-manifest.json' },
+      },
+      {
+        mediaType: 'application/vnd.onepersonlab.package.payload.v1+json',
+        digest: payloadDigest,
+        annotations: { 'org.opencontainers.image.title': 'payload-manifest.json' },
+      },
+    ],
+  };
+  const blobs = { [manifestDigest]: manifestPath, [payloadDigest]: payloadPath };
+  fs.writeFileSync(path.join(fakeBin, 'curl'), [
+    '#!/usr/bin/env node',
+    "const fs = require('node:fs');",
+    'const args = process.argv.slice(2);',
+    "const url = args.find((arg) => arg.startsWith('http://') || arg.startsWith('https://')) || '';",
+    "if (url.includes('/token?')) { process.stdout.write(JSON.stringify({ token: 'fixture' })); process.exit(0); }",
+    `const descriptor = ${JSON.stringify(descriptor)};`,
+    `const blobs = ${JSON.stringify(blobs)};`,
+    "if (url.includes('/manifests/')) { process.stdout.write(JSON.stringify(descriptor)); process.exit(0); }",
+    "if (url.includes('/blobs/')) {",
+    "  const digest = decodeURIComponent(url.slice(url.lastIndexOf('/') + 1));",
+    "  const outIndex = args.indexOf('-o');",
+    '  if (!blobs[digest] || outIndex < 0) process.exit(22);',
+    '  fs.copyFileSync(blobs[digest], args[outIndex + 1]);',
+    '  process.exit(0);',
+    '}',
+    'process.exit(22);',
+  ].join('\n'), { mode: 0o755 });
+  return {
+    env: {
+      OPL_PACKAGES_OWNER: 'fixture',
+      OPL_PACKAGE_CHANNEL_TAG: 'stable',
+      PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
+    },
+  };
 }
 
 function writeObservedCodexPluginManager(input: {
@@ -319,6 +383,11 @@ function writeDeveloperFlowCheckout(
     fs.mkdirSync(skillRoot, { recursive: true });
     fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), `# ${skillId}\n`);
   }
+  fs.writeFileSync(path.join(checkout, 'opl-package.json'), formatJsonPayload(flowManifest({
+    version: '0.1.30',
+    requiredSkillIds: flowSkillIds,
+    marketplaceRoot: checkout,
+  })));
   for (const relativePath of flowPayloadPaths) {
     const target = path.join(checkout, relativePath);
     if (fs.existsSync(target)) continue;
@@ -672,9 +741,14 @@ test('descriptor-only packages update migrates legacy Skills before exposing the
       requiredSkillIds: ['opl-flow', 'coordinate-concurrent-tasks'],
       configuredMarketplaceRoot: next.marketplaceRoot,
     });
+    const ownerChannel = writeFlowOwnerChannelFixture(
+      path.join(state.root, 'owner-channel'),
+      next.manifestPath,
+    );
     seedInstalledFlow({ state, oldMarketplaceRoot: previous.marketplaceRoot });
 
     const update = runCli(['packages', 'update', 'opl-flow'], {
+      ...ownerChannel.env,
       ...state.env,
       FIXTURE_REQUIRE_LEGACY_ABSENT: '1',
     }) as any;
@@ -710,9 +784,16 @@ test('public packages update fails closed on a conflicting legacy source before 
       requiredSkillIds: ['opl-flow', 'coordinate-concurrent-tasks'],
       configuredMarketplaceRoot: next.marketplaceRoot,
     });
+    const ownerChannel = writeFlowOwnerChannelFixture(
+      path.join(state.root, 'owner-channel'),
+      next.manifestPath,
+    );
     seedInstalledFlow({ state, oldMarketplaceRoot: previous.marketplaceRoot });
 
-    const failure = runCliFailure(['packages', 'update', 'opl-flow'], state.env);
+    const failure = runCliFailure(['packages', 'update', 'opl-flow'], {
+      ...ownerChannel.env,
+      ...state.env,
+    });
     assert.equal(failure.payload.error.details.failure_code, 'opl_flow_legacy_skill_source_conflict');
     assert.deepEqual(fs.readFileSync(state.lockPath), before);
     for (const skillId of skillIds) assert.equal(fs.existsSync(path.join(state.skillsRoot, skillId)), true);
@@ -737,9 +818,14 @@ test('public packages update restores legacy directories and lock bytes after na
       requiredSkillIds: ['opl-flow', 'coordinate-concurrent-tasks'],
       configuredMarketplaceRoot: next.marketplaceRoot,
     });
+    const ownerChannel = writeFlowOwnerChannelFixture(
+      path.join(state.root, 'owner-channel'),
+      next.manifestPath,
+    );
     seedInstalledFlow({ state, oldMarketplaceRoot: previous.marketplaceRoot });
 
     const failure = runCliFailure(['packages', 'update', 'opl-flow'], {
+      ...ownerChannel.env,
       ...state.env,
       FIXTURE_REQUIRE_LEGACY_ABSENT: '1',
       FIXTURE_FAIL_PLUGIN_ADD: '1',

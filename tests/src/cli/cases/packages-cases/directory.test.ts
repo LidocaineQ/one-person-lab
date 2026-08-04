@@ -1057,7 +1057,7 @@ exit 1
     });
     assert.equal(flow.package_role, 'workflow_profile');
     assert.equal(flow.capability_metadata, null);
-    assert.equal(flow.projected_version, '0.1.35');
+    assert.equal(flow.projected_version, '0.1.36');
     assert.equal(flow.selected_version, null);
     assert.equal(flow.stable_version, null);
     assert.equal(flow.source_explanation.kind, 'first_party_framework_projection');
@@ -1602,11 +1602,24 @@ test('installed-only directory entries retain persisted role and consume canonic
   );
   assertRecommendedActionMatchesAvailable(legacy);
 
-  const invalidRoleDirectory = buildAgentPackageDirectory({
+  const canonicalRoleDirectory = buildAgentPackageDirectory({
     locks: [{ ...lock, package_id: 'opl-flow', package_role: 'invalid_role' }],
     detail: 'fast',
   });
-  const invalidRole = invalidRoleDirectory.entries.find((entry) => entry.package_id === 'opl-flow')!;
+  const canonicalRole = canonicalRoleDirectory.entries.find((entry) => entry.package_id === 'opl-flow')!;
+  assert.equal(canonicalRoleDirectory.status, 'available');
+  assert.equal(canonicalRole.package_role, 'workflow_profile');
+  assert.equal(canonicalRole.role_state.status, 'declared');
+  assert.equal(canonicalRole.role_state.source, 'first_party_framework_projection');
+  assert.equal(canonicalRole.installed, false);
+  assert.equal(canonicalRole.recommended_action, 'install_from_manifest_url');
+  assertRecommendedActionMatchesAvailable(canonicalRole);
+
+  const invalidRoleDirectory = buildAgentPackageDirectory({
+    locks: [{ ...lock, package_id: 'third.party.invalid-role', package_role: 'invalid_role' }],
+    detail: 'fast',
+  });
+  const invalidRole = invalidRoleDirectory.entries.find((entry) => entry.package_id === 'third.party.invalid-role')!;
   assert.equal(invalidRoleDirectory.status, 'attention_required');
   assert.equal(invalidRole.package_role, null);
   assert.equal(invalidRole.role_state.status, 'migration_required');

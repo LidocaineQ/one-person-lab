@@ -352,6 +352,48 @@ function configuredCarrierMatchesTarget(input: {
     && path.resolve(input.readback.carrier.marketplace_source) === path.resolve(input.marketplaceRoot);
 }
 
+function configuredCarrierVersionMatchesPackage(
+  installedVersion: string | null,
+  packageVersion: string,
+) {
+  if (!installedVersion) return false;
+  if (installedVersion === packageVersion) return true;
+  const prefix = `${packageVersion}-`;
+  return installedVersion.startsWith(prefix)
+    && /^[a-f0-9]{64}$/.test(installedVersion.slice(prefix.length));
+}
+
+function configuredCarrierObservedSourceMatchesPackage(
+  source: ConfiguredCodexPluginCarrierReadback['carrier']['observed_sources'][number],
+  packageVersion: string,
+) {
+  if (source.installed_version === packageVersion) return true;
+  if (!configuredCarrierVersionMatchesPackage(source.installed_version, packageVersion)) return false;
+  const generation = source.installed_version?.slice(`${packageVersion}-`.length) ?? null;
+  return generation !== null && generation === source.source_tree_sha256;
+}
+
+function configuredCarrierReadbackIncludesTarget(input: {
+  readback: ConfiguredCodexPluginCarrierReadback;
+  descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  packageVersion: string;
+}) {
+  return input.readback.carrier.observed_sources.some((source) =>
+    source.plugin_id === input.descriptor.carrier.pluginId
+    && sameConfiguredCarrierPath(
+      source.marketplace_source,
+      input.descriptor.carrier.marketplaceSource,
+    )
+    && configuredCarrierObservedSourceMatchesPackage(source, input.packageVersion));
+}
+
+function configuredCarrierObservedVersion(readback: ConfiguredCodexPluginCarrierReadback) {
+  return readback.installed_version
+    ?? (readback.carrier.observed_sources.length === 1
+      ? readback.carrier.observed_sources[0]?.installed_version ?? null
+      : null);
+}
+
 function preparedReleaseChannelRef(prepared: PreparedPackage, fallback: string | null) {
   return prepared.sourceKind === 'first_party_managed_cohort'
     ? packageOwnerChannelRef(prepared.catalogVersion) ?? fallback
@@ -1884,10 +1926,16 @@ function descriptorOwnedCarrierCurrentness(input: {
   installedSourcePath: string;
   readback: ConfiguredCodexPluginCarrierReadback;
   target: ManagedCatalogVersion;
+  installedDescriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  targetDescriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
 }) {
   const reasons: string[] = [];
   if (input.installedManifestVersion !== input.target.package_version
-    || input.readback.installed_version !== input.target.package_version) {
+    || !configuredCarrierReadbackIncludesTarget({
+      readback: input.readback,
+      descriptor: input.targetDescriptor,
+      packageVersion: input.target.package_version,
+    })) {
     reasons.push('package_version_changed');
   }
   if (input.readback.status !== 'installed'
@@ -1897,6 +1945,11 @@ function descriptorOwnedCarrierCurrentness(input: {
   }
   if (!sameConfiguredCarrierPath(input.readback.plugin_source_path, input.installedSourcePath)) {
     reasons.push('configured_carrier_source_changed');
+  }
+  if (input.installedDescriptor.carrier.pluginId !== input.targetDescriptor.carrier.pluginId
+    || input.installedDescriptor.carrier.marketplaceSource
+      !== input.targetDescriptor.carrier.marketplaceSource) {
+    reasons.push('configured_carrier_route_changed');
   }
   return {
     status: reasons.length === 0 ? 'current' as const : 'update_available' as const,
@@ -1980,17 +2033,139 @@ function requiresManagedFirstPartyCarrierCurrentness(packageId: string) {
   return selector !== `${pluginId}@${pluginId}-local`;
 }
 
-async function maybeRunDescriptorOwnedFirstPartyLifecycle(input: {
+function assertConfiguredCarrierReachedOwnerTarget(input: {
+  packageId: string;
+  readback: ConfiguredCodexPluginCarrierReadback;
+  targetDescriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  targetVersion: ManagedCatalogVersion;
+}) {
+  if (configuredCarrierReadbackIncludesTarget({
+    readback: input.readback,
+    descriptor: input.targetDescriptor,
+    packageVersion: input.targetVersion.package_version,
+  })) return;
+  throw new FrameworkContractError(
+    'contract_shape_invalid',
+    'Configured native carrier did not reach the Package owner target version.',
+    {
+      package_id: input.packageId,
+      target_version: input.targetVersion.package_version,
+      observed_version: configuredCarrierObservedVersion(input.readback),
+      failure_code: 'configured_codex_plugin_carrier_target_currentness_mismatch',
+    },
+  );
+}
+
+function transferDescriptorOwnedCarrierRoute(input: {
+  packageId: string;
+  action: 'update' | 'repair';
+  installedDescriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  targetDescriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  targetVersion: ManagedCatalogVersion;
+  selectorChanged: boolean;
+  sourceChanged: boolean;
+}) {
+  const migration = prepareLegacyOplSkillsMigration({
+    packageId: input.packageId,
+    requiredSkillIds: input.targetDescriptor.executor.requiredSkillIds,
+    dryRun: false,
+    env: process.env,
+  });
+  let previousRemoved = false;
+  let targetDispatched = false;
+  try {
+    targetDispatched = true;
+    const provisional = runConfiguredCodexPluginCarrier({
+      descriptor: input.targetDescriptor,
+      action: input.action,
+    });
+    assertConfiguredCarrierReachedOwnerTarget({ ...input, readback: provisional });
+    if (input.selectorChanged) {
+      const removed = runConfiguredCodexPluginCarrier({
+        descriptor: input.installedDescriptor,
+        action: 'remove',
+      });
+      previousRemoved = removed.status === 'not_installed'
+        || removed.status === 'physical_unavailable';
+      if (!previousRemoved) {
+        throw new FrameworkContractError(
+          'contract_shape_invalid',
+          'Previous configured native carrier could not be retired after owner transfer.',
+          {
+            package_id: input.packageId,
+            previous_plugin_selector: input.installedDescriptor.carrier.pluginId,
+            failure_code: 'configured_codex_plugin_carrier_previous_source_retirement_failed',
+          },
+        );
+      }
+    }
+    const carrier = runConfiguredCodexPluginCarrier({
+      descriptor: input.targetDescriptor,
+      action: 'list',
+    });
+    assertOplFlowCoreSkillsCarrierReadback(carrier);
+    assertConfiguredCarrierReachedOwnerTarget({ ...input, readback: carrier });
+    migration.commit();
+    return carrier;
+  } catch (error) {
+    if (targetDispatched && input.selectorChanged) {
+      runConfiguredCodexPluginCarrier({ descriptor: input.targetDescriptor, action: 'remove' });
+    }
+    if (previousRemoved || input.sourceChanged) {
+      const restored = runConfiguredCodexPluginCarrier({
+        descriptor: input.installedDescriptor,
+        action: 'install',
+      });
+      assertOplFlowCoreSkillsCarrierReadback(restored);
+    }
+    migration.rollback();
+    throw error;
+  }
+}
+
+function adoptDescriptorOwnedCarrierTarget(input: {
+  packageId: string;
+  action: 'update' | 'repair';
+  dryRun: boolean;
+  installedDescriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  targetDescriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  targetVersion: ManagedCatalogVersion;
+}) {
+  const selectorChanged = input.installedDescriptor.carrier.pluginId
+    !== input.targetDescriptor.carrier.pluginId;
+  const sourceChanged = input.installedDescriptor.carrier.marketplaceSource
+    !== input.targetDescriptor.carrier.marketplaceSource;
+  if ((selectorChanged || sourceChanged) && !input.dryRun) {
+    return transferDescriptorOwnedCarrierRoute({
+      ...input,
+      selectorChanged,
+      sourceChanged,
+    });
+  }
+  const carrier = runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration({
+    descriptor: input.targetDescriptor,
+    action: input.action,
+    dryRun: input.dryRun,
+  }).carrier;
+  if (!input.dryRun) {
+    assertOplFlowCoreSkillsCarrierReadback(carrier);
+    assertConfiguredCarrierReachedOwnerTarget({ ...input, readback: carrier });
+  }
+  return carrier;
+}
+
+type DescriptorOwnedFirstPartyLifecycleInput = {
   selectionInput: AgentPackageInstallInput | AgentPackageRepairInput;
   action: 'update' | 'repair';
   index: AgentPackageLockIndex;
-}) {
+};
+
+function descriptorOwnedFirstPartyContext(input: DescriptorOwnedFirstPartyLifecycleInput) {
   const packageId = canonicalAgentPackageId(input.selectionInput.packageId);
   const firstParty = resolveFirstPartyPackageCatalog(packageId);
   if (!packageId || !firstParty || input.index.packages.some((entry) => entry.package_id === packageId)) {
     return null;
   }
-  if (!requiresManagedFirstPartyCarrierCurrentness(packageId)) return null;
   const sourcePolicy = resolveAgentPackageEffectiveSourcePolicy(packageId);
   if (sourcePolicy.desired_source_kind !== 'first_party_managed_cohort') return null;
   assertFirstPartyPackageUpdateSelection(input.selectionInput, firstParty, sourcePolicy);
@@ -1999,6 +2174,120 @@ async function maybeRunDescriptorOwnedFirstPartyLifecycle(input: {
     failClosedOnCarrierError: true,
   }).get(packageId) ?? null;
   if (!installed) return null;
+  return {
+    packageId,
+    firstParty,
+    sourcePolicy,
+    installed,
+    managedCarrierCurrentnessRequired: requiresManagedFirstPartyCarrierCurrentness(packageId),
+  };
+}
+
+function descriptorOwnedTargetDescriptor(input: {
+  packageId: string;
+  targetVersion: ManagedCatalogVersion;
+  targetCarrier: AgentPackageConfiguredCodexPluginCarrierDescriptor | null;
+  targetRequiredSkillIds: string[];
+  installedDescriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  managedCarrierCurrentnessRequired: boolean;
+}) {
+  if (firstPartyConfiguredCarrierDescriptors().has(input.packageId) && !input.targetCarrier) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'The live Package owner manifest is missing its configured native carrier authority.',
+      {
+        package_id: input.packageId,
+        target_version: input.targetVersion.package_version,
+        failure_code: 'configured_codex_plugin_carrier_owner_authority_missing',
+      },
+    );
+  }
+  if (!input.managedCarrierCurrentnessRequired && !input.targetCarrier) return null;
+  return input.targetCarrier ?? {
+    ...input.installedDescriptor,
+    executor: {
+      ...input.installedDescriptor.executor,
+      requiredSkillIds: [...input.targetRequiredSkillIds],
+    },
+    publicationRef: input.targetVersion.source_artifact_ref,
+  };
+}
+
+function descriptorOwnedCurrentLifecycleResult(input: {
+  action: 'update' | 'repair';
+  dryRun: boolean;
+  packageId: string;
+  observed: ConfiguredCodexPluginCarrierReadback;
+  currentness: ReturnType<typeof descriptorOwnedCarrierCurrentness>;
+  targetVersion: ManagedCatalogVersion;
+  targetDescriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  catalogRef: string;
+  catalogDigest: string | null;
+  catalogFreshness: 'live';
+  checkedAt: string;
+}) {
+  if (input.currentness.status !== 'current') return null;
+  if (input.action === 'update') {
+    return {
+      version: 'g2' as const,
+      opl_agent_package_update: {
+        surface_kind: 'opl_agent_package_update' as const,
+        status: input.dryRun ? 'validated_no_write' as const : 'current_noop' as const,
+        dry_run: input.dryRun,
+        package_id: input.packageId,
+        configured_carrier: input.observed,
+        currentness: input.currentness,
+        reconciliation_action: null,
+        target_version: input.targetVersion.package_version,
+        observed_version: input.observed.installed_version,
+        target_manifest_sha256: input.targetVersion.manifest_sha256,
+        target_content_digest: input.targetVersion.content_digest,
+        target_artifact_digest: input.targetVersion.artifact_digest,
+        target_source_artifact_ref: input.targetVersion.source_artifact_ref,
+        release_catalog_ref: input.catalogRef,
+        release_catalog_digest: input.catalogDigest,
+        release_catalog_freshness: input.catalogFreshness,
+        release_catalog_checked_at: input.checkedAt,
+        authority_boundary: refsOnlyAuthorityBoundary(),
+      },
+    };
+  }
+  const execution = runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration({
+    descriptor: input.targetDescriptor,
+    action: 'repair',
+    dryRun: input.dryRun,
+  });
+  return {
+    version: 'g2' as const,
+    opl_agent_package_repair: {
+      surface_kind: 'opl_agent_package_repair' as const,
+      ...configuredCarrierLifecycleReadback({
+        action: 'repair',
+        dryRun: input.dryRun,
+        carrier: execution.carrier,
+        target: {
+          currentness: input.currentness,
+          sourceArtifactRef: input.targetVersion.source_artifact_ref,
+          catalogRef: input.catalogRef,
+          catalogDigest: input.catalogDigest,
+          catalogFreshness: input.catalogFreshness,
+          checkedAt: input.checkedAt,
+        },
+      }),
+    },
+  };
+}
+
+async function maybeRunDescriptorOwnedFirstPartyLifecycle(input: DescriptorOwnedFirstPartyLifecycleInput) {
+  const context = descriptorOwnedFirstPartyContext(input);
+  if (!context) return null;
+  const {
+    packageId,
+    firstParty,
+    sourcePolicy,
+    installed,
+    managedCarrierCurrentnessRequired,
+  } = context;
 
   const snapshot = await resolveFirstPartyPackageCatalogSnapshot({
     refresh: true,
@@ -2018,16 +2307,17 @@ async function maybeRunDescriptorOwnedFirstPartyLifecycle(input: {
     catalogManifestPayload(targetVersion),
     targetVersion.manifest_url,
   );
-  const targetDescriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor = {
-    ...installed.carrier,
-    executor: {
-      ...installed.carrier.executor,
-      requiredSkillIds: [...targetManifest.required_skill_ids],
-    },
-    publicationRef: targetVersion.source_artifact_ref,
-  };
+  const targetDescriptor = descriptorOwnedTargetDescriptor({
+    packageId,
+    targetVersion,
+    targetCarrier: targetManifest.configured_codex_plugin_carrier ?? null,
+    targetRequiredSkillIds: targetManifest.required_skill_ids,
+    installedDescriptor: installed.carrier,
+    managedCarrierCurrentnessRequired,
+  });
+  if (!targetDescriptor) return null;
   const observed = runConfiguredCodexPluginCarrier({
-    descriptor: targetDescriptor,
+    descriptor: installed.carrier,
     action: 'list',
   });
   const currentness = descriptorOwnedCarrierCurrentness({
@@ -2036,6 +2326,8 @@ async function maybeRunDescriptorOwnedFirstPartyLifecycle(input: {
     installedSourcePath: installed.sourcePath,
     readback: observed,
     target: targetVersion,
+    installedDescriptor: installed.carrier,
+    targetDescriptor,
   });
   const targetReadback = {
     currentness,
@@ -2046,49 +2338,52 @@ async function maybeRunDescriptorOwnedFirstPartyLifecycle(input: {
     checkedAt: snapshot.checked_at,
   };
 
-  if (currentness.status === 'current') {
-    if (input.action === 'update') {
-      return {
-        version: 'g2',
-        opl_agent_package_update: {
-          surface_kind: 'opl_agent_package_update',
-          status: input.selectionInput.dryRun === true ? 'validated_no_write' : 'current_noop',
-          dry_run: input.selectionInput.dryRun === true,
-          package_id: packageId,
-          configured_carrier: observed,
-          currentness,
-          reconciliation_action: null,
-          target_version: targetVersion.package_version,
-          observed_version: observed.installed_version,
-          target_manifest_sha256: targetVersion.manifest_sha256,
-          target_content_digest: targetVersion.content_digest,
-          target_artifact_digest: targetVersion.artifact_digest,
-          target_source_artifact_ref: targetVersion.source_artifact_ref,
-          release_catalog_ref: snapshot.catalog_ref,
-          release_catalog_digest: snapshot.catalog_digest,
-          release_catalog_freshness: snapshot.freshness,
-          release_catalog_checked_at: snapshot.checked_at,
-          authority_boundary: refsOnlyAuthorityBoundary(),
-        },
-      };
-    }
-    const execution = runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration({
-      descriptor: targetDescriptor,
-      action: 'repair',
-      dryRun: input.selectionInput.dryRun === true,
+  const currentResult = descriptorOwnedCurrentLifecycleResult({
+    action: input.action,
+    dryRun: input.selectionInput.dryRun === true,
+    packageId,
+    observed,
+    currentness,
+    targetVersion,
+    targetDescriptor,
+    catalogRef: snapshot.catalog_ref,
+    catalogDigest: snapshot.catalog_digest,
+    catalogFreshness: snapshot.freshness,
+    checkedAt: snapshot.checked_at,
+  });
+  if (currentResult) return currentResult;
+
+  if (targetManifest.configured_codex_plugin_carrier) {
+    const dryRun = input.selectionInput.dryRun === true;
+    const carrier = adoptDescriptorOwnedCarrierTarget({
+      packageId,
+      action: input.action,
+      dryRun,
+      installedDescriptor: installed.carrier,
+      targetDescriptor,
+      targetVersion,
     });
-    return {
-      version: 'g2',
-      opl_agent_package_repair: {
-        surface_kind: 'opl_agent_package_repair',
-        ...configuredCarrierLifecycleReadback({
-          action: 'repair',
-          dryRun: input.selectionInput.dryRun === true,
-          carrier: execution.carrier,
-          target: targetReadback,
-        }),
-      },
-    };
+    const readback = configuredCarrierLifecycleReadback({
+      action: input.action,
+      dryRun,
+      carrier,
+      target: targetReadback,
+    });
+    return input.action === 'update'
+      ? {
+          version: 'g2',
+          opl_agent_package_update: {
+            surface_kind: 'opl_agent_package_update',
+            ...readback,
+          },
+        }
+      : {
+          version: 'g2',
+          opl_agent_package_repair: {
+            surface_kind: 'opl_agent_package_repair',
+            ...readback,
+          },
+        };
   }
 
   const closureTargets = firstPartyCatalogClosure(snapshot.catalog, packageId, targetVersion);
@@ -2213,27 +2508,45 @@ function nativeOwnerCanRetireManagedLock(lock: AgentPackageLock) {
     && !legacyPaths.some((entry) => pathsOverlap(entry, descriptor.sourcePath));
 }
 
+function configuredCarrierUsesDeveloperCheckout(packageId: string | null) {
+  return Boolean(
+    packageId
+    && resolveFirstPartyPackageCatalog(packageId)
+    && resolveAgentPackageEffectiveSourcePolicy(packageId).desired_source_kind
+      === 'developer_checkout_override',
+  );
+}
+
+function managedLockDefersConfiguredCarrier(input: {
+  lock: AgentPackageLock | null;
+  action: Exclude<ConfiguredCodexPluginCarrierAction, 'list'>;
+}) {
+  if (!input.lock) return false;
+  if (input.action === 'remove') return true;
+  return (input.action === 'update' || input.action === 'repair')
+    && !nativeOwnerCanRetireManagedLock(input.lock);
+}
+
+function descriptorOwnerDefersConfiguredCarrier(input: {
+  packageId: string | null;
+  action: Exclude<ConfiguredCodexPluginCarrierAction, 'list'>;
+}) {
+  if (!input.packageId || !resolveFirstPartyPackageCatalog(input.packageId)) return false;
+  if (input.action !== 'update' && input.action !== 'repair') return false;
+  return requiresManagedFirstPartyCarrierCurrentness(input.packageId)
+    && resolveAgentPackageEffectiveSourcePolicy(input.packageId).desired_source_kind
+      === 'first_party_managed_cohort';
+}
+
 async function maybeRunConfiguredCarrierLifecycle(input: {
   selectionInput: ConfiguredCarrierSelectionInput;
   action: Exclude<ConfiguredCodexPluginCarrierAction, 'list'>;
 }) {
   const packageId = canonicalAgentPackageId(input.selectionInput.packageId);
   const managedFirstPartyLock = currentHomeManagedFirstPartyLock(packageId);
-  if (managedFirstPartyLock) {
-    if (input.action === 'remove') return null;
-    if (
-      (input.action === 'update' || input.action === 'repair')
-      && !nativeOwnerCanRetireManagedLock(managedFirstPartyLock)
-    ) {
-      return null;
-    }
-  }
-  if (packageId
-    && resolveFirstPartyPackageCatalog(packageId)
-    && (input.action === 'update' || input.action === 'repair')
-    && requiresManagedFirstPartyCarrierCurrentness(packageId)
-    && resolveAgentPackageEffectiveSourcePolicy(packageId).desired_source_kind
-      === 'first_party_managed_cohort') {
+  if (configuredCarrierUsesDeveloperCheckout(packageId)
+    || managedLockDefersConfiguredCarrier({ lock: managedFirstPartyLock, action: input.action })
+    || descriptorOwnerDefersConfiguredCarrier({ packageId, action: input.action })) {
     return null;
   }
   const selected = await resolveFreshConfiguredCarrier(input.selectionInput);
@@ -3457,6 +3770,12 @@ async function runOplAgentPackageUpdateUnlocked(
 }
 
 export async function runOplAgentPackageUpdate(input: AgentPackageInstallInput) {
+  const descriptorOwned = await maybeRunDescriptorOwnedFirstPartyLifecycle({
+    selectionInput: input,
+    action: 'update',
+    index: readRecoveredLockIndex(true).index,
+  });
+  if (descriptorOwned) return descriptorOwned;
   const configured = await maybeRunConfiguredCarrierLifecycle({
     selectionInput: input,
     action: 'update',
@@ -3588,6 +3907,12 @@ async function runOplAgentPackageRepairUnlocked(input: AgentPackageRepairInput) 
 }
 
 export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
+  const descriptorOwned = await maybeRunDescriptorOwnedFirstPartyLifecycle({
+    selectionInput: input,
+    action: 'repair',
+    index: readRecoveredLockIndex(true).index,
+  });
+  if (descriptorOwned) return descriptorOwned;
   const configured = await maybeRunConfiguredCarrierLifecycle({
     selectionInput: input,
     action: 'repair',

@@ -258,6 +258,7 @@ function writeFirstPartyCatalogFixture(
   options: {
     manifestCarrierSourceCommit?: string | null;
     requiredSkillIds?: string[];
+    configuredCarrier?: boolean;
   } = {},
 ) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `opl-first-party-catalog-${version}-`));
@@ -271,7 +272,7 @@ function writeFirstPartyCatalogFixture(
     displayName: 'OPL Flow',
     description: 'First-party catalog fixture.',
   });
-  const requiredSkillIds = options.requiredSkillIds ?? ['opl-flow'];
+  const requiredSkillIds = options.requiredSkillIds ?? FLOW_SKILL_IDS;
   const skillMarkdown = (skillId: string) =>
     `# ${skillId === 'opl-flow' ? 'OPL Flow' : skillId}\n\nFirst-party catalog fixture.\n`;
   const agentsMarkdown = '# OPL Flow fixture profile\n';
@@ -324,6 +325,7 @@ function writeFirstPartyCatalogFixture(
   });
   const workflowPolicySchema = formatJsonPayload({ type: 'object' });
   fs.mkdirSync(path.join(sourceRoot, '.codex-plugin'), { recursive: true });
+  fs.mkdirSync(path.join(sourceRoot, '.agents', 'plugins'), { recursive: true });
   for (const skillId of requiredSkillIds) {
     fs.mkdirSync(path.join(sourceRoot, 'skills', skillId), { recursive: true });
   }
@@ -332,6 +334,16 @@ function writeFirstPartyCatalogFixture(
   fs.mkdirSync(blobRoot, { recursive: true });
   fs.mkdirSync(fakeBin, { recursive: true });
   fs.writeFileSync(path.join(sourceRoot, '.codex-plugin', 'plugin.json'), pluginJson);
+  fs.writeFileSync(
+    path.join(sourceRoot, '.agents', 'plugins', 'marketplace.json'),
+    formatJsonPayload({
+      name: 'opl-flow-local',
+      plugins: [{
+        name: 'opl-flow',
+        source: { source: 'local', path: './' },
+      }],
+    }),
+  );
   for (const skillId of requiredSkillIds) {
     fs.writeFileSync(path.join(sourceRoot, 'skills', skillId, 'SKILL.md'), skillMarkdown(skillId));
   }
@@ -339,9 +351,6 @@ function writeFirstPartyCatalogFixture(
   fs.writeFileSync(path.join(sourceRoot, 'templates', 'TASTE.md'), tasteMarkdown);
   fs.writeFileSync(path.join(sourceRoot, 'contracts', 'workflow-policy.json'), workflowPolicy);
   fs.writeFileSync(path.join(sourceRoot, 'contracts', 'workflow-policy.schema.json'), workflowPolicySchema);
-  const archivePath = path.join(root, `opl-flow-${version}.tar.gz`);
-  execFileSync('tar', ['-czf', archivePath, 'opl-flow'], { cwd: sourceParent });
-  const archiveSha256 = crypto.createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
   const sourceArtifactRef = `ghcr.io/fixture/one-person-lab-packages/opl-flow:${version}`;
   const manifest = {
     surface_kind: 'opl_workflow_profile_package_manifest.v1',
@@ -358,6 +367,15 @@ function writeFirstPartyCatalogFixture(
       ...(options.manifestCarrierSourceCommit === null ? {} : {
         carrier_source_commit: options.manifestCarrierSourceCommit ?? ownerSourceCommit,
       }),
+      ...(options.configuredCarrier === false ? {} : {
+        configured_codex_plugin_carrier: {
+          kind: 'codex_plugin_manager',
+          plugin_selector: 'opl-flow@opl-flow-local',
+          executor_route: 'codex_cli',
+          marketplace_source: sourceRoot,
+          publication_ref: 'ghcr.io/fixture/one-person-lab-packages/opl-flow:latest-stable',
+        },
+      }),
       required_skill_ids: requiredSkillIds,
     },
     profile_surface: {
@@ -373,6 +391,11 @@ function writeFirstPartyCatalogFixture(
     },
     capability_dependencies: [],
   };
+  const manifestJson = formatJsonPayload(manifest);
+  fs.writeFileSync(path.join(sourceRoot, 'opl-package.json'), manifestJson);
+  const archivePath = path.join(root, `opl-flow-${version}.tar.gz`);
+  execFileSync('tar', ['-czf', archivePath, 'opl-flow'], { cwd: sourceParent });
+  const archiveSha256 = crypto.createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
   const payload = {
     surface_kind: 'opl_agent_package_payload_manifest',
     package_id: 'opl-flow',
@@ -400,6 +423,7 @@ function writeFirstPartyCatalogFixture(
         sha256: `sha256:${crypto.createHash('sha256').update(skillMarkdown(skillId)).digest('hex')}`,
       })),
       ...[
+        ['opl-package.json', manifestJson],
         ['templates/AGENTS.md', agentsMarkdown],
         ['templates/TASTE.md', tasteMarkdown],
         ['contracts/workflow-policy.json', workflowPolicy],
@@ -413,7 +437,6 @@ function writeFirstPartyCatalogFixture(
       })),
     ],
   };
-  const manifestJson = formatJsonPayload(manifest);
   const payloadManifestJson = formatJsonPayload(payload);
   const manifestSha256 = `sha256:${crypto.createHash('sha256').update(manifestJson).digest('hex')}`;
   const payloadManifestSha256 = `sha256:${crypto.createHash('sha256').update(payloadManifestJson).digest('hex')}`;
@@ -473,11 +496,14 @@ function writeFirstPartyCatalogFixture(
     '}',
     'process.exit(22);',
   ].join('\n'), { mode: 0o755 });
+  const codex = createFakeCodexPluginManagerFixture(path.join(root, 'fake-codex'));
   return {
     root,
+    sourceRoot,
     env: {
       OPL_PACKAGES_OWNER: 'fixture',
       OPL_PACKAGE_CHANNEL_TAG: 'stable',
+      OPL_CODEX_PLUGIN_BIN: codex.codexPath,
       PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
     },
     artifactDigest,
@@ -993,13 +1019,14 @@ test('first-party identities reject explicit registries and unowned manifest bod
 test('first-party install and update read one owner channel without shared-manifest currentness', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-catalog-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-catalog-home-'));
-  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-catalog-workspace-'));
+  const codex = createFakeCodexPluginManagerFixture(path.join(stateDir, 'fake-codex'));
   const first = writeFirstPartyCatalogFixture('0.2.0', '1'.repeat(40));
   const second = writeFirstPartyCatalogFixture('0.2.1', '2'.repeat(40));
   const commonEnv = {
     HOME: homeDir,
     CODEX_HOME: path.join(homeDir, '.codex'),
     OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: codex.codexPath,
     OPL_CLI_TEST_TIMEOUT_MS: '90000',
   };
   try {
@@ -1008,36 +1035,20 @@ test('first-party install and update read one owner channel without shared-manif
       '--action', 'install_from_manifest_url',
       '--payload', JSON.stringify({ package_id: 'opl-flow' }),
     ], {
-      ...commonEnv,
       ...first.env,
+      ...commonEnv,
     }) as any;
     assert.equal(
       installedAction.app_action_execution.delegated_surface,
       'opl packages install --manifest-url <manifest_url>',
     );
     const installed = installedAction.app_action_execution.result;
-    const installedLock = installed.opl_agent_package_install.package_lock;
-    assert.equal(installedLock.package_id, 'opl-flow');
-    assert.equal(installedLock.package_role, 'workflow_profile');
-    assert.equal(installedLock.package_version, '0.2.0');
-    assert.equal(installedLock.source_kind, 'first_party_managed_cohort');
-    assert.equal(installedLock.trust_tier, 'first_party');
-    assert.equal(installedLock.owner_source_commit, '1'.repeat(40));
-    assert.equal(installedLock.source_artifact_ref, first.sourceArtifactRef);
-    assert.equal(installedLock.artifact_digest, first.artifactDigest);
-    assert.equal(installedLock.release_channel_ref, 'ghcr.io/fixture/one-person-lab-packages/opl-flow:latest-stable');
-    assert.equal(installedLock.release_channel_digest, first.artifactDigest);
-    assert.equal(installedLock.manifest_sha256, first.manifestSha256.replace(/^sha256:/, ''));
-    assert.equal(installedLock.content_digest, first.manifestSha256);
-    assert.equal(
-      installedLock.managed_update_source.catalog_ref,
-      'ghcr.io/fixture/one-person-lab-packages/opl-flow:latest-stable',
-    );
-    assert.equal(installedLock.physical_surface.status, 'materialized');
-    assert.equal(
-      fs.readFileSync(path.join(installedLock.physical_surface.codex_plugin_cache_path, 'skills', 'opl-flow', 'SKILL.md'), 'utf8'),
-      '# OPL Flow\n\nFirst-party catalog fixture.\n',
-    );
+    const installedSurface = installed.opl_agent_package_install;
+    assert.equal(installedSurface.status, 'installed');
+    assert.equal(installedSurface.package_id, 'opl-flow');
+    assert.equal(installedSurface.configured_carrier.installed_version, '0.2.0');
+    assert.equal(installedSurface.configured_carrier.executor.status, 'callable');
+    assert.equal(installedSurface.configured_carrier.plugin_source_path, first.sourceRoot);
     const firstOwnerReads = fs.readFileSync(first.curlLogPath, 'utf8')
       .split('\n')
       .filter((line) => line.includes('/one-person-lab-packages/opl-flow/manifests/latest-stable'));
@@ -1047,33 +1058,32 @@ test('first-party install and update read one owner channel without shared-manif
       false,
     );
 
-    const activated = runCli([
-      'packages', 'activate', 'opl-flow', '--scope', 'workspace', '--target-workspace', workspace,
-    ], {
-      ...commonEnv,
-      ...first.env,
-    }) as any;
-    assert.equal(activated.opl_agent_package_activation.package_use_binding.root_package.owner_source_commit, '1'.repeat(40));
-    assert.equal(Object.hasOwn(activated.opl_agent_package_activation.package_use_binding, 'use_receipt_ref'), false);
-    assert.equal(Object.hasOwn(activated.opl_agent_package_activation, 'use_receipt'), false);
-
     const updated = runCli(['packages', 'update', 'opl-flow'], {
-      ...commonEnv,
       ...second.env,
+      ...commonEnv,
     }) as any;
-    const updatedLock = updated.opl_agent_package_update.package_lock;
-    assert.equal(updatedLock.package_version, '0.2.1');
-    assert.equal(updatedLock.owner_source_commit, '2'.repeat(40));
-    assert.equal(updatedLock.source_artifact_ref, second.sourceArtifactRef);
-    assert.equal(updatedLock.artifact_digest, second.artifactDigest);
-    assert.equal(updatedLock.release_channel_digest, second.artifactDigest);
-    assert.equal(updatedLock.manifest_sha256, second.manifestSha256.replace(/^sha256:/, ''));
-    assert.equal(updated.opl_agent_package_update.lifecycle_receipt.owner_source_commit, '2'.repeat(40));
-    assert.equal(updated.opl_agent_package_update.lifecycle_receipt.artifact_digest, second.artifactDigest);
+    const updatedSurface = updated.opl_agent_package_update;
+    assert.equal(updatedSurface.status, 'updated');
+    assert.equal(updatedSurface.target_version, '0.2.1');
+    assert.equal(updatedSurface.observed_version, '0.2.1');
+    assert.equal(updatedSurface.currentness.status, 'update_available');
+    assert.equal(updatedSurface.target_source_artifact_ref, second.sourceArtifactRef);
+    assert.equal(updatedSurface.configured_carrier.plugin_source_path, second.sourceRoot);
+    const secondOwnerReads = fs.readFileSync(second.curlLogPath, 'utf8')
+      .split('\n')
+      .filter((line) => line.includes('/one-person-lab-packages/opl-flow/manifests/latest-stable'));
+    assert.equal(secondOwnerReads.length, 1);
+    assert.equal(fs.readFileSync(second.curlLogPath, 'utf8').includes('/one-person-lab-manifest/'), false);
+    for (const fileName of [
+      'agent-package-locks.json',
+      'agent-package-lifecycle-ledger.json',
+      'agent-package-registry-cache.json',
+    ]) {
+      assert.equal(fs.existsSync(path.join(stateDir, fileName)), false, fileName);
+    }
   } finally {
     removeFixtureTree(stateDir);
     fs.rmSync(homeDir, { recursive: true, force: true });
-    fs.rmSync(workspace, { recursive: true, force: true });
     fs.rmSync(first.root, { recursive: true, force: true });
     fs.rmSync(second.root, { recursive: true, force: true });
   }
@@ -1102,9 +1112,19 @@ test('descriptor-owned Flow update adopts the exact live owner target and become
   try {
     seedDescriptorOwnedFlowCarrier({ codexPath: codex.codexPath, carrier, env: commonEnv });
 
-    const current = runCli(['packages', 'update', 'opl-flow'], {
-      ...commonEnv,
+    const adopted = runCli(['packages', 'update', 'opl-flow'], {
       ...currentOwner.env,
+      ...commonEnv,
+    }) as any;
+    const adoptedSurface = adopted.opl_agent_package_update;
+    assert.equal(adoptedSurface.status, 'updated');
+    assert.equal(adoptedSurface.currentness.status, 'update_available');
+    assert.ok(adoptedSurface.currentness.reasons.includes('configured_carrier_route_changed'));
+    assert.equal(adoptedSurface.configured_carrier.plugin_source_path, currentOwner.sourceRoot);
+
+    const current = runCli(['packages', 'update', 'opl-flow'], {
+      ...currentOwner.env,
+      ...commonEnv,
     }) as any;
     const currentSurface = current.opl_agent_package_update;
     assert.equal(currentSurface.status, 'current_noop');
@@ -1114,8 +1134,8 @@ test('descriptor-owned Flow update adopts the exact live owner target and become
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
 
     const repaired = runCli(['packages', 'repair', '--package-id', 'opl-flow'], {
-      ...commonEnv,
       ...currentOwner.env,
+      ...commonEnv,
     }) as any;
     const repairedSurface = repaired.opl_agent_package_repair;
     assert.equal(repairedSurface.status, 'repaired');
@@ -1125,25 +1145,22 @@ test('descriptor-owned Flow update adopts the exact live owner target and become
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
 
     const updated = runCli(['packages', 'update', 'opl-flow'], {
-      ...commonEnv,
       ...nextOwner.env,
+      ...commonEnv,
     }) as any;
     const updatedSurface = updated.opl_agent_package_update;
     assert.equal(updatedSurface.status, 'updated');
     assert.equal(updatedSurface.currentness.status, 'update_available');
     assert.ok(updatedSurface.currentness.reasons.includes('package_version_changed'));
     assert.equal(updatedSurface.target_version, '0.1.32');
-    assert.equal(updatedSurface.package_lock.package_version, '0.1.32');
-    assert.equal(updatedSurface.package_lock.source_kind, 'first_party_managed_cohort');
     assert.equal(updatedSurface.configured_carrier.installed_version, '0.1.32');
-    assert.equal(
-      updatedSurface.configured_carrier.plugin_source_path,
-      updatedSurface.physical_surface.marketplace_plugin_path,
-    );
+    assert.equal(updatedSurface.configured_carrier.plugin_source_path, nextOwner.sourceRoot);
     assert.equal(updatedSurface.target_source_artifact_ref, nextOwner.sourceArtifactRef);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
 
     const status = runCli(['packages', 'status', '--package-id', 'opl-flow'], commonEnv) as any;
-    assert.equal(status.opl_agent_package_status.installed_packages[0].package_version, '0.1.32');
+    assert.equal(status.opl_agent_package_status.installed_package_count, 1);
+    assert.equal(status.opl_agent_package_status.installed_packages.length, 0);
     assert.equal(status.opl_agent_package_status.configured_carrier.installed_version, '0.1.32');
   } finally {
     removeFixtureTree(root);
@@ -1173,18 +1190,12 @@ test('descriptor-owned Flow accepts only the exact content-qualified carrier gen
       OPL_STATE_DIR: stateDir,
       OPL_CODEX_PLUGIN_BIN: overrideCodex,
       OPL_CLI_TEST_TIMEOUT_MS: '90000',
-      FIXTURE_CARRIER_SOURCE_CONTAINS: path.join(stateDir, 'codex-plugin-marketplaces'),
+      FIXTURE_CARRIER_SOURCE_CONTAINS: nextOwner.sourceRoot,
     };
     try {
       seedDescriptorOwnedFlowCarrier({ codexPath: codex.codexPath, carrier, env: baseEnv });
-      const preview = runCli(['packages', 'update', 'opl-flow', '--dry-run'], {
-        ...baseEnv,
-        ...nextOwner.env,
-      }) as any;
-      const expectedContentQualifiedVersion = path.basename(
-        preview.opl_agent_package_update.physical_surface.codex_plugin_cache_path,
-      );
-      const expectedGeneration = expectedContentQualifiedVersion.slice('0.1.32-'.length);
+      const expectedGeneration = computePackageChannelTreeSha256(nextOwner.sourceRoot);
+      const expectedContentQualifiedVersion = `0.1.32-${expectedGeneration}`;
       const observedGeneration = input.versionSuffix === 'matching'
         ? expectedGeneration
         : input.versionSuffix;
@@ -1192,7 +1203,8 @@ test('descriptor-owned Flow accepts only the exact content-qualified carrier gen
         ? path.join(root, 'wrong-carrier-source')
         : null;
       if (overrideSourcePath) {
-        fs.cpSync(carrier.pluginRoot, overrideSourcePath, { recursive: true });
+        fs.cpSync(nextOwner.sourceRoot, overrideSourcePath, { recursive: true });
+        fs.writeFileSync(path.join(overrideSourcePath, 'wrong-source-marker.txt'), 'wrong\n');
       }
       const commonEnv = {
         ...baseEnv,
@@ -1203,8 +1215,8 @@ test('descriptor-owned Flow accepts only the exact content-qualified carrier gen
       };
       if (input.expectSuccess) {
         const updated = runCli(['packages', 'update', 'opl-flow'], {
-          ...commonEnv,
           ...nextOwner.env,
+          ...commonEnv,
         }) as any;
         assert.equal(updated.opl_agent_package_update.status, 'updated');
         assert.equal(
@@ -1212,8 +1224,8 @@ test('descriptor-owned Flow accepts only the exact content-qualified carrier gen
           expectedContentQualifiedVersion,
         );
         assert.equal(updated.opl_agent_package_update.configured_carrier.executor.status, 'callable');
-        const pluginRoot = updated.opl_agent_package_update.package_lock
-          .physical_surface.codex_plugin_cache_path;
+        const pluginRoot = updated.opl_agent_package_update.configured_carrier.plugin_source_path;
+        assert.equal(pluginRoot, nextOwner.sourceRoot);
         for (const skillId of FLOW_SKILL_IDS) {
           assert.equal(
             fs.existsSync(path.join(pluginRoot, 'skills', skillId, 'SKILL.md')),
@@ -1224,18 +1236,14 @@ test('descriptor-owned Flow accepts only the exact content-qualified carrier gen
         return;
       }
       const failure = runCliFailure(['packages', 'update', 'opl-flow'], {
-        ...commonEnv,
         ...nextOwner.env,
+        ...commonEnv,
       });
       assert.equal(
         failure.payload.error.details.failure_code,
         'configured_codex_plugin_carrier_target_currentness_mismatch',
       );
       assert.equal(failure.payload.error.details.target_version, '0.1.32');
-      assert.equal(
-        failure.payload.error.details.target_content_qualified_version,
-        expectedContentQualifiedVersion,
-      );
       assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
     } finally {
       removeFixtureTree(root);
@@ -1278,8 +1286,8 @@ test('descriptor-owned Flow update rejects a successful native no-op and preserv
       ['packages', 'repair', '--package-id', 'opl-flow'],
     ]) {
       const failure = runCliFailure(args, {
-        ...commonEnv,
         ...nextOwner.env,
+        ...commonEnv,
       });
       assert.equal(
         failure.payload.error.details.failure_code,
@@ -1493,28 +1501,36 @@ test('identity-drifted bundled OMA reconciles only through its owner package cha
   }
 });
 
-test('a previous first-party lock cannot mask a new manifest missing carrier authority', () => {
+test('an installed first-party descriptor cannot mask a new manifest missing carrier authority', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-carrier-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-carrier-home-'));
+  const codex = createFakeCodexPluginManagerFixture(path.join(stateDir, 'fake-codex'));
   const first = writeFirstPartyCatalogFixture('0.2.0', '1'.repeat(40));
   const missing = writeFirstPartyCatalogFixture('0.2.1', '2'.repeat(40), {
-    manifestCarrierSourceCommit: null,
+    configuredCarrier: false,
   });
   const commonEnv = {
     HOME: homeDir,
     CODEX_HOME: path.join(homeDir, '.codex'),
     OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: codex.codexPath,
   };
   try {
-    const installed = runCli(['packages', 'install', 'opl-flow'], { ...commonEnv, ...first.env }) as any;
-    const originalLockRef = installed.opl_agent_package_install.package_lock.lock_ref;
-    const failure = runCliFailure(['packages', 'update', 'opl-flow'], { ...commonEnv, ...missing.env });
+    const installed = runCli(['packages', 'install', 'opl-flow'], { ...first.env, ...commonEnv }) as any;
+    assert.equal(installed.opl_agent_package_install.configured_carrier.installed_version, '0.2.0');
+    assert.equal(installed.opl_agent_package_install.configured_carrier.plugin_source_path, first.sourceRoot);
+    const failure = runCliFailure(['packages', 'update', 'opl-flow'], { ...missing.env, ...commonEnv });
     assert.equal(failure.payload.error.code, 'contract_shape_invalid');
-    assert.equal(failure.payload.error.details.failure_code, 'first_party_package_payload_identity_mismatch');
-    assert.ok(failure.payload.error.details.mismatches.includes('manifest_carrier_source_commit'));
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'configured_codex_plugin_carrier_owner_authority_missing',
+    );
     const retained = runCli(['packages', 'status', '--package-id', 'opl-flow'], commonEnv) as any;
-    assert.equal(retained.opl_agent_package_status.installed_packages[0].lock_ref, originalLockRef);
-    assert.equal(retained.opl_agent_package_status.installed_packages[0].owner_source_commit, '1'.repeat(40));
+    assert.equal(retained.opl_agent_package_status.installed_package_count, 1);
+    assert.equal(retained.opl_agent_package_status.installed_packages.length, 0);
+    assert.equal(retained.opl_agent_package_status.configured_carrier.installed_version, '0.2.0');
+    assert.equal(retained.opl_agent_package_status.configured_carrier.plugin_source_path, first.sourceRoot);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
   } finally {
     removeFixtureTree(stateDir);
     fs.rmSync(homeDir, { recursive: true, force: true });
@@ -1546,24 +1562,22 @@ test('first-party activation uses the installed package without reading an inval
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-activation-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-activation-home-'));
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-activation-workspace-'));
+  const codex = createFakeCodexPluginManagerFixture(path.join(stateDir, 'fake-codex'));
   const installedFixture = writeFirstPartyCatalogFixture('0.2.0', '1'.repeat(40));
   const invalidFixture = writeFirstPartyCatalogFixture('0.2.1', 'not-an-owner-commit');
   const commonEnv = {
     HOME: homeDir,
     CODEX_HOME: path.join(homeDir, '.codex'),
     OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: codex.codexPath,
   };
   try {
     const installed = runCli(['packages', 'install', 'opl-flow'], {
-      ...commonEnv,
       ...installedFixture.env,
+      ...commonEnv,
     }) as any;
-    const pluginPath = path.join(
-      installed.opl_agent_package_install.package_lock.physical_surface.codex_plugin_cache_path,
-      '.codex-plugin',
-      'plugin.json',
-    );
-    const installedLock = installed.opl_agent_package_install.package_lock;
+    assert.equal(installed.opl_agent_package_install.configured_carrier.installed_version, '0.2.0');
+    const pluginPath = path.join(installedFixture.sourceRoot, '.codex-plugin', 'plugin.json');
     const invalidCatalogReadsBefore = fs.existsSync(invalidFixture.curlLogPath)
       ? fs.readFileSync(invalidFixture.curlLogPath, 'utf8').trim()
       : '';
@@ -1572,14 +1586,13 @@ test('first-party activation uses the installed package without reading an inval
       'packages', 'activate', 'opl-flow',
       '--scope', 'workspace', '--target-workspace', workspace,
     ], {
-      ...commonEnv,
       ...invalidFixture.env,
+      ...commonEnv,
     }).opl_agent_package_activation;
-    assert.equal(activation.package_lock.package_version, '0.2.0');
-    assert.equal(activation.package_use_binding.source_selection, 'installed_package_lock');
-    assert.equal(activation.package_use_binding.network_accessed, false);
-    assert.equal(activation.package_use_binding.remote_dependency_policy, 'forbidden');
-    assert.equal(activation.package_use_binding.root_package.package_lock_ref, installedLock.lock_ref);
+    assert.equal(activation.status, 'already_activated');
+    assert.equal(activation.operational_ready, true);
+    assert.equal(activation.launch_allowed, true);
+    assert.equal(activation.writes_performed, false);
     const invalidCatalogReadsAfter = fs.existsSync(invalidFixture.curlLogPath)
       ? fs.readFileSync(invalidFixture.curlLogPath, 'utf8').trim()
       : '';

@@ -426,7 +426,7 @@ test('package actions describe both positional and flagged package selection', (
   );
 });
 
-test('OPL Flow manifest resolves its package-owned 0.1.35 carrier and managed policy payload', () => {
+test('OPL Flow manifest resolves its package-owned 0.1.36 native carrier and managed policy payload', () => {
   const manifestPath = path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'opl-flow.json');
   const manifest = normalizePackageManifest(
     parseJsonText(fs.readFileSync(manifestPath, 'utf8')),
@@ -434,7 +434,7 @@ test('OPL Flow manifest resolves its package-owned 0.1.35 carrier and managed po
   );
 
   assert.equal(manifest.package_id, 'opl-flow');
-  assert.equal(manifest.version, '0.1.35');
+  assert.equal(manifest.version, '0.1.36');
   assert.deepEqual(manifest.required_skill_ids, [
     'coordinate-concurrent-tasks',
     'develop-and-deliver',
@@ -446,8 +446,29 @@ test('OPL Flow manifest resolves its package-owned 0.1.35 carrier and managed po
   ]);
   assert.equal(
     manifest.plugin_payload_manifest_url,
-    path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'payloads', 'opl-flow-0.1.35.json'),
+    path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'payloads', 'opl-flow-0.1.36.json'),
   );
+  assert.deepEqual(manifest.configured_codex_plugin_carrier, {
+    packageId: 'opl-flow',
+    carrier: {
+      kind: 'codex_plugin_manager',
+      pluginId: 'opl-flow@opl-flow-local',
+      marketplaceSource: 'gaofeng21cn/opl-flow',
+    },
+    executor: {
+      route: 'codex_cli',
+      requiredSkillIds: [
+        'coordinate-concurrent-tasks',
+        'develop-and-deliver',
+        'github-ssot-patrol',
+        'opl-fleet',
+        'opl-flow',
+        'recover-codex-tasks',
+        'task-mode-gate',
+      ],
+    },
+    publicationRef: 'ghcr.io/gaofeng21cn/one-person-lab-packages/opl-flow:latest-stable',
+  });
   assert.deepEqual(manifest.managed_policy_surface, {
     policy_kind: 'opl_flow_workflow_policy',
     source_path: 'contracts/workflow-policy.json',
