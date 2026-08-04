@@ -834,10 +834,10 @@ test('live owner refresh stays ephemeral and does not request the shared manifes
     const snapshot = await refreshFirstPartyPackageCatalogSnapshot('opl-flow');
     assert.equal(snapshot.freshness, 'live');
     assert.equal(snapshot.catalog_ref, 'ghcr.io/fixture/one-person-lab-packages/opl-flow:latest-stable');
-    assert.equal(snapshot.release_set_descriptor_digest, fixture.artifactDigest);
-    assert.equal(snapshot.channel_manifest_layer_digest, fixture.artifactDigest);
-    assert.match(snapshot.package_catalog_digest, /^sha256:[0-9a-f]{64}$/);
     assert.equal(snapshot.catalog_digest, fixture.artifactDigest);
+    assert.equal(Object.hasOwn(snapshot, 'release_set_descriptor_digest'), false);
+    assert.equal(Object.hasOwn(snapshot, 'channel_manifest_layer_digest'), false);
+    assert.equal(Object.hasOwn(snapshot, 'package_catalog_digest'), false);
     assert.equal(fs.existsSync(
       path.join(stateDir, 'agent-package-release-catalog-cache.json'),
     ), false);

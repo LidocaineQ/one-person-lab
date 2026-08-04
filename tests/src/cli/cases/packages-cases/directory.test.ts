@@ -1063,7 +1063,10 @@ exit 1
     assert.equal(flow.source_explanation.kind, 'first_party_framework_projection');
     assert.equal(flow.version_currentness.status, 'framework_projection_only');
     assert.equal(flow.version_currentness.live_verified, false);
-    assert.equal(directory.first_party_release_currentness.status, 'unknown');
+    assert.equal(directory.source_catalog_kind, 'opl_framework_package_projection+installed_descriptor');
+    assert.equal(directory.first_party_owner_currentness.status, 'not_requested');
+    assert.equal(directory.first_party_owner_currentness.channel_kind, 'per_package_owner_oci_latest_stable');
+    assert.equal(Object.hasOwn(directory, 'first_party_release_currentness'), false);
     assert.equal(scholarSkills.package_role, 'capability_package');
     assert.equal(scholarSkills.capability_metadata, null);
     assert.deepEqual(
@@ -1103,7 +1106,8 @@ exit 1
         assert.equal(projected.surface_kind, 'opl_agent_package_directory.v1');
         assert.equal(projected.detail, profile);
         assert.equal(projected.entries.length, CANONICAL_PACKAGE_IDS.length);
-        assert.equal(projected.first_party_release_currentness.status, 'unknown');
+        assert.equal(projected.first_party_owner_currentness.status, 'not_requested');
+        assert.equal(Object.hasOwn(projected, 'first_party_release_currentness'), false);
         assert.equal(projected.entries.every((entry: any) =>
           entry.package_id && entry.package_role && entry.installability && entry.recommended_action), true);
         assert.equal('directory' in projected, false);
@@ -1163,93 +1167,7 @@ test('Developer Mode selects every available first-party Package checkout', () =
   }
 });
 
-test('first-party Directory versions come only from the managed Release Set selector', () =>
-  withIsolatedStateDir('opl-package-directory-release-selector', () => {
-  const versions = new Map(getOplPackageSpecs().map((spec) => {
-    const packageVersion = spec.package_id === 'opl-flow' ? '0.1.19' : spec.selected_version;
-    const sourceArtifactRef = `ghcr.io/fixture/one-person-lab-packages/${spec.package_id}:${packageVersion}`;
-    const sourceManifest = parseJsonText(fs.readFileSync(path.join(repoRoot, spec.package_manifest_ref), 'utf8')) as Record<string, unknown>;
-    const manifestJson = formatJsonPayload({
-      ...sourceManifest,
-      version: packageVersion,
-      ...(spec.package_id === 'mas' ? { presentation: thirdPartyPresentation } : {}),
-    });
-    return [spec.package_id, {
-      package_id: spec.package_id,
-      package_role: spec.package_role,
-      selected_version: packageVersion,
-      versions: [{
-        package_version: packageVersion,
-        capability_abi: null,
-        manifest_url: `opl+oci://${sourceArtifactRef}#/package-manifest.json`,
-        manifest_sha256: `sha256:${crypto.createHash('sha256').update(manifestJson).digest('hex')}`,
-        manifest_json: manifestJson,
-        payload_manifest_json: '{}',
-        payload_manifest_sha256: `sha256:${'2'.repeat(64)}`,
-        content_digest: `sha256:${'3'.repeat(64)}`,
-        payload_digest: `sha256:${'4'.repeat(64)}`,
-        source_artifact_ref: sourceArtifactRef,
-        artifact_digest: `sha256:${'5'.repeat(64)}`,
-        artifact_status: 'published_immutable',
-        package_content_digest: `sha256:${'6'.repeat(64)}`,
-        owner_source_commit: '7'.repeat(40),
-        dependency_package_ids: [],
-        selection_status: 'selected_for_release_set' as const,
-      }],
-    }];
-  }));
-  const directory = buildAgentPackageDirectory({
-    locks: [],
-    detail: 'fast',
-    firstPartyCatalog: {
-      catalog: versions,
-      freshness: 'live',
-      catalog_ref: 'ghcr.io/fixture/one-person-lab-manifest:latest-stable',
-      release_set_descriptor_digest: `sha256:${'7'.repeat(64)}`,
-      channel_manifest_layer_digest: `sha256:${'8'.repeat(64)}`,
-      package_catalog_digest: `sha256:${'9'.repeat(64)}`,
-      catalog_digest: `sha256:${'8'.repeat(64)}`,
-      checked_at: '2026-07-15T00:00:00.000Z',
-    },
-  });
-  const flow = directory.entries.find((entry) => entry.package_id === 'opl-flow')!;
-  const mas = directory.entries.find((entry) => entry.package_id === 'mas')!;
-  assert.deepEqual(mas.display_name_i18n, thirdPartyPresentation.display_name_i18n);
-  assert.deepEqual(mas.description_i18n, thirdPartyPresentation.description_i18n);
-  assert.deepEqual(mas.session_routing_summary_i18n, thirdPartyPresentation.session_routing_summary_i18n);
-  assert.deepEqual(mas.home_shortcuts, thirdPartyPresentation.home_shortcuts);
-  assert.equal(Object.hasOwn(mas, 'presentation'), false);
-  assert.equal(flow.projected_version, '0.1.35');
-  assert.equal(flow.selected_version, '0.1.19');
-  assert.equal(flow.stable_version, '0.1.19');
-  assert.equal(flow.version_currentness.status, 'live_release_set');
-  assert.equal(flow.version_currentness.live_verified, true);
-  assert.equal(flow.version_currentness.source_digest, `sha256:${'8'.repeat(64)}`);
-  assert.equal(directory.first_party_release_currentness.status, 'live');
-  assert.equal(directory.first_party_release_currentness.release_set_descriptor_digest, `sha256:${'7'.repeat(64)}`);
-  assert.equal(directory.first_party_release_currentness.channel_manifest_layer_digest, `sha256:${'8'.repeat(64)}`);
-  assert.equal(directory.first_party_release_currentness.package_catalog_digest, `sha256:${'9'.repeat(64)}`);
-  assert.equal('catalog_digest' in directory.first_party_release_currentness, false);
-  const runtimeOnlyDirectory = buildAgentPackageDirectory({
-    locks: [],
-    detail: 'fast',
-    firstPartyCatalog: {
-      catalog: versions,
-      freshness: 'live',
-      catalog_ref: 'https://fixture.example/packages.json',
-      release_set_descriptor_digest: null,
-      channel_manifest_layer_digest: `sha256:${'8'.repeat(64)}`,
-      package_catalog_digest: `sha256:${'9'.repeat(64)}`,
-      catalog_digest: `sha256:${'8'.repeat(64)}`,
-      checked_at: '2026-07-15T00:00:00.000Z',
-    },
-  });
-  assert.equal(runtimeOnlyDirectory.first_party_release_currentness.status, 'live');
-  assert.equal(runtimeOnlyDirectory.first_party_release_currentness.live_verified, true);
-  assert.equal(runtimeOnlyDirectory.first_party_release_currentness.release_set_descriptor_digest, null);
-  }));
-
-test('static owner presentation projects only when no selected catalog manifest owns the package', () =>
+test('static owner presentation comes only from the Framework identity projection', () =>
   withIsolatedStateDir('opl-package-directory-static-owner-presentation', () => {
   const staticDirectory = buildAgentPackageDirectory({
     locks: [],
@@ -1268,57 +1186,6 @@ test('static owner presentation projects only when no selected catalog manifest 
     assert.equal(Object.hasOwn(entry, 'presentation'), false);
   }
 
-  const versions = new Map(getOplPackageSpecs().map((spec) => {
-    const selectedManifest = parseJsonText(fs.readFileSync(
-      path.join(repoRoot, spec.package_manifest_ref),
-      'utf8',
-    )) as Record<string, unknown>;
-    if (spec.package_id === 'mag') delete selectedManifest.presentation;
-    const manifestJson = formatJsonPayload(selectedManifest);
-    const sourceArtifactRef = `ghcr.io/fixture/one-person-lab-packages/${spec.package_id}:${spec.selected_version}`;
-    return [spec.package_id, {
-      package_id: spec.package_id,
-      package_role: spec.package_role,
-      selected_version: spec.selected_version,
-      versions: [{
-        package_version: spec.selected_version,
-        capability_abi: null,
-        manifest_url: `opl+oci://${sourceArtifactRef}#/package-manifest.json`,
-        manifest_sha256: `sha256:${crypto.createHash('sha256').update(manifestJson).digest('hex')}`,
-        manifest_json: manifestJson,
-        payload_manifest_json: '{}',
-        payload_manifest_sha256: `sha256:${'2'.repeat(64)}`,
-        content_digest: `sha256:${'3'.repeat(64)}`,
-        payload_digest: `sha256:${'4'.repeat(64)}`,
-        source_artifact_ref: sourceArtifactRef,
-        artifact_digest: `sha256:${'5'.repeat(64)}`,
-        artifact_status: 'published_immutable',
-        package_content_digest: `sha256:${'6'.repeat(64)}`,
-        owner_source_commit: '7'.repeat(40),
-        dependency_package_ids: [],
-        selection_status: 'selected_for_release_set' as const,
-      }],
-    }];
-  }));
-  const selectedDirectory = buildAgentPackageDirectory({
-    locks: [],
-    detail: 'fast',
-    firstPartyCatalog: {
-      catalog: versions,
-      freshness: 'live',
-      catalog_ref: 'ghcr.io/fixture/one-person-lab-manifest:latest-stable',
-      release_set_descriptor_digest: `sha256:${'7'.repeat(64)}`,
-      channel_manifest_layer_digest: `sha256:${'8'.repeat(64)}`,
-      package_catalog_digest: `sha256:${'9'.repeat(64)}`,
-      catalog_digest: `sha256:${'8'.repeat(64)}`,
-      checked_at: '2026-07-25T00:00:00.000Z',
-    },
-  });
-  const selectedMag = selectedDirectory.entries.find((entry) => entry.package_id === 'mag')!;
-  assert.equal(selectedMag.display_name_i18n, null);
-  assert.equal(selectedMag.description_i18n, null);
-  assert.equal(selectedMag.session_routing_summary_i18n, null);
-  assert.deepEqual(selectedMag.home_shortcuts, []);
   }));
 
 test('static Relay projection uses native readback and does not treat a stale lock as installed', () =>
@@ -1378,7 +1245,7 @@ test('static Relay projection uses native readback and does not treat a stale lo
   assert.equal(entry.recommended_action, 'install_from_manifest_url');
   }));
 
-test('legacy v1 Release Set cache file is ignored by package directory reads', () => {
+test('legacy v1 Release Set cache file cannot restore ordinary directory currentness', () => {
   const fixture = isolatedPackageEnv('opl-package-directory-legacy-release-cache');
   const previousStateDir = process.env.OPL_STATE_DIR;
   const packageCatalog = {};
@@ -1400,10 +1267,9 @@ test('legacy v1 Release Set cache file is ignored by package directory reads', (
         catalog_payload: catalogPayload,
       }),
     );
-    assert.equal(
-      listOplAgentPackages().opl_agent_packages.directory.first_party_release_currentness.status,
-      'unknown',
-    );
+    const directory = listOplAgentPackages().opl_agent_packages.directory;
+    assert.equal(directory.first_party_owner_currentness.status, 'not_requested');
+    assert.equal(Object.hasOwn(directory, 'first_party_release_currentness'), false);
   } finally {
     if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateDir;
@@ -1466,81 +1332,6 @@ test('invalid owner presentation fails closed while legacy manifests remain comp
   }, 'file:///tmp/invalid-presentation-catalog.json', 'catalog-sha'),
   (error: any) => error?.details?.failure_code === 'agent_package_presentation_invalid');
 });
-
-test('invalid first-party owner presentation omits only that Package presentation', () =>
-  withIsolatedStateDir('opl-package-directory-invalid-owner-presentation', () => {
-  const versions = new Map(getOplPackageSpecs().map((spec) => {
-    const sourceManifest = parseJsonText(
-      fs.readFileSync(path.join(repoRoot, spec.package_manifest_ref), 'utf8'),
-    ) as Record<string, unknown>;
-    const manifestJson = formatJsonPayload({
-      ...sourceManifest,
-      ...(spec.package_id === 'mas'
-        ? {
-            presentation: {
-              ...thirdPartyPresentation,
-              home_shortcuts: [
-                ...thirdPartyPresentation.home_shortcuts,
-                thirdPartyPresentation.home_shortcuts[0],
-              ],
-            },
-          }
-        : spec.package_id === 'oma'
-          ? { presentation: thirdPartyPresentation }
-          : {}),
-    });
-    const sourceArtifactRef = `ghcr.io/fixture/one-person-lab-packages/${spec.package_id}:${spec.selected_version}`;
-    return [spec.package_id, {
-      package_id: spec.package_id,
-      package_role: spec.package_role,
-      selected_version: spec.selected_version,
-      versions: [{
-        package_version: spec.selected_version,
-        capability_abi: null,
-        manifest_url: `opl+oci://${sourceArtifactRef}#/package-manifest.json`,
-        manifest_sha256: `sha256:${crypto.createHash('sha256').update(manifestJson).digest('hex')}`,
-        manifest_json: manifestJson,
-        payload_manifest_json: '{}',
-        payload_manifest_sha256: `sha256:${'2'.repeat(64)}`,
-        content_digest: `sha256:${'3'.repeat(64)}`,
-        payload_digest: `sha256:${'4'.repeat(64)}`,
-        source_artifact_ref: sourceArtifactRef,
-        artifact_digest: `sha256:${'5'.repeat(64)}`,
-        artifact_status: 'published_immutable',
-        package_content_digest: `sha256:${'6'.repeat(64)}`,
-        owner_source_commit: '7'.repeat(40),
-        dependency_package_ids: [],
-        selection_status: 'selected_for_release_set' as const,
-      }],
-    }];
-  }));
-  const directory = buildAgentPackageDirectory({
-    locks: [],
-    detail: 'fast',
-    firstPartyCatalog: {
-      catalog: versions,
-      freshness: 'live',
-      catalog_ref: 'ghcr.io/fixture/one-person-lab-manifest:latest-stable',
-      release_set_descriptor_digest: `sha256:${'7'.repeat(64)}`,
-      channel_manifest_layer_digest: `sha256:${'8'.repeat(64)}`,
-      package_catalog_digest: `sha256:${'9'.repeat(64)}`,
-      catalog_digest: `sha256:${'8'.repeat(64)}`,
-      checked_at: '2026-07-25T00:00:00.000Z',
-    },
-  });
-
-  const mas = directory.entries.find((entry) => entry.package_id === 'mas')!;
-  const oma = directory.entries.find((entry) => entry.package_id === 'oma')!;
-  assert.equal(mas.display_name_i18n, null);
-  assert.equal(mas.description_i18n, null);
-  assert.equal(mas.session_routing_summary_i18n, null);
-  assert.deepEqual(mas.home_shortcuts, []);
-  assert.deepEqual(oma.display_name_i18n, thirdPartyPresentation.display_name_i18n);
-  assert.deepEqual(oma.description_i18n, thirdPartyPresentation.description_i18n);
-  assert.deepEqual(oma.session_routing_summary_i18n, thirdPartyPresentation.session_routing_summary_i18n);
-  assert.deepEqual(oma.home_shortcuts, thirdPartyPresentation.home_shortcuts);
-  }));
-
 
 test('scope-less list and App workspace context project different activation state from one lock', () => {
   const fixture = isolatedPackageEnv('opl-package-directory-scope');
