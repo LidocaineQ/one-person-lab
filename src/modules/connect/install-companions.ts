@@ -247,6 +247,8 @@ function isPathWithin(parentPath: string, childPath: string) {
 }
 
 const SKILL_FRONTMATTER_FIELDS = new Set(['name', 'description', 'license', 'allowed-tools', 'metadata', 'triggers']);
+const SKILL_DESCRIPTION_MAX_LENGTH = 4096;
+const SKILL_DESCRIPTION_UNSAFE_CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 const SKILL_RESOURCE_PATTERN = /(?:^|[^/A-Za-z0-9_.-])((?:references|scripts|templates|assets)\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*)/gm;
 
 type SkillPayloadInspection = {
@@ -383,7 +385,8 @@ function validateSkillFrontmatter(
   }
   const description = frontmatterFieldValue(lines, 'description');
   if (!description) errors.push('empty_frontmatter_description');
-  if (description.includes('<') || description.includes('>') || description.length > 1024) {
+  if (SKILL_DESCRIPTION_UNSAFE_CONTROL.test(description)
+    || description.length > SKILL_DESCRIPTION_MAX_LENGTH) {
     errors.push('invalid_frontmatter_description');
   }
   return errors;
