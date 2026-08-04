@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { parseJsonText } from '../../src/kernel/json-file.ts';
+import { assertRepoJsonSchemaPayload } from '../../src/kernel/repo-json-schema.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
@@ -99,6 +100,17 @@ test('refactor patrol state accepts a coherent terminal selected batch', () => {
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('refactor patrol state schema stays compatible with the shared 2020-12 registry', () => {
+  const result = assertRepoJsonSchemaPayload({
+    repoRoot,
+    schemaRef: 'contracts/opl-framework/reasonable-refactor-patrol-state.schema.json',
+    payload: validState(),
+    label: 'reasonable refactor patrol state',
+  });
+
+  assert.equal(result.status, 'valid');
 });
 
 test('refactor patrol state rejects missing burn-down and false completed status', () => {

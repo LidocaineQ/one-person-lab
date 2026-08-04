@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs as parseNodeArgs } from 'node:util';
 
-import Ajv from 'ajv';
+import { Ajv2020 } from 'ajv/dist/2020.js';
 
 import { readJsonFile } from './script-json-boundary.mjs';
 
@@ -43,7 +43,7 @@ if (!args.input) {
 }
 const state = readJsonFile(path.resolve(args.input));
 const schema = readJsonFile(schemaPath);
-const ajv = new Ajv({ allErrors: true, strict: true });
+const ajv = new Ajv2020({ allErrors: true, strict: true });
 const validate = ajv.compile(schema);
 const errors = [...contractErrors];
 if (!validate(state)) {
