@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { bundleWorkflowCode, type WorkerOptions } from '@temporalio/worker';
 
 import {
-  resolveTemporalNamespace,
-} from '../family-runtime-temporal.ts';
-import type { TemporalWorkerPaths } from '../family-runtime-temporal-client.ts';
+  resolveTemporalClientNamespace,
+  type TemporalWorkerPaths,
+} from '../family-runtime-temporal-client.ts';
 import {
   resolveTemporalWorkerTaskQueue,
 } from './worker-task-queue.ts';
@@ -74,7 +74,7 @@ async function materializeTemporalWorkflowBundle(input: {
     workflow_bundle_version: version,
     workflow_bundle_source_version: input.sourceVersion,
     workflows_path: input.workflowsPath,
-    namespace: resolveTemporalNamespace(),
+    namespace: resolveTemporalClientNamespace({ paths: input.paths }),
     task_queue: resolveTemporalWorkerTaskQueue(input.paths),
     generated_at: new Date().toISOString(),
   };
@@ -95,7 +95,7 @@ export async function buildTemporalStageAttemptWorkerOptions(input: {
   });
   return {
     worker_options: {
-      namespace: resolveTemporalNamespace(),
+      namespace: resolveTemporalClientNamespace({ paths: input.paths }),
       taskQueue: workflowBundle.task_queue,
       activities: input.activities,
       workflowBundle: {

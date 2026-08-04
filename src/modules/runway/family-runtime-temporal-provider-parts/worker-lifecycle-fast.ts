@@ -1,13 +1,11 @@
 import {
-  resolveTemporalNamespace,
-} from '../family-runtime-temporal.ts';
-import {
   buildTemporalWorkerReadiness,
 } from '../family-runtime-temporal-readiness.ts';
 import {
   buildTemporalStageAttemptVisibilityReadiness,
 } from '../family-runtime-temporal-visibility.ts';
 import {
+  resolveTemporalClientNamespace,
   type TemporalWorkerPaths,
 } from '../family-runtime-temporal-client.ts';
 import {
@@ -43,7 +41,10 @@ export async function inspectTemporalWorkerLifecycleFast(
   const resolved = resolveTemporalAddressForPaths(paths);
   const { address, addressSource } = resolved;
   const service = await inspectTemporalServiceLifecycle(paths, input.serviceRuntime);
-  const namespace = resolveTemporalNamespace();
+  const namespace = resolveTemporalClientNamespace({
+    paths,
+    addressOverride: address,
+  });
   const taskQueue = resolveTemporalWorkerTaskQueue(paths);
   const state = readTemporalWorkerState(paths);
   const stateMatchesConfig =

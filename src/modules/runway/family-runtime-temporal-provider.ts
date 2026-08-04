@@ -35,6 +35,7 @@ import {
 } from './family-runtime-temporal-service.ts';
 import {
   requireTemporalAddress,
+  resolveTemporalClientNamespace,
   type TemporalClientOptions,
   type TemporalWorkerPaths,
   withTemporalClient,
@@ -154,15 +155,16 @@ export function buildTemporalVisibilityReadiness(input: {
 
 export async function ensureTemporalVisibilityReadiness(options: TemporalClientOptions = {}) {
   return withTemporalClient(async (_client, connection) => {
-    const before = await inspectTemporalStageAttemptVisibilityReadiness(options.paths);
+    const namespace = resolveTemporalClientNamespace(options);
+    const before = await inspectTemporalStageAttemptVisibilityReadiness(options.paths, { namespace });
     const after = await ensureTemporalStageAttemptVisibilityReady(connection, {
-      namespace: resolveTemporalNamespace(),
+      namespace,
       address: resolveTemporalAddressForPaths(options.paths).address,
     });
     return {
       surface_kind: 'temporal_visibility_repair_receipt',
       provider_kind: 'temporal',
-      namespace: resolveTemporalNamespace(),
+      namespace,
       installed_search_attributes: before.missing_search_attributes.map((attribute) => attribute.name),
       visibility_readiness: after,
       repair_status: after.readiness_status === 'ready' || after.readiness_status === 'test_server_unindexed_visibility'
@@ -251,7 +253,7 @@ export async function runTemporalWorkerForeground(paths: TemporalWorkerPaths) {
     paths,
     pid: process.pid,
     address,
-    namespace: resolveTemporalNamespace(),
+    namespace: resolveTemporalClientNamespace({ paths, addressOverride: address }),
     taskQueue,
     sourceVersion,
     workflowBundlePath: built.workflow_bundle.code_path,

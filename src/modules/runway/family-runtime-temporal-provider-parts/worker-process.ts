@@ -37,18 +37,18 @@ export function temporalForegroundWorkerModulePathFromCommand(command: string | 
   if (!normalized || !normalized.includes('--temporal-worker-foreground')) {
     return null;
   }
-  const tokens = normalized.split(/\s+/);
-  const foregroundIndex = tokens.indexOf('--temporal-worker-foreground');
+  const foregroundIndex = normalized.indexOf('--temporal-worker-foreground');
   if (foregroundIndex <= 0) {
     return null;
   }
-  for (let index = foregroundIndex - 1; index >= 0; index -= 1) {
-    const token = tokens[index];
-    if (/family-runtime-temporal-provider\.(?:js|ts)$/.test(token)) {
-      return token;
-    }
+  const commandPrefix = normalized.slice(0, foregroundIndex).trimEnd();
+  const moduleSuffix = /family-runtime-temporal-provider\.(?:js|ts)$/.exec(commandPrefix)?.[0];
+  if (!moduleSuffix) {
+    return null;
   }
-  return null;
+  const suffixIndex = commandPrefix.length - moduleSuffix.length;
+  const pathStart = commandPrefix.lastIndexOf(' /', suffixIndex);
+  return commandPrefix.slice(pathStart >= 0 ? pathStart + 1 : 0).trim() || null;
 }
 
 async function waitForProcessExit(pid: number, timeoutMs = WORKER_STOP_GRACE_MS) {

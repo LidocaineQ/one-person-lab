@@ -53,6 +53,7 @@ const fastTestFiles = [
   'tests/src/family-runtime-domain-task-runtime-context.test.ts',
   'tests/src/family-runtime-execution-scope-persistence.test.ts',
   'tests/src/family-runtime-temporal-identity.test.ts',
+  'tests/src/family-runtime-temporal-client.test.ts',
   'tests/src/family-runtime-trusted-cli-ingress.test.ts',
   'tests/src/domain-agent-admission-gates.test.ts',
   'tests/src/codex-personalization.test.ts',
