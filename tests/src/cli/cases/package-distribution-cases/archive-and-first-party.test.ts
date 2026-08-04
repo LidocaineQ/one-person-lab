@@ -1341,11 +1341,12 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
     'utf8',
   )) as Record<string, any>;
   assert.equal(manifest.surface_kind, 'opl_workflow_profile_package_manifest.v1');
-  assert.equal(manifest.version, '0.1.31');
-  assert.equal(manifest.codex_surface.carrier_source_commit, '33480d78882052ac9c942bb99d6895cdc3f31b7b');
+  assert.equal(manifest.version, '0.1.35');
+  assert.equal(manifest.codex_surface.carrier_source_commit, '6d8772cd9a8b2a14b2292c15afbf3c3cb5bfa8a4');
   assert.deepEqual(manifest.codex_surface.required_skill_ids, [
     'coordinate-concurrent-tasks',
     'develop-and-deliver',
+    'github-ssot-patrol',
     'opl-fleet',
     'opl-flow',
     'recover-codex-tasks',
@@ -1356,7 +1357,7 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
   assert.equal(normalized.agent_id, null);
   assert.equal(normalized.profile_surface?.existing_profile_policy, 'semantic_merge_required');
   assert.equal(payload.surface_kind, 'opl_package_payload_manifest.v2');
-  assert.equal(payload.source_commit, '33480d78882052ac9c942bb99d6895cdc3f31b7b');
+  assert.equal(payload.source_commit, '6d8772cd9a8b2a14b2292c15afbf3c3cb5bfa8a4');
   assert.equal(payload.files.some((file: Record<string, unknown>) => file.path === 'opl-package.json'), true);
   for (const requiredPath of [
     'contracts/fleet-telemetry-protocol.json',
@@ -1380,6 +1381,10 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
       'skills/coordinate-concurrent-tasks/agents/openai.yaml',
       'skills/develop-and-deliver/SKILL.md',
       'skills/develop-and-deliver/agents/openai.yaml',
+      'skills/github-ssot-patrol/SKILL.md',
+      'skills/github-ssot-patrol/agents/openai.yaml',
+      'skills/github-ssot-patrol/references/decision-contract.md',
+      'skills/github-ssot-patrol/scripts/github_patrol.py',
       'skills/opl-fleet/SKILL.md',
       'skills/opl-fleet/agents/openai.yaml',
       'skills/opl-flow/SKILL.md',
@@ -1387,6 +1392,7 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
       'skills/opl-flow/references/app-integration.md',
       'skills/opl-flow/references/codex-baseline.md',
       'skills/opl-flow/references/ledger-start.md',
+      'skills/opl-flow/references/ledger-supervisor.md',
       'skills/opl-flow/references/package-lifecycle.md',
       'skills/opl-flow/references/setup-update.md',
       'skills/opl-flow/references/terminal-readback.md',
