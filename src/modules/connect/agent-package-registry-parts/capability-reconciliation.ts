@@ -10,7 +10,6 @@ import type {
 
 export type ManagedCatalogVersion = {
   package_version: string;
-  capability_abi: string | null;
   manifest_url: string;
   manifest_sha256: string;
   manifest_json: string | null;
@@ -82,11 +81,6 @@ function normalizeCatalogVersion(value: unknown): ManagedCatalogVersion | null {
   const payloadManifestSha256 = normalizedSha256(value.payload_manifest_sha256);
   return {
     package_version: packageVersion,
-    capability_abi: stringValue(
-      isRecord(value.compatibility)
-        ? value.compatibility.capability_abi ?? value.capability_abi
-        : value.capability_abi,
-    ),
     manifest_url: manifestUrl,
     manifest_sha256: manifestSha256,
     manifest_json: manifestJson,
