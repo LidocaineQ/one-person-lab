@@ -444,7 +444,7 @@ test('single-Package publication is protected, selector-bound, and readback-only
   assert.doesNotMatch(workflow, /^\s+(?:workflow_call|workflow_run|schedule):$/m);
   assert.match(workflow, /^permissions: \{\}$/m);
   assert.match(workflow, /^    environment: release-stable$/m);
-  assert.match(workflow, /^    permissions:\n      contents: read\n      packages: write$/m);
+  assert.match(workflow, /^    permissions:\n      contents: read\n      id-token: write\n      packages: write$/m);
   assert.deepEqual(packageSpecs.map((spec) => spec.package_id), publisherPackageIds);
   assert.match(workflow, new RegExp(`options: \\[${publisherPackageIds.join(', ')}\\]`));
   for (const spec of packageSpecs) {
@@ -497,6 +497,16 @@ test('single-Package publication is protected, selector-bound, and readback-only
   assert.match(workflow, /stable_result="reconciled_after_unknown"/);
   assert.match(workflow, /registry_atomic_cas_claim:false/);
   assert.match(workflow, /--expected-digest "\$digest" --anonymous/g);
+  assert.match(workflow, /ensure_public_package "one-person-lab-packages\/\$\{PACKAGE_ID\}"/);
+  assert.match(workflow, /visibility == "public" and \.repository\.full_name == \$repo/);
+  assert.ok(workflow.indexOf('ensure_public_package "one-person-lab-packages/${PACKAGE_ID}"')
+    < workflow.indexOf('--verify-only --expected-digest "$digest" --anonymous'));
+  assert.match(workflow, /cosign attest[\s\S]*--type slsaprovenance1/);
+  assert.match(workflow, /cosign attest[\s\S]*--type spdxjson/);
+  assert.equal(workflow.match(/cosign verify-attestation/g)?.length, 2);
+  assert.match(workflow, /attestations:\{status:"verified"/);
+  assert.match(workflow, /dist\/package\/package-provenance\.json/);
+  assert.match(workflow, /dist\/package\/package\.spdx\.json/);
   assert.doesNotMatch(workflow, /one-person-lab-manifest|opl update apply|opl packages update/);
   assert.doesNotMatch(workflow, /release-set|opl-app|opl-base/i);
 });

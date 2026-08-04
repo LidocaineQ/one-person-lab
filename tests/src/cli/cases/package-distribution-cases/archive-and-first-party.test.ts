@@ -452,6 +452,15 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(manifest.release_set.surface_kind, 'opl_release_set.v2');
   assert.equal(manifest.release_set.component_count, 11);
   assert.equal(manifest.release_set.components.packages.package_count, 9);
+  assert.equal(manifest.package_install_update_source, 'per_package_owner_latest_stable');
+  assert.equal(manifest.package_consumption_status, 'ordinary_app_users_compose_independent_ghcr_packages');
+  for (const artifact of Object.values(manifest.packages.package_artifacts) as any[]) {
+    assert.equal(artifact.current_install_update_source, 'per_package_owner_latest_stable');
+    assert.equal(artifact.package_consumption_status, 'consumed_by_independent_owner_channel_installs');
+    assert.equal(artifact.release_discipline.required_gates.includes('owner_latest_stable_promoted'), true);
+    assert.equal(artifact.release_discipline.required_gates.includes('shared_release_set_not_required_for_ordinary_currentness'), true);
+    assert.equal(artifact.release_discipline.required_gates.includes('channel_manifest_written'), false);
+  }
   assert.equal(manifest.release_set.components.app.version, '26.7.12');
   assert.deepEqual(manifest.release_set.components.app.carriers, appCarriers);
   assert.equal(manifest.packages.package_artifacts.mag.package_version, '0.3.0');
