@@ -330,6 +330,43 @@ test('generic Flow-declared Git Skill projection converges one global entrypoint
   }
 });
 
+test('generic Flow-declared Git Skill projection accepts valid YAML description forms', () => {
+  const foldedDescription = 'MinerU extracts documents into reliable structured outputs for downstream workflows. '.repeat(20).trim();
+  assert.ok(foldedDescription.length > 1024);
+  const cases = [{
+    label: 'quoted comparison text',
+    skillId: 'quoted-description-skill',
+    description: 'description: "Use this dashboard workflow for reports with < 10 rows."',
+  }, {
+    label: 'folded block scalar',
+    skillId: 'folded-description-skill',
+    description: `description: >\n  ${foldedDescription}`,
+  }];
+
+  for (const fixture of cases) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-flow-yaml-description-'));
+    const home = path.join(root, 'home');
+    const managedDependency = githubSkillFixture({
+      root,
+      skillId: fixture.skillId,
+      skill: `---\nname: ${fixture.skillId}\n${fixture.description}\n---\n# fixture\n`,
+    });
+    try {
+      const managed = syncOplCompanionSkills(home, {
+        mode: 'managed',
+        skillIds: [fixture.skillId],
+        managedSkillDependencies: [managedDependency],
+      });
+      const item = managed.items[0];
+      assert.equal(item?.status, 'synced', fixture.label);
+      assert.equal(item?.frontmatter_schema_status, 'valid', fixture.label);
+      assert.equal(item?.resource_closure_status, 'complete', fixture.label);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
 test('generic Flow-declared Git Skill projection validates payloads before convergence', () => {
   const cases = [
     {
@@ -347,6 +384,18 @@ test('generic Flow-declared Git Skill projection validates payloads before conve
     {
       label: 'mismatched skill identity',
       skill: '---\nname: another-skill\ndescription: Valid description.\n---\n# fixture\n',
+      expectedFrontmatter: 'invalid',
+      expectedClosure: 'complete',
+    },
+    {
+      label: 'unsafe description control character',
+      skill: '---\nname: fixture-skill\ndescription: "Invalid\u0007description."\n---\n# fixture\n',
+      expectedFrontmatter: 'invalid',
+      expectedClosure: 'complete',
+    },
+    {
+      label: 'oversized description',
+      skill: `---\nname: fixture-skill\ndescription: ${'x'.repeat(4097)}\n---\n# fixture\n`,
       expectedFrontmatter: 'invalid',
       expectedClosure: 'complete',
     },
