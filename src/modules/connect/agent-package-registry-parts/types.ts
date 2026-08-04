@@ -34,7 +34,6 @@ export type AgentPackageLifecycleAction =
   | 'update'
   | 'repair'
   | 'activate'
-  | 'rollback'
   | 'uninstall'
   | 'hide'
   | 'unhide'
@@ -824,7 +823,6 @@ export type AgentPackageLifecycleReceipt = {
   release_channel_ref?: string | null;
   release_channel_digest?: string | null;
   package_lock_ref: string | null;
-  rollback_ref: string | null;
   source_kind: AgentPackageSourceKind | 'registry_url';
   trust_tier: string | null;
   writes_performed: boolean;
