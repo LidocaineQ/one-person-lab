@@ -1905,11 +1905,25 @@ export function finalizePhysicalCodexSurfaceMutation(surface: AgentPackagePhysic
   physicalSurfaceGenerationMutations.delete(surface);
 }
 
+function removeCodexRegistration(
+  surface: AgentPackagePhysicalSurface | undefined,
+  codexConfigPath: string,
+  retainCodexRegistration: boolean,
+) {
+  if (retainCodexRegistration) return;
+  unregisterLocalCodexPlugin(codexConfigPath, surface?.marketplace_id ?? null, surface?.plugin_id ?? null);
+  removeCreatedEmptyCodexConfig(codexConfigPath, surface?.codex_config_preexisting ?? true);
+}
+
 export function removePhysicalCodexSurface(
   surface: AgentPackagePhysicalSurface | undefined,
   dryRun: boolean,
   packageId?: string,
-  options: { retainPayloadSource?: boolean; retainPluginCache?: boolean } = {},
+  options: {
+    retainPayloadSource?: boolean;
+    retainPluginCache?: boolean;
+    retainCodexRegistration?: boolean;
+  } = {},
 ): AgentPackagePhysicalSurface {
   const codexHome = resolveCodexHome();
   const expectedCodexConfigPath = resolveCodexConfigPath(codexHome);
@@ -1950,8 +1964,7 @@ export function removePhysicalCodexSurface(
   const removedPaths = safeRemovals.map((entry) => entry.path);
 
   if (!dryRun) {
-    unregisterLocalCodexPlugin(codexConfigPath, surface?.marketplace_id ?? null, surface?.plugin_id ?? null);
-    removeCreatedEmptyCodexConfig(codexConfigPath, surface?.codex_config_preexisting ?? true);
+    removeCodexRegistration(surface, codexConfigPath, options.retainCodexRegistration ?? false);
     for (const removal of safeRemovals) {
       makeGenerationTreeWritable(removal.path);
       removeSafePersistedPackagePath({

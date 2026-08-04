@@ -151,15 +151,20 @@ function retentionReason(
     ) {
       return 'retained_to_protect_native_marketplace_source';
     }
-    if (
-      surface?.plugin_id
-      && surface.marketplace_id
-      && carrier.carrier.plugin_id === `${surface.plugin_id}@${surface.marketplace_id}`
-    ) {
-      return 'retained_to_protect_native_plugin_registration';
-    }
   }
   return null;
+}
+
+function legacySurfaceSharesNativeSelector(
+  lock: AgentPackageLock,
+  carrier: ConfiguredCodexPluginCarrierReadback,
+) {
+  const surface = lock.physical_surface;
+  return Boolean(
+    surface?.plugin_id
+    && surface.marketplace_id
+    && carrier.carrier.plugin_id === `${surface.plugin_id}@${surface.marketplace_id}`,
+  );
 }
 
 function retireDescriptorOwnedLegacyState(input: {
@@ -246,7 +251,11 @@ function retireDescriptorOwnedLegacyState(input: {
         lock.physical_surface,
         false,
         lock.package_id,
-        { retainPayloadSource: true, retainPluginCache: true },
+        {
+          retainPayloadSource: true,
+          retainPluginCache: true,
+          retainCodexRegistration: legacySurfaceSharesNativeSelector(lock, input.carrier),
+        },
       );
       return surface.removed_paths;
     });

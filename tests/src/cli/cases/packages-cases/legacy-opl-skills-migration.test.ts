@@ -7,6 +7,7 @@ import {
   formatJsonPayload,
   os,
   path,
+  parseJsonText,
   removeFixtureTree,
   repoRoot,
   runCli,
@@ -1220,18 +1221,19 @@ test('Flow uninstall removes a disjoint native carrier and its managed legacy ow
   }
 });
 
-test('same-selector native Flow uninstall stays on the managed cleanup path', () => {
-  const state = publicLifecycleFixture('native-uninstall-same-selector-retained');
+test('same-selector native Flow uninstall removes the native carrier and its disjoint managed owner', () => {
+  const state = publicLifecycleFixture('native-uninstall-same-selector-owner-transfer');
   try {
     const previousCheckout = writeDeveloperFlowCheckout(path.join(state.root, 'workspace-previous'));
     const legacyAgentsRoot = path.join(state.root, 'legacy-agents');
     fs.renameSync(state.agentsRoot, legacyAgentsRoot);
-    runCli(['packages', 'install', 'opl-flow'], {
+    const previous = runCli(['packages', 'install', 'opl-flow'], {
       ...state.env,
       OPL_MODULE_PATH_OPLFLOW: previousCheckout,
       OPL_MODULE_SOURCE_MODE: 'git_checkout',
-    });
+    }) as any;
     fs.renameSync(legacyAgentsRoot, state.agentsRoot);
+    const previousSurface = previous.opl_agent_package_install.physical_surface;
     const packageLockPath = path.join(state.env.OPL_STATE_DIR, 'agent-package-locks.json');
     const lockIndex = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
     const managedLock = lockIndex.packages.find((entry: any) => entry.package_id === 'opl-flow');
@@ -1251,9 +1253,30 @@ test('same-selector native Flow uninstall stays on the managed cleanup path', ()
 
     const dryRun = runCli(['packages', 'uninstall', 'opl-flow', '--dry-run'], state.env) as any;
     assert.equal(dryRun.opl_agent_package_uninstall.status, 'validated_no_write');
-    assert.equal(Object.hasOwn(dryRun.opl_agent_package_uninstall, 'configured_carrier'), false);
+    assert.equal(dryRun.opl_agent_package_uninstall.configured_carrier.native_action_dispatched, false);
     assert.doesNotMatch(fs.readFileSync(state.commandLog, 'utf8'), /plugin remove /);
     assert.equal(fs.existsSync(packageLockPath), true);
+    assert.equal(fs.existsSync(previousSurface.marketplace_root), true);
+
+    const uninstalled = runCli(['packages', 'uninstall', 'opl-flow'], state.env) as any;
+    const surface = uninstalled.opl_agent_package_uninstall;
+    assert.equal(surface.status, 'uninstalled');
+    assert.ok(['not_installed', 'physical_unavailable'].includes(surface.configured_carrier.status));
+    assert.equal(surface.configured_carrier.carrier.precedence, 'not_present');
+    const packageLocks = parseJsonText(fs.readFileSync(packageLockPath, 'utf8')) as any;
+    assert.equal(packageLocks.packages.some((entry: any) => entry.package_id === 'opl-flow'), false);
+    assert.equal(fs.existsSync(previousSurface.marketplace_root), false);
+    assert.equal(fs.existsSync(nativeMarketplace.pluginSource), true);
+
+    const nativePlugin = parseJsonText(execFileSync(state.codex.codexPath, ['plugin', 'list', '--json'], {
+      env: { ...process.env, ...state.env },
+      encoding: 'utf8',
+    })) as any;
+    assert.equal(nativePlugin.installed.length, 0);
+    assert.equal(
+      (fs.readFileSync(state.commandLog, 'utf8').match(/plugin remove opl-flow@opl-flow-local --json/g) ?? []).length,
+      1,
+    );
   } finally {
     removeFixtureTree(state.root);
   }
@@ -1307,24 +1330,24 @@ test('Flow uninstall restores the native carrier when legacy cleanup fails', () 
   }
 });
 
-test('same-selector native Flow source cannot retire a disjoint managed owner', () => {
-  const state = publicLifecycleFixture('native-update-same-selector-retained');
+test('same-selector native Flow update retires a disjoint managed owner without removing native registration', () => {
+  const state = publicLifecycleFixture('native-update-same-selector-owner-transfer');
   try {
     const previousCheckout = writeDeveloperFlowCheckout(path.join(state.root, 'workspace-previous'));
     const legacyAgentsRoot = path.join(state.root, 'legacy-agents');
     fs.renameSync(state.agentsRoot, legacyAgentsRoot);
-    runCli(['packages', 'install', 'opl-flow'], {
+    const previous = runCli(['packages', 'install', 'opl-flow'], {
       ...state.env,
       OPL_MODULE_PATH_OPLFLOW: previousCheckout,
       OPL_MODULE_SOURCE_MODE: 'git_checkout',
-    });
+    }) as any;
     fs.renameSync(legacyAgentsRoot, state.agentsRoot);
+    const previousSurface = previous.opl_agent_package_install.physical_surface;
     const packageLockPath = path.join(state.env.OPL_STATE_DIR, 'agent-package-locks.json');
     const lockIndex = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
     const managedLock = lockIndex.packages.find((entry: any) => entry.package_id === 'opl-flow');
     managedLock.physical_surface.marketplace_id = 'opl-flow-local';
     fs.writeFileSync(packageLockPath, formatJsonPayload(lockIndex));
-    const packageLockBefore = fs.readFileSync(packageLockPath);
 
     fs.writeFileSync(path.join(state.env.CODEX_HOME, 'config.toml'), '', 'utf8');
     const nativeMarketplace = writeFlowMarketplace({
@@ -1337,14 +1360,28 @@ test('same-selector native Flow source cannot retire a disjoint managed owner', 
       oldMarketplaceRoot: nativeMarketplace.marketplaceRoot,
     });
 
-    const failure = runCliFailure(['packages', 'update', 'opl-flow'], state.env);
-    assert.equal(failure.status, 3);
-    assert.equal(failure.payload.error.code, 'contract_shape_invalid');
-    const commandLog = fs.readFileSync(state.commandLog, 'utf8');
-    assert.equal((commandLog.match(/plugin add /g) ?? []).length, 0);
-    assert.deepEqual(fs.readFileSync(packageLockPath), packageLockBefore);
-    assert.equal(fs.existsSync(packageLockPath), true);
+    const updated = runCli(['packages', 'update', 'opl-flow'], state.env) as any;
+    const surface = updated.opl_agent_package_update;
+    assert.equal(surface.status, 'updated');
+    assert.equal(surface.configured_carrier.status, 'installed');
+    assert.equal(surface.configured_carrier.executor.status, 'callable');
+    assert.equal(surface.configured_carrier.plugin_source_path, nativeMarketplace.pluginSource);
+    assert.equal(Object.hasOwn(surface, 'package_lock'), false);
+    assert.equal(Object.hasOwn(surface, 'lifecycle_receipt'), false);
+    assert.equal(fs.existsSync(packageLockPath), false);
+    assert.equal(fs.existsSync(previousSurface.marketplace_root), false);
     assert.equal(fs.existsSync(nativeMarketplace.pluginSource), true);
+
+    const nativePlugin = parseJsonText(execFileSync(state.codex.codexPath, ['plugin', 'list', '--json'], {
+      env: { ...process.env, ...state.env },
+      encoding: 'utf8',
+    })) as any;
+    assert.equal(nativePlugin.installed.length, 1);
+    assert.equal(nativePlugin.installed[0].pluginId, flowPluginSelector);
+    assert.equal(nativePlugin.installed[0].source.path, nativeMarketplace.pluginSource);
+    const commandLog = fs.readFileSync(state.commandLog, 'utf8');
+    assert.equal((commandLog.match(/plugin add opl-flow@opl-flow-local --json/g) ?? []).length, 1);
+    assert.equal((commandLog.match(/plugin remove /g) ?? []).length, 0);
   } finally {
     removeFixtureTree(state.root);
   }
