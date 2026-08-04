@@ -2578,6 +2578,12 @@ export async function runOplAgentPackageInstall(input: AgentPackageInstallInput)
     action: 'install',
   });
   if (configured) {
+    if (input.dryRun !== true) {
+      await maybeRetireDescriptorOwnedLegacyState({
+        configured,
+        dryRun: false,
+      });
+    }
     return {
       version: 'g2',
       opl_agent_package_install: {

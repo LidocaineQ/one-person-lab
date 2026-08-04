@@ -1013,6 +1013,62 @@ test('managed Flow update keeps the managed owner when an installed descriptor i
   }
 });
 
+test('native Flow install retires a disjoint same-home managed owner after fresh readback', () => {
+  const state = publicLifecycleFixture('native-install-owner-transfer');
+  try {
+    const previousCheckout = writeDeveloperFlowCheckout(path.join(state.root, 'workspace-previous'));
+    const legacyAgentsRoot = path.join(state.root, 'legacy-agents');
+    fs.renameSync(state.agentsRoot, legacyAgentsRoot);
+    const previous = runCli(['packages', 'install', 'opl-flow'], {
+      ...state.env,
+      OPL_MODULE_PATH_OPLFLOW: previousCheckout,
+      OPL_MODULE_SOURCE_MODE: 'git_checkout',
+    }) as any;
+    fs.renameSync(legacyAgentsRoot, state.agentsRoot);
+    const previousSurface = previous.opl_agent_package_install.physical_surface;
+    const packageLockPath = path.join(state.env.OPL_STATE_DIR, 'agent-package-locks.json');
+    assert.equal(fs.existsSync(packageLockPath), true);
+
+    fs.writeFileSync(path.join(state.env.CODEX_HOME, 'config.toml'), '', 'utf8');
+    const nativeMarketplace = writeFlowMarketplace({
+      root: path.join(state.root, 'native-owner'),
+      version: '0.1.30',
+      requiredSkillIds: flowSkillIds,
+    });
+    const ownerChannel = writeFlowOwnerChannelFixture(
+      path.join(state.root, 'owner-channel'),
+      nativeMarketplace.manifestPath,
+    );
+
+    const dryRun = runCli(['packages', 'install', 'opl-flow', '--dry-run'], {
+      ...ownerChannel.env,
+      ...state.env,
+    }) as any;
+    assert.equal(dryRun.opl_agent_package_install.status, 'validated_no_write');
+    assert.equal(dryRun.opl_agent_package_install.configured_carrier.native_action_dispatched, false);
+    assert.equal(fs.existsSync(packageLockPath), true);
+    assert.equal(fs.existsSync(previousSurface.marketplace_root), true);
+    assert.doesNotMatch(fs.readFileSync(state.commandLog, 'utf8'), /plugin add /);
+
+    const installed = runCli(['packages', 'install', 'opl-flow'], {
+      ...ownerChannel.env,
+      ...state.env,
+    }) as any;
+    const surface = installed.opl_agent_package_install;
+    assert.equal(surface.status, 'installed');
+    assert.equal(surface.configured_carrier.status, 'installed');
+    assert.equal(surface.configured_carrier.executor.status, 'callable');
+    assert.equal(surface.configured_carrier.plugin_source_path, nativeMarketplace.pluginSource);
+    assert.equal(Object.hasOwn(surface, 'package_lock'), false);
+    assert.equal(Object.hasOwn(surface, 'lifecycle_receipt'), false);
+    assert.equal(fs.existsSync(packageLockPath), false);
+    assert.equal(fs.existsSync(previousSurface.marketplace_root), false);
+    assert.equal(fs.existsSync(nativeMarketplace.pluginSource), true);
+  } finally {
+    removeFixtureTree(state.root);
+  }
+});
+
 test('native Flow repair retires a disjoint same-home managed lock before ordinary updates', () => {
   const state = publicLifecycleFixture('native-repair-owner-transfer');
   try {
