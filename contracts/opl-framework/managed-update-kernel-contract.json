@@ -568,7 +568,6 @@
           "framework_commit_field": "result.framework_commit",
           "catalog_ref_field": "result.catalog_ref",
           "catalog_sha256_field": "result.catalog_sha256",
-          "target_receipt_ref_field": "target.result.lifecycle_receipt.receipt_ref",
           "component_aggregate_binding_field": "component_receipt.adapter_result_ref",
           "duplicate_target_receipt_ref_list": false
         },

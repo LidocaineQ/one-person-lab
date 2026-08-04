@@ -249,8 +249,8 @@ test('managed update contract exposes only OPL Base, OPL App, and OPL Packages l
   assert.equal(bundled.post_apply_currentness.command_ref, 'opl packages status --json');
   assert.equal(bundled.post_apply_currentness.ordinary_package_update_guidance_allowed, false);
   assert.equal(
-    bundled.execution_receipt_authority.target_receipt_ref_field,
-    'target.result.lifecycle_receipt.receipt_ref',
+    Object.hasOwn(bundled.execution_receipt_authority, 'target_receipt_ref_field'),
+    false,
   );
   assert.equal(
     bundled.execution_receipt_authority.component_aggregate_binding_field,
