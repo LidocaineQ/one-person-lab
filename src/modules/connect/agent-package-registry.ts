@@ -2484,16 +2484,16 @@ function currentHomeManagedFirstPartyLock(packageId: string | null) {
   }
 }
 
-function nativeOwnerCanRetireManagedLock(lock: AgentPackageLock) {
+function nativeOwnerDescriptorForManagedLockRetirement(lock: AgentPackageLock) {
   if (resolveAgentPackageEffectiveSourcePolicy(lock.package_id).desired_source_kind
     === 'developer_checkout_override') {
-    return false;
+    return null;
   }
   const descriptor = discoverInstalledCodexPluginDescriptors({
     packageId: lock.package_id,
     failClosedOnCarrierError: true,
   }).get(lock.package_id) ?? null;
-  if (!descriptor) return false;
+  if (!descriptor) return null;
   const surface = lock.physical_surface;
   const legacySelector = surface?.plugin_id && surface.marketplace_id
     ? `${surface.plugin_id}@${surface.marketplace_id}`
@@ -2505,7 +2505,13 @@ function nativeOwnerCanRetireManagedLock(lock: AgentPackageLock) {
     surface?.plugin_payload_cache_path,
   ].filter((entry): entry is string => Boolean(entry));
   return descriptor.pluginId !== legacySelector
-    && !legacyPaths.some((entry) => pathsOverlap(entry, descriptor.sourcePath));
+    && !legacyPaths.some((entry) => pathsOverlap(entry, descriptor.sourcePath))
+    ? descriptor.carrier
+    : null;
+}
+
+function nativeOwnerCanRetireManagedLock(lock: AgentPackageLock) {
+  return nativeOwnerDescriptorForManagedLockRetirement(lock) !== null;
 }
 
 function configuredCarrierUsesDeveloperCheckout(packageId: string | null) {
@@ -4662,6 +4668,92 @@ function runOplAgentPackageUninstallUnlocked(input: AgentPackagePackageActionInp
   };
 }
 
+function assertConfiguredNativeCarrierRemoved(input: {
+  packageId: string;
+  readback: ConfiguredCodexPluginCarrierReadback;
+}) {
+  if (configuredCarrierLifecycleReadback({
+    action: 'remove',
+    dryRun: false,
+    carrier: input.readback,
+  }).status === 'uninstalled') return;
+  throw new FrameworkContractError(
+    'contract_shape_invalid',
+    'Configured native carrier remained present after Package uninstall.',
+    {
+      package_id: input.packageId,
+      configured_carrier: input.readback,
+      failure_code: 'configured_codex_plugin_carrier_remove_readback_failed',
+    },
+  );
+}
+
+function assertConfiguredNativeCarrierRestored(input: {
+  packageId: string;
+  readback: ConfiguredCodexPluginCarrierReadback;
+}) {
+  if (input.readback.status === 'installed'
+    && input.readback.executor.status === 'callable'
+    && input.readback.carrier.precedence === 'exact_single_source') return;
+  throw new FrameworkContractError(
+    'contract_shape_invalid',
+    'Configured native carrier could not be restored after legacy Package cleanup failed.',
+    {
+      package_id: input.packageId,
+      configured_carrier: input.readback,
+      failure_code: 'configured_codex_plugin_carrier_uninstall_compensation_failed',
+    },
+  );
+}
+
+function runManagedLockAndNativeCarrierUninstallUnlocked(input: AgentPackagePackageActionInput) {
+  const packageId = requirePackageId(input.packageId, 'uninstall');
+  const { index } = readRecoveredLockIndex(input.dryRun === true);
+  assertNoRequiredInstalledDependents(index, packageId, 'uninstall');
+  const { lock } = requireInstalledPackage(index, packageId, 'uninstall');
+  const nativeDescriptor = nativeOwnerDescriptorForManagedLockRetirement(lock);
+  if (!nativeDescriptor) return runOplAgentPackageUninstallUnlocked(input);
+
+  if (input.dryRun === true) {
+    const nativeReadback = runConfiguredCodexPluginCarrier({
+      descriptor: nativeDescriptor,
+      action: 'remove',
+      dryRun: true,
+    });
+    const legacyReadback = runOplAgentPackageUninstallUnlocked(input);
+    return {
+      ...legacyReadback,
+      opl_agent_package_uninstall: {
+        ...legacyReadback.opl_agent_package_uninstall,
+        configured_carrier: nativeReadback,
+      },
+    };
+  }
+
+  const nativeReadback = runConfiguredCodexPluginCarrier({
+    descriptor: nativeDescriptor,
+    action: 'remove',
+  });
+  assertConfiguredNativeCarrierRemoved({ packageId, readback: nativeReadback });
+  try {
+    const legacyReadback = runOplAgentPackageUninstallUnlocked(input);
+    return {
+      ...legacyReadback,
+      opl_agent_package_uninstall: {
+        ...legacyReadback.opl_agent_package_uninstall,
+        configured_carrier: nativeReadback,
+      },
+    };
+  } catch (error) {
+    const restored = runConfiguredCodexPluginCarrier({
+      descriptor: nativeDescriptor,
+      action: 'install',
+    });
+    assertConfiguredNativeCarrierRestored({ packageId, readback: restored });
+    throw error;
+  }
+}
+
 export async function runOplAgentPackageUninstall(input: AgentPackagePackageActionInput) {
   const configured = await maybeRunConfiguredCarrierLifecycle({
     selectionInput: input,
@@ -4678,7 +4770,7 @@ export async function runOplAgentPackageUninstall(input: AgentPackagePackageActi
   }
   return withAgentPackageLifecycleTransaction(
     input.dryRun === true,
-    async () => runOplAgentPackageUninstallUnlocked(input),
+    async () => runManagedLockAndNativeCarrierUninstallUnlocked(input),
   );
 }
 
