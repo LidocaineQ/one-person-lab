@@ -230,7 +230,6 @@ export function buildLock(input: {
   releaseChannelDigest?: string | null;
 }): AgentPackageLock {
   const timestamp = nowIso();
-  const distributionPayload = input.manifest.distribution_payload;
   const exposureState = input.manifest.codex_default_exposure === false
     ? 'hidden' as const
     : input.previousLock?.exposure_state ?? 'visible';
@@ -262,15 +261,6 @@ export function buildLock(input: {
     carrier_authority: input.carrierAuthority ?? null,
     release_channel_ref: input.releaseChannelRef ?? null,
     release_channel_digest: input.releaseChannelDigest ?? null,
-    ...(distributionPayload
-      ? {
-          oci_ref: distributionPayload.oci_ref,
-          resolved_digest: distributionPayload.payload_digest_ref,
-          immutable_tag: distributionPayload.immutable_tag,
-          moving_tag: distributionPayload.moving_tag,
-          install_truth: distributionPayload.install_truth,
-        }
-      : {}),
     permission_scope_sha256: permissionScopeSha256(input.manifest),
     lock_ref: packageLockRef(input.manifest.package_id, input.manifest.version, input.manifestSha256),
     physical_surface: input.physicalSurface,

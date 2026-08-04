@@ -784,11 +784,6 @@ export type AgentPackageLock = {
   carrier_authority?: AgentPackageCarrierAuthority | null;
   release_channel_ref?: string | null;
   release_channel_digest?: string | null;
-  oci_ref?: string;
-  resolved_digest?: string;
-  immutable_tag?: string;
-  moving_tag?: 'latest-stable';
-  install_truth?: 'resolved_digest_lock';
   permission_scope_sha256: string;
   lock_ref: string;
   physical_surface?: AgentPackagePhysicalSurface;
