@@ -75,8 +75,10 @@ test('all package manifest normalizers preserve typed Codex default exposure', (
   ] as const) {
     const manifestPath = path.resolve('contracts', 'opl-framework', 'packages', `${packageId}.json`);
     const payload = parseJsonText(fs.readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
+    payload.rollback_ref = `rollback-ref:${packageId}/legacy`;
     const normalized = normalizePackageManifest(payload, pathToFileURL(manifestPath).href);
     assert.equal(normalized.codex_default_exposure, expected);
+    assert.equal(Object.hasOwn(normalized, 'rollback_ref'), false);
 
     const invalid = structuredClone(payload) as Record<string, any>;
     invalid.codex_surface.codex_default_exposure = 'workspace_only';

@@ -264,7 +264,6 @@ export type AgentPackageManifest = {
   permissions: unknown[];
   distribution_payload: AgentPackageDistributionPayload | null;
   update_channel: string;
-  rollback_ref: string;
   codex_visible_entry: string;
   required_skill_ids: string[];
   optional_skill_refs: string[];

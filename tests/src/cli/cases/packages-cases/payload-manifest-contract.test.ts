@@ -84,7 +84,6 @@ function canonicalFixture() {
     permissions: [],
     distribution_payload: null,
     update_channel: 'manifest_url',
-    rollback_ref: 'rollback-ref:example-agent',
     codex_visible_entry: pluginId,
     required_skill_ids: [pluginId],
     optional_skill_refs: [],
