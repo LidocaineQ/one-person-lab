@@ -244,9 +244,6 @@ export function buildLock(input: {
     package_role: input.manifest.package_role,
     display_name: input.manifest.display_name,
     publisher: input.manifest.publisher,
-    version_or_source_digest: distributionPayload
-      ? `${distributionPayload.immutable_tag}@${distributionPayload.payload_digest_ref}`
-      : `${input.manifest.version}+sha256:${input.manifestSha256}`,
     package_version: input.manifest.version,
     owner_language_version: input.manifest.owner_language_version,
     installed_at: input.previousLock?.installed_at ?? timestamp,

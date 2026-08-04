@@ -766,7 +766,6 @@ export type AgentPackageLock = {
   package_role?: AgentPackageRole;
   display_name: string;
   publisher: string;
-  version_or_source_digest: string;
   package_version: string;
   owner_language_version: AgentPackageOwnerLanguageVersion | null;
   installed_at: string;

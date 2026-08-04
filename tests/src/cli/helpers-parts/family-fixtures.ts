@@ -47,7 +47,6 @@ export function installRuntimePackageFixture(stateRoot: string, packageId: strin
     agent_id: canonicalPackageId,
     display_name: canonicalPackageId,
     publisher: 'opl-test',
-    version_or_source_digest: '0.0.0-test+sha256:fixture',
     package_version: '0.0.0-test',
     owner_language_version: null,
     installed_at: installedAt,
