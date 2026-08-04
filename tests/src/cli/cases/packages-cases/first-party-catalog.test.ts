@@ -39,7 +39,6 @@ import {
 const PACKAGE_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.source.v1+gzip';
 const PACKAGE_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.manifest.v1+json';
 const PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.payload.v1+json';
-const CHANNEL_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.release.channel-manifest.v1+json';
 const FLOW_SKILL_IDS = [
   'coordinate-concurrent-tasks',
   'develop-and-deliver',
@@ -440,52 +439,11 @@ function writeFirstPartyCatalogFixture(
   };
   const packageArtifactManifestJson = JSON.stringify(packageArtifactManifest);
   const artifactDigest = `sha256:${crypto.createHash('sha256').update(packageArtifactManifestJson).digest('hex')}`;
-  const channelManifestPath = path.join(blobRoot, 'channel-manifest.json');
-  const packageCatalog = {
-    'opl-flow': {
-      package_id: 'opl-flow',
-      package_role: 'workflow_profile',
-      selected_version: version,
-      versions: [{
-        package_version: version,
-        selection_status: 'selected_for_release_set',
-        manifest_url: `opl+oci://${sourceArtifactRef}#/package-manifest.json`,
-        manifest_sha256: manifestSha256,
-        manifest_json: manifestJson,
-        content_digest: manifestSha256,
-        payload_digest: payloadManifestSha256,
-        payload_manifest_json: payloadManifestJson,
-        payload_manifest_sha256: payloadManifestSha256,
-        source_artifact_ref: sourceArtifactRef,
-        artifact_digest: artifactDigest,
-        artifact_status: 'published_immutable',
-        package_content_digest: `sha256:${archiveSha256}`,
-        owner_source_commit: ownerSourceCommit,
-        dependency_package_ids: [],
-      }],
-    },
-  };
-  const packageCatalogDigest = `sha256:${crypto.createHash('sha256').update(JSON.stringify(packageCatalog)).digest('hex')}`;
-  fs.writeFileSync(channelManifestPath, formatJsonPayload({
-    release_set_generation: `fixture-${version}`,
-    packages: {
-      package_catalog: packageCatalog,
-    },
-    package_catalog_digest: packageCatalogDigest,
-  }));
-  const channelDigest = `sha256:${crypto.createHash('sha256').update(fs.readFileSync(channelManifestPath)).digest('hex')}`;
-  const channelDescriptor = {
-    schemaVersion: 2,
-    layers: [{ mediaType: CHANNEL_MANIFEST_LAYER_MEDIA_TYPE, digest: channelDigest }],
-  };
-  const channelDescriptorDigest = `sha256:${crypto.createHash('sha256').update(JSON.stringify(channelDescriptor)).digest('hex')}`;
   const curlLogPath = path.join(root, 'curl.jsonl');
   const manifests = {
-    'fixture/one-person-lab-manifest': channelDescriptor,
     'fixture/one-person-lab-packages/opl-flow': packageArtifactManifest,
   };
   const blobs = {
-    [channelDigest]: channelManifestPath,
     [`sha256:${archiveSha256}`]: archivePath,
     [manifestSha256]: manifestPath,
     [payloadManifestSha256]: payloadManifestPath,
@@ -523,9 +481,6 @@ function writeFirstPartyCatalogFixture(
       PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
     },
     artifactDigest,
-    channelDigest,
-    channelDescriptorDigest,
-    packageCatalogDigest,
     manifestSha256,
     sourceArtifactRef,
     curlLogPath,

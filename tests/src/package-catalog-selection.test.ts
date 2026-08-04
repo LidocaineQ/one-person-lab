@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  managedPackageCatalogDigest,
   normalizeManagedPackageCatalog,
   selectCapabilityCatalogVersion,
   selectManagedCatalogPackageVersion,
@@ -130,7 +129,6 @@ test('offline Release Set bridge without a surface kind retains exact selection 
     selectManagedCatalogPackageVersion(normalizeManagedPackageCatalog(payload), 'example').package_version,
     '2.0.0',
   );
-  assert.match(managedPackageCatalogDigest(payload), /^sha256:[0-9a-f]{64}$/);
 });
 
 test('catalog normalization rejects the retired Framework repository index', () => {
