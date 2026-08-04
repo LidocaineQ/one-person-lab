@@ -340,6 +340,20 @@ test('OPL Packages folds Codex projection and profile migration into one guarded
   assert.equal(components[0].profile_migration_status.apply_mode, 'fail_closed_owner_handoff');
   assert.equal(components[0].current.transaction_guards.installed_digest_required, true);
   assert.equal(components[0].current.transaction_guards.receipt_policy, 'native_module_owner_receipt');
+  assert.equal(components[0].current.currentness_authority, 'per_package_owner_latest_stable');
+  assert.equal(
+    components[0].current.shared_snapshot_role,
+    'explicit_full_offline_integration_qa_compatibility_only',
+  );
+  assert.equal(Object.hasOwn(components[0].current, 'channel_manifest'), false);
+  assert.equal(
+    components[0].current.owner_channel_refs.some(
+      (entry: Record<string, unknown>) => entry.package_id === 'mas'
+        && String(entry.channel_ref).endsWith('/one-person-lab-packages/mas:latest-stable'),
+    ),
+    true,
+  );
+  assert.equal(components[0].receipt.source_manifest_ref, 'opl://packages/per-package-owner-latest-stable');
   assert.deepEqual(components[0].receipt.content_identity_fields, [
     'digest',
     'sha256',

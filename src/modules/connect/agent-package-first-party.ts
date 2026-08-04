@@ -3,11 +3,19 @@ import {
   CANONICAL_OPL_PACKAGE_IDS,
   canonicalAgentPackageId,
 } from './agent-package-identity.ts';
-import { resolveOplReleaseManifestRef } from './system-installation/release-channel.ts';
 import type { ManagedCatalogVersion } from './agent-package-registry-parts/capability-reconciliation.ts';
 import type { AgentPackageManagedVersionCatalogSource } from './agent-package-registry-parts/types.ts';
 
 const FIRST_PARTY_PACKAGE_IDS = new Set<string>(CANONICAL_OPL_PACKAGE_IDS);
+const DEFAULT_FIRST_PARTY_PACKAGE_OWNER = 'gaofeng21cn';
+
+export function resolveFirstPartyPackageOwnerChannelRef(packageId: string | null | undefined) {
+  const canonicalId = canonicalAgentPackageId(packageId);
+  if (!canonicalId || !FIRST_PARTY_PACKAGE_IDS.has(canonicalId)) return null;
+  const configuredOwner = process.env.OPL_PACKAGES_OWNER?.trim();
+  const owner = configuredOwner || DEFAULT_FIRST_PARTY_PACKAGE_OWNER;
+  return `ghcr.io/${owner}/one-person-lab-packages/${canonicalId}:latest-stable`;
+}
 
 export function resolveFirstPartyPackageCatalog(packageId: string | null | undefined) {
   const canonicalId = canonicalAgentPackageId(packageId);
@@ -19,7 +27,7 @@ export function resolveFirstPartyPackageCatalog(packageId: string | null | undef
     catalogSource: {
       kind: 'managed_version_catalog',
       transport: 'opl_oci_channel',
-      catalog_ref: resolveOplReleaseManifestRef(),
+      catalog_ref: resolveFirstPartyPackageOwnerChannelRef(canonicalId)!,
       digest_authority: 'manifest_and_content_digest',
     } satisfies AgentPackageManagedVersionCatalogSource,
   };

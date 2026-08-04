@@ -22,6 +22,7 @@ const skillIds = ['develop-and-deliver', 'task-mode-gate', 'recover-codex-tasks'
 const flowSkillIds = [
   'coordinate-concurrent-tasks',
   'develop-and-deliver',
+  'github-ssot-patrol',
   'opl-fleet',
   'opl-flow',
   'recover-codex-tasks',
@@ -657,7 +658,7 @@ test('OPL Flow 0.1.29 descriptor does not retire Skills that it does not bundle'
   }
 });
 
-test('descriptor-only packages update migrates legacy Skills before exposing the configured six-Skill Flow target', () => {
+test('descriptor-only packages update migrates legacy Skills before exposing the configured seven-Skill Flow target', () => {
   const state = publicLifecycleFixture('update-success');
   try {
     const next = writeFlowMarketplace({
@@ -754,7 +755,7 @@ test('public packages update restores legacy directories and lock bytes after na
   }
 });
 
-test('public packages install from a developer checkout retires legacy Skills before exposing six Flow Skills', () => {
+test('public packages install from a developer checkout retires legacy Skills before exposing seven Flow Skills', () => {
   const state = publicLifecycleFixture('install-developer-checkout');
   try {
     const checkout = writeDeveloperFlowCheckout(path.join(state.root, 'workspace'));

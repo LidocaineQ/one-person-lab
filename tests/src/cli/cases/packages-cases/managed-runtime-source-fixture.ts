@@ -106,14 +106,16 @@ export function writeManagedRuntimeSourceFixture(input: {
   const packageId = packageIdByModule[input.moduleId] ?? input.moduleId;
   const sourceArtifactRef = `ghcr.io/fixture/one-person-lab-packages/${packageId}:${input.version}`;
   const exactSourceCommit = /^[0-9a-f]{40}$/.test(input.sourceHeadSha) ? input.sourceHeadSha : null;
-  const packageManifest = input.packageManifest ? structuredClone(input.packageManifest) : null;
+  const packageManifest = structuredClone(input.packageManifest ?? {});
   if (packageManifest && exactSourceCommit) {
     const codexSurface = packageManifest.codex_surface;
     if (codexSurface && typeof codexSurface === 'object' && !Array.isArray(codexSurface)) {
       (codexSurface as Record<string, unknown>).carrier_source_commit = exactSourceCommit;
     }
   }
-  const payloadManifest = input.payloadManifest ? structuredClone(input.payloadManifest) : null;
+  const payloadManifest = structuredClone(input.payloadManifest ?? {
+    source_commit: input.sourceHeadSha,
+  });
   if (payloadManifest && exactSourceCommit) payloadManifest.source_commit = exactSourceCommit;
   const manifestJson = packageManifest
     ? `${JSON.stringify({

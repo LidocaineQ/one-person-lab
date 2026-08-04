@@ -97,6 +97,20 @@ active consumer。它们是 compatibility-to-delete，不是目标架构。
 6. shared `one-person-lab-manifest:latest-stable` 只保留 Full/offline/integration/QA
    snapshot；普通 install/update/currentness 读取 owner 的 per-Package source。
 
+### No-resurrection 不变量
+
+- `installed lock`、`payload`、`materializer`、`lifecycle receipt`、`LKG`、
+  `rollback` 和 `durable transaction` 只属于 `compatibility-to-delete`；不得作为新
+  Package lifecycle、普通 currentness 或裸 carrier adoption 的实现依据，也不得通过改名、
+  新 schema 或新 writer 恢复为 Framework authority。
+- 普通 first-party install/update/currentness 的唯一顺序是 per-Package owner OCI
+  `latest-stable` -> native carrier adapter -> fresh native readback。旧 shared manifest 只可作为
+  compatibility snapshot 输入，不再是产品概念，也不得参与该路径的选择、成功判定或
+  currentness 结论。
+- 裸 carrier shortcut 仅在用户明确选择 developer/local source 时保留。普通 first-party
+  操作必须经过 owner channel 与 native lifecycle，并以 fresh readback 证明真实生效；仅有
+  descriptor、cache、旧 lock 或命令 exit 0 不得报告成功。
+
 ## 仓内执行顺序
 
 ### 1. 冻结复杂性
@@ -133,7 +147,8 @@ active consumer。它们是 compatibility-to-delete，不是目标架构。
   变化。
 - 删除中央 resolver、materializer、activation、rollback、transaction engine 和 retired
   public commands。
-- 删除普通 currentness 对 shared Release Set 的 reader；保留 snapshot producer/consumer。
+- 删除普通 currentness 对 shared Release Set 的 reader；剩余 snapshot producer/consumer
+  仅作 compatibility-to-delete，不得继续投影为 Package 产品概念。
 - 重新执行完整用户功能矩阵和 fresh carrier readback，再声明迁移完成。
 
 ## 功能不降级证明
