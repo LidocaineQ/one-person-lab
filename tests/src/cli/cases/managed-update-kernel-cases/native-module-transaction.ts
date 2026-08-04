@@ -16,6 +16,8 @@ import { writeFakeBookForgeGeneratedSurfacePack } from '../../../cli-codex-defau
 import { computePackageChannelTreeSha256 } from '../../../../../src/modules/connect/system-installation/module-package-channel.ts';
 
 const PACKAGE_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.source.v1+gzip';
+const PACKAGE_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.manifest.v1+json';
+const PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.payload.v1+json';
 const CHANNEL_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.release.channel-manifest.v1+json';
 
 function sha256(filePath: string) {
@@ -371,6 +373,19 @@ function writeManagedUpdatePackageChannelFixture(input: {
     execFileSync('tar', ['-czf', archivePath, module.repoName], { cwd: sourceRoot });
     const archiveDigest = sha256(archivePath);
     const packageId = packageIdForModule(module.moduleId);
+    const packageManifestPath = path.join(blobRoot, `${packageId}-package-manifest.json`);
+    const payloadManifestPath = path.join(blobRoot, `${packageId}-payload-manifest.json`);
+    fs.writeFileSync(packageManifestPath, JSON.stringify({
+      package_id: packageId,
+      version: input.version,
+    }), 'utf8');
+    fs.writeFileSync(payloadManifestPath, JSON.stringify({
+      package_id: packageId,
+      package_version: input.version,
+      source_commit: module.sourceHeadSha,
+    }), 'utf8');
+    const packageManifestDigest = sha256(packageManifestPath);
+    const payloadManifestDigest = sha256(payloadManifestPath);
     const packageArtifactManifest = {
       schemaVersion: 2,
       mediaType: 'application/vnd.oci.image.manifest.v1+json',
@@ -380,6 +395,20 @@ function writeManagedUpdatePackageChannelFixture(input: {
           digest: `sha256:${archiveDigest}`,
           annotations: {
             'org.opencontainers.image.title': `dist/opl-packages/packages/${packageId}/${packageId}-${input.version}.tar.gz`,
+          },
+        },
+        {
+          mediaType: PACKAGE_MANIFEST_LAYER_MEDIA_TYPE,
+          digest: `sha256:${packageManifestDigest}`,
+          annotations: {
+            'org.opencontainers.image.title': 'package-manifest.json',
+          },
+        },
+        {
+          mediaType: PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE,
+          digest: `sha256:${payloadManifestDigest}`,
+          annotations: {
+            'org.opencontainers.image.title': 'payload-manifest.json',
           },
         },
       ],
@@ -403,6 +432,8 @@ function writeManagedUpdatePackageChannelFixture(input: {
     };
     manifests[`owner/one-person-lab-packages/${packageId}`] = packageArtifactManifest;
     blobsByDigest[`sha256:${archiveDigest}`] = archivePath;
+    blobsByDigest[`sha256:${packageManifestDigest}`] = packageManifestPath;
+    blobsByDigest[`sha256:${payloadManifestDigest}`] = payloadManifestPath;
   }
 
   const channelManifestPath = path.join(blobRoot, 'channel-manifest.json');
@@ -634,9 +665,9 @@ exit 2
     assert.equal(typeof receiptLedger.receipts[0].adapter_result_ref, 'string');
     const agents = output.managed_update.components[0];
     assert.equal(agents.component_id, 'opl_packages');
-    assert.equal(agents.current.channel_manifest, 'ghcr.io/gaofeng21cn/one-person-lab-manifest:latest-stable');
-    assert.equal(agents.current.oci_distribution.channel_ref, 'ghcr.io/gaofeng21cn/one-person-lab-manifest:latest-stable');
-    assert.equal(agents.receipt.source_manifest_ref, 'ghcr.io/gaofeng21cn/one-person-lab-manifest:latest-stable');
+    assert.equal(agents.current.currentness_authority, 'per_package_owner_latest_stable');
+    assert.equal(agents.current.oci_distribution.channel_scope, 'per_package_owner_latest_stable');
+    assert.equal(agents.receipt.source_manifest_ref, 'opl://packages/per-package-owner-latest-stable');
     assert.doesNotMatch(JSON.stringify(agents), /one-person-lab-manifest:latest(?:"|\/)/);
     assert.equal(agents.auto_apply.eligible, true);
     assert.equal(agents.auto_apply.app_background_safe, true);
