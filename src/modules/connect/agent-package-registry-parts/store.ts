@@ -183,6 +183,7 @@ function normalizeLockEntry(
   }
   const normalizedValue = withoutLegacyCatalogSelectionPolicies(value);
   delete normalizedValue.action_receipt_id;
+  delete normalizedValue.updated_at;
   return {
     ...normalizedValue,
     package_id: packageId,

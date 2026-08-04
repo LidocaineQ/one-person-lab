@@ -283,7 +283,7 @@ test('managed catalog payload requires the exact declared source_path without ar
 test('repair migrates legacy Framework manifests to one stable catalog selection for plugin and runtime carriers', () => {
   const retiredLegacyLockFields = [
     'oci_ref', 'resolved_digest', 'immutable_tag', 'moving_tag', 'install_truth',
-    'version_or_source_digest', 'installed_at', 'exposure_updated_at',
+    'version_or_source_digest', 'installed_at', 'updated_at', 'exposure_updated_at',
   ];
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-stable-repair-state-'));
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-stable-repair-fixture-'));
@@ -354,6 +354,7 @@ test('repair migrates legacy Framework manifests to one stable catalog selection
     const lockIndex = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
     const legacyLock = lockIndex.packages.find((entry: any) => entry.package_id === 'rca');
     const legacyRuntimeGenerationPath = legacyLock.managed_runtime_source.checkout_path;
+    legacyLock.updated_at = '2000-01-01T00:00:00.000Z';
     legacyLock.source_kind = 'local_manifest_file';
     legacyLock.manifest_url = manifestPath;
     fs.writeFileSync(lockPath, formatJsonPayload(lockIndex));

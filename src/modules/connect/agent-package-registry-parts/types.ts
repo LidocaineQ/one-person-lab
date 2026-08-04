@@ -767,7 +767,6 @@ export type AgentPackageLock = {
   publisher: string;
   package_version: string;
   owner_language_version: AgentPackageOwnerLanguageVersion | null;
-  updated_at: string;
   codex_visible_entry: string;
   bundled_required_skill_ids: string[];
   optional_skill_refs: string[];

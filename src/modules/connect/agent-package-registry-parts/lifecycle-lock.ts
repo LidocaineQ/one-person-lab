@@ -6,7 +6,6 @@ import { canonicalAgentPackageId } from '../agent-package-identity.ts';
 import { unregisterLocalCodexPlugin } from '../system-installation/codex-plugin-registry.ts';
 import { removeSafePersistedPackagePath } from './persisted-path-safety.ts';
 import {
-  nowIso,
   resolveCodexConfigPath,
   resolveCodexHome,
   sha256Text,
@@ -128,7 +127,6 @@ export function buildLock(input: {
   releaseChannelRef?: string | null;
   releaseChannelDigest?: string | null;
 }): AgentPackageLock {
-  const timestamp = nowIso();
   const exposureState = input.manifest.codex_default_exposure === false
     ? 'hidden' as const
     : input.previousLock?.exposure_state ?? 'visible';
@@ -141,7 +139,6 @@ export function buildLock(input: {
     publisher: input.manifest.publisher,
     package_version: input.manifest.version,
     owner_language_version: input.manifest.owner_language_version,
-    updated_at: timestamp,
     codex_visible_entry: input.manifest.codex_visible_entry,
     bundled_required_skill_ids: input.manifest.required_skill_ids,
     optional_skill_refs: input.manifest.optional_skill_refs,
