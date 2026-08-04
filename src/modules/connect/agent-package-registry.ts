@@ -332,6 +332,26 @@ function packageOwnerChannelRef(version: ManagedCatalogVersion | null | undefine
     : null;
 }
 
+function configuredCarrierMatchesTarget(input: {
+  readback: ConfiguredCodexPluginCarrierReadback;
+  packageVersion: string;
+  contentQualifiedVersion: string | null;
+  pluginSourcePath: string | null;
+  marketplaceRoot: string | null;
+}) {
+  const versionMatches = input.readback.installed_version !== null
+    && (input.readback.installed_version === input.packageVersion
+      || (input.contentQualifiedVersion !== null
+        && input.readback.installed_version === input.contentQualifiedVersion));
+  return versionMatches
+    && input.readback.plugin_source_path !== null
+    && input.pluginSourcePath !== null
+    && path.resolve(input.readback.plugin_source_path) === path.resolve(input.pluginSourcePath)
+    && input.readback.carrier.marketplace_source !== null
+    && input.marketplaceRoot !== null
+    && path.resolve(input.readback.carrier.marketplace_source) === path.resolve(input.marketplaceRoot);
+}
+
 function preparedReleaseChannelRef(prepared: PreparedPackage, fallback: string | null) {
   return prepared.sourceKind === 'first_party_managed_cohort'
     ? packageOwnerChannelRef(prepared.catalogVersion) ?? fallback
@@ -1182,19 +1202,23 @@ async function applyManifestPackageLockUnlocked(
       assertOplFlowCoreSkillsCarrierReadback(carrierReadback);
       const expectedPluginSourcePath = surface.marketplace_plugin_path;
       const expectedMarketplaceRoot = surface.marketplace_root;
-      if (carrierReadback.installed_version !== root.manifest.version
-        || !carrierReadback.plugin_source_path
-        || !expectedPluginSourcePath
-        || path.resolve(carrierReadback.plugin_source_path) !== path.resolve(expectedPluginSourcePath)
-        || !carrierReadback.carrier.marketplace_source
-        || !expectedMarketplaceRoot
-        || path.resolve(carrierReadback.carrier.marketplace_source) !== path.resolve(expectedMarketplaceRoot)) {
+      const expectedContentQualifiedVersion = surface.codex_plugin_cache_path
+        ? path.basename(surface.codex_plugin_cache_path)
+        : null;
+      if (!configuredCarrierMatchesTarget({
+        readback: carrierReadback,
+        packageVersion: root.manifest.version,
+        contentQualifiedVersion: expectedContentQualifiedVersion,
+        pluginSourcePath: expectedPluginSourcePath,
+        marketplaceRoot: expectedMarketplaceRoot,
+      })) {
         throw new FrameworkContractError(
           'contract_shape_invalid',
           'OPL Flow native carrier did not reach the exact owner Package target.',
           {
             package_id: root.manifest.package_id,
             target_version: root.manifest.version,
+            target_content_qualified_version: expectedContentQualifiedVersion,
             observed_version: carrierReadback.installed_version,
             target_marketplace_root: expectedMarketplaceRoot,
             observed_marketplace_root: carrierReadback.carrier.marketplace_source,
