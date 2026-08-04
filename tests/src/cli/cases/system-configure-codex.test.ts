@@ -358,7 +358,7 @@ test('projected package-only actions preview all bundled Full packages without w
           }[packageId] as keyof typeof fixture.env]),
         );
       }
-      assert.equal(preview.lifecycle_receipt.writes_performed, false);
+      assert.equal(Object.hasOwn(preview, 'lifecycle_receipt'), false);
     }
     const thirdParty = runCliFailure([
       'app', 'action', 'execute',
@@ -1034,9 +1034,7 @@ test('packages repair restores an installed bundled runtime only from its immuta
     ], fixture.env) as any;
     assert.equal(repaired.opl_agent_package_repair.status, 'repaired');
     assert.equal(repaired.opl_agent_package_repair.dry_run, false);
-    assert.equal(repaired.opl_agent_package_repair.lifecycle_receipt.action, 'repair');
-    assert.equal(repaired.opl_agent_package_repair.lifecycle_receipt.action_status, 'completed');
-    assert.equal(repaired.opl_agent_package_repair.lifecycle_receipt.writes_performed, true);
+    assert.equal(Object.hasOwn(repaired.opl_agent_package_repair, 'lifecycle_receipt'), false);
     assert.equal(repaired.opl_agent_package_repair.repair_source_validation.status, 'completed');
     assert.equal(repaired.opl_agent_package_repair.repair_source_validation.source_adopted_as_target, false);
     assert.equal(repaired.opl_agent_package_repair.repair_source_validation.target_root, omaTargetRoot);
@@ -1246,7 +1244,7 @@ test('system configure-codex delegates Full runtime Package and carrier reconcil
       ['mas-scholar-skills', 'mas'],
     );
     assert.equal(packageUpdate.opl_agent_package_update.status, 'current_noop');
-    assert.equal(packageUpdate.opl_agent_package_update.lifecycle_receipt, null);
+    assert.equal(Object.hasOwn(packageUpdate.opl_agent_package_update, 'lifecycle_receipt'), false);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytesBeforePackageUpdate);
     for (const [filePath, before] of packageAuthorityBytesBeforeUpdate) {
       if (before === null) {

@@ -30,7 +30,6 @@ import {
   assertPermissionScopeUnchanged,
   buildLock,
   cleanupPreviousPhysicalSurface,
-  lifecycleReceipt,
   packageActionSourceSha256,
   packageActionStatus,
   requireInstalledPackage,
@@ -1532,70 +1531,13 @@ async function applyManifestPackageLockUnlocked(
       throw error;
     }
   }
-  const dependencyPackages = locks.map((entry) => ({
-    package_id: entry.package_id,
-    package_version: entry.package_version,
-    manifest_sha256: entry.manifest_sha256,
-    content_digest: entry.content_digest,
-    package_lock_ref: entry.lock_ref,
-    source_artifact_ref: entry.source_artifact_ref ?? null,
-    artifact_digest: entry.artifact_digest ?? null,
-    owner_source_commit: entry.owner_source_commit ?? null,
-    carrier_authority: entry.carrier_authority ?? null,
-    source_kind: entry.source_kind,
-    developer_checkout_source: entry.developer_checkout_source ?? null,
-  }));
-  const receipts = ordered.map((prepared) => {
-    const lock = builtLocks.get(prepared.manifest.package_id)!;
-    const receipt = lifecycleReceipt({
-      action,
-      actionStatus: input.dryRun ? 'validated' : 'completed',
-      packageId: prepared.manifest.package_id,
-      registryUrl: prepared.selection.registryUrl,
-      manifestUrl: prepared.selection.manifestUrl,
-      manifestSha256: prepared.manifestSha256,
-      packageLockRef: lock.lock_ref,
-      sourceKind: prepared.sourceKind,
-      trustTier: prepared.trustTier,
-      sourceSha256: sha256Text(`${transactionId}\n${prepared.manifest.package_id}\n${prepared.manifestSha256}`),
-      writesPerformed: !input.dryRun,
-      physicalSurface: physicalSurfaces.get(prepared.manifest.package_id),
-      dependencyTransactionId: transactionId,
-      dependencyClosureDigest: closureDigest,
-      dependencyPackages,
-      scopeMaterialization: prepared.manifest.package_id === root.manifest.package_id
-        ? scopeMaterializations[0]
-        : undefined,
-      scopeMaterializations: prepared.manifest.package_id === root.manifest.package_id
-        ? scopeMaterializations
-        : undefined,
-      managedRuntimeSource: lock.managed_runtime_source,
-      developerCheckoutSource: lock.developer_checkout_source ?? null,
-      sourceArtifactRef: preparedCatalogArtifactRef(prepared),
-      artifactDigest: preparedCatalogArtifactDigest(prepared),
-      ownerSourceCommit: preparedOwnerSourceCommit(prepared),
-      carrierAuthority: lock.carrier_authority ?? null,
-      releaseChannelRef: prepared.catalogVersion
-        ? preparedReleaseChannelRef(prepared, channelRef)
-        : prepared.previousLock?.release_channel_ref ?? null,
-      releaseChannelDigest: prepared.catalogVersion
-        ? preparedReleaseChannelDigest(prepared, channelDigest)
-        : prepared.previousLock?.release_channel_digest ?? null,
-      networkAccessed: trustedBundledInstall ? false : undefined,
-      remoteDependencyPolicy: trustedBundledInstall ? 'forbidden' : undefined,
-      provenance: input.provenance,
-    });
+  locks.forEach((lock) => {
     Object.assign(lock, {
       dependency_closure_digest: closureDigest,
       dependency_transaction_id: transactionId,
     });
-    if (prepared.manifest.package_id === root.manifest.package_id && scopeMaterializations.length > 0) {
-      receipt.scope_materialization = scopeMaterializations[0];
-    }
-    return receipt;
   });
   const lock = builtLocks.get(root.manifest.package_id)!;
-  const receipt = receipts.find((entry) => entry.package_id === root.manifest.package_id)!;
   let retiredLocks: AgentPackageLock[] = [];
 
   if (!input.dryRun) {
@@ -1701,12 +1643,10 @@ async function applyManifestPackageLockUnlocked(
   return {
     status: input.dryRun ? 'validated_no_write' : packageActionStatus(action),
     lock,
-    receipt,
     registryEntry: selection.registryEntry,
     physicalSurface: physicalSurfaces.get(root.manifest.package_id)!,
     frameworkLink,
     closureLocks: locks,
-    closureReceipts: receipts,
     dependencyTransactionId: transactionId,
     dependencyClosureDigest: closureDigest,
     scopeMaterializations,
@@ -2741,7 +2681,6 @@ function agentPackageInstallReadback(
       package_lock: result.lock,
       physical_surface: result.physicalSurface,
       framework_link: result.frameworkLink,
-      lifecycle_receipt: result.receipt,
       dependency_transaction_id: result.dependencyTransactionId,
       dependency_closure_digest: result.dependencyClosureDigest,
       dependency_package_locks: result.closureLocks,
@@ -3284,31 +3223,6 @@ function bundledFullRuntimeRepairReadback(
   lock: AgentPackageLock,
   validation: BundledFullRuntimeRepairSourceValidation,
 ) {
-  const receipt = lifecycleReceipt({
-    action: 'repair',
-    actionStatus: 'validated',
-    packageId: lock.package_id,
-    manifestUrl: lock.manifest_url,
-    manifestSha256: lock.manifest_sha256,
-    packageLockRef: lock.lock_ref,
-    sourceKind: lock.source_kind,
-    trustTier: lock.trust_tier,
-    sourceSha256: sha256Text([
-      'bundled-full-runtime-repair-source',
-      validation.sourceRoot,
-      validation.sourceTreeSha256,
-      validation.sourceOwnerSourceCommit,
-    ].join('\n')),
-    writesPerformed: false,
-    physicalSurface: lock.physical_surface,
-    managedRuntimeSource: lock.managed_runtime_source,
-    sourceArtifactRef: lock.source_artifact_ref ?? null,
-    artifactDigest: lock.artifact_digest ?? null,
-    ownerSourceCommit: lock.owner_source_commit ?? null,
-    carrierAuthority: lock.carrier_authority ?? null,
-    releaseChannelRef: lock.release_channel_ref ?? null,
-    releaseChannelDigest: lock.release_channel_digest ?? null,
-  });
   return {
     version: 'g2',
     opl_agent_package_repair: {
@@ -3318,7 +3232,6 @@ function bundledFullRuntimeRepairReadback(
       package_lock: lock,
       physical_surface: lock.physical_surface,
       framework_link: null,
-      lifecycle_receipt: receipt,
       repair_source_validation: {
         status: 'validated_no_write',
         source_role: 'source_only',
@@ -3705,10 +3618,8 @@ function tryBundledFullRuntimePackagePresenceReadback(
         lock,
         physicalSurface: lock.physical_surface,
         frameworkLink: null,
-        receipt: null,
         registryEntry: null,
         closureLocks,
-        closureReceipts: [],
         dependencyTransactionId: lock.dependency_transaction_id,
         dependencyClosureDigest: lock.dependency_closure_digest,
         carrierEnsure: {
@@ -3831,10 +3742,8 @@ async function runOplAgentPackageUpdateUnlocked(
         lock,
         physicalSurface: lock.physical_surface,
         frameworkLink: null,
-        receipt: null,
         registryEntry: null,
         closureLocks,
-        closureReceipts: [],
         dependencyTransactionId: lock.dependency_transaction_id,
         dependencyClosureDigest: lock.dependency_closure_digest,
       }, {
@@ -3930,7 +3839,6 @@ function packageRepairResult(
       package_lock: result.lock,
       physical_surface: result.physicalSurface,
       framework_link: result.frameworkLink,
-      lifecycle_receipt: result.receipt,
       dependency_transaction_id: result.dependencyTransactionId,
       dependency_closure_digest: result.dependencyClosureDigest,
       dependency_package_locks: result.closureLocks,
@@ -3978,25 +3886,6 @@ async function runOplAgentPackageRepairUnlocked(input: AgentPackageRepairInput) 
   const frameworkLink = input.agentRoot
     ? materializeStandardAgentFrameworkLink({ agentRoot: input.agentRoot, dryRun: input.dryRun })
     : null;
-  const receipt = lifecycleReceipt({
-    action: 'repair',
-    actionStatus: input.dryRun ? 'validated' : 'completed',
-    packageId,
-    manifestUrl: lock.manifest_url,
-    manifestSha256: lock.manifest_sha256,
-    packageLockRef: lock.lock_ref,
-    sourceKind: lock.source_kind,
-    trustTier: lock.trust_tier,
-    sourceSha256: packageActionSourceSha256('repair', lock),
-    writesPerformed: !input.dryRun,
-    physicalSurface,
-    sourceArtifactRef: lock.source_artifact_ref ?? null,
-    artifactDigest: lock.artifact_digest ?? null,
-    ownerSourceCommit: lock.owner_source_commit ?? null,
-    carrierAuthority: lock.carrier_authority ?? null,
-    releaseChannelRef: lock.release_channel_ref ?? null,
-    releaseChannelDigest: lock.release_channel_digest ?? null,
-  });
   const repairedLock = {
     ...lock,
     updated_at: input.dryRun ? lock.updated_at : nowIso(),
@@ -4015,7 +3904,6 @@ async function runOplAgentPackageRepairUnlocked(input: AgentPackageRepairInput) 
       package_lock: repairedLock,
       physical_surface: physicalSurface,
       framework_link: frameworkLink,
-      lifecycle_receipt: receipt,
       authority_boundary: refsOnlyAuthorityBoundary(),
     },
   };
@@ -4145,53 +4033,7 @@ async function ensureOplAgentPackageScopeActivationUnlocked(input: AgentPackageP
     }
     throw error;
   }
-  const dependencyPackages = [
-    lock,
-    ...index.packages.filter((entry) => lock.resolved_dependencies.some((dependency) => dependency.package_id === entry.package_id)),
-  ].map((entry) => ({
-    package_id: entry.package_id,
-    package_version: entry.package_version,
-    manifest_sha256: entry.manifest_sha256,
-    content_digest: entry.content_digest,
-    package_lock_ref: entry.lock_ref,
-    source_artifact_ref: entry.source_artifact_ref ?? null,
-    artifact_digest: entry.artifact_digest ?? null,
-    owner_source_commit: entry.owner_source_commit ?? null,
-    carrier_authority: entry.carrier_authority ?? null,
-    source_kind: entry.source_kind,
-    developer_checkout_source: entry.developer_checkout_source ?? null,
-  }));
-  const activationReceipt = materializations.length > 0
-    ? lifecycleReceipt({
-        action: 'activate',
-        actionStatus: input.dryRun ? 'validated' : 'completed',
-        packageId,
-        manifestUrl: lock.manifest_url,
-        manifestSha256: lock.manifest_sha256,
-        packageLockRef: lock.lock_ref,
-        sourceKind: lock.source_kind,
-        trustTier: lock.trust_tier,
-        sourceSha256: transactionId,
-        writesPerformed: !input.dryRun,
-        dependencyTransactionId: lock.dependency_transaction_id,
-        dependencyClosureDigest: lock.dependency_closure_digest,
-        dependencyPackages,
-        sourceArtifactRef: lock.source_artifact_ref ?? null,
-        artifactDigest: lock.artifact_digest ?? null,
-        ownerSourceCommit: lock.owner_source_commit ?? null,
-        developerCheckoutSource: lock.developer_checkout_source ?? null,
-        carrierAuthority: lock.carrier_authority ?? null,
-        releaseChannelRef: lock.release_channel_ref ?? null,
-        releaseChannelDigest: lock.release_channel_digest ?? null,
-        scopeMaterialization: materializations[0],
-        scopeMaterializations: materializations,
-      })
-    : null;
-  if (activationReceipt) {
-    activationReceipt.scope_materialization = materializations[0];
-    activationReceipt.scope_materializations = materializations;
-  }
-  const activatedLock: AgentPackageLock = activationReceipt
+  const activatedLock: AgentPackageLock = materializations.length > 0
     ? {
         ...lock,
         updated_at: input.dryRun ? lock.updated_at : nowIso(),
@@ -4285,7 +4127,6 @@ async function ensureOplAgentPackageScopeActivationUnlocked(input: AgentPackageP
     package_id: packageId,
     writes_performed: !input.dryRun,
     scope_materializations: materializations,
-    lifecycle_receipt: activationReceipt,
     package_lock: activatedLock,
     materialization_readiness: materializationReadiness,
     package_use_binding: useBinding,
@@ -4716,26 +4557,6 @@ function runOplAgentPackageUninstallUnlocked(input: AgentPackagePackageActionInp
       failure_code: 'test_runtime_source_interrupted_after_stage_uninstall',
     });
   }
-  const receipt = lifecycleReceipt({
-    action: 'uninstall',
-    actionStatus: input.dryRun ? 'validated' : 'completed',
-    packageId,
-    manifestUrl: lock.manifest_url,
-    manifestSha256: lock.manifest_sha256,
-    packageLockRef: lock.lock_ref,
-    sourceKind: lock.source_kind,
-    trustTier: lock.trust_tier,
-    sourceSha256: packageActionSourceSha256('uninstall', lock),
-    writesPerformed: !input.dryRun,
-    physicalSurface,
-    managedRuntimeSource: runtimeSourceMutation.after,
-    sourceArtifactRef: lock.source_artifact_ref ?? null,
-    artifactDigest: lock.artifact_digest ?? null,
-    ownerSourceCommit: lock.owner_source_commit ?? null,
-    carrierAuthority: lock.carrier_authority ?? null,
-    releaseChannelRef: lock.release_channel_ref ?? null,
-    releaseChannelDigest: lock.release_channel_digest ?? null,
-  });
   let runtimeSourceCleanup: {
     status: 'not_required' | 'cleanup_completed' | 'cleanup_pending';
     cleanup_paths: string[];
@@ -4768,7 +4589,6 @@ function runOplAgentPackageUninstallUnlocked(input: AgentPackagePackageActionInp
       dry_run: input.dryRun === true,
       removed_package_lock: lock,
       physical_surface: physicalSurface,
-      lifecycle_receipt: receipt,
       runtime_source_cleanup: runtimeSourceCleanup,
       authority_boundary: refsOnlyAuthorityBoundary(),
     },

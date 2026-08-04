@@ -4213,7 +4213,7 @@
           "flag": "--dry-run",
           "value_kind": "boolean",
           "required": false,
-          "summary": "Validate and preview lock/receipt output without writing state."
+          "summary": "Validate and preview lock and carrier output without writing state."
         }
       ],
       "output_schema": {
@@ -4234,7 +4234,6 @@
               "status",
               "dry_run",
               "package_lock",
-              "lifecycle_receipt",
               "authority_boundary"
             ],
             "oneOf": [
@@ -4351,7 +4350,7 @@
           "flag": "--dry-run",
           "value_kind": "boolean",
           "required": false,
-          "summary": "Validate and preview lock/receipt output without writing state."
+          "summary": "Validate and preview lock and carrier output without writing state."
         }
       ],
       "output_schema": {
@@ -4373,7 +4372,6 @@
               "dry_run",
               "package_lock",
               "physical_surface",
-              "lifecycle_receipt",
               "authority_boundary"
             ],
             "additionalProperties": true
@@ -4549,7 +4547,7 @@
           "flag": "--dry-run",
           "value_kind": "boolean",
           "required": false,
-          "summary": "Validate and preview receipt output without writing state."
+          "summary": "Validate and preview repair output without writing state."
         }
       ],
       "output_schema": {
@@ -4571,7 +4569,6 @@
               "dry_run",
               "package_lock",
               "physical_surface",
-              "lifecycle_receipt",
               "authority_boundary"
             ],
             "additionalProperties": true
@@ -4612,7 +4609,7 @@
           "flag": "--dry-run",
           "value_kind": "boolean",
           "required": false,
-          "summary": "Validate and preview receipt output without writing state."
+          "summary": "Validate and preview uninstall output without writing state."
         }
       ],
       "output_schema": {
@@ -4634,7 +4631,6 @@
               "dry_run",
               "removed_package_lock",
               "physical_surface",
-              "lifecycle_receipt",
               "authority_boundary"
             ],
             "additionalProperties": true

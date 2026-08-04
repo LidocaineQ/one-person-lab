@@ -1182,7 +1182,7 @@ test('family-runtime use boundary ignores owner channels when the legacy shared 
   }
 });
 
-test('family-runtime treats operation receipts as observation-only without a lifecycle ledger', async () => {
+test('family-runtime package operations stay receipt-free without a lifecycle ledger', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-capability-use-receipt-tamper-'));
   const workspace = path.join(root, 'workspace');
   const provider = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0');
@@ -1207,7 +1207,7 @@ test('family-runtime treats operation receipts as observation-only without a lif
     ));
     const installedMas = lockIndex.packages.find((entry: any) => entry.package_id === 'mas');
     const ledgerPath = path.join(env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json');
-    assert.match(installation.lifecycle_receipt.receipt_ref, /^opl:\/\/agent-package\/install\//);
+    assert.equal(Object.hasOwn(installation, 'lifecycle_receipt'), false);
     assert.equal(Object.hasOwn(installedMas, 'action_receipt_id'), false);
     assert.equal(fs.existsSync(ledgerPath), false);
 

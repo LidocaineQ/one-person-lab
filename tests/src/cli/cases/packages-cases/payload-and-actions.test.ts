@@ -62,12 +62,6 @@ test('packages materializes manifest-declared remote plugin payloads', async () 
             codex_plugin_cache_path: string;
             materialized_required_skill_paths: string[];
           };
-          lifecycle_receipt: {
-            physical_surface: {
-              plugin_payload_manifest_url: string;
-              plugin_payload_cache_path: string;
-            };
-          };
         };
       };
 
@@ -91,10 +85,7 @@ test('packages materializes manifest-declared remote plugin payloads', async () 
         install.opl_agent_package_install.package_lock.physical_surface.materialized_required_skill_ids,
         ['third-party-research'],
       );
-      assert.equal(
-        install.opl_agent_package_install.lifecycle_receipt.physical_surface.plugin_payload_cache_path,
-        physicalSurface.plugin_payload_cache_path,
-      );
+      assert.equal(Object.hasOwn(install.opl_agent_package_install, 'lifecycle_receipt'), false);
 
       await runCliAsync([
         'packages',
@@ -473,7 +464,7 @@ test('legacy profile receipt collisions do not affect package installation after
   }
 });
 
-test('app action execute routes install_from_manifest_url to Framework package lock receipt writer', () => {
+test('app action execute routes install_from_manifest_url to the Framework package lock and carrier adapter', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-app-action-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-app-action-home-'));
   const codexHome = path.join(homeDir, '.codex');
@@ -522,7 +513,6 @@ test('app action execute routes install_from_manifest_url to Framework package l
             status: string;
             package_id: string;
             package_lock: { package_id: string; source_kind: string };
-            lifecycle_receipt: { writes_performed: boolean };
           };
         };
       };
@@ -533,7 +523,10 @@ test('app action execute routes install_from_manifest_url to Framework package l
     assert.equal(output.app_action_execution.result.opl_agent_package_install.package_id, 'third.party.research');
     assert.equal(output.app_action_execution.result.opl_agent_package_install.package_lock.package_id, 'third.party.research');
     assert.equal(output.app_action_execution.result.opl_agent_package_install.package_lock.source_kind, 'local_manifest_file');
-    assert.equal(output.app_action_execution.result.opl_agent_package_install.lifecycle_receipt.writes_performed, true);
+    assert.equal(
+      Object.hasOwn(output.app_action_execution.result.opl_agent_package_install, 'lifecycle_receipt'),
+      false,
+    );
 
     const repair = runCli([
       'app',
@@ -549,14 +542,16 @@ test('app action execute routes install_from_manifest_url to Framework package l
         result: {
           opl_agent_package_repair: {
             status: string;
-            lifecycle_receipt: { action: string };
           };
         };
       };
     };
     assert.equal(repair.app_action_execution.delegated_surface, 'opl packages repair --package-id <package_id>');
     assert.equal(repair.app_action_execution.result.opl_agent_package_repair.status, 'repaired');
-    assert.equal(repair.app_action_execution.result.opl_agent_package_repair.lifecycle_receipt.action, 'repair');
+    assert.equal(
+      Object.hasOwn(repair.app_action_execution.result.opl_agent_package_repair, 'lifecycle_receipt'),
+      false,
+    );
 
     const lockPath = path.join(stateDir, 'agent-package-locks.json');
     const lockBeforeExposure = fs.readFileSync(lockPath, 'utf8');

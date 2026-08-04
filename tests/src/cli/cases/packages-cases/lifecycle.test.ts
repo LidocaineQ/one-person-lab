@@ -28,7 +28,7 @@ test('explicit registry selection installs without a persistent discovery cache'
       const install = await runCliAsync(['packages', 'install', ...args], env) as any;
       assert.equal(install.opl_agent_package_install.status, 'installed');
       assert.equal(install.opl_agent_package_install.package_lock.package_id, 'third.party.research');
-      assert.equal(install.opl_agent_package_install.lifecycle_receipt.action, 'install');
+      assert.equal(Object.hasOwn(install.opl_agent_package_install, 'lifecycle_receipt'), false);
       assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-registry-cache.json')), false);
       assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), true);
       assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
