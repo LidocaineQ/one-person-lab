@@ -281,8 +281,9 @@ test('managed catalog payload requires the exact declared source_path without ar
 });
 
 test('repair migrates legacy Framework manifests to one stable catalog selection for plugin and runtime carriers', () => {
-  const retiredDistributionLockFields = [
+  const retiredLegacyLockFields = [
     'oci_ref', 'resolved_digest', 'immutable_tag', 'moving_tag', 'install_truth',
+    'version_or_source_digest', 'installed_at', 'exposure_updated_at',
   ];
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-stable-repair-state-'));
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-stable-repair-fixture-'));
@@ -372,8 +373,7 @@ test('repair migrates legacy Framework manifests to one stable catalog selection
     const preview = runCli(['packages', 'repair', 'rca', '--dry-run'], env) as any;
     const previewLock = preview.opl_agent_package_repair.package_lock;
     assert.equal(previewLock.package_version, '0.2.1');
-    assert.equal(Object.hasOwn(previewLock, 'version_or_source_digest'), false);
-    assert.deepEqual(retiredDistributionLockFields.filter((field) => Object.hasOwn(previewLock, field)), []);
+    assert.deepEqual(retiredLegacyLockFields.filter((field) => Object.hasOwn(previewLock, field)), []);
     assert.equal(previewLock.source_kind, 'first_party_managed_cohort');
     assert.equal(previewLock.manifest_url, 'opl+oci://ghcr.io/fixture/one-person-lab-packages/rca:0.2.1#/package-manifest.json');
     assert.equal(previewLock.source_artifact_ref, 'ghcr.io/fixture/one-person-lab-packages/rca:0.2.1');
@@ -396,8 +396,7 @@ test('repair migrates legacy Framework manifests to one stable catalog selection
     const repaired = runCli(['packages', 'repair', 'rca'], env) as any;
     const repairedLock = repaired.opl_agent_package_repair.package_lock;
     assert.equal(repairedLock.package_version, '0.2.1');
-    assert.equal(Object.hasOwn(repairedLock, 'version_or_source_digest'), false);
-    assert.deepEqual(retiredDistributionLockFields.filter((field) => Object.hasOwn(repairedLock, field)), []);
+    assert.deepEqual(retiredLegacyLockFields.filter((field) => Object.hasOwn(repairedLock, field)), []);
     assert.equal(repairedLock.managed_runtime_source.source_git_head_sha, stableSourceHead);
     assert.equal(
       fs.readFileSync(

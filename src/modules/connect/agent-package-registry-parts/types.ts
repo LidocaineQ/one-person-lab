@@ -768,7 +768,6 @@ export type AgentPackageLock = {
   publisher: string;
   package_version: string;
   owner_language_version: AgentPackageOwnerLanguageVersion | null;
-  installed_at: string;
   updated_at: string;
   codex_visible_entry: string;
   bundled_required_skill_ids: string[];
@@ -788,7 +787,6 @@ export type AgentPackageLock = {
   lock_ref: string;
   physical_surface?: AgentPackagePhysicalSurface;
   exposure_state?: 'visible' | 'hidden' | 'enabled' | 'disabled';
-  exposure_updated_at?: string;
   capability_provider: AgentPackageCapabilityProvider | null;
   capability_dependencies: AgentPackageCapabilityDependency[];
   resolved_dependencies: AgentPackageResolvedDependency[];

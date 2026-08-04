@@ -233,9 +233,6 @@ export function buildLock(input: {
   const exposureState = input.manifest.codex_default_exposure === false
     ? 'hidden' as const
     : input.previousLock?.exposure_state ?? 'visible';
-  const exposureUpdatedAt = input.previousLock?.exposure_state === exposureState
-    ? input.previousLock.exposure_updated_at ?? timestamp
-    : timestamp;
   return {
     surface_kind: 'opl_agent_package_lock',
     package_id: input.manifest.package_id,
@@ -245,7 +242,6 @@ export function buildLock(input: {
     publisher: input.manifest.publisher,
     package_version: input.manifest.version,
     owner_language_version: input.manifest.owner_language_version,
-    installed_at: input.previousLock?.installed_at ?? timestamp,
     updated_at: timestamp,
     codex_visible_entry: input.manifest.codex_visible_entry,
     bundled_required_skill_ids: input.manifest.required_skill_ids,
@@ -265,7 +261,6 @@ export function buildLock(input: {
     lock_ref: packageLockRef(input.manifest.package_id, input.manifest.version, input.manifestSha256),
     physical_surface: input.physicalSurface,
     exposure_state: exposureState,
-    exposure_updated_at: exposureUpdatedAt,
     capability_provider: input.manifest.capability_provider,
     capability_dependencies: input.manifest.capability_dependencies,
     resolved_dependencies: input.resolvedDependencies ?? [],
