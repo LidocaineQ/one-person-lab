@@ -31,8 +31,10 @@ export type {
 } from './domain-pack-compiler/repo-contract-descriptor.ts';
 export {
   compileStandardAgentStageManifest,
+  resolveStandardAgentStageReviewLane,
   resolveStandardAgentStageQualityRuntimeBinding,
   STANDARD_AGENT_DESCRIPTOR_REF,
+  stageAttemptExecutorPolicyWithReviewLane,
 } from './standard-agent-stage-manifest.ts';
 export type {
   StandardAgentHandoffReviewBoundary,
