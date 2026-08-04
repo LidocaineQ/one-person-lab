@@ -43,6 +43,7 @@ const CHANNEL_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.release.
 const FLOW_SKILL_IDS = [
   'coordinate-concurrent-tasks',
   'develop-and-deliver',
+  'github-ssot-patrol',
   'opl-fleet',
   'opl-flow',
   'recover-codex-tasks',
@@ -613,6 +614,36 @@ process.exit(result.status ?? 1);
   return binary;
 }
 
+function writeCarrierReadbackOverrideWrapper(root: string, delegate: string) {
+  const binary = path.join(root, 'carrier-readback-override-codex');
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+import { spawnSync } from 'node:child_process';
+
+const args = process.argv.slice(2);
+const result = spawnSync(${JSON.stringify(delegate)}, args, {
+  env: process.env,
+  encoding: 'utf8',
+});
+if (result.status === 0
+  && args.join(' ') === 'plugin list --json'
+  && process.env.FIXTURE_CARRIER_SOURCE_CONTAINS) {
+  const payload = JSON.parse(result.stdout || '{}');
+  for (const entry of payload.installed || []) {
+    if (!entry?.source?.path?.includes(process.env.FIXTURE_CARRIER_SOURCE_CONTAINS)) continue;
+    if (process.env.FIXTURE_CARRIER_CLEAR_VERSION === '1') entry.version = null;
+    else if (process.env.FIXTURE_CARRIER_VERSION) entry.version = process.env.FIXTURE_CARRIER_VERSION;
+    if (process.env.FIXTURE_CARRIER_SOURCE_PATH) entry.source.path = process.env.FIXTURE_CARRIER_SOURCE_PATH;
+  }
+  process.stdout.write(JSON.stringify(payload));
+  process.exit(0);
+}
+process.stdout.write(result.stdout || '');
+process.stderr.write(result.stderr || '');
+process.exit(result.status ?? 1);
+`, { mode: 0o755 });
+  return binary;
+}
+
 function writeRelayOwnerFixture(root: string) {
   const ownerRoot = path.join(root, 'relay-owner');
   const manifest = parseJsonText(fs.readFileSync(
@@ -1164,6 +1195,107 @@ test('descriptor-owned Flow update adopts the exact live owner target and become
     fs.rmSync(currentOwner.root, { recursive: true, force: true });
     fs.rmSync(nextOwner.root, { recursive: true, force: true });
   }
+});
+
+test('descriptor-owned Flow accepts only the exact content-qualified carrier generation and source path', () => {
+  function runCase(input: {
+    versionSuffix: 'matching' | 'missing' | string;
+    wrongSourcePath?: boolean;
+    expectSuccess: boolean;
+  }) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-flow-content-qualified-carrier-'));
+    const stateDir = path.join(root, 'state');
+    const homeDir = path.join(root, 'home');
+    const codex = createFakeCodexPluginManagerFixture(path.join(root, 'fake-codex'));
+    const overrideCodex = writeCarrierReadbackOverrideWrapper(root, codex.codexPath);
+    const nextOwner = writeFirstPartyCatalogFixture('0.1.32', '2'.repeat(40), {
+      requiredSkillIds: FLOW_SKILL_IDS,
+    });
+    const carrier = writeDescriptorOwnedFlowCarrier({ root, version: '0.1.31' });
+    const baseEnv = {
+      HOME: homeDir,
+      CODEX_HOME: path.join(homeDir, '.codex'),
+      OPL_STATE_DIR: stateDir,
+      OPL_CODEX_PLUGIN_BIN: overrideCodex,
+      OPL_CLI_TEST_TIMEOUT_MS: '90000',
+      FIXTURE_CARRIER_SOURCE_CONTAINS: path.join(stateDir, 'codex-plugin-marketplaces'),
+    };
+    try {
+      seedDescriptorOwnedFlowCarrier({ codexPath: codex.codexPath, carrier, env: baseEnv });
+      const preview = runCli(['packages', 'update', 'opl-flow', '--dry-run'], {
+        ...baseEnv,
+        ...nextOwner.env,
+      }) as any;
+      const expectedContentQualifiedVersion = path.basename(
+        preview.opl_agent_package_update.physical_surface.codex_plugin_cache_path,
+      );
+      const expectedGeneration = expectedContentQualifiedVersion.slice('0.1.32-'.length);
+      const observedGeneration = input.versionSuffix === 'matching'
+        ? expectedGeneration
+        : input.versionSuffix;
+      const overrideSourcePath = input.wrongSourcePath
+        ? path.join(root, 'wrong-carrier-source')
+        : null;
+      if (overrideSourcePath) {
+        fs.cpSync(carrier.pluginRoot, overrideSourcePath, { recursive: true });
+      }
+      const commonEnv = {
+        ...baseEnv,
+        ...(input.versionSuffix === 'missing'
+          ? { FIXTURE_CARRIER_CLEAR_VERSION: '1' }
+          : { FIXTURE_CARRIER_VERSION: `0.1.32-${observedGeneration}` }),
+        ...(overrideSourcePath ? { FIXTURE_CARRIER_SOURCE_PATH: overrideSourcePath } : {}),
+      };
+      if (input.expectSuccess) {
+        const updated = runCli(['packages', 'update', 'opl-flow'], {
+          ...commonEnv,
+          ...nextOwner.env,
+        }) as any;
+        assert.equal(updated.opl_agent_package_update.status, 'updated');
+        assert.equal(
+          updated.opl_agent_package_update.configured_carrier.installed_version,
+          expectedContentQualifiedVersion,
+        );
+        assert.equal(updated.opl_agent_package_update.configured_carrier.executor.status, 'callable');
+        const pluginRoot = updated.opl_agent_package_update.package_lock
+          .physical_surface.codex_plugin_cache_path;
+        for (const skillId of FLOW_SKILL_IDS) {
+          assert.equal(
+            fs.existsSync(path.join(pluginRoot, 'skills', skillId, 'SKILL.md')),
+            true,
+            skillId,
+          );
+        }
+        return;
+      }
+      const failure = runCliFailure(['packages', 'update', 'opl-flow'], {
+        ...commonEnv,
+        ...nextOwner.env,
+      });
+      assert.equal(
+        failure.payload.error.details.failure_code,
+        'configured_codex_plugin_carrier_target_currentness_mismatch',
+      );
+      assert.equal(failure.payload.error.details.target_version, '0.1.32');
+      assert.equal(
+        failure.payload.error.details.target_content_qualified_version,
+        expectedContentQualifiedVersion,
+      );
+      assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+    } finally {
+      removeFixtureTree(root);
+      fs.rmSync(nextOwner.root, { recursive: true, force: true });
+    }
+  }
+
+  runCase({ versionSuffix: 'matching', expectSuccess: true });
+  runCase({ versionSuffix: 'missing', expectSuccess: false });
+  runCase({ versionSuffix: 'f'.repeat(64), expectSuccess: false });
+  runCase({
+    versionSuffix: 'matching',
+    wrongSourcePath: true,
+    expectSuccess: false,
+  });
 });
 
 test('descriptor-owned Flow update rejects a successful native no-op and preserves the previous carrier', () => {
