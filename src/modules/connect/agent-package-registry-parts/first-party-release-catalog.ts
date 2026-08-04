@@ -90,7 +90,6 @@ export async function refreshFirstPartyPackageCatalogSnapshot(
         package_content_digest: artifact.source_layer_digest,
         owner_source_commit: ownerSourceCommit,
         dependency_package_ids: dependencyPackageIds,
-        capability_abi: manifest.capability_provider?.capability_abi ?? null,
       }],
     };
     if (selectedPackageId === packageId) {

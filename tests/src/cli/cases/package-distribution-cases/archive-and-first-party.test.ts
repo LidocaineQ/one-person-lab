@@ -594,6 +594,9 @@ test('package archive builder writes channel manifest checksums git source and r
     assert.equal(entry.homebrew_cask, undefined);
     assert.equal(entry.versions.filter((version: Record<string, unknown>) => version.selection_status === 'selected_for_release_set').length, 1);
     for (const version of entry.versions) {
+      assert.equal(Object.hasOwn(version, 'capability_abi'), false);
+      assert.equal(Object.hasOwn(version, 'compatibility'), false);
+      assert.equal(Object.hasOwn(version, 'dependency_requirements'), false);
       assert.match(version.manifest_sha256, /^sha256:[0-9a-f]{64}$/);
       assert.match(version.content_digest, /^sha256:[0-9a-f]{64}$/);
       assert.match(version.payload_digest, /^sha256:[0-9a-f]{64}$/);
@@ -640,7 +643,6 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(masCatalog.versions.length, 1);
   assert.equal(masCatalog.versions[0].selection_status, 'selected_for_release_set');
   assert.deepEqual(masCatalog.versions[0].dependency_package_ids, ['mas-scholar-skills']);
-  assert.equal(masCatalog.versions[0].capability_abi, null);
   assert.match(masCatalog.versions[0].manifest_url, /^opl\+oci:\/\/ghcr\.io\/gaofeng21cn\/one-person-lab-packages\/mas:0\.2\.1#\//);
   assert.match(masCatalog.versions[0].manifest_sha256, /^sha256:[0-9a-f]{64}$/);
   const embeddedMasManifest = JSON.parse(masCatalog.versions[0].manifest_json);
@@ -674,18 +676,18 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(scholarSkillsCatalog.selected_version, '0.2.1');
   assert.deepEqual(
     scholarSkillsCatalog.versions.map((entry: Record<string, unknown>) => entry.package_version),
-    ['0.2.1', '0.0.9'],
+    ['0.2.1', '2.0.0', '0.0.9'],
   );
-  assert.equal(
-    scholarSkillsCatalog.versions.some((entry: Record<string, unknown>) => entry.package_version === '2.0.0'),
-    false,
-  );
-  assert.equal(scholarSkillsCatalog.versions[0].capability_abi, 'mas-scholar-skills.v1');
   assert.equal(
     scholarSkillsCatalog.versions[0].content_digest,
     `sha256:${'8'.repeat(64)}`,
   );
-  assert.deepEqual(scholarSkillsCatalog.versions[1], previousScholarSkillsVersion);
+  const {
+    capability_abi: previousCapabilityAbi,
+    ...expectedPreviousScholarSkillsVersion
+  } = previousScholarSkillsVersion;
+  assert.equal(previousCapabilityAbi, 'mas-scholar-skills.v1');
+  assert.deepEqual(scholarSkillsCatalog.versions[2], expectedPreviousScholarSkillsVersion);
   const finalizeEnv = {
     ...process.env,
     OPL_PACKAGE_PROMOTION_TARGET: 'latest-stable',

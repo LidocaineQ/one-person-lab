@@ -88,11 +88,6 @@ function resolveCatalogRef(catalogPath: string, ref: string, field: string) {
   return resolved;
 }
 
-function manifestCapabilityAbi(manifest: Record<string, unknown>) {
-  const capabilityAbi = isRecord(manifest.capability_abi) ? manifest.capability_abi : null;
-  return stringValue(capabilityAbi?.id);
-}
-
 function manifestDependencyPackageIds(manifest: Record<string, unknown>) {
   return Array.isArray(manifest.capability_dependencies)
     ? manifest.capability_dependencies.flatMap((candidate) => (
@@ -110,7 +105,6 @@ function catalogVersion(entry: BundledFullRuntimeCatalogEntry): ManagedCatalogVe
   const manifest = parseJsonText(entry.manifestJson) as Record<string, unknown>;
   return {
     package_version: entry.packageVersion,
-    capability_abi: manifestCapabilityAbi(manifest),
     manifest_url: entry.manifestUrl,
     manifest_sha256: entry.manifestSha256,
     manifest_json: entry.manifestJson,

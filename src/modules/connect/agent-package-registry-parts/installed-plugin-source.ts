@@ -240,7 +240,6 @@ export function installedImmutableRepairCatalog(
       selected_version: lock.package_version,
       versions: [{
         package_version: lock.package_version,
-        capability_abi: lock.capability_provider?.capability_abi ?? null,
         manifest_url: lock.manifest_url,
         manifest_sha256: identity.manifestSha256,
         manifest_json: artifact.manifest_json,

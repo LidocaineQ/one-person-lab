@@ -112,7 +112,8 @@ test('capability dependency uses its provider catalog selection without ABI or r
   );
 
   assert.equal(selected.package_version, '1.2.3');
-  assert.equal(selected.capability_abi, 'provider.v1');
+  assert.equal(Object.hasOwn(selected, 'capability_abi'), false);
+  assert.equal(Object.hasOwn(selected, 'compatibility'), false);
 });
 
 test('offline Release Set bridge without a surface kind retains exact selection and digest', () => {

@@ -821,23 +821,13 @@ export function materializeArchiveBackedPackagePayload(input: {
   };
 }
 
-function dependencyRequirements(source: Record<string, unknown>) {
+function dependencyPackageIds(source: Record<string, unknown>) {
   const dependencies = Array.isArray(source.capability_dependencies) ? source.capability_dependencies : [];
   return dependencies.map((candidate) => stringRecord(candidate))
     .filter((candidate): candidate is Record<string, unknown> => candidate !== null)
-    .map((candidate) => ({
-      package_id: stringValue(candidate.package_id),
-      version_requirement: stringValue(candidate.version_requirement),
-      capability_abi: stringValue(candidate.capability_abi),
-      required: candidate.required === true,
-    }))
-    .filter((candidate): candidate is {
-      package_id: string;
-      version_requirement: string | null;
-      capability_abi: string | null;
-      required: boolean;
-    } => candidate.package_id !== null)
-    .sort((left, right) => left.package_id.localeCompare(right.package_id, 'en'));
+    .map((candidate) => stringValue(candidate.package_id))
+    .filter((packageId): packageId is string => packageId !== null)
+    .sort((left, right) => left.localeCompare(right, 'en'));
 }
 
 function buildCurrentPackageCatalog(manifest: OplPackageManifest) {
@@ -891,13 +881,11 @@ function buildCurrentPackageCatalog(manifest: OplPackageManifest) {
     const payloadSource = `${JSON.stringify(normalizedPayload, null, 2)}\n`;
     const contentLock = stringRecord(packageManifest.content_lock);
     const distributionPayload = stringRecord(packageManifest.distribution_payload);
-    const capabilityAbi = stringRecord(packageManifest.capability_abi);
-    const dependencies = dependencyRequirements(packageManifest);
+    const dependencyIds = dependencyPackageIds(packageManifest);
     const manifestUrl = `opl+oci://${sourceArtifactRef}#/package-manifest.json`;
     const manifestSha256 = sha256Payload(manifestSource);
     const versionEntry = {
       package_version: packageVersion,
-      capability_abi: capabilityAbi ? stringValue(capabilityAbi.id) : null,
       selection_status: 'selected_for_release_set',
       manifest_url: manifestUrl,
       manifest_sha256: manifestSha256,
@@ -921,8 +909,7 @@ function buildCurrentPackageCatalog(manifest: OplPackageManifest) {
       owner_version_tag: packageEntry.owner_version_tag,
       owner_package_manifest_sha256: packageEntry.owner_package_manifest_sha256,
       release_gate: packageEntry.release_gate,
-      dependency_package_ids: dependencies.map((dependency) => dependency.package_id),
-      dependency_requirements: dependencies,
+      dependency_package_ids: dependencyIds,
     };
     return [packageId, {
       package_id: packageId,
@@ -1038,14 +1025,16 @@ function mergePackageCatalog(
       : generatedCurrentVersion;
     const retained = previousVersions
       .filter(isRetainableCatalogVersion)
-      .filter((candidate) => (
-        currentVersion.capability_abi === null
-        || stringValue(candidate.capability_abi) === currentVersion.capability_abi
-      ))
-      .map((candidate): Record<string, unknown> => ({
-        ...candidate,
-        selection_status: 'retained_history',
-      }));
+      .map((candidate): Record<string, unknown> => {
+        const retainedVersion: Record<string, unknown> = {
+          ...candidate,
+          selection_status: 'retained_history',
+        };
+        delete retainedVersion.capability_abi;
+        delete retainedVersion.compatibility;
+        delete retainedVersion.dependency_requirements;
+        return retainedVersion;
+      });
     const byVersion = new Map<string, Record<string, unknown>>();
     byVersion.set(currentVersion.package_version, currentVersion);
     for (const candidate of retained) {
