@@ -74,19 +74,21 @@ function validatePackageArtifact(packageId, entry, member, failures) {
   assertCondition(typeof entry?.carrier_locator?.module_id === 'string', `${packageId}: carrier module locator missing`, failures);
   assertCondition(typeof entry?.package_manifest_ref === 'string' && entry.package_manifest_ref.includes(`/packages/${packageId}.json`), `${packageId}: canonical Package manifest ref drifted`, failures);
   assertCondition(typeof entry?.artifact === 'string' && entry.artifact.includes(`one-person-lab-packages/${packageId}:${entry.package_version}`), `${packageId}: canonical OCI ref drifted`, failures);
-  assertCondition(entry?.current_install_update_source === 'package_channel', `${packageId}: install/update source must be the Package channel`, failures);
-  assertCondition(entry?.package_consumption_status === 'consumed_by_package_channel_installs', `${packageId}: Package consumption status drifted`, failures);
+  assertCondition(entry?.current_install_update_source === 'per_package_owner_latest_stable', `${packageId}: install/update source must be the Package owner latest-stable channel`, failures);
+  assertCondition(entry?.package_consumption_status === 'consumed_by_independent_owner_channel_installs', `${packageId}: Package consumption status drifted`, failures);
   assertCondition(entry?.remote_publish_status === PACKAGE_REMOTE_PUBLISH_STATUS
     || entry?.remote_publish_status === 'verified_reused_immutable_artifact'
     || entry?.remote_publish_status === 'verified_published_immutable', `${packageId}: remote publication status must remain evidence-based`, failures);
   assertCondition(entry?.release_discipline?.package_truth_owner === entry?.carrier_locator?.repo_name, `${packageId}: Package truth owner must match its owner repo carrier`, failures);
   for (const gate of [
     'sha256_recorded',
-    'channel_manifest_written',
     'ghcr_package_artifact_published',
     'immutable_version_remote_digest_preflight',
     'repository_source_association_verified',
     'anonymous_digest_pull_verified',
+    'owner_latest_stable_promoted',
+    'anonymous_owner_channel_readback_verified',
+    'shared_release_set_not_required_for_ordinary_currentness',
   ]) {
     assertCondition(entry?.release_discipline?.required_gates?.includes(gate), `${packageId}: missing release gate ${gate}`, failures);
   }
@@ -148,11 +150,11 @@ function validateManifest(manifest, promotionTarget = 'candidate') {
   assertCondition(promotionTarget !== 'latest-stable' || releaseSet?.components?.app?.release_status === 'published', 'Stable Release Set requires a published App release', failures);
   assertCondition(releaseSet?.update_decision?.release_set_revision_affects_component_update === false, 'Release Set revision must not force component updates', failures);
   assertCondition(releaseSet?.channel_pointer_policy?.promotion_mode === 'retag_exact_immutable_release_set_digest', 'Stable promotion must reuse the immutable BOM digest', failures);
-  assertCondition(manifest.package_install_update_source === 'package_channel', 'Package install/update source must be package_channel', failures);
+  assertCondition(manifest.package_install_update_source === 'per_package_owner_latest_stable', 'Package install/update source must be per_package_owner_latest_stable', failures);
   assertCondition(manifest.module_install_update_source === undefined, 'module_install_update_source is retired', failures);
   assertCondition(manifest.developer_module_source_override === undefined, 'developer_module_source_override is retired', failures);
   assertCondition(manifest.developer_package_source_override?.carrier_env === 'OPL_MODULE_SOURCE_MODE=git_checkout', 'Developer Mode carrier override must remain explicit', failures);
-  assertCondition(manifest.package_consumption_status === 'ordinary_app_users_consume_managed_ghcr_packages', 'Package consumption status drifted', failures);
+  assertCondition(manifest.package_consumption_status === 'ordinary_app_users_compose_independent_ghcr_packages', 'Package consumption status drifted', failures);
 
   assertCondition(automation?.workflow_trigger_policy === PACKAGE_WORKFLOW_TRIGGER_POLICY, 'Package workflow trigger policy drifted', failures);
   assertCondition(automation?.remote_publish_status === PACKAGE_REMOTE_PUBLISH_STATUS, 'Release automation must not pre-claim publication', failures);

@@ -3,7 +3,7 @@
   "package_id": "opl-relay",
   "display_name": "OPL Relay",
   "publisher": "one-person-lab",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "source": "first_party_owner_projection",
   "source_repo": "https://github.com/gaofeng21cn/opl-relay.git",
   "package_role": "capability_package",
@@ -50,12 +50,12 @@
       "skills/opl-relay/SKILL.md",
       "skills/opl-relay/agents/openai.yaml"
     ],
-    "digest": "sha256:291736685f119696e755321e08936fe624e4f4c3672ae9e731d8e58dd3458fce"
+    "digest": "sha256:b05f85110b5fa46b4fb304a78c4523bd00d557e27e63617c4ff9da6bcef8ee3a"
   },
   "codex_surface": {
     "plugin_id": "opl-relay",
     "plugin_source_path": ".",
-    "carrier_source_commit": "0b8e8961eedbf76b59deb952e5c42a53912836c9",
+    "carrier_source_commit": "ca72d953eb92165da6e728506018b333eb41db17",
     "codex_default_exposure": false,
     "configured_codex_plugin_carrier": {
       "kind": "codex_plugin_manager",
@@ -65,7 +65,7 @@
       "publication_ref": "ghcr.io/gaofeng21cn/one-person-lab-packages/opl-relay:latest-stable"
     },
     "optional_install_policy": "all_exported_skills",
-    "plugin_payload_manifest_url": "payloads/opl-relay-0.5.2.json",
+    "plugin_payload_manifest_url": "payloads/opl-relay-0.5.3.json",
     "app_contribution_abi": {
       "schema_version": "opl-package-app-contribution-cli.v1",
       "transport": "stdin_json_stdout_json",

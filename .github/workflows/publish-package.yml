@@ -42,6 +42,7 @@ jobs:
     environment: release-stable
     permissions:
       contents: read
+      id-token: write
       packages: write
     env:
       PACKAGE_ID: ${{ inputs.package_id }}
@@ -60,6 +61,11 @@ jobs:
 
       - name: Set up ORAS
         uses: oras-project/setup-oras@v1
+
+      - name: Set up Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.1.1
 
       - name: Prepare exact Package layers
         shell: bash
@@ -138,8 +144,30 @@ jobs:
 
       - name: Publish immutable Package and advance its channel
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          ensure_public_package() {
+            local package_name="$1"
+            local encoded readback attempt
+            encoded="$(jq -rn --arg value "$package_name" '$value|@uri')"
+            for attempt in {1..24}; do
+              if readback="$(gh api "/users/${PACKAGES_OWNER}/packages/container/${encoded}" 2>/dev/null)" \
+                && jq -e --arg repo "$GITHUB_REPOSITORY" \
+                  '.visibility == "public" and .repository.full_name == $repo' <<<"$readback" >/dev/null; then
+                return 0
+              fi
+              gh api --method PATCH "/user/packages/container/${encoded}/visibility" \
+                -f visibility=public >/dev/null 2>&1 || true
+              if [ "$attempt" -eq 24 ]; then
+                echo "::error::GHCR package is not public or is not associated with ${GITHUB_REPOSITORY}: ${package_name}"
+                return 1
+              fi
+              sleep 5
+            done
+          }
+
           preflight_args=(
             --artifact-type application/vnd.onepersonlab.package.v1
             --source-url "$OCI_SOURCE_URL"
@@ -174,6 +202,7 @@ jobs:
             fi
           fi
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          ensure_public_package "one-person-lab-packages/${PACKAGE_ID}"
 
           node scripts/oci-publication-preflight.mjs --ref "$IMMUTABLE_REF" "${preflight_args[@]}" \
             --verify-only --expected-digest "$digest" --anonymous
@@ -223,6 +252,67 @@ jobs:
           archive_digest="sha256:$(sha256sum "$PACKAGE_ARCHIVE" | cut -d' ' -f1)"
           manifest_digest="sha256:$(sha256sum "$PACKAGE_ROOT/package-manifest.json" | cut -d' ' -f1)"
           payload_digest="sha256:$(sha256sum "$PACKAGE_ROOT/payload-manifest.json" | cut -d' ' -f1)"
+          subject="${PACKAGE_IMAGE}@${digest}"
+          certificate_identity="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/publish-package.yml@${GITHUB_REF}"
+          provenance="$PACKAGE_ROOT/package-provenance.json"
+          sbom="$PACKAGE_ROOT/package.spdx.json"
+          created_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          jq -n \
+            --arg package_id "$PACKAGE_ID" \
+            --arg version "$EXPECTED_PACKAGE_VERSION" \
+            --arg owner_commit "$EXPECTED_OWNER_SOURCE_COMMIT" \
+            --arg framework_commit "$EXPECTED_FRAMEWORK_SOURCE_COMMIT" \
+            --arg request_id "$PUBLICATION_REQUEST_ID" \
+            --arg source_url "$OCI_SOURCE_URL" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg workflow_ref "$GITHUB_WORKFLOW_REF" \
+            --arg invocation_id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            '{buildDefinition:{buildType:"https://onepersonlab.ai/buildtypes/opl-package-publication/v1",
+              externalParameters:{package_id:$package_id,package_version:$version,
+                owner_source_commit:$owner_commit,framework_source_commit:$framework_commit},
+              internalParameters:{publication_request_id:$request_id},
+              resolvedDependencies:[
+                {uri:$source_url,digest:{gitCommit:$owner_commit}},
+                {uri:("https://github.com/"+$repository),digest:{gitCommit:$framework_commit}}]},
+              runDetails:{builder:{id:$workflow_ref},metadata:{invocationId:$invocation_id}}}' \
+            > "$provenance"
+          jq -n \
+            --arg package_id "$PACKAGE_ID" \
+            --arg version "$EXPECTED_PACKAGE_VERSION" \
+            --arg subject "$subject" \
+            --arg archive_digest "${archive_digest#sha256:}" \
+            --arg namespace "https://onepersonlab.ai/spdx/${PACKAGE_ID}/${EXPECTED_PACKAGE_VERSION}/${digest#sha256:}" \
+            --arg created_at "$created_at" \
+            '{spdxVersion:"SPDX-2.3",dataLicense:"CC0-1.0",SPDXID:"SPDXRef-DOCUMENT",
+              name:($package_id+"-"+$version),documentNamespace:$namespace,
+              creationInfo:{created:$created_at,creators:["Tool: one-person-lab publish-package.yml"]},
+              packages:[{name:$package_id,SPDXID:"SPDXRef-Package",versionInfo:$version,
+                downloadLocation:$subject,filesAnalyzed:false,
+                checksums:[{algorithm:"SHA256",checksumValue:$archive_digest}]}]}' \
+            > "$sbom"
+          echo "$GH_TOKEN" | cosign login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          retry() {
+            local attempt
+            for attempt in 1 2 3; do
+              if "$@"; then return 0; fi
+              if [ "$attempt" -eq 3 ]; then return 1; fi
+              sleep "$((attempt * 10))"
+            done
+          }
+          retry cosign attest --yes --timeout 60s --oidc-provider github-actions \
+            --type slsaprovenance1 --predicate "$provenance" "$subject"
+          retry cosign attest --yes --timeout 60s --oidc-provider github-actions \
+            --type spdxjson --predicate "$sbom" "$subject"
+          retry cosign verify-attestation --timeout 60s \
+            --type slsaprovenance1 \
+            --certificate-identity "$certificate_identity" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "$subject" >/dev/null
+          retry cosign verify-attestation --timeout 60s \
+            --type spdxjson \
+            --certificate-identity "$certificate_identity" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "$subject" >/dev/null
           content_lock="$(jq -r '.content_lock.digest // empty' "$PACKAGE_ROOT/payload-manifest.json")"
           if [ -z "$content_lock" ]; then
             content_lock="$(jq -r '.content_lock.digest // empty' "$PACKAGE_ROOT/package-manifest.json")"
@@ -243,6 +333,8 @@ jobs:
             --arg content_lock "$content_lock" \
             --arg immutable_result "$immutable_result" \
             --arg stable_result "$stable_result" \
+            --arg subject "$subject" \
+            --arg certificate_identity "$certificate_identity" \
             --arg repository "$GITHUB_REPOSITORY" \
             --arg run_id "$GITHUB_RUN_ID" \
             --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
@@ -253,6 +345,8 @@ jobs:
               payload_manifest_digest:$payload_digest,content_lock:($content_lock | if length > 0 then . else null end)},
               immutable:{ref:$immutable_ref,digest:$digest,result:$immutable_result},
               latest_stable:{ref:$latest_ref,predecessor_digest:$predecessor,digest:$digest,result:$stable_result},
+              attestations:{status:"verified",subject:$subject,
+                certificate_identity:$certificate_identity,types:["slsaprovenance1","spdxjson"]},
               anonymous_readback:{status:"verified",refs:[$immutable_ref,($immutable_ref|split(":")[0:-1]|join(":"))+"@"+$digest,$latest_ref]},
               mutation_boundary:{registry_atomic_cas_claim:false,
               controls:["protected_environment","single_package_concurrency","double_predecessor_inspect","anonymous_readback"]},
@@ -267,5 +361,7 @@ jobs:
           path: |
             dist/package/publication-receipt.json
             dist/package/publication-receipt.sha256
+            dist/package/package-provenance.json
+            dist/package/package.spdx.json
           if-no-files-found: error
           retention-days: 30
