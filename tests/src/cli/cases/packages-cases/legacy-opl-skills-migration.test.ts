@@ -1037,6 +1037,7 @@ test('same-selector native Flow source cannot retire a disjoint managed owner', 
     const managedLock = lockIndex.packages.find((entry: any) => entry.package_id === 'opl-flow');
     managedLock.physical_surface.marketplace_id = 'opl-flow-local';
     fs.writeFileSync(packageLockPath, formatJsonPayload(lockIndex));
+    const packageLockBefore = fs.readFileSync(packageLockPath);
 
     fs.writeFileSync(path.join(state.env.CODEX_HOME, 'config.toml'), '', 'utf8');
     const nativeMarketplace = writeFlowMarketplace({
@@ -1050,10 +1051,11 @@ test('same-selector native Flow source cannot retire a disjoint managed owner', 
     });
 
     const failure = runCliFailure(['packages', 'update', 'opl-flow'], state.env);
-    assert.equal(
-      failure.payload.error.details.failure_code,
-      'first_party_package_external_manifest_forbidden',
-    );
+    assert.equal(failure.status, 3);
+    assert.equal(failure.payload.error.code, 'contract_shape_invalid');
+    const commandLog = fs.readFileSync(state.commandLog, 'utf8');
+    assert.equal((commandLog.match(/plugin add /g) ?? []).length, 0);
+    assert.deepEqual(fs.readFileSync(packageLockPath), packageLockBefore);
     assert.equal(fs.existsSync(packageLockPath), true);
     assert.equal(fs.existsSync(nativeMarketplace.pluginSource), true);
   } finally {
