@@ -30,11 +30,9 @@
     "content_identity_fields": [
       "manifest_sha256",
       "payload_digest_ref",
-      "required_skill_pack_lock_refs",
-      "package_lock_ref"
+      "required_skill_pack_lock_refs"
     ],
     "dependency_source": "manifest_declared_capability_dependencies",
-    "lock_owner": "opl_connect_agent_package_registry",
     "exposure_owner": "opl_connect_agent_package_registry"
   },
   "codex_surface": {

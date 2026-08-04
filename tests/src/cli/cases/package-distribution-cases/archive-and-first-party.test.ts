@@ -1491,6 +1491,37 @@ test('first-party agent package manifest rejects unknown Codex carrier distribut
   );
 });
 
+test('first-party Package descriptors do not resurrect Framework-owned lock authority', () => {
+  const schema = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/agent-package-manifest.schema.json'),
+    'utf8',
+  )) as Record<string, any>;
+  const packageCoreSchema = schema.properties.package_core;
+
+  assert.equal(packageCoreSchema.required.includes('lock_owner'), false);
+  assert.equal(Object.hasOwn(packageCoreSchema.properties, 'lock_owner'), false);
+  assert.equal(packageCoreSchema.properties.content_identity_fields.minItems, 3);
+  assert.equal(
+    packageCoreSchema.properties.content_identity_fields.items.enum.includes('package_lock_ref'),
+    false,
+  );
+
+  const packageDirectory = path.join(repoRoot, 'contracts/opl-framework/packages');
+  const descriptors = fs.readdirSync(packageDirectory)
+    .filter((fileName) => fileName.endsWith('.json'))
+    .map((fileName) => ({
+      fileName,
+      manifest: parseJsonText(fs.readFileSync(path.join(packageDirectory, fileName), 'utf8')) as Record<string, any>,
+    }))
+    .filter(({ manifest }) => manifest.package_core?.core_kind === 'opl_agent_package_core');
+
+  assert.equal(descriptors.length > 0, true);
+  for (const { fileName, manifest } of descriptors) {
+    assert.equal(Object.hasOwn(manifest.package_core, 'lock_owner'), false, fileName);
+    assert.equal(manifest.package_core.content_identity_fields.includes('package_lock_ref'), false, fileName);
+  }
+});
+
 test('bundled Full MAS source projection advances to the immutable ordinary package version', () => {
   const catalog = parseJsonText(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
@@ -1513,11 +1544,11 @@ test('bundled Full MAS source projection advances to the immutable ordinary pack
 
   assert.equal(frozenRef, 'packages/mas-0.2.22.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    'ca3f3ce97651cf184ed101db388076ffebaa4ce3bf0899677d5874eed2e8fc0f');
+    '9baa337960a175099dbf20debcbd56eb5030b1b616700ec825e256ce70dafb43');
   assert.equal(frozenManifest.version, '0.2.22');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mas-0.2.22.json');
   assert.equal(crypto.createHash('sha256').update(priorOrdinaryBytes).digest('hex'),
-    '37554b4580c50f306e270c60c017a383eec7acf279b09c922e3ee284ee2a68c1');
+    'd2ec1d23c37c337b96b18601071ca09be89c43946971e87b3aba8c759107df6e');
   assert.equal(priorOrdinaryManifest.version, '0.2.20');
   assert.equal(priorOrdinaryManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mas-0.2.20.json');
   assert.equal(ordinaryManifest.version, '0.2.22');
@@ -1539,7 +1570,7 @@ test('bundled Full MAG source projection advances to the immutable ordinary pack
 
   assert.equal(frozenRef, 'packages/mag-0.3.6.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    'e9d8a5e848e35c59d95b1bf9bc322c74657c45fcff590c2083398cab14f2f1aa');
+    '9a8116b8838bba05ca2fe5f4d4ab74c69f5c03ae6d301111bdef26e573eba515');
   assert.equal(frozenManifest.version, '0.3.6');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mag-0.3.6.json');
   assert.equal(ordinaryManifest.version, '0.3.6');
@@ -1561,7 +1592,7 @@ test('bundled Full RCA source projection advances independently of ordinary publ
 
   assert.equal(frozenRef, 'packages/rca-0.2.10.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    '449ca756aa795e7a3ad26f43a3145bdffbb75d063af57fcd0ca4de82b979130a');
+    'a1af4a3a59687d833d7dbf6c8ba3797f280547acf04e525d4d932f1c5c4dda53');
   assert.equal(frozenManifest.version, '0.2.10');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/rca-0.2.10.json');
   assert.equal(ordinaryManifest.version, '0.2.9');
@@ -1583,7 +1614,7 @@ test('bundled Full OMA source projection advances independently of ordinary publ
 
   assert.equal(frozenRef, 'packages/oma-0.4.5.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    'f29fbb64c4d8fae4dbc48d98817e6bbebccd556fb372bf0d40f9a0dc53d448ae');
+    '646dc98c0c4c1d432c440aa07c5d7024f1359cb26a5f65e86f4537445b699585');
   assert.equal(frozenManifest.version, '0.4.5');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/oma-0.4.5.json');
   assert.equal(ordinaryManifest.version, '0.4.4');
@@ -1605,7 +1636,7 @@ test('bundled Full OBF source projection advances independently of ordinary publ
 
   assert.equal(frozenRef, 'packages/obf-0.3.7.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    '5f72739b8a70a2da15b20c089a489a6683c6b7a6091845af5c28a0d5f63d195d');
+    '933034415a5bae2cd316788014c73f793e1bc9764c48cfee50fcdbdb90d0653f');
   assert.equal(frozenManifest.version, '0.3.7');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/obf-0.3.7.json');
   assert.equal(ordinaryManifest.version, '0.3.6');

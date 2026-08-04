@@ -9,7 +9,7 @@
       "package_version": "0.2.22",
       "owner_source_commit": "58001db778fd249af5758b190d6b6106cba1dc46",
       "manifest_ref": "packages/mas-0.2.22.json",
-      "manifest_sha256": "sha256:ca3f3ce97651cf184ed101db388076ffebaa4ce3bf0899677d5874eed2e8fc0f",
+      "manifest_sha256": "sha256:9baa337960a175099dbf20debcbd56eb5030b1b616700ec825e256ce70dafb43",
       "payload_manifest_ref": "packages/payloads/mas-0.2.22.json",
       "payload_manifest_sha256": "sha256:2114b906eac5517661921fdf12e8afce72bbf90416254f8d5e9650b9260b6121",
       "runtime_module_relative_path": "modules/mas"
@@ -20,7 +20,7 @@
       "package_version": "0.3.6",
       "owner_source_commit": "115c0286d09e6b3663c82848dfca119f264104f8",
       "manifest_ref": "packages/mag-0.3.6.json",
-      "manifest_sha256": "sha256:e9d8a5e848e35c59d95b1bf9bc322c74657c45fcff590c2083398cab14f2f1aa",
+      "manifest_sha256": "sha256:9a8116b8838bba05ca2fe5f4d4ab74c69f5c03ae6d301111bdef26e573eba515",
       "payload_manifest_ref": "packages/payloads/mag-0.3.6.json",
       "payload_manifest_sha256": "sha256:c944cd8bf8413c0f369c78142dd2f27f11479098cf397c0a6d02d9104af40a7a",
       "runtime_module_relative_path": "modules/mag"
@@ -31,7 +31,7 @@
       "package_version": "0.2.10",
       "owner_source_commit": "467c5c028eaa11de5e63d2c6e4401b786e240b19",
       "manifest_ref": "packages/rca-0.2.10.json",
-      "manifest_sha256": "sha256:449ca756aa795e7a3ad26f43a3145bdffbb75d063af57fcd0ca4de82b979130a",
+      "manifest_sha256": "sha256:a1af4a3a59687d833d7dbf6c8ba3797f280547acf04e525d4d932f1c5c4dda53",
       "payload_manifest_ref": "packages/payloads/rca-0.2.10.json",
       "payload_manifest_sha256": "sha256:ad40754bc9f427a0447758a7aa1cb7ea0e2ff6a23406fbe5990787d02554fc2d",
       "runtime_module_relative_path": "modules/rca"
@@ -42,7 +42,7 @@
       "package_version": "0.4.5",
       "owner_source_commit": "54553b49f2e8a032d7492d04728eb3382ab4317f",
       "manifest_ref": "packages/oma-0.4.5.json",
-      "manifest_sha256": "sha256:f29fbb64c4d8fae4dbc48d98817e6bbebccd556fb372bf0d40f9a0dc53d448ae",
+      "manifest_sha256": "sha256:646dc98c0c4c1d432c440aa07c5d7024f1359cb26a5f65e86f4537445b699585",
       "payload_manifest_ref": "packages/payloads/oma-0.4.5.json",
       "payload_manifest_sha256": "sha256:3dfc29d10ca7ec9164b0695e29fbf0e16cee9f2dc440da5a8307e29f77cea73e",
       "runtime_module_relative_path": "modules/meta-agent"
@@ -53,7 +53,7 @@
       "package_version": "0.3.7",
       "owner_source_commit": "dd1423a7e35fba3a54be3c0b3de221bf7627214c",
       "manifest_ref": "packages/obf-0.3.7.json",
-      "manifest_sha256": "sha256:5f72739b8a70a2da15b20c089a489a6683c6b7a6091845af5c28a0d5f63d195d",
+      "manifest_sha256": "sha256:933034415a5bae2cd316788014c73f793e1bc9764c48cfee50fcdbdb90d0653f",
       "payload_manifest_ref": "packages/payloads/obf-0.3.7.json",
       "payload_manifest_sha256": "sha256:e082a62531c0acbb88ecd3618ed767a56d131278420ea99d5b013a8eef670a4b",
       "runtime_module_relative_path": "modules/bookforge"
@@ -75,7 +75,7 @@
       "package_version": "0.1.36",
       "owner_source_commit": "8dfd77fe357f520aa0e56eebcd5925c3f5cde549",
       "manifest_ref": "packages/opl-flow.json",
-      "manifest_sha256": "sha256:606c9555b0a2d30c8b1263aecf63affaeb1fb429aa838f0ab5f005dd1ec8a089",
+      "manifest_sha256": "sha256:e58a403fd0136ff932b335087eca81bacb4601134cc3f674f1c26dbcdd5d8475",
       "payload_manifest_ref": "packages/payloads/opl-flow-0.1.36.json",
       "payload_manifest_sha256": "sha256:1db8f61618b6a06dab05431a82ddbf9c53e1ce491e1ac1249d20b2e1cd2f5a39",
       "runtime_module_relative_path": "modules/opl-flow"
