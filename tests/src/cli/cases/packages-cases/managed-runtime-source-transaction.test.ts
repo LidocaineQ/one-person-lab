@@ -566,6 +566,11 @@ test('first-party repair preserves the installed immutable closure without readi
       delete legacyLock.package_content_digest;
       delete legacyLock.content_lock_canonicalization;
     }
+    const legacyRootLock = legacyIndex.packages.find(
+      (entry: any) => entry.package_id === installedRoot.package_id,
+    );
+    legacyRootLock.resolved_dependencies[0].version_requirement = 'legacy-range-no-longer-used';
+    legacyRootLock.resolved_dependencies[0].capability_abi = 'legacy.abi.no-longer-used';
     fs.writeFileSync(lockPath, formatJsonPayload(legacyIndex));
 
     const wrapperBin = path.join(root, 'repair-bin');
