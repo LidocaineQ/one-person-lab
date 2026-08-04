@@ -2495,17 +2495,13 @@ function nativeOwnerDescriptorForManagedLockRetirement(lock: AgentPackageLock) {
   }).get(lock.package_id) ?? null;
   if (!descriptor) return null;
   const surface = lock.physical_surface;
-  const legacySelector = surface?.plugin_id && surface.marketplace_id
-    ? `${surface.plugin_id}@${surface.marketplace_id}`
-    : null;
   const legacyPaths = [
     surface?.marketplace_root,
     surface?.marketplace_plugin_path,
     surface?.codex_plugin_cache_path,
     surface?.plugin_payload_cache_path,
   ].filter((entry): entry is string => Boolean(entry));
-  return descriptor.pluginId !== legacySelector
-    && !legacyPaths.some((entry) => pathsOverlap(entry, descriptor.sourcePath))
+  return !legacyPaths.some((entry) => pathsOverlap(entry, descriptor.sourcePath))
     ? descriptor.carrier
     : null;
 }
