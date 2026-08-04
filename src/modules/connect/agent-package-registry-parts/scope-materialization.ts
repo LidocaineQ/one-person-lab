@@ -520,7 +520,7 @@ export function materializeCapabilityScopeFromLock(input: {
       permissions: [],
       distribution_payload: null,
       update_channel: '',
-      rollback_ref: input.provider.rollback_ref,
+      rollback_ref: `rollback-ref:${input.provider.package_id}/unavailable`,
       codex_visible_entry: input.provider.codex_visible_entry,
       required_skill_ids: input.provider.bundled_required_skill_ids,
       optional_skill_refs: input.provider.optional_skill_refs,
