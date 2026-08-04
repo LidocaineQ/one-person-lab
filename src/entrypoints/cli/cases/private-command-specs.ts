@@ -34,26 +34,38 @@ async function ensureDomainPackageLaunchReady(
   if (!workspaceLocator.binding) return;
   const packageId = canonicalAgentPackageId(projectId);
   if (!packageId) return;
-  const initialStatus = runOplAgentPackageStatus({ packageId }).opl_agent_package_status;
-  if (options.activateMissingScope !== false && initialStatus.installed_package_count > 0) {
-    await ensureOplAgentPackageScopeActivation({
+  const statusInput = {
+    packageId,
+    scope: 'workspace' as const,
+    targetWorkspace: workspaceLocator.absolute_path,
+  };
+  let packageStatus = runOplAgentPackageStatus(statusInput).opl_agent_package_status;
+  const legacyScopeReadbackPresent = packageStatus.materialization_readiness != null;
+  const legacyScopeActivationRequired = options.activateMissingScope !== false
+    && packageStatus.installed_package_count > 0
+    && packageStatus.launch_allowed !== true
+    && legacyScopeReadbackPresent;
+  if (legacyScopeActivationRequired) {
+    const compatibilityActivation = await ensureOplAgentPackageScopeActivation({
       packageId,
       scope: 'workspace',
       targetWorkspace: workspaceLocator.absolute_path,
     });
+    packageStatus = compatibilityActivation.package_status
+      ?? runOplAgentPackageStatus(statusInput).opl_agent_package_status;
   }
-  const packageStatus = runOplAgentPackageStatus({
-    packageId,
-    scope: 'workspace',
-    targetWorkspace: workspaceLocator.absolute_path,
-  }).opl_agent_package_status;
   if (packageStatus.launch_allowed === true) return;
-  const hardStopReason = packageLaunchHardStopReason(options.activateMissingScope === false
+  const packageHardStopReason = packageLaunchHardStopReason(options.activateMissingScope === false
     ? {
         ...packageStatus,
         materialization_readiness: undefined,
       }
     : packageStatus);
+  const nativeReadbackHardStopReason = packageStatus.installed_package_count > 0
+    && !legacyScopeReadbackPresent
+    ? packageStatus.launch_blocked_reason ?? 'native_carrier_not_ready'
+    : null;
+  const hardStopReason = packageHardStopReason ?? nativeReadbackHardStopReason;
   if (!hardStopReason) return;
   throw new FrameworkContractError(
     'contract_shape_invalid',

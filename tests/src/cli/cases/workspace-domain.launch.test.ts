@@ -218,6 +218,121 @@ test('domain launch blocks a canonical package that is not installed', () => {
   }
 });
 
+test('domain launch consumes native carrier readiness without entering legacy scope activation', () => {
+  const root = fs.mkdtempSync(`${os.tmpdir()}/opl-domain-launch-native-readback-`);
+  const stateRoot = path.join(root, 'state');
+  const workspace = path.join(root, 'workspace');
+  const pluginSource = path.join(root, 'plugin-source');
+  const skillRoot = path.join(pluginSource, 'skills', 'redcube-ai');
+  const binary = path.join(root, 'fake-codex.mjs');
+  const invocationLog = path.join(root, 'native-carrier.log');
+  const lockPath = path.join(stateRoot, 'agent-package-locks.json');
+  const legacyLockBytes = '{ invalid legacy lock\n';
+  const openFixture = createFakeOpenFixture();
+  const entryUrl = 'http://127.0.0.1:3310/native-redcube';
+  fs.mkdirSync(skillRoot, { recursive: true });
+  fs.mkdirSync(workspace, { recursive: true });
+  fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), '# RedCube AI\n');
+  fs.writeFileSync(path.join(pluginSource, 'opl-package.json'), `${JSON.stringify({
+    surface_kind: 'opl_agent_package_manifest.v1',
+    kind: 'agent',
+    agent_id: 'rca',
+    package_id: 'rca',
+    domain_id: 'redcube_ai',
+    display_name: 'RedCube AI',
+    publisher: 'one-person-lab',
+    version: '0.2.9',
+    source: 'first_party_repo_local',
+    carrier_source_role: 'codex_plugin_default_carrier_not_package_truth',
+    source_repo: 'https://github.com/gaofeng21cn/redcube-ai.git',
+    schema_ref: 'one-person-lab/contracts/opl-framework/agent-package-manifest.schema.json',
+    domain_descriptor_ref: 'contracts/domain_descriptor.json',
+    task_provider_ref: 'contracts/domain_descriptor.json#/standard_agent_interface/stage_catalog',
+    action_catalog_ref: 'contracts/action_catalog.json',
+    view_refs: [],
+    entrypoints: [{
+      entrypoint_id: 'codex_primary_skill',
+      entrypoint_kind: 'codex_skill',
+      source_ref: 'agent/primary_skill/SKILL.md',
+      carrier_ref: 'skills/redcube-ai/SKILL.md',
+      authority: 'carrier_only_not_domain_truth',
+    }],
+    codex_surface: {
+      plugin_id: 'redcube-ai',
+      plugin_source_path: '.',
+      required_skill_ids: ['redcube-ai'],
+    },
+    requires: [],
+    capability_dependencies: [],
+  }, null, 2)}\n`);
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+import fs from 'node:fs';
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.FIXTURE_INVOCATION_LOG, args.join(' ') + '\\n');
+if (args.join(' ') === 'plugin list --json') {
+  process.stdout.write(JSON.stringify({ installed: [{
+    pluginId: 'redcube-ai@redcube-ai',
+    version: '0.2.9',
+    installed: true,
+    enabled: process.env.FIXTURE_PLUGIN_ENABLED !== 'false',
+    source: { source: 'local', path: process.env.FIXTURE_PLUGIN_SOURCE },
+  }], available: [] }));
+} else {
+  process.exitCode = 2;
+}
+`);
+  fs.chmodSync(binary, 0o755);
+  const baseEnv = {
+    HOME: root,
+    CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_STATE_DIR: stateRoot,
+    OPL_OPEN_BIN: openFixture.openPath,
+  };
+  try {
+    runCli([
+      'workspace', 'bind', '--project', 'redcube', '--path', workspace,
+      '--entry-url', entryUrl,
+      '--manifest-command', buildManifestCommand(loadFamilyManifestFixtures().redcube),
+    ], baseEnv);
+    fs.mkdirSync(stateRoot, { recursive: true });
+    fs.writeFileSync(lockPath, legacyLockBytes);
+
+    const nativeEnv = {
+      ...baseEnv,
+      OPL_CODEX_PLUGIN_BIN: binary,
+      FIXTURE_INVOCATION_LOG: invocationLog,
+      FIXTURE_PLUGIN_SOURCE: pluginSource,
+    };
+    const launched = runCli([
+      'domain', 'launch', '--project', 'redcube',
+    ], nativeEnv).domain_entry_launch;
+
+    assert.equal(launched.launch_status, 'launched');
+    assert.equal(fs.readFileSync(openFixture.capturePath, 'utf8').trim(), entryUrl);
+    const disabled = runCliFailure([
+      'domain', 'launch', '--project', 'redcube',
+    ], {
+      ...nativeEnv,
+      FIXTURE_PLUGIN_ENABLED: 'false',
+    });
+    assert.equal(
+      disabled.payload.error.details.failure_code,
+      'agent_package_operational_readiness_blocked',
+    );
+    assert.equal(disabled.payload.error.details.launch_blocked_reason, 'carrier_disabled');
+    const nativeInvocations = fs.readFileSync(invocationLog, 'utf8').trim().split('\n');
+    assert.equal(nativeInvocations.length >= 1, true);
+    assert.equal(nativeInvocations.every((command) => command === 'plugin list --json'), true);
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), legacyLockBytes);
+    assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-lifecycle-ledger.json')), false);
+    assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-lifecycle.sqlite')), false);
+    assert.equal(fs.existsSync(path.join(workspace, '.codex', 'skills')), false);
+  } finally {
+    removeFixtureTree(root);
+    fs.rmSync(openFixture.fixtureRoot, { recursive: true, force: true });
+  }
+});
+
 test('MAS launch activates a new workspace scope and automatically recovers managed Skill drift', async () => {
   const root = fs.mkdtempSync(`${os.tmpdir()}/opl-domain-launch-mas-scope-`);
   const stateRoot = path.join(root, 'state');
