@@ -3888,7 +3888,6 @@ async function runOplAgentPackageRepairUnlocked(input: AgentPackageRepairInput) 
     : null;
   const repairedLock = {
     ...lock,
-    updated_at: input.dryRun ? lock.updated_at : nowIso(),
     physical_surface: physicalSurface.status === 'not_requested' ? lock.physical_surface : physicalSurface,
   };
   if (!input.dryRun) {
@@ -4036,7 +4035,6 @@ async function ensureOplAgentPackageScopeActivationUnlocked(input: AgentPackageP
   const activatedLock: AgentPackageLock = materializations.length > 0
     ? {
         ...lock,
-        updated_at: input.dryRun ? lock.updated_at : nowIso(),
         scope_materializations: [
           ...materializations,
           ...(lock.scope_materializations ?? []).filter((entry) => !materializations.some((next) =>

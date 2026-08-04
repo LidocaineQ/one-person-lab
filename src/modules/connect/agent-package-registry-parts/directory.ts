@@ -402,7 +402,7 @@ function lockDirectorySource(lock: AgentPackageLock, packageRole: AgentPackageRo
       live_verified: false,
       source_ref: lock.release_channel_ref ?? lock.manifest_url,
       source_digest: lock.release_channel_digest ?? null,
-      checked_at: lock.updated_at,
+      checked_at: null,
     },
   };
 }

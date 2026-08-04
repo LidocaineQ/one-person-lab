@@ -1444,6 +1444,7 @@ test('installed-only directory entries retain persisted role and consume canonic
     display_name: 'Third Party Workflow',
     publisher: 'example-org',
     package_version: '2.0.0',
+    updated_at: '2000-01-01T00:00:00.000Z',
     trust_tier: 'third_party_verified',
     source_kind: 'manifest_url',
     manifest_url: 'https://example.test/workflow.json',
@@ -1469,6 +1470,7 @@ test('installed-only directory entries retain persisted role and consume canonic
   assert.equal(ready.readiness.status, 'verification_deferred');
   assert.equal(ready.readiness.verification_deferred, true);
   assert.equal(ready.readiness.reason, 'live_verification_deferred');
+  assert.equal(ready.version_currentness.checked_at, null);
   assert.equal(ready.recommended_action, null);
   assert.equal(ready.recommended_action_ref, null);
   assert.equal(ready.available_actions.some((action) => action.action_id === 'agent_package_activate'), true);
