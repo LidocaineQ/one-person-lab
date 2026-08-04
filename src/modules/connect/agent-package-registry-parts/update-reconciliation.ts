@@ -130,7 +130,7 @@ export function assertFirstPartyPackageUpdateSelection(
   const manifestUrl = stringValue(input.manifestUrl);
   const registryUrl = stringValue(input.registryUrl);
   if (manifestUrl || registryUrl) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Canonical first-party packages must resolve through the Framework-owned Release Set catalog.', {
+    throw new FrameworkContractError('contract_shape_invalid', 'Canonical first-party packages resolve through their per-Package owner OCI latest-stable channel; explicit manifest or registry selection is not allowed.', {
       package_id: firstParty.canonicalId,
       explicit_manifest_source: Boolean(manifestUrl),
       explicit_registry_source: Boolean(registryUrl),

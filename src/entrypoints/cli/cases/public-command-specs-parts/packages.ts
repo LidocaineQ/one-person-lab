@@ -364,7 +364,7 @@ export function buildPackagesCommandSpecs(
     },
     'packages install': {
       usage: 'opl packages install <package_id> [--scope workspace|quest --target-workspace <path>|--target-quest <path>] [--keep-migration <id,...>] [--dry-run] [--manifest-url <url>|--registry-url <url> --trust-tier <tier>] [--source-kind <kind>] [--agent-root <repo>]',
-      summary: 'Install a first-party OPL Package from the Release Set catalog, or use an explicitly selected manifest or registry.',
+      summary: 'Install a first-party OPL Package from its owner OCI latest-stable channel, or use an explicitly selected manifest or registry.',
       examples: [
         'opl packages install rca --json',
         'opl packages install opl-flow --json',
@@ -392,7 +392,7 @@ export function buildPackagesCommandSpecs(
     },
     'packages update': {
       usage: 'opl packages update [<package_id>] [--scope workspace|quest --target-workspace <path>|--target-quest <path>] [--keep-migration <id,...>] [--manifest-url <url>|--registry-url <url>] [--trust-tier <tier>] [--source-kind <kind>] [--agent-root <repo>] [--dry-run]',
-      summary: 'Update one installed first-party Package from its Release Set catalog, or reconcile all clean managed packages.',
+      summary: 'Update one installed first-party Package from its owner OCI latest-stable channel, or reconcile all clean managed packages.',
       examples: [
         'opl packages update rca --json',
         'opl packages update --json',
