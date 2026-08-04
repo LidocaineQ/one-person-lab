@@ -14,6 +14,7 @@ import {
 } from '../../../kernel/json-file.ts';
 import { stringValue } from '../../../kernel/json-record.ts';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
+import { resolveFirstPartyPackageOwnerChannelRef } from '../agent-package-first-party.ts';
 import { PACKAGED_MODULE_MARKER_FILE } from '../packaged-module-marker.ts';
 import {
   MANAGED_UPDATE_OWNER_ACTIONS,
@@ -797,6 +798,51 @@ function packageEntry(
   );
 }
 
+function ownerPackageEntry(spec: DomainModuleSpec): OplChannelPackageVersionSelection {
+  const packageId = canonicalAgentPackageId(spec.module_id);
+  const ownerChannelRef = resolveFirstPartyPackageOwnerChannelRef(packageId);
+  if (!packageId || !ownerChannelRef) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Managed module has no first-party Package owner channel.', {
+      module_id: spec.module_id,
+      package_id: packageId,
+      failure_code: 'opl_package_owner_channel_missing',
+    });
+  }
+  const artifact = readOplPackageArtifactWithMetadata(ownerChannelRef);
+  const packageManifest = parseJsonText(artifact.manifest_json);
+  const payloadManifest = parseJsonText(artifact.payload_manifest_json);
+  const packageVersion = isRecord(packageManifest) ? stringValue(packageManifest.version) : null;
+  const manifestPackageId = isRecord(packageManifest) ? stringValue(packageManifest.package_id) : null;
+  const payloadPackageId = isRecord(payloadManifest) ? stringValue(payloadManifest.package_id) : null;
+  const payloadPackageVersion = isRecord(payloadManifest) ? stringValue(payloadManifest.package_version) : null;
+  if (!packageVersion
+    || manifestPackageId !== packageId
+    || payloadPackageId !== packageId
+    || payloadPackageVersion !== packageVersion) {
+    throw new FrameworkContractError('contract_shape_invalid', 'First-party Package owner artifact identity is inconsistent.', {
+      module_id: spec.module_id,
+      package_id: packageId,
+      manifest_package_id: manifestPackageId,
+      manifest_package_version: packageVersion,
+      payload_package_id: payloadPackageId,
+      payload_package_version: payloadPackageVersion,
+      failure_code: 'opl_package_owner_artifact_identity_mismatch',
+    });
+  }
+  const ownerImageRef = parseImageRef(ownerChannelRef);
+  return normalizePackageSelection(spec, packageId, {
+    package_id: packageId,
+    package_version: packageVersion,
+    source_artifact_ref: `${ownerImageRef.image}:${packageVersion}`,
+    artifact_digest: artifact.descriptor_digest,
+    artifact_status: 'published_immutable',
+    package_content_digest: artifact.source_layer_digest,
+    owner_source_commit: isRecord(payloadManifest)
+      ? stringValue(payloadManifest.source_commit)
+      : null,
+  }, packageVersion);
+}
+
 function normalizePackageContentDigest(value: string | null | undefined) {
   const normalized = normalizeOptionalString(value);
   return normalized ? `sha256:${normalized.replace(/^sha256:/, '')}` : null;
@@ -826,7 +872,6 @@ function packageChannelUpdateStatus(
 export function readManagedModulePackageChannelUpdateStatus(
   repoPath: string,
   spec: DomainModuleSpec,
-  declaredRef?: string,
 ) {
   const lifecycle = readPackageChannelLifecycle(repoPath, spec);
   if (!lifecycle) {
@@ -835,7 +880,7 @@ export function readManagedModulePackageChannelUpdateStatus(
       checkout_path: repoPath,
     });
   }
-  const entry = packageEntry(readOplPackageChannelManifest(declaredRef), spec);
+  const entry = ownerPackageEntry(spec);
   return packageChannelUpdateStatus(lifecycle, entry);
 }
 
@@ -1151,7 +1196,6 @@ export function installManagedModuleFromPackageChannel(
     selection?: ManagedModulePackageChannelSelection | null;
   } = {},
 ) {
-  const channelManifest = options.selection ? null : readOplPackageChannelManifest();
   const entry = options.selection
     ? normalizePackageSelection(
         spec,
@@ -1161,7 +1205,7 @@ export function installManagedModuleFromPackageChannel(
         options.selection,
         options.selection.package_version,
       )
-    : packageEntry(channelManifest!, spec);
+    : ownerPackageEntry(spec);
   if (fs.existsSync(targetPath) && !options.repairTransactionId) {
     assertCleanPackageChannelRoot(targetPath, spec);
     const lifecycle = readPackageChannelLifecycle(targetPath, spec);

@@ -675,7 +675,7 @@ if (command === 'plugin marketplace list --json') {
 `, { mode: 0o755 });
 }
 
-test('first-party package selection resolves the managed Release Set catalog', () => {
+test('first-party package selection resolves its independent owner latest-stable channel', () => {
   const previousOwner = process.env.OPL_PACKAGES_OWNER;
   const previousTag = process.env.OPL_PACKAGE_CHANNEL_TAG;
   const previousVersion = process.env.OPL_PACKAGE_CHANNEL_VERSION;
@@ -683,7 +683,7 @@ test('first-party package selection resolves the managed Release Set catalog', (
   delete process.env.OPL_PACKAGES_OWNER;
   delete process.env.OPL_PACKAGE_CHANNEL_TAG;
   delete process.env.OPL_PACKAGE_CHANNEL_VERSION;
-  delete process.env.OPL_PACKAGE_CHANNEL_MANIFEST_REF;
+  process.env.OPL_PACKAGE_CHANNEL_MANIFEST_REF = 'ghcr.io/stale/one-person-lab-manifest:latest-stable';
   try {
     const selection = resolveFirstPartyPackageCatalog('opl-flow');
 
@@ -694,7 +694,7 @@ test('first-party package selection resolves the managed Release Set catalog', (
       catalogSource: {
         kind: 'managed_version_catalog',
         transport: 'opl_oci_channel',
-        catalog_ref: 'ghcr.io/gaofeng21cn/one-person-lab-manifest:latest-stable',
+        catalog_ref: 'ghcr.io/gaofeng21cn/one-person-lab-packages/opl-flow:latest-stable',
         digest_authority: 'manifest_and_content_digest',
       },
     });

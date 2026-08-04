@@ -16,7 +16,7 @@ import { readBundledCodexDefaultProfile } from '../../../../../src/kernel/local-
 
 const codexDefaultProfile = readBundledCodexDefaultProfile();
 
-test('packages manifest exposes canonical Release Set coordinates for Package install updates', () => {
+test('packages manifest exposes independent owner currentness and compatibility snapshot coordinates', () => {
   const catalog = parseJsonText(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
     'utf8',
@@ -168,10 +168,10 @@ test('packages manifest exposes canonical Release Set coordinates for Package in
   assert.equal(output.packages_manifest.release_set.components.base.component_id, 'opl-base');
   assert.equal(output.packages_manifest.release_set.components.app.component_id, 'opl-app');
   assert.equal(output.packages_manifest.release_set.catalog_carrier_is_package_identity, false);
-  assert.equal(output.packages_manifest.package_install_update_source, 'package_channel');
+  assert.equal(output.packages_manifest.package_install_update_source, 'per_package_owner_latest_stable');
   assert.equal(
     output.packages_manifest.package_consumption_status,
-    'ordinary_app_users_consume_managed_ghcr_packages',
+    'ordinary_app_users_compose_independent_ghcr_packages',
   );
   assert.equal(output.packages_manifest.developer_package_source_override.carrier_env, 'OPL_MODULE_SOURCE_MODE=git_checkout');
   assert.equal(output.packages_manifest.developer_package_source_override.scope, 'developer_mode_checkout');
@@ -329,7 +329,7 @@ test('packages manifest exposes canonical Release Set coordinates for Package in
   );
   assert.match(
     output.packages_manifest.packages.package_artifacts.mas.package_lifecycle_reason,
-    /package-channel/,
+    /independent GHCR owner channel/,
   );
   assert.equal(
     output.packages_manifest.packages.package_artifacts.mas.remote_publish_status,
@@ -337,15 +337,15 @@ test('packages manifest exposes canonical Release Set coordinates for Package in
   );
   assert.equal(
     output.packages_manifest.packages.package_artifacts.mas.package_consumption_status,
-    'consumed_by_package_channel_installs',
+    'consumed_by_independent_owner_channel_installs',
   );
   assert.equal(
     output.packages_manifest.packages.package_artifacts.mas.current_install_update_source,
-    'package_channel',
+    'per_package_owner_latest_stable',
   );
   assert.equal(
     output.packages_manifest.packages.package_artifacts.mas.release_discipline.current_stable_source,
-    'opl_release_channel_manifest',
+    'per_package_owner_latest_stable',
   );
   assert.equal(
     output.packages_manifest.packages.package_artifacts.mas.release_discipline.developer_override_source,
@@ -482,7 +482,7 @@ test('packages manifest exposes canonical Release Set coordinates for Package in
   );
   assert.equal(
     output.packages_manifest.packages.package_artifacts['mas-scholar-skills'].current_install_update_source,
-    'package_channel',
+    'per_package_owner_latest_stable',
   );
   assert.equal(
     output.packages_manifest.packages.package_artifacts['mas-scholar-skills'].developer_git_checkout_override.repo_url,

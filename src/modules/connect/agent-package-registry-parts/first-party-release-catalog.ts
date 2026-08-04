@@ -1,7 +1,10 @@
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { stringValue } from '../../../kernel/json-record.ts';
-import { resolveFirstPartyPackageCatalog } from '../agent-package-first-party.ts';
+import {
+  resolveFirstPartyPackageCatalog,
+  resolveFirstPartyPackageOwnerChannelRef,
+} from '../agent-package-first-party.ts';
 import {
   managedPackageCatalogDigest,
   normalizeManagedPackageCatalog,
@@ -32,18 +35,15 @@ export async function refreshFirstPartyPackageCatalogSnapshot(
         failure_code: 'first_party_package_dependency_unknown',
       });
     }
-    const selectedOwnerMatch = selectedOwner.catalogSource.catalog_ref.match(
-      /^ghcr\.io\/([^/]+)\/one-person-lab-manifest(?::|@)/,
-    );
-    if (!selectedOwnerMatch) {
-      throw new FrameworkContractError('contract_shape_invalid', 'First-party Package owner could not be derived from its compatibility catalog ref.', {
+    const latestStableRef = resolveFirstPartyPackageOwnerChannelRef(selectedPackageId);
+    if (!latestStableRef) {
+      throw new FrameworkContractError('contract_shape_invalid', 'First-party Package owner channel could not be resolved.', {
         root_package_id: packageId,
         package_id: selectedPackageId,
         catalog_ref: selectedOwner.catalogSource.catalog_ref,
         failure_code: 'first_party_package_owner_ref_invalid',
       });
     }
-    const latestStableRef = `ghcr.io/${selectedOwnerMatch[1]}/one-person-lab-packages/${selectedPackageId}:latest-stable`;
     const artifact = readOplPackageArtifactWithMetadata(latestStableRef, {
       timeoutMs: input.timeoutMs,
     });
@@ -115,11 +115,7 @@ export async function refreshFirstPartyPackageCatalogSnapshot(
     packages: { package_catalog: packageCatalog },
   };
   const packageCatalogDigest = managedPackageCatalogDigest(catalogPayload);
-  const rootOwner = resolveFirstPartyPackageCatalog(packageId)!;
-  const rootOwnerMatch = rootOwner.catalogSource.catalog_ref.match(
-    /^ghcr\.io\/([^/]+)\/one-person-lab-manifest(?::|@)/,
-  )!;
-  const rootRef = `ghcr.io/${rootOwnerMatch[1]}/one-person-lab-packages/${packageId}:latest-stable`;
+  const rootRef = resolveFirstPartyPackageOwnerChannelRef(packageId)!;
   return {
     catalog: normalizeManagedPackageCatalog(catalogPayload),
     freshness: 'live',

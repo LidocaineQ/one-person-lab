@@ -18,6 +18,8 @@ import {
 } from '../../../../src/modules/connect/system-installation/module-package-channel.ts';
 
 const PACKAGE_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.source.v1+gzip';
+const PACKAGE_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.manifest.v1+json';
+const PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.payload.v1+json';
 const CHANNEL_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.release.channel-manifest.v1+json';
 
 const MAS_MODULE_SPEC = {
@@ -58,6 +60,8 @@ function writePackageChannelFixture(input: {
   const fakeBin = path.join(input.root, 'bin');
   const sourceRoot = path.join(input.root, 'source', input.repoName);
   const archivePath = path.join(input.root, `${input.repoName}-${input.version}.tar.gz`);
+  const packageManifestPath = path.join(blobRoot, 'package-manifest.json');
+  const payloadManifestPath = path.join(blobRoot, 'payload-manifest.json');
   const channelManifestPath = path.join(blobRoot, 'channel-manifest.json');
   const curlLogPath = path.join(input.root, 'curl.jsonl');
 
@@ -77,6 +81,17 @@ function writePackageChannelFixture(input: {
     cwd: path.dirname(sourceRoot),
   });
   const archiveDigest = sha256(archivePath);
+  fs.writeFileSync(packageManifestPath, JSON.stringify({
+    package_id: 'mas',
+    version: input.version,
+  }), 'utf8');
+  fs.writeFileSync(payloadManifestPath, JSON.stringify({
+    package_id: 'mas',
+    package_version: input.version,
+    source_commit: input.sourceHeadSha,
+  }), 'utf8');
+  const packageManifestDigest = sha256(packageManifestPath);
+  const payloadManifestDigest = sha256(payloadManifestPath);
   const packageArtifactManifest = {
     schemaVersion: 2,
     mediaType: 'application/vnd.oci.image.manifest.v1+json',
@@ -86,6 +101,20 @@ function writePackageChannelFixture(input: {
         digest: `sha256:${archiveDigest}`,
         annotations: {
           'org.opencontainers.image.title': `dist/opl-packages/packages/mas/mas-${input.version}.tar.gz`,
+        },
+      },
+      {
+        mediaType: PACKAGE_MANIFEST_LAYER_MEDIA_TYPE,
+        digest: `sha256:${packageManifestDigest}`,
+        annotations: {
+          'org.opencontainers.image.title': 'package-manifest.json',
+        },
+      },
+      {
+        mediaType: PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE,
+        digest: `sha256:${payloadManifestDigest}`,
+        annotations: {
+          'org.opencontainers.image.title': 'payload-manifest.json',
         },
       },
     ],
@@ -138,6 +167,8 @@ function writePackageChannelFixture(input: {
   const blobsByDigest = {
     [`sha256:${channelDigest}`]: channelManifestPath,
     [`sha256:${archiveDigest}`]: archivePath,
+    [`sha256:${packageManifestDigest}`]: packageManifestPath,
+    [`sha256:${payloadManifestDigest}`]: payloadManifestPath,
   };
   fs.writeFileSync(
     path.join(fakeBin, 'curl'),
@@ -226,6 +257,7 @@ test('managed module install and update consume the package channel by default',
     HOME: homeRoot,
     CODEX_HOME: path.join(homeRoot, 'codex-home'),
     OPL_MODULES_ROOT: modulesRoot,
+    OPL_PACKAGES_OWNER: 'owner',
     OPL_PACKAGE_CHANNEL_MANIFEST_REF: 'ghcr.io/owner/one-person-lab-manifest:26.6.1',
     OPL_STATE_DIR: path.join(homeRoot, 'opl-state'),
     PATH: `${firstChannel.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
@@ -351,7 +383,8 @@ test('managed module install and update consume the package channel by default',
     );
     assert.match(updateMarker.package_channel_lifecycle.rollback_ref ?? '', /^opl:\/\/managed-module-package-channel\/medautoscience\/rollback\//);
     assert.equal(fs.existsSync(`${managedCheckout}.stage`), false);
-    assert.match(fs.readFileSync(secondChannel.curlLogPath, 'utf8'), /one-person-lab-manifest/);
+    assert.match(fs.readFileSync(secondChannel.curlLogPath, 'utf8'), /one-person-lab-packages\/mas\/manifests\/latest-stable/);
+    assert.doesNotMatch(fs.readFileSync(secondChannel.curlLogPath, 'utf8'), /one-person-lab-manifest/);
 
     const noOpMarkerBefore = readPackageChannelMarker(managedCheckout);
     runCli(['connect', 'update', '--module', 'medautoscience'], {
@@ -419,6 +452,7 @@ test('managed package channel rejects symbolic-link and hard-link source archive
         HOME: homeRoot,
         CODEX_HOME: path.join(homeRoot, 'codex-home'),
         OPL_MODULES_ROOT: modulesRoot,
+        OPL_PACKAGES_OWNER: 'owner',
         OPL_PACKAGE_CHANNEL_MANIFEST_REF: `ghcr.io/owner/one-person-lab-manifest:26.7.30-${linkType}`,
         OPL_STATE_DIR: path.join(homeRoot, 'opl-state'),
         PATH: `${channel.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
@@ -437,7 +471,7 @@ test('managed package channel rejects symbolic-link and hard-link source archive
   }
 });
 
-test('managed package channel defaults to the latest-stable GHCR manifest independent of App release version', () => {
+test('managed package channel defaults to the Package owner latest-stable independent of App and shared manifest versions', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-module-package-latest-home-'));
   const modulesRoot = path.join(homeRoot, 'managed-modules');
   const channel = writePackageChannelFixture({
@@ -496,7 +530,8 @@ test('managed package channel defaults to the latest-stable GHCR manifest indepe
     assert.equal(install.module_action.turnkey.health_check.result.package_channel, true);
 
     const curlLog = fs.readFileSync(channel.curlLogPath, 'utf8');
-    assert.match(curlLog, /one-person-lab-manifest\/manifests\/latest-stable/);
+    assert.match(curlLog, /one-person-lab-packages\/mas\/manifests\/latest-stable/);
+    assert.doesNotMatch(curlLog, /one-person-lab-manifest/);
     assert.doesNotMatch(curlLog, /one-person-lab-manifest\/manifests\/26\.6\.3/);
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
@@ -531,6 +566,7 @@ test('package-channel update refuses to overwrite a locally modified managed pac
     HOME: homeRoot,
     CODEX_HOME: path.join(homeRoot, 'codex-home'),
     OPL_MODULES_ROOT: modulesRoot,
+    OPL_PACKAGES_OWNER: 'owner',
     OPL_PACKAGE_CHANNEL_MANIFEST_REF: 'ghcr.io/owner/one-person-lab-manifest:26.6.21',
     OPL_STATE_DIR: path.join(homeRoot, 'opl-state'),
     PATH: `${firstChannel.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
@@ -579,6 +615,7 @@ test('module-specific git checkout override bypasses the package channel', () =>
     CODEX_HOME: path.join(homeRoot, 'codex-home'),
     OPL_MODULES_ROOT: modulesRoot,
     OPL_MODULE_REPO_URL_MEDAUTOSCIENCE: medAutoScienceRemote.remoteRoot,
+    OPL_PACKAGES_OWNER: 'owner',
     OPL_PACKAGE_CHANNEL_MANIFEST_REF: 'ghcr.io/owner/one-person-lab-manifest:26.6.3',
     OPL_STATE_DIR: path.join(homeRoot, 'opl-state'),
     PATH: `${fakeChannel.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
@@ -651,6 +688,7 @@ test('Developer Mode git checkout source bypasses the package channel without ra
       CODEX_HOME: path.join(homeRoot, 'codex-home'),
       GIT_CONFIG_GLOBAL: gitConfigPath,
       OPL_MODULES_ROOT: modulesRoot,
+      OPL_PACKAGES_OWNER: 'owner',
       OPL_PACKAGE_CHANNEL_MANIFEST_REF: 'ghcr.io/owner/one-person-lab-manifest:26.6.4',
       OPL_STATE_DIR: stateDir,
       PATH: `${fakeChannel.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,

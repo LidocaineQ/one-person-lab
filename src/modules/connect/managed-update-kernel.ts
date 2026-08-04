@@ -2,6 +2,8 @@ import { readOplUpdateChannel, readOplWorkspaceRoot } from '../../kernel/system-
 import type { FrameworkContracts } from '../../kernel/types.ts';
 import { resolveCodexVersion } from './system-installation/engine-helpers.ts';
 import { buildOplModules } from './system-installation/modules.ts';
+import { canonicalAgentPackageId } from './agent-package-identity.ts';
+import { resolveFirstPartyPackageOwnerChannelRef } from './agent-package-first-party.ts';
 import {
   managedUpdateComponentReceiptLedgerFilePath,
 } from './managed-update-component-receipts.ts';
@@ -99,6 +101,7 @@ function buildCapabilityPackagesComponent(
   const defaultModules = modules.filter((entry) => booleanValue(entry, 'default_install') === true);
   const moduleStates = defaultModules.map((entry) => ({
     module_id: stringValue(entry, 'module_id'),
+    package_id: canonicalAgentPackageId(stringValue(entry, 'module_id')),
     label: stringValue(entry, 'label'),
     state: moduleState(entry),
     install_origin: stringValue(entry, 'install_origin'),
@@ -106,14 +109,18 @@ function buildCapabilityPackagesComponent(
     managed_checkout_path: stringValue(entry, 'managed_checkout_path'),
     source_policy: entry.source_policy ?? null,
     git: entry.git ?? null,
+  })).map((entry) => ({
+    ...entry,
+    owner_channel_ref: resolveFirstPartyPackageOwnerChannelRef(entry.package_id),
   }));
   const bundledRuntimeRequested = process.env.OPL_FULL_RUNTIME_HOME !== undefined
     || moduleStates.some((entry) => entry.install_origin === 'full_runtime');
   const bundledCatalog = bundledRuntimeRequested
     ? readBundledFullRuntimePackageCatalog()
     : null;
-  const packageChannelConfigured = Boolean(process.env.OPL_PACKAGE_CHANNEL_MANIFEST_REF?.trim());
-  const targetStates = bundledRuntimeRequested || packageChannelConfigured ? moduleStates : [];
+  const targetStates = bundledRuntimeRequested
+    ? moduleStates
+    : moduleStates.filter((entry) => entry.state !== 'failed_with_repair');
   const bundledReconciliationRequired = bundledRuntimeRequested
     && targetStates.some((entry) => entry.state !== 'current');
   const failedWithRepairCount = bundledRuntimeRequested
@@ -215,7 +222,12 @@ function buildCapabilityPackagesComponent(
     state,
     channel,
     current: {
-      channel_manifest: 'ghcr.io/gaofeng21cn/one-person-lab-manifest:latest-stable',
+      currentness_authority: 'per_package_owner_latest_stable',
+      owner_channel_refs: moduleStates.map((entry) => ({
+        package_id: entry.package_id,
+        channel_ref: entry.owner_channel_ref,
+      })),
+      shared_snapshot_role: 'explicit_full_offline_integration_qa_compatibility_only',
       tag_role: 'selector_only',
       transaction_guards: {
         installed_digest_required: true,
@@ -228,7 +240,8 @@ function buildCapabilityPackagesComponent(
       },
       oci_distribution: {
         descriptor_media_type: 'application/vnd.opl.capability-package.channel.v1+json',
-        channel_ref: 'ghcr.io/gaofeng21cn/one-person-lab-manifest:latest-stable',
+        channel_scope: 'per_package_owner_latest_stable',
+        channel_refs: moduleStates.map((entry) => entry.owner_channel_ref).filter(Boolean),
         tag_role: 'selector_only',
         installed_receipt_must_record_digest: true,
         digest_field: MANAGED_UPDATE_OWNER_FIELDS.toDigest,
@@ -333,7 +346,7 @@ function buildCapabilityPackagesComponent(
     },
     receipt: componentReceipt({
       component_id: 'opl_packages',
-      sourceManifestRef: 'ghcr.io/gaofeng21cn/one-person-lab-manifest:latest-stable',
+      sourceManifestRef: 'opl://packages/per-package-owner-latest-stable',
       postApplyHooks,
       apply_mode: cleanManagedScopeSafe ? 'auto_apply' : 'manual_required',
       status_detail: detail,
@@ -350,8 +363,9 @@ function buildCapabilityPackagesComponent(
       can_claim_quality_or_export_verdict: false,
     },
     notes: [
-      'GHCR package channel is the ordinary non-development source for managed capability packages.',
+      'Each first-party Package owner latest-stable channel is the ordinary non-development currentness source.',
       'Developer checkout content remains protected while native module state is compared with the selected package-channel target.',
+      'Shared manifests are compatibility-only Full, offline, integration, or QA snapshot inputs, never Package currentness authority.',
       'App-carried bundled Full runtime modules are reconciled against the canonical bundled catalog only through the managed update kernel.',
       'Package-channel freshness does not claim domain readiness, artifact authority, quality verdict, or export readiness.',
     ],

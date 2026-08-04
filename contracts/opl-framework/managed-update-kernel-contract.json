@@ -486,8 +486,8 @@
       "mutation_scope": "installed_root_package_locks_or_catalog_owned_bundled_full_runtime_root_closure_only",
       "source_policy": {
         "authority": "effective Developer Mode and per-package source preference",
-        "developer_checkout_effect": "compare_installed_lock_to_live_release_set_target_then_relock_and_reproject_from_the_exact_effective_checkout_without_overwriting_checkout_content",
-        "managed_effect": "compare_installed_lock_to_release_set_target_then_apply_only_when_identity_differs",
+        "developer_checkout_effect": "compare_installed_lock_to_live_per_package_owner_channel_target_then_relock_and_reproject_from_the_exact_effective_checkout_without_overwriting_checkout_content",
+        "managed_effect": "compare_installed_lock_to_per_package_owner_latest_stable_target_then_apply_only_when_identity_differs",
         "bundled_full_runtime_effect": "compare canonical catalog descriptors to fresh native-carrier, deterministic immutable-cache, visible marketplace or hidden-surface, and descriptor-managed-policy readback, then independently update each stale selected root and its required dependency closure through opl update apply",
         "external_package_effect": "manual_explicit_update_only"
       },
@@ -507,7 +507,7 @@
         "eligible_when": [
           "installed root package lock exists",
           "effective source policy selects managed release target with a different identity",
-          "or effective source policy selects an available developer checkout whose lock source, version, manifest digest, content digest, or artifact digest differs from the live Release Set target",
+          "or effective source policy selects an available developer checkout whose lock source, version, manifest digest, content digest, or artifact digest differs from the live per-Package owner channel target",
           "manifest sha256, content digest, and lock ref are present",
           "physical package surface has no recorded failure"
         ],
