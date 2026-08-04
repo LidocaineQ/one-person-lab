@@ -927,6 +927,57 @@ test('managed Flow update keeps the managed owner when an installed descriptor i
   }
 });
 
+test('native Flow repair retires a disjoint same-home managed lock before ordinary updates', () => {
+  const state = publicLifecycleFixture('native-repair-owner-transfer');
+  try {
+    const previousCheckout = writeDeveloperFlowCheckout(path.join(state.root, 'workspace-previous'));
+    const legacyAgentsRoot = path.join(state.root, 'legacy-agents');
+    fs.renameSync(state.agentsRoot, legacyAgentsRoot);
+    const previous = runCli(['packages', 'install', 'opl-flow'], {
+      ...state.env,
+      OPL_MODULE_PATH_OPLFLOW: previousCheckout,
+      OPL_MODULE_SOURCE_MODE: 'git_checkout',
+    }) as any;
+    fs.renameSync(legacyAgentsRoot, state.agentsRoot);
+    const previousSurface = previous.opl_agent_package_install.physical_surface;
+    const packageLockPath = path.join(state.env.OPL_STATE_DIR, 'agent-package-locks.json');
+    assert.equal(fs.existsSync(packageLockPath), true);
+
+    fs.writeFileSync(path.join(state.env.CODEX_HOME, 'config.toml'), '', 'utf8');
+    const nativeMarketplace = writeFlowMarketplace({
+      root: path.join(state.root, 'native-owner'),
+      version: '0.1.30',
+      requiredSkillIds: flowSkillIds,
+    });
+    seedInstalledFlow({
+      state,
+      oldMarketplaceRoot: nativeMarketplace.marketplaceRoot,
+    });
+
+    const repaired = runCli(['packages', 'repair', '--package-id', 'opl-flow'], state.env) as any;
+    const surface = repaired.opl_agent_package_repair;
+    assert.equal(surface.status, 'repaired');
+    assert.equal(surface.configured_carrier.status, 'installed');
+    assert.equal(surface.configured_carrier.executor.status, 'callable');
+    assert.equal(surface.configured_carrier.plugin_source_path, nativeMarketplace.pluginSource);
+    assert.equal(Object.hasOwn(surface, 'package_lock'), false);
+    assert.equal(Object.hasOwn(surface, 'lifecycle_receipt'), false);
+    assert.equal(fs.existsSync(packageLockPath), false);
+    assert.equal(fs.existsSync(previousSurface.marketplace_root), false);
+    assert.equal(fs.existsSync(nativeMarketplace.pluginSource), true);
+
+    const nativePlugin = JSON.parse(execFileSync(state.codex.codexPath, ['plugin', 'list', '--json'], {
+      env: { ...process.env, ...state.env },
+      encoding: 'utf8',
+    }));
+    assert.equal(nativePlugin.installed.length, 1);
+    assert.equal(nativePlugin.installed[0].pluginId, flowPluginSelector);
+    assert.equal(nativePlugin.installed[0].source.path, nativeMarketplace.pluginSource);
+  } finally {
+    removeFixtureTree(state.root);
+  }
+});
+
 test('foreign managed Flow lock does not override the current Codex home native owner', () => {
   const state = publicLifecycleFixture('foreign-managed-update');
   try {
