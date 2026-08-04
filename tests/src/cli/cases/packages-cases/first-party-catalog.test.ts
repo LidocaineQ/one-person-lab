@@ -1539,6 +1539,65 @@ test('an installed first-party descriptor cannot mask a new manifest missing car
   }
 });
 
+test('the exact immutable Flow 0.1.35 owner cohort installs through the managed native carrier bridge', () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-flow-0135-bridge-state-'));
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-flow-0135-bridge-home-'));
+  const exact = writeFirstPartyCatalogFixture(
+    '0.1.35',
+    '6d8772cd9a8b2a14b2292c15afbf3c3cb5bfa8a4',
+    { configuredCarrier: false },
+  );
+  const wrongOwnerCommit = writeFirstPartyCatalogFixture(
+    '0.1.35',
+    'f'.repeat(40),
+    { configuredCarrier: false },
+  );
+  const commonEnv = {
+    HOME: homeDir,
+    CODEX_HOME: path.join(homeDir, '.codex'),
+    OPL_STATE_DIR: stateDir,
+  };
+  try {
+    const installed = runCli(['packages', 'install', 'opl-flow'], {
+      ...exact.env,
+      ...commonEnv,
+    }) as any;
+    assert.equal(installed.opl_agent_package_install.status, 'installed');
+    assert.equal(installed.opl_agent_package_install.package_lock.package_id, 'opl-flow');
+    assert.equal(installed.opl_agent_package_install.package_lock.package_version, '0.1.35');
+    assert.equal(
+      installed.opl_agent_package_install.package_lock.owner_source_commit,
+      '6d8772cd9a8b2a14b2292c15afbf3c3cb5bfa8a4',
+    );
+    assert.equal(
+      installed.opl_agent_package_install.package_lock.source_kind,
+      'first_party_managed_cohort',
+    );
+    const status = runCli(['packages', 'status', '--package-id', 'opl-flow'], commonEnv) as any;
+    assert.equal(status.opl_agent_package_status.configured_carrier.status, 'installed');
+    assert.equal(status.opl_agent_package_status.configured_carrier.executor.status, 'callable');
+    const ownerReads = fs.readFileSync(exact.curlLogPath, 'utf8')
+      .split('\n')
+      .filter((line) => line.includes('/one-person-lab-packages/opl-flow/manifests/latest-stable'));
+    assert.equal(ownerReads.length, 1);
+
+    fs.rmSync(stateDir, { recursive: true, force: true });
+    const rejected = runCliFailure(['packages', 'install', 'opl-flow'], {
+      ...wrongOwnerCommit.env,
+      ...commonEnv,
+    });
+    assert.equal(
+      rejected.payload.error.details.failure_code,
+      'configured_codex_plugin_carrier_owner_descriptor_missing',
+    );
+  } finally {
+    removeFixtureTree(stateDir);
+    fs.rmSync(homeDir, { recursive: true, force: true });
+    fs.rmSync(exact.root, { recursive: true, force: true });
+    fs.rmSync(wrongOwnerCommit.root, { recursive: true, force: true });
+  }
+});
+
 test('first-party install rejects a catalog member without an immutable owner commit', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-invalid-catalog-state-'));
   const fixture = writeFirstPartyCatalogFixture('0.2.0', 'not-an-owner-commit');
