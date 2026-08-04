@@ -2164,34 +2164,66 @@ async function maybeRunDescriptorOwnedFirstPartyLifecycle(input: {
   };
 }
 
+function pathsOverlap(left: string, right: string) {
+  const resolvedLeft = path.resolve(left);
+  const resolvedRight = path.resolve(right);
+  return resolvedLeft === resolvedRight
+    || resolvedLeft.startsWith(`${resolvedRight}${path.sep}`)
+    || resolvedRight.startsWith(`${resolvedLeft}${path.sep}`);
+}
+
+function currentHomeManagedFirstPartyLock(packageId: string | null) {
+  if (!packageId || !resolveFirstPartyPackageCatalog(packageId)) return null;
+  try {
+    const currentCodexHome = path.resolve(resolveCodexHome());
+    return readLockIndex().packages.find((entry) => {
+      if (entry.package_id !== packageId) return false;
+      const lockCodexHome = stringValue(entry.physical_surface?.codex_home);
+      return lockCodexHome === null || path.resolve(lockCodexHome) === currentCodexHome;
+    }) ?? null;
+  } catch (error) {
+    if (!isCorruptLegacyLockAuthority(error) || !canProjectDescriptorsWithCorruptLock(error)) {
+      throw error;
+    }
+    return null;
+  }
+}
+
+function nativeOwnerCanRetireManagedLock(lock: AgentPackageLock) {
+  if (resolveAgentPackageEffectiveSourcePolicy(lock.package_id).desired_source_kind
+    === 'developer_checkout_override') {
+    return false;
+  }
+  const descriptor = discoverInstalledCodexPluginDescriptors({
+    packageId: lock.package_id,
+    failClosedOnCarrierError: true,
+  }).get(lock.package_id) ?? null;
+  if (!descriptor) return false;
+  const surface = lock.physical_surface;
+  const legacySelector = surface?.plugin_id && surface.marketplace_id
+    ? `${surface.plugin_id}@${surface.marketplace_id}`
+    : null;
+  const legacyPaths = [
+    surface?.marketplace_root,
+    surface?.marketplace_plugin_path,
+    surface?.codex_plugin_cache_path,
+    surface?.plugin_payload_cache_path,
+  ].filter((entry): entry is string => Boolean(entry));
+  return descriptor.pluginId !== legacySelector
+    && !legacyPaths.some((entry) => pathsOverlap(entry, descriptor.sourcePath));
+}
+
 async function maybeRunConfiguredCarrierLifecycle(input: {
   selectionInput: ConfiguredCarrierSelectionInput;
   action: Exclude<ConfiguredCodexPluginCarrierAction, 'list'>;
 }) {
   const packageId = canonicalAgentPackageId(input.selectionInput.packageId);
-  let managedFirstPartyLockPresent = false;
-  if (packageId && resolveFirstPartyPackageCatalog(packageId)) {
-    try {
-      const currentCodexHome = path.resolve(resolveCodexHome());
-      managedFirstPartyLockPresent = readLockIndex().packages.some(
-        (entry) => {
-          if (entry.package_id !== packageId) return false;
-          const lockCodexHome = stringValue(entry.physical_surface?.codex_home);
-          return lockCodexHome === null || path.resolve(lockCodexHome) === currentCodexHome;
-        },
-      );
-    } catch (error) {
-      if (!isCorruptLegacyLockAuthority(error) || !canProjectDescriptorsWithCorruptLock(error)) {
-        throw error;
-      }
+  const managedFirstPartyLock = currentHomeManagedFirstPartyLock(packageId);
+  if (managedFirstPartyLock) {
+    if (input.action === 'update' || input.action === 'remove') return null;
+    if (input.action === 'repair' && !nativeOwnerCanRetireManagedLock(managedFirstPartyLock)) {
+      return null;
     }
-  }
-  if (
-    packageId
-    && (input.action === 'update' || input.action === 'repair' || input.action === 'remove')
-    && managedFirstPartyLockPresent
-  ) {
-    return null;
   }
   if (packageId
     && resolveFirstPartyPackageCatalog(packageId)
