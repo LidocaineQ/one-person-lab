@@ -268,7 +268,8 @@ export async function maybeRetireDescriptorOwnedLegacyState(input: {
   dryRun: boolean;
 }) {
   if (
-    input.configured.status !== 'repaired'
+    input.configured.status !== 'installed'
+    && input.configured.status !== 'repaired'
     && input.configured.status !== 'updated'
     && input.configured.status !== 'validated_no_write'
   ) {
