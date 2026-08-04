@@ -9,6 +9,8 @@ import {
 } from '../../../cli-codex-default-shell-helpers.ts';
 
 const PACKAGE_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.source.v1+gzip';
+const PACKAGE_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.manifest.v1+json';
+const PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.payload.v1+json';
 const CHANNEL_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.release.channel-manifest.v1+json';
 const FIXTURE_CODEX_VERSION = '0.134.0';
 
@@ -400,6 +402,19 @@ export function writeStartupPackageChannelFixture(input: {
     });
     const archiveDigest = sha256(archivePath);
     const packageId = packageIdForModule(module.moduleId);
+    const packageManifestPath = path.join(blobRoot, `${packageId}-package-manifest.json`);
+    const payloadManifestPath = path.join(blobRoot, `${packageId}-payload-manifest.json`);
+    fs.writeFileSync(packageManifestPath, JSON.stringify({
+      package_id: packageId,
+      version: input.version,
+    }), 'utf8');
+    fs.writeFileSync(payloadManifestPath, JSON.stringify({
+      package_id: packageId,
+      package_version: input.version,
+      source_commit: module.sourceHeadSha,
+    }), 'utf8');
+    const packageManifestDigest = sha256(packageManifestPath);
+    const payloadManifestDigest = sha256(payloadManifestPath);
     const ociManifest = {
       schemaVersion: 2,
       mediaType: 'application/vnd.oci.image.manifest.v1+json',
@@ -409,6 +424,20 @@ export function writeStartupPackageChannelFixture(input: {
           digest: `sha256:${archiveDigest}`,
           annotations: {
             'org.opencontainers.image.title': `dist/opl-packages/packages/${packageId}/${packageId}-${input.version}.tar.gz`,
+          },
+        },
+        {
+          mediaType: PACKAGE_MANIFEST_LAYER_MEDIA_TYPE,
+          digest: `sha256:${packageManifestDigest}`,
+          annotations: {
+            'org.opencontainers.image.title': 'package-manifest.json',
+          },
+        },
+        {
+          mediaType: PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE,
+          digest: `sha256:${payloadManifestDigest}`,
+          annotations: {
+            'org.opencontainers.image.title': 'payload-manifest.json',
           },
         },
       ],
@@ -429,6 +458,8 @@ export function writeStartupPackageChannelFixture(input: {
     };
     manifests[`owner/one-person-lab-packages/${packageId}`] = ociManifest;
     blobsByDigest[`sha256:${archiveDigest}`] = archivePath;
+    blobsByDigest[`sha256:${packageManifestDigest}`] = packageManifestPath;
+    blobsByDigest[`sha256:${payloadManifestDigest}`] = payloadManifestPath;
   }
 
   const channelManifestPath = path.join(blobRoot, 'channel-manifest.json');
