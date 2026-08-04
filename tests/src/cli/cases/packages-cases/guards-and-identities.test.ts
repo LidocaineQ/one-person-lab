@@ -281,6 +281,9 @@ test('managed catalog payload requires the exact declared source_path without ar
 });
 
 test('repair migrates legacy Framework manifests to one stable catalog selection for plugin and runtime carriers', () => {
+  const retiredDistributionLockFields = [
+    'oci_ref', 'resolved_digest', 'immutable_tag', 'moving_tag', 'install_truth',
+  ];
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-stable-repair-state-'));
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-stable-repair-fixture-'));
   const homeDir = path.join(fixtureRoot, 'home');
@@ -370,6 +373,7 @@ test('repair migrates legacy Framework manifests to one stable catalog selection
     const previewLock = preview.opl_agent_package_repair.package_lock;
     assert.equal(previewLock.package_version, '0.2.1');
     assert.equal(Object.hasOwn(previewLock, 'version_or_source_digest'), false);
+    assert.deepEqual(retiredDistributionLockFields.filter((field) => Object.hasOwn(previewLock, field)), []);
     assert.equal(previewLock.source_kind, 'first_party_managed_cohort');
     assert.equal(previewLock.manifest_url, 'opl+oci://ghcr.io/fixture/one-person-lab-packages/rca:0.2.1#/package-manifest.json');
     assert.equal(previewLock.source_artifact_ref, 'ghcr.io/fixture/one-person-lab-packages/rca:0.2.1');
@@ -393,6 +397,7 @@ test('repair migrates legacy Framework manifests to one stable catalog selection
     const repairedLock = repaired.opl_agent_package_repair.package_lock;
     assert.equal(repairedLock.package_version, '0.2.1');
     assert.equal(Object.hasOwn(repairedLock, 'version_or_source_digest'), false);
+    assert.deepEqual(retiredDistributionLockFields.filter((field) => Object.hasOwn(repairedLock, field)), []);
     assert.equal(repairedLock.managed_runtime_source.source_git_head_sha, stableSourceHead);
     assert.equal(
       fs.readFileSync(
