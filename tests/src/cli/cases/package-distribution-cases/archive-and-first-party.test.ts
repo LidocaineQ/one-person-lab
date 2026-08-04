@@ -1513,11 +1513,11 @@ test('bundled Full MAS source projection advances to the immutable ordinary pack
 
   assert.equal(frozenRef, 'packages/mas-0.2.22.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    'a115a38a1cf30b9ad1d42e9949dcaa8cb522a042726d1cf01f27f3a97e516f2e');
+    'ca3f3ce97651cf184ed101db388076ffebaa4ce3bf0899677d5874eed2e8fc0f');
   assert.equal(frozenManifest.version, '0.2.22');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mas-0.2.22.json');
   assert.equal(crypto.createHash('sha256').update(priorOrdinaryBytes).digest('hex'),
-    '1fda4a1e6942037809e8637306d01661149d320ca586798138292a9903b37be2');
+    '37554b4580c50f306e270c60c017a383eec7acf279b09c922e3ee284ee2a68c1');
   assert.equal(priorOrdinaryManifest.version, '0.2.20');
   assert.equal(priorOrdinaryManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mas-0.2.20.json');
   assert.equal(ordinaryManifest.version, '0.2.22');
@@ -1539,7 +1539,7 @@ test('bundled Full MAG source projection advances to the immutable ordinary pack
 
   assert.equal(frozenRef, 'packages/mag-0.3.6.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    'f4d817f4f5cb8c6b440505d8e43afb3e6ca91547934bef262781007da31481ec');
+    'e9d8a5e848e35c59d95b1bf9bc322c74657c45fcff590c2083398cab14f2f1aa');
   assert.equal(frozenManifest.version, '0.3.6');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mag-0.3.6.json');
   assert.equal(ordinaryManifest.version, '0.3.6');
@@ -1561,7 +1561,7 @@ test('bundled Full RCA source projection advances independently of ordinary publ
 
   assert.equal(frozenRef, 'packages/rca-0.2.10.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    '8be12a6d95e7d1ef2216f7d4ad982cae1056f5cb7efe0d4db570b595842a595b');
+    '449ca756aa795e7a3ad26f43a3145bdffbb75d063af57fcd0ca4de82b979130a');
   assert.equal(frozenManifest.version, '0.2.10');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/rca-0.2.10.json');
   assert.equal(ordinaryManifest.version, '0.2.9');
@@ -1583,7 +1583,7 @@ test('bundled Full OMA source projection advances independently of ordinary publ
 
   assert.equal(frozenRef, 'packages/oma-0.4.5.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    '379aca98bc58b6401eee723acb148c2f026c2fea3aa3d0a3c72558d6845e0492');
+    'f29fbb64c4d8fae4dbc48d98817e6bbebccd556fb372bf0d40f9a0dc53d448ae');
   assert.equal(frozenManifest.version, '0.4.5');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/oma-0.4.5.json');
   assert.equal(ordinaryManifest.version, '0.4.4');
@@ -1605,7 +1605,7 @@ test('bundled Full OBF source projection advances independently of ordinary publ
 
   assert.equal(frozenRef, 'packages/obf-0.3.7.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    '37fa02b55b94a85b4612dac78271355accdaff803935d24af5fb2ab8c1259aad');
+    '5f72739b8a70a2da15b20c089a489a6683c6b7a6091845af5c28a0d5f63d195d');
   assert.equal(frozenManifest.version, '0.3.7');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/obf-0.3.7.json');
   assert.equal(ordinaryManifest.version, '0.3.6');

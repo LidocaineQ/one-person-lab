@@ -117,7 +117,6 @@
         "content_identity_fields",
         "dependency_source",
         "lock_owner",
-        "lifecycle_receipt_owner",
         "exposure_owner"
       ],
       "properties": {
@@ -153,9 +152,6 @@
           "const": "manifest_declared_capability_dependencies"
         },
         "lock_owner": {
-          "const": "opl_connect_agent_package_registry"
-        },
-        "lifecycle_receipt_owner": {
           "const": "opl_connect_agent_package_registry"
         },
         "exposure_owner": {
