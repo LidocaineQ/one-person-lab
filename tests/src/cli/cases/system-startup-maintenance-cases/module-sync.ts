@@ -201,8 +201,10 @@ test('system startup-maintenance silently updates package-channel modules and sy
     }
 
     const curlLog = fs.readFileSync(secondChannel.curlLogPath, 'utf8');
-    assert.match(curlLog, /one-person-lab-manifest\/manifests\/latest/);
-    assert.doesNotMatch(curlLog, /one-person-lab-manifest\/manifests\/26\.6\.3/);
+    for (const packageId of ['mas', 'mag', 'rca', 'oma', 'obf']) {
+      assert.match(curlLog, new RegExp(`one-person-lab-packages/${packageId}/manifests/latest-stable`));
+    }
+    assert.doesNotMatch(curlLog, /one-person-lab-manifest\/manifests\//);
   } finally {
     fs.rmSync(codexFixture.fixtureRoot, { recursive: true, force: true });
     fs.rmSync(homeRoot, { recursive: true, force: true });
