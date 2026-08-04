@@ -10,7 +10,6 @@ import {
 import {
   parseJsonText,
   readJsonFileOrNull,
-  readJsonPayloadFile,
 } from '../../../kernel/json-file.ts';
 import { stringValue } from '../../../kernel/json-record.ts';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
@@ -25,12 +24,10 @@ import {
   normalizeOptionalString,
   runCommand,
 } from './shared.ts';
-import { resolveOplReleaseManifestRef } from './release-channel.ts';
 
 const PACKAGE_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.source.v1+gzip';
 const PACKAGE_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.manifest.v1+json';
 const PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.payload.v1+json';
-const CHANNEL_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.release.channel-manifest.v1+json';
 
 type OciImageRef = {
   registry: string;
@@ -46,30 +43,7 @@ type OciLayer = {
   annotations?: Record<string, string>;
 };
 
-type OplChannelManifest = {
-  release_set_generation?: string;
-  packages?: {
-    package_catalog?: Record<string, OplChannelPackageCatalogEntry>;
-  };
-};
-
-type OplChannelPackageCatalogEntry = {
-  package_id?: string;
-  selected_version?: string;
-  versions?: OplChannelPackageCatalogVersion[];
-};
-
-type OplChannelPackageCatalogVersion = {
-  package_version?: string;
-  selection_status?: string;
-  source_artifact_ref?: string;
-  artifact_digest?: string;
-  artifact_status?: string;
-  package_content_digest?: string;
-  owner_source_commit?: string | null;
-};
-
-type OplChannelPackageVersionSelection = OplChannelPackageCatalogVersion & {
+type OplChannelPackageVersionSelection = ManagedModulePackageChannelSelection & {
   package_id: string;
   package_version: string;
   immutable_artifact_ref: string;
@@ -164,10 +138,6 @@ function parseImageRef(raw: string): OciImageRef {
     tag,
     image: `${registry}/${repository}`,
   };
-}
-
-function resolveChannelManifestRef(declaredRef?: string) {
-  return parseImageRef(resolveOplReleaseManifestRef(declaredRef));
 }
 
 function runCurl(
@@ -685,74 +655,10 @@ export function readOplPackageArtifactWithMetadata(
   }
 }
 
-export function readOplPackageChannelManifestWithMetadata(
-  declaredRef?: string,
-  input: { timeoutMs?: number } = {},
-) {
-  const imageRef = resolveChannelManifestRef(declaredRef);
-  const totalTimeoutMs = Number.isFinite(input.timeoutMs) && Number(input.timeoutMs) > 0
-    ? Math.floor(Number(input.timeoutMs))
-    : 60_000;
-  const deadline = Date.now() + totalTimeoutMs;
-  const remainingTimeoutMs = () => {
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) {
-      throw new FrameworkContractError('build_command_failed', 'OPL package channel refresh exceeded its total time budget.', {
-        image: imageRef.image,
-        tag: imageRef.tag,
-        timeout_ms: totalTimeoutMs,
-        failure_code: 'agent_package_capability_channel_unavailable',
-      });
-    }
-    return remaining;
-  };
-  const token = fetchGhcrToken(imageRef, remainingTimeoutMs());
-  const manifest = fetchOciManifest(imageRef, token, remainingTimeoutMs());
-  const layer = selectLayer(manifest.payload, CHANNEL_MANIFEST_LAYER_MEDIA_TYPE, 'opl-channel-manifest.json');
-  if (!layer?.digest) {
-    throw new FrameworkContractError('contract_shape_invalid', 'OPL package-channel manifest layer is missing.', {
-      image: imageRef.image,
-      tag: imageRef.tag,
-    });
-  }
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-channel-manifest-'));
-  try {
-    const manifestPath = path.join(tempRoot, 'opl-channel-manifest.json');
-    fetchOciBlob(imageRef, token, layer.digest, manifestPath, remainingTimeoutMs());
-    const raw = fs.readFileSync(manifestPath);
-    const parsed = readJsonPayloadFile(manifestPath);
-    const channelManifestLayerDigest = `sha256:${crypto.createHash('sha256').update(raw).digest('hex')}`;
-    if (channelManifestLayerDigest !== layer.digest) {
-      throw new FrameworkContractError('contract_shape_invalid', 'OPL package-channel manifest layer digest mismatch.', {
-        image: imageRef.image,
-        tag: imageRef.tag,
-        expected_channel_manifest_layer_digest: layer.digest,
-        actual_channel_manifest_layer_digest: channelManifestLayerDigest,
-        failure_code: 'opl_package_channel_manifest_layer_digest_mismatch',
-      });
-    }
-    return {
-      payload: isRecord(parsed) ? parsed as OplChannelManifest : {},
-      channel_ref: `${imageRef.image}:${imageRef.tag}`,
-      release_set_descriptor_digest: manifest.descriptor_digest,
-      channel_manifest_layer_digest: channelManifestLayerDigest,
-      layer_digest: layer.digest,
-      source_sha256: channelManifestLayerDigest,
-      checked_at: nowIso(),
-    };
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
-}
-
-export function readOplPackageChannelManifest(declaredRef?: string) {
-  return readOplPackageChannelManifestWithMetadata(declaredRef).payload;
-}
-
 function normalizePackageSelection(
   spec: DomainModuleSpec,
   packageId: string | null,
-  version: OplChannelPackageCatalogVersion | ManagedModulePackageChannelSelection | null,
+  version: ManagedModulePackageChannelSelection | null,
   channelVersion: string | null,
 ): OplChannelPackageVersionSelection {
   const packageVersion = normalizeOptionalString(version?.package_version);
@@ -777,25 +683,6 @@ function normalizePackageSelection(
     immutable_artifact_ref: `${sourceArtifactRef.replace(/@sha256:[0-9a-f]{64}$/, '')}@${artifactDigest}`,
     package_content_digest: packageContentDigest,
   };
-}
-
-function packageEntry(
-  channelManifest: OplChannelManifest,
-  spec: DomainModuleSpec,
-): OplChannelPackageVersionSelection {
-  const packageId = canonicalAgentPackageId(spec.module_id);
-  const entry = packageId ? channelManifest.packages?.package_catalog?.[packageId] : null;
-  const versions = Array.isArray(entry?.versions) ? entry.versions : [];
-  const version = versions.find((candidate) => (
-    candidate.selection_status === 'selected_for_release_set'
-    && candidate.package_version === entry?.selected_version
-  )) ?? versions.find((candidate) => candidate.selection_status === 'selected_for_release_set') ?? null;
-  return normalizePackageSelection(
-    spec,
-    entry ? packageId : null,
-    version,
-    channelManifest.release_set_generation ?? null,
-  );
 }
 
 function ownerPackageEntry(spec: DomainModuleSpec): OplChannelPackageVersionSelection {
