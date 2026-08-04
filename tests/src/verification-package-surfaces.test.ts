@@ -39,7 +39,7 @@ test('new-machine bootstrap smoke proves an isolated unknown Package through its
   assert.match(smokeScript, /opl app state --profile fast --json/);
   assert.match(smokeScript, /opl packages uninstall future\.agent-lab/);
   assert.match(smokeScript, /opl_unknown_package_isolation/);
-  assert.match(smokeScript, /legacy_private_lifecycle_state_present/);
+  assert.doesNotMatch(smokeScript, /legacy_private_lifecycle_state_present/);
   assert.match(smokeScript, /future-agent-private-state-snapshot\.mjs/);
   assert.match(smokeScript, /after-install-readback/);
   assert.match(smokeScript, /after-uninstall-readback/);

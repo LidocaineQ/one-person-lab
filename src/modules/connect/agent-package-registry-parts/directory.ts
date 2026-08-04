@@ -1069,7 +1069,6 @@ export function buildAgentPackageDirectory(input: {
       recommended_action: recommendedAction,
       recommended_action_ref: actions.find((action) => action.action_id === recommendedAction) ?? null,
       available_actions: actions,
-      legacy_private_lifecycle_state_present: Boolean(configuredCarrier && lock),
       authority_boundary: refsOnlyAuthorityBoundary(),
     };
   }).sort((left, right) => left.display_name.localeCompare(right.display_name, 'en'));

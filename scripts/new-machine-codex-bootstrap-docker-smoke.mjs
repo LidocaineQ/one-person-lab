@@ -379,7 +379,7 @@ const directoryEntry = list?.directory?.entries?.find((entry) => entry.package_i
 const appStateEntry = appState?.agent_packages?.directory?.entries?.find(
   (entry) => entry.package_id === 'future.agent-lab',
 );
-if (!directoryEntry?.installed || directoryEntry.legacy_private_lifecycle_state_present !== false) {
+if (!directoryEntry?.installed) {
   throw new Error('unknown Package directory projection is not carrier-owned: ' + JSON.stringify(directoryEntry));
 }
 if (!appStateEntry?.installed || appStateEntry.display_name !== 'Future Agent Lab') {
@@ -391,7 +391,6 @@ console.log(JSON.stringify({
   package_id: directoryEntry.package_id,
   installed: directoryEntry.installed,
   carrier_kind: directoryEntry.installed_carrier_readback?.kind,
-  legacy_private_lifecycle_state_present: directoryEntry.legacy_private_lifecycle_state_present,
   app_state_display_name: appStateEntry.display_name,
   app_state_home_shortcuts: appStateEntry.home_shortcuts,
   no_framework_private_lifecycle_state_writes: true,
