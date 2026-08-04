@@ -162,6 +162,15 @@ test('Package lifecycle schemas do not expose legacy private retirement state', 
   );
 
   assert.deepEqual(configuredCarrier?.required, ['configured_carrier', 'registry_entry']);
+  const listRequired = contract.commands.packages_list.output_schema.properties.opl_agent_packages.required;
+  for (const retiredSummaryField of [
+    'conditions',
+    'recommended_action',
+    'lifecycle_action_refs',
+    'lifecycle_ux',
+  ]) {
+    assert.equal(listRequired.includes(retiredSummaryField), false, retiredSummaryField);
+  }
   for (const command of ['packages_install', 'packages_update', 'packages_repair', 'packages_uninstall']) {
     const outputSchema = contract.commands[command].output_schema;
     assert.equal(JSON.stringify(outputSchema).includes('legacy_state_retirement'), false, command);

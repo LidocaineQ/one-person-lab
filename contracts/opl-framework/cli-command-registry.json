@@ -3935,9 +3935,6 @@
               "directory",
               "installed_package_count",
               "installed_packages",
-              "conditions",
-              "recommended_action",
-              "lifecycle_ux",
               "authority_boundary"
             ],
             "additionalProperties": true,

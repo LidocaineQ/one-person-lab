@@ -5038,9 +5038,6 @@ export function listOplAgentPackages(input: {
     installedCodexPluginDescriptors,
     new Set(configuredCarriers.keys()),
   );
-  const lifecycleUx = agentPackageLifecycleSummaryReadback({
-    packages: installedPackages,
-  });
   const directoryReadback = buildAgentPackageDirectory({
     locks: lockIndex.packages,
     detail,
@@ -5079,10 +5076,6 @@ export function listOplAgentPackages(input: {
       ]).size,
       installed_packages: installedPackages,
       configured_carriers: [...configuredCarriers.values()],
-      conditions: lifecycleUx.conditions,
-      recommended_action: lifecycleUx.recommended_action,
-      lifecycle_action_refs: lifecycleUx.lifecycle_action_refs,
-      lifecycle_ux: lifecycleUx,
       home_shortcut_preferences: homeShortcutPreferences,
       files: {
         home_shortcut_preferences_file: paths.agent_package_home_shortcut_preferences_file,
