@@ -605,8 +605,6 @@ export type AgentPackageResolvedDependency = {
   package_id: string;
   required: boolean;
   dependency_kind: 'hard_runtime_dependency' | 'optional_enhancement';
-  version_requirement: string;
-  capability_abi: string;
   consumer_profile_id?: string | null;
   required_export_ids: string[];
   required_module_ids: string[];
@@ -624,8 +622,6 @@ export type AgentPackageResolvedDependency = {
 export type AgentPackageDependencyReadinessItem = {
   package_id: string;
   required: boolean;
-  version_requirement: string;
-  capability_abi: string;
   consumer_profile_id: string | null;
   required_export_ids: string[];
   required_module_ids: string[];

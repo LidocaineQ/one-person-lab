@@ -126,6 +126,8 @@ test('MAS package lifecycle atomically installs and repairs its 11-core capabili
     assert.equal(masLock.resolved_dependencies[0].installed_version, '0.1.0');
     assert.match(masLock.resolved_dependencies[0].manifest_sha256, /^[0-9a-f]{64}$/);
     assert.match(masLock.resolved_dependencies[0].content_digest, /^sha256:[0-9a-f]{64}$/);
+    assert.equal(Object.hasOwn(masLock.resolved_dependencies[0], 'version_requirement'), false);
+    assert.equal(Object.hasOwn(masLock.resolved_dependencies[0], 'capability_abi'), false);
     assert.deepEqual(masLock.capability_dependencies[0].required_module_ids, moduleIds);
     const localSkillRoot = path.join(workspace, '.codex', 'skills');
     assert.deepEqual(fs.readdirSync(localSkillRoot).sort(), [...coreSkillIds].sort());
@@ -137,6 +139,20 @@ test('MAS package lifecycle atomically installs and repairs its 11-core capabili
       '--scope', 'workspace', '--target-workspace', workspace,
     ], env) as any;
     assert.equal(current.opl_agent_package_status.package_dependency_readiness.status, 'current');
+    assert.equal(
+      Object.hasOwn(
+        current.opl_agent_package_status.package_dependency_readiness.dependencies[0],
+        'version_requirement',
+      ),
+      false,
+    );
+    assert.equal(
+      Object.hasOwn(
+        current.opl_agent_package_status.package_dependency_readiness.dependencies[0],
+        'capability_abi',
+      ),
+      false,
+    );
     assert.equal(current.opl_agent_package_status.materialization_readiness.status, 'current');
     assert.equal(
       Object.hasOwn(current.opl_agent_package_status.materialization_readiness, 'lifecycle_receipt_ref'),

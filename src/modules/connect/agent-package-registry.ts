@@ -1381,8 +1381,6 @@ async function applyManifestPackageLockUnlocked(
         package_id: dependency.package_id,
         required: dependency.required,
         dependency_kind: dependency.dependency_kind,
-        version_requirement: dependency.version_requirement,
-        capability_abi: dependency.capability_abi,
         consumer_profile_id: dependency.consumer_profile_id ?? null,
         required_export_ids: dependency.required_export_ids,
         required_module_ids: dependency.required_module_ids,

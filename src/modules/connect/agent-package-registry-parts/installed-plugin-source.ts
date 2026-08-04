@@ -196,7 +196,6 @@ function installedDependencyIdentityFailures(
     }
     if (dependency.required !== declared?.required
       || dependency.dependency_kind !== declared?.dependency_kind
-      || dependency.version_requirement !== declared?.version_requirement
       || dependency.installed_version !== provider.package_version
       || normalizedSha256Digest(dependency.manifest_sha256)
         !== normalizedSha256Digest(provider.manifest_sha256)
