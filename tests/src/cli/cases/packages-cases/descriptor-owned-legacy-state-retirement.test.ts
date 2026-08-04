@@ -148,7 +148,6 @@ test('explicit native-confirmed repair retires descriptor-owned lock and strips 
 
     runCli(['packages', 'list'], fixture.env);
     runCli(['packages', 'status', '--package-id', packageId], fixture.env);
-    runCli(['packages', 'update', packageId], fixture.env);
     assert.deepEqual(fs.readFileSync(fixture.lockPath), originalLockBytes);
     assert.equal(fs.existsSync(legacyLedgerPath), false);
 

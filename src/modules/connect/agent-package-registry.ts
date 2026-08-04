@@ -2220,8 +2220,11 @@ async function maybeRunConfiguredCarrierLifecycle(input: {
   const packageId = canonicalAgentPackageId(input.selectionInput.packageId);
   const managedFirstPartyLock = currentHomeManagedFirstPartyLock(packageId);
   if (managedFirstPartyLock) {
-    if (input.action === 'update' || input.action === 'remove') return null;
-    if (input.action === 'repair' && !nativeOwnerCanRetireManagedLock(managedFirstPartyLock)) {
+    if (input.action === 'remove') return null;
+    if (
+      (input.action === 'update' || input.action === 'repair')
+      && !nativeOwnerCanRetireManagedLock(managedFirstPartyLock)
+    ) {
       return null;
     }
   }
@@ -3459,6 +3462,10 @@ export async function runOplAgentPackageUpdate(input: AgentPackageInstallInput) 
     action: 'update',
   });
   if (configured) {
+    await maybeRetireDescriptorOwnedLegacyState({
+      configured,
+      dryRun: input.dryRun === true,
+    });
     return {
       version: 'g2',
       opl_agent_package_update: {

@@ -13,6 +13,7 @@ import {
   withAgentPackageLifecycleTransaction,
   writePackageTransaction,
 } from './store.ts';
+import { resolveCodexHome } from './shared.ts';
 import type {
   AgentPackageLock,
   AgentPackageLockIndex,
@@ -75,13 +76,44 @@ function physicalSurfaceStillReferenced(
   });
 }
 
+function currentHomePackageLock(index: AgentPackageLockIndex, packageId: string) {
+  const currentCodexHome = path.resolve(resolveCodexHome());
+  return index.packages.find((lock) => {
+    if (lock.package_id !== packageId) return false;
+    const lockCodexHome = lock.physical_surface?.codex_home;
+    return !lockCodexHome || path.resolve(lockCodexHome) === currentCodexHome;
+  }) ?? null;
+}
+
+function buildRetirementPlan(
+  index: AgentPackageLockIndex,
+  currentLock: AgentPackageLock | null,
+  retainedReason: string | null,
+) {
+  if (!currentLock || retainedReason) {
+    return {
+      nextIndex: index,
+      mutationRequired: false,
+      retainedPackageLock: Boolean(currentLock),
+    };
+  }
+  return {
+    nextIndex: {
+      ...index,
+      packages: index.packages.filter((lock) => lock !== currentLock),
+    },
+    mutationRequired: true,
+    retainedPackageLock: false,
+  };
+}
+
 function retentionReason(
   packageId: string,
   index: AgentPackageLockIndex,
+  currentLock: AgentPackageLock | null,
   descriptorSourcePath: string,
   carrier: ConfiguredCodexPluginCarrierReadback,
 ) {
-  const currentLock = index.packages.find((lock) => lock.package_id === packageId) ?? null;
   const dependent = index.packages.find((lock) =>
     lock.package_id !== packageId
     && lock.resolved_dependencies.some((entry) => entry.package_id === packageId)
@@ -166,21 +198,19 @@ function retireDescriptorOwnedLegacyState(input: {
   }
 
   const index = readLockIndex();
+  const currentLock = currentHomePackageLock(index, input.packageId);
   const retainedReason = retentionReason(
     input.packageId,
     index,
+    currentLock,
     descriptorSourcePath,
     input.carrier,
   );
-  const currentLock = index.packages.find((lock) => lock.package_id === input.packageId) ?? null;
-  const nextIndex: AgentPackageLockIndex = retainedReason
-    ? index
-    : {
-        ...index,
-        packages: index.packages.filter((lock) => lock.package_id !== input.packageId),
-      };
-  const mutationRequired = !retainedReason && Boolean(currentLock);
-  const retainedPackageLock = nextIndex.packages.some((lock) => lock.package_id === input.packageId);
+  const {
+    nextIndex,
+    mutationRequired,
+    retainedPackageLock,
+  } = buildRetirementPlan(index, currentLock, retainedReason);
   const result: DescriptorOwnedLegacyStateRetirement = {
     surface_kind: 'opl_descriptor_owned_legacy_state_retirement.v1',
     status: retainedReason
@@ -196,7 +226,7 @@ function retireDescriptorOwnedLegacyState(input: {
     writes_performed: mutationRequired && !input.dryRun,
     mutation_required: mutationRequired,
     retired: {
-      package_lock: Boolean(currentLock) && !retainedReason,
+      package_lock: mutationRequired,
       physical_paths: [],
     },
     retained: {
@@ -239,6 +269,7 @@ export async function maybeRetireDescriptorOwnedLegacyState(input: {
 }) {
   if (
     input.configured.status !== 'repaired'
+    && input.configured.status !== 'updated'
     && input.configured.status !== 'validated_no_write'
   ) {
     return {
