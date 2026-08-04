@@ -5,18 +5,14 @@ import {
   resolveFirstPartyPackageCatalog,
   resolveFirstPartyPackageOwnerChannelRef,
 } from '../agent-package-first-party.ts';
-import {
-  managedPackageCatalogDigest,
-  normalizeManagedPackageCatalog,
-} from './capability-reconciliation.ts';
-import type { FirstPartyDirectoryCatalogSnapshot } from './directory.ts';
+import { normalizeManagedPackageCatalog } from './capability-reconciliation.ts';
 import { normalizePackageManifest } from './manifest-normalizers.ts';
 import { readOplPackageArtifactWithMetadata } from '../system-installation/module-package-channel.ts';
 
 export async function refreshFirstPartyPackageCatalogSnapshot(
   packageId = 'mas',
   input: { timeoutMs?: number } = {},
-): Promise<FirstPartyDirectoryCatalogSnapshot> {
+) {
   if (!resolveFirstPartyPackageCatalog(packageId)) {
     throw new Error(`Unknown first-party OPL Package: ${packageId}`);
   }
@@ -114,15 +110,11 @@ export async function refreshFirstPartyPackageCatalogSnapshot(
     surface_kind: 'opl_package_catalog.v1',
     packages: { package_catalog: packageCatalog },
   };
-  const packageCatalogDigest = managedPackageCatalogDigest(catalogPayload);
   const rootRef = resolveFirstPartyPackageOwnerChannelRef(packageId)!;
   return {
     catalog: normalizeManagedPackageCatalog(catalogPayload),
-    freshness: 'live',
+    freshness: 'live' as const,
     catalog_ref: rootRef,
-    release_set_descriptor_digest: rootDescriptorDigest,
-    channel_manifest_layer_digest: rootDescriptorDigest,
-    package_catalog_digest: packageCatalogDigest,
     catalog_digest: rootDescriptorDigest,
     checked_at: rootCheckedAt,
   };
@@ -132,7 +124,7 @@ export async function resolveFirstPartyPackageCatalogSnapshot(input: {
   refresh: boolean;
   packageId?: string;
   timeoutMs?: number;
-}): Promise<FirstPartyDirectoryCatalogSnapshot | null> {
+}) {
   if (input.refresh && input.packageId) {
     try {
       return await refreshFirstPartyPackageCatalogSnapshot(input.packageId, {

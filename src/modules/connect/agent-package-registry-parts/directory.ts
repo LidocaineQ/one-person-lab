@@ -5,20 +5,10 @@ import { parseJsonText } from '../../../kernel/json-file.ts';
 import { recordList, stringList, stringValue } from '../../../kernel/json-record.ts';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
-import {
-  assertFirstPartyPackageCatalogVersion,
-  resolveFirstPartyPackageCatalog,
-} from '../agent-package-first-party.ts';
+import { resolveFirstPartyPackageCatalog } from '../agent-package-first-party.ts';
 import { getAgentPackageManifestByModuleId } from '../agent-package-manifests.ts';
 import { getOplPackageSpecs } from '../package-distribution.ts';
 import type { OplModuleId } from '../system-installation/shared.ts';
-import {
-  catalogManifestPayload,
-  selectManagedCatalogPackageVersion,
-  type ManagedCatalogVersion,
-  type ManagedPackageCatalog,
-} from './capability-reconciliation.ts';
-import { agentPackageTargetCurrentness } from './currentness.ts';
 import type { ConfiguredCodexPluginCarrierReadback } from './configured-codex-plugin-carrier.ts';
 import type {
   InstalledCodexPluginDescriptor,
@@ -83,7 +73,6 @@ type DirectorySource = {
   version_source_ref: string;
   source_kind:
     | 'first_party_framework_projection'
-    | 'first_party_release_catalog'
     | 'installed_package_lock'
     | 'installed_codex_plugin_descriptor';
   registry_source_ref: string | null;
@@ -92,10 +81,8 @@ type DirectorySource = {
   home_shortcut_ids: string[];
   configured_codex_plugin_carrier: AgentPackageConfiguredCodexPluginCarrierDescriptor | null;
   app_contributions: AgentPackageAppContributions | null;
-  release_target: ManagedCatalogVersion | null;
   version_currentness: {
     status:
-      | 'live_release_set'
       | 'framework_projection_only'
       | 'installed_lock_only'
       | 'installed_codex_plugin_descriptor';
@@ -106,18 +93,6 @@ type DirectorySource = {
   };
   installed_carrier_readback?: InstalledPackageCarrierReadback | null;
   installed_readiness?: InstalledPackageReadiness | null;
-};
-
-export type FirstPartyDirectoryCatalogSnapshot = {
-  catalog: ManagedPackageCatalog;
-  freshness: 'live';
-  catalog_ref: string;
-  release_set_descriptor_digest: string | null;
-  channel_manifest_layer_digest: string;
-  package_catalog_digest: string;
-  /** Internal compatibility alias for package locks that bind the channel-manifest layer. */
-  catalog_digest: string | null;
-  checked_at: string;
 };
 
 const PACKAGE_ROLES = new Set<AgentPackageRole>([
@@ -132,8 +107,7 @@ const frameworkRepoRoot = path.resolve(
 );
 
 function isFirstPartyDirectorySource(source: DirectorySource) {
-  return source.source_kind === 'first_party_release_catalog'
-    || source.source_kind === 'first_party_framework_projection';
+  return source.source_kind === 'first_party_framework_projection';
 }
 function packageRoleFromManifest(payload: unknown, manifestUrl: string) {
   if (!isRecord(payload)) {
@@ -333,8 +307,7 @@ export function normalizePackageCatalogDocument(
   };
 }
 
-function firstPartyDirectorySources(snapshot: FirstPartyDirectoryCatalogSnapshot | null): DirectorySource[] {
-  const liveVerified = snapshot?.freshness === 'live';
+function firstPartyDirectorySources(): DirectorySource[] {
   return getOplPackageSpecs().map((spec) => {
     const ownerManifest = spec.owner_manifest_kind === 'standard_agent' || spec.module_id === 'scholarskills'
       ? getAgentPackageManifestByModuleId(spec.module_id as OplModuleId)
@@ -347,34 +320,7 @@ function firstPartyDirectorySources(snapshot: FirstPartyDirectoryCatalogSnapshot
           optional_skill_refs: [],
         }
       : null;
-    const selected = snapshot
-      ? selectManagedCatalogPackageVersion(snapshot.catalog, spec.package_id)
-      : null;
-    if (selected) assertFirstPartyPackageCatalogVersion(spec.package_id, selected);
-    const selectedManifest = selected
-      ? normalizeDirectoryOwnerManifest(catalogManifestPayload(selected), selected.manifest_url)
-      : null;
-    const projectedCarrier = selected ? null : staticProjectionCarrier(spec);
-    if (selected && selectedManifest
-      && (selectedManifest.package_id !== spec.package_id || selectedManifest.version !== selected.package_version)) {
-      throw new FrameworkContractError('contract_shape_invalid', 'First-party directory selection must match its owner manifest identity.', {
-        package_id: spec.package_id,
-        selected_version: selected.package_version,
-        manifest_package_id: selectedManifest.package_id,
-        manifest_version: selectedManifest.version,
-        failure_code: 'first_party_package_catalog_manifest_mismatch',
-      });
-    }
-    const selectedCapabilityMetadata: DirectoryCapabilityMetadata | null = selectedManifest?.package_role === 'standard_agent'
-      ? {
-          source: 'normalized_owner_manifest',
-          required_skill_ids: [...selectedManifest.required_skill_ids],
-          optional_skill_refs: [...selectedManifest.optional_skill_refs],
-        }
-      : null;
-    const currentnessStatus = liveVerified
-      ? 'live_release_set'
-      : 'framework_projection_only';
+    const projectedCarrier = staticProjectionCarrier(spec);
     return {
       package_id: spec.package_id,
       display_name: spec.label,
@@ -384,42 +330,33 @@ function firstPartyDirectorySources(snapshot: FirstPartyDirectoryCatalogSnapshot
       package_role: spec.package_role,
       trust_tier: spec.trust_tier,
       source: 'first_party',
-      manifest_url: selected?.manifest_url ?? spec.package_manifest_ref,
+      manifest_url: spec.package_manifest_ref,
       projected_version: spec.selected_version,
-      selected_version: selected?.package_version ?? null,
-      stable_version: selected?.package_version ?? null,
+      selected_version: null,
+      stable_version: null,
       registry_url: null,
-      version_source_ref: selected
-        ? `${snapshot!.catalog_ref}#packages.package_catalog.${spec.package_id}.selected_version`
-        : `${spec.package_manifest_ref}#/version`,
-      source_kind: selected ? 'first_party_release_catalog' : 'first_party_framework_projection',
-      registry_source_ref: selected ? snapshot!.catalog_ref : spec.package_manifest_ref,
-      capability_metadata: selectedCapabilityMetadata ?? capabilityMetadata,
-      presentation: selected
-        ? selectedManifest?.presentation ?? null
-        : ownerManifest?.presentation ?? null,
+      version_source_ref: `${spec.package_manifest_ref}#/version`,
+      source_kind: 'first_party_framework_projection',
+      registry_source_ref: spec.package_manifest_ref,
+      capability_metadata: capabilityMetadata,
+      presentation: ownerManifest?.presentation ?? null,
       home_shortcut_ids: [],
-      configured_codex_plugin_carrier: selected
-        ? selectedManifest?.configured_codex_plugin_carrier ?? null
-        : projectedCarrier,
-      app_contributions: selected
-        ? selectedManifest?.app_contributions ?? null
-        : null,
+      configured_codex_plugin_carrier: projectedCarrier,
+      app_contributions: null,
       version_currentness: {
-        status: currentnessStatus,
-        live_verified: liveVerified,
-        source_ref: snapshot?.catalog_ref ?? spec.package_manifest_ref,
-        source_digest: snapshot?.channel_manifest_layer_digest ?? null,
-        checked_at: snapshot?.checked_at ?? null,
+        status: 'framework_projection_only',
+        live_verified: false,
+        source_ref: spec.package_manifest_ref,
+        source_digest: null,
+        checked_at: null,
       },
-      release_target: selected,
     };
   });
 }
 
 export function firstPartyConfiguredCarrierDescriptors() {
   const descriptors = new Map<string, AgentPackageConfiguredCodexPluginCarrierDescriptor>();
-  for (const source of firstPartyDirectorySources(null)) {
+  for (const source of firstPartyDirectorySources()) {
     if (source.configured_codex_plugin_carrier) {
       descriptors.set(source.package_id, source.configured_codex_plugin_carrier);
     }
@@ -467,7 +404,6 @@ function lockDirectorySource(lock: AgentPackageLock, packageRole: AgentPackageRo
       source_digest: lock.release_channel_digest ?? null,
       checked_at: lock.updated_at,
     },
-    release_target: null,
   };
 }
 
@@ -510,7 +446,6 @@ function installedCodexPluginDirectorySource(
       source_digest: null,
       checked_at: null,
     },
-    release_target: null,
     installed_carrier_readback: discovered.carrier_readback,
     installed_readiness: discovered.readiness,
   };
@@ -739,13 +674,12 @@ function capabilityDependencySummary(lock: AgentPackageLock | null) {
 export function buildAgentPackageDirectory(input: {
   locks: AgentPackageLock[];
   detail: 'fast' | 'full';
-  firstPartyCatalog?: FirstPartyDirectoryCatalogSnapshot | null;
   readStatus?: (packageId: string) => PackageStatusReadback;
   configuredCarrierReadbacks?: ReadonlyMap<string, ConfiguredCodexPluginCarrierReadback>;
   installedCodexPluginDescriptors?: ReadonlyMap<string, InstalledCodexPluginDescriptor>;
   actionContext?: (packageId: string) => Pick<AgentPackagePackageActionInput, 'scope' | 'targetWorkspace' | 'targetQuest'> | null;
 }) {
-  const sources = new Map(firstPartyDirectorySources(input.firstPartyCatalog ?? null)
+  const sources = new Map(firstPartyDirectorySources()
     .map((entry) => [entry.package_id, entry]));
   for (const discovered of input.installedCodexPluginDescriptors?.values() ?? []) {
     const existing = sources.get(discovered.manifest.package_id);
@@ -880,13 +814,6 @@ export function buildAgentPackageDirectory(input: {
           || status.runtime_source_readiness?.live_verification_deferred === true
         );
     const desiredSourceKind = sourcePolicy?.desired_source_kind ?? legacyLock?.source_kind ?? null;
-    const targetCurrentness = legacyLock && source.release_target && desiredSourceKind
-      ? agentPackageTargetCurrentness({
-          lock: legacyLock,
-          target: source.release_target,
-          desiredSourceKind,
-        })
-      : null;
     const sourcePolicyStatus = !sourcePolicy
       ? 'not_applicable'
       : sourcePolicy.desired_source_kind === 'developer_checkout_override'
@@ -983,14 +910,12 @@ export function buildAgentPackageDirectory(input: {
       source_explanation: {
         kind: source.source_kind,
         source: source.source,
-        summary: source.source_kind === 'first_party_release_catalog'
-          ? 'Release Set selection resolved by the canonical managed Package catalog selector.'
-          : source.source_kind === 'first_party_framework_projection'
-            ? 'Framework-owned first-party Package projection; no Release Set selection was verified for this readback.'
+        summary: source.source_kind === 'first_party_framework_projection'
+            ? 'Framework-owned Package identity projection; owner-channel currentness was not requested for this readback.'
           : source.source_kind === 'installed_codex_plugin_descriptor'
                 ? 'Owner descriptor discovered from the installed Codex plugin carrier source root.'
                 : 'Installed lock retained after its discovery source became unavailable.',
-        catalog_ref: source.source_kind === 'first_party_release_catalog'
+        owner_channel_ref: source.source_kind === 'first_party_framework_projection'
           ? resolveFirstPartyPackageCatalog(source.package_id)?.catalogSource.catalog_ref ?? null
           : null,
         registry_url: source.registry_url,
@@ -1005,30 +930,27 @@ export function buildAgentPackageDirectory(input: {
       selected_version: source.selected_version,
       stable_version: source.stable_version,
       version_currentness: source.version_currentness,
-      target_manifest_sha256: source.release_target?.manifest_sha256 ?? null,
-      target_content_digest: source.release_target?.content_digest ?? null,
-      target_artifact_digest: source.release_target?.artifact_digest ?? null,
       package_currentness: !installed
         ? {
-            status: source.release_target ? 'not_installed' : 'unknown',
-            reasons: source.release_target ? ['package_not_installed'] : ['release_set_unavailable'],
+            status: 'unknown',
+            reasons: ['owner_channel_currentness_not_requested'],
           }
         : sourcePolicyStatus === 'manual_required'
           ? {
               status: 'manual_required',
               reasons: [
                 'developer_checkout_unavailable',
-                ...(targetCurrentness?.reasons ?? []),
+                'owner_channel_currentness_not_requested',
               ],
             }
           : sourcePolicyStatus === 'reconciliation_available'
-            ? targetCurrentness ?? {
+            ? {
               status: 'update_available',
-              reasons: ['source_policy_mismatch', 'release_set_unavailable'],
+              reasons: ['source_policy_mismatch', 'owner_channel_currentness_not_requested'],
             }
-            : targetCurrentness ?? {
+            : {
                 status: 'unknown',
-                reasons: ['release_set_unavailable'],
+                reasons: ['owner_channel_currentness_not_requested'],
               },
       installed_version: configuredCarrierInstalled
         ? configuredCarrier?.installed_version
@@ -1079,15 +1001,12 @@ export function buildAgentPackageDirectory(input: {
       || entry.readiness.status === 'repair_required')
       ? 'attention_required'
       : 'available',
-    source_catalog_kind: 'opl_framework_package_projection+optional_release_set+installed_descriptor',
-    first_party_release_currentness: {
-      status: input.firstPartyCatalog?.freshness ?? 'unknown',
-      live_verified: input.firstPartyCatalog?.freshness === 'live',
-      catalog_ref: input.firstPartyCatalog?.catalog_ref ?? null,
-      release_set_descriptor_digest: input.firstPartyCatalog?.release_set_descriptor_digest ?? null,
-      channel_manifest_layer_digest: input.firstPartyCatalog?.channel_manifest_layer_digest ?? null,
-      package_catalog_digest: input.firstPartyCatalog?.package_catalog_digest ?? null,
-      checked_at: input.firstPartyCatalog?.checked_at ?? null,
+    source_catalog_kind: 'opl_framework_package_projection+installed_descriptor',
+    first_party_owner_currentness: {
+      status: 'not_requested',
+      live_verified: false,
+      channel_kind: 'per_package_owner_oci_latest_stable',
+      checked_at: null,
     },
     detail: input.detail,
     entry_count: entries.length,

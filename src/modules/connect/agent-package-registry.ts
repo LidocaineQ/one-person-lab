@@ -4590,7 +4590,6 @@ function buildAgentPackageStatusSnapshot(
   const directory = buildAgentPackageDirectory({
     locks: lockIndex.packages,
     detail: 'fast',
-    firstPartyCatalog: null,
     configuredCarrierReadbacks: configuredCarriers,
     installedCodexPluginDescriptors,
   });
@@ -5009,7 +5008,6 @@ export function runOplAgentPackageStatus(input: OplAgentPackageStatusInput = {})
 
 export function listOplAgentPackages(input: {
   detail?: 'fast' | 'full';
-  firstPartyCatalog?: import('./agent-package-registry-parts/directory.ts').FirstPartyDirectoryCatalogSnapshot | null;
   statusContext?: (packageId: string) => Pick<AgentPackagePackageActionInput, 'scope' | 'targetWorkspace' | 'targetQuest'> | null;
   readStatus?: typeof runOplAgentPackageStatus;
 } = {}) {
@@ -5030,7 +5028,6 @@ export function listOplAgentPackages(input: {
   const directoryReadback = buildAgentPackageDirectory({
     locks: lockIndex.packages,
     detail,
-    firstPartyCatalog: input.firstPartyCatalog ?? null,
     configuredCarrierReadbacks: configuredCarriers,
     installedCodexPluginDescriptors,
     actionContext: input.statusContext,
