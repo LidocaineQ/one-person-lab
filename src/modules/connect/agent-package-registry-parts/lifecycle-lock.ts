@@ -144,7 +144,6 @@ export function buildLock(input: {
     optional_skill_refs: input.manifest.optional_skill_refs,
     source_kind: input.sourceKind,
     trust_tier: input.trustTier,
-    rollback_ref: input.manifest.rollback_ref,
     manifest_url: input.manifestUrl,
     manifest_sha256: input.manifestSha256,
     source_artifact_ref: input.sourceArtifactRef ?? null,
