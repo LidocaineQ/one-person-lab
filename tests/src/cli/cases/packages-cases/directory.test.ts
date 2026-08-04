@@ -90,7 +90,6 @@ test('installed Codex plugins project owner descriptors without a registry entry
       installed: true,
       physical_status: 'available',
       callability: 'callable',
-      legacy_lifecycle_state_present: false,
     });
 
     const directory = buildAgentPackageDirectory({
@@ -250,7 +249,6 @@ test('carrier-neutral producer discovers an unknown installed carrier without Fr
     assert.ok(descriptor);
     assert.equal(descriptor?.carrier_readback.kind, 'future-carrier');
     assert.equal(descriptor?.carrier_readback.lifecycle_authority, 'carrier_owned');
-    assert.equal(descriptor?.readiness.legacy_lifecycle_state_present, false);
     assert.equal('rollback_ref' in descriptor.manifest, false);
     assert.equal('content_lock_paths' in descriptor.manifest, false);
     assert.equal(descriptor?.manifest.configured_codex_plugin_carrier?.carrier.pluginId, 'future-carrier-package@future-carrier');
@@ -267,7 +265,6 @@ test('carrier-neutral producer discovers an unknown installed carrier without Fr
       installed: true,
       physical_status: 'available',
       callability: 'callable',
-      legacy_lifecycle_state_present: false,
     });
     assert.equal(entry?.installed_carrier_readback?.kind, 'future-carrier');
     assert.equal(Object.hasOwn(entry ?? {}, 'legacy_private_lifecycle_state_present'), false);
@@ -355,7 +352,6 @@ test('native manifest fallback does not synthesize a second first-party Package 
     assert.equal(scoped.get('rca')?.manifestPath, path.join(sourceRoot, 'opl-package.json'));
     assert.equal(scoped.get('rca')?.carrier.carrier.pluginId, 'redcube-ai@redcube-ai');
     assert.equal(scoped.get('rca')?.carrier_readback.lifecycle_authority, 'carrier_owned');
-    assert.equal(scoped.get('rca')?.readiness.legacy_lifecycle_state_present, false);
   } finally {
     fs.rmSync(sourceRoot, { recursive: true, force: true });
   }
@@ -478,7 +474,6 @@ process.stdout.write(JSON.stringify({
     assert.equal(entry?.configured_carrier?.status, 'installed');
     assert.equal(entry?.configured_carrier?.executor.status, 'callable');
     assert.equal(entry?.installed_carrier_readback?.kind, 'future-carrier');
-    assert.equal(entry?.installed_readiness?.legacy_lifecycle_state_present, false);
     assert.deepEqual(
       entry?.available_actions.map((action) => action.action_id),
       ['agent_package_update', 'agent_package_repair', 'agent_package_preferences_set', 'agent_package_uninstall'],
@@ -494,7 +489,6 @@ process.stdout.write(JSON.stringify({
       installed: true,
       physical_status: 'available',
       callability: 'callable',
-      legacy_lifecycle_state_present: false,
     });
     const appPackage = buildAppAgentPackageStatuses({
       packageIds: [packageId],

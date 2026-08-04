@@ -4710,8 +4710,7 @@ function buildOplAgentPackageStatus(
     carrierReadiness
     && carrierReadiness.installed
     && carrierReadiness.physical_status === 'available'
-    && carrierReadiness.callability === 'callable'
-    && !carrierReadiness.legacy_lifecycle_state_present,
+    && carrierReadiness.callability === 'callable',
   );
   const lockOperational = Boolean(
     legacySelectedLock

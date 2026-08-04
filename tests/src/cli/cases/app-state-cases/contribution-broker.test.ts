@@ -128,7 +128,6 @@ process.stdin.on('end', () => {
       installed: true,
       physical_status: 'available',
       callability: 'callable',
-      legacy_lifecycle_state_present: false,
     },
   } as unknown as InstalledPackageDescriptor;
   return { root, descriptor, manifest };
@@ -171,7 +170,6 @@ test('generic broker reads a dynamically installed descriptor contribution witho
     assert.equal(output.opl_app_contribution.package_id, fixture.manifest.package_id);
     assert.equal(output.opl_app_contribution.response.result.owner_echo.cursor, 'before-now');
     assert.equal(output.opl_app_contribution.carrier_readback.lifecycle_authority, 'carrier_owned');
-    assert.equal(output.opl_app_contribution.readiness.legacy_lifecycle_state_present, false);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
   } finally {

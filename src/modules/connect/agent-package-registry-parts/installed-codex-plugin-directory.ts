@@ -42,7 +42,6 @@ export type InstalledPackageReadiness = {
   installed: boolean;
   physical_status: 'available' | 'unavailable';
   callability: 'callable' | 'disabled';
-  legacy_lifecycle_state_present: false;
 };
 
 export type InstalledPackageManifest = Pick<
@@ -278,7 +277,6 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
         installed: true,
         physical_status: fs.existsSync(entry.sourcePath) ? 'available' : 'unavailable',
         callability: entry.enabled ? 'callable' : 'disabled',
-        legacy_lifecycle_state_present: false,
       },
     };
   } catch {
