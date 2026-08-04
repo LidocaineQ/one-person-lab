@@ -767,7 +767,7 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     );
     assert.equal(entry.installed, true);
     assert.equal(entry.configured_carrier.carrier.precedence, 'exact_single_source');
-    assert.equal(entry.legacy_private_lifecycle_state_present, false);
+    assert.equal(Object.hasOwn(entry, 'legacy_private_lifecycle_state_present'), false);
     assertNoPrivateState();
 
     for (const action of ['update', 'repair']) {
@@ -972,7 +972,7 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
       (entry: any) => entry.package_id === packageId,
     );
     assert.equal(Object.hasOwn(descriptorEntry, 'lock_ref'), false);
-    assert.equal(descriptorEntry.legacy_private_lifecycle_state_present, true);
+    assert.equal(Object.hasOwn(descriptorEntry, 'legacy_private_lifecycle_state_present'), false);
     assert.equal(descriptorDirectory.opl_agent_packages.installed_package_count, 1);
     assert.equal(descriptorDirectory.opl_agent_packages.status, 'attention_needed');
     assert.equal(descriptorDirectory.opl_agent_packages.directory.status, 'attention_required');
