@@ -55,7 +55,6 @@ function contributionReadback(resolved: ResolvedContribution, request: AppContri
       installed: resolved.descriptor.readiness.installed,
       physical_status: resolved.descriptor.readiness.physical_status,
       callability: resolved.descriptor.readiness.callability,
-      legacy_lifecycle_state_present: resolved.descriptor.readiness.legacy_lifecycle_state_present,
     },
   };
 }

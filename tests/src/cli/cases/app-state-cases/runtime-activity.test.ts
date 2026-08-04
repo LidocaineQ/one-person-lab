@@ -366,7 +366,6 @@ test('runtime discovers an unknown Agent from its installed carrier source', () 
           installed: true,
           physical_status: 'available',
           callability: 'callable',
-          legacy_lifecycle_state_present: false,
         },
         runtime_source_readiness: {
           status: 'not_required',

@@ -713,7 +713,6 @@ test('installed carrier source owns descriptor discovery without legacy runtime 
           installed: true,
           physical_status: 'available',
           callability: 'callable',
-          legacy_lifecycle_state_present: false,
         },
         runtime_source_readiness: {
           status: 'not_required',
