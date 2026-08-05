@@ -182,6 +182,7 @@ test('MAS package lifecycle atomically installs and repairs its 11-core capabili
 
     const repaired = await runCliAsync([
       'packages', 'repair', FIXTURE_CONSUMER_PACKAGE_ID, '--scope', 'workspace', '--target-workspace', workspace,
+      '--manifest-url', consumerManifestPath, '--trust-tier', 'first_party',
     ], env) as any;
     assert.equal(repaired.opl_agent_package_repair.status, 'repaired');
     assert.equal(fs.existsSync(path.join(localSkillRoot, 'medical-manuscript-writing', 'SKILL.md')), true);

@@ -1513,6 +1513,7 @@ test('Packages compensates managed runtime source across downstream failure upda
 
     const failedCurrentUpdate = runCliFailure([
       'packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID,
+      '--manifest-url', consumerManifest, '--trust-tier', 'first_party',
       '--scope', 'workspace',
       '--target-workspace', badWorkspaceTarget,
     ], env);
@@ -1530,6 +1531,7 @@ test('Packages compensates managed runtime source across downstream failure upda
     }));
     const failedUpdate = runCliFailure([
       'packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID,
+      '--manifest-url', consumerManifest, '--trust-tier', 'first_party',
       '--scope', 'workspace',
       '--target-workspace', badWorkspaceTarget,
     ], env);
@@ -1542,10 +1544,16 @@ test('Packages compensates managed runtime source across downstream failure upda
       'source-transaction-v1',
     );
 
-    const updated = runCli(['packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
+    const updated = runCli([
+      'packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID,
+      '--manifest-url', consumerManifest, '--trust-tier', 'first_party',
+    ], env) as any;
     assert.equal(updated.opl_agent_package_update.package_lock.managed_runtime_source.source_git_head_sha, 'source-transaction-v2');
     env.OPL_PACKAGES_OWNER = 'missing-fixture-owner';
-    const preActivationFailure = runCliFailure(['packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID], env);
+    const preActivationFailure = runCliFailure([
+      'packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID,
+      '--manifest-url', consumerManifest, '--trust-tier', 'first_party',
+    ], env);
     assert.equal(preActivationFailure.payload.error.code, 'build_command_failed');
     assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.1');
     env.OPL_PACKAGES_OWNER = 'fixture';
@@ -1633,7 +1641,10 @@ test('Packages compensates managed runtime source across downstream failure upda
     fs.rmSync(path.join(modulesRoot, 'redcube-ai'), { recursive: true, force: true });
     const missingSourceStatus = runCli(['packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
     assert.equal(missingSourceStatus.opl_agent_package_status.runtime_source_readiness.status, 'missing');
-    const missingSourceRepaired = runCli(['packages', 'repair', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
+    const missingSourceRepaired = runCli([
+      'packages', 'repair', '--package-id', FIXTURE_RCA_PACKAGE_ID,
+      '--manifest-url', consumerManifest, '--trust-tier', 'first_party',
+    ], env) as any;
     assert.equal(missingSourceRepaired.opl_agent_package_repair.package_lock.managed_runtime_source.source_git_head_sha, 'source-transaction-v2');
     assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.1');
 
@@ -1850,7 +1861,10 @@ test('MAS package install prepares a physical OwnerGate executable without mutat
     );
     assert.equal(tamperedStatus.opl_agent_package_status.launch_allowed, false);
 
-    const repaired = runCli(['packages', 'repair', '--package-id', FIXTURE_MAS_PACKAGE_ID], env) as any;
+    const repaired = runCli([
+      'packages', 'repair', '--package-id', FIXTURE_MAS_PACKAGE_ID,
+      '--manifest-url', manifestPath, '--trust-tier', 'first_party',
+    ], env) as any;
     assert.notDeepEqual(
       repaired.opl_agent_package_repair.package_lock.managed_runtime_source.health_check_command,
       ['bash', maliciousCommand],
@@ -1882,7 +1896,10 @@ test('MAS package install prepares a physical OwnerGate executable without mutat
     });
     writeFakeMasUv(path.join(fixtureRoot, 'bin'), true);
     const failedUpdate = runCliFailure(
-      ['packages', 'update', '--package-id', FIXTURE_MAS_PACKAGE_ID],
+      [
+        'packages', 'update', '--package-id', FIXTURE_MAS_PACKAGE_ID,
+        '--manifest-url', manifestPath, '--trust-tier', 'first_party',
+      ],
       { ...env, ...failedFixtureEnv },
     );
     assert.equal(
