@@ -183,6 +183,33 @@ function writePackageOwnerChannelFixture(input: {
   };
 }
 
+function addConfiguredCarrierToCapabilityFixture(manifestPath: string) {
+  const sourceRoot = path.dirname(manifestPath);
+  const manifest = parseJsonText(fs.readFileSync(manifestPath, 'utf8')) as any;
+  const marketplaceId = `${manifest.package_id}-local`;
+  manifest.codex_surface = {
+    ...manifest.codex_surface,
+    configured_codex_plugin_carrier: {
+      kind: 'codex_plugin_manager',
+      plugin_selector: `${manifest.package_id}@${marketplaceId}`,
+      executor_route: 'codex_cli',
+      marketplace_source: sourceRoot,
+      publication_ref: `ghcr.io/fixture/one-person-lab-packages/${manifest.package_id}:latest-stable`,
+    },
+  };
+  fs.mkdirSync(path.join(sourceRoot, '.agents', 'plugins'), { recursive: true });
+  fs.writeFileSync(path.join(sourceRoot, '.agents', 'plugins', 'marketplace.json'), formatJsonPayload({
+    name: marketplaceId,
+    plugins: [{
+      name: manifest.package_id,
+      source: { source: 'local', path: './' },
+    }],
+  }));
+  fs.writeFileSync(manifestPath, formatJsonPayload(manifest));
+  fs.writeFileSync(path.join(sourceRoot, 'opl-package.json'), formatJsonPayload(manifest));
+  return sourceRoot;
+}
+
 function writeOmaOwnerReleaseFixture(input: {
   root: string;
   generation: string;
@@ -676,13 +703,20 @@ if (command === 'plugin marketplace list --json') {
   process.stdout.write('{}');
 } else if (args[0] === 'plugin' && args[1] === 'add') {
   state.installed = true;
+  state.version = JSON.parse(
+    fs.readFileSync(sourcePath + '/.codex-plugin/plugin.json', 'utf8'),
+  ).version;
+  fs.writeFileSync(statePath, JSON.stringify(state));
+  process.stdout.write('{}');
+} else if (args[0] === 'plugin' && args[1] === 'remove') {
+  state.installed = false;
   fs.writeFileSync(statePath, JSON.stringify(state));
   process.stdout.write('{}');
 } else if (command === 'plugin list --json') {
   process.stdout.write(JSON.stringify({
     installed: state.installed ? [{
       pluginId: 'opl-relay@opl-relay',
-      version: state.version || '0.5.2',
+      version: state.version,
       installed: true,
       enabled: true,
       source: { source: 'local', path: sourcePath },
@@ -1853,6 +1887,208 @@ test('MAS owner refresh reads only MAS and required ScholarSkills owner channels
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
+    removeFixtureTree(root);
+  }
+});
+
+test('first-party native install converges the required MAS ScholarSkills closure without legacy state', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-required-owner-closure-'));
+  const homeDir = path.join(root, 'home');
+  const stateDir = path.join(root, 'state');
+  const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.2.23');
+  addConfiguredCarrierToCapabilityFixture(providerManifest);
+  const masManifest = writeMasConsumer(path.join(root, 'mas'), providerManifest, '0.2.24', {
+    configuredCarrier: true,
+  });
+  const releaseSet = writeCapabilityCatalog(
+    path.join(root, 'release-set'),
+    [masManifest, providerManifest],
+  );
+  const ownerChannel = writePackageOwnerChannelFixture({
+    root,
+    binRoot: path.join(root, 'owner-bin'),
+    catalogPath: releaseSet.catalogPath,
+    packageIds: ['mas', 'mas-scholar-skills'],
+  });
+  const codex = createFakeCodexPluginManagerFixture(path.join(root, 'fake-codex'));
+  const env = {
+    ...releaseSet.env,
+    ...ownerChannel.env,
+    HOME: homeDir,
+    CODEX_HOME: path.join(homeDir, '.codex'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: codex.codexPath,
+  };
+  try {
+    const installed = runCli(['packages', 'install', 'mas'], env) as any;
+    assert.equal(installed.opl_agent_package_install.status, 'installed');
+    assert.deepEqual(
+      installed.opl_agent_package_install.required_dependency_packages.map(
+        (entry: any) => `${entry.package_id}@${entry.observed_version}:${entry.status}`,
+      ),
+      ['mas-scholar-skills@0.2.23:installed'],
+    );
+    for (const packageId of ['mas', 'mas-scholar-skills']) {
+      const status = runCli(['packages', 'status', '--package-id', packageId], env) as any;
+      assert.equal(status.opl_agent_package_status.package_operational.status, 'operational');
+      assert.equal(status.opl_agent_package_status.installed_readiness.callability, 'callable');
+    }
+    for (const fileName of [
+      'agent-package-locks.json',
+      'agent-package-lifecycle-ledger.json',
+      'agent-package-registry-cache.json',
+    ]) {
+      assert.equal(fs.existsSync(path.join(stateDir, fileName)), false, fileName);
+    }
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
+test('first-party native update repairs a missing required carrier for an already installed root', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-required-owner-update-'));
+  const homeDir = path.join(root, 'home');
+  const stateDir = path.join(root, 'state');
+  const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.2.23');
+  addConfiguredCarrierToCapabilityFixture(providerManifest);
+  const masRoot = path.join(root, 'mas');
+  const masManifest = writeMasConsumer(masRoot, providerManifest, '0.2.24', {
+    configuredCarrier: true,
+  });
+  const releaseSet = writeCapabilityCatalog(
+    path.join(root, 'release-set'),
+    [masManifest, providerManifest],
+  );
+  const ownerChannel = writePackageOwnerChannelFixture({
+    root,
+    binRoot: path.join(root, 'owner-bin'),
+    catalogPath: releaseSet.catalogPath,
+    packageIds: ['mas', 'mas-scholar-skills'],
+  });
+  const codex = createFakeCodexPluginManagerFixture(path.join(root, 'fake-codex'));
+  const env = {
+    ...process.env,
+    ...releaseSet.env,
+    ...ownerChannel.env,
+    HOME: homeDir,
+    CODEX_HOME: path.join(homeDir, '.codex'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: codex.codexPath,
+  };
+  try {
+    execFileSync(codex.codexPath, ['plugin', 'marketplace', 'add', masRoot, '--json'], { env });
+    execFileSync(
+      codex.codexPath,
+      ['plugin', 'add', 'med-autoscience@med-autoscience-local', '--json'],
+      { env },
+    );
+    const before = runCli(['packages', 'status', '--package-id', 'mas-scholar-skills'], env) as any;
+    assert.equal(before.opl_agent_package_status.status, 'not_installed');
+
+    const updated = runCli(['packages', 'update', 'mas'], env) as any;
+    assert.equal(updated.opl_agent_package_update.status, 'current_noop');
+    assert.deepEqual(
+      updated.opl_agent_package_update.required_dependency_packages.map(
+        (entry: any) => `${entry.package_id}@${entry.observed_version}:${entry.status}`,
+      ),
+      ['mas-scholar-skills@0.2.23:installed'],
+    );
+    const after = runCli(['packages', 'status', '--package-id', 'mas-scholar-skills'], env) as any;
+    assert.equal(after.opl_agent_package_status.package_operational.status, 'operational');
+    assert.equal(after.opl_agent_package_status.installed_readiness.callability, 'callable');
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
+test('first-party native install compensates a newly installed required carrier when closure callability fails', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-required-owner-failure-'));
+  const homeDir = path.join(root, 'home');
+  const stateDir = path.join(root, 'state');
+  const providerRoot = path.join(root, 'provider');
+  const providerManifest = writeCapabilityProvider(providerRoot, '0.2.23');
+  addConfiguredCarrierToCapabilityFixture(providerManifest);
+  const masManifest = writeMasConsumer(path.join(root, 'mas'), providerManifest, '0.2.24', {
+    configuredCarrier: true,
+  });
+  const releaseSet = writeCapabilityCatalog(
+    path.join(root, 'release-set'),
+    [masManifest, providerManifest],
+  );
+  const ownerChannel = writePackageOwnerChannelFixture({
+    root,
+    binRoot: path.join(root, 'owner-bin'),
+    catalogPath: releaseSet.catalogPath,
+    packageIds: ['mas', 'mas-scholar-skills'],
+  });
+  const provider = parseJsonText(fs.readFileSync(providerManifest, 'utf8')) as any;
+  fs.rmSync(path.join(providerRoot, 'skills', provider.exports.core_skill_ids[0]), {
+    recursive: true,
+    force: true,
+  });
+  const codex = createFakeCodexPluginManagerFixture(path.join(root, 'fake-codex'));
+  const env = {
+    ...releaseSet.env,
+    ...ownerChannel.env,
+    HOME: homeDir,
+    CODEX_HOME: path.join(homeDir, '.codex'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: codex.codexPath,
+  };
+  try {
+    const failure = runCliFailure(['packages', 'install', 'mas'], env);
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'configured_codex_plugin_carrier_target_currentness_mismatch',
+    );
+    for (const packageId of ['mas', 'mas-scholar-skills']) {
+      const status = runCli(['packages', 'status', '--package-id', packageId], env) as any;
+      assert.equal(status.opl_agent_package_status.status, 'not_installed');
+    }
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
+test('first-party native install does not fetch or require an optional capability dependency', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-optional-owner-closure-'));
+  const homeDir = path.join(root, 'home');
+  const stateDir = path.join(root, 'state');
+  const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.2.23');
+  addConfiguredCarrierToCapabilityFixture(providerManifest);
+  const masManifest = writeMasConsumer(path.join(root, 'mas'), providerManifest, '0.2.24', {
+    configuredCarrier: true,
+    required: false,
+    dependencyKind: 'optional_enhancement',
+  });
+  const releaseSet = writeCapabilityCatalog(path.join(root, 'release-set'), [masManifest]);
+  const ownerChannel = writePackageOwnerChannelFixture({
+    root,
+    binRoot: path.join(root, 'owner-bin'),
+    catalogPath: releaseSet.catalogPath,
+    packageIds: ['mas'],
+  });
+  const codex = createFakeCodexPluginManagerFixture(path.join(root, 'fake-codex'));
+  const env = {
+    ...releaseSet.env,
+    ...ownerChannel.env,
+    HOME: homeDir,
+    CODEX_HOME: path.join(homeDir, '.codex'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: codex.codexPath,
+  };
+  try {
+    const installed = runCli(['packages', 'install', 'mas'], env) as any;
+    assert.equal(installed.opl_agent_package_install.status, 'installed');
+    assert.deepEqual(installed.opl_agent_package_install.required_dependency_packages, []);
+    const scholar = runCli(['packages', 'status', '--package-id', 'mas-scholar-skills'], env) as any;
+    assert.equal(scholar.opl_agent_package_status.status, 'not_installed');
+    assert.equal(
+      fs.readFileSync(ownerChannel.curlLogPath, 'utf8')
+        .includes('/one-person-lab-packages/mas-scholar-skills/'),
+      false,
+    );
+  } finally {
     removeFixtureTree(root);
   }
 });
