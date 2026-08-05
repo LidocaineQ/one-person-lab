@@ -19,169 +19,87 @@ export function installRuntimePackageFixture(stateRoot: string, packageId: strin
   const canonicalPackageId = canonicalAgentPackageId(packageId);
   assert.ok(canonicalPackageId);
   fs.mkdirSync(stateRoot, { recursive: true });
-  const pluginRoot = path.join(stateRoot, 'fixture-agent-packages', canonicalPackageId);
-  const skillRoot = path.join(pluginRoot, 'skills', canonicalPackageId);
+  const packageManifestPath = path.join(
+    repoRoot,
+    'contracts',
+    'opl-framework',
+    'packages',
+    `${canonicalPackageId}.json`,
+  );
+  const packageManifestBytes = fs.readFileSync(packageManifestPath, 'utf8');
+  const packageManifest = parseJsonText(packageManifestBytes) as {
+    version: string;
+    codex_surface: {
+      plugin_id: string;
+      configured_codex_plugin_carrier?: {
+        plugin_selector?: unknown;
+      };
+      required_skill_ids?: unknown;
+    };
+  };
+  const pluginId = packageManifest.codex_surface.plugin_id;
+  assert.ok(pluginId);
+  const configuredPluginSelector = packageManifest.codex_surface
+    .configured_codex_plugin_carrier?.plugin_selector;
+  const pluginSelector = typeof configuredPluginSelector === 'string'
+    && configuredPluginSelector.startsWith(`${pluginId}@`)
+    ? configuredPluginSelector
+    : `${pluginId}@opl-runtime-fixtures`;
+  const marketplaceId = pluginSelector.slice(pluginSelector.lastIndexOf('@') + 1);
+  const marketplaceRoot = path.join(stateRoot, 'fixture-codex-marketplace');
+  const pluginRoot = path.join(marketplaceRoot, 'plugins', pluginId);
   const codexHome = path.join(stateRoot, 'codex-home');
-  fs.mkdirSync(skillRoot, { recursive: true });
+  const requiredSkillIds = Array.isArray(packageManifest.codex_surface.required_skill_ids)
+    ? packageManifest.codex_surface.required_skill_ids.filter(
+      (value): value is string => typeof value === 'string' && value.length > 0,
+    )
+    : [pluginId];
+  for (const skillId of requiredSkillIds) {
+    const skillRoot = path.join(pluginRoot, 'skills', skillId);
+    fs.mkdirSync(skillRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(skillRoot, 'SKILL.md'),
+      `---\nname: ${skillId}\ndescription: Runtime package fixture.\n---\n`,
+      'utf8',
+    );
+  }
+  fs.mkdirSync(path.join(pluginRoot, '.codex-plugin'), { recursive: true });
   fs.writeFileSync(
-    path.join(skillRoot, 'SKILL.md'),
-    `---\nname: ${canonicalPackageId}\ndescription: Runtime package fixture.\n---\n`,
+    path.join(pluginRoot, '.codex-plugin', 'plugin.json'),
+    `${JSON.stringify({
+      name: pluginId,
+      version: packageManifest.version,
+      description: 'Runtime package fixture carried by Codex Plugin Manager.',
+      skills: './skills/',
+    }, null, 2)}\n`,
     'utf8',
   );
-  const lockPath = path.join(stateRoot, 'agent-package-locks.json');
-  const ledgerPath = path.join(stateRoot, 'agent-package-lifecycle-ledger.json');
-  const lockIndex = fs.existsSync(lockPath)
-    ? parseJsonText(fs.readFileSync(lockPath, 'utf8')) as any
-    : {
-        surface_kind: 'opl_agent_package_lock_index',
-        version: 'opl-agent-package-lock-index.v1',
-        packages: [],
-      };
-  if (lockIndex.packages.some((entry: any) => entry.package_id === canonicalPackageId)) return;
+  fs.writeFileSync(path.join(pluginRoot, 'opl-package.json'), packageManifestBytes, 'utf8');
 
-  const installedAt = '2026-01-01T00:00:00.000Z';
-  const lockRef = `opl://agent-package-lock/${canonicalPackageId}/0.0.0-test/fixture`;
-  lockIndex.packages.push({
-    surface_kind: 'opl_agent_package_lock',
-    package_id: canonicalPackageId,
-    agent_id: canonicalPackageId,
-    display_name: canonicalPackageId,
-    publisher: 'opl-test',
-    package_version: '0.0.0-test',
-    owner_language_version: null,
-    installed_at: installedAt,
-    updated_at: installedAt,
-    codex_visible_entry: canonicalPackageId,
-    bundled_required_skill_ids: [canonicalPackageId],
-    optional_skill_refs: [],
-    source_kind: 'local_manifest_file',
-    trust_tier: 'third_party_unverified',
-    rollback_ref: `opl://agent-package/rollback/${canonicalPackageId}/fixture`,
-    manifest_url: `test://agent-package/${canonicalPackageId}`,
-    manifest_sha256: 'sha256:' + '1'.repeat(64),
-    owner_source_commit: null,
-    permission_scope_sha256: 'sha256:' + '2'.repeat(64),
-    lock_ref: lockRef,
-    exposure_state: 'visible',
-    capability_provider: null,
-    capability_dependencies: [],
-    resolved_dependencies: [],
-    dependency_closure_digest: 'sha256:' + '3'.repeat(64),
-    dependency_transaction_id: `fixture-${canonicalPackageId}`,
-    content_digest: 'sha256:' + '4'.repeat(64),
-    content_lock_paths: [],
-    scope_materializations: [],
-    runtime_source_carrier: null,
-    managed_runtime_source: null,
-    managed_update_source: null,
-    physical_surface: {
-      surface_kind: 'opl_agent_package_physical_codex_surface',
-      status: 'materialized',
-      package_id: canonicalPackageId,
-      plugin_id: canonicalPackageId,
-      marketplace_id: null,
-      codex_home: codexHome,
-      codex_config_path: path.join(codexHome, 'config.toml'),
-      codex_config_preexisting: false,
-      plugin_source_path: pluginRoot,
-      plugin_manifest_path: null,
-      codex_plugin_cache_path: null,
-      marketplace_root: null,
-      marketplace_path: null,
-      marketplace_plugin_path: null,
-      plugin_payload_manifest_url: null,
-      plugin_payload_manifest_sha256: null,
-      plugin_payload_cache_path: null,
-      materialized_required_skill_ids: [canonicalPackageId],
-      materialized_required_skill_paths: [path.join(skillRoot, 'SKILL.md')],
-      removed_paths: [],
-      writes_performed: false,
-      reload_required: false,
-      failure_reason: null,
-      note: 'Runtime package fixture.',
-      profile_config: null,
-      profile_migration: {
-        surface_kind: 'opl_package_profile_migration',
-        status: 'not_requested',
-        source_path: null,
-        target_path: null,
-        source_sha256: null,
-        target_sha256: null,
-        receipt_path: null,
-        merge_packet_path: null,
-        apply_command: null,
-        authoring_source_paths: [],
-        mutation_actions: [],
-        rollback_backups_retained: false,
-        writes_performed: false,
-        note: 'Runtime package fixture.',
-      },
-      managed_policy_config: null,
-      workflow_policy_migration: {
-        surface_kind: 'opl_package_managed_policy_migration',
-        status: 'not_requested',
-        policy_kind: null,
-        policy_path: null,
-        schema_path: null,
-        policy_sha256: null,
-        inventory_digest: null,
-        dependency_ids: [],
-        dependencies: [],
-        optional_dependency_ids: [],
-        migration_ids: [],
-        detected_conflicts: [],
-        actions: [],
-        service_actions: [],
-        dependency_sync: null,
-        model_projection: null,
-        backup_root: null,
-        backup_active: false,
-        writes_performed: false,
-        note: 'Runtime package fixture.',
-      },
-      authority_boundary: {
-        refs_only: true,
-        can_write_domain_truth: false,
-        can_write_domain_memory_body: false,
-        can_mutate_domain_artifact_body: false,
-        can_authorize_quality_or_export: false,
-        can_create_owner_receipt: false,
-        can_create_typed_blocker: false,
-        can_claim_domain_ready: false,
-        can_claim_production_ready: false,
-      },
-    },
-  });
-  fs.writeFileSync(lockPath, `${JSON.stringify(lockIndex, null, 2)}\n`, 'utf8');
-
-  const ledger = fs.existsSync(ledgerPath)
-    ? parseJsonText(fs.readFileSync(ledgerPath, 'utf8')) as any
-    : {
-        surface_kind: 'opl_agent_package_lifecycle_ledger',
-        version: 'opl-agent-package-lifecycle-ledger.v1',
-        receipts: [],
-      };
-  const installReceiptRef = `opl://agent-package/install/${canonicalPackageId}/fixture`;
-  ledger.receipts.push({
-    surface_kind: 'opl_agent_package_lifecycle_receipt',
-    receipt_ref: installReceiptRef,
-    receipt_status: 'recorded',
-    recorded_at: installedAt,
-    action: 'install',
-    action_status: 'completed',
-    package_id: canonicalPackageId,
-    registry_url: null,
-    manifest_url: `test://agent-package/${canonicalPackageId}`,
-    manifest_sha256: 'sha256:' + '1'.repeat(64),
-    package_lock_ref: lockRef,
-    rollback_ref: `opl://agent-package/rollback/${canonicalPackageId}/fixture`,
-    source_kind: 'local_manifest_file',
-    trust_tier: 'third_party_unverified',
-    writes_performed: true,
-    source_surface: 'opl_test_runtime_package_fixture',
-    authority_boundary: { can_write_domain_truth: false },
-  });
-  fs.writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`, 'utf8');
+  fs.mkdirSync(codexHome, { recursive: true });
+  const configPath = path.join(codexHome, 'config.toml');
+  const currentConfig = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
+  const marketplaceHeader = `[marketplaces."${marketplaceId}"]`;
+  const pluginHeader = `[plugins."${pluginSelector}"]`;
+  const additions = [
+    ...(currentConfig.includes(marketplaceHeader) ? [] : [
+      marketplaceHeader,
+      `source = ${JSON.stringify(marketplaceRoot)}`,
+      '',
+    ]),
+    ...(currentConfig.includes(pluginHeader) ? [] : [
+      pluginHeader,
+      'enabled = true',
+      '',
+    ]),
+  ];
+  if (additions.length > 0) {
+    fs.writeFileSync(
+      configPath,
+      `${currentConfig.trimEnd()}${currentConfig.trim() ? '\n\n' : ''}${additions.join('\n')}`,
+      'utf8',
+    );
+  }
 }
 
 export function loadFamilyManifestFixtures() {
