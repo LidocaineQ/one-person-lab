@@ -106,7 +106,7 @@ test('package registry uses version_source_ref and rejects mutable latest_versio
   );
 });
 
-test('local manifest fixtures own runtime source install repair update and uninstall', () => {
+test('local manifest lifecycle requires an explicit source after install', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-positional-state-'));
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-runtime-source-'));
   const modulesRoot = path.join(fixtureRoot, 'modules');
@@ -150,9 +150,27 @@ test('local manifest fixtures own runtime source install repair update and unins
       Object.hasOwn(rca.opl_agent_package_install.package_lock.managed_runtime_source, 'handler_probe_output_sha256'),
       false,
     );
-    assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.0');
+    const lockPath = path.join(stateDir, 'agent-package-locks.json');
+    const runtimePreparedPath = path.join(modulesRoot, 'redcube-ai', '.runtime-prepared');
+    const initialLockBytes = fs.readFileSync(lockPath, 'utf8');
+    const initialRuntimeBytes = fs.readFileSync(runtimePreparedPath, 'utf8');
+    assert.equal(initialRuntimeBytes.trim(), '0.1.0');
 
-    const repaired = runCli(['packages', 'repair', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as {
+    const bareRepairFailure = runCliFailure([
+      'packages', 'repair', '--package-id', FIXTURE_RCA_PACKAGE_ID,
+    ], env);
+    assert.equal(
+      bareRepairFailure.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
+    );
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), initialLockBytes);
+    assert.equal(fs.readFileSync(runtimePreparedPath, 'utf8'), initialRuntimeBytes);
+
+    const repaired = runCli([
+      'packages', 'repair', '--package-id', FIXTURE_RCA_PACKAGE_ID,
+      '--manifest-url', manifestPath,
+      '--trust-tier', 'first_party',
+    ], env) as {
       opl_agent_package_repair: { package_lock: { package_id: string } };
     };
     assert.equal(repaired.opl_agent_package_repair.package_lock.package_id, FIXTURE_RCA_PACKAGE_ID);
@@ -164,11 +182,27 @@ test('local manifest fixtures own runtime source install repair update and unins
       version: '0.1.1',
       sourceHeadSha: 'runtime-source-v2',
     }));
-    const updated = runCli(['packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
+    const lockBytesBeforeBareUpdate = fs.readFileSync(lockPath, 'utf8');
+    const runtimeBytesBeforeBareUpdate = fs.readFileSync(runtimePreparedPath, 'utf8');
+    const bareUpdateFailure = runCliFailure([
+      'packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID,
+    ], env);
+    assert.equal(
+      bareUpdateFailure.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
+    );
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytesBeforeBareUpdate);
+    assert.equal(fs.readFileSync(runtimePreparedPath, 'utf8'), runtimeBytesBeforeBareUpdate);
+
+    const updated = runCli([
+      'packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID,
+      '--manifest-url', manifestPath,
+      '--trust-tier', 'first_party',
+    ], env) as any;
     assert.equal(updated.opl_agent_package_update.package_lock.managed_runtime_source.source_git_head_sha, 'runtime-source-v2');
     assert.equal(Object.hasOwn(updated.opl_agent_package_update, 'lock_file'), false);
     assert.equal(Object.hasOwn(updated.opl_agent_package_update, 'lifecycle_ledger_file'), false);
-    assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.1');
+    assert.equal(fs.readFileSync(runtimePreparedPath, 'utf8').trim(), '0.1.1');
 
     const removed = runCli(['packages', 'uninstall', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as {
       opl_agent_package_uninstall: { removed_package_lock: { package_id: string } };

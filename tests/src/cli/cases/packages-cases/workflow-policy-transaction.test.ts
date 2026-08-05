@@ -1335,7 +1335,10 @@ test('generic OPL package transaction owns OPL Flow policy migration without inv
       physical_ref: restoredPonytailPath,
     }]);
 
-    const repaired = runCli(['packages', 'repair', '--package-id', 'fixture.opl-flow'], env) as any;
+    const repaired = runCli([
+      'packages', 'repair', '--package-id', 'fixture.opl-flow',
+      '--manifest-url', manifestPath, '--trust-tier', 'first_party',
+    ], env) as any;
     assert.equal(repaired.opl_agent_package_repair.status, 'repaired');
     assert.equal(fs.existsSync(restoredPonytailPath), false);
     const repairedStatus = runCli(['packages', 'status', '--package-id', 'fixture.opl-flow'], env) as any;
@@ -1396,6 +1399,10 @@ test('managed policy currentness detects and repairs a missing global Codex skil
   const sourceUrl = 'https://github.com/fixture/ui-ux-pro-max';
   const codexSkillRoot = path.join(codexHome, 'skills', 'ui-ux-pro-max');
   const agentsSkillRoot = path.join(home, '.agents', 'skills', 'ui-ux-pro-max');
+  const manifestPath = writeOplFlowPackage(root, {
+    includeManagedSkillCompanion: true,
+    policyVersion: 'v3',
+  });
   const env = {
     HOME: home,
     CODEX_HOME: codexHome,
@@ -1419,10 +1426,7 @@ test('managed policy currentness detects and repairs a missing global Codex skil
       'commit', '-m', 'fixture upstream',
     ]);
     const installed = await runCliAsync([
-      'packages', 'install', '--manifest-url', writeOplFlowPackage(root, {
-        includeManagedSkillCompanion: true,
-        policyVersion: 'v3',
-      }),
+      'packages', 'install', '--manifest-url', manifestPath,
       '--trust-tier', 'first_party',
     ], env) as any;
     assert.equal(installed.opl_agent_package_install.status, 'installed');
@@ -1446,7 +1450,10 @@ test('managed policy currentness detects and repairs a missing global Codex skil
     assert.equal(driftedCurrentness.dependency_sync.items[0].entrypoint_authority_status, 'missing');
     assert.equal(driftedCurrentness.repair_command, null);
 
-    const repaired = runCli(['packages', 'repair', '--package-id', 'fixture.opl-flow'], env) as any;
+    const repaired = runCli([
+      'packages', 'repair', '--package-id', 'fixture.opl-flow',
+      '--manifest-url', manifestPath, '--trust-tier', 'first_party',
+    ], env) as any;
     assert.equal(repaired.opl_agent_package_repair.status, 'repaired');
     const repairedItem = repaired.opl_agent_package_repair.physical_surface
       .workflow_policy_migration.dependency_sync.items[0];

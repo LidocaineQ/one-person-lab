@@ -397,7 +397,7 @@ test('legacy profile receipt collisions do not affect package installation after
   }
 });
 
-test('app action execute routes install_from_manifest_url to the Framework package lock and carrier adapter', () => {
+test('app action execute keeps local install explicit and ordinary repair native-only', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-app-action-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-app-action-home-'));
   const codexHome = path.join(homeDir, '.codex');
@@ -461,7 +461,9 @@ test('app action execute routes install_from_manifest_url to the Framework packa
       false,
     );
 
-    const repair = runCli([
+    const lockPath = path.join(stateDir, 'agent-package-locks.json');
+    const lockBytesBeforeRepair = fs.readFileSync(lockPath, 'utf8');
+    const repairFailure = runCliFailure([
       'app',
       'action',
       'execute',
@@ -469,24 +471,13 @@ test('app action execute routes install_from_manifest_url to the Framework packa
       'agent_package_repair',
       '--payload',
       JSON.stringify({ package_id: 'third.party.research' }),
-    ], env) as {
-      app_action_execution: {
-        delegated_surface: string;
-        result: {
-          opl_agent_package_repair: {
-            status: string;
-          };
-        };
-      };
-    };
-    assert.equal(repair.app_action_execution.delegated_surface, 'opl packages repair --package-id <package_id>');
-    assert.equal(repair.app_action_execution.result.opl_agent_package_repair.status, 'repaired');
+    ], env);
     assert.equal(
-      Object.hasOwn(repair.app_action_execution.result.opl_agent_package_repair, 'lifecycle_receipt'),
-      false,
+      repairFailure.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
     );
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytesBeforeRepair);
 
-    const lockPath = path.join(stateDir, 'agent-package-locks.json');
     const lockBeforeExposure = fs.readFileSync(lockPath, 'utf8');
     const exposurePreference = runCliFailure([
       'app',
