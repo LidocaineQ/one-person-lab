@@ -146,7 +146,10 @@ test('local manifest fixtures own runtime source install repair update and unins
     assert.equal(rca.opl_agent_package_install.package_lock.package_id, FIXTURE_RCA_PACKAGE_ID);
     assert.equal(rca.opl_agent_package_install.package_lock.trust_tier, 'first_party');
     assert.equal(rca.opl_agent_package_install.package_lock.managed_runtime_source.preparation_status, 'completed');
-    assert.match(rca.opl_agent_package_install.package_lock.managed_runtime_source.handler_probe_output_sha256, /^sha256:/);
+    assert.equal(
+      Object.hasOwn(rca.opl_agent_package_install.package_lock.managed_runtime_source, 'handler_probe_output_sha256'),
+      false,
+    );
     assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.0');
 
     const repaired = runCli(['packages', 'repair', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as {

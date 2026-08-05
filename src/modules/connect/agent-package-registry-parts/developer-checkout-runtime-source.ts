@@ -336,8 +336,6 @@ export function buildDeveloperCheckoutRuntimeSourceState(input: {
     | 'package_prepare_command'
     | 'health_check_command'
     | 'handler_probe_command'
-    | 'health_output_sha256'
-    | 'handler_probe_output_sha256'
     | 'preparation_root'
     | 'preparation_scope'>;
 }): AgentPackageManagedRuntimeSourceState {
@@ -390,8 +388,6 @@ export function buildDeveloperCheckoutRuntimeSourceState(input: {
     package_prepare_command: input.preparation?.package_prepare_command ?? null,
     health_check_command: input.preparation?.health_check_command ?? [health.command, ...health.args],
     handler_probe_command: input.preparation?.handler_probe_command ?? [handler.command, ...handler.args],
-    health_output_sha256: input.preparation?.health_output_sha256 ?? null,
-    handler_probe_output_sha256: input.preparation?.handler_probe_output_sha256 ?? null,
     preparation_root: input.preparation?.preparation_root ?? null,
     preparation_scope: input.sourceCheckoutPath ? 'developer_snapshot_root' : 'developer_checkout_root',
   };

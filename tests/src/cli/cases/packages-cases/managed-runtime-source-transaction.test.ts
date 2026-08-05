@@ -713,8 +713,8 @@ test('explicit developer checkout records provenance and runs an immutable manag
     assert.equal(installedSource.source_git_head_sha, headSha);
     assert.equal(installedSource.preparation_scope, 'developer_snapshot_root');
     assert.match(installedSource.runtime_snapshot_sha256, /^[0-9a-f]{64}$/);
-    assert.match(installedSource.health_output_sha256, /^sha256:/);
-    assert.match(installedSource.handler_probe_output_sha256, /^sha256:/);
+    assert.equal(Object.hasOwn(installedSource, 'health_output_sha256'), false);
+    assert.equal(Object.hasOwn(installedSource, 'handler_probe_output_sha256'), false);
     assert.equal(fs.existsSync(path.join(checkoutPath, 'opl-runtime-module.json')), false);
     assert.equal(fs.existsSync(snapshotPath), true);
     assert.equal(fs.existsSync(path.join(snapshotPath, '.git')), false);
@@ -1139,8 +1139,6 @@ test('developer checkout source switch does not validate a displaced managed car
     package_prepare_command: null,
     health_check_command: ['/bin/false'],
     handler_probe_command: ['/bin/false'],
-    health_output_sha256: `sha256:${'5'.repeat(64)}`,
-    handler_probe_output_sha256: `sha256:${'6'.repeat(64)}`,
     preparation_root: null,
     preparation_scope: 'managed_source_root' as const,
   };
@@ -1744,8 +1742,8 @@ test('Packages compensates managed runtime source across downstream failure upda
     const installedSource = installed.opl_agent_package_install.package_lock.managed_runtime_source;
     assert.equal(installedSource.source_git_head_sha, 'source-transaction-v1');
     assert.equal(installedSource.preparation_status, 'completed');
-    assert.match(installedSource.health_output_sha256, /^sha256:/);
-    assert.match(installedSource.handler_probe_output_sha256, /^sha256:/);
+    assert.equal(Object.hasOwn(installedSource, 'health_output_sha256'), false);
+    assert.equal(Object.hasOwn(installedSource, 'handler_probe_output_sha256'), false);
     assert.equal(Object.hasOwn(installed.opl_agent_package_install, 'lifecycle_receipt'), false);
 
     const failedCurrentUpdate = runCliFailure([
