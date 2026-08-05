@@ -1016,9 +1016,9 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
       payloadRef: 'payloads/mas-0.2.24.json',
     },
     mag: {
-      version: '0.3.6',
-      sourceCommit: '115c0286d09e6b3663c82848dfca119f264104f8',
-      payloadRef: 'payloads/mag-0.3.6.json',
+      version: '0.3.7',
+      sourceCommit: '85d8152f53e48bc22ee4414ef90124f620edebe8',
+      payloadRef: 'payloads/mag-0.3.7.json',
     },
     rca: {
       version: '0.2.12',
@@ -1026,14 +1026,14 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
       payloadRef: 'payloads/rca-0.2.12.json',
     },
     oma: {
-      version: '0.4.4',
-      sourceCommit: '2bd3b2eb4053af0dbd845052b18e251f77683acd',
-      payloadRef: 'payloads/oma-0.4.4.json',
+      version: '0.4.6',
+      sourceCommit: '607b685b8eb668e6ff121a71aec8916ad7ca6016',
+      payloadRef: 'payloads/oma-0.4.6.json',
     },
     obf: {
-      version: '0.3.6',
-      sourceCommit: '0e0a9b57060fb35e73375692bf8cc708ae685f31',
-      payloadRef: 'payloads/obf-0.3.6.json',
+      version: '0.3.8',
+      sourceCommit: '2ba5b79a33b56190b907225fdae8991ee88fc8ff',
+      payloadRef: 'payloads/obf-0.3.8.json',
     },
   };
 
@@ -1155,6 +1155,7 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
     assert.equal(payload.package_version, sourceManifest.version);
     assert.equal(payload.source_commit, expectedRelease.sourceCommit);
     assert.equal(payload.files.some((entry: Record<string, any>) => entry.path === '.codex-plugin/plugin.json'), true);
+    assert.equal(payload.files.some((entry: Record<string, any>) => entry.path === 'opl-package.json'), true);
     assert.equal(payload.files.some((entry: Record<string, any>) => entry.path === `skills/${sourceManifest.codex_surface.plugin_id}/SKILL.md`), true);
     assert.equal(payload.files.every((entry: Record<string, any>) => /^sha256:[0-9a-f]{64}$/.test(entry.sha256)), true);
     assert.equal(Object.hasOwn(sourceManifest, 'distribution_payload'), false);
@@ -1571,12 +1572,12 @@ test('bundled Full MAG source projection advances to the immutable ordinary pack
     'utf8',
   )) as Record<string, any>;
 
-  assert.equal(frozenRef, 'packages/mag-0.3.6.json');
+  assert.equal(frozenRef, 'packages/mag-0.3.7.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    '9a8116b8838bba05ca2fe5f4d4ab74c69f5c03ae6d301111bdef26e573eba515');
-  assert.equal(frozenManifest.version, '0.3.6');
-  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mag-0.3.6.json');
-  assert.equal(ordinaryManifest.version, '0.3.6');
+    '6a49a701b7c45a225a457cde22cc416f3f1d4fdd2e7aad65ea1deae0f1655bfd');
+  assert.equal(frozenManifest.version, '0.3.7');
+  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mag-0.3.7.json');
+  assert.equal(ordinaryManifest.version, '0.3.7');
 });
 
 test('bundled Full RCA source projection advances to the immutable ordinary package version', () => {
@@ -1615,12 +1616,12 @@ test('bundled Full OMA source projection advances independently of ordinary publ
     'utf8',
   )) as Record<string, any>;
 
-  assert.equal(frozenRef, 'packages/oma-0.4.5.json');
+  assert.equal(frozenRef, 'packages/oma-0.4.6.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    '646dc98c0c4c1d432c440aa07c5d7024f1359cb26a5f65e86f4537445b699585');
-  assert.equal(frozenManifest.version, '0.4.5');
-  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/oma-0.4.5.json');
-  assert.equal(ordinaryManifest.version, '0.4.4');
+    'c2e33dcc72edcace5bfc70b455f13256b92dda1c5a3fbea282a22c598e129372');
+  assert.equal(frozenManifest.version, '0.4.6');
+  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/oma-0.4.6.json');
+  assert.equal(ordinaryManifest.version, '0.4.6');
 });
 
 test('bundled Full OBF source projection advances independently of ordinary publication', () => {
@@ -1637,12 +1638,12 @@ test('bundled Full OBF source projection advances independently of ordinary publ
     'utf8',
   )) as Record<string, any>;
 
-  assert.equal(frozenRef, 'packages/obf-0.3.7.json');
+  assert.equal(frozenRef, 'packages/obf-0.3.8.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    '933034415a5bae2cd316788014c73f793e1bc9764c48cfee50fcdbdb90d0653f');
-  assert.equal(frozenManifest.version, '0.3.7');
-  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/obf-0.3.7.json');
-  assert.equal(ordinaryManifest.version, '0.3.6');
+    '59dbd442de608629019b49b32ce609c2b3d5a2bd2d3802ee6b09b9a066cabe2d');
+  assert.equal(frozenManifest.version, '0.3.8');
+  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/obf-0.3.8.json');
+  assert.equal(ordinaryManifest.version, '0.3.8');
 });
 
 test('MAS first-party agent package manifest fails closed for unsafe dependency declarations', () => {

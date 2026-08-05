@@ -445,7 +445,7 @@ test('packages manifest exposes independent owner currentness and compatibility 
   );
   assert.equal(
     output.packages_manifest.packages.package_artifacts.oma.artifact,
-    'ghcr.io/gaofeng21cn/one-person-lab-packages/oma:0.4.4',
+    'ghcr.io/gaofeng21cn/one-person-lab-packages/oma:0.4.6',
   );
   assert.equal(
     output.packages_manifest.packages.package_artifacts.oma.remote_publish_status,
