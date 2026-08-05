@@ -50,12 +50,12 @@
     "obf": {
       "package_id": "obf",
       "package_role": "standard_agent",
-      "package_version": "0.3.8",
-      "owner_source_commit": "2ba5b79a33b56190b907225fdae8991ee88fc8ff",
-      "manifest_ref": "packages/obf-0.3.8.json",
-      "manifest_sha256": "sha256:59dbd442de608629019b49b32ce609c2b3d5a2bd2d3802ee6b09b9a066cabe2d",
-      "payload_manifest_ref": "packages/payloads/obf-0.3.8.json",
-      "payload_manifest_sha256": "sha256:c00e6c56d0a85c098e7373f29dbc308b4cffc08281dfcdb761686cf6eed5a8f5",
+      "package_version": "0.3.9",
+      "owner_source_commit": "cdf061c309bd1ed685e4fb0e677d29b2b96eb5ca",
+      "manifest_ref": "packages/obf-0.3.9.json",
+      "manifest_sha256": "sha256:87dbc954cf83a4b25903c84257a0088d06d52170b19f00b8ec5631f59f8659c4",
+      "payload_manifest_ref": "packages/payloads/obf-0.3.9.json",
+      "payload_manifest_sha256": "sha256:37fdfd83bde4e1e23c95ebc45f58c3ca174fd8d41389d93e433a720984170127",
       "runtime_module_relative_path": "modules/bookforge"
     },
     "mas-scholar-skills": {

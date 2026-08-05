@@ -1031,9 +1031,9 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
       payloadRef: 'payloads/oma-0.4.6.json',
     },
     obf: {
-      version: '0.3.8',
-      sourceCommit: '2ba5b79a33b56190b907225fdae8991ee88fc8ff',
-      payloadRef: 'payloads/obf-0.3.8.json',
+      version: '0.3.9',
+      sourceCommit: 'cdf061c309bd1ed685e4fb0e677d29b2b96eb5ca',
+      payloadRef: 'payloads/obf-0.3.9.json',
     },
   };
 
@@ -1638,12 +1638,12 @@ test('bundled Full OBF source projection advances independently of ordinary publ
     'utf8',
   )) as Record<string, any>;
 
-  assert.equal(frozenRef, 'packages/obf-0.3.8.json');
+  assert.equal(frozenRef, 'packages/obf-0.3.9.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    '59dbd442de608629019b49b32ce609c2b3d5a2bd2d3802ee6b09b9a066cabe2d');
-  assert.equal(frozenManifest.version, '0.3.8');
-  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/obf-0.3.8.json');
-  assert.equal(ordinaryManifest.version, '0.3.8');
+    '87dbc954cf83a4b25903c84257a0088d06d52170b19f00b8ec5631f59f8659c4');
+  assert.equal(frozenManifest.version, '0.3.9');
+  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/obf-0.3.9.json');
+  assert.equal(ordinaryManifest.version, '0.3.9');
 });
 
 test('MAS first-party agent package manifest fails closed for unsafe dependency declarations', () => {
