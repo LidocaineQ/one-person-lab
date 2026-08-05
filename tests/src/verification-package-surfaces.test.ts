@@ -10,7 +10,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
 const packageJson = parseJsonText(
   fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'),
-) as { scripts?: Record<string, string>; exports?: Record<string, string> };
+) as {
+  scripts?: Record<string, string>;
+  exports?: Record<string, string>;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
 
 function read(relativePath: string) {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
@@ -73,6 +78,22 @@ test('node test lanes propagate Python cache isolation to spawned tests', () => 
   assert.match(testLanes, /PYTHONPYCACHEPREFIX/);
   assert.match(testLanes, /-p no:cacheprovider/);
   assert.match(testLanes, /cache_dir=\$\{path\.join\(pythonCacheRoot, 'pytest-cache'\)\}/);
+});
+
+test('carrier-only installs every dependency required by the prepare build', () => {
+  assert.equal(packageJson.dependencies?.['@types/semver'], '7.7.1');
+  assert.equal(packageJson.devDependencies?.['@types/semver'], undefined);
+
+  const packageLock = parseJsonText(read('package-lock.json')) as {
+    packages?: Record<string, {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+      dev?: boolean;
+    }>;
+  };
+  assert.equal(packageLock.packages?.['']?.dependencies?.['@types/semver'], '7.7.1');
+  assert.equal(packageLock.packages?.['']?.devDependencies?.['@types/semver'], undefined);
+  assert.equal(packageLock.packages?.['node_modules/@types/semver']?.dev, undefined);
 });
 
 test('native helper prebuild script handles platform executable names', () => {
