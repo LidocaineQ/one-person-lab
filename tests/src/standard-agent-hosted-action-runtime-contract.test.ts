@@ -16,22 +16,35 @@ function readContract() {
   ), 'utf8')) as Record<string, any>;
 }
 
-test('hosted Standard Agent actions enforce immutable releases and live-probe developer checkouts', () => {
+test('hosted Standard Agent actions require installed owner descriptor and configured native carrier readback', () => {
   const contract = readContract();
-  const packageGate = contract.managed_package_gate;
+  const packageGate = contract.native_package_gate;
   const actionAbi = contract.domain_pack_action_abi;
 
   assert.equal(contract.contract_kind, 'opl_standard_agent_hosted_action_runtime_contract.v1');
   assert.equal(contract.brand_module_ownership.primary_module, 'runway');
   assert.equal(packageGate.ordinary_user_distribution.moving_pointer, 'latest-stable');
-  assert.equal(packageGate.ordinary_user_distribution.install_truth, 'resolved_digest_lock');
+  assert.equal(packageGate.ordinary_user_distribution.owner_channel, 'per_package_owner_oci');
+  assert.equal(
+    packageGate.ordinary_user_distribution.install_truth,
+    'installed_owner_descriptor_and_configured_native_carrier_fresh_readback',
+  );
   assert.equal(packageGate.moving_pointer_is_install_truth, false);
   assert.equal(packageGate.origin_main_is_implicit_launch_target, false);
   assert.equal(packageGate.launch_requirements.package_status_launch_allowed, true);
-  assert.equal(packageGate.launch_requirements.immutable_runtime_source_identity_matches_recorded_digest, true);
-  assert.equal(packageGate.launch_requirements.developer_checkout_identity_is_provenance_observation_only, true);
-  assert.equal(packageGate.launch_requirements.developer_checkout_live_health_and_handler_probe_required, true);
-  assert.equal(packageGate.dirty_or_diverged_development_checkout_blocks_launch, false);
+  assert.equal(packageGate.launch_requirements.installed_owner_descriptor_required, true);
+  assert.equal(packageGate.launch_requirements.configured_native_carrier_status, 'installed');
+  assert.equal(packageGate.launch_requirements.configured_native_carrier_precedence, 'exact_single_source');
+  assert.equal(packageGate.launch_requirements.configured_native_carrier_enabled, true);
+  assert.equal(packageGate.launch_requirements.configured_native_carrier_executor_status, 'callable');
+  assert.equal(packageGate.launch_requirements.plugin_source_path_absolute_repo_root, true);
+  assert.equal(packageGate.launch_requirements.source_tree_sha256_required, true);
+  assert.equal(packageGate.launch_requirements.action_contracts_resolve_from_carrier_root, true);
+  assert.equal(packageGate.runtime_provenance_source_kind, 'installed_native_carrier');
+  assert.equal(packageGate.package_use_binding_required, false);
+  assert.equal(packageGate.package_lock_ref_allowed, false);
+  assert.equal(packageGate.scope_activation_required, false);
+  assert.equal(packageGate.legacy_managed_checkout_fallback_allowed, false);
   assert.equal(actionAbi.catalog_version, 'family-action-catalog.v2');
   assert.equal(actionAbi.handler_registry_version, 'domain-handler-registry.v1');
   assert.deepEqual(actionAbi.execution_binding_union.map((binding: any) => binding.required_shape), [
@@ -57,7 +70,7 @@ test('hosted action persistence and ledger distinguish Stage launch from complet
   assert.equal(contract.stage_execution.same_action_run_temporal_execution_count, 1);
   assert.match(contract.stage_execution.same_action_run_provider_start_rpc_delivery, /at_least_once/);
   assert.equal(contract.stage_execution.later_action_run_creates_new_stage_run, true);
-  assert.equal(contract.stage_execution.stage_run_spec_sha256_binds_managed_package_closure_and_exact_request, true);
+  assert.equal(contract.stage_execution.stage_run_spec_sha256_binds_hosted_runtime_provenance_and_exact_request, true);
   assert.equal(
     contract.stage_execution.stage_run_spec_sha256_binds_prompt_rubric_policy_source_checkpoint_and_manifest_bytes,
     true,
@@ -94,7 +107,7 @@ test('hosted action persistence and ledger distinguish Stage launch from complet
     true,
   );
   assert.equal(
-    contract.durable_run_binding_and_completion.completed_handler_replay_requires_historical_managed_checkout,
+    contract.durable_run_binding_and_completion.completed_handler_replay_requires_historical_native_carrier_root,
     false,
   );
   assert.equal(
@@ -173,7 +186,10 @@ test('hosted Foundry conformance profile is jointly selected and keeps live evid
   assert.equal(profile.selection.agent_id_special_case_allowed, false);
   assert.equal(profile.raw_repo_diagnostics_preserved, true);
   assert.equal(profile.effective_blockers_are_profile_aware, true);
-  assert.equal(profile.managed_runtime_identity_and_currentness_owner, 'opl_managed_package_gate');
+  assert.equal(
+    profile.runtime_identity_and_currentness_owner,
+    'installed_owner_descriptor_and_configured_native_carrier',
+  );
   assert.equal(profile.live_qualification_and_canary_evidence_owner, 'opl_foundry_kernel');
   assert.equal(profile.provider_completion_is_qualification_or_closeout, false);
   assert.equal(profile.repo_local_placeholder_contracts_can_close_hosted_evidence, false);

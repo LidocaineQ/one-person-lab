@@ -288,9 +288,12 @@ function writeContracts(checkoutRoot: string, actions: Record<string, unknown>[]
   })}\n`);
 }
 
-function managed(checkoutRoot: string, workspaceRoot: string) {
+function managed(
+  checkoutRoot: string,
+  workspaceRoot: string,
+  runtimeOverrides: Record<string, unknown> = {},
+) {
   return async () => {
-    const packageUseBinding = stagePackageUseBinding();
     return {
       agent: resolveStandardAgent('mas')!,
       package_id: 'mas',
@@ -299,13 +302,22 @@ function managed(checkoutRoot: string, workspaceRoot: string) {
       package_status: {
         installed_package_count: 1,
         launch_allowed: true,
-        runtime_source_readiness: {
-          operational_ready: true,
-          checkout_path: fs.realpathSync.native(checkoutRoot),
-        },
       },
-      package_use_binding: packageUseBinding,
-      use_boundary_id: packageUseBinding.use_boundary_id,
+      package_use_binding: null,
+      use_boundary_id: null,
+      runtime_source_kind: 'installed_native_carrier',
+      native_runtime: {
+        package_version: '0.2.25',
+        carrier_installed_version: `0.2.25-${'a'.repeat(64)}`,
+        manifest_path: path.join(checkoutRoot, 'opl-package.json'),
+        manifest_sha256: sha256('mas-owner-manifest'),
+        plugin_selector: 'med-autoscience@med-autoscience',
+        marketplace_source: 'gaofeng21cn/med-autoscience',
+        publication_ref: 'ghcr.io/gaofeng21cn/one-person-lab-packages/mas:latest-stable',
+        plugin_source_path: fs.realpathSync.native(checkoutRoot),
+        source_tree_sha256: sha256(`native-tree:${checkoutRoot}`),
+        ...runtimeOverrides,
+      },
     };
   };
 }
@@ -469,11 +481,16 @@ test('Hosted Handler action validates schemas, runs the callable, and persists e
       runId: 'handler-run',
     });
     assert.deepEqual(durableBinding?.hosted_runtime_binding, run.hosted_runtime_binding);
-    if (durableBinding?.hosted_runtime_binding.source_kind !== 'managed_package_checkout') assert.fail();
-    assert.equal(durableBinding.hosted_runtime_binding.package_manifest_sha256, '1'.repeat(64));
-    assert.equal(durableBinding.hosted_runtime_binding.package_dependency_closure_digest, '4'.repeat(64));
-    assert.equal(durableBinding.hosted_runtime_binding.package_source_kind,
-      'first_party_managed_cohort');
+    if (durableBinding?.hosted_runtime_binding.source_kind !== 'installed_native_carrier') assert.fail();
+    assert.equal(durableBinding.hosted_runtime_binding.package_id, 'mas');
+    assert.equal(durableBinding.hosted_runtime_binding.package_version, '0.2.25');
+    assert.equal(durableBinding.hosted_runtime_binding.plugin_selector, 'med-autoscience@med-autoscience');
+    assert.equal(durableBinding.hosted_runtime_binding.plugin_source_path, fs.realpathSync.native(checkoutRoot));
+    assert.match(durableBinding.hosted_runtime_binding.owner_manifest_sha256, /^sha256:[a-f0-9]{64}$/);
+    assert.match(durableBinding.hosted_runtime_binding.source_tree_sha256, /^sha256:[a-f0-9]{64}$/);
+    assert.match(durableBinding.hosted_runtime_binding.action_contracts_sha256, /^sha256:[a-f0-9]{64}$/);
+    assert.equal(run.package_use_binding, null);
+    assert.equal(inspectStandardAgentActionRunPlan({ workspaceRoot, runId: 'handler-run' })?.package_use_binding, null);
     assert.equal(handlerCalls, 1);
     await assert.rejects(
       runStandardAgentAction({
@@ -667,12 +684,12 @@ test('managed action identity faults fail before reservation or Handler executio
   }
 });
 
-test('completed managed Handler replay survives package replacement from durable exact bytes', async () => {
+test('completed native Handler replay survives carrier replacement from durable exact bytes', async () => {
   const checkoutV1 = root('opl-action-completed-replay-v1-');
   const checkoutV2 = root('opl-action-completed-replay-v2-');
   const workspaceRoot = root('opl-action-completed-replay-workspace-');
   let activeCheckout = checkoutV1;
-  let activeVersion = 'v1';
+  let activeVersion = '0.2.25';
   let resolverCalls = 0;
   let handlerCalls = 0;
   try {
@@ -704,16 +721,14 @@ test('completed managed Handler replay survives package replacement from durable
     const dependencies = {
       resolveManagedCheckout: (async () => {
         resolverCalls += 1;
-        const resolved = await managed(activeCheckout, workspaceRoot)();
-        const useBoundaryId = `package-use:${activeVersion}`;
-        return {
-          ...resolved,
-          package_use_binding: {
-            ...resolved.package_use_binding,
-            use_boundary_id: useBoundaryId,
-          },
-          use_boundary_id: useBoundaryId,
-        };
+        return await managed(activeCheckout, workspaceRoot, {
+          package_version: activeVersion,
+          carrier_installed_version: `${activeVersion}-${activeVersion === '0.2.25' ? 'a' : 'b'}`.padEnd(
+            activeVersion.length + 65,
+            activeVersion === '0.2.25' ? 'a' : 'b',
+          ),
+          source_tree_sha256: sha256(`native-tree:${activeVersion}`),
+        })();
       }) as never,
       recordLedger,
       runHandler: (input: Parameters<typeof runStandardAgentHandlerSandbox>[0]) => {
@@ -730,7 +745,7 @@ test('completed managed Handler replay survives package replacement from durable
     };
     const first = await runStandardAgentAction(request, dependencies);
     activeCheckout = checkoutV2;
-    activeVersion = 'v2';
+    activeVersion = '0.2.26';
     fs.rmSync(checkoutV1, { recursive: true, force: true });
 
     const replay = await runStandardAgentAction(
@@ -755,12 +770,12 @@ test('completed managed Handler replay survives package replacement from durable
     assert.deepEqual(firstRun.result, { accepted: true, value: 7 });
     assert.deepEqual(replayRun.result, { accepted: true, value: 7 });
     assert.deepEqual(laterRun.result, { accepted: true, value: 107 });
-    const replayPackageBinding = replayRun.package_use_binding as ReturnType<typeof stagePackageUseBinding>;
-    const laterPackageBinding = laterRun.package_use_binding as ReturnType<typeof stagePackageUseBinding>;
-    assert.equal(replayPackageBinding.use_boundary_id, 'package-use:v1');
-    assert.equal(laterPackageBinding.use_boundary_id, 'package-use:v2');
-    assert.equal(replayPackageBinding.root_package.package_id, 'mas');
-    assert.equal(laterPackageBinding.root_package.package_id, 'mas');
+    assert.equal(replayRun.package_use_binding, null);
+    assert.equal(laterRun.package_use_binding, null);
+    if (firstRun.hosted_runtime_binding.source_kind !== 'installed_native_carrier') assert.fail();
+    if (laterRun.hosted_runtime_binding.source_kind !== 'installed_native_carrier') assert.fail();
+    assert.equal(firstRun.hosted_runtime_binding.package_version, '0.2.25');
+    assert.equal(laterRun.hosted_runtime_binding.package_version, '0.2.26');
     assert.equal(resolverCalls, 2);
     assert.equal(handlerCalls, 2);
 
@@ -1222,10 +1237,7 @@ test('Hosted Stage action passes a SHA-bound request ref into Temporal StageRun 
     assert.deepEqual(calls[1], ['stage-run', 'query', 'wf-stage-run']);
     const workspaceLocatorIndex = calls[0].indexOf('--workspace-locator');
     const runtimeWorkspaceLocator = JSON.parse(calls[0][workspaceLocatorIndex + 1]) as Record<string, unknown>;
-    assert.equal(
-      (runtimeWorkspaceLocator.package_use_binding as Record<string, unknown>).use_boundary_id,
-      'package-use:hosted-stage-test',
-    );
+    assert.equal(Object.hasOwn(runtimeWorkspaceLocator, 'package_use_binding'), false);
     assert.equal(runtimeWorkspaceLocator.domain_pack_root, fs.realpathSync.native(checkoutRoot));
     assert.equal(runtimeWorkspaceLocator.study_id, 'study-001');
     assert.equal(runtimeWorkspaceLocator.work_item_id, 'work-item-001');

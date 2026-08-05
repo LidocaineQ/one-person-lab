@@ -6,175 +6,192 @@ import test from 'node:test';
 
 import { resolveStandardAgentManagedCheckout } from '../../src/modules/runway/standard-agent-managed-checkout.ts';
 
+const TREE_SHA256 = 'a'.repeat(64);
+
 function fixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-checkout-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-runtime-'));
   const workspaceRoot = path.join(root, 'workspace');
-  const checkoutRoot = path.join(root, 'managed-source');
+  const checkoutRoot = path.join(root, 'native-source');
   fs.mkdirSync(workspaceRoot);
   fs.mkdirSync(checkoutRoot);
-  return { workspaceRoot, checkoutRoot };
+  fs.writeFileSync(path.join(checkoutRoot, 'opl-package.json'), `${JSON.stringify({
+    surface_kind: 'opl_agent_package_manifest.v1',
+    agent_id: 'mas',
+    package_id: 'mas',
+    version: '0.2.25',
+    codex_surface: {
+      plugin_id: 'med-autoscience',
+      plugin_source_path: '.',
+      configured_codex_plugin_carrier: {
+        kind: 'codex_plugin_manager',
+        plugin_selector: 'med-autoscience@med-autoscience',
+        executor_route: 'codex_cli',
+        marketplace_source: 'gaofeng21cn/med-autoscience',
+        publication_ref: 'ghcr.io/gaofeng21cn/one-person-lab-packages/mas:latest-stable',
+      },
+    },
+  }, null, 2)}\n`);
+  return { root, workspaceRoot, checkoutRoot };
 }
 
 function status(checkoutRoot: string, overrides: Record<string, unknown> = {}) {
+  const pluginId = 'med-autoscience@med-autoscience';
+  const marketplaceSource = 'gaofeng21cn/med-autoscience';
+  const installedVersion = `0.2.25-${'b'.repeat(64)}`;
   return {
     installed_package_count: 1,
     launch_allowed: true,
     launch_blocked_reason: null,
-    runtime_source_readiness: {
-      status: 'current',
-      operational_ready: true,
-      checkout_path: checkoutRoot,
-      expected_tree_sha256: 'tree-sha',
-      actual_tree_sha256: 'tree-sha',
+    configured_carrier: {
+      surface_kind: 'opl_configured_codex_plugin_carrier_readback.v1',
+      package_id: 'mas',
+      carrier: {
+        kind: 'codex_plugin_manager',
+        plugin_id: pluginId,
+        marketplace_source: marketplaceSource,
+        observed_sources: [{
+          plugin_id: pluginId,
+          marketplace_source: marketplaceSource,
+          installed_version: installedVersion,
+          enabled: true,
+          plugin_source_path: checkoutRoot,
+          source_tree_sha256: TREE_SHA256,
+        }],
+        precedence: 'exact_single_source',
+      },
+      executor: { route: 'codex_cli', required_skill_ids: ['med-autoscience'], status: 'callable' },
+      publication_ref: 'ghcr.io/gaofeng21cn/one-person-lab-packages/mas:latest-stable',
+      status: 'installed',
+      installed_version: installedVersion,
+      enabled: true,
+      plugin_source_path: checkoutRoot,
+      operation: 'list',
+      native_command: ['plugin', 'list', '--json'],
+      native_action_dispatched: true,
+      reason: null,
+    },
+    installed_carrier_readback: {
+      kind: 'codex_plugin_manager',
+      identity: pluginId,
+      source_ref: checkoutRoot,
+      version: installedVersion,
+      enabled: true,
+      lifecycle_authority: 'carrier_owned',
+    },
+    installed_readiness: {
+      installed: true,
+      physical_status: 'available',
+      callability: 'callable',
     },
     ...overrides,
   };
 }
 
-test('managed checkout resolver uses package activation and exact current runtime source', async () => {
-  const { workspaceRoot, checkoutRoot } = fixture();
+function packageReadiness(packageStatus: Record<string, unknown>, onActivation = () => {}) {
+  return {
+    readStatus: () => ({ opl_agent_package_status: packageStatus }),
+    ensureScopeActivation: async () => {
+      onActivation();
+      throw new Error('native hosted runtime must not activate legacy package scope');
+    },
+  };
+}
+
+test('managed checkout resolver uses one installed descriptor and configured native carrier without scope activation', async () => {
+  const { root, workspaceRoot, checkoutRoot } = fixture();
   let activationCalls = 0;
-  const result = await resolveStandardAgentManagedCheckout({
-    domainId: 'mas',
-    workspaceRoot,
-    packageReadiness: {
-      readStatus: () => ({ opl_agent_package_status: status(checkoutRoot) }),
-      ensureScopeActivation: async () => {
-        activationCalls += 1;
-        return { package_use_binding: { use_boundary_id: 'package-use:test' } };
-      },
-    },
-  });
+  try {
+    const result = await resolveStandardAgentManagedCheckout({
+      domainId: 'mas',
+      workspaceRoot,
+      packageReadiness: packageReadiness(status(checkoutRoot), () => { activationCalls += 1; }),
+    });
 
-  assert.equal(result.package_id, 'mas');
-  assert.equal(result.checkout_root, fs.realpathSync(checkoutRoot));
-  assert.equal(result.package_status.launch_allowed, true);
-  assert.equal(activationCalls, 1);
+    assert.equal(result.runtime_source_kind, 'installed_native_carrier');
+    assert.equal(result.package_id, 'mas');
+    assert.equal(result.checkout_root, fs.realpathSync(checkoutRoot));
+    assert.equal(result.package_use_binding, null);
+    assert.equal(result.use_boundary_id, null);
+    assert.equal(result.native_runtime.package_version, '0.2.25');
+    assert.equal(result.native_runtime.plugin_selector, 'med-autoscience@med-autoscience');
+    assert.equal(result.native_runtime.marketplace_source, 'gaofeng21cn/med-autoscience');
+    assert.equal(result.native_runtime.source_tree_sha256, `sha256:${TREE_SHA256}`);
+    assert.match(result.native_runtime.manifest_sha256, /^sha256:[a-f0-9]{64}$/);
+    assert.equal(activationCalls, 0);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
-test('managed checkout resolver rejects an installed runtime source identity mismatch before scope activation', async () => {
-  const { workspaceRoot, checkoutRoot } = fixture();
-  let activationCalls = 0;
-  await assert.rejects(resolveStandardAgentManagedCheckout({
-    domainId: 'oma',
-    workspaceRoot,
-    packageReadiness: {
-      readStatus: () => ({
-        opl_agent_package_status: status(checkoutRoot, {
-          launch_allowed: false,
-          launch_blocked_reason: 'managed_runtime_source_identity_mismatch',
-          runtime_source_readiness: {
-            status: 'incompatible',
-            operational_ready: false,
-            reason: 'managed_runtime_source_identity_mismatch',
-            checkout_path: checkoutRoot,
-            expected_tree_sha256: 'expected-tree-sha',
-            actual_tree_sha256: 'actual-tree-sha',
-          },
-        }),
-      }),
-      ensureScopeActivation: async () => {
-        activationCalls += 1;
-        throw new Error('scope activation must not run for an untrusted runtime source');
-      },
-    },
-  }), (error: any) => {
-    assert.equal(error?.details?.failure_code, 'standard_agent_managed_checkout_not_launchable');
-    assert.equal(error?.details?.launch_blocked_reason, 'managed_runtime_source_identity_mismatch');
-    assert.equal(error?.details?.runtime_source_readiness?.expected_tree_sha256, 'expected-tree-sha');
-    assert.equal(error?.details?.runtime_source_readiness?.actual_tree_sha256, 'actual-tree-sha');
-    return true;
-  });
-  assert.equal(activationCalls, 0);
+test('managed checkout resolver accepts an exact owner SemVer carrier readback', async () => {
+  const { root, workspaceRoot, checkoutRoot } = fixture();
+  try {
+    const packageStatus = status(checkoutRoot);
+    (packageStatus.configured_carrier as any).installed_version = '0.2.25';
+    (packageStatus.configured_carrier as any).carrier.observed_sources[0].installed_version = '0.2.25';
+    (packageStatus.installed_carrier_readback as any).version = '0.2.25';
+    const result = await resolveStandardAgentManagedCheckout({
+      domainId: 'mas',
+      workspaceRoot,
+      packageReadiness: packageReadiness(packageStatus),
+    });
+    assert.equal(result.native_runtime.carrier_installed_version, '0.2.25');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
-test('managed checkout resolver keeps the activation binding and runtime snapshot in one generation', async () => {
-  const { workspaceRoot, checkoutRoot: firstCheckoutRoot } = fixture();
-  const secondCheckoutRoot = path.join(path.dirname(firstCheckoutRoot), 'managed-source-v2');
-  fs.mkdirSync(secondCheckoutRoot);
-  let generation: 'v1' | 'v2' = 'v1';
-  let readCalls = 0;
-  const firstStatus = status(firstCheckoutRoot, {
-    installed_packages: [{ package_id: 'mas', package_version: '0.2.9' }],
-  });
-  const secondStatus = status(secondCheckoutRoot, {
-    installed_packages: [{ package_id: 'mas', package_version: '0.3.0' }],
-  });
-  const result = await resolveStandardAgentManagedCheckout({
-    domainId: 'mas',
-    workspaceRoot,
-    packageReadiness: {
-      readStatus: () => {
-        readCalls += 1;
-        return {
-          opl_agent_package_status: generation === 'v1' ? firstStatus : secondStatus,
-        };
-      },
-      ensureScopeActivation: async () => {
-        generation = 'v2';
-        return {
-          package_use_binding: {
-            use_boundary_id: 'package-use:generation-v1',
-            root_package: { package_id: 'mas', package_version: '0.2.9' },
-          },
-          package_status: firstStatus,
-        };
-      },
-    },
-  });
-
-  assert.equal(readCalls, 1);
-  assert.equal(result.checkout_root, fs.realpathSync(firstCheckoutRoot));
-  assert.equal(result.package_status.installed_packages[0].package_version, '0.2.9');
-  assert.equal(result.package_use_binding.root_package.package_version, '0.2.9');
+test('managed checkout resolver fails closed on native carrier and owner identity drift', async () => {
+  for (const fault of ['package', 'version', 'plugin', 'marketplace', 'path', 'digest', 'disabled'] as const) {
+    const { root, workspaceRoot, checkoutRoot } = fixture();
+    try {
+      const packageStatus = status(checkoutRoot);
+      const configured = packageStatus.configured_carrier as any;
+      if (fault === 'package') configured.package_id = 'rca';
+      if (fault === 'version') {
+        configured.installed_version = '0.2.24';
+        configured.carrier.observed_sources[0].installed_version = '0.2.24';
+        (packageStatus.installed_carrier_readback as any).version = '0.2.24';
+      }
+      if (fault === 'plugin') configured.carrier.plugin_id = 'med-autoscience@unexpected';
+      if (fault === 'marketplace') configured.carrier.marketplace_source = 'gaofeng21cn/unexpected';
+      if (fault === 'path') configured.carrier.observed_sources[0].plugin_source_path = workspaceRoot;
+      if (fault === 'digest') configured.carrier.observed_sources[0].source_tree_sha256 = null;
+      if (fault === 'disabled') {
+        configured.enabled = false;
+        configured.executor.status = 'attention_needed';
+        configured.carrier.observed_sources[0].enabled = false;
+        (packageStatus.installed_carrier_readback as any).enabled = false;
+        (packageStatus.installed_readiness as any).callability = 'disabled';
+      }
+      await assert.rejects(resolveStandardAgentManagedCheckout({
+        domainId: 'mas',
+        workspaceRoot,
+        packageReadiness: packageReadiness(packageStatus),
+      }), (error: any) => {
+        assert.equal(error?.details?.failure_code, 'standard_agent_managed_checkout_not_launchable');
+        return true;
+      });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
 });
 
-test('managed checkout resolver accepts live-probed developer checkout provenance drift', async () => {
-  const { workspaceRoot, checkoutRoot } = fixture();
-  const result = await resolveStandardAgentManagedCheckout({
-    domainId: 'mas',
-    workspaceRoot,
-    packageReadiness: {
-      readStatus: () => ({
-        opl_agent_package_status: status(checkoutRoot, {
-          runtime_source_readiness: {
-            status: 'current',
-            operational_ready: true,
-            checkout_path: checkoutRoot,
-            expected_tree_sha256: 'recorded-tree-sha',
-            actual_tree_sha256: 'current-tree-sha',
-            provenance_observation: {
-              policy: 'observation_only',
-              status: 'changed',
-            },
-          },
-        }),
-      }),
-      ensureScopeActivation: async () => ({ package_use_binding: null }),
-    },
-  });
-
-  assert.equal(result.checkout_root, fs.realpathSync(checkoutRoot));
-  assert.equal(result.package_status.launch_allowed, true);
-});
-
-test('managed checkout resolver permits package quality debt when the runtime source is operational', async () => {
-  const { workspaceRoot, checkoutRoot } = fixture();
-  const result = await resolveStandardAgentManagedCheckout({
-    domainId: 'mas',
-    workspaceRoot,
-    packageReadiness: {
-      readStatus: () => ({
-        opl_agent_package_status: status(checkoutRoot, {
-          launch_allowed: false,
-          launch_blocked_reason: 'scope_materialization_stale',
-        }),
-      }),
-      ensureScopeActivation: async () => ({ package_use_binding: null }),
-    },
-  });
-
-  assert.equal(result.checkout_root, fs.realpathSync(checkoutRoot));
-  assert.equal(result.package_status.launch_allowed, false);
-  assert.equal(result.package_status.launch_blocked_reason, 'scope_materialization_stale');
+test('managed checkout resolver rejects a plugin-subdirectory descriptor instead of fabricating repo-root runtime', async () => {
+  const { root, workspaceRoot, checkoutRoot } = fixture();
+  try {
+    const descriptorPath = path.join(checkoutRoot, 'opl-package.json');
+    const descriptor = JSON.parse(fs.readFileSync(descriptorPath, 'utf8'));
+    descriptor.codex_surface.plugin_source_path = 'plugins/med-autoscience';
+    fs.mkdirSync(path.join(checkoutRoot, 'plugins', 'med-autoscience'), { recursive: true });
+    fs.writeFileSync(descriptorPath, `${JSON.stringify(descriptor, null, 2)}\n`);
+    await assert.rejects(resolveStandardAgentManagedCheckout({
+      domainId: 'mas',
+      workspaceRoot,
+      packageReadiness: packageReadiness(status(checkoutRoot)),
+    }), /repo-root configured native carrier/i);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

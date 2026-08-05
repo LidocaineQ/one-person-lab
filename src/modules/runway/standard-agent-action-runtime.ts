@@ -825,13 +825,13 @@ function completedHandlerReplay(input: {
   inputSchemaValidation: Record<string, unknown>;
   outputSchemaValidation: Record<string, unknown>;
 }): StandardAgentCompletedHandlerReplay {
-  if (!isRecord(input.packageUseBinding)) {
-    fail('Completed Handler replay requires a durable package-use binding.');
+  if (input.packageUseBinding !== null && !isRecord(input.packageUseBinding)) {
+    fail('Completed Handler replay package-use binding must be an object or null.');
   }
   return {
     accepted_domain_ids: [...new Set(input.acceptedDomainIds.map((value) => value.trim()).filter(Boolean))].sort(),
     request_payload_sha256: input.requestPayloadSha256,
-    package_use_binding: input.packageUseBinding,
+    package_use_binding: input.packageUseBinding as Record<string, unknown> | null,
     input_schema_ref: input.inputSchemaRef,
     input_schema_validation: input.inputSchemaValidation,
     output_schema_validation: input.outputSchemaValidation,
@@ -1127,7 +1127,11 @@ function assertDurableRuntimeProvenance(binding: StandardAgentActionRunBinding) 
     provenance.surface_kind !== 'opl_hosted_agent_runtime_binding_provenance'
     || provenance.version !== 'opl-hosted-agent-runtime-binding-provenance.v1'
     || provenance.target_agent_id !== binding.canonical_domain_id
-    || !['managed_package_checkout', 'foundry_active_agent_version'].includes(provenance.source_kind)
+    || ![
+      'installed_native_carrier',
+      'managed_package_checkout',
+      'foundry_active_agent_version',
+    ].includes(provenance.source_kind)
     || binding.hosted_runtime_binding_ref !== expectedRef
   ) {
     fail('Completed Handler replay has invalid frozen runtime provenance.', { run_id: binding.run_id });

@@ -4405,35 +4405,35 @@
           "flag": "--package-id",
           "value_kind": "string",
           "required": false,
-          "summary": "Installed OPL Agent Package id to activate."
+          "summary": "Installed OPL Agent Package id whose native carrier readiness is read back."
         },
         {
           "name": "scope",
           "flag": "--scope",
           "value_kind": "string",
           "required": true,
-          "summary": "Target materialization scope: workspace or quest."
+          "summary": "Target runtime context: workspace or quest."
         },
         {
           "name": "target-workspace",
           "flag": "--target-workspace",
           "value_kind": "string",
           "required": false,
-          "summary": "Workspace root receiving package core skills."
+          "summary": "Workspace root used for fresh Package runtime readiness readback."
         },
         {
           "name": "target-quest",
           "flag": "--target-quest",
           "value_kind": "string",
           "required": false,
-          "summary": "Quest root receiving package core skills."
+          "summary": "Quest root used for fresh Package runtime readiness readback."
         },
         {
           "name": "dry-run",
           "flag": "--dry-run",
           "value_kind": "boolean",
           "required": false,
-          "summary": "Validate package scope activation without writing state."
+          "summary": "Validate installed native carrier readiness without writing state."
         }
       ],
       "output_schema": {
@@ -4448,7 +4448,7 @@
               "surface_kind",
               "status",
               "package_id",
-              "materialization_readiness",
+              "writes_performed",
               "operational_ready",
               "launch_allowed",
               "authority_boundary"

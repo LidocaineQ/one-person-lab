@@ -1,9 +1,10 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
 import { requireAgentPackageReadinessPort } from '../../kernel/agent-package-readiness-port.ts';
-import { FrameworkContractError } from '../../kernel/contract-validation.ts';
-import { stableId } from '../../kernel/stable-id.ts';
+import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
+import { parseJsonText } from '../../kernel/json-file.ts';
 import {
   resolveStandardAgent,
   STANDARD_AGENT_SERIES_MEMBERSHIP,
@@ -12,6 +13,9 @@ import { packageLaunchHardStopReason } from './family-runtime-package-readiness.
 
 type AgentPackageReadinessPort = ReturnType<typeof requireAgentPackageReadinessPort>;
 
+const SEMVER_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+const PLUGIN_SELECTOR_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
 function blocked(message: string, details: Record<string, unknown>): never {
   throw new FrameworkContractError('contract_shape_invalid', message, {
     ...details,
@@ -19,62 +23,229 @@ function blocked(message: string, details: Record<string, unknown>): never {
   });
 }
 
-function managedCheckoutFromStatus(packageStatus: any, packageId: string) {
-  const hardStopReason = packageLaunchHardStopReason(packageStatus);
-  if (hardStopReason) {
-    blocked('Standard Agent action launch requires an installed package with an operational runtime source.', {
-      package_id: packageId,
-      launch_allowed: packageStatus?.launch_allowed ?? false,
-      launch_blocked_reason: hardStopReason,
-      package_dependency_readiness: packageStatus?.package_dependency_readiness ?? null,
-      materialization_readiness: packageStatus?.materialization_readiness ?? null,
-      runtime_source_readiness: packageStatus?.runtime_source_readiness ?? null,
-      repair_action: packageStatus?.repair_action ?? null,
-    });
+function record(value: unknown, field: string) {
+  if (!isRecord(value)) blocked(`Standard Agent native runtime requires ${field}.`, { field });
+  return value;
+}
+
+function text(value: unknown, field: string) {
+  if (typeof value !== 'string' || !value.trim()) {
+    blocked(`Standard Agent native runtime requires ${field}.`, { field });
   }
-  const source = packageStatus.runtime_source_readiness;
-  if (
-    source?.operational_ready !== true
-    || typeof source.checkout_path !== 'string'
-    || !path.isAbsolute(source.checkout_path)
-  ) {
-    blocked('Standard Agent action launch requires an operationally ready managed runtime source.', {
-      package_id: packageId,
-      runtime_source_readiness: source ?? null,
-    });
+  return value.trim();
+}
+
+function sha256Digest(value: unknown, field: string) {
+  const digest = text(value, field).replace(/^sha256:/, '');
+  if (!/^[a-f0-9]{64}$/.test(digest)) {
+    blocked(`Standard Agent native runtime requires a sha256 ${field}.`, { field });
   }
-  let checkoutRoot: string;
+  return `sha256:${digest}`;
+}
+
+function realDirectory(value: unknown, field: string) {
+  const input = text(value, field);
+  if (!path.isAbsolute(input)) {
+    blocked('Standard Agent native carrier source path must be absolute.', { field, source_path: input });
+  }
   try {
-    checkoutRoot = fs.realpathSync.native(source.checkout_path);
+    const resolved = fs.realpathSync.native(input);
+    if (!fs.statSync(resolved).isDirectory()) throw new Error('not a directory');
+    return resolved;
   } catch (error) {
-    blocked('Standard Agent managed runtime checkout cannot be resolved.', {
-      package_id: packageId,
-      checkout_path: source.checkout_path,
+    blocked('Standard Agent native carrier source path cannot be resolved.', {
+      field,
+      source_path: input,
       cause: error instanceof Error ? error.message : String(error),
     });
   }
-  if (!fs.statSync(checkoutRoot!).isDirectory()) {
-    blocked('Standard Agent managed runtime checkout is not a directory.', {
-      package_id: packageId,
-      checkout_path: checkoutRoot!,
-    });
-  }
-  return checkoutRoot!;
 }
 
-function assertInitialManagedRuntimeSourceLaunchable(packageStatus: any, packageId: string) {
-  if ((packageStatus?.installed_package_count ?? 0) === 0) return;
-  const source = packageStatus?.runtime_source_readiness;
-  if (!source || source.operational_ready === true) return;
-  blocked('Standard Agent action launch requires an installed package with an operational runtime source.', {
-    package_id: packageId,
-    launch_allowed: packageStatus?.launch_allowed ?? false,
-    launch_blocked_reason: source.reason ?? `runtime_source_${source.status ?? 'unavailable'}`,
-    package_dependency_readiness: packageStatus?.package_dependency_readiness ?? null,
-    materialization_readiness: packageStatus?.materialization_readiness ?? null,
-    runtime_source_readiness: source,
-    repair_action: packageStatus?.repair_action ?? null,
-  });
+function pathsMatch(left: string, right: string) {
+  try {
+    return fs.realpathSync.native(left) === fs.realpathSync.native(right);
+  } catch {
+    return false;
+  }
+}
+
+function marketplaceMatches(observed: string, declared: string) {
+  if (observed === declared) return true;
+  return path.isAbsolute(observed) && path.isAbsolute(declared) && pathsMatch(observed, declared);
+}
+
+function installedVersionMatchesPackage(installedVersion: string, packageVersion: string) {
+  if (installedVersion === packageVersion) return true;
+  const prefix = `${packageVersion}-`;
+  return installedVersion.startsWith(prefix)
+    && /^[a-f0-9]{64}$/.test(installedVersion.slice(prefix.length));
+}
+
+function ownerDescriptor(sourceRoot: string, packageId: string) {
+  const manifestPath = path.join(sourceRoot, 'opl-package.json');
+  let bytes: Buffer;
+  let manifest: Record<string, unknown>;
+  try {
+    const stat = fs.lstatSync(manifestPath);
+    const realPath = fs.realpathSync.native(manifestPath);
+    if (!stat.isFile() || stat.isSymbolicLink() || !realPath.startsWith(`${sourceRoot}${path.sep}`)) {
+      throw new Error('descriptor is not one physical file inside the native carrier source root');
+    }
+    bytes = fs.readFileSync(realPath);
+    const parsed = parseJsonText(bytes.toString('utf8'));
+    if (!isRecord(parsed)) throw new Error('descriptor root is not an object');
+    manifest = parsed;
+  } catch (error) {
+    blocked('Standard Agent native carrier owner descriptor is missing, unsafe, or invalid.', {
+      package_id: packageId,
+      owner_manifest_path: manifestPath,
+      cause: error instanceof Error ? error.message : String(error),
+    });
+  }
+  const version = text(manifest!.version, 'opl-package.json#/version');
+  const agentId = text(manifest!.agent_id, 'opl-package.json#/agent_id');
+  if (
+    manifest!.surface_kind !== 'opl_agent_package_manifest.v1'
+    || text(manifest!.package_id, 'opl-package.json#/package_id') !== packageId
+    || agentId !== packageId
+    || !SEMVER_PATTERN.test(version)
+  ) {
+    blocked('Standard Agent native carrier owner descriptor identity is invalid.', {
+      package_id: packageId,
+      owner_manifest_path: manifestPath,
+      descriptor_package_id: manifest!.package_id ?? null,
+      descriptor_agent_id: manifest!.agent_id ?? null,
+      descriptor_version: manifest!.version ?? null,
+    });
+  }
+  const codexSurface = record(manifest!.codex_surface, 'opl-package.json#/codex_surface');
+  const carrier = record(
+    codexSurface.configured_codex_plugin_carrier,
+    'opl-package.json#/codex_surface/configured_codex_plugin_carrier',
+  );
+  const pluginSelector = text(carrier.plugin_selector, 'configured_codex_plugin_carrier.plugin_selector');
+  const marketplaceSource = text(
+    carrier.marketplace_source,
+    'configured_codex_plugin_carrier.marketplace_source',
+  );
+  const pluginName = pluginSelector.split('@', 1)[0];
+  const declaredPluginName = text(codexSurface.plugin_id, 'codex_surface.plugin_id');
+  const declaredSourcePath = codexSurface.plugin_source_path === undefined
+    ? sourceRoot
+    : path.resolve(sourceRoot, text(codexSurface.plugin_source_path, 'codex_surface.plugin_source_path'));
+  if (
+    carrier.kind !== 'codex_plugin_manager'
+    || carrier.executor_route !== 'codex_cli'
+    || !PLUGIN_SELECTOR_PATTERN.test(pluginSelector)
+    || pluginName !== declaredPluginName
+    || !pathsMatch(declaredSourcePath, sourceRoot)
+  ) {
+    blocked('Standard Agent owner descriptor does not declare one repo-root configured native carrier.', {
+      package_id: packageId,
+      plugin_selector: pluginSelector,
+      plugin_id: declaredPluginName,
+      declared_source_path: declaredSourcePath,
+      native_source_path: sourceRoot,
+    });
+  }
+  return {
+    manifest_path: fs.realpathSync.native(manifestPath),
+    manifest_sha256: `sha256:${crypto.createHash('sha256').update(bytes!).digest('hex')}`,
+    package_version: version,
+    plugin_selector: pluginSelector,
+    marketplace_source: marketplaceSource,
+    publication_ref: carrier.publication_ref === null || carrier.publication_ref === undefined
+      ? null
+      : text(carrier.publication_ref, 'configured_codex_plugin_carrier.publication_ref'),
+  };
+}
+
+function nativeRuntimeFromStatus(packageStatus: any, packageId: string) {
+  const launchBlockedReason = packageLaunchHardStopReason(packageStatus);
+  if (launchBlockedReason) {
+    blocked('Standard Agent action launch requires an installed and callable native carrier.', {
+      package_id: packageId,
+      launch_allowed: packageStatus?.launch_allowed ?? false,
+      launch_blocked_reason: launchBlockedReason,
+      configured_carrier: packageStatus?.configured_carrier ?? null,
+      installed_readiness: packageStatus?.installed_readiness ?? null,
+      repair_action: packageStatus?.repair_action ?? null,
+    });
+  }
+  const configured = record(packageStatus?.configured_carrier, 'configured_carrier');
+  const carrier = record(configured.carrier, 'configured_carrier.carrier');
+  const executor = record(configured.executor, 'configured_carrier.executor');
+  const installedCarrier = record(packageStatus?.installed_carrier_readback, 'installed_carrier_readback');
+  const installedReadiness = record(packageStatus?.installed_readiness, 'installed_readiness');
+  const pluginSourcePath = realDirectory(configured.plugin_source_path, 'configured_carrier.plugin_source_path');
+  const descriptor = ownerDescriptor(pluginSourcePath, packageId);
+  const pluginSelector = text(carrier.plugin_id, 'configured_carrier.carrier.plugin_id');
+  const marketplaceSource = text(
+    carrier.marketplace_source,
+    'configured_carrier.carrier.marketplace_source',
+  );
+  const installedVersion = text(configured.installed_version, 'configured_carrier.installed_version');
+  const observedSources = Array.isArray(carrier.observed_sources) ? carrier.observed_sources : [];
+  const observed = observedSources.length === 1
+    ? record(observedSources[0], 'configured_carrier.carrier.observed_sources[0]')
+    : blocked('Standard Agent native carrier requires one exact observed source.', {
+        package_id: packageId,
+        observed_source_count: observedSources.length,
+      });
+  const sourceTreeSha256 = sha256Digest(
+    observed.source_tree_sha256,
+    'configured_carrier.carrier.observed_sources[0].source_tree_sha256',
+  );
+  const observedSourcePath = realDirectory(
+    observed.plugin_source_path,
+    'configured_carrier.carrier.observed_sources[0].plugin_source_path',
+  );
+  if (
+    configured.surface_kind !== 'opl_configured_codex_plugin_carrier_readback.v1'
+    || configured.package_id !== packageId
+    || configured.status !== 'installed'
+    || configured.enabled !== true
+    || executor.route !== 'codex_cli'
+    || executor.status !== 'callable'
+    || carrier.kind !== 'codex_plugin_manager'
+    || carrier.precedence !== 'exact_single_source'
+    || pluginSelector !== descriptor.plugin_selector
+    || !marketplaceMatches(marketplaceSource, descriptor.marketplace_source)
+    || !installedVersionMatchesPackage(installedVersion, descriptor.package_version)
+    || !pathsMatch(observedSourcePath, pluginSourcePath)
+    || observed.plugin_id !== pluginSelector
+    || observed.installed_version !== installedVersion
+    || observed.enabled !== true
+    || !marketplaceMatches(
+      text(observed.marketplace_source, 'configured_carrier.carrier.observed_sources[0].marketplace_source'),
+      marketplaceSource,
+    )
+    || configured.publication_ref !== descriptor.publication_ref
+    || installedCarrier.lifecycle_authority !== 'carrier_owned'
+    || installedCarrier.identity !== pluginSelector
+    || installedCarrier.version !== installedVersion
+    || installedCarrier.enabled !== true
+    || !pathsMatch(text(installedCarrier.source_ref, 'installed_carrier_readback.source_ref'), pluginSourcePath)
+    || installedReadiness.installed !== true
+    || installedReadiness.physical_status !== 'available'
+    || installedReadiness.callability !== 'callable'
+    || (packageStatus?.installed_package_count ?? 0) < 1
+    || packageStatus?.launch_allowed !== true
+  ) {
+    blocked('Standard Agent installed descriptor and configured native carrier identities disagree.', {
+      package_id: packageId,
+      descriptor,
+      configured_carrier: configured,
+      installed_carrier_readback: installedCarrier,
+      installed_readiness: installedReadiness,
+    });
+  }
+  return {
+    ...descriptor,
+    carrier_installed_version: installedVersion,
+    plugin_source_path: pluginSourcePath,
+    source_tree_sha256: sourceTreeSha256,
+  };
 }
 
 export async function resolveStandardAgentManagedCheckout(input: {
@@ -99,31 +270,18 @@ export async function resolveStandardAgentManagedCheckout(input: {
   const packageReadiness = input.packageReadiness ?? requireAgentPackageReadinessPort();
   const packageId = agent.agent_id;
   const scope = { scope: 'workspace' as const, targetWorkspace: workspaceRoot };
-  const initialStatus = packageReadiness.readStatus({ packageId, ...scope }).opl_agent_package_status;
-  assertInitialManagedRuntimeSourceLaunchable(initialStatus, packageId);
-  const useBoundaryId = input.useBoundaryId ?? stableId('package-use', [
-    packageId,
-    workspaceRoot,
-    'standard-agent-action-runtime-v2',
-  ]);
-  const activation = initialStatus?.installed_package_count > 0
-    ? await packageReadiness.ensureScopeActivation({
-        packageId,
-        ...scope,
-        useBoundaryId,
-      })
-    : null;
-  const packageStatus = activation?.package_status
-    ?? packageReadiness.readStatus({ packageId, ...scope }).opl_agent_package_status;
-  const checkoutRoot = managedCheckoutFromStatus(packageStatus, packageId);
+  const packageStatus = packageReadiness.readStatus({ packageId, ...scope }).opl_agent_package_status;
+  const nativeRuntime = nativeRuntimeFromStatus(packageStatus, packageId);
 
   return {
     agent,
     package_id: packageId,
-    workspace_root: workspaceRoot,
-    checkout_root: checkoutRoot,
+    workspace_root: fs.realpathSync.native(workspaceRoot),
+    checkout_root: nativeRuntime.plugin_source_path,
     package_status: packageStatus,
-    package_use_binding: activation?.package_use_binding ?? null,
-    use_boundary_id: useBoundaryId,
+    package_use_binding: null,
+    use_boundary_id: null,
+    runtime_source_kind: 'installed_native_carrier' as const,
+    native_runtime: nativeRuntime,
   };
 }
