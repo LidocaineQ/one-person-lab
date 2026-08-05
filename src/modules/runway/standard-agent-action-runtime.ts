@@ -2053,6 +2053,7 @@ async function runStageAction(input: {
     ...(input.executionScope ? { execution_scope: input.executionScope } : {}),
     domain_pack_root: input.checkoutRoot,
     ...(input.packageUseBinding ? { package_use_binding: input.packageUseBinding } : {}),
+    hosted_runtime_binding_ref: input.runtimeBindingRef,
     standard_agent_action_run_ref: prepared.action_run_ref,
     action_request_ref: prepared.request.ref,
     action_request_sha256: prepared.request.sha256,

@@ -142,7 +142,17 @@ test('managed checkout resolver accepts an exact owner SemVer carrier readback',
 });
 
 test('managed checkout resolver fails closed on native carrier and owner identity drift', async () => {
-  for (const fault of ['package', 'version', 'plugin', 'marketplace', 'path', 'digest', 'disabled'] as const) {
+  for (const fault of [
+    'package',
+    'version',
+    'missing-version',
+    'plugin',
+    'marketplace',
+    'path',
+    'digest',
+    'installed-kind',
+    'disabled',
+  ] as const) {
     const { root, workspaceRoot, checkoutRoot } = fixture();
     try {
       const packageStatus = status(checkoutRoot);
@@ -153,10 +163,18 @@ test('managed checkout resolver fails closed on native carrier and owner identit
         configured.carrier.observed_sources[0].installed_version = '0.2.24';
         (packageStatus.installed_carrier_readback as any).version = '0.2.24';
       }
+      if (fault === 'missing-version') {
+        configured.installed_version = null;
+        configured.carrier.observed_sources[0].installed_version = null;
+        (packageStatus.installed_carrier_readback as any).version = null;
+      }
       if (fault === 'plugin') configured.carrier.plugin_id = 'med-autoscience@unexpected';
       if (fault === 'marketplace') configured.carrier.marketplace_source = 'gaofeng21cn/unexpected';
       if (fault === 'path') configured.carrier.observed_sources[0].plugin_source_path = workspaceRoot;
       if (fault === 'digest') configured.carrier.observed_sources[0].source_tree_sha256 = null;
+      if (fault === 'installed-kind') {
+        (packageStatus.installed_carrier_readback as any).kind = 'framework_materializer';
+      }
       if (fault === 'disabled') {
         configured.enabled = false;
         configured.executor.status = 'attention_needed';

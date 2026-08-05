@@ -1238,6 +1238,7 @@ test('Hosted Stage action passes a SHA-bound request ref into Temporal StageRun 
     const workspaceLocatorIndex = calls[0].indexOf('--workspace-locator');
     const runtimeWorkspaceLocator = JSON.parse(calls[0][workspaceLocatorIndex + 1]) as Record<string, unknown>;
     assert.equal(Object.hasOwn(runtimeWorkspaceLocator, 'package_use_binding'), false);
+    assert.equal(runtimeWorkspaceLocator.hosted_runtime_binding_ref, run.hosted_runtime_binding_ref);
     assert.equal(runtimeWorkspaceLocator.domain_pack_root, fs.realpathSync.native(checkoutRoot));
     assert.equal(runtimeWorkspaceLocator.study_id, 'study-001');
     assert.equal(runtimeWorkspaceLocator.work_item_id, 'work-item-001');

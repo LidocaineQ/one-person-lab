@@ -221,6 +221,7 @@ function nativeRuntimeFromStatus(packageStatus: any, packageId: string) {
       marketplaceSource,
     )
     || configured.publication_ref !== descriptor.publication_ref
+    || installedCarrier.kind !== 'codex_plugin_manager'
     || installedCarrier.lifecycle_authority !== 'carrier_owned'
     || installedCarrier.identity !== pluginSelector
     || installedCarrier.version !== installedVersion
