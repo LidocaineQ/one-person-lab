@@ -158,6 +158,7 @@ type ManagedPolicyIdentity = {
   packageId: string;
   packageVersion: string;
   pluginId: string | null;
+  activeCarrierIdentity?: string | null;
   requiredSkillIds: string[];
   config: NonNullable<AgentPackageManifest['managed_policy_surface']>;
 };
@@ -862,15 +863,31 @@ function inspectManagedPolicySurface(input: {
   const home = resolveOplStatePaths().home_dir;
   const codexHome = resolveCodexHome(home);
   const configPath = resolveCodexConfigPath(codexHome);
-  const managedMarketplaceId = `opl-agent-${input.identity.packageId}-local`;
-  const managedMarketplaceRoots = [
-    path.join(codexHome, 'plugins', 'cache', managedMarketplaceId),
-    path.join(codexHome, 'plugins', 'data', managedMarketplaceId),
-    path.join(codexHome, '.tmp', 'plugins', 'plugins', managedMarketplaceId),
-  ];
+  const activeCarrierSeparator = input.identity.activeCarrierIdentity?.lastIndexOf('@') ?? -1;
+  const activeCarrierPluginId = activeCarrierSeparator > 0
+    ? input.identity.activeCarrierIdentity!.slice(0, activeCarrierSeparator)
+    : null;
+  const activeMarketplaceId = activeCarrierSeparator > 0
+    ? input.identity.activeCarrierIdentity!.slice(activeCarrierSeparator + 1)
+    : null;
+  const currentCarrierIdentity = activeCarrierPluginId === input.identity.pluginId && activeMarketplaceId
+    ? input.identity.activeCarrierIdentity
+    : null;
+  const managedMarketplaceIds = new Set([
+    `opl-agent-${input.identity.packageId}-local`,
+    ...(currentCarrierIdentity ? [activeMarketplaceId!] : []),
+  ]);
+  const managedMarketplaceRoots = [...managedMarketplaceIds].flatMap((marketplaceId) => [
+    path.join(codexHome, 'plugins', 'cache', marketplaceId),
+    path.join(codexHome, 'plugins', 'data', marketplaceId),
+    path.join(codexHome, '.tmp', 'plugins', 'plugins', marketplaceId),
+  ]);
   const managedConfigTables = new Set([
-    `marketplaces.${managedMarketplaceId}`,
-    ...(input.identity.pluginId ? [`plugins.${input.identity.pluginId}@${managedMarketplaceId}`] : []),
+    ...[...managedMarketplaceIds].map((marketplaceId) => `marketplaces.${marketplaceId}`),
+    ...(input.identity.pluginId
+      ? [...managedMarketplaceIds].map((marketplaceId) =>
+          `plugins.${input.identity.pluginId}@${marketplaceId}`)
+      : []),
   ]);
   const isCurrentManagedCarrier = (physicalRef: string) => managedMarketplaceRoots.some((root) => {
     const relative = path.relative(root, physicalRef);
@@ -1531,6 +1548,7 @@ export function managedPolicyCurrentnessFromDescriptor(input: {
     'package_id' | 'version' | 'plugin_id' | 'required_skill_ids' | 'managed_policy_surface'
   >;
   sourceRoot: string;
+  activeCarrierIdentity?: string | null;
   enabledMigrationIds?: string[];
   expectedPolicySha256?: string | null;
 }): AgentPackageManagedPolicyCurrentness {
@@ -1575,6 +1593,7 @@ export function managedPolicyCurrentnessFromDescriptor(input: {
         packageId: manifest.package_id,
         packageVersion: manifest.version,
         pluginId: manifest.plugin_id,
+        activeCarrierIdentity: input.activeCarrierIdentity,
         requiredSkillIds: manifest.required_skill_ids,
         config,
       },
