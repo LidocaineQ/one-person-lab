@@ -11,6 +11,7 @@ MANAGED_NODE_VERSION=${OPL_MANAGED_NODE_VERSION:-v22.21.1}
 PREFILLED_NODE_MODULES_DIR=${OPL_PREFILLED_NODE_MODULES_DIR:-}
 INSTALL_SOURCE_MARKER=.opl-install-source
 INSTALL_SOURCE_IDENTITY=.opl-framework-installed-source-identity.json
+LEGACY_GLOBAL_PACKAGE=opl-framework-shared
 SYSTEM_GIT_PATH=${OPL_SYSTEM_GIT_PATH:-/usr/bin/git}
 XCODE_SELECT=${OPL_XCODE_SELECT:-/usr/bin/xcode-select}
 
@@ -179,6 +180,27 @@ need_cmd() {
     printf 'After that, rerun:\n' >&2
     printf '  curl -fsSL https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/install.sh | bash\n' >&2
     exit 1
+  fi
+}
+
+install_node_dependencies() {
+  if [ -f package-lock.json ]; then
+    npm ci "$@"
+  else
+    npm install "$@"
+  fi
+}
+
+retire_legacy_cli_carrier() {
+  local global_root legacy_path
+  global_root=$(npm root --global)
+  if [ -z "$global_root" ]; then
+    return 0
+  fi
+  legacy_path="$global_root/$LEGACY_GLOBAL_PACKAGE"
+  if [ -e "$legacy_path" ] || [ -L "$legacy_path" ]; then
+    log "Retiring legacy OPL CLI carrier"
+    npm uninstall --global "$LEGACY_GLOBAL_PACKAGE" --ignore-scripts
   fi
 }
 
@@ -411,12 +433,15 @@ if [ -n "$PREFILLED_NODE_MODULES_DIR" ]; then
   log "Restoring prefilled OPL dependencies"
   rm -rf node_modules
   cp -R "$PREFILLED_NODE_MODULES_DIR" node_modules
+  retire_legacy_cli_carrier
   npm link --ignore-scripts
 elif [ "$CARRIER_ONLY" = "1" ]; then
-  npm install --omit=dev --ignore-scripts
+  install_node_dependencies --omit=dev --ignore-scripts
+  retire_legacy_cli_carrier
   npm link --ignore-scripts
 else
-  npm install
+  install_node_dependencies
+  retire_legacy_cli_carrier
   npm link
 fi
 
