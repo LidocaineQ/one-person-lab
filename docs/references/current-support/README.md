@@ -21,7 +21,7 @@ Currentness policy：本文只索引当前支撑参考，不冻结 skill 安装�
 | `opl-fresh-install-and-gui-first-launch-testing.md` | Fresh install 与 GUI 首启证据计划 | OPL 主仓持有 CLI clean-room truth；release App VM proof 由 `one-person-lab-app` 调用 `opl-aion-shell` 执行。AGUI proof 不进入默认 fresh-install 或首启验证，除非用户明确要求 replay。 |
 | `opl-new-machine-codex-bootstrap.md` | 新机器 Codex 全家桶安装入口 | OPL 主仓持有 framework/runtime/agent sync canonical bootstrap；App、OPL Flow、OPL Doc 和 domain repos 作为子 owner 被调用。 |
 | `opl-default-skill-ecosystem*` | 默认 skill 与 companion tool 支撑 | Domain skills 仍由 domain 持有；OPL 只同步和检测。MDS / MAS-internal skills 只作为 MAS-declared optional companion / provenance / audit / oracle 语境读取，不升级为 OPL 默认 system skill。 |
-| `opl-agent-capability-admission-audit-2026-07-07.md` | 标准 Agent 能力准入与 Skill 暴露审计 | 按能力模块先行、三层实现、按需暴露审计 OPL foundation、MAS、ScholarSkills、MAG、RCA、OMA、OBF 和 App companion skills；只做人读治理，不声明 runtime/domain/release ready。 |
+| [`standard-agent-capability-management-policy.md`](../../policies/standard-agent-capability-management-policy.md) | 标准 Agent 能力准入与 Skill 暴露 policy | 按 capability owner、descriptor、source 与 fresh projection 动态判断，不在支撑文档冻结 Skill 数量、Package 清单或 dated audit 结论。 |
 | `opl-release-packages-modular-distribution.md` | Release/package 分发支撑 | 发布打包必须保持 framework/domain split。 |
 | `opl-quality-details.md` | 质量命令参考 | 只作支撑参考；验证真相是命令行为。 |
 | `opl-test-lane-governance.md` | 测试 lane 治理参考 | 测试 lane 由 package scripts 和 lane manifests 机器治理，不由 prose wording 决定。 |
