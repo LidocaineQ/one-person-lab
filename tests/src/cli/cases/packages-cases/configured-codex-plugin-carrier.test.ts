@@ -32,6 +32,7 @@ import {
 
 const packageId = 'third.party.research';
 const pluginSelector = 'third-party-research@fixture-carrier';
+const ownerPackageVersion = '1.2.3';
 const descriptor = {
   packageId,
   carrier: {
@@ -353,7 +354,7 @@ test('ordinary remote manifests without a native carrier fail closed before lega
   }
 });
 
-function writeFakeCodex(binary: string) {
+function writeFakeCodex(binary: string, installedVersion = '1.0.1') {
   fs.writeFileSync(binary, `#!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
@@ -375,7 +376,7 @@ if (args.join(' ') === 'plugin marketplace list --json') {
   process.stdout.write(JSON.stringify({ status: 'ok' }));
 } else if (args[0] === 'plugin' && args[1] === 'add') {
   if (!state.marketplaceSource) process.exitCode = 3;
-  state = { installed: true, version: state.version === '1.0.0' ? '1.0.1' : state.version };
+  state = { installed: true, version: state.version === '1.0.0' ? ${JSON.stringify(installedVersion)} : state.version };
   fs.writeFileSync(stateFile, JSON.stringify(state));
   process.stdout.write(JSON.stringify({ status: 'ok' }));
 } else if (args[0] === 'plugin' && args[1] === 'remove') {
@@ -634,7 +635,7 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     // the fresh installed carrier, not a Framework discovery cache.
     formatJsonPayload(installedOwnerDescriptor()),
   );
-  writeFakeCodex(binary);
+  writeFakeCodex(binary, ownerPackageVersion);
   fs.writeFileSync(manifestPath, formatJsonPayload(configuredManifest('fixture-carrier')));
   const env = {
     HOME: root,

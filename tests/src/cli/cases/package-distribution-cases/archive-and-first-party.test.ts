@@ -1272,6 +1272,8 @@ test('MAS Scholar Skills provider manifest separates core Skill exports from mod
   const manifest = parseJsonText(fs.readFileSync(manifestPath, 'utf8')) as Record<string, any>;
   const catalog = parseJsonText(fs.readFileSync(catalogPath, 'utf8')) as Record<string, any>;
   const catalogEntry = catalog.packages['mas-scholar-skills'];
+  const frozenManifestPath = path.join(repoRoot, 'contracts/opl-framework', catalogEntry.manifest_ref);
+  const frozenManifest = parseJsonText(fs.readFileSync(frozenManifestPath, 'utf8')) as Record<string, any>;
   assert.doesNotThrow(() => assertJsonSchemaPayload({
     schemaId: schema.$id,
     schema,
@@ -1312,6 +1314,8 @@ test('MAS Scholar Skills provider manifest separates core Skill exports from mod
   );
   const payloadPath = path.join(path.dirname(manifestPath), manifest.codex_surface.plugin_payload_manifest_url);
   const payload = parseJsonText(fs.readFileSync(payloadPath, 'utf8')) as Record<string, any>;
+  assert.equal(catalogEntry.manifest_ref, 'packages/mas-scholar-skills-0.2.24.json');
+  assert.deepEqual(frozenManifest, manifest);
   assert.equal(manifest.version, catalogEntry.package_version);
   assert.deepEqual(manifest.consumer_policy.supported_required_by, []);
   assert.deepEqual(manifest.consumer_policy.supported_optional_consumer_agent_ids, ['mas', 'mag']);

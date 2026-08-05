@@ -16,6 +16,7 @@ import { writeManagedRuntimeSourceFixture } from './managed-runtime-source-fixtu
 
 const packageId = 'third.party.research';
 const pluginSelector = 'third-party-research@fixture-carrier';
+const ownerPackageVersion = '1.2.3';
 
 function installedOwnerDescriptor() {
   return {
@@ -37,7 +38,7 @@ const stateFile = process.env.FIXTURE_PLUGIN_STATE;
 const sourcePath = process.env.FIXTURE_PLUGIN_SOURCE;
 let state = fs.existsSync(stateFile)
   ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) // reuse-first: allow - disposable native CLI fixture reads only its own controlled state file.
-  : { installed: false, version: '1.0.1', marketplaceSource: null };
+  : { installed: false, version: '${ownerPackageVersion}', marketplaceSource: null };
 if (args.join(' ') === 'plugin marketplace list --json') {
   process.stdout.write(JSON.stringify({
     marketplaces: state.marketplaceSource ? [{
@@ -87,7 +88,7 @@ function createLegacyThenNativeFixture(label: string, options: { runtimeSource?:
   );
   fs.writeFileSync(path.join(pluginSource, '.codex-plugin', 'plugin.json'), formatJsonPayload({
     name: 'third-party-research',
-    version: '1.0.1',
+    version: ownerPackageVersion,
     description: 'Descriptor retirement fixture.',
     skills: './skills/',
   }));
@@ -137,7 +138,7 @@ function createLegacyThenNativeFixture(label: string, options: { runtimeSource?:
   );
   fs.writeFileSync(pluginState, JSON.stringify({
     installed: true,
-    version: '1.0.1',
+    version: ownerPackageVersion,
     marketplaceSource: 'fixture-carrier',
   }));
   return {
