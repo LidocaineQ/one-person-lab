@@ -4753,6 +4753,7 @@ function buildOplAgentPackageStatus(
           managed_policy_surface: installedDescriptor.manifest.managed_policy_surface,
         },
         sourceRoot: installedDescriptor.sourcePath,
+        activeCarrierIdentity: installedDescriptor.carrier_readback.identity,
       })
     : managedPolicyCurrentness(legacySelectedLock);
   const packageDependencyReadiness = legacySelectedLock ? dependencyReadiness(legacySelectedLock, lockIndex) : null;

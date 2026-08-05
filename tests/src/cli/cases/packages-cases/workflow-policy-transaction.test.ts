@@ -32,14 +32,18 @@ function writeAbsentCodexPluginManager(root: string) {
   return binary;
 }
 
-function writeInstalledCodexPluginManager(root: string, sourcePath: string) {
+function writeInstalledCodexPluginManager(
+  root: string,
+  sourcePath: string,
+  pluginId = 'fixture.opl-flow@fixture-marketplace',
+) {
   const binary = path.join(root, 'fake-codex-installed-plugin-manager');
   fs.mkdirSync(root, { recursive: true });
   fs.writeFileSync(binary, [
     '#!/usr/bin/env node',
     "if (process.argv.slice(2).join(' ') !== 'plugin list --json') process.exit(2);",
     `process.stdout.write(JSON.stringify({ installed: [{`,
-    "  pluginId: 'fixture.opl-flow@fixture-marketplace',",
+    `  pluginId: ${JSON.stringify(pluginId)},`,
     "  version: '0.1.16',",
     '  installed: true,',
     '  enabled: true,',
@@ -1004,6 +1008,61 @@ test('installed native descriptor projects Flow policy planes and model recommen
     assert.equal(packageStatus.launch_allowed, true);
     assert.equal(packageStatus.launch_state, 'degraded');
     assert.equal(packageStatus.launch_state_reason, 'experience_baseline_degraded');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  }
+});
+
+test('installed native descriptor excludes its active marketplace from historical self-carrier drift', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-active-self-carrier-'));
+  const home = path.join(root, 'home');
+  const codexHome = path.join(home, '.codex');
+  const marketplaceId = 'fixture.opl-flow-local';
+  const packageRoot = path.join(
+    codexHome,
+    'plugins',
+    'cache',
+    marketplaceId,
+    'fixture.opl-flow',
+    '0.1.16',
+  );
+  const manifestPath = writeOplFlowPackage(packageRoot);
+  const sourceRoot = path.join(packageRoot, 'fixture.opl-flow-source');
+  const configPath = path.join(codexHome, 'config.toml');
+  const env = {
+    HOME: home,
+    CODEX_HOME: codexHome,
+    OPL_CODEX_PLUGIN_BIN: writeInstalledCodexPluginManager(
+      root,
+      sourceRoot,
+      `fixture.opl-flow@${marketplaceId}`,
+    ),
+    OPL_STATE_DIR: path.join(root, 'state'),
+    OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
+  };
+  try {
+    fs.mkdirSync(codexHome, { recursive: true });
+    fs.copyFileSync(manifestPath, path.join(sourceRoot, 'opl-package.json'));
+    fs.writeFileSync(configPath, [
+      `[marketplaces.${marketplaceId}]`,
+      `source = ${JSON.stringify(sourceRoot)}`,
+      '',
+      `[plugins.\"fixture.opl-flow@${marketplaceId}\"]`,
+      'enabled = true',
+      '',
+    ].join('\n'), 'utf8');
+
+    const packageStatus = (runCli([
+      'packages',
+      'status',
+      '--package-id',
+      'fixture.opl-flow',
+    ], env) as any).opl_agent_package_status;
+
+    assert.equal(packageStatus.managed_policy_currentness.status, 'current');
+    assert.deepEqual(packageStatus.managed_policy_currentness.detected_conflicts, []);
+    assert.equal(packageStatus.operational_ready, true);
+    assert.equal(packageStatus.launch_allowed, true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
   }
