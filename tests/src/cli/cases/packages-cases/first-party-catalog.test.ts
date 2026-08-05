@@ -1472,6 +1472,7 @@ test('identity-drifted bundled OMA reconciles only through its owner package cha
       'ghcr.io/fixture/one-person-lab-packages/oma:latest-stable',
     );
     assert.equal(updatedLock.managed_runtime_source.source_mode, 'package_channel');
+    assert.equal(Object.hasOwn(updatedLock.managed_runtime_source, 'rollback_ref'), false);
     assert.notEqual(updatedLock.managed_runtime_source.checkout_path, bundledRuntimeRoot);
     assert.equal(fs.readFileSync(
       path.join(bundledRuntimeRoot, 'unrecorded-owner-write.txt'),
