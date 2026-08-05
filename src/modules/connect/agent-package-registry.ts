@@ -129,7 +129,6 @@ import {
   assertOplFlowCoreSkillsCarrierReadback,
   isOplFlowCoreSkillsTarget,
   prepareLegacyOplSkillsMigration,
-  runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration,
   type PreparedLegacyOplSkillsMigration,
 } from './agent-package-registry-parts/legacy-opl-skills-migration.ts';
 import {
@@ -138,6 +137,7 @@ import {
 } from './agent-package-registry-parts/first-party-release-catalog.ts';
 import { resolveAgentPackageEffectiveSourcePolicy } from './agent-package-registry-parts/source-policy.ts';
 import {
+  developerCheckoutConfiguredCarrierTarget,
   loadDeveloperCheckoutPackageSource,
   mergeDeveloperCheckoutPackageManifest,
 } from './agent-package-registry-parts/developer-checkout-package-source.ts';
@@ -1667,6 +1667,7 @@ type ConfiguredCarrierSelectionInput =
 type FreshConfiguredCarrierTarget = {
   descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
   packageVersion: string;
+  developerSource?: ReturnType<typeof loadDeveloperCheckoutPackageSource> | null;
 };
 
 type FreshConfiguredCarrierSelection = {
@@ -1762,6 +1763,166 @@ function configuredCarrierTargetsFromCatalog(input: {
   return targets;
 }
 
+function configuredCarrierTargetsFromDeveloperCheckout(input: {
+  rootSource: ReturnType<typeof loadDeveloperCheckoutPackageSource>;
+  selectionInput: ConfiguredCarrierSelectionInput;
+}) {
+  const targets: FreshConfiguredCarrierTarget[] = [];
+  const visited = new Set<string>();
+  const visiting = new Set<string>();
+  const agentRoots = 'agentRoots' in input.selectionInput
+    ? input.selectionInput.agentRoots ?? {}
+    : {};
+  const visit = (source: ReturnType<typeof loadDeveloperCheckoutPackageSource>) => {
+    const packageId = source.ownerManifest.package_id;
+    if (visited.has(packageId)) return;
+    if (visiting.has(packageId)) {
+      throw new FrameworkContractError('contract_shape_invalid', 'Native developer carrier dependency closure contains a cycle.', {
+        package_id: input.rootSource.ownerManifest.package_id,
+        dependency_package_id: packageId,
+        failure_code: 'agent_package_dependency_cycle',
+      });
+    }
+    visiting.add(packageId);
+    try {
+      for (const dependency of source.ownerManifest.capability_dependencies) {
+        if (!dependency.required && dependency.dependency_kind === 'optional_enhancement') continue;
+        const dependencyPolicy = resolveAgentPackageEffectiveSourcePolicy(dependency.package_id);
+        const dependencyCheckout = stringValue(agentRoots[dependency.package_id])
+          ?? dependencyPolicy.developer_checkout_path;
+        if (!dependencyCheckout) {
+          throw new FrameworkContractError(
+            'contract_shape_invalid',
+            'Native developer carrier requires an explicit checkout for every required Package dependency.',
+            {
+              package_id: input.rootSource.ownerManifest.package_id,
+              dependency_package_id: dependency.package_id,
+              failure_code: 'configured_codex_plugin_carrier_developer_dependency_checkout_missing',
+            },
+          );
+        }
+        const dependencySource = loadDeveloperCheckoutPackageSource(
+          dependency.package_id,
+          dependencyCheckout,
+        );
+        validateCapabilityProvider(
+          dependency,
+          dependencySource.ownerManifest,
+          dependencySource.source.owner_manifest_sha256,
+          source.ownerManifest.agent_id,
+        );
+        visit(dependencySource);
+      }
+      targets.push(developerCheckoutConfiguredCarrierTarget(source));
+      visited.add(packageId);
+    } finally {
+      visiting.delete(packageId);
+    }
+  };
+  visit(input.rootSource);
+  return targets;
+}
+
+function configuredCarrierDeveloperRequest(
+  input: ConfiguredCarrierSelectionInput,
+  packageId: string,
+) {
+  const sourceKind = 'sourceKind' in input ? input.sourceKind : null;
+  const sourcePolicy = resolveFirstPartyPackageCatalog(packageId)
+    ? resolveAgentPackageEffectiveSourcePolicy(packageId)
+    : null;
+  const requestedCheckout = stringValue(input.agentRoot);
+  const explicitDeveloperSource = sourceKind === 'developer_checkout_override';
+  const configuredDeveloperSource = sourcePolicy?.desired_source_kind === 'developer_checkout_override';
+  return {
+    sourcePolicy,
+    requestedCheckout,
+    explicitDeveloperSource,
+    configuredDeveloperSource,
+  };
+}
+
+function assertConfiguredCarrierDeveloperRequest(input: {
+  packageId: string;
+  sourcePolicy: ReturnType<typeof resolveAgentPackageEffectiveSourcePolicy> | null;
+  requestedCheckout: string | null;
+  explicitDeveloperSource: boolean;
+  configuredDeveloperSource: boolean;
+}) {
+  const { packageId, sourcePolicy, requestedCheckout } = input;
+  if (requestedCheckout && !input.explicitDeveloperSource) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'A developer checkout must be selected explicitly with --source-kind developer_checkout_override.',
+      {
+        package_id: packageId,
+        requested_checkout_path: path.resolve(requestedCheckout),
+        failure_code: 'agent_package_developer_checkout_source_kind_required',
+      },
+    );
+  }
+  if (input.explicitDeveloperSource && !requestedCheckout) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'An explicit developer checkout selection requires --agent-root.',
+      {
+        package_id: packageId,
+        failure_code: 'agent_package_developer_checkout_path_required',
+      },
+    );
+  }
+  if (requestedCheckout
+    && sourcePolicy?.developer_checkout_path
+    && path.resolve(requestedCheckout) !== path.resolve(sourcePolicy.developer_checkout_path)) {
+    throw new FrameworkContractError('contract_shape_invalid', 'First-party Package developer checkout must match the effective module source policy.', {
+      package_id: packageId,
+      requested_checkout_path: path.resolve(requestedCheckout),
+      required_checkout_path: path.resolve(sourcePolicy.developer_checkout_path),
+      source_policy_reason: sourcePolicy.reason,
+      failure_code: 'first_party_package_developer_checkout_path_mismatch',
+    });
+  }
+}
+
+function configuredCarrierDeveloperCheckoutPath(input: {
+  packageId: string;
+  sourcePolicy: ReturnType<typeof resolveAgentPackageEffectiveSourcePolicy> | null;
+  requestedCheckout: string | null;
+}) {
+  const checkoutPath = input.requestedCheckout ?? input.sourcePolicy?.developer_checkout_path ?? null;
+  if (!checkoutPath) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Configured developer Package source has no usable checkout.',
+      {
+        package_id: input.packageId,
+        source_policy_reason: input.sourcePolicy?.reason ?? null,
+        failure_code: 'agent_package_developer_checkout_path_required',
+      },
+    );
+  }
+  return checkoutPath;
+}
+
+function configuredCarrierDeveloperSelection(
+  input: ConfiguredCarrierSelectionInput,
+  packageId: ReturnType<typeof canonicalAgentPackageId>,
+): FreshConfiguredCarrierSelection | null {
+  if (!packageId) return null;
+  const request = configuredCarrierDeveloperRequest(input, packageId);
+  assertConfiguredCarrierDeveloperRequest({ packageId, ...request });
+  if (!request.explicitDeveloperSource && !request.configuredDeveloperSource) return null;
+  const checkoutPath = configuredCarrierDeveloperCheckoutPath({ packageId, ...request });
+  const rootSource = loadDeveloperCheckoutPackageSource(packageId, checkoutPath);
+  return {
+    rootPackageId: packageId,
+    targets: configuredCarrierTargetsFromDeveloperCheckout({
+      rootSource,
+      selectionInput: input,
+    }),
+  };
+}
+
 async function resolveFreshConfiguredCarrier(
   input: ConfiguredCarrierSelectionInput,
   action: Exclude<ConfiguredCodexPluginCarrierAction, 'list'>,
@@ -1769,12 +1930,6 @@ async function resolveFreshConfiguredCarrier(
   const packageId = canonicalAgentPackageId(input.packageId);
   const explicitManifestUrl = 'manifestUrl' in input ? stringValue(input.manifestUrl) : null;
   const explicitRegistryUrl = 'registryUrl' in input ? stringValue(input.registryUrl) : null;
-  if (
-    resolveFirstPartyPackageCatalog(packageId)
-    && (explicitManifestUrl || explicitRegistryUrl)
-  ) {
-    return null;
-  }
   const installed = !explicitManifestUrl && !explicitRegistryUrl && packageId
     ? discoverInstalledCodexPluginDescriptors({
         packageId,
@@ -1787,6 +1942,8 @@ async function resolveFreshConfiguredCarrier(
       targets: [{ descriptor: installed.carrier, packageVersion: installed.manifest.version }],
     };
   }
+  const developerSelection = configuredCarrierDeveloperSelection(input, packageId);
+  if (developerSelection) return developerSelection;
   if (!explicitManifestUrl && !explicitRegistryUrl) {
     if (packageId && resolveFirstPartyPackageCatalog(packageId)) {
       let snapshot: Awaited<ReturnType<typeof refreshFirstPartyPackageCatalogSnapshot>>;
@@ -1865,20 +2022,72 @@ async function resolveFreshConfiguredCarrier(
   } : null;
 }
 
+function configuredCarrierLifecycleActionMatches(input: {
+  action: Exclude<ConfiguredCodexPluginCarrierAction, 'list'>;
+  readback: ConfiguredCodexPluginCarrierReadback;
+}) {
+  if (input.action === 'remove') {
+    const absent = input.readback.status === 'not_installed'
+      || input.readback.status === 'physical_unavailable';
+    return absent && input.readback.carrier.precedence === 'not_present';
+  }
+  if (input.action !== 'enable' && input.action !== 'disable') return false;
+  return input.readback.status === 'installed'
+    && input.readback.carrier.precedence === 'exact_single_source'
+    && input.readback.enabled === (input.action === 'enable');
+}
+
+function configuredCarrierDeveloperSourceMatches(input: {
+  target: FreshConfiguredCarrierTarget;
+  readback: ConfiguredCodexPluginCarrierReadback;
+}) {
+  const expected = input.target.developerSource;
+  if (!expected) return true;
+  const observed = input.readback.carrier.observed_sources.find(
+    (source) => source.plugin_id === input.target.descriptor.carrier.pluginId,
+  ) ?? null;
+  if (!observed?.plugin_source_path || !observed.marketplace_source) return false;
+  if (path.resolve(observed.plugin_source_path) !== path.resolve(expected.source.plugin_source_path)) {
+    return false;
+  }
+  if (path.resolve(observed.marketplace_source) !== path.resolve(expected.source.checkout_path)) {
+    return false;
+  }
+  const fresh = loadDeveloperCheckoutPackageSource(
+    expected.ownerManifest.package_id,
+    expected.source.checkout_path,
+  );
+  return fresh.source.owner_manifest_sha256 === expected.source.owner_manifest_sha256
+    && fresh.source.source_git_head_sha === expected.source.source_git_head_sha
+    && fresh.source.tree_sha256 === expected.source.tree_sha256
+    && fresh.source.payload_digest === expected.source.payload_digest;
+}
+
+function configuredCarrierInstalledTargetMatches(input: {
+  target: FreshConfiguredCarrierTarget;
+  readback: ConfiguredCodexPluginCarrierReadback;
+}) {
+  if (input.readback.status !== 'installed') return false;
+  if (input.readback.executor.status !== 'callable') return false;
+  if (input.readback.carrier.precedence !== 'exact_single_source') return false;
+  if (!configuredCarrierReadbackIncludesTarget({
+    readback: input.readback,
+    descriptor: input.target.descriptor,
+    packageVersion: input.target.packageVersion,
+  })) return false;
+  return configuredCarrierDeveloperSourceMatches(input);
+}
+
 function assertConfiguredCarrierLifecycleTarget(input: {
   action: Exclude<ConfiguredCodexPluginCarrierAction, 'list'>;
   target: FreshConfiguredCarrierTarget;
   readback: ConfiguredCodexPluginCarrierReadback;
 }) {
-  if (input.action === 'remove' || input.action === 'enable' || input.action === 'disable') return;
-  if (input.readback.status === 'installed'
-    && input.readback.executor.status === 'callable'
-    && input.readback.carrier.precedence === 'exact_single_source'
-    && configuredCarrierReadbackIncludesTarget({
-      readback: input.readback,
-      descriptor: input.target.descriptor,
-      packageVersion: input.target.packageVersion,
-    })) return;
+  if (input.action === 'remove' || input.action === 'enable' || input.action === 'disable') {
+    if (configuredCarrierLifecycleActionMatches(input)) return;
+  } else if (configuredCarrierInstalledTargetMatches(input)) {
+    return;
+  }
   throw new FrameworkContractError(
     'contract_shape_invalid',
     'Configured native carrier did not reach the Package owner target version and callability.',
@@ -1951,23 +2160,23 @@ function convergeRequiredConfiguredCarrierTargets(input: {
         ? 'install' as const
         : input.action;
       dispatched.push(target);
-      const execution = runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration({
+      const carrier = runConfiguredCodexPluginCarrier({
         descriptor: target.descriptor,
         action,
         dryRun: input.dryRun,
       });
       if (!input.dryRun) {
-        assertConfiguredCarrierLifecycleTarget({ action, target, readback: execution.carrier });
+        assertConfiguredCarrierLifecycleTarget({ action, target, readback: carrier });
       }
       readbacks.push({
         package_id: target.descriptor.packageId,
         status: configuredCarrierLifecycleReadback({
           action,
           dryRun: input.dryRun,
-          carrier: execution.carrier,
+          carrier,
         }).status,
-        observed_version: execution.carrier.installed_version,
-        configured_carrier: execution.carrier,
+        observed_version: carrier.installed_version,
+        configured_carrier: carrier,
       });
     }
   } catch (error) {
@@ -2191,12 +2400,6 @@ function transferDescriptorOwnedCarrierRoute(input: {
   selectorChanged: boolean;
   sourceChanged: boolean;
 }) {
-  const migration = prepareLegacyOplSkillsMigration({
-    packageId: input.packageId,
-    requiredSkillIds: input.targetDescriptor.executor.requiredSkillIds,
-    dryRun: false,
-    env: process.env,
-  });
   let previousRemoved = false;
   let targetDispatched = false;
   try {
@@ -2231,7 +2434,6 @@ function transferDescriptorOwnedCarrierRoute(input: {
     });
     assertOplFlowCoreSkillsCarrierReadback(carrier);
     assertConfiguredCarrierReachedOwnerTarget({ ...input, readback: carrier });
-    migration.commit();
     return carrier;
   } catch (error) {
     if (targetDispatched && input.selectorChanged) {
@@ -2244,7 +2446,6 @@ function transferDescriptorOwnedCarrierRoute(input: {
       });
       assertOplFlowCoreSkillsCarrierReadback(restored);
     }
-    migration.rollback();
     throw error;
   }
 }
@@ -2270,11 +2471,11 @@ function adoptDescriptorOwnedCarrierTarget(input: {
       sourceChanged,
     });
   }
-  const carrier = runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration({
+  const carrier = runConfiguredCodexPluginCarrier({
     descriptor: input.targetDescriptor,
     action: input.action,
     dryRun: input.dryRun,
-  }).carrier;
+  });
   if (!input.dryRun) {
     assertOplFlowCoreSkillsCarrierReadback(carrier);
     assertConfiguredCarrierReachedOwnerTarget({ ...input, readback: carrier });
@@ -2293,6 +2494,8 @@ function descriptorOwnedFirstPartyContext(input: DescriptorOwnedFirstPartyLifecy
   if (!packageId || !firstParty) {
     return null;
   }
+  if (input.selectionInput.sourceKind === 'developer_checkout_override'
+    || stringValue(input.selectionInput.agentRoot)) return null;
   const sourcePolicy = resolveAgentPackageEffectiveSourcePolicy(packageId);
   if (sourcePolicy.desired_source_kind !== 'first_party_managed_cohort') return null;
   assertFirstPartyPackageUpdateSelection(input.selectionInput, firstParty, sourcePolicy);
@@ -2369,7 +2572,7 @@ function descriptorOwnedCurrentLifecycleResult(input: {
       },
     };
   }
-  const execution = runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration({
+  const carrier = runConfiguredCodexPluginCarrier({
     descriptor: input.targetDescriptor,
     action: 'repair',
     dryRun: input.dryRun,
@@ -2381,7 +2584,7 @@ function descriptorOwnedCurrentLifecycleResult(input: {
         descriptor: input.targetDescriptor,
         packageVersion: input.targetVersion.package_version,
       },
-      readback: execution.carrier,
+      readback: carrier,
     });
   }
   return {
@@ -2391,7 +2594,7 @@ function descriptorOwnedCurrentLifecycleResult(input: {
       ...configuredCarrierLifecycleReadback({
         action: 'repair',
         dryRun: input.dryRun,
-        carrier: execution.carrier,
+        carrier,
         target: {
           currentness: input.currentness,
           sourceArtifactRef: input.targetVersion.source_artifact_ref,
@@ -2578,10 +2781,8 @@ function assertNoExplicitRemoteFirstPartySource(input: ConfiguredCarrierSelectio
   const firstParty = resolveFirstPartyPackageCatalog(packageId);
   const explicitManifestUrl = 'manifestUrl' in input ? stringValue(input.manifestUrl) : null;
   const explicitRegistryUrl = 'registryUrl' in input ? stringValue(input.registryUrl) : null;
-  if (!firstParty || (
-    (!explicitManifestUrl || explicitLocalSourceRef(explicitManifestUrl))
-    && (!explicitRegistryUrl || explicitLocalSourceRef(explicitRegistryUrl))
-  )) return;
+  if (!firstParty || (!explicitRegistryUrl
+    && (!explicitManifestUrl || explicitLocalSourceRef(explicitManifestUrl)))) return;
   throw new FrameworkContractError('contract_shape_invalid', 'Canonical first-party packages resolve through their per-Package owner OCI latest-stable channel; explicit remote manifest or registry selection is not allowed.', {
     package_id: firstParty.canonicalId,
     explicit_manifest_source: Boolean(explicitManifestUrl),
@@ -2621,11 +2822,7 @@ async function maybeRunConfiguredCarrierLifecycle(input: {
   action: Exclude<ConfiguredCodexPluginCarrierAction, 'list'>;
 }) {
   const packageId = canonicalAgentPackageId(input.selectionInput.packageId);
-  if (configuredCarrierUsesDeveloperCheckout(packageId)
-    || ('sourceKind' in input.selectionInput
-      && input.selectionInput.sourceKind === 'developer_checkout_override')
-    || stringValue(input.selectionInput.agentRoot)
-    || fullRuntimeCompatibilityRequested(input.selectionInput)) {
+  if (fullRuntimeCompatibilityRequested(input.selectionInput)) {
     return null;
   }
   const selected = await resolveFreshConfiguredCarrier(input.selectionInput, input.action);
@@ -2644,7 +2841,7 @@ async function maybeRunConfiguredCarrierLifecycle(input: {
   try {
     for (const target of targets) {
       dispatched.push(target);
-      const execution = runConfiguredCodexPluginCarrierWithLegacyOplSkillsMigration({
+      const carrier = runConfiguredCodexPluginCarrier({
         descriptor: target.descriptor,
         action: input.action,
         dryRun,
@@ -2653,10 +2850,10 @@ async function maybeRunConfiguredCarrierLifecycle(input: {
         assertConfiguredCarrierLifecycleTarget({
           action: input.action,
           target,
-          readback: execution.carrier,
+          readback: carrier,
         });
       }
-      executions.set(target.descriptor.packageId, execution.carrier);
+      executions.set(target.descriptor.packageId, carrier);
     }
   } catch (error) {
     if (!dryRun && input.action === 'install') {

@@ -918,6 +918,10 @@ function configuredPluginReadback(input: {
   };
 }
 
+function configuredCarrierActionNeedsMarketplace(action: ConfiguredCodexPluginCarrierAction) {
+  return action === 'install' || action === 'update' || action === 'repair';
+}
+
 export function runConfiguredCodexPluginCarrier(input: {
   descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
   action: ConfiguredCodexPluginCarrierAction;
@@ -937,7 +941,7 @@ export function runConfiguredCodexPluginCarrier(input: {
   const isConfigToggle = input.action === 'enable' || input.action === 'disable';
   const dispatchAction = !isConfigToggle && input.action !== 'list' && input.dryRun !== true;
   const marketplaceSource = input.descriptor.carrier.marketplaceSource;
-  if (dispatchAction && marketplaceSource) {
+  if (dispatchAction && configuredCarrierActionNeedsMarketplace(input.action) && marketplaceSource) {
     ensureMarketplaceAvailable({
       packageId: input.descriptor.packageId,
       action: input.action,

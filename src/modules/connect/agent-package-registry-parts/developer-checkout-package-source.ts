@@ -435,10 +435,8 @@ function configuredCarrierDescriptorMatches(
   return left.packageId === right.packageId
     && left.carrier.kind === right.carrier.kind
     && left.carrier.pluginId === right.carrier.pluginId
-    && left.carrier.marketplaceSource === right.carrier.marketplaceSource
     && left.executor.route === right.executor.route
-    && sameStringSet(left.executor.requiredSkillIds, right.executor.requiredSkillIds)
-    && left.publicationRef === right.publicationRef;
+    && sameStringSet(left.executor.requiredSkillIds, right.executor.requiredSkillIds);
 }
 
 function payloadFile(sourcePath: string): DeveloperCheckoutPayloadFile {
@@ -494,11 +492,10 @@ function validatedConfiguredCarrierDescriptor(input: {
   }
   let descriptorManifest: AgentPackageManifest;
   try {
-    descriptorManifest = normalizeDeveloperOwnerManifest({
-      spec: input.spec,
-      payload: parseJsonText(fs.readFileSync(descriptorPath, 'utf8')),
-      manifestPath: descriptorPath,
-    });
+    descriptorManifest = normalizePackageManifest(
+      parseJsonText(fs.readFileSync(descriptorPath, 'utf8')),
+      descriptorPath,
+    );
   } catch (error) {
     throw sourceFailure('Configured carrier developer checkout owner descriptor is invalid.', {
       package_id: input.ownerManifest.package_id,
@@ -533,6 +530,50 @@ function collectConfiguredCarrierOwnerDescriptor(input: {
     ? validatedConfiguredCarrierDescriptor({ ...input, descriptorCandidate })
     : payloadFile(input.ownerManifestPath);
   input.files.set(descriptor.path, descriptor);
+}
+
+function validatedDeveloperPluginId(input: {
+  packageId: string;
+  ownerManifest: AgentPackageManifest;
+  pluginManifestPath: string;
+}) {
+  const pluginManifest = parseJsonText(fs.readFileSync(input.pluginManifestPath, 'utf8'));
+  const pluginId = isRecord(pluginManifest) ? stringValue(pluginManifest.name) : null;
+  const pluginVersion = isRecord(pluginManifest) ? stringValue(pluginManifest.version) : null;
+  if (!pluginId
+    || !isSafePathSegment(pluginId)
+    || pluginVersion !== input.ownerManifest.version
+    || (input.ownerManifest.plugin_id !== null && !isSafePathSegment(input.ownerManifest.plugin_id))
+    || (input.ownerManifest.plugin_id && input.ownerManifest.plugin_id !== pluginId)) {
+    throw sourceFailure('Developer checkout plugin manifest identity does not match its owner manifest.', {
+      package_id: input.packageId,
+      owner_plugin_id: input.ownerManifest.plugin_id,
+      plugin_manifest_id: pluginId,
+      owner_version: input.ownerManifest.version,
+      plugin_manifest_version: pluginVersion,
+      plugin_manifest_path: input.pluginManifestPath,
+    });
+  }
+  return pluginId;
+}
+
+function assertConfiguredCarrierOwnerDescriptor(input: {
+  spec: ReturnType<typeof getOplPackageSpecs>[number];
+  ownerManifest: AgentPackageManifest;
+  pluginRoot: string;
+}) {
+  if (!input.ownerManifest.configured_codex_plugin_carrier) return;
+  const ownerDescriptorPath = path.join(input.pluginRoot, 'opl-package.json');
+  if (!fs.existsSync(ownerDescriptorPath)) {
+    throw sourceFailure('Configured carrier developer checkout is missing its owner descriptor.', {
+      package_id: input.ownerManifest.package_id,
+      owner_descriptor_path: ownerDescriptorPath,
+    });
+  }
+  validatedConfiguredCarrierDescriptor({
+    ...input,
+    descriptorCandidate: ownerDescriptorPath,
+  });
 }
 
 export function loadDeveloperCheckoutPackageSource(packageId: string, checkoutPath: string) {
@@ -588,19 +629,7 @@ export function loadDeveloperCheckoutPackageSource(packageId: string, checkoutPa
       owner_manifest_path: ownerManifestPath,
     });
   }
-  const pluginManifest = parseJsonText(fs.readFileSync(pluginManifestPath, 'utf8'));
-  const pluginId = isRecord(pluginManifest) ? stringValue(pluginManifest.name) : null;
-  if (!pluginId
-    || !isSafePathSegment(pluginId)
-    || (ownerManifest.plugin_id !== null && !isSafePathSegment(ownerManifest.plugin_id))
-    || (ownerManifest.plugin_id && ownerManifest.plugin_id !== pluginId)) {
-    throw sourceFailure('Developer checkout plugin manifest identity does not match its owner manifest.', {
-      package_id: packageId,
-      owner_plugin_id: ownerManifest.plugin_id,
-      plugin_manifest_id: pluginId,
-      plugin_manifest_path: pluginManifestPath,
-    });
-  }
+  const pluginId = validatedDeveloperPluginId({ packageId, ownerManifest, pluginManifestPath });
 
   const pluginRoot = fs.realpathSync(path.dirname(path.dirname(pluginManifestPath)));
   if (!isInside(checkoutReal, pluginRoot)) {
@@ -610,6 +639,7 @@ export function loadDeveloperCheckoutPackageSource(packageId: string, checkoutPa
       plugin_source_path: pluginRoot,
     });
   }
+  assertConfiguredCarrierOwnerDescriptor({ spec, ownerManifest, pluginRoot });
   const files = new Map<string, DeveloperCheckoutPayloadFile>();
   if (spec.owner_manifest_kind === 'workflow_profile') {
     for (const relativePath of workflowProfilePayloadPaths({
@@ -683,6 +713,142 @@ export function loadDeveloperCheckoutPackageSource(packageId: string, checkoutPa
     source,
     pluginId,
     payloadFiles,
+  };
+}
+
+function readDeveloperMarketplace(input: {
+  packageId: string;
+  checkoutPath: string;
+  manifestPath: string;
+}) {
+  let marketplace: unknown;
+  try {
+    const stat = fs.lstatSync(input.manifestPath);
+    const realPath = fs.realpathSync(input.manifestPath);
+    if (!stat.isFile()
+      || stat.isSymbolicLink()
+      || !isInside(input.checkoutPath, realPath)) {
+      throw new Error('marketplace manifest is not a real checkout file');
+    }
+    marketplace = parseJsonText(fs.readFileSync(realPath, 'utf8'));
+  } catch (error) {
+    throw sourceFailure('Developer checkout local marketplace manifest is missing, unsafe, or invalid.', {
+      package_id: input.packageId,
+      marketplace_manifest_path: input.manifestPath,
+      cause: error instanceof Error ? error.message : String(error),
+    });
+  }
+  return marketplace;
+}
+
+function matchingDeveloperMarketplacePlugins(marketplace: unknown, pluginId: string) {
+  if (!isRecord(marketplace) || !Array.isArray(marketplace.plugins)) return [];
+  return marketplace.plugins.flatMap((value) => {
+    const entry = isRecord(value) ? value : null;
+    return entry && stringValue(entry.name) === pluginId ? [entry] : [];
+  });
+}
+
+function developerMarketplaceIdentityMatches(input: {
+  marketplace: unknown;
+  marketplaceId: string;
+  matchingPluginCount: number;
+  declaredSource: Record<string, unknown> | null;
+}) {
+  if (!isRecord(input.marketplace)) return false;
+  if (stringValue(input.marketplace.name) !== input.marketplaceId) return false;
+  if (input.matchingPluginCount !== 1) return false;
+  return stringValue(input.declaredSource?.source) === 'local';
+}
+
+function developerMarketplacePathMatches(input: {
+  checkoutPath: string;
+  declaredPluginPath: string | null;
+  verifiedPluginSourcePath: string;
+}) {
+  if (!input.declaredPluginPath || !isInside(input.checkoutPath, input.declaredPluginPath)) {
+    return false;
+  }
+  if (!fs.existsSync(input.declaredPluginPath)) return false;
+  const stat = fs.lstatSync(input.declaredPluginPath);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) return false;
+  return fs.realpathSync(input.declaredPluginPath) === input.verifiedPluginSourcePath;
+}
+
+function verifiedDeveloperMarketplacePluginPath(input: {
+  source: ReturnType<typeof loadDeveloperCheckoutPackageSource>;
+  marketplace: unknown;
+  marketplaceManifestPath: string;
+  pluginId: string;
+  marketplaceId: string;
+}) {
+  const matchingPlugins = matchingDeveloperMarketplacePlugins(input.marketplace, input.pluginId);
+  const declaredSource = matchingPlugins.length === 1 && isRecord(matchingPlugins[0].source)
+    ? matchingPlugins[0].source
+    : null;
+  const declaredPath = stringValue(declaredSource?.path);
+  const declaredPluginPath = declaredPath && !path.isAbsolute(declaredPath)
+    ? path.resolve(input.source.source.checkout_path, declaredPath)
+    : null;
+  const marketplaceMatches = developerMarketplaceIdentityMatches({
+    marketplace: input.marketplace,
+    marketplaceId: input.marketplaceId,
+    matchingPluginCount: matchingPlugins.length,
+    declaredSource,
+  });
+  const pathMatches = developerMarketplacePathMatches({
+    checkoutPath: input.source.source.checkout_path,
+    declaredPluginPath,
+    verifiedPluginSourcePath: input.source.source.plugin_source_path,
+  });
+  if (!marketplaceMatches || !pathMatches) {
+    throw sourceFailure('Developer checkout local marketplace does not match its verified plugin source.', {
+      package_id: input.source.ownerManifest.package_id,
+      plugin_selector: input.source.ownerManifest.configured_codex_plugin_carrier?.carrier.pluginId,
+      marketplace_id: isRecord(input.marketplace) ? stringValue(input.marketplace.name) : null,
+      marketplace_manifest_path: input.marketplaceManifestPath,
+      matching_plugin_count: matchingPlugins.length,
+      declared_plugin_path: declaredPluginPath,
+      verified_plugin_source_path: input.source.source.plugin_source_path,
+    });
+  }
+  return declaredPluginPath;
+}
+
+export function developerCheckoutConfiguredCarrierTarget(
+  source: ReturnType<typeof loadDeveloperCheckoutPackageSource>,
+) {
+  const descriptor = source.ownerManifest.configured_codex_plugin_carrier;
+  if (!descriptor) {
+    throw sourceFailure('Developer checkout owner manifest has no configured native carrier.', {
+      package_id: source.ownerManifest.package_id,
+      checkout_path: source.source.checkout_path,
+    });
+  }
+  const separator = descriptor.carrier.pluginId.lastIndexOf('@');
+  const pluginId = descriptor.carrier.pluginId.slice(0, separator);
+  const marketplaceId = descriptor.carrier.pluginId.slice(separator + 1);
+  const marketplaceManifestPath = path.join(
+    source.source.checkout_path, '.agents', 'plugins', 'marketplace.json');
+  const marketplace = readDeveloperMarketplace({
+    packageId: source.ownerManifest.package_id,
+    checkoutPath: source.source.checkout_path,
+    manifestPath: marketplaceManifestPath,
+  });
+  verifiedDeveloperMarketplacePluginPath({
+    source, marketplace, marketplaceManifestPath, pluginId, marketplaceId,
+  });
+  return {
+    descriptor: {
+      ...descriptor,
+      carrier: {
+        ...descriptor.carrier,
+        marketplaceSource: source.source.checkout_path,
+      },
+      publicationRef: null,
+    },
+    packageVersion: source.ownerManifest.version,
+    developerSource: source,
   };
 }
 

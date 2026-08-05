@@ -80,6 +80,20 @@ const stringValue = (lines, key) => {
   }
   return null;
 };
+const pluginTableSelector = (header) => header.startsWith('plugins.')
+  ? unquote(header.slice('plugins.'.length))
+  : null;
+const removePluginTable = (selector) => {
+  if (!fs.existsSync(configPath)) return;
+  let omit = false;
+  const retained = [];
+  for (const line of config.split('\\n')) {
+    const header = line.trim().match(/^\\[([^\\]]+)\\]$/);
+    if (header) omit = pluginTableSelector(header[1]) === selector;
+    if (!omit) retained.push(line);
+  }
+  fs.writeFileSync(configPath, retained.join('\\n'));
+};
 const marketplaces = new Map();
 for (const [header, lines] of sections) {
   if (!header.startsWith('marketplaces.')) continue;
@@ -214,13 +228,15 @@ if (command === 'plugin marketplace list --json') {
     && args[1] === 'remove'
     && args[3] === '--json') {
   state.installed = state.installed.filter((entry) => entry.pluginId !== args[2]);
+  removePluginTable(args[2]);
   writeState();
   process.stdout.write(JSON.stringify({ status: 'ok' }));
 } else if (command === 'plugin list --json') {
   const installed = new Map();
   for (const entry of [...configuredInstalled, ...state.installed]) installed.set(entry.pluginId, entry);
   for (const entry of installed.values()) {
-    const lines = sections.get('plugins.' + entry.pluginId) || [];
+    const pluginSection = [...sections].find(([header]) => pluginTableSelector(header) === entry.pluginId);
+    const lines = pluginSection?.[1] || [];
     entry.enabled = !lines.some((line) => /^\\s*enabled\\s*=\\s*false\\s*$/.test(line));
   }
   process.stdout.write(JSON.stringify({ installed: [...installed.values()], available: [] }));
