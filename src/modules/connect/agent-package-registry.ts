@@ -3892,10 +3892,7 @@ export async function runOplAgentPackageUpdate(input: AgentPackageInstallInput) 
   }
   const bundledPresence = tryBundledFullRuntimePackagePresenceReadback(input);
   if (bundledPresence) return bundledPresence;
-  if (!explicitLegacyCompatibilityRequested(input)
-    && !retainedLegacyCompatibilityLock(
-      currentHomePackageLock(canonicalAgentPackageId(input.packageId)),
-    )) {
+  if (!explicitLegacyCompatibilityRequested(input)) {
     throwPackageNativeOwnerRequired(input, 'update');
   }
   return withAgentPackageLifecycleTransaction(
@@ -4005,10 +4002,7 @@ export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
       },
     };
   }
-  if (!explicitLegacyCompatibilityRequested(input)
-    && !retainedLegacyCompatibilityLock(
-      currentHomePackageLock(canonicalAgentPackageId(input.packageId)),
-    )) {
+  if (!explicitLegacyCompatibilityRequested(input)) {
     throwPackageNativeOwnerRequired(input, 'repair');
   }
   return withAgentPackageLifecycleTransaction(
