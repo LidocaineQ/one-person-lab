@@ -203,12 +203,17 @@ test('local manifest lifecycle requires an explicit source after install', () =>
     assert.equal(Object.hasOwn(updated.opl_agent_package_update, 'lock_file'), false);
     assert.equal(Object.hasOwn(updated.opl_agent_package_update, 'lifecycle_ledger_file'), false);
     assert.equal(fs.readFileSync(runtimePreparedPath, 'utf8').trim(), '0.1.1');
+    const lockBytesBeforeBareUninstall = fs.readFileSync(lockPath, 'utf8');
 
-    const removed = runCli(['packages', 'uninstall', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as {
-      opl_agent_package_uninstall: { removed_package_lock: { package_id: string } };
-    };
-    assert.equal(removed.opl_agent_package_uninstall.removed_package_lock.package_id, FIXTURE_RCA_PACKAGE_ID);
-    assert.equal(fs.existsSync(path.join(modulesRoot, 'redcube-ai')), false);
+    const bareUninstallFailure = runCliFailure([
+      'packages', 'uninstall', '--package-id', FIXTURE_RCA_PACKAGE_ID,
+    ], env);
+    assert.equal(
+      bareUninstallFailure.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
+    );
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytesBeforeBareUninstall);
+    assert.equal(fs.existsSync(path.join(modulesRoot, 'redcube-ai')), true);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
     fs.rmSync(fixtureRoot, { recursive: true, force: true });
@@ -858,23 +863,16 @@ test('packages preserves the installed lock without exposing an operation receip
       'third.party.research',
     ], env) as {
       opl_agent_package_status: {
+        status: string;
         installed_package_count: number;
-        installed_packages: Array<{
-          lock_ref: string;
-          physical_surface: { codex_plugin_cache_path: string };
-        }>;
+        installed_packages: unknown[];
       };
     };
-    assert.equal(status.opl_agent_package_status.installed_package_count, 1);
-    assert.equal(
-      Object.hasOwn(status.opl_agent_package_status.installed_packages[0], 'action_receipt_id'),
-      false,
-    );
-    assert.equal(
-      status.opl_agent_package_status.installed_packages[0].lock_ref,
-      install.opl_agent_package_install.package_lock.lock_ref,
-    );
-    assert.equal(status.opl_agent_package_status.installed_packages[0].physical_surface.codex_plugin_cache_path, installedCachePath);
+    assert.equal(status.opl_agent_package_status.status, 'not_installed');
+    assert.equal(status.opl_agent_package_status.installed_package_count, 0);
+    assert.deepEqual(status.opl_agent_package_status.installed_packages, []);
+    assert.equal(fs.existsSync(installedCachePath), true);
+    assert.equal(fs.readFileSync(lockFile, 'utf8'), lockFileBefore);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
     fs.rmSync(homeDir, { recursive: true, force: true });
@@ -1052,12 +1050,15 @@ test('packages fail closed on a legacy noncanonical lock identity without overwr
     const lockPath = path.join(stateDir, 'agent-package-locks.json');
     const lockBytes = fs.readFileSync(lockPath);
     const legacyLedgerBytes = fs.readFileSync(legacyLedgerPath);
-    const failure = runCliFailure(['packages', 'list'], { OPL_STATE_DIR: stateDir });
-    assert.equal(failure.payload.error.code, 'contract_shape_invalid');
-    assert.equal(failure.payload.error.details.failure_code, 'agent_package_lock_authority_corrupt');
-    assert.equal(failure.payload.error.details.authority_status, 'corrupt');
-    assert.equal(failure.payload.error.details.recovery_required, true);
-    assert.equal(failure.payload.error.details.write_allowed, false);
+    const list = runCli(['packages', 'list'], { OPL_STATE_DIR: stateDir }) as any;
+    assert.equal(list.opl_agent_packages.status, 'available');
+    assert.equal(
+      list.opl_agent_packages.directory.entries.some(
+        (entry: any) => entry.package_id === 'redcube',
+      ),
+      false,
+    );
+    assert.deepEqual(list.opl_agent_packages.installed_packages, []);
     assert.deepEqual(fs.readFileSync(lockPath), lockBytes);
     assert.deepEqual(fs.readFileSync(legacyLedgerPath), legacyLedgerBytes);
   } finally {

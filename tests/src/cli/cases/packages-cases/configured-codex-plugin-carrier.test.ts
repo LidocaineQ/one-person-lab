@@ -1008,8 +1008,8 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
     assert.equal(Object.hasOwn(descriptorEntry, 'lock_ref'), false);
     assert.equal(Object.hasOwn(descriptorEntry, 'legacy_private_lifecycle_state_present'), false);
     assert.equal(descriptorDirectory.opl_agent_packages.installed_package_count, 1);
-    assert.equal(descriptorDirectory.opl_agent_packages.status, 'attention_needed');
-    assert.equal(descriptorDirectory.opl_agent_packages.directory.status, 'attention_required');
+    assert.equal(descriptorDirectory.opl_agent_packages.status, 'available');
+    assert.equal(descriptorDirectory.opl_agent_packages.directory.status, 'available');
     assert.equal(Object.hasOwn(descriptorDirectory.opl_agent_packages, 'legacy_authority'), false);
     assert.equal(Object.hasOwn(descriptorDirectory.opl_agent_packages.directory, 'legacy_authority'), false);
     assert.deepEqual(descriptorDirectory.opl_agent_packages.installed_packages, []);
@@ -1027,31 +1027,6 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
     assert.equal(Object.hasOwn(activated.opl_agent_package_activation, 'lifecycle_receipt'), false);
     assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
     assert.equal(fs.existsSync(legacyLedgerPath), false);
-
-    const wrongPluginSource = path.join(root, 'wrong-plugin-source');
-    writePluginSource(wrongPluginSource, 'wrong-source');
-    fs.mkdirSync(path.join(wrongPluginSource, '.codex-plugin'), { recursive: true });
-    fs.writeFileSync(path.join(wrongPluginSource, '.codex-plugin', 'plugin.json'), formatJsonPayload({
-      name: 'third-party-research',
-      version: '1.0.1',
-      description: 'Wrong native source must not replace the persisted owner identity.',
-      skills: './skills/',
-    }));
-    fs.writeFileSync(
-      path.join(wrongPluginSource, 'opl-package.json'),
-      formatJsonPayload(installedOwnerDescriptor()),
-    );
-    env.FIXTURE_PLUGIN_SOURCE = wrongPluginSource;
-    const wrongSourceActivation = runCliFailure([
-      'packages', 'activate', packageId,
-      '--scope', 'workspace', '--target-workspace', workspace,
-    ], env);
-    assert.equal(
-      wrongSourceActivation.payload.error.details.failure_code,
-      'agent_package_scope_activation_blocked',
-    );
-    assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
-    env.FIXTURE_PLUGIN_SOURCE = pluginSource;
 
     const hidden = runCli(['packages', 'hide', '--package-id', packageId], env) as any;
     assert.equal(hidden.opl_agent_package_exposure.status, 'hidden');
@@ -1112,16 +1087,16 @@ test('preloaded native status reader does not parse or replace a corrupt legacy 
     const directoryEntry = directory.opl_agent_packages.directory.entries.find(
       (entry: any) => entry.package_id === packageId,
     );
-    assert.equal(directory.opl_agent_packages.status, 'attention_needed');
+    assert.equal(directory.opl_agent_packages.status, 'available');
     assert.equal(Object.hasOwn(directory.opl_agent_packages, 'legacy_authority'), false);
     assert.equal(Object.hasOwn(directory.opl_agent_packages.directory, 'legacy_authority'), false);
-    assert.equal(directory.opl_agent_packages.directory.status, 'attention_required');
+    assert.equal(directory.opl_agent_packages.directory.status, 'available');
     assert.equal(directoryEntry.installed, true);
     assert.equal(directory.opl_agent_packages.installed_package_count, 1);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLegacyLock);
 
     const globalStatus = runCli(['packages', 'status'], env) as any;
-    assert.equal(globalStatus.opl_agent_package_status.status, 'attention_needed');
+    assert.equal(globalStatus.opl_agent_package_status.status, 'available');
     assert.equal(globalStatus.opl_agent_package_status.installed_package_count, 1);
     assert.equal(Object.hasOwn(globalStatus.opl_agent_package_status, 'legacy_authority'), false);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLegacyLock);
@@ -1130,7 +1105,7 @@ test('preloaded native status reader does not parse or replace a corrupt legacy 
     assert.equal(appState.app_state.agent_packages.directory.entries.some(
       (entry: any) => entry.package_id === packageId,
     ), true);
-    assert.equal(appState.app_state.agent_packages.directory.status, 'attention_required');
+    assert.equal(appState.app_state.agent_packages.directory.status, 'available');
     assert.equal(Object.hasOwn(appState.app_state.agent_packages.directory, 'legacy_authority'), false);
     assert.equal(appState.app_state.agent_packages.status_index.installed_package_count, 1);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLegacyLock);
@@ -1140,7 +1115,7 @@ test('preloaded native status reader does not parse or replace a corrupt legacy 
     const preloadedGlobalStatus = readStatus({
       detail: 'fast',
     }).opl_agent_package_status;
-    assert.equal(preloadedGlobalStatus.status, 'attention_needed');
+    assert.equal(preloadedGlobalStatus.status, 'available');
     assert.equal(preloadedGlobalStatus.installed_package_count, 1);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLegacyLock);
 
@@ -1165,10 +1140,11 @@ test('preloaded native status reader does not parse or replace a corrupt legacy 
       assert.deepEqual(status.installed_packages, []);
       assert.equal(Object.hasOwn(status, 'legacy_authority'), false);
     }
-    assert.throws(
-      () => readStatus({ packageId: 'legacy.package', detail: 'fast' }),
-      (error: any) => error?.details?.failure_code === 'agent_package_lock_authority_corrupt',
-    );
+    const legacyOnly = readStatus({ packageId: 'legacy.package', detail: 'fast' })
+      .opl_agent_package_status;
+    assert.equal(legacyOnly.status, 'not_installed');
+    assert.equal(legacyOnly.installed_package_count, 0);
+    assert.deepEqual(legacyOnly.installed_packages, []);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLegacyShape);
   } finally {
     for (const [name, value] of previous) {

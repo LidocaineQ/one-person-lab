@@ -323,7 +323,7 @@ export function buildPackagesCommandSpecs(
   const specs: Record<string, CommandSpec> = {
     'packages list': {
       usage: 'opl packages list',
-      summary: 'Browse the OPL Package catalog with installed state, actions, projections, and compact lifecycle receipt refs.',
+      summary: 'Browse OPL Packages with fresh installed state, actions, and projections from their native carriers.',
       examples: ['opl packages list --json'],
       group: 'packages',
       help_surface: 'default',
@@ -378,7 +378,7 @@ export function buildPackagesCommandSpecs(
     },
     'packages activate': {
       usage: 'opl packages activate <package_id> --scope workspace|quest [--target-workspace <path>|--target-quest <path>] [--dry-run]',
-      summary: 'Compatibility route for explicitly reconciling a package scope; normal use boundaries do this automatically.',
+      summary: 'Confirm that an installed Package is callable at a workspace or quest use boundary.',
       examples: [
         'opl packages activate mas --scope workspace --target-workspace /path/to/study --json',
         'opl packages activate mas --scope quest --target-quest /path/to/quest --json',

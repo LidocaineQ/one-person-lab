@@ -448,6 +448,18 @@ function payloadFile(sourcePath: string): DeveloperCheckoutPayloadFile {
   };
 }
 
+function normalizeConfiguredCarrierOwnerDescriptor(input: {
+  spec: ReturnType<typeof getOplPackageSpecs>[number];
+  payload: unknown;
+  manifestPath: string;
+}) {
+  return isRecord(input.payload)
+    && input.payload.surface_kind === 'opl_capability_package_manifest.v2'
+    && !isRecord(input.payload.content_lock)
+    ? normalizeDeveloperOwnerManifest(input)
+    : normalizePackageManifest(input.payload, input.manifestPath);
+}
+
 function configuredCarrierDescriptorMismatches(
   descriptor: AgentPackageManifest,
   owner: AgentPackageManifest,
@@ -492,10 +504,11 @@ function validatedConfiguredCarrierDescriptor(input: {
   }
   let descriptorManifest: AgentPackageManifest;
   try {
-    descriptorManifest = normalizePackageManifest(
-      parseJsonText(fs.readFileSync(descriptorPath, 'utf8')),
-      descriptorPath,
-    );
+    descriptorManifest = normalizeConfiguredCarrierOwnerDescriptor({
+      spec: input.spec,
+      payload: parseJsonText(fs.readFileSync(descriptorPath, 'utf8')),
+      manifestPath: descriptorPath,
+    });
   } catch (error) {
     throw sourceFailure('Configured carrier developer checkout owner descriptor is invalid.', {
       package_id: input.ownerManifest.package_id,

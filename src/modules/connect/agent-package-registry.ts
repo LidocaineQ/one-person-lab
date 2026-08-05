@@ -4410,16 +4410,16 @@ export async function ensureOplAgentPackageScopeActivation(input: AgentPackagePa
       failure_code: 'agent_package_scope_target_required',
     });
   }
-  const nativeActivationReadback = packageStatusForActivation({
+  let activationReadback = packageStatusForActivation({
     packageId,
     scope: input.scope,
     targetWorkspace: input.targetWorkspace,
     targetQuest: input.targetQuest,
   });
-  const nativeStatus = nativeActivationReadback.packageStatus;
-  const nativeCarrierState = packageNativeCarrierActivationState(
+  let nativeStatus = activationReadback.packageStatus;
+  let nativeCarrierState = packageNativeCarrierActivationState(
     nativeStatus,
-    nativeActivationReadback.managedLock,
+    activationReadback.managedLock,
   );
   if (nativeCarrierState === 'ready') {
     return {
@@ -4431,6 +4431,23 @@ export async function ensureOplAgentPackageScopeActivation(input: AgentPackagePa
   }
   if (nativeCarrierState === 'blocked') {
     throwNativeCarrierActivationBlocked(packageId, nativeStatus);
+  }
+  activationReadback = legacyPackageStatusForActivation({
+    packageId,
+    scope: input.scope,
+    targetWorkspace: input.targetWorkspace,
+    targetQuest: input.targetQuest,
+  });
+  nativeStatus = activationReadback.packageStatus;
+  nativeCarrierState = packageNativeCarrierActivationState(
+    nativeStatus,
+    activationReadback.managedLock,
+  );
+  if (nativeCarrierState === 'blocked') {
+    throwNativeCarrierActivationBlocked(packageId, nativeStatus);
+  }
+  if (nativeCarrierState !== 'legacy') {
+    throwPackageNativeOwnerRequired(input, 'activate');
   }
   return withAgentPackageLifecycleTransaction(
     input.dryRun === true,
@@ -4533,68 +4550,23 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
       },
     };
   }
-  if (!retainedLegacyCompatibilityLock(nativeActivationReadback.managedLock)) {
-    throwPackageNativeOwnerRequired(input, 'activate');
-  }
-  const activation = await ensureOplAgentPackageScopeActivation({
-    ...input,
-    packageId,
-  });
-  const packageStatus = activation.package_status;
-  if (!input.dryRun && packageStatus.launch_state === 'package_unavailable') {
-    const launchStateReason = stringValue(packageStatus.launch_state_reason);
-    if (!launchStateReason) {
-      throw new FrameworkContractError(
-        'contract_shape_invalid',
-        'Package activation received an invalid canonical launch-state projection.',
-        {
-          package_id: packageId,
-          launch_state: packageStatus.launch_state,
-          launch_state_reason: packageStatus.launch_state_reason,
-          failure_code: 'agent_package_launch_state_reason_missing',
-        },
-      );
-    }
-    throw new FrameworkContractError(
-      'contract_shape_invalid',
-      'Package activation is blocked until dependency and scope readiness are repaired.',
-      {
-        package_id: packageId,
-        launch_blocked_reason: launchStateReason,
-        allowed_when_blocked: packageStatus.allowed_when_blocked,
-        package_dependency_readiness: packageStatus.package_dependency_readiness,
-        materialization_readiness: packageStatus.materialization_readiness,
-        repair_action: packageStatus.repair_action,
-        failure_code: 'agent_package_scope_activation_blocked',
-      },
-    );
-  }
-  const packageUseBinding = 'package_use_binding' in activation
-    ? activation.package_use_binding
-    : null;
-  return {
-    version: 'g2',
-    opl_agent_package_activation: {
-      surface_kind: 'opl_agent_package_activation',
-      ...activation,
-      package_dependency_readiness: packageStatus.package_dependency_readiness,
-      materialization_readiness: packageStatus.materialization_readiness,
-      operational_ready: input.dryRun ? false : packageStatus.operational_ready,
-      launch_allowed: input.dryRun ? false : packageStatus.launch_state !== 'package_unavailable',
-      launch_blocked_reason: packageStatus.launch_state === 'package_unavailable'
-        ? packageStatus.launch_blocked_reason ?? packageStatus.launch_state_reason
-        : null,
-      launch_state_schema_version: packageStatus.launch_state_schema_version,
-      launch_state: packageStatus.launch_state,
-      launch_state_reason: packageStatus.launch_state_reason,
-      use_boundary_id: packageUseBinding?.use_boundary_id ?? null,
-      authority_boundary: refsOnlyAuthorityBoundary(),
-    },
-  };
+  throwPackageNativeOwnerRequired(input, 'activate');
 }
 
 function packageStatusForActivation(input: OplAgentPackageStatusInput) {
   const snapshot = readAgentPackageStatusSnapshot(input.packageId);
+  const packageStatus = buildOplAgentPackageStatus(input, snapshot).opl_agent_package_status;
+  const packageId = canonicalAgentPackageId(input.packageId);
+  return {
+    packageStatus,
+    managedLock: packageId
+      ? snapshot.lockIndex.packages.find((entry) => entry.package_id === packageId) ?? null
+      : null,
+  };
+}
+
+function legacyPackageStatusForActivation(input: OplAgentPackageStatusInput) {
+  const snapshot = readLegacyAgentPackageStatusSnapshot();
   const packageStatus = buildOplAgentPackageStatus(input, snapshot).opl_agent_package_status;
   const packageId = canonicalAgentPackageId(input.packageId);
   return {
@@ -4695,11 +4667,11 @@ function managedCarrierProjectionCurrent(
 function packageNativeCarrierActivationState(
   packageStatus: any,
   managedLock: AgentPackageLock | null,
-): 'ready' | 'blocked' | 'legacy' {
+): 'ready' | 'blocked' | 'legacy' | 'missing' {
   const nativeCarrierPresent = packageStatus.configured_carrier?.carrier?.kind === 'codex_plugin_manager'
     && packageStatus.configured_carrier.status === 'installed'
     && packageStatus.configured_carrier.carrier.precedence === 'exact_single_source';
-  if (!nativeCarrierPresent) return 'legacy';
+  if (!nativeCarrierPresent) return 'missing';
   const observedCarrierVersion = stringValue(packageStatus.configured_carrier.installed_version);
   const observedCarrierPath = stringValue(packageStatus.configured_carrier.plugin_source_path);
   const managedPackageVersion = stringValue(managedLock?.package_version);
@@ -4880,14 +4852,7 @@ export async function runOplAgentPackageUninstall(input: AgentPackagePackageActi
       },
     };
   }
-  const currentLock = currentHomePackageLock(canonicalAgentPackageId(input.packageId));
-  if (!retainedLegacyCompatibilityLock(currentLock)) {
-    throwPackageNativeOwnerRequired(input, 'uninstall');
-  }
-  return withAgentPackageLifecycleTransaction(
-    input.dryRun === true,
-    async () => runOplAgentPackageUninstallUnlocked(input),
-  );
+  throwPackageNativeOwnerRequired(input, 'uninstall');
 }
 
 export async function runOplAgentPackageExposureAction(
@@ -5145,50 +5110,21 @@ function buildAgentPackageStatusSnapshot(
 
 function readAgentPackageStatusSnapshot(packageId?: string | null) {
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
-  const canonicalPackageId = canonicalAgentPackageId(packageId);
-  let lockSnapshot: ReturnType<typeof readStatusLockIndex> | null = null;
-  try {
-    lockSnapshot = readStatusLockIndex(
-      installedCodexPluginDescriptors,
-      !canonicalPackageId && installedCodexPluginDescriptors.size > 0,
-    );
-  } catch {
-    // A carrier-native descriptor remains the bounded status fallback when
-    // the legacy lock authority cannot be read.
-  }
-  const descriptorOnlyReadback = Boolean(
-    canonicalPackageId
-    && installedCodexPluginDescriptors.has(canonicalPackageId)
-    && !lockSnapshot?.lockIndex.packages.some((entry) => entry.package_id === canonicalPackageId),
-  );
-  // A native installed descriptor is already the status authority. Do not
-  // consult the legacy lock for a descriptor-selected readback. Global
-  // projections may degrade on invalid JSON; legacy-only lookups fail closed.
-  const snapshot = descriptorOnlyReadback
-    ? {
-        lockIndex: emptyStatusLockIndex(),
-        legacyLockState: 'missing' as const,
-      }
-    : lockSnapshot ?? readStatusLockIndex(
-        installedCodexPluginDescriptors,
-        !canonicalPackageId && installedCodexPluginDescriptors.size > 0,
-      );
   return buildAgentPackageStatusSnapshot(
-    snapshot.lockIndex,
+    emptyStatusLockIndex(),
     installedCodexPluginDescriptors,
-    snapshot.legacyLockState,
+    'missing',
   );
 }
 
-function publicLegacyPackages(
-  packages: AgentPackageLock[],
-  installedCodexPluginDescriptors: ReadonlyMap<string, import('./agent-package-registry-parts/installed-codex-plugin-directory.ts').InstalledCodexPluginDescriptor>,
-  configuredCarrierIds: ReadonlySet<string> = new Set(),
-) {
-  return packages.filter((entry) => (
-    !installedCodexPluginDescriptors.has(entry.package_id)
-    && !configuredCarrierIds.has(entry.package_id)
-  ));
+function readLegacyAgentPackageStatusSnapshot() {
+  const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
+  const projection = readStatusLockIndex(installedCodexPluginDescriptors, false);
+  return buildAgentPackageStatusSnapshot(
+    projection.lockIndex,
+    installedCodexPluginDescriptors,
+    projection.legacyLockState,
+  );
 }
 
 function agentPackageStatusReadbackStatus(input: {
@@ -5229,13 +5165,9 @@ function buildOplAgentPackageStatus(
     configuredCarriers,
     legacyLockState,
   } = snapshot;
-  const installedPackages = publicLegacyPackages(
-    packageId
-      ? lockIndex.packages.filter((entry) => entry.package_id === packageId)
-      : lockIndex.packages,
-    installedCodexPluginDescriptors,
-    new Set(configuredCarriers.keys()),
-  );
+  const installedPackages = packageId
+    ? lockIndex.packages.filter((entry) => entry.package_id === packageId)
+    : lockIndex.packages;
   const homeShortcutPreferences = allHomeShortcutPreferences
     .filter((entry) => !packageId || entry.package_id === packageId);
   const selectedLock = packageId ? installedPackages[0] ?? null : null;
@@ -5505,40 +5437,13 @@ function buildOplAgentPackageStatus(
 
 export function createOplAgentPackageStatusReader() {
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
-  let descriptorSnapshot: ReturnType<typeof buildAgentPackageStatusSnapshot> | null = null;
-  let globalSnapshot: ReturnType<typeof buildAgentPackageStatusSnapshot> | null = null;
-  let legacySnapshot: ReturnType<typeof buildAgentPackageStatusSnapshot> | null = null;
+  let snapshot: ReturnType<typeof buildAgentPackageStatusSnapshot> | null = null;
   return (input: OplAgentPackageStatusInput = {}) => {
-    const packageId = canonicalAgentPackageId(input.packageId);
-    const descriptorOwned = Boolean(
-      packageId && installedCodexPluginDescriptors.has(packageId),
+    snapshot ??= buildAgentPackageStatusSnapshot(
+      emptyStatusLockIndex(),
+      installedCodexPluginDescriptors,
+      'missing',
     );
-    const snapshot = descriptorOwned
-      ? descriptorSnapshot ??= buildAgentPackageStatusSnapshot(
-          emptyStatusLockIndex(),
-          installedCodexPluginDescriptors,
-          'missing',
-        )
-      : packageId
-      ? legacySnapshot ??= (() => {
-          const projection = readStatusLockIndex(installedCodexPluginDescriptors, false);
-          return buildAgentPackageStatusSnapshot(
-            projection.lockIndex,
-            installedCodexPluginDescriptors,
-            projection.legacyLockState,
-          );
-        })()
-      : globalSnapshot ??= (() => {
-          const projection = readStatusLockIndex(
-            installedCodexPluginDescriptors,
-            installedCodexPluginDescriptors.size > 0,
-          );
-          return buildAgentPackageStatusSnapshot(
-            projection.lockIndex,
-            installedCodexPluginDescriptors,
-            projection.legacyLockState,
-          );
-        })();
     return buildOplAgentPackageStatus(input, snapshot);
   };
 }
@@ -5555,19 +5460,10 @@ export function listOplAgentPackages(input: {
   const detail = input.detail ?? 'fast';
   const paths = resolveOplStatePaths();
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
-  const projection = readStatusLockIndex(
-    installedCodexPluginDescriptors,
-    installedCodexPluginDescriptors.size > 0,
-  );
-  const { lockIndex, legacyLockState } = projection;
+  const lockIndex = emptyStatusLockIndex();
   const configuredCarriers = configuredCarrierReadbacks(installedCodexPluginDescriptors);
-  const installedPackages = publicLegacyPackages(
-    lockIndex.packages,
-    installedCodexPluginDescriptors,
-    new Set(configuredCarriers.keys()),
-  );
   const directoryReadback = buildAgentPackageDirectory({
-    locks: lockIndex.packages,
+    locks: [],
     detail,
     configuredCarrierReadbacks: configuredCarriers,
     installedCodexPluginDescriptors,
@@ -5582,26 +5478,20 @@ export function listOplAgentPackages(input: {
       }).opl_agent_package_status;
     },
   });
-  const directory = {
-    ...directoryReadback,
-    ...(legacyLockProjectionNeedsAttention(legacyLockState)
-      ? { status: 'attention_required' as const }
-      : {}),
-  };
+  const directory = directoryReadback;
   const homeShortcutPreferences = mergedHomeShortcutPreferences(directory, lockIndex);
   return {
     version: 'g2',
     opl_agent_packages: {
       surface_kind: 'opl_agent_package_readback',
-      status: legacyLockProjectionNeedsAttention(legacyLockState) ? 'attention_needed' : 'available',
+      status: 'available',
       directory,
       installed_package_count: new Set([
-        ...installedPackages.map((entry) => entry.package_id),
         ...[...configuredCarriers.entries()]
           .filter(([, readback]) => readback.status === 'installed')
           .map(([packageId]) => packageId),
       ]).size,
-      installed_packages: installedPackages,
+      installed_packages: [],
       configured_carriers: [...configuredCarriers.values()],
       home_shortcut_preferences: homeShortcutPreferences,
       files: {

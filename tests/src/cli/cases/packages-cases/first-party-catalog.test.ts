@@ -20,7 +20,6 @@ import { createFakeCodexPluginManagerFixture } from '../../helpers.ts';
 import { resolveFirstPartyPackageCatalog } from '../../../../../src/modules/connect/agent-package-first-party.ts';
 import { refreshFirstPartyPackageCatalogSnapshot } from '../../../../../src/modules/connect/agent-package-registry-parts/first-party-release-catalog.ts';
 import { normalizeManifest } from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
-import { materializeAgentPackageSkillProjection } from '../../../../../src/modules/connect/agent-package-registry-parts/skill-projection.ts';
 import { assertFirstPartyPackageUpdateSelection } from '../../../../../src/modules/connect/agent-package-registry-parts/update-reconciliation.ts';
 import {
   normalizeOplReleaseChannelTag,
@@ -208,6 +207,47 @@ function addConfiguredCarrierToCapabilityFixture(manifestPath: string) {
   fs.writeFileSync(manifestPath, formatJsonPayload(manifest));
   fs.writeFileSync(path.join(sourceRoot, 'opl-package.json'), formatJsonPayload(manifest));
   return sourceRoot;
+}
+
+function writeDeveloperMasCarrierAuthority(input: {
+  masCheckout: string;
+  scholarCheckout: string;
+  masManifestPath: string;
+  providerManifestPath: string;
+}) {
+  const masManifest = parseJsonText(fs.readFileSync(input.masManifestPath, 'utf8')) as any;
+  const providerManifest = parseJsonText(
+    fs.readFileSync(input.providerManifestPath, 'utf8'),
+  ) as any;
+  assert.ok(masManifest.codex_surface?.configured_codex_plugin_carrier);
+  assert.ok(providerManifest.codex_surface?.configured_codex_plugin_carrier);
+
+  const masPluginRoot = path.join(input.masCheckout, 'plugins', 'med-autoscience');
+  fs.writeFileSync(path.join(masPluginRoot, 'opl-package.json'), formatJsonPayload(masManifest));
+  fs.writeFileSync(
+    path.join(input.scholarCheckout, 'opl-package.json'),
+    formatJsonPayload(providerManifest),
+  );
+  for (const [checkout, marketplace] of [
+    [input.masCheckout, {
+      name: 'med-autoscience-local',
+      plugins: [{
+        name: 'med-autoscience',
+        source: { source: 'local', path: './plugins/med-autoscience' },
+      }],
+    }],
+    [input.scholarCheckout, {
+      name: 'mas-scholar-skills-local',
+      plugins: [{
+        name: 'mas-scholar-skills',
+        source: { source: 'local', path: './' },
+      }],
+    }],
+  ] as const) {
+    const marketplacePath = path.join(checkout, '.agents', 'plugins', 'marketplace.json');
+    fs.mkdirSync(path.dirname(marketplacePath), { recursive: true });
+    fs.writeFileSync(marketplacePath, formatJsonPayload(marketplace));
+  }
 }
 
 function writeOmaOwnerReleaseFixture(input: {
@@ -1594,12 +1634,19 @@ test('developer checkout policy stays explicit and is not a managed-update autho
   const scholarCheckout = path.join(root, 'workspace', 'mas-scholar-skills');
   const wrongCheckout = path.join(root, 'workspace', 'wrong-med-autoscience');
   const oldProvider = writeCapabilityProvider(path.join(root, 'old-provider'), '0.1.0');
-  const oldMas = writeMasConsumer(path.join(root, 'old-mas'), oldProvider, '0.1.0');
+  addConfiguredCarrierToCapabilityFixture(oldProvider);
+  const oldMas = writeMasConsumer(path.join(root, 'old-mas'), oldProvider, '0.1.0', {
+    configuredCarrier: true,
+  });
   const oldReleaseSet = writeCapabilityCatalog(path.join(root, 'old-release-set'), [oldMas, oldProvider]);
   const nextProvider = writeCapabilityProvider(path.join(root, 'next-provider'), '0.1.1');
-  const nextMas = writeMasConsumer(path.join(root, 'next-mas'), nextProvider, '0.1.1');
+  addConfiguredCarrierToCapabilityFixture(nextProvider);
+  const nextMas = writeMasConsumer(path.join(root, 'next-mas'), nextProvider, '0.1.1', {
+    configuredCarrier: true,
+  });
   const nextReleaseSet = writeCapabilityCatalog(path.join(root, 'next-release-set'), [nextMas, nextProvider]);
   const fakeBin = path.join(root, 'bin');
+  const codex = createFakeCodexPluginManagerFixture(path.join(root, 'fake-codex'));
   const commonEnv = {
     HOME: homeDir,
     CODEX_HOME: path.join(homeDir, '.codex'),
@@ -1609,6 +1656,7 @@ test('developer checkout policy stays explicit and is not a managed-update autho
     PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
     UV_TOOL_DIR: path.join(root, 'uv-tools'),
     OPL_CLI_TEST_TIMEOUT_MS: '120000',
+    OPL_CODEX_PLUGIN_BIN: codex.codexPath,
   };
   fs.mkdirSync(masCheckout, { recursive: true });
   fs.mkdirSync(scholarCheckout, { recursive: true });
@@ -1619,8 +1667,15 @@ test('developer checkout policy stays explicit and is not a managed-update autho
     masManifestPath: oldMas,
     providerManifestPath: oldProvider,
   });
+  writeDeveloperMasCarrierAuthority({
+    masCheckout,
+    scholarCheckout,
+    masManifestPath: oldMas,
+    providerManifestPath: oldProvider,
+  });
   writeMasOwnerGateFixture(masCheckout, fakeBin);
   commitDeveloperCheckout(masCheckout, 'add owner gate fixture');
+  commitDeveloperCheckout(scholarCheckout, 'add native owner authority');
   const oldEnv = { ...commonEnv, ...withMasOwnerGateFixturePath(oldReleaseSet.env, fakeBin) };
   const nextEnv = { ...commonEnv, ...withMasOwnerGateFixturePath(nextReleaseSet.env, fakeBin) };
 
@@ -1638,19 +1693,14 @@ test('developer checkout policy stays explicit and is not a managed-update autho
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
 
     const installed = runCli(['packages', 'install', 'mas'], oldEnv) as any;
-    assert.equal(installed.opl_agent_package_install.package_lock.package_version, '0.1.0');
-    assert.equal(installed.opl_agent_package_install.package_lock.source_kind, 'developer_checkout_override');
+    assert.equal(installed.opl_agent_package_install.configured_carrier.installed_version, '0.1.0');
     assert.deepEqual(
-      installed.opl_agent_package_install.dependency_package_locks.map((lock: any) => [
-        lock.package_id,
-        lock.package_version,
-        lock.source_kind,
-      ]),
-      [
-        ['mas-scholar-skills', '0.1.0', 'developer_checkout_override'],
-        ['mas', '0.1.0', 'developer_checkout_override'],
-      ],
+      installed.opl_agent_package_install.required_dependency_packages.map(
+        (entry: any) => `${entry.package_id}@${entry.observed_version}:${entry.status}`,
+      ),
+      ['mas-scholar-skills@0.1.0:installed'],
     );
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
 
     updateDeveloperCapabilityCheckoutClosure({
       masCheckout,
@@ -1659,6 +1709,14 @@ test('developer checkout policy stays explicit and is not a managed-update autho
       providerManifestPath: nextProvider,
       message: 'fixture B',
     });
+    writeDeveloperMasCarrierAuthority({
+      masCheckout,
+      scholarCheckout,
+      masManifestPath: nextMas,
+      providerManifestPath: nextProvider,
+    });
+    commitDeveloperCheckout(masCheckout, 'add next native owner authority');
+    commitDeveloperCheckout(scholarCheckout, 'add next native owner authority');
 
     const releaseCatalogCache = path.join(stateDir, 'agent-package-release-catalog-cache.json');
     const cachedOldReleaseSet = formatJsonPayload({
@@ -1669,8 +1727,6 @@ test('developer checkout policy stays explicit and is not a managed-update autho
       catalog_payload: JSON.parse(fs.readFileSync(oldReleaseSet.catalogPath, 'utf8')),
     });
     fs.writeFileSync(releaseCatalogCache, cachedOldReleaseSet);
-    const legacyLockPath = path.join(stateDir, 'agent-package-locks.json');
-    const legacyLockBytes = fs.readFileSync(legacyLockPath, 'utf8');
     const preview = runCli(['packages', 'update', '--dry-run'], nextEnv) as any;
     const previewPackages = preview.managed_update.components.find(
       (entry: any) => entry.component_id === 'opl_packages',
@@ -1688,24 +1744,15 @@ test('developer checkout policy stays explicit and is not a managed-update autho
       (entry: any) => entry.component_id === 'opl_packages',
     );
     assert.equal(adapter, undefined);
-    assert.equal(fs.readFileSync(legacyLockPath, 'utf8'), legacyLockBytes);
-
-    const lockIndex = parseJsonText(fs.readFileSync(legacyLockPath, 'utf8')) as any;
-    assert.deepEqual(
-      lockIndex.packages
-        .map((lock: any) => [lock.package_id, lock.package_version, lock.source_kind])
-        .sort((left: string[], right: string[]) => left[0].localeCompare(right[0])),
-      [
-        ['mas', '0.1.0', 'developer_checkout_override'],
-        ['mas-scholar-skills', '0.1.0', 'developer_checkout_override'],
-      ],
-    );
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+    const status = runCli(['packages', 'status', '--package-id', 'mas'], nextEnv) as any;
+    assert.equal(status.opl_agent_package_status.configured_carrier.installed_version, '0.1.0');
   } finally {
     removeFixtureTree(root);
   }
 });
 
-test('fresh Developer install admits owner checkout manifests without channel payload or content lock', () => {
+test('fresh Developer install admits owner checkout manifests without a channel payload', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-developer-direct-admission-'));
   const homeDir = path.join(root, 'home');
   const stateDir = path.join(root, 'state');
@@ -1716,10 +1763,12 @@ test('fresh Developer install admits owner checkout manifests without channel pa
   const providerPayload = JSON.parse(fs.readFileSync(providerManifest, 'utf8'));
   delete providerPayload.content_lock;
   fs.writeFileSync(providerManifest, formatJsonPayload(providerPayload));
+  addConfiguredCarrierToCapabilityFixture(providerManifest);
   const masManifest = writeMasConsumer(path.join(root, 'mas'), providerManifest, '0.1.0', {
     configuredCarrier: true,
   });
   const fakeBin = path.join(root, 'bin');
+  const codex = createFakeCodexPluginManagerFixture(path.join(root, 'fake-codex'));
   const commonEnv = {
     HOME: homeDir,
     CODEX_HOME: path.join(homeDir, '.codex'),
@@ -1728,6 +1777,7 @@ test('fresh Developer install admits owner checkout manifests without channel pa
     OPL_MODULE_PATH_SCHOLARSKILLS: scholarCheckout,
     PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
     UV_TOOL_DIR: path.join(root, 'uv-tools'),
+    OPL_CODEX_PLUGIN_BIN: codex.codexPath,
   };
   fs.mkdirSync(masCheckout, { recursive: true });
   fs.mkdirSync(scholarCheckout, { recursive: true });
@@ -1738,31 +1788,30 @@ test('fresh Developer install admits owner checkout manifests without channel pa
     masManifestPath: masManifest,
     providerManifestPath: providerManifest,
   });
+  writeDeveloperMasCarrierAuthority({
+    masCheckout,
+    scholarCheckout,
+    masManifestPath: masManifest,
+    providerManifestPath: providerManifest,
+  });
   writeMasOwnerGateFixture(masCheckout, fakeBin);
   commitDeveloperCheckout(masCheckout, 'add owner gate fixture');
+  commitDeveloperCheckout(scholarCheckout, 'add native owner authority');
 
   try {
     const installed = runCli(['packages', 'install', 'mas'], commonEnv) as any;
     assert.equal(installed.opl_agent_package_install.status, 'installed');
     assert.deepEqual(
-      installed.opl_agent_package_install.dependency_package_locks.map(
-        (lock: any) => [lock.package_id, lock.source_kind],
+      installed.opl_agent_package_install.required_dependency_packages.map(
+        (entry: any) => `${entry.package_id}@${entry.observed_version}:${entry.status}`,
       ),
-      [
-        ['mas-scholar-skills', 'developer_checkout_override'],
-        ['mas', 'developer_checkout_override'],
-      ],
-    );
-    assert.equal(
-      installed.opl_agent_package_install.dependency_package_locks.every(
-        (lock: any) => lock.release_channel_ref === null && lock.artifact_digest === null,
-      ),
-      true,
+      ['mas-scholar-skills@0.1.0:installed'],
     );
     assert.equal(
       fs.existsSync(path.join(stateDir, 'agent-package-release-catalog-cache.json')),
       false,
     );
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
 
     const status = runCli(['packages', 'status', '--package-id', 'mas'], commonEnv) as any;
     assert.equal(
@@ -2093,15 +2142,16 @@ test('first-party native install does not fetch or require an optional capabilit
   }
 });
 
-test('developer locks stay intact when the owner artifact has no native carrier authority', () => {
+test('developer native carrier stays intact when the owner artifact has no native carrier authority', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-developer-to-managed-'));
   const homeDir = path.join(root, 'home');
   const stateDir = path.join(root, 'state');
   const masCheckout = path.join(root, 'workspace', 'med-autoscience');
   const scholarCheckout = path.join(root, 'workspace', 'mas-scholar-skills');
   const oldProvider = writeCapabilityProvider(path.join(root, 'old-provider'), '0.1.0');
+  addConfiguredCarrierToCapabilityFixture(oldProvider);
   const oldMas = writeMasConsumer(path.join(root, 'old-mas'), oldProvider, '0.1.0', {
-    configuredCarrier: false,
+    configuredCarrier: true,
   });
   const oldReleaseSet = writeCapabilityCatalog(path.join(root, 'old-release-set'), [oldMas, oldProvider]);
   const nextProvider = writeCapabilityProvider(path.join(root, 'next-provider'), '0.1.1');
@@ -2110,6 +2160,7 @@ test('developer locks stay intact when the owner artifact has no native carrier 
   });
   const nextReleaseSet = writeCapabilityCatalog(path.join(root, 'next-release-set'), [nextMas, nextProvider]);
   const fakeBin = path.join(root, 'bin');
+  const codex = createFakeCodexPluginManagerFixture(path.join(root, 'fake-codex'));
   const ownerChannel = writePackageOwnerChannelFixture({
     root: path.join(root, 'owner-channel'),
     binRoot: path.join(root, 'owner-channel-bin'),
@@ -2124,12 +2175,20 @@ test('developer locks stay intact when the owner artifact has no native carrier 
     masManifestPath: oldMas,
     providerManifestPath: oldProvider,
   });
+  writeDeveloperMasCarrierAuthority({
+    masCheckout,
+    scholarCheckout,
+    masManifestPath: oldMas,
+    providerManifestPath: oldProvider,
+  });
   writeMasOwnerGateFixture(masCheckout, fakeBin);
   commitDeveloperCheckout(masCheckout, 'add owner gate fixture');
+  commitDeveloperCheckout(scholarCheckout, 'add native owner authority');
   const commonEnv = {
     HOME: homeDir,
     CODEX_HOME: path.join(homeDir, '.codex'),
     OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: codex.codexPath,
   };
 
   try {
@@ -2141,9 +2200,8 @@ test('developer locks stay intact when the owner artifact has no native carrier 
       OPL_MODULE_PATH_SCHOLARSKILLS: scholarCheckout,
       UV_TOOL_DIR: path.join(root, 'uv-tools'),
     }) as any;
-    assert.equal(installed.opl_agent_package_install.package_lock.source_kind, 'developer_checkout_override');
-    const lockPath = path.join(stateDir, 'agent-package-locks.json');
-    const lockBefore = fs.readFileSync(lockPath);
+    assert.equal(installed.opl_agent_package_install.configured_carrier.installed_version, '0.1.0');
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
 
     const failure = runCliFailure(['packages', 'update', 'mas'], {
       ...commonEnv,
@@ -2156,7 +2214,10 @@ test('developer locks stay intact when the owner artifact has no native carrier 
       failure.payload.error.details.failure_code,
       'configured_codex_plugin_carrier_owner_authority_missing',
     );
-    assert.deepEqual(fs.readFileSync(lockPath), lockBefore);
+    const retained = runCli(['packages', 'status', '--package-id', 'mas'], commonEnv) as any;
+    assert.equal(retained.opl_agent_package_status.configured_carrier.installed_version, '0.1.0');
+    assert.equal(retained.opl_agent_package_status.installed_readiness.callability, 'callable');
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
     assert.deepEqual(
       fs.existsSync(path.join(stateDir, 'agent-package-runtime-transactions'))
         ? fs.readdirSync(path.join(stateDir, 'agent-package-runtime-transactions'))
@@ -2170,7 +2231,7 @@ test('developer locks stay intact when the owner artifact has no native carrier 
   }
 });
 
-test('single-package developer update reconciles from the live owner catalog and becomes a byte-stable no-op', () => {
+test('single-package developer update reconciles from the live owner checkout without private state', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-single-developer-update-'));
   const homeDir = path.join(root, 'home');
   const stateDir = path.join(root, 'state');
@@ -2178,16 +2239,20 @@ test('single-package developer update reconciles from the live owner catalog and
   const scholarCheckout = path.join(root, 'workspace', 'mas-scholar-skills');
   const wrongCheckout = path.join(root, 'workspace', 'wrong-med-autoscience');
   const oldProvider = writeCapabilityProvider(path.join(root, 'old-provider'), '0.1.0');
-  const oldMas = writeMasConsumer(path.join(root, 'old-mas'), oldProvider, '0.1.0');
+  addConfiguredCarrierToCapabilityFixture(oldProvider);
+  const oldMas = writeMasConsumer(path.join(root, 'old-mas'), oldProvider, '0.1.0', {
+    configuredCarrier: true,
+  });
   const oldReleaseSet = writeCapabilityCatalog(path.join(root, 'old-release-set'), [oldMas, oldProvider]);
   const nextProvider = writeCapabilityProvider(path.join(root, 'next-provider'), '0.1.1');
-  const nextMas = writeMasConsumer(path.join(root, 'next-mas'), nextProvider, '0.1.1');
+  addConfiguredCarrierToCapabilityFixture(nextProvider);
+  const nextMas = writeMasConsumer(path.join(root, 'next-mas'), nextProvider, '0.1.1', {
+    configuredCarrier: true,
+  });
   const nextReleaseSet = writeCapabilityCatalog(path.join(root, 'next-release-set'), [nextMas, nextProvider]);
   const fakeBin = path.join(root, 'bin');
-  const lockFile = path.join(stateDir, 'agent-package-locks.json');
+  const codex = createFakeCodexPluginManagerFixture(path.join(root, 'fake-codex'));
   const releaseCatalogCache = path.join(stateDir, 'agent-package-release-catalog-cache.json');
-  const masSentinel = path.join(masCheckout, 'developer-source.txt');
-  const scholarSentinel = path.join(scholarCheckout, 'developer-source.txt');
   const commonEnv = {
     HOME: homeDir,
     CODEX_HOME: path.join(homeDir, '.codex'),
@@ -2196,6 +2261,7 @@ test('single-package developer update reconciles from the live owner catalog and
     OPL_MODULE_PATH_SCHOLARSKILLS: scholarCheckout,
     PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
     UV_TOOL_DIR: path.join(root, 'uv-tools'),
+    OPL_CODEX_PLUGIN_BIN: codex.codexPath,
   };
   fs.mkdirSync(masCheckout, { recursive: true });
   fs.mkdirSync(scholarCheckout, { recursive: true });
@@ -2206,30 +2272,44 @@ test('single-package developer update reconciles from the live owner catalog and
     masManifestPath: oldMas,
     providerManifestPath: oldProvider,
   });
+  writeDeveloperMasCarrierAuthority({
+    masCheckout,
+    scholarCheckout,
+    masManifestPath: oldMas,
+    providerManifestPath: oldProvider,
+  });
   writeMasOwnerGateFixture(masCheckout, fakeBin);
   commitDeveloperCheckout(masCheckout, 'add owner gate fixture');
+  commitDeveloperCheckout(scholarCheckout, 'add native owner authority');
   const oldEnv = { ...commonEnv, ...withMasOwnerGateFixturePath(oldReleaseSet.env, fakeBin) };
   const nextEnv = { ...commonEnv, ...withMasOwnerGateFixturePath(nextReleaseSet.env, fakeBin) };
-  fs.writeFileSync(masSentinel, 'developer MAS source\n');
-  fs.writeFileSync(scholarSentinel, 'developer ScholarSkills source\n');
 
   try {
     const installed = runCli(['packages', 'install', 'mas'], oldEnv) as any;
-    assert.equal(installed.opl_agent_package_install.package_lock.package_version, '0.1.0');
-    assert.equal(installed.opl_agent_package_install.package_lock.source_kind, 'developer_checkout_override');
-    const installedLockBytes = fs.readFileSync(lockFile, 'utf8');
+    assert.equal(installed.opl_agent_package_install.configured_carrier.installed_version, '0.1.0');
+    assert.deepEqual(
+      installed.opl_agent_package_install.required_dependency_packages.map(
+        (entry: any) => `${entry.package_id}@${entry.observed_version}:${entry.status}`,
+      ),
+      ['mas-scholar-skills@0.1.0:installed'],
+    );
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
     assert.equal(fs.existsSync(releaseCatalogCache), false);
 
     const pathFailure = runCliFailure([
-      'packages', 'update', 'mas', '--agent-root', wrongCheckout,
+      'packages', 'update', 'mas',
+      '--source-kind', 'developer_checkout_override',
+      '--agent-root', wrongCheckout,
     ], nextEnv);
     assert.equal(pathFailure.payload.error.code, 'contract_shape_invalid');
     assert.equal(
       pathFailure.payload.error.details.failure_code,
       'first_party_package_developer_checkout_path_mismatch',
     );
-    assert.equal(fs.readFileSync(lockFile, 'utf8'), installedLockBytes);
+    const retained = runCli(['packages', 'status', '--package-id', 'mas'], nextEnv) as any;
+    assert.equal(retained.opl_agent_package_status.configured_carrier.installed_version, '0.1.0');
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
     assert.equal(fs.existsSync(releaseCatalogCache), false);
 
@@ -2240,113 +2320,60 @@ test('single-package developer update reconciles from the live owner catalog and
       providerManifestPath: nextProvider,
       message: 'fixture B',
     });
+    writeDeveloperMasCarrierAuthority({
+      masCheckout,
+      scholarCheckout,
+      masManifestPath: nextMas,
+      providerManifestPath: nextProvider,
+    });
+    commitDeveloperCheckout(masCheckout, 'add next native owner authority');
+    commitDeveloperCheckout(scholarCheckout, 'add next native owner authority');
 
     const preview = runCli(['packages', 'update', 'mas', '--dry-run'], nextEnv) as any;
     const previewUpdate = preview.opl_agent_package_update;
     assert.equal(previewUpdate.status, 'validated_no_write');
-    assert.equal(previewUpdate.reconciliation_action, 'source_reconcile');
-    assert.equal(previewUpdate.currentness.status, 'update_available');
-    assert.ok(previewUpdate.currentness.reasons.includes('package_version_changed'));
-    assert.equal(previewUpdate.target_version, '0.1.1');
-    assert.equal(previewUpdate.package_lock.package_version, '0.1.1');
+    assert.equal(Object.hasOwn(previewUpdate, 'package_lock'), false);
+    assert.equal(previewUpdate.configured_carrier.installed_version, '0.1.0');
     assert.equal(Object.hasOwn(previewUpdate, 'lifecycle_receipt'), false);
     assert.equal(fs.existsSync(releaseCatalogCache), false);
-    assert.equal(fs.readFileSync(lockFile, 'utf8'), installedLockBytes);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
 
     const updated = runCli(['packages', 'update', 'mas'], nextEnv) as any;
     const appliedUpdate = updated.opl_agent_package_update;
     assert.equal(appliedUpdate.status, 'updated');
-    assert.equal(appliedUpdate.reconciliation_action, 'source_reconcile');
-    assert.equal(appliedUpdate.currentness.status, 'update_available');
-    assert.equal(appliedUpdate.package_lock.package_version, '0.1.1');
-    assert.equal(appliedUpdate.package_lock.source_kind, 'developer_checkout_override');
+    assert.equal(Object.hasOwn(appliedUpdate, 'package_lock'), false);
+    assert.equal(appliedUpdate.configured_carrier.installed_version, '0.1.1');
+    assert.equal(appliedUpdate.configured_carrier.executor.status, 'callable');
     assert.deepEqual(
-      appliedUpdate.dependency_package_locks.map((lock: any) => [
-        lock.package_id,
-        lock.package_version,
-        lock.source_kind,
-      ]),
-      [
-        ['mas-scholar-skills', '0.1.1', 'developer_checkout_override'],
-        ['mas', '0.1.1', 'developer_checkout_override'],
-      ],
+      appliedUpdate.required_dependency_packages.map(
+        (entry: any) => `${entry.package_id}@${entry.observed_version}:${entry.status}`,
+      ),
+      ['mas-scholar-skills@0.1.1:updated'],
     );
-    const updatedLockIndex = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
-    assert.deepEqual(
-      updatedLockIndex.packages
-        .map((lock: any) => [lock.package_id, lock.package_version, lock.source_kind])
-        .sort((left: string[], right: string[]) => left[0].localeCompare(right[0])),
-      [
-        ['mas', '0.1.1', 'developer_checkout_override'],
-        ['mas-scholar-skills', '0.1.1', 'developer_checkout_override'],
-      ],
-    );
-    assert.equal(fs.readFileSync(masSentinel, 'utf8'), 'developer MAS source\n');
-    assert.equal(fs.readFileSync(scholarSentinel, 'utf8'), 'developer ScholarSkills source\n');
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(releaseCatalogCache), false);
 
-    const driftedLockIndex = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
-    const driftedScholarLock = driftedLockIndex.packages.find(
-      (lock: any) => lock.package_id === 'mas-scholar-skills',
-    );
-    driftedScholarLock.source_kind = 'first_party_managed_cohort';
-    fs.writeFileSync(lockFile, `${JSON.stringify(driftedLockIndex, null, 2)}\n`);
-    const dependencyReconciled = runCli(['packages', 'update', 'mas'], nextEnv) as any;
-    const dependencyUpdate = dependencyReconciled.opl_agent_package_update;
-    assert.equal(dependencyUpdate.status, 'updated');
-    assert.equal(dependencyUpdate.currentness.status, 'update_available');
-    assert.deepEqual(dependencyUpdate.currentness.reasons, ['dependency_closure_changed']);
-    assert.equal(
-      dependencyUpdate.closure_currentness.find(
-        (entry: any) => entry.package_id === 'mas-scholar-skills',
-      ).status,
-      'update_available',
-    );
-    assert.equal(
-      dependencyUpdate.dependency_package_locks.find(
-        (lock: any) => lock.package_id === 'mas-scholar-skills',
-      ).source_kind,
-      'developer_checkout_override',
-    );
-    assert.equal(fs.existsSync(releaseCatalogCache), false);
-
-    const currentLockBytes = fs.readFileSync(lockFile, 'utf8');
     const current = runCli(['packages', 'update', 'mas'], nextEnv) as any;
     const currentUpdate = current.opl_agent_package_update;
-    assert.equal(currentUpdate.status, 'current_noop');
-    assert.equal(currentUpdate.currentness.status, 'current');
-    assert.equal(currentUpdate.reconciliation_action, null);
+    assert.equal(currentUpdate.status, 'updated');
+    assert.equal(Object.hasOwn(currentUpdate, 'package_lock'), false);
     assert.equal(Object.hasOwn(currentUpdate, 'lifecycle_receipt'), false);
-    assert.deepEqual(
-      currentUpdate.dependency_package_locks.map((lock: any) => [lock.package_id, lock.source_kind]),
-      [
-        ['mas-scholar-skills', 'developer_checkout_override'],
-        ['mas', 'developer_checkout_override'],
-      ],
-    );
-    assert.equal(fs.readFileSync(lockFile, 'utf8'), currentLockBytes);
+    assert.equal(currentUpdate.configured_carrier.installed_version, '0.1.1');
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
     assert.equal(fs.existsSync(releaseCatalogCache), false);
 
-    const scholarHead = execFileSync('git', ['rev-parse', 'HEAD'], {
-      cwd: scholarCheckout,
-      encoding: 'utf8',
-    }).trim();
     fs.appendFileSync(developerFixture.providerHelperPath, 'offline dirty developer update\n');
     fs.rmSync(nextReleaseSet.catalogPath, { force: true });
     const offlineDeveloper = runCli(['packages', 'update', 'mas'], nextEnv) as any;
     const offlineUpdate = offlineDeveloper.opl_agent_package_update;
-    const offlineProvider = offlineUpdate.dependency_package_locks.find(
-      (entry: any) => entry.package_id === 'mas-scholar-skills',
-    );
     assert.equal(offlineUpdate.status, 'updated');
-    assert.equal(offlineUpdate.reconciliation_action, 'source_reconcile');
-    assert.equal(offlineUpdate.release_catalog_freshness, null);
-    assert.equal(offlineProvider.developer_checkout_source.source_git_head_sha, scholarHead);
+    assert.equal(offlineUpdate.configured_carrier.installed_version, '0.1.1');
+    assert.equal(offlineUpdate.configured_carrier.executor.status, 'callable');
     assert.match(
       fs.readFileSync(
-        path.join(offlineProvider.physical_surface.codex_plugin_cache_path, 'skills', 'medical-manuscript-writing', 'helper.txt'),
+        developerFixture.providerHelperPath,
         'utf8',
       ),
       /offline dirty developer update/,
@@ -2356,24 +2383,7 @@ test('single-package developer update reconciles from the live owner catalog and
       encoding: 'utf8',
     }), '');
     assert.equal(fs.existsSync(releaseCatalogCache), false);
-
-    const providerSkillRoot = path.join(
-      offlineProvider.physical_surface.codex_plugin_cache_path,
-      'skills',
-      'medical-manuscript-writing',
-    );
-    assert.equal(fs.statSync(offlineProvider.physical_surface.codex_plugin_cache_path).mode & 0o777, 0o555);
-    assert.equal(fs.statSync(path.join(providerSkillRoot, 'SKILL.md')).mode & 0o777, 0o444);
-    fs.chmodSync(providerSkillRoot, 0o755);
-    const injectedSkillInstruction = path.join(providerSkillRoot, 'untracked-instruction.md');
-    fs.writeFileSync(injectedSkillInstruction, 'must never enter a Skill projection\n', { mode: 0o444 });
-    fs.chmodSync(providerSkillRoot, 0o555);
-    assert.throws(() => materializeAgentPackageSkillProjection({
-      root: offlineUpdate.package_lock,
-      providers: [offlineProvider],
-      dryRun: true,
-    }), (error: any) =>
-      error?.details?.failure_code === 'agent_package_plugin_cache_generation_invalid');
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
   } finally {
     removeFixtureTree(root);
   }
