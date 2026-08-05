@@ -213,139 +213,26 @@ test('package lock normalization stops propagating legacy catalog selection poli
   }
 });
 
-test('concurrent package activation preserves distinct workspaces and avoids shared-workspace staging conflicts', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-writer-concurrency-'));
+test('ordinary first-party install fails before entering the private lifecycle writer', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-native-owner-before-writer-'));
   const stateDir = path.join(root, 'state');
-  const homeDir = path.join(root, 'home');
-  const workspaceA = path.join(root, 'workspace-a');
-  const workspaceB = path.join(root, 'workspace-b');
-  const sharedWorkspace = path.join(root, 'workspace-shared');
   const provider = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0');
   const consumer = writeMasConsumer(path.join(root, 'consumer'), provider, '0.1.0');
   const releaseSet = writeCapabilityCatalog(path.join(root, 'release-set'), [consumer, provider]);
-  const env = {
-    HOME: homeDir,
-    CODEX_HOME: path.join(homeDir, '.codex'),
-    OPL_STATE_DIR: stateDir,
-    OPL_MODULE_SOURCE_MODE: 'package_channel',
-    ...releaseSet.env,
-  };
-
   try {
-    for (const workspace of [workspaceA, workspaceB, sharedWorkspace]) {
-      bindMasWorkspace(workspace, env);
-    }
-    await runCliAsync(['packages', 'install', 'mas'], env);
-    await Promise.all([workspaceA, workspaceB].map((workspace) => runCliAsync([
-      'packages', 'activate', 'mas',
-      '--scope', 'workspace', '--target-workspace', workspace,
-    ], env)));
-
-    const lockFile = path.join(stateDir, 'agent-package-locks.json');
-    const ledgerFile = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
-    const afterDistinct = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
-    const mas = afterDistinct.packages.find((entry: any) => entry.package_id === 'mas');
-    assert.deepEqual(
-      mas.scope_materializations.map((entry: any) => path.resolve(entry.target_root)).sort(),
-      [path.resolve(workspaceA), path.resolve(workspaceB)].sort(),
+    await assert.rejects(
+      () => runCliAsync(['packages', 'install', 'mas'], {
+        HOME: path.join(root, 'home'),
+        CODEX_HOME: path.join(root, 'home', '.codex'),
+        OPL_STATE_DIR: stateDir,
+        OPL_MODULE_SOURCE_MODE: 'package_channel',
+        ...releaseSet.env,
+      }),
+      /configured_codex_plugin_carrier_owner_descriptor_missing/,
     );
-    assert.equal(fs.existsSync(ledgerFile), false);
-    assertNoScopeTransactionArtifacts(workspaceA);
-    assertNoScopeTransactionArtifacts(workspaceB);
-
-    await Promise.all([0, 1].map(() => runCliAsync([
-      'packages', 'activate', 'mas',
-      '--scope', 'workspace', '--target-workspace', sharedWorkspace,
-    ], env)));
-    const afterShared = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
-    const sharedMas = afterShared.packages.find((entry: any) => entry.package_id === 'mas');
-    assert.equal(
-      sharedMas.scope_materializations.filter(
-        (entry: any) => path.resolve(entry.target_root) === path.resolve(sharedWorkspace),
-      ).length,
-      1,
-    );
-    assertNoScopeTransactionArtifacts(sharedWorkspace);
-    assert.equal(fs.existsSync(lifecycleLockPath(stateDir)), true);
-
-    const liveOwner = new DatabaseSync(lifecycleLockPath(stateDir));
-    liveOwner.exec('PRAGMA journal_mode = WAL;');
-    liveOwner.exec('BEGIN IMMEDIATE;');
-    try {
-      const contention = runCliFailure([
-        'packages', 'activate', 'mas',
-        '--scope', 'workspace', '--target-workspace', sharedWorkspace,
-      ], env);
-      assert.equal(contention.payload.error.code, 'runtime_state_lock_timeout');
-      assert.equal(contention.payload.error.details.failure_code, 'agent_package_lifecycle_lock_timeout');
-    } finally {
-      liveOwner.exec('ROLLBACK;');
-      liveOwner.close();
-    }
-    const recoveredActivation = await runCliAsync([
-      'packages', 'activate', 'mas',
-      '--scope', 'workspace', '--target-workspace', sharedWorkspace,
-    ], env) as any;
-    assert.equal(recoveredActivation.opl_agent_package_activation.launch_allowed, true);
-    assert.equal(recoveredActivation.opl_agent_package_activation.status, 'already_activated');
-  } finally {
-    removeFixtureTree(root);
-  }
-});
-
-test('use boundary never calls a hanging package channel and uses the installed carrier', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-use-refresh-budget-'));
-  const stateDir = path.join(root, 'state');
-  const homeDir = path.join(root, 'home');
-  const workspace = path.join(root, 'workspace');
-  const hangingBin = path.join(root, 'hanging-bin');
-  const curlMarker = path.join(root, 'curl-called');
-  const provider = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0');
-  const consumer = writeMasConsumer(path.join(root, 'consumer'), provider, '0.1.0');
-  const releaseSet = writeCapabilityCatalog(path.join(root, 'release-set'), [consumer, provider]);
-  const env = {
-    HOME: homeDir,
-    CODEX_HOME: path.join(homeDir, '.codex'),
-    OPL_STATE_DIR: stateDir,
-    OPL_MODULE_SOURCE_MODE: 'package_channel',
-    ...releaseSet.env,
-  };
-
-  try {
-    bindMasWorkspace(workspace, env);
-    await runCliAsync(['packages', 'install', 'mas'], env);
-    fs.mkdirSync(hangingBin, { recursive: true });
-    fs.writeFileSync(
-      path.join(hangingBin, 'curl'),
-      [
-        '#!/bin/sh',
-        `touch ${JSON.stringify(curlMarker)}`,
-        'while :; do :; done',
-        '',
-      ].join('\n'),
-      { mode: 0o755 },
-    );
-
-    const activated = await runCliAsync([
-      'packages', 'activate', 'mas',
-      '--scope', 'workspace', '--target-workspace', workspace,
-    ], {
-      ...env,
-      PATH: `${hangingBin}:${env.PATH}`,
-    }) as any;
-    const activation = activated.opl_agent_package_activation;
-
-    assert.equal(activation.launch_allowed, true);
-    assert.equal(activation.operational_ready, true);
-    assert.equal(activation.package_use_binding.source_selection, 'installed_package_lock');
-    assert.equal(activation.package_use_binding.network_accessed, false);
-    assert.equal(activation.package_use_binding.remote_dependency_policy, 'forbidden');
-    assert.equal(fs.existsSync(curlMarker), false);
-
-    assert.equal(
-      fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')),
-      false,
-    );
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
+    assert.equal(fs.existsSync(lifecycleLockPath(stateDir)), false);
   } finally {
     removeFixtureTree(root);
   }

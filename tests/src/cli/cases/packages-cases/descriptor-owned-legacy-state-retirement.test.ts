@@ -10,7 +10,6 @@ import {
   parseJsonText,
   removeFixtureTree,
   runCli,
-  runCliFailure,
   test,
 } from './helpers.ts';
 import { writeManagedRuntimeSourceFixture } from './managed-runtime-source-fixture.ts';
@@ -23,7 +22,7 @@ function installedOwnerDescriptor() {
     ...agentPackageManifest(),
     presentation: {
       display_name_i18n: { 'en-US': 'Third Party Research' },
-      description_i18n: { 'en-US': 'Native descriptor retirement fixture.' },
+      description_i18n: { 'en-US': 'Native descriptor legacy-state isolation fixture.' },
       session_routing_summary_i18n: { 'en-US': 'Use the native carrier.' },
       home_shortcuts: [],
     },
@@ -151,11 +150,12 @@ function createLegacyThenNativeFixture(label: string, options: { runtimeSource?:
   };
 }
 
-test('native-confirmed repair retires a package-created managed runtime source with its legacy lock', () => {
+test('native-confirmed repair leaves a package-created legacy runtime source and lock inert', () => {
   const fixture = createLegacyThenNativeFixture('runtime-source', { runtimeSource: true });
   try {
     const originalIndex = parseJsonText(fs.readFileSync(fixture.lockPath, 'utf8')) as any;
     const originalLock = originalIndex.packages.find((entry: any) => entry.package_id === packageId);
+    const originalLockBytes = fs.readFileSync(fixture.lockPath);
     const runtimeSourcePath = originalLock.managed_runtime_source.checkout_path;
     const transactionRoot = path.join(fixture.stateDir, 'agent-package-runtime-transactions');
     assert.equal(originalLock.managed_runtime_source.ownership, 'package_created');
@@ -167,8 +167,8 @@ test('native-confirmed repair retires a package-created managed runtime source w
     assert.deepEqual(fs.existsSync(transactionRoot) ? fs.readdirSync(transactionRoot) : [], []);
 
     runCli(['packages', 'repair', packageId], fixture.env);
-    assert.equal(fs.existsSync(fixture.lockPath), false);
-    assert.equal(fs.existsSync(runtimeSourcePath), false);
+    assert.deepEqual(fs.readFileSync(fixture.lockPath), originalLockBytes);
+    assert.equal(fs.existsSync(runtimeSourcePath), true);
     assert.deepEqual(fs.existsSync(transactionRoot) ? fs.readdirSync(transactionRoot) : [], []);
     assert.equal(fs.existsSync(path.join(fixture.pluginSource, 'opl-package.json')), true);
   } finally {
@@ -195,7 +195,7 @@ test('native-confirmed repair retains a preexisting adopted runtime source and i
   }
 });
 
-test('explicit native-confirmed repair retires descriptor-owned lock and strips legacy LKG state', () => {
+test('explicit native-confirmed repair leaves descriptor-owned lock and legacy LKG state inert', () => {
   const fixture = createLegacyThenNativeFixture('success');
   try {
     const originalIndex = parseJsonText(fs.readFileSync(fixture.lockPath, 'utf8')) as any;
@@ -225,7 +225,7 @@ test('explicit native-confirmed repair retires descriptor-owned lock and strips 
     assert.equal(Object.hasOwn(repaired.opl_agent_package_repair, 'legacy_state_retirement'), false);
     assert.equal(Object.hasOwn(repaired.opl_agent_package_repair, 'opl_private_state_writes'), false);
 
-    assert.equal(fs.existsSync(fixture.lockPath), false);
+    assert.deepEqual(fs.readFileSync(fixture.lockPath), originalLockBytes);
     assert.equal(fs.existsSync(legacyLedgerPath), false);
     assert.equal(fs.existsSync(path.join(fixture.pluginSource, 'opl-package.json')), true);
   } finally {
@@ -233,7 +233,7 @@ test('explicit native-confirmed repair retires descriptor-owned lock and strips 
   }
 });
 
-test('legacy LKG bytes are ignored on read and stripped by the next native-confirmed repair', () => {
+test('legacy LKG bytes are ignored on read and remain inert after native-confirmed repair', () => {
   const fixture = createLegacyThenNativeFixture('mixed-lkg');
   try {
     const index = parseJsonText(fs.readFileSync(fixture.lockPath, 'utf8')) as any;
@@ -253,21 +253,23 @@ test('legacy LKG bytes are ignored on read and stripped by the next native-confi
       package_locks: [targetLock, legacyLock],
     }];
     fs.writeFileSync(fixture.lockPath, formatJsonPayload(index));
+    const legacyBytes = fs.readFileSync(fixture.lockPath);
 
     const repaired = runCli(['packages', 'repair', packageId], fixture.env) as any;
     assert.equal(Object.hasOwn(repaired.opl_agent_package_repair, 'legacy_state_retirement'), false);
 
     const nextIndex = parseJsonText(fs.readFileSync(fixture.lockPath, 'utf8')) as any;
-    assert.equal(nextIndex.packages.some((entry: any) => entry.package_id === packageId), false);
+    assert.deepEqual(fs.readFileSync(fixture.lockPath), legacyBytes);
+    assert.equal(nextIndex.packages.some((entry: any) => entry.package_id === packageId), true);
     assert.equal(nextIndex.packages.some((entry: any) => entry.package_id === 'legacy.consumer'), true);
     assert.equal(
       Object.hasOwn(
         nextIndex.packages.find((entry: any) => entry.package_id === 'legacy.consumer'),
         'action_receipt_id',
       ),
-      false,
+      true,
     );
-    assert.equal('last_known_good_transactions' in nextIndex, false);
+    assert.equal('last_known_good_transactions' in nextIndex, true);
     assert.equal(fs.existsSync(targetLock.physical_surface.codex_plugin_cache_path), true);
   } finally {
     removeFixtureTree(fixture.root);
@@ -320,7 +322,7 @@ test('dependent locks and native source overlap retain legacy state without dele
   }
 });
 
-test('corrupt legacy authority fails closed after native readback without rewriting bytes', () => {
+test('corrupt legacy authority cannot block native repair or rewrite compatibility bytes', () => {
   const fixture = createLegacyThenNativeFixture('corrupt');
   try {
     const corruptLockBytes = Buffer.from(
@@ -328,11 +330,9 @@ test('corrupt legacy authority fails closed after native readback without rewrit
     );
     fs.writeFileSync(fixture.lockPath, corruptLockBytes);
 
-    const failure = runCliFailure(['packages', 'repair', packageId], fixture.env);
-    assert.equal(
-      failure.payload.error.details.failure_code,
-      'agent_package_lock_authority_corrupt',
-    );
+    const repaired = runCli(['packages', 'repair', packageId], fixture.env) as any;
+    assert.equal(repaired.opl_agent_package_repair.status, 'repaired');
+    assert.equal(Object.hasOwn(repaired.opl_agent_package_repair, 'legacy_state_retirement'), false);
     assert.deepEqual(fs.readFileSync(fixture.lockPath), corruptLockBytes);
     assert.equal(fs.existsSync(path.join(fixture.stateDir, 'agent-package-lifecycle-ledger.json')), false);
     assert.equal(fs.existsSync(path.join(fixture.pluginSource, 'opl-package.json')), true);

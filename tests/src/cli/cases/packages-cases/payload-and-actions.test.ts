@@ -23,7 +23,7 @@ process.stdout.write(JSON.stringify({ installed: [], available: [] }));
   fs.chmodSync(binary, 0o755);
 }
 
-test('packages materializes manifest-declared remote plugin payloads', async () => {
+test('ordinary remote payload manifests cannot enter the legacy materializer', async () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-remote-payload-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-remote-payload-home-'));
   const codexBinary = path.join(homeDir, 'empty-codex.mjs');
@@ -36,87 +36,20 @@ test('packages materializes manifest-declared remote plugin payloads', async () 
   try {
     writeEmptyCodexPluginCarrier(codexBinary);
     await withRemotePayloadAgentPackageServer(async (baseUrl) => {
-      const install = await runCliAsync([
-        'packages',
-        'install',
-        '--registry-url',
-        `${baseUrl}/registry.json`,
-        '--package-id',
-        'third.party.research',
-      ], env) as {
-        opl_agent_package_install: {
-          status: string;
-          package_lock: {
-            physical_surface: {
-              plugin_payload_manifest_url: string;
-              plugin_payload_manifest_sha256: string;
-              plugin_payload_cache_path: string;
-              materialized_required_skill_ids: string[];
-            };
-          };
-          physical_surface: {
-            status: string;
-            plugin_payload_manifest_url: string;
-            plugin_payload_manifest_sha256: string;
-            plugin_payload_cache_path: string;
-            codex_plugin_cache_path: string;
-            materialized_required_skill_paths: string[];
-          };
-        };
-      };
-
-      const physicalSurface = install.opl_agent_package_install.physical_surface;
-      assert.equal(install.opl_agent_package_install.status, 'installed');
-      assert.equal(physicalSurface.status, 'materialized');
-      assert.equal(physicalSurface.plugin_payload_manifest_url, `${baseUrl}/payload.json`);
-      assert.match(physicalSurface.plugin_payload_manifest_sha256, /^[a-f0-9]{64}$/);
-      assert.equal(fs.existsSync(path.join(
-        physicalSurface.plugin_payload_cache_path,
-        '.codex-plugin',
-        'plugin.json',
-      )), true);
-      assert.equal(fs.existsSync(path.join(
-        physicalSurface.codex_plugin_cache_path,
-        'skills',
-        'third-party-research',
-        'SKILL.md',
-      )), true);
-      assert.deepEqual(
-        install.opl_agent_package_install.package_lock.physical_surface.materialized_required_skill_ids,
-        ['third-party-research'],
+      await assert.rejects(
+        () => runCliAsync([
+          'packages',
+          'install',
+          '--registry-url',
+          `${baseUrl}/registry.json`,
+          '--package-id',
+          'third.party.research',
+        ], env),
+        /agent_package_lifecycle_native_owner_required/,
       );
-      assert.equal(Object.hasOwn(install.opl_agent_package_install, 'lifecycle_receipt'), false);
-
-      await runCliAsync([
-        'packages',
-        'update',
-        '--registry-url',
-        `${baseUrl}/registry.json`,
-        '--package-id',
-        'third.party.research',
-      ], env);
-      assert.equal(fs.existsSync(physicalSurface.plugin_payload_cache_path), true);
-
-      const uninstall = runCli([
-        'packages',
-        'uninstall',
-        '--package-id',
-        'third.party.research',
-      ], env) as {
-        opl_agent_package_uninstall: {
-          physical_surface: {
-            status: string;
-            removed_paths: string[];
-          };
-        };
-      };
-
-      assert.equal(uninstall.opl_agent_package_uninstall.physical_surface.status, 'removed');
-      assert.equal(
-        uninstall.opl_agent_package_uninstall.physical_surface.removed_paths.includes(physicalSurface.plugin_payload_cache_path),
-        true,
-      );
-      assert.equal(fs.existsSync(physicalSurface.plugin_payload_cache_path), false);
+      assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+      assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
+      assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle.sqlite')), false);
     });
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
