@@ -217,7 +217,9 @@ test('ordinary first-party install fails before entering the private lifecycle w
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-native-owner-before-writer-'));
   const stateDir = path.join(root, 'state');
   const provider = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0');
-  const consumer = writeMasConsumer(path.join(root, 'consumer'), provider, '0.1.0');
+  const consumer = writeMasConsumer(path.join(root, 'consumer'), provider, '0.1.0', {
+    configuredCarrier: false,
+  });
   const releaseSet = writeCapabilityCatalog(path.join(root, 'release-set'), [consumer, provider]);
   try {
     await assert.rejects(

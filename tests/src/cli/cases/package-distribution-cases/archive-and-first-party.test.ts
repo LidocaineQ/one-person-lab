@@ -1579,7 +1579,7 @@ test('bundled Full MAG source projection advances to the immutable ordinary pack
   assert.equal(ordinaryManifest.version, '0.3.6');
 });
 
-test('bundled Full RCA source projection advances to the owner canonical package version', () => {
+test('bundled Full RCA source projection advances to the immutable ordinary package version', () => {
   const catalog = parseJsonText(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
     'utf8',

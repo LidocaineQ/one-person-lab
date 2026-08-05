@@ -5,7 +5,6 @@ import {
   createFakeOpenFixture,
   createFakeShellCommandFixture,
   fs,
-  installRuntimePackageFixture,
   loadFamilyManifestFixtures,
   os,
   path,
@@ -25,11 +24,6 @@ import {
 
 function createPackageCarrierBinary(root: string) {
   return createFakeCodexPluginManagerFixture(path.join(root, 'fixture-bin')).codexPath;
-}
-
-function assertNoProjectedSkills(skillsRoot: string) {
-  if (!fs.existsSync(skillsRoot)) return;
-  assert.deepEqual(fs.readdirSync(skillsRoot), []);
 }
 
 function createInstalledRcaCarrierFixture(root: string) {
@@ -396,7 +390,7 @@ if (args.join(' ') === 'plugin list --json') {
   }
 });
 
-test('MAS launch uses the callable native carrier without workspace Skill projection', async () => {
+test('MAS launch consumes the native carrier without private workspace materialization', async () => {
   const root = fs.mkdtempSync(`${os.tmpdir()}/opl-domain-launch-mas-scope-`);
   const stateRoot = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
@@ -427,21 +421,16 @@ test('MAS launch uses the callable native carrier without workspace Skill projec
       'packages', 'install', 'mas',
     ], env);
 
-    const installed = runCli([
-      'packages', 'status', '--package-id', 'mas',
-    ], env).opl_agent_package_status;
-    assert.equal(installed.configured_carrier.executor.status, 'callable');
-
     const skillsRoot = path.join(workspace, '.codex', 'skills');
     const lifecycleLedger = path.join(stateRoot, 'agent-package-lifecycle-ledger.json');
-    assertNoProjectedSkills(skillsRoot);
+    assert.equal(fs.existsSync(skillsRoot), false);
     assert.equal(fs.existsSync(lifecycleLedger), false);
     const dryRun = runCli([
       'domain', 'launch', '--project', 'medautoscience', '--dry-run',
     ], env).domain_entry_launch;
     assert.equal(dryRun.dry_run, true);
     assert.equal(dryRun.launch_status, 'preview_only');
-    assertNoProjectedSkills(skillsRoot);
+    assert.equal(fs.existsSync(skillsRoot), false);
     assert.equal(fs.existsSync(openFixture.capturePath), false);
     assert.equal(fs.existsSync(lifecycleLedger), false);
 
@@ -451,20 +440,22 @@ test('MAS launch uses the callable native carrier without workspace Skill projec
     assert.equal(firstLaunch.dry_run, false);
     assert.equal(firstLaunch.launch_status, 'launched');
     assert.equal(fs.readFileSync(openFixture.capturePath, 'utf8').trim(), entryUrl);
-    assertNoProjectedSkills(skillsRoot);
+    assert.equal(fs.existsSync(skillsRoot), false);
     const current = runCli([
       'packages', 'status', '--package-id', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
     ], env).opl_agent_package_status;
     assert.equal(current.materialization_readiness, null);
-    assert.equal(current.operational_ready, true);
-    assertNoProjectedSkills(skillsRoot);
+    assert.equal(current.configured_carrier.status, 'installed');
+    assert.equal(current.installed_readiness.callability, 'callable');
+    assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(lifecycleLedger), false);
   } finally {
     removeFixtureTree(root);
     fs.rmSync(openFixture.fixtureRoot, { recursive: true, force: true });
   }
 });
 
-test('quest root activation uses the native carrier without workspace materialization', async () => {
+test('quest root activation reports the native MAS carrier already active without scope writes', async () => {
   const root = fs.mkdtempSync(`${os.tmpdir()}/opl-quest-package-activation-`);
   const stateRoot = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
@@ -498,38 +489,37 @@ test('quest root activation uses the native carrier without workspace materializ
     await runCliAsync([
       'packages', 'install', 'mas',
     ], env);
-    const installed = runCli([
-      'packages', 'status', '--package-id', 'mas',
-    ], env).opl_agent_package_status;
-    assert.equal(installed.configured_carrier.executor.status, 'callable');
-    assertNoProjectedSkills(path.join(quest, '.codex', 'skills'));
+    assert.equal(fs.existsSync(path.join(quest, '.codex', 'skills')), false);
     const preview = runCli([
       'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', quest, '--dry-run',
     ], env).opl_agent_package_activation;
     assert.equal(preview.status, 'validated_no_write');
     assert.equal(preview.operational_ready, true);
     assert.equal(preview.launch_allowed, true);
-    assertNoProjectedSkills(path.join(quest, '.codex', 'skills'));
+    assert.equal(preview.writes_performed, false);
+    assert.equal(fs.existsSync(path.join(quest, '.codex', 'skills')), false);
     const activation = runCli([
       'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', quest,
     ], env).opl_agent_package_activation;
     assert.equal(activation.status, 'already_activated');
     assert.equal(activation.package_id, 'mas');
+    assert.equal(activation.writes_performed, false);
     assert.equal(Object.hasOwn(activation, 'lifecycle_receipt_ref'), false);
-    const skillsRoot = path.join(quest, '.codex', 'skills');
-    assertNoProjectedSkills(skillsRoot);
+    assert.equal(Object.hasOwn(activation, 'package_use_binding'), false);
+    assert.equal(fs.existsSync(path.join(quest, '.codex', 'skills')), false);
     const current = runCli([
       'packages', 'status', '--package-id', 'mas', '--scope', 'workspace', '--target-workspace', quest,
     ], env).opl_agent_package_status;
     assert.equal(current.materialization_readiness, null);
     assert.equal(current.operational_ready, true);
-    assertNoProjectedSkills(skillsRoot);
+    assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-lifecycle-ledger.json')), false);
   } finally {
     removeFixtureTree(root);
   }
 });
 
-test('workspace activation preserves native carrier readiness without legacy scope projection', async () => {
+test('workspace bindings reuse the native MAS carrier without per-workspace Skill projection', async () => {
   const root = fs.mkdtempSync(`${os.tmpdir()}/opl-workspace-package-activation-`);
   const stateRoot = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
@@ -564,28 +554,24 @@ test('workspace activation preserves native carrier readiness without legacy sco
       'packages', 'install', 'mas',
     ], env);
 
-    const installed = runCli([
-      'packages', 'status', '--package-id', 'mas',
-    ], env).opl_agent_package_status;
-    assert.equal(installed.configured_carrier.executor.status, 'callable');
-
-    assertNoProjectedSkills(path.join(workspaceA, '.codex', 'skills'));
-    assertNoProjectedSkills(path.join(workspaceB, '.codex', 'skills'));
+    assert.equal(fs.existsSync(path.join(workspaceA, '.codex', 'skills')), false);
+    assert.equal(fs.existsSync(path.join(workspaceB, '.codex', 'skills')), false);
     runCli([
       'workspace', 'bind', '--project', 'medautoscience', '--path', workspaceC,
       '--entry-command', 'printf launched',
       '--manifest-command', buildManifestCommand(loadFamilyManifestFixtures().medautoscience),
     ], env);
-    assertNoProjectedSkills(path.join(workspaceC, '.codex', 'skills'));
+    assert.equal(fs.existsSync(path.join(workspaceC, '.codex', 'skills')), false);
 
     runCli(['workspace', 'activate', '--project', 'medautoscience', '--path', workspaceA], env);
-    assertNoProjectedSkills(path.join(workspaceA, '.codex', 'skills'));
+    assert.equal(fs.existsSync(path.join(workspaceA, '.codex', 'skills')), false);
     const current = runCli([
       'packages', 'status', '--package-id', 'mas',
       '--scope', 'workspace', '--target-workspace', workspaceA,
     ], env).opl_agent_package_status;
     assert.equal(current.materialization_readiness, null);
     assert.equal(current.launch_allowed, true);
+    assert.equal(current.configured_carrier.status, 'installed');
     const appState = runCli(['app', 'state', '--profile', 'fast'], env).app_state;
     assert.equal(appState.agent_packages.status_index.packages.mas.status, 'available');
     assert.equal(
@@ -593,6 +579,8 @@ test('workspace activation preserves native carrier readiness without legacy sco
       true,
     );
     assert.equal(appState.agent_packages.status_index.packages.mas.launch_allowed, true);
+    assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-lifecycle-ledger.json')), false);
     assert.equal(
       appState.agent_packages.status_index.packages.mas.launch_blocked_reason,
       null,
@@ -602,14 +590,8 @@ test('workspace activation preserves native carrier readiness without legacy sco
     runCli([
       'workspace', 'activate', '--project', 'medautoscience', '--path', workspaceA,
     ], env);
-    assertNoProjectedSkills(path.join(workspaceA, '.codex', 'skills'));
-    const recovered = runCli([
-      'packages', 'status', '--package-id', 'mas',
-      '--scope', 'workspace', '--target-workspace', workspaceA,
-    ], env).opl_agent_package_status;
-    assert.equal(recovered.materialization_readiness, null);
-    assert.equal(recovered.operational_ready, true);
-    assertNoProjectedSkills(path.join(workspaceA, '.codex', 'skills'));
+    assert.equal(fs.existsSync(path.join(workspaceA, '.codex', 'skills')), false);
+    assert.equal(fs.existsSync(path.join(workspaceB, '.codex', 'skills')), false);
   } finally {
     removeFixtureTree(root);
   }

@@ -504,7 +504,10 @@ function writeFakeMasUv(binRoot: string, fail = false, preserveReadonlyCopyModes
 function writeOrdinaryUserMasRelease(root: string, version: string) {
   const provider = writeCapabilityProvider(path.join(root, 'provider'), version);
   const masRoot = path.join(root, 'mas');
-  const mas = writeMasConsumer(masRoot, provider, version, { runtimeSourceCarrier: true });
+  const mas = writeMasConsumer(masRoot, provider, version, {
+    runtimeSourceCarrier: true,
+    configuredCarrier: false,
+  });
   writeMasPackageRuntimeFixture(masRoot, version);
   const runtimeFiles = [
     'contracts/action_catalog.json',

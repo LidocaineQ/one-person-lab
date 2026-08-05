@@ -149,6 +149,12 @@ function currentCheckoutResolutionFromStatus(
   } catch {
     return blockedCheckoutPath('managed_package_status_unavailable');
   }
+  return currentCheckoutResolutionFromPackageStatus(status);
+}
+
+function currentCheckoutResolutionFromPackageStatus(
+  status: ReturnType<PackageStatusReader>['opl_agent_package_status'],
+): CheckoutPathResolution {
   const dependencies = status.package_dependency_readiness;
   const source = status.runtime_source_readiness;
   if (status.installed_package_count < 1) {
@@ -183,7 +189,20 @@ function currentDescriptorFromStatus(
   packageId: string,
   readStatus: PackageStatusReader,
 ): StandardAgentDescriptorInterface | null {
-  const resolution = currentCheckoutResolutionFromStatus(packageId, readStatus);
+  let status: ReturnType<PackageStatusReader>['opl_agent_package_status'];
+  try {
+    status = readStatus({ packageId, recoverRuntimeSource: false }).opl_agent_package_status;
+  } catch {
+    return null;
+  }
+  const installedCarrierSource = installedCarrierSourceFromStatus(status);
+  if (installedCarrierSource.selected) {
+    return status.installed_readiness?.callability === 'callable'
+      && installedCarrierSource.checkout_path
+      ? readStandardAgentDescriptorInterface(installedCarrierSource.checkout_path)
+      : null;
+  }
+  const resolution = currentCheckoutResolutionFromPackageStatus(status);
   return resolution.checkout_path
     ? readStandardAgentDescriptorInterface(resolution.checkout_path)
     : null;

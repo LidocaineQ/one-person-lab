@@ -839,7 +839,9 @@ export async function buildStageAttemptWorkbench(options: ProviderReadinessOptio
       ]),
     );
     const evidenceAttemptsWithControlState = evidenceRows.map((row) => {
-      const currentControlState = deriveCurrentControlStateForAttempt(db, row.stage_attempt_id);
+      const currentControlState = deriveCurrentControlStateForAttempt(db, row.stage_attempt_id, {
+        progressDeltaKeys: progressDeltaKeysByDomainId.get(row.domain_id),
+      });
       const currentnessIdentity = currentControlState.stage_run_currentness_identity;
       const providerKind = providerKindForRow(row);
       return {

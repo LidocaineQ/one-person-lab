@@ -17,6 +17,7 @@ import {
 } from '../../src/modules/connect/agent-package-registry.ts';
 import { sha256Fixture } from './cli/cases/packages-cases/helpers.ts';
 import { writeManagedRuntimeSourceFixture } from './cli/cases/packages-cases/managed-runtime-source-fixture.ts';
+import { createFakeCodexPluginManagerFixture } from './cli/helpers-parts/fixtures.ts';
 import { removeFixtureTree } from './cli/helpers-parts/filesystem.ts';
 import {
   DEFAULT_EXECUTOR_DISPATCH_TASK_KIND,
@@ -736,6 +737,7 @@ test('provider-hosted attempt launch consumes typed capability readout without c
   const previousFamilyRoot = process.env.OPL_FAMILY_WORKSPACE_ROOT;
   const previousStateRoot = process.env.OPL_STATE_DIR;
   const previousCodexHome = process.env.CODEX_HOME;
+  const previousPluginBin = process.env.OPL_CODEX_PLUGIN_BIN;
   const previousPath = process.env.PATH;
   const previousPackagesOwner = process.env.OPL_PACKAGES_OWNER;
   process.env.OPL_FAMILY_WORKSPACE_ROOT = familyRoot;
@@ -745,31 +747,48 @@ test('provider-hosted attempt launch consumes typed capability readout without c
   writeOplDeveloperSupervisorConfig({
     module_source_preferences: { medautoscience: 'managed' },
   });
+  const releaseRoot = path.join(familyRoot, 'release-set');
+  const sourceRoot = path.join(releaseRoot, 'source', 'med-autoscience');
+  const ownerSourceCommit = 'a'.repeat(40);
+  const packageManifest = {
+    surface_kind: 'opl_agent_package_manifest.v1',
+    agent_id: 'mas',
+    package_id: 'mas',
+    display_name: 'Med Auto Science',
+    publisher: 'one-person-lab',
+    version: '0.2.1',
+    source: 'first_party',
+    carrier_source_role: 'codex_plugin_default_carrier_not_package_truth',
+    codex_surface: {
+      plugin_id: 'med-autoscience',
+      carrier_source_commit: ownerSourceCommit,
+      configured_codex_plugin_carrier: {
+        kind: 'codex_plugin_manager',
+        plugin_selector: 'med-autoscience@med-autoscience-local',
+        executor_route: 'codex_cli',
+        marketplace_source: sourceRoot,
+        publication_ref: 'ghcr.io/gaofeng21cn/one-person-lab-packages/mas:latest-stable',
+      },
+      required_skill_ids: ['med-autoscience'],
+    },
+    capability_dependencies: [],
+  };
   const packageFiles = {
     '.codex-plugin/plugin.json': `${JSON.stringify({ name: 'med-autoscience', version: '0.2.1' })}\n`,
+    '.agents/plugins/marketplace.json': `${JSON.stringify({
+      name: 'med-autoscience-local',
+      plugins: [{ name: 'med-autoscience', source: { source: 'local', path: './' } }],
+    })}\n`,
+    'opl-package.json': `${JSON.stringify(packageManifest, null, 2)}\n`,
     'skills/med-autoscience/SKILL.md': '# Med Auto Science\n',
   };
   const packageFixtureEnv = writeManagedRuntimeSourceFixture({
-    root: path.join(familyRoot, 'release-set'),
+    root: releaseRoot,
     moduleId: 'medautoscience',
     repoName: 'med-autoscience',
     version: '0.2.1',
-    sourceHeadSha: 'a'.repeat(40),
-    packageManifest: {
-      surface_kind: 'opl_agent_package_manifest.v1',
-      agent_id: 'mas',
-      package_id: 'mas',
-      display_name: 'Med Auto Science',
-      publisher: 'one-person-lab',
-      version: '0.2.1',
-      source: 'first_party',
-      carrier_source_role: 'codex_plugin_default_carrier_not_package_truth',
-      codex_surface: {
-        plugin_id: 'med-autoscience',
-        required_skill_ids: ['med-autoscience'],
-      },
-      capability_dependencies: [],
-    },
+    sourceHeadSha: ownerSourceCommit,
+    packageManifest,
     payloadManifest: {
       surface_kind: 'opl_agent_package_payload_manifest',
       files: Object.entries(packageFiles).map(([relativePath, content]) => ({
@@ -782,6 +801,9 @@ test('provider-hosted attempt launch consumes typed capability readout without c
   });
   process.env.PATH = packageFixtureEnv.PATH;
   process.env.OPL_PACKAGES_OWNER = packageFixtureEnv.OPL_PACKAGES_OWNER;
+  process.env.OPL_CODEX_PLUGIN_BIN = createFakeCodexPluginManagerFixture(
+    path.join(familyRoot, 'fake-codex-plugin-manager'),
+  ).codexPath;
   t.after(() => {
     if (previousFamilyRoot === undefined) delete process.env.OPL_FAMILY_WORKSPACE_ROOT;
     else process.env.OPL_FAMILY_WORKSPACE_ROOT = previousFamilyRoot;
@@ -789,6 +811,8 @@ test('provider-hosted attempt launch consumes typed capability readout without c
     else process.env.OPL_STATE_DIR = previousStateRoot;
     if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
     else process.env.CODEX_HOME = previousCodexHome;
+    if (previousPluginBin === undefined) delete process.env.OPL_CODEX_PLUGIN_BIN;
+    else process.env.OPL_CODEX_PLUGIN_BIN = previousPluginBin;
     if (previousPath === undefined) delete process.env.PATH;
     else process.env.PATH = previousPath;
     if (previousPackagesOwner === undefined) delete process.env.OPL_PACKAGES_OWNER;
@@ -800,53 +824,17 @@ test('provider-hosted attempt launch consumes typed capability readout without c
     scope: 'workspace',
     targetWorkspace: familyRoot,
   });
-  const packageLockPath = path.join(process.env.OPL_STATE_DIR!, 'agent-package-locks.json');
-  const installedLockBytes = fs.readFileSync(packageLockPath);
-  const installedLockIndex = JSON.parse(installedLockBytes.toString('utf8')) as {
-    packages: Array<{
-      package_id: string;
-      physical_surface?: {
-        codex_plugin_cache_path?: string | null;
-        marketplace_plugin_path?: string | null;
-      };
-    }>;
-  };
-  const installedMasLock = installedLockIndex.packages.find((entry) => entry.package_id === 'mas');
-  assert.ok(installedMasLock?.physical_surface?.codex_plugin_cache_path);
-  assert.ok(installedMasLock?.physical_surface?.marketplace_plugin_path);
-  const assertCarrierActivationBlocked = async () => {
-    await assert.rejects(
-      () => ensureOplAgentPackageScopeActivation({
-        packageId: 'mas',
-        scope: 'workspace',
-        targetWorkspace: familyRoot,
-      }),
-      (error: any) => {
-        assert.equal(error.details?.failure_code, 'agent_package_scope_activation_blocked');
-        return true;
-      },
-    );
-  };
-  try {
-    installedMasLock.physical_surface!.codex_plugin_cache_path = path.join(
-      path.dirname(installedMasLock.physical_surface!.codex_plugin_cache_path!),
-      '0.2.1-invalid-generation',
-    );
-    fs.writeFileSync(packageLockPath, `${JSON.stringify(installedLockIndex, null, 2)}\n`);
-    await assertCarrierActivationBlocked();
-
-    const restoredLockIndex = JSON.parse(installedLockBytes.toString('utf8')) as typeof installedLockIndex;
-    const restoredMasLock = restoredLockIndex.packages.find((entry) => entry.package_id === 'mas');
-    assert.ok(restoredMasLock?.physical_surface?.marketplace_plugin_path);
-    restoredMasLock.physical_surface!.marketplace_plugin_path = path.join(
-      path.dirname(restoredMasLock.physical_surface!.marketplace_plugin_path!),
-      'wrong-marketplace-plugin-path',
-    );
-    fs.writeFileSync(packageLockPath, `${JSON.stringify(restoredLockIndex, null, 2)}\n`);
-    await assertCarrierActivationBlocked();
-  } finally {
-    fs.writeFileSync(packageLockPath, installedLockBytes);
-  }
+  const activation = await ensureOplAgentPackageScopeActivation({
+    packageId: 'mas',
+    scope: 'workspace',
+    targetWorkspace: familyRoot,
+  });
+  assert.equal(activation.status, 'already_activated');
+  assert.equal(activation.writes_performed, false);
+  assert.equal(
+    fs.existsSync(path.join(process.env.OPL_STATE_DIR!, 'agent-package-locks.json')),
+    false,
+  );
   const db = new DatabaseSync(':memory:');
   createFamilyRuntimeQueueTables(db);
   const now = new Date().toISOString();
@@ -923,10 +911,8 @@ test('provider-hosted attempt launch consumes typed capability readout without c
     }, { newAttempt: true });
     assert.ok(nextAttempt);
     assert.notEqual(nextAttempt.stage_attempt_id, attempt.stage_attempt_id);
-    assert.notEqual(
-      (nextAttempt.workspace_locator.package_use_binding as any)?.use_boundary_id,
-      (attempt.workspace_locator.package_use_binding as any)?.use_boundary_id,
-    );
+    assert.equal(Object.hasOwn(attempt.workspace_locator, 'package_use_binding'), false);
+    assert.equal(Object.hasOwn(nextAttempt.workspace_locator, 'package_use_binding'), false);
 
     let nestedProviderIdentity: Record<string, unknown> = {
       status: 'provider_attempt_pending',

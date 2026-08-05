@@ -398,7 +398,7 @@ test('OPL Flow manifest resolves its package-owned 0.1.38 native carrier and man
   });
 });
 
-test('RCA first-party manifest resolves the owner canonical 0.2.11 native carrier payload', () => {
+test('RCA first-party manifest resolves the projected 0.2.11 carrier payload', () => {
   const manifestPath = path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'rca.json');
   const manifest = normalizePackageManifest(
     parseJsonText(fs.readFileSync(manifestPath, 'utf8')),
@@ -413,19 +413,6 @@ test('RCA first-party manifest resolves the owner canonical 0.2.11 native carrie
     path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'payloads', 'rca-0.2.11.json'),
   );
   assert.equal(manifest.carrier_source_commit, '8a814a080e54d7c0012dd0e2034dd229dc4d2d9d');
-  assert.deepEqual(manifest.configured_codex_plugin_carrier, {
-    packageId: 'rca',
-    carrier: {
-      kind: 'codex_plugin_manager',
-      pluginId: 'redcube-ai@redcube-ai-local',
-      marketplaceSource: 'gaofeng21cn/redcube-ai',
-    },
-    executor: {
-      route: 'codex_cli',
-      requiredSkillIds: ['redcube-ai'],
-    },
-    publicationRef: 'ghcr.io/gaofeng21cn/one-person-lab-packages/rca:latest-stable',
-  });
 });
 
 test('standard Agent manifests declare managed runtime source carriers while capability and policy packages do not', () => {

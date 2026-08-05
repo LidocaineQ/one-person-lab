@@ -1787,10 +1787,14 @@ test('developer locks stay intact when the owner artifact has no native carrier 
   const masCheckout = path.join(root, 'workspace', 'med-autoscience');
   const scholarCheckout = path.join(root, 'workspace', 'mas-scholar-skills');
   const oldProvider = writeCapabilityProvider(path.join(root, 'old-provider'), '0.1.0');
-  const oldMas = writeMasConsumer(path.join(root, 'old-mas'), oldProvider, '0.1.0');
+  const oldMas = writeMasConsumer(path.join(root, 'old-mas'), oldProvider, '0.1.0', {
+    configuredCarrier: false,
+  });
   const oldReleaseSet = writeCapabilityCatalog(path.join(root, 'old-release-set'), [oldMas, oldProvider]);
   const nextProvider = writeCapabilityProvider(path.join(root, 'next-provider'), '0.1.1');
-  const nextMas = writeMasConsumer(path.join(root, 'next-mas'), nextProvider, '0.1.1');
+  const nextMas = writeMasConsumer(path.join(root, 'next-mas'), nextProvider, '0.1.1', {
+    configuredCarrier: false,
+  });
   const nextReleaseSet = writeCapabilityCatalog(path.join(root, 'next-release-set'), [nextMas, nextProvider]);
   const fakeBin = path.join(root, 'bin');
   const ownerChannel = writePackageOwnerChannelFixture({
