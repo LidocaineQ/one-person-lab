@@ -131,6 +131,13 @@ class FileAnalyzer(ast.NodeVisitor):
         self.unresolved_edges: list[dict[str, Any]] = []
         self.observed_calls: list[dict[str, Any]] = []
 
+    def resolve_import_module(self, imported: str) -> str:
+        if self.relative_path.startswith("runtime/native_helpers/"):
+            local_module = f"runtime.native_helpers.{imported}"
+            if local_module in self.module_files:
+                return local_module
+        return imported
+
     def add_symbol(self, name: str, line: int) -> str:
         symbol_id = f"{self.relative_path}#{name}"
         self.symbols.append(
@@ -152,8 +159,9 @@ class FileAnalyzer(ast.NodeVisitor):
     def visit_Import(self, node: ast.Import) -> Any:
         for alias in node.names:
             local = alias.asname or alias.name.split(".")[0]
-            self.import_aliases[local] = (alias.name, None)
-            target_file = self.module_files.get(alias.name)
+            target_module = self.resolve_import_module(alias.name)
+            self.import_aliases[local] = (target_module, None)
+            target_file = self.module_files.get(target_module)
             if target_file:
                 self.call_edges.append(
                     {
@@ -172,6 +180,7 @@ class FileAnalyzer(ast.NodeVisitor):
             node.level,
             is_package=Path(self.relative_path).name == "__init__.py",
         )
+        target_module = self.resolve_import_module(target_module)
         target_file = self.module_files.get(target_module)
         resolved_import = False
         for alias in node.names:
