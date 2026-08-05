@@ -5,6 +5,46 @@ Purpose: `decisions`
 State: `active_truth`
 Machine boundary: 本文是核心人读真相面。机器真相继续归 contracts、source、CLI/API 行为、runtime ledger、provider receipt、domain-owned manifest 和真实 workspace / App evidence。
 
+## 2026-08-06
+
+### 决策：Package lifecycle 采用 successor-first controlled breaking cutover
+
+原因：按旧 Manager 的每个字段、每个 family 逐项执行 replacement、consumer-zero 和删除，
+会让已经可验证的新 Package plane 长期被历史实现阻塞，也会把临时兼容面继续误写成产品
+authority。用户要求保留完整功能与数据完整性终态，但在 successor 纵向链路通过验收后直接
+切换 production caller，再按结构调用图、build 和受影响结果成批退役 legacy Manager。
+
+影响：
+
+- 普通 first-party Package 的唯一 currentness/lifecycle 顺序固定为 per-Package owner OCI
+  `latest-stable` -> native carrier adapter -> fresh physical installed/callable/status/actions
+  readback。Framework 只保留 owner descriptor discovery、OCI download/verify/handoff、薄
+  carrier adapter、required/optional presence、callability 和通用 projection。
+- `installed lock`、payload/content lock、materializer、lifecycle receipt、LKG、rollback 和
+  durable Package transaction 只属于 `compatibility-to-delete`。它们不得作为普通
+  currentness、新 lifecycle、runtime fallback、成功判定或第二 writer，也不得通过改名、
+  新 schema 或新 cache 恢复为 Framework authority。
+- 切换采用 successor-first：先让公共 install/update/remove/repair/enable/disable 与 fresh
+  readback 只走新 plane，再切换 App/Shell 和其他 production caller。新路径 canonical、
+  所有旧入口 caller=0、受影响 OUT green 且 TypeScript/build通过后，停止 legacy writer，
+  coherent bulk delete旧 reader/writer/schema/fixture，并复跑同一 outcome；不再机械要求每个
+  旧字段单独完成 retirement ceremony。
+- 旧状态只允许一次性、幂等、最小读取，用于迁移无法从 native carrier 或 App preference
+  重建的显式 uninstall intent等用户选择。可从 fresh carrier重建的 lock、receipt、payload、
+  generation、LKG和物理路径不得迁移；禁止永久 dual-write 或 automatic legacy fallback。
+- developer/local source shortcut 仅在用户明确选择时保留。普通路径不读取 shared manifest
+  选择目标或判断成功；shared snapshot 只服务 Full/offline seed、integration和QA。
+- Base self-update、release artifact checksum/SBOM/attestation与 Release receipt、Temporal
+  workflow/worker durability、Foundry/domain artifact/evidence、用户 preference/config atomic
+  write 继续归各自 owner。它们不是普通 Package lifecycle兼容面，不得随 legacy Manager删除。
+- 回滚使用 canonical Git revert、上一版 immutable artifact和受控安装回退；新 runtime不保留
+  私有 rollback state machine。完整功能、OUT和三仓 parity仍须全部验收，controlled cutover
+  不授权伪造完成，也不自动授权 publication、Stable、安装或真实用户 managed-state mutation。
+
+本决策 supersede 2026-07-24 决策中的 `planned`、`dual-read`、全量旧数据迁移和逐 family
+consumer-zero实施前置；该决策定义的目标生态与 owner边界继续有效。完整实施门见
+[`docs/active/opl-package-platform-composition-migration.md`](./active/opl-package-platform-composition-migration.md)。
+
 ## 2026-07-30
 
 ### 决策：Codex executable carrier 按安装载体归属，App 不再重复打包 Framework carrier
@@ -35,7 +75,7 @@ archive 和运行时展开 cache，就会形成两个版本源、两套 currentn
 
 ## 2026-07-24
 
-### 决策（planned）：Package lifecycle 退回平台能力，OPL 只保留组合与运行薄层
+### 决策（目标边界）：Package lifecycle 退回平台能力，OPL 只保留组合与运行薄层
 
 原因：现有 Agent Package Core 把生态 identity、安装来源、版本解析、ABI、exact
 digest、payload、dependency closure、installed lock、LKG、receipt、materialization、
@@ -81,15 +121,18 @@ Shell、固定 first-party registry 和 Release Set 共同维护 currentness。�
 - release checksum/attestation、Temporal Worker Versioning 和 domain artifact/evidence
   digest 保留在原 owner；它们不是 Package lock，也不得成为普通安装或启动门禁。
 - 现有 registry/resolver/lock/payload/LKG/receipt/materializer/scope activation/durable
-  transaction 和 `opl packages` 公共面进入 compatibility-to-delete。必须先完成 platform
-  fresh proof、dual-read、功能等价矩阵、旧数据迁移和 no-active-caller 证明，再物理删除。
+  transaction 进入 `compatibility-to-delete`；`opl packages` 公共面保留，但必须切到 native
+  carrier successor。2026-08-06 的 controlled breaking cutover 已取代 dual-read、全量旧数据
+  迁移和逐 family ceremony：先切换全部 production caller，再以 affected outcome、build和
+  structural caller=0为门禁成批停止 writer并物理删除。
 
 本决策 supersede 本文中将 OPL Agent Package Manager、三层 registry、owner SemVer +
 ABI resolver、exact installed lock、LKG、固定七包 cohort、Package materialization 或
 durable Package intent 定义为长期目标的旧决策。历史原文保留用于解释当前实现和迁移，
 但不得再授权新增依赖。完整执行门见
 [`docs/active/opl-package-platform-composition-migration.md`](./active/opl-package-platform-composition-migration.md)。
-目标状态为 `planned`；在 terminal proof 前不能写成当前机器行为或已完成清理。
+目标边界已进入实施；具体路线以 2026-08-06 successor-first决策为准。在 terminal proof 前
+仍不能写成当前机器行为或已完成清理。
 
 ## 2026-07-23
 
