@@ -386,12 +386,10 @@ test('packages manifest exposes independent owner currentness and compatibility 
       module_id: dependency.module_id,
       package_id: dependency.package_id,
       kind: dependency.kind,
-      codex_distribution: dependency.codex_distribution,
-      opl_distribution: dependency.opl_distribution,
-      developer_distribution: dependency.developer_distribution,
-      install_owner: dependency.install_owner,
-      install_update_source: dependency.install_update_source,
-      sync_scopes: dependency.sync_scopes,
+      required: dependency.required,
+      dependency_kind: dependency.dependency_kind,
+      version_requirement: dependency.version_requirement,
+      capability_abi: dependency.capability_abi,
       authority_boundary: dependency.authority_boundary,
     })),
     [
@@ -399,12 +397,10 @@ test('packages manifest exposes independent owner currentness and compatibility 
         module_id: 'scholarskills',
         package_id: 'mas-scholar-skills',
         kind: 'framework_capability_package',
-        codex_distribution: 'bundled',
-        opl_distribution: 'managed_dependency',
-        developer_distribution: 'source_checkout',
-        install_owner: 'one-person-lab',
-        install_update_source: 'ghcr_capability_packages_channel',
-        sync_scopes: ['workspace', 'quest'],
+        required: true,
+        dependency_kind: 'hard_runtime_dependency',
+        version_requirement: '>=0.2.12 <0.3.0',
+        capability_abi: 'mas-scholar-skills.v1',
         authority_boundary: {
           can_write_domain_truth: false,
           can_sign_owner_receipt: false,
@@ -414,6 +410,20 @@ test('packages manifest exposes independent owner currentness and compatibility 
       },
     ],
   );
+  for (const field of [
+    'codex_distribution',
+    'opl_distribution',
+    'developer_distribution',
+    'install_owner',
+    'install_update_source',
+    'sync_scopes',
+    'required_for',
+  ]) {
+    assert.equal(
+      Object.hasOwn(output.packages_manifest.packages.package_artifacts.mas.capability_dependencies[0], field),
+      false,
+    );
+  }
   assert.deepEqual(
     output.packages_manifest.packages.package_artifacts.mas.codex_standalone_distribution,
     {

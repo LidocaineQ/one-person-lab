@@ -422,16 +422,14 @@ test('modules and module actions manage OPL-owned domain module installs and upd
     assert.deepEqual(
       initialMasDependencyReadback?.capability_dependencies.map((dependency: any) => ({
         package_id: dependency.package_id,
-        codex_distribution: dependency.codex_distribution,
-        opl_distribution: dependency.opl_distribution,
-        developer_distribution: dependency.developer_distribution,
+        required: dependency.required,
+        capability_abi: dependency.capability_abi,
       })),
       [
         {
           package_id: 'mas-scholar-skills',
-          codex_distribution: 'bundled',
-          opl_distribution: 'managed_dependency',
-          developer_distribution: 'source_checkout',
+          required: true,
+          capability_abi: 'mas-scholar-skills.v1',
         },
       ],
     );

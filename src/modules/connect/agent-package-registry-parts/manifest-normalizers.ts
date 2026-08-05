@@ -591,10 +591,7 @@ function normalizeCapabilityDependencies(
         failure_code: 'agent_package_capability_dependency_invalid',
       });
     }
-    const versionRequirement = assertStringValue(
-      entry.version_requirement,
-      `capability_dependencies[${index}].version_requirement`,
-    );
+    const versionRequirement = stringValue(entry.version_requirement) ?? '*';
     const capabilityAbi = assertStringValue(
       entry.capability_abi,
       `capability_dependencies[${index}].capability_abi`,

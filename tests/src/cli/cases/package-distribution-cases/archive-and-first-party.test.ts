@@ -1049,10 +1049,12 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
   assert.equal(manifest.package_core.dependency_source, 'manifest_declared_capability_dependencies');
   assert.equal(manifest.carrier_adapters[0].carrier, 'codex_plugin');
   assert.equal(manifest.carrier_adapters[0].owns_package_core, false);
-  assert.equal(schema.properties.capability_dependencies.items.properties.codex_distribution.const, 'bundled');
+  assert.equal(schema.properties.capability_dependencies.items.required.includes('codex_distribution'), false);
+  assert.equal(schema.properties.capability_dependencies.items.required.includes('install_owner'), false);
+  assert.equal(schema.properties.capability_dependencies.items.required.includes('sync_scopes'), false);
   assert.equal(schema.properties.codex_surface.properties.plugin_payload_manifest_url.type, 'string');
   assert.equal(schema.properties.codex_surface.properties.carrier_source_commit.pattern, '^[0-9a-f]{40}$');
-  assert.equal(schema.properties.codex_surface.required.includes('carrier_source_commit'), true);
+  assert.equal(schema.properties.codex_surface.required.includes('carrier_source_commit'), false);
   assert.equal(schema.properties.package_core.properties.core_kind.const, 'opl_agent_package_core');
   assert.equal(schema.properties.carrier_adapters.items.properties.carrier.const, 'codex_plugin');
   assert.deepEqual(manifest.presentation, {
@@ -1194,17 +1196,15 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
     manifest.capability_dependencies.map((dependency: Record<string, any>) => ({
       module_id: dependency.module_id,
       package_id: dependency.package_id,
-      codex_distribution: dependency.codex_distribution,
-      opl_distribution: dependency.opl_distribution,
-      developer_distribution: dependency.developer_distribution,
+      required: dependency.required,
+      capability_abi: dependency.capability_abi,
     })),
     [
       {
         module_id: 'scholarskills',
         package_id: 'mas-scholar-skills',
-        codex_distribution: 'bundled',
-        opl_distribution: 'managed_dependency',
-        developer_distribution: 'source_checkout',
+        required: true,
+        capability_abi: 'mas-scholar-skills.v1',
       },
     ],
   );
@@ -1376,7 +1376,7 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
     'recover-codex-tasks',
     'task-mode-gate',
   ]);
-  assert.equal(schema.properties.codex_surface.required.includes('carrier_source_commit'), true);
+  assert.equal(schema.properties.codex_surface.required.includes('carrier_source_commit'), false);
   assert.equal(Object.hasOwn(manifest, 'agent_id'), false);
   assert.equal(normalized.agent_id, null);
   assert.equal(normalized.profile_surface?.existing_profile_policy, 'semantic_merge_required');
@@ -1677,6 +1677,37 @@ test('MAS first-party agent package manifest fails closed for unsafe dependency 
       .capability_dependencies[0].kind,
     'framework_capability_package',
   );
+  const minimalManifest = structuredClone(manifest);
+  minimalManifest.capability_dependencies = [{
+    module_id: 'scholarskills',
+    package_id: 'mas-scholar-skills',
+    required: true,
+    capability_abi: 'mas-scholar-skills.v1',
+    required_export_ids: manifest.capability_dependencies[0].required_export_ids,
+    required_module_ids: manifest.capability_dependencies[0].required_module_ids,
+    authority_boundary: manifest.capability_dependencies[0].authority_boundary,
+  }];
+  assert.deepEqual(
+    normalizeFirstPartyAgentPackageManifest(minimalManifest)
+      .capability_dependencies.map((dependency) => ({
+        kind: dependency.kind,
+        dependency_kind: dependency.dependency_kind,
+        version_requirement: dependency.version_requirement,
+      })),
+    [{
+      kind: 'capability_package',
+      dependency_kind: 'hard_runtime_dependency',
+      version_requirement: '*',
+    }],
+  );
+  assert.deepEqual(
+    normalizePackageManifest(minimalManifest, 'file:///tmp/minimal-agent-package.json')
+      .capability_dependencies.map((dependency) => ({
+        dependency_kind: dependency.dependency_kind,
+        version_requirement: dependency.version_requirement,
+      })),
+    [{ dependency_kind: 'hard_runtime_dependency', version_requirement: '*' }],
+  );
   const capabilityDependencyKindManifest = structuredClone(manifest);
   capabilityDependencyKindManifest.capability_dependencies[0].kind = 'capability_package';
   assert.equal(
@@ -1791,17 +1822,12 @@ test('MAS first-party agent package manifest fails closed for unsafe dependency 
     }),
     /authority boundary must be false-only/,
   );
-  assert.throws(
-    () => normalizeFirstPartyAgentPackageManifest({
-      ...manifest,
-      capability_dependencies: [
-        {
-          ...manifest.capability_dependencies[0],
-          sync_scopes: ['workspace'],
-        },
-      ],
-    }),
-    /workspace and quest scopes/,
+  assert.equal(
+    Object.hasOwn(
+      normalizeFirstPartyAgentPackageManifest(manifest).capability_dependencies[0],
+      'sync_scopes',
+    ),
+    false,
   );
 });
 
