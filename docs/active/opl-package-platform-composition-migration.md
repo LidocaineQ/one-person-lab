@@ -2,7 +2,7 @@
 
 Owner: `One Person Lab Framework`
 Purpose: `framework_package_platform_composition_migration`
-State: `phase_2_family_retirement_in_progress`
+State: `controlled_breaking_cutover_in_progress`
 Status: `active_implementation`
 Decision date: `2026-07-24`
 Machine boundary: 本文只维护 Framework 的兼容现状、仓内迁移责任和删除证明。跨仓
@@ -15,14 +15,16 @@ readback。
 
 - **Phase 1 - SSOT 与冻结计划**：已完成。目标边界、兼容面、功能不降级证明和
   删除门禁已经进入 canonical documentation authority。
-- **Phase 2 - 逐 family 退役**：已获用户批准并执行中。每个 legacy family 仍须按
-  replacement canonical、affected outcomes fresh PASS、retained consumer 为零、停止旧
-  writer、精确物理删除和同 outcome 复验的顺序独立闭合。
+- **Phase 2 - controlled breaking cutover**：已获用户批准并执行中。先让 successor
+  Package plane 通过公共动作与 fresh readback 验收，再切换全部 production caller，最后
+  在一个受控删除批次中移除 legacy Manager。逐字段、逐 family 迁移不再是主路径。
 
 Phase 2 已获授权不表示迁移已完成，也不自动授权 Package publication、Stable/Latest、
 真实用户 managed state 或其他 public mutation。当前仍存在的 installed lock、payload、
-materialization、receipt、LKG/rollback、scope activation 与 transaction consumer 必须按
-下面的删除门禁逐 family 迁移；docs、测试、checkpoint 或兼容数据静止不能替代这些证明。
+materialization、receipt、LKG/rollback、scope activation 与 transaction 只作为待切断的
+兼容实现；它们不得阻止 successor source cutover，也不得在切换后继续充当 runtime fallback
+或第二 writer。docs、测试、checkpoint 或兼容数据静止不能替代真实 caller、OUT 和 fresh
+carrier readback 证明。
 
 ## 结论
 
@@ -77,25 +79,30 @@ Framework 不再拥有：
 owner保留。Temporal Worker Versioning 与 domain artifact/evidence digest 也继续有效；
 它们不属于普通 Package composition。
 
-## 当前兼容面
+## Controlled Breaking Cutover
 
 当前 `opl packages`、first-party manifests、registry cache、installed lock、receipt、
 payload/materialization、LKG/rollback、scope activation 和 Release Set bridge 仍可能有
-active consumer。它们是 compatibility-to-delete，不是目标架构。
+active consumer。它们是 compatibility-to-delete，不是目标架构，也不再要求按字段或
+family 单独完成 retirement ceremony。
 
 迁移期规则：
 
-1. 旧 reader 可以 dual-read，但不得新增 writer 或 consumer。
-2. native carrier fresh readback 优先；descriptor、App metadata、旧 lock 或 Codex cache
-   不能覆盖实际物理状态。
-3. `opl packages install|update|remove` 只可逐步收缩为 carrier 委托和聚合；不能把旧状态机
-   改名后继续扩张。
+1. successor facade 是唯一新增生产写路径；production caller 一经切换，不得再 dual-write
+   或自动回落旧 Manager。
+2. native carrier fresh readback 是 installed/callable/actions truth；descriptor、App metadata、
+   旧 lock 或 cache 不能覆盖实际物理状态。
+3. 旧状态只允许一次性、幂等、最小读取，用于迁移无法从 native carrier 或 App preference
+   重建的用户 preference、显式 uninstall intent。可重建的 lock、receipt、payload、LKG、
+   generation 和物理路径不迁移。
 4. explicit root update 必须保持 Package-local。required dependency 失败只影响该 root；
    无关 Package、Base 和 App 继续。
-5. developer/local source 不被后台覆盖。外部 mutation 结果 unknown 时只做有界 fresh
-   inspect；在 readback 前不重试、不虚报成功。
-6. shared `one-person-lab-manifest:latest-stable` 只保留 Full/offline/integration/QA
-   snapshot；普通 install/update/currentness 读取 owner 的 per-Package source。
+5. developer/local source shortcut 只在用户明确选择时保留。外部 mutation 结果 unknown 时
+   只做有界 fresh inspect；在 readback 前不重试、不虚报成功。
+6. shared `one-person-lab-manifest:latest-stable` 只保留 Full/offline/integration/QA snapshot；
+   普通 install/update/currentness 读取 owner 的 per-Package OCI `latest-stable`。
+7. 回滚使用 canonical Git revert、上一版 immutable artifact 和受控安装回退；新 runtime
+   不保留 legacy dual-write、automatic fallback 或私有 rollback state machine。
 
 ### No-resurrection 不变量
 
@@ -111,45 +118,49 @@ active consumer。它们是 compatibility-to-delete，不是目标架构。
   操作必须经过 owner channel 与 native lifecycle，并以 fresh readback 证明真实生效；仅有
   descriptor、cache、旧 lock 或命令 exit 0 不得报告成功。
 
-## 仓内执行顺序
+## 切换里程碑
 
-### 1. 冻结复杂性
+### M1 successor-only public actions
 
+- owner descriptor 动态发现，per-Package owner OCI `latest-stable` download/verify/handoff，
+  configured/native carrier `install|update|remove|repair|enable|disable`，以及 fresh
+  physical installed/callable/status/actions readback 形成一条可实际使用的纵向链路。
+- Framework 公共动作只调用该 facade；旧 lock/payload/materializer/receipt/LKG/rollback/
+  transaction 不再是普通动作 fallback 或 success authority。
 - 禁止新增 resolver、lock、payload、LKG、receipt、materializer、scope activation、
   rollback 或 durable-intent 字段和公共动作。
-- 为 retained producer/consumer 建立精确清单；无 active consumer 的旧字段、fixtures 和
-  命令直接删除。
-- 分开 Package installed、executor route 和 domain/runtime readiness，避免一个状态轴
-  推导另一个。
 
-### 2. 最小 descriptor 与 carrier adapters
+### M2 App/Shell consumers and preference migration
 
-- owner descriptor 只表达 stable identity、kind、required/optional identity、
-  entrypoints、runtime/task refs 和 typed-view refs。
-- Codex-specific plugin id、marketplace、home/path、config/cache 和 manifest shape 只留在
-  Codex adapter。
-- OCI adapter 只 download/verify/handoff；Git/local、Codex Plugin Manager、offline seed
-  或 Package runtime adapter 各自执行其 native lifecycle 并返回 fresh readback。
-- 至少一个 Git/local 中性 proof 证明公共 descriptor 不依赖 Codex 私有字段；不并行建设
-  第二套正式 executor 产品。
+- App/Shell 只消费 generic directory、presence、status、actions、Agent task 和 typed-view
+  projection；不解析 lock、payload、receipt、materializer 或 carrier 私有路径。
+- 只迁移无法从 fresh carrier 重建的用户 preference 与显式 uninstall intent；Home shortcut
+  visibility/order 继续由 App preference authority 持有。
+- producer 与 consumer 可在独立 worktree 并行准备，canonical main 与同路径 replay 短时串行。
 
-### 3. Compatibility dual-read
+### M3 OUT01-17 and real carrier acceptance
 
-- 将 native readback 归一为 compact installed/callable/status/actions。
-- 缺新 descriptor 时只读旧 manifest 并投影到同一内部 shape；禁止双写。
+- 对 install/update/remove/repair/enable/disable、unknown Package、Home、Runtime 和 failure
+  isolation 尽早执行自动化与隔离真实 acceptance；发现缺口只修 successor plane。
+- MAS/MAG/RCA/OMA/OBF 是五个同级 first-party roots；`mas-scholar-skills` 只作为 MAS
+  required closure，不是第六个 root。
 - required dependency 只做 root-local presence ensure；更新单包不得选择其他 roots。
-- App/Shell 消费通用 projection 后，删除它们对旧 registry、lock、receipt 和 Codex 字段的
-  镜像。
 
-### 4. 删除旧 Manager
+### M4 legacy bulk deletion and parity
 
-- 停止旧 lock/receipt/payload/LKG writer，迁移必要的用户 preference 后证明 bytes 不再
-  变化。
-- 删除中央 resolver、materializer、activation、rollback、transaction engine 和 retired
-  public commands。
-- 删除普通 currentness 对 shared Release Set 的 reader；剩余 snapshot producer/consumer
-  仅作 compatibility-to-delete，不得继续投影为 Package 产品概念。
-- 重新执行完整用户功能矩阵和 fresh carrier readback，再声明迁移完成。
+- M1/M2 已 canonical 且受影响 OUT green 后，停止 legacy writer；用 structural call graph、
+  TypeScript/build 和 exact literal guards 证明 production caller=0。
+- 一次删除中央 registry/resolver/lock/payload/materializer/activation/LKG/receipt/rollback/
+  transaction reader、writer、schema 与 fixture；删除前后复跑同一 affected OUT 集合。
+- Release receipt、Temporal durability、Foundry/domain evidence、用户 preference/config
+  atomic write 不在删除范围内。
+- Framework/App/Shell canonical parity、fresh carrier readback 与 task-owned lifecycle cleanup
+  全部闭合后，才能声明迁移完成。
+
+Bulk delete 不机械要求每个字段单独 consumer-zero。它的硬门禁是 successor facade 已
+canonical、所有 production callers 已切换、structural caller=0、受影响 OUT 通过，并在删除
+后复跑同一 gate。write-set overlap 只影响最终 replay 顺序；共享 main、真实 installed/public
+mutation 和 heavy aggregate 使用短时唯一 baton。
 
 ## 功能不降级证明
 
@@ -166,7 +177,7 @@ Framework 删除旧 lifecycle 前至少要提供：
 - 唯一 physical carrier 移除后报告 `physical_unavailable`，无 cache/metadata 虚假 installed；
 - ordinary currentness 不消费 shared manifest；
 - 旧 registry/resolver/lock/payload/LKG/receipt/materializer/activation/rollback/transaction
-  无 active caller且物理删除。
+  production caller=0、生产实现物理删除，且删除后同一受影响 OUT 再次通过。
 
 docs、schema、tests、dry-run、candidate、旧 writer “不再默认调用”或兼容数据静止都不是
 terminal proof。
