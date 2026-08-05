@@ -298,15 +298,30 @@ test('developer package snapshots cover Agent and Flow owners while excluding lo
               },
             }
           : frameworkManifest;
+      const ownerVersion = packageId === 'oma' ? '0.4.0' : frameworkManifest.version;
+      const ownerPayloadRecord = ownerPayload as Record<string, any>;
+      const configuredCarrierPayload = packageId === 'oma'
+        ? {
+            ...frameworkManifest,
+            ...ownerPayloadRecord,
+            codex_surface: {
+              ...frameworkManifest.codex_surface,
+              ...ownerPayloadRecord.codex_surface,
+            },
+          }
+        : packageId === 'opl-flow'
+          ? { ...frameworkManifest, version: ownerVersion }
+          : ownerPayload;
 
       writeFixtureFile(checkoutPath, spec.owner_package_manifest_ref, `${JSON.stringify(ownerPayload, null, 2)}\n`);
       writeFixtureFile(
         checkoutPath,
         spec.owner_plugin_manifest_ref,
-        `${JSON.stringify({ name: pluginId, version: frameworkManifest.version, skills: './skills/' }, null, 2)}\n`,
+        `${JSON.stringify({ name: pluginId, version: ownerVersion, skills: './skills/' }, null, 2)}\n`,
       );
       const pluginManifestPath = path.join(checkoutPath, spec.owner_plugin_manifest_ref);
       const pluginRoot = path.dirname(path.dirname(pluginManifestPath));
+      writeFixtureFile(pluginRoot, 'opl-package.json', `${JSON.stringify(configuredCarrierPayload, null, 2)}\n`);
       for (const skillId of requiredSkillIds) {
         writeFixtureFile(pluginRoot, path.join('skills', skillId, 'SKILL.md'), `# ${skillId}\n`);
         for (const ignoredName of ['.git', '.venv', 'node_modules']) {
@@ -328,7 +343,7 @@ test('developer package snapshots cover Agent and Flow owners while excluding lo
 
       const loaded = loadDeveloperCheckoutPackageSource(packageId, checkoutPath);
       assert.equal(loaded.ownerManifest.package_id, packageId);
-      assert.equal(loaded.ownerManifest.version, packageId === 'oma' ? '0.4.0' : frameworkManifest.version);
+      assert.equal(loaded.ownerManifest.version, ownerVersion);
       for (const ignoredName of ['.git', '.venv', 'node_modules']) {
         assert.equal(
           loaded.source.copy_paths.some((relativePath) => relativePath.split('/').includes(ignoredName)),
