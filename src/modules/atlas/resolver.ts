@@ -4,7 +4,7 @@ import {
   readStandardAgentDescriptorInterface,
   type StandardAgentInterface,
 } from '../../kernel/standard-agent-interface.ts';
-import { readPackageManagedStandardAgentDescriptor } from '../connect/index.ts';
+import { readInstalledStandardAgentDescriptorForPackage } from '../connect/standard-agent-interface-discovery.ts';
 import type {
   BoundaryExplanation,
   DomainContract,
@@ -48,11 +48,9 @@ function domainIdentitySignals(domain: DomainContract) {
 
 function domainStandardInterface(domain: DomainContract): StandardAgentInterface | null {
   const configuredRoot = process.env.OPL_FAMILY_WORKSPACE_ROOT?.trim();
-  const packageManaged = readPackageManagedStandardAgentDescriptor([
+  const packageManaged = readInstalledStandardAgentDescriptorForPackage(
     domain.independent_domain_agent.agent_id,
-    domain.project,
-    domain.single_app_skill.skill_id,
-  ]);
+  );
   if (packageManaged) {
     return assertStandardAgentDescriptorIdentity(packageManaged, {
       project: domain.project,

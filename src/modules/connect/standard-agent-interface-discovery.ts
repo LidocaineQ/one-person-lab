@@ -232,13 +232,25 @@ function installedCarrierSourceFromStatus(
   status: ReturnType<PackageStatusReader>['opl_agent_package_status'],
 ) {
   const carrier = status.installed_carrier_readback;
-  if (!carrier) return { selected: false as const, checkout_path: null };
-  const readiness = status.installed_readiness;
-  const sourceRef = carrier.lifecycle_authority === 'carrier_owned'
-    && readiness?.installed === true
-    && readiness.physical_status === 'available'
-    && typeof carrier.source_ref === 'string'
-    ? carrier.source_ref
+  if (carrier) {
+    const readiness = status.installed_readiness;
+    const sourceRef = carrier.lifecycle_authority === 'carrier_owned'
+      && readiness?.installed === true
+      && readiness.physical_status === 'available'
+      && typeof carrier.source_ref === 'string'
+      ? carrier.source_ref
+      : null;
+    return {
+      selected: true as const,
+      checkout_path: sourceRef ? canonicalCheckoutPath(sourceRef) : null,
+    };
+  }
+  const configured = status.configured_carrier;
+  if (!configured) return { selected: false as const, checkout_path: null };
+  const sourceRef = configured.status === 'installed'
+    && configured.executor?.status === 'callable'
+    && typeof configured.plugin_source_path === 'string'
+    ? configured.plugin_source_path
     : null;
   return {
     selected: true as const,

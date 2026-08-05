@@ -18,7 +18,6 @@ import {
 } from '../helpers.ts';
 import { createAdmittedStagePackFixture } from './workspace-domain-test-helper.ts';
 import {
-  scholarSkillsCoreSkillIds,
   writeCapabilityCatalog,
   writeCapabilityProvider,
   writeMasConsumer,
@@ -26,6 +25,62 @@ import {
 
 function createPackageCarrierBinary(root: string) {
   return createFakeCodexPluginManagerFixture(path.join(root, 'fixture-bin')).codexPath;
+}
+
+function assertNoProjectedSkills(skillsRoot: string) {
+  if (!fs.existsSync(skillsRoot)) return;
+  assert.deepEqual(fs.readdirSync(skillsRoot), []);
+}
+
+function createInstalledRcaCarrierFixture(root: string) {
+  const sourceRoot = path.join(root, 'installed-redcube-ai');
+  const skillRoot = path.join(sourceRoot, 'skills', 'redcube-ai');
+  const binary = path.join(root, 'installed-redcube-ai-codex.mjs');
+  fs.mkdirSync(path.join(sourceRoot, '.codex-plugin'), { recursive: true });
+  fs.mkdirSync(skillRoot, { recursive: true });
+  fs.writeFileSync(
+    path.join(sourceRoot, '.codex-plugin', 'plugin.json'),
+    `${JSON.stringify({ name: 'redcube-ai', version: '0.2.11' }, null, 2)}\n`,
+  );
+  fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), '# RedCube AI\n');
+  fs.writeFileSync(path.join(sourceRoot, 'opl-package.json'), `${JSON.stringify({
+    surface_kind: 'opl_agent_package_manifest.v1',
+    kind: 'agent',
+    agent_id: 'rca',
+    package_id: 'rca',
+    domain_id: 'redcube_ai',
+    display_name: 'RedCube AI',
+    publisher: 'one-person-lab',
+    version: '0.2.11',
+    source: 'first_party_repo_local',
+    carrier_source_role: 'codex_plugin_default_carrier_not_package_truth',
+    codex_surface: {
+      plugin_id: 'redcube-ai',
+      plugin_source_path: '.',
+      configured_codex_plugin_carrier: {
+        kind: 'codex_plugin_manager',
+        plugin_selector: 'redcube-ai@redcube-ai-local',
+        executor_route: 'codex_cli',
+        marketplace_source: 'gaofeng21cn/redcube-ai',
+        publication_ref: 'ghcr.io/gaofeng21cn/one-person-lab-packages/rca:latest-stable',
+      },
+      required_skill_ids: ['redcube-ai'],
+    },
+    requires: [],
+    capability_dependencies: [],
+  }, null, 2)}\n`);
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+if (process.argv.slice(2).join(' ') !== 'plugin list --json') process.exit(2);
+process.stdout.write(JSON.stringify({ installed: [{
+  pluginId: 'redcube-ai@redcube-ai-local',
+  version: '0.2.11',
+  installed: true,
+  enabled: true,
+  source: { source: 'local', path: ${JSON.stringify(sourceRoot)} },
+  marketplaceSource: { sourceType: 'remote', source: 'gaofeng21cn/redcube-ai' },
+}], available: [] }));
+`, { mode: 0o755 });
+  return { OPL_CODEX_PLUGIN_BIN: binary };
 }
 
 test('domain manifests resolves bound manifests and reports owner-action configuration gaps', () => {
@@ -159,6 +214,7 @@ test('domain launch exposes honest direct-entry launcher preview without running
   const stateRoot = fs.mkdtempSync(`${os.tmpdir()}/opl-domain-launch-state-`);
   const openFixture = createFakeOpenFixture();
   const shellFixture = createFakeShellCommandFixture();
+  const carrierEnv = createInstalledRcaCarrierFixture(stateRoot);
   try {
     runCli([
       'workspace',
@@ -173,8 +229,7 @@ test('domain launch exposes honest direct-entry launcher preview without running
       buildManifestCommand(loadFamilyManifestFixtures().redcube),
       '--entry-url',
       'http://127.0.0.1:3310/redcube',
-    ], { OPL_STATE_DIR: stateRoot });
-    installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    ], { OPL_STATE_DIR: stateRoot, ...carrierEnv });
 
     const preview = runCli([
       'domain',
@@ -185,6 +240,7 @@ test('domain launch exposes honest direct-entry launcher preview without running
     ], {
       OPL_STATE_DIR: stateRoot,
       OPL_OPEN_BIN: openFixture.openPath,
+      ...carrierEnv,
     }).domain_entry_launch;
 
     assert.equal(preview.dry_run, true);
@@ -241,7 +297,7 @@ test('domain launch consumes native carrier readiness without entering legacy sc
     domain_id: 'redcube_ai',
     display_name: 'RedCube AI',
     publisher: 'one-person-lab',
-    version: '0.2.9',
+    version: '0.2.11',
     source: 'first_party_repo_local',
     carrier_source_role: 'codex_plugin_default_carrier_not_package_truth',
     source_repo: 'https://github.com/gaofeng21cn/redcube-ai.git',
@@ -260,6 +316,13 @@ test('domain launch consumes native carrier readiness without entering legacy sc
     codex_surface: {
       plugin_id: 'redcube-ai',
       plugin_source_path: '.',
+      configured_codex_plugin_carrier: {
+        kind: 'codex_plugin_manager',
+        plugin_selector: 'redcube-ai@redcube-ai-local',
+        executor_route: 'codex_cli',
+        marketplace_source: 'gaofeng21cn/redcube-ai',
+        publication_ref: 'ghcr.io/gaofeng21cn/one-person-lab-packages/rca:latest-stable',
+      },
       required_skill_ids: ['redcube-ai'],
     },
     requires: [],
@@ -271,8 +334,8 @@ const args = process.argv.slice(2);
 fs.appendFileSync(process.env.FIXTURE_INVOCATION_LOG, args.join(' ') + '\\n');
 if (args.join(' ') === 'plugin list --json') {
   process.stdout.write(JSON.stringify({ installed: [{
-    pluginId: 'redcube-ai@redcube-ai',
-    version: '0.2.9',
+    pluginId: 'redcube-ai@redcube-ai-local',
+    version: '0.2.11',
     installed: true,
     enabled: process.env.FIXTURE_PLUGIN_ENABLED !== 'false',
     source: { source: 'local', path: process.env.FIXTURE_PLUGIN_SOURCE },
@@ -333,13 +396,15 @@ if (args.join(' ') === 'plugin list --json') {
   }
 });
 
-test('MAS launch activates a new workspace scope and automatically recovers managed Skill drift', async () => {
+test('MAS launch uses the callable native carrier without workspace Skill projection', async () => {
   const root = fs.mkdtempSync(`${os.tmpdir()}/opl-domain-launch-mas-scope-`);
   const stateRoot = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
   const workspace = path.join(root, 'workspace');
   const providerManifest = writeCapabilityProvider(path.join(root, 'provider'));
-  const consumerManifest = writeMasConsumer(root, providerManifest);
+  const consumerManifest = writeMasConsumer(root, providerManifest, '0.1.0a4', {
+    configuredCarrier: true,
+  });
   const releaseSet = writeCapabilityCatalog(path.join(root, 'release-set'), [consumerManifest, providerManifest]);
   const openFixture = createFakeOpenFixture();
   const entryUrl = 'http://127.0.0.1:3310/mas';
@@ -362,16 +427,21 @@ test('MAS launch activates a new workspace scope and automatically recovers mana
       'packages', 'install', 'mas',
     ], env);
 
+    const installed = runCli([
+      'packages', 'status', '--package-id', 'mas',
+    ], env).opl_agent_package_status;
+    assert.equal(installed.configured_carrier.executor.status, 'callable');
+
     const skillsRoot = path.join(workspace, '.codex', 'skills');
     const lifecycleLedger = path.join(stateRoot, 'agent-package-lifecycle-ledger.json');
-    assert.equal(fs.existsSync(skillsRoot), false);
+    assertNoProjectedSkills(skillsRoot);
     assert.equal(fs.existsSync(lifecycleLedger), false);
     const dryRun = runCli([
       'domain', 'launch', '--project', 'medautoscience', '--dry-run',
     ], env).domain_entry_launch;
     assert.equal(dryRun.dry_run, true);
     assert.equal(dryRun.launch_status, 'preview_only');
-    assert.equal(fs.existsSync(skillsRoot), false);
+    assertNoProjectedSkills(skillsRoot);
     assert.equal(fs.existsSync(openFixture.capturePath), false);
     assert.equal(fs.existsSync(lifecycleLedger), false);
 
@@ -381,34 +451,28 @@ test('MAS launch activates a new workspace scope and automatically recovers mana
     assert.equal(firstLaunch.dry_run, false);
     assert.equal(firstLaunch.launch_status, 'launched');
     assert.equal(fs.readFileSync(openFixture.capturePath, 'utf8').trim(), entryUrl);
-    assert.deepEqual(fs.readdirSync(skillsRoot).sort(), [...scholarSkillsCoreSkillIds].sort());
-    assert.equal(fs.existsSync(path.join(skillsRoot, 'medical-optional-specialty')), false);
+    assertNoProjectedSkills(skillsRoot);
     const current = runCli([
       'packages', 'status', '--package-id', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
     ], env).opl_agent_package_status;
-    assert.equal(current.materialization_readiness.status, 'current');
-    assert.equal(Object.hasOwn(current.materialization_readiness, 'lifecycle_receipt_ref'), false);
-
-    fs.rmSync(path.join(skillsRoot, 'medical-manuscript-writing'), { recursive: true, force: true });
-    const resumed = runCli([
-      'domain', 'launch', '--project', 'medautoscience',
-    ], env).domain_entry_launch;
-    assert.equal(resumed.launch_status, 'launched');
-    assert.equal(fs.readFileSync(openFixture.capturePath, 'utf8').trim(), entryUrl);
-    assert.equal(fs.existsSync(path.join(skillsRoot, 'medical-manuscript-writing', 'SKILL.md')), true);
+    assert.equal(current.materialization_readiness, null);
+    assert.equal(current.operational_ready, true);
+    assertNoProjectedSkills(skillsRoot);
   } finally {
     removeFixtureTree(root);
     fs.rmSync(openFixture.fixtureRoot, { recursive: true, force: true });
   }
 });
 
-test('quest root activation through a canonical MAS workspace binding materializes core skills and recovers drift', async () => {
+test('quest root activation uses the native carrier without workspace materialization', async () => {
   const root = fs.mkdtempSync(`${os.tmpdir()}/opl-quest-package-activation-`);
   const stateRoot = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
   const quest = path.join(root, 'quest');
   const providerManifest = writeCapabilityProvider(path.join(root, 'provider'));
-  const consumerManifest = writeMasConsumer(root, providerManifest);
+  const consumerManifest = writeMasConsumer(root, providerManifest, '0.1.0a4', {
+    configuredCarrier: true,
+  });
   const releaseSet = writeCapabilityCatalog(path.join(root, 'release-set'), [consumerManifest, providerManifest]);
   const env = {
     OPL_STATE_DIR: stateRoot,
@@ -434,46 +498,38 @@ test('quest root activation through a canonical MAS workspace binding materializ
     await runCliAsync([
       'packages', 'install', 'mas',
     ], env);
-    assert.equal(fs.existsSync(path.join(quest, '.codex', 'skills')), false);
+    const installed = runCli([
+      'packages', 'status', '--package-id', 'mas',
+    ], env).opl_agent_package_status;
+    assert.equal(installed.configured_carrier.executor.status, 'callable');
+    assertNoProjectedSkills(path.join(quest, '.codex', 'skills'));
     const preview = runCli([
       'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', quest, '--dry-run',
     ], env).opl_agent_package_activation;
     assert.equal(preview.status, 'validated_no_write');
-    assert.equal(preview.operational_ready, false);
-    assert.equal(preview.launch_allowed, false);
-    assert.equal(fs.existsSync(path.join(quest, '.codex', 'skills')), false);
+    assert.equal(preview.operational_ready, true);
+    assert.equal(preview.launch_allowed, true);
+    assertNoProjectedSkills(path.join(quest, '.codex', 'skills'));
     const activation = runCli([
       'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', quest,
     ], env).opl_agent_package_activation;
-    assert.equal(activation.status, 'activated');
+    assert.equal(activation.status, 'already_activated');
     assert.equal(activation.package_id, 'mas');
     assert.equal(Object.hasOwn(activation, 'lifecycle_receipt_ref'), false);
     const skillsRoot = path.join(quest, '.codex', 'skills');
-    assert.deepEqual(fs.readdirSync(skillsRoot).sort(), [...scholarSkillsCoreSkillIds].sort());
-    assert.equal(fs.existsSync(path.join(skillsRoot, 'medical-optional-specialty')), false);
+    assertNoProjectedSkills(skillsRoot);
     const current = runCli([
       'packages', 'status', '--package-id', 'mas', '--scope', 'workspace', '--target-workspace', quest,
     ], env).opl_agent_package_status;
-    assert.equal(current.materialization_readiness.status, 'current');
+    assert.equal(current.materialization_readiness, null);
     assert.equal(current.operational_ready, true);
-
-    fs.rmSync(path.join(skillsRoot, 'medical-manuscript-writing'), { recursive: true, force: true });
-    const recovered = runCli([
-      'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', quest,
-    ], env).opl_agent_package_activation;
-    assert.equal(recovered.operational_ready, true);
-    assert.equal(fs.existsSync(path.join(skillsRoot, 'medical-manuscript-writing', 'SKILL.md')), true);
-    const repaired = runCli([
-      'packages', 'status', '--package-id', 'mas', '--scope', 'workspace', '--target-workspace', quest,
-    ], env).opl_agent_package_status;
-    assert.equal(repaired.materialization_readiness.status, 'current');
-    assert.equal(repaired.operational_ready, true);
+    assertNoProjectedSkills(skillsRoot);
   } finally {
     removeFixtureTree(root);
   }
 });
 
-test('workspace activation automatically ensures the installed MAS package scope', async () => {
+test('workspace activation preserves native carrier readiness without legacy scope projection', async () => {
   const root = fs.mkdtempSync(`${os.tmpdir()}/opl-workspace-package-activation-`);
   const stateRoot = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
@@ -481,7 +537,9 @@ test('workspace activation automatically ensures the installed MAS package scope
   const workspaceB = path.join(root, 'workspace-b');
   const workspaceC = path.join(root, 'workspace-c');
   const providerManifest = writeCapabilityProvider(path.join(root, 'provider'));
-  const consumerManifest = writeMasConsumer(root, providerManifest);
+  const consumerManifest = writeMasConsumer(root, providerManifest, '0.1.0a4', {
+    configuredCarrier: true,
+  });
   const releaseSet = writeCapabilityCatalog(path.join(root, 'release-set'), [consumerManifest, providerManifest]);
   const env = {
     OPL_STATE_DIR: stateRoot,
@@ -506,28 +564,27 @@ test('workspace activation automatically ensures the installed MAS package scope
       'packages', 'install', 'mas',
     ], env);
 
-    assert.equal(fs.existsSync(path.join(workspaceA, '.codex', 'skills')), false);
-    assert.equal(fs.existsSync(path.join(workspaceB, '.codex', 'skills')), false);
+    const installed = runCli([
+      'packages', 'status', '--package-id', 'mas',
+    ], env).opl_agent_package_status;
+    assert.equal(installed.configured_carrier.executor.status, 'callable');
+
+    assertNoProjectedSkills(path.join(workspaceA, '.codex', 'skills'));
+    assertNoProjectedSkills(path.join(workspaceB, '.codex', 'skills'));
     runCli([
       'workspace', 'bind', '--project', 'medautoscience', '--path', workspaceC,
       '--entry-command', 'printf launched',
       '--manifest-command', buildManifestCommand(loadFamilyManifestFixtures().medautoscience),
     ], env);
-    assert.deepEqual(
-      fs.readdirSync(path.join(workspaceC, '.codex', 'skills')).sort(),
-      [...scholarSkillsCoreSkillIds].sort(),
-    );
+    assertNoProjectedSkills(path.join(workspaceC, '.codex', 'skills'));
 
     runCli(['workspace', 'activate', '--project', 'medautoscience', '--path', workspaceA], env);
-    assert.deepEqual(
-      fs.readdirSync(path.join(workspaceA, '.codex', 'skills')).sort(),
-      [...scholarSkillsCoreSkillIds].sort(),
-    );
+    assertNoProjectedSkills(path.join(workspaceA, '.codex', 'skills'));
     const current = runCli([
       'packages', 'status', '--package-id', 'mas',
       '--scope', 'workspace', '--target-workspace', workspaceA,
     ], env).opl_agent_package_status;
-    assert.equal(current.materialization_readiness.status, 'current');
+    assert.equal(current.materialization_readiness, null);
     assert.equal(current.launch_allowed, true);
     const appState = runCli(['app', 'state', '--profile', 'fast'], env).app_state;
     assert.equal(appState.agent_packages.status_index.packages.mas.status, 'available');
@@ -541,34 +598,18 @@ test('workspace activation automatically ensures the installed MAS package scope
       null,
     );
 
-    fs.rmSync(path.join(workspaceA, '.codex', 'skills', 'medical-manuscript-writing'), {
-      recursive: true,
-      force: true,
-    });
-    const drifted = runCli([
-      'packages', 'status', '--package-id', 'mas',
-      '--scope', 'workspace', '--target-workspace', workspaceA,
-    ], env).opl_agent_package_status;
-    assert.equal(drifted.operational_ready, false);
-    assert.equal(drifted.launch_allowed, false);
-    assert.equal(
-      drifted.launch_blocked_reason,
-      'scope_materialization_missing',
-    );
     runCli(['workspace', 'activate', '--project', 'medautoscience', '--path', workspaceB], env);
     runCli([
       'workspace', 'activate', '--project', 'medautoscience', '--path', workspaceA,
     ], env);
-    assert.equal(
-      fs.existsSync(path.join(workspaceA, '.codex', 'skills', 'medical-manuscript-writing', 'SKILL.md')),
-      true,
-    );
+    assertNoProjectedSkills(path.join(workspaceA, '.codex', 'skills'));
     const recovered = runCli([
       'packages', 'status', '--package-id', 'mas',
       '--scope', 'workspace', '--target-workspace', workspaceA,
     ], env).opl_agent_package_status;
-    assert.equal(recovered.materialization_readiness.status, 'current');
+    assert.equal(recovered.materialization_readiness, null);
     assert.equal(recovered.operational_ready, true);
+    assertNoProjectedSkills(path.join(workspaceA, '.codex', 'skills'));
   } finally {
     removeFixtureTree(root);
   }

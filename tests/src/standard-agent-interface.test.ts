@@ -728,6 +728,37 @@ test('installed carrier source owns descriptor discovery without legacy runtime 
 
     carrierSource.current = path.join(carrierRepo, 'missing');
     assert.equal(readInstalledStandardAgentDescriptorForPackage('future-package', statusReader), null);
+
+    const configuredStatus = { executorStatus: 'callable' };
+    const configuredStatusReader = (() => ({
+      version: 'g2',
+      opl_agent_package_status: {
+        installed_package_count: 1,
+        installed_packages: [],
+        configured_carrier: {
+          status: 'installed',
+          executor: { status: configuredStatus.executorStatus },
+          plugin_source_path: carrierRepo,
+        },
+        installed_carrier_readback: null,
+        installed_readiness: null,
+        runtime_source_readiness: {
+          status: 'not_required',
+          operational_ready: true,
+          checkout_path: legacyRepo,
+        },
+      },
+    })) as unknown as PackageStatusReaderFixture;
+
+    assert.equal(
+      readInstalledStandardAgentDescriptorForPackage('future-package', configuredStatusReader)?.agent_id,
+      'future-agent',
+    );
+    configuredStatus.executorStatus = 'attention_needed';
+    assert.equal(
+      readInstalledStandardAgentDescriptorForPackage('future-package', configuredStatusReader),
+      null,
+    );
   } finally {
     fs.rmSync(carrierRepo, { recursive: true, force: true });
     fs.rmSync(legacyRepo, { recursive: true, force: true });

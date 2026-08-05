@@ -19,15 +19,48 @@ function sha256(content: string) {
 }
 
 function writeOplFlowPackage(root: string) {
-  const version = '0.1.35';
-  const ownerSourceCommit = '6d8772cd9a8b2a14b2292c15afbf3c3cb5bfa8a4';
+  const version = '0.1.38';
+  const ownerSourceCommit = 'f9080e3db3253da63452f4072deaadce3197cef3';
+  const sourceRoot = path.join(root, 'source', 'opl-flow');
   const requiredSkillIds = [
+    'coordinate-concurrent-tasks',
+    'codex-app-owner-migration',
     'develop-and-deliver',
-    'task-mode-gate',
+    'github-ssot-patrol',
+    'opl-fleet',
+    'opl-flow',
     'recover-codex-tasks',
+    'task-mode-gate',
   ];
+  const packageManifest = {
+    surface_kind: 'opl_agent_package_manifest.v1',
+    agent_id: 'opl-flow',
+    package_id: 'opl-flow',
+    display_name: 'OPL Flow',
+    publisher: 'one-person-lab',
+    version,
+    source: 'first_party',
+    carrier_source_role: 'codex_plugin_default_carrier_not_package_truth',
+    codex_surface: {
+      plugin_id: 'opl-flow',
+      configured_codex_plugin_carrier: {
+        kind: 'codex_plugin_manager',
+        plugin_selector: 'opl-flow@opl-flow-local',
+        executor_route: 'codex_cli',
+        marketplace_source: sourceRoot,
+        publication_ref: 'ghcr.io/gaofeng21cn/one-person-lab-packages/opl-flow:latest-stable',
+      },
+      required_skill_ids: ['opl-flow', ...requiredSkillIds],
+    },
+    capability_dependencies: [],
+  };
   const files = {
+    '.agents/plugins/marketplace.json': `${JSON.stringify({
+      name: 'opl-flow-local',
+      plugins: [{ name: 'opl-flow', source: { source: 'local', path: '.' } }],
+    })}\n`,
     '.codex-plugin/plugin.json': `${JSON.stringify({ name: 'opl-flow', version, skills: './skills/' })}\n`,
+    'opl-package.json': `${JSON.stringify(packageManifest, null, 2)}\n`,
     'skills/opl-flow/SKILL.md': '# OPL Flow\n',
     ...Object.fromEntries(requiredSkillIds.map((skillId) => [
       `skills/${skillId}/SKILL.md`,
@@ -42,21 +75,7 @@ function writeOplFlowPackage(root: string) {
       repoName: 'opl-flow',
       version,
       sourceHeadSha: ownerSourceCommit,
-      packageManifest: {
-        surface_kind: 'opl_agent_package_manifest.v1',
-        agent_id: 'opl-flow',
-        package_id: 'opl-flow',
-        display_name: 'OPL Flow',
-        publisher: 'one-person-lab',
-        version,
-        source: 'first_party',
-        carrier_source_role: 'codex_plugin_default_carrier_not_package_truth',
-        codex_surface: {
-          plugin_id: 'opl-flow',
-          required_skill_ids: ['opl-flow', ...requiredSkillIds],
-        },
-        capability_dependencies: [],
-      },
+      packageManifest,
       payloadManifest: {
         surface_kind: 'opl_agent_package_payload_manifest',
         files: Object.entries(files).map(([relativePath, content]) => ({

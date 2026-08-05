@@ -1605,7 +1605,9 @@ test('fresh Developer install admits owner checkout manifests without channel pa
   const providerPayload = JSON.parse(fs.readFileSync(providerManifest, 'utf8'));
   delete providerPayload.content_lock;
   fs.writeFileSync(providerManifest, formatJsonPayload(providerPayload));
-  const masManifest = writeMasConsumer(path.join(root, 'mas'), providerManifest, '0.1.0');
+  const masManifest = writeMasConsumer(path.join(root, 'mas'), providerManifest, '0.1.0', {
+    configuredCarrier: true,
+  });
   const fakeBin = path.join(root, 'bin');
   const commonEnv = {
     HOME: homeDir,
@@ -1652,6 +1654,13 @@ test('fresh Developer install admits owner checkout manifests without channel pa
     );
 
     const status = runCli(['packages', 'status', '--package-id', 'mas'], commonEnv) as any;
+    assert.equal(
+      fs.existsSync(path.join(
+        status.opl_agent_package_status.configured_carrier.plugin_source_path,
+        'opl-package.json',
+      )),
+      true,
+    );
     assert.equal(status.opl_agent_package_status.operational_ready, true);
     assert.equal(status.opl_agent_package_status.launch_allowed, true);
     runCli(['workspace', 'bind', '--project', 'medautoscience', '--path', workspace], commonEnv);
@@ -1659,8 +1668,29 @@ test('fresh Developer install admits owner checkout manifests without channel pa
       'packages', 'activate', 'mas',
       '--scope', 'workspace', '--target-workspace', workspace,
     ], commonEnv) as any;
-    assert.equal(activation.opl_agent_package_activation.package_lock.source_kind, 'developer_checkout_override');
-    assert.equal(activation.opl_agent_package_activation.package_use_binding.root_package.package_id, 'mas');
+    assert.equal(activation.opl_agent_package_activation.status, 'already_activated');
+    assert.equal(activation.opl_agent_package_activation.writes_performed, false);
+    assert.equal(activation.opl_agent_package_activation.operational_ready, true);
+    assert.equal(activation.opl_agent_package_activation.launch_allowed, true);
+    assert.equal(Object.hasOwn(activation.opl_agent_package_activation, 'package_lock'), false);
+    assert.equal(Object.hasOwn(activation.opl_agent_package_activation, 'package_use_binding'), false);
+
+    const descriptorPath = path.join(
+      masCheckout,
+      'plugins',
+      'med-autoscience',
+      'opl-package.json',
+    );
+    const mismatchedDescriptor = JSON.parse(fs.readFileSync(descriptorPath, 'utf8'));
+    mismatchedDescriptor.version = '9.9.9';
+    fs.writeFileSync(descriptorPath, formatJsonPayload(mismatchedDescriptor));
+    commitDeveloperCheckout(masCheckout, 'drift configured carrier owner descriptor');
+    const descriptorMismatch = runCliFailure(['packages', 'update', 'mas'], commonEnv);
+    assert.equal(
+      descriptorMismatch.payload.error.details.failure_code,
+      'agent_package_developer_checkout_source_invalid',
+    );
+    assert.match(descriptorMismatch.payload.error.message, /does not match its owner manifest/);
   } finally {
     removeFixtureTree(root);
   }
@@ -1807,7 +1837,7 @@ test('developer locks stay intact when the owner artifact has no native carrier 
     });
     assert.equal(
       failure.payload.error.details.failure_code,
-      'configured_codex_plugin_carrier_owner_descriptor_missing',
+      'configured_codex_plugin_carrier_owner_authority_missing',
     );
     assert.deepEqual(fs.readFileSync(lockPath), lockBefore);
     assert.deepEqual(
