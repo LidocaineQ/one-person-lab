@@ -182,7 +182,7 @@ test('local manifest fixtures own runtime source install repair update and unins
   }
 });
 
-test('managed catalog payload cannot bypass the selected source archive with inline file content', () => {
+test('ordinary owner artifacts fail before legacy inline payload parsing without a native carrier', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-artifact-bypass-state-'));
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-artifact-bypass-fixture-'));
   const pluginSourcePath = createPluginSourceFixture({ pluginId: 'redcube-ai' });
@@ -222,7 +222,10 @@ test('managed catalog payload cannot bypass the selected source archive with inl
       OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(fixtureRoot),
       ...fixtureEnv,
     });
-    assert.equal(failure.payload.error.details.failure_code, 'agent_package_payload_catalog_source_bypass');
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'configured_codex_plugin_carrier_owner_descriptor_missing',
+    );
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
@@ -231,7 +234,7 @@ test('managed catalog payload cannot bypass the selected source archive with inl
   }
 });
 
-test('managed catalog payload requires the exact declared source_path without archive search fallback', () => {
+test('ordinary owner artifacts fail before legacy payload path fallback without a native carrier', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-artifact-path-state-'));
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-artifact-path-fixture-'));
   const pluginSourcePath = createPluginSourceFixture({ pluginId: 'redcube-ai' });
@@ -274,7 +277,10 @@ test('managed catalog payload requires the exact declared source_path without ar
       OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(fixtureRoot),
       ...fixtureEnv,
     });
-    assert.equal(failure.payload.error.details.failure_code, 'agent_package_payload_artifact_source_missing');
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'configured_codex_plugin_carrier_owner_descriptor_missing',
+    );
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
@@ -283,140 +289,43 @@ test('managed catalog payload requires the exact declared source_path without ar
   }
 });
 
-test('repair migrates legacy Framework manifests to one stable catalog selection for plugin and runtime carriers', () => {
-  const retiredLegacyLockFields = [
-    'oci_ref', 'resolved_digest', 'immutable_tag', 'moving_tag', 'install_truth',
-    'version_or_source_digest', 'installed_at', 'updated_at', 'exposure_updated_at', 'rollback_ref',
-  ];
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-stable-repair-state-'));
-  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-stable-repair-fixture-'));
-  const homeDir = path.join(fixtureRoot, 'home');
-  const modulesRoot = path.join(fixtureRoot, 'modules');
+test('ordinary repair cannot migrate a legacy owner artifact into private Package state', () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-native-repair-state-'));
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-native-repair-fixture-'));
   const pluginSourcePath = createPluginSourceFixture({ pluginId: 'redcube-ai' });
-  const manifestPath = path.join(fixtureRoot, 'contracts', 'opl-framework', 'packages', 'rca.json');
-  const legacySourceHead = '3'.repeat(40);
-  const stableSourceHead = '4'.repeat(40);
-  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
-  const legacyManifest = {
-    ...agentPackageManifest({
-      packageId: 'rca',
-      agentId: 'rca',
-      pluginId: 'redcube-ai',
-      pluginSourcePath,
-      distributionPayload: null,
-    }),
-    version: '0.2.0',
-    source: 'first_party',
-    runtime_source_carrier: {
-      carrier_kind: 'opl_managed_module_source',
-      module_id: 'redcube',
-    },
-  };
-  fs.writeFileSync(manifestPath, formatJsonPayload(legacyManifest));
-  const pluginJson = fs.readFileSync(path.join(pluginSourcePath, '.codex-plugin', 'plugin.json'), 'utf8');
-  const skillMarkdown = fs.readFileSync(path.join(pluginSourcePath, 'skills', 'redcube-ai', 'SKILL.md'), 'utf8');
-  const payloadManifest = {
-    surface_kind: 'opl_agent_package_payload_manifest',
-    files: [
-      {
-        path: '.codex-plugin/plugin.json',
-        source_path: 'plugins/redcube-ai/.codex-plugin/plugin.json',
-        sha256: sha256Fixture(pluginJson),
-      },
-      {
-        path: 'skills/redcube-ai/SKILL.md',
-        source_path: 'plugins/redcube-ai/skills/redcube-ai/SKILL.md',
-        sha256: sha256Fixture(skillMarkdown),
-      },
-    ],
-  };
-  const sourceFiles = [
-    { sourcePath: 'plugins/redcube-ai/.codex-plugin/plugin.json', content: pluginJson },
-    { sourcePath: 'plugins/redcube-ai/skills/redcube-ai/SKILL.md', content: skillMarkdown },
-  ];
-  const env = {
-    OPL_STATE_DIR: stateDir,
-    OPL_MODULES_ROOT: modulesRoot,
-    HOME: homeDir,
-    CODEX_HOME: path.join(homeDir, '.codex'),
-    OPL_CODEX_PLUGIN_BIN: writeInstalledCodexPluginManager(fixtureRoot),
-    ...writeManagedRuntimeSourceFixture({
-      root: fixtureRoot,
-      moduleId: 'redcube',
-      repoName: 'redcube-ai',
-      version: '0.2.0',
-      sourceHeadSha: legacySourceHead,
-      packageManifest: legacyManifest,
-      payloadManifest,
-      sourceFiles,
-    }),
-  };
   try {
-    runCli(['packages', 'install', 'rca'], env);
-    const lockPath = path.join(stateDir, 'agent-package-locks.json');
-    const lockIndex = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
-    const legacyLock = lockIndex.packages.find((entry: any) => entry.package_id === 'rca');
-    const legacyRuntimeGenerationPath = legacyLock.managed_runtime_source.checkout_path;
-    legacyLock.updated_at = '2000-01-01T00:00:00.000Z';
-    legacyLock.rollback_ref = 'rollback://fixture';
-    legacyLock.source_kind = 'local_manifest_file';
-    legacyLock.manifest_url = manifestPath;
-    fs.writeFileSync(lockPath, formatJsonPayload(lockIndex));
-
-    const stableFixtureEnv = writeManagedRuntimeSourceFixture({
+    const fixtureEnv = writeManagedRuntimeSourceFixture({
       root: fixtureRoot,
       moduleId: 'redcube',
       repoName: 'redcube-ai',
       version: '0.2.1',
-      sourceHeadSha: stableSourceHead,
-      packageManifest: legacyManifest,
-      payloadManifest,
-      sourceFiles,
+      sourceHeadSha: '4'.repeat(40),
+      packageManifest: {
+        ...agentPackageManifest({
+          packageId: 'rca',
+          agentId: 'rca',
+          pluginId: 'redcube-ai',
+          pluginSourcePath,
+          distributionPayload: null,
+        }),
+        version: '0.2.1',
+        source: 'first_party',
+      },
     });
-    Object.assign(env, stableFixtureEnv);
-
-    const preview = runCli(['packages', 'repair', 'rca', '--dry-run'], env) as any;
-    const previewLock = preview.opl_agent_package_repair.package_lock;
-    assert.equal(previewLock.package_version, '0.2.1');
-    assert.deepEqual(retiredLegacyLockFields.filter((field) => Object.hasOwn(previewLock, field)), []);
-    assert.equal(previewLock.source_kind, 'first_party_managed_cohort');
-    assert.equal(previewLock.manifest_url, 'opl+oci://ghcr.io/fixture/one-person-lab-packages/rca:0.2.1#/package-manifest.json');
-    assert.equal(previewLock.source_artifact_ref, 'ghcr.io/fixture/one-person-lab-packages/rca:0.2.1');
-    assert.equal(previewLock.artifact_digest, stableFixtureEnv.OPL_FIXTURE_ARTIFACT_DIGEST);
-    assert.equal(previewLock.managed_update_source.catalog_ref, 'ghcr.io/fixture/one-person-lab-packages/rca:latest-stable');
-    assert.equal(previewLock.managed_runtime_source.channel_version, '0.2.1');
-    assert.equal(previewLock.managed_runtime_source.source_git_head_sha, stableSourceHead);
+    const failure = runCliFailure(['packages', 'repair', 'rca'], {
+      OPL_STATE_DIR: stateDir,
+      OPL_MODULES_ROOT: path.join(fixtureRoot, 'modules'),
+      HOME: path.join(fixtureRoot, 'home'),
+      CODEX_HOME: path.join(fixtureRoot, 'home', '.codex'),
+      OPL_CODEX_PLUGIN_BIN: writeAbsentCodexPluginManager(fixtureRoot),
+      ...fixtureEnv,
+    });
     assert.equal(
-      previewLock.managed_runtime_source.artifact_ref,
-      `ghcr.io/fixture/one-person-lab-packages/rca:0.2.1@${stableFixtureEnv.OPL_FIXTURE_ARTIFACT_DIGEST}`,
+      failure.payload.error.details.failure_code,
+      'configured_codex_plugin_carrier_owner_descriptor_missing',
     );
-    assert.equal(
-      fs.readFileSync(path.join(legacyRuntimeGenerationPath, '.runtime-prepared'), 'utf8').trim(),
-      '0.2.0',
-    );
-    assert.notEqual(previewLock.managed_runtime_source.checkout_path, legacyRuntimeGenerationPath);
-    assert.equal(fs.existsSync(previewLock.managed_runtime_source.checkout_path), false);
-    assert.equal(fs.existsSync(path.join(modulesRoot, 'redcube-ai')), false);
-
-    const repaired = runCli(['packages', 'repair', 'rca'], env) as any;
-    const repairedLock = repaired.opl_agent_package_repair.package_lock;
-    assert.equal(repairedLock.package_version, '0.2.1');
-    assert.deepEqual(retiredLegacyLockFields.filter((field) => Object.hasOwn(repairedLock, field)), []);
-    assert.equal(repairedLock.managed_runtime_source.source_git_head_sha, stableSourceHead);
-    assert.equal(
-      fs.readFileSync(
-        path.join(repairedLock.managed_runtime_source.checkout_path, '.runtime-prepared'),
-        'utf8',
-      ).trim(),
-      '0.2.1',
-    );
-    assert.equal(fs.existsSync(path.join(modulesRoot, 'redcube-ai')), false);
-    assert.equal(
-      fs.readFileSync(path.join(repairedLock.physical_surface.codex_plugin_cache_path, 'skills', 'redcube-ai', 'SKILL.md'), 'utf8'),
-      skillMarkdown,
-    );
-    const status = runCli(['packages', 'status', '--package-id', 'rca'], env) as any;
-    assert.equal(status.opl_agent_package_status.launch_allowed, true);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle.sqlite')), false);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
     fs.rmSync(fixtureRoot, { recursive: true, force: true });

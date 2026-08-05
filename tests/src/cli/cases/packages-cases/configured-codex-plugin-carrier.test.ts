@@ -12,8 +12,10 @@ import {
   repoRoot,
   registryPayload,
   runCli,
+  runCliAsync,
   runCliFailure,
   test,
+  withAgentPackageServer,
 } from './helpers.ts';
 import { validateJsonSchemaPayload } from '../../../../../src/kernel/schema-registry.ts';
 import {
@@ -318,6 +320,34 @@ if (process.argv.slice(2).join(' ') === 'plugin list --json') {
       assert.equal(fs.readFileSync(ledgerPath, 'utf8'), invalidLedger);
       assert.equal(fs.existsSync(sqlitePath), false);
     }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('ordinary remote manifests without a native carrier fail closed before legacy state writes', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-owner-required-'));
+  const stateDir = path.join(root, 'opl-state');
+  const homeDir = path.join(root, 'home');
+  const pluginSource = path.join(root, 'plugin-source');
+  writePluginSource(pluginSource, 'legacy fallback must remain unused');
+  try {
+    await withAgentPackageServer(async (baseUrl) => {
+      await assert.rejects(
+        () => runCliAsync([
+          'packages', 'install', '--manifest-url', `${baseUrl}/manifest.json`,
+          '--package-id', packageId, '--trust-tier', 'third_party_verified',
+        ], {
+          HOME: homeDir,
+          CODEX_HOME: path.join(homeDir, '.codex'),
+          OPL_STATE_DIR: stateDir,
+        }),
+        /agent_package_lifecycle_native_owner_required/,
+      );
+    }, agentPackageManifest({ pluginSourcePath: pluginSource }));
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle.sqlite')), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -794,28 +824,28 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
   }
 });
 
-test('first-party owner descriptor routes a scoped native action without private lifecycle writes', () => {
+test('published first-party owner descriptor routes a scoped native action without private lifecycle writes', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-owner-carrier-'));
   const stateDir = path.join(root, 'opl-state');
   const binary = path.join(root, 'fake-codex.mjs');
   const pluginSource = path.join(root, 'plugin-source');
-  const skillRoot = path.join(pluginSource, 'skills', 'redcube-ai');
+  const skillRoot = path.join(pluginSource, 'skills', 'opl-relay');
   fs.mkdirSync(skillRoot, { recursive: true });
-  fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), '# RedCube AI\n');
+  fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), '# OPL Relay\n');
   fs.writeFileSync(
     path.join(pluginSource, 'opl-package.json'),
     formatJsonPayload({
       surface_kind: 'opl_agent_package_manifest.v1',
       kind: 'agent',
-      agent_id: 'rca',
-      package_id: 'rca',
-      domain_id: 'redcube_ai',
-      display_name: 'RedCube AI',
+      agent_id: 'opl-relay',
+      package_id: 'opl-relay',
+      domain_id: 'communications_mail',
+      display_name: 'OPL Relay',
       publisher: 'one-person-lab',
-      version: '0.2.9',
+      version: '0.5.2',
       source: 'first_party_repo_local',
       carrier_source_role: 'codex_plugin_default_carrier_not_package_truth',
-      source_repo: 'https://github.com/gaofeng21cn/redcube-ai.git',
+      source_repo: 'https://github.com/gaofeng21cn/opl-relay.git',
       schema_ref: 'one-person-lab/contracts/opl-framework/agent-package-manifest.schema.json',
       domain_descriptor_ref: 'contracts/domain_descriptor.json',
       task_provider_ref: 'contracts/domain_descriptor.json#/standard_agent_interface/stage_catalog',
@@ -824,14 +854,14 @@ test('first-party owner descriptor routes a scoped native action without private
       entrypoints: [{
         entrypoint_id: 'codex_primary_skill',
         entrypoint_kind: 'codex_skill',
-        source_ref: 'agent/primary_skill/SKILL.md',
-        carrier_ref: 'skills/redcube-ai/SKILL.md',
+        source_ref: 'skills/opl-relay/SKILL.md',
+        carrier_ref: 'skills/opl-relay/SKILL.md',
         authority: 'carrier_only_not_domain_truth',
       }],
       codex_surface: {
-        plugin_id: 'redcube-ai',
+        plugin_id: 'opl-relay',
         plugin_source_path: '.',
-        required_skill_ids: ['redcube-ai'],
+        required_skill_ids: ['opl-relay'],
       },
       requires: [],
       capability_dependencies: [],
@@ -840,15 +870,18 @@ test('first-party owner descriptor routes a scoped native action without private
   fs.writeFileSync(binary, `#!/usr/bin/env node
 const args = process.argv.slice(2);
 const installed = {
-  pluginId: 'redcube-ai@redcube-ai',
-  version: '0.2.9',
+  pluginId: 'opl-relay@opl-relay',
+  version: '0.5.3',
   installed: true,
   enabled: true,
   source: { source: 'local', path: process.env.FIXTURE_PLUGIN_SOURCE },
+  marketplaceSource: { sourceType: 'github', source: 'gaofeng21cn/opl-relay' },
 };
 if (args.join(' ') === 'plugin list --json') {
   process.stdout.write(JSON.stringify({ installed: [installed], available: [] }));
-} else if (args.join(' ') === 'plugin add redcube-ai@redcube-ai --json') {
+} else if (args.join(' ') === 'plugin marketplace add gaofeng21cn/opl-relay --json') {
+  process.stdout.write(JSON.stringify({ status: 'ok' }));
+} else if (args.join(' ') === 'plugin add opl-relay@opl-relay --json') {
   process.stdout.write(JSON.stringify({ status: 'ok' }));
 } else {
   process.exitCode = 2;
@@ -863,9 +896,9 @@ if (args.join(' ') === 'plugin list --json') {
     FIXTURE_PLUGIN_SOURCE: pluginSource,
   };
   try {
-    const update = runCli(['packages', 'update', 'rca'], env) as any;
+    const update = runCli(['packages', 'update', 'opl-relay'], env) as any;
     const updateSurface = update.opl_agent_package_update;
-    assert.equal(updateSurface.package_id, 'rca');
+    assert.equal(updateSurface.package_id, 'opl-relay');
     assert.equal(updateSurface.status, 'updated');
     assert.equal(Object.hasOwn(updateSurface, 'package_lock'), false);
     assert.equal(Object.hasOwn(updateSurface, 'lifecycle_receipt'), false);
@@ -875,16 +908,16 @@ if (args.join(' ') === 'plugin list --json') {
     assert.equal(updateSurface.configured_carrier.operation, 'update');
     assert.deepEqual(
       updateSurface.configured_carrier.native_command,
-      ['plugin', 'add', 'redcube-ai@redcube-ai', '--json'],
+      ['plugin', 'add', 'opl-relay@opl-relay', '--json'],
     );
     assert.equal(updateSurface.configured_carrier.native_action_dispatched, true);
 
     const activation = runCli([
-      'packages', 'activate', 'rca',
+      'packages', 'activate', 'opl-relay',
       '--scope', 'workspace', '--target-workspace', root,
     ], env) as any;
     const surface = activation.opl_agent_package_activation;
-    assert.equal(surface.package_id, 'rca');
+    assert.equal(surface.package_id, 'opl-relay');
     assert.equal(surface.status, 'already_activated');
     assert.equal(surface.writes_performed, false);
     assert.equal(Object.hasOwn(surface, 'package_lock'), false);
@@ -895,7 +928,7 @@ if (args.join(' ') === 'plugin list --json') {
     assert.equal(Object.hasOwn(surface, 'package_use_binding'), false);
     assert.equal(Object.hasOwn(surface, 'use_receipt'), false);
     assert.equal(Object.hasOwn(surface, 'use_receipt_ref'), false);
-    const status = runCli(['packages', 'status', '--package-id', 'rca'], env) as any;
+    const status = runCli(['packages', 'status', '--package-id', 'opl-relay'], env) as any;
     assert.equal(status.opl_agent_package_status.configured_carrier.status, 'installed');
     assert.equal(status.opl_agent_package_status.configured_carrier.operation, 'list');
     assert.equal(status.opl_agent_package_status.configured_carrier.native_action_dispatched, true);

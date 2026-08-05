@@ -525,91 +525,24 @@ function writeOrdinaryUserMasRelease(root: string, version: string) {
   return release;
 }
 
-test('first-party repair preserves the installed immutable closure without reading latest-stable', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-exact-repair-'));
+test('ordinary first-party repair cannot create an immutable legacy closure', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-native-repair-required-'));
   const stateDir = path.join(root, 'state');
-  const homeDir = path.join(root, 'home');
-  const workspace = path.join(root, 'workspace');
   const release = writeOrdinaryUserMasRelease(path.join(root, 'release'), '0.1.0');
-  const commonEnv = {
-    HOME: homeDir,
-    CODEX_HOME: path.join(homeDir, '.codex'),
-    OPL_STATE_DIR: stateDir,
-    OPL_MODULE_SOURCE_MODE: 'package_channel',
-  };
-  const exactIdentity = (lock: any) => ({
-    package_id: lock.package_id,
-    package_version: lock.package_version,
-    source_artifact_ref: lock.source_artifact_ref,
-    artifact_digest: lock.artifact_digest,
-    package_content_digest: lock.package_content_digest,
-    manifest_sha256: lock.manifest_sha256,
-    owner_source_commit: lock.owner_source_commit,
-  });
   try {
-    bindMasWorkspace(workspace, commonEnv);
-    const installed = runCli(['packages', 'install', 'mas'], {
-      ...commonEnv,
+    const failure = runCliFailure(['packages', 'repair', 'mas'], {
+      HOME: path.join(root, 'home'),
+      CODEX_HOME: path.join(root, 'home', '.codex'),
+      OPL_STATE_DIR: stateDir,
+      OPL_MODULE_SOURCE_MODE: 'package_channel',
       ...release.env,
-    }) as any;
-    const installedRoot = installed.opl_agent_package_install.package_lock;
-    const installedDependencies = installed.opl_agent_package_install.dependency_package_locks;
-    assert.match(installedRoot.package_content_digest, /^sha256:[0-9a-f]{64}$/);
-    assert.equal(Object.hasOwn(installedRoot, 'content_lock_canonicalization'), true);
-    for (const dependency of installedDependencies) {
-      assert.match(dependency.package_content_digest, /^sha256:[0-9a-f]{64}$/);
-      assert.equal(Object.hasOwn(dependency, 'content_lock_canonicalization'), true);
-    }
-    const lockPath = path.join(stateDir, 'agent-package-locks.json');
-    const legacyIndex = parseJsonText(fs.readFileSync(lockPath, 'utf8')) as any;
-    for (const legacyLock of legacyIndex.packages) {
-      delete legacyLock.package_content_digest;
-      delete legacyLock.content_lock_canonicalization;
-    }
-    const legacyRootLock = legacyIndex.packages.find(
-      (entry: any) => entry.package_id === installedRoot.package_id,
+    });
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'configured_codex_plugin_carrier_owner_descriptor_missing',
     );
-    legacyRootLock.resolved_dependencies[0].version_requirement = 'legacy-range-no-longer-used';
-    legacyRootLock.resolved_dependencies[0].capability_abi = 'legacy.abi.no-longer-used';
-    fs.writeFileSync(lockPath, formatJsonPayload(legacyIndex));
-
-    const wrapperBin = path.join(root, 'repair-bin');
-    const curlLog = path.join(root, 'repair-curl.log');
-    const originalCurl = path.join(release.env.PATH.split(path.delimiter)[0]!, 'curl');
-    fs.mkdirSync(wrapperBin, { recursive: true });
-    fs.writeFileSync(path.join(wrapperBin, 'curl'), [
-      '#!/usr/bin/env bash',
-      'set -euo pipefail',
-      'printf "%s\\n" "$*" >> "$OPL_TEST_CURL_LOG"',
-      'case "$*" in',
-      '  *"/manifests/latest-stable"*) exit 97 ;;',
-      'esac',
-      'exec "$OPL_TEST_ORIGINAL_CURL" "$@"',
-    ].join('\n'), { mode: 0o755 });
-    const repairEnv = {
-      ...commonEnv,
-      ...release.env,
-      PATH: `${wrapperBin}${path.delimiter}${release.env.PATH}`,
-      OPL_TEST_CURL_LOG: curlLog,
-      OPL_TEST_ORIGINAL_CURL: originalCurl,
-    };
-
-    const preview = runCli(['packages', 'repair', 'mas', '--dry-run'], repairEnv) as any;
-    assert.deepEqual(exactIdentity(preview.opl_agent_package_repair.package_lock), exactIdentity(installedRoot));
-    assert.deepEqual(
-      preview.opl_agent_package_repair.dependency_package_locks.map(exactIdentity),
-      installedDependencies.map(exactIdentity),
-    );
-    const repaired = runCli(['packages', 'repair', 'mas'], repairEnv) as any;
-    assert.deepEqual(exactIdentity(repaired.opl_agent_package_repair.package_lock), exactIdentity(installedRoot));
-    assert.equal(Object.hasOwn(repaired.opl_agent_package_repair.package_lock, 'content_lock_canonicalization'), true);
-    assert.deepEqual(
-      repaired.opl_agent_package_repair.dependency_package_locks.map(exactIdentity),
-      installedDependencies.map(exactIdentity),
-    );
-    const curlCalls = fs.readFileSync(curlLog, 'utf8');
-    assert.doesNotMatch(curlCalls, /\/manifests\/latest-stable/);
-    assert.match(curlCalls, /\/manifests\/sha256%3A|\/manifests\/sha256:/);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-runtime-transactions')), false);
   } finally {
     removeFixtureTree(root);
   }
@@ -1426,196 +1359,26 @@ test('bundled Full runtime source requires a matching carrier marker and rejects
   }
 });
 
-test('ordinary-user update advances immutable runtime generations and retires superseded Package caches', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-ordinary-generation-history-'));
+test('ordinary first-party install cannot create legacy runtime generations without a native owner', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-native-generation-required-'));
   const stateDir = path.join(root, 'state');
-  const homeDir = path.join(root, 'home');
-  const workspace = path.join(root, 'workspace');
-  const badWorkspace = path.join(root, 'bad-workspace');
-  const releaseV1 = writeOrdinaryUserMasRelease(path.join(root, 'release-v1'), '0.1.0');
-  const releaseV2 = writeOrdinaryUserMasRelease(path.join(root, 'release-v2'), '0.1.1');
-  const releaseV3 = writeOrdinaryUserMasRelease(path.join(root, 'release-v3'), '0.1.2');
-  const commonEnv = {
-    HOME: homeDir,
-    CODEX_HOME: path.join(homeDir, '.codex'),
-    OPL_STATE_DIR: stateDir,
-    OPL_MODULE_SOURCE_MODE: 'package_channel',
-  };
-  const lockFile = path.join(stateDir, 'agent-package-locks.json');
-  fs.mkdirSync(workspace, { recursive: true });
-  fs.writeFileSync(badWorkspace, 'not a directory\n');
-
+  const modulesRoot = path.join(root, 'modules');
+  const release = writeOrdinaryUserMasRelease(path.join(root, 'release'), '0.1.0');
   try {
-    bindMasWorkspace(workspace, commonEnv);
-    const installed = runCli(['packages', 'install', 'mas'], {
-      ...commonEnv,
-      ...releaseV1.env,
-    }) as any;
-    const v1Lock = installed.opl_agent_package_install.package_lock;
-    const v1Provider = installed.opl_agent_package_install.dependency_package_locks.find(
-      (entry: any) => entry.package_id === 'mas-scholar-skills',
-    );
-    assert.equal(v1Lock.source_kind, 'first_party_managed_cohort');
-    assert.equal(v1Provider.source_kind, 'first_party_managed_cohort');
-    assert.equal(v1Lock.package_version, '0.1.0');
-    assert.equal(v1Provider.package_version, '0.1.0');
-    const v1Paths = {
-      runtime: v1Lock.managed_runtime_source.checkout_path,
-      payload: v1Lock.physical_surface.plugin_payload_cache_path,
-      plugin: v1Lock.physical_surface.codex_plugin_cache_path,
-      providerPlugin: v1Provider.physical_surface.codex_plugin_cache_path,
-    };
-    for (const generationPath of Object.values(v1Paths)) {
-      assert.equal(fs.existsSync(generationPath), true, generationPath);
-    }
-    const v1Digests = Object.fromEntries(
-      Object.entries(v1Paths).map(([key, generationPath]) => [key, exactTreeDigest(generationPath)]),
-    );
-
-    runCli(['packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', workspace], {
-      ...commonEnv,
-      ...releaseV1.env,
-    });
-    const updatedV2 = runCli(['packages', 'update', 'mas'], {
-      ...commonEnv,
-      ...releaseV2.env,
-    }) as any;
-    const v2Lock = updatedV2.opl_agent_package_update.package_lock;
-    const v2Provider = updatedV2.opl_agent_package_update.dependency_package_locks.find(
-      (entry: any) => entry.package_id === 'mas-scholar-skills',
-    );
-    assert.equal(v2Lock.package_version, '0.1.1');
-    assert.equal(v2Provider.package_version, '0.1.1');
-    const v2Paths = {
-      runtime: v2Lock.managed_runtime_source.checkout_path,
-      payload: v2Lock.physical_surface.plugin_payload_cache_path,
-      plugin: v2Lock.physical_surface.codex_plugin_cache_path,
-      providerPlugin: v2Provider.physical_surface.codex_plugin_cache_path,
-    };
-    for (const [key, generationPath] of Object.entries(v1Paths)) {
-      assert.equal(fs.existsSync(generationPath), key === 'runtime', generationPath);
-      if (key === 'runtime') assert.equal(exactTreeDigest(generationPath), v1Digests[key]);
-      assert.notEqual(generationPath, v2Paths[key as keyof typeof v2Paths]);
-    }
-    const v2Digests = Object.fromEntries(
-      Object.entries(v2Paths).map(([key, generationPath]) => [key, exactTreeDigest(generationPath)]),
-    );
-
-    const beforeDryRunLock = fs.readFileSync(lockFile);
-    const runtimeGenerationRoot = path.dirname(v2Paths.runtime);
-    const payloadGenerationRoot = path.dirname(v2Paths.payload);
-    const pluginCacheRoot = path.join(homeDir, '.codex', 'plugins', 'cache');
-    const beforeDryRunTrees = {
-      runtime: exactTreeDigest(runtimeGenerationRoot),
-      payload: exactTreeDigest(payloadGenerationRoot),
-      plugin: exactTreeDigest(pluginCacheRoot),
-    };
-    const beforeFailedUpdatePluginInventory = exactTreeInventory(pluginCacheRoot);
-    const previewV3 = runCli(['packages', 'update', 'mas', '--dry-run'], {
-      ...commonEnv,
-      ...releaseV3.env,
-    }) as any;
-    assert.equal(previewV3.opl_agent_package_update.status, 'validated_no_write');
-    assert.equal(previewV3.opl_agent_package_update.target_version, '0.1.2');
-    assert.deepEqual(fs.readFileSync(lockFile), beforeDryRunLock);
-    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
-    assert.deepEqual({
-      runtime: exactTreeDigest(runtimeGenerationRoot),
-      payload: exactTreeDigest(payloadGenerationRoot),
-    }, {
-      runtime: beforeDryRunTrees.runtime,
-      payload: beforeDryRunTrees.payload,
-    });
-    assert.deepEqual(exactTreeInventory(pluginCacheRoot), beforeFailedUpdatePluginInventory);
-
-    const failedV3 = runCliFailure([
-      'packages', 'update', 'mas',
-      '--scope', 'workspace', '--target-workspace', badWorkspace,
-    ], {
-      ...commonEnv,
-      ...releaseV3.env,
-    });
-    assert.equal(failedV3.payload.error.code, 'contract_shape_invalid');
-    assert.deepEqual(fs.readFileSync(lockFile), beforeDryRunLock);
-    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
-    assert.deepEqual({
-      runtime: exactTreeDigest(runtimeGenerationRoot),
-      payload: exactTreeDigest(payloadGenerationRoot),
-    }, {
-      runtime: beforeDryRunTrees.runtime,
-      payload: beforeDryRunTrees.payload,
-    });
-    assert.deepEqual(exactTreeInventory(pluginCacheRoot), beforeFailedUpdatePluginInventory);
-    for (const [key, generationPath] of Object.entries(v1Paths)) {
-      assert.equal(fs.existsSync(generationPath), key === 'runtime', generationPath);
-      if (key === 'runtime') assert.equal(exactTreeDigest(generationPath), v1Digests[key]);
-    }
-    for (const [key, generationPath] of Object.entries(v2Paths)) {
-      assert.equal(exactTreeDigest(generationPath), v2Digests[key]);
-    }
-
-    const activationBeforeV3 = runCli([
-      'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
-    ], {
-      ...commonEnv,
-      ...releaseV3.env,
-    }) as any;
-    const installedV2Binding = activationBeforeV3.opl_agent_package_activation.package_use_binding;
-    assert.equal(activationBeforeV3.opl_agent_package_activation.status, 'already_activated');
-    assert.equal(installedV2Binding.source_selection, 'installed_package_lock');
-    assert.equal(installedV2Binding.network_accessed, false);
-    assert.equal(installedV2Binding.remote_dependency_policy, 'forbidden');
-    assert.equal(installedV2Binding.root_package.package_version, '0.1.1');
-    assert.equal(installedV2Binding.provider_packages.find(
-      (entry: any) => entry.package_id === 'mas-scholar-skills',
-    ).package_version, '0.1.1');
-
-    const updatedV3 = runCli(['packages', 'update', 'mas'], {
-      ...commonEnv,
-      ...releaseV3.env,
-    }) as any;
-    assert.equal(updatedV3.opl_agent_package_update.package_lock.package_version, '0.1.2');
-    const activationV3 = runCli([
-      'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
-    ], {
-      ...commonEnv,
-      ...releaseV3.env,
-    }) as any;
-    const useBinding = activationV3.opl_agent_package_activation.package_use_binding;
-    assert.equal(useBinding.source_selection, 'installed_package_lock');
-    assert.equal(useBinding.network_accessed, false);
-    assert.equal(useBinding.remote_dependency_policy, 'forbidden');
-    assert.equal(useBinding.root_package.package_version, '0.1.2');
-    assert.equal(useBinding.provider_packages.find(
-      (entry: any) => entry.package_id === 'mas-scholar-skills',
-    ).package_version, '0.1.2');
-    const currentIndex = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
-    const currentMas = currentIndex.packages.find((entry: any) => entry.package_id === 'mas');
-    assert.equal(useBinding.root_package.package_lock_ref, currentMas.lock_ref);
-    assert.equal(useBinding.dependency_closure_digest, currentMas.dependency_closure_digest);
-    const unexpectedPayloadFile = path.join(
-      currentMas.physical_surface.plugin_payload_cache_path,
-      'unexpected-generation-file.txt',
-    );
-    fs.writeFileSync(unexpectedPayloadFile, 'must not be accepted as the same generation\n');
-    const exactPayloadFailure = runCliFailure(['packages', 'repair', 'mas'], {
-      ...commonEnv,
-      ...releaseV3.env,
+    const failure = runCliFailure(['packages', 'install', 'mas'], {
+      HOME: path.join(root, 'home'),
+      CODEX_HOME: path.join(root, 'home', '.codex'),
+      OPL_STATE_DIR: stateDir,
+      OPL_MODULES_ROOT: modulesRoot,
+      OPL_MODULE_SOURCE_MODE: 'package_channel',
+      ...release.env,
     });
     assert.equal(
-      exactPayloadFailure.payload.error.details.failure_code,
-      'agent_package_payload_generation_digest_mismatch',
-      JSON.stringify(exactPayloadFailure.payload.error.details),
+      failure.payload.error.details.failure_code,
+      'configured_codex_plugin_carrier_owner_descriptor_missing',
     );
-    fs.rmSync(unexpectedPayloadFile);
-    for (const [key, generationPath] of Object.entries(v1Paths)) {
-      assert.equal(fs.existsSync(generationPath), key === 'runtime', generationPath);
-      if (key === 'runtime') assert.equal(exactTreeDigest(generationPath), v1Digests[key]);
-    }
-    for (const [key, generationPath] of Object.entries(v2Paths)) {
-      assert.equal(fs.existsSync(generationPath), key === 'runtime', generationPath);
-      if (key === 'runtime') assert.equal(exactTreeDigest(generationPath), v2Digests[key]);
-    }
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(modulesRoot), false);
   } finally {
     removeFixtureTree(root);
   }
@@ -1925,270 +1688,26 @@ test('Packages compensates managed runtime source across downstream failure upda
   }
 });
 
-test('Packages recovers durable runtime-source markers after interrupted apply and uninstall', () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-source-recovery-state-'));
-  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-source-recovery-fixture-'));
-  const pluginSourcePath = createPluginSourceFixture();
-  const modulesRoot = path.join(fixtureRoot, 'modules');
-  const manifestPath = path.join(fixtureRoot, 'manifest.json');
+test('ordinary first-party actions do not create durable runtime-source transaction markers', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-no-runtime-transactions-'));
+  const stateDir = path.join(root, 'state');
+  const release = writeOrdinaryUserMasRelease(path.join(root, 'release'), '0.1.0');
   try {
-    fs.writeFileSync(manifestPath, formatJsonPayload({
-      ...agentPackageManifest({ packageId: FIXTURE_RCA_PACKAGE_ID, agentId: 'rca', pluginSourcePath }),
-      runtime_source_carrier: { carrier_kind: 'opl_managed_module_source', module_id: 'redcube' },
-    }));
-    const fixtureEnv = writeManagedRuntimeSourceFixture({
-      root: fixtureRoot,
-      moduleId: 'redcube',
-      repoName: 'redcube-ai',
-      version: '0.1.0',
-      sourceHeadSha: 'recovery-v1',
-    });
-    const env = {
+    const failure = runCliFailure(['packages', 'install', 'mas'], {
+      HOME: path.join(root, 'home'),
+      CODEX_HOME: path.join(root, 'home', '.codex'),
       OPL_STATE_DIR: stateDir,
-      OPL_MODULES_ROOT: modulesRoot,
-      OPL_CLI_TEST_TIMEOUT_MS: '90000',
-      ...fixtureEnv,
-    };
-    const installed = runCli([
-      'packages', 'install', '--manifest-url', manifestPath, '--trust-tier', 'first_party',
-    ], env) as any;
-    const installedSource = installed.opl_agent_package_install.package_lock.managed_runtime_source;
-    const markerDir = path.join(stateDir, 'agent-package-runtime-source-transactions');
-    const markerPath = path.join(markerDir, `${FIXTURE_RCA_PACKAGE_ID}-stale-current-update.json`);
-    fs.mkdirSync(markerDir, { recursive: true });
-    fs.writeFileSync(path.join(modulesRoot, 'redcube-ai', 'generated-drift.txt'), 'stale generated output\n');
-    fs.writeFileSync(markerPath, formatJsonPayload({
-      surface_kind: 'opl_agent_package_runtime_source_transaction',
-      version: 1,
-      phase: 'prepared',
-      mutation: {
-        kind: 'activated_with_previous',
-        package_id: FIXTURE_RCA_PACKAGE_ID,
-        action: 'update',
-        transaction_id: 'stale-current-update',
-        marker_path: markerPath,
-        module_id: 'redcube',
-        checkout_path: path.join(modulesRoot, 'redcube-ai'),
-        before: installedSource,
-        after: null,
-        staged_removal_paths: [],
-        repair_displaced_path: null,
-        checkout_existed_before: true,
-      },
-    }));
-    const staleMarkerBytes = fs.readFileSync(markerPath);
-    const staleMarkerRecovery = runCli(['packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
-    const staleRecovery = inspectPrivateRuntimeSourceRecovery(staleMarkerRecovery, env);
-    assert.equal(staleRecovery.status, 'recovery_required');
-    assert.equal(staleRecovery.pending_transaction_count, 1);
-    assert.equal(staleRecovery.cleared_prepared_transaction_count, 0);
-    assert.equal(staleRecovery.recovered_transaction_count, 0);
-    assert.equal(staleMarkerRecovery.opl_agent_package_status.runtime_source_readiness.status, 'incompatible');
-    assert.deepEqual(fs.readFileSync(markerPath), staleMarkerBytes);
-    assert.equal(fs.existsSync(path.join(modulesRoot, 'redcube-ai', 'generated-drift.txt')), true);
-    runCli(['packages', 'repair', '--package-id', FIXTURE_RCA_PACKAGE_ID], env);
-    assert.equal(fs.existsSync(markerPath), false);
-
-    Object.assign(env, writeManagedRuntimeSourceFixture({
-      root: fixtureRoot,
-      moduleId: 'redcube',
-      repoName: 'redcube-ai',
-      version: '0.1.1',
-      sourceHeadSha: 'recovery-v2',
-    }));
-    const preparedUpdate = runCliFailure(['packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID], {
-      ...env,
-      OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED: '1',
-      OPL_TEST_RUNTIME_SOURCE_INTERRUPT_AFTER_PREPARE_APPLY: '1',
+      OPL_MODULE_SOURCE_MODE: 'package_channel',
+      ...release.env,
     });
-    assert.equal(preparedUpdate.payload.error.details.failure_code, 'test_runtime_source_interrupted_after_prepare_apply');
-    assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.0');
-    const interruptedStagePath = path.join(modulesRoot, 'redcube-ai.stage');
-    fs.mkdirSync(interruptedStagePath, { recursive: true });
-    fs.writeFileSync(path.join(interruptedStagePath, 'partial-download'), 'staged but not activated\n');
-    const preparedMarkerPath = fs.readdirSync(markerDir).map((entry) => path.join(markerDir, entry))[0]!;
-    const preparedMarkerBytes = fs.readFileSync(preparedMarkerPath);
-    const preparedUpdateRecovery = runCli(['packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
-    const preparedRecovery = inspectPrivateRuntimeSourceRecovery(preparedUpdateRecovery, env);
-    assert.equal(preparedRecovery.status, 'recovery_required');
-    assert.equal(preparedRecovery.pending_transaction_count, 1);
-    assert.equal(preparedRecovery.cleared_prepared_transaction_count, 0);
-    assert.equal(preparedRecovery.recovered_transaction_count, 0);
-    assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.0');
-    assert.equal(fs.existsSync(interruptedStagePath), true);
-    assert.deepEqual(fs.readFileSync(preparedMarkerPath), preparedMarkerBytes);
-    const dryRunUpdate = runCli([
-      'packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID, '--dry-run',
-    ], env) as any;
-    assert.equal(dryRunUpdate.opl_agent_package_update.dry_run, true);
-    assert.equal(fs.existsSync(interruptedStagePath), true);
-    assert.deepEqual(fs.readFileSync(preparedMarkerPath), preparedMarkerBytes);
-
-    const interruptedUpdate = runCliFailure(['packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID], {
-      ...env,
-      OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED: '1',
-      OPL_TEST_RUNTIME_SOURCE_INTERRUPT_AFTER_APPLY: '1',
-    });
-    assert.equal(interruptedUpdate.payload.error.details.failure_code, 'test_runtime_source_interrupted_after_apply', JSON.stringify(interruptedUpdate.payload));
-    assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.1');
-    const appliedMarkerPath = fs.readdirSync(markerDir).map((entry) => path.join(markerDir, entry))[0]!;
-    const appliedMarkerBytes = fs.readFileSync(appliedMarkerPath);
-    const recoveredStatus = runCli(['packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
-    const appliedRecovery = inspectPrivateRuntimeSourceRecovery(recoveredStatus, env);
-    assert.equal(appliedRecovery.status, 'recovery_required');
-    assert.equal(appliedRecovery.pending_transaction_count, 1);
-    assert.equal(appliedRecovery.recovered_transaction_count, 0);
-    assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.1');
-    assert.equal(recoveredStatus.opl_agent_package_status.runtime_source_readiness.status, 'incompatible');
-    assert.equal(recoveredStatus.opl_agent_package_status.runtime_source_readiness.operational_ready, false);
     assert.equal(
-      recoveredStatus.opl_agent_package_status.runtime_source_readiness.reason,
-      'managed_runtime_source_identity_mismatch',
+      failure.payload.error.details.failure_code,
+      'configured_codex_plugin_carrier_owner_descriptor_missing',
     );
-    assert.equal(recoveredStatus.opl_agent_package_status.launch_allowed, false);
-    assert.deepEqual(fs.readFileSync(appliedMarkerPath), appliedMarkerBytes);
-
-    runCli(['packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID], env);
-    assert.equal(fs.readFileSync(path.join(modulesRoot, 'redcube-ai', '.runtime-prepared'), 'utf8').trim(), '0.1.1');
-
-    const interruptedUninstall = runCliFailure(['packages', 'uninstall', '--package-id', FIXTURE_RCA_PACKAGE_ID], {
-      ...env,
-      OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED: '1',
-      OPL_TEST_RUNTIME_SOURCE_INTERRUPT_AFTER_STAGE_UNINSTALL: '1',
-    });
-    assert.equal(interruptedUninstall.payload.error.details.failure_code, 'test_runtime_source_interrupted_after_stage_uninstall');
-    assert.equal(fs.existsSync(path.join(modulesRoot, 'redcube-ai')), false);
-    const restoredStatus = runCli(['packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
-    const uninstallPreparedRecovery = inspectPrivateRuntimeSourceRecovery(restoredStatus, env);
-    assert.equal(uninstallPreparedRecovery.status, 'recovery_required');
-    assert.equal(uninstallPreparedRecovery.pending_transaction_count, 1);
-    assert.equal(uninstallPreparedRecovery.recovered_transaction_count, 0);
-    assert.equal(restoredStatus.opl_agent_package_status.runtime_source_readiness.status, 'missing');
-    assert.equal(fs.existsSync(path.join(modulesRoot, 'redcube-ai')), false);
-
-    const uninstalled = runCli(['packages', 'uninstall', '--package-id', FIXTURE_RCA_PACKAGE_ID], {
-      ...env,
-      OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED: '1',
-      OPL_TEST_RUNTIME_SOURCE_FINALIZE_FAIL: '1',
-    }) as any;
-    assert.equal(uninstalled.opl_agent_package_uninstall.runtime_source_cleanup.status, 'cleanup_pending');
-    assert.equal(fs.readdirSync(markerDir).length, 1);
-    const postCommitRecovery = runCli(['packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID], env) as any;
-    const cleanupPendingRecovery = inspectPrivateRuntimeSourceRecovery(postCommitRecovery, env);
-    assert.equal(cleanupPendingRecovery.status, 'recovery_required');
-    assert.equal(cleanupPendingRecovery.pending_transaction_count, 1);
-    assert.equal(cleanupPendingRecovery.cleanup_completed_count, 0);
-    runCliFailure(['packages', 'uninstall', '--package-id', FIXTURE_RCA_PACKAGE_ID], env);
-    assert.equal(fs.readdirSync(markerDir).length, 0);
-
-    const corruptTransactionId = 'corrupt-target';
-    const corruptMarkerPath = path.join(
-      markerDir,
-      `${FIXTURE_RCA_PACKAGE_ID}-${corruptTransactionId}.json`,
-    );
-    const outsideRoot = path.join(fixtureRoot, 'outside-managed-modules');
-    const sentinelPath = path.join(outsideRoot, 'sentinel.txt');
-    fs.mkdirSync(outsideRoot, { recursive: true });
-    fs.writeFileSync(sentinelPath, 'must remain unchanged\n');
-    fs.writeFileSync(corruptMarkerPath, formatJsonPayload({
-      surface_kind: 'opl_agent_package_runtime_source_transaction',
-      version: 1,
-      phase: 'prepared',
-      mutation: {
-        kind: 'installed_fresh',
-        package_id: FIXTURE_RCA_PACKAGE_ID,
-        action: 'install',
-        transaction_id: corruptTransactionId,
-        marker_path: corruptMarkerPath,
-        module_id: 'redcube',
-        checkout_path: outsideRoot,
-        before: null,
-        after: null,
-        staged_removal_paths: [],
-        repair_displaced_path: null,
-        checkout_existed_before: false,
-      },
-    }));
-    const corruptMarkerBytes = fs.readFileSync(corruptMarkerPath);
-    const lockFile = path.join(stateDir, 'agent-package-locks.json');
-    const lockBytes = fs.readFileSync(lockFile);
-    const statusWithCorruptPrivateMarker = runCli([
-      'packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID,
-    ], env) as any;
-    assert.equal(
-      Object.hasOwn(
-        statusWithCorruptPrivateMarker.opl_agent_package_status,
-        'runtime_source_recovery',
-      ),
-      false,
-    );
-    assert.throws(
-      () => withProcessEnvironment(env, inspectManagedRuntimeSourceTransactions),
-      (error: any) =>
-        error?.details?.failure_code === 'agent_package_runtime_source_transaction_invalid'
-        && error?.details?.recovery_status === 'recovery_required',
-    );
-    const installFailure = runCliFailure([
-      'packages', 'install', '--manifest-url', manifestPath, '--trust-tier', 'first_party',
-    ], env);
-    assert.equal(installFailure.payload.error.code, 'contract_shape_invalid');
-    assert.equal(
-      installFailure.payload.error.details.failure_code,
-      'agent_package_runtime_source_transaction_invalid',
-    );
-    assert.equal(installFailure.payload.error.details.recovery_status, 'recovery_required');
-    assert.deepEqual(fs.readFileSync(corruptMarkerPath), corruptMarkerBytes);
-    assert.deepEqual(fs.readFileSync(lockFile), lockBytes);
-    assert.equal(fs.readFileSync(sentinelPath, 'utf8'), 'must remain unchanged\n');
-
-    fs.rmSync(corruptMarkerPath);
-    const nonCanonicalPackageId = 'Fixture.RCA';
-    const invalidIdentityMarkerPath = path.join(
-      markerDir,
-      `${nonCanonicalPackageId}-invalid-package-identity.json`,
-    );
-    fs.writeFileSync(invalidIdentityMarkerPath, formatJsonPayload({
-      surface_kind: 'opl_agent_package_runtime_source_transaction',
-      version: 1,
-      phase: 'prepared',
-      mutation: {
-        kind: 'installed_fresh',
-        package_id: nonCanonicalPackageId,
-        action: 'install',
-        transaction_id: 'invalid-package-identity',
-        marker_path: invalidIdentityMarkerPath,
-        module_id: 'redcube',
-        checkout_path: path.join(modulesRoot, 'redcube-ai'),
-        before: null,
-        after: null,
-        staged_removal_paths: [],
-        repair_displaced_path: null,
-        checkout_existed_before: false,
-      },
-    }));
-    const invalidIdentityMarkerBytes = fs.readFileSync(invalidIdentityMarkerPath);
-    const statusWithInvalidPrivateMarker = runCli([
-      'packages', 'status', '--package-id', FIXTURE_RCA_PACKAGE_ID,
-    ], env) as any;
-    assert.equal(
-      Object.hasOwn(
-        statusWithInvalidPrivateMarker.opl_agent_package_status,
-        'runtime_source_recovery',
-      ),
-      false,
-    );
-    assert.throws(
-      () => withProcessEnvironment(env, inspectManagedRuntimeSourceTransactions),
-      (error: any) =>
-        error?.details?.failure_code === 'agent_package_runtime_source_transaction_invalid'
-        && error?.details?.recovery_action_state === 'manual_owner_intervention_required',
-    );
-    assert.deepEqual(fs.readFileSync(invalidIdentityMarkerPath), invalidIdentityMarkerBytes);
-    assert.deepEqual(fs.readFileSync(lockFile), lockBytes);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-runtime-transactions')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle.sqlite')), false);
   } finally {
-    removeFixtureTree(stateDir);
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
-    fs.rmSync(pluginSourcePath, { recursive: true, force: true });
+    removeFixtureTree(root);
   }
 });
 

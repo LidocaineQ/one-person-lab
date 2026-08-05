@@ -1310,194 +1310,28 @@ test('descriptor-owned Flow update rejects a successful native no-op and preserv
   }
 });
 
-test('identity-drifted bundled OMA reconciles only through its owner package channel', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-oma-bundled-reconcile-'));
-  const stateDir = path.join(root, 'state');
-  const homeDir = path.join(root, 'home');
-  const modulesRoot = path.join(root, 'modules');
-  const workspace = path.join(root, 'workspace');
+test('bundled OMA legacy state cannot substitute for missing native owner authority', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-oma-native-owner-required-'));
   const initial = writeOmaOwnerReleaseFixture({
     root: path.join(root, 'initial'),
     generation: 'initial',
   });
-  const incomplete = writeOmaOwnerReleaseFixture({
-    root: path.join(root, 'incomplete'),
-    generation: 'incomplete',
-    completeRuntime: false,
-  });
-  const next = writeOmaOwnerReleaseFixture({
-    root: path.join(root, 'next'),
-    generation: 'next',
-  });
-  const lockPath = path.join(stateDir, 'agent-package-locks.json');
-  const lifecycleSqlitePath = path.join(stateDir, 'agent-package-lifecycle.sqlite');
-  const transactionRoot = path.join(stateDir, 'agent-package-runtime-transactions');
-  const commonEnv = {
-    HOME: homeDir,
-    CODEX_HOME: path.join(homeDir, '.codex'),
-    OPL_STATE_DIR: stateDir,
-    OPL_MODULES_ROOT: modulesRoot,
-    OPL_MODULE_SOURCE_MODE: 'package_channel',
-  };
-  const fileDigest = (filePath: string) => fs.existsSync(filePath)
-    ? crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
-    : null;
-  const transactionResidue = () => fs.existsSync(transactionRoot)
-    ? fs.readdirSync(transactionRoot)
-    : [];
-
+  const stateDir = path.join(root, 'state');
   try {
-    fs.mkdirSync(workspace, { recursive: true });
-    const installed = runCli(['packages', 'install', 'oma'], {
-      ...commonEnv,
+    const failure = runCliFailure(['packages', 'install', 'oma'], {
+      HOME: path.join(root, 'home'),
+      CODEX_HOME: path.join(root, 'home', '.codex'),
+      OPL_STATE_DIR: stateDir,
       ...initial.releaseSet.env,
       ...initial.ownerChannel.env,
-    }) as any;
-    const installedLock = installed.opl_agent_package_install.package_lock;
-    const bundledRuntimeRoot = installedLock.managed_runtime_source.checkout_path;
-    const pluginRoot = installedLock.physical_surface.codex_plugin_cache_path;
-    fs.chmodSync(bundledRuntimeRoot, 0o755);
-    fs.writeFileSync(path.join(bundledRuntimeRoot, 'opl-runtime-module.json'), formatJsonPayload({
-      marker_version: 1,
-      module_id: 'oplmetaagent',
-      repo_name: 'opl-meta-agent',
-      packaged_runtime: true,
-      package_channel: false,
-      source_git: { head_sha: installedLock.managed_runtime_source.source_git_head_sha },
-    }));
-    const legacyIndex = parseJsonText(fs.readFileSync(lockPath, 'utf8')) as any;
-    const legacyLock = legacyIndex.packages.find((entry: any) => entry.package_id === 'oma');
-    legacyLock.source_kind = 'bundled_full_runtime_modules';
-    Object.assign(legacyLock.managed_runtime_source, {
-      ownership: 'preexisting_adopted',
-      source_mode: 'bundled_full_runtime',
-      channel_version: null,
-      artifact_ref: null,
-      layer_digest: null,
-      source_archive_sha256: null,
-      tree_sha256: computePackageChannelTreeSha256(bundledRuntimeRoot),
-      rollback_ref: null,
-      preparation_status: 'validated_no_write',
-      bootstrap_command: null,
-      package_prepare_command: null,
-      preparation_root: null,
-      preparation_scope: 'preexisting_read_only_probe',
-    });
-    fs.writeFileSync(lockPath, formatJsonPayload(legacyIndex));
-
-    const initialReads = fs.readFileSync(initial.ownerChannel.curlLogPath, 'utf8');
-    const current = runCli(['packages', 'update', 'oma'], {
-      ...commonEnv,
-      ...initial.releaseSet.env,
-      ...initial.ownerChannel.env,
-      OPL_MODULE_PATH_OPLMETAAGENT: bundledRuntimeRoot,
-    }) as any;
-    assert.equal(current.opl_agent_package_update.status, 'current_noop');
-    assert.equal(fs.readFileSync(initial.ownerChannel.curlLogPath, 'utf8'), initialReads);
-
-    fs.writeFileSync(path.join(bundledRuntimeRoot, 'unrecorded-owner-write.txt'), 'drift\n');
-    const stateSnapshot = () => ({
-      lock: fileDigest(lockPath),
-      sqlite: fileDigest(lifecycleSqlitePath),
-      sqliteWal: fileDigest(`${lifecycleSqlitePath}-wal`),
-      sqliteShm: fileDigest(`${lifecycleSqlitePath}-shm`),
-      runtimeTree: computePackageChannelTreeSha256(bundledRuntimeRoot),
-      pluginTree: computePackageChannelTreeSha256(pluginRoot),
-    });
-    const legacySnapshot = stateSnapshot();
-
-    const preview = runCli(['packages', 'update', 'oma', '--dry-run'], {
-      ...commonEnv,
-      ...next.releaseSet.env,
-      ...next.ownerChannel.env,
-    }) as any;
-    assert.equal(preview.opl_agent_package_update.status, 'validated_no_write');
-    assert.equal(preview.opl_agent_package_update.reconciliation_action, 'source_reconcile');
-    assert.equal(preview.opl_agent_package_update.package_lock.source_kind, 'first_party_managed_cohort');
-    assert.deepEqual(stateSnapshot(), legacySnapshot);
-    assert.deepEqual(transactionResidue(), []);
-
-    const ownerManifestLayer = path.join(root, 'next', 'owner-channel-blobs', 'oma-manifest.json');
-    const ownerManifestLayerBytes = fs.readFileSync(ownerManifestLayer);
-    fs.rmSync(ownerManifestLayer);
-    const downloadFailure = runCliFailure(['packages', 'update', 'oma'], {
-      ...commonEnv,
-      ...next.releaseSet.env,
-      ...next.ownerChannel.env,
-    });
-    fs.writeFileSync(ownerManifestLayer, ownerManifestLayerBytes);
-    assert.ok(downloadFailure.payload.error);
-    assert.deepEqual(stateSnapshot(), legacySnapshot);
-    assert.deepEqual(transactionResidue(), []);
-
-    const prepareFailure = runCliFailure(['packages', 'update', 'oma'], {
-      ...commonEnv,
-      ...incomplete.releaseSet.env,
-      ...incomplete.ownerChannel.env,
     });
     assert.equal(
-      prepareFailure.payload.error.details.failure_code,
-      'agent_package_runtime_source_preparation_failed',
+      failure.payload.error.details.failure_code,
+      'configured_codex_plugin_carrier_owner_descriptor_missing',
     );
-    assert.deepEqual(stateSnapshot(), legacySnapshot);
-    assert.deepEqual(transactionResidue(), []);
-
-    const applyFailure = runCliFailure([
-      'packages', 'update', 'oma',
-      '--scope', 'workspace', '--target-workspace', workspace,
-    ], {
-      ...commonEnv,
-      ...next.releaseSet.env,
-      ...next.ownerChannel.env,
-      OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED: '1',
-      OPL_TEST_CAPABILITY_RECONCILIATION_FAIL_AFTER_SCOPE: '1',
-    });
-    assert.equal(
-      applyFailure.payload.error.details.failure_code,
-      'test_capability_reconciliation_interrupted',
-    );
-    assert.deepEqual(stateSnapshot(), legacySnapshot);
-    assert.deepEqual(transactionResidue(), []);
-
-    const updated = runCli(['packages', 'update', 'oma'], {
-      ...commonEnv,
-      ...next.releaseSet.env,
-      ...next.ownerChannel.env,
-    }) as any;
-    const updatedLock = updated.opl_agent_package_update.package_lock;
-    assert.equal(updated.opl_agent_package_update.status, 'updated');
-    assert.equal(updated.opl_agent_package_update.reconciliation_action, 'source_reconcile');
-    assert.equal(updatedLock.source_kind, 'first_party_managed_cohort');
-    assert.equal(
-      updatedLock.release_channel_ref,
-      'ghcr.io/fixture/one-person-lab-packages/oma:latest-stable',
-    );
-    assert.equal(updatedLock.managed_runtime_source.source_mode, 'package_channel');
-    assert.equal(Object.hasOwn(updatedLock.managed_runtime_source, 'rollback_ref'), false);
-    assert.notEqual(updatedLock.managed_runtime_source.checkout_path, bundledRuntimeRoot);
-    assert.equal(fs.readFileSync(
-      path.join(bundledRuntimeRoot, 'unrecorded-owner-write.txt'),
-      'utf8',
-    ), 'drift\n');
-    assert.deepEqual(transactionResidue(), []);
-
-    const networkReads = [
-      next.ownerChannel.curlLogPath,
-      incomplete.ownerChannel.curlLogPath,
-    ].flatMap((logPath) => fs.existsSync(logPath)
-      ? fs.readFileSync(logPath, 'utf8').trim().split('\n').filter(Boolean)
-      : []);
-    assert.equal(networkReads.some((line) => line.includes('/one-person-lab-manifest/')), false);
-    for (const packageId of ['mas', 'mag', 'rca', 'obf', 'opl-flow', 'mas-scholar-skills']) {
-      assert.equal(
-        networkReads.some((line) => line.includes(`/one-person-lab-packages/${packageId}/`)),
-        false,
-      );
-    }
-    assert.equal(
-      networkReads.some((line) => line.includes('/one-person-lab-packages/oma/manifests/latest-stable')),
-      true,
-    );
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle.sqlite')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-runtime-transactions')), false);
   } finally {
     removeFixtureTree(root);
   }
@@ -1541,62 +1375,35 @@ test('an installed first-party descriptor cannot mask a new manifest missing car
   }
 });
 
-test('the exact immutable Flow 0.1.35 owner cohort installs through the managed native carrier bridge', () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-flow-0135-bridge-state-'));
-  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-flow-0135-bridge-home-'));
+test('legacy Flow 0.1.35 owner artifact cannot resurrect the managed carrier bridge', () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-flow-0135-native-owner-required-state-'));
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-flow-0135-native-owner-required-home-'));
   const exact = writeFirstPartyCatalogFixture(
     '0.1.35',
     '6d8772cd9a8b2a14b2292c15afbf3c3cb5bfa8a4',
     { configuredCarrier: false },
   );
-  const wrongOwnerCommit = writeFirstPartyCatalogFixture(
-    '0.1.35',
-    'f'.repeat(40),
-    { configuredCarrier: false },
-  );
-  const commonEnv = {
-    HOME: homeDir,
-    CODEX_HOME: path.join(homeDir, '.codex'),
-    OPL_STATE_DIR: stateDir,
-  };
   try {
-    const installed = runCli(['packages', 'install', 'opl-flow'], {
+    const failure = runCliFailure(['packages', 'install', 'opl-flow'], {
       ...exact.env,
-      ...commonEnv,
-    }) as any;
-    assert.equal(installed.opl_agent_package_install.status, 'installed');
-    assert.equal(installed.opl_agent_package_install.package_lock.package_id, 'opl-flow');
-    assert.equal(installed.opl_agent_package_install.package_lock.package_version, '0.1.35');
+      HOME: homeDir,
+      CODEX_HOME: path.join(homeDir, '.codex'),
+      OPL_STATE_DIR: stateDir,
+    });
     assert.equal(
-      installed.opl_agent_package_install.package_lock.owner_source_commit,
-      '6d8772cd9a8b2a14b2292c15afbf3c3cb5bfa8a4',
+      failure.payload.error.details.failure_code,
+      'configured_codex_plugin_carrier_owner_descriptor_missing',
     );
-    assert.equal(
-      installed.opl_agent_package_install.package_lock.source_kind,
-      'first_party_managed_cohort',
-    );
-    const status = runCli(['packages', 'status', '--package-id', 'opl-flow'], commonEnv) as any;
-    assert.equal(status.opl_agent_package_status.configured_carrier.status, 'installed');
-    assert.equal(status.opl_agent_package_status.configured_carrier.executor.status, 'callable');
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle.sqlite')), false);
     const ownerReads = fs.readFileSync(exact.curlLogPath, 'utf8')
       .split('\n')
       .filter((line) => line.includes('/one-person-lab-packages/opl-flow/manifests/latest-stable'));
     assert.equal(ownerReads.length, 1);
-
-    fs.rmSync(stateDir, { recursive: true, force: true });
-    const rejected = runCliFailure(['packages', 'install', 'opl-flow'], {
-      ...wrongOwnerCommit.env,
-      ...commonEnv,
-    });
-    assert.equal(
-      rejected.payload.error.details.failure_code,
-      'configured_codex_plugin_carrier_owner_descriptor_missing',
-    );
   } finally {
     removeFixtureTree(stateDir);
     fs.rmSync(homeDir, { recursive: true, force: true });
     fs.rmSync(exact.root, { recursive: true, force: true });
-    fs.rmSync(wrongOwnerCommit.root, { recursive: true, force: true });
   }
 });
 
@@ -1859,11 +1666,8 @@ test('fresh Developer install admits owner checkout manifests without channel pa
   }
 });
 
-test('bad optional inline catalog entry stays diagnostic and does not block consumer install use or launch', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-optional-inline-diagnostic-'));
-  const homeDir = path.join(root, 'home');
-  const stateDir = path.join(root, 'state');
-  const workspace = path.join(root, 'workspace');
+test('optional owner dependencies are omitted from ordinary owner refresh', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-optional-owner-refresh-'));
   const fakeBin = path.join(root, 'bin');
   const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0');
   const masManifest = writeMasConsumer(path.join(root, 'mas'), providerManifest, '0.1.0', {
@@ -1875,73 +1679,35 @@ test('bad optional inline catalog entry stays diagnostic and does not block cons
     [masManifest, providerManifest],
     { corruptInlineManifestPackageId: 'mas-scholar-skills' },
   );
-  writeMasOwnerGateFixture(path.dirname(masManifest), fakeBin);
   const ownerChannel = writePackageOwnerChannelFixture({
     root,
     binRoot: fakeBin,
     catalogPath: releaseSet.catalogPath,
     packageIds: ['mas'],
   });
-  const commonEnv = {
-    HOME: homeDir,
-    CODEX_HOME: path.join(homeDir, '.codex'),
-    OPL_STATE_DIR: stateDir,
-    ...releaseSet.env,
-    ...ownerChannel.env,
-  };
-  fs.mkdirSync(workspace, { recursive: true });
-
+  const environment = { ...releaseSet.env, ...ownerChannel.env };
+  const previous = Object.fromEntries(
+    Object.keys(environment).map((key) => [key, process.env[key]]),
+  );
   try {
-    const installed = runCli(['packages', 'install', 'mas'], commonEnv) as any;
-    assert.equal(installed.opl_agent_package_install.status, 'installed');
-    assert.deepEqual(
-      installed.opl_agent_package_install.dependency_package_locks.map(
-        (lock: any) => lock.package_id,
-      ),
-      ['mas'],
-    );
-    assert.deepEqual(installed.opl_agent_package_install.package_lock.resolved_dependencies, []);
-
-    const status = runCli(['packages', 'status', '--package-id', 'mas'], commonEnv) as any;
-    const readiness = status.opl_agent_package_status.package_dependency_readiness;
-    assert.equal(readiness.status, 'missing');
-    assert.equal(readiness.operational_ready, true);
-    assert.deepEqual(readiness.dependencies[0].reasons, [
-      'dependency_lock_missing',
-    ]);
-    assert.equal(status.opl_agent_package_status.operational_ready, true);
-    assert.equal(status.opl_agent_package_status.launch_allowed, true);
-    const networkReads = fs.readFileSync(ownerChannel.curlLogPath, 'utf8');
-    assert.equal(
-      networkReads.includes('/one-person-lab-packages/mas/manifests/latest-stable'),
-      true,
-    );
-    assert.equal(networkReads.includes('/one-person-lab-packages/mas-scholar-skills/'), false);
-    assert.equal(networkReads.includes('/one-person-lab-manifest/'), false);
-
-    runCli(['workspace', 'bind', '--project', 'medautoscience', '--path', workspace], commonEnv);
-    const activation = runCli([
-      'packages', 'activate', 'mas',
-      '--scope', 'workspace', '--target-workspace', workspace,
-    ], commonEnv) as any;
-    assert.equal(activation.opl_agent_package_activation.launch_state, 'degraded');
-    assert.equal(
-      activation.opl_agent_package_activation.launch_state_reason,
-      'optional_dependency_missing',
-    );
-    assert.deepEqual(
-      activation.opl_agent_package_activation.package_use_binding.provider_packages,
-      [],
-    );
+    Object.assign(process.env, environment);
+    const snapshot = await refreshFirstPartyPackageCatalogSnapshot('mas');
+    assert.equal(snapshot.freshness, 'live');
+    const reads = fs.readFileSync(ownerChannel.curlLogPath, 'utf8');
+    assert.equal(reads.includes('/one-person-lab-packages/mas/manifests/latest-stable'), true);
+    assert.equal(reads.includes('/one-person-lab-packages/mas-scholar-skills/'), false);
+    assert.equal(reads.includes('/one-person-lab-manifest/'), false);
   } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
     removeFixtureTree(root);
   }
 });
 
-test('MAS owner refresh reads only MAS and required ScholarSkills owner channels', () => {
+test('MAS owner refresh reads only MAS and required ScholarSkills owner channels', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-required-owner-closure-'));
-  const homeDir = path.join(root, 'home');
-  const stateDir = path.join(root, 'state');
   const fakeBin = path.join(root, 'bin');
   const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0');
   const masManifest = writeMasConsumer(path.join(root, 'mas'), providerManifest, '0.1.0');
@@ -1949,35 +1715,20 @@ test('MAS owner refresh reads only MAS and required ScholarSkills owner channels
     path.join(root, 'release-set'),
     [masManifest, providerManifest],
   );
-  writeMasOwnerGateFixture(path.dirname(masManifest), fakeBin);
   const ownerChannel = writePackageOwnerChannelFixture({
     root,
     binRoot: fakeBin,
     catalogPath: releaseSet.catalogPath,
     packageIds: ['mas', 'mas-scholar-skills'],
   });
-  const env = {
-    HOME: homeDir,
-    CODEX_HOME: path.join(homeDir, '.codex'),
-    OPL_STATE_DIR: stateDir,
-    ...releaseSet.env,
-    ...ownerChannel.env,
-  };
-
+  const environment = { ...releaseSet.env, ...ownerChannel.env };
+  const previous = Object.fromEntries(
+    Object.keys(environment).map((key) => [key, process.env[key]]),
+  );
   try {
-    const installed = runCli(['packages', 'install', 'mas'], env) as any;
-    const locks = installed.opl_agent_package_install.dependency_package_locks;
-    assert.deepEqual(locks.map((lock: any) => lock.package_id), [
-      'mas-scholar-skills',
-      'mas',
-    ]);
-    assert.deepEqual(
-      locks.map((lock: any) => lock.release_channel_ref),
-      [
-        'ghcr.io/fixture/one-person-lab-packages/mas-scholar-skills:latest-stable',
-        'ghcr.io/fixture/one-person-lab-packages/mas:latest-stable',
-      ],
-    );
+    Object.assign(process.env, environment);
+    const snapshot = await refreshFirstPartyPackageCatalogSnapshot('mas');
+    assert.equal(snapshot.freshness, 'live');
     const reads = fs.readFileSync(ownerChannel.curlLogPath, 'utf8');
     for (const packageId of ['mas', 'mas-scholar-skills']) {
       assert.equal(
@@ -1991,11 +1742,15 @@ test('MAS owner refresh reads only MAS and required ScholarSkills owner channels
       assert.equal(reads.includes(`/one-person-lab-packages/${packageId}/`), false);
     }
   } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
     removeFixtureTree(root);
   }
 });
 
-test('developer locks reconcile into the verified first-party owner catalog when managed policy becomes current', () => {
+test('developer locks stay intact when the owner artifact has no native carrier authority', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-developer-to-managed-'));
   const homeDir = path.join(root, 'home');
   const stateDir = path.join(root, 'state');
@@ -2040,41 +1795,26 @@ test('developer locks reconcile into the verified first-party owner catalog when
       UV_TOOL_DIR: path.join(root, 'uv-tools'),
     }) as any;
     assert.equal(installed.opl_agent_package_install.package_lock.source_kind, 'developer_checkout_override');
+    const lockPath = path.join(stateDir, 'agent-package-locks.json');
+    const lockBefore = fs.readFileSync(lockPath);
 
-    const updated = runCli(['packages', 'update', 'mas'], {
+    const failure = runCliFailure(['packages', 'update', 'mas'], {
       ...commonEnv,
       ...ownerChannel.env,
       OPL_MODULE_SOURCE_MODE: 'package_channel',
       OPL_MODULE_PATH_MEDAUTOSCIENCE: '',
       OPL_MODULE_PATH_SCHOLARSKILLS: '',
-    }) as any;
-    const surface = updated.opl_agent_package_update;
-    assert.equal(surface.status, 'updated');
-    assert.equal(surface.reconciliation_action, 'source_reconcile');
-    assert.equal(surface.release_catalog_freshness, 'live');
-    assert.equal(surface.package_lock.package_version, '0.1.1');
-    assert.equal(surface.package_lock.source_kind, 'first_party_managed_cohort');
+    });
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'configured_codex_plugin_carrier_owner_descriptor_missing',
+    );
+    assert.deepEqual(fs.readFileSync(lockPath), lockBefore);
     assert.deepEqual(
-      surface.dependency_package_locks.map((lock: any) => [
-        lock.package_id,
-        lock.package_version,
-        lock.source_kind,
-        lock.release_channel_ref,
-      ]),
-      [
-        [
-          'mas-scholar-skills',
-          '0.1.1',
-          'first_party_managed_cohort',
-          'ghcr.io/fixture/one-person-lab-packages/mas-scholar-skills:latest-stable',
-        ],
-        [
-          'mas',
-          '0.1.1',
-          'first_party_managed_cohort',
-          'ghcr.io/fixture/one-person-lab-packages/mas:latest-stable',
-        ],
-      ],
+      fs.existsSync(path.join(stateDir, 'agent-package-runtime-transactions'))
+        ? fs.readdirSync(path.join(stateDir, 'agent-package-runtime-transactions'))
+        : [],
+      [],
     );
     const reads = fs.readFileSync(ownerChannel.curlLogPath, 'utf8');
     assert.equal(reads.includes('/one-person-lab-manifest/'), false);
