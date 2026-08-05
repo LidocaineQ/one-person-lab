@@ -232,7 +232,6 @@
       "type": "object",
       "required": [
         "plugin_id",
-        "carrier_source_commit",
         "standalone_distribution",
         "required_skill_ids"
       ],
@@ -367,7 +366,6 @@
           "carrier",
           "source_surface",
           "projection_role",
-          "owns_package_core",
           "owns_domain_truth"
         ],
         "properties": {
@@ -543,21 +541,11 @@
       "items": {
         "type": "object",
         "required": [
-          "module_id",
           "package_id",
-          "kind",
           "required",
-          "version_requirement",
           "capability_abi",
           "required_export_ids",
           "required_module_ids",
-          "codex_distribution",
-          "opl_distribution",
-          "developer_distribution",
-          "required_for",
-          "install_owner",
-          "install_update_source",
-          "sync_scopes",
           "authority_boundary"
         ],
         "properties": {
@@ -627,7 +615,7 @@
               "catalog_ref": { "type": "string", "minLength": 1 },
               "digest_authority": { "const": "manifest_and_content_digest" }
             },
-            "additionalProperties": false
+            "additionalProperties": true
           },
           "codex_distribution": {
             "const": "bundled"
@@ -685,7 +673,7 @@
                 "const": false
               }
             },
-            "additionalProperties": false
+            "additionalProperties": true
           }
         },
         "allOf": [

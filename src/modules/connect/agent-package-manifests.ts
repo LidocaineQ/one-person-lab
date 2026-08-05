@@ -159,14 +159,15 @@ function normalizeDistributionPayload(value: unknown) {
 }
 
 function normalizeCapabilityDependency(value: unknown): ModuleCapabilityDependency {
-  if (
-    !isRecord(value)
-    || (
-      value.kind !== 'capability_package'
-      && value.kind !== 'framework_capability_package'
-    )
-  ) {
+  if (!isRecord(value)) {
     throw new FrameworkContractError('contract_shape_invalid', 'Agent package manifest capability dependency must be a framework capability package.', {
+      contract_ref: 'contracts/opl-framework/agent-package-manifest.schema.json',
+      field: 'capability_dependencies.kind',
+    });
+  }
+  const kind = value.kind ?? 'capability_package';
+  if (kind !== 'capability_package' && kind !== 'framework_capability_package') {
+    throw new FrameworkContractError('contract_shape_invalid', 'Agent package manifest capability dependency kind is invalid.', {
       contract_ref: 'contracts/opl-framework/agent-package-manifest.schema.json',
       field: 'capability_dependencies.kind',
     });
@@ -181,13 +182,6 @@ function normalizeCapabilityDependency(value: unknown): ModuleCapabilityDependen
     throw new FrameworkContractError('contract_shape_invalid', 'Agent package manifest capability dependency authority boundary must be false-only.', {
       contract_ref: 'contracts/opl-framework/agent-package-manifest.schema.json',
       field: 'capability_dependencies.authority_boundary',
-    });
-  }
-  const syncScopes = stringList(value.sync_scopes);
-  if (!syncScopes.includes('workspace') || !syncScopes.includes('quest')) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package manifest capability dependency must sync to workspace and quest scopes.', {
-      contract_ref: 'contracts/opl-framework/agent-package-manifest.schema.json',
-      field: 'capability_dependencies.sync_scopes',
     });
   }
   if (typeof value.required !== 'boolean') {
@@ -214,10 +208,12 @@ function normalizeCapabilityDependency(value: unknown): ModuleCapabilityDependen
   return {
     module_id: requiredString(value.module_id, 'capability_dependencies.module_id') as ModuleCapabilityDependency['module_id'],
     package_id: requiredString(value.package_id, 'capability_dependencies.package_id'),
-    kind: value.kind,
+    kind,
     required: value.required,
     dependency_kind: expectedDependencyKind,
-    version_requirement: requiredString(value.version_requirement, 'capability_dependencies.version_requirement'),
+    version_requirement: typeof value.version_requirement === 'string'
+      ? requiredString(value.version_requirement, 'capability_dependencies.version_requirement')
+      : '*',
     capability_abi: requiredString(value.capability_abi, 'capability_dependencies.capability_abi'),
     ...(typeof value.consumer_profile_id === 'string'
       ? { consumer_profile_id: requiredString(value.consumer_profile_id, 'capability_dependencies.consumer_profile_id') }
@@ -225,13 +221,6 @@ function normalizeCapabilityDependency(value: unknown): ModuleCapabilityDependen
     required_export_ids: requireStringList(value.required_export_ids, 'capability_dependencies.required_export_ids'),
     required_module_ids: requireStringList(value.required_module_ids, 'capability_dependencies.required_module_ids'),
     ...(typeof value.manifest_url === 'string' ? { manifest_url: value.manifest_url } : {}),
-    required_for: requireStringList(value.required_for, 'capability_dependencies.required_for'),
-    install_owner: 'one-person-lab',
-    install_update_source: 'ghcr_capability_packages_channel',
-    codex_distribution: requireLiteral(value.codex_distribution, 'bundled', 'capability_dependencies.codex_distribution'),
-    opl_distribution: requireLiteral(value.opl_distribution, 'managed_dependency', 'capability_dependencies.opl_distribution'),
-    developer_distribution: requireLiteral(value.developer_distribution, 'source_checkout', 'capability_dependencies.developer_distribution'),
-    sync_scopes: ['workspace', 'quest'],
     authority_boundary: {
       can_write_domain_truth: false,
       can_sign_owner_receipt: false,

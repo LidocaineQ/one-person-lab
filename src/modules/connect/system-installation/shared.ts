@@ -71,13 +71,6 @@ export type ModuleCapabilityDependency = {
   required_export_ids: readonly string[];
   required_module_ids: readonly string[];
   manifest_url?: string;
-  required_for: readonly string[];
-  install_owner: 'one-person-lab';
-  install_update_source: 'ghcr_capability_packages_channel';
-  codex_distribution?: 'bundled';
-  opl_distribution?: 'managed_dependency';
-  developer_distribution?: 'source_checkout';
-  sync_scopes: readonly ['workspace', 'quest'];
   authority_boundary: {
     can_write_domain_truth: false;
     can_sign_owner_receipt: false;
