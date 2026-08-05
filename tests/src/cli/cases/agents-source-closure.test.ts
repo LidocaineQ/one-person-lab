@@ -1039,6 +1039,84 @@ test('agents source-closure admits exact native-helper command and artifact slot
   );
 });
 
+test('agents source-closure resolves descriptor-local native-helper imports', () => {
+  const repoDir = buildRepo();
+  const entrypoint = [
+    'from helper_parts.effects import render',
+    'def main():',
+    '    return render()',
+    'main()',
+    '',
+  ].join('\n');
+  const effects = [
+    'import subprocess',
+    'from pathlib import Path',
+    'def render():',
+    '    subprocess.run(["pandoc"], check=True)',
+    '    Path("proof.pdf").write_text("proof")',
+    '    return {"status": "candidate"}',
+    '',
+  ].join('\n');
+  writeSource(repoDir, 'runtime/native_helpers/helper.py', entrypoint);
+  writeSource(repoDir, 'runtime/native_helpers/helper_parts/__init__.py', '');
+  writeSource(repoDir, 'runtime/native_helpers/helper_parts/effects.py', effects);
+  writeJson(path.join(repoDir, 'runtime', 'native_helpers', 'helper.native-helper-probe.json'), {
+    surface_kind: 'opl_pack_native_helper_probe_descriptor',
+    schema_version: 1,
+    helper_id: 'sample.pdf-export',
+    owner: 'sample-agent',
+    entrypoint_ref: 'helper.py',
+    runtime_command: 'python3',
+    required_commands: ['pandoc'],
+    source_closure: {
+      surface_kind: 'opl_native_helper_source_closure',
+      version: 'opl-native-helper-source-closure.v1',
+      effect_slots: [
+        {
+          slot_id: 'pandoc_process',
+          source_ref: 'helper_parts/effects.py',
+          symbol: 'render',
+          source_digest: digest(effects),
+          effect_kind: 'process_spawn',
+          target_policy: 'declared_command_set',
+          allowed_targets: ['pandoc'],
+        },
+        {
+          slot_id: 'proof_artifact_write',
+          source_ref: 'helper_parts/effects.py',
+          symbol: 'render',
+          source_digest: digest(effects),
+          effect_kind: 'filesystem_write',
+          target_policy: 'declared_artifact_write_slot',
+          allowed_targets: [],
+        },
+      ],
+    },
+    authority_boundary: {
+      can_write_domain_truth: false,
+      can_mutate_artifact_body: false,
+      can_sign_owner_receipt: false,
+      can_create_typed_blocker: false,
+      can_authorize_quality_verdict: false,
+      can_authorize_export_readiness: false,
+      can_claim_domain_ready: false,
+      can_claim_production_ready: false,
+    },
+  });
+
+  const report = runSourceClosure(repoDir).reports[0];
+
+  assert.equal(report.status, 'passed');
+  assert.equal(report.audit_mismatches.length, 0);
+  assert.equal(report.unreachable_sensitive_residue.length, 0);
+  assert.equal(
+    report.observed_effects.every((effect: { audit_status: string }) =>
+      effect.audit_status === 'native_helper_carrier_exact'
+    ),
+    true,
+  );
+});
+
 test('agents source-closure only classifies codex or opl commands on process APIs as executor invocation', () => {
   const repoDir = buildRepo();
   const source = [
