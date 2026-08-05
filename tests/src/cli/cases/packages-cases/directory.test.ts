@@ -1333,9 +1333,11 @@ test('invalid owner presentation fails closed while legacy manifests remain comp
   (error: any) => error?.details?.failure_code === 'agent_package_presentation_invalid');
 });
 
-test('scope-less list and App workspace context project different activation state from one lock', () => {
+test('ordinary list ignores a legacy-only lock without rewriting its bytes', () => {
   const fixture = isolatedPackageEnv('opl-package-directory-scope');
   const previousStateDir = process.env.OPL_STATE_DIR;
+  const previousHome = process.env.HOME;
+  const previousCodexHome = process.env.CODEX_HOME;
   const workspace = path.join(fixture.home, 'workspace');
   const lock = {
     surface_kind: 'opl_agent_package_lock',
@@ -1352,84 +1354,40 @@ test('scope-less list and App workspace context project different activation sta
     capability_provider: null,
     scope_materializations: [],
   };
-  const statusReader = (input: any) => ({
-    opl_agent_package_status: input.scope === 'workspace' && input.targetWorkspace === workspace
-      ? {
-          status: 'available',
-          recommended_action: null,
-          operational_ready: true,
-          launch_allowed: true,
-          launch_blocked_reason: null,
-          materialization_readiness: { status: 'current' },
-        }
-      : {
-          status: 'attention_needed',
-          recommended_action: 'agent_package_activate',
-          operational_ready: false,
-          launch_allowed: false,
-          launch_blocked_reason: 'scope_materialization_scope_required',
-          materialization_readiness: { status: 'scope_required' },
-        },
-  });
   try {
     process.env.OPL_STATE_DIR = fixture.env.OPL_STATE_DIR;
+    process.env.HOME = fixture.env.HOME;
+    process.env.CODEX_HOME = fixture.env.CODEX_HOME;
     fs.mkdirSync(fixture.env.OPL_STATE_DIR, { recursive: true });
-    fs.writeFileSync(path.join(fixture.env.OPL_STATE_DIR, 'agent-package-locks.json'), formatJsonPayload({
+    const lockPath = path.join(fixture.env.OPL_STATE_DIR, 'agent-package-locks.json');
+    const lockBytes = formatJsonPayload({
       surface_kind: 'opl_agent_package_lock_index',
       version: 'opl-agent-package-lock-index.v1',
       packages: [lock],
-    }));
-    const scopeLess = listOplAgentPackages({ detail: 'fast', readStatus: statusReader as any })
-      .opl_agent_packages.directory.entries.find((entry) => entry.package_id === lock.package_id)!;
-    assert.equal(scopeLess.capability_metadata, null);
-    assert.equal(scopeLess.activated, false);
-    assert.equal(scopeLess.readiness.status, 'ready');
-    assert.equal(scopeLess.readiness.operational_ready, true);
-    assert.equal(scopeLess.readiness.launch_allowed, true);
-    assert.equal(scopeLess.readiness.reason, 'use_boundary_reconciliation_ready');
-    assert.equal(scopeLess.recommended_action, null);
-    const scopeLessActivation = scopeLess.available_actions.find(
-      (action) => action.action_id === 'agent_package_activate'
-    )!;
-    assert.deepEqual(scopeLessActivation.payload, {
-      package_id: lock.package_id,
-      scope: 'workspace',
     });
-    assert.deepEqual(scopeLessActivation.required_payload_fields, ['package_id', 'target_workspace']);
-    assertRecommendedActionMatchesAvailable(scopeLess);
-
-    const missingWorkspace = listOplAgentPackages({
-      detail: 'fast',
-      readStatus: statusReader as any,
-      statusContext: () => ({}),
-    }).opl_agent_packages.directory.entries.find((entry) => entry.package_id === lock.package_id)!;
-    assert.equal(missingWorkspace.readiness.status, 'ready');
-    assert.equal(missingWorkspace.readiness.reason, 'use_boundary_reconciliation_ready');
-    assert.equal(missingWorkspace.recommended_action, null);
-    assert.deepEqual(
-      missingWorkspace.available_actions.find((action) => action.action_id === 'agent_package_activate')?.payload,
-      { package_id: lock.package_id, scope: 'workspace' },
-    );
-    assertRecommendedActionMatchesAvailable(missingWorkspace);
-
-    const appWorkspace = listOplAgentPackages({
-      detail: 'fast',
-      readStatus: statusReader as any,
-      statusContext: () => ({ scope: 'workspace', targetWorkspace: workspace }),
-    }).opl_agent_packages.directory.entries.find((entry) => entry.package_id === lock.package_id)!;
-    assert.equal(appWorkspace.activated, true);
-    assert.equal(appWorkspace.readiness.status, 'verification_deferred');
-    assert.equal(appWorkspace.readiness.verification_deferred, true);
-    assert.equal(appWorkspace.readiness.reason, 'live_verification_deferred');
-    assert.equal(appWorkspace.recommended_action, null);
-    assert.deepEqual(
-      appWorkspace.available_actions.find((action) => action.action_id === 'agent_package_activate')?.payload,
-      { package_id: lock.package_id, scope: 'workspace', target_workspace: workspace },
-    );
-    assertRecommendedActionMatchesAvailable(appWorkspace);
+    fs.writeFileSync(lockPath, lockBytes);
+    for (const input of [
+      { detail: 'fast' as const },
+      { detail: 'fast' as const, statusContext: () => ({}) },
+      {
+        detail: 'fast' as const,
+        statusContext: () => ({ scope: 'workspace' as const, targetWorkspace: workspace }),
+      },
+    ]) {
+      const readback = listOplAgentPackages(input).opl_agent_packages;
+      assert.equal(readback.status, 'available');
+      assert.equal(readback.directory.entries.some((entry) => entry.package_id === lock.package_id), false);
+      assert.equal(readback.installed_package_count, 0);
+      assert.deepEqual(readback.installed_packages, []);
+      assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytes);
+    }
   } finally {
     if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateDir;
+    if (previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = previousHome;
+    if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = previousCodexHome;
     fs.rmSync(fixture.home, { recursive: true, force: true });
   }
 });
