@@ -15,6 +15,8 @@
     "profile/modules/01-user-preferences.md",
     "skills/coordinate-concurrent-tasks/SKILL.md",
     "skills/coordinate-concurrent-tasks/agents/openai.yaml",
+    "skills/codex-app-owner-migration/SKILL.md",
+    "skills/codex-app-owner-migration/agents/openai.yaml",
     "skills/develop-and-deliver/SKILL.md",
     "skills/develop-and-deliver/agents/openai.yaml",
     "skills/github-ssot-patrol/SKILL.md",

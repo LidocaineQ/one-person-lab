@@ -1057,7 +1057,7 @@ exit 1
     });
     assert.equal(flow.package_role, 'workflow_profile');
     assert.equal(flow.capability_metadata, null);
-    assert.equal(flow.projected_version, '0.1.36');
+    assert.equal(flow.projected_version, '0.1.38');
     assert.equal(flow.selected_version, null);
     assert.equal(flow.stable_version, null);
     assert.equal(flow.source_explanation.kind, 'first_party_framework_projection');

@@ -1352,8 +1352,8 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
     'utf8',
   )) as Record<string, any>;
   assert.equal(manifest.surface_kind, 'opl_workflow_profile_package_manifest.v1');
-  assert.equal(manifest.version, '0.1.36');
-  assert.equal(manifest.codex_surface.carrier_source_commit, '8dfd77fe357f520aa0e56eebcd5925c3f5cde549');
+  assert.equal(manifest.version, '0.1.38');
+  assert.equal(manifest.codex_surface.carrier_source_commit, 'f9080e3db3253da63452f4072deaadce3197cef3');
   assert.deepEqual(manifest.codex_surface.configured_codex_plugin_carrier, {
     kind: 'codex_plugin_manager',
     plugin_selector: 'opl-flow@opl-flow-local',
@@ -1363,6 +1363,7 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
   });
   assert.deepEqual(manifest.codex_surface.required_skill_ids, [
     'coordinate-concurrent-tasks',
+    'codex-app-owner-migration',
     'develop-and-deliver',
     'github-ssot-patrol',
     'opl-fleet',
@@ -1375,7 +1376,7 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
   assert.equal(normalized.agent_id, null);
   assert.equal(normalized.profile_surface?.existing_profile_policy, 'semantic_merge_required');
   assert.equal(payload.surface_kind, 'opl_package_payload_manifest.v2');
-  assert.equal(payload.source_commit, '8dfd77fe357f520aa0e56eebcd5925c3f5cde549');
+  assert.equal(payload.source_commit, 'f9080e3db3253da63452f4072deaadce3197cef3');
   assert.equal(payload.files.some((file: Record<string, unknown>) => file.path === 'opl-package.json'), true);
   for (const requiredPath of [
     'contracts/fleet-telemetry-protocol.json',
@@ -1397,6 +1398,8 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
     [
       'skills/coordinate-concurrent-tasks/SKILL.md',
       'skills/coordinate-concurrent-tasks/agents/openai.yaml',
+      'skills/codex-app-owner-migration/SKILL.md',
+      'skills/codex-app-owner-migration/agents/openai.yaml',
       'skills/develop-and-deliver/SKILL.md',
       'skills/develop-and-deliver/agents/openai.yaml',
       'skills/github-ssot-patrol/SKILL.md',

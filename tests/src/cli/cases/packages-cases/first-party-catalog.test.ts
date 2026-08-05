@@ -41,6 +41,7 @@ const PACKAGE_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.
 const PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.payload.v1+json';
 const FLOW_SKILL_IDS = [
   'coordinate-concurrent-tasks',
+  'codex-app-owner-migration',
   'develop-and-deliver',
   'github-ssot-patrol',
   'opl-fleet',
