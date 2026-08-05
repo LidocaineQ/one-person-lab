@@ -14,6 +14,7 @@ import {
 } from '../helpers.ts';
 import {
   computePackageChannelTreeSha256,
+  materializeOplPackageSourceArchive,
   rollbackManagedModulePackageChannel,
 } from '../../../../src/modules/connect/system-installation/module-package-channel.ts';
 
@@ -54,6 +55,8 @@ function writePackageChannelFixture(input: {
   sourceHeadSha: string;
   sourceFiles?: Record<string, string>;
   mutateSource?: (sourceRoot: string) => void;
+  failSourceBlobWithArgs?: boolean;
+  token?: string;
 }) {
   const blobRoot = path.join(input.root, 'blobs');
   const fakeBin = path.join(input.root, 'bin');
@@ -117,6 +120,9 @@ function writePackageChannelFixture(input: {
       },
     ],
   };
+  const packageArtifactDigest = crypto.createHash('sha256')
+    .update(JSON.stringify(packageArtifactManifest))
+    .digest('hex');
   const manifests = {
     'owner/one-person-lab-packages/mas': packageArtifactManifest,
   };
@@ -133,7 +139,7 @@ function writePackageChannelFixture(input: {
       "const args = process.argv.slice(2);",
       `fs.appendFileSync(${JSON.stringify(curlLogPath)}, JSON.stringify(args) + '\\n');`,
       "const url = args.find((arg) => arg.startsWith('http://') || arg.startsWith('https://')) || '';",
-      "if (url.includes('/token?')) { process.stdout.write(JSON.stringify({ token: 'fixture-token' })); process.exit(0); }",
+      `if (url.includes('/token?')) { process.stdout.write(JSON.stringify({ token: ${JSON.stringify(input.token ?? 'fixture-token')} })); process.exit(0); }`,
       `const manifests = ${JSON.stringify(manifests)};`,
       `const blobsByDigest = ${JSON.stringify(blobsByDigest)};`,
       "if (url.includes('/manifests/')) {",
@@ -147,6 +153,7 @@ function writePackageChannelFixture(input: {
       "  const outIndex = args.indexOf('-o');",
       "  if (outIndex < 0) process.exit(2);",
       "  const digest = decodeURIComponent(url.slice(url.lastIndexOf('/') + 1));",
+      `  if (${JSON.stringify(input.failSourceBlobWithArgs === true)} && digest === ${JSON.stringify(`sha256:${archiveDigest}`)}) { process.stderr.write(JSON.stringify(args)); process.exit(28); }`,
       "  if (!blobsByDigest[digest]) process.exit(22);",
       "  fs.copyFileSync(blobsByDigest[digest], args[outIndex + 1]);",
       "  process.exit(0);",
@@ -159,6 +166,8 @@ function writePackageChannelFixture(input: {
   return {
     fakeBin,
     curlLogPath,
+    archiveDigest,
+    packageArtifactDigest,
   };
 }
 
@@ -266,6 +275,14 @@ test('managed module install and update consume the package channel by default',
     assert.equal(fs.existsSync(`${managedCheckout}.previous`), false);
     assert.match(fs.readFileSync(firstChannel.curlLogPath, 'utf8'), /one-person-lab-packages\/mas/);
     assert.doesNotMatch(fs.readFileSync(firstChannel.curlLogPath, 'utf8'), /one-person-lab-modules/);
+    const sourceArchiveCalls = fs.readFileSync(firstChannel.curlLogPath, 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as string[])
+      .filter((args) => args.some((argument) => argument.includes(firstChannel.archiveDigest)));
+    assert.equal(sourceArchiveCalls.some((args) => (
+      args[args.indexOf('--max-time') + 1] === '300.000'
+    )), true);
     const currentStatus = runCli(['connect', 'modules'], baseEnv) as any;
     const currentMas = currentStatus.modules.items.find((entry: any) => entry.module_id === 'medautoscience');
     assert.equal(currentMas.recommended_action, null);
@@ -380,6 +397,53 @@ test('managed module install and update consume the package channel by default',
     assert.match(rollbackMarker.package_channel_lifecycle.rollback_ref ?? '', /^opl:\/\/managed-module-package-channel\/medautoscience\/rollback\//);
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
+  }
+});
+
+test('package source blob failures use the slow-transfer budget and redact authorization diagnostics', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-channel-redaction-'));
+  const channel = writePackageChannelFixture({
+    root: path.join(root, 'channel'),
+    moduleId: 'medautoscience',
+    repoName: 'med-autoscience',
+    version: '26.8.5-redaction',
+    sourceHeadSha: 'a'.repeat(40),
+    failSourceBlobWithArgs: true,
+    token: 'fixture-secret-token',
+  });
+  const previousPath = process.env.PATH;
+  process.env.PATH = `${channel.fakeBin}${path.delimiter}${previousPath ?? ''}`;
+  try {
+    assert.throws(
+      () => materializeOplPackageSourceArchive({
+        selection: {
+          package_id: 'mas',
+          package_version: '26.8.5-redaction',
+          source_artifact_ref: 'ghcr.io/owner/one-person-lab-packages/mas:latest-stable',
+          artifact_digest: `sha256:${channel.packageArtifactDigest}`,
+          artifact_status: 'published_immutable',
+          package_content_digest: `sha256:${channel.archiveDigest}`,
+          owner_source_commit: 'a'.repeat(40),
+        },
+        expectedPackageId: 'mas',
+        archiveRoot: 'med-autoscience',
+        targetPath: path.join(root, 'target'),
+      }),
+      (error: any) => {
+        assert.equal(error.code, 'build_command_failed');
+        assert.equal(error.details.timeout_ms, 300_000);
+        assert.equal(error.details.command.includes('Authorization: <redacted>'), true);
+        const serialized = JSON.stringify(error.details);
+        assert.doesNotMatch(serialized, /fixture-secret-token/);
+        assert.match(serialized, /<redacted>/);
+        return true;
+      },
+    );
+    assert.equal(fs.existsSync(path.join(root, 'target')), false);
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 

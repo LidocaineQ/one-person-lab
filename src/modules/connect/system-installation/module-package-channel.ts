@@ -24,10 +24,13 @@ import {
   normalizeOptionalString,
   runCommand,
 } from './shared.ts';
+import { sanitizedCurlDiagnostics } from './curl-diagnostics.ts';
 
 const PACKAGE_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.source.v1+gzip';
 const PACKAGE_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.manifest.v1+json';
 const PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.payload.v1+json';
+const PACKAGE_SOURCE_BLOB_FETCH_TIMEOUT_MS = 5 * 60_000;
+const CURL_PROCESS_EXIT_GRACE_MS = 5_000;
 
 type OciImageRef = {
   registry: string;
@@ -152,27 +155,52 @@ function runCurl(
     : 60_000;
   const connectTimeoutSeconds = (Math.min(10_000, boundedTimeoutMs) / 1000).toFixed(3);
   const maxTimeSeconds = (boundedTimeoutMs / 1000).toFixed(3);
-  const result = runCommand('curl', [
+  const commandArgs = [
     '--connect-timeout',
     connectTimeoutSeconds,
     '--max-time',
     maxTimeSeconds,
     ...args,
-  ], undefined, {
-    timeoutMs: boundedTimeoutMs,
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  ];
+  let result;
+  try {
+    result = runCommand('curl', commandArgs, undefined, {
+      timeoutMs: boundedTimeoutMs + CURL_PROCESS_EXIT_GRACE_MS,
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  } catch (error) {
+    throw new FrameworkContractError(
+      'build_command_failed',
+      `Failed to launch OPL package channel transport: ${errorKind}.`,
+      {
+        ...details,
+        ...sanitizedCurlDiagnostics({
+          binary: 'curl',
+          args: commandArgs,
+          stdout: '',
+          stderr: '',
+        }),
+        timeout_ms: boundedTimeoutMs,
+        timed_out: false,
+        launch_error_code: error instanceof FrameworkContractError ? error.code : 'command_launch_failed',
+        failure_code: 'agent_package_capability_channel_unavailable',
+      },
+    );
+  }
   if (result.exitCode !== 0) {
     throw new FrameworkContractError(
       'build_command_failed',
       `Failed to fetch OPL package channel data: ${errorKind}.`,
       {
         ...details,
-        command: ['curl', ...args],
+        ...sanitizedCurlDiagnostics({
+          binary: 'curl',
+          args: commandArgs,
+          stdout: result.stdout,
+          stderr: result.stderr,
+        }),
         timeout_ms: boundedTimeoutMs,
         timed_out: result.timedOut === true,
-        stdout: result.stdout,
-        stderr: result.stderr,
         failure_code: 'agent_package_capability_channel_unavailable',
       },
     );
@@ -254,7 +282,7 @@ function fetchOciBlob(
   token: string,
   digest: string,
   targetPath: string,
-  timeoutMs?: number,
+  timeoutMs = PACKAGE_SOURCE_BLOB_FETCH_TIMEOUT_MS,
 ) {
   const blobUrl = `https://${imageRef.registry}/v2/${imageRef.repository}/blobs/${digest}`;
   runCurl([
