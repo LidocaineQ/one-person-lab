@@ -86,6 +86,11 @@ test('installed Framework source identity rejects symlinks and malformed records
   }
 });
 
+test('installed Framework source identity remains local without dirtying a git checkout', () => {
+  const gitignore = fs.readFileSync(path.join(repoRoot, '.gitignore'), 'utf8');
+  assert.match(gitignore, /^\.opl-framework-installed-source-identity\.json$/m);
+});
+
 test('installer accepts supported Node majors without an arbitrary upper bound', () => {
   const source = fs.readFileSync(installScript, 'utf8');
   assert.match(source, /major >= 22 \? 0 : 1/);

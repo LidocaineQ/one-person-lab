@@ -3,6 +3,7 @@
 # legacy OMX local state (kept ignored after offboarding)
 .omx/
 .codegraph/
+.opl-framework-installed-source-identity.json
 .worktrees/
 tmp/
 docs/site/latest/
