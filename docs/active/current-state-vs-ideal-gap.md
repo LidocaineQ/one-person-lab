@@ -34,7 +34,7 @@ North-star 参考仍归 [OPL 与 Foundry Agents 理想目标态](../references/r
 
 | 范围 | 当前完成状态 | 证据边界 |
 | --- | --- | --- |
-| 非 live 功能 / 结构基线 | `opl_package_platform_composition_phase_2_family_retirement_in_progress` | 当前唯一 selected gap 是 Package platform-first composition；本仓 owner 边界见 [`opl-package-platform-composition-migration.md`](./opl-package-platform-composition-migration.md)，跨仓冻结实施计划归 App SSOT。Phase 2 已获用户批准，当前按逐 family 退役门禁执行。 |
+| 非 live 功能 / 结构基线 | `opl_package_platform_composition_phase_2_controlled_breaking_cutover_in_progress` | 当前唯一 selected gap 是 Package platform-first composition；本仓 owner 边界见 [`opl-package-platform-composition-migration.md`](./opl-package-platform-composition-migration.md)，跨仓唯一实施计划归 App SSOT。Phase 2 已获用户批准，当前按 successor-only 纵向链路、production caller 切换、affected OUT / carrier 验收与 owner-gated bulk deletion 顺序执行。 |
 | Active Truth 治理 | `single_owner_guard_active` | 本文是唯一 active truth owner，只保留当前 gap、完成口径与下一轮 baton，不保存 dated proof 或 closeout 流水。 |
 | Live / release / production / owner evidence | `deferred_to_evidence_owners` | 继续由 App release、provider long-soak、Brand L5、domain owner receipt、typed blocker 与 human gate 等 owner surface 单独证明。 |
 
@@ -46,9 +46,12 @@ North-star 参考仍归 [OPL 与 Foundry Agents 理想目标态](../references/r
 
 当前唯一已选中的 active 非 live 功能/结构 gap 是
 `opl_package_platform_composition`。Phase 1 已完成 SSOT 与冻结实施计划；Phase 2 已获
-用户批准并进入逐 family 实施。每条 lane 仍须 fresh 登记唯一 owner 与 exact write
-set；只有 replacement canonical、affected outcome fresh pass、retained consumer 为零
-和 owner decision 齐备后才可物理删除。该实施授权不覆盖 Package publication、
+用户批准并进入 successor-first controlled cutover。先让 successor-only Package plane
+形成可验证、可回退的真实纵向链路，再切换全部 production caller 并通过 affected OUT /
+real-carrier acceptance；只有 structural caller 为零且对应 owner decision / physical-delete
+gate 成立后，才进入一个受控 legacy bulk deletion 批次。逐字段、逐 family retirement
+ceremony 不再是主路径。每条实施切片仍须 fresh 登记唯一 owner 与 exact write set。该实施
+授权不覆盖 Package publication、
 Stable/Latest、真实用户 managed state 或其他 public mutation。Phase 1 形成期间已由独立 owner canonical 的
 owner-channel currentness/MAS required selection保留为 current truth，不回退也不重复
 实施。本仓
@@ -87,7 +90,7 @@ Stable、Latest、Package publication、Foundry 和其他工作不受本阶段�
 
 | Gap class | Status | Owner | 当前处理 |
 | --- | --- | --- | --- |
-| Package platform-first composition | `phase_2_family_retirement_in_progress` | OPL Framework + OPL App | Phase 1 的 SSOT、旧 resolver/lock/payload/receipt/Durable 扩张禁令、App-state producer migration 和删除顺序已冻结；Phase 2 正按 replacement、consumer switch、fresh outcome、consumer-zero、物理删除与同 outcome 复验逐 family 推进。 |
+| Package platform-first composition | `phase_2_controlled_breaking_cutover_in_progress` | OPL Framework + OPL App | Phase 1 的 SSOT、旧 resolver/lock/payload/receipt/Durable 扩张禁令与 no-resurrection 边界已冻结；Phase 2 按 M1 successor-only public actions、M2 App/Shell caller switch、M3 affected OUT / real-carrier acceptance、M4 owner-gated legacy bulk deletion 与同 outcome 复验推进。 |
 | 文档 SSOT / active gap 污染 | `active_governance_guard` | OPL + OPL Doc | 理想态定义保留在 support/reference；active gap 文档只保留当前 gap、完成口径和下一轮 baton；已完成过程进 history。 |
 | Live / release / production / owner evidence | `deferred_evidence_lane` | 对应 evidence owner | 单独走 live evidence 维护入口，不混入本文 active gap。 |
 | 不可逆 cleanup / physical delete | `owner_decision_gated` | 对应 repo owner | 只有 owner decision、no-active-caller、replacement owner、no-forbidden-write 和 tombstone/provenance 齐备时才开 lane。 |
@@ -104,10 +107,13 @@ Stable、Latest、Package publication、Foundry 和其他工作不受本阶段�
 ## Next-Round Agent Prompt
 
 当前默认非 live 功能/结构主题是 `opl_package_platform_composition`，但
-`next_action=按 Per-Family Deletion Loop 继续 Phase 2`。每轮先读取 fresh App 主 SSOT
+`next_action=按 successor-first M1-M4 里程碑继续 Phase 2`。每轮先读取 fresh App 主 SSOT
 和本仓 [`Framework counterpart`](./opl-package-platform-composition-migration.md)，
-重新冻结唯一 owner、exact write set、replacement、retained consumer 与 affected
-outcome 门禁，再按当前 canonical 顺序推进。不得把计划、docs、测试或未吸收候选写成
+再从 source、真实 caller 与 carrier readback 选择当前最小可验收缺口，重新冻结唯一
+owner、exact write set、successor、affected outcome 与回退门禁。只有全部 production
+caller 已切换、structural caller 为零、受影响 OUT 通过且 physical-delete owner gate
+成立时才进入 M4；closed read-model counter 本身不授权物理删除。不得把计划、docs、
+测试或未吸收候选写成
 完成，也不得把本授权扩展到 Package publication、真实用户 managed state 或其他 public
 mutation。
 
