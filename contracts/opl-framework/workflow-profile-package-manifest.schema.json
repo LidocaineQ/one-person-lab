@@ -53,7 +53,6 @@
       "required": [
         "plugin_id",
         "plugin_payload_manifest_url",
-        "carrier_source_commit",
         "required_skill_ids"
       ],
       "properties": {
