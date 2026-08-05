@@ -14,6 +14,7 @@ INSTALL_SOURCE_IDENTITY=.opl-framework-installed-source-identity.json
 LEGACY_GLOBAL_PACKAGE=opl-framework-shared
 ARCHIVE_TMP_TO_CLEAN=
 ARCHIVE_EXTRACT_ROOT_TO_CLEAN=
+PREEXISTING_OPL_PATH=$(command -v opl 2>/dev/null || true)
 SYSTEM_GIT_PATH=${OPL_SYSTEM_GIT_PATH:-/usr/bin/git}
 XCODE_SELECT=${OPL_XCODE_SELECT:-/usr/bin/xcode-select}
 
@@ -199,7 +200,7 @@ resolve_cli_prefix() {
     printf '%s\n' "$OPL_NPM_GLOBAL_PREFIX"
     return 0
   fi
-  existing_cli=$(command -v opl 2>/dev/null || true)
+  existing_cli=$PREEXISTING_OPL_PATH
   if [ -n "$existing_cli" ] && [ "$(basename "$(dirname "$existing_cli")")" = "bin" ]; then
     dirname "$(dirname "$existing_cli")"
     return 0

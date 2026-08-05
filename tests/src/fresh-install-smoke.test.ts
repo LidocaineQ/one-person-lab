@@ -107,19 +107,33 @@ test('installer uses the lockfile and retires only the exact legacy global carri
   assert.doesNotMatch(source, /npm uninstall --global opl-framework\s/);
 });
 
-test('installer replaces a legacy CLI carrier in the prefix that owns the effective opl command', () => {
+test('installer preserves the preexisting CLI prefix when managed Node prepends another opl command', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-install-legacy-prefix-'));
   const fakeBin = path.join(homeRoot, 'bin');
   const installDir = path.join(homeRoot, '.opl', 'one-person-lab');
   const cliPrefix = path.join(homeRoot, 'opt', 'homebrew');
+  const toolchainRoot = path.join(homeRoot, '.opl', 'toolchain');
+  const managedNodeBin = path.join(toolchainRoot, 'node-v22.21.1-darwin-arm64', 'bin');
   const legacyCarrier = path.join(cliPrefix, 'lib', 'node_modules', 'opl-framework-shared');
   const npmLog = path.join(homeRoot, 'npm.log');
   fs.mkdirSync(path.join(installDir, '.git'), { recursive: true });
   fs.mkdirSync(fakeBin, { recursive: true });
   fs.mkdirSync(path.join(cliPrefix, 'bin'), { recursive: true });
+  fs.mkdirSync(managedNodeBin, { recursive: true });
   fs.mkdirSync(legacyCarrier, { recursive: true });
   fs.writeFileSync(path.join(installDir, 'package.json'), '{}\n');
   fs.writeFileSync(path.join(cliPrefix, 'bin', 'opl'), '#!/usr/bin/env bash\nexit 0\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(managedNodeBin, 'opl'), '#!/usr/bin/env bash\nexit 0\n', { mode: 0o755 });
+  fs.writeFileSync(
+    path.join(fakeBin, 'uname'),
+    [
+      '#!/usr/bin/env bash',
+      'if [ "${1:-}" = "-s" ]; then printf "Darwin\\n"; exit 0; fi',
+      'if [ "${1:-}" = "-m" ]; then printf "arm64\\n"; exit 0; fi',
+      'exec /usr/bin/uname "$@"',
+    ].join('\n'),
+    { mode: 0o755 },
+  );
   fs.writeFileSync(
     path.join(fakeBin, 'git'),
     [
@@ -130,15 +144,14 @@ test('installer replaces a legacy CLI carrier in the prefix that owns the effect
     { mode: 0o755 },
   );
   fs.writeFileSync(path.join(fakeBin, 'node'), '#!/usr/bin/env bash\nexit 0\n', { mode: 0o755 });
-  fs.writeFileSync(
-    path.join(fakeBin, 'npm'),
-    [
-      '#!/usr/bin/env bash',
-      `printf '%s|%s\\n' "${'${npm_config_prefix:-}'}" "$*" >> ${JSON.stringify(npmLog)}`,
-      'exit 0',
-    ].join('\n'),
-    { mode: 0o755 },
-  );
+  const npmFixture = [
+    '#!/usr/bin/env bash',
+    `printf '%s|%s\\n' "${'${npm_config_prefix:-}'}" "$*" >> ${JSON.stringify(npmLog)}`,
+    'exit 0',
+  ].join('\n');
+  fs.writeFileSync(path.join(fakeBin, 'npm'), npmFixture, { mode: 0o755 });
+  fs.writeFileSync(path.join(managedNodeBin, 'node'), '#!/usr/bin/env bash\nexit 0\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(managedNodeBin, 'npm'), npmFixture, { mode: 0o755 });
 
   try {
     const result = spawnSync('/bin/bash', [installScript, '--carrier-only'], {
@@ -148,6 +161,7 @@ test('installer replaces a legacy CLI carrier in the prefix that owns the effect
         HOME: homeRoot,
         OPL_INSTALL_DIR: installDir,
         OPL_FRAMEWORK_SOURCE_COMMIT: frameworkSourceCommit,
+        OPL_MANAGED_TOOLCHAIN_ROOT: toolchainRoot,
         PATH: `${cliPrefix}/bin:${fakeBin}:/usr/bin:/bin`,
       },
     });
