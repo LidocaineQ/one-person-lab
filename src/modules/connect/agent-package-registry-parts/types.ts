@@ -340,8 +340,6 @@ export type AgentPackageManagedRuntimeSourceState = {
   package_prepare_command?: string[] | null;
   health_check_command: string[];
   handler_probe_command: string[];
-  health_output_sha256: string | null;
-  handler_probe_output_sha256: string | null;
   preparation_root: string | null;
   preparation_scope: 'managed_source_root' | 'developer_checkout_root' | 'developer_snapshot_root' | 'preexisting_read_only_probe';
 };

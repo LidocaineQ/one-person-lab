@@ -656,8 +656,6 @@ test('fast managed runtime readiness rejects a checkout path that is not a direc
     package_prepare_command: null,
     health_check_command: [],
     handler_probe_command: [],
-    health_output_sha256: null,
-    handler_probe_output_sha256: null,
     preparation_root: null,
     preparation_scope: 'managed_source_root',
   };

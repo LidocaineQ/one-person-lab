@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -320,8 +319,6 @@ function sourceState(input: {
     | 'package_prepare_command'
     | 'health_check_command'
     | 'handler_probe_command'
-    | 'health_output_sha256'
-    | 'handler_probe_output_sha256'
     | 'preparation_root'
     | 'preparation_scope'>;
 }): AgentPackageManagedRuntimeSourceState {
@@ -362,8 +359,6 @@ function sourceState(input: {
     package_prepare_command: input.preparation.package_prepare_command,
     health_check_command: input.preparation.health_check_command,
     handler_probe_command: input.preparation.handler_probe_command,
-    health_output_sha256: input.preparation.health_output_sha256,
-    handler_probe_output_sha256: input.preparation.handler_probe_output_sha256,
     preparation_root: input.preparation.preparation_root,
     preparation_scope: input.preparation.preparation_scope,
   };
@@ -435,10 +430,6 @@ function validateCurrentState(state: AgentPackageManagedRuntimeSourceState) {
   return current;
 }
 
-function commandDigest(stdout: string, stderr: string) {
-  return `sha256:${crypto.createHash('sha256').update(stdout).update('\0').update(stderr).digest('hex')}`;
-}
-
 function runRequiredCommand(
   moduleId: string,
   checkoutPath: string,
@@ -473,7 +464,6 @@ function runRequiredCommand(
   }
   return {
     command: [commandSpec.command, ...commandSpec.args],
-    outputSha256: commandDigest(result.stdout, result.stderr),
   };
 }
 
@@ -639,8 +629,6 @@ function prepareRuntimeSource(
     package_prepare_command: packagePrepare?.command ?? null,
     health_check_command: health.command,
     handler_probe_command: handler.command,
-    health_output_sha256: health.outputSha256,
-    handler_probe_output_sha256: handler.outputSha256,
     preparation_root: managedPackageScope ? preparationRoot : null,
     preparation_scope: managedPackageScope ? 'managed_source_root' as const : 'preexisting_read_only_probe' as const,
   };
@@ -1143,8 +1131,6 @@ export function applyManagedRuntimeSourceCarrier(input: {
       bootstrap_command: null,
       health_check_command: [],
       handler_probe_command: [],
-      health_output_sha256: null,
-      handler_probe_output_sha256: null,
       preparation_root: null,
       preparation_scope: 'preexisting_read_only_probe',
     };
@@ -1199,8 +1185,6 @@ export function applyManagedRuntimeSourceCarrier(input: {
       bootstrap_command: null,
       health_check_command: [],
       handler_probe_command: [],
-      health_output_sha256: null,
-      handler_probe_output_sha256: null,
       preparation_root: null,
       preparation_scope: 'managed_source_root' as const,
     };
