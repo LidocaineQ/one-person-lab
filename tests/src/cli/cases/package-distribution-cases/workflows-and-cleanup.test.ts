@@ -507,6 +507,11 @@ test('single-Package publication is protected, selector-bound, and readback-only
   assert.match(workflow, /attestations:\{status:"verified"/);
   assert.match(workflow, /dist\/package\/package-provenance\.json/);
   assert.match(workflow, /dist\/package\/package\.spdx\.json/);
+  assert.match(
+    workflow,
+    /\(cd "\$PACKAGE_ROOT" && sha256sum publication-receipt\.json > publication-receipt\.sha256\)/,
+  );
+  assert.doesNotMatch(workflow, /sha256sum "\$PACKAGE_ROOT\/publication-receipt\.json"/);
   assert.doesNotMatch(workflow, /one-person-lab-manifest|opl update apply|opl packages update/);
   assert.doesNotMatch(workflow, /release-set|opl-app|opl-base/i);
 });

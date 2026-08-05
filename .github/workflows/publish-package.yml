@@ -352,7 +352,7 @@ jobs:
               controls:["protected_environment","single_package_concurrency","double_predecessor_inspect","anonymous_readback"]},
               workflow:{repository:$repository,run_id:$run_id,run_attempt:$run_attempt,environment:"release-stable"}}' \
             > "$PACKAGE_ROOT/publication-receipt.json"
-          sha256sum "$PACKAGE_ROOT/publication-receipt.json" > "$PACKAGE_ROOT/publication-receipt.sha256"
+          (cd "$PACKAGE_ROOT" && sha256sum publication-receipt.json > publication-receipt.sha256)
 
       - name: Upload Package publication receipt
         uses: actions/upload-artifact@v4
