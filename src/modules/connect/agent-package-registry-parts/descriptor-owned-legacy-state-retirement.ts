@@ -9,11 +9,16 @@ import {
   removePhysicalCodexSurface,
 } from './physical-surface.ts';
 import {
+  finalizeManagedRuntimeSourceMutation,
+  removeManagedRuntimeSourceCarrier,
+  rollbackManagedRuntimeSourceMutation,
+} from './managed-runtime-source-carrier.ts';
+import {
   readLockIndex,
   withAgentPackageLifecycleTransaction,
   writePackageTransaction,
 } from './store.ts';
-import { resolveCodexHome } from './shared.ts';
+import { resolveCodexHome, sha256Text } from './shared.ts';
 import type {
   AgentPackageLock,
   AgentPackageLockIndex,
@@ -121,13 +126,12 @@ function retentionReason(
   if (dependent) return `retained_by_package_dependency:${dependent.package_id}`;
   if (
     currentLock
-    && (
-      currentLock.scope_materializations.length > 0
-      || currentLock.runtime_source_carrier
-      || currentLock.managed_runtime_source
-    )
+    && currentLock.scope_materializations.length > 0
   ) {
-    return 'retained_by_runtime_or_scope_materialization';
+    return 'retained_by_scope_materialization';
+  }
+  if (currentLock?.managed_runtime_source?.ownership === 'preexisting_adopted') {
+    return 'retained_to_protect_preexisting_runtime_source';
   }
   const retiredLocks = currentLock ? [currentLock] : [];
   const nativeMarketplaceSource = carrier.carrier.observed_sources.find(
@@ -140,6 +144,8 @@ function retentionReason(
       surface?.marketplace_plugin_path,
       surface?.codex_plugin_cache_path,
       surface?.plugin_payload_cache_path,
+      lock.managed_runtime_source?.checkout_path,
+      lock.managed_runtime_source?.preparation_root,
     ].filter((entry): entry is string => Boolean(entry));
     if (physicalPaths.some((entry) => pathsOverlap(entry, descriptorSourcePath))) {
       return 'retained_to_protect_native_descriptor_source';
@@ -165,6 +171,89 @@ function legacySurfaceSharesNativeSelector(
     && surface.marketplace_id
     && carrier.carrier.plugin_id === `${surface.plugin_id}@${surface.marketplace_id}`,
   );
+}
+
+function managedRuntimeSourceRetirement(input: {
+  packageId: string;
+  currentLock: AgentPackageLock | null;
+  dryRun: boolean;
+}) {
+  return removeManagedRuntimeSourceCarrier({
+    state: input.currentLock?.managed_runtime_source,
+    transactionId: sha256Text([
+      'descriptor-owned-legacy-state-retirement',
+      input.packageId,
+      input.currentLock?.lock_ref ?? '',
+    ].join('\n')).slice(0, 16),
+    dryRun: input.dryRun,
+    packageId: input.packageId,
+  });
+}
+
+function restoreManagedRuntimeSourceRetirement(input: {
+  mutation: ReturnType<typeof removeManagedRuntimeSourceCarrier>;
+  index: AgentPackageLockIndex;
+  currentLock: AgentPackageLock | null;
+}) {
+  if (input.currentLock) {
+    const lockStillPresent = readLockIndex().packages.some(
+      (lock) => lock.package_id === input.currentLock!.package_id,
+    );
+    if (!lockStillPresent) writePackageTransaction(input.index);
+  }
+  rollbackManagedRuntimeSourceMutation(input.mutation);
+}
+
+function retireDescriptorOwnedLegacyStateSurfaces(input: {
+  packageId: string;
+  carrier: ConfiguredCodexPluginCarrierReadback;
+  dryRun: boolean;
+  index: AgentPackageLockIndex;
+  nextIndex: AgentPackageLockIndex;
+  currentLock: AgentPackageLock | null;
+  descriptorSourcePath: string;
+  result: DescriptorOwnedLegacyStateRetirement;
+}) {
+  const runtimeSourceMutation = managedRuntimeSourceRetirement(input);
+  if (input.dryRun) return input.result;
+  try {
+    writePackageTransaction(input.nextIndex, {
+      removeEmptyAuthorities: true,
+    });
+    const retiredLocks = input.currentLock ? [input.currentLock] : [];
+    const legacySurfaceRemovals = retiredLocks.flatMap((lock) => {
+      if (physicalSurfaceStillReferenced(input.nextIndex, lock)) return [];
+      const surface = removePhysicalCodexSurface(
+        lock.physical_surface,
+        false,
+        lock.package_id,
+        {
+          retainPayloadSource: true,
+          retainPluginCache: true,
+          retainCodexRegistration: legacySurfaceSharesNativeSelector(lock, input.carrier),
+        },
+      );
+      return surface.removed_paths;
+    });
+    const unreferencedRemovals = cleanupUnreferencedPackagePayloadSources(input.index, input.nextIndex, {
+      protectedPaths: new Set([input.descriptorSourcePath]),
+    });
+    input.result.retired.physical_paths = [
+      ...new Set([...legacySurfaceRemovals, ...unreferencedRemovals]),
+    ];
+  } catch (error) {
+    restoreManagedRuntimeSourceRetirement({
+      mutation: runtimeSourceMutation,
+      index: input.index,
+      currentLock: input.currentLock,
+    });
+    throw error;
+  }
+  const runtimeSourceCleanup = finalizeManagedRuntimeSourceMutation(runtimeSourceMutation);
+  input.result.retired.physical_paths = [
+    ...new Set([...input.result.retired.physical_paths, ...runtimeSourceCleanup.cleanup_paths]),
+  ];
+  return input.result;
 }
 
 function retireDescriptorOwnedLegacyState(input: {
@@ -238,38 +327,15 @@ function retireDescriptorOwnedLegacyState(input: {
       package_lock: retainedPackageLock,
     },
   };
-  if (!mutationRequired || input.dryRun) return result;
-
-  writePackageTransaction(nextIndex, {
-    removeEmptyAuthorities: true,
+  if (!mutationRequired) return result;
+  return retireDescriptorOwnedLegacyStateSurfaces({
+    ...input,
+    index,
+    nextIndex,
+    currentLock,
+    descriptorSourcePath,
+    result,
   });
-  try {
-    const retiredLocks = currentLock ? [currentLock] : [];
-    const legacySurfaceRemovals = retiredLocks.flatMap((lock) => {
-      if (physicalSurfaceStillReferenced(nextIndex, lock)) return [];
-      const surface = removePhysicalCodexSurface(
-        lock.physical_surface,
-        false,
-        lock.package_id,
-        {
-          retainPayloadSource: true,
-          retainPluginCache: true,
-          retainCodexRegistration: legacySurfaceSharesNativeSelector(lock, input.carrier),
-        },
-      );
-      return surface.removed_paths;
-    });
-    const unreferencedRemovals = cleanupUnreferencedPackagePayloadSources(index, nextIndex, {
-      protectedPaths: new Set([descriptorSourcePath]),
-    });
-    result.retired.physical_paths = [
-      ...new Set([...legacySurfaceRemovals, ...unreferencedRemovals]),
-    ];
-  } catch (error) {
-    writePackageTransaction(index);
-    throw error;
-  }
-  return result;
 }
 
 export async function maybeRetireDescriptorOwnedLegacyState(input: {

@@ -13,6 +13,7 @@ import {
   runCliFailure,
   test,
 } from './helpers.ts';
+import { writeManagedRuntimeSourceFixture } from './managed-runtime-source-fixture.ts';
 
 const packageId = 'third.party.research';
 const pluginSelector = 'third-party-research@fixture-carrier';
@@ -71,7 +72,7 @@ if (args.join(' ') === 'plugin marketplace list --json') {
   fs.chmodSync(binary, 0o755);
 }
 
-function createLegacyThenNativeFixture(label: string) {
+function createLegacyThenNativeFixture(label: string, options: { runtimeSource?: boolean } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `opl-descriptor-retirement-${label}-`));
   const stateDir = path.join(root, 'opl-state');
   const codexHome = path.join(root, 'codex-home');
@@ -91,21 +92,39 @@ function createLegacyThenNativeFixture(label: string) {
     description: 'Descriptor retirement fixture.',
     skills: './skills/',
   }));
-  fs.writeFileSync(
-    manifestPath,
-    formatJsonPayload(agentPackageManifest({
-      pluginSourcePath: pluginSource,
-      distributionPayload: null,
-    })),
-  );
+  const manifest = agentPackageManifest({
+    pluginSourcePath: pluginSource,
+    distributionPayload: null,
+  });
+  fs.writeFileSync(manifestPath, formatJsonPayload({
+    ...manifest,
+    ...(options.runtimeSource ? {
+      runtime_source_carrier: {
+        carrier_kind: 'opl_managed_module_source',
+        module_id: 'redcube',
+      },
+    } : {}),
+  }));
   writeFakeCodex(binary);
+  const modulesRoot = path.join(root, 'modules');
+  const runtimeSourceEnv = options.runtimeSource
+    ? writeManagedRuntimeSourceFixture({
+        root: path.join(root, 'runtime-source'),
+        moduleId: 'redcube',
+        repoName: 'redcube-ai',
+        version: '1.0.1',
+        sourceHeadSha: 'descriptor-owned-runtime-source-v1',
+      })
+    : {};
   const env = {
     HOME: root,
     CODEX_HOME: codexHome,
     OPL_STATE_DIR: stateDir,
     OPL_CODEX_PLUGIN_BIN: binary,
+    OPL_MODULES_ROOT: modulesRoot,
     FIXTURE_PLUGIN_STATE: pluginState,
     FIXTURE_PLUGIN_SOURCE: pluginSource,
+    ...runtimeSourceEnv,
   };
   const installed = runCli([
     'packages', 'install',
@@ -126,10 +145,55 @@ function createLegacyThenNativeFixture(label: string) {
     root,
     stateDir,
     pluginSource,
+    modulesRoot,
     env,
     lockPath: path.join(stateDir, 'agent-package-locks.json'),
   };
 }
+
+test('native-confirmed repair retires a package-created managed runtime source with its legacy lock', () => {
+  const fixture = createLegacyThenNativeFixture('runtime-source', { runtimeSource: true });
+  try {
+    const originalIndex = parseJsonText(fs.readFileSync(fixture.lockPath, 'utf8')) as any;
+    const originalLock = originalIndex.packages.find((entry: any) => entry.package_id === packageId);
+    const runtimeSourcePath = originalLock.managed_runtime_source.checkout_path;
+    const transactionRoot = path.join(fixture.stateDir, 'agent-package-runtime-transactions');
+    assert.equal(originalLock.managed_runtime_source.ownership, 'package_created');
+    assert.equal(fs.existsSync(runtimeSourcePath), true);
+
+    runCli(['packages', 'repair', packageId, '--dry-run'], fixture.env);
+    assert.equal(fs.existsSync(fixture.lockPath), true);
+    assert.equal(fs.existsSync(runtimeSourcePath), true);
+    assert.deepEqual(fs.existsSync(transactionRoot) ? fs.readdirSync(transactionRoot) : [], []);
+
+    runCli(['packages', 'repair', packageId], fixture.env);
+    assert.equal(fs.existsSync(fixture.lockPath), false);
+    assert.equal(fs.existsSync(runtimeSourcePath), false);
+    assert.deepEqual(fs.existsSync(transactionRoot) ? fs.readdirSync(transactionRoot) : [], []);
+    assert.equal(fs.existsSync(path.join(fixture.pluginSource, 'opl-package.json')), true);
+  } finally {
+    removeFixtureTree(fixture.root);
+  }
+});
+
+test('native-confirmed repair retains a preexisting adopted runtime source and its legacy lock', () => {
+  const fixture = createLegacyThenNativeFixture('preexisting-runtime-source', { runtimeSource: true });
+  try {
+    const index = parseJsonText(fs.readFileSync(fixture.lockPath, 'utf8')) as any;
+    const lock = index.packages.find((entry: any) => entry.package_id === packageId);
+    const runtimeSourcePath = lock.managed_runtime_source.checkout_path;
+    lock.managed_runtime_source.ownership = 'preexisting_adopted';
+    fs.writeFileSync(fixture.lockPath, formatJsonPayload(index));
+    const before = fs.readFileSync(fixture.lockPath);
+
+    runCli(['packages', 'repair', packageId], fixture.env);
+    assert.deepEqual(fs.readFileSync(fixture.lockPath), before);
+    assert.equal(fs.existsSync(runtimeSourcePath), true);
+    assert.equal(fs.existsSync(path.join(fixture.pluginSource, 'opl-package.json')), true);
+  } finally {
+    removeFixtureTree(fixture.root);
+  }
+});
 
 test('explicit native-confirmed repair retires descriptor-owned lock and strips legacy LKG state', () => {
   const fixture = createLegacyThenNativeFixture('success');
