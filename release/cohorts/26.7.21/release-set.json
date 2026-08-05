@@ -84,7 +84,7 @@
           "artifact_digest": null,
           "artifact_status": "pending_remote_verification",
           "manifest_ref": "contracts/opl-framework/packages/mas.json",
-          "manifest_sha256": "sha256:379142503b579e821dc61d95258e07d8c6a8e6efe8a2e0080de4ca92335230e9",
+          "manifest_sha256": "sha256:b27e84f5df44d673446e25b85d07eea83358edcb5d07f3ff2148e98f2deda154",
           "payload_manifest_ref": "contracts/opl-framework/packages/payloads/mas-0.2.16.json",
           "payload_manifest_sha256": "sha256:94241540ea8cc8a0bfb0f9b3675d618c53ad4c065059b5badd05e7e95c2fafdc"
         },
@@ -97,7 +97,7 @@
           "artifact_digest": null,
           "artifact_status": "pending_remote_verification",
           "manifest_ref": "contracts/opl-framework/packages/mag.json",
-          "manifest_sha256": "sha256:f57822620c084b20b0fde6b84b233c4ddc3d6bf61a547e148f6f5a90a24626bb",
+          "manifest_sha256": "sha256:c640bd7fffc5deb6d54aa4e1487b6e563ac5b1a3f78b56868e639802647eb560",
           "payload_manifest_ref": "contracts/opl-framework/packages/payloads/mag-0.3.4.json",
           "payload_manifest_sha256": "sha256:8e3dfe8917dc86359b206c2c3746771f0abfa925bdaebcc327aa30cc3a7b5d46"
         },
@@ -110,7 +110,7 @@
           "artifact_digest": null,
           "artifact_status": "pending_remote_verification",
           "manifest_ref": "contracts/opl-framework/packages/rca.json",
-          "manifest_sha256": "sha256:87f73b832411933848b16c1dad70bf96279c35208b62404063d887603e5fe08f",
+          "manifest_sha256": "sha256:64d9e6f41b9be6defc8c4be5ca6b33caf23c0693cb43dd30a55250f1b8a83f66",
           "payload_manifest_ref": "contracts/opl-framework/packages/payloads/rca-0.2.8.json",
           "payload_manifest_sha256": "sha256:141fbca6ac17a20571af06d19c64a9e19052e4765b83606e685586d625086d48"
         },
@@ -123,7 +123,7 @@
           "artifact_digest": null,
           "artifact_status": "pending_remote_verification",
           "manifest_ref": "contracts/opl-framework/packages/oma.json",
-          "manifest_sha256": "sha256:1bcf5bc6a1998bc90c82dd9127267cb14d25a5d0d5f8756ddd24ed0265af473c",
+          "manifest_sha256": "sha256:524de1580d3badb26a81ac11389d872730aa25d965487029f47a62a184554bb3",
           "payload_manifest_ref": "contracts/opl-framework/packages/payloads/oma-0.4.3.json",
           "payload_manifest_sha256": "sha256:6c6a4a0c6f2452ec1ba605811776dfcede6e1fcdeab477e4f1c72e439b403dc7"
         },
@@ -136,7 +136,7 @@
           "artifact_digest": null,
           "artifact_status": "pending_remote_verification",
           "manifest_ref": "contracts/opl-framework/packages/obf.json",
-          "manifest_sha256": "sha256:25908a5b1d03681eb083630bb6652eed5c0dd319210bdf45e364eca048b053da",
+          "manifest_sha256": "sha256:81f31b2f68d4d638eab92e2a01a5a21f1181ad92376e5457ef8d762ab3e8d455",
           "payload_manifest_ref": "contracts/opl-framework/packages/payloads/obf-0.3.6.json",
           "payload_manifest_sha256": "sha256:104cd680b9d15c0603b00b231716165544cb81acea82f5bd8f64c0fa136412cf"
         },
@@ -162,7 +162,7 @@
           "artifact_digest": null,
           "artifact_status": "pending_remote_verification",
           "manifest_ref": "contracts/opl-framework/packages/opl-flow.json",
-          "manifest_sha256": "sha256:9c109ccad6d4af130424e905d68fa2da47c664b4f744a88ed4fb71f2a21607d8",
+          "manifest_sha256": "sha256:5171f6e1d6a46a1ef5f02eb46cf3e234087abb8926fd5d5eb520edb1e253859d",
           "payload_manifest_ref": "contracts/opl-framework/packages/payloads/opl-flow-0.1.24.json",
           "payload_manifest_sha256": "sha256:cb0b352fc82ec7d97a3f04c5f4b08477688d9f41570d27fc3351d610e37e6610"
         }

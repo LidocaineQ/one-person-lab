@@ -260,6 +260,7 @@ function writeFirstPartyCatalogFixture(
     manifestCarrierSourceCommit?: string | null;
     requiredSkillIds?: string[];
     configuredCarrier?: boolean;
+    configuredCarrierMarketplaceSource?: string;
   } = {},
 ) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `opl-first-party-catalog-${version}-`));
@@ -373,7 +374,7 @@ function writeFirstPartyCatalogFixture(
           kind: 'codex_plugin_manager',
           plugin_selector: 'opl-flow@opl-flow-local',
           executor_route: 'codex_cli',
-          marketplace_source: sourceRoot,
+          marketplace_source: options.configuredCarrierMarketplaceSource ?? sourceRoot,
           publication_ref: 'ghcr.io/fixture/one-person-lab-packages/opl-flow:latest-stable',
         },
       }),
@@ -615,6 +616,12 @@ if (result.status === 0
     if (process.env.FIXTURE_CARRIER_CLEAR_VERSION === '1') entry.version = null;
     else if (process.env.FIXTURE_CARRIER_VERSION) entry.version = process.env.FIXTURE_CARRIER_VERSION;
     if (process.env.FIXTURE_CARRIER_SOURCE_PATH) entry.source.path = process.env.FIXTURE_CARRIER_SOURCE_PATH;
+    if (process.env.FIXTURE_CARRIER_MARKETPLACE_SOURCE) {
+      entry.marketplaceSource = {
+        sourceType: 'remote',
+        source: process.env.FIXTURE_CARRIER_MARKETPLACE_SOURCE,
+      };
+    }
   }
   process.stdout.write(JSON.stringify(payload));
   process.exit(0);
@@ -1260,6 +1267,76 @@ test('descriptor-owned Flow accepts only the exact content-qualified carrier gen
     wrongSourcePath: true,
     expectSuccess: false,
   });
+});
+
+test('descriptor-owned currentness accepts only the canonical GitHub form of the owner marketplace source', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-github-marketplace-currentness-'));
+  const stateDir = path.join(root, 'state');
+  const homeDir = path.join(root, 'home');
+  const ownerMarketplaceSource = 'gaofeng21cn/opl-flow';
+  const installedOwner = writeFirstPartyCatalogFixture('0.1.38', '1'.repeat(40));
+  const targetOwner = writeFirstPartyCatalogFixture('0.1.38', '1'.repeat(40), {
+    configuredCarrierMarketplaceSource: ownerMarketplaceSource,
+    requiredSkillIds: FLOW_SKILL_IDS,
+  });
+  const overrideCodex = writeCarrierReadbackOverrideWrapper(
+    root,
+    installedOwner.env.OPL_CODEX_PLUGIN_BIN,
+  );
+  const commonEnv = {
+    HOME: homeDir,
+    CODEX_HOME: path.join(homeDir, '.codex'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: overrideCodex,
+    OPL_CLI_TEST_TIMEOUT_MS: '90000',
+    FIXTURE_CARRIER_SOURCE_CONTAINS: installedOwner.sourceRoot,
+  };
+  const dryRun = (overrides: Record<string, string>) => runCli([
+    'packages', 'update', 'opl-flow', '--dry-run',
+  ], {
+    ...targetOwner.env,
+    ...commonEnv,
+    ...overrides,
+  }) as any;
+  try {
+    const installed = runCli(['packages', 'install', 'opl-flow'], {
+      ...installedOwner.env,
+      ...commonEnv,
+    }) as any;
+    assert.equal(installed.opl_agent_package_install.status, 'installed');
+
+    const installedManifestPath = path.join(installedOwner.sourceRoot, 'opl-package.json');
+    const installedManifest = parseJsonText(
+      fs.readFileSync(installedManifestPath, 'utf8'),
+    ) as any;
+    installedManifest.codex_surface.configured_codex_plugin_carrier.marketplace_source =
+      'https://github.com/gaofeng21cn/opl-flow.git';
+    fs.writeFileSync(installedManifestPath, formatJsonPayload(installedManifest));
+
+    const current = dryRun({
+      FIXTURE_CARRIER_MARKETPLACE_SOURCE: 'https://github.com/gaofeng21cn/opl-flow.git',
+    }).opl_agent_package_update;
+    assert.equal(current.status, 'validated_no_write');
+    assert.equal(current.currentness.status, 'current');
+    assert.deepEqual(current.currentness.reasons, []);
+
+    const wrongRepository = dryRun({
+      FIXTURE_CARRIER_MARKETPLACE_SOURCE: 'https://github.com/gaofeng21cn/not-opl-flow.git',
+    }).opl_agent_package_update;
+    assert.equal(wrongRepository.currentness.status, 'update_available');
+    assert.ok(wrongRepository.currentness.reasons.includes('package_version_changed'));
+
+    const wrongVersion = dryRun({
+      FIXTURE_CARRIER_MARKETPLACE_SOURCE: 'https://github.com/gaofeng21cn/opl-flow.git',
+      FIXTURE_CARRIER_VERSION: '0.1.37',
+    }).opl_agent_package_update;
+    assert.equal(wrongVersion.currentness.status, 'update_available');
+    assert.ok(wrongVersion.currentness.reasons.includes('package_version_changed'));
+  } finally {
+    removeFixtureTree(root);
+    fs.rmSync(installedOwner.root, { recursive: true, force: true });
+    fs.rmSync(targetOwner.root, { recursive: true, force: true });
+  }
 });
 
 test('descriptor-owned Flow update rejects a successful native no-op and preserves the previous carrier', () => {

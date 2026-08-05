@@ -578,7 +578,10 @@ resume: {
         const initialStatus = packageId
           ? runOplAgentPackageStatus({ packageId }).opl_agent_package_status
           : null;
-        const packageScopeActivation = packageId && initialStatus && initialStatus.installed_package_count > 0
+        const packageScopeActivation = packageId
+          && initialStatus
+          && initialStatus.installed_package_count > 0
+          && initialStatus.materialization_readiness != null
           ? await ensureOplAgentPackageScopeActivation({
               packageId,
               scope: 'workspace',

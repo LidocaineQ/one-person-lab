@@ -4,6 +4,7 @@ import {
   assert,
   createFakeCodexPluginManagerFixture,
   fs,
+  installRuntimePackageFixture,
   os,
   path,
   removeFixtureTree,
@@ -125,6 +126,13 @@ test('public update apply retains successful bundled roots when another native c
     const legacyLockPath = path.join(stateRoot, 'agent-package-locks.json');
     assert.equal(fs.existsSync(legacyLockPath), false);
 
+    execFileSync(
+      codexFixture.codexPath,
+      ['plugin', 'remove', 'med-autoscience@med-autoscience-local', '--json'],
+      { env: { ...process.env, ...commonEnv } },
+    );
+    installRuntimePackageFixture(homeRoot, 'mas');
+
     const bound = runCli([
       'workspace',
       'bind',
@@ -150,6 +158,13 @@ test('public update apply retains successful bundled roots when another native c
     assert.equal(Object.hasOwn(activated.opl_agent_package_activation, 'package_lock'), false);
     assert.equal(Object.hasOwn(activated.opl_agent_package_activation, 'lifecycle_receipt'), false);
     assert.equal(fs.existsSync(legacyLockPath), false);
+
+    execFileSync(
+      codexFixture.codexPath,
+      ['plugin', 'remove', 'med-autoscience@med-autoscience', '--json'],
+      { env: { ...process.env, ...commonEnv } },
+    );
+    fs.rmSync(path.join(codexHome, 'config.toml'));
 
     const newCatalog = writeManagedBundledCatalogFixture({
       workspaceRoot: family.workspaceRoot,
