@@ -52,6 +52,8 @@ function writeFakeFrameworkChannel(input: {
   archivePath: string;
   archiveSha256: string;
   advertisedArtifactDigest?: string;
+  failManifestWithArgs?: boolean;
+  token?: string;
 }) {
   const fakeBin = path.join(input.root, 'bin');
   const blobRoot = path.join(input.root, 'blobs');
@@ -120,10 +122,11 @@ function writeFakeFrameworkChannel(input: {
     "const args = process.argv.slice(2);",
     `fs.appendFileSync(${JSON.stringify(curlLogPath)}, JSON.stringify(args) + '\\n');`,
     "const url = args.find((arg) => arg.startsWith('http://') || arg.startsWith('https://')) || '';",
-    "if (url.includes('/token?')) { process.stdout.write(JSON.stringify({ token: 'fixture-token' })); process.exit(0); }",
+    `if (url.includes('/token?')) { process.stdout.write(JSON.stringify({ token: ${JSON.stringify(input.token ?? 'fixture-token')} })); process.exit(0); }`,
     `const manifests = ${JSON.stringify(manifests)};`,
     `const blobsByDigest = ${JSON.stringify(blobsByDigest)};`,
     "if (url.includes('/manifests/')) {",
+    `  if (${JSON.stringify(input.failManifestWithArgs === true)}) { process.stderr.write(JSON.stringify(args)); process.exit(22); }`,
     "  const match = url.match(/\\/v2\\/(.+)\\/manifests\\//);",
     "  const repo = match ? match[1] : '';",
     "  if (!manifests[repo]) process.exit(22);",
@@ -142,6 +145,45 @@ function writeFakeFrameworkChannel(input: {
   ].join('\n'), { mode: 0o755 });
   return { fakeBin, curlLogPath, frameworkManifestDigest };
 }
+
+test('Framework channel errors redact authorization headers and echoed credentials', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-channel-redaction-'));
+  const archivePath = path.join(root, 'one-person-lab-framework.tar.gz');
+  fs.writeFileSync(archivePath, 'framework archive\n');
+  const channel = writeFakeFrameworkChannel({
+    root: path.join(root, 'channel'),
+    version: '26.8.5-redaction',
+    archivePath,
+    archiveSha256: sha256(archivePath),
+    failManifestWithArgs: true,
+    token: 'framework-secret-token',
+  });
+  const previous = {
+    OPL_CURL_BIN: process.env.OPL_CURL_BIN,
+    OPL_PACKAGE_CHANNEL_MANIFEST_REF: process.env.OPL_PACKAGE_CHANNEL_MANIFEST_REF,
+  };
+  process.env.OPL_CURL_BIN = path.join(channel.fakeBin, 'curl');
+  process.env.OPL_PACKAGE_CHANNEL_MANIFEST_REF = 'ghcr.io/owner/one-person-lab-manifest:26.8.5-redaction';
+  try {
+    assert.throws(
+      () => readFrameworkChannelEntry(),
+      (error: any) => {
+        assert.equal(error.code, 'build_command_failed');
+        assert.equal(error.details.command.includes('Authorization: <redacted>'), true);
+        const serialized = JSON.stringify(error.details);
+        assert.doesNotMatch(serialized, /framework-secret-token/);
+        assert.match(serialized, /<redacted>/);
+        return true;
+      },
+    );
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('Framework channel artifacts require and verify an immutable OCI manifest digest', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-pinned-oci-'));

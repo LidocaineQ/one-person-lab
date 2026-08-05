@@ -13,6 +13,7 @@ import {
 } from '../../../../kernel/json-file.ts';
 import { stringValue } from '../../../../kernel/json-record.ts';
 import { resolveOplReleaseManifestRef } from '../release-channel.ts';
+import { sanitizedCurlDiagnostics } from '../curl-diagnostics.ts';
 import { normalizeOptionalString, runCommand } from '../shared.ts';
 
 const FRAMEWORK_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.framework.source.v1+gzip';
@@ -62,13 +63,25 @@ function resolveChannelManifestRef() {
 
 function runCurl(args: string[], errorKind: string, details: Record<string, unknown>, capture = true) {
   const curlBin = normalizeOptionalString(process.env.OPL_CURL_BIN) ?? 'curl';
-  const result = runCommand(curlBin, args, undefined, { maxBuffer: 64 * 1024 * 1024 });
+  let result;
+  try {
+    result = runCommand(curlBin, args, undefined, { maxBuffer: 64 * 1024 * 1024 });
+  } catch (error) {
+    throw new FrameworkContractError('build_command_failed', `Failed to launch OPL Framework runtime artifact transport: ${errorKind}.`, {
+      ...details,
+      ...sanitizedCurlDiagnostics({ binary: curlBin, args, stdout: '', stderr: '' }),
+      launch_error_code: error instanceof FrameworkContractError ? error.code : 'command_launch_failed',
+    });
+  }
   if (result.exitCode !== 0) {
     throw new FrameworkContractError('build_command_failed', `Failed to fetch OPL Framework runtime artifact: ${errorKind}.`, {
       ...details,
-      command: [curlBin, ...args],
-      stdout: result.stdout,
-      stderr: result.stderr,
+      ...sanitizedCurlDiagnostics({
+        binary: curlBin,
+        args,
+        stdout: result.stdout,
+        stderr: result.stderr,
+      }),
     });
   }
   return capture ? result.stdout : '';
