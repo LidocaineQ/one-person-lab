@@ -6,6 +6,7 @@
   "source_root": "plugins/med-autogrant",
   "paths": [
     ".codex-plugin/plugin.json",
+    "opl-package.json",
     "assets/icon.png",
     "assets/icon.svg",
     "skills/med-autogrant/SKILL.md",
