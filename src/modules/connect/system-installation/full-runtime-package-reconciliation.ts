@@ -6,10 +6,6 @@ import { FrameworkContractError, isRecord } from '../../../kernel/contract-valid
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
 import {
-  runOplBundledFullRuntimeAgentPackageInstall,
-  runOplBundledFullRuntimeAgentPackageUpdate,
-} from '../agent-package-registry.ts';
-import {
   readBundledFullRuntimePackageCatalog,
   resolveBundledFullRuntimePackageRoot,
   type BundledFullRuntimeCatalogEntry,
@@ -23,16 +19,11 @@ import {
   readInstalledCarrierEntries,
   type InstalledCarrierEntry,
 } from '../agent-package-registry-parts/installed-codex-plugin-directory.ts';
-import { managedPolicyCurrentnessFromDescriptor } from '../agent-package-registry-parts/managed-policy-surface.ts';
 import { normalizePackageManifest } from '../agent-package-registry-parts/manifest-normalizers.ts';
-import {
-  inspectMaterializedPhysicalCodexSurface,
-  resolveBundledFullRuntimeManifestPhysicalSource,
-} from '../agent-package-registry-parts/physical-surface.ts';
+import { resolveBundledFullRuntimeManifestPhysicalSource } from '../agent-package-registry-parts/physical-surface.ts';
 import { safePathSegment } from '../agent-package-registry-parts/shared.ts';
 import type {
   AgentPackageConfiguredCodexPluginCarrierDescriptor,
-  AgentPackageLock,
   AgentPackageManifest,
 } from '../agent-package-registry-parts/types.ts';
 import {
@@ -40,8 +31,6 @@ import {
   resolveCanonicalOplFamilyMarketplaceId,
 } from './codex-plugin-registry.ts';
 
-type FullRuntimePackageInstaller = typeof runOplBundledFullRuntimeAgentPackageInstall;
-type FullRuntimePackageUpdater = typeof runOplBundledFullRuntimeAgentPackageUpdate;
 type FullRuntimeOwnerSourceResolver = (input: {
   manifest: AgentPackageManifest;
   catalogEntry: BundledFullRuntimeCatalogEntry;
@@ -49,15 +38,11 @@ type FullRuntimeOwnerSourceResolver = (input: {
 }) => AgentPackageManifest;
 
 type FullRuntimePackageReconciliationOptions = {
-  installPackage?: FullRuntimePackageInstaller;
-  updatePackage?: FullRuntimePackageUpdater;
   resolveOwnerSource?: FullRuntimeOwnerSourceResolver;
   materializeCarrierRoute?: typeof materializeLocalCodexPluginMarketplaceRoute;
   runConfiguredCarrier?: typeof runConfiguredCodexPluginCarrier;
   readCatalog?: () => BundledFullRuntimePackageCatalog;
   readInstalledCarrierEntries?: () => InstalledCarrierEntry[];
-  inspectMaterializedSurface?: typeof inspectMaterializedPhysicalCodexSurface;
-  inspectManagedPolicy?: typeof managedPolicyCurrentnessFromDescriptor;
   lifecycleAction?: 'install' | 'update';
   operationId?: string;
   requireSourceRoots?: boolean;
@@ -144,22 +129,6 @@ function materializedCatalogManifest(entry: BundledFullRuntimeCatalogEntry): Age
   };
 }
 
-function assertMutationClosure(
-  locks: AgentPackageLock[],
-  rootPackageId: string,
-  catalog: BundledFullRuntimePackageCatalog,
-) {
-  for (const lock of locks) {
-    if (!catalog.entries.has(lock.package_id)) {
-      fail('Managed bundled Full runtime update returned a lock outside the catalog closure.', {
-        package_id: rootPackageId,
-        updated_package_id: lock.package_id,
-        failure_code: 'full_runtime_package_batch_result_invalid',
-      });
-    }
-  }
-}
-
 function catalogEntryCarriesOwnerDescriptor(entry: BundledFullRuntimeCatalogEntry) {
   const payload = parseJsonText(entry.payloadManifestJson);
   return isRecord(payload)
@@ -171,7 +140,6 @@ function pluginBareName(pluginId: string) {
   return pluginId.split('@', 1)[0] ?? pluginId;
 }
 
-type MaterializedProjection = ReturnType<typeof inspectMaterializedPhysicalCodexSurface>;
 type NativeCarrierProjection = {
   status: 'owner_source_verified';
   package_id: string;
@@ -188,9 +156,9 @@ type NativeCarrierProjection = {
 };
 type CurrentProjection = {
   manifest: AgentPackageManifest;
-  surface: MaterializedProjection | NativeCarrierProjection | null;
+  surface: NativeCarrierProjection | null;
   nativeCarrier: InstalledCarrierEntry | null;
-  managedPolicy: ReturnType<typeof managedPolicyCurrentnessFromDescriptor> | {
+  managedPolicy: {
     status: 'not_requested';
     reason: 'native_carrier_owner_source';
   } | null;
@@ -348,44 +316,6 @@ function assertNativeCarrierProjection(
   return matchingEntries[0];
 }
 
-function assertLegacyCarrierProjection(
-  manifest: AgentPackageManifest,
-  surface: MaterializedProjection,
-  entries: InstalledCarrierEntry[],
-) {
-  const pluginId = manifest.plugin_id!;
-  const matchingEntries = entries.filter((entry) => pluginBareName(entry.pluginId) === pluginId);
-  if (manifest.codex_default_exposure === false) {
-    if (matchingEntries.length > 0) {
-      fail('Hidden bundled Full runtime Package is unexpectedly exposed by the native carrier.', {
-        package_id: manifest.package_id,
-        plugin_id: pluginId,
-        native_plugin_ids: matchingEntries.map((entry) => entry.pluginId),
-        failure_code: 'full_runtime_package_projection_incomplete',
-      });
-    }
-    return null;
-  }
-  const expectedPluginId = `${pluginId}@${surface.marketplace_id}`;
-  const expectedSourcePath = path.resolve(surface.marketplace_plugin_path!);
-  if (
-    matchingEntries.length !== 1
-    || matchingEntries[0].pluginId !== expectedPluginId
-    || !matchingEntries[0].enabled
-    || path.resolve(matchingEntries[0].sourcePath) !== expectedSourcePath
-  ) {
-    fail('Bundled Full runtime legacy carrier projection is missing, disabled, ambiguous, or stale.', {
-      package_id: manifest.package_id,
-      plugin_id: pluginId,
-      expected_plugin_id: expectedPluginId,
-      expected_source_path: expectedSourcePath,
-      native_entries: matchingEntries,
-      failure_code: 'full_runtime_package_projection_incomplete',
-    });
-  }
-  return matchingEntries[0];
-}
-
 function assertConfiguredCarrierReadback(
   manifest: AgentPackageManifest,
   readback: ConfiguredCodexPluginCarrierReadback,
@@ -476,11 +406,18 @@ async function reconcileBundledFullRuntimePackages(
   if (!runtimeHome && !hasExplicitPackageRoot && !options.requireSourceRoots) return null;
 
   const lifecycleAction = options.lifecycleAction ?? 'install';
-  const operationId = options.operationId?.trim()
-    || `opl://managed-update/bundled-full-runtime/${normalizedSha256(catalog.catalogSha256)}`;
   const packageIds = [...catalog.entries.keys()];
   const roots = rootPackageIds(catalog);
   const resolvedRoots = resolvePackageRoots(catalog, env);
+  const missingOwnerDescriptorPackageIds = packageIds.filter((packageId) =>
+    !catalogEntryCarriesOwnerDescriptor(catalog.entries.get(packageId)!));
+  if (missingOwnerDescriptorPackageIds.length > 0) {
+    fail('Bundled Full runtime Packages require native owner descriptors before reconciliation.', {
+      package_ids: missingOwnerDescriptorPackageIds,
+      mutation_started: false,
+      failure_code: 'configured_codex_plugin_carrier_owner_descriptor_missing',
+    });
+  }
   const stateDir = env.OPL_STATE_DIR?.trim()
     ? path.resolve(env.OPL_STATE_DIR)
     : resolveOplStatePaths({
@@ -496,10 +433,6 @@ async function reconcileBundledFullRuntimePackages(
       env,
       failClosedOnCarrierError: true,
     }));
-  const inspectMaterializedSurface = options.inspectMaterializedSurface
-    ?? inspectMaterializedPhysicalCodexSurface;
-  const inspectManagedPolicy = options.inspectManagedPolicy
-    ?? managedPolicyCurrentnessFromDescriptor;
   const resolveOwnerSource = options.resolveOwnerSource ?? resolveVerifiedOwnerSource;
   const readCurrentProjection = () => {
     let carrierEntries: InstalledCarrierEntry[];
@@ -521,43 +454,20 @@ async function reconcileBundledFullRuntimePackages(
     return new Map<string, CurrentProjection>(packageIds.map((packageId) => {
       const manifest = manifests.get(packageId)!;
       try {
-        if (catalogEntryCarriesOwnerDescriptor(catalog.entries.get(packageId)!)) {
-          const ownerManifest = resolveOwnerSource({
-            manifest,
-            catalogEntry: catalog.entries.get(packageId)!,
-            packageRoot: resolvedRoots.roots[packageId],
-          });
-          const nativeCarrier = assertNativeCarrierProjection(ownerManifest, carrierEntries, stateDir);
-          return [packageId, {
-            manifest: ownerManifest,
-            surface: nativeCarrierSurface(ownerManifest, stateDir),
-            nativeCarrier,
-            managedPolicy: {
-              status: 'not_requested',
-              reason: 'native_carrier_owner_source',
-            },
-            error: null,
-            carrierReadFailed: false,
-          }] as const;
-        }
-        const surface = inspectMaterializedSurface(manifest);
-        const nativeCarrier = assertLegacyCarrierProjection(manifest, surface, carrierEntries);
-        const managedPolicy = inspectManagedPolicy({
+        const ownerManifest = resolveOwnerSource({
           manifest,
-          sourceRoot: surface.codex_plugin_cache_path,
+          catalogEntry: catalog.entries.get(packageId)!,
+          packageRoot: resolvedRoots.roots[packageId],
         });
-        if (managedPolicy.status !== 'current' && managedPolicy.status !== 'not_requested') {
-          fail('Bundled Full runtime Package managed policy projection is not current.', {
-            package_id: packageId,
-            managed_policy_currentness: managedPolicy,
-            failure_code: 'full_runtime_package_projection_incomplete',
-          });
-        }
+        const nativeCarrier = assertNativeCarrierProjection(ownerManifest, carrierEntries, stateDir);
         return [packageId, {
-          manifest,
-          surface,
+          manifest: ownerManifest,
+          surface: nativeCarrierSurface(ownerManifest, stateDir),
           nativeCarrier,
-          managedPolicy,
+          managedPolicy: {
+            status: 'not_requested',
+            reason: 'native_carrier_owner_source',
+          },
           error: null,
           carrierReadFailed: false,
         }] as const;
@@ -595,25 +505,19 @@ async function reconcileBundledFullRuntimePackages(
   const touchedPackageIds = new Set<string>();
   const rootInstalls: Array<Record<string, unknown>> = [];
   const failures: ReturnType<typeof failureReadback>[] = [];
-  const installPackage = options.installPackage ?? runOplBundledFullRuntimeAgentPackageInstall;
-  const updatePackage = options.updatePackage ?? runOplBundledFullRuntimeAgentPackageUpdate;
   const materializeCarrierRoute = options.materializeCarrierRoute
     ?? materializeLocalCodexPluginMarketplaceRoute;
   const runConfiguredCarrier = options.runConfiguredCarrier ?? runConfiguredCodexPluginCarrier;
   const rootClosures = new Map(roots.map((packageId) => [packageId, catalogClosure(catalog, packageId)]));
-  const nativeCarrierRoots = new Set(roots.filter((packageId) =>
-    rootClosures.get(packageId)!.every((closurePackageId) =>
-      catalogEntryCarriesOwnerDescriptor(catalog.entries.get(closurePackageId)!))));
 
   for (const packageId of roots) {
     const closure = rootClosures.get(packageId)!;
-    const useNativeCarrier = nativeCarrierRoots.has(packageId);
     if (closure.every(isCurrent)) {
       rootInstalls.push({
         target_id: packageId,
         package_id: packageId,
         status: 'skipped',
-        reason: 'catalog_identity_and_materialized_closure_current',
+        reason: 'catalog_identity_and_native_carrier_closure_current',
         action: null,
         result: null,
         ...rootTargetIdentity(catalog, packageId),
@@ -645,56 +549,6 @@ async function reconcileBundledFullRuntimePackages(
         .map((closurePackageId) => currentProjection.get(closurePackageId)!)
         .find((projection) => projection.carrierReadFailed);
       if (carrierReadFailure?.error) throw carrierReadFailure.error;
-      if (!useNativeCarrier) {
-        let updateFinalVerificationCompleted = false;
-        const result = lifecycleAction === 'update'
-          ? await updatePackage({
-              packageId,
-              agentRoot: resolvedRoots.roots[packageId],
-              packageRoots: resolvedRoots.roots,
-              operationId,
-              verifyAppliedPackageLocks: async (locks) => {
-                assertMutationClosure(locks, packageId, catalog);
-                verifyCurrentClosure(packageId, closure);
-                updateFinalVerificationCompleted = true;
-              },
-            })
-          : await installPackage({
-              packageId,
-              agentRoot: resolvedRoots.roots[packageId],
-              packageRoots: resolvedRoots.roots,
-            });
-        const lifecycleResult = 'opl_agent_package_update' in result
-          ? result.opl_agent_package_update
-          : result.opl_agent_package_install;
-        if (lifecycleAction === 'update' && !updateFinalVerificationCompleted) {
-          fail('Managed bundled Full runtime updater returned before final verification completed.', {
-            package_id: packageId,
-            mutation_started: null,
-            failure_code: 'full_runtime_package_final_verification_not_executed',
-          });
-        }
-        if (lifecycleAction === 'install') {
-          assertMutationClosure(lifecycleResult.dependency_package_locks, packageId, catalog);
-          verifyCurrentClosure(packageId, closure);
-        }
-        for (const closurePackageId of closure) touchedPackageIds.add(closurePackageId);
-        rootInstalls.push({
-          target_id: packageId,
-          package_id: packageId,
-          status: 'completed',
-          reason: lifecycleAction === 'update'
-            ? 'package_mutation_unit_completed'
-            : 'package_install_unit_completed',
-          action: lifecycleAction,
-          result: lifecycleResult,
-          ...rootTargetIdentity(catalog, packageId),
-          dependency_transaction_id: lifecycleResult.dependency_transaction_id,
-          dependency_package_ids: lifecycleResult.dependency_package_locks
-            .map((lock) => lock.package_id),
-        });
-        continue;
-      }
       const pendingPackageIds = closure.filter((closurePackageId) => !isCurrent(closurePackageId));
       const ownerManifests = new Map(pendingPackageIds.map((closurePackageId) => [
         closurePackageId,
@@ -770,26 +624,24 @@ async function reconcileBundledFullRuntimePackages(
       const initialFailureDetails: Record<string, unknown> = isRecord(initialFailure.details)
         ? initialFailure.details
         : {};
-      const failure = useNativeCarrier
-        ? {
-            ...initialFailure,
-            details: {
-              ...initialFailureDetails,
-              completed_package_ids: completedPackageIds,
-              mutation_started_package_ids: mutationStartedPackageIds,
-              mutation_started: mutationStartedPackageIds.length > 0
-                ? true
-                : initialFailureDetails.mutation_started === false
-                  ? false
-                  : null,
-              package_mutation_status: mutationStartedPackageIds.length > 0
-                ? 'partially_applied_native_carrier_retryable'
-                : initialFailureDetails.package_mutation_status
-                  ?? 'not_started_or_package_local_rollback',
-              local_prestate_restored: null,
-            },
-          }
-        : initialFailure;
+      const failure = {
+        ...initialFailure,
+        details: {
+          ...initialFailureDetails,
+          completed_package_ids: completedPackageIds,
+          mutation_started_package_ids: mutationStartedPackageIds,
+          mutation_started: mutationStartedPackageIds.length > 0
+            ? true
+            : initialFailureDetails.mutation_started === false
+              ? false
+              : null,
+          package_mutation_status: mutationStartedPackageIds.length > 0
+            ? 'partially_applied_native_carrier_retryable'
+            : initialFailureDetails.package_mutation_status
+              ?? 'not_started_or_package_local_rollback',
+          local_prestate_restored: null,
+        },
+      };
       const failureDetails: Record<string, unknown> = isRecord(failure.details)
         ? failure.details
         : {};
@@ -811,16 +663,12 @@ async function reconcileBundledFullRuntimePackages(
         status: manualRequired ? 'manual_required' : 'failed',
         reason: manualRequired
           ? 'package_mutation_blocked_before_write'
-          : useNativeCarrier
-            ? 'package_mutation_unit_failed_retryable'
-            : 'package_mutation_unit_failed_without_rolling_back_other_roots',
+          : 'package_mutation_unit_failed_retryable',
         action: lifecycleAction,
         result: {
           failure,
           package_mutation_unit: {
-            scope: useNativeCarrier
-              ? 'package_local_native_carrier_with_root_retry'
-              : 'root_package_and_required_dependency_closure',
+            scope: 'package_local_native_carrier_with_root_retry',
             status: typeof failureDetails.package_mutation_status === 'string'
               ? failureDetails.package_mutation_status
               : mutationStarted === false
@@ -881,11 +729,7 @@ async function reconcileBundledFullRuntimePackages(
     surface_kind: 'opl_full_runtime_package_reconciliation.v1' as const,
     status,
     orchestration_policy: 'fail_open_per_root_package' as const,
-    package_mutation_policy: nativeCarrierRoots.size === 0
-      ? 'fail_closed_per_required_dependency_closure' as const
-      : nativeCarrierRoots.size === roots.length
-        ? 'package_local_native_carrier_root_retryable' as const
-        : 'per_root_native_carrier_with_legacy_compatibility' as const,
+    package_mutation_policy: 'package_local_native_carrier_root_retryable' as const,
     lifecycle_action: lifecycleAction,
     catalog_ref: catalog.catalogRef,
     catalog_sha256: catalog.catalogSha256,
@@ -922,7 +766,7 @@ export async function reconcileBundledFullRuntimePackagesIfAvailable(
       surface_kind: 'opl_full_runtime_package_reconciliation.v1' as const,
       status: 'failed' as 'failed' | 'incomplete',
       orchestration_policy: 'fail_open_per_root_package' as const,
-      package_mutation_policy: 'package_local_atomic_root_retryable' as const,
+      package_mutation_policy: 'package_local_native_carrier_root_retryable' as const,
       catalog_ref: null,
       catalog_sha256: null,
       root_package_ids: [] as string[],
