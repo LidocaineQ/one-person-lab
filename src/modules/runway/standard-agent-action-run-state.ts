@@ -76,7 +76,7 @@ export type StandardAgentActionRunPlan = {
 export type StandardAgentCompletedHandlerReplay = {
   accepted_domain_ids: string[];
   request_payload_sha256: string;
-  package_use_binding: Record<string, unknown>;
+  package_use_binding: Record<string, unknown> | null;
   input_schema_ref: string;
   input_schema_validation: Record<string, unknown>;
   output_schema_validation: Record<string, unknown>;
@@ -305,6 +305,18 @@ function hostedRuntimeProvenanceRecord(
           'package_dependency_closure_digest',
           'package_source_kind',
         ]
+      : sourceKind === 'installed_native_carrier'
+        ? [
+            'package_id',
+            'package_version',
+            'carrier_installed_version',
+            'owner_manifest_sha256',
+            'plugin_selector',
+            'marketplace_source',
+            'plugin_source_path',
+            'source_tree_sha256',
+            'action_contracts_sha256',
+          ]
       : fail('Hosted runtime provenance has an unsupported source_kind.');
   exactKeys(value, [...commonKeys, ...sourceKeys], 'Hosted runtime provenance');
   const targetAgentId = text(value.target_agent_id, 'provenance.target_agent_id');
@@ -382,6 +394,51 @@ function hostedRuntimeProvenanceRecord(
       ...(packageSourceKind === undefined ? {} : { package_source_kind: packageSourceKind }),
     };
   }
+  if (sourceKind === 'installed_native_carrier') {
+    const packageId = text(value.package_id, 'provenance.package_id');
+    const pluginSelector = text(value.plugin_selector, 'provenance.plugin_selector');
+    const pluginSourcePath = text(value.plugin_source_path, 'provenance.plugin_source_path');
+    if (
+      packageId !== targetAgentId
+      || !/^[A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*$/.test(pluginSelector)
+      || !path.isAbsolute(pluginSourcePath)
+    ) {
+      fail('Installed native carrier provenance identity is invalid.', {
+        package_id: packageId,
+        target_agent_id: targetAgentId,
+        plugin_selector: pluginSelector,
+        plugin_source_path: pluginSourcePath,
+      });
+    }
+    return {
+      surface_kind: value.surface_kind,
+      version: value.version,
+      source_kind: 'installed_native_carrier',
+      target_agent_id: targetAgentId,
+      target_domain_id: targetDomainId,
+      package_id: packageId,
+      package_version: text(value.package_version, 'provenance.package_version'),
+      carrier_installed_version: text(
+        value.carrier_installed_version,
+        'provenance.carrier_installed_version',
+      ),
+      owner_manifest_sha256: sha256Digest(
+        value.owner_manifest_sha256,
+        'provenance.owner_manifest_sha256',
+      ),
+      plugin_selector: pluginSelector,
+      marketplace_source: text(value.marketplace_source, 'provenance.marketplace_source'),
+      plugin_source_path: pluginSourcePath,
+      source_tree_sha256: sha256Digest(
+        value.source_tree_sha256,
+        'provenance.source_tree_sha256',
+      ),
+      action_contracts_sha256: sha256Digest(
+        value.action_contracts_sha256,
+        'provenance.action_contracts_sha256',
+      ),
+    };
+  }
   if (
     !Number.isSafeInteger(value.activation_revision)
     || Number(value.activation_revision) < 1
@@ -446,7 +503,7 @@ function completedHandlerReplayRecord(value: unknown): StandardAgentCompletedHan
     || canonicalJsonText(acceptedDomainIds) !== canonicalJsonText(canonicalDomainIds)
     || typeof value.request_payload_sha256 !== 'string'
     || !DIGEST_PATTERN.test(value.request_payload_sha256)
-    || !isRecord(value.package_use_binding)
+    || (value.package_use_binding !== null && !isRecord(value.package_use_binding))
     || !isRecord(value.input_schema_validation)
     || !isRecord(value.output_schema_validation)
   ) {
@@ -455,7 +512,7 @@ function completedHandlerReplayRecord(value: unknown): StandardAgentCompletedHan
   return {
     accepted_domain_ids: canonicalDomainIds,
     request_payload_sha256: value.request_payload_sha256,
-    package_use_binding: value.package_use_binding,
+    package_use_binding: value.package_use_binding as Record<string, unknown> | null,
     input_schema_ref: text(value.input_schema_ref, 'completed_handler_replay.input_schema_ref'),
     input_schema_validation: schemaValidationRecord(
       value.input_schema_validation,
@@ -844,6 +901,26 @@ function assertPlanRuntimeIdentity(
     });
   }
   const packageBinding = plan.package_use_binding;
+  if (provenance.source_kind === 'installed_native_carrier') {
+    const actionContractsSha256 = `sha256:${crypto.createHash('sha256').update(canonicalJsonText({
+      action_catalog: plan.catalog,
+      handler_registry: plan.handler_registry,
+    })).digest('hex')}`;
+    if (
+      packageBinding !== null
+      || plan.checkout_root !== provenance.plugin_source_path
+      || actionContractsSha256 !== provenance.action_contracts_sha256
+    ) {
+      fail('Installed native carrier identity conflicts with runtime provenance.', {
+        run_id: plan.run_id,
+        checkout_root: plan.checkout_root,
+        plugin_source_path: provenance.plugin_source_path,
+        action_contracts_sha256: actionContractsSha256,
+        expected_action_contracts_sha256: provenance.action_contracts_sha256,
+      });
+    }
+    return;
+  }
   if (!isRecord(packageBinding)) {
     fail('Standard Agent action run plan is missing its package-use binding.', { run_id: plan.run_id });
   }

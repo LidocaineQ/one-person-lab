@@ -2,7 +2,7 @@
   "contract_kind": "opl_standard_agent_hosted_action_runtime_contract.v1",
   "surface_kind": "opl_standard_agent_hosted_action_runtime_contract",
   "owner": "one-person-lab",
-  "purpose": "Host Standard OPL Agent actions from immutable managed releases or live-probed developer checkouts without restoring per-agent command control planes or moving domain authority into OPL.",
+  "purpose": "Host Standard OPL Agent actions from an installed owner descriptor and its configured native carrier root, or an active Foundry AgentVersion, without restoring Framework-owned Package lifecycle state or moving domain authority into OPL.",
   "state": "active_contract",
   "brand_module_ownership": {
     "primary_module": "runway",
@@ -18,33 +18,39 @@
     "command": "opl agents run --domain <agent> --action <action_id> --workspace <absolute_path>",
     "registered_standard_agent_required": true,
     "absolute_existing_workspace_required": true,
-    "unmanaged_repo_checkout_allowed": false
+    "unmanaged_repo_checkout_allowed": false,
+    "installed_native_carrier_required_without_active_foundry_version": true
   },
-  "managed_package_gate": {
+  "native_package_gate": {
     "owner_module": "connect",
     "package_status_surface": "opl packages status --package-id <agent_id> --scope workspace --target-workspace <absolute_path> --json",
     "ordinary_user_distribution": {
       "moving_pointer": "latest-stable",
-      "install_truth": "resolved_digest_lock",
-      "release_set_schema_ref": "contracts/opl-framework/release-set-v2.schema.json"
+      "owner_channel": "per_package_owner_oci",
+      "install_truth": "installed_owner_descriptor_and_configured_native_carrier_fresh_readback"
     },
     "developer_mode_source_carrier_allowed": true,
-    "developer_mode_source_carrier_must_enter_same_managed_package_status": true,
+    "developer_mode_source_carrier_requires_explicit_local_source": true,
+    "developer_mode_source_carrier_must_enter_same_native_readback": true,
     "launch_requirements": {
       "package_status_launch_allowed": true,
-      "runtime_source_status": "current",
-      "runtime_source_operational_ready": true,
-      "checkout_path_absolute": true,
-      "immutable_runtime_source_identity_matches_recorded_digest": true,
-      "developer_checkout_identity_is_provenance_observation_only": true,
-      "developer_checkout_live_health_and_handler_probe_required": true,
-      "workspace_scope_activation_attempted_for_installed_package": true
+      "installed_owner_descriptor_required": true,
+      "configured_native_carrier_status": "installed",
+      "configured_native_carrier_precedence": "exact_single_source",
+      "configured_native_carrier_enabled": true,
+      "configured_native_carrier_executor_status": "callable",
+      "plugin_source_path_absolute_repo_root": true,
+      "owner_manifest_package_version_plugin_selector_and_marketplace_match_readback": true,
+      "source_tree_sha256_required": true,
+      "action_contracts_resolve_from_carrier_root": true
     },
-    "use_binding_surface_kind": "opl_agent_package_use_binding.v1",
+    "runtime_provenance_source_kind": "installed_native_carrier",
+    "package_use_binding_required": false,
+    "package_lock_ref_allowed": false,
+    "scope_activation_required": false,
+    "legacy_managed_checkout_fallback_allowed": false,
     "moving_pointer_is_install_truth": false,
     "origin_main_is_implicit_launch_target": false,
-    "dirty_or_diverged_development_checkout_repair_in_action_runtime": false,
-    "dirty_or_diverged_development_checkout_blocks_launch": false,
     "failure_policy": "fail_closed_before_handler_or_stage_launch"
   },
   "domain_pack_action_abi": {
@@ -101,7 +107,7 @@
     "network_allowed": false,
     "filesystem_write_allowed": false,
     "subprocess_allowed_for_python_handler": false,
-    "managed_checkout_and_workspace_read_only_access": true,
+    "native_carrier_root_and_workspace_read_only_access": true,
     "stdout_contract": "exactly_one_canonical_json_value",
     "timeout_fail_closed": true,
     "completed_status_means": "handler_process_and_schema_validation_completed",
@@ -178,7 +184,7 @@
     "same_action_run_provider_start_rpc_delivery": "at_least_once_under_unknown_success_recovery",
     "same_action_run_temporal_execution_count": 1,
     "later_action_run_creates_new_stage_run": true,
-    "stage_run_spec_sha256_binds_managed_package_closure_and_exact_request": true,
+    "stage_run_spec_sha256_binds_hosted_runtime_provenance_and_exact_request": true,
     "stage_run_spec_sha256_binds_prompt_rubric_policy_source_checkpoint_and_manifest_bytes": true,
     "root_package_id_required": true,
     "package_provenance_fields_nullable": true,
@@ -242,7 +248,7 @@
     ],
     "raw_repo_diagnostics_preserved": true,
     "effective_blockers_are_profile_aware": true,
-    "managed_runtime_identity_and_currentness_owner": "opl_managed_package_gate",
+    "runtime_identity_and_currentness_owner": "installed_owner_descriptor_and_configured_native_carrier",
     "live_qualification_and_canary_evidence_owner": "opl_foundry_kernel",
     "provider_completion_is_qualification_or_closeout": false,
     "repo_local_placeholder_contracts_can_close_hosted_evidence": false
@@ -273,7 +279,7 @@
     "first_writer_binding_is_immutable": true,
     "non_terminal_run_replay_uses_exact_pinned_runtime_provenance": true,
     "completed_handler_replay_uses_durable_binding_completion_request_and_output": true,
-    "completed_handler_replay_requires_historical_managed_checkout": false,
+    "completed_handler_replay_requires_historical_native_carrier_root": false,
     "completed_handler_replay_requires_exact_original_payload_digest": true,
     "completed_handler_replay_requires_exact_request_and_output_digests": true,
     "activation_change_cannot_rebind_existing_run": true,
