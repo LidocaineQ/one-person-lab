@@ -240,7 +240,7 @@ test('ordinary first-party install fails before entering the private lifecycle w
   }
 });
 
-test('forged package cleanup paths fail closed without deleting outside or symlink canaries', async () => {
+test('legacy cleanup paths stay inert when uninstall has no native owner', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-persisted-path-canary-'));
   const stateDir = path.join(root, 'state');
   const homeDir = path.join(root, 'home');
@@ -277,7 +277,7 @@ test('forged package cleanup paths fail closed without deleting outside or symli
     ], env);
     assert.equal(
       outsideFailure.payload.error.details.failure_code,
-      'agent_package_persisted_path_unsafe',
+      'agent_package_lifecycle_native_owner_required',
     );
     assert.equal(fs.readFileSync(canaryPath, 'utf8'), 'must remain\n');
 
@@ -292,7 +292,7 @@ test('forged package cleanup paths fail closed without deleting outside or symli
     ], env);
     assert.equal(
       symlinkFailure.payload.error.details.failure_code,
-      'agent_package_persisted_path_unsafe',
+      'agent_package_lifecycle_native_owner_required',
     );
     assert.equal(fs.lstatSync(linkedCachePath).isSymbolicLink(), true);
     assert.equal(fs.readFileSync(canaryPath, 'utf8'), 'must remain\n');

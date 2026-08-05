@@ -397,7 +397,7 @@ test('legacy profile receipt collisions do not affect package installation after
   }
 });
 
-test('app action execute keeps local install explicit and ordinary repair native-only', () => {
+test('app action keeps local preference bytes inert without a native descriptor', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-app-action-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-app-action-home-'));
   const codexHome = path.join(homeDir, '.codex');
@@ -546,23 +546,29 @@ test('app action execute keeps local install explicit and ordinary repair native
     };
     assert.deepEqual(
       list.opl_agent_packages.home_shortcut_preferences
-        .filter((entry) => entry.package_id === 'third.party.research')
-        .map((entry) => ({
-          package_id: entry.package_id,
-          shortcut_id: entry.shortcut_id,
-          visible: entry.visible,
-          sort_order: entry.sort_order,
-          source: entry.source,
-        })),
-      [{
-      package_id: 'third.party.research',
-      shortcut_id: 'research',
-      visible: false,
-      sort_order: 9,
-      source: 'user_preference',
-      }],
+        .filter((entry) => entry.package_id === 'third.party.research'),
+      [],
     );
     assert.equal(fs.existsSync(list.opl_agent_packages.files.home_shortcut_preferences_file), true);
+    const persistedPreferences = JSON.parse(
+      fs.readFileSync(list.opl_agent_packages.files.home_shortcut_preferences_file, 'utf8'),
+    );
+    assert.deepEqual(
+      persistedPreferences.preferences.map((entry: any) => ({
+        package_id: entry.package_id,
+        shortcut_id: entry.shortcut_id,
+        visible: entry.visible,
+        sort_order: entry.sort_order,
+        source: entry.source,
+      })),
+      [{
+        package_id: 'third.party.research',
+        shortcut_id: 'research',
+        visible: false,
+        sort_order: 9,
+        source: 'user_preference',
+      }],
+    );
     assert.equal(Object.hasOwn(list.opl_agent_packages.files, 'package_lock_file'), false);
     assert.equal(Object.hasOwn(list.opl_agent_packages.files, 'lifecycle_ledger_file'), false);
 

@@ -66,14 +66,12 @@ import {
 } from './agent-package-registry-parts/capability-reconciliation.ts';
 import {
   materializeCapabilityScope,
-  materializeCapabilityScopeFromLock,
   finalizeCapabilityScopeTransaction,
   packageScopeTarget,
   retireCapabilityScopeMaterialization,
   rollbackCapabilityScopeTransaction,
   scopeMaterializationReadiness,
 } from './agent-package-registry-parts/scope-materialization.ts';
-import { materializeAgentPackageSkillProjection } from './agent-package-registry-parts/skill-projection.ts';
 import {
   cleanupUnreferencedPackagePayloadSources,
   finalizePhysicalCodexSurfaceMutation,
@@ -4208,199 +4206,6 @@ export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
   );
 }
 
-function missingDependencyProviderIsOptional(
-  lock: AgentPackageLock,
-  packageId: string,
-) {
-  const declared = lock.capability_dependencies.find((entry) => entry.package_id === packageId);
-  const resolved = lock.resolved_dependencies.find((entry) => entry.package_id === packageId);
-  return declared?.required === false
-    && (declared.dependency_kind === undefined || declared.dependency_kind === 'optional_enhancement')
-    && (!resolved || (
-      resolved.required === false
-      && (resolved.dependency_kind === undefined || resolved.dependency_kind === 'optional_enhancement')
-    ));
-}
-
-function resolvedProviderLocksForUse(
-  lock: AgentPackageLock,
-  index: AgentPackageLockIndex,
-  failureMessage: string,
-) {
-  return lock.resolved_dependencies.flatMap((dependency) => {
-    const provider = index.packages.find((entry) => entry.package_id === dependency.package_id);
-    if (provider) return [provider];
-    if (missingDependencyProviderIsOptional(lock, dependency.package_id)) return [];
-    throw new FrameworkContractError('contract_shape_invalid', failureMessage, {
-      package_id: lock.package_id,
-      dependency_package_id: dependency.package_id,
-      failure_code: 'agent_package_dependency_lock_missing',
-    });
-  });
-}
-
-async function ensureOplAgentPackageScopeActivationUnlocked(input: AgentPackagePackageActionInput) {
-  const packageId = requirePackageId(input.packageId, 'activate');
-  const index = readLockIndex();
-  const { lockIndex, lock } = requireInstalledPackage(index, packageId, 'activate');
-  const targetRoot = packageScopeTarget(input);
-  if (!input.scope || !targetRoot) {
-    throw new FrameworkContractError('cli_usage_error', 'Package scope activation requires workspace or quest target.', {
-      package_id: packageId,
-      failure_code: 'agent_package_scope_target_required',
-    });
-  }
-  const readiness = dependencyReadiness(lock, index);
-  if (!readiness.operational_ready) {
-    return {
-      status: 'blocked',
-      package_id: packageId,
-      writes_performed: false,
-      package_dependency_readiness: readiness,
-    };
-  }
-  const existing = (lock.scope_materializations ?? []).filter((entry) =>
-    entry.scope === input.scope && entry.target_root === targetRoot);
-  const beforeReadiness = scopeMaterializationReadiness(lock, index, input);
-  const needsMaterialization = existing.length === 0
-    || beforeReadiness.core_readiness.status !== 'current'
-    || beforeReadiness.specialty_exposure.status === 'degraded';
-  const transactionId = sha256Text(`activate\n${packageId}\n${input.scope}\n${targetRoot}\n${lock.dependency_closure_digest}`);
-  const materializations: AgentPackageScopeMaterialization[] = [];
-  try {
-    if (!needsMaterialization) {
-      materializations.length = 0;
-    }
-    if (needsMaterialization) {
-    for (const dependency of lock.capability_dependencies) {
-      const provider = index.packages.find((entry) => entry.package_id === dependency.package_id);
-      if (!provider) {
-        if (missingDependencyProviderIsOptional(lock, dependency.package_id)) continue;
-        throw new FrameworkContractError('contract_shape_invalid', 'Package scope activation requires every dependency provider lock.', {
-          package_id: packageId,
-          dependency_package_id: dependency.package_id,
-          failure_code: 'agent_package_dependency_lock_missing',
-        });
-      }
-      materializations.push(materializeCapabilityScopeFromLock({
-        provider,
-        consumerProfileId: dependency.consumer_profile_id ?? null,
-        scope: input.scope!,
-        targetRoot,
-        transactionId: sha256Text(`${transactionId}\n${dependency.package_id}`),
-        dryRun: input.dryRun === true,
-        retainTransactionBackup: input.dryRun !== true,
-        previousMaterialization: existing.find((entry) => entry.provider_package_id === dependency.package_id) ?? null,
-      }));
-    }
-    }
-  } catch (error) {
-    if (!input.dryRun) {
-      for (const materialization of [...materializations].reverse()) {
-        rollbackCapabilityScopeTransaction(materialization);
-      }
-    }
-    throw error;
-  }
-  const activatedLock: AgentPackageLock = materializations.length > 0
-    ? {
-        ...lock,
-        scope_materializations: [
-          ...materializations,
-          ...(lock.scope_materializations ?? []).filter((entry) => !materializations.some((next) =>
-            next.scope === entry.scope
-            && next.target_root === entry.target_root
-            && next.provider_package_id === entry.provider_package_id)),
-        ],
-      }
-    : lock;
-  const nextIndex = structuredClone(index);
-  nextIndex.packages[lockIndex] = activatedLock;
-  const materializationReadiness = scopeMaterializationReadiness(activatedLock, nextIndex, input);
-  const resolvedProviderLocks = resolvedProviderLocksForUse(
-    activatedLock,
-    nextIndex,
-    'Package scope activation requires every required dependency provider lock.',
-  );
-  const providerPackages = resolvedProviderLocks.map((provider) => {
-    return {
-      package_id: provider.package_id,
-      package_version: provider.package_version,
-      owner_language_version: provider.owner_language_version,
-      package_lock_ref: provider.lock_ref,
-      manifest_sha256: provider.manifest_sha256,
-      content_digest: provider.content_digest,
-      source_artifact_ref: provider.source_artifact_ref ?? null,
-      artifact_digest: provider.artifact_digest ?? null,
-      owner_source_commit: provider.owner_source_commit ?? null,
-      carrier_authority: provider.carrier_authority ?? null,
-      source_kind: provider.source_kind,
-      developer_checkout_source: provider.developer_checkout_source ?? null,
-    };
-  });
-  const skillProjection = materializeAgentPackageSkillProjection({
-    root: activatedLock,
-    providers: resolvedProviderLocks,
-    dryRun: input.dryRun === true,
-  });
-  const useBinding = {
-    surface_kind: 'opl_agent_package_use_binding.v1' as const,
-    use_boundary_id: input.useBoundaryId
-      ?? sha256Text(`${packageId}\n${input.scope}\n${targetRoot}\n${Date.now()}`),
-    root_package: {
-      package_id: activatedLock.package_id,
-      package_version: activatedLock.package_version,
-      owner_language_version: activatedLock.owner_language_version,
-      package_lock_ref: activatedLock.lock_ref,
-      manifest_sha256: activatedLock.manifest_sha256,
-      content_digest: activatedLock.content_digest,
-      source_artifact_ref: activatedLock.source_artifact_ref ?? null,
-      artifact_digest: activatedLock.artifact_digest ?? null,
-      owner_source_commit: activatedLock.owner_source_commit ?? null,
-      carrier_authority: activatedLock.carrier_authority ?? null,
-      source_kind: activatedLock.source_kind,
-      developer_checkout_source: activatedLock.developer_checkout_source ?? null,
-    },
-    provider_packages: providerPackages,
-    dependency_closure_digest: activatedLock.dependency_closure_digest,
-    source_selection: 'installed_package_lock' as const,
-    network_accessed: false as const,
-    remote_dependency_policy: 'forbidden' as const,
-    scope: input.scope,
-    target_root: targetRoot,
-    skill_projection: skillProjection,
-    core_skill_tree_digest: skillProjection?.core_digest ?? materializationReadiness.actual_digest,
-    skill_tree_digest: skillProjection?.full_export_digest
-      ?? activatedLock.scope_materializations.find((entry) =>
-        entry.scope === input.scope && entry.target_root === targetRoot)?.full_export_digest
-      ?? null,
-    core_readiness: materializationReadiness.core_readiness,
-    specialty_exposure: materializationReadiness.specialty_exposure,
-  };
-  if (!input.dryRun) {
-    try {
-      writePackageTransaction(nextIndex);
-    } catch (error) {
-      for (const materialization of materializations) {
-        rollbackCapabilityScopeTransaction(materialization);
-      }
-      throw error;
-    }
-    for (const materialization of materializations) {
-      finalizeCapabilityScopeTransaction(materialization);
-    }
-  }
-  return {
-    status: input.dryRun ? 'validated_no_write' : materializations.length > 0 ? 'activated' : 'already_activated',
-    package_id: packageId,
-    writes_performed: !input.dryRun,
-    scope_materializations: materializations,
-    package_lock: activatedLock,
-    materialization_readiness: materializationReadiness,
-    package_use_binding: useBinding,
-  };
-}
-
 export async function ensureOplAgentPackageScopeActivation(input: AgentPackagePackageActionInput) {
   const packageId = requirePackageId(input.packageId, 'activate');
   const targetRoot = packageScopeTarget(input);
@@ -4410,14 +4215,14 @@ export async function ensureOplAgentPackageScopeActivation(input: AgentPackagePa
       failure_code: 'agent_package_scope_target_required',
     });
   }
-  let activationReadback = packageStatusForActivation({
+  const activationReadback = packageStatusForActivation({
     packageId,
     scope: input.scope,
     targetWorkspace: input.targetWorkspace,
     targetQuest: input.targetQuest,
   });
-  let nativeStatus = activationReadback.packageStatus;
-  let nativeCarrierState = packageNativeCarrierActivationState(
+  const nativeStatus = activationReadback.packageStatus;
+  const nativeCarrierState = packageNativeCarrierActivationState(
     nativeStatus,
     activationReadback.managedLock,
   );
@@ -4432,61 +4237,7 @@ export async function ensureOplAgentPackageScopeActivation(input: AgentPackagePa
   if (nativeCarrierState === 'blocked') {
     throwNativeCarrierActivationBlocked(packageId, nativeStatus);
   }
-  activationReadback = legacyPackageStatusForActivation({
-    packageId,
-    scope: input.scope,
-    targetWorkspace: input.targetWorkspace,
-    targetQuest: input.targetQuest,
-  });
-  nativeStatus = activationReadback.packageStatus;
-  nativeCarrierState = packageNativeCarrierActivationState(
-    nativeStatus,
-    activationReadback.managedLock,
-  );
-  if (nativeCarrierState === 'blocked') {
-    throwNativeCarrierActivationBlocked(packageId, nativeStatus);
-  }
-  if (nativeCarrierState !== 'legacy') {
-    throwPackageNativeOwnerRequired(input, 'activate');
-  }
-  return withAgentPackageLifecycleTransaction(
-    input.dryRun === true,
-    async () => {
-      const beforeStatus = runOplAgentPackageStatus({
-        packageId,
-        scope: input.scope,
-        targetWorkspace: input.targetWorkspace,
-        targetQuest: input.targetQuest,
-      }).opl_agent_package_status;
-      const preflightHardStopReason = packageActivationPreflightHardStopReason(beforeStatus);
-      if (preflightHardStopReason) {
-        throw new FrameworkContractError(
-          'contract_shape_invalid',
-          'Package activation is blocked by the current package lifecycle state.',
-          {
-            package_id: packageId,
-            launch_blocked_reason: preflightHardStopReason,
-            allowed_when_blocked: beforeStatus.allowed_when_blocked,
-            package_dependency_readiness: beforeStatus.package_dependency_readiness,
-            materialization_readiness: beforeStatus.materialization_readiness,
-            repair_action: beforeStatus.repair_action,
-            failure_code: 'agent_package_scope_activation_blocked',
-          },
-        );
-      }
-      const activation = await ensureOplAgentPackageScopeActivationUnlocked(input);
-      const packageStatus = runOplAgentPackageStatus({
-        packageId: input.packageId,
-        scope: input.scope,
-        targetWorkspace: input.targetWorkspace,
-        targetQuest: input.targetQuest,
-      }).opl_agent_package_status;
-      return {
-        ...activation,
-        package_status: packageStatus,
-      };
-    },
-  );
+  throwPackageNativeOwnerRequired(input, 'activate');
 }
 
 async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActionInput) {
@@ -4555,18 +4306,6 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
 
 function packageStatusForActivation(input: OplAgentPackageStatusInput) {
   const snapshot = readAgentPackageStatusSnapshot(input.packageId);
-  const packageStatus = buildOplAgentPackageStatus(input, snapshot).opl_agent_package_status;
-  const packageId = canonicalAgentPackageId(input.packageId);
-  return {
-    packageStatus,
-    managedLock: packageId
-      ? snapshot.lockIndex.packages.find((entry) => entry.package_id === packageId) ?? null
-      : null,
-  };
-}
-
-function legacyPackageStatusForActivation(input: OplAgentPackageStatusInput) {
-  const snapshot = readLegacyAgentPackageStatusSnapshot();
   const packageStatus = buildOplAgentPackageStatus(input, snapshot).opl_agent_package_status;
   const packageId = canonicalAgentPackageId(input.packageId);
   return {
@@ -4667,7 +4406,7 @@ function managedCarrierProjectionCurrent(
 function packageNativeCarrierActivationState(
   packageStatus: any,
   managedLock: AgentPackageLock | null,
-): 'ready' | 'blocked' | 'legacy' | 'missing' {
+): 'ready' | 'blocked' | 'missing' {
   const nativeCarrierPresent = packageStatus.configured_carrier?.carrier?.kind === 'codex_plugin_manager'
     && packageStatus.configured_carrier.status === 'installed'
     && packageStatus.configured_carrier.carrier.precedence === 'exact_single_source';
@@ -4728,10 +4467,7 @@ function packageNativeCarrierActivationState(
       ? 'ready'
       : 'blocked';
   }
-  return managedCarrierCurrent
-    && packageStatus.configured_carrier.executor.status === 'callable'
-    ? 'legacy'
-    : 'blocked';
+  return 'blocked';
 }
 
 function throwNativeCarrierActivationBlocked(packageId: string, packageStatus: any): never {
@@ -4749,14 +4485,6 @@ function throwNativeCarrierActivationBlocked(packageId: string, packageStatus: a
       failure_code: 'agent_package_scope_activation_blocked',
     },
   );
-}
-
-function packageActivationPreflightHardStopReason(packageStatus: any) {
-  const selectedLock = packageStatus?.installed_packages?.find(
-    (entry: any) => entry?.package_id === packageStatus?.package_id,
-  ) ?? null;
-  if (selectedLock?.exposure_state === 'disabled') return 'package_disabled';
-  return null;
 }
 
 export async function runOplAgentPackageActivate(input: AgentPackagePackageActionInput) {
