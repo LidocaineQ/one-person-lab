@@ -1921,8 +1921,10 @@ function descriptorOwnedCarrierCurrentness(input: {
     reasons.push('configured_carrier_source_changed');
   }
   if (input.installedDescriptor.carrier.pluginId !== input.targetDescriptor.carrier.pluginId
-    || input.installedDescriptor.carrier.marketplaceSource
-      !== input.targetDescriptor.carrier.marketplaceSource) {
+    || !sameConfiguredCarrierPath(
+      input.installedDescriptor.carrier.marketplaceSource,
+      input.targetDescriptor.carrier.marketplaceSource,
+    )) {
     reasons.push('configured_carrier_route_changed');
   }
   return {
@@ -2057,8 +2059,10 @@ function adoptDescriptorOwnedCarrierTarget(input: {
 }) {
   const selectorChanged = input.installedDescriptor.carrier.pluginId
     !== input.targetDescriptor.carrier.pluginId;
-  const sourceChanged = input.installedDescriptor.carrier.marketplaceSource
-    !== input.targetDescriptor.carrier.marketplaceSource;
+  const sourceChanged = !sameConfiguredCarrierPath(
+    input.installedDescriptor.carrier.marketplaceSource,
+    input.targetDescriptor.carrier.marketplaceSource,
+  );
   if ((selectorChanged || sourceChanged) && !input.dryRun) {
     return transferDescriptorOwnedCarrierRoute({
       ...input,

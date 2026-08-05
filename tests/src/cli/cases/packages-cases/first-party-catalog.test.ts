@@ -1310,7 +1310,7 @@ test('descriptor-owned currentness accepts only the canonical GitHub form of the
       fs.readFileSync(installedManifestPath, 'utf8'),
     ) as any;
     installedManifest.codex_surface.configured_codex_plugin_carrier.marketplace_source =
-      ownerMarketplaceSource;
+      'https://github.com/gaofeng21cn/opl-flow.git';
     fs.writeFileSync(installedManifestPath, formatJsonPayload(installedManifest));
 
     const current = dryRun({
