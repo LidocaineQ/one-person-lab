@@ -4,7 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { FrameworkContractError } from '../../../../src/kernel/contract-validation.ts';
 import { parseJsonText } from '../../../../src/kernel/json-file.ts';
 import {
   readBundledFullRuntimePackageCatalog,
@@ -35,19 +34,6 @@ function manifestProjection(entry: BundledFullRuntimeCatalogEntry) {
     pluginId: String(codexSurface.plugin_id),
     visible: codexSurface.codex_default_exposure !== false,
   };
-}
-
-function closure(catalog: BundledFullRuntimePackageCatalog, rootPackageId: string) {
-  const result: string[] = [];
-  const visited = new Set<string>();
-  const visit = (packageId: string) => {
-    if (visited.has(packageId)) return;
-    visited.add(packageId);
-    for (const dependencyId of catalog.entries.get(packageId)!.dependencyPackageIds) visit(dependencyId);
-    result.push(packageId);
-  };
-  visit(rootPackageId);
-  return result;
 }
 
 function descriptorBearingCatalog() {
@@ -88,7 +74,7 @@ test('canonical Full catalog carries only immutable owner descriptors that have 
     })
     .map(([packageId]) => packageId)
     .sort();
-  assert.deepEqual(descriptorPackageIds, ['mas', 'mas-scholar-skills', 'obf', 'oma', 'opl-flow', 'rca']);
+  assert.deepEqual(descriptorPackageIds, ['mag', 'mas', 'mas-scholar-skills', 'obf', 'oma', 'opl-flow', 'rca']);
 });
 
 function runtimeHomeFixture(root: string, catalog: BundledFullRuntimePackageCatalog) {
@@ -97,41 +83,6 @@ function runtimeHomeFixture(root: string, catalog: BundledFullRuntimePackageCata
     fs.mkdirSync(path.join(runtimeHome, entry.runtimeModuleRelativePath), { recursive: true });
   }
   return runtimeHome;
-}
-
-function fakeSurface(manifest: AgentPackageManifest) {
-  const marketplaceId = `fixture-${manifest.package_id}`;
-  const marketplaceRoot = path.join('/fixture', manifest.package_id, 'marketplace');
-  const marketplacePluginPath = path.join(marketplaceRoot, 'plugins', manifest.plugin_id!);
-  const cachePath = path.join('/fixture', manifest.package_id, 'cache');
-  const visible = manifest.codex_default_exposure !== false;
-  return {
-    status: 'materialized' as const,
-    package_id: manifest.package_id,
-    plugin_id: manifest.plugin_id!,
-    codex_default_exposure: visible,
-    marketplace_id: visible ? marketplaceId : null,
-    marketplace_root: visible ? marketplaceRoot : null,
-    marketplace_path: visible
-      ? path.join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json')
-      : null,
-    marketplace_plugin_path: visible ? marketplacePluginPath : null,
-    codex_home: path.join('/fixture', 'codex'),
-    codex_config_path: path.join('/fixture', 'codex', 'config.toml'),
-    plugin_manifest_path: path.join(cachePath, '.codex-plugin', 'plugin.json'),
-    codex_plugin_cache_path: cachePath,
-    materialized_required_skill_ids: [...manifest.required_skill_ids],
-    materialized_required_skill_paths: manifest.required_skill_ids.map((skillId) =>
-      path.join(cachePath, 'skills', skillId, 'SKILL.md')),
-    profile_migration: {
-      status: 'not_requested',
-    },
-    workflow_policy_migration: {
-      detected_conflicts: [],
-    },
-    writes_performed: true,
-    reload_required: true,
-  };
 }
 
 function ownerSourcePath(packageId: string) {
@@ -163,9 +114,7 @@ function expectedCarrier(
 }
 
 type ProjectionState = {
-  materialized: Set<string>;
   entries: InstalledCarrierEntry[];
-  policyDrift: Set<string>;
 };
 
 function currentState(
@@ -173,12 +122,10 @@ function currentState(
   stateDir: string,
 ): ProjectionState {
   return {
-    materialized: new Set(catalog.entries.keys()),
     entries: [...catalog.entries.values()].flatMap((entry) => {
       const carrier = expectedCarrier(entry, stateDir);
       return carrier ? [carrier] : [];
     }),
-    policyDrift: new Set(),
   };
 }
 
@@ -188,41 +135,11 @@ function convergePackage(
   packageId: string,
   stateDir: string,
 ) {
-  state.materialized.add(packageId);
   const projection = manifestProjection(catalog.entries.get(packageId)!);
   state.entries = state.entries.filter((entry) =>
     entry.pluginId.split('@', 1)[0] !== projection.pluginId);
   const carrier = expectedCarrier(catalog.entries.get(packageId)!, stateDir);
   if (carrier) state.entries.push(carrier);
-  state.policyDrift.delete(packageId);
-}
-
-function convergeLegacyPackage(
-  state: ProjectionState,
-  catalog: BundledFullRuntimePackageCatalog,
-  packageId: string,
-) {
-  state.materialized.add(packageId);
-  const entry = catalog.entries.get(packageId)!;
-  const projection = manifestProjection(entry);
-  state.entries = state.entries.filter((carrier) =>
-    carrier.pluginId.split('@', 1)[0] !== projection.pluginId);
-  if (projection.visible) {
-    const surface = fakeSurface({
-      package_id: projection.packageId,
-      plugin_id: projection.pluginId,
-      codex_default_exposure: true,
-      required_skill_ids: [],
-    } as unknown as AgentPackageManifest);
-    state.entries.push({
-      pluginId: `${projection.pluginId}@${surface.marketplace_id}`,
-      version: entry.packageVersion,
-      enabled: true,
-      sourcePath: surface.marketplace_plugin_path!,
-      sourceKind: 'codex_plugin_manager',
-      marketplaceSource: surface.marketplace_root,
-    });
-  }
 }
 
 function configuredCarrierReadback(
@@ -288,23 +205,6 @@ function projectionOptions(
       }
       return configuredCarrierReadback(catalog, input.descriptor.packageId, stateDir, input.action);
     }) as any,
-    inspectMaterializedSurface: ((manifest: AgentPackageManifest) => {
-      if (!state.materialized.has(manifest.package_id)) {
-        throw new FrameworkContractError(
-          'contract_shape_invalid',
-          'Fixture materialized surface is absent.',
-          {
-            package_id: manifest.package_id,
-            failure_code: 'full_runtime_package_projection_incomplete',
-          },
-        );
-      }
-      return fakeSurface(manifest);
-    }) as typeof inspectMaterializedPhysicalCodexSurface,
-    inspectManagedPolicy: ((input: { manifest: AgentPackageManifest }) => ({
-      status: state.policyDrift.has(input.manifest.package_id) ? 'drifted' : 'current',
-      reason: 'fixture',
-    })) as any,
   };
 }
 
@@ -330,9 +230,7 @@ test('Full runtime currentness ignores legacy lock state and installs each missi
   const catalog = descriptorBearingCatalog();
   const runtimeHome = runtimeHomeFixture(root, catalog);
   const state: ProjectionState = {
-    materialized: new Set(),
     entries: [],
-    policyDrift: new Set(),
   };
   const installCalls: string[] = [];
   fs.mkdirSync(stateDir, { recursive: true });
@@ -378,15 +276,13 @@ test('Full runtime currentness ignores legacy lock state and installs each missi
   }
 });
 
-test('descriptor-bearing roots use native carriers while legacy roots retain their installer', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-full-runtime-mixed-materialization-'));
+test('descriptorless Full Packages fail closed before native carrier or legacy lock mutation', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-full-runtime-descriptorless-'));
   const stateDir = path.join(root, 'state');
   const catalog = descriptorlessPackageCatalog('obf');
   const runtimeHome = runtimeHomeFixture(root, catalog);
   const state = currentState(catalog, stateDir);
-  const legacyInstalls: string[] = [];
   const nativeCarrierActions: string[] = [];
-  state.materialized.delete('obf');
   state.entries = state.entries.filter((entry) => !entry.pluginId.startsWith('opl-flow@'));
   try {
     const result = await reconcileBundledFullRuntimePackagesIfAvailable(
@@ -394,34 +290,20 @@ test('descriptor-bearing roots use native carriers while legacy roots retain the
       {
         ...projectionOptions(state, catalog, stateDir, { carrierActions: nativeCarrierActions }),
         readCatalog: () => catalog,
-        installPackage: (async (input: { packageId: string }) => {
-          legacyInstalls.push(input.packageId);
-          const dependencyPackageIds = closure(catalog, input.packageId);
-          for (const packageId of dependencyPackageIds) {
-            convergeLegacyPackage(state, catalog, packageId);
-          }
-          return {
-            opl_agent_package_install: {
-              dependency_transaction_id: `fixture-${input.packageId}`,
-              dependency_package_locks: dependencyPackageIds.map((packageId) => ({ package_id: packageId })),
-            },
-          } as any;
-        }) as any,
       },
     );
     assert.ok(result);
-    assert.equal(result.status, 'completed', JSON.stringify(result, null, 2));
-    assert.equal(result.package_mutation_policy, 'per_root_native_carrier_with_legacy_compatibility');
-    assert.deepEqual(legacyInstalls, ['obf']);
-    assert.deepEqual(nativeCarrierActions, ['opl-flow']);
+    assert.equal(result.status, 'failed', JSON.stringify(result, null, 2));
+    assert.equal(result.package_mutation_policy, 'package_local_native_carrier_root_retryable');
     assert.equal(
-      result.root_installs.find((entry) => entry.package_id === 'obf')?.reason,
-      'package_install_unit_completed',
+      result.failures[0]?.failure_code,
+      'configured_codex_plugin_carrier_owner_descriptor_missing',
     );
-    assert.equal(
-      result.root_installs.find((entry) => entry.package_id === 'opl-flow')?.reason,
-      'native_carrier_reconciliation_completed',
-    );
+    const failureDetails = result.failures[0]?.details as Record<string, unknown>;
+    assert.deepEqual(failureDetails.package_ids, ['obf']);
+    assert.equal(failureDetails.mutation_started, false);
+    assert.deepEqual(nativeCarrierActions, []);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
