@@ -423,6 +423,118 @@ function sameIdentity(
     && left.tree_sha256 === right.tree_sha256;
 }
 
+function sameStringSet(left: string[], right: string[]) {
+  return left.length === right.length
+    && left.every((value) => right.includes(value));
+}
+
+function configuredCarrierDescriptorMatches(
+  left: NonNullable<AgentPackageManifest['configured_codex_plugin_carrier']>,
+  right: NonNullable<AgentPackageManifest['configured_codex_plugin_carrier']>,
+) {
+  return left.packageId === right.packageId
+    && left.carrier.kind === right.carrier.kind
+    && left.carrier.pluginId === right.carrier.pluginId
+    && left.carrier.marketplaceSource === right.carrier.marketplaceSource
+    && left.executor.route === right.executor.route
+    && sameStringSet(left.executor.requiredSkillIds, right.executor.requiredSkillIds)
+    && left.publicationRef === right.publicationRef;
+}
+
+function payloadFile(sourcePath: string): DeveloperCheckoutPayloadFile {
+  const stat = fs.lstatSync(sourcePath);
+  return {
+    path: 'opl-package.json',
+    content: fs.readFileSync(sourcePath),
+    mode: stat.mode & 0o111 ? '100755' : '100644',
+  };
+}
+
+function configuredCarrierDescriptorMismatches(
+  descriptor: AgentPackageManifest,
+  owner: AgentPackageManifest,
+) {
+  const descriptorCarrier = descriptor.configured_codex_plugin_carrier;
+  const ownerCarrier = owner.configured_codex_plugin_carrier!;
+  return [
+    descriptor.package_id === owner.package_id ? null : 'package_id',
+    descriptor.agent_id === owner.agent_id ? null : 'agent_id',
+    descriptor.version === owner.version ? null : 'version',
+    descriptor.plugin_id === owner.plugin_id ? null : 'plugin_id',
+    sameStringSet(descriptor.required_skill_ids, owner.required_skill_ids)
+      ? null
+      : 'required_skill_ids',
+    descriptorCarrier && configuredCarrierDescriptorMatches(descriptorCarrier, ownerCarrier)
+      ? null
+      : 'configured_codex_plugin_carrier',
+  ].filter((field): field is string => field !== null);
+}
+
+function validatedConfiguredCarrierDescriptor(input: {
+  spec: ReturnType<typeof getOplPackageSpecs>[number];
+  ownerManifest: AgentPackageManifest;
+  pluginRoot: string;
+  descriptorCandidate: string;
+}) {
+  const descriptorStat = fs.lstatSync(input.descriptorCandidate);
+  if (!descriptorStat.isFile() || descriptorStat.isSymbolicLink()) {
+    throw sourceFailure('Configured carrier developer checkout owner descriptor must be a regular file.', {
+      package_id: input.ownerManifest.package_id,
+      plugin_source_path: input.pluginRoot,
+      owner_descriptor_path: input.descriptorCandidate,
+    });
+  }
+  const descriptorPath = fs.realpathSync(input.descriptorCandidate);
+  if (!isInside(input.pluginRoot, descriptorPath)) {
+    throw sourceFailure('Configured carrier developer checkout owner descriptor escapes its plugin root.', {
+      package_id: input.ownerManifest.package_id,
+      plugin_source_path: input.pluginRoot,
+      owner_descriptor_path: descriptorPath,
+    });
+  }
+  let descriptorManifest: AgentPackageManifest;
+  try {
+    descriptorManifest = normalizeDeveloperOwnerManifest({
+      spec: input.spec,
+      payload: parseJsonText(fs.readFileSync(descriptorPath, 'utf8')),
+      manifestPath: descriptorPath,
+    });
+  } catch (error) {
+    throw sourceFailure('Configured carrier developer checkout owner descriptor is invalid.', {
+      package_id: input.ownerManifest.package_id,
+      owner_descriptor_path: descriptorPath,
+      cause: error instanceof Error ? error.message : String(error),
+    });
+  }
+  const mismatchedFields = configuredCarrierDescriptorMismatches(
+    descriptorManifest,
+    input.ownerManifest,
+  );
+  if (mismatchedFields.length > 0) {
+    throw sourceFailure('Configured carrier developer checkout owner descriptor does not match its owner manifest.', {
+      package_id: input.ownerManifest.package_id,
+      owner_descriptor_path: descriptorPath,
+      mismatched_fields: mismatchedFields,
+    });
+  }
+  return payloadFile(descriptorPath);
+}
+
+function collectConfiguredCarrierOwnerDescriptor(input: {
+  spec: ReturnType<typeof getOplPackageSpecs>[number];
+  ownerManifest: AgentPackageManifest;
+  ownerManifestPath: string;
+  pluginRoot: string;
+  files: Map<string, DeveloperCheckoutPayloadFile>;
+}) {
+  if (!input.ownerManifest.configured_codex_plugin_carrier) return;
+  const descriptorCandidate = path.join(input.pluginRoot, 'opl-package.json');
+  const descriptor = fs.existsSync(descriptorCandidate)
+    ? validatedConfiguredCarrierDescriptor({ ...input, descriptorCandidate })
+    : payloadFile(input.ownerManifestPath);
+  input.files.set(descriptor.path, descriptor);
+}
+
 export function loadDeveloperCheckoutPackageSource(packageId: string, checkoutPath: string) {
   const spec = getOplPackageSpecs().find((entry) => entry.package_id === packageId);
   const resolvedCheckout = path.resolve(checkoutPath);
@@ -512,6 +624,13 @@ export function loadDeveloperCheckoutPackageSource(packageId: string, checkoutPa
       collectAllowlistedFile(pluginRoot, relativePath, files);
     }
   } else {
+    collectConfiguredCarrierOwnerDescriptor({
+      spec,
+      ownerManifest,
+      ownerManifestPath,
+      pluginRoot,
+      files,
+    });
     collectFiles(pluginRoot, pluginManifestPath, files);
     for (const skillId of ownerManifest.required_skill_ids) {
       collectFiles(pluginRoot, path.join(pluginRoot, 'skills', skillId), files);

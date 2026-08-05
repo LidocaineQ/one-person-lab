@@ -26,6 +26,14 @@ const bundledPackageFixtures = [
   { packageId: 'obf', project: 'opl-bookforge', runtimePath: 'modules/bookforge' },
 ] as const;
 
+const bundledConfiguredCarrierFixtures = {
+  mas: ['med-autoscience', 'med-autoscience-local', 'gaofeng21cn/med-autoscience'],
+  mag: ['med-autogrant', 'med-autogrant-local', 'gaofeng21cn/med-autogrant'],
+  rca: ['redcube-ai', 'redcube-ai-local', 'gaofeng21cn/redcube-ai'],
+  oma: ['opl-meta-agent', 'opl-meta-agent-local', 'gaofeng21cn/opl-meta-agent'],
+  obf: ['opl-bookforge', 'opl-bookforge-local', 'gaofeng21cn/opl-bookforge'],
+} as const;
+
 function sha256(value: string | Buffer) {
   return `sha256:${crypto.createHash('sha256').update(value).digest('hex')}`;
 }
@@ -92,11 +100,20 @@ function rawSourceUrl(sourceRepo: string, sourceCommit: string, sourceRoot: stri
 }
 
 function materializeScholarSkillsFixture(root: string, manifest: Record<string, any>) {
-  for (const relativePath of manifest.content_lock.paths as string[]) {
+  for (const relativePath of [...manifest.content_lock.paths, 'opl-package.json'] as string[]) {
     const filePath = path.join(root, relativePath);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     const basename = path.basename(relativePath);
-    const content = relativePath === '.codex-plugin/plugin.json'
+    const content = relativePath === 'opl-package.json'
+      ? `${JSON.stringify({
+          ...manifest,
+          source: 'first_party_repo_local',
+          codex_surface: {
+            ...manifest.codex_surface,
+            plugin_source_path: '.',
+          },
+        }, null, 2)}\n`
+      : relativePath === '.codex-plugin/plugin.json'
       ? `${JSON.stringify({ name: 'mas-scholar-skills', skills: './skills/' }, null, 2)}\n`
       : basename === 'SKILL.md'
         ? `---\nname: ${path.basename(path.dirname(relativePath))}\ndescription: Bundled runtime fixture for ${path.basename(path.dirname(relativePath))}.\n---\n\n# ${path.basename(path.dirname(relativePath))}\n`
@@ -151,6 +168,43 @@ function buildBundledRuntimeCatalogFixture(input: {
     const sourcePath = sourceRoot === '.'
       ? packageRoots[packageId]
       : path.join(packageRoots[packageId], sourceRoot);
+    if (packageId in bundledConfiguredCarrierFixtures) {
+      const [pluginId, marketplaceId] = bundledConfiguredCarrierFixtures[
+        packageId as keyof typeof bundledConfiguredCarrierFixtures
+      ];
+      const marketplaceRoot = packageRoots[packageId];
+      writeJson(path.join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json'), {
+        name: marketplaceId,
+        plugins: [{
+          name: pluginId,
+          source: {
+            source: 'local',
+            path: path.relative(marketplaceRoot, sourcePath) || '.',
+          },
+        }],
+      });
+      manifest.codex_surface.configured_codex_plugin_carrier = {
+        kind: 'codex_plugin_manager',
+        plugin_selector: `${pluginId}@${marketplaceId}`,
+        executor_route: 'codex_cli',
+        marketplace_source: marketplaceRoot,
+        publication_ref: `ghcr.io/gaofeng21cn/one-person-lab-packages/${packageId}:latest-stable`,
+      };
+      writeJson(path.join(sourcePath, 'opl-package.json'), {
+        ...manifest,
+        source: 'first_party_repo_local',
+        codex_surface: {
+          ...manifest.codex_surface,
+          plugin_source_path: '.',
+        },
+      });
+      const pluginManifestPath = path.join(sourcePath, '.codex-plugin', 'plugin.json');
+      const pluginManifest = parseJsonText(fs.readFileSync(pluginManifestPath, 'utf8')) as Record<string, any>;
+      writeJson(pluginManifestPath, {
+        ...pluginManifest,
+        version: manifest.version,
+      });
+    }
     const files = listFiles(sourcePath).map((relativePath) => {
       const content = fs.readFileSync(path.join(sourcePath, relativePath));
       const executable = (fs.statSync(path.join(sourcePath, relativePath)).mode & 0o111) !== 0;
@@ -366,10 +420,10 @@ test('projected package-only actions preview all bundled Full packages without w
       '--payload', JSON.stringify({ package_id: 'third.party.research' }),
       '--dry-run',
     ], fixture.env);
-    assert.equal(thirdParty.payload.error.code, 'cli_usage_error');
-    assert.deepEqual(
-      thirdParty.payload.error.details.required,
-      ['--manifest-url or --registry-url + --package-id'],
+    assert.equal(thirdParty.payload.error.code, 'contract_shape_invalid');
+    assert.equal(
+      thirdParty.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
     );
     fs.rmSync(fixture.bundledCatalog.scholarRoot, { recursive: true, force: true });
     const incompleteFull = runCliFailure([
@@ -839,11 +893,10 @@ test('system configure-codex does not sync packaged Full companion skills', () =
   }
 });
 
-test('packages repair restores an installed bundled runtime only from its immutable source identity', () => {
+test('packages repair fails closed without a configured native owner and does not write legacy state', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bundled-package-repair-home-'));
   const captureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bundled-package-repair-capture-'));
   const fixture = buildFullRuntimeFamilyFixture({ captureDir, homeRoot });
-  const codexHome = path.join(homeRoot, 'codex-home');
 
   try {
     runCliWithStdin(
@@ -854,224 +907,38 @@ test('packages repair restores an installed bundled runtime only from its immuta
     runCli(['system', 'startup-maintenance'], fixture.env);
 
     const lockPath = path.join(fixture.env.OPL_STATE_DIR, 'agent-package-locks.json');
-    const originalLockIndex = parseJsonText(fs.readFileSync(lockPath, 'utf8')) as Record<string, any>;
-    const omaLock = originalLockIndex.packages.find(
-      (entry: Record<string, any>) => entry.package_id === 'oma',
+    const lockBytes = fs.existsSync(lockPath) ? fs.readFileSync(lockPath) : null;
+    const lockIndex = lockBytes
+      ? parseJsonText(lockBytes.toString('utf8')) as Record<string, any>
+      : { packages: [] };
+    assert.equal(
+      lockIndex.packages.some((entry: Record<string, any>) => entry.package_id === 'oma'),
+      false,
     );
-    assert.equal(omaLock.package_version, '0.4.3');
-    assert.equal(omaLock.owner_source_commit, 'd58fee532bc0ccce4b7a4f1c5a5e521dd2e50a41');
-    const omaTargetRoot = omaLock.managed_runtime_source.checkout_path as string;
-    const omaRepairSourceRoot = path.join(homeRoot, 'oma-repair-source');
-    const omaWrongSourceRoot = path.join(homeRoot, 'oma-repair-source-wrong-tree');
-    const omaLiveCheckoutSourceRoot = path.join(homeRoot, 'oma-live-checkout-source');
-    fs.cpSync(omaTargetRoot, omaRepairSourceRoot, { recursive: true });
-    fs.cpSync(omaTargetRoot, omaWrongSourceRoot, { recursive: true });
-    fs.cpSync(omaTargetRoot, omaLiveCheckoutSourceRoot, { recursive: true });
-    fs.appendFileSync(
-      path.join(omaWrongSourceRoot, 'agent', 'primary_skill', 'SKILL.md'),
-      '\nwrong repair source tree\n',
-    );
-    const liveCheckoutMarkerPath = path.join(omaLiveCheckoutSourceRoot, 'opl-runtime-module.json');
-    const liveCheckoutMarker = parseJsonText(fs.readFileSync(liveCheckoutMarkerPath, 'utf8')) as Record<string, any>;
-    liveCheckoutMarker.source_git.head_sha = '65e1bb8753c9a4e6b49712cdff75395518f569f0';
-    writeJson(liveCheckoutMarkerPath, liveCheckoutMarker);
-    fs.appendFileSync(
-      path.join(omaLiveCheckoutSourceRoot, 'agent', 'primary_skill', 'SKILL.md'),
-      '\nlive checkout package tree\n',
-    );
-    fs.appendFileSync(
-      path.join(omaTargetRoot, 'agent', 'primary_skill', 'SKILL.md'),
-      '\ndisplaced live runtime tree\n',
-    );
-    const driftedOmaTreeSha256 = computePackageChannelTreeSha256(omaTargetRoot);
-    assert.notEqual(driftedOmaTreeSha256, omaLock.managed_runtime_source.tree_sha256);
 
-    const packageLifecycleMutexPaths = [
-      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite'),
-      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite-wal'),
-      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite-shm'),
-    ];
-    const repairAuthorityPaths = [
-      lockPath,
+    const before = runCli(['packages', 'status', '--package-id', 'oma'], fixture.env) as any;
+    assert.equal(before.opl_agent_package_status.operational_ready, true);
+    assert.equal(before.opl_agent_package_status.configured_carrier.executor.status, 'callable');
+
+    const legacyStatePaths = [
       path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json'),
-      ...packageLifecycleMutexPaths,
-      path.join(codexHome, 'config.toml'),
+      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite'),
     ];
-    const captureAuthorityBytes = (filePaths: string[]) => new Map(filePaths.map((filePath) => [
+    const legacyStateBytes = new Map(legacyStatePaths.map((filePath) => [
       filePath,
       fs.existsSync(filePath) ? fs.readFileSync(filePath) : null,
     ]));
-    const assertAuthorityBytes = (before: Map<string, Buffer | null>) => {
-      for (const [filePath, expected] of before) {
-        if (expected === null) {
-          assert.equal(fs.existsSync(filePath), false, `${filePath} must remain absent`);
-        } else {
-          assert.deepEqual(fs.readFileSync(filePath), expected, `${filePath} must remain byte-identical`);
-        }
-      }
-    };
-    const noWriteBytes = captureAuthorityBytes(repairAuthorityPaths);
-    const wrongSourceFailure = runCliFailure([
-      'packages', 'repair', 'oma', '--agent-root', omaWrongSourceRoot, '--dry-run',
-    ], fixture.env);
-    assert.equal(wrongSourceFailure.status, 3);
+    const failure = runCliFailure(['packages', 'repair', 'oma', '--dry-run'], fixture.env);
+    assert.equal(failure.payload.error.code, 'contract_shape_invalid');
     assert.equal(
-      wrongSourceFailure.payload.error.details.failure_code,
-      'agent_package_bundled_full_runtime_repair_source_identity_mismatch',
+      failure.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
     );
-    assert.equal(wrongSourceFailure.payload.error.details.mutation_started, false);
-    assert.equal(
-      wrongSourceFailure.payload.error.details.expected_tree_sha256,
-      omaLock.managed_runtime_source.tree_sha256,
-    );
-    assert.notEqual(
-      wrongSourceFailure.payload.error.details.actual_source_tree_sha256,
-      omaLock.managed_runtime_source.tree_sha256,
-    );
-    assert.equal(computePackageChannelTreeSha256(omaTargetRoot), driftedOmaTreeSha256);
-    assertAuthorityBytes(noWriteBytes);
-
-    const liveCheckoutSourceFailure = runCliFailure([
-      'packages', 'repair', 'oma', '--agent-root', omaLiveCheckoutSourceRoot, '--dry-run',
-    ], fixture.env);
-    assert.equal(liveCheckoutSourceFailure.status, 3);
-    assert.equal(
-      liveCheckoutSourceFailure.payload.error.details.failure_code,
-      'agent_package_bundled_full_runtime_repair_source_identity_mismatch',
-    );
-    assert.equal(liveCheckoutSourceFailure.payload.error.details.mutation_started, false);
-    assert.equal(
-      liveCheckoutSourceFailure.payload.error.details.actual_source_owner_source_commit,
-      '65e1bb8753c9a4e6b49712cdff75395518f569f0',
-    );
-    assert.notEqual(
-      liveCheckoutSourceFailure.payload.error.details.actual_source_tree_sha256,
-      omaLock.managed_runtime_source.tree_sha256,
-    );
-    assert.equal(computePackageChannelTreeSha256(omaTargetRoot), driftedOmaTreeSha256);
-    assertAuthorityBytes(noWriteBytes);
-
-    const repairPreview = runCli([
-      'packages', 'repair', 'oma', '--agent-root', omaRepairSourceRoot, '--dry-run',
-    ], fixture.env) as any;
-    assert.equal(repairPreview.opl_agent_package_repair.status, 'validated_no_write');
-    assert.equal(repairPreview.opl_agent_package_repair.dry_run, true);
-    assert.equal(
-      repairPreview.opl_agent_package_repair.repair_source_validation.status,
-      'validated_no_write',
-    );
-    assert.equal(
-      repairPreview.opl_agent_package_repair.repair_source_validation.source_role,
-      'source_only',
-    );
-    assert.equal(
-      repairPreview.opl_agent_package_repair.repair_source_validation.target_role,
-      'existing_lock_checkout',
-    );
-    assert.equal(
-      repairPreview.opl_agent_package_repair.repair_source_validation.source_root,
-      omaRepairSourceRoot,
-    );
-    assert.equal(
-      repairPreview.opl_agent_package_repair.repair_source_validation.target_root,
-      omaTargetRoot,
-    );
-    assert.equal(
-      repairPreview.opl_agent_package_repair.repair_source_validation.source_tree_sha256,
-      omaLock.managed_runtime_source.tree_sha256,
-    );
-    assert.equal(
-      repairPreview.opl_agent_package_repair.repair_source_validation.source_owner_source_commit,
-      omaLock.owner_source_commit,
-    );
-    assert.equal(repairPreview.opl_agent_package_repair.repair_source_validation.source_adopted_as_target, false);
-    assert.equal(repairPreview.opl_agent_package_repair.repair_source_validation.mutation_started, false);
-    assert.equal(repairPreview.opl_agent_package_repair.repair_source_validation.writes_performed, false);
-    assert.equal(repairPreview.opl_agent_package_repair.package_lock.managed_runtime_source.checkout_path, omaTargetRoot);
-    assert.equal(computePackageChannelTreeSha256(omaTargetRoot), driftedOmaTreeSha256);
-    assertAuthorityBytes(noWriteBytes);
-
-    const rollbackAuthorityPaths = repairAuthorityPaths.filter((filePath) =>
-      !packageLifecycleMutexPaths.includes(filePath));
-    const rollbackBytes = captureAuthorityBytes(rollbackAuthorityPaths);
-    const repairInterrupted = runCliFailure([
-      'packages', 'repair', 'oma', '--agent-root', omaRepairSourceRoot,
-    ], {
-      ...fixture.env,
-      OPL_TEST_RUNTIME_SOURCE_INTERRUPT_AFTER_APPLY: '1',
-    });
-    assert.equal(repairInterrupted.status, 3);
-    assert.equal(
-      repairInterrupted.payload.error.details.failure_code,
-      'agent_package_bundled_full_runtime_repair_rolled_back',
-    );
-    assert.equal(repairInterrupted.payload.error.details.local_prestate_restored, true);
-    assert.equal(repairInterrupted.payload.error.details.mutation_started, true);
-    assert.equal(
-      repairInterrupted.payload.error.details.original_error.error.details.failure_code,
-      'test_runtime_source_interrupted_after_apply',
-    );
-    assert.equal(computePackageChannelTreeSha256(omaTargetRoot), driftedOmaTreeSha256);
-    assertAuthorityBytes(rollbackBytes);
-    assert.equal(
-      fs.readdirSync(path.dirname(omaTargetRoot)).some((entry) =>
-        entry.startsWith(`${path.basename(omaTargetRoot)}.opl-package-repair-`)),
-      false,
-    );
-    const runtimeTransactionRoot = path.join(
-      fixture.env.OPL_STATE_DIR,
-      'agent-package-runtime-source-transactions',
-    );
-    assert.deepEqual(
-      fs.existsSync(runtimeTransactionRoot) ? fs.readdirSync(runtimeTransactionRoot) : [],
-      [],
-    );
-
-    const unrelatedLocksBeforeRepair = (parseJsonText(fs.readFileSync(lockPath, 'utf8')) as Record<string, any>)
-      .packages.filter((entry: Record<string, any>) => entry.package_id !== 'oma');
-    const repaired = runCli([
-      'packages', 'repair', 'oma', '--agent-root', omaRepairSourceRoot,
-    ], fixture.env) as any;
-    assert.equal(repaired.opl_agent_package_repair.status, 'repaired');
-    assert.equal(repaired.opl_agent_package_repair.dry_run, false);
-    assert.equal(Object.hasOwn(repaired.opl_agent_package_repair, 'lifecycle_receipt'), false);
-    assert.equal(repaired.opl_agent_package_repair.repair_source_validation.status, 'completed');
-    assert.equal(repaired.opl_agent_package_repair.repair_source_validation.source_adopted_as_target, false);
-    assert.equal(repaired.opl_agent_package_repair.repair_source_validation.target_root, omaTargetRoot);
-    assert.equal(repaired.opl_agent_package_repair.repair_source_validation.actual_tree_sha256, omaLock.managed_runtime_source.tree_sha256);
-    assert.equal(
-      repaired.opl_agent_package_repair.repair_source_validation.runtime_source_readiness.status,
-      'current',
-    );
-    assert.equal(
-      repaired.opl_agent_package_repair.repair_source_validation.runtime_source_readiness.operational_ready,
-      true,
-    );
-    assert.equal(computePackageChannelTreeSha256(omaTargetRoot), omaLock.managed_runtime_source.tree_sha256);
-    const repairedLockIndex = parseJsonText(fs.readFileSync(lockPath, 'utf8')) as Record<string, any>;
-    const repairedOmaLock = repairedLockIndex.packages.find(
-      (entry: Record<string, any>) => entry.package_id === 'oma',
-    );
-    assert.equal(repairedOmaLock.managed_runtime_source.checkout_path, omaTargetRoot);
-    assert.equal(repairedOmaLock.managed_runtime_source.tree_sha256, omaLock.managed_runtime_source.tree_sha256);
-    assert.equal(repairedOmaLock.managed_runtime_source.source_git_head_sha, omaLock.owner_source_commit);
-    assert.equal(repairedOmaLock.owner_source_commit, omaLock.owner_source_commit);
-    assert.equal(repairedOmaLock.carrier_authority.verified_source_commit, omaLock.owner_source_commit);
-    assert.deepEqual(
-      repairedLockIndex.packages.filter((entry: Record<string, any>) => entry.package_id !== 'oma'),
-      unrelatedLocksBeforeRepair,
-    );
-    const repairedStatus = runCli(['packages', 'status', '--package-id', 'oma'], fixture.env) as any;
-    assert.equal(repairedStatus.opl_agent_package_status.status, 'available');
-    assert.equal(repairedStatus.opl_agent_package_status.operational_ready, true);
-    assert.equal(repairedStatus.opl_agent_package_status.launch_allowed, true);
-    assert.equal(repairedStatus.opl_agent_package_status.runtime_source_readiness.status, 'current');
-    assert.equal(repairedStatus.opl_agent_package_status.runtime_source_readiness.operational_ready, true);
-    assert.equal(
-      fs.readdirSync(path.dirname(omaTargetRoot)).some((entry) =>
-        entry.startsWith(`${path.basename(omaTargetRoot)}.opl-package-repair-`)),
-      false,
-    );
+    if (lockBytes) assert.deepEqual(fs.readFileSync(lockPath), lockBytes);
+    for (const [filePath, bytes] of legacyStateBytes) {
+      if (bytes) assert.deepEqual(fs.readFileSync(filePath), bytes, filePath);
+      else assert.equal(fs.existsSync(filePath), false, filePath);
+    }
   } finally {
     removeFixtureTree(fixture.familyWorkspace.workspaceRoot);
     fs.rmSync(homeRoot, { recursive: true, force: true });
@@ -1103,247 +970,79 @@ test('system configure-codex delegates Full runtime Package and carrier reconcil
 
     const startup = runCli(['system', 'startup-maintenance'], fixture.env) as any;
     assert.equal(startup.system_action.status, 'completed');
-    assert.equal(fs.existsSync(lockPath), true);
-    const lockIndex = parseJsonText(fs.readFileSync(
-      lockPath,
-      'utf8',
-    )) as Record<string, any>;
+    const reconciliation = startup.system_action.details.full_runtime_package_reconciliation;
+    assert.equal(
+      reconciliation.status,
+      'completed',
+      JSON.stringify(reconciliation, null, 2),
+    );
+    assert.deepEqual(reconciliation.root_package_ids, ['mag', 'mas', 'obf', 'oma', 'rca']);
+    assert.equal(
+      reconciliation.items.find((item: Record<string, any>) => item.package_id === 'mas-scholar-skills')
+        ?.exposure_state,
+      'hidden',
+    );
     assert.deepEqual(
-      lockIndex.packages.map((entry: Record<string, any>) => entry.package_id).sort(),
-      ['mag', 'mas', 'mas-scholar-skills', 'obf', 'oma', 'rca'],
+      reconciliation.root_installs.map((entry: Record<string, any>) => entry.status),
+      ['completed', 'completed', 'completed', 'completed', 'completed'],
     );
-    const masLock = lockIndex.packages.find((entry: Record<string, any>) => entry.package_id === 'mas');
-    const scholarLock = lockIndex.packages.find(
-      (entry: Record<string, any>) => entry.package_id === 'mas-scholar-skills',
-    );
-    assert.equal(masLock.resolved_dependencies[0].package_id, 'mas-scholar-skills');
-    assert.equal(masLock.resolved_dependencies[0].carrier_authority.status, 'verified');
-    assert.equal(scholarLock.source_kind, 'bundled_full_runtime_modules');
-    assert.equal(scholarLock.carrier_authority.status, 'verified');
-    assert.equal(scholarLock.carrier_authority.verified_source_commit, scholarLock.owner_source_commit);
-    assert.equal(scholarLock.managed_runtime_source, null);
     assert.equal(fs.realpathSync(bundledCatalog.scholarRoot).startsWith(fs.realpathSync(runtimeHome)), true);
+    for (const legacyStatePath of [
+      lockPath,
+      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json'),
+      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite'),
+    ]) {
+      assert.equal(fs.existsSync(legacyStatePath), false, legacyStatePath);
+    }
     const config = fs.readFileSync(path.join(codexHome, 'config.toml'), 'utf8');
-    assert.match(config, /\[plugins\."med-autoscience@med-autoscience-local"\]/);
-    assert.match(config, /\[plugins\."med-autogrant@med-autogrant-local"\]/);
-    assert.match(config, /\[plugins\."redcube-ai@redcube-ai-local"\]/);
-    assert.match(config, /\[plugins\."opl-meta-agent@opl-meta-agent-local"\]/);
+    assert.doesNotMatch(config, /\[plugins\./);
+    assert.doesNotMatch(config, /\[marketplaces\./);
     for (const [project, marketplaceId, pluginId] of [
       ['med-autoscience', 'med-autoscience-local', 'med-autoscience'],
       ['med-autogrant', 'med-autogrant-local', 'med-autogrant'],
       ['redcube-ai', 'redcube-ai-local', 'redcube-ai'],
+      ['opl-meta-agent', 'opl-meta-agent-local', 'opl-meta-agent'],
+      ['opl-bookforge', 'opl-bookforge-local', 'opl-bookforge'],
     ] as const) {
       const checkoutPath = path.join(familyWorkspace.workspaceRoot, project);
       const marketplaceRoot = path.join(homeRoot, 'opl-state', 'codex-plugin-marketplaces', marketplaceId);
-      assert.equal(fs.existsSync(path.join(checkoutPath, '.agents', 'plugins', 'marketplace.json')), false);
-      const wrapperPluginRoot = path.join(marketplaceRoot, 'plugins', pluginId);
-      const wrapperManifest = parseJsonText(fs.readFileSync(path.join(wrapperPluginRoot, '.codex-plugin', 'plugin.json'), 'utf8')) as Record<string, any>;
-      const wrapperSkill = fs.readFileSync(path.join(wrapperPluginRoot, 'skills', pluginId, 'SKILL.md'), 'utf8');
-      assert.equal(wrapperManifest.name, pluginId);
-      assert.match(wrapperSkill, new RegExp(`^name:\\s*${pluginId}$`, 'm'));
-      assert.match(config, new RegExp(`\\[marketplaces\\.${marketplaceId}\\]\\nsource_type = "local"\\nsource = "${marketplaceRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`));
+      const ownerMarketplace = parseJsonText(fs.readFileSync(
+        path.join(checkoutPath, '.agents', 'plugins', 'marketplace.json'),
+        'utf8',
+      )) as Record<string, any>;
+      assert.equal(ownerMarketplace.name, marketplaceId);
+      assert.equal(ownerMarketplace.plugins[0].name, pluginId);
+      const routeMarketplace = parseJsonText(fs.readFileSync(
+        path.join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json'),
+        'utf8',
+      )) as Record<string, any>;
+      assert.equal(routeMarketplace.name, marketplaceId);
+      assert.equal(routeMarketplace.plugins[0].name, pluginId);
+      assert.equal(
+        path.resolve(routeMarketplace.plugins[0].source.path),
+        fs.realpathSync.native(path.join(checkoutPath, 'plugins', pluginId)),
+      );
+      assert.equal(fs.existsSync(path.join(marketplaceRoot, 'plugins')), false);
     }
     assert.equal(fs.existsSync(familyWorkspace.syncLogPath), false);
-
-    const lockBytesBeforePackageUpdate = fs.readFileSync(lockPath, 'utf8');
-    const unrelatedLocksBeforePackageUpdate = (parseJsonText(lockBytesBeforePackageUpdate) as Record<string, any>)
-      .packages.filter((entry: Record<string, any>) =>
-        !['mas', 'mas-scholar-skills'].includes(entry.package_id));
-    const packageUpdatePreview = runCli(
-      ['packages', 'update', 'mas', '--dry-run'],
-      fixture.env,
-    ) as any;
-    assert.equal(packageUpdatePreview.opl_agent_package_update.dry_run, true);
-    assert.deepEqual(
-      packageUpdatePreview.opl_agent_package_update.dependency_package_locks
-        .map((lock: Record<string, any>) => lock.package_id),
-      ['mas-scholar-skills', 'mas'],
-    );
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytesBeforePackageUpdate);
-
-    const installedModulesRoot = path.join(
-      homeRoot,
-      'Library',
-      'Application Support',
-      'OPL',
-      'runtime',
-      'current',
-      'modules',
-    );
-    fs.mkdirSync(installedModulesRoot, { recursive: true });
-    for (const [packageId, sourceRoot] of [
-      ['mas', path.join(familyWorkspace.workspaceRoot, 'med-autoscience')],
-      ['mas-scholar-skills', bundledCatalog.scholarRoot],
-    ]) {
-      fs.cpSync(
-        sourceRoot,
-        path.join(installedModulesRoot, packageId),
-        { recursive: true },
+    for (const [packageId, [pluginId, marketplaceId]] of Object.entries(
+      bundledConfiguredCarrierFixtures,
+    )) {
+      const status = runCli(['packages', 'status', '--package-id', packageId], fixture.env) as any;
+      assert.equal(status.opl_agent_package_status.operational_ready, true, packageId);
+      assert.equal(status.opl_agent_package_status.launch_allowed, true, packageId);
+      assert.equal(status.opl_agent_package_status.configured_carrier.status, 'installed', packageId);
+      assert.equal(
+        status.opl_agent_package_status.configured_carrier.carrier.plugin_id,
+        `${pluginId}@${marketplaceId}`,
+        packageId,
+      );
+      assert.equal(
+        status.opl_agent_package_status.configured_carrier.executor.status,
+        'callable',
+        packageId,
       );
     }
-    const installedRuntimeEnv = {
-      ...fixture.env,
-      OPL_FULL_RUNTIME_HOME: '',
-      OPL_MODULE_PATH_MEDAUTOSCIENCE: '',
-      OPL_MODULE_PATH_MEDAUTOGRANT: '',
-      OPL_MODULE_PATH_REDCUBE: '',
-      OPL_MODULE_PATH_OPLMETAAGENT: '',
-      OPL_MODULE_PATH_OPLBOOKFORGE: '',
-      OPL_MODULE_PATH_MAS_SCHOLAR_SKILLS: '',
-      OPL_FLOW_REPO_ROOT: '',
-    };
-    const installedRuntimePreview = runCli(
-      ['packages', 'update', 'mas', '--dry-run'],
-      installedRuntimeEnv,
-    ) as any;
-    assert.deepEqual(
-      installedRuntimePreview.opl_agent_package_update.dependency_package_locks
-        .map((lock: Record<string, any>) => lock.package_id),
-      ['mas-scholar-skills', 'mas'],
-    );
-    assert.deepEqual(
-      installedRuntimePreview.opl_agent_package_update.carrier_ensure.selected_package_ids,
-      ['mas-scholar-skills', 'mas'],
-    );
-    assert.equal(
-      installedRuntimePreview.opl_agent_package_update.carrier_ensure.version_gate_applied,
-      false,
-    );
-    assert.equal(
-      installedRuntimePreview.opl_agent_package_update.carrier_ensure.content_digest_gate_applied,
-      false,
-    );
-    assert.equal(
-      installedRuntimePreview.opl_agent_package_update.carrier_ensure.writes_performed,
-      false,
-    );
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytesBeforePackageUpdate);
-
-    const packageLifecycleMutexPaths = [
-      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite'),
-      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite-wal'),
-      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite-shm'),
-    ];
-    for (const filePath of packageLifecycleMutexPaths) {
-      fs.rmSync(filePath, { force: true });
-    }
-    const packageAuthorityPaths = [
-      lockPath,
-      path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json'),
-      ...packageLifecycleMutexPaths,
-      path.join(codexHome, 'config.toml'),
-    ];
-    const packageAuthorityBytesBeforeUpdate = new Map(packageAuthorityPaths.map((filePath) => [
-      filePath,
-      fs.existsSync(filePath) ? fs.readFileSync(filePath) : null,
-    ]));
-    const packageUpdate = runCli(['packages', 'update', 'mas'], installedRuntimeEnv) as any;
-    assert.deepEqual(
-      packageUpdate.opl_agent_package_update.dependency_package_locks
-        .map((lock: Record<string, any>) => lock.package_id),
-      ['mas-scholar-skills', 'mas'],
-    );
-    assert.equal(packageUpdate.opl_agent_package_update.status, 'current_noop');
-    assert.equal(Object.hasOwn(packageUpdate.opl_agent_package_update, 'lifecycle_receipt'), false);
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytesBeforePackageUpdate);
-    for (const [filePath, before] of packageAuthorityBytesBeforeUpdate) {
-      if (before === null) {
-        assert.equal(fs.existsSync(filePath), false, `${filePath} must remain absent`);
-      } else {
-        assert.deepEqual(fs.readFileSync(filePath), before, `${filePath} must remain byte-identical`);
-      }
-    }
-    const packageIdsAfterPackageUpdate = (parseJsonText(fs.readFileSync(
-      lockPath,
-      'utf8',
-    )) as Record<string, any>).packages
-      .map((entry: Record<string, any>) => entry.package_id)
-      .sort();
-    assert.deepEqual(
-      packageIdsAfterPackageUpdate,
-      ['mag', 'mas', 'mas-scholar-skills', 'obf', 'oma', 'rca'],
-    );
-    const unrelatedLocksAfterPackageUpdate = (parseJsonText(fs.readFileSync(
-      lockPath,
-      'utf8',
-    )) as Record<string, any>).packages
-      .filter((entry: Record<string, any>) =>
-        !['mas', 'mas-scholar-skills'].includes(entry.package_id));
-    assert.deepEqual(unrelatedLocksAfterPackageUpdate, unrelatedLocksBeforePackageUpdate);
-
-    const repairFailure = runCliFailure(['packages', 'repair', 'mas'], fixture.env);
-    assert.equal(
-      repairFailure.payload.error.details.failure_code,
-      'agent_package_bundled_full_runtime_internal_reconcile_required',
-    );
-
-    const expectedMasOwnerSourceCommit = masLock.owner_source_commit;
-    const expectedMasCarrierAuthority = structuredClone(masLock.carrier_authority);
-    const driftedLockIndex = parseJsonText(fs.readFileSync(lockPath, 'utf8')) as Record<string, any>;
-    const driftedMasLock = driftedLockIndex.packages.find((entry: Record<string, any>) => entry.package_id === 'mas');
-    driftedMasLock.owner_source_commit = 'f'.repeat(40);
-    writeJson(lockPath, driftedLockIndex);
-
-    const reconciled = runCli(['system', 'startup-maintenance'], fixture.env) as any;
-    assert.equal(
-      reconciled.system_action.details.full_runtime_package_reconciliation.items.find(
-        (item: Record<string, any>) => item.package_id === 'mas',
-      )?.status,
-      'already_installed',
-    );
-    const reconciledLockIndex = parseJsonText(fs.readFileSync(lockPath, 'utf8')) as Record<string, any>;
-    const reconciledMasLock = reconciledLockIndex.packages.find(
-      (entry: Record<string, any>) => entry.package_id === 'mas',
-    );
-    assert.equal(reconciledMasLock.owner_source_commit, 'f'.repeat(40));
-    assert.notEqual(reconciledMasLock.owner_source_commit, expectedMasOwnerSourceCommit);
-    assert.deepEqual(reconciledMasLock.carrier_authority, expectedMasCarrierAuthority);
-
-    const currentLockIndex = parseJsonText(fs.readFileSync(lockPath, 'utf8')) as Record<string, any>;
-    const currentMasLock = currentLockIndex.packages.find(
-      (entry: Record<string, any>) => entry.package_id === 'mas',
-    );
-    const ledgerPath = path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json');
-    assert.equal(fs.existsSync(ledgerPath), false);
-
-    const statusReadback = runCli(['packages', 'status', '--package-id', 'mas'], fixture.env) as any;
-    assert.equal(statusReadback.opl_agent_package_status.status, 'available');
-    assert.equal(statusReadback.opl_agent_package_status.operational_ready, true);
-    assert.equal(statusReadback.opl_agent_package_status.launch_allowed, true);
-    assert.equal(statusReadback.opl_agent_package_status.launch_blocked_reason, null);
-    assert.equal(statusReadback.opl_agent_package_status.package_dependency_readiness.status, 'current');
-    assert.equal(statusReadback.opl_agent_package_status.package_dependency_readiness.operational_ready, true);
-    assert.equal(statusReadback.opl_agent_package_status.runtime_source_readiness.status, 'current');
-    assert.equal(statusReadback.opl_agent_package_status.runtime_source_readiness.reason, null);
-    assert.equal(
-      statusReadback.opl_agent_package_status.runtime_source_readiness.actual_tree_sha256,
-      statusReadback.opl_agent_package_status.runtime_source_readiness.expected_tree_sha256,
-    );
-    assert.equal(currentMasLock.managed_runtime_source.preparation_scope, 'preexisting_read_only_probe');
-    assert.equal(currentMasLock.managed_runtime_source.preparation_root, null);
-    assert.deepEqual(currentMasLock.managed_runtime_source.health_check_command, []);
-    assert.deepEqual(currentMasLock.managed_runtime_source.handler_probe_command, []);
-    assert.equal(statusReadback.opl_agent_package_status.carrier_authority_readiness.status, 'invalid');
-    assert.equal(statusReadback.opl_agent_package_status.configured_carrier.status, 'installed');
-
-    const workspace = path.join(homeRoot, 'workspace');
-    fs.mkdirSync(workspace, { recursive: true });
-    const bound = runCli([
-      'workspace', 'bind', '--project', 'medautoscience', '--path', workspace,
-    ], fixture.env).workspace_catalog;
-    const boundProject = bound.projects.find(
-      (entry: { project_id: string }) => entry.project_id === 'medautoscience',
-    );
-    assert.equal(bound.action, 'bind');
-    assert.equal(bound.binding.status, 'active');
-    assert.equal(bound.binding.workspace_path, workspace);
-    assert.equal(boundProject.active_binding.binding_id, bound.binding.binding_id);
-    assert.equal(boundProject.bindings[0].workspace_path_currentness.status, 'current');
-    const activation = runCli([
-      'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
-    ], fixture.env);
-    assert.equal(activation.opl_agent_package_activation.status, 'already_activated');
-    assert.equal(activation.opl_agent_package_activation.operational_ready, true);
   } finally {
     removeFixtureTree(homeRoot);
     fs.rmSync(captureDir, { recursive: true, force: true });

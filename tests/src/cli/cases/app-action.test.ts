@@ -311,7 +311,7 @@ test('retired ScholarSkills App actions cannot execute through the generic actio
   }
 });
 
-test('generic package activation action returns the launch binding at the App boundary', async () => {
+test('generic package activation action returns native launch readiness without a legacy binding', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-action-package-activate-'));
   const workspace = path.join(root, 'workspace');
   const providerPackageId = 'fixture.app-action-provider';
@@ -322,6 +322,7 @@ test('generic package activation action returns the launch binding at the App bo
   const consumerManifest = writeMasConsumer(path.join(root, 'consumer'), providerManifest, '0.1.0a4', {
     packageId: consumerPackageId,
     providerPackageId,
+    configuredCarrier: true,
   });
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
@@ -351,131 +352,21 @@ test('generic package activation action returns the launch binding at the App bo
     assert.equal(activation.launch_state_schema_version, 'opl-agent-package-launch-state.v1');
     assert.equal(activation.launch_state, 'ready');
     assert.equal(activation.launch_state_reason, null);
-    assert.deepEqual({
-      launch_state_schema_version: activation.launch_state_schema_version,
-      launch_state: activation.launch_state,
-      launch_state_reason: activation.launch_state_reason,
-    }, {
-      launch_state_schema_version: activation.package_status.launch_state_schema_version,
-      launch_state: activation.package_status.launch_state,
-      launch_state_reason: activation.package_status.launch_state_reason,
-    });
+    assert.equal(activation.status, 'already_activated');
     assert.equal(activation.use_boundary_id, 'app-conversation-create-1');
-    assert.equal(activation.package_use_binding.use_boundary_id, activation.use_boundary_id);
-    assert.equal(Object.hasOwn(activation.package_use_binding, 'use_receipt_ref'), false);
+    assert.equal(Object.hasOwn(activation, 'package_status'), false);
+    assert.equal(Object.hasOwn(activation, 'package_use_binding'), false);
+    assert.equal(Object.hasOwn(activation, 'lifecycle_receipt'), false);
+    assert.equal(Object.hasOwn(activation, 'lifecycle_receipt_ref'), false);
     assert.equal(Object.hasOwn(activation, 'use_receipt_ref'), false);
     assert.equal(Object.hasOwn(activation, 'use_receipt'), false);
-
-    const lockPath = path.join(env.OPL_STATE_DIR, 'agent-package-locks.json');
-    const lockIndex = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
-    const consumerLock = lockIndex.packages.find((entry: any) => entry.package_id === consumerPackageId);
-    const providerLock = lockIndex.packages.find((entry: any) => entry.package_id === providerPackageId);
-    const ownerCommit = 'a'.repeat(40);
-    const releaseDigest = `sha256:${'b'.repeat(64)}`;
-    Object.assign(consumerLock, {
-      source_kind: 'first_party_managed_cohort',
-      owner_source_commit: ownerCommit,
-      release_channel_ref: 'opl://release-set/fixture',
-      release_channel_digest: releaseDigest,
-      carrier_authority: {
-        surface_kind: 'opl_agent_package_carrier_authority.v1',
-        status: 'verified',
-        catalog_ref: 'opl://release-set/fixture',
-        catalog_sha256: releaseDigest,
-        catalog_owner_source_commit: ownerCommit,
-        manifest_carrier_source_commit: ownerCommit,
-        payload_source_commit: ownerCommit,
-        verified_source_commit: ownerCommit,
-      },
-    });
-    fs.writeFileSync(lockPath, `${JSON.stringify(lockIndex, null, 2)}\n`);
-
-    const carrierObservation = runCli([
-      'packages', 'status', '--package-id', consumerPackageId,
-      '--scope', 'workspace', '--target-workspace', workspace,
-    ], env) as any;
-    assert.equal(carrierObservation.opl_agent_package_status.operational_ready, true);
-    assert.equal(carrierObservation.opl_agent_package_status.launch_allowed, true);
-    assert.equal(carrierObservation.opl_agent_package_status.launch_blocked_reason, null);
-    assert.equal(carrierObservation.opl_agent_package_status.carrier_authority_readiness.status, 'current');
-    assert.equal(carrierObservation.opl_agent_package_status.launch_state, 'ready');
-    assert.equal(carrierObservation.opl_agent_package_status.launch_state_reason, null);
-
-    providerLock.exposure_state = 'disabled';
-    fs.writeFileSync(lockPath, `${JSON.stringify(lockIndex, null, 2)}\n`);
-    const hardDependency = runCli([
-      'packages', 'status', '--package-id', consumerPackageId,
-      '--scope', 'workspace', '--target-workspace', workspace,
-    ], env) as any;
-    assert.equal(hardDependency.opl_agent_package_status.launch_allowed, false);
-    assert.equal(hardDependency.opl_agent_package_status.launch_blocked_reason, 'package_dependency_incompatible');
-    assert.equal(hardDependency.opl_agent_package_status.carrier_authority_readiness.status, 'current');
-    assert.equal(hardDependency.opl_agent_package_status.launch_state, 'package_unavailable');
-    assert.equal(hardDependency.opl_agent_package_status.launch_state_reason, 'package_dependency_incompatible');
-
-    providerLock.exposure_state = 'visible';
-    lockIndex.packages = lockIndex.packages.filter((entry: any) => entry.package_id !== providerPackageId);
-    fs.writeFileSync(lockPath, `${JSON.stringify(lockIndex, null, 2)}\n`);
-    const requiredWorkspace = path.join(root, 'required-provider-missing-workspace');
-    const ledgerPath = path.join(env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json');
-    assert.equal(fs.existsSync(ledgerPath), false);
-    const requiredFailure = runCliFailure([
-      'app', 'action', 'execute', '--action', 'agent_package_activate',
-      '--payload', JSON.stringify({
-        package_id: consumerPackageId,
-        scope: 'workspace',
-        target_workspace: requiredWorkspace,
-        use_boundary_id: 'app-conversation-required-provider-missing',
-      }),
-    ], env);
-    assert.equal(requiredFailure.payload.error.code, 'contract_shape_invalid');
-    assert.equal(requiredFailure.payload.error.details.failure_code, 'agent_package_scope_activation_blocked');
-    assert.equal(requiredFailure.payload.error.details.launch_blocked_reason, 'package_dependency_missing');
-    assert.equal(fs.existsSync(ledgerPath), false);
-    assert.equal(fs.existsSync(path.join(requiredWorkspace, '.codex', 'skills')), false);
-
-    consumerLock.capability_dependencies[0].required = false;
-    consumerLock.capability_dependencies[0].dependency_kind = 'optional_enhancement';
-    consumerLock.resolved_dependencies[0].required = false;
-    consumerLock.resolved_dependencies[0].dependency_kind = 'optional_enhancement';
-    fs.writeFileSync(lockPath, `${JSON.stringify(lockIndex, null, 2)}\n`);
-    const optionalWorkspace = path.join(root, 'optional-workspace');
-    const optionalActivation = (await runCliAsync([
-      'app', 'action', 'execute', '--action', 'agent_package_activate',
-      '--payload', JSON.stringify({
-        package_id: consumerPackageId,
-        scope: 'workspace',
-        target_workspace: optionalWorkspace,
-        use_boundary_id: 'app-conversation-optional-provider-missing',
-      }),
-    ], env) as any).app_action_execution.result.opl_agent_package_activation;
-    assert.equal(optionalActivation.writes_performed, true);
-    assert.equal(optionalActivation.launch_allowed, true);
-    assert.equal(optionalActivation.launch_blocked_reason, null);
-    assert.equal(optionalActivation.package_status.package_dependency_readiness.operational_ready, true);
-    assert.equal(optionalActivation.package_status.materialization_readiness.status, 'not_required');
-    assert.equal(optionalActivation.launch_state, 'degraded');
-    assert.equal(optionalActivation.launch_state_reason, 'optional_dependency_missing');
-    assert.deepEqual({
-      launch_state_schema_version: optionalActivation.launch_state_schema_version,
-      launch_state: optionalActivation.launch_state,
-      launch_state_reason: optionalActivation.launch_state_reason,
-    }, {
-      launch_state_schema_version: optionalActivation.package_status.launch_state_schema_version,
-      launch_state: optionalActivation.package_status.launch_state,
-      launch_state_reason: optionalActivation.package_status.launch_state_reason,
-    });
-    assert.deepEqual(optionalActivation.scope_materializations, []);
-    assert.deepEqual(optionalActivation.package_use_binding.provider_packages, []);
-    assert.deepEqual(optionalActivation.package_use_binding.skill_projection.package_lock_refs, [consumerLock.lock_ref]);
-    assert.equal(fs.existsSync(path.join(optionalWorkspace, '.codex', 'skills')), false);
   } finally {
     makeTreeWritable(root);
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('dependency-free activation returns an immutable use binding without a lifecycle ledger', async () => {
+test('lock-only dependency-free activation fails closed without a native carrier', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-action-package-use-receipt-'));
   const stateRoot = path.join(root, 'state');
   const workspace = path.join(root, 'workspace');
@@ -488,7 +379,9 @@ test('dependency-free activation returns an immutable use binding without a life
     const ledgerPath = path.join(stateRoot, 'agent-package-lifecycle-ledger.json');
     fs.rmSync(ledgerPath, { force: true });
     assert.equal(fs.existsSync(ledgerPath), false);
-    const activation = (await runCliAsync([
+    const lockPath = path.join(stateRoot, 'agent-package-locks.json');
+    const lockBytes = fs.readFileSync(lockPath, 'utf8');
+    const failure = runCliFailure([
       'app', 'action', 'execute', '--action', 'agent_package_activate',
       '--payload', JSON.stringify({
         package_id: 'rca',
@@ -496,18 +389,16 @@ test('dependency-free activation returns an immutable use binding without a life
         target_workspace: workspace,
         use_boundary_id: 'dependency-free-use',
       }),
-    ], env) as any).app_action_execution.result.opl_agent_package_activation;
+    ], env);
 
-    assert.equal(activation.lifecycle_receipt, null);
-    assert.equal(Object.hasOwn(activation, 'lifecycle_receipt_ref'), false);
-    assert.equal(Object.hasOwn(activation.package_use_binding, 'use_receipt_ref'), false);
-    assert.equal(Object.hasOwn(activation, 'use_receipt_ref'), false);
-    assert.equal(Object.hasOwn(activation, 'use_receipt'), false);
+    assert.equal(failure.payload.error.code, 'contract_shape_invalid');
     assert.equal(
-      activation.package_use_binding.root_package.package_lock_ref,
-      activation.package_lock.lock_ref,
+      failure.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
     );
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytes);
     assert.equal(fs.existsSync(ledgerPath), false);
+    assert.equal(fs.existsSync(path.join(workspace, '.codex', 'skills')), false);
   } finally {
     makeTreeWritable(root);
     fs.rmSync(root, { recursive: true, force: true });
@@ -543,16 +434,8 @@ test('package activation dry-run stays canonical and disabled preflight performs
     assert.equal(dryRun.writes_performed, false);
     assert.equal(dryRun.operational_ready, false);
     assert.equal(dryRun.launch_allowed, false);
-    assert.equal(dryRun.launch_blocked_reason, null);
-    assert.equal(dryRun.package_status.operational_ready, true);
-    assert.equal(dryRun.package_status.launch_allowed, true);
-    for (const field of [
-      'launch_state_schema_version',
-      'launch_state',
-      'launch_state_reason',
-    ]) {
-      assert.deepEqual(dryRun[field], dryRun.package_status[field], field);
-    }
+    assert.equal(dryRun.launch_blocked_reason, 'package_not_installed');
+    assert.equal(Object.hasOwn(dryRun, 'package_status'), false);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBeforeDryRun);
     assert.equal(fs.existsSync(ledgerPath), false);
 
@@ -570,8 +453,10 @@ test('package activation dry-run stays canonical and disabled preflight performs
       }),
     ], env);
     assert.equal(failure.payload.error.code, 'contract_shape_invalid');
-    assert.equal(failure.payload.error.details.failure_code, 'agent_package_scope_activation_blocked');
-    assert.equal(failure.payload.error.details.launch_blocked_reason, 'package_disabled');
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
+    );
     assert.equal(fs.readFileSync(lockPath, 'utf8'), disabledLockBefore);
     assert.equal(fs.existsSync(ledgerPath), false);
     assert.equal(fs.existsSync(path.join(workspace, '.codex', 'skills')), false);

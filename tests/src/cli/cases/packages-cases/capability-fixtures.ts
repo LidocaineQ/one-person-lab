@@ -484,6 +484,7 @@ export function writeMasConsumer(
     requiredModuleIds?: string[];
     required?: boolean;
     dependencyKind?: 'hard_runtime_dependency' | 'optional_enhancement';
+    configuredCarrier?: boolean;
   } = {},
 ) {
   const packageVersion = version.replace(/^(\d+\.\d+\.\d+)a(\d+)$/, '$1-alpha.$2');
@@ -491,6 +492,9 @@ export function writeMasConsumer(
   const dependencyRequired = options.required ?? true;
   const pluginId = options.pluginId ?? (agentId === 'mas' ? 'med-autoscience' : agentId);
   const pluginRoot = path.join(root, 'plugins', pluginId);
+  if (options.configuredCarrier) {
+    fs.mkdirSync(path.join(root, '.agents', 'plugins'), { recursive: true });
+  }
   fs.mkdirSync(path.join(pluginRoot, '.codex-plugin'), { recursive: true });
   fs.mkdirSync(path.join(pluginRoot, 'skills', pluginId), { recursive: true });
   fs.writeFileSync(path.join(pluginRoot, '.codex-plugin', 'plugin.json'), formatJsonPayload({
@@ -501,9 +505,22 @@ export function writeMasConsumer(
     path.join(pluginRoot, 'skills', pluginId, 'SKILL.md'),
     `# ${pluginId}\n`,
   );
+  if (options.configuredCarrier) {
+    fs.writeFileSync(path.join(root, '.agents', 'plugins', 'marketplace.json'), formatJsonPayload({
+      name: `${pluginId}-local`,
+      plugins: [{
+        name: pluginId,
+        source: { source: 'local', path: `./plugins/${pluginId}` },
+      }],
+    }));
+  }
   const manifestPath = path.join(root, 'mas.json');
   fs.writeFileSync(manifestPath, formatJsonPayload({
     surface_kind: 'opl_agent_package_manifest.v1',
+    ...(options.configuredCarrier ? {
+      kind: 'agent',
+      domain_id: agentId === 'mas' ? 'medautoscience' : agentId,
+    } : {}),
     agent_id: agentId,
     package_id: options.packageId ?? 'mas',
     display_name: 'Med Auto Science',
@@ -523,6 +540,15 @@ export function writeMasConsumer(
     codex_surface: {
       plugin_id: pluginId,
       plugin_source_path: pluginRoot,
+      ...(options.configuredCarrier ? {
+        configured_codex_plugin_carrier: {
+          kind: 'codex_plugin_manager',
+          plugin_selector: `${pluginId}@${pluginId}-local`,
+          executor_route: 'codex_cli',
+          marketplace_source: root,
+          publication_ref: `ghcr.io/fixture/one-person-lab-packages/${options.packageId ?? 'mas'}:latest-stable`,
+        },
+      } : {}),
       required_skill_ids: [pluginId],
     },
     ...(options.runtimeSourceCarrier ? {
@@ -569,6 +595,9 @@ export function writeMasConsumer(
       },
     }],
   }));
+  if (options.configuredCarrier) {
+    fs.copyFileSync(manifestPath, path.join(pluginRoot, 'opl-package.json'));
+  }
   return manifestPath;
 }
 
@@ -774,6 +803,12 @@ export function writeDeveloperCapabilityCheckoutClosure(input: {
   providerManifestPath: string;
 }) {
   const masManifest = JSON.parse(fs.readFileSync(input.masManifestPath, 'utf8'));
+  const ownerDescriptorPath = path.join(
+    path.dirname(input.masManifestPath),
+    'plugins',
+    'med-autoscience',
+    'opl-package.json',
+  );
   const providerRoot = path.dirname(input.providerManifestPath);
   fs.mkdirSync(path.join(input.masCheckout, 'contracts'), { recursive: true });
   fs.mkdirSync(path.join(input.masCheckout, 'plugins', 'med-autoscience', '.codex-plugin'), {
@@ -796,6 +831,12 @@ export function writeDeveloperCapabilityCheckoutClosure(input: {
       description: 'Developer checkout fixture.',
     }),
   );
+  if (fs.existsSync(ownerDescriptorPath)) {
+    fs.copyFileSync(
+      ownerDescriptorPath,
+      path.join(input.masCheckout, 'plugins', 'med-autoscience', 'opl-package.json'),
+    );
+  }
   fs.writeFileSync(
     path.join(input.masCheckout, 'plugins', 'med-autoscience', 'skills', 'med-autoscience', 'SKILL.md'),
     '# Med Auto Science\n\nDeveloper checkout fixture.\n',
