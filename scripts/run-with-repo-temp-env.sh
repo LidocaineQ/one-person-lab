@@ -70,9 +70,9 @@ export XDG_STATE_HOME="${repo_temp_root}/xdg-state"
 if [ -n "${source_home}" ]; then
   export CARGO_HOME="${CARGO_HOME:-${source_home}/.cargo}"
   export RUSTUP_HOME="${RUSTUP_HOME:-${source_home}/.rustup}"
-  # Preserve a real interpreter when the caller's python3 wrapper resolves through $HOME.
-  if [ -x "${source_home}/.py-global/bin/python3" ]; then
-    export PATH="${source_home}/.py-global/bin:${PATH}"
+  # Preserve the uv-managed interpreter after HOME is isolated.
+  if [ -x "${source_home}/.local/bin/python3" ]; then
+    export PATH="${source_home}/.local/bin:${PATH}"
   fi
 fi
 

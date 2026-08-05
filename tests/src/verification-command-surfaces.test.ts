@@ -95,7 +95,7 @@ test('repo hygiene blocks checkout-local OPL runtime state drift', () => {
 test('repo temp env wrapper routes tool caches outside the checkout', () => {
   const sourceHome = fs.mkdtempSync(path.join(process.env.OPL_REPO_TEMP_ROOT || '/tmp', 'opl-source-home-'));
   const sourceCodexHome = path.join(sourceHome, '.codex');
-  const sourcePython = path.join(sourceHome, '.py-global', 'bin', 'python3');
+  const sourcePython = path.join(sourceHome, '.local', 'bin', 'python3');
   const sourceConfig = path.join(sourceCodexHome, 'config.toml');
   fs.mkdirSync(sourceCodexHome, { recursive: true });
   fs.mkdirSync(path.dirname(sourcePython), { recursive: true });

@@ -198,6 +198,13 @@ function workerSupervisorProgramArguments(paths: RuntimePaths) {
   ];
 }
 
+function withoutRetiredPythonEnvironment(value: string) {
+  return value
+    .split(path.delimiter)
+    .filter((entry) => !/(?:^|\/)\.py-global\/bin\/?$/.test(entry.replaceAll('\\', '/')))
+    .join(path.delimiter);
+}
+
 export function providerWorkerSupervisorEnvironmentVariables(
   paths: RuntimePaths,
   environment: ProviderWorkerSupervisorEnvironment = process.env,
@@ -208,7 +215,7 @@ export function providerWorkerSupervisorEnvironmentVariables(
   };
   const pathEnv = environment.PATH?.trim();
   if (pathEnv) {
-    values.PATH = pathEnv;
+    values.PATH = withoutRetiredPythonEnvironment(pathEnv);
   }
   const codexBinary = resolveCodexBinary();
   if (codexBinary) {

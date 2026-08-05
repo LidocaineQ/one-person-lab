@@ -120,6 +120,26 @@ test('provider-worker supervisor omits every OwnerGate variable when BIN is abse
   }
 });
 
+test('provider-worker supervisor excludes the retired shared Python environment from PATH', () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'opl-provider-worker-python-path-'));
+  try {
+    const environment = {
+      PATH: [
+        '/Users/example/.local/bin',
+        '/Users/example/.py-global/bin',
+        '/usr/bin',
+      ].join(path.delimiter),
+    };
+    const values = providerWorkerSupervisorEnvironmentVariables(runtimePaths(root), environment);
+    assert.equal(
+      values.PATH,
+      ['/Users/example/.local/bin', '/usr/bin'].join(path.delimiter),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('provider-worker supervisor persists an explicit Temporal namespace and omits it otherwise', () => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'opl-temporal-namespace-supervisor-'));
   try {
