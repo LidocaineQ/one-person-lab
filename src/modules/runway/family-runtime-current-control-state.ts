@@ -21,6 +21,7 @@ import {
   buildStageProgressLog,
   summarizeStageProgressLogs,
 } from './family-runtime-stage-progress-log.ts';
+import type { StandardAgentProgressDeltaKeySet } from '../connect/index.ts';
 import {
   buildStageRunCurrentnessIdentity,
   missingStageRunCurrentnessIdentityFields,
@@ -252,6 +253,7 @@ function currentStageProgressLog(
   providerRun: Record<string, unknown>,
   activityEvents: unknown[],
   latestCloseout: Record<string, unknown>,
+  progressDeltaKeys?: StandardAgentProgressDeltaKeySet,
 ) {
   if (!current) {
     return null;
@@ -317,6 +319,7 @@ function currentStageProgressLog(
     modelRouteCostProjection,
     createdAt: current.created_at,
     updatedAt: current.updated_at,
+    progressDeltaKeys,
   });
 }
 
@@ -584,11 +587,22 @@ export function deriveCurrentControlStateForTask(db: DatabaseSync, taskId: strin
   return deriveCurrentControlStateFromRows(db, taskId, task, attempts, current);
 }
 
-export function deriveCurrentControlStateForAttempt(db: DatabaseSync, stageAttemptId: string) {
+export function deriveCurrentControlStateForAttempt(
+  db: DatabaseSync,
+  stageAttemptId: string,
+  options: { progressDeltaKeys?: StandardAgentProgressDeltaKeySet } = {},
+) {
   const current = readAttempt(db, stageAttemptId);
   const task = readTaskForAttempt(db, current);
   const attempts = current?.task_id ? readAttempts(db, current.task_id) : current ? [current] : [];
-  return deriveCurrentControlStateFromRows(db, current?.task_id ?? null, task, attempts, current);
+  return deriveCurrentControlStateFromRows(
+    db,
+    current?.task_id ?? null,
+    task,
+    attempts,
+    current,
+    options.progressDeltaKeys,
+  );
 }
 
 function deriveCurrentControlStateFromRows(
@@ -597,6 +611,7 @@ function deriveCurrentControlStateFromRows(
   task: FamilyRuntimeTaskRow | undefined,
   attempts: ControlAttemptRow[],
   current: ControlAttemptRow | undefined,
+  progressDeltaKeys?: StandardAgentProgressDeltaKeySet,
 ) {
   const taskPayload = parseRecord(task?.payload_json);
   const latestCloseout = current ? readLatestCloseoutPacket(db, current.stage_attempt_id) : {};
@@ -634,7 +649,13 @@ function deriveCurrentControlStateFromRows(
   const staleWorkUnit = staleWorkUnitDiagnostic(db, task, taskPayload, current, liveProviderAttempt);
   const projectedLiveProviderAttempt = liveProviderAttempt && !staleWorkUnit;
   const closeoutRefs = current ? stringList(parseList(current.closeout_refs_json)) : [];
-  const stageProgressLog = currentStageProgressLog(current, livenessProviderRun, activityEvents, latestCloseout);
+  const stageProgressLog = currentStageProgressLog(
+    current,
+    livenessProviderRun,
+    activityEvents,
+    latestCloseout,
+    progressDeltaKeys,
+  );
   const missingIdentity = requiredIdentityMissing(task, current);
   const staleEpochs = task && current ? staleEpochKinds(taskPayload, current) : [];
   const ownerReceiptRefs = uniqueStrings([

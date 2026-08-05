@@ -22,8 +22,6 @@ import {
   test,
 } from '../helpers.ts';
 import { writeCapabilityCatalog } from './packages-cases/capability-fixtures.ts';
-import { readStandardAgentDescriptorInterface } from '../../../../src/kernel/standard-agent-interface.ts';
-import { readInstalledStandardAgentDescriptorForPackage } from '../../../../src/modules/connect/standard-agent-interface-discovery.ts';
 
 test('contract validate honors explicit contract-root provenance', () => {
   const { fixtureRoot, fixtureContractsRoot } = createContractsFixtureRoot(() => {});
@@ -301,15 +299,21 @@ test('domain selection routes representative admitted boundary and candidate-lan
   }
 });
 
-test('domain selection uses installed carrier domain routing signals for natural-language goals', () => {
+test('domain selection uses installed owner descriptor routing signals for natural-language goals', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-atlas-package-lock-'));
   const domainRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-atlas-domain-'));
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-atlas-package-home-'));
   const codexFixture = createFakeCodexPluginManagerFixture(path.join(homeRoot, 'fixture-bin'));
-  const previousProcessEnv = new Map<string, string | undefined>();
+  const previousStateRoot = process.env.OPL_STATE_DIR;
+  const previousCodexHome = process.env.CODEX_HOME;
+  const previousCodexPluginBin = process.env.OPL_CODEX_PLUGIN_BIN;
+  const previousPath = process.env.PATH;
   try {
     fs.mkdirSync(path.join(domainRepo, 'contracts'), { recursive: true });
     fs.mkdirSync(path.join(domainRepo, 'scripts'), { recursive: true });
+    fs.mkdirSync(path.join(domainRepo, '.codex-plugin'), { recursive: true });
+    fs.mkdirSync(path.join(domainRepo, '.agents', 'plugins'), { recursive: true });
+    fs.mkdirSync(path.join(domainRepo, 'skills', 'redcube-ai'), { recursive: true });
     fs.writeFileSync(path.join(domainRepo, 'contracts', 'domain_descriptor.json'), `${JSON.stringify({
       kind: 'agent',
       agent_id: 'rca',
@@ -348,25 +352,6 @@ test('domain selection uses installed carrier domain routing signals for natural
       fs.mkdirSync(path.dirname(targetPath), { recursive: true });
       fs.writeFileSync(targetPath, content);
     }
-    const pluginRoot = domainRepo;
-    fs.mkdirSync(path.join(domainRepo, '.agents', 'plugins'), { recursive: true });
-    fs.mkdirSync(path.join(pluginRoot, '.codex-plugin'), { recursive: true });
-    fs.mkdirSync(path.join(pluginRoot, 'skills', 'redcube-ai'), { recursive: true });
-    fs.writeFileSync(
-      path.join(domainRepo, '.agents', 'plugins', 'marketplace.json'),
-      `${JSON.stringify({
-        name: 'redcube-ai-local',
-        plugins: [{ name: 'redcube-ai', source: { source: 'local', path: '.' } }],
-      }, null, 2)}\n`,
-    );
-    fs.writeFileSync(
-      path.join(pluginRoot, '.codex-plugin', 'plugin.json'),
-      `${JSON.stringify({ name: 'redcube-ai', version: '0.0.0-test' }, null, 2)}\n`,
-    );
-    fs.copyFileSync(
-      path.join(domainRepo, 'agent', 'primary_skill', 'SKILL.md'),
-      path.join(pluginRoot, 'skills', 'redcube-ai', 'SKILL.md'),
-    );
     fs.writeFileSync(path.join(domainRepo, 'package.json'), `${JSON.stringify({
       name: 'redcube-ai-fixture',
       scripts: { redcube: 'node scripts/handler.mjs' },
@@ -380,8 +365,17 @@ test('domain selection uses installed carrier domain routing signals for natural
       'set -euo pipefail',
       "printf 'redcube-health-ready\\n'",
     ].join('\n'), { mode: 0o755 });
+    fs.writeFileSync(path.join(domainRepo, '.codex-plugin', 'plugin.json'), `${JSON.stringify({
+      name: 'redcube-ai',
+      version: '0.0.0-test',
+    })}\n`);
+    fs.writeFileSync(path.join(domainRepo, '.agents', 'plugins', 'marketplace.json'), `${JSON.stringify({
+      name: 'redcube-ai-local',
+      plugins: [{ name: 'redcube-ai', source: { source: 'local', path: './' } }],
+    })}\n`);
+    fs.writeFileSync(path.join(domainRepo, 'skills', 'redcube-ai', 'SKILL.md'), '# RedCube AI fixture\n');
     const manifestPath = path.join(domainRepo, 'rca-package-manifest.json');
-    fs.writeFileSync(manifestPath, `${JSON.stringify({
+    const packageManifest = {
       surface_kind: 'opl_agent_package_manifest.v1',
       package_id: 'rca',
       agent_id: 'rca',
@@ -392,7 +386,6 @@ test('domain selection uses installed carrier domain routing signals for natural
       carrier_source_role: 'codex_plugin_default_carrier_not_package_truth',
       codex_surface: {
         plugin_id: 'redcube-ai',
-        plugin_source_path: '.',
         configured_codex_plugin_carrier: {
           kind: 'codex_plugin_manager',
           plugin_selector: 'redcube-ai@redcube-ai-local',
@@ -407,8 +400,10 @@ test('domain selection uses installed carrier domain routing signals for natural
         carrier_kind: 'opl_managed_module_source',
         module_id: 'redcube',
       },
-    }, null, 2)}\n`);
-    fs.copyFileSync(manifestPath, path.join(pluginRoot, 'opl-package.json'));
+    };
+    const packageManifestJson = `${JSON.stringify(packageManifest, null, 2)}\n`;
+    fs.writeFileSync(manifestPath, packageManifestJson);
+    fs.writeFileSync(path.join(domainRepo, 'opl-package.json'), packageManifestJson);
     const releaseSet = writeCapabilityCatalog(path.join(stateRoot, 'release-set'), [manifestPath]);
     const packageEnv = {
       HOME: homeRoot,
@@ -422,27 +417,14 @@ test('domain selection uses installed carrier domain routing signals for natural
     runCli(['packages', 'install', 'rca'], packageEnv);
     const status = runCli(['packages', 'status', '--package-id', 'rca'], packageEnv)
       .opl_agent_package_status;
-    assert.equal(status.operational_ready, true);
-    assert.equal(status.runtime_source_readiness.status, 'not_required');
-    assert.equal(status.runtime_source_readiness.operational_ready, true);
     assert.equal(status.configured_carrier.status, 'installed');
-    assert.equal(status.configured_carrier.executor.status, 'callable');
-    assert.equal(
-      fs.realpathSync.native(status.configured_carrier.plugin_source_path),
-      fs.realpathSync.native(domainRepo),
-    );
-    for (const [key, value] of Object.entries(packageEnv)) {
-      previousProcessEnv.set(key, process.env[key]);
-      process.env[key] = value;
-    }
-    const physicalDescriptor = readStandardAgentDescriptorInterface(domainRepo);
-    assert.equal(physicalDescriptor?.package_id, 'rca');
-    const installedDescriptor = readInstalledStandardAgentDescriptorForPackage('rca');
-    assert.equal(installedDescriptor?.package_id, 'rca');
-    assert.equal(
-      fs.realpathSync.native(installedDescriptor?.repo_dir ?? ''),
-      fs.realpathSync.native(domainRepo),
-    );
+    assert.equal(status.installed_readiness.callability, 'callable');
+    assert.equal(status.operational_ready, true);
+    assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-locks.json')), false);
+    process.env.OPL_STATE_DIR = stateRoot;
+    process.env.CODEX_HOME = packageEnv.CODEX_HOME;
+    process.env.OPL_CODEX_PLUGIN_BIN = packageEnv.OPL_CODEX_PLUGIN_BIN;
+    process.env.PATH = packageEnv.PATH;
     const resolution = selectDomainAgentEntry({
       intent: 'create',
       target: 'deliverable',
@@ -452,10 +434,14 @@ test('domain selection uses installed carrier domain routing signals for natural
     assert.equal('domain_id' in resolution ? resolution.domain_id : null, 'redcube');
     assert.equal('workstream_id' in resolution ? resolution.workstream_id : null, 'presentation_ops');
   } finally {
-    for (const [key, value] of previousProcessEnv) {
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
-    }
+    if (previousStateRoot === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateRoot;
+    if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = previousCodexHome;
+    if (previousCodexPluginBin === undefined) delete process.env.OPL_CODEX_PLUGIN_BIN;
+    else process.env.OPL_CODEX_PLUGIN_BIN = previousCodexPluginBin;
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
     fs.rmSync(stateRoot, { recursive: true, force: true });
     fs.rmSync(domainRepo, { recursive: true, force: true });
     fs.rmSync(homeRoot, { recursive: true, force: true });

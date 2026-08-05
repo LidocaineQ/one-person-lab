@@ -489,12 +489,12 @@ export function writeMasConsumer(
 ) {
   const packageVersion = version.replace(/^(\d+\.\d+\.\d+)a(\d+)$/, '$1-alpha.$2');
   const agentId = options.agentId ?? 'mas';
+  const packageId = options.packageId ?? 'mas';
   const dependencyRequired = options.required ?? true;
   const pluginId = options.pluginId ?? (agentId === 'mas' ? 'med-autoscience' : agentId);
+  const marketplaceId = `${pluginId}-local`;
+  const configuredCarrier = options.configuredCarrier === true;
   const pluginRoot = path.join(root, 'plugins', pluginId);
-  if (options.configuredCarrier) {
-    fs.mkdirSync(path.join(root, '.agents', 'plugins'), { recursive: true });
-  }
   fs.mkdirSync(path.join(pluginRoot, '.codex-plugin'), { recursive: true });
   fs.mkdirSync(path.join(pluginRoot, 'skills', pluginId), { recursive: true });
   fs.writeFileSync(path.join(pluginRoot, '.codex-plugin', 'plugin.json'), formatJsonPayload({
@@ -505,9 +505,10 @@ export function writeMasConsumer(
     path.join(pluginRoot, 'skills', pluginId, 'SKILL.md'),
     `# ${pluginId}\n`,
   );
-  if (options.configuredCarrier) {
+  if (configuredCarrier) {
+    fs.mkdirSync(path.join(root, '.agents', 'plugins'), { recursive: true });
     fs.writeFileSync(path.join(root, '.agents', 'plugins', 'marketplace.json'), formatJsonPayload({
-      name: `${pluginId}-local`,
+      name: marketplaceId,
       plugins: [{
         name: pluginId,
         source: { source: 'local', path: `./plugins/${pluginId}` },
@@ -515,14 +516,10 @@ export function writeMasConsumer(
     }));
   }
   const manifestPath = path.join(root, 'mas.json');
-  fs.writeFileSync(manifestPath, formatJsonPayload({
+  const manifest = {
     surface_kind: 'opl_agent_package_manifest.v1',
-    ...(options.configuredCarrier ? {
-      kind: 'agent',
-      domain_id: agentId === 'mas' ? 'medautoscience' : agentId,
-    } : {}),
     agent_id: agentId,
-    package_id: options.packageId ?? 'mas',
+    package_id: packageId,
     display_name: 'Med Auto Science',
     publisher: 'one-person-lab',
     version: packageVersion,
@@ -540,13 +537,13 @@ export function writeMasConsumer(
     codex_surface: {
       plugin_id: pluginId,
       plugin_source_path: pluginRoot,
-      ...(options.configuredCarrier ? {
+      ...(configuredCarrier ? {
         configured_codex_plugin_carrier: {
           kind: 'codex_plugin_manager',
-          plugin_selector: `${pluginId}@${pluginId}-local`,
+          plugin_selector: `${pluginId}@${marketplaceId}`,
           executor_route: 'codex_cli',
           marketplace_source: root,
-          publication_ref: `ghcr.io/fixture/one-person-lab-packages/${options.packageId ?? 'mas'}:latest-stable`,
+          publication_ref: `ghcr.io/fixture/one-person-lab-packages/${packageId}:latest-stable`,
         },
       } : {}),
       required_skill_ids: [pluginId],
@@ -594,10 +591,10 @@ export function writeMasConsumer(
         can_write_runtime_queue: false,
       },
     }],
-  }));
-  if (options.configuredCarrier) {
-    fs.copyFileSync(manifestPath, path.join(pluginRoot, 'opl-package.json'));
-  }
+  };
+  const manifestJson = formatJsonPayload(manifest);
+  fs.writeFileSync(manifestPath, manifestJson);
+  if (configuredCarrier) fs.writeFileSync(path.join(pluginRoot, 'opl-package.json'), manifestJson);
   return manifestPath;
 }
 

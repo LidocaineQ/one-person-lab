@@ -6,12 +6,12 @@
     "mas": {
       "package_id": "mas",
       "package_role": "standard_agent",
-      "package_version": "0.2.23",
-      "owner_source_commit": "3f6b90ccd99e978a9229c7395099b6e6e0e728fd",
-      "manifest_ref": "packages/mas-0.2.23.json",
-      "manifest_sha256": "sha256:6961364165b82326fbe4018f256eb15b96fce0df34a1502d781c539fe7e796da",
-      "payload_manifest_ref": "packages/payloads/mas-0.2.23.json",
-      "payload_manifest_sha256": "sha256:14f4993c256c15b4ff0283ee9c4806e6a4917ec14866480de718a230950b56f8",
+      "package_version": "0.2.24",
+      "owner_source_commit": "72cd9ff1310826ea8264732df53d7b9f31594618",
+      "manifest_ref": "packages/mas-0.2.24.json",
+      "manifest_sha256": "sha256:79cf11603e8ca6e4013615d99ec65904bdda4c8c4673a3ced56a72a92abeb653",
+      "payload_manifest_ref": "packages/payloads/mas-0.2.24.json",
+      "payload_manifest_sha256": "sha256:d965e5495bbdc8da09d9be6328e15f57df4ef7d5e11c97fc96566dc2273b90e4",
       "runtime_module_relative_path": "modules/mas"
     },
     "mag": {
@@ -28,12 +28,12 @@
     "rca": {
       "package_id": "rca",
       "package_role": "standard_agent",
-      "package_version": "0.2.11",
-      "owner_source_commit": "8a814a080e54d7c0012dd0e2034dd229dc4d2d9d",
-      "manifest_ref": "packages/rca-0.2.11.json",
-      "manifest_sha256": "sha256:69c13a90941bf32d74c7445a392ea71a06bbb8f3567d76abbff5807f69895086",
-      "payload_manifest_ref": "packages/payloads/rca-0.2.11.json",
-      "payload_manifest_sha256": "sha256:d007749f12bd3dddf0e16046d2d6b65323e98adcf50dbbae286047a5fae76bd4",
+      "package_version": "0.2.12",
+      "owner_source_commit": "d79dadaf04cc7a64170b041aed3e17092dee67b8",
+      "manifest_ref": "packages/rca-0.2.12.json",
+      "manifest_sha256": "sha256:8c6329faad5f982e33f30bff328fef92f4912dfede7c05eb94ba20282f84f9fe",
+      "payload_manifest_ref": "packages/payloads/rca-0.2.12.json",
+      "payload_manifest_sha256": "sha256:05fd42cd1b8e3ee43ac2ea3e127093bf57d48da1fbb6e6d6a0456349ed43991f",
       "runtime_module_relative_path": "modules/rca"
     },
     "oma": {

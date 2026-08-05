@@ -1,7 +1,6 @@
 import {
   assert,
   fs,
-  installRuntimePackageFixture,
   os,
   path,
   runCli,
@@ -311,7 +310,7 @@ test('retired ScholarSkills App actions cannot execute through the generic actio
   }
 });
 
-test('generic package activation action returns native launch readiness without a legacy binding', async () => {
+test('generic package activation action preserves the native carrier boundary in App', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-action-package-activate-'));
   const workspace = path.join(root, 'workspace');
   const providerPackageId = 'fixture.app-action-provider';
@@ -353,20 +352,37 @@ test('generic package activation action returns native launch readiness without 
     assert.equal(activation.launch_state, 'ready');
     assert.equal(activation.launch_state_reason, null);
     assert.equal(activation.status, 'already_activated');
+    assert.equal(activation.writes_performed, false);
     assert.equal(activation.use_boundary_id, 'app-conversation-create-1');
     assert.equal(Object.hasOwn(activation, 'package_status'), false);
     assert.equal(Object.hasOwn(activation, 'package_use_binding'), false);
-    assert.equal(Object.hasOwn(activation, 'lifecycle_receipt'), false);
-    assert.equal(Object.hasOwn(activation, 'lifecycle_receipt_ref'), false);
     assert.equal(Object.hasOwn(activation, 'use_receipt_ref'), false);
     assert.equal(Object.hasOwn(activation, 'use_receipt'), false);
+
+    const lockPath = path.join(env.OPL_STATE_DIR, 'agent-package-locks.json');
+    const carrierObservation = runCli([
+      'packages', 'status', '--package-id', consumerPackageId,
+      '--scope', 'workspace', '--target-workspace', workspace,
+    ], env) as any;
+    assert.equal(carrierObservation.opl_agent_package_status.operational_ready, true);
+    assert.equal(carrierObservation.opl_agent_package_status.launch_allowed, true);
+    assert.equal(carrierObservation.opl_agent_package_status.launch_blocked_reason, null);
+    assert.equal(carrierObservation.opl_agent_package_status.configured_carrier.status, 'installed');
+    assert.equal(carrierObservation.opl_agent_package_status.installed_readiness.callability, 'callable');
+    assert.equal(carrierObservation.opl_agent_package_status.launch_state, 'ready');
+    assert.equal(carrierObservation.opl_agent_package_status.launch_state_reason, null);
+    const ledgerPath = path.join(env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json');
+    assert.equal(fs.existsSync(lockPath), false);
+    assert.equal(fs.existsSync(ledgerPath), false);
+    assert.equal(fs.existsSync(path.join(env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite')), false);
+    assert.equal(fs.existsSync(path.join(workspace, '.codex', 'skills')), false);
   } finally {
     makeTreeWritable(root);
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('lock-only dependency-free activation fails closed without a native carrier', () => {
+test('native activation returns no private use binding or lifecycle state', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-action-package-use-receipt-'));
   const stateRoot = path.join(root, 'state');
   const workspace = path.join(root, 'workspace');
@@ -375,29 +391,47 @@ test('lock-only dependency-free activation fails closed without a native carrier
     CODEX_HOME: path.join(root, 'codex-home'),
   };
   try {
-    installRuntimePackageFixture(stateRoot, 'rca');
+    const packageId = 'fixture.rca-native';
+    const providerPackageId = 'fixture.rca-provider';
+    const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0', {
+      packageId: providerPackageId,
+    });
+    const manifest = writeMasConsumer(path.join(root, 'rca'), providerManifest, '0.1.0a4', {
+      packageId,
+      providerPackageId,
+      agentId: 'rca',
+      pluginId: 'redcube-ai',
+      configuredCarrier: true,
+    });
+    await runCliAsync([
+      'packages', 'install', '--manifest-url', manifest, '--trust-tier', 'third_party_unverified',
+    ], env);
     const ledgerPath = path.join(stateRoot, 'agent-package-lifecycle-ledger.json');
     fs.rmSync(ledgerPath, { force: true });
     assert.equal(fs.existsSync(ledgerPath), false);
-    const lockPath = path.join(stateRoot, 'agent-package-locks.json');
-    const lockBytes = fs.readFileSync(lockPath, 'utf8');
-    const failure = runCliFailure([
+    const activation = (await runCliAsync([
       'app', 'action', 'execute', '--action', 'agent_package_activate',
       '--payload', JSON.stringify({
-        package_id: 'rca',
+        package_id: packageId,
         scope: 'workspace',
         target_workspace: workspace,
         use_boundary_id: 'dependency-free-use',
       }),
-    ], env);
+    ], env) as any).app_action_execution.result.opl_agent_package_activation;
 
-    assert.equal(failure.payload.error.code, 'contract_shape_invalid');
-    assert.equal(
-      failure.payload.error.details.failure_code,
-      'agent_package_lifecycle_native_owner_required',
-    );
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytes);
+    assert.equal(activation.status, 'already_activated');
+    assert.equal(activation.writes_performed, false);
+    assert.equal(activation.operational_ready, true);
+    assert.equal(activation.launch_allowed, true);
+    assert.equal(Object.hasOwn(activation, 'lifecycle_receipt'), false);
+    assert.equal(Object.hasOwn(activation, 'lifecycle_receipt_ref'), false);
+    assert.equal(Object.hasOwn(activation, 'package_use_binding'), false);
+    assert.equal(Object.hasOwn(activation, 'package_lock'), false);
+    assert.equal(Object.hasOwn(activation, 'use_receipt_ref'), false);
+    assert.equal(Object.hasOwn(activation, 'use_receipt'), false);
+    assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(ledgerPath), false);
+    assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-lifecycle.sqlite')), false);
     assert.equal(fs.existsSync(path.join(workspace, '.codex', 'skills')), false);
   } finally {
     makeTreeWritable(root);
@@ -405,7 +439,7 @@ test('lock-only dependency-free activation fails closed without a native carrier
   }
 });
 
-test('package activation dry-run stays canonical and disabled preflight performs no writes', async () => {
+test('package activation dry-run leaves the native carrier and private state untouched', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-action-package-preflight-'));
   const stateRoot = path.join(root, 'state');
   const workspace = path.join(root, 'workspace');
@@ -414,16 +448,30 @@ test('package activation dry-run stays canonical and disabled preflight performs
     CODEX_HOME: path.join(stateRoot, 'codex-home'),
   };
   try {
-    installRuntimePackageFixture(stateRoot, 'rca');
+    const packageId = 'fixture.rca-native-dry-run';
+    const providerPackageId = 'fixture.rca-dry-run-provider';
+    const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0', {
+      packageId: providerPackageId,
+    });
+    const manifest = writeMasConsumer(path.join(root, 'rca'), providerManifest, '0.1.0a4', {
+      packageId,
+      providerPackageId,
+      agentId: 'rca',
+      pluginId: 'redcube-ai',
+      configuredCarrier: true,
+    });
+    await runCliAsync([
+      'packages', 'install', '--manifest-url', manifest, '--trust-tier', 'third_party_unverified',
+    ], env);
     const lockPath = path.join(stateRoot, 'agent-package-locks.json');
     const ledgerPath = path.join(stateRoot, 'agent-package-lifecycle-ledger.json');
     fs.rmSync(ledgerPath, { force: true });
-    const lockBeforeDryRun = fs.readFileSync(lockPath, 'utf8');
+    assert.equal(fs.existsSync(lockPath), false);
     assert.equal(fs.existsSync(ledgerPath), false);
     const dryRun = (await runCliAsync([
       'app', 'action', 'execute', '--action', 'agent_package_activate', '--dry-run',
       '--payload', JSON.stringify({
-        package_id: 'rca',
+        package_id: packageId,
         scope: 'workspace',
         target_workspace: workspace,
         use_boundary_id: 'dependency-free-dry-run',
@@ -432,33 +480,16 @@ test('package activation dry-run stays canonical and disabled preflight performs
 
     assert.equal(dryRun.status, 'validated_no_write');
     assert.equal(dryRun.writes_performed, false);
-    assert.equal(dryRun.operational_ready, false);
-    assert.equal(dryRun.launch_allowed, false);
-    assert.equal(dryRun.launch_blocked_reason, 'package_not_installed');
+    assert.equal(dryRun.operational_ready, true);
+    assert.equal(dryRun.launch_allowed, true);
+    assert.equal(dryRun.launch_blocked_reason, null);
+    assert.equal(dryRun.launch_state, 'ready');
+    assert.equal(dryRun.launch_state_reason, null);
     assert.equal(Object.hasOwn(dryRun, 'package_status'), false);
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBeforeDryRun);
+    assert.equal(Object.hasOwn(dryRun, 'package_use_binding'), false);
+    assert.equal(fs.existsSync(lockPath), false);
     assert.equal(fs.existsSync(ledgerPath), false);
-
-    const lockIndex = JSON.parse(lockBeforeDryRun);
-    lockIndex.packages[0].exposure_state = 'disabled';
-    fs.writeFileSync(lockPath, `${JSON.stringify(lockIndex, null, 2)}\n`);
-    const disabledLockBefore = fs.readFileSync(lockPath, 'utf8');
-    const failure = runCliFailure([
-      'app', 'action', 'execute', '--action', 'agent_package_activate',
-      '--payload', JSON.stringify({
-        package_id: 'rca',
-        scope: 'workspace',
-        target_workspace: workspace,
-        use_boundary_id: 'disabled-package-preflight',
-      }),
-    ], env);
-    assert.equal(failure.payload.error.code, 'contract_shape_invalid');
-    assert.equal(
-      failure.payload.error.details.failure_code,
-      'agent_package_lifecycle_native_owner_required',
-    );
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), disabledLockBefore);
-    assert.equal(fs.existsSync(ledgerPath), false);
+    assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-lifecycle.sqlite')), false);
     assert.equal(fs.existsSync(path.join(workspace, '.codex', 'skills')), false);
   } finally {
     makeTreeWritable(root);

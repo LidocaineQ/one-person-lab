@@ -1011,9 +1011,9 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
   const manifest = manifests.mas;
   const expectedReleases: Record<string, { version: string; sourceCommit: string; payloadRef: string }> = {
     mas: {
-      version: '0.2.23',
-      sourceCommit: '3f6b90ccd99e978a9229c7395099b6e6e0e728fd',
-      payloadRef: 'payloads/mas-0.2.23.json',
+      version: '0.2.24',
+      sourceCommit: '72cd9ff1310826ea8264732df53d7b9f31594618',
+      payloadRef: 'payloads/mas-0.2.24.json',
     },
     mag: {
       version: '0.3.6',
@@ -1021,9 +1021,9 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
       payloadRef: 'payloads/mag-0.3.6.json',
     },
     rca: {
-      version: '0.2.11',
-      sourceCommit: '8a814a080e54d7c0012dd0e2034dd229dc4d2d9d',
-      payloadRef: 'payloads/rca-0.2.11.json',
+      version: '0.2.12',
+      sourceCommit: 'd79dadaf04cc7a64170b041aed3e17092dee67b8',
+      payloadRef: 'payloads/rca-0.2.12.json',
     },
     oma: {
       version: '0.4.4',
@@ -1040,7 +1040,7 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
   assert.equal(manifest.schema_ref, 'contracts/opl-framework/agent-package-manifest.schema.json');
   assert.equal(manifest.package_id, 'mas');
   assert.equal(manifest.agent_id, 'mas');
-  assert.equal(manifest.version, '0.2.23');
+  assert.equal(manifest.version, '0.2.24');
   assert.equal(manifest.carrier_source_role, 'codex_plugin_default_carrier_not_package_truth');
   assert.equal(schema.required.includes('distribution_payload'), false);
   assert.equal(schema.properties.distribution_payload.properties.install_truth.const, 'resolved_digest_lock');
@@ -1545,16 +1545,16 @@ test('bundled Full MAS source projection advances to the immutable ordinary pack
     'utf8',
   )) as Record<string, any>;
 
-  assert.equal(frozenRef, 'packages/mas-0.2.23.json');
+  assert.equal(frozenRef, 'packages/mas-0.2.24.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    '6961364165b82326fbe4018f256eb15b96fce0df34a1502d781c539fe7e796da');
-  assert.equal(frozenManifest.version, '0.2.23');
-  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mas-0.2.23.json');
+    '79cf11603e8ca6e4013615d99ec65904bdda4c8c4673a3ced56a72a92abeb653');
+  assert.equal(frozenManifest.version, '0.2.24');
+  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mas-0.2.24.json');
   assert.equal(crypto.createHash('sha256').update(priorOrdinaryBytes).digest('hex'),
     'd2ec1d23c37c337b96b18601071ca09be89c43946971e87b3aba8c759107df6e');
   assert.equal(priorOrdinaryManifest.version, '0.2.20');
   assert.equal(priorOrdinaryManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mas-0.2.20.json');
-  assert.equal(ordinaryManifest.version, '0.2.23');
+  assert.equal(ordinaryManifest.version, '0.2.24');
 });
 
 test('bundled Full MAG source projection advances to the immutable ordinary package version', () => {
@@ -1579,7 +1579,7 @@ test('bundled Full MAG source projection advances to the immutable ordinary pack
   assert.equal(ordinaryManifest.version, '0.3.6');
 });
 
-test('bundled Full RCA source projection advances to the owner canonical package version', () => {
+test('bundled Full RCA source projection advances to the immutable ordinary package version', () => {
   const catalog = parseJsonText(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
     'utf8',
@@ -1593,12 +1593,12 @@ test('bundled Full RCA source projection advances to the owner canonical package
     'utf8',
   )) as Record<string, any>;
 
-  assert.equal(frozenRef, 'packages/rca-0.2.11.json');
+  assert.equal(frozenRef, 'packages/rca-0.2.12.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    '69c13a90941bf32d74c7445a392ea71a06bbb8f3567d76abbff5807f69895086');
-  assert.equal(frozenManifest.version, '0.2.11');
-  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/rca-0.2.11.json');
-  assert.equal(ordinaryManifest.version, '0.2.11');
+    '8c6329faad5f982e33f30bff328fef92f4912dfede7c05eb94ba20282f84f9fe');
+  assert.equal(frozenManifest.version, '0.2.12');
+  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/rca-0.2.12.json');
+  assert.equal(ordinaryManifest.version, '0.2.12');
 });
 
 test('bundled Full OMA source projection advances independently of ordinary publication', () => {
