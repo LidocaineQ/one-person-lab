@@ -382,7 +382,6 @@ export function buildDeveloperCheckoutRuntimeSourceState(input: {
     source_git_head_sha: identity.source_git_head_sha,
     tree_sha256: identity.tree_sha256,
     runtime_snapshot_sha256: input.runtimeSnapshotSha256 ?? null,
-    rollback_ref: null,
     preparation_status: input.preparation?.preparation_status ?? 'validated_no_write',
     bootstrap_command: input.preparation?.bootstrap_command ?? null,
     package_prepare_command: input.preparation?.package_prepare_command ?? null,

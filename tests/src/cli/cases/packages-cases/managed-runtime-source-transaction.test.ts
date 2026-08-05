@@ -1133,7 +1133,6 @@ test('developer checkout source switch does not validate a displaced managed car
     source_archive_sha256: '2'.repeat(64),
     source_git_head_sha: '3'.repeat(40),
     tree_sha256: '4'.repeat(64),
-    rollback_ref: null,
     preparation_status: 'completed' as const,
     bootstrap_command: null,
     package_prepare_command: null,

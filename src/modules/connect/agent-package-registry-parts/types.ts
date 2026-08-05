@@ -334,7 +334,6 @@ export type AgentPackageManagedRuntimeSourceState = {
   source_git_head_sha: string | null;
   tree_sha256: string;
   runtime_snapshot_sha256?: string | null;
-  rollback_ref: string | null;
   preparation_status: 'validated_no_write' | 'completed';
   bootstrap_command: string[] | null;
   package_prepare_command?: string[] | null;

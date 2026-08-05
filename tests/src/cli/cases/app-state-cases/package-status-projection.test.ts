@@ -650,7 +650,6 @@ test('fast managed runtime readiness rejects a checkout path that is not a direc
     source_archive_sha256: 'fixture',
     source_git_head_sha: 'fixture',
     tree_sha256: 'fixture',
-    rollback_ref: null,
     preparation_status: 'completed',
     bootstrap_command: null,
     package_prepare_command: null,
