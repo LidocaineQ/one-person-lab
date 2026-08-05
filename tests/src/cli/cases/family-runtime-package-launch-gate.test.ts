@@ -92,8 +92,8 @@ test('family-runtime attempt create fails closed when the canonical domain packa
   }
 });
 
-test('retained local package fixture is not shadowed by the static first-party carrier', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-retained-local-package-'));
+test('a retained legacy package lock is not accepted as an installed native carrier', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-retained-legacy-lock-'));
   const workspace = path.join(root, 'workspace');
   const stateRoot = path.join(root, 'state');
   fs.mkdirSync(workspace, { recursive: true });
@@ -101,11 +101,16 @@ test('retained local package fixture is not shadowed by the static first-party c
     installRuntimePackageFixture(stateRoot, 'mas');
     const env = { OPL_STATE_DIR: stateRoot, CODEX_HOME: path.join(root, 'codex-home') };
     const status = runCli(['packages', 'status', '--package-id', 'mas'], env).opl_agent_package_status;
-    assert.equal(status.installed_package_count, 1);
-    assert.equal(status.operational_ready, true);
+    assert.equal(status.installed_package_count, 0);
+    assert.equal(status.installed_readiness, null);
+    assert.equal(status.configured_carrier.status, 'physical_unavailable');
+    assert.equal(status.operational_ready, false);
+    assert.equal(status.launch_allowed, false);
+    assert.equal(status.launch_blocked_reason, 'native_carrier_reports_not_installed');
 
-    const created = runCli(createArgs(workspace), env).family_runtime_stage_attempt.attempt;
-    assert.equal(created.status, 'queued');
+    const failure = runCliFailure(createArgs(workspace), env);
+    assert.equal(failure.payload.error.details.failure_code, 'agent_package_operational_readiness_blocked');
+    assert.equal(failure.payload.error.details.launch_blocked_reason, 'package_not_installed');
   } finally {
     removeFixtureTree(root);
   }
