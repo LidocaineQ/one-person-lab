@@ -1851,11 +1851,47 @@ function configuredCarrierLifecycleReadback(input: {
   };
 }
 
+function githubMarketplaceSourceIdentity(value: string) {
+  const slug = value.match(/^([A-Za-z0-9][A-Za-z0-9-]*)\/([A-Za-z0-9][A-Za-z0-9._-]*)$/);
+  if (slug) return `${slug[1]!.toLowerCase()}/${slug[2]!.toLowerCase()}`;
+  try {
+    const source = new URL(value);
+    if (source.protocol !== 'https:'
+      || source.hostname.toLowerCase() !== 'github.com'
+      || source.port
+      || source.username
+      || source.password
+      || source.search
+      || source.hash) {
+      return null;
+    }
+    const parts = source.pathname.split('/').filter(Boolean);
+    if (parts.length !== 2) return null;
+    const owner = parts[0]!;
+    const repository = parts[1]!.replace(/\.git$/, '');
+    if (!/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(owner)
+      || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(repository)) {
+      return null;
+    }
+    return `${owner.toLowerCase()}/${repository.toLowerCase()}`;
+  } catch {
+    return null;
+  }
+}
+
 function sameConfiguredCarrierPath(left: string | null, right: string | null) {
   if (!left || !right) return false;
-  return path.isAbsolute(left) && path.isAbsolute(right)
-    ? path.resolve(left) === path.resolve(right)
-    : left === right;
+  if (path.isAbsolute(left) || path.isAbsolute(right)) {
+    return path.isAbsolute(left)
+      && path.isAbsolute(right)
+      && path.resolve(left) === path.resolve(right);
+  }
+  if (left === right) return true;
+  const leftGithubSource = githubMarketplaceSourceIdentity(left);
+  const rightGithubSource = githubMarketplaceSourceIdentity(right);
+  return leftGithubSource !== null
+    && rightGithubSource !== null
+    && leftGithubSource === rightGithubSource;
 }
 
 function descriptorOwnedCarrierCurrentness(input: {
