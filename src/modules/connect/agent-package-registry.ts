@@ -635,6 +635,7 @@ async function applyManifestPackageLockUnlocked(
           `/contracts/opl-framework/packages/${packageId}.json`,
         )
       )
+      || (options.sourceReconcile === true && hasResolvedCatalogSelection)
       || options.descriptorOwnedFirstPartyAdoption === true
     );
   const firstParty = shouldUseFirstPartyCatalog ? firstPartyOwner : null;

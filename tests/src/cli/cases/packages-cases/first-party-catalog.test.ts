@@ -1994,6 +1994,94 @@ test('MAS owner refresh reads only MAS and required ScholarSkills owner channels
   }
 });
 
+test('developer locks reconcile into the verified first-party owner catalog when managed policy becomes current', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-developer-to-managed-'));
+  const homeDir = path.join(root, 'home');
+  const stateDir = path.join(root, 'state');
+  const masCheckout = path.join(root, 'workspace', 'med-autoscience');
+  const scholarCheckout = path.join(root, 'workspace', 'mas-scholar-skills');
+  const oldProvider = writeCapabilityProvider(path.join(root, 'old-provider'), '0.1.0');
+  const oldMas = writeMasConsumer(path.join(root, 'old-mas'), oldProvider, '0.1.0');
+  const oldReleaseSet = writeCapabilityCatalog(path.join(root, 'old-release-set'), [oldMas, oldProvider]);
+  const nextProvider = writeCapabilityProvider(path.join(root, 'next-provider'), '0.1.1');
+  const nextMas = writeMasConsumer(path.join(root, 'next-mas'), nextProvider, '0.1.1');
+  const nextReleaseSet = writeCapabilityCatalog(path.join(root, 'next-release-set'), [nextMas, nextProvider]);
+  const fakeBin = path.join(root, 'bin');
+  const ownerChannel = writePackageOwnerChannelFixture({
+    root: path.join(root, 'owner-channel'),
+    binRoot: path.join(root, 'owner-channel-bin'),
+    catalogPath: nextReleaseSet.catalogPath,
+    packageIds: ['mas', 'mas-scholar-skills'],
+  });
+  fs.mkdirSync(masCheckout, { recursive: true });
+  fs.mkdirSync(scholarCheckout, { recursive: true });
+  writeDeveloperCapabilityCheckoutClosure({
+    masCheckout,
+    scholarCheckout,
+    masManifestPath: oldMas,
+    providerManifestPath: oldProvider,
+  });
+  writeMasOwnerGateFixture(masCheckout, fakeBin);
+  commitDeveloperCheckout(masCheckout, 'add owner gate fixture');
+  const commonEnv = {
+    HOME: homeDir,
+    CODEX_HOME: path.join(homeDir, '.codex'),
+    OPL_STATE_DIR: stateDir,
+  };
+
+  try {
+    const installed = runCli(['packages', 'install', 'mas'], {
+      ...commonEnv,
+      ...withMasOwnerGateFixturePath(oldReleaseSet.env, fakeBin),
+      OPL_MODULE_SOURCE_MODE: 'git_checkout',
+      OPL_MODULE_PATH_MEDAUTOSCIENCE: masCheckout,
+      OPL_MODULE_PATH_SCHOLARSKILLS: scholarCheckout,
+      UV_TOOL_DIR: path.join(root, 'uv-tools'),
+    }) as any;
+    assert.equal(installed.opl_agent_package_install.package_lock.source_kind, 'developer_checkout_override');
+
+    const updated = runCli(['packages', 'update', 'mas'], {
+      ...commonEnv,
+      ...ownerChannel.env,
+      OPL_MODULE_SOURCE_MODE: 'package_channel',
+      OPL_MODULE_PATH_MEDAUTOSCIENCE: '',
+      OPL_MODULE_PATH_SCHOLARSKILLS: '',
+    }) as any;
+    const surface = updated.opl_agent_package_update;
+    assert.equal(surface.status, 'updated');
+    assert.equal(surface.reconciliation_action, 'source_reconcile');
+    assert.equal(surface.release_catalog_freshness, 'live');
+    assert.equal(surface.package_lock.package_version, '0.1.1');
+    assert.equal(surface.package_lock.source_kind, 'first_party_managed_cohort');
+    assert.deepEqual(
+      surface.dependency_package_locks.map((lock: any) => [
+        lock.package_id,
+        lock.package_version,
+        lock.source_kind,
+        lock.release_channel_ref,
+      ]),
+      [
+        [
+          'mas-scholar-skills',
+          '0.1.1',
+          'first_party_managed_cohort',
+          'ghcr.io/fixture/one-person-lab-packages/mas-scholar-skills:latest-stable',
+        ],
+        [
+          'mas',
+          '0.1.1',
+          'first_party_managed_cohort',
+          'ghcr.io/fixture/one-person-lab-packages/mas:latest-stable',
+        ],
+      ],
+    );
+    const reads = fs.readFileSync(ownerChannel.curlLogPath, 'utf8');
+    assert.equal(reads.includes('/one-person-lab-manifest/'), false);
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
 test('single-package developer update reconciles from the live owner catalog and becomes a byte-stable no-op', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-single-developer-update-'));
   const homeDir = path.join(root, 'home');

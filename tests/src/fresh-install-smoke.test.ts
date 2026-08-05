@@ -100,10 +100,67 @@ test('installer accepts supported Node majors without an arbitrary upper bound',
 test('installer uses the lockfile and retires only the exact legacy global carrier', () => {
   const source = fs.readFileSync(installScript, 'utf8');
   assert.match(source, /if \[ -f package-lock\.json \]; then\s+npm ci "\$@"/);
-  assert.match(source, /legacy_path="\$global_root\/\$LEGACY_GLOBAL_PACKAGE"/);
+  assert.match(source, /legacy_path="\$cli_prefix\/lib\/node_modules\/\$LEGACY_GLOBAL_PACKAGE"/);
   assert.match(source, /if \[ -e "\$legacy_path" \] \|\| \[ -L "\$legacy_path" \]; then/);
-  assert.match(source, /npm uninstall --global "\$LEGACY_GLOBAL_PACKAGE" --ignore-scripts/);
+  assert.match(source, /env npm_config_prefix="\$cli_prefix" npm uninstall --global "\$LEGACY_GLOBAL_PACKAGE" --ignore-scripts/);
+  assert.match(source, /env npm_config_prefix="\$cli_prefix" npm link "\$@"/);
   assert.doesNotMatch(source, /npm uninstall --global opl-framework\s/);
+});
+
+test('installer replaces a legacy CLI carrier in the prefix that owns the effective opl command', () => {
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-install-legacy-prefix-'));
+  const fakeBin = path.join(homeRoot, 'bin');
+  const installDir = path.join(homeRoot, '.opl', 'one-person-lab');
+  const cliPrefix = path.join(homeRoot, 'opt', 'homebrew');
+  const legacyCarrier = path.join(cliPrefix, 'lib', 'node_modules', 'opl-framework-shared');
+  const npmLog = path.join(homeRoot, 'npm.log');
+  fs.mkdirSync(path.join(installDir, '.git'), { recursive: true });
+  fs.mkdirSync(fakeBin, { recursive: true });
+  fs.mkdirSync(path.join(cliPrefix, 'bin'), { recursive: true });
+  fs.mkdirSync(legacyCarrier, { recursive: true });
+  fs.writeFileSync(path.join(installDir, 'package.json'), '{}\n');
+  fs.writeFileSync(path.join(cliPrefix, 'bin', 'opl'), '#!/usr/bin/env bash\nexit 0\n', { mode: 0o755 });
+  fs.writeFileSync(
+    path.join(fakeBin, 'git'),
+    [
+      '#!/usr/bin/env bash',
+      'if [ "${1:-}" = "--version" ]; then printf "git version 2.50.0\\n"; fi',
+      'exit 0',
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+  fs.writeFileSync(path.join(fakeBin, 'node'), '#!/usr/bin/env bash\nexit 0\n', { mode: 0o755 });
+  fs.writeFileSync(
+    path.join(fakeBin, 'npm'),
+    [
+      '#!/usr/bin/env bash',
+      `printf '%s|%s\\n' "${'${npm_config_prefix:-}'}" "$*" >> ${JSON.stringify(npmLog)}`,
+      'exit 0',
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+
+  try {
+    const result = spawnSync('/bin/bash', [installScript, '--carrier-only'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: {
+        HOME: homeRoot,
+        OPL_INSTALL_DIR: installDir,
+        OPL_FRAMEWORK_SOURCE_COMMIT: frameworkSourceCommit,
+        PATH: `${cliPrefix}/bin:${fakeBin}:/usr/bin:/bin`,
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.deepEqual(fs.readFileSync(npmLog, 'utf8').trim().split('\n'), [
+      '|install --omit=dev --ignore-scripts',
+      `${cliPrefix}|uninstall --global opl-framework-shared --ignore-scripts`,
+      `${cliPrefix}|link --ignore-scripts`,
+    ]);
+  } finally {
+    fs.rmSync(homeRoot, { recursive: true, force: true });
+  }
 });
 
 test('install carrier-only handles no forwarded args under nounset bash', () => {
@@ -200,6 +257,60 @@ test('install carrier-only removes partial clone directories after clone failure
     assert.equal(fs.existsSync(installDir), false);
     assert.deepEqual(
       fs.readdirSync(path.dirname(installDir)).filter((entry) => entry.startsWith(`${path.basename(installDir)}.tmp.`)),
+      [],
+    );
+  } finally {
+    fs.rmSync(homeRoot, { recursive: true, force: true });
+  }
+});
+
+test('install carrier-only removes archive and extraction temporaries after download failure', () => {
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-install-archive-failure-'));
+  const fakeBin = path.join(homeRoot, 'bin');
+  const tempRoot = path.join(homeRoot, 'tmp');
+  const installDir = path.join(homeRoot, '.opl', 'one-person-lab');
+  fs.mkdirSync(fakeBin, { recursive: true });
+  fs.mkdirSync(tempRoot, { recursive: true });
+  fs.writeFileSync(path.join(fakeBin, 'node'), '#!/usr/bin/env bash\nexit 0\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(fakeBin, 'npm'), '#!/usr/bin/env bash\nexit 0\n', { mode: 0o755 });
+  fs.writeFileSync(
+    path.join(fakeBin, 'curl'),
+    [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      'out=""',
+      'while [ "$#" -gt 0 ]; do',
+      '  if [ "$1" = "-o" ]; then out="$2"; shift 2; continue; fi',
+      '  shift',
+      'done',
+      'printf "partial archive\\n" > "$out"',
+      'printf "simulated archive download failure\\n" >&2',
+      'exit 22',
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+
+  try {
+    const result = spawnSync('/bin/bash', [installScript, '--carrier-only'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: {
+        HOME: homeRoot,
+        TMPDIR: tempRoot,
+        OPL_INSTALL_DIR: installDir,
+        OPL_INSTALL_SOURCE_MODE: 'archive',
+        OPL_FRAMEWORK_SOURCE_COMMIT: frameworkSourceCommit,
+        OPL_SOURCE_ARCHIVE_URL: 'https://example.invalid/one-person-lab.tar.gz',
+        PATH: `${fakeBin}:/usr/bin:/bin`,
+      },
+    });
+
+    assert.equal(result.status, 22);
+    assert.match(result.stderr, /simulated archive download failure/);
+    assert.doesNotMatch(result.stderr, /unbound variable/);
+    assert.deepEqual(
+      fs.readdirSync(tempRoot).filter((entry) =>
+        entry.startsWith('one-person-lab.') || entry.startsWith('one-person-lab-src.')),
       [],
     );
   } finally {
@@ -312,7 +423,6 @@ test('install carrier-only can use an explicit source archive even when git is u
     assert.equal(fs.existsSync(gitLog) ? fs.readFileSync(gitLog, 'utf8').includes('clone') : false, false);
     assert.deepEqual(fs.readFileSync(npmLog, 'utf8').trim().split('\n'), [
       'install --omit=dev --ignore-scripts',
-      'root --global',
       'link --ignore-scripts',
     ]);
   } finally {
@@ -385,10 +495,7 @@ test('install carrier-only restores Full prefilled dependencies without an npm n
       fs.existsSync(path.join(installDir, 'node_modules', '@temporalio', 'common', 'package.json')),
       true,
     );
-    assert.deepEqual(fs.readFileSync(npmLog, 'utf8').trim().split('\n'), [
-      'root --global',
-      'link --ignore-scripts',
-    ]);
+    assert.deepEqual(fs.readFileSync(npmLog, 'utf8').trim().split('\n'), ['link --ignore-scripts']);
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
   }
@@ -505,7 +612,6 @@ test('install carrier-only on macOS prepares managed Node and uses a source arch
     assert.equal(fs.readFileSync(gitLog, 'utf8').includes('clone'), false);
     assert.deepEqual(fs.readFileSync(npmLog, 'utf8').trim().split('\n'), [
       'install --omit=dev --ignore-scripts',
-      'root --global',
       'link --ignore-scripts',
     ]);
   } finally {
@@ -601,7 +707,6 @@ test('install carrier-only on macOS uses an existing git checkout while Command 
     assert.equal(fs.existsSync(gitLog), false);
     assert.deepEqual(fs.readFileSync(npmLog, 'utf8').trim().split('\n'), [
       'install --omit=dev --ignore-scripts',
-      'root --global',
       'link --ignore-scripts',
     ]);
   } finally {
@@ -672,11 +777,7 @@ test('one-click installer defaults to the headless base contract before invoking
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.match(result.stdout, /Running complete One Person Lab setup/);
     assert.match(result.stdout, /One Person Lab is ready/);
-    assert.deepEqual(fs.readFileSync(npmLog, 'utf8').trim().split('\n'), [
-      'install',
-      'root --global',
-      'link',
-    ]);
+    assert.deepEqual(fs.readFileSync(npmLog, 'utf8').trim().split('\n'), ['install', 'link']);
     assert.deepEqual(fs.readFileSync(oplLog, 'utf8').trim().split('\n'), [
       'install --headless',
       'system initialize',

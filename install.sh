@@ -12,6 +12,8 @@ PREFILLED_NODE_MODULES_DIR=${OPL_PREFILLED_NODE_MODULES_DIR:-}
 INSTALL_SOURCE_MARKER=.opl-install-source
 INSTALL_SOURCE_IDENTITY=.opl-framework-installed-source-identity.json
 LEGACY_GLOBAL_PACKAGE=opl-framework-shared
+ARCHIVE_TMP_TO_CLEAN=
+ARCHIVE_EXTRACT_ROOT_TO_CLEAN=
 SYSTEM_GIT_PATH=${OPL_SYSTEM_GIT_PATH:-/usr/bin/git}
 XCODE_SELECT=${OPL_XCODE_SELECT:-/usr/bin/xcode-select}
 
@@ -191,17 +193,29 @@ install_node_dependencies() {
   fi
 }
 
-retire_legacy_cli_carrier() {
-  local global_root legacy_path
-  global_root=$(npm root --global)
-  if [ -z "$global_root" ]; then
+resolve_cli_prefix() {
+  local existing_cli
+  if [ -n "${OPL_NPM_GLOBAL_PREFIX:-}" ]; then
+    printf '%s\n' "$OPL_NPM_GLOBAL_PREFIX"
     return 0
   fi
-  legacy_path="$global_root/$LEGACY_GLOBAL_PACKAGE"
+  existing_cli=$(command -v opl 2>/dev/null || true)
+  if [ -n "$existing_cli" ] && [ "$(basename "$(dirname "$existing_cli")")" = "bin" ]; then
+    dirname "$(dirname "$existing_cli")"
+    return 0
+  fi
+  printf '%s\n' "$HOME/.local"
+}
+
+link_cli_carrier() {
+  local cli_prefix legacy_path
+  cli_prefix=$(resolve_cli_prefix)
+  legacy_path="$cli_prefix/lib/node_modules/$LEGACY_GLOBAL_PACKAGE"
   if [ -e "$legacy_path" ] || [ -L "$legacy_path" ]; then
     log "Retiring legacy OPL CLI carrier"
-    npm uninstall --global "$LEGACY_GLOBAL_PACKAGE" --ignore-scripts
+    env npm_config_prefix="$cli_prefix" npm uninstall --global "$LEGACY_GLOBAL_PACKAGE" --ignore-scripts
   fi
+  env npm_config_prefix="$cli_prefix" npm link "$@"
 }
 
 normalize_framework_source_commit() {
@@ -337,10 +351,8 @@ install_from_archive() {
   local archive_tmp extract_root source_dir source_identity source_commit identity_source archive_url
   archive_tmp=$(mktemp "${TMPDIR:-/tmp}/one-person-lab.XXXXXX")
   extract_root=$(mktemp -d "${TMPDIR:-/tmp}/one-person-lab-src.XXXXXX")
-  cleanup_archive_tmp() {
-    rm -f "$archive_tmp"
-    rm -rf "$extract_root"
-  }
+  ARCHIVE_TMP_TO_CLEAN=$archive_tmp
+  ARCHIVE_EXTRACT_ROOT_TO_CLEAN=$extract_root
   trap cleanup_archive_tmp EXIT
 
   log "Downloading One Person Lab source archive into $INSTALL_DIR"
@@ -362,6 +374,17 @@ install_from_archive() {
   mv "$source_dir" "$INSTALL_DIR"
   trap - EXIT
   cleanup_archive_tmp
+}
+
+cleanup_archive_tmp() {
+  if [ -n "$ARCHIVE_TMP_TO_CLEAN" ]; then
+    rm -f "$ARCHIVE_TMP_TO_CLEAN"
+    ARCHIVE_TMP_TO_CLEAN=
+  fi
+  if [ -n "$ARCHIVE_EXTRACT_ROOT_TO_CLEAN" ]; then
+    rm -rf "$ARCHIVE_EXTRACT_ROOT_TO_CLEAN"
+    ARCHIVE_EXTRACT_ROOT_TO_CLEAN=
+  fi
 }
 
 ensure_node_runtime
@@ -433,16 +456,13 @@ if [ -n "$PREFILLED_NODE_MODULES_DIR" ]; then
   log "Restoring prefilled OPL dependencies"
   rm -rf node_modules
   cp -R "$PREFILLED_NODE_MODULES_DIR" node_modules
-  retire_legacy_cli_carrier
-  npm link --ignore-scripts
+  link_cli_carrier --ignore-scripts
 elif [ "$CARRIER_ONLY" = "1" ]; then
   install_node_dependencies --omit=dev --ignore-scripts
-  retire_legacy_cli_carrier
-  npm link --ignore-scripts
+  link_cli_carrier --ignore-scripts
 else
   install_node_dependencies
-  retire_legacy_cli_carrier
-  npm link
+  link_cli_carrier
 fi
 
 if [ "$CARRIER_ONLY" = "1" ]; then
