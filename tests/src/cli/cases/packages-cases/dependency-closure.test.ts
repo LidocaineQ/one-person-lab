@@ -1,17 +1,12 @@
 import {
   assert,
-  formatJsonPayload,
   fs,
   os,
-  parseJsonText,
   path,
-  removeFixtureTree,
   runCli,
-  runCliAsync,
   runCliFailure,
   test,
 } from './helpers.ts';
-import { createFakeCodexPluginManagerFixture, runCliInCwd } from '../../helpers.ts';
 import {
   scholarSkillsCoreSkillIds as coreSkillIds,
   scholarSkillsModuleIds as moduleIds,
@@ -72,32 +67,17 @@ function writeFixtureMasConsumer(
   });
 }
 
-function appendCapabilityDependency(
-  consumerManifestPath: string,
-  input: {
-    packageId: string;
-    manifestPath: string;
-    capabilityAbi: string;
-    skillIds: string[];
-    moduleIds: string[];
-  },
-) {
-  const manifest = JSON.parse(fs.readFileSync(consumerManifestPath, 'utf8'));
-  manifest.capability_dependencies.push({
-    ...manifest.capability_dependencies[0],
-    module_id: input.packageId,
-    package_id: input.packageId,
-    manifest_url: input.manifestPath,
-    capability_abi: input.capabilityAbi,
-    required_export_ids: input.skillIds,
-    required_module_ids: input.moduleIds,
-  });
-  delete manifest.capability_dependencies.at(-1).bootstrap_manifest_url;
-  delete manifest.capability_dependencies.at(-1).dependency_source;
-  fs.writeFileSync(consumerManifestPath, formatJsonPayload(manifest));
+function assertNoLegacyPackageState(stateDir: string) {
+  for (const relativePath of [
+    'agent-package-locks.json',
+    'agent-package-lifecycle-ledger.json',
+    'agent-package-lifecycle.sqlite',
+  ]) {
+    assert.equal(fs.existsSync(path.join(stateDir, relativePath)), false, relativePath);
+  }
 }
 
-test('consumer profile cannot be selected by a different Agent', () => {
+test('an unowned consumer profile cannot bypass the native owner boundary', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-consumer-profile-owner-'));
   const workspace = path.join(root, 'workspace');
   const providerManifestPath = writeFixtureCapabilityProvider(path.join(root, 'provider'), '0.1.0', {
@@ -134,13 +114,16 @@ test('consumer profile cannot be selected by a different Agent', () => {
       'packages', 'install', '--manifest-url', consumerManifestPath,
       '--trust-tier', 'first_party', '--scope', 'workspace', '--target-workspace', workspace,
     ], env);
-    assert.equal(failed.payload.error.details.failure_code, 'agent_package_dependency_incompatible');
-    assert.deepEqual(failed.payload.error.details.reasons, ['consumer_profile_consumer_mismatch']);
+    assert.equal(
+      failed.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
+    );
+    assertNoLegacyPackageState(env.OPL_STATE_DIR);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
-test('MAS scope materialization never overwrites an unowned local Skill', async () => {
+test('an unowned MAS manifest cannot materialize over a local Skill', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-scope-collision-'));
   const workspace = path.join(root, 'workspace');
   const localSkill = path.join(workspace, '.codex', 'skills', 'medical-manuscript-writing');
@@ -151,18 +134,21 @@ test('MAS scope materialization never overwrites an unowned local Skill', async 
     fs.mkdirSync(localSkill, { recursive: true });
     fs.writeFileSync(path.join(localSkill, 'SKILL.md'), '# user-owned local Skill\n');
     bindMasWorkspace(workspace, env);
-    const blocked = await runCliFailure([
+    const blocked = runCliFailure([
       'packages', 'install', '--manifest-url', consumerManifest, '--trust-tier', 'first_party',
       '--scope', 'workspace', '--target-workspace', workspace,
     ], env);
-    assert.equal(blocked.payload.error.details.failure_code, 'agent_package_scope_unowned_skill_collision');
-    assert.deepEqual(blocked.payload.error.details.collision_skill_ids, ['medical-manuscript-writing']);
+    assert.equal(
+      blocked.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
+    );
     assert.equal(fs.readFileSync(path.join(localSkill, 'SKILL.md'), 'utf8'), '# user-owned local Skill\n');
+    assertNoLegacyPackageState(env.OPL_STATE_DIR);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
-test('MAS scope materialization rejects forged legacy OPL management markers', async () => {
+test('forged legacy management markers stay inert for an unowned MAS manifest', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-scope-forged-managed-'));
   const workspace = path.join(root, 'workspace');
   const localSkill = path.join(workspace, '.codex', 'skills', 'medical-manuscript-writing');
@@ -173,43 +159,50 @@ test('MAS scope materialization rejects forged legacy OPL management markers', a
   try {
     fs.mkdirSync(localSkill, { recursive: true });
     fs.writeFileSync(path.join(localSkill, 'SKILL.md'), '# user-owned local Skill\n');
-    fs.writeFileSync(path.join(localSkill, '.opl-connect-skill-sync.json'), formatJsonPayload({
-      surface_kind: 'opl_connect_managed_mas_scholar_skills_specialist_dir',
-      schema_version: 'g1',
-      pack_id: 'medical-manuscript-writing',
-      source_skill_dir: path.join(root, 'unrelated', 'skills', 'medical-manuscript-writing'),
-    }));
+    const forgedMarker = '{"surface_kind":"opl_connect_managed_mas_scholar_skills_specialist_dir"}\n';
+    fs.writeFileSync(path.join(localSkill, '.opl-connect-skill-sync.json'), forgedMarker);
     bindMasWorkspace(workspace, env);
-    const blocked = await runCliFailure([
+    const blocked = runCliFailure([
       'packages', 'install', '--manifest-url', consumerManifest, '--trust-tier', 'first_party',
       '--scope', 'workspace', '--target-workspace', workspace,
     ], env);
-    assert.equal(blocked.payload.error.details.failure_code, 'agent_package_scope_unowned_skill_collision');
-    assert.deepEqual(blocked.payload.error.details.collision_skill_ids, ['medical-manuscript-writing']);
+    assert.equal(
+      blocked.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
+    );
     assert.equal(fs.readFileSync(path.join(localSkill, 'SKILL.md'), 'utf8'), '# user-owned local Skill\n');
+    assert.equal(
+      fs.readFileSync(path.join(localSkill, '.opl-connect-skill-sync.json'), 'utf8'),
+      forgedMarker,
+    );
+    assertNoLegacyPackageState(env.OPL_STATE_DIR);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('install cannot overwrite a provider that has installed required dependents', async () => {
+test('unowned dependency manifests cannot create a provider lifecycle', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-provider-install-guard-'));
   const providerV1 = writeFixtureCapabilityProvider(path.join(root, 'provider-v1'));
   const providerV2 = writeFixtureCapabilityProvider(path.join(root, 'provider-v2'), '0.1.1');
   const consumer = writeFixtureMasConsumer(path.join(root, 'consumer'), providerV1);
   const env = { OPL_STATE_DIR: path.join(root, 'state'), CODEX_HOME: path.join(root, 'codex-home') };
   try {
-    await runCliAsync(['packages', 'install', '--manifest-url', consumer, '--trust-tier', 'first_party'], env);
-    const failure = await runCliFailure([
+    const consumerFailure = runCliFailure([
+      'packages', 'install', '--manifest-url', consumer, '--trust-tier', 'first_party',
+    ], env);
+    assert.equal(
+      consumerFailure.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
+    );
+    const providerFailure = runCliFailure([
       'packages', 'install', '--manifest-url', providerV2, '--trust-tier', 'first_party',
     ], env);
-    assert.equal(failure.payload.error.details.failure_code, 'agent_package_required_by_installed_dependents');
-    assert.deepEqual(failure.payload.error.details.dependent_package_ids, [FIXTURE_CONSUMER_PACKAGE_ID]);
-    assert.equal(Object.hasOwn(failure.payload.error.details, 'repair_commands'), false);
     assert.equal(
-      failure.payload.error.details.uninstall_policy,
-      'remove_dependents_in_the_same_transaction_or_uninstall_dependents_first',
+      providerFailure.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
     );
+    assertNoLegacyPackageState(env.OPL_STATE_DIR);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
