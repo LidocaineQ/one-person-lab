@@ -446,7 +446,7 @@ test('MAS launch consumes the native carrier without private workspace materiali
     const current = runCli([
       'packages', 'status', '--package-id', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
     ], env).opl_agent_package_status;
-    assert.equal(current.materialization_readiness, null);
+    assert.equal(Object.hasOwn(current, 'materialization_readiness'), false);
     assert.equal(current.configured_carrier.status, 'installed');
     assert.equal(current.installed_readiness.callability, 'callable');
     assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-locks.json')), false);
@@ -514,7 +514,7 @@ test('quest root activation reports the native MAS carrier already active withou
     const current = runCli([
       'packages', 'status', '--package-id', 'mas', '--scope', 'workspace', '--target-workspace', quest,
     ], env).opl_agent_package_status;
-    assert.equal(current.materialization_readiness, null);
+    assert.equal(Object.hasOwn(current, 'materialization_readiness'), false);
     assert.equal(current.operational_ready, true);
     assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-lifecycle-ledger.json')), false);
@@ -575,7 +575,7 @@ test('workspace bindings reuse the native MAS carrier without per-workspace Skil
       'packages', 'status', '--package-id', 'mas',
       '--scope', 'workspace', '--target-workspace', workspaceA,
     ], env).opl_agent_package_status;
-    assert.equal(current.materialization_readiness, null);
+    assert.equal(Object.hasOwn(current, 'materialization_readiness'), false);
     assert.equal(current.launch_allowed, true);
     assert.equal(current.configured_carrier.status, 'installed');
     const appState = runCli(['app', 'state', '--profile', 'fast'], env).app_state;
