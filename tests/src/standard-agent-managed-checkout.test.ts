@@ -87,24 +87,19 @@ function status(checkoutRoot: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
-function packageReadiness(packageStatus: Record<string, unknown>, onActivation = () => {}) {
+function packageReadiness(packageStatus: Record<string, unknown>) {
   return {
     readStatus: () => ({ opl_agent_package_status: packageStatus }),
-    ensureScopeActivation: async () => {
-      onActivation();
-      throw new Error('native hosted runtime must not activate legacy package scope');
-    },
   };
 }
 
 test('managed checkout resolver uses one installed descriptor and configured native carrier without scope activation', async () => {
   const { root, workspaceRoot, checkoutRoot } = fixture();
-  let activationCalls = 0;
   try {
     const result = await resolveStandardAgentManagedCheckout({
       domainId: 'mas',
       workspaceRoot,
-      packageReadiness: packageReadiness(status(checkoutRoot), () => { activationCalls += 1; }),
+      packageReadiness: packageReadiness(status(checkoutRoot)),
     });
 
     assert.equal(result.runtime_source_kind, 'installed_native_carrier');
@@ -117,7 +112,6 @@ test('managed checkout resolver uses one installed descriptor and configured nat
     assert.equal(result.native_runtime.marketplace_source, 'gaofeng21cn/med-autoscience');
     assert.equal(result.native_runtime.source_tree_sha256, `sha256:${TREE_SHA256}`);
     assert.match(result.native_runtime.manifest_sha256, /^sha256:[a-f0-9]{64}$/);
-    assert.equal(activationCalls, 0);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

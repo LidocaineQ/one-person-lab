@@ -63,18 +63,12 @@ export function packageLaunchHardStopReason(packageStatus: any) {
       : null;
     if (reason) return reason;
   }
-  const materialization = packageStatus?.materialization_readiness;
-  if (materialization?.core_readiness?.status === 'missing'
-    || (materialization?.status === 'missing' && !materialization?.core_readiness)) {
-    return 'required_core_skill_missing';
-  }
   return null;
 }
 
 export async function ensureFamilyRuntimePackageLaunchReady(input: {
   domainId: string;
   workspaceLocator: Record<string, unknown>;
-  activateMissingScope?: boolean;
   useBoundaryId?: string;
   pinnedUseBinding?: any;
 }) {
@@ -96,38 +90,27 @@ export async function ensureFamilyRuntimePackageLaunchReady(input: {
   const packageId = agent.agent_id;
   const scope = packageScope(input.workspaceLocator);
   const packageReadiness = requireAgentPackageReadinessPort();
-  const initialStatus = packageReadiness.readStatus({ packageId }).opl_agent_package_status;
-  let activation = null;
-  if (input.activateMissingScope !== false && initialStatus.installed_package_count > 0 && scope) {
-    activation = await packageReadiness.ensureScopeActivation({
-      packageId,
-      ...scope,
-      useBoundaryId: input.useBoundaryId,
-      pinnedUseBinding,
-    });
-  }
-  const packageStatus = activation?.package_status ?? packageReadiness.readStatus({
+  const packageStatus = packageReadiness.readStatus({
     packageId,
     ...scope,
   }).opl_agent_package_status;
+  const readbackUseBinding = isRecord(packageStatus.package_use_binding)
+    ? packageStatus.package_use_binding
+    : null;
+  const effectiveUseBinding = pinnedUseBinding ?? readbackUseBinding;
   if (packageStatus.launch_allowed === true) {
     return {
       ...packageStatus,
-      package_use_binding: pinnedUseBinding ?? activation?.package_use_binding ?? null,
+      package_use_binding: effectiveUseBinding,
       package_quality_debt: null,
     };
   }
 
-  const hardStopReason = packageLaunchHardStopReason(input.activateMissingScope === false
-    ? {
-        ...packageStatus,
-        materialization_readiness: undefined,
-      }
-    : packageStatus);
+  const hardStopReason = packageLaunchHardStopReason(packageStatus);
   if (!hardStopReason) {
     return {
       ...packageStatus,
-      package_use_binding: activation?.package_use_binding ?? null,
+      package_use_binding: effectiveUseBinding,
       package_quality_debt: packageStatus.launch_blocked_reason,
       progression_effect: 'stage_launch_allowed_with_package_quality_debt',
       quality_claims_closed: true,

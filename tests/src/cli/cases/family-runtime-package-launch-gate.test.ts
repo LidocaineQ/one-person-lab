@@ -60,7 +60,7 @@ test('package launch stops only for missing required capability while metadata d
       core_readiness: { status: 'missing' },
     },
     runtime_source_readiness: { status: 'current', operational_ready: true },
-  }), 'required_core_skill_missing');
+  }), null);
   assert.equal(packageLaunchHardStopReason({
     installed_package_count: 1,
     runtime_source_readiness: {

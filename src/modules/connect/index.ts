@@ -1,12 +1,8 @@
 import { registerAgentPackageReadinessPort } from '../../kernel/agent-package-readiness-port.ts';
-import {
-  ensureOplAgentPackageScopeActivation,
-  runOplAgentPackageStatus,
-} from './agent-package-registry.ts';
+import { runOplAgentPackageStatus } from './agent-package-registry.ts';
 
 registerAgentPackageReadinessPort({
   readStatus: runOplAgentPackageStatus,
-  ensureScopeActivation: ensureOplAgentPackageScopeActivation,
 });
 
 export const OPL_CONNECT_SOURCE_MODULE = {
@@ -61,7 +57,6 @@ export {
   listOplAgentPackages,
   readOplFlowDefaultUserInstructions,
   readOplFlowManagedDependencyIds,
-  ensureOplAgentPackageScopeActivation,
   runOplAgentPackageExposureAction,
   runOplAgentPackageFrameworkLink,
   runOplAgentPackageHomeShortcutPreferencesSet,

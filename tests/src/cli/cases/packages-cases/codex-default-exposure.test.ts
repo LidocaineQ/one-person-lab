@@ -18,7 +18,6 @@ import {
   CANONICAL_PACKAGE_CONTENT_LOCK,
   packageContentLockDigest,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/payload-content-lock.ts';
-import { materializeCapabilityScopeFromLock } from '../../../../../src/modules/connect/agent-package-registry-parts/scope-materialization.ts';
 import { writeCapabilityProvider } from './capability-fixtures.ts';
 
 function withEnvironment<T>(values: Record<string, string>, run: () => T) {
@@ -323,34 +322,7 @@ test('hidden capability packages keep immutable cache but leave global Codex sur
         targetWorkspace: masWorkspace,
       });
       assert.equal(admitted.targetWorkspace, masWorkspace);
-      const materialization = materializeCapabilityScopeFromLock({
-        provider: lock,
-        scope: 'workspace',
-        targetRoot: masWorkspace,
-        transactionId: 'hidden-capability-workspace-projection',
-        dryRun: false,
-      });
-      assert.equal(materialization.scope, 'workspace');
-      assert.equal(
-        fs.existsSync(path.join(
-          masWorkspace,
-          '.codex',
-          'skills',
-          'medical-manuscript-writing',
-          'SKILL.md',
-        )),
-        true,
-      );
-      assert.equal(
-        fs.readFileSync(path.join(
-          masWorkspace,
-          '.codex',
-          'skills',
-          'medical-manuscript-writing',
-          'helper.txt',
-        ), 'utf8'),
-        'medical-manuscript-writing helper 0.1.0\n',
-      );
+      assert.equal(fs.existsSync(path.join(masWorkspace, '.codex', 'skills')), false);
       assert.equal(fs.existsSync(path.join(codexHome, 'skills')), false);
     });
   } finally {

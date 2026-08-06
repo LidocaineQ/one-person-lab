@@ -11,10 +11,7 @@ import {
   type CapabilityRegistryCatalog,
   type CurrentOwnerDeltaCapabilityBinding,
 } from '../../src/modules/connect/capability-registry-resolver.ts';
-import {
-  ensureOplAgentPackageScopeActivation,
-  runOplAgentPackageInstall,
-} from '../../src/modules/connect/agent-package-registry.ts';
+import { runOplAgentPackageInstall } from '../../src/modules/connect/agent-package-registry.ts';
 import { sha256Fixture } from './cli/cases/packages-cases/helpers.ts';
 import { writeManagedRuntimeSourceFixture } from './cli/cases/packages-cases/managed-runtime-source-fixture.ts';
 import { createFakeCodexPluginManagerFixture } from './cli/helpers-parts/fixtures.ts';
@@ -774,7 +771,11 @@ test('provider-hosted attempt launch consumes typed capability readout without c
     capability_dependencies: [],
   };
   const packageFiles = {
-    '.codex-plugin/plugin.json': `${JSON.stringify({ name: 'med-autoscience', version: '0.2.1' })}\n`,
+    '.codex-plugin/plugin.json': `${JSON.stringify({
+      name: 'med-autoscience',
+      version: '0.2.1',
+      skills: './skills/',
+    })}\n`,
     '.agents/plugins/marketplace.json': `${JSON.stringify({
       name: 'med-autoscience-local',
       plugins: [{ name: 'med-autoscience', source: { source: 'local', path: './' } }],
@@ -824,13 +825,6 @@ test('provider-hosted attempt launch consumes typed capability readout without c
     scope: 'workspace',
     targetWorkspace: familyRoot,
   });
-  const activation = await ensureOplAgentPackageScopeActivation({
-    packageId: 'mas',
-    scope: 'workspace',
-    targetWorkspace: familyRoot,
-  });
-  assert.equal(activation.status, 'already_activated');
-  assert.equal(activation.writes_performed, false);
   assert.equal(
     fs.existsSync(path.join(process.env.OPL_STATE_DIR!, 'agent-package-locks.json')),
     false,

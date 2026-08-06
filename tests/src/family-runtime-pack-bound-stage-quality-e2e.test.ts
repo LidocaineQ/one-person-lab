@@ -13,10 +13,7 @@ import { Worker } from '@temporalio/worker';
 
 import { registerAgentPackageReadinessPort } from '../../src/kernel/agent-package-readiness-port.ts';
 import { FrameworkContractError } from '../../src/kernel/contract-validation.ts';
-import {
-  ensureOplAgentPackageScopeActivation,
-  runOplAgentPackageStatus,
-} from '../../src/modules/connect/agent-package-registry.ts';
+import { runOplAgentPackageStatus } from '../../src/modules/connect/agent-package-registry.ts';
 import { createWorkItemExecutionScopeSnapshot } from '../../src/modules/workspace/index.ts';
 import { runFamilyRuntime } from '../../src/modules/runway/family-runtime.ts';
 import { resolveStageRunAttemptExecutorContent } from '../../src/modules/runway/family-runtime-stage-run-attempt-content.ts';
@@ -303,8 +300,8 @@ Repair using the latest package.
 Close findings using the latest package.
 `,
   );
-  const updatedUseBinding = packageUseBinding(updatedPackRoot, '0.0.1-test');
   let activePackRoot = packRoot;
+  const updatedUseBinding = packageUseBinding(updatedPackRoot, '0.0.1-test');
   let activeUseBinding = useBinding;
   const observedAttemptInputs: TemporalStageAttemptWorkflowInput[] = [];
   const artifactBytes = Buffer.from('pack-bound-draft-v1');
@@ -339,14 +336,23 @@ Close findings using the latest package.
       opl_agent_package_status: {
         installed_package_count: 1,
         launch_allowed: true,
+        package_use_binding: activeUseBinding,
         runtime_source_readiness: {
           operational_ready: true,
           checkout_path: activePackRoot,
         },
       },
     }),
-    ensureScopeActivation: async () => ({ package_use_binding: activeUseBinding }),
   });
+  const stageRunRuntime = {
+    ensurePackageLaunchReady: async () => ({
+      runtime_source_readiness: {
+        operational_ready: true,
+        checkout_path: activePackRoot,
+      },
+      package_use_binding: activeUseBinding,
+    }) as never,
+  };
 
   const activities = {
     stageQualityAttemptMaterializeActivity,
@@ -479,14 +485,14 @@ Close findings using the latest package.
         await assert.rejects(
           () => runFamilyRuntime(baseArgs.map((value) => (
             value === 'medical' ? 'reference' : value
-          ))),
+          )), { stageRunRuntime }),
           (error: unknown) => (
             error instanceof FrameworkContractError
             && error.details?.failure_code === 'stage_review_lane_binding_invalid'
           ),
         );
         const executeNewStageRun = async (args: string[]) => {
-          const cli = await runFamilyRuntime(args);
+          const cli = await runFamilyRuntime(args, { stageRunRuntime });
           const launch = cli.family_runtime_stage_run as any;
           const handle = client.workflow.getHandle(
             launch.stage_run_input.workflow_id,
@@ -495,7 +501,7 @@ Close findings using the latest package.
           return { cli, state: await handle.result() };
         };
         const first = await executeNewStageRun(baseArgs);
-        const replay = await runFamilyRuntime(baseArgs);
+        const replay = await runFamilyRuntime(baseArgs, { stageRunRuntime });
         const explicitNew = await executeNewStageRun([...baseArgs, '--new-stage-run']);
         const compatibilityAlias = await executeNewStageRun([...baseArgs, '--new-attempt']);
         return { first, replay, explicitNew, compatibilityAlias };
@@ -681,7 +687,6 @@ Close findings using the latest package.
   } finally {
     registerAgentPackageReadinessPort({
       readStatus: runOplAgentPackageStatus,
-      ensureScopeActivation: ensureOplAgentPackageScopeActivation,
     });
     restoreEnv(previousEnv);
     await testEnv.teardown();

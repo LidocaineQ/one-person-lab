@@ -2143,7 +2143,6 @@ test('Hosted Foundry action starts one OPL-owned FoundryRun and replays immutabl
 test('Hosted Foundry action rejects an untrusted OMA runtime source before activation or FoundryRun start', async () => {
   const checkoutRoot = root('opl-foundry-action-mismatched-oma-checkout-');
   const workspaceRoot = root('opl-foundry-action-mismatched-oma-workspace-');
-  let activationCalls = 0;
   let starts = 0;
   try {
     await assert.rejects(runStandardAgentAction({
@@ -2171,10 +2170,6 @@ test('Hosted Foundry action rejects an untrusted OMA runtime source before activ
               },
             },
           }),
-          ensureScopeActivation: async () => {
-            activationCalls += 1;
-            throw new Error('scope activation must not run for an untrusted OMA runtime source');
-          },
         },
       }),
       startFoundryRun: async () => {
@@ -2186,7 +2181,6 @@ test('Hosted Foundry action rejects an untrusted OMA runtime source before activ
       assert.equal(error?.details?.launch_blocked_reason, 'managed_runtime_source_identity_mismatch');
       return true;
     });
-    assert.equal(activationCalls, 0);
     assert.equal(starts, 0);
   } finally {
     fs.rmSync(checkoutRoot, { recursive: true, force: true });

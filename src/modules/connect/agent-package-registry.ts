@@ -40,7 +40,6 @@ import {
   type ManagedCatalogVersion,
   type ManagedPackageCatalog,
 } from './agent-package-registry-parts/capability-reconciliation.ts';
-import { packageScopeTarget } from './agent-package-registry-parts/scope-materialization.ts';
 import {
   managedPolicyCurrentnessFromDescriptor,
 } from './agent-package-registry-parts/managed-policy-surface.ts';
@@ -1454,37 +1453,6 @@ export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
     };
   }
   throwPackageNativeOwnerRequired(input, 'repair');
-}
-
-export async function ensureOplAgentPackageScopeActivation(input: AgentPackagePackageActionInput) {
-  const packageId = requirePackageId(input.packageId, 'activate');
-  const targetRoot = packageScopeTarget(input);
-  if (!input.scope || !targetRoot) {
-    throw new FrameworkContractError('cli_usage_error', 'Package scope activation requires workspace or quest target.', {
-      package_id: packageId,
-      failure_code: 'agent_package_scope_target_required',
-    });
-  }
-  const activationReadback = packageStatusForActivation({
-    packageId,
-    scope: input.scope,
-    targetWorkspace: input.targetWorkspace,
-    targetQuest: input.targetQuest,
-  });
-  const nativeStatus = activationReadback.packageStatus;
-  const nativeCarrierState = packageNativeCarrierActivationState(nativeStatus);
-  if (nativeCarrierState === 'ready') {
-    return {
-      status: input.dryRun ? 'validated_no_write' : 'already_activated',
-      package_id: packageId,
-      writes_performed: false,
-      package_status: nativeStatus,
-    };
-  }
-  if (nativeCarrierState === 'blocked') {
-    throwNativeCarrierActivationBlocked(packageId, nativeStatus);
-  }
-  throwPackageNativeOwnerRequired(input, 'activate');
 }
 
 async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActionInput) {
