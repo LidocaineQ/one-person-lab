@@ -865,6 +865,7 @@ export function writeDeveloperCapabilityCheckoutClosure(input: {
       version: masManifest.version,
       displayName: 'Med Auto Science',
       description: 'Developer checkout fixture.',
+      skills: './skills/',
     }),
   );
   if (fs.existsSync(ownerDescriptorPath)) {
@@ -979,6 +980,7 @@ export function updateDeveloperCapabilityCheckoutClosure(input: {
       version: masManifest.version,
       displayName: 'Med Auto Science',
       description: 'Developer checkout fixture.',
+      skills: './skills/',
     }),
   );
   fs.copyFileSync(

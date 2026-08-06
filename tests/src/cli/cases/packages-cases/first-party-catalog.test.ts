@@ -340,6 +340,7 @@ function writeFirstPartyCatalogFixture(
     version,
     displayName: 'OPL Flow',
     description: 'First-party catalog fixture.',
+    skills: './skills/',
   });
   const requiredSkillIds = options.requiredSkillIds ?? FLOW_SKILL_IDS;
   const skillMarkdown = (skillId: string) =>
@@ -714,6 +715,7 @@ function writeRelayOwnerFixture(root: string) {
   fs.writeFileSync(path.join(ownerRoot, '.codex-plugin', 'plugin.json'), formatJsonPayload({
     name: 'opl-relay',
     version: manifest.version,
+    skills: './skills/',
   }));
   fs.writeFileSync(path.join(ownerRoot, 'skills', 'opl-relay', 'SKILL.md'), '# OPL Relay fixture\n');
   return {
@@ -987,7 +989,7 @@ test('Relay owner source failure is typed and does not enter Framework lifecycle
   }
 });
 
-test('first-party identities reject explicit registries and unowned manifest bodies without state writes', () => {
+test('first-party identities reject explicit registries and unowned local manifests without state writes', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-party-source-collision-'));
   const stateDir = path.join(root, 'opl-state');
   const homeDir = path.join(root, 'home');
@@ -1081,9 +1083,9 @@ test('first-party identities reject explicit registries and unowned manifest bod
     ], env);
     assert.equal(
       manifestAction.payload.error.details.failure_code,
-      'first_party_package_external_manifest_forbidden',
+      'agent_package_lifecycle_native_owner_required',
     );
-    assert.match(manifestAction.payload.error.message, /per-Package owner OCI latest-stable channel/);
+    assert.match(manifestAction.payload.error.message, /configured native carrier/);
     assert.doesNotMatch(manifestAction.payload.error.message, /Release Set/);
     for (const fileName of [
       'agent-package-locks.json',
@@ -1760,9 +1762,6 @@ test('fresh Developer install admits owner checkout manifests without a channel 
   const masCheckout = path.join(root, 'workspace', 'med-autoscience');
   const scholarCheckout = path.join(root, 'workspace', 'mas-scholar-skills');
   const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0');
-  const providerPayload = JSON.parse(fs.readFileSync(providerManifest, 'utf8'));
-  delete providerPayload.content_lock;
-  fs.writeFileSync(providerManifest, formatJsonPayload(providerPayload));
   addConfiguredCarrierToCapabilityFixture(providerManifest);
   const masManifest = writeMasConsumer(path.join(root, 'mas'), providerManifest, '0.1.0', {
     configuredCarrier: true,
@@ -1814,6 +1813,14 @@ test('fresh Developer install admits owner checkout manifests without a channel 
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
 
     const status = runCli(['packages', 'status', '--package-id', 'mas'], commonEnv) as any;
+    const scholarStatus = runCli([
+      'packages', 'status', '--package-id', 'mas-scholar-skills',
+    ], commonEnv) as any;
+    assert.equal(
+      scholarStatus.opl_agent_package_status.installed_package_count,
+      1,
+      JSON.stringify(scholarStatus.opl_agent_package_status),
+    );
     assert.equal(
       fs.existsSync(path.join(
         status.opl_agent_package_status.configured_carrier.plugin_source_path,
@@ -1821,7 +1828,11 @@ test('fresh Developer install admits owner checkout manifests without a channel 
       )),
       true,
     );
-    assert.equal(status.opl_agent_package_status.operational_ready, true);
+    assert.equal(
+      status.opl_agent_package_status.operational_ready,
+      true,
+      JSON.stringify(status.opl_agent_package_status),
+    );
     assert.equal(status.opl_agent_package_status.launch_allowed, true);
     runCli(['workspace', 'bind', '--project', 'medautoscience', '--path', workspace], commonEnv);
     const activation = runCli([
