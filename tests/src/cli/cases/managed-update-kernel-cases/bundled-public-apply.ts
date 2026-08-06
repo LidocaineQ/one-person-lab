@@ -132,6 +132,10 @@ test('public update apply retains successful bundled roots when another native c
       { env: { ...process.env, ...commonEnv } },
     );
     installRuntimePackageFixture(homeRoot, 'mas');
+    // MAS is a first-party root with mas-scholar-skills as its required closure.
+    // Keep the fixture aligned with the owner manifest so activation tests exercise
+    // native callability rather than an incomplete dependency projection.
+    installRuntimePackageFixture(homeRoot, 'mas-scholar-skills');
 
     const bound = runCli([
       'workspace',
