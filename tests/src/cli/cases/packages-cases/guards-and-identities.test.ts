@@ -106,7 +106,7 @@ test('package registry uses version_source_ref and rejects mutable latest_versio
   );
 });
 
-test('local manifest lifecycle requires an explicit source after install', () => {
+test('local manifests without a native owner stay outside Framework Package lifecycle state', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-positional-state-'));
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-runtime-source-'));
   const modulesRoot = path.join(fixtureRoot, 'modules');
@@ -138,82 +138,25 @@ test('local manifest lifecycle requires an explicit source after install', () =>
       },
     }));
 
-    const rca = runCli([
-      'packages', 'install', '--manifest-url', manifestPath, '--trust-tier', 'first_party',
-    ], env) as {
-      opl_agent_package_install: { package_lock: { package_id: string; trust_tier: string; managed_runtime_source: any } };
-    };
-    assert.equal(rca.opl_agent_package_install.package_lock.package_id, FIXTURE_RCA_PACKAGE_ID);
-    assert.equal(rca.opl_agent_package_install.package_lock.trust_tier, 'first_party');
-    assert.equal(rca.opl_agent_package_install.package_lock.managed_runtime_source.preparation_status, 'completed');
-    assert.equal(
-      Object.hasOwn(rca.opl_agent_package_install.package_lock.managed_runtime_source, 'handler_probe_output_sha256'),
-      false,
-    );
     const lockPath = path.join(stateDir, 'agent-package-locks.json');
+    const ledgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
+    const sqlitePath = path.join(stateDir, 'agent-package-lifecycle.sqlite');
     const runtimePreparedPath = path.join(modulesRoot, 'redcube-ai', '.runtime-prepared');
-    const initialLockBytes = fs.readFileSync(lockPath, 'utf8');
-    const initialRuntimeBytes = fs.readFileSync(runtimePreparedPath, 'utf8');
-    assert.equal(initialRuntimeBytes.trim(), '0.1.0');
-
-    const bareRepairFailure = runCliFailure([
-      'packages', 'repair', '--package-id', FIXTURE_RCA_PACKAGE_ID,
-    ], env);
-    assert.equal(
-      bareRepairFailure.payload.error.details.failure_code,
-      'agent_package_lifecycle_native_owner_required',
-    );
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), initialLockBytes);
-    assert.equal(fs.readFileSync(runtimePreparedPath, 'utf8'), initialRuntimeBytes);
-
-    const repaired = runCli([
-      'packages', 'repair', '--package-id', FIXTURE_RCA_PACKAGE_ID,
-      '--manifest-url', manifestPath,
-      '--trust-tier', 'first_party',
-    ], env) as {
-      opl_agent_package_repair: { package_lock: { package_id: string } };
-    };
-    assert.equal(repaired.opl_agent_package_repair.package_lock.package_id, FIXTURE_RCA_PACKAGE_ID);
-
-    Object.assign(env, writeManagedRuntimeSourceFixture({
-      root: fixtureRoot,
-      moduleId: 'redcube',
-      repoName: 'redcube-ai',
-      version: '0.1.1',
-      sourceHeadSha: 'runtime-source-v2',
-    }));
-    const lockBytesBeforeBareUpdate = fs.readFileSync(lockPath, 'utf8');
-    const runtimeBytesBeforeBareUpdate = fs.readFileSync(runtimePreparedPath, 'utf8');
-    const bareUpdateFailure = runCliFailure([
-      'packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID,
-    ], env);
-    assert.equal(
-      bareUpdateFailure.payload.error.details.failure_code,
-      'agent_package_lifecycle_native_owner_required',
-    );
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytesBeforeBareUpdate);
-    assert.equal(fs.readFileSync(runtimePreparedPath, 'utf8'), runtimeBytesBeforeBareUpdate);
-
-    const updated = runCli([
-      'packages', 'update', '--package-id', FIXTURE_RCA_PACKAGE_ID,
-      '--manifest-url', manifestPath,
-      '--trust-tier', 'first_party',
-    ], env) as any;
-    assert.equal(updated.opl_agent_package_update.package_lock.managed_runtime_source.source_git_head_sha, 'runtime-source-v2');
-    assert.equal(Object.hasOwn(updated.opl_agent_package_update, 'lock_file'), false);
-    assert.equal(Object.hasOwn(updated.opl_agent_package_update, 'lifecycle_ledger_file'), false);
-    assert.equal(fs.readFileSync(runtimePreparedPath, 'utf8').trim(), '0.1.1');
-    const lockBytesBeforeBareUninstall = fs.readFileSync(lockPath, 'utf8');
-
-    const bareUninstallFailure = runCliFailure([
-      'packages', 'uninstall', '--package-id', FIXTURE_RCA_PACKAGE_ID,
-    ], env);
-    assert.equal(
-      bareUninstallFailure.payload.error.details.failure_code,
-      'agent_package_lifecycle_native_owner_required',
-    );
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytesBeforeBareUninstall);
-    assert.equal(fs.existsSync(path.join(modulesRoot, 'redcube-ai')), true);
+    for (const action of ['install', 'update', 'repair']) {
+      const failure = runCliFailure([
+        'packages', action, '--package-id', FIXTURE_RCA_PACKAGE_ID,
+        '--manifest-url', manifestPath,
+        '--trust-tier', 'first_party',
+      ], env);
+      assert.equal(
+        failure.payload.error.details.failure_code,
+        'agent_package_lifecycle_native_owner_required',
+      );
+      assert.equal(fs.existsSync(lockPath), false);
+      assert.equal(fs.existsSync(ledgerPath), false);
+      assert.equal(fs.existsSync(sqlitePath), false);
+      assert.equal(fs.existsSync(runtimePreparedPath), false);
+    }
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
     fs.rmSync(fixtureRoot, { recursive: true, force: true });
@@ -737,148 +680,6 @@ test('packages fails closed when latest is treated as install truth', () => {
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
     fs.rmSync(fixtureDir, { recursive: true, force: true });
-  }
-});
-
-test('packages rejects developer checkout auto-update and permission scope drift', async () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-policy-state-'));
-  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-policy-home-'));
-  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-policy-fixtures-'));
-  const pluginSourcePath = createPluginSourceFixture();
-  const env = {
-    OPL_STATE_DIR: stateDir,
-    HOME: homeDir,
-    CODEX_HOME: path.join(homeDir, '.codex'),
-  };
-  try {
-    const manifestPath = path.join(fixtureDir, 'manifest.json');
-    const permissionManifestPath = path.join(fixtureDir, 'manifest-permission-change.json');
-    fs.writeFileSync(manifestPath, formatJsonPayload(agentPackageManifest({ pluginSourcePath })), 'utf8');
-    fs.writeFileSync(
-      permissionManifestPath,
-      formatJsonPayload(agentPackageManifest({ pluginSourcePath, permissions: [{ id: 'filesystem.write' }] })),
-      'utf8',
-    );
-
-    await runCliAsync([
-      'packages',
-      'install',
-      '--manifest-url',
-      pathToFileURL(manifestPath).href,
-      '--trust-tier',
-      'third_party_verified',
-    ], env);
-
-    const developerUpdateFailure = runCliFailure([
-      'packages',
-      'update',
-      '--manifest-url',
-      pathToFileURL(manifestPath).href,
-      '--trust-tier',
-      'third_party_verified',
-      '--source-kind',
-      'developer_checkout_override',
-    ], env);
-    assert.equal(developerUpdateFailure.payload.error.details.failure_code, 'agent_package_developer_checkout_auto_update_forbidden');
-
-    const permissionFailure = runCliFailure([
-      'packages',
-      'update',
-      '--manifest-url',
-      pathToFileURL(permissionManifestPath).href,
-      '--trust-tier',
-      'third_party_verified',
-    ], env);
-    assert.equal(permissionFailure.payload.error.details.failure_code, 'agent_package_permission_scope_change_requires_manual_confirmation');
-  } finally {
-    fs.rmSync(stateDir, { recursive: true, force: true });
-    fs.rmSync(homeDir, { recursive: true, force: true });
-    fs.rmSync(fixtureDir, { recursive: true, force: true });
-    fs.rmSync(pluginSourcePath, { recursive: true, force: true });
-  }
-});
-
-test('packages preserves the installed lock without exposing an operation receipt when update materialization fails', () => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-update-failure-state-'));
-  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-update-failure-home-'));
-  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-update-failure-fixtures-'));
-  const pluginSourcePath = createPluginSourceFixture();
-  const brokenPluginSourcePath = createPluginSourceFixture({ includeRequiredSkill: false });
-  const env = {
-    OPL_STATE_DIR: stateDir,
-    HOME: homeDir,
-    CODEX_HOME: path.join(homeDir, '.codex'),
-  };
-  try {
-    const manifestPath = path.join(fixtureDir, 'manifest.json');
-    const brokenManifestPath = path.join(fixtureDir, 'manifest-broken.json');
-    fs.writeFileSync(manifestPath, formatJsonPayload(agentPackageManifest({ pluginSourcePath })), 'utf8');
-    fs.writeFileSync(brokenManifestPath, formatJsonPayload(agentPackageManifest({ pluginSourcePath: brokenPluginSourcePath })), 'utf8');
-
-    const install = runCli([
-      'packages',
-      'install',
-      '--manifest-url',
-      pathToFileURL(manifestPath).href,
-      '--trust-tier',
-      'third_party_verified',
-    ], env) as {
-      opl_agent_package_install: {
-        package_lock: {
-          lock_ref: string;
-          physical_surface: { codex_plugin_cache_path: string };
-        };
-      };
-    };
-    const installReadback = install.opl_agent_package_install;
-    const lockFile = path.join(stateDir, 'agent-package-locks.json');
-    const lockFileBefore = fs.readFileSync(lockFile, 'utf8');
-    const installedCachePath = install.opl_agent_package_install.package_lock.physical_surface.codex_plugin_cache_path;
-    assert.equal(Object.hasOwn(installReadback, 'lifecycle_receipt'), false);
-    assert.equal(Object.hasOwn(installReadback.package_lock, 'action_receipt_id'), false);
-    assert.equal(Object.hasOwn(installReadback.package_lock, 'rollback_ref'), false);
-    assert.doesNotMatch(lockFileBefore, /"action_receipt_id"/);
-    assert.doesNotMatch(lockFileBefore, /"rollback_ref"/);
-    assert.equal(Object.hasOwn(installReadback, 'lock_file'), false);
-    assert.equal(Object.hasOwn(installReadback, 'lifecycle_ledger_file'), false);
-    assert.equal(Object.hasOwn(installReadback, 'owner_route_readback'), false);
-
-    const failure = runCliFailure([
-      'packages',
-      'update',
-      '--manifest-url',
-      pathToFileURL(brokenManifestPath).href,
-      '--trust-tier',
-      'third_party_verified',
-    ], env);
-    assert.equal(failure.payload.error.details.failure_code, 'agent_package_required_skill_missing');
-    assert.equal(fs.existsSync(installedCachePath), true);
-    assert.equal(fs.readFileSync(lockFile, 'utf8'), lockFileBefore);
-    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
-
-    const status = runCli([
-      'packages',
-      'status',
-      '--package-id',
-      'third.party.research',
-    ], env) as {
-      opl_agent_package_status: {
-        status: string;
-        installed_package_count: number;
-        installed_packages: unknown[];
-      };
-    };
-    assert.equal(status.opl_agent_package_status.status, 'not_installed');
-    assert.equal(status.opl_agent_package_status.installed_package_count, 0);
-    assert.deepEqual(status.opl_agent_package_status.installed_packages, []);
-    assert.equal(fs.existsSync(installedCachePath), true);
-    assert.equal(fs.readFileSync(lockFile, 'utf8'), lockFileBefore);
-  } finally {
-    fs.rmSync(stateDir, { recursive: true, force: true });
-    fs.rmSync(homeDir, { recursive: true, force: true });
-    fs.rmSync(fixtureDir, { recursive: true, force: true });
-    fs.rmSync(pluginSourcePath, { recursive: true, force: true });
-    fs.rmSync(brokenPluginSourcePath, { recursive: true, force: true });
   }
 });
 

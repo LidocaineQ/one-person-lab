@@ -1029,11 +1029,15 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
     })));
     writeFakeCodex(binary);
 
-    const installed = runCli([
-      'packages', 'install', '--manifest-url', manifestPath, '--trust-tier', 'third_party_verified',
-    ], env) as any;
-    assert.equal(installed.opl_agent_package_install.package_lock.package_id, packageId);
-    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), true);
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(stateDir, 'agent-package-locks.json'),
+      formatJsonPayload({
+        surface_kind: 'opl_agent_package_lock_index',
+        version: 'opl-agent-package-lock-index.v1',
+        packages: [],
+      }),
+    );
     const legacyLockBytes = fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8');
     const legacyLedgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
     assert.equal(fs.existsSync(legacyLedgerPath), false);

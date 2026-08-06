@@ -24,7 +24,6 @@ import type {
   AgentPackageLock,
   AgentPackagePhysicalSurface,
 } from './types.ts';
-import type { LegacyOplSkillsMigrationReadback } from './legacy-opl-skills-migration.ts';
 
 type AgentPackageUpdateApplicationResult = {
   status: string;
@@ -35,7 +34,6 @@ type AgentPackageUpdateApplicationResult = {
   closureLocks: AgentPackageLock[];
   dependencyTransactionId: string;
   dependencyClosureDigest: string;
-  legacySkillMigration?: LegacyOplSkillsMigrationReadback | null;
   carrierEnsure?: {
     surface_kind: 'opl_package_carrier_ensure.v1';
     status: 'present';
