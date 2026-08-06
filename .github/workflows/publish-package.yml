@@ -2,6 +2,32 @@ name: Publish one OPL Package
 run-name: Package ${{ inputs.package_id }} ${{ inputs.expected_package_version }} / ${{ inputs.publication_request_id }}
 
 on:
+  workflow_call:
+    inputs:
+      package_id:
+        description: Canonical Package id
+        required: true
+        type: string
+      expected_package_version:
+        description: Exact stable SemVer selected by canonical Framework main
+        required: true
+        type: string
+      expected_owner_source_commit:
+        description: Exact owner commit selected by canonical Framework main
+        required: true
+        type: string
+      expected_framework_source_commit:
+        description: Exact Framework main commit that owns the Package projection
+        required: true
+        type: string
+      expected_latest_stable_predecessor:
+        description: Exact latest-stable digest observed before dispatch, or none only when the tag is verified absent
+        required: true
+        type: string
+      publication_request_id:
+        description: Unique publication correlation id
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       package_id:

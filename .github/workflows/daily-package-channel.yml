@@ -35,6 +35,7 @@ jobs:
       publish_required: ${{ steps.decide.outputs.publish_required }}
       release_set_generation: ${{ steps.generation.outputs.release_set_generation }}
       changed_packages_json: ${{ steps.decide.outputs.changed_packages_json }}
+      publication_inputs_json: ${{ steps.publication-plan.outputs.publication_inputs_json }}
       non_package_changed_components_json: ${{ steps.decide.outputs.non_package_changed_components_json }}
       publication_scope: ${{ steps.decide.outputs.publication_scope }}
       owner_cohort_artifact_name: ${{ steps.generation.outputs.owner_cohort_artifact_name }}
@@ -196,3 +197,74 @@ jobs:
           name: opl-daily-package-channel-candidate-${{ steps.generation.outputs.release_set_generation }}
           path: dist/opl-daily-packages
           if-no-files-found: error
+
+      - name: Prepare independent Package publication plan
+        id: publication-plan
+        if: steps.decide.outputs.publish_required == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          summary=dist/opl-daily-packages/daily-package-channel-summary.json
+          plan='[]'
+          while IFS= read -r package_id; do
+            version="$(jq -er --arg id "$package_id" '.candidate_fingerprint[$id].package_version' "$summary")"
+            owner_commit="$(jq -er --arg id "$package_id" '.candidate_fingerprint[$id].owner_source_commit' "$summary")"
+            image="ghcr.io/${{ github.repository_owner }}/one-person-lab-packages/$package_id"
+            predecessor='none'
+            descriptor_file="$RUNNER_TEMP/opl-$package_id-latest-stable-descriptor.json"
+            descriptor_error="$RUNNER_TEMP/opl-$package_id-latest-stable-descriptor.error"
+            if oras manifest fetch --descriptor "$image:latest-stable" \
+              > "$descriptor_file" 2> "$descriptor_error"; then
+              predecessor="$(jq -er '.digest | select(test("^sha256:[0-9a-f]{64}$"))' "$descriptor_file")"
+            else
+              tags_file="$RUNNER_TEMP/opl-$package_id-tags.txt"
+              if ! oras repo tags "$image" > "$tags_file"; then
+                echo "::error::Unable to verify the independent latest-stable predecessor for $package_id."
+                exit 1
+              fi
+              if grep -Fxq latest-stable "$tags_file"; then
+                echo "::error::latest-stable exists but its exact predecessor digest could not be resolved for $package_id."
+                exit 1
+              fi
+            fi
+            request_id="daily-${{ github.run_id }}-${{ github.run_attempt }}-${package_id}"
+            plan="$(jq -c \
+              --arg id "$package_id" \
+              --arg version "$version" \
+              --arg owner_commit "$owner_commit" \
+              --arg predecessor "$predecessor" \
+              --arg request_id "$request_id" \
+              '. + [{package_id:$id, expected_package_version:$version, expected_owner_source_commit:$owner_commit, expected_latest_stable_predecessor:$predecessor, publication_request_id:$request_id}]' \
+              <<< "$plan")"
+          done < <(jq -er '.changed_packages[]' "$summary")
+          test "$(jq 'length' <<< "$plan")" -gt 0
+          echo "publication_inputs_json=$plan" >> "$GITHUB_OUTPUT"
+          {
+            echo "- Independent owner publication plan: \`$plan\`"
+            echo "- The next job invokes the single-Package publisher once per changed owner channel."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish-independent-packages:
+    name: Publish ${{ matrix.package_id }} owner channel
+    needs: detect-package-channel-change
+    if: needs.detect-package-channel-change.outputs.publish_required == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include: ${{ fromJSON(needs.detect-package-channel-change.outputs.publication_inputs_json) }}
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: ./.github/workflows/publish-package.yml
+    with:
+      package_id: ${{ matrix.package_id }}
+      expected_package_version: ${{ matrix.expected_package_version }}
+      expected_owner_source_commit: ${{ matrix.expected_owner_source_commit }}
+      expected_framework_source_commit: ${{ github.sha }}
+      expected_latest_stable_predecessor: ${{ matrix.expected_latest_stable_predecessor }}
+      publication_request_id: ${{ matrix.publication_request_id }}
+    secrets: inherit

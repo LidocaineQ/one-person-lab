@@ -186,7 +186,7 @@ test('packages manifest exposes independent owner currentness and compatibility 
   assert.equal(output.packages_manifest.release_automation.cleanup.retain_versions, 3);
   assert.equal(output.packages_manifest.release_automation.status, 'active_managed_ghcr_capability_packages');
   assert.equal(output.packages_manifest.release_automation.package_lifecycle_status, 'active_release_channel');
-  assert.equal(output.packages_manifest.release_automation.workflow_trigger_policy, 'release_gate_workflow_call_or_manual_dispatch');
+  assert.equal(output.packages_manifest.release_automation.workflow_trigger_policy, 'independent_owner_channel_workflow_call_or_manual_dispatch');
   assert.equal(output.packages_manifest.release_automation.remote_publish_status, 'publication_workflow_configured_pending_remote_verification');
   assert.equal(output.packages_manifest.release_automation.release_manifest_publication_status, 'configured_pending_remote_verification');
   assert.equal(
@@ -353,7 +353,7 @@ test('packages manifest exposes independent owner currentness and compatibility 
   );
   assert.equal(
     output.packages_manifest.packages.package_artifacts.mas.release_discipline.workflow_trigger_policy,
-    'release_gate_workflow_call_or_manual_dispatch',
+    'independent_owner_channel_workflow_call_or_manual_dispatch',
   );
   assert.equal(
     output.packages_manifest.packages.package_artifacts.mas.release_discipline.package_lifecycle_status,

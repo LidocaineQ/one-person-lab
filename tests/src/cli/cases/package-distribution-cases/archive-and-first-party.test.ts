@@ -481,7 +481,7 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.deepEqual(manifest.release_automation.cleanup.protected_tags, ['candidate', 'latest-stable']);
   assert.equal(manifest.release_automation.status, 'active_managed_ghcr_capability_packages');
   assert.equal(manifest.release_automation.package_lifecycle_status, 'active_release_channel');
-  assert.equal(manifest.release_automation.workflow_trigger_policy, 'release_gate_workflow_call_or_manual_dispatch');
+  assert.equal(manifest.release_automation.workflow_trigger_policy, 'independent_owner_channel_workflow_call_or_manual_dispatch');
   assert.equal(manifest.release_automation.remote_publish_status, 'publication_workflow_configured_pending_remote_verification');
   assert.equal(manifest.packages.framework_core.homebrew_formula.surface_kind, 'opl_homebrew_formula_projection.v1');
   assert.equal(manifest.packages.framework_core.homebrew_formula.formula_name, 'opl');
@@ -809,7 +809,7 @@ test('package archive builder writes channel manifest checksums git source and r
   );
   assert.equal(
     manifest.packages.package_artifacts.mas.release_discipline.workflow_trigger_policy,
-    'release_gate_workflow_call_or_manual_dispatch',
+    'independent_owner_channel_workflow_call_or_manual_dispatch',
   );
   assert.equal(
     manifest.packages.package_artifacts.mas.source_git.head_sha,
