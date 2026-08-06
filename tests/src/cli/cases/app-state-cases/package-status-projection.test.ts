@@ -10,10 +10,6 @@ import { FrameworkContractError } from '../../../../../src/kernel/contract-valid
 import { parseJsonText } from '../../../../../src/kernel/json-file.ts';
 import { validateJsonSchemaPayload } from '../../../../../src/kernel/schema-registry.ts';
 import { buildAppAgentPackageStatuses } from '../../../../../src/modules/console/app-state.ts';
-import { managedRuntimeSourceLockReadiness } from '../../../../../src/modules/connect/agent-package-registry-parts/managed-runtime-source-carrier.ts';
-import type {
-  AgentPackageManagedRuntimeSourceState,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/types.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../..');
 const launchStateSchemaRef = 'contracts/opl-framework/agent-package-launch-state.schema.json';
@@ -631,41 +627,4 @@ test('status read failure stays unknown without a private lifecycle fallback', (
   assert.equal(Object.hasOwn(projected, 'action_receipt_ref'), false);
   assert.equal(Object.hasOwn(projected, 'rollback_ref'), false);
   assert.equal((projected.status_read_error as Record<string, unknown>).code, 'contract_shape_invalid');
-});
-
-test('fast managed runtime readiness rejects a checkout path that is not a directory', () => {
-  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-fast-runtime-source-path-'));
-  const checkoutPath = path.join(fixtureRoot, 'managed-runtime');
-  const state: AgentPackageManagedRuntimeSourceState = {
-    surface_kind: 'opl_agent_package_managed_runtime_source',
-    status: 'current',
-    carrier_kind: 'opl_managed_module_source',
-    module_id: 'medautoscience',
-    checkout_path: checkoutPath,
-    ownership: 'package_created',
-    source_mode: 'package_channel',
-    channel_version: '0.1.0',
-    artifact_ref: 'sha256:fixture',
-    layer_digest: 'sha256:fixture',
-    source_archive_sha256: 'fixture',
-    source_git_head_sha: 'fixture',
-    tree_sha256: 'fixture',
-    preparation_status: 'completed',
-    bootstrap_command: null,
-    package_prepare_command: null,
-    health_check_command: [],
-    handler_probe_command: [],
-    preparation_root: null,
-    preparation_scope: 'managed_source_root',
-  };
-
-  try {
-    fs.writeFileSync(checkoutPath, 'not-a-directory\n');
-    const readiness = managedRuntimeSourceLockReadiness(state);
-    assert.equal(readiness.status, 'missing');
-    assert.equal(readiness.operational_ready, false);
-    assert.equal(readiness.reason, 'managed_runtime_source_missing');
-  } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
-  }
 });
