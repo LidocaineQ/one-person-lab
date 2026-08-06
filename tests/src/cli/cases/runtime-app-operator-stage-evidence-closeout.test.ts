@@ -126,6 +126,13 @@ test('stage production evidence record routes expose fail-closed workorder and c
   const stageRepo = bindStageEvidenceManifest(stateRoot, fixtureContractsRoot);
   try {
     const projection = readFullAppOperatorProjection(stateRoot, fixtureContractsRoot);
+    const providerLongSoakTail = projection.production_evidence_tail_ledger.tail_items.find(
+      (item: { tail_item: string }) => item.tail_item === 'provider_long_window_slo_evidence',
+    );
+    assert.equal(
+      providerLongSoakTail.doc_ref,
+      'docs/active/production-framework-closure-gap-matrix.md#closure-gap-matrix',
+    );
     const route = projection.operator_action_routing_refs.refs.find(
       (ref: { action_id: string }) =>
         ref.action_id === 'stage-production-evidence:medautoscience:review:record',

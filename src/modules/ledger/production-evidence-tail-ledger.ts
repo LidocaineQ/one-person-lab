@@ -410,7 +410,7 @@ export function buildAppDrilldownProductionEvidenceTailLedger(input: {
         currentRef: stringValue(input.providerContinuousProof.ref)
           ?? '/runtime_tray_snapshot/provider_continuous_proof',
         nextSafeActionRoute: `opl family-runtime residency proof --provider ${providerKind} --production`,
-        docRef: 'docs/active/production-framework-closure-gap-matrix.md#production_temporal_residency',
+        docRef: 'docs/active/production-framework-closure-gap-matrix.md#closure-gap-matrix',
         nextVerificationCommand: `opl family-runtime residency proof --provider ${providerKind} --production`,
         blockingPolicy: PRODUCTION_EVIDENCE_TAIL_BLOCKING_POLICY,
         authorityBoundary: {
