@@ -161,6 +161,99 @@ function packageUseBinding() {
   };
 }
 
+function writeNativeCarrierDescriptor(checkoutRoot: string) {
+  fs.writeFileSync(path.join(checkoutRoot, 'opl-package.json'), JSON.stringify({
+    surface_kind: 'opl_agent_package_manifest.v1',
+    version: '0.2.25',
+    package_id: 'mas',
+    agent_id: 'mas',
+    codex_surface: {
+      plugin_id: 'med-autoscience',
+      configured_codex_plugin_carrier: {
+        kind: 'codex_plugin_manager',
+        plugin_selector: 'med-autoscience@med-autoscience',
+        marketplace_source: 'gaofeng21cn/med-autoscience',
+        publication_ref: 'ghcr.io/gaofeng21cn/one-person-lab-packages/mas:latest-stable',
+        executor_route: 'codex_cli',
+      },
+    },
+  }));
+}
+
+function nativeManagedCheckout(checkoutRoot: string, workspaceRoot: string) {
+  const sourceRoot = fs.realpathSync.native(checkoutRoot);
+  const installedVersion = `0.2.25-${'b'.repeat(64)}`;
+  const pluginId = 'med-autoscience@med-autoscience';
+  const marketplaceSource = 'gaofeng21cn/med-autoscience';
+  const manifestSha256 = `sha256:${digest(fs.readFileSync(path.join(sourceRoot, 'opl-package.json')))}`;
+  const status = {
+    installed_package_count: 1,
+    launch_allowed: true,
+    launch_blocked_reason: null,
+    runtime_source_readiness: { operational_ready: true, checkout_path: sourceRoot },
+    configured_carrier: {
+      surface_kind: 'opl_configured_codex_plugin_carrier_readback.v1',
+      package_id: 'mas',
+      carrier: {
+        kind: 'codex_plugin_manager',
+        plugin_id: pluginId,
+        marketplace_source: marketplaceSource,
+        observed_sources: [{
+          plugin_id: pluginId,
+          marketplace_source: marketplaceSource,
+          installed_version: installedVersion,
+          enabled: true,
+          plugin_source_path: sourceRoot,
+          source_tree_sha256: `sha256:${'c'.repeat(64)}`,
+        }],
+        precedence: 'exact_single_source',
+      },
+      executor: { route: 'codex_cli', required_skill_ids: ['med-autoscience'], status: 'callable' },
+      publication_ref: 'ghcr.io/gaofeng21cn/one-person-lab-packages/mas:latest-stable',
+      status: 'installed',
+      installed_version: installedVersion,
+      enabled: true,
+      plugin_source_path: sourceRoot,
+      operation: 'list',
+      native_command: ['plugin', 'list', '--json'],
+      native_action_dispatched: true,
+      reason: null,
+    },
+    installed_carrier_readback: {
+      kind: 'codex_plugin_manager',
+      identity: pluginId,
+      source_ref: sourceRoot,
+      version: installedVersion,
+      enabled: true,
+      lifecycle_authority: 'carrier_owned',
+    },
+    installed_readiness: {
+      installed: true,
+      physical_status: 'available',
+      callability: 'callable',
+    },
+  };
+  return {
+    agent: resolveStandardAgent('mas')!,
+    package_id: 'mas',
+    workspace_root: fs.realpathSync.native(workspaceRoot),
+    checkout_root: sourceRoot,
+    package_status: status,
+    package_use_binding: null,
+    use_boundary_id: null,
+    runtime_source_kind: 'installed_native_carrier',
+    native_runtime: {
+      package_version: '0.2.25',
+      carrier_installed_version: installedVersion,
+      manifest_sha256: manifestSha256,
+      plugin_selector: pluginId,
+      marketplace_source: marketplaceSource,
+      plugin_source_path: sourceRoot,
+      source_tree_sha256: `sha256:${'c'.repeat(64)}`,
+    },
+  };
+}
+
 function writeLifecycleContracts(checkoutRoot: string) {
   const lifecycleContract = {
     capability_id: 'opl_domain_lifecycle_admission.v1',
@@ -901,8 +994,8 @@ test('internal-only lifecycle authority action rejects external invocation befor
     fs.mkdirSync(checkoutRoot, { recursive: true });
     fs.mkdirSync(workspaceRoot, { recursive: true });
     writeLifecycleContracts(checkoutRoot);
+    writeNativeCarrierDescriptor(checkoutRoot);
     writeLifecycleWorkspace(workspaceRoot);
-    const packageBinding = packageUseBinding();
     await assert.rejects(runStandardAgentAction({
       domainId: 'mas',
       actionId: 'reactivate_study',
@@ -914,17 +1007,7 @@ test('internal-only lifecycle authority action rejects external invocation befor
       runId: 'external-internal-only',
     }, {
       resolveManagedCheckout: async () => ({
-        agent: resolveStandardAgent('mas')!,
-        package_id: 'mas',
-        workspace_root: fs.realpathSync.native(workspaceRoot),
-        checkout_root: fs.realpathSync.native(checkoutRoot),
-        package_status: {
-          installed_package_count: 1,
-          launch_allowed: true,
-          runtime_source_readiness: { operational_ready: true, checkout_path: checkoutRoot },
-        },
-        package_use_binding: packageBinding,
-        use_boundary_id: packageBinding.use_boundary_id,
+        ...nativeManagedCheckout(checkoutRoot, workspaceRoot),
       }) as never,
       runHandler: (() => {
         handlerCalls += 1;
@@ -959,6 +1042,7 @@ test('trusted qualification provisioning CLI route materializes MAS bytes and re
     fs.mkdirSync(checkoutRoot, { recursive: true });
     fs.mkdirSync(workspaceRoot, { recursive: true });
     writeLifecycleContracts(checkoutRoot);
+    writeNativeCarrierDescriptor(checkoutRoot);
     const canonicalWorkspaceRoot = fs.realpathSync.native(workspaceRoot);
     const issuedAt = '2026-07-22T00:00:00.000Z';
     const authorityRecord = {
@@ -1094,20 +1178,9 @@ test('trusted qualification provisioning CLI route materializes MAS bytes and re
     };
     let handlerOutput = output;
     let materializationCalls = 0;
-    const packageBinding = packageUseBinding();
     const dependencies = {
       resolveManagedCheckout: async () => ({
-        agent: resolveStandardAgent('mas')!,
-        package_id: 'mas',
-        workspace_root: canonicalWorkspaceRoot,
-        checkout_root: fs.realpathSync.native(checkoutRoot),
-        package_status: {
-          installed_package_count: 1,
-          launch_allowed: true,
-          runtime_source_readiness: { operational_ready: true, checkout_path: checkoutRoot },
-        },
-        package_use_binding: packageBinding,
-        use_boundary_id: packageBinding.use_boundary_id,
+        ...nativeManagedCheckout(checkoutRoot, workspaceRoot),
       }) as never,
       runHandler: (() => {
         handlerCalls += 1;
@@ -2224,8 +2297,8 @@ test('lifecycle admission preserves non-materializing MAS authority failures wit
       fs.mkdirSync(workspaceRoot, { recursive: true });
       process.env.OPL_STATE_DIR = stateRoot;
       writeLifecycleContracts(checkoutRoot);
+      writeNativeCarrierDescriptor(checkoutRoot);
       const refs = writeLifecycleWorkspace(workspaceRoot);
-      const packageBinding = packageUseBinding();
       const runId = `authority-${status}`;
       const admission = reactivationAdmission(refs);
       const childRunId = standardAgentLifecycleReactivationHandlerRunId({
@@ -2237,17 +2310,7 @@ test('lifecycle admission preserves non-materializing MAS authority failures wit
         payload: { study_id: 'study-001', value: 1, lifecycle_admission: admission }, runId,
       }, {
         resolveManagedCheckout: async () => ({
-          agent: resolveStandardAgent('mas')!,
-          package_id: 'mas',
-          workspace_root: fs.realpathSync.native(workspaceRoot),
-          checkout_root: fs.realpathSync.native(checkoutRoot),
-          package_status: {
-            installed_package_count: 1,
-            launch_allowed: true,
-            runtime_source_readiness: { operational_ready: true, checkout_path: checkoutRoot },
-          },
-          package_use_binding: packageBinding,
-          use_boundary_id: packageBinding.use_boundary_id,
+          ...nativeManagedCheckout(checkoutRoot, workspaceRoot),
         }) as never,
         compileStageManifest: (() => ({})) as never,
         recordLedger: ((ledger: Record<string, unknown>) => ({
@@ -2303,21 +2366,11 @@ test('lifecycle admission blocks inactive Stage reservation, materializes reacti
     fs.mkdirSync(workspaceRoot, { recursive: true });
     process.env.OPL_STATE_DIR = stateRoot;
     writeLifecycleContracts(checkoutRoot);
+    writeNativeCarrierDescriptor(checkoutRoot);
     const refs = writeLifecycleWorkspace(workspaceRoot);
-    const packageBinding = packageUseBinding();
     const dependencies = {
       resolveManagedCheckout: async () => ({
-        agent: resolveStandardAgent('mas')!,
-        package_id: 'mas',
-        workspace_root: fs.realpathSync.native(workspaceRoot),
-        checkout_root: fs.realpathSync.native(checkoutRoot),
-        package_status: {
-          installed_package_count: 1,
-          launch_allowed: true,
-          runtime_source_readiness: { operational_ready: true, checkout_path: checkoutRoot },
-        },
-        package_use_binding: packageBinding,
-        use_boundary_id: packageBinding.use_boundary_id,
+        ...nativeManagedCheckout(checkoutRoot, workspaceRoot),
       }) as never,
       compileStageManifest: (() => ({})) as never,
       recordLedger: ((input: Record<string, unknown>) => ({

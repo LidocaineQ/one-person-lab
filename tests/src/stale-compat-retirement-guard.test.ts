@@ -245,6 +245,14 @@ test('retired internal write and fallback helper exports do not return', () => {
         /\bexport\s+const\s+DEFAULT_CALLER_TARGET_KINDS\b/,
       ],
     ],
+    [
+      'src/modules/connect/agent-package-registry-parts/lifecycle-lock.ts',
+      [
+        /\bexport\s+function\s+packageActionSourceSha256\b/,
+        /\bexport\s+function\s+requireInstalledPackage\b/,
+        /\bexport\s+function\s+assertPermissionScopeUnchanged\b/,
+      ],
+    ],
   ];
   const violations: string[] = [];
 
