@@ -187,17 +187,87 @@ function parseMarketplaceList(value: string, packageId: string): CodexPluginMark
     .filter((entry): entry is CodexPluginMarketplaceListEntry => entry !== null);
 }
 
-function missingRequiredSkills(sourcePath: string | null, requiredSkillIds: string[]) {
-  if (!sourcePath) return requiredSkillIds;
-  return requiredSkillIds.filter((skillId) => {
-    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(skillId)) return true;
-    const skillPath = path.join(sourcePath, 'skills', skillId, 'SKILL.md');
-    try {
-      return !fs.existsSync(skillPath) || !fs.statSync(skillPath).isFile();
-    } catch {
-      return true;
+function realDirectory(candidatePath: string) {
+  const resolved = path.resolve(candidatePath);
+  try {
+    const stat = fs.lstatSync(resolved);
+    return stat.isDirectory() && !stat.isSymbolicLink()
+      ? fs.realpathSync(resolved)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeRelativeDirectory(rootPath: string, rootReal: string, relativePath: string) {
+  if (path.isAbsolute(relativePath)) return null;
+  const resolved = path.resolve(rootPath, relativePath);
+  const relative = path.relative(rootPath, resolved);
+  try {
+    if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return null;
+    let current = rootPath;
+    for (const component of relative.split(path.sep).filter(Boolean)) {
+      current = path.join(current, component);
+      const stat = fs.lstatSync(current);
+      if (!stat.isDirectory() || stat.isSymbolicLink()) return null;
     }
-  });
+    const real = fs.realpathSync(resolved);
+    return real === rootReal || real.startsWith(`${rootReal}${path.sep}`) ? resolved : null;
+  } catch {
+    return null;
+  }
+}
+
+function pluginSkillsRef(sourceRoot: string, sourceRootReal: string) {
+  const manifestDirectory = safeRelativeDirectory(sourceRoot, sourceRootReal, '.codex-plugin');
+  if (!manifestDirectory) return null;
+  const manifestPath = path.join(manifestDirectory, 'plugin.json');
+  try {
+    const stat = fs.lstatSync(manifestPath);
+    const real = fs.realpathSync(manifestPath);
+    if (!stat.isFile() || stat.isSymbolicLink()
+      || !real.startsWith(`${sourceRootReal}${path.sep}`)) return null;
+    const manifest = parseJsonText(fs.readFileSync(manifestPath, 'utf8'));
+    return isRecord(manifest) ? stringValue(manifest.skills) : null;
+  } catch {
+    return null;
+  }
+}
+
+function safePluginSkillsRoot(sourcePath: string | null) {
+  if (!sourcePath) return null;
+  const sourceRoot = path.resolve(sourcePath);
+  const sourceRootReal = realDirectory(sourceRoot);
+  if (!sourceRootReal) return null;
+  const relativeSkillsRoot = pluginSkillsRef(sourceRoot, sourceRootReal);
+  return relativeSkillsRoot
+    ? safeRelativeDirectory(sourceRoot, sourceRootReal, relativeSkillsRoot)
+    : null;
+}
+
+function isSafeRequiredSkillFile(skillsRoot: string, skillsRootReal: string, skillId: string) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(skillId)) return false;
+  const skillDirectory = path.join(skillsRoot, skillId);
+  const skillPath = path.join(skillDirectory, 'SKILL.md');
+  try {
+    const skillDirectoryStat = fs.lstatSync(skillDirectory);
+    const skillStat = fs.lstatSync(skillPath);
+    const skillReal = fs.realpathSync(skillPath);
+    return skillDirectoryStat.isDirectory() && !skillDirectoryStat.isSymbolicLink()
+      && skillStat.isFile() && !skillStat.isSymbolicLink()
+      && skillReal.startsWith(`${skillsRootReal}${path.sep}`);
+  } catch {
+    return false;
+  }
+}
+
+function missingRequiredSkills(sourcePath: string | null, requiredSkillIds: string[]) {
+  const skillsRoot = safePluginSkillsRoot(sourcePath);
+  if (!skillsRoot) return requiredSkillIds;
+  const skillsRootReal = fs.realpathSync(skillsRoot);
+  return requiredSkillIds.filter(
+    (skillId) => !isSafeRequiredSkillFile(skillsRoot, skillsRootReal, skillId),
+  );
 }
 
 function pluginBareName(pluginId: string) {
@@ -330,8 +400,15 @@ function safeJsonRecord(filePath: string, rootPath: string) {
 }
 
 function assertSafeRequiredSkills(sourcePath: string, requiredSkillIds: string[]) {
-  const sourceRoot = path.resolve(sourcePath);
-  const sourceRootReal = fs.realpathSync(sourceRoot);
+  const skillsRoot = safePluginSkillsRoot(sourcePath);
+  if (!skillsRoot) {
+    localReadbackFailure(
+      'configured_codex_plugin_carrier_local_required_skill_invalid',
+      'Configured Codex local carrier Skill root is missing or unsafe.',
+      { plugin_source_path: sourcePath },
+    );
+  }
+  const skillsRootReal = fs.realpathSync(skillsRoot);
   for (const skillId of requiredSkillIds) {
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(skillId)) {
       localReadbackFailure(
@@ -340,14 +417,8 @@ function assertSafeRequiredSkills(sourcePath: string, requiredSkillIds: string[]
         { required_skill_id: skillId },
       );
     }
-    const skillPath = path.join(sourceRoot, 'skills', skillId, 'SKILL.md');
-    try {
-      const stat = fs.lstatSync(skillPath);
-      const real = fs.realpathSync(skillPath);
-      if (!stat.isFile() || stat.isSymbolicLink() || !real.startsWith(`${sourceRootReal}${path.sep}`)) {
-        throw new Error('Skill is not a real file inside the plugin source');
-      }
-    } catch {
+    const skillPath = path.join(skillsRoot, skillId, 'SKILL.md');
+    if (!isSafeRequiredSkillFile(skillsRoot, skillsRootReal, skillId)) {
       localReadbackFailure(
         'configured_codex_plugin_carrier_local_required_skill_invalid',
         'Configured Codex local carrier required Skill is missing or unsafe.',
