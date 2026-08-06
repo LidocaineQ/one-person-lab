@@ -15,6 +15,7 @@ import {
 import { materializeStandardAgentFrameworkLink } from './standard-agent-framework-link.ts';
 import {
   assertManifestMatchesRegistrySelection,
+  assertTrustTierAssigned,
   resolveManifestSelection,
 } from './agent-package-registry-parts/selection.ts';
 import {
@@ -474,6 +475,7 @@ async function resolveFreshConfiguredCarrier(
     registryUrl: explicitRegistryUrl,
     trustTier: 'trustTier' in input ? input.trustTier : null,
   });
+  assertTrustTierAssigned(selection.trustTier, selection.manifestUrl);
   const fetched = await fetchJsonSource(selection.manifestUrl);
   const manifest = normalizePackageManifest(fetched.payload, selection.manifestUrl);
   assertManifestMatchesRegistrySelection(manifest, selection);
