@@ -16,7 +16,6 @@ import type {
   InstalledPackageReadiness,
 } from './installed-codex-plugin-directory.ts';
 import { normalizePackageManifest } from './manifest-normalizers.ts';
-import { packageRoleFromInstalledLock } from './package-role.ts';
 import { resolveAgentPackageEffectiveSourcePolicy } from './source-policy.ts';
 import {
   assertExplicitExternalRegistryClaim,
@@ -26,7 +25,6 @@ import {
 import type {
   AgentPackageAppContributions,
   AgentPackageConfiguredCodexPluginCarrierDescriptor,
-  AgentPackageLock,
   AgentPackagePackageActionInput,
   AgentPackagePresentation,
   AgentPackageRegistryDocument,
@@ -40,18 +38,10 @@ type PackageStatusReadback = {
   operational_ready?: boolean;
   launch_allowed?: boolean;
   launch_blocked_reason?: string | null;
-  materialization_readiness?: {
-    status?: string;
-  } | null;
-  runtime_source_readiness?: {
-    status?: string;
-    live_verification_deferred?: boolean;
-  } | null;
-  currentness_detail_deferred?: boolean;
 };
 
 type DirectoryCapabilityMetadata = {
-  source: 'normalized_owner_manifest' | 'validated_registry_manifest' | 'installed_package_lock';
+  source: 'normalized_owner_manifest' | 'validated_registry_manifest';
   required_skill_ids: string[];
   optional_skill_refs: string[];
 };
@@ -73,7 +63,6 @@ type DirectorySource = {
   version_source_ref: string;
   source_kind:
     | 'first_party_framework_projection'
-    | 'installed_package_lock'
     | 'installed_codex_plugin_descriptor';
   registry_source_ref: string | null;
   capability_metadata: DirectoryCapabilityMetadata | null;
@@ -84,7 +73,6 @@ type DirectorySource = {
   version_currentness: {
     status:
       | 'framework_projection_only'
-      | 'installed_lock_only'
       | 'installed_codex_plugin_descriptor';
     live_verified: boolean;
     source_ref: string | null;
@@ -364,49 +352,6 @@ export function firstPartyConfiguredCarrierDescriptors() {
   return descriptors;
 }
 
-function lockDirectorySource(lock: AgentPackageLock, packageRole: AgentPackageRole | null): DirectorySource {
-  const capabilityMetadata: DirectoryCapabilityMetadata | null = packageRole === 'standard_agent'
-    && Array.isArray(lock.bundled_required_skill_ids)
-    && lock.bundled_required_skill_ids.length > 0
-    && Array.isArray(lock.optional_skill_refs)
-    ? {
-        source: 'installed_package_lock',
-        required_skill_ids: [...lock.bundled_required_skill_ids],
-        optional_skill_refs: [...lock.optional_skill_refs],
-      }
-    : null;
-  return {
-    package_id: lock.package_id,
-    display_name: lock.display_name,
-    publisher: lock.publisher,
-    description: `${lock.display_name} installed package.`,
-    tags: uniqueStrings(['installed', ...(packageRole ? [packageRole] : [])]),
-    package_role: packageRole,
-    trust_tier: lock.trust_tier,
-    source: lock.source_kind,
-    manifest_url: lock.manifest_url,
-    projected_version: null,
-    selected_version: lock.package_version,
-    stable_version: null,
-    registry_url: null,
-    version_source_ref: `${lock.manifest_url}#/version`,
-    source_kind: 'installed_package_lock',
-    registry_source_ref: null,
-    capability_metadata: capabilityMetadata,
-    presentation: null,
-    home_shortcut_ids: [],
-    configured_codex_plugin_carrier: null,
-    app_contributions: null,
-    version_currentness: {
-      status: 'installed_lock_only',
-      live_verified: false,
-      source_ref: lock.release_channel_ref ?? lock.manifest_url,
-      source_digest: lock.release_channel_digest ?? null,
-      checked_at: null,
-    },
-  };
-}
-
 function installedCodexPluginDirectorySource(
   discovered: InstalledCodexPluginDescriptor,
 ): DirectorySource {
@@ -449,34 +394,6 @@ function installedCodexPluginDirectorySource(
     installed_carrier_readback: discovered.carrier_readback,
     installed_readiness: discovered.readiness,
   };
-}
-
-function installedRoleResolution(lock: AgentPackageLock, source: DirectorySource | null) {
-  try {
-    return {
-      role: packageRoleFromInstalledLock(lock),
-      source: 'installed_lock' as const,
-      diagnostic: null,
-    };
-  } catch (error) {
-    const legacyRoleMissing = error instanceof FrameworkContractError
-      && error.details?.failure_code === 'agent_package_lock_role_missing';
-    if (legacyRoleMissing && source && isFirstPartyDirectorySource(source) && source.package_role) {
-      return {
-        role: source.package_role,
-        source: 'first_party_catalog_identity_fallback' as const,
-        diagnostic: null,
-      };
-    }
-    return {
-      role: null,
-      source: 'unresolved_installed_lock' as const,
-      diagnostic: {
-        code: error instanceof FrameworkContractError ? error.code : 'unexpected_error',
-        message: error instanceof Error ? error.message : 'Installed package role could not be resolved.',
-      },
-    };
-  }
 }
 
 function packageAction(
@@ -630,51 +547,8 @@ function recommendedActionId(input: {
   return null;
 }
 
-function capabilityDependencySummary(lock: AgentPackageLock | null) {
-  const migration = lock?.physical_surface?.workflow_policy_migration;
-  if (!lock || !migration || migration.dependencies.length === 0) return null;
-  const sync = isRecord(migration.dependency_sync) ? migration.dependency_sync : {};
-  const syncItems = recordList(sync.items);
-  return migration.dependencies.map((dependency) => {
-    const item = syncItems.find((candidate) => stringValue(candidate.skill_id) === dependency.id) ?? {};
-    const status = stringValue(item.status);
-    const entrypoint = stringValue(item.entrypoint_authority_status);
-    const presence = ['synced', 'installed', 'current'].includes(status ?? '')
-      ? 'present'
-      : ['missing_source', 'missing'].includes(status ?? '')
-        ? 'missing'
-        : 'unknown';
-    const callability = presence === 'missing'
-      ? 'unavailable'
-      : entrypoint === 'converged'
-        ? 'callable'
-        : 'unknown';
-    const relationship = dependency.relationship ?? 'unknown';
-    return {
-      id: dependency.id,
-      kind: dependency.kind,
-      relationship,
-      activation: dependency.activation,
-      presence,
-      callability,
-      user_outcome: relationship === 'required'
-        ? 'required_for_workflow'
-        : relationship === 'recommended'
-          ? 'recommended_workflow_enhancement'
-          : 'relationship_unclassified',
-      route: {
-        action_ref: 'app_state.actions#agent_package_repair',
-        payload: { package_id: lock.package_id },
-        detail_surface: `opl packages status --package-id ${lock.package_id} --json`,
-      },
-    };
-  });
-}
-
 export function buildAgentPackageDirectory(input: {
-  locks: AgentPackageLock[];
   detail: 'fast' | 'full';
-  readStatus?: (packageId: string) => PackageStatusReadback;
   configuredCarrierReadbacks?: ReadonlyMap<string, ConfiguredCodexPluginCarrierReadback>;
   installedCodexPluginDescriptors?: ReadonlyMap<string, InstalledCodexPluginDescriptor>;
   actionContext?: (packageId: string) => Pick<AgentPackagePackageActionInput, 'scope' | 'targetWorkspace' | 'targetQuest'> | null;
@@ -686,18 +560,9 @@ export function buildAgentPackageDirectory(input: {
     if (existing && isFirstPartyDirectorySource(existing)) continue;
     sources.set(discovered.manifest.package_id, installedCodexPluginDirectorySource(discovered));
   }
-  const locksById = new Map(input.locks.map((lock) => [lock.package_id, lock]));
-  const installedRoles = new Map(input.locks.map((lock) => {
-    const source = sources.get(lock.package_id) ?? null;
-    const resolution = installedRoleResolution(lock, source);
-    if (!source) sources.set(lock.package_id, lockDirectorySource(lock, resolution.role));
-    return [lock.package_id, resolution] as const;
-  }));
   const entries = [...sources.values()].map((source) => {
-    const lock = locksById.get(source.package_id) ?? null;
     const installedDescriptor = input.installedCodexPluginDescriptors?.get(source.package_id) ?? null;
     const carrierOwned = Boolean(source.configured_codex_plugin_carrier || installedDescriptor);
-    const legacyLock = carrierOwned ? null : lock;
     const carrierReadiness = installedDescriptor?.readiness ?? null;
     const configuredCarrier = input.configuredCarrierReadbacks?.get(source.package_id) ?? null;
     const configuredCarrierInstalled = configuredCarrier?.status === 'installed';
@@ -712,8 +577,7 @@ export function buildAgentPackageDirectory(input: {
       ),
     );
     const installed = carrierOwned
-      ? configuredCarrierInstalled || carrierReadiness?.installed === true
-      : Boolean(lock);
+      && (configuredCarrierInstalled || carrierReadiness?.installed === true);
     const configuredCarrierAttention = Boolean(
       configuredCarrier
       && !configuredCarrierNotInstalled
@@ -726,19 +590,10 @@ export function buildAgentPackageDirectory(input: {
     const sourcePolicy = resolveFirstPartyPackageCatalog(source.package_id)
       ? resolveAgentPackageEffectiveSourcePolicy(source.package_id, { profile: input.detail })
       : null;
-    const installedRole = legacyLock ? installedRoles.get(source.package_id)! : null;
-    const effectiveSource = legacyLock
-      ? { ...source, package_role: installedRole!.role }
-      : source;
+    const effectiveSource = source;
     const roleKnown = effectiveSource.package_role !== null;
-    const roleMismatch = Boolean(
-      installedRole?.role
-      && source.package_role
-      && installedRole.role !== source.package_role,
-    );
-    const roleRepairRequired = installed && (!roleKnown || roleMismatch);
+    const roleRepairRequired = installed && !roleKnown;
     let status: PackageStatusReadback = {};
-    let statusReadError: { code: string; message: string } | null = null;
     if (carrierReadiness) {
       const carrierReady = carrierReadiness.installed
         && carrierReadiness.physical_status === 'available'
@@ -755,8 +610,6 @@ export function buildAgentPackageDirectory(input: {
             : carrierReadiness.callability !== 'callable'
               ? 'carrier_disabled'
               : 'carrier_not_installed',
-        materialization_readiness: { status: 'not_required' },
-        runtime_source_readiness: { status: 'not_required' },
       };
     } else if (configuredCarrier) {
       status = {
@@ -773,84 +626,26 @@ export function buildAgentPackageDirectory(input: {
           : configuredCarrierInstalled
             ? null
             : 'package_not_installed',
-        materialization_readiness: { status: 'not_required' },
-        runtime_source_readiness: { status: 'not_required' },
       };
-    } else if (installed) {
-      try {
-        status = input.readStatus?.(source.package_id) ?? {};
-      } catch (error) {
-        statusReadError = {
-          code: error instanceof FrameworkContractError ? error.code : 'unexpected_error',
-          message: error instanceof Error ? error.message : 'Package status read failed.',
-        };
-        status = {
-          recommended_action: 'agent_package_repair',
-          operational_ready: false,
-          launch_allowed: false,
-          launch_blocked_reason: 'package_status_read_failed',
-        };
-      }
     }
-    const materializationStatus = status.materialization_readiness?.status ?? null;
     const activated = installed
       && !roleRepairRequired
       && status.operational_ready === true
-      && status.launch_allowed === true
-      && (materializationStatus === 'current' || materializationStatus === 'not_required');
-    const useBoundaryReconciliationReady = installed
-      && !roleRepairRequired
-      && !statusReadError
-      && legacyLock?.exposure_state !== 'disabled'
-      && (
-        materializationStatus === 'scope_required'
-        || status.launch_blocked_reason?.startsWith('scope_materialization_') === true
-      );
-    const verificationDeferred = configuredCarrier
-      ? false
-      : installed && activated && (
-          input.detail === 'fast'
-          || status.currentness_detail_deferred === true
-          || status.runtime_source_readiness?.live_verification_deferred === true
-        );
-    const desiredSourceKind = sourcePolicy?.desired_source_kind ?? legacyLock?.source_kind ?? null;
-    const sourcePolicyStatus = !sourcePolicy
+      && status.launch_allowed === true;
+    const sourcePolicyStatus: 'not_applicable' | 'manual_required' | 'current' = !sourcePolicy
       ? 'not_applicable'
       : sourcePolicy.desired_source_kind === 'developer_checkout_override'
         ? !sourcePolicy.developer_checkout_available
           ? 'manual_required'
-          : legacyLock?.source_kind === 'developer_checkout_override'
-            ? 'current'
-            : 'reconciliation_available'
-        : legacyLock && legacyLock.source_kind !== 'first_party_managed_cohort'
-          ? 'reconciliation_available'
-          : 'current';
-    const automaticSourceReconciliationAllowed = Boolean(
-      sourcePolicy
-      && sourcePolicyStatus === 'reconciliation_available'
-      && (
-        sourcePolicy.desired_source_kind === 'first_party_managed_cohort'
-        || sourcePolicy.developer_checkout_available
-      ),
+          : 'current'
+        : 'current';
+    const actions = availableActions(
+      effectiveSource,
+      installed,
+      input.actionContext?.(source.package_id) ?? null,
+      configuredCarrier ? false : true,
+      sourcePolicy?.package_channel_auto_update === true || !sourcePolicy,
     );
-    const actions = statusReadError
-      ? [
-          ...(roleKnown && legacyLock?.exposure_state !== 'disabled'
-            ? [activationAction(effectiveSource, input.actionContext?.(source.package_id) ?? null)]
-            : []),
-          packageAction('agent_package_repair', { package_id: source.package_id }, ['package_id'], true),
-        ]
-      : availableActions(
-          effectiveSource,
-          installed,
-          input.actionContext?.(source.package_id) ?? null,
-          configuredCarrier ? false : legacyLock?.exposure_state !== 'disabled',
-          legacyLock?.source_kind !== 'developer_checkout_override' && (
-            sourcePolicy?.package_channel_auto_update === true
-            || automaticSourceReconciliationAllowed
-            || !sourcePolicy
-          ),
-        );
     const recommendedAction = recommendedActionId({
       installed,
       statusAction: roleRepairRequired
@@ -864,14 +659,10 @@ export function buildAgentPackageDirectory(input: {
     });
     const readinessStatus = installed && !roleKnown
       ? 'migration_required'
-      : roleMismatch || statusReadError
-        ? 'repair_required'
-        : !installed
+      : !installed
       ? roleKnown ? 'not_installed' : 'migration_required'
         : activated
-          ? verificationDeferred ? 'verification_deferred' : 'ready'
-          : useBoundaryReconciliationReady
-            ? 'ready'
+          ? 'ready'
           : 'attention_needed';
     return {
       package_id: source.package_id,
@@ -889,7 +680,7 @@ export function buildAgentPackageDirectory(input: {
       home_shortcuts: effectiveSource.presentation?.home_shortcuts ?? [],
       home_shortcut_ids: effectiveSource.home_shortcut_ids,
       app_contributions: effectiveSource.app_contributions,
-      capability_dependency_summary: capabilityDependencySummary(legacyLock),
+      capability_dependency_summary: null,
       configured_carrier: configuredCarrier,
       installed_carrier_readback: effectiveSource.installed_carrier_readback ?? null,
       installed_readiness: effectiveSource.installed_readiness ?? null,
@@ -898,13 +689,11 @@ export function buildAgentPackageDirectory(input: {
           ? roleKnown ? 'declared' : 'migration_required'
           : !roleKnown
             ? 'migration_required'
-            : roleMismatch
-              ? 'mismatch_repair_required'
-              : 'current',
-        source: installedRole?.source ?? source.source_kind,
+            : 'current',
+        source: source.source_kind,
         discovered_role: source.package_role,
-        installed_role: installedRole?.role ?? null,
-        diagnostic: installedRole?.diagnostic ?? null,
+        installed_role: installed ? source.package_role : null,
+        diagnostic: null,
       },
       trust_tier: source.trust_tier,
       source_explanation: {
@@ -914,14 +703,14 @@ export function buildAgentPackageDirectory(input: {
             ? 'Framework-owned Package identity projection; owner-channel currentness was not requested for this readback.'
           : source.source_kind === 'installed_codex_plugin_descriptor'
                 ? 'Owner descriptor discovered from the installed Codex plugin carrier source root.'
-                : 'Installed lock retained after its discovery source became unavailable.',
+          : 'Installed owner descriptor discovered from the native carrier source root.',
         owner_channel_ref: source.source_kind === 'first_party_framework_projection'
           ? resolveFirstPartyPackageCatalog(source.package_id)?.catalogSource.catalog_ref ?? null
           : null,
         registry_url: source.registry_url,
         registry_source_ref: source.registry_source_ref,
         version_source_ref: source.version_source_ref,
-        installed_source_kind: legacyLock?.source_kind ?? null,
+        installed_source_kind: null,
         effective_source_policy: sourcePolicy,
         source_policy_status: sourcePolicyStatus,
       },
@@ -943,23 +732,17 @@ export function buildAgentPackageDirectory(input: {
                 'owner_channel_currentness_not_requested',
               ],
             }
-          : sourcePolicyStatus === 'reconciliation_available'
-            ? {
-              status: 'update_available',
-              reasons: ['source_policy_mismatch', 'owner_channel_currentness_not_requested'],
-            }
-            : {
+          : {
                 status: 'unknown',
                 reasons: ['owner_channel_currentness_not_requested'],
               },
       installed_version: configuredCarrierInstalled
         ? configuredCarrier?.installed_version
           ?? source.installed_carrier_readback?.version
-          ?? legacyLock?.package_version
           ?? null
-        : legacyLock?.package_version ?? null,
-      installed_content_digest: legacyLock?.content_digest ?? null,
-      installed_artifact_digest: legacyLock?.artifact_digest ?? null,
+        : null,
+      installed_content_digest: null,
+      installed_artifact_digest: null,
       installed,
       activated,
       installability: {
@@ -970,23 +753,16 @@ export function buildAgentPackageDirectory(input: {
       },
       readiness: {
         status: readinessStatus,
-        operational_ready: installed && !verificationDeferred
-          && (status.operational_ready === true || useBoundaryReconciliationReady),
-        launch_allowed: installed && !verificationDeferred
-          && (status.launch_allowed === true || useBoundaryReconciliationReady),
-        verification_deferred: verificationDeferred,
+        operational_ready: installed && status.operational_ready === true,
+        launch_allowed: installed && status.launch_allowed === true,
+        verification_deferred: false,
         reason: !installed
           ? roleKnown ? 'package_not_installed' : 'registry_role_refresh_required'
           : roleRepairRequired
-            ? roleMismatch ? 'installed_role_mismatch' : 'installed_role_migration_required'
-            : useBoundaryReconciliationReady
-              ? 'use_boundary_reconciliation_ready'
-              : status.launch_blocked_reason
-              ?? (activated
-                ? verificationDeferred ? 'live_verification_deferred' : null
-                : 'package_not_operational'),
+            ? 'installed_role_migration_required'
+            : status.launch_blocked_reason ?? (activated ? null : 'package_not_operational'),
         detail_surface: `opl packages status --package-id ${source.package_id} --json`,
-        status_read_error: statusReadError,
+        status_read_error: null,
       },
       recommended_action: recommendedAction,
       recommended_action_ref: actions.find((action) => action.action_id === recommendedAction) ?? null,

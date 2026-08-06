@@ -93,7 +93,6 @@ test('installed Codex plugins project owner descriptors without a registry entry
     });
 
     const directory = buildAgentPackageDirectory({
-      locks: [],
       detail: 'fast',
       installedCodexPluginDescriptors: discovered,
       configuredCarrierReadbacks: new Map([[
@@ -253,7 +252,6 @@ test('carrier-neutral producer discovers an unknown installed carrier without Fr
     assert.equal('content_lock_paths' in descriptor.manifest, false);
     assert.equal(descriptor?.manifest.configured_codex_plugin_carrier?.carrier.pluginId, 'future-carrier-package@future-carrier');
     const directory = buildAgentPackageDirectory({
-      locks: [],
       detail: 'fast',
       installedCodexPluginDescriptors: discovered,
     });
@@ -827,7 +825,6 @@ test('owner descriptor contributions normalize and project through an installed 
       }),
     });
     const entry = buildAgentPackageDirectory({
-      locks: [],
       detail: 'fast',
       installedCodexPluginDescriptors: discovered,
     }).entries.find((candidate) => candidate.package_id === 'third.party.contribution');
@@ -1179,7 +1176,6 @@ test('Developer Mode selects every available first-party Package checkout', () =
 test('static owner presentation comes only from the Framework identity projection', () =>
   withIsolatedStateDir('opl-package-directory-static-owner-presentation', () => {
   const staticDirectory = buildAgentPackageDirectory({
-    locks: [],
     detail: 'fast',
   });
   for (const packageId of ['mag', 'rca', 'obf']) {
@@ -1197,23 +1193,8 @@ test('static owner presentation comes only from the Framework identity projectio
 
   }));
 
-test('static Relay projection uses native readback and does not treat a stale lock as installed', () =>
+test('static Relay projection uses native readback as installed truth', () =>
   withIsolatedStateDir('opl-package-directory-static-relay', () => {
-  const staleLock = {
-    surface_kind: 'opl_agent_package_lock',
-    package_id: 'opl-relay',
-    agent_id: null,
-    package_role: 'capability_package',
-    display_name: 'OPL Relay',
-    publisher: 'gaofeng21cn',
-    package_version: '0.5.2',
-    trust_tier: 'first_party',
-    source_kind: 'first_party_managed_cohort',
-    manifest_url: 'opl+oci://stale.example/opl-relay:0.5.2#/package-manifest.json',
-    lock_ref: 'opl://agent-package-lock/opl-relay/0.5.2/stale',
-    capability_provider: null,
-    scope_materializations: [],
-  } as any;
   const nativeNotInstalled = {
     surface_kind: 'opl_configured_codex_plugin_carrier_readback.v1',
     package_id: 'opl-relay',
@@ -1238,7 +1219,6 @@ test('static Relay projection uses native readback and does not treat a stale lo
     reason: 'native_carrier_reports_not_installed',
   } as any;
   const directory = buildAgentPackageDirectory({
-    locks: [staleLock],
     detail: 'fast',
     configuredCarrierReadbacks: new Map([['opl-relay', nativeNotInstalled]]),
   });
@@ -1400,220 +1380,3 @@ test('ordinary list ignores a legacy-only lock without rewriting its bytes', () 
     fs.rmSync(fixture.home, { recursive: true, force: true });
   }
 });
-
-test('installed-only directory entries retain persisted role and consume canonical readiness', () =>
-  withIsolatedStateDir('opl-package-directory-installed-only', () => {
-  const lock = {
-    surface_kind: 'opl_agent_package_lock',
-    package_id: 'third.party.workflow',
-    agent_id: null,
-    package_role: 'workflow_profile',
-    display_name: 'Third Party Workflow',
-    publisher: 'example-org',
-    package_version: '2.0.0',
-    updated_at: '2000-01-01T00:00:00.000Z',
-    trust_tier: 'third_party_verified',
-    source_kind: 'manifest_url',
-    manifest_url: 'https://example.test/workflow.json',
-    lock_ref: 'opl://agent-package-lock/third.party.workflow/2.0.0/fixture',
-    capability_provider: null,
-    scope_materializations: [],
-  } as any;
-  const ready = buildAgentPackageDirectory({
-    locks: [lock],
-    detail: 'fast',
-    readStatus: () => ({
-      status: 'available',
-      recommended_action: null,
-      operational_ready: true,
-      launch_allowed: true,
-      launch_blocked_reason: null,
-      materialization_readiness: { status: 'not_required' },
-    }),
-  }).entries.find((entry) => entry.package_id === lock.package_id)!;
-  assert.equal(ready.package_role, 'workflow_profile');
-  assert.equal(ready.capability_metadata, null);
-  assert.equal(ready.activated, true);
-  assert.equal(ready.readiness.status, 'verification_deferred');
-  assert.equal(ready.readiness.verification_deferred, true);
-  assert.equal(ready.readiness.reason, 'live_verification_deferred');
-  assert.equal(ready.version_currentness.checked_at, null);
-  assert.equal(ready.recommended_action, null);
-  assert.equal(ready.recommended_action_ref, null);
-  assert.equal(ready.available_actions.some((action) => action.action_id === 'agent_package_activate'), true);
-  assertRecommendedActionMatchesAvailable(ready);
-
-  const installedAgent = buildAgentPackageDirectory({
-    locks: [{
-      ...lock,
-      package_id: 'third.party.installed-agent',
-      agent_id: 'third.party.installed-agent',
-      package_role: 'standard_agent',
-      bundled_required_skill_ids: ['installed-agent'],
-      optional_skill_refs: ['optional-installed-skill'],
-    }],
-    detail: 'fast',
-  }).entries.find((entry) => entry.package_id === 'third.party.installed-agent')!;
-  assert.deepEqual(installedAgent.capability_metadata, {
-    source: 'installed_package_lock',
-    required_skill_ids: ['installed-agent'],
-    optional_skill_refs: ['optional-installed-skill'],
-  });
-
-  const fullyVerified = buildAgentPackageDirectory({
-    locks: [lock],
-    detail: 'full',
-    readStatus: () => ({
-      status: 'available',
-      recommended_action: null,
-      operational_ready: true,
-      launch_allowed: true,
-      launch_blocked_reason: null,
-      materialization_readiness: { status: 'not_required' },
-    }),
-  }).entries.find((entry) => entry.package_id === lock.package_id)!;
-  assert.equal(fullyVerified.activated, true);
-  assert.equal(fullyVerified.readiness.status, 'ready');
-  assert.equal(fullyVerified.readiness.verification_deferred, false);
-  assert.equal(fullyVerified.readiness.reason, null);
-  assert.equal(Object.hasOwn(fullyVerified, 'lock_ref'), false);
-  assert.equal(Object.hasOwn(fullyVerified, 'scope_materialization_count'), false);
-  assert.equal(fullyVerified.available_actions.some(
-    (action) => action.action_id === 'agent_package_activate'
-  ), true);
-
-  const developerCheckout = buildAgentPackageDirectory({
-    locks: [{ ...lock, source_kind: 'developer_checkout_override' }],
-    detail: 'full',
-    readStatus: () => ({
-      status: 'available',
-      recommended_action: 'agent_package_update',
-      operational_ready: true,
-      launch_allowed: true,
-      launch_blocked_reason: null,
-      materialization_readiness: { status: 'not_required' },
-    }),
-  }).entries.find((entry) => entry.package_id === lock.package_id)!;
-  assert.equal(
-    developerCheckout.available_actions.some((action) => action.action_id === 'agent_package_update'),
-    false,
-  );
-  assert.equal(developerCheckout.recommended_action, null);
-  assert.deepEqual(
-    developerCheckout.available_actions.map((action) => action.action_id),
-    ['agent_package_activate', 'agent_package_repair', 'agent_package_preferences_set', 'agent_package_uninstall'],
-  );
-
-  const needsActivation = buildAgentPackageDirectory({
-    locks: [lock],
-    detail: 'full',
-    readStatus: () => ({
-      status: 'attention_needed',
-      recommended_action: 'agent_package_activate',
-      operational_ready: false,
-      launch_allowed: false,
-      launch_blocked_reason: 'scope_materialization_missing',
-      materialization_readiness: { status: 'missing' },
-    }),
-    actionContext: () => ({ scope: 'workspace', targetWorkspace: '/tmp/opl-workspace' }),
-  }).entries.find((entry) => entry.package_id === lock.package_id)!;
-  assert.equal(needsActivation.activated, false);
-  assert.equal(needsActivation.readiness.status, 'ready');
-  assert.equal(needsActivation.readiness.operational_ready, true);
-  assert.equal(needsActivation.readiness.launch_allowed, true);
-  assert.equal(needsActivation.readiness.reason, 'use_boundary_reconciliation_ready');
-  assert.equal(needsActivation.recommended_action, null);
-  assert.equal(needsActivation.recommended_action_ref, null);
-  assert.deepEqual(
-    needsActivation.available_actions.find((action) => action.action_id === 'agent_package_activate')?.payload,
-    {
-      package_id: lock.package_id,
-      scope: 'workspace',
-      target_workspace: '/tmp/opl-workspace',
-    },
-  );
-  assertRecommendedActionMatchesAvailable(needsActivation);
-
-  const disabled = buildAgentPackageDirectory({
-    locks: [{ ...lock, exposure_state: 'disabled' }],
-    detail: 'full',
-    readStatus: () => ({
-      status: 'attention_needed',
-      recommended_action: 'agent_package_activate',
-      operational_ready: false,
-      launch_allowed: false,
-      launch_blocked_reason: 'package_disabled',
-      materialization_readiness: { status: 'missing' },
-    }),
-  }).entries.find((entry) => entry.package_id === lock.package_id)!;
-  assert.equal(disabled.activated, false);
-  assert.equal(disabled.readiness.status, 'attention_needed');
-  assert.equal(disabled.readiness.reason, 'package_disabled');
-  assert.equal(disabled.recommended_action, null);
-  assert.equal(disabled.available_actions.some((action) => action.action_id === 'agent_package_activate'), false);
-  assert.equal(disabled.available_actions.some((action) => action.action_id === 'agent_package_preferences_set'), true);
-
-  const legacyDirectory = buildAgentPackageDirectory({
-    locks: [{ ...lock, package_id: 'third.party.legacy', package_role: undefined }],
-    detail: 'fast',
-  });
-  const legacy = legacyDirectory.entries.find((entry) => entry.package_id === 'third.party.legacy')!;
-  assert.equal(legacyDirectory.status, 'attention_required');
-  assert.equal(legacy.package_role, null);
-  assert.equal(legacy.role_state.status, 'migration_required');
-  assert.equal(legacy.role_state.source, 'unresolved_installed_lock');
-  assert.equal(legacy.installability.status, 'migration_required');
-  assert.equal(legacy.readiness.status, 'migration_required');
-  assert.equal(legacy.recommended_action, 'agent_package_repair');
-  assert.deepEqual(
-    legacy.available_actions.map((action) => action.action_id),
-    ['agent_package_repair', 'agent_package_uninstall'],
-  );
-  assertRecommendedActionMatchesAvailable(legacy);
-
-  const canonicalRoleDirectory = buildAgentPackageDirectory({
-    locks: [{ ...lock, package_id: 'opl-flow', package_role: 'invalid_role' }],
-    detail: 'fast',
-  });
-  const canonicalRole = canonicalRoleDirectory.entries.find((entry) => entry.package_id === 'opl-flow')!;
-  assert.equal(canonicalRoleDirectory.status, 'available');
-  assert.equal(canonicalRole.package_role, 'workflow_profile');
-  assert.equal(canonicalRole.role_state.status, 'declared');
-  assert.equal(canonicalRole.role_state.source, 'first_party_framework_projection');
-  assert.equal(canonicalRole.installed, false);
-  assert.equal(canonicalRole.recommended_action, 'install_from_manifest_url');
-  assertRecommendedActionMatchesAvailable(canonicalRole);
-
-  const invalidRoleDirectory = buildAgentPackageDirectory({
-    locks: [{ ...lock, package_id: 'third.party.invalid-role', package_role: 'invalid_role' }],
-    detail: 'fast',
-  });
-  const invalidRole = invalidRoleDirectory.entries.find((entry) => entry.package_id === 'third.party.invalid-role')!;
-  assert.equal(invalidRoleDirectory.status, 'attention_required');
-  assert.equal(invalidRole.package_role, null);
-  assert.equal(invalidRole.role_state.status, 'migration_required');
-  assert.equal(invalidRole.role_state.source, 'unresolved_installed_lock');
-  assert.equal(invalidRole.role_state.diagnostic?.code, 'contract_shape_invalid');
-  assert.equal(invalidRole.recommended_action, 'agent_package_repair');
-  assertRecommendedActionMatchesAvailable(invalidRole);
-
-  const failedStatusDirectory = buildAgentPackageDirectory({
-    locks: [lock],
-    detail: 'full',
-    readStatus: () => {
-      throw new Error('fixture status read failed');
-    },
-  });
-  const failedStatus = failedStatusDirectory.entries.find((entry) => entry.package_id === lock.package_id)!;
-  assert.equal(failedStatusDirectory.status, 'attention_required');
-  assert.equal(failedStatus.activated, false);
-  assert.equal(failedStatus.readiness.status, 'repair_required');
-  assert.equal(failedStatus.readiness.reason, 'package_status_read_failed');
-  assert.equal(failedStatus.readiness.status_read_error?.code, 'unexpected_error');
-  assert.equal(failedStatus.recommended_action, 'agent_package_repair');
-  assert.deepEqual(
-    failedStatus.available_actions.map((action) => action.action_id),
-    ['agent_package_activate', 'agent_package_repair'],
-  );
-  assertRecommendedActionMatchesAvailable(failedStatus);
-  }));

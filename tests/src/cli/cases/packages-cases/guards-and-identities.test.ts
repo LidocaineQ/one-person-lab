@@ -77,11 +77,7 @@ test('default Home shortcut visibility follows registry starter_default', () => 
     }],
   }, 'https://registry.example/registry.json', 'fixture-sha256');
 
-  const preferences = defaultHomeShortcutPreferences(registry, {
-    surface_kind: 'opl_agent_package_lock_index',
-    version: 'opl-agent-package-lock-index.v1',
-    packages: [],
-  });
+  const preferences = defaultHomeShortcutPreferences(registry);
 
   assert.equal(preferences[0].shortcut_id, 'fixture-oma');
   assert.equal(preferences[0].visible, false);
