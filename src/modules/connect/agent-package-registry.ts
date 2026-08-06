@@ -29,7 +29,10 @@ import {
   writeHomeShortcutPreferenceFile,
 } from './agent-package-registry-parts/home-shortcuts.ts';
 import { normalizePackageManifest } from './agent-package-registry-parts/manifest-normalizers.ts';
-import { validateCapabilityProvider } from './agent-package-registry-parts/dependency-closure.ts';
+import {
+  descriptorDependencyReadiness,
+  validateCapabilityProvider,
+} from './agent-package-registry-parts/dependency-closure.ts';
 import {
   catalogManifestPayload,
   selectManagedCatalogPackageVersion,
@@ -1793,6 +1796,23 @@ function buildAgentPackageStatusSnapshot(
   };
 }
 
+function descriptorDependencyReadinessFor(
+  root: ReturnType<typeof discoverInstalledCodexPluginDescriptors> extends ReadonlyMap<string, infer V> ? V : never,
+  installedCodexPluginDescriptors: ReturnType<typeof discoverInstalledCodexPluginDescriptors>,
+) {
+  return descriptorDependencyReadiness({
+    root: root.manifest,
+    providers: new Map(
+      [...installedCodexPluginDescriptors.entries()].map(([packageId, descriptor]) => [packageId, {
+        manifest: descriptor.manifest,
+        manifest_sha256: descriptor.manifest_sha256,
+        content_digest: descriptor.manifest.content_digest ?? null,
+        readiness: descriptor.readiness,
+      }]),
+    ),
+  });
+}
+
 function readAgentPackageStatusSnapshot(packageId?: string | null) {
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
   return buildAgentPackageStatusSnapshot(
@@ -1846,6 +1866,9 @@ function buildOplAgentPackageStatus(
   const carrierReadiness = installedDescriptor?.readiness ?? null;
   const installedReadiness = carrierReadiness;
   const installedCarrierReadback = installedDescriptor?.carrier_readback ?? null;
+  const packageDependencyReadiness = installedDescriptor
+    ? descriptorDependencyReadinessFor(installedDescriptor, installedCodexPluginDescriptors)
+    : null;
   const policyCurrentness = installedDescriptor
     ? managedPolicyCurrentnessFromDescriptor({
         manifest: {
@@ -1895,18 +1918,23 @@ function buildOplAgentPackageStatus(
     && carrierReadiness.physical_status === 'available'
     && carrierReadiness.callability === 'callable',
   );
+  const dependencyOperational = packageDependencyReadiness?.operational_ready !== false;
   const operationalReady = carrierReadiness
-    ? neutralCarrierReady && managedPolicyOperational
+    ? neutralCarrierReady && dependencyOperational && managedPolicyOperational
     : configuredCarrier
-    ? configuredCarrierReady
+    ? configuredCarrierReady && dependencyOperational
     : false;
+  const dependencyBlockedReason = packageDependencyReadiness && !dependencyOperational
+    ? `package_dependency_${packageDependencyReadiness.status}`
+    : null;
   const launchBlockedReason = carrierReadiness
     ? neutralCarrierReady
-      ? managedPolicyOperational
-        ? null
+      ? dependencyBlockedReason
+        ?? (managedPolicyOperational
+          ? null
         : requiredPolicyDependenciesOperational
           ? `managed_policy_${policyCurrentness.status}`
-          : 'managed_policy_required_dependency_unavailable'
+          : 'managed_policy_required_dependency_unavailable')
       : carrierReadiness.physical_status !== 'available'
         ? 'carrier_source_unavailable'
         : carrierReadiness.callability !== 'callable'
@@ -1914,7 +1942,8 @@ function buildOplAgentPackageStatus(
           : 'carrier_not_installed'
     : configuredCarrier
     ? configuredCarrierReady
-      ? null
+      ? dependencyBlockedReason
+        ?? null
       : configuredCarrier.reason ?? 'configured_native_carrier_attention_needed'
     : 'package_not_installed';
   const repairAction = launchBlockedReason
@@ -1922,15 +1951,20 @@ function buildOplAgentPackageStatus(
       ? policyCurrentness.repair_command
       : null
     : null;
-  const unavailableReason = !requiredPolicyDependenciesOperational
+  const unavailableReason = dependencyBlockedReason
+    ?? (!requiredPolicyDependenciesOperational
           ? 'managed_policy_required_dependency_unavailable'
           : policyCurrentness.status === 'invalid'
           ? 'managed_policy_invalid'
-          : null;
+          : null);
   const degradedReason = unavailableReason
     ? null
     : policyCurrentness.experience_baseline?.status === 'degraded'
       ? 'experience_baseline_degraded'
+    : packageDependencyReadiness?.dependencies.some((dependency) => (
+      !dependency.required && dependency.status !== 'current'
+    ))
+      ? 'optional_dependency_missing'
     : policyCurrentness.status === 'drifted' ? 'managed_policy_drifted' : null;
   const installed = configuredCarrier?.status === 'installed' || carrierReadiness?.installed === true;
   const launchState = deriveAgentPackageLaunchState({
@@ -1967,7 +2001,7 @@ function buildOplAgentPackageStatus(
       configured_carrier: configuredCarrier,
       installed_carrier_readback: installedCarrierReadback,
       installed_readiness: installedReadiness,
-      package_dependency_readiness: null as AgentPackageDependencyReadiness | null,
+      package_dependency_readiness: packageDependencyReadiness as AgentPackageDependencyReadiness | null,
       materialization_readiness: null as AgentPackageMaterializationReadiness | null,
       runtime_source_readiness: null as AgentPackageManagedRuntimeSourceReadiness | null,
       carrier_authority_readiness: null as {
@@ -1996,7 +2030,7 @@ function buildOplAgentPackageStatus(
       capability_strategy: policyCurrentness.capability_strategy,
       operational_ready: operationalReady,
       operational_ready_scope: installedDescriptor
-        ? 'installed_carrier_presence_callability_and_managed_policy'
+        ? 'installed_carrier_presence_callability_dependency_closure_and_managed_policy'
         : 'configured_native_carrier_presence_callability_identity_and_precedence',
       launch_allowed: operationalReady,
       launch_blocked_reason: operationalReady ? null : launchBlockedReason,

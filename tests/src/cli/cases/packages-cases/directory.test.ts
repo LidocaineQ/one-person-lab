@@ -345,6 +345,15 @@ test('native manifest fallback does not synthesize a second first-party Package 
         capability_dependencies: [],
       }),
     );
+    fs.mkdirSync(path.join(sourceRoot, '.codex-plugin'), { recursive: true });
+    fs.writeFileSync(
+      path.join(sourceRoot, '.codex-plugin', 'plugin.json'),
+      formatJsonPayload({
+        name: 'unknown-capability',
+        version: '1.0.0',
+        skills: './skills',
+      }),
+    );
     const generic = discoverInstalledCodexPluginDescriptors({ runner });
     const scoped = discoverInstalledCodexPluginDescriptors({ packageId: 'rca', runner });
     assert.deepEqual([...generic.keys()], ['rca']);
@@ -472,7 +481,7 @@ process.stdout.write(JSON.stringify({
     assert.equal(entry?.readiness.launch_allowed, true);
     assert.equal(entry?.source_explanation.kind, 'installed_codex_plugin_descriptor');
     assert.equal(entry?.configured_carrier?.status, 'installed');
-    assert.equal(entry?.configured_carrier?.executor.status, 'callable');
+    assert.equal(entry?.configured_carrier?.executor.status, 'attention_needed');
     assert.equal(entry?.installed_carrier_readback?.kind, 'future-carrier');
     assert.deepEqual(
       entry?.available_actions.map((action) => action.action_id),

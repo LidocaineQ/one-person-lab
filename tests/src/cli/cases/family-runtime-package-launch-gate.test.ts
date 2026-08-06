@@ -119,7 +119,9 @@ test('a retained legacy package lock is not accepted as an installed native carr
 test('native package launch remains carrier-owned and creates no private lifecycle state', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-native-package-launch-'));
   const workspace = path.join(root, 'workspace');
-  const providerManifest = writeCapabilityProvider(path.join(root, 'provider'));
+  const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0', {
+    configuredCarrier: true,
+  });
   const consumerManifest = writeMasConsumer(
     path.join(root, 'consumer'),
     providerManifest,
