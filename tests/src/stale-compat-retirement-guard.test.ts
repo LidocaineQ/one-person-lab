@@ -193,6 +193,21 @@ test('retired evaluation actor stays absent and Foundry exports remain kernel-on
   assert.equal(fallowConfig.entry?.some((entry) => entry.includes('foundry-lab') || entry.includes('agent-lab')), false);
 });
 
+test('retired Package lifecycle lock construction stays absent', () => {
+  assert.equal(
+    fs.existsSync(path.join(
+      repoRoot,
+      'src/modules/connect/agent-package-registry-parts/lifecycle-lock.ts',
+    )),
+    false,
+  );
+  const physicalSurface = fs.readFileSync(
+    path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/physical-surface.ts'),
+    'utf8',
+  );
+  assert.doesNotMatch(physicalSurface, /\brematerializePhysicalCodexSurfaceFromLock\b/);
+});
+
 test('active Foundry operating-evidence contract uses only kernel canonical ids', () => {
   const relativePath = 'contracts/opl-framework/brand-module-l5-operating-evidence.json';
   const content = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
@@ -243,14 +258,6 @@ test('retired internal write and fallback helper exports do not return', () => {
       'src/modules/workspace/default-caller-surface-gates.ts',
       [
         /\bexport\s+const\s+DEFAULT_CALLER_TARGET_KINDS\b/,
-      ],
-    ],
-    [
-      'src/modules/connect/agent-package-registry-parts/lifecycle-lock.ts',
-      [
-        /\bexport\s+function\s+packageActionSourceSha256\b/,
-        /\bexport\s+function\s+requireInstalledPackage\b/,
-        /\bexport\s+function\s+assertPermissionScopeUnchanged\b/,
       ],
     ],
   ];

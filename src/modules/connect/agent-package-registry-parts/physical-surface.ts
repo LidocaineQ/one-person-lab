@@ -47,16 +47,10 @@ import {
 } from './developer-checkout-package-source.ts';
 import { verifyManifestContentLock } from './dependency-closure.ts';
 import {
-  assertInstalledPackagePluginSource,
-  installedPackageContentLockCanonicalization,
-} from './installed-plugin-source.ts';
-import {
   assertSafePersistedPackagePath,
   removeSafePersistedPackagePath,
 } from './persisted-path-safety.ts';
-import { packageRoleFromInstalledLock } from './package-role.ts';
 import type {
-  AgentPackageLock,
   AgentPackageLockIndex,
   AgentPackageManifest,
   AgentPackagePayloadFile,
@@ -2070,105 +2064,4 @@ export function cleanupUnreferencedPackagePayloadSources(
 
 export function rollbackManagedPolicySurface(surface: AgentPackagePhysicalSurface | undefined) {
   return rollbackManagedPolicyMigration(surface?.workflow_policy_migration);
-}
-
-export function rematerializePhysicalCodexSurfaceFromLock(
-  lock: AgentPackageLock,
-  dryRun: boolean,
-  options: Omit<PhysicalMaterializationOptions, 'keepMigrationIds'> = {},
-): AgentPackagePhysicalSurface {
-  const installedSourcePath = assertInstalledPackagePluginSource(lock);
-  if (!installedSourcePath || !lock.physical_surface?.plugin_id) {
-    return {
-      surface_kind: 'opl_agent_package_physical_codex_surface',
-      status: 'not_requested',
-      package_id: lock.package_id,
-      plugin_id: lock.physical_surface?.plugin_id ?? null,
-      marketplace_id: lock.physical_surface?.marketplace_id ?? null,
-      codex_home: lock.physical_surface?.codex_home ?? resolveCodexHome(),
-      codex_config_path: lock.physical_surface?.codex_config_path ?? resolveCodexConfigPath(),
-      codex_config_preexisting: lock.physical_surface?.codex_config_preexisting ?? true,
-      plugin_source_path: lock.physical_surface?.plugin_source_path ?? null,
-      plugin_manifest_path: lock.physical_surface?.plugin_manifest_path ?? null,
-      codex_plugin_cache_path: lock.physical_surface?.codex_plugin_cache_path ?? null,
-      marketplace_root: lock.physical_surface?.marketplace_root ?? null,
-      marketplace_path: lock.physical_surface?.marketplace_path ?? null,
-      marketplace_plugin_path: lock.physical_surface?.marketplace_plugin_path ?? null,
-      plugin_payload_manifest_url: lock.physical_surface?.plugin_payload_manifest_url ?? null,
-      plugin_payload_manifest_sha256: lock.physical_surface?.plugin_payload_manifest_sha256 ?? null,
-      plugin_payload_cache_path: lock.physical_surface?.plugin_payload_cache_path ?? null,
-      materialized_required_skill_ids: lock.physical_surface?.materialized_required_skill_ids ?? [],
-      materialized_required_skill_paths: lock.physical_surface?.materialized_required_skill_paths ?? [],
-      removed_paths: [],
-      writes_performed: false,
-      reload_required: false,
-      failure_reason: null,
-      note: 'Installed package lock did not request physical Codex surface repair.',
-      profile_config: null,
-      profile_migration: noPackageProfileMigration('Installed package did not request a profile surface.'),
-      managed_policy_config: null,
-      workflow_policy_migration: noManagedPolicyMigration('Installed package did not request a managed policy surface.'),
-      authority_boundary: refsOnlyAuthorityBoundary(),
-    };
-  }
-
-  const recordedCachePath = lock.physical_surface.codex_plugin_cache_path;
-  const developerCache = lock.source_kind === 'developer_checkout_override';
-  const reuseExistingPluginCache = Boolean(recordedCachePath);
-  const contentLockCanonicalization = developerCache
-    ? null
-    : installedPackageContentLockCanonicalization(lock, installedSourcePath);
-  const materialized = materializePhysicalCodexSurface({
-    package_id: lock.package_id,
-    agent_id: lock.agent_id,
-    package_role: packageRoleFromInstalledLock(lock),
-    display_name: lock.display_name,
-    publisher: lock.publisher,
-    version: lock.package_version,
-    owner_language_version: lock.owner_language_version,
-    source: '',
-    source_repo: null,
-    source_commit: lock.owner_source_commit ?? null,
-    carrier_source_commit: lock.owner_source_commit ?? null,
-    verified_payload_source_commit: lock.owner_source_commit ?? null,
-    codex_surface: {},
-    codex_default_exposure: lock.exposure_state !== 'hidden',
-    skill_packs: [],
-    entrypoints: [],
-    health_check: {},
-    permissions: [],
-    distribution_payload: null,
-    update_channel: '',
-    codex_visible_entry: lock.codex_visible_entry,
-    required_skill_ids: lock.bundled_required_skill_ids,
-    optional_skill_refs: lock.optional_skill_refs,
-    plugin_id: lock.physical_surface.plugin_id,
-    plugin_source_path: lock.physical_surface.plugin_source_path ?? installedSourcePath,
-    plugin_payload_manifest_url: lock.physical_surface.plugin_payload_manifest_url,
-    plugin_payload_manifest_sha256: lock.physical_surface.plugin_payload_manifest_sha256,
-    plugin_payload_cache_path: lock.physical_surface.plugin_payload_cache_path,
-    profile_surface: lock.physical_surface.profile_config,
-      managed_policy_surface: lock.physical_surface.managed_policy_config,
-      runtime_source_carrier: null,
-      managed_update_source: lock.managed_update_source,
-    capability_dependencies: lock.capability_dependencies ?? [],
-    capability_provider: lock.capability_provider ?? null,
-    content_digest: lock.content_digest ?? null,
-    content_lock_canonicalization: contentLockCanonicalization,
-    content_lock_paths: lock.content_lock_paths ?? [],
-    developer_checkout_source: lock.developer_checkout_source ?? null,
-  }, dryRun, {
-    ...options,
-    reuseExistingPluginCache,
-    existingPluginCachePath: recordedCachePath ?? undefined,
-  });
-  return options.skipManagedSurfaces && lock.physical_surface
-    ? {
-        ...materialized,
-        profile_config: lock.physical_surface.profile_config,
-        profile_migration: lock.physical_surface.profile_migration,
-        managed_policy_config: lock.physical_surface.managed_policy_config,
-        workflow_policy_migration: lock.physical_surface.workflow_policy_migration,
-      }
-    : materialized;
 }

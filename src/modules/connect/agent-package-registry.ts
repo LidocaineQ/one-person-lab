@@ -19,10 +19,6 @@ import {
   resolveManifestSelection,
 } from './agent-package-registry-parts/selection.ts';
 import {
-  packageActionStatus,
-  requirePackageId,
-} from './agent-package-registry-parts/lifecycle-lock.ts';
-import {
   mergedHomeShortcutPreferences,
   readHomeShortcutPreferenceFile,
   updateHomeShortcutPreferences,
@@ -103,6 +99,31 @@ export type {
   AgentPackagePackageActionInput,
   AgentPackageRepairInput,
 } from './agent-package-registry-parts/types.ts';
+
+function packageActionStatus(action: AgentPackageLifecycleAction) {
+  return {
+    install: 'installed',
+    update: 'updated',
+    repair: 'repaired',
+    activate: 'activated',
+    uninstall: 'uninstalled',
+    hide: 'hidden',
+    unhide: 'visible',
+    enable: 'enabled',
+    disable: 'disabled',
+  }[action];
+}
+
+function requirePackageId(packageId: string | null | undefined, action: string) {
+  const normalized = canonicalAgentPackageId(packageId);
+  if (!normalized) {
+    throw new FrameworkContractError('cli_usage_error', `Agent package ${action} requires --package-id.`, {
+      required: ['--package-id'],
+      action,
+    });
+  }
+  return normalized;
+}
 
 function configuredCarrierVersionMatchesPackage(
   installedVersion: string | null,
