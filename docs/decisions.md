@@ -649,7 +649,7 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 影响：
 
 - 显式 `opl workspace init|ensure --mode series|portfolio` 使用通用 `series` / `portfolio` profile，不能把 portfolio 限定为 MAS，也不能把 series 绑定到 RCA。
-- `rca_series` / `mas_portfolio` 只作为 legacy/default profile alias 与 display compatibility 保留；它们不是新的 OPL canonical profile。
+- `rca_series` / `mas_portfolio` 已退役；旧 workspace 或历史 provenance 中出现的同名值只按 history-only 输入读取，不再作为 profile 或 display alias 接受、生成或投影。OPL canonical profile 只允许 `one_off` / `series` / `portfolio`。
 - `opl workspace artifact-lifecycle` 默认只生成 source、output、review-repair 和 health 的 refs-only projection；project-specific memory/current refs 由 `<project-root>/control/opl/artifact_lifecycle/artifact_lifecycle_profile.json` 显式声明。
 - `opl workspace source ingest` 作为通用 source material intake：它只把用户提供的 PDF、Office、Markdown、数据文件或参考设计复制到 workspace-owned `shared/sources/source_materials/<role>/`，计算 sha256，写 `control/opl/source_materials/<sha>.json` receipt，并返回 source refs / receipt refs / stored file refs 给 Codex CLI、OMA、MAS、BookForge 等 domain stage 消费。OPL 不解析文件语义、不判断提取质量、不写 domain truth、不签 owner receipt 或 typed blocker。
 - BookForge、MAS、MAG、RCA 或其他 domain 可以声明自己的 lifecycle refs，但 OPL 只检查文件 ref、hash、缺口和 no-authority guard，不解析 domain artifact body，不写 memory body，不签 owner receipt，也不宣称 publication/domain readiness。
@@ -672,7 +672,7 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 影响：
 
 - Canonical CLI / ledger / action result 使用 `runtime owner-evidence-sustained-consumption ...` 与 `owner_evidence_sustained_consumption_*`。
-- `runtime mag-manifest-sustained-consumption ...` 保留为 compatibility alias。
+- `runtime mag-manifest-sustained-consumption ...` 已退役；历史 ledger/ref 中出现的同名值只按 history-only evidence 读取，不再作为 CLI alias 接受或生成。当前执行面统一使用 `runtime owner-evidence-sustained-consumption ...`。
 - Ledger payload 继续拒绝 domain body、ready claim、owner receipt、typed blocker creation 或 provider soak completion claim；允许记录 refs-only success path 或 typed blocker refs。
 - App/operator projection 如仍用 MAG action kind，应只被解释为 legacy route carrier；执行结果和 ledger readback 回 generic owner-evidence surface。
 
