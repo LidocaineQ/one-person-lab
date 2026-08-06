@@ -137,13 +137,16 @@ function withDeveloperBookForgeSources(
           status: 'current',
           operational_ready: true,
         },
-        runtime_source_readiness: {
-          status: 'current',
-          operational_ready: true,
-          checkout_path: managedRepo,
-          expected_tree_sha256: 'sha256:stale-managed',
-          actual_tree_sha256: 'sha256:stale-managed',
+        installed_carrier_readback: {
+          lifecycle_authority: 'carrier_owned',
+          source_ref: managedRepo,
         },
+        installed_readiness: {
+          installed: true,
+          physical_status: 'available',
+          callability: 'callable',
+        },
+        launch_allowed: true,
       },
     };
   }) as PackageStatusReaderFixture;
@@ -410,7 +413,7 @@ test('standard Agent interface parser enforces closed objects', () => {
   );
 });
 
-test('package dependency and runtime source readiness gate descriptor discovery independently of workspace scope', () => {
+test('package dependency and native carrier readiness gate descriptor discovery independently of workspace scope', () => {
   const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-standard-interface-managed-'));
   try {
     fs.mkdirSync(path.join(repoDir, 'contracts'), { recursive: true });
@@ -418,8 +421,8 @@ test('package dependency and runtime source readiness gate descriptor discovery 
       domain_id: 'fixture-agent',
       standard_agent_interface: fixture(),
     })}\n`);
-    const statusReads: Array<{ packageId?: string | null; recoverRuntimeSource?: boolean }> = [];
-    const statusReader = ((input: { packageId?: string | null; recoverRuntimeSource?: boolean }) => {
+    const statusReads: Array<{ packageId?: string | null }> = [];
+    const statusReader = ((input: { packageId?: string | null }) => {
       statusReads.push(input);
       return {
       opl_agent_package_status: input.packageId === 'mas'
@@ -433,13 +436,16 @@ test('package dependency and runtime source readiness gate descriptor discovery 
             materialization_readiness: {
               status: 'scope_required',
             },
-            runtime_source_readiness: {
-              status: 'current',
-              operational_ready: true,
-              checkout_path: repoDir,
-              expected_tree_sha256: 'sha256:current',
-              actual_tree_sha256: 'sha256:current',
+            installed_carrier_readback: {
+              lifecycle_authority: 'carrier_owned',
+              source_ref: repoDir,
             },
+            installed_readiness: {
+              installed: true,
+              physical_status: 'available',
+              callability: 'callable',
+            },
+            launch_allowed: true,
           }
         : {
             installed_package_count: 0,
@@ -448,20 +454,13 @@ test('package dependency and runtime source readiness gate descriptor discovery 
               status: 'missing',
               operational_ready: false,
             },
-            runtime_source_readiness: {
-              status: 'missing',
-              operational_ready: false,
-              checkout_path: null,
-              expected_tree_sha256: null,
-              actual_tree_sha256: null,
-            },
           },
       };
     }) as any;
     const descriptor = readPackageManagedStandardAgentDescriptor(['mas'], statusReader);
-    assert.equal(descriptor?.repo_dir, repoDir);
+    assert.equal(fs.realpathSync.native(descriptor?.repo_dir ?? ''), fs.realpathSync.native(repoDir));
     assert.equal(descriptor?.interface.runtime.runtime_domain_id, 'fixture');
-    assert.equal(statusReads[0]?.recoverRuntimeSource, false);
+    assert.equal(Object.hasOwn(statusReads[0] ?? {}, 'recoverRuntimeSource'), false);
     assert.deepEqual(standardAgentProgressDeltaKeys('fixture-agent', 'deliverable', statusReader), [
       'deliverable_progress_delta',
       'fixture_deliverable_delta',
@@ -472,20 +471,12 @@ test('package dependency and runtime source readiness gate descriptor discovery 
       platform: ['platform_repair_delta', 'fixture_platform_delta'],
     });
     assert.equal(statusReads.length, statusReadCountBeforeKeySet + 2);
-    const observedDeveloperDriftReader = ((input: { packageId?: string | null }) => {
-      const readback = statusReader(input);
-      if (input.packageId === 'mas') {
-        readback.opl_agent_package_status.runtime_source_readiness.actual_tree_sha256 = 'sha256:stale';
-        readback.opl_agent_package_status.runtime_source_readiness.provenance_observation = {
-          policy: 'observation_only',
-          status: 'changed',
-        };
-      }
-      return readback;
-    }) as any;
+    const observedDeveloperDriftReader = statusReader;
     assert.equal(
-      readPackageManagedStandardAgentDescriptor(['mas'], observedDeveloperDriftReader)?.repo_dir,
-      repoDir,
+      fs.realpathSync.native(
+        readPackageManagedStandardAgentDescriptor(['mas'], observedDeveloperDriftReader)?.repo_dir ?? '',
+      ),
+      fs.realpathSync.native(repoDir),
     );
     const observedDriftResolution = resolveStandardAgentContractCheckout(
       'mas',
@@ -503,10 +494,10 @@ test('package dependency and runtime source readiness gate descriptor discovery 
     const incompatibleSourceStatusReader = ((input: { packageId?: string | null }) => {
       const readback = statusReader(input);
       if (input.packageId === 'mas') {
-        readback.opl_agent_package_status.runtime_source_readiness.status = 'incompatible';
-        readback.opl_agent_package_status.runtime_source_readiness.operational_ready = false;
-        readback.opl_agent_package_status.runtime_source_readiness.reason =
-          'managed_runtime_source_lock_mismatch';
+        readback.opl_agent_package_status.launch_allowed = false;
+        readback.opl_agent_package_status.launch_blocked_reason = 'installed_native_carrier_required';
+        delete readback.opl_agent_package_status.installed_carrier_readback;
+        delete readback.opl_agent_package_status.installed_readiness;
       }
       return readback;
     }) as any;
@@ -519,11 +510,13 @@ test('package dependency and runtime source readiness gate descriptor discovery 
     );
     assert.equal(incompatibleResolution.status, 'blocked');
     assert.equal(incompatibleResolution.launch_allowed, false);
-    assert.equal(incompatibleResolution.reason, 'managed_runtime_source_lock_mismatch');
+    assert.equal(incompatibleResolution.reason, 'installed_native_carrier_required');
     const missingDependencyStatusReader = ((input: { packageId?: string | null }) => {
       const readback = statusReader(input);
       if (input.packageId === 'mas') {
         readback.opl_agent_package_status.package_dependency_readiness.operational_ready = false;
+        readback.opl_agent_package_status.launch_allowed = false;
+        readback.opl_agent_package_status.launch_blocked_reason = 'package_dependency_missing';
       }
       return readback;
     }) as any;
@@ -587,12 +580,17 @@ test('installed Agent discovery is presence-only while launch compatibility rema
           status: 'missing',
           operational_ready: false,
         },
-        runtime_source_readiness: {
-          status: 'incompatible',
-          operational_ready: false,
-          checkout_path: repoDir,
-          reason: 'managed_runtime_source_lock_mismatch',
+        installed_carrier_readback: {
+          lifecycle_authority: 'carrier_owned',
+          source_ref: repoDir,
         },
+        installed_readiness: {
+          installed: true,
+          physical_status: 'available',
+          callability: 'callable',
+        },
+        launch_allowed: false,
+        launch_blocked_reason: 'package_dependency_missing',
       },
     })) as PackageStatusReaderFixture;
 
@@ -623,15 +621,17 @@ test('installed package descriptor discovery bypasses registry-selected module r
       return {
         opl_agent_package_status: {
           installed_package_count: 1,
-          installed_packages: [
-            {
-              package_id: 'fixture-package',
-              agent_id: 'independent-agent',
-            },
-          ],
-          runtime_source_readiness: {
-            checkout_path: repoDir,
+          agent_id: 'independent-agent',
+          installed_carrier_readback: {
+            lifecycle_authority: 'carrier_owned',
+            source_ref: repoDir,
           },
+          installed_readiness: {
+            installed: true,
+            physical_status: 'available',
+            callability: 'callable',
+          },
+          launch_allowed: true,
         },
       };
     }) as PackageStatusReaderFixture;
@@ -700,7 +700,6 @@ test('installed carrier source owns descriptor discovery without legacy runtime 
       version: 'g2',
       opl_agent_package_status: {
         installed_package_count: 1,
-        installed_packages: [],
         installed_carrier_readback: {
           kind: 'codex_plugin_manager',
           identity: 'future-package',
@@ -714,11 +713,7 @@ test('installed carrier source owns descriptor discovery without legacy runtime 
           physical_status: 'available',
           callability: 'callable',
         },
-        runtime_source_readiness: {
-          status: 'not_required',
-          operational_ready: true,
-          checkout_path: legacyRepo,
-        },
+        launch_allowed: true,
       },
     })) as unknown as PackageStatusReaderFixture;
 
@@ -734,7 +729,6 @@ test('installed carrier source owns descriptor discovery without legacy runtime 
       version: 'g2',
       opl_agent_package_status: {
         installed_package_count: 1,
-        installed_packages: [],
         configured_carrier: {
           status: 'installed',
           executor: { status: configuredStatus.executorStatus },
@@ -742,11 +736,7 @@ test('installed carrier source owns descriptor discovery without legacy runtime 
         },
         installed_carrier_readback: null,
         installed_readiness: null,
-        runtime_source_readiness: {
-          status: 'not_required',
-          operational_ready: true,
-          checkout_path: legacyRepo,
-        },
+        launch_allowed: true,
       },
     })) as unknown as PackageStatusReaderFixture;
 
@@ -808,7 +798,7 @@ test('managed-root contract checkout requires matching current package source', 
         actual_tree_sha256: 'sha256:current',
       },
     },
-  })) as PackageStatusReaderFixture;
+  })) as unknown as PackageStatusReaderFixture;
   try {
     const checkout = resolveStandardAgentContractCheckout('mas', statusReader, () => ({
       installed: true,
@@ -842,13 +832,12 @@ test('native carrier contract checkout uses the carrier source without runtime s
         physical_status: 'available',
         callability: 'callable',
       },
-      runtime_source_readiness: null,
       package_dependency_readiness: {
         status: 'current',
         operational_ready: true,
       },
     },
-  })) as PackageStatusReaderFixture;
+  })) as unknown as PackageStatusReaderFixture;
 
   try {
     const resolution = resolveStandardAgentContractCheckout(
@@ -868,7 +857,7 @@ test('native carrier contract checkout uses the carrier source without runtime s
   }
 });
 
-test('typed contract checkout resolution preserves managed runtime source reason', () => {
+test('typed contract checkout resolution fails closed without native carrier authority', () => {
   const statusReader = (() => ({
     opl_agent_package_status: {
       installed_package_count: 1,
@@ -876,17 +865,9 @@ test('typed contract checkout resolution preserves managed runtime source reason
         status: 'current',
         operational_ready: true,
       },
-      runtime_source_readiness: {
-        status: 'incompatible',
-        operational_ready: false,
-        checkout_path: '/tmp/opl-managed-runtime-source-mismatch',
-        expected_tree_sha256: 'sha256:expected',
-        actual_tree_sha256: 'sha256:actual',
-        reason: 'managed_runtime_source_lock_mismatch',
-      },
       operational_ready: false,
       launch_allowed: false,
-      launch_blocked_reason: 'runtime_source_incompatible',
+      launch_blocked_reason: 'installed_native_carrier_required',
     },
   })) as PackageStatusReaderFixture;
 
@@ -898,8 +879,8 @@ test('typed contract checkout resolution preserves managed runtime source reason
   );
 
   assert.equal(resolution.status, 'blocked');
-  assert.equal(resolution.reason, 'managed_runtime_source_lock_mismatch');
-  assert.equal(resolution.source_status, 'incompatible');
+  assert.equal(resolution.reason, 'installed_native_carrier_required');
+  assert.equal(resolution.source_status, null);
   assert.equal(resolution.launch_allowed, false);
   assert.equal(resolution.checkout, null);
   assert.equal(resolveStandardAgentContractCheckout('mas', statusReader, () => null), null);

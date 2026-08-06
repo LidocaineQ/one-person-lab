@@ -227,9 +227,15 @@ function materializeStandardAgentRuntimeFixture(pluginRoot: string, packageId: s
   fs.writeFileSync(authorityInventoryPath, `# ${agent.display_name} fixture authority functions\n`, 'utf8');
 }
 
-export function installRuntimePackageFixture(stateRoot: string, packageId: string) {
+function installRuntimePackageFixtureClosure(
+  stateRoot: string,
+  packageId: string,
+  installedPackageIds: Set<string>,
+) {
   const canonicalPackageId = canonicalAgentPackageId(packageId);
   assert.ok(canonicalPackageId);
+  if (installedPackageIds.has(canonicalPackageId)) return;
+  installedPackageIds.add(canonicalPackageId);
   fs.mkdirSync(stateRoot, { recursive: true });
   const packageManifestPath = path.join(
     repoRoot,
@@ -248,6 +254,10 @@ export function installRuntimePackageFixture(stateRoot: string, packageId: strin
       };
       required_skill_ids?: unknown;
     };
+    capability_dependencies?: Array<{
+      package_id?: unknown;
+      required?: unknown;
+    }>;
   };
   const pluginId = packageManifest.codex_surface.plugin_id;
   assert.ok(pluginId);
@@ -313,6 +323,14 @@ export function installRuntimePackageFixture(stateRoot: string, packageId: strin
       'utf8',
     );
   }
+  for (const dependency of packageManifest.capability_dependencies ?? []) {
+    if (dependency.required !== true || typeof dependency.package_id !== 'string') continue;
+    installRuntimePackageFixtureClosure(stateRoot, dependency.package_id, installedPackageIds);
+  }
+}
+
+export function installRuntimePackageFixture(stateRoot: string, packageId: string) {
+  installRuntimePackageFixtureClosure(stateRoot, packageId, new Set());
 }
 
 export function loadFamilyManifestFixtures() {

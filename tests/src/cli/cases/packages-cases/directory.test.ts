@@ -1367,7 +1367,7 @@ test('ordinary list ignores a legacy-only lock without rewriting its bytes', () 
       assert.equal(readback.status, 'available');
       assert.equal(readback.directory.entries.some((entry) => entry.package_id === lock.package_id), false);
       assert.equal(readback.installed_package_count, 0);
-      assert.deepEqual(readback.installed_packages, []);
+      assert.equal(Object.hasOwn(readback, 'installed_packages'), false);
       assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytes);
     }
   } finally {

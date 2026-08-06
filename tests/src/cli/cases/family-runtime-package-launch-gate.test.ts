@@ -32,14 +32,14 @@ function createArgs(workspace: string) {
   ];
 }
 
-test('package launch ignores retired materialization readiness while enforcing native readiness', () => {
+test('package launch ignores retired materialization readiness and enforces native status', () => {
   assert.equal(packageLaunchHardStopReason({ installed_package_count: 0 }), 'package_not_installed');
   assert.equal(packageLaunchHardStopReason({
     installed_package_count: 1,
     package_dependency_readiness: {
       dependencies: [{ required: true, reasons: ['version_requirement_unsatisfied'] }],
     },
-    runtime_source_readiness: { status: 'current', operational_ready: true },
+    launch_allowed: true,
   }), null);
   for (const reason of [
     'dependency_lock_missing',
@@ -53,7 +53,8 @@ test('package launch ignores retired materialization readiness while enforcing n
       package_dependency_readiness: {
         dependencies: [{ required: true, reasons: [reason] }],
       },
-      runtime_source_readiness: { status: 'current', operational_ready: true },
+      launch_allowed: false,
+      launch_blocked_reason: reason,
     }), reason);
   }
   assert.equal(packageLaunchHardStopReason({
@@ -62,16 +63,13 @@ test('package launch ignores retired materialization readiness while enforcing n
       status: 'missing',
       core_readiness: { status: 'missing' },
     },
-    runtime_source_readiness: { status: 'current', operational_ready: true },
+    launch_allowed: true,
   }), null);
   assert.equal(packageLaunchHardStopReason({
     installed_package_count: 1,
-    runtime_source_readiness: {
-      status: 'missing',
-      operational_ready: false,
-      reason: 'managed_runtime_source_missing',
-    },
-  }), 'managed_runtime_source_missing');
+    launch_allowed: false,
+    launch_blocked_reason: 'carrier_source_unavailable',
+  }), 'carrier_source_unavailable');
 });
 
 test('native carrier source is authoritative over compatibility runtime source', () => {
@@ -117,14 +115,14 @@ test('native carrier with missing source fails closed instead of falling back', 
   }), null);
 });
 
-test('compatibility runtime source is used only without a native carrier', () => {
+test('retired compatibility runtime source is ignored without a native carrier', () => {
   assert.equal(packageRuntimeSourceCheckoutPath({
     runtime_source_readiness: {
       status: 'current',
       operational_ready: true,
       checkout_path: '/tmp/managed-source',
     },
-  }), '/tmp/managed-source');
+  }), null);
   assert.equal(packageRuntimeSourceCheckoutPath({
     runtime_source_readiness: {
       status: 'incompatible',

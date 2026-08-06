@@ -3934,7 +3934,6 @@
               "status",
               "directory",
               "installed_package_count",
-              "installed_packages",
               "authority_boundary"
             ],
             "additionalProperties": true,
@@ -4050,7 +4049,6 @@
               "surface_kind",
               "status",
               "installed_package_count",
-              "installed_packages",
               "authority_boundary"
             ],
             "additionalProperties": true,

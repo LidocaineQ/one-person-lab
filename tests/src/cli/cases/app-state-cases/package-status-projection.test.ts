@@ -23,17 +23,16 @@ function installedStatus(input: {
   packageId: string;
   exposure?: 'visible' | 'hidden' | 'disabled';
   dependencyReadiness?: Record<string, unknown> | null;
-  runtimeReady?: boolean;
+  carrierAvailable?: boolean;
   launchAllowed?: boolean;
   launchBlockedReason?: string | null;
   appContributions?: Record<string, unknown> | null;
   operationalReadyScope?: string;
 }) {
-  const legacyRollbackField = ['roll', 'back_ref'].join('');
-  const runtimeReady = input.runtimeReady ?? true;
-  const launchAllowed = input.launchAllowed ?? runtimeReady;
+  const launchAllowed = input.launchAllowed ?? true;
   const launchBlockedReason = input.launchBlockedReason
     ?? (launchAllowed ? null : 'runtime_source_incompatible');
+  const carrierAvailable = input.carrierAvailable ?? true;
   return {
     opl_agent_package_status: {
       surface_kind: 'opl_agent_package_status',
@@ -43,39 +42,25 @@ function installedStatus(input: {
         : { app_contributions: input.appContributions }),
       status: launchAllowed ? 'available' : 'attention_needed',
       installed_package_count: 1,
-      installed_packages: [{
-        package_id: input.packageId,
-        package_version: '99.0.0-ignored',
-        lock_ref: `opl://legacy-lock/${input.packageId}`,
-        action_receipt_id: `opl://legacy-receipt/${input.packageId}`,
-        [legacyRollbackField]: `opl://legacy-history/${input.packageId}`,
-        content_digest: `sha256:legacy-${input.packageId}`,
-        exposure_state: input.exposure ?? 'visible',
-        physical_surface: { status: 'materialized' },
-      }],
+      configured_carrier: {
+        status: carrierAvailable ? 'installed' : 'physical_unavailable',
+        executor: { status: carrierAvailable ? 'callable' : 'attention_needed' },
+      },
+      installed_readiness: {
+        installed: true,
+        physical_status: carrierAvailable ? 'available' : 'unavailable',
+        callability: carrierAvailable ? 'callable' : 'not_callable',
+      },
+      codex_visible: input.exposure !== 'hidden',
       package_dependency_readiness: input.dependencyReadiness ?? {
         status: 'current',
         operational_ready: true,
         repair_command: `opl packages repair --package-id ${input.packageId}`,
         dependencies: [],
       },
-      materialization_readiness: {
-        status: 'current',
-        expected_digest: 'sha256:legacy-expected',
-        actual_digest: 'sha256:legacy-actual',
-      },
-      runtime_source_readiness: {
-        status: runtimeReady ? 'current' : 'incompatible',
-        operational_ready: runtimeReady,
-        module_id: input.packageId,
-        checkout_path: `/legacy/${input.packageId}`,
-        expected_tree_sha256: 'sha256:legacy-expected-tree',
-        actual_tree_sha256: 'sha256:legacy-actual-tree',
-        reason: runtimeReady ? null : 'managed_runtime_source_probe_failed',
-      },
       operational_ready: launchAllowed,
       operational_ready_scope: input.operationalReadyScope
-        ?? 'package_dependency_scope_runtime_source_and_managed_policy',
+        ?? 'installed_carrier_presence_callability_and_managed_policy',
       launch_allowed: launchAllowed,
       launch_blocked_reason: launchBlockedReason,
       ...deriveAgentPackageLaunchState({
@@ -87,9 +72,6 @@ function installedStatus(input: {
       }),
       allowed_when_blocked: ['status', 'doctor', 'repair'],
       repair_action: launchAllowed ? null : `opl packages repair --package-id ${input.packageId}`,
-      lifecycle_receipt_summary: {
-        latest_receipt_ref: `opl://legacy-receipt/${input.packageId}`,
-      },
     },
   };
 }
@@ -220,13 +202,13 @@ test('App package projection accepts arbitrary package ids and trusts fresh owne
     status: 'hidden',
     codex_visible: false,
   });
-  assert.equal(fastStatus.status, 'verification_deferred');
-  assert.equal(fastStatus.operational_ready, false);
-  assert.equal(fastStatus.launch_allowed, false);
-  assert.equal(fastStatus.launch_blocked_reason, 'live_verification_deferred');
-  assert.equal(fastStatus.launch_state, 'degraded');
-  assert.equal(fastStatus.launch_state_reason, 'live_verification_deferred');
-  assert.equal(fastStatus.currentness_detail_deferred, true);
+  assert.equal(fastStatus.status, 'available');
+  assert.equal(fastStatus.operational_ready, true);
+  assert.equal(fastStatus.launch_allowed, true);
+  assert.equal(fastStatus.launch_blocked_reason, null);
+  assert.equal(fastStatus.launch_state, 'ready');
+  assert.equal(fastStatus.launch_state_reason, null);
+  assert.equal(Object.hasOwn(fastStatus, 'currentness_detail_deferred'), false);
   assert.equal(fullStatus.operational_ready, true);
   assert.equal(fullStatus.launch_allowed, true);
   assert.equal(fullStatus.launch_state, 'ready');
@@ -567,9 +549,9 @@ test('runtime carrier failure reports physical_unavailable without exposing old 
     profile: 'fast',
     readStatus: (() => installedStatus({
       packageId: 'mas',
-      runtimeReady: false,
       launchAllowed: false,
-      launchBlockedReason: 'runtime_source_incompatible',
+      launchBlockedReason: 'carrier_source_unavailable',
+      carrierAvailable: false,
     })) as any,
   });
   const projected = statuses.mas as any;
@@ -580,17 +562,13 @@ test('runtime carrier failure reports physical_unavailable without exposing old 
     present: false,
     callable: false,
     status: 'physical_unavailable',
-    reason: 'runtime_source_incompatible',
+    reason: 'carrier_source_unavailable',
   });
-  assert.deepEqual(projected.runtime_source_readiness, {
-    status: 'incompatible',
-    operational_ready: false,
-    reason: 'managed_runtime_source_probe_failed',
-  });
+  assert.equal(Object.hasOwn(projected, 'runtime_source_readiness'), false);
   assert.equal(projected.status, 'attention_needed');
   assert.equal(projected.launch_allowed, false);
   assert.equal(projected.launch_state, 'package_unavailable');
-  assert.equal(projected.launch_state_reason, 'runtime_source_incompatible');
+  assert.equal(projected.launch_state_reason, 'carrier_source_unavailable');
   assert.equal(projected.repair_action.enabled, true);
   assertLegacyManagerFieldsAbsent(projected);
 });
