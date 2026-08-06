@@ -928,7 +928,6 @@ export async function buildOplAppState(input: {
   );
   const agentPackagesReadback = listOplAgentPackages({
     detail: profile,
-    readStatus: readAgentPackageStatus,
   }).opl_agent_packages;
   const workspaceBindings = listWorkspaceBindings();
   const packageIds = [...new Set(

@@ -10,7 +10,6 @@ import { nowIso } from './shared.ts';
 import type {
   AgentPackageHomeShortcutPreference,
   AgentPackageHomeShortcutPreferenceFile,
-  AgentPackageLockIndex,
   AgentPackageStoredHomeShortcutPreference,
 } from './types.ts';
 
@@ -112,11 +111,9 @@ export function updateHomeShortcutPreferences(input: {
 
 export function defaultHomeShortcutPreferences(
   directoryOrRegistry: unknown,
-  lockIndex: AgentPackageLockIndex,
 ): AgentPackageHomeShortcutPreference[] {
   const entries = isRecord(directoryOrRegistry) ? recordList(directoryOrRegistry.entries) : [];
   const installedIds = new Set([
-    ...lockIndex.packages.map((entry) => entry.package_id),
     ...entries.flatMap((entry) => entry.installed === true ? [stringValue(entry.package_id)] : []),
   ]);
   const timestamp = nowIso();
@@ -152,11 +149,9 @@ export function defaultHomeShortcutPreferences(
 
 export function mergedHomeShortcutPreferences(
   directoryOrRegistry: unknown,
-  lockIndex: AgentPackageLockIndex,
 ): AgentPackageHomeShortcutPreference[] {
   const entries = isRecord(directoryOrRegistry) ? recordList(directoryOrRegistry.entries) : [];
   const installedIds = new Set([
-    ...lockIndex.packages.map((entry) => entry.package_id),
     ...entries.flatMap((entry) => entry.installed === true ? [stringValue(entry.package_id)] : []),
   ]);
   const merged = new Map<string, AgentPackageHomeShortcutPreference>();
@@ -181,7 +176,7 @@ export function mergedHomeShortcutPreferences(
       for (const shortcutId of stringList(entry.home_shortcut_ids)) configurable.add(`${packageId}\n${shortcutId}`);
     }
   }
-  for (const entry of defaultHomeShortcutPreferences(directoryOrRegistry, lockIndex)) {
+  for (const entry of defaultHomeShortcutPreferences(directoryOrRegistry)) {
     merged.set(`${entry.package_id}\n${entry.shortcut_id}`, entry);
   }
   for (const entry of readHomeShortcutPreferenceFile().preferences) {

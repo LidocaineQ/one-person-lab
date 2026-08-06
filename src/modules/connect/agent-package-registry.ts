@@ -81,7 +81,6 @@ import type {
   AgentPackageInstallInput,
   AgentPackageLifecycleAction,
   AgentPackageLock,
-  AgentPackageLockIndex,
   AgentPackageDependencyReadiness,
   AgentPackageManagedRuntimeSourceReadiness,
   AgentPackageMaterializationReadiness,
@@ -1767,31 +1766,20 @@ function configuredCarrierReadbacks(
   return readbacks;
 }
 
-function emptyStatusLockIndex(): AgentPackageLockIndex {
-  return {
-    surface_kind: 'opl_agent_package_lock_index',
-    version: 'opl-agent-package-lock-index.v1',
-    packages: [],
-  };
-}
-
 function buildAgentPackageStatusSnapshot(
-  lockIndex: AgentPackageLockIndex,
   installedCodexPluginDescriptors: ReturnType<typeof discoverInstalledCodexPluginDescriptors>,
 ) {
   const configuredCarriers = configuredCarrierReadbacks(installedCodexPluginDescriptors);
   const directory = buildAgentPackageDirectory({
-    locks: lockIndex.packages,
     detail: 'fast',
     configuredCarrierReadbacks: configuredCarriers,
     installedCodexPluginDescriptors,
   });
   return {
-    lockIndex,
     installedCodexPluginDescriptors,
     configuredCarriers,
     paths: resolveOplStatePaths(),
-    homeShortcutPreferences: mergedHomeShortcutPreferences(directory, lockIndex),
+    homeShortcutPreferences: mergedHomeShortcutPreferences(directory),
   };
 }
 
@@ -1861,10 +1849,7 @@ function descriptorDependencyReadinessFor(
 
 function readAgentPackageStatusSnapshot(packageId?: string | null) {
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
-  return buildAgentPackageStatusSnapshot(
-    emptyStatusLockIndex(),
-    installedCodexPluginDescriptors,
-  );
+  return buildAgentPackageStatusSnapshot(installedCodexPluginDescriptors);
 }
 
 function agentPackageStatusReadbackStatus(input: {
@@ -2096,10 +2081,7 @@ export function createOplAgentPackageStatusReader() {
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
   let snapshot: ReturnType<typeof buildAgentPackageStatusSnapshot> | null = null;
   return (input: OplAgentPackageStatusInput = {}) => {
-    snapshot ??= buildAgentPackageStatusSnapshot(
-      emptyStatusLockIndex(),
-      installedCodexPluginDescriptors,
-    );
+    snapshot ??= buildAgentPackageStatusSnapshot(installedCodexPluginDescriptors);
     return buildOplAgentPackageStatus(input, snapshot);
   };
 }
@@ -2111,31 +2093,19 @@ export function runOplAgentPackageStatus(input: OplAgentPackageStatusInput = {})
 export function listOplAgentPackages(input: {
   detail?: 'fast' | 'full';
   statusContext?: (packageId: string) => Pick<AgentPackagePackageActionInput, 'scope' | 'targetWorkspace' | 'targetQuest'> | null;
-  readStatus?: typeof runOplAgentPackageStatus;
 } = {}) {
   const detail = input.detail ?? 'fast';
   const paths = resolveOplStatePaths();
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
-  const lockIndex = emptyStatusLockIndex();
   const configuredCarriers = configuredCarrierReadbacks(installedCodexPluginDescriptors);
   const directoryReadback = buildAgentPackageDirectory({
-    locks: [],
     detail,
     configuredCarrierReadbacks: configuredCarriers,
     installedCodexPluginDescriptors,
     actionContext: input.statusContext,
-    readStatus: (packageId) => {
-      const context = input.statusContext?.(packageId) ?? {};
-      return (input.readStatus ?? runOplAgentPackageStatus)({
-        packageId,
-        detail,
-        recoverRuntimeSource: false,
-        ...context,
-      }).opl_agent_package_status;
-    },
   });
   const directory = directoryReadback;
-  const homeShortcutPreferences = mergedHomeShortcutPreferences(directory, lockIndex);
+  const homeShortcutPreferences = mergedHomeShortcutPreferences(directory);
   return {
     version: 'g2',
     opl_agent_packages: {

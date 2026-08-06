@@ -93,7 +93,6 @@ function buildRuntimeProjectionDependencies(input: BuildOplRuntimeAppStateInput)
   const readPackageStatus = createPackageStatusReader();
   const directory = listPackages({
     detail: 'fast',
-    readStatus: readPackageStatus,
   }).opl_agent_packages.directory;
   const installedAgentEntries = directory.entries.filter(
     (entry) => entry.installed && entry.package_role === 'standard_agent',
