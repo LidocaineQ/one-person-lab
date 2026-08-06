@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { readJsonFile } from './script-json-boundary.mjs';
 import { parseRequiredValueOptions } from './required-value-options.mjs';
 
-const PACKAGE_WORKFLOW_TRIGGER_POLICY = 'release_gate_workflow_call_or_manual_dispatch';
+const PACKAGE_WORKFLOW_TRIGGER_POLICY = 'independent_owner_channel_workflow_call_or_manual_dispatch';
 const PACKAGE_REMOTE_PUBLISH_STATUS = 'publication_workflow_configured_pending_remote_verification';
 const PACKAGE_WORKFLOW_PATH = '.github/workflows/packages.yml';
 const PACKAGE_RELEASE_CALLER_WORKFLOW_PATH = '.github/workflows/release-package-channel.yml';
@@ -366,7 +366,12 @@ function validateWorkflow(manifest, manifestPath, failures) {
     && !/gh release (?:list|view|download) --repo gaofeng21cn\/one-person-lab-app/.test(dailySource), 'Daily Package reconciliation must not resolve or bind App currentness', failures);
   assertCondition(/force_publish[\s\S]*publish_required=true/.test(dailySource), 'force_publish must be consumed as an explicit Release Set repair', failures);
   assertCondition(/publish_required="\$\(jq -r \.publish_required/.test(dailySource)
-    && !/publish_required == 'true'/.test(dailySource), 'Daily workflow must report publication need without dispatching a coupled publisher', failures);
+    && /publication_inputs_json/.test(dailySource)
+    && /publish-independent-packages:/.test(dailySource)
+    && /uses:\s*\.\/\.github\/workflows\/publish-package\.yml/.test(dailySource)
+    && !/uses:\s*\.\/\.github\/workflows\/packages\.yml/.test(dailySource), 'Daily workflow must dispatch the single-Package owner publisher from an exact changed-package plan', failures);
+  assertCondition(/workflow_call:/.test(packageStableSource)
+    && /publication_request_id/.test(packageStableSource), 'Single-Package publisher must expose the same idempotent route to reusable callers', failures);
   assertCondition(!/uses:\s*\.\/\.github\/workflows\/packages\.yml/.test(dailySource)
     && !/promotion_target:\s*candidate/.test(dailySource)
     && /publication_scope/.test(dailySource)
@@ -377,7 +382,8 @@ function validateWorkflow(manifest, manifestPath, failures) {
     && !dailySource.includes('retained_previous_stable')
     && !dailySource.includes('force_publish cannot bypass latest-stable fallback'), 'Daily Package reconciliation must fail closed instead of falling back from an archive build it no longer performs', failures);
   assertCondition(!/app_version:/.test(dailySource), 'Daily reconciliation must not pass App identity into Package publication', failures);
-  assertCondition(!/expected_framework_source_commit:\s*\$\{\{ github\.sha \}\}/.test(dailySource), 'Daily reconciliation must not dispatch the coupled Release Set publisher', failures);
+  assertCondition(/expected_framework_source_commit:\s*\$\{\{ github\.sha \}\}/.test(dailySource)
+    && /publication_inputs_json/.test(dailySource), 'Independent Package publication must bind the current Framework source and exact per-Package inputs', failures);
   assertCondition(!/:latest(?:["'\s]|$)/m.test(dailySource), 'Daily Package workflow must not use bare latest', failures);
 }
 

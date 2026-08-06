@@ -85,7 +85,7 @@ export type AppComponentInput = {
 
 export type OplPackageManifest = ReturnType<typeof buildOplPackageManifest>;
 
-const PACKAGE_WORKFLOW_TRIGGER_POLICY = 'release_gate_workflow_call_or_manual_dispatch';
+const PACKAGE_WORKFLOW_TRIGGER_POLICY = 'independent_owner_channel_workflow_call_or_manual_dispatch';
 const PACKAGE_REMOTE_PUBLISH_STATUS = 'publication_workflow_configured_pending_remote_verification';
 const RELEASE_SET_GENERATION_PATTERN = /^\d{2}\.\d{1,2}\.\d{1,2}(?:-r[1-9]\d*)?$/;
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');

@@ -30,6 +30,8 @@ test('framework packages workflow is release-gated and manually repairable witho
 
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /workflow_call:/);
+  assert.match(packageStableWorkflow, /workflow_call:/);
+  assert.match(packageStableWorkflow, /publication_request_id:/);
   const packageFrameworkCommitInputs = [...workflow.matchAll(/^      expected_framework_source_commit:\n((?:^        [^\n]*\n?)*)/gm)];
   assert.equal(packageFrameworkCommitInputs.length, 2);
   for (const [, block] of packageFrameworkCommitInputs) {
@@ -60,7 +62,7 @@ test('framework packages workflow is release-gated and manually repairable witho
   assert.ok(releaseCallerWorkflow.indexOf('Validate frozen Framework source input') < releaseCallerWorkflow.indexOf('Setup Node.js'));
   assert.match(releaseCallerWorkflow, /\.release_set\.components\.base\.source_commit/);
   assert.match(releaseCallerWorkflow, /expected_framework_source_commit:\s*\$\{\{ inputs\.expected_framework_source_commit \}\}/);
-  assert.doesNotMatch(dailyPackageWorkflow, /expected_framework_source_commit:\s*\$\{\{ github\.sha \}\}/);
+  assert.match(dailyPackageWorkflow, /expected_framework_source_commit:\s*\$\{\{ github\.sha \}\}/);
   assert.match(workflow, /release_gate:\s*\n\s*description:/);
   assert.match(workflow, /release_set_generation:/);
   assert.match(workflow, /generation="\$\{generation#v\}"/);
@@ -283,11 +285,14 @@ test('framework packages workflow is release-gated and manually repairable witho
   assert.ok(dailyPackageWorkflow.indexOf('Fetch current latest-stable Release Set manifest') < dailyPackageWorkflow.indexOf('Build Package projection fingerprint'));
   assert.match(dailyPackageWorkflow, /args\+=\(--current-manifest "\$\{\{ steps\.current\.outputs\.current_manifest \}\}"\)/);
   assert.doesNotMatch(dailyPackageWorkflow, /uses:\s+\.\/\.github\/workflows\/packages\.yml/);
+  assert.match(dailyPackageWorkflow, /publication_inputs_json:/);
+  assert.match(dailyPackageWorkflow, /Prepare independent Package publication plan/);
+  assert.match(dailyPackageWorkflow, /publish-independent-packages:/);
+  assert.match(dailyPackageWorkflow, /uses:\s+\.\/\.github\/workflows\/publish-package\.yml/);
   assert.match(dailyPackageWorkflow, /Package publication scope:.*packages_only/);
   assert.match(dailyPackageWorkflow, /non_package_changed_components_json/);
   assert.match(dailyPackageWorkflow, /publish_required="\$\(jq -r \.publish_required/);
-  assert.doesNotMatch(dailyPackageWorkflow, /publish_required == 'true'/);
-  assert.doesNotMatch(dailyPackageWorkflow, /publish_required="true"/);
+  assert.match(dailyPackageWorkflow, /if: steps\.decide\.outputs\.publish_required == 'true'/);
   assert.match(dailyPackageWorkflow, /changed_packages_json:/);
   assert.match(dailyPackageWorkflow, /owner_cohort_artifact_name:/);
   assert.doesNotMatch(dailyPackageWorkflow, /app_version:/);
@@ -441,7 +446,7 @@ test('single-Package publication is protected, selector-bound, and readback-only
   const packageSpecs = getOplPackageSpecs();
 
   assert.match(workflow, /^  workflow_dispatch:$/m);
-  assert.doesNotMatch(workflow, /^\s+(?:workflow_call|workflow_run|schedule):$/m);
+  assert.doesNotMatch(workflow, /^\s+(?:workflow_run|schedule):$/m);
   assert.match(workflow, /^permissions: \{\}$/m);
   assert.match(workflow, /^    environment: release-stable$/m);
   assert.match(workflow, /^    permissions:\n      contents: read\n      id-token: write\n      packages: write$/m);
