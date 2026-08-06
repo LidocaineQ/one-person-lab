@@ -80,9 +80,7 @@ import type {
   AgentPackageStoredHomeShortcutPreference,
   AgentPackageInstallInput,
   AgentPackageLifecycleAction,
-  AgentPackageLock,
   AgentPackageDependencyReadiness,
-  AgentPackageManagedRuntimeSourceReadiness,
   AgentPackageManifestValidateInput,
   AgentPackageManifest,
   AgentPackageManagedPolicyDependency,
@@ -1734,7 +1732,6 @@ export type OplAgentPackageStatusInput = {
   scope?: 'workspace' | 'quest' | null;
   targetWorkspace?: string | null;
   targetQuest?: string | null;
-  recoverRuntimeSource?: boolean;
   detail?: 'fast' | 'full';
 };
 
@@ -2025,13 +2022,15 @@ function buildOplAgentPackageStatus(
         operationalReady,
       }),
       package_id: packageId ?? null,
+      agent_id: installedDescriptor?.manifest.agent_id ?? null,
       installed_package_count: packageId ? (installed ? 1 : 0) : globallyInstalledPackageIds.size,
-      installed_packages: [] as AgentPackageLock[],
       configured_carrier: configuredCarrier,
       installed_carrier_readback: installedCarrierReadback,
       installed_readiness: installedReadiness,
+      codex_visible: installedDescriptor
+        ? installedDescriptor.manifest.codex_default_exposure !== false
+        : installed,
       package_dependency_readiness: packageDependencyReadiness as AgentPackageDependencyReadiness | null,
-      runtime_source_readiness: null as AgentPackageManagedRuntimeSourceReadiness | null,
       carrier_authority_readiness: null as {
         status: 'not_required' | 'current' | 'invalid';
         reasons: string[];
@@ -2114,7 +2113,6 @@ export function listOplAgentPackages(input: {
           .filter(([, readback]) => readback.status === 'installed')
           .map(([packageId]) => packageId),
       ]).size,
-      installed_packages: [],
       configured_carriers: [...configuredCarriers.values()],
       home_shortcut_preferences: homeShortcutPreferences,
       files: {

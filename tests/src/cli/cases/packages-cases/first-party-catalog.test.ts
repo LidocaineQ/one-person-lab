@@ -1244,7 +1244,7 @@ test('descriptor-owned Flow update adopts the exact live owner target and become
 
     const status = runCli(['packages', 'status', '--package-id', 'opl-flow'], commonEnv) as any;
     assert.equal(status.opl_agent_package_status.installed_package_count, 1);
-    assert.equal(status.opl_agent_package_status.installed_packages.length, 0);
+    assert.equal(Object.hasOwn(status.opl_agent_package_status, 'installed_packages'), false);
     assert.equal(status.opl_agent_package_status.configured_carrier.installed_version, '0.1.32');
   } finally {
     removeFixtureTree(root);
@@ -1516,7 +1516,7 @@ test('an installed first-party descriptor cannot mask a new manifest missing car
     );
     const retained = runCli(['packages', 'status', '--package-id', 'opl-flow'], commonEnv) as any;
     assert.equal(retained.opl_agent_package_status.installed_package_count, 1);
-    assert.equal(retained.opl_agent_package_status.installed_packages.length, 0);
+    assert.equal(Object.hasOwn(retained.opl_agent_package_status, 'installed_packages'), false);
     assert.equal(retained.opl_agent_package_status.configured_carrier.installed_version, '0.2.0');
     assert.equal(retained.opl_agent_package_status.configured_carrier.plugin_source_path, first.sourceRoot);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);

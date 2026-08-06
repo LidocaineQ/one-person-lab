@@ -75,31 +75,18 @@ function compactDependencyReadiness(
   };
 }
 
-function installedPackage(status: RawAgentPackageStatus) {
-  return status.installed_packages[0] ?? null;
-}
-
 function registeredPackageCount(status: RawAgentPackageStatus) {
-  return typeof status.installed_package_count === 'number'
-    ? status.installed_package_count
-    : status.installed_packages.length;
-}
-
-function compactRuntimeSourceReadiness(status: RawAgentPackageStatus) {
-  const readiness = status.runtime_source_readiness;
-  return readiness
-    ? {
-        status: readiness.status,
-        operational_ready: readiness.operational_ready,
-        reason: readiness.reason ?? null,
-      }
-    : null;
+  return typeof status.installed_package_count === 'number' ? status.installed_package_count : 0;
 }
 
 function projectedPresence(status: RawAgentPackageStatus) {
   const registered = registeredPackageCount(status) > 0;
-  const runtimeSource = status.runtime_source_readiness;
-  const physicalPresent = registered && runtimeSource?.operational_ready !== false;
+  const nativeInstalled = status.installed_readiness?.installed === true
+    || status.configured_carrier?.status === 'installed'
+    || status.operational_ready === true;
+  const nativePhysicalUnavailable = status.installed_readiness?.physical_status === 'unavailable'
+    || status.configured_carrier?.status === 'physical_unavailable';
+  const physicalPresent = registered && nativeInstalled && !nativePhysicalUnavailable;
   const callable = physicalPresent && status.launch_allowed === true;
   return {
     registered,
@@ -117,7 +104,7 @@ function projectedPresence(status: RawAgentPackageStatus) {
 
 function exposureProjection(status: RawAgentPackageStatus, physicallyPresent: boolean) {
   const exposureStatus = physicallyPresent
-    ? installedPackage(status)?.exposure_state ?? 'visible'
+    ? status.codex_visible === false ? 'hidden' : 'visible'
     : registeredPackageCount(status) > 0
       ? 'physical_unavailable'
       : 'not_installed';
@@ -220,11 +207,6 @@ export function projectRuntimeAgentPackageDirectoryEntry(
       operational_ready: entry.readiness.operational_ready,
       launch_allowed: launchAllowed,
       launch_blocked_reason: launchAllowed === true ? null : entry.readiness.reason,
-      runtime_source_readiness: {
-        status: entry.readiness.status,
-        operational_ready: entry.readiness.operational_ready,
-        reason: entry.readiness.reason,
-      },
       status_read_error: statusReadError,
       source_ref: sourceRef,
     } satisfies JsonRecord,
@@ -271,7 +253,6 @@ export function projectAppAgentPackageStatus(input: {
       presence.installed,
       status.package_dependency_readiness,
     ),
-    runtime_source_readiness: compactRuntimeSourceReadiness(status),
     package_operational: status.package_operational,
     experience_baseline: status.experience_baseline,
     specialized_capabilities: status.specialized_capabilities,

@@ -145,7 +145,7 @@ function currentCheckoutResolutionFromStatus(
 ): CheckoutPathResolution {
   let status: ReturnType<PackageStatusReader>['opl_agent_package_status'];
   try {
-    status = readStatus({ packageId, recoverRuntimeSource: false }).opl_agent_package_status;
+    status = readStatus({ packageId }).opl_agent_package_status;
   } catch {
     return blockedCheckoutPath('managed_package_status_unavailable');
   }
@@ -178,34 +178,10 @@ function currentCheckoutResolutionFromPackageStatus(
       status.configured_carrier?.status ?? status.installed_readiness?.physical_status ?? null,
     );
   }
-  const dependencies = status.package_dependency_readiness;
-  const source = status.runtime_source_readiness;
   if (status.installed_package_count < 1) {
     return blockedCheckoutPath('managed_package_not_installed');
   }
-  if (dependencies?.operational_ready !== true) {
-    return blockedCheckoutPath(
-      `package_dependency_${dependencies?.status ?? 'unavailable'}`,
-      dependencies?.status ?? null,
-    );
-  }
-  if (!source || source.status !== 'current' || source.operational_ready !== true) {
-    return blockedCheckoutPath(
-      source?.reason ?? `managed_runtime_source_${source?.status ?? 'unavailable'}`,
-      source?.status ?? null,
-    );
-  }
-  if (typeof source.checkout_path !== 'string' || !source.checkout_path.trim()) {
-    return blockedCheckoutPath(
-      source.reason ?? 'managed_runtime_source_checkout_missing',
-      source.status,
-    );
-  }
-  return {
-    checkout_path: source.checkout_path,
-    source_status: source.status,
-    reason: null,
-  };
+  return blockedCheckoutPath('installed_native_carrier_required');
 }
 
 function currentDescriptorFromStatus(
@@ -214,13 +190,14 @@ function currentDescriptorFromStatus(
 ): StandardAgentDescriptorInterface | null {
   let status: ReturnType<PackageStatusReader>['opl_agent_package_status'];
   try {
-    status = readStatus({ packageId, recoverRuntimeSource: false }).opl_agent_package_status;
+    status = readStatus({ packageId }).opl_agent_package_status;
   } catch {
     return null;
   }
   const installedCarrierSource = installedCarrierSourceFromStatus(status);
   if (installedCarrierSource.selected) {
-    return status.installed_readiness?.callability === 'callable'
+    return status.launch_allowed === true
+      && status.installed_readiness?.callability === 'callable'
       && installedCarrierSource.checkout_path
       ? readStandardAgentDescriptorInterface(installedCarrierSource.checkout_path)
       : null;
@@ -237,16 +214,14 @@ function presentDescriptorFromStatus(
 ): StandardAgentDescriptorInterface | null {
   let status: ReturnType<PackageStatusReader>['opl_agent_package_status'];
   try {
-    status = readStatus({ packageId, recoverRuntimeSource: false }).opl_agent_package_status;
+    status = readStatus({ packageId }).opl_agent_package_status;
   } catch {
     return null;
   }
   if (typeof status.installed_package_count !== 'number' || status.installed_package_count < 1) {
     return null;
   }
-  const checkoutPath = typeof status.runtime_source_readiness?.checkout_path === 'string'
-    ? canonicalCheckoutPath(status.runtime_source_readiness.checkout_path)
-    : null;
+  const checkoutPath = installedCarrierSourceFromStatus(status).checkout_path;
   return checkoutPath ? readStandardAgentDescriptorInterface(checkoutPath) : null;
 }
 
@@ -609,7 +584,7 @@ export function readInstalledStandardAgentDescriptorForPackage(
 ): StandardAgentDescriptorInterface | null {
   let status: ReturnType<PackageStatusReader>['opl_agent_package_status'];
   try {
-    status = readStatus({ packageId, recoverRuntimeSource: false }).opl_agent_package_status;
+    status = readStatus({ packageId }).opl_agent_package_status;
   } catch {
     return null;
   }
@@ -617,25 +592,16 @@ export function readInstalledStandardAgentDescriptorForPackage(
     return null;
   }
   const installedCarrierSource = installedCarrierSourceFromStatus(status);
-  const checkoutPath = installedCarrierSource.selected
-    ? installedCarrierSource.checkout_path
-    : typeof status.runtime_source_readiness?.checkout_path === 'string'
-      ? canonicalCheckoutPath(status.runtime_source_readiness.checkout_path)
-      : null;
+  const checkoutPath = installedCarrierSource.checkout_path;
   const descriptor = checkoutPath ? readStandardAgentDescriptorInterface(checkoutPath) : null;
   if (descriptor?.kind !== 'agent') return null;
   const target = normalizedIdentity(packageId);
   const descriptorPackageId = normalizedIdentity(descriptor.package_id ?? '');
   const descriptorAgentId = normalizedIdentity(descriptor.agent_id ?? '');
-  const installedAgentIds = new Set(
-    (status.installed_packages ?? [])
-      .filter((entry) => normalizedIdentity(entry.package_id) === target)
-      .map((entry) => normalizedIdentity(entry.agent_id ?? ''))
-      .filter(Boolean),
-  );
+  const ownerAgentId = normalizedIdentity(status.agent_id ?? '');
   return descriptorPackageId === target
     && descriptorAgentId
-    && (installedAgentIds.size === 0 || installedAgentIds.has(descriptorAgentId))
+    && (!ownerAgentId || descriptorAgentId === ownerAgentId)
     ? descriptor
     : null;
 }

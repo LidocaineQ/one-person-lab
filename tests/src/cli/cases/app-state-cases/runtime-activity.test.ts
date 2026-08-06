@@ -350,7 +350,6 @@ test('runtime discovers an unknown Agent from its installed carrier source', () 
     const statusReader = ((input: { packageId?: string }) => ({
       opl_agent_package_status: {
         installed_package_count: 1,
-        installed_packages: [],
         installed_carrier_readback: {
           kind: 'codex_plugin_manager',
           identity: input.packageId,
@@ -365,11 +364,6 @@ test('runtime discovers an unknown Agent from its installed carrier source', () 
           installed: true,
           physical_status: 'available',
           callability: 'callable',
-        },
-        runtime_source_readiness: {
-          status: 'not_required',
-          operational_ready: true,
-          checkout_path: null,
         },
       },
     })) as any;

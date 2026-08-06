@@ -137,7 +137,6 @@ function requestCachedAgentPackageStatusReader(readStatus: AgentPackageStatusRea
       input.targetWorkspace ?? null,
       input.targetQuest ?? null,
       input.detail ?? null,
-      input.recoverRuntimeSource ?? null,
     ]);
     const cached = cache.get(key);
     if (cached) {
@@ -165,16 +164,10 @@ function unavailableAgentPackageStatus(
     surface_kind: 'opl_agent_package_status_unavailable',
     status: 'unavailable',
     installed_package_count: null,
-    installed_packages: [],
     codex_visible: false,
     package_dependency_readiness: null,
-    runtime_source_readiness: {
-      status: 'unavailable',
-      operational_ready: false,
-      reason: 'package_status_read_failed',
-    },
     operational_ready: false,
-    operational_ready_scope: 'package_dependency_scope_and_runtime_source',
+    operational_ready_scope: 'installed_native_carrier_status',
     launch_allowed: false,
     launch_blocked_reason: 'package_status_read_failed',
     allowed_when_blocked: ['status', 'doctor', 'repair'],
@@ -198,7 +191,6 @@ export function buildAppAgentPackageStatuses(input: {
     try {
       const status = readStatus({
         packageId,
-        recoverRuntimeSource: false,
         detail: input.profile,
       }).opl_agent_package_status;
       statuses[packageId] = projectAppAgentPackageStatus({
