@@ -433,6 +433,13 @@ async function resolveFreshConfiguredCarrier(
   const developerSelection = configuredCarrierDeveloperSelection(input, packageId);
   if (developerSelection) return developerSelection;
   if (!explicitManifestUrl && !explicitRegistryUrl) {
+    if (packageId
+      && resolveAgentPackageEffectiveSourcePolicy(packageId).desired_source_kind
+        === 'bundled_full_runtime_modules') {
+      // Full/offline Package roots are reconciled by the dedicated startup
+      // owner; ordinary Package actions must not turn them into an OCI fetch.
+      return null;
+    }
     if (packageId && resolveFirstPartyPackageCatalog(packageId)) {
       let snapshot: Awaited<ReturnType<typeof refreshFirstPartyPackageCatalogSnapshot>>;
       try {
