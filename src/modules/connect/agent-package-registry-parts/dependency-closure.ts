@@ -192,22 +192,6 @@ export function requiredDependents(index: AgentPackageLockIndex, packageId: stri
     .sort();
 }
 
-export function assertNoRequiredInstalledDependents(
-  index: AgentPackageLockIndex,
-  packageId: string,
-  action: 'install' | 'uninstall' | 'disable' | 'update' | 'repair' | 'rollback',
-) {
-  const dependentPackageIds = requiredDependents(index, packageId);
-  if (dependentPackageIds.length === 0) return;
-  throw new FrameworkContractError('contract_shape_invalid', `Agent package ${action} is blocked by installed required dependents.`, {
-    package_id: packageId,
-    action,
-    dependent_package_ids: dependentPackageIds,
-    failure_code: 'agent_package_required_by_installed_dependents',
-    uninstall_policy: 'remove_dependents_in_the_same_transaction_or_uninstall_dependents_first',
-  });
-}
-
 export function dependencyReadiness(
   lock: AgentPackageLock,
   index: AgentPackageLockIndex,

@@ -17,40 +17,11 @@ import {
   loadDeveloperCheckoutPackageSource,
 } from './developer-checkout-package-source.ts';
 import { normalizePackageManifest } from './manifest-normalizers.ts';
-import { refsOnlyAuthorityBoundary } from './shared.ts';
 import { resolveAgentPackageEffectiveSourcePolicy } from './source-policy.ts';
 import type {
   AgentPackageInstallInput,
   AgentPackageLock,
-  AgentPackagePhysicalSurface,
 } from './types.ts';
-
-type AgentPackageUpdateApplicationResult = {
-  status: string;
-  lock: AgentPackageLock;
-  physicalSurface: AgentPackagePhysicalSurface | undefined;
-  frameworkLink: unknown;
-  registryEntry: unknown;
-  closureLocks: AgentPackageLock[];
-  dependencyTransactionId: string;
-  dependencyClosureDigest: string;
-  carrierEnsure?: {
-    surface_kind: 'opl_package_carrier_ensure.v1';
-    status: 'present';
-    mode: 'package_local_required_presence';
-    root_package_id: string;
-    selected_package_ids: string[];
-    items: Array<{
-      package_id: string;
-      status: 'present';
-      carrier: 'app_managed_runtime';
-      package_root: string;
-    }>;
-    version_gate_applied: false;
-    content_digest_gate_applied: false;
-    writes_performed: false;
-  };
-};
 
 export type AgentPackageCatalogClosureTarget = {
   packageId: string;
@@ -58,63 +29,6 @@ export type AgentPackageCatalogClosureTarget = {
   developerTarget: ReturnType<typeof loadDeveloperCheckoutPackageSource> | null;
   sourcePolicy: ReturnType<typeof resolveAgentPackageEffectiveSourcePolicy>;
 };
-
-type AgentPackageUpdateReconciliation = {
-  action: 'update' | 'source_reconcile' | null;
-  currentness: ReturnType<typeof agentPackageTargetCurrentness>;
-  closureCurrentness: ReturnType<typeof agentPackageClosureTargetCurrentness>;
-  sourcePolicy: ReturnType<typeof resolveAgentPackageEffectiveSourcePolicy>;
-  targetIdentity: {
-    packageVersion: string;
-    manifestSha256: string;
-    contentDigest: string | null;
-    artifactDigest: string | null;
-    sourceArtifactRef: string | null;
-  };
-  catalogRef: string | null;
-  catalogDigest: string | null;
-  catalogFreshness: 'live' | null;
-  checkedAt: string;
-};
-
-export function agentPackageUpdateReadback(
-  input: AgentPackageInstallInput,
-  result: AgentPackageUpdateApplicationResult,
-  reconciliation: AgentPackageUpdateReconciliation | null = null,
-) {
-  return {
-    version: 'g2',
-    opl_agent_package_update: {
-      surface_kind: 'opl_agent_package_update',
-      status: result.status,
-      dry_run: input.dryRun === true,
-      package_lock: result.lock,
-      physical_surface: result.physicalSurface,
-      framework_link: result.frameworkLink,
-      dependency_transaction_id: result.dependencyTransactionId,
-      dependency_closure_digest: result.dependencyClosureDigest,
-      dependency_package_locks: result.closureLocks,
-      ...(result.carrierEnsure ? { carrier_ensure: result.carrierEnsure } : {}),
-      registry_entry: result.registryEntry,
-      ...(reconciliation ? {
-        source_policy: reconciliation.sourcePolicy,
-        currentness: reconciliation.currentness,
-        closure_currentness: reconciliation.closureCurrentness,
-        reconciliation_action: reconciliation.action,
-        target_version: reconciliation.targetIdentity.packageVersion,
-        target_manifest_sha256: reconciliation.targetIdentity.manifestSha256,
-        target_content_digest: reconciliation.targetIdentity.contentDigest,
-        target_artifact_digest: reconciliation.targetIdentity.artifactDigest,
-        target_source_artifact_ref: reconciliation.targetIdentity.sourceArtifactRef,
-        release_catalog_ref: reconciliation.catalogRef,
-        release_catalog_digest: reconciliation.catalogDigest,
-        release_catalog_freshness: reconciliation.catalogFreshness,
-        release_catalog_checked_at: reconciliation.checkedAt,
-      } : {}),
-      authority_boundary: refsOnlyAuthorityBoundary(),
-    },
-  };
-}
 
 export function assertFirstPartyPackageUpdateSelection(
   input: AgentPackageInstallInput,
