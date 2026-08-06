@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,11 +7,9 @@ import { pathToFileURL } from 'node:url';
 
 import { admitMasWorkspaceScopedPackageMutation } from '../../../../../src/entrypoints/cli/cases/public-command-specs-parts/packages.ts';
 import { parseJsonText } from '../../../../../src/kernel/json-file.ts';
-import { buildLock } from '../../../../../src/modules/connect/agent-package-registry-parts/lifecycle-lock.ts';
 import { normalizePackageManifest } from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
 import {
   materializePhysicalCodexSurface,
-  rematerializePhysicalCodexSurfaceFromLock,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/physical-surface.ts';
 import {
   CANONICAL_PACKAGE_CONTENT_LOCK,
@@ -210,23 +207,8 @@ test('hidden capability packages keep immutable cache but leave global Codex sur
       const config = fs.readFileSync(configPath, 'utf8');
       assert.match(config, /\[features\]/);
       assert.doesNotMatch(config, /mas-scholar-skills/);
-
-      const manifestSha256 = crypto.createHash('sha256').update(manifestJson).digest('hex');
-      const lock = buildLock({
-        manifest,
-        manifestUrl: pathToFileURL(manifestPath).href,
-        manifestSha256,
-        sourceKind: 'local_manifest_file',
-        trustTier: 'first_party',
-        physicalSurface,
-      });
-      assert.equal(lock.exposure_state, 'hidden');
       assert.equal(physicalSurface.plugin_source_path, providerRoot);
-      fs.rmSync(providerRoot, { recursive: true, force: true });
-      const rematerialized = rematerializePhysicalCodexSurfaceFromLock(lock, false, {
-        skipManagedSurfaces: true,
-      });
-      assert.equal(rematerialized.codex_plugin_cache_path, physicalSurface.codex_plugin_cache_path);
+      assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
 
       for (const command of [
         'packages install',
