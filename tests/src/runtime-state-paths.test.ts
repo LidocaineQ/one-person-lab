@@ -43,6 +43,7 @@ test('OPL state paths honor the explicit current state dir and ignore old UI ada
     process.env.OPL_STATE_DIR = expectedStateDir;
     const paths = resolveOplStatePaths();
     assert.equal(paths.state_dir, expectedStateDir);
+    assert.equal('agent_package_lock_file' in paths, false);
     assert.equal(paths.developer_supervisor_config_file, path.join(expectedStateDir, 'developer-supervisor.json'));
     assert.equal(
       paths.owner_evidence_sustained_consumption_ledger_file,

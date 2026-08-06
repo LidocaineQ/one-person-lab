@@ -85,6 +85,37 @@ test('active OPL machine surfaces do not declare compatibility aliases as live',
   assert.deepEqual(violations, []);
 });
 
+test('retired Package lock and Skill projection writers stay absent', () => {
+  const retiredPaths = [
+    'src/modules/connect/agent-package-registry-parts/installed-plugin-source.ts',
+  ];
+  for (const relativePath of retiredPaths) {
+    assert.equal(fs.existsSync(path.join(repoRoot, relativePath)), false, relativePath);
+  }
+
+  const productionRoots = [
+    path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts'),
+    path.join(repoRoot, 'src/modules/runway'),
+  ];
+  const productionText = productionRoots.flatMap((root) => {
+    if (!fs.existsSync(root)) return [];
+    return [...walk(path.relative(repoRoot, root))]
+      .filter((relativePath) => relativePath.endsWith('.ts'))
+      .map((relativePath) => fs.readFileSync(path.join(repoRoot, relativePath), 'utf8'));
+  }).join('\n');
+  for (const retiredSymbol of [
+    'materializeAgentPackageSkillProjection',
+    'dependencyClosureDigest',
+    'requiredDependents',
+    'dependencyReadiness',
+    'AgentPackageUseBinding',
+  ]) {
+    assert.doesNotMatch(productionText, new RegExp(`\\b${retiredSymbol}\\b`), retiredSymbol);
+  }
+  const statePaths = fs.readFileSync(path.join(repoRoot, 'src/kernel/runtime-state-paths.ts'), 'utf8');
+  assert.doesNotMatch(statePaths, /agent_package_lock_file/);
+});
+
 test('retired profile and MAG aliases remain history-only in active docs', () => {
   const machineSurfaceViolations: string[] = [];
   const retiredAliases = [

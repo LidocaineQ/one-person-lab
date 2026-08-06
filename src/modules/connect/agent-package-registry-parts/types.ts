@@ -81,7 +81,6 @@ export type AgentPackagePackageActionInput = {
   targetWorkspace?: string | null;
   targetQuest?: string | null;
   useBoundaryId?: string | null;
-  pinnedUseBinding?: AgentPackageUseBinding | null;
 };
 
 export type AgentPackageRepairInput = AgentPackagePackageActionInput & AgentPackageManifestValidateInput;
@@ -799,53 +798,11 @@ export type AgentPackageLock = {
   developer_checkout_source?: AgentPackageDeveloperCheckoutSource | null;
 };
 
-export type AgentPackageUseBinding = {
-  surface_kind: 'opl_agent_package_use_binding.v1';
-  use_boundary_id: string;
-  root_package: {
-    package_id: string;
-    package_version: string;
-    owner_language_version: AgentPackageOwnerLanguageVersion | null;
-    package_lock_ref: string;
-    manifest_sha256: string;
-    content_digest: string;
-    source_artifact_ref: string | null;
-    artifact_digest: string | null;
-    owner_source_commit: string | null;
-    carrier_authority: AgentPackageCarrierAuthority | null;
-    source_kind?: AgentPackageSourceKind;
-    developer_checkout_source?: AgentPackageDeveloperCheckoutSource | null;
-  };
-  provider_packages: Array<{
-    package_id: string;
-    package_version: string;
-    owner_language_version: AgentPackageOwnerLanguageVersion | null;
-    package_lock_ref: string;
-    manifest_sha256: string;
-    content_digest: string;
-    source_artifact_ref: string | null;
-    artifact_digest: string | null;
-    owner_source_commit: string | null;
-    carrier_authority: AgentPackageCarrierAuthority | null;
-    source_kind?: AgentPackageSourceKind;
-    developer_checkout_source?: AgentPackageDeveloperCheckoutSource | null;
-  }>;
-  dependency_closure_digest: string;
-  source_selection: 'installed_package_lock';
-  network_accessed: false;
-  remote_dependency_policy: 'forbidden';
-  scope: 'workspace' | 'quest';
-  target_root: string;
-  skill_projection?: AgentPackageSkillProjection | null;
-  core_skill_tree_digest: string | null;
-  skill_tree_digest: string | null;
-  core_readiness: AgentPackageMaterializationReadiness['core_readiness'];
-  specialty_exposure: AgentPackageMaterializationReadiness['specialty_exposure'];
-};
-
+// Read-only compatibility for immutable Attempt evidence produced before the
+// native carrier cutover. Framework no longer materializes this projection.
 export type AgentPackageSkillProjection = {
   surface_kind: 'opl_agent_package_skill_projection.v1';
-  status: 'materialized' | 'planned_no_write';
+  status: 'materialized';
   generation_id: string;
   projection_root: string;
   skills_root: string;
