@@ -81,21 +81,22 @@ function pluginList(entries: Array<{
   });
 }
 
-function writePluginSource(root: string, marker: string) {
-  fs.mkdirSync(path.join(root, 'skills', 'third-party-research'), { recursive: true });
+function writePluginSource(root: string, marker: string, skillsRoot = './skills/') {
+  fs.mkdirSync(path.resolve(root, skillsRoot, 'third-party-research'), { recursive: true });
   fs.writeFileSync(
-    path.join(root, 'skills', 'third-party-research', 'SKILL.md'),
+    path.resolve(root, skillsRoot, 'third-party-research', 'SKILL.md'),
     `# Third Party Research\n\n${marker}\n`,
   );
+  writePluginManifest(root, '1.0.1', skillsRoot);
 }
 
-function writePluginManifest(root: string, version = '1.0.1') {
+function writePluginManifest(root: string, version = '1.0.1', skills = './skills/') {
   fs.mkdirSync(path.join(root, '.codex-plugin'), { recursive: true });
   fs.writeFileSync(path.join(root, '.codex-plugin', 'plugin.json'), formatJsonPayload({
     name: 'third-party-research',
     version,
     description: 'Unknown Package fixture carried by Codex Plugin Manager.',
-    skills: './skills/',
+    skills,
   }));
 }
 
@@ -175,6 +176,53 @@ test('configured Codex carrier exposes exact identity and fails closed on duplic
     assert.equal(readback.native_action_dispatched, true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('configured Codex carrier resolves the plugin-declared Skill root and rejects unsafe roots', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-skill-root-'));
+  const sourcePath = path.join(root, 'source');
+  const nestedSkillsRoot = './plugins/med-autoscience/skills/';
+  const readback = () => runConfiguredCodexPluginCarrier({
+    descriptor,
+    action: 'list',
+    runner: () => ({
+      status: 0,
+      stdout: pluginList([{
+        pluginId: pluginSelector,
+        version: '1.0.1',
+        sourcePath,
+        marketplaceSource: 'fixture-carrier',
+      }]),
+      stderr: '',
+      error: null,
+    }),
+  });
+  try {
+    writePluginSource(sourcePath, 'nested owner Skill root', nestedSkillsRoot);
+    assert.equal(readback().executor.status, 'callable');
+
+    const outsideSkillsRoot = path.join(root, 'outside-skills');
+    fs.mkdirSync(path.join(outsideSkillsRoot, 'third-party-research'), { recursive: true });
+    fs.writeFileSync(
+      path.join(outsideSkillsRoot, 'third-party-research', 'SKILL.md'),
+      '# Escaped Skill\n',
+    );
+    writePluginManifest(sourcePath, '1.0.1', '../outside-skills');
+    assert.equal(readback().reason, 'required_skill_unavailable:third-party-research');
+
+    writePluginManifest(sourcePath, '1.0.1', nestedSkillsRoot);
+    const nestedRoot = path.resolve(sourcePath, nestedSkillsRoot);
+    const displacedRoot = path.join(root, 'displaced-skills');
+    fs.renameSync(nestedRoot, displacedRoot);
+    fs.symlinkSync(displacedRoot, nestedRoot, 'dir');
+    assert.equal(readback().reason, 'required_skill_unavailable:third-party-research');
+
+    fs.rmSync(nestedRoot);
+    writePluginManifest(sourcePath, '1.0.1', './missing-skills/');
+    assert.equal(readback().reason, 'required_skill_unavailable:third-party-research');
+  } finally {
+    removeFixtureTree(root);
   }
 });
 
@@ -833,6 +881,13 @@ test('published first-party owner descriptor routes a scoped native action witho
   const skillRoot = path.join(pluginSource, 'skills', 'opl-relay');
   fs.mkdirSync(skillRoot, { recursive: true });
   fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), '# OPL Relay\n');
+  fs.mkdirSync(path.join(pluginSource, '.codex-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(pluginSource, '.codex-plugin', 'plugin.json'), formatJsonPayload({
+    name: 'opl-relay',
+    version: '0.5.3',
+    description: 'OPL Relay native carrier fixture.',
+    skills: './skills/',
+  }));
   fs.writeFileSync(
     path.join(pluginSource, 'opl-package.json'),
     formatJsonPayload({
