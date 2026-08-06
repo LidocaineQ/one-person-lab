@@ -379,6 +379,7 @@ test('legacy profile receipt collisions stay inert when an unowned install is re
       fs.statSync(path.join(codexHome, 'state', 'third.party.research', 'profile-install-receipt.json')).isDirectory(),
       true,
     );
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
     fs.rmSync(codexHome, { recursive: true, force: true });
@@ -432,6 +433,7 @@ test('app action keeps local preference bytes inert without a native descriptor'
       output.payload.error.details.failure_code,
       'agent_package_lifecycle_native_owner_required',
     );
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
 
     const lockPath = path.join(stateDir, 'agent-package-locks.json');
     assert.equal(fs.existsSync(lockPath), false);
