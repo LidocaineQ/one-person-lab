@@ -395,7 +395,9 @@ test('MAS launch consumes the native carrier without private workspace materiali
   const stateRoot = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
   const workspace = path.join(root, 'workspace');
-  const providerManifest = writeCapabilityProvider(path.join(root, 'provider'));
+  const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0', {
+    configuredCarrier: true,
+  });
   const consumerManifest = writeMasConsumer(root, providerManifest, '0.1.0a4', {
     configuredCarrier: true,
   });
@@ -460,7 +462,9 @@ test('quest root activation reports the native MAS carrier already active withou
   const stateRoot = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
   const quest = path.join(root, 'quest');
-  const providerManifest = writeCapabilityProvider(path.join(root, 'provider'));
+  const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0', {
+    configuredCarrier: true,
+  });
   const consumerManifest = writeMasConsumer(root, providerManifest, '0.1.0a4', {
     configuredCarrier: true,
   });
@@ -526,7 +530,9 @@ test('workspace bindings reuse the native MAS carrier without per-workspace Skil
   const workspaceA = path.join(root, 'workspace-a');
   const workspaceB = path.join(root, 'workspace-b');
   const workspaceC = path.join(root, 'workspace-c');
-  const providerManifest = writeCapabilityProvider(path.join(root, 'provider'));
+  const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0', {
+    configuredCarrier: true,
+  });
   const consumerManifest = writeMasConsumer(root, providerManifest, '0.1.0a4', {
     configuredCarrier: true,
   });

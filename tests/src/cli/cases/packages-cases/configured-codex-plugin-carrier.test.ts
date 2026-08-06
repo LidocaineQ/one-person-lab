@@ -23,6 +23,9 @@ import {
   type CodexPluginCommandRunner,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/configured-codex-plugin-carrier.ts';
 import {
+  descriptorDependencyReadiness,
+} from '../../../../../src/modules/connect/agent-package-registry-parts/dependency-closure.ts';
+import {
   discoverInstalledPackageDescriptors,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/installed-codex-plugin-directory.ts';
 import {
@@ -46,6 +49,155 @@ const descriptor = {
   },
   publicationRef: 'oci://example.invalid/third-party-research:latest-stable',
 };
+
+test('native descriptor dependency readiness is fail-closed without legacy lock state', () => {
+  const dependency = {
+    package_id: 'mas-scholar-skills',
+    required: true,
+    dependency_kind: 'hard_runtime_dependency' as const,
+    version_requirement: '>=0.2.0 <0.3.0',
+    capability_abi: 'mas-scholar-skills.v1',
+    consumer_profile_id: 'mas-medical-paper.v1',
+    required_export_ids: ['scholar-core'],
+    required_module_ids: ['scholarskills'],
+    bootstrap_manifest_url: null,
+    dependency_source: null,
+  };
+  const root = {
+    agent_id: 'mas',
+    capability_dependencies: [dependency],
+  };
+  const providerManifest = {
+    package_id: 'mas-scholar-skills',
+    version: '0.2.24',
+    capability_provider: {
+      capability_abi: 'mas-scholar-skills.v1',
+      exports: [{ export_id: 'scholar-core', skill_id: 'scholar-core', install_mode: 'core_required' as const }],
+      module_export_ids: ['scholarskills'],
+      consumer_profiles: [{
+        profile_id: 'mas-medical-paper.v1',
+        consumer_agent_id: 'mas',
+        required_export_ids: ['scholar-core'],
+        required_module_ids: ['scholarskills'],
+      }],
+    },
+  };
+  const provider = {
+    manifest: providerManifest,
+    manifest_sha256: 'sha256:provider',
+    content_digest: 'sha256:content',
+    readiness: {
+      installed: true,
+      physical_status: 'available' as const,
+      callability: 'callable' as const,
+    },
+  };
+  const current = descriptorDependencyReadiness({
+    root,
+    providers: new Map([[providerManifest.package_id, provider]]),
+  });
+  assert.equal(current.status, 'current');
+  assert.equal(current.operational_ready, true);
+  assert.equal(current.dependencies[0]?.installed_version, '0.2.24');
+  assert.equal(current.dependencies[0]?.manifest_sha256, 'sha256:provider');
+
+  const missing = descriptorDependencyReadiness({ root, providers: new Map() });
+  assert.equal(missing.status, 'missing');
+  assert.equal(missing.operational_ready, false);
+  assert.deepEqual(missing.dependencies[0]?.reasons, ['dependency_not_installed']);
+
+  const disabled = descriptorDependencyReadiness({
+    root,
+    providers: new Map([[
+      providerManifest.package_id,
+      { ...provider, readiness: { ...provider.readiness, callability: 'disabled' as const } },
+    ]]),
+  });
+  assert.equal(disabled.status, 'incompatible');
+  assert.equal(disabled.operational_ready, false);
+  assert.deepEqual(disabled.dependencies[0]?.reasons, ['dependency_disabled']);
+});
+
+test('package status projects required closure from installed owner descriptors', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-dependency-status-'));
+  const stateDir = path.join(root, 'opl-state');
+  const codexHome = path.join(root, 'codex-home');
+  const rootSource = path.join(root, 'mas');
+  const providerSource = path.join(root, 'scholar');
+  const binary = path.join(root, 'fake-codex.mjs');
+  const writePlugin = (source: string, packageId: string, version: string) => {
+    fs.mkdirSync(path.join(source, '.codex-plugin'), { recursive: true });
+    fs.mkdirSync(path.join(source, 'skills', packageId), { recursive: true });
+    fs.writeFileSync(path.join(source, 'skills', packageId, 'SKILL.md'), `# ${packageId}\n`);
+    fs.writeFileSync(path.join(source, '.codex-plugin', 'plugin.json'), formatJsonPayload({
+      name: packageId,
+      version,
+      skills: './skills/',
+    }));
+  };
+  const dependency = {
+    package_id: 'mas-scholar-skills',
+    required: true,
+    dependency_kind: 'hard_runtime_dependency' as const,
+    version_requirement: '>=0.2.0 <0.3.0',
+    capability_abi: 'mas-scholar-skills.v1',
+    consumer_profile_id: 'mas-medical-paper.v1',
+    required_export_ids: ['scholar-core'],
+    required_module_ids: ['scholarskills'],
+    bootstrap_manifest_url: null,
+    dependency_source: null,
+  };
+  const rootManifest = agentPackageManifest({ packageId: 'mas', agentId: 'mas', pluginId: 'med-autoscience' }) as any;
+  rootManifest.version = '0.2.25';
+  rootManifest.codex_surface.required_skill_ids = ['mas'];
+  rootManifest.capability_dependencies = [dependency];
+  const providerManifest = agentPackageManifest({
+    packageId: 'mas-scholar-skills',
+    agentId: 'mas-scholar-skills',
+    pluginId: 'mas-scholar-skills',
+  }) as any;
+  providerManifest.version = '0.2.24';
+  providerManifest.codex_surface.required_skill_ids = ['mas-scholar-skills'];
+  providerManifest.capability_provider = {
+    capability_abi: 'mas-scholar-skills.v1',
+    exports: [{ export_id: 'scholar-core', skill_id: 'mas-scholar-skills', install_mode: 'core_required' }],
+    module_export_ids: ['scholarskills'],
+    consumer_profiles: [{
+      profile_id: 'mas-medical-paper.v1',
+      consumer_agent_id: 'mas',
+      required_export_ids: ['scholar-core'],
+      required_module_ids: ['scholarskills'],
+    }],
+  };
+  fs.mkdirSync(rootSource, { recursive: true });
+  fs.mkdirSync(providerSource, { recursive: true });
+  writePlugin(rootSource, 'mas', '0.2.25');
+  writePlugin(providerSource, 'mas-scholar-skills', '0.2.24');
+  fs.writeFileSync(path.join(rootSource, 'opl-package.json'), formatJsonPayload(rootManifest));
+  fs.writeFileSync(path.join(providerSource, 'opl-package.json'), formatJsonPayload(providerManifest));
+  fs.writeFileSync(binary, `#!/usr/bin/env node\nprocess.stdout.write(${JSON.stringify(pluginList([
+    { pluginId: 'med-autoscience@carrier', version: '0.2.25', sourcePath: rootSource, marketplaceSource: 'fixture' },
+    { pluginId: 'mas-scholar-skills@carrier', version: '0.2.24', sourcePath: providerSource, marketplaceSource: 'fixture' },
+  ]))});\n`);
+  fs.chmodSync(binary, 0o755);
+  const env = {
+    HOME: root,
+    CODEX_HOME: codexHome,
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: binary,
+  };
+  try {
+    const status = runCli(['packages', 'status', '--package-id', 'mas'], env).opl_agent_package_status;
+    assert.equal(status.package_dependency_readiness?.status, 'current');
+    assert.equal(status.package_dependency_readiness?.operational_ready, true);
+    assert.equal(status.package_dependency_readiness?.dependencies[0]?.package_id, 'mas-scholar-skills');
+    assert.equal(status.operational_ready, true);
+    assert.equal(status.launch_allowed, true);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+  } finally {
+    removeFixtureTree(root);
+  }
+});
 
 function configuredManifest(marketplaceSource: string | null = null) {
   const manifest = agentPackageManifest();
@@ -1029,11 +1181,15 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
     })));
     writeFakeCodex(binary);
 
-    const installed = runCli([
-      'packages', 'install', '--manifest-url', manifestPath, '--trust-tier', 'third_party_verified',
-    ], env) as any;
-    assert.equal(installed.opl_agent_package_install.package_lock.package_id, packageId);
-    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), true);
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(stateDir, 'agent-package-locks.json'),
+      formatJsonPayload({
+        surface_kind: 'opl_agent_package_lock_index',
+        version: 'opl-agent-package-lock-index.v1',
+        packages: [],
+      }),
+    );
     const legacyLockBytes = fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8');
     const legacyLedgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
     assert.equal(fs.existsSync(legacyLedgerPath), false);

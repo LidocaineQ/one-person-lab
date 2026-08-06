@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { FrameworkContractError } from '../../../kernel/contract-validation.ts';
 import { sha256Text } from './shared.ts';
 import {
@@ -6,6 +8,7 @@ import {
 } from './payload-content-lock.ts';
 import type {
   AgentPackageCapabilityDependency,
+  AgentPackageDependencyReadinessItem,
   AgentPackageDependencyReadiness,
   AgentPackageLock,
   AgentPackageLockIndex,
@@ -16,7 +19,11 @@ import type {
 const DEPENDENCY_HARD_FAILURE_REASONS = new Set([
   'package_id_mismatch',
   'dependency_lock_missing',
+  'dependency_not_installed',
+  'dependency_physical_unavailable',
   'dependency_disabled',
+  'capability_provider_missing',
+  'capability_abi_mismatch',
   'consumer_profile_missing',
   'consumer_profile_consumer_mismatch',
   'consumer_profile_requirements_mismatch',
@@ -249,5 +256,86 @@ export function dependencyReadiness(
     dependencies: items,
   };
 }
-import fs from 'node:fs';
-import path from 'node:path';
+
+/**
+ * Read the required capability closure from installed owner descriptors only.
+ * This is intentionally independent from the retired lock/index and lifecycle
+ * state so ordinary status remains carrier-authoritative after the hard cut.
+ */
+export function descriptorDependencyReadiness(input: {
+  root: Pick<AgentPackageManifest, 'agent_id' | 'capability_dependencies'>;
+  providers: ReadonlyMap<string, {
+    manifest: Pick<AgentPackageManifest, 'package_id' | 'version' | 'capability_provider'>;
+    manifest_sha256: string | null;
+    content_digest: string | null;
+    readiness: {
+      installed: boolean;
+      physical_status: 'available' | 'unavailable';
+      callability: 'callable' | 'disabled';
+    };
+  }>;
+}): AgentPackageDependencyReadiness {
+  const items = input.root.capability_dependencies.map((dependency) => {
+    const provider = input.providers.get(dependency.package_id);
+    const reasons: string[] = [];
+    let missingRequiredExportIds = [...dependency.required_export_ids];
+    let missingRequiredModuleIds = [...dependency.required_module_ids];
+    if (!provider) {
+      reasons.push('dependency_not_installed');
+    } else {
+      if (!provider.readiness.installed) reasons.push('dependency_not_installed');
+      if (provider.readiness.physical_status !== 'available') {
+        reasons.push('dependency_physical_unavailable');
+      }
+      if (provider.readiness.callability !== 'callable') reasons.push('dependency_disabled');
+      if (!provider.manifest.capability_provider) {
+        reasons.push('capability_provider_missing');
+      } else {
+        if (provider.manifest.capability_provider.capability_abi !== dependency.capability_abi) {
+          reasons.push('capability_abi_mismatch');
+        }
+        const profileCompatibility = capabilityProfileCompatibility(
+          dependency,
+          provider.manifest,
+          input.root.agent_id,
+        );
+        reasons.push(...profileCompatibility.reasons);
+        missingRequiredExportIds = profileCompatibility.missingExports;
+        missingRequiredModuleIds = profileCompatibility.missingModules;
+        if (missingRequiredExportIds.length > 0) reasons.push('required_exports_missing');
+        if (missingRequiredModuleIds.length > 0) reasons.push('required_modules_missing');
+      }
+    }
+    const hardFailureReasons = reasons.filter((reason) => DEPENDENCY_HARD_FAILURE_REASONS.has(reason));
+    const status: AgentPackageDependencyReadinessItem['status'] = reasons.includes('dependency_not_installed')
+      ? 'missing'
+      : hardFailureReasons.length > 0
+        ? 'incompatible'
+        : 'current';
+    return {
+      package_id: dependency.package_id,
+      required: dependency.required,
+      consumer_profile_id: dependency.consumer_profile_id ?? null,
+      required_export_ids: dependency.required_export_ids,
+      required_module_ids: dependency.required_module_ids,
+      installed_version: provider?.manifest.version ?? null,
+      manifest_sha256: provider?.manifest_sha256 ?? null,
+      content_digest: provider?.content_digest ?? null,
+      status,
+      reasons,
+      missing_required_export_ids: missingRequiredExportIds,
+      missing_required_module_ids: missingRequiredModuleIds,
+    };
+  });
+  const status = items.some((entry) => entry.status === 'missing')
+    ? 'missing'
+    : items.some((entry) => entry.status === 'incompatible')
+      ? 'incompatible'
+      : 'current';
+  return {
+    status,
+    operational_ready: items.every((entry) => !entry.required
+      || !entry.reasons.some((reason) => DEPENDENCY_HARD_FAILURE_REASONS.has(reason))),
+    dependencies: items,
+  };
+}

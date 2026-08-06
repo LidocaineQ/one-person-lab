@@ -175,6 +175,7 @@ export function writeCapabilityProvider(
       required_export_ids: string[];
       required_module_ids: string[];
     }>;
+    configuredCarrier?: boolean;
   } = {},
 ) {
   const packageId = options.packageId ?? 'mas-scholar-skills';
@@ -182,16 +183,38 @@ export function writeCapabilityProvider(
   const coreSkillIds = options.coreSkillIds ?? scholarSkillsCoreSkillIds;
   const moduleIds = options.moduleIds ?? scholarSkillsModuleIds;
   const specialtySkillIds = options.specialtySkillIds ?? [];
+  const configuredCarrier = options.configuredCarrier === true;
+  const carrierMarketplaceRoot = path.join(root, 'native-carrier-marketplace');
+  const carrierPluginRoot = path.join(carrierMarketplaceRoot, 'plugins', packageId);
   fs.mkdirSync(path.join(root, '.codex-plugin'), { recursive: true });
   fs.writeFileSync(path.join(root, '.codex-plugin', 'plugin.json'), formatJsonPayload({
     name: packageId,
     version,
+    skills: './skills/',
   }));
   for (const skillId of [...coreSkillIds, ...specialtySkillIds, 'medical-optional-specialty']) {
     const skillRoot = path.join(root, 'skills', skillId);
     fs.mkdirSync(skillRoot, { recursive: true });
     fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), `# ${skillId}\n`);
     fs.writeFileSync(path.join(skillRoot, 'helper.txt'), `${skillId} helper ${version}\n`);
+  }
+  if (configuredCarrier) {
+    fs.mkdirSync(path.join(carrierMarketplaceRoot, '.agents', 'plugins'), { recursive: true });
+    fs.mkdirSync(carrierPluginRoot, { recursive: true });
+    fs.cpSync(path.join(root, '.codex-plugin'), path.join(carrierPluginRoot, '.codex-plugin'), {
+      recursive: true,
+    });
+    fs.cpSync(path.join(root, 'skills'), path.join(carrierPluginRoot, 'skills'), { recursive: true });
+    fs.writeFileSync(
+      path.join(carrierMarketplaceRoot, '.agents', 'plugins', 'marketplace.json'),
+      formatJsonPayload({
+        name: `${packageId}-local`,
+        plugins: [{
+          name: packageId,
+          source: { source: 'local', path: `./plugins/${packageId}` },
+        }],
+      }),
+    );
   }
   const lockPaths = [
     '.codex-plugin/plugin.json',
@@ -205,7 +228,7 @@ export function writeCapabilityProvider(
     ]),
   ];
   const manifestPath = path.join(root, 'provider.json');
-  fs.writeFileSync(manifestPath, formatJsonPayload({
+  const manifest = {
     surface_kind: 'opl_capability_package_manifest.v2',
     package_id: packageId,
     display_name: 'MAS Scholar Skills',
@@ -236,10 +259,25 @@ export function writeCapabilityProvider(
     codex_surface: {
       plugin_id: packageId,
       plugin_source_path: '.',
+      required_skill_ids: coreSkillIds,
       codex_default_exposure: false,
       optional_install_policy: 'all_exported_skills',
+      ...(configuredCarrier ? {
+        configured_codex_plugin_carrier: {
+          kind: 'codex_plugin_manager',
+          plugin_selector: `${packageId}@${packageId}-local`,
+          executor_route: 'codex_cli',
+          marketplace_source: carrierMarketplaceRoot,
+          publication_ref: `ghcr.io/fixture/one-person-lab-packages/${packageId}:latest-stable`,
+        },
+      } : {}),
     },
-  }));
+  };
+  const manifestJson = formatJsonPayload(manifest);
+  fs.writeFileSync(manifestPath, manifestJson);
+  if (configuredCarrier) {
+    fs.writeFileSync(path.join(carrierPluginRoot, 'opl-package.json'), manifestJson);
+  }
   return manifestPath;
 }
 
@@ -500,6 +538,7 @@ export function writeMasConsumer(
   fs.writeFileSync(path.join(pluginRoot, '.codex-plugin', 'plugin.json'), formatJsonPayload({
     name: pluginId,
     version: packageVersion,
+    skills: './skills/',
   }));
   fs.writeFileSync(
     path.join(pluginRoot, 'skills', pluginId, 'SKILL.md'),
@@ -826,6 +865,7 @@ export function writeDeveloperCapabilityCheckoutClosure(input: {
       version: masManifest.version,
       displayName: 'Med Auto Science',
       description: 'Developer checkout fixture.',
+      skills: './skills/',
     }),
   );
   if (fs.existsSync(ownerDescriptorPath)) {
@@ -940,6 +980,7 @@ export function updateDeveloperCapabilityCheckoutClosure(input: {
       version: masManifest.version,
       displayName: 'Med Auto Science',
       description: 'Developer checkout fixture.',
+      skills: './skills/',
     }),
   );
   fs.copyFileSync(

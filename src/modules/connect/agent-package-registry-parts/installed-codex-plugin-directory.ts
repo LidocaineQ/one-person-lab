@@ -8,6 +8,7 @@ import { parseJsonText } from '../../../kernel/json-file.ts';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
 import { resolveFirstPartyPackageCatalog } from '../agent-package-first-party.ts';
 import { normalizePackageManifest } from './manifest-normalizers.ts';
+import { sha256Text } from './shared.ts';
 import type {
   AgentPackageConfiguredCodexPluginCarrierDescriptor,
   AgentPackageManifest,
@@ -47,6 +48,7 @@ export type InstalledPackageReadiness = {
 export type InstalledPackageManifest = Pick<
   AgentPackageManifest,
   | 'package_id'
+  | 'agent_id'
   | 'package_role'
   | 'display_name'
   | 'publisher'
@@ -61,13 +63,16 @@ export type InstalledPackageManifest = Pick<
   | 'presentation'
   | 'profile_surface'
   | 'managed_policy_surface'
+  | 'capability_dependencies'
+  | 'capability_provider'
   | 'configured_codex_plugin_carrier'
   | 'app_contributions'
->;
+> & Partial<Pick<AgentPackageManifest, 'content_digest'>>;
 
 export type InstalledPackageDescriptor = {
   manifest: InstalledPackageManifest;
   manifestPath: string;
+  manifest_sha256: string;
   sourcePath: string;
   pluginId: string;
   marketplaceSource: string | null;
@@ -184,6 +189,7 @@ function normalizeNativeCarrierManifest(
     ?? '0.0.0';
   return {
     package_id: packageId,
+    agent_id: null,
     package_role: 'standard_agent',
     display_name: displayName,
     publisher: stringValue(isRecord(pluginPayload.author) ? pluginPayload.author.name : null)
@@ -204,6 +210,8 @@ function normalizeNativeCarrierManifest(
     presentation: null,
     profile_surface: null,
     managed_policy_surface: null,
+    capability_dependencies: [],
+    capability_provider: null,
     configured_codex_plugin_carrier: {
       packageId,
       carrier: {
@@ -227,15 +235,18 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
   try {
     let manifestPath = ownerManifestPath;
     let manifest: InstalledPackageManifest;
+    let manifestText: string;
     if (fs.existsSync(ownerManifestPath) && fs.statSync(ownerManifestPath).isFile()) {
+      manifestText = fs.readFileSync(ownerManifestPath, 'utf8');
       manifest = normalizePackageManifest(
-        JSON.parse(fs.readFileSync(ownerManifestPath, 'utf8')),
+        JSON.parse(manifestText),
         pathToFileURL(ownerManifestPath).toString(),
       );
     } else {
       if (!fs.existsSync(pluginManifestPath) || !fs.statSync(pluginManifestPath).isFile()) return null;
       manifestPath = pluginManifestPath;
-      const pluginPayload = JSON.parse(fs.readFileSync(pluginManifestPath, 'utf8'));
+      manifestText = fs.readFileSync(pluginManifestPath, 'utf8');
+      const pluginPayload = JSON.parse(manifestText);
       if (!isRecord(pluginPayload)) return null;
       manifest = normalizeNativeCarrierManifest(entry, pluginPayload);
       // First-party Package identity remains owned by its stable catalog. A
@@ -260,6 +271,7 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
     return {
       manifest,
       manifestPath,
+      manifest_sha256: sha256Text(manifestText),
       sourcePath: entry.sourcePath,
       pluginId: entry.pluginId,
       marketplaceSource: entry.marketplaceSource,

@@ -1,35 +1,16 @@
-import { execFileSync } from 'node:child_process';
-
 import {
   assert,
   fs,
   os,
   path,
   runCli,
-  runCliAsync,
-  runCliFailure,
   test,
 } from '../../helpers.ts';
 import { formatJsonPayload } from '../../../../../src/kernel/json-file.ts';
-import {
-  moveManagedPolicyPath,
-  rollbackManagedPolicyMigration,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/managed-policy-surface.ts';
 
 function writeFile(filePath: string, content: string) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, content, 'utf8');
-}
-
-function writeAbsentCodexPluginManager(root: string) {
-  const binary = path.join(root, 'fake-codex-plugin-manager');
-  fs.mkdirSync(root, { recursive: true });
-  fs.writeFileSync(binary, [
-    '#!/usr/bin/env node',
-    "if (process.argv.slice(2).join(' ') !== 'plugin list --json') process.exit(2);",
-    "process.stdout.write(JSON.stringify({ installed: [], available: [] }));",
-  ].join('\n'), { mode: 0o755 });
-  return binary;
 }
 
 function writeInstalledCodexPluginManager(
@@ -50,33 +31,6 @@ function writeInstalledCodexPluginManager(
     `  source: { source: 'local', path: ${JSON.stringify(sourcePath)} },`,
     "  marketplaceSource: { sourceType: 'local', source: 'fixture-marketplace' },",
     '}], available: [] }));',
-  ].join('\n'), { mode: 0o755 });
-  return binary;
-}
-
-function writeInstalledCodexPluginManagerFromLock(root: string) {
-  const binary = path.join(root, 'fake-codex-installed-plugin-manager');
-  fs.mkdirSync(root, { recursive: true });
-  fs.writeFileSync(binary, [
-    '#!/usr/bin/env node',
-    "if (process.argv.slice(2).join(' ') !== 'plugin list --json') process.exit(2);",
-    "const fs = require('node:fs');",
-    "const path = require('node:path');",
-    `const counterPath = ${JSON.stringify(path.join(root, '.fake-codex-call-counts.json'))};`,
-    "let counters = {};",
-    "try { counters = JSON.parse(fs.readFileSync(counterPath, 'utf8')); } catch {}",
-    "const parent = String(process.ppid);",
-    "const call = Number(counters[parent] || 0) + 1;",
-    "counters = { [parent]: call };",
-    "fs.writeFileSync(counterPath, JSON.stringify(counters));",
-    "let index = { packages: [] };",
-    "try { index = JSON.parse(fs.readFileSync(path.join(process.env.OPL_STATE_DIR, 'agent-package-locks.json'), 'utf8')); } catch {}",
-    "const installed = call > 1 ? (index.packages || []).flatMap((entry) => {",
-    "  const surface = entry && entry.physical_surface;",
-    "  if (!surface || !surface.plugin_id || !surface.marketplace_id || !surface.marketplace_root || !surface.marketplace_plugin_path) return [];",
-    "  return [{ pluginId: `${surface.plugin_id}@${surface.marketplace_id}`, version: entry.package_version, installed: true, enabled: true, source: { source: 'local', path: surface.marketplace_plugin_path }, marketplaceSource: { sourceType: 'local', source: surface.marketplace_root } }];",
-    "}) : [];",
-    "process.stdout.write(JSON.stringify({ installed, available: [] }));",
   ].join('\n'), { mode: 0o755 });
   return binary;
 }
@@ -495,108 +449,6 @@ function writeOplFlowPackage(
   return manifestPath;
 }
 
-test('workflow policy v2 preserves (kind, id) dependency identity and converges through known adapters', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-policy-v2-'));
-  const env = {
-    HOME: path.join(root, 'home'),
-    CODEX_HOME: path.join(root, 'home', '.codex'),
-    OPL_STATE_DIR: path.join(root, 'state'),
-    OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
-  };
-  try {
-    const preview = runCli([
-      'packages',
-      'install',
-      '--manifest-url',
-      writeOplFlowPackage(root, { policyVersion: 'v2', includeKindCollision: true }),
-      '--trust-tier',
-      'first_party',
-      '--dry-run',
-    ], env) as any;
-    const migration = preview.opl_agent_package_install.package_lock.physical_surface.workflow_policy_migration;
-    assert.equal(migration.status, 'validated_no_write');
-    assert.deepEqual(migration.dependency_ids, ['opl-base', 'officecli']);
-    assert.deepEqual(
-      migration.dependencies.map((entry: { kind: string; id: string }) => `${entry.kind}:${entry.id}`),
-      ['base:opl-base', 'codex_skill:officecli', 'cli:officecli'],
-    );
-    assert.equal(migration.dependencies.every((entry: { lifecycle_owner?: string }) => (
-      entry.lifecycle_owner === 'opl-framework'
-    )), true);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('workflow policy v2 fails closed when a default dependency has no lifecycle adapter', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-policy-v2-adapter-'));
-  const env = {
-    HOME: path.join(root, 'home'),
-    CODEX_HOME: path.join(root, 'home', '.codex'),
-    OPL_STATE_DIR: path.join(root, 'state'),
-    OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
-  };
-  try {
-    const failure = runCliFailure([
-      'packages',
-      'install',
-      '--manifest-url',
-      writeOplFlowPackage(root, { policyVersion: 'v2', includeUnsupportedDefaultMcp: true }),
-      '--trust-tier',
-      'first_party',
-      '--dry-run',
-    ], env);
-    assert.equal(
-      failure.payload.error.details.failure_code,
-      'agent_package_managed_policy_dependency_adapter_missing',
-    );
-    assert.deepEqual(failure.payload.error.details.dependency_keys, ['mcp_server:fixture-mcp']);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('workflow policy v2 observes an existing compatible Skill entrypoint without using its private source', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-policy-v2-private-skill-source-'));
-  const home = path.join(root, 'home');
-  const privateSkillRoot = path.join(home, '.skills-manager', 'skills', 'ui-ux-pro-max');
-  const codexSkillRoot = path.join(home, '.codex', 'skills', 'ui-ux-pro-max');
-  const env = {
-    HOME: home,
-    CODEX_HOME: path.join(home, '.codex'),
-    OPL_STATE_DIR: path.join(root, 'state'),
-    OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
-  };
-  try {
-    writeFile(
-      path.join(privateSkillRoot, 'SKILL.md'),
-      '---\nname: ui-ux-pro-max\ndescription: Existing compatible legacy Skill fixture.\n---\n',
-    );
-    fs.mkdirSync(path.dirname(codexSkillRoot), { recursive: true });
-    fs.symlinkSync(privateSkillRoot, codexSkillRoot, 'junction');
-    const installed = await runCliAsync([
-      'packages',
-      'install',
-      '--manifest-url',
-      writeOplFlowPackage(root, {
-        policyVersion: 'v2',
-        includeDeprecatedSkillManagerCompanion: true,
-      }),
-      '--trust-tier',
-      'first_party',
-    ], env) as any;
-    const item = installed.opl_agent_package_install.physical_surface
-      .workflow_policy_migration.dependency_sync.items[0];
-    assert.equal(item.status, 'ready');
-    assert.equal(item.action, 'none');
-    assert.equal(item.source_authority, 'existing_codex_entry');
-    assert.equal(fs.realpathSync(codexSkillRoot), fs.realpathSync(privateSkillRoot));
-    assert.equal(fs.existsSync(path.join(home, '.agents', 'skills', 'ui-ux-pro-max')), false);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
 test('installed native descriptor projects Flow policy planes and model recommendation without a legacy lock', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-native-descriptor-policy-'));
   const home = path.join(root, 'home');
@@ -721,108 +573,6 @@ test('installed native descriptor excludes its active marketplace from historica
     assert.deepEqual(packageStatus.managed_policy_currentness.detected_conflicts, []);
     assert.equal(packageStatus.operational_ready, true);
     assert.equal(packageStatus.launch_allowed, true);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
-  }
-});
-
-test('managed policy rollback helpers refuse conflicting TOML tables and recreated physical surfaces', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-policy-conflict-'));
-  const home = path.join(root, 'home');
-  const codexHome = path.join(home, '.codex');
-  const legacyPath = path.join(home, '.agents', 'skills', 'superpowers');
-  const configPath = path.join(codexHome, 'config.toml');
-  const env = {
-    HOME: home,
-    CODEX_HOME: codexHome,
-    OPL_STATE_DIR: path.join(root, 'state'),
-    OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
-  };
-  try {
-    writeFile(path.join(legacyPath, 'legacy.txt'), 'legacy\n');
-    writeFile(configPath, '[marketplaces.ponytail]\nsource = "/legacy"\n');
-    const installed = await runCliAsync([
-      'packages', 'install', '--manifest-url', writeOplFlowPackage(root), '--trust-tier', 'first_party',
-    ], env) as any;
-    const migration = installed.opl_agent_package_install.physical_surface.workflow_policy_migration;
-
-    fs.appendFileSync(configPath, '\n[marketplaces.ponytail]\nsource = "/replacement"\n', 'utf8');
-    writeFile(path.join(legacyPath, 'replacement.txt'), 'replacement\n');
-
-    assert.equal(fs.existsSync(installed.opl_agent_package_install.physical_surface.codex_plugin_cache_path), true);
-    const previousStateDir = process.env.OPL_STATE_DIR;
-    process.env.OPL_STATE_DIR = env.OPL_STATE_DIR;
-    let rolledBack: ReturnType<typeof rollbackManagedPolicyMigration>;
-    try {
-      assert.throws(
-        () => rollbackManagedPolicyMigration(migration),
-        /conflicting TOML table/,
-      );
-      assert.equal(fs.readFileSync(path.join(legacyPath, 'replacement.txt'), 'utf8'), 'replacement\n');
-      assert.match(fs.readFileSync(configPath, 'utf8'), /replacement/);
-      assert.equal(fs.existsSync(migration.backup_root), true);
-
-      fs.writeFileSync(
-        configPath,
-        fs.readFileSync(configPath, 'utf8').replace(/\n\[marketplaces\.ponytail\]\nsource = "\/replacement"\n/, '\n'),
-        'utf8',
-      );
-      assert.throws(
-        () => rollbackManagedPolicyMigration(migration),
-        /target was recreated/,
-      );
-      assert.equal(fs.readFileSync(path.join(legacyPath, 'replacement.txt'), 'utf8'), 'replacement\n');
-
-      fs.rmSync(legacyPath, { recursive: true, force: true });
-      rolledBack = rollbackManagedPolicyMigration(migration);
-    } finally {
-      if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
-      else process.env.OPL_STATE_DIR = previousStateDir;
-    }
-    assert.equal(rolledBack.backup_active, false);
-    assert.equal(fs.readFileSync(path.join(legacyPath, 'legacy.txt'), 'utf8'), 'legacy\n');
-    assert.equal(fs.existsSync(rolledBack.backup_root!), false);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('managed policy path movement preserves paths across filesystems', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-policy-exdev-'));
-  const legacyPath = path.join(root, 'legacy', 'superpowers');
-  const backupPath = path.join(root, 'state', 'agent-package-transactions', 'superpowers');
-  let backupExdevCount = 0;
-  let restoreExdevCount = 0;
-  try {
-    writeFile(path.join(legacyPath, 'legacy.txt'), 'legacy\n');
-    fs.symlinkSync('legacy.txt', path.join(legacyPath, 'legacy-link.txt'));
-    const renameSync = ((source: fs.PathLike, target: fs.PathLike) => {
-      const sourcePath = String(source);
-      const targetPath = String(target);
-      if (sourcePath === legacyPath && targetPath === backupPath) {
-        backupExdevCount += 1;
-        throw Object.assign(new Error('simulated cross-device backup'), { code: 'EXDEV' });
-      }
-      if (sourcePath === backupPath && targetPath === legacyPath) {
-        restoreExdevCount += 1;
-        throw Object.assign(new Error('simulated cross-device restore'), { code: 'EXDEV' });
-      }
-      return fs.renameSync(source, target);
-    }) as typeof fs.renameSync;
-
-    fs.mkdirSync(path.dirname(backupPath), { recursive: true });
-    moveManagedPolicyPath(legacyPath, backupPath, { renameSync });
-    assert.equal(backupExdevCount, 1);
-    assert.equal(fs.existsSync(legacyPath), false);
-    assert.equal(fs.readFileSync(path.join(backupPath, 'legacy.txt'), 'utf8'), 'legacy\n');
-    assert.equal(fs.readlinkSync(path.join(backupPath, 'legacy-link.txt')), 'legacy.txt');
-
-    fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
-    moveManagedPolicyPath(backupPath, legacyPath, { renameSync });
-    assert.equal(restoreExdevCount, 1);
-    assert.equal(fs.readFileSync(path.join(legacyPath, 'legacy.txt'), 'utf8'), 'legacy\n');
-    assert.equal(fs.readlinkSync(path.join(legacyPath, 'legacy-link.txt')), 'legacy.txt');
-    assert.equal(fs.existsSync(backupPath), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
   }
