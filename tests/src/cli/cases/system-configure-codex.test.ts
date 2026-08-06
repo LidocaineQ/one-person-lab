@@ -375,7 +375,7 @@ test('bundled Full runtime catalog owns the canonical seven and fails closed on 
   );
 });
 
-test('projected package-only actions preview all bundled Full packages without writing Package authority', () => {
+test('ordinary package actions reject bundled Full roots without writing Package authority', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bundled-projected-install-home-'));
   const captureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bundled-projected-install-capture-'));
   const fixture = buildFullRuntimeFamilyFixture({ captureDir, homeRoot });
@@ -383,37 +383,18 @@ test('projected package-only actions preview all bundled Full packages without w
   const ledgerPath = path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json');
   const lifecycleDbPath = path.join(fixture.env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite');
   try {
-    for (const packageId of [...bundledPackageFixtures.map((entry) => entry.packageId), 'mas-scholar-skills']) {
-      const output = runCli([
+    for (const packageId of bundledPackageFixtures.map((entry) => entry.packageId)) {
+      const failure = runCliFailure([
         'app', 'action', 'execute',
         '--action', 'install_from_manifest_url',
         '--payload', JSON.stringify({ package_id: packageId }),
         '--dry-run',
-      ], fixture.env) as any;
-      const preview = output.app_action_execution.result.opl_agent_package_install;
-      assert.equal(preview.status, 'validated_no_write');
-      assert.equal(preview.package_id, packageId);
-      assert.equal(preview.package_lock.source_kind, 'bundled_full_runtime_modules');
-      if (packageId === 'mas-scholar-skills') {
-        assert.equal(preview.package_lock.managed_runtime_source, null);
-        assert.equal(
-          path.resolve(preview.physical_surface.plugin_source_path),
-          path.resolve(fixture.bundledCatalog.scholarRoot),
-        );
-      } else {
-        assert.equal(
-          path.resolve(preview.package_lock.managed_runtime_source.checkout_path),
-          path.resolve(fixture.env[{
-            mas: 'OPL_MODULE_PATH_MEDAUTOSCIENCE',
-            mag: 'OPL_MODULE_PATH_MEDAUTOGRANT',
-            rca: 'OPL_MODULE_PATH_REDCUBE',
-            oma: 'OPL_MODULE_PATH_OPLMETAAGENT',
-            obf: 'OPL_MODULE_PATH_OPLBOOKFORGE',
-          }[packageId] as keyof typeof fixture.env]),
-        );
-      }
-      assert.equal(Object.hasOwn(preview, 'lifecycle_receipt'), false);
+      ], fixture.env);
+      assert.equal(failure.payload.error.code, 'contract_shape_invalid');
+      assert.equal(failure.payload.error.details.failure_code, 'agent_package_lifecycle_native_owner_required');
     }
+    const scholarStatus = runCli(['packages', 'status', '--package-id', 'mas-scholar-skills'], fixture.env) as any;
+    assert.equal(scholarStatus.opl_agent_package_status.installed_package_count, 0);
     const thirdParty = runCliFailure([
       'app', 'action', 'execute',
       '--action', 'install_from_manifest_url',
@@ -433,11 +414,7 @@ test('projected package-only actions preview all bundled Full packages without w
       '--dry-run',
     ], fixture.env);
     assert.equal(incompleteFull.payload.error.code, 'contract_shape_invalid');
-    assert.equal(
-      incompleteFull.payload.error.details.failure_code,
-      'agent_package_bundled_dependency_root_missing',
-    );
-    assert.equal(incompleteFull.payload.error.details.package_id, 'mas-scholar-skills');
+    assert.equal(incompleteFull.payload.error.details.failure_code, 'agent_package_lifecycle_native_owner_required');
     for (const authorityPath of [lockPath, ledgerPath, lifecycleDbPath]) {
       assert.equal(fs.existsSync(authorityPath), false, `${authorityPath} must remain absent`);
     }
@@ -893,7 +870,7 @@ test('system configure-codex does not sync packaged Full companion skills', () =
   }
 });
 
-test('packages repair fails closed without a configured native owner and does not write legacy state', () => {
+test('packages repair fails closed for Full roots and does not write legacy state', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bundled-package-repair-home-'));
   const captureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bundled-package-repair-capture-'));
   const fixture = buildFullRuntimeFamilyFixture({ captureDir, homeRoot });
@@ -928,12 +905,9 @@ test('packages repair fails closed without a configured native owner and does no
       filePath,
       fs.existsSync(filePath) ? fs.readFileSync(filePath) : null,
     ]));
-    const failure = runCliFailure(['packages', 'repair', 'oma', '--dry-run'], fixture.env);
-    assert.equal(failure.payload.error.code, 'contract_shape_invalid');
-    assert.equal(
-      failure.payload.error.details.failure_code,
-      'agent_package_lifecycle_native_owner_required',
-    );
+    const repair = runCliFailure(['packages', 'repair', 'oma', '--dry-run'], fixture.env);
+    assert.equal(repair.payload.error.code, 'contract_shape_invalid');
+    assert.equal(repair.payload.error.details.failure_code, 'agent_package_lifecycle_native_owner_required');
     if (lockBytes) assert.deepEqual(fs.readFileSync(lockPath), lockBytes);
     for (const [filePath, bytes] of legacyStateBytes) {
       if (bytes) assert.deepEqual(fs.readFileSync(filePath), bytes, filePath);
