@@ -50,6 +50,16 @@ function scannedTextFiles(roots: string[]) {
   return roots.flatMap((relativeRoot) => [...walk(relativeRoot)]);
 }
 
+const retiredWorkspaceProfileAliases = [
+  ['rca', 'series'].join('_'),
+  ['mas', 'portfolio'].join('_'),
+];
+const retiredMagSustainedConsumptionCommand = [
+  'mag',
+  'manifest',
+  'sustained-consumption',
+].join('-');
+
 test('active OPL machine surfaces do not declare compatibility aliases as live', () => {
   const violations: string[] = [];
   const forbiddenLiveAliasClaims = [
@@ -73,6 +83,39 @@ test('active OPL machine surfaces do not declare compatibility aliases as live',
   }
 
   assert.deepEqual(violations, []);
+});
+
+test('retired profile and MAG aliases remain history-only in active docs', () => {
+  const machineSurfaceViolations: string[] = [];
+  const retiredAliases = [
+    ...retiredWorkspaceProfileAliases,
+    retiredMagSustainedConsumptionCommand,
+  ];
+
+  for (const relativePath of scannedTextFiles(scannedRoots)) {
+    const content = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
+    for (const alias of retiredAliases) {
+      if (content.includes(alias)) {
+        machineSurfaceViolations.push(`${relativePath}: ${alias}`);
+      }
+    }
+  }
+
+  assert.deepEqual(machineSurfaceViolations, []);
+
+  const decisions = fs.readFileSync(path.join(repoRoot, 'docs/decisions.md'), 'utf8');
+  const architecture = fs.readFileSync(path.join(repoRoot, 'docs/architecture.md'), 'utf8');
+  for (const alias of retiredWorkspaceProfileAliases) {
+    const decisionLine = decisions.split(/\r?\n/).find((line) => line.includes('`' + alias + '`'));
+    const architectureLine = architecture.split(/\r?\n/).find((line) => line.includes('`' + alias + '`'));
+    assert.match(decisionLine ?? '', /已退役.*history-only/);
+    assert.match(architectureLine ?? '', /已退役.*history-only/);
+  }
+  const retiredMagCommandLine = decisions.split(/\r?\n/).find((line) =>
+    line.includes(retiredMagSustainedConsumptionCommand)
+  );
+  assert.match(retiredMagCommandLine ?? '', /已退役.*history-only/);
+  assert.match(decisions, /runtime owner-evidence-sustained-consumption/);
 });
 
 test('active OPL MAS command surfaces do not resurrect retired progress-projection public command', () => {
