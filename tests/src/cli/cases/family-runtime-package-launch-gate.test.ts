@@ -29,7 +29,7 @@ function createArgs(workspace: string) {
   ];
 }
 
-test('package launch stops only for missing required capability while metadata drift remains quality debt', () => {
+test('package launch ignores retired materialization readiness while enforcing native readiness', () => {
   assert.equal(packageLaunchHardStopReason({ installed_package_count: 0 }), 'package_not_installed');
   assert.equal(packageLaunchHardStopReason({
     installed_package_count: 1,

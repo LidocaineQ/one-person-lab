@@ -168,7 +168,6 @@ function unavailableAgentPackageStatus(
     installed_packages: [],
     codex_visible: false,
     package_dependency_readiness: null,
-    materialization_readiness: null,
     runtime_source_readiness: {
       status: 'unavailable',
       operational_ready: false,

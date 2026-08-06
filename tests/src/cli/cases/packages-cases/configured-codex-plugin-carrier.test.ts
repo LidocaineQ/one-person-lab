@@ -907,6 +907,7 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     assert.equal(activateDryRun.opl_agent_package_activation.writes_performed, false);
     assert.equal(Object.hasOwn(activateDryRun.opl_agent_package_activation, 'package_lock'), false);
     assert.equal(Object.hasOwn(activateDryRun.opl_agent_package_activation, 'lifecycle_receipt'), false);
+    assert.equal(Object.hasOwn(activateDryRun.opl_agent_package_activation, 'materialization_readiness'), false);
     assertNoPrivateState();
 
     const hideDryRun = runCli(['packages', 'hide', '--package-id', packageId, '--dry-run'], env) as any;

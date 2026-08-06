@@ -38,19 +38,15 @@ async function ensureDomainPackageLaunchReady(
     targetWorkspace: workspaceLocator.absolute_path,
   };
   const packageStatus = runOplAgentPackageStatus(statusInput).opl_agent_package_status;
-  const nativeStatus = {
-    ...packageStatus,
-    materialization_readiness: undefined,
-  };
-  if (nativeStatus.launch_allowed === true) return;
-  const hardStopReason = packageLaunchHardStopReason(nativeStatus)
-    ?? (nativeStatus.installed_package_count > 0
-      ? nativeStatus.launch_blocked_reason ?? 'native_carrier_not_ready'
+  if (packageStatus.launch_allowed === true) return;
+  const hardStopReason = packageLaunchHardStopReason(packageStatus)
+    ?? (packageStatus.installed_package_count > 0
+      ? packageStatus.launch_blocked_reason ?? 'native_carrier_not_ready'
       : null);
   if (!hardStopReason) return;
   throw new FrameworkContractError(
     'contract_shape_invalid',
-    'Domain launch is blocked until the installed package dependency closure and workspace materialization are repaired.',
+    'Domain launch is blocked until the installed package dependency closure and native carrier are ready.',
     {
       project_id: projectId,
       package_id: packageId,
@@ -58,7 +54,6 @@ async function ensureDomainPackageLaunchReady(
       launch_blocked_reason: hardStopReason,
       allowed_when_blocked: packageStatus.allowed_when_blocked,
       package_dependency_readiness: packageStatus.package_dependency_readiness,
-      materialization_readiness: null,
       repair_action: packageStatus.repair_action,
       failure_code: 'agent_package_operational_readiness_blocked',
     },
@@ -582,24 +577,20 @@ resume: {
             scope: 'workspace',
             targetWorkspace: locator.absolute_path,
           }).opl_agent_package_status;
-          const hardStopReason = packageLaunchHardStopReason({
-            ...packageStatus,
-            materialization_readiness: undefined,
-          })
+          const hardStopReason = packageLaunchHardStopReason(packageStatus)
             ?? (packageStatus.installed_package_count > 0
               ? packageStatus.launch_blocked_reason ?? 'native_carrier_not_ready'
               : null);
           if (packageStatus.launch_allowed !== true && hardStopReason) {
             throw new FrameworkContractError(
               'contract_shape_invalid',
-              'Workspace activation is blocked until package dependency and scope readiness are repaired.',
+              'Workspace activation is blocked until package dependency and native carrier readiness are repaired.',
               {
                 project_id: parsed.projectId,
                 package_id: packageId,
                 launch_blocked_reason: hardStopReason,
                 allowed_when_blocked: packageStatus.allowed_when_blocked,
                 package_dependency_readiness: packageStatus.package_dependency_readiness,
-                materialization_readiness: null,
                 repair_action: packageStatus.repair_action,
                 failure_code: 'agent_package_scope_activation_blocked',
               },

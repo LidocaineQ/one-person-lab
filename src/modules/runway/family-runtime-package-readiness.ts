@@ -119,7 +119,7 @@ export async function ensureFamilyRuntimePackageLaunchReady(input: {
 
   throw new FrameworkContractError(
     'contract_shape_invalid',
-    'Family runtime launch is blocked until the canonical agent package dependency closure and scope are repaired.',
+    'Family runtime launch is blocked until the canonical agent package dependency closure and native carrier are ready.',
     {
       domain_id: input.domainId,
       package_id: packageId,
@@ -127,7 +127,6 @@ export async function ensureFamilyRuntimePackageLaunchReady(input: {
       launch_blocked_reason: hardStopReason,
       allowed_when_blocked: packageStatus.allowed_when_blocked,
       package_dependency_readiness: packageStatus.package_dependency_readiness,
-      materialization_readiness: packageStatus.materialization_readiness,
       repair_action: packageStatus.repair_action,
       failure_code: 'agent_package_operational_readiness_blocked',
     },

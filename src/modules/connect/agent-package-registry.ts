@@ -83,7 +83,6 @@ import type {
   AgentPackageLock,
   AgentPackageDependencyReadiness,
   AgentPackageManagedRuntimeSourceReadiness,
-  AgentPackageMaterializationReadiness,
   AgentPackageManifestValidateInput,
   AgentPackageManifest,
   AgentPackageManagedPolicyDependency,
@@ -1522,7 +1521,6 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
         package_id: packageId,
         writes_performed: false,
         package_dependency_readiness: null,
-        materialization_readiness: null,
         operational_ready: false,
         launch_allowed: false,
         launch_blocked_reason: 'package_not_installed',
@@ -2033,7 +2031,6 @@ function buildOplAgentPackageStatus(
       installed_carrier_readback: installedCarrierReadback,
       installed_readiness: installedReadiness,
       package_dependency_readiness: packageDependencyReadiness as AgentPackageDependencyReadiness | null,
-      materialization_readiness: null as AgentPackageMaterializationReadiness | null,
       runtime_source_readiness: null as AgentPackageManagedRuntimeSourceReadiness | null,
       carrier_authority_readiness: null as {
         status: 'not_required' | 'current' | 'invalid';
