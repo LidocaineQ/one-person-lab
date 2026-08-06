@@ -21,14 +21,14 @@ import {
   type CodexStageRunnerMode,
   type RunnerEventSummary,
 } from './input-prompt.ts';
-import {
-  hostAttemptSkillRuntime,
-  packageSkillPromptPrefix,
-} from '../family-runtime-attempt-skill-projection.ts';
 import type { StandardAgentStagePromptResolution } from '../../pack/index.ts';
 import type { TypedStageCloseoutPacket } from './closeout-normalization.ts';
 import type { buildProgressCloseoutProjection } from '../progress-closeout-projection.ts';
 import type { JsonRecord } from './shared.ts';
+import {
+  hostAttemptSkillRuntime,
+  packageSkillPromptPrefix,
+} from '../family-runtime-attempt-skill-projection.ts';
 
 type CodexStageRunnerStatus = {
   runner_kind: 'codex_cli_stage_runner';

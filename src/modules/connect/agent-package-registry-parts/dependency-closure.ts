@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { FrameworkContractError } from '../../../kernel/contract-validation.ts';
-import { sha256Text } from './shared.ts';
 import {
   LEGACY_PACKAGE_CONTENT_LOCK,
   packageContentLockDigest,
@@ -10,8 +9,6 @@ import type {
   AgentPackageCapabilityDependency,
   AgentPackageDependencyReadinessItem,
   AgentPackageDependencyReadiness,
-  AgentPackageLock,
-  AgentPackageLockIndex,
   AgentPackageManifest,
   AgentPackageResolvedDependency,
 } from './types.ts';
@@ -165,79 +162,6 @@ export function validateCapabilityProvider(
     manifest_sha256: manifestSha256,
     content_digest: contentDigest,
     package_lock_ref: '',
-  };
-}
-
-export function dependencyClosureDigest(locks: AgentPackageLock[]) {
-  return sha256Text(JSON.stringify(locks
-    .map((lock) => ({
-      package_id: lock.package_id,
-      package_version: lock.package_version,
-      manifest_sha256: lock.manifest_sha256,
-      owner_source_commit: lock.source_kind === 'developer_checkout_override'
-        ? null
-        : lock.owner_source_commit ?? null,
-      carrier_authority: lock.carrier_authority ?? null,
-      content_digest: lock.content_digest,
-      package_lock_ref: lock.lock_ref,
-    }))
-    .sort((left, right) => left.package_id.localeCompare(right.package_id))));
-}
-
-export function requiredDependents(index: AgentPackageLockIndex, packageId: string) {
-  return index.packages
-    .filter((lock) => lock.capability_dependencies?.some((dependency) =>
-      dependency.required && dependency.package_id === packageId))
-    .map((lock) => lock.package_id)
-    .sort();
-}
-
-export function dependencyReadiness(
-  lock: AgentPackageLock,
-  index: AgentPackageLockIndex,
-): AgentPackageDependencyReadiness {
-  const items = (lock.capability_dependencies ?? []).map((dependency) => {
-    const provider = index.packages.find((entry) => entry.package_id === dependency.package_id);
-    const reasons: string[] = [];
-    if (!provider) {
-      reasons.push('dependency_lock_missing');
-    } else {
-      if (provider.exposure_state === 'disabled') reasons.push('dependency_disabled');
-      const profileCompatibility = capabilityProfileCompatibility(dependency, provider, lock.agent_id);
-      reasons.push(...profileCompatibility.reasons);
-      if (profileCompatibility.missingExports.length > 0) reasons.push('required_exports_missing');
-      if (profileCompatibility.missingModules.length > 0) reasons.push('required_modules_missing');
-    }
-    const hardFailureReasons = reasons.filter((reason) => DEPENDENCY_HARD_FAILURE_REASONS.has(reason));
-    return {
-      package_id: dependency.package_id,
-      required: dependency.required,
-      consumer_profile_id: dependency.consumer_profile_id ?? null,
-      required_export_ids: dependency.required_export_ids,
-      required_module_ids: dependency.required_module_ids,
-      installed_version: provider?.package_version ?? null,
-      manifest_sha256: provider?.manifest_sha256 ?? null,
-      content_digest: provider?.content_digest ?? null,
-      status: (!provider ? 'missing' : hardFailureReasons.length > 0 ? 'incompatible' : 'current') as 'missing' | 'incompatible' | 'current',
-      reasons,
-      missing_required_export_ids: provider
-        ? capabilityProfileCompatibility(dependency, provider, lock.agent_id).missingExports
-        : dependency.required_export_ids,
-      missing_required_module_ids: provider
-        ? capabilityProfileCompatibility(dependency, provider, lock.agent_id).missingModules
-        : dependency.required_module_ids,
-    };
-  });
-  const status = items.some((entry) => entry.status === 'missing')
-    ? 'missing'
-    : items.some((entry) => entry.status === 'incompatible')
-      ? 'incompatible'
-      : 'current';
-  return {
-    status,
-    operational_ready: items.every((entry) => !entry.required
-      || !entry.reasons.some((reason) => DEPENDENCY_HARD_FAILURE_REASONS.has(reason))),
-    dependencies: items,
   };
 }
 

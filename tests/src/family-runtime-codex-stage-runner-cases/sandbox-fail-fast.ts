@@ -5,8 +5,8 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { FrameworkContractError } from '../../../src/kernel/contract-validation.ts';
-import { materializeAgentPackageSkillProjection } from '../../../src/modules/connect/agent-package-registry-parts/skill-projection.ts';
-import type { AgentPackageLock } from '../../../src/modules/connect/agent-package-registry-parts/types.ts';
+import { sha256Text } from '../../../src/modules/connect/agent-package-registry-parts/shared.ts';
+import type { AgentPackageSkillProjection } from '../../../src/modules/connect/agent-package-registry-parts/types.ts';
 import {
   runCodexInE2bSandbox,
   setE2bSandboxFactoryForTest,
@@ -33,10 +33,12 @@ function makeTreeWritable(root: string) {
 }
 
 function buildSkillProjection(fixtureRoot: string) {
-  const pluginRoot = path.join(fixtureRoot, 'plugin');
-  const skillRoot = path.join(pluginRoot, 'skills', 'fixture-agent');
+  const stateRoot = path.join(fixtureRoot, 'state');
+  const generationId = sha256Text('sandbox-fail-fast-immutable-generation');
+  const projectionRoot = path.join(stateRoot, 'agent-package-skill-projections', generationId);
+  const skillRoot = path.join(projectionRoot, '.agents', 'skills', 'fixture-agent');
   fs.mkdirSync(skillRoot, { recursive: true });
-  fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), [
+  const skillBytes = Buffer.from([
     '---',
     'name: fixture-agent',
     'description: Sandbox fail-fast fixture.',
@@ -44,21 +46,26 @@ function buildSkillProjection(fixtureRoot: string) {
     '',
     'Use this fixture only for sandbox transport tests.',
     '',
-  ].join('\n'), { mode: 0o755 });
-  const lock = {
-    package_id: 'fixture-agent-package',
-    lock_ref: 'opl://agent-package/fixture-agent-package/sandbox-fail-fast',
-    source_kind: 'first_party_managed_cohort',
-    bundled_required_skill_ids: ['fixture-agent'],
-    physical_surface: { plugin_source_path: pluginRoot },
-  } as unknown as AgentPackageLock;
-  const projection = materializeAgentPackageSkillProjection({
-    root: lock,
-    providers: [],
-    dryRun: false,
-  });
-  assert.ok(projection);
-  return projection;
+  ].join('\n'));
+  fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), skillBytes, { mode: 0o555 });
+  const skillDigest = `sha256:${sha256Text(`fixture-agent/SKILL.md\0${skillBytes.toString('base64')}`)}`;
+  const closureDigest = `sha256:${sha256Text(JSON.stringify([['fixture-agent', skillDigest]]))}`;
+  return {
+    surface_kind: 'opl_agent_package_skill_projection.v1',
+    status: 'materialized',
+    generation_id: generationId,
+    projection_root: projectionRoot,
+    skills_root: path.join(projectionRoot, '.agents', 'skills'),
+    root_package_id: 'fixture-agent-package',
+    package_lock_refs: ['opl://agent-package/fixture-agent-package/sandbox-fail-fast'],
+    root_skill_ids: ['fixture-agent'],
+    core_skill_ids: ['fixture-agent'],
+    specialty_skill_ids: [],
+    skill_ids: ['fixture-agent'],
+    skill_digests: { 'fixture-agent': skillDigest },
+    core_digest: closureDigest,
+    full_export_digest: closureDigest,
+  } satisfies AgentPackageSkillProjection;
 }
 
 function attemptWithProjection(projection: ReturnType<typeof buildSkillProjection>) {
