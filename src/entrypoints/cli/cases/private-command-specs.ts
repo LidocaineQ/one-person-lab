@@ -12,7 +12,6 @@ import { syncOplCompanionSkills } from '../../../modules/connect/install-compani
 import { readFamilySkillPacks, syncFamilySkillPacks } from '../../../modules/connect/opl-skills.ts';
 import {
   canonicalAgentPackageId,
-  ensureOplAgentPackageScopeActivation,
   runOplAgentPackageStatus,
 } from '../../../modules/connect/index.ts';
 import { buildSessionLedger } from '../../../modules/runway/session-ledger.ts';
@@ -28,7 +27,6 @@ import type { CommandSpec, ParsedCliInput } from '../modules/support.ts';
 async function ensureDomainPackageLaunchReady(
   projectId: string,
   workspacePath?: string,
-  options: { activateMissingScope?: boolean } = {},
 ) {
   const workspaceLocator = resolveWorkspaceLocator(projectId, workspacePath);
   if (!workspaceLocator.binding) return;
@@ -39,33 +37,16 @@ async function ensureDomainPackageLaunchReady(
     scope: 'workspace' as const,
     targetWorkspace: workspaceLocator.absolute_path,
   };
-  let packageStatus = runOplAgentPackageStatus(statusInput).opl_agent_package_status;
-  const legacyScopeReadbackPresent = packageStatus.materialization_readiness != null;
-  const legacyScopeActivationRequired = options.activateMissingScope !== false
-    && packageStatus.installed_package_count > 0
-    && packageStatus.launch_allowed !== true
-    && legacyScopeReadbackPresent;
-  if (legacyScopeActivationRequired) {
-    const compatibilityActivation = await ensureOplAgentPackageScopeActivation({
-      packageId,
-      scope: 'workspace',
-      targetWorkspace: workspaceLocator.absolute_path,
-    });
-    packageStatus = compatibilityActivation.package_status
-      ?? runOplAgentPackageStatus(statusInput).opl_agent_package_status;
-  }
-  if (packageStatus.launch_allowed === true) return;
-  const packageHardStopReason = packageLaunchHardStopReason(options.activateMissingScope === false
-    ? {
-        ...packageStatus,
-        materialization_readiness: undefined,
-      }
-    : packageStatus);
-  const nativeReadbackHardStopReason = packageStatus.installed_package_count > 0
-    && !legacyScopeReadbackPresent
-    ? packageStatus.launch_blocked_reason ?? 'native_carrier_not_ready'
-    : null;
-  const hardStopReason = packageHardStopReason ?? nativeReadbackHardStopReason;
+  const packageStatus = runOplAgentPackageStatus(statusInput).opl_agent_package_status;
+  const nativeStatus = {
+    ...packageStatus,
+    materialization_readiness: undefined,
+  };
+  if (nativeStatus.launch_allowed === true) return;
+  const hardStopReason = packageLaunchHardStopReason(nativeStatus)
+    ?? (nativeStatus.installed_package_count > 0
+      ? nativeStatus.launch_blocked_reason ?? 'native_carrier_not_ready'
+      : null);
   if (!hardStopReason) return;
   throw new FrameworkContractError(
     'contract_shape_invalid',
@@ -77,7 +58,7 @@ async function ensureDomainPackageLaunchReady(
       launch_blocked_reason: hardStopReason,
       allowed_when_blocked: packageStatus.allowed_when_blocked,
       package_dependency_readiness: packageStatus.package_dependency_readiness,
-      materialization_readiness: packageStatus.materialization_readiness,
+      materialization_readiness: null,
       repair_action: packageStatus.repair_action,
       failure_code: 'agent_package_operational_readiness_blocked',
     },
@@ -388,9 +369,7 @@ export function buildInternalCommandSpecs(
           );
         }
 
-        await ensureDomainPackageLaunchReady(parsed.projectId, parsed.workspacePath, {
-          activateMissingScope: !parsed.dryRun,
-        });
+        await ensureDomainPackageLaunchReady(parsed.projectId, parsed.workspacePath);
         return launchDomainEntry(getContracts(), {
           projectId: parsed.projectId,
           workspacePath: parsed.workspacePath,
@@ -575,22 +554,9 @@ resume: {
           inputPath: parsed.inputPath,
         });
         const packageId = canonicalAgentPackageId(parsed.projectId);
-        const initialStatus = packageId
-          ? runOplAgentPackageStatus({ packageId }).opl_agent_package_status
-          : null;
-        const packageScopeActivation = packageId
-          && initialStatus
-          && initialStatus.installed_package_count > 0
-          && initialStatus.materialization_readiness != null
-          ? await ensureOplAgentPackageScopeActivation({
-              packageId,
-              scope: 'workspace',
-              targetWorkspace: parsed.workspacePath,
-            })
-          : null;
         return {
           ...workspaceBinding,
-          package_scope_activation: packageScopeActivation,
+          package_scope_activation: null,
         };
       },
     },
@@ -611,17 +577,18 @@ resume: {
         const locator = resolveWorkspaceLocator(parsed.projectId, parsed.workspacePath);
         const packageId = canonicalAgentPackageId(parsed.projectId);
         if (locator.binding && locator.binding.status !== 'archived' && packageId) {
-          await ensureOplAgentPackageScopeActivation({
-            packageId,
-            scope: 'workspace',
-            targetWorkspace: locator.absolute_path,
-          });
           const packageStatus = runOplAgentPackageStatus({
             packageId,
             scope: 'workspace',
             targetWorkspace: locator.absolute_path,
           }).opl_agent_package_status;
-          const hardStopReason = packageLaunchHardStopReason(packageStatus);
+          const hardStopReason = packageLaunchHardStopReason({
+            ...packageStatus,
+            materialization_readiness: undefined,
+          })
+            ?? (packageStatus.installed_package_count > 0
+              ? packageStatus.launch_blocked_reason ?? 'native_carrier_not_ready'
+              : null);
           if (packageStatus.launch_allowed !== true && hardStopReason) {
             throw new FrameworkContractError(
               'contract_shape_invalid',
@@ -632,7 +599,7 @@ resume: {
                 launch_blocked_reason: hardStopReason,
                 allowed_when_blocked: packageStatus.allowed_when_blocked,
                 package_dependency_readiness: packageStatus.package_dependency_readiness,
-                materialization_readiness: packageStatus.materialization_readiness,
+                materialization_readiness: null,
                 repair_action: packageStatus.repair_action,
                 failure_code: 'agent_package_scope_activation_blocked',
               },
