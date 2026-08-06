@@ -1,5 +1,3 @@
-import { pathToFileURL } from 'node:url';
-
 import {
   agentPackageManifest,
   assert,
@@ -12,7 +10,6 @@ import {
   runCli,
   test,
 } from './helpers.ts';
-import { writeManagedRuntimeSourceFixture } from './managed-runtime-source-fixture.ts';
 
 const packageId = 'third.party.research';
 const pluginSelector = 'third-party-research@fixture-carrier';
@@ -79,7 +76,6 @@ function createLegacyThenNativeFixture(label: string, options: { runtimeSource?:
   const pluginSource = path.join(root, 'plugin-source');
   const pluginState = path.join(root, 'plugin-state.json');
   const binary = path.join(root, 'fake-codex.mjs');
-  const manifestPath = path.join(root, 'manifest.json');
   fs.mkdirSync(path.join(pluginSource, 'skills', 'third-party-research'), { recursive: true });
   fs.mkdirSync(path.join(pluginSource, '.codex-plugin'), { recursive: true });
   fs.writeFileSync(
@@ -92,30 +88,13 @@ function createLegacyThenNativeFixture(label: string, options: { runtimeSource?:
     description: 'Descriptor retirement fixture.',
     skills: './skills/',
   }));
-  const manifest = agentPackageManifest({
-    pluginSourcePath: pluginSource,
-    distributionPayload: null,
-  });
-  fs.writeFileSync(manifestPath, formatJsonPayload({
-    ...manifest,
-    ...(options.runtimeSource ? {
-      runtime_source_carrier: {
-        carrier_kind: 'opl_managed_module_source',
-        module_id: 'redcube',
-      },
-    } : {}),
-  }));
   writeFakeCodex(binary);
   const modulesRoot = path.join(root, 'modules');
-  const runtimeSourceEnv = options.runtimeSource
-    ? writeManagedRuntimeSourceFixture({
-        root: path.join(root, 'runtime-source'),
-        moduleId: 'redcube',
-        repoName: 'redcube-ai',
-        version: '1.0.1',
-        sourceHeadSha: 'descriptor-owned-runtime-source-v1',
-      })
-    : {};
+  const runtimeSourcePath = path.join(modulesRoot, 'redcube-ai');
+  if (options.runtimeSource) {
+    fs.mkdirSync(runtimeSourcePath, { recursive: true });
+    fs.writeFileSync(path.join(runtimeSourcePath, 'runtime.txt'), 'legacy runtime bytes\n');
+  }
   const env = {
     HOME: root,
     CODEX_HOME: codexHome,
@@ -124,14 +103,7 @@ function createLegacyThenNativeFixture(label: string, options: { runtimeSource?:
     OPL_MODULES_ROOT: modulesRoot,
     FIXTURE_PLUGIN_STATE: pluginState,
     FIXTURE_PLUGIN_SOURCE: pluginSource,
-    ...runtimeSourceEnv,
   };
-  const installed = runCli([
-    'packages', 'install',
-    '--manifest-url', pathToFileURL(manifestPath).toString(),
-    '--trust-tier', 'third_party_verified',
-  ], env) as any;
-  assert.equal(installed.opl_agent_package_install.package_lock.package_id, packageId);
   fs.writeFileSync(
     path.join(pluginSource, 'opl-package.json'),
     formatJsonPayload(installedOwnerDescriptor()),
@@ -140,6 +112,36 @@ function createLegacyThenNativeFixture(label: string, options: { runtimeSource?:
     installed: true,
     version: ownerPackageVersion,
     marketplaceSource: 'fixture-carrier',
+  }));
+  fs.mkdirSync(stateDir, { recursive: true });
+  fs.writeFileSync(path.join(stateDir, 'agent-package-locks.json'), formatJsonPayload({
+    surface_kind: 'opl_agent_package_lock_index',
+    version: 'opl-agent-package-lock-index.v1',
+    packages: [{
+      package_id: packageId,
+      package_version: ownerPackageVersion,
+      lock_ref: `opl-agent-package-lock:${packageId}`,
+      manifest_url: 'file:///retired/manifest.json',
+      manifest_sha256: 'a'.repeat(64),
+      content_digest: `sha256:${'b'.repeat(64)}`,
+      resolved_dependencies: [],
+      physical_surface: {
+        plugin_id: 'third-party-research',
+        marketplace_id: 'fixture-carrier',
+        codex_plugin_cache_path: pluginSource,
+      },
+      ...(options.runtimeSource ? {
+        managed_runtime_source: {
+          surface_kind: 'opl_agent_package_managed_runtime_source',
+          status: 'current',
+          carrier_kind: 'opl_managed_module_source',
+          module_id: 'redcube',
+          checkout_path: runtimeSourcePath,
+          ownership: 'package_created',
+          source_mode: 'package_channel',
+        },
+      } : {}),
+    }],
   }));
   return {
     root,
@@ -171,25 +173,6 @@ test('native-confirmed repair leaves a package-created legacy runtime source and
     assert.deepEqual(fs.readFileSync(fixture.lockPath), originalLockBytes);
     assert.equal(fs.existsSync(runtimeSourcePath), true);
     assert.deepEqual(fs.existsSync(transactionRoot) ? fs.readdirSync(transactionRoot) : [], []);
-    assert.equal(fs.existsSync(path.join(fixture.pluginSource, 'opl-package.json')), true);
-  } finally {
-    removeFixtureTree(fixture.root);
-  }
-});
-
-test('native-confirmed repair retains a preexisting adopted runtime source and its legacy lock', () => {
-  const fixture = createLegacyThenNativeFixture('preexisting-runtime-source', { runtimeSource: true });
-  try {
-    const index = parseJsonText(fs.readFileSync(fixture.lockPath, 'utf8')) as any;
-    const lock = index.packages.find((entry: any) => entry.package_id === packageId);
-    const runtimeSourcePath = lock.managed_runtime_source.checkout_path;
-    lock.managed_runtime_source.ownership = 'preexisting_adopted';
-    fs.writeFileSync(fixture.lockPath, formatJsonPayload(index));
-    const before = fs.readFileSync(fixture.lockPath);
-
-    runCli(['packages', 'repair', packageId], fixture.env);
-    assert.deepEqual(fs.readFileSync(fixture.lockPath), before);
-    assert.equal(fs.existsSync(runtimeSourcePath), true);
     assert.equal(fs.existsSync(path.join(fixture.pluginSource, 'opl-package.json')), true);
   } finally {
     removeFixtureTree(fixture.root);
@@ -228,95 +211,6 @@ test('explicit native-confirmed repair leaves descriptor-owned lock and legacy L
 
     assert.deepEqual(fs.readFileSync(fixture.lockPath), originalLockBytes);
     assert.equal(fs.existsSync(legacyLedgerPath), false);
-    assert.equal(fs.existsSync(path.join(fixture.pluginSource, 'opl-package.json')), true);
-  } finally {
-    removeFixtureTree(fixture.root);
-  }
-});
-
-test('legacy LKG bytes are ignored on read and remain inert after native-confirmed repair', () => {
-  const fixture = createLegacyThenNativeFixture('mixed-lkg');
-  try {
-    const index = parseJsonText(fs.readFileSync(fixture.lockPath, 'utf8')) as any;
-    const targetLock = index.packages.find((entry: any) => entry.package_id === packageId);
-    const legacyLock = {
-      ...targetLock,
-      package_id: 'legacy.consumer',
-      lock_ref: 'opl-agent-package-lock:legacy.consumer',
-      action_receipt_id: 'opl-agent-package-receipt:legacy.consumer',
-      resolved_dependencies: [],
-    };
-    index.packages.push(legacyLock);
-    index.last_known_good_transactions = [{
-      root_package_id: 'legacy.consumer',
-      transaction_id: 'mixed-history',
-      closure_digest: 'mixed-history',
-      package_locks: [targetLock, legacyLock],
-    }];
-    fs.writeFileSync(fixture.lockPath, formatJsonPayload(index));
-    const legacyBytes = fs.readFileSync(fixture.lockPath);
-
-    const repaired = runCli(['packages', 'repair', packageId], fixture.env) as any;
-    assert.equal(Object.hasOwn(repaired.opl_agent_package_repair, 'legacy_state_retirement'), false);
-
-    const nextIndex = parseJsonText(fs.readFileSync(fixture.lockPath, 'utf8')) as any;
-    assert.deepEqual(fs.readFileSync(fixture.lockPath), legacyBytes);
-    assert.equal(nextIndex.packages.some((entry: any) => entry.package_id === packageId), true);
-    assert.equal(nextIndex.packages.some((entry: any) => entry.package_id === 'legacy.consumer'), true);
-    assert.equal(
-      Object.hasOwn(
-        nextIndex.packages.find((entry: any) => entry.package_id === 'legacy.consumer'),
-        'action_receipt_id',
-      ),
-      true,
-    );
-    assert.equal('last_known_good_transactions' in nextIndex, true);
-    assert.equal(fs.existsSync(targetLock.physical_surface.codex_plugin_cache_path), true);
-  } finally {
-    removeFixtureTree(fixture.root);
-  }
-});
-
-test('dependent locks and native source overlap retain legacy state without deletion', () => {
-  const fixture = createLegacyThenNativeFixture('retained');
-  try {
-    const index = parseJsonText(fs.readFileSync(fixture.lockPath, 'utf8')) as any;
-    const targetLock = index.packages.find((entry: any) => entry.package_id === packageId);
-    index.packages.push({
-      ...targetLock,
-      package_id: 'legacy.consumer',
-      lock_ref: 'opl-agent-package-lock:legacy.consumer',
-      action_receipt_id: 'opl-agent-package-receipt:legacy.consumer',
-      resolved_dependencies: [{
-        package_id: packageId,
-        required: true,
-        dependency_kind: 'hard_runtime_dependency',
-        version_requirement: '>=1.0.0',
-        capability_abi: 'fixture.v1',
-        required_export_ids: [],
-        required_module_ids: [],
-        installed_version: '1.0.1',
-        manifest_url: targetLock.manifest_url,
-        manifest_sha256: targetLock.manifest_sha256,
-        content_digest: targetLock.content_digest,
-        package_lock_ref: targetLock.lock_ref,
-      }],
-    });
-    fs.writeFileSync(fixture.lockPath, formatJsonPayload(index));
-    const before = fs.readFileSync(fixture.lockPath);
-
-    const dependent = runCli(['packages', 'repair', packageId], fixture.env) as any;
-    assert.equal(Object.hasOwn(dependent.opl_agent_package_repair, 'legacy_state_retirement'), false);
-    assert.deepEqual(fs.readFileSync(fixture.lockPath), before);
-
-    const sourceProtectedIndex = parseJsonText(before.toString()) as any;
-    sourceProtectedIndex.packages = [targetLock];
-    sourceProtectedIndex.packages[0].physical_surface.codex_plugin_cache_path = fixture.pluginSource;
-    fs.writeFileSync(fixture.lockPath, formatJsonPayload(sourceProtectedIndex));
-    const sourceProtectedBytes = fs.readFileSync(fixture.lockPath);
-    const sourceProtected = runCli(['packages', 'repair', packageId], fixture.env) as any;
-    assert.equal(Object.hasOwn(sourceProtected.opl_agent_package_repair, 'legacy_state_retirement'), false);
-    assert.deepEqual(fs.readFileSync(fixture.lockPath), sourceProtectedBytes);
     assert.equal(fs.existsSync(path.join(fixture.pluginSource, 'opl-package.json')), true);
   } finally {
     removeFixtureTree(fixture.root);

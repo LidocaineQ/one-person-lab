@@ -997,7 +997,7 @@ test('interrupted developer snapshot activation removes only the uncommitted sna
   }
 });
 
-test('bundled Full runtime source requires a matching carrier marker and rejects public injection', () => {
+test('bundled Full runtime source requires a matching carrier marker while public injection stays native-only', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-bundled-source-state-'));
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-bundled-source-fixture-'));
   const pluginSourcePath = createPluginSourceFixture();
@@ -1113,16 +1113,15 @@ test('bundled Full runtime source requires a matching carrier marker and rejects
       '--source-kind', 'bundled_full_runtime_modules', '--agent-root', unmanagedRoot,
     ], env);
     assert.equal(invalid.payload.error.code, 'contract_shape_invalid');
-    assert.equal(
-      invalid.payload.error.details.failure_code,
-      'agent_package_bundled_full_runtime_source_internal_only',
-    );
+    assert.equal(invalid.payload.error.details.failure_code, 'agent_package_lifecycle_native_owner_required');
 
     const blocked = runCliFailure([
       'packages', 'install', '--manifest-url', manifestPath, '--trust-tier', 'first_party',
       '--source-kind', 'bundled_full_runtime_modules', '--agent-root', bundledRoot,
     ], env);
-    assert.equal(blocked.payload.error.details.failure_code, 'agent_package_bundled_full_runtime_source_internal_only');
+    assert.equal(blocked.payload.error.details.failure_code, 'agent_package_lifecycle_native_owner_required');
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-runtime-transactions')), false);
 
     fs.writeFileSync(path.join(bundledRoot, 'runtime.txt'), 'drifted bundled source\n');
     const drifted = managedRuntimeSourceReadiness(adopted.after);
