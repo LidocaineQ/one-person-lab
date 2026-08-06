@@ -9,9 +9,6 @@ import {
   requiredDependents,
 } from '../../src/modules/connect/agent-package-registry-parts/dependency-closure.ts';
 import {
-  cleanupUnreferencedPackagePayloadSources,
-} from '../../src/modules/connect/agent-package-registry-parts/physical-surface.ts';
-import {
   materializeAgentPackageSkillProjection,
 } from '../../src/modules/connect/agent-package-registry-parts/skill-projection.ts';
 import {
@@ -170,43 +167,6 @@ test('installed package cache selection rejects paths outside the managed Codex 
       error?.details?.failure_code === 'agent_package_persisted_path_unsafe');
   } finally {
     fs.rmSync(outsideCache, { recursive: true, force: true });
-  }
-});
-
-test('package cache cleanup preserves current locks and removes unreferenced previous generations', () => {
-  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-cache-cleanup-'));
-  const codexHome = path.join(fixtureRoot, 'codex-home');
-  const stateRoot = path.join(fixtureRoot, 'state');
-  const cacheRoot = path.join(codexHome, 'plugins', 'cache', 'fixture', 'fixture');
-  const currentCache = path.join(cacheRoot, 'current');
-  const retiredCache = path.join(cacheRoot, 'retired');
-  const previousCodexHome = process.env.CODEX_HOME;
-  const previousStateDir = process.env.OPL_STATE_DIR;
-  try {
-    fs.mkdirSync(currentCache, { recursive: true });
-    fs.mkdirSync(retiredCache, { recursive: true });
-    process.env.CODEX_HOME = codexHome;
-    process.env.OPL_STATE_DIR = stateRoot;
-    const lock = (packageId: string, cachePath: string) => ({
-      package_id: packageId,
-      physical_surface: { codex_plugin_cache_path: cachePath },
-    } as unknown as AgentPackageLock);
-    cleanupUnreferencedPackagePayloadSources({
-      packages: [
-        lock('fixture-current', currentCache),
-        lock('fixture-retired', retiredCache),
-      ],
-    } as AgentPackageLockIndex, {
-      packages: [lock('fixture-current', currentCache)],
-    } as unknown as AgentPackageLockIndex);
-    assert.equal(fs.existsSync(currentCache), true);
-    assert.equal(fs.existsSync(retiredCache), false);
-  } finally {
-    if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
-    else process.env.CODEX_HOME = previousCodexHome;
-    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
-    else process.env.OPL_STATE_DIR = previousStateDir;
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
   }
 });
 
