@@ -30,15 +30,20 @@ test('package read models stay compact without exposing lifecycle history', (con
       formatJsonPayload(agentPackageManifest({ pluginSourcePath })),
       'utf8',
     );
-    const install = runCli([
+    const installFailure = runCliFailure([
       'packages',
       'install',
       '--manifest-url',
       pathToFileURL(manifestPath).href,
       '--trust-tier',
       'third_party_verified',
-    ], env) as any;
-    assert.equal(Object.hasOwn(install.opl_agent_package_install, 'lifecycle_receipt'), false);
+    ], env);
+    assert.equal(installFailure.payload.error.code, 'contract_shape_invalid');
+    assert.equal(
+      installFailure.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
+    );
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(ledgerPath), false);
 
     const status = runCli([

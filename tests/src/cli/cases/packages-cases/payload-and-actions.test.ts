@@ -5,14 +5,12 @@ import {
   formatJsonPayload,
   fs,
   os,
-  parseJsonText,
   path,
   pathToFileURL,
   runCli,
   runCliAsync,
   runCliFailure,
   test,
-  withAgentPackageServer,
   withRemotePayloadAgentPackageServer,
 } from './helpers.ts';
 function writeEmptyCodexPluginCarrier(binary: string) {
@@ -23,7 +21,7 @@ process.stdout.write(JSON.stringify({ installed: [], available: [] }));
   fs.chmodSync(binary, 0o755);
 }
 
-test('ordinary remote payload manifests cannot enter the legacy materializer', async () => {
+test('ordinary remote payload manifests require a native owner without private lifecycle writes', async () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-remote-payload-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-remote-payload-home-'));
   const codexBinary = path.join(homeDir, 'empty-codex.mjs');
@@ -57,7 +55,7 @@ test('ordinary remote payload manifests cannot enter the legacy materializer', a
   }
 });
 
-test('third-party package carrier stays isolated from canonical marketplace aliases', () => {
+test('manifest-only third-party packages cannot mutate canonical marketplace aliases', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-canonical-carrier-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-canonical-carrier-home-'));
   const codexHome = path.join(homeDir, '.codex');
@@ -102,25 +100,24 @@ test('third-party package carrier stays isolated from canonical marketplace alia
       distributionPayload: null,
     })), 'utf8');
 
-    const install = runCli([
+    const failure = runCliFailure([
       'packages', 'install', '--manifest-url', manifestPath, '--trust-tier', 'third_party_verified',
     ], {
       OPL_STATE_DIR: stateDir,
       HOME: homeDir,
       CODEX_HOME: codexHome,
-    }) as any;
-    const physical = install.opl_agent_package_install.physical_surface;
+    });
     const config = fs.readFileSync(configPath, 'utf8');
 
-    assert.equal(physical.marketplace_id, 'opl-agent-third.party.redcube-local');
-    assert.match(
-      physical.codex_plugin_cache_path,
-      /opl-agent-third\.party\.redcube-local\/redcube-ai\/1\.2\.3$/,
+    assert.equal(failure.payload.error.code, 'contract_shape_invalid');
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
     );
-    assert.match(config, /\[plugins\."redcube-ai@opl-agent-third\.party\.redcube-local"\]/);
+    assert.equal(config.includes('opl-agent-third.party.redcube-local'), false);
     assert.match(config, /rca@rca-local/);
     assert.match(config, /opl-agent-rca-local/);
-    assert.equal(physical.removed_paths.length, 0);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
     for (const marketplaceId of legacyMarketplaceIds) {
       assert.equal(fs.existsSync(path.join(stateDir, 'codex-plugin-marketplaces', marketplaceId)), true);
       assert.equal(fs.existsSync(path.join(codexHome, 'plugins', 'cache', marketplaceId)), true);
@@ -133,7 +130,7 @@ test('third-party package carrier stays isolated from canonical marketplace alia
   }
 });
 
-test('packages rejects local package payloads missing bundled required skills', () => {
+test('manifest-only packages fail closed before legacy payload validation or writes', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-missing-skill-state-'));
   const pluginSourcePath = createPluginSourceFixture({ includeRequiredSkill: false });
   const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-missing-skill-'));
@@ -150,8 +147,10 @@ test('packages rejects local package payloads missing bundled required skills', 
     ], { OPL_STATE_DIR: stateDir });
 
     assert.equal(failure.payload.error.code, 'contract_shape_invalid');
-    assert.equal(failure.payload.error.details.failure_code, 'agent_package_required_skill_missing');
-    assert.deepEqual(failure.payload.error.details.missing_required_skill_ids, ['third-party-research']);
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
+    );
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
@@ -160,7 +159,7 @@ test('packages rejects local package payloads missing bundled required skills', 
   }
 });
 
-test('package profile metadata remains owner-managed without Framework profile artifacts', () => {
+test('manifest-only profile metadata remains inert without a native owner', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-profile-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-profile-home-'));
   const codexHome = path.join(homeDir, '.codex');
@@ -205,33 +204,25 @@ if (process.argv.slice(2).join(' ') === 'plugin list --json') {
       },
     })), 'utf8');
 
-    const install = runCli([
+    const failure = runCliFailure([
       'packages',
       'install',
       '--manifest-url',
       manifestPath,
       '--trust-tier',
       'third_party_verified',
-    ], env) as any;
-    const surface = install.opl_agent_package_install.physical_surface;
-    const migration = surface.profile_migration;
-    assert.equal(surface.profile_config.runtime_profile.source_path, 'templates/AGENTS.md');
-    assert.equal(migration.status, 'not_requested');
-    assert.equal(migration.writes_performed, false);
-    assert.equal(migration.receipt_path, null);
-    assert.equal(migration.merge_packet_path, null);
-    assert.deepEqual(migration.mutation_actions, []);
+    ], env);
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
+    );
     assert.equal(fs.readFileSync(path.join(codexHome, 'AGENTS.md'), 'utf8'), existingProfile);
     assert.equal(fs.existsSync(path.join(codexHome, 'TASTE.md')), false);
     assert.equal(
       fs.existsSync(path.join(codexHome, 'state', 'third.party.research')),
       false,
     );
-    const lockPath = path.join(stateDir, 'agent-package-locks.json');
-    const lockBefore = fs.readFileSync(lockPath, 'utf8');
-    assert.equal(fs.readFileSync(path.join(codexHome, 'AGENTS.md'), 'utf8'), existingProfile);
-    assert.equal(fs.existsSync(path.join(codexHome, 'TASTE.md')), false);
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBefore);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
     fs.rmSync(homeDir, { recursive: true, force: true });
@@ -307,7 +298,7 @@ process.stdout.write(JSON.stringify({ installed: [{
   }
 });
 
-test('packages retain declared profile metadata without materializing an empty Codex home', () => {
+test('manifest-only profile metadata cannot materialize an empty Codex home', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-fresh-profile-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-fresh-profile-home-'));
   const pluginSourcePath = createPluginSourceFixture();
@@ -328,27 +319,25 @@ test('packages retain declared profile metadata without materializing an empty C
       },
     })), 'utf8');
     const codexHome = path.join(homeDir, '.codex');
-    const install = runCli([
+    const failure = runCliFailure([
       'packages',
       'install',
       '--manifest-url',
       manifestPath,
       '--trust-tier',
       'third_party_verified',
-    ], { OPL_STATE_DIR: stateDir, HOME: homeDir, CODEX_HOME: codexHome }) as any;
-    const surface = install.opl_agent_package_install.physical_surface;
-    const migration = surface.profile_migration;
-    assert.equal(surface.profile_config.runtime_profile.source_path, 'templates/AGENTS.md');
-    assert.equal(migration.status, 'not_requested');
-    assert.equal(migration.writes_performed, false);
-    assert.equal(migration.receipt_path, null);
-    assert.equal(migration.merge_packet_path, null);
+    ], { OPL_STATE_DIR: stateDir, HOME: homeDir, CODEX_HOME: codexHome });
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
+    );
     assert.equal(fs.existsSync(path.join(codexHome, 'AGENTS.md')), false);
     assert.equal(fs.existsSync(path.join(codexHome, 'TASTE.md')), false);
     assert.equal(
       fs.existsSync(path.join(codexHome, 'state', 'third.party.research')),
       false,
     );
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
     fs.rmSync(homeDir, { recursive: true, force: true });
@@ -357,7 +346,7 @@ test('packages retain declared profile metadata without materializing an empty C
   }
 });
 
-test('legacy profile receipt collisions do not affect package installation after writer retirement', () => {
+test('legacy profile receipt collisions stay inert for manifest-only packages', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-profile-failure-state-'));
   const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-profile-failure-home-'));
   const pluginSourcePath = createPluginSourceFixture();
@@ -377,19 +366,20 @@ test('legacy profile receipt collisions do not affect package installation after
       },
     })));
 
-    const install = runCli([
+    const failure = runCliFailure([
       'packages', 'install', '--manifest-url', manifestPath, '--trust-tier', 'third_party',
-    ], { OPL_STATE_DIR: stateDir, CODEX_HOME: codexHome }) as any;
-    const migration = install.opl_agent_package_install.physical_surface.profile_migration;
-    assert.equal(install.opl_agent_package_install.status, 'installed');
-    assert.equal(migration.status, 'not_requested');
-    assert.equal(migration.writes_performed, false);
+    ], { OPL_STATE_DIR: stateDir, CODEX_HOME: codexHome });
+    assert.equal(
+      failure.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
+    );
     assert.equal(fs.existsSync(path.join(codexHome, 'AGENTS.md')), false);
     assert.equal(fs.existsSync(path.join(codexHome, 'TASTE.md')), false);
     assert.equal(
       fs.statSync(path.join(codexHome, 'state', 'third.party.research', 'profile-install-receipt.json')).isDirectory(),
       true,
     );
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
     fs.rmSync(codexHome, { recursive: true, force: true });
@@ -397,7 +387,7 @@ test('legacy profile receipt collisions do not affect package installation after
   }
 });
 
-test('app action keeps local preference bytes inert without a native descriptor', () => {
+test('app actions fail closed without a native descriptor while retaining user preferences', () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-app-action-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-app-action-home-'));
   const codexHome = path.join(homeDir, '.codex');
@@ -415,19 +405,7 @@ test('app action keeps local preference bytes inert without a native descriptor'
     const manifestPath = path.join(fixtureDir, 'manifest.json');
     fs.writeFileSync(manifestPath, formatJsonPayload(agentPackageManifest({ pluginSourcePath })), 'utf8');
     const manifestUrl = pathToFileURL(manifestPath).href;
-    const missingTrustTier = runCliFailure([
-      'app',
-      'action',
-      'execute',
-      '--action',
-      'install_from_manifest_url',
-      '--payload',
-      JSON.stringify({ manifest_url: manifestUrl }),
-    ], env);
-    assert.equal(missingTrustTier.payload.error.code, 'cli_usage_error');
-    assert.deepEqual(missingTrustTier.payload.error.details.required, ['--trust-tier']);
-    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
-    const output = runCli([
+    const installFailure = runCliFailure([
       'app',
       'action',
       'execute',
@@ -438,31 +416,13 @@ test('app action keeps local preference bytes inert without a native descriptor'
         manifest_url: manifestUrl,
         trust_tier: 'third_party_verified',
       }),
-    ], env) as {
-      app_action_execution: {
-        delegated_surface: string;
-        result: {
-          opl_agent_package_install: {
-            status: string;
-            package_id: string;
-            package_lock: { package_id: string; source_kind: string };
-          };
-        };
-      };
-    };
-
-    assert.equal(output.app_action_execution.delegated_surface, 'opl packages install --manifest-url <manifest_url>');
-    assert.equal(output.app_action_execution.result.opl_agent_package_install.status, 'installed');
-    assert.equal(output.app_action_execution.result.opl_agent_package_install.package_id, 'third.party.research');
-    assert.equal(output.app_action_execution.result.opl_agent_package_install.package_lock.package_id, 'third.party.research');
-    assert.equal(output.app_action_execution.result.opl_agent_package_install.package_lock.source_kind, 'local_manifest_file');
+    ], env);
     assert.equal(
-      Object.hasOwn(output.app_action_execution.result.opl_agent_package_install, 'lifecycle_receipt'),
-      false,
+      installFailure.payload.error.details.failure_code,
+      'agent_package_lifecycle_native_owner_required',
     );
-
-    const lockPath = path.join(stateDir, 'agent-package-locks.json');
-    const lockBytesBeforeRepair = fs.readFileSync(lockPath, 'utf8');
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
     const repairFailure = runCliFailure([
       'app',
       'action',
@@ -476,9 +436,7 @@ test('app action keeps local preference bytes inert without a native descriptor'
       repairFailure.payload.error.details.failure_code,
       'agent_package_lifecycle_native_owner_required',
     );
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytesBeforeRepair);
 
-    const lockBeforeExposure = fs.readFileSync(lockPath, 'utf8');
     const exposurePreference = runCliFailure([
       'app',
       'action',
@@ -496,7 +454,7 @@ test('app action keeps local preference bytes inert without a native descriptor'
       'agent_package_exposure_native_owner_required',
     );
     assert.equal(exposurePreference.payload.error.details.action, 'disable');
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBeforeExposure);
+    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
 
     const shortcutPreference = runCli([
       'app',
