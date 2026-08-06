@@ -14,7 +14,6 @@ import type {
   AgentPackageCarrierAuthority,
   AgentPackageLifecycleAction,
   AgentPackageLock,
-  AgentPackageLockIndex,
   AgentPackageManifest,
   AgentPackagePhysicalSurface,
   AgentPackageResolvedDependency,
@@ -26,16 +25,6 @@ import type {
 export function packageLockRef(packageId: string, version: string, sourceSha256: string) {
   const canonicalPackageId = canonicalAgentPackageId(packageId) ?? packageId;
   return `opl://agent-package-lock/${encodeURIComponent(canonicalPackageId)}/${encodeURIComponent(version)}/${sourceSha256.slice(0, 16)}`;
-}
-
-export function packageActionSourceSha256(action: AgentPackageLifecycleAction, lock: AgentPackageLock) {
-  return sha256Text([
-    action,
-    lock.package_id,
-    lock.package_version,
-    lock.manifest_sha256,
-    lock.lock_ref,
-  ].join('\n'));
 }
 
 export function packageActionStatus(action: AgentPackageLifecycleAction) {
@@ -63,19 +52,6 @@ export function requirePackageId(packageId: string | null | undefined, action: s
   return normalized;
 }
 
-export function requireInstalledPackage(index: AgentPackageLockIndex, packageId: string, action: AgentPackageLifecycleAction) {
-  const lockIndex = index.packages.findIndex((entry) => entry.package_id === packageId);
-  if (lockIndex < 0) {
-    throw new FrameworkContractError('contract_shape_invalid', `Agent package ${action} requires an installed package lock.`, {
-      package_id: packageId,
-      action,
-      failure_code: 'agent_package_lock_missing',
-      installed_package_ids: index.packages.map((entry) => entry.package_id),
-    });
-  }
-  return { lockIndex, lock: index.packages[lockIndex] };
-}
-
 export function permissionScopeSha256(manifest: AgentPackageManifest) {
   return sha256Text(JSON.stringify({
     codex_default_exposure: manifest.codex_default_exposure === false ? false : undefined,
@@ -84,26 +60,6 @@ export function permissionScopeSha256(manifest: AgentPackageManifest) {
     permissions: manifest.permissions,
     runtime_source_carrier: manifest.runtime_source_carrier,
   }));
-}
-
-export function assertPermissionScopeUnchanged(previousLock: AgentPackageLock | null, manifest: AgentPackageManifest, action: 'install' | 'update') {
-  if (!previousLock || action === 'install') {
-    return;
-  }
-  if (previousLock.capability_provider && manifest.capability_provider) {
-    return;
-  }
-  const nextSha256 = permissionScopeSha256(manifest);
-  if (previousLock.permission_scope_sha256 && previousLock.permission_scope_sha256 !== nextSha256) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package permission or scope changes require manual confirmation before update.', {
-      package_id: manifest.package_id,
-      action,
-      failure_code: 'agent_package_permission_scope_change_requires_manual_confirmation',
-      previous_permission_scope_sha256: previousLock.permission_scope_sha256,
-      next_permission_scope_sha256: nextSha256,
-      manual_confirmation_path: 'uninstall the existing lock, review the manifest, then run install explicitly',
-    });
-  }
 }
 
 export function buildLock(input: {
