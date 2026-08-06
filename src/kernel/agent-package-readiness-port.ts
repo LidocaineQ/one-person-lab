@@ -1,6 +1,5 @@
 type AgentPackageReadinessPort = {
   readStatus: (input: any) => any;
-  ensureScopeActivation: (input: any) => Promise<any>;
 };
 
 let registeredPort: AgentPackageReadinessPort | null = null;

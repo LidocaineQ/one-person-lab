@@ -769,7 +769,6 @@ export async function runFamilyRuntime(
           )({
             domainId: parsed.input.domainId,
             workspaceLocator: parsed.input.workspaceLocator,
-            activateMissingScope: Boolean(parsed.input.start),
             ...(parsed.input.start ? { useBoundaryId } : {}),
             ...(pinnedUseBinding ? { pinnedUseBinding } : {}),
           });
