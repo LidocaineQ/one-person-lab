@@ -317,6 +317,7 @@ test('generic package activation action preserves the native carrier boundary in
   const consumerPackageId = 'fixture.app-action-consumer';
   const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0', {
     packageId: providerPackageId,
+    configuredCarrier: true,
   });
   const consumerManifest = writeMasConsumer(path.join(root, 'consumer'), providerManifest, '0.1.0a4', {
     packageId: consumerPackageId,
@@ -328,6 +329,9 @@ test('generic package activation action preserves the native carrier boundary in
     CODEX_HOME: path.join(root, 'codex-home'),
   };
   try {
+    await runCliAsync([
+      'packages', 'install', '--manifest-url', providerManifest, '--trust-tier', 'third_party_unverified',
+    ], env);
     await runCliAsync([
       'packages', 'install', '--manifest-url', consumerManifest, '--trust-tier', 'third_party_unverified',
     ], env);
@@ -395,6 +399,7 @@ test('native activation returns no private use binding or lifecycle state', asyn
     const providerPackageId = 'fixture.rca-provider';
     const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0', {
       packageId: providerPackageId,
+      configuredCarrier: true,
     });
     const manifest = writeMasConsumer(path.join(root, 'rca'), providerManifest, '0.1.0a4', {
       packageId,
@@ -403,6 +408,9 @@ test('native activation returns no private use binding or lifecycle state', asyn
       pluginId: 'redcube-ai',
       configuredCarrier: true,
     });
+    await runCliAsync([
+      'packages', 'install', '--manifest-url', providerManifest, '--trust-tier', 'third_party_unverified',
+    ], env);
     await runCliAsync([
       'packages', 'install', '--manifest-url', manifest, '--trust-tier', 'third_party_unverified',
     ], env);
@@ -452,6 +460,7 @@ test('package activation dry-run leaves the native carrier and private state unt
     const providerPackageId = 'fixture.rca-dry-run-provider';
     const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0', {
       packageId: providerPackageId,
+      configuredCarrier: true,
     });
     const manifest = writeMasConsumer(path.join(root, 'rca'), providerManifest, '0.1.0a4', {
       packageId,
@@ -460,6 +469,9 @@ test('package activation dry-run leaves the native carrier and private state unt
       pluginId: 'redcube-ai',
       configuredCarrier: true,
     });
+    await runCliAsync([
+      'packages', 'install', '--manifest-url', providerManifest, '--trust-tier', 'third_party_unverified',
+    ], env);
     await runCliAsync([
       'packages', 'install', '--manifest-url', manifest, '--trust-tier', 'third_party_unverified',
     ], env);

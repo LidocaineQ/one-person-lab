@@ -73,6 +73,21 @@ function writeDeveloperPackageFixture(root: string, packageId: 'mag' | 'opl-flow
     }),
   );
   const pluginRoot = path.dirname(path.dirname(path.join(checkoutPath, spec.owner_plugin_manifest_ref)));
+  if (frameworkManifest.codex_surface.configured_codex_plugin_carrier) {
+    writeFixtureFile(
+      pluginRoot,
+      'opl-package.json',
+      formatJsonPayload({
+        ...frameworkManifest,
+        version,
+        source: 'first_party_repo_local',
+        codex_surface: {
+          ...(frameworkManifest.codex_surface ?? {}),
+          plugin_source_path: '.',
+        },
+      }),
+    );
+  }
   const requiredSkillIds = frameworkManifest.codex_surface.required_skill_ids as string[];
   const skillPaths = requiredSkillIds.map((skillId) => writeFixtureFile(
     pluginRoot,

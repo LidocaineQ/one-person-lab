@@ -393,25 +393,16 @@ test('projected package-only actions preview all bundled Full packages without w
       const preview = output.app_action_execution.result.opl_agent_package_install;
       assert.equal(preview.status, 'validated_no_write');
       assert.equal(preview.package_id, packageId);
-      assert.equal(preview.package_lock.source_kind, 'bundled_full_runtime_modules');
-      if (packageId === 'mas-scholar-skills') {
-        assert.equal(preview.package_lock.managed_runtime_source, null);
-        assert.equal(
-          path.resolve(preview.physical_surface.plugin_source_path),
-          path.resolve(fixture.bundledCatalog.scholarRoot),
-        );
-      } else {
-        assert.equal(
-          path.resolve(preview.package_lock.managed_runtime_source.checkout_path),
-          path.resolve(fixture.env[{
-            mas: 'OPL_MODULE_PATH_MEDAUTOSCIENCE',
-            mag: 'OPL_MODULE_PATH_MEDAUTOGRANT',
-            rca: 'OPL_MODULE_PATH_REDCUBE',
-            oma: 'OPL_MODULE_PATH_OPLMETAAGENT',
-            obf: 'OPL_MODULE_PATH_OPLBOOKFORGE',
-          }[packageId] as keyof typeof fixture.env]),
-        );
-      }
+      assert.equal(preview.configured_carrier.status, 'physical_unavailable');
+      assert.equal(preview.configured_carrier.operation, 'install');
+      assert.equal(preview.configured_carrier.native_action_dispatched, false);
+      assert.equal(
+        preview.required_dependency_packages.every((entry: Record<string, unknown>) =>
+          entry.status === 'validated_no_write'),
+        true,
+      );
+      assert.equal(Object.hasOwn(preview, 'package_lock'), false);
+      assert.equal(Object.hasOwn(preview, 'physical_surface'), false);
       assert.equal(Object.hasOwn(preview, 'lifecycle_receipt'), false);
     }
     const thirdParty = runCliFailure([
@@ -893,7 +884,7 @@ test('system configure-codex does not sync packaged Full companion skills', () =
   }
 });
 
-test('packages repair fails closed without a configured native owner and does not write legacy state', () => {
+test('packages repair dry-run is a native no-op and does not write legacy state', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bundled-package-repair-home-'));
   const captureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bundled-package-repair-capture-'));
   const fixture = buildFullRuntimeFamilyFixture({ captureDir, homeRoot });
@@ -928,12 +919,10 @@ test('packages repair fails closed without a configured native owner and does no
       filePath,
       fs.existsSync(filePath) ? fs.readFileSync(filePath) : null,
     ]));
-    const failure = runCliFailure(['packages', 'repair', 'oma', '--dry-run'], fixture.env);
-    assert.equal(failure.payload.error.code, 'contract_shape_invalid');
-    assert.equal(
-      failure.payload.error.details.failure_code,
-      'agent_package_lifecycle_native_owner_required',
-    );
+    const repair = runCli(['packages', 'repair', 'oma', '--dry-run'], fixture.env) as any;
+    assert.equal(repair.opl_agent_package_repair.status, 'validated_no_write');
+    assert.equal(repair.opl_agent_package_repair.configured_carrier.status, 'not_installed');
+    assert.equal(repair.opl_agent_package_repair.configured_carrier.native_action_dispatched, false);
     if (lockBytes) assert.deepEqual(fs.readFileSync(lockPath), lockBytes);
     for (const [filePath, bytes] of legacyStateBytes) {
       if (bytes) assert.deepEqual(fs.readFileSync(filePath), bytes, filePath);

@@ -48,6 +48,7 @@ import {
   buildAgentPackageDirectory,
   firstPartyConfiguredCarrierDescriptors,
 } from './agent-package-registry-parts/directory.ts';
+import { readBundledFullRuntimePackageCatalog } from './agent-package-registry-parts/bundled-full-runtime-catalog.ts';
 import {
   discoverInstalledCodexPluginDescriptors,
   discoverInstalledOwnerProfileDescriptors,
@@ -1798,20 +1799,67 @@ function buildAgentPackageStatusSnapshot(
   };
 }
 
+type DependencyProviderReadback = {
+  manifest: Pick<AgentPackageManifest, 'package_id' | 'version' | 'capability_provider'>;
+  manifest_sha256: string | null;
+  content_digest: string | null;
+  readiness: {
+    installed: boolean;
+    physical_status: 'available' | 'unavailable';
+    callability: 'callable' | 'disabled';
+  };
+};
+
+function bundledFullRuntimeDependencyProviders() {
+  const runtimeHome = process.env.OPL_FULL_RUNTIME_HOME?.trim();
+  const providers = new Map<string, DependencyProviderReadback>();
+  if (!runtimeHome) return providers;
+  const catalog = readBundledFullRuntimePackageCatalog();
+  for (const entry of catalog.entries.values()) {
+    const packageRoot = path.resolve(runtimeHome, entry.runtimeModuleRelativePath);
+    if (!fs.existsSync(packageRoot) || !fs.statSync(packageRoot).isDirectory()) continue;
+    const ownerManifestPath = path.join(packageRoot, 'opl-package.json');
+    if (!fs.existsSync(ownerManifestPath) || !fs.statSync(ownerManifestPath).isFile()) continue;
+    const manifestText = fs.readFileSync(ownerManifestPath, 'utf8');
+    const manifest = normalizePackageManifest(
+      parseJsonText(manifestText),
+      pathToFileURL(ownerManifestPath).toString(),
+    );
+    if (manifest.codex_default_exposure !== false) continue;
+    const requiredSkillIds = manifest.required_skill_ids;
+    const skillsReady = requiredSkillIds.every((skillId) => (
+      fs.existsSync(path.join(packageRoot, 'skills', skillId, 'SKILL.md'))
+    ));
+    providers.set(manifest.package_id, {
+      manifest,
+      manifest_sha256: sha256Text(manifestText),
+      content_digest: manifest.content_digest ?? null,
+      readiness: {
+        installed: true,
+        physical_status: skillsReady ? 'available' : 'unavailable',
+        callability: skillsReady ? 'callable' : 'disabled',
+      },
+    });
+  }
+  return providers;
+}
+
 function descriptorDependencyReadinessFor(
   root: ReturnType<typeof discoverInstalledCodexPluginDescriptors> extends ReadonlyMap<string, infer V> ? V : never,
   installedCodexPluginDescriptors: ReturnType<typeof discoverInstalledCodexPluginDescriptors>,
 ) {
+  const providers = bundledFullRuntimeDependencyProviders();
+  for (const [packageId, descriptor] of installedCodexPluginDescriptors.entries()) {
+    providers.set(packageId, {
+      manifest: descriptor.manifest,
+      manifest_sha256: descriptor.manifest_sha256,
+      content_digest: descriptor.manifest.content_digest ?? null,
+      readiness: descriptor.readiness,
+    });
+  }
   return descriptorDependencyReadiness({
     root: root.manifest,
-    providers: new Map(
-      [...installedCodexPluginDescriptors.entries()].map(([packageId, descriptor]) => [packageId, {
-        manifest: descriptor.manifest,
-        manifest_sha256: descriptor.manifest_sha256,
-        content_digest: descriptor.manifest.content_digest ?? null,
-        readiness: descriptor.readiness,
-      }]),
-    ),
+    providers,
   });
 }
 
