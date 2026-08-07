@@ -349,6 +349,21 @@ test('retired Package lifecycle lock construction stays absent', () => {
       retiredMaterializerSymbol,
     );
   }
+  const developerRuntimeSource = fs.readFileSync(
+    path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/developer-checkout-runtime-source.ts'),
+    'utf8',
+  );
+  for (const retiredDeveloperRuntimeSymbol of [
+    'materializeDeveloperCheckoutRuntimeSnapshot',
+    'makeDeveloperCheckoutRuntimeSnapshotWritable',
+    'buildDeveloperCheckoutRuntimeSourceState',
+  ]) {
+    assert.doesNotMatch(
+      developerRuntimeSource,
+      new RegExp(`\\b${retiredDeveloperRuntimeSymbol}\\b`),
+      retiredDeveloperRuntimeSymbol,
+    );
+  }
 });
 
 test('active Foundry operating-evidence contract uses only kernel canonical ids', () => {
