@@ -214,6 +214,10 @@ test('full Settings projection follows App page ownership without treating activ
       .find((item) => item.item_id === 'agent_package_store_inventory')?.risk,
     'read_only',
   );
+  const packageStorageItem = settings.settings_projection.sections.storage.items
+    .find((item) => item.item_id === 'agent_package_store_inventory');
+  assert.match(packageStorageItem?.normal_summary ?? '', /installed Package carrier/);
+  assert.doesNotMatch(packageStorageItem?.normal_summary ?? '', /managed package locks/);
   assert.equal(
     settings.settings_projection.sections.storage.items
       .find((item) => item.item_id === 'webui_data_volume_inventory')?.next_action,

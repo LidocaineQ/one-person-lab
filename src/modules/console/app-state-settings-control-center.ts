@@ -325,7 +325,7 @@ function buildSettingsProjection(
         scope: 'local_machine',
         owner: 'one-person-lab',
         risk: riskForTask(taskByActionId(taskEntries, 'settings_inventory_agent_package_store')),
-        normal_summary: 'Storage totals come from managed package locks; cleanup remains the existing package uninstall action.',
+        normal_summary: 'Storage totals come from the installed Package carrier; cleanup remains the Package owner uninstall action.',
         next_action: 'settings_inventory_agent_package_store',
         details_ref: 'app_state.settings_control_center.app_settings_read_model.storage_lifecycle.agent_package_store',
         editable_reason: editableReasonForTask(taskEntries, 'settings_inventory_agent_package_store', 'owner_inventory_unavailable'),
