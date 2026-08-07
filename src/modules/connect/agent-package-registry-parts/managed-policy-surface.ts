@@ -25,7 +25,6 @@ import type {
   AgentPackageExperienceBaselineReadback,
   AgentPackageCodexModelPolicyProjection,
   AgentPackageFlowCapabilityBundle,
-  AgentPackageLock,
   AgentPackageManagedPolicyCurrentness,
   AgentPackageManagedPolicyCapabilityReadbackItem,
   AgentPackageManagedPolicyDependency,
@@ -1689,39 +1688,6 @@ export function managedPolicyCurrentnessFromDescriptor(input: {
   } catch (error) {
     return invalid(error instanceof Error ? error.message : 'Managed policy readback failed.');
   }
-}
-
-export function managedPolicyCurrentness(
-  lock?: AgentPackageLock | null,
-): AgentPackageManagedPolicyCurrentness {
-  const surface = lock?.physical_surface;
-  const config = surface?.managed_policy_config;
-  if (!lock || !surface || !config) {
-    return noManagedPolicyCurrentness('Package does not request a managed policy surface.');
-  }
-  const sourceRoot = surface.status === 'validated_no_write'
-    ? surface.plugin_source_path
-    : surface.codex_plugin_cache_path ?? surface.plugin_source_path;
-  if (!sourceRoot) {
-    return {
-      ...noManagedPolicyCurrentness('Managed policy source root is unavailable from the installed package lock.'),
-      status: 'invalid',
-      policy_kind: config.policy_kind,
-      repair_command: `opl packages repair --package-id ${lock.package_id}`,
-    };
-  }
-  return managedPolicyCurrentnessFromDescriptor({
-    manifest: {
-      package_id: lock.package_id,
-      version: lock.package_version,
-      plugin_id: surface.plugin_id,
-      required_skill_ids: lock.bundled_required_skill_ids,
-      managed_policy_surface: config,
-    } as AgentPackageManifest,
-    sourceRoot,
-    enabledMigrationIds: surface.workflow_policy_migration.migration_ids,
-    expectedPolicySha256: surface.workflow_policy_migration.policy_sha256,
-  });
 }
 
 function managedPolicyRollbackConflict(

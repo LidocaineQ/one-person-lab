@@ -364,6 +364,25 @@ test('retired Package lifecycle lock construction stays absent', () => {
       retiredDeveloperRuntimeSymbol,
     );
   }
+  const packageTypes = fs.readFileSync(
+    path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/types.ts'),
+    'utf8',
+  );
+  for (const retiredLockType of [
+    'AgentPackageManagedRuntimeSourceState',
+    'AgentPackageScopeMaterialization',
+    'AgentPackageProfileMigration',
+    'AgentPackagePhysicalSurface',
+    'AgentPackageLock',
+    'AgentPackageLockIndex',
+  ]) {
+    assert.doesNotMatch(packageTypes, new RegExp(`\\b${retiredLockType}\\b`), retiredLockType);
+  }
+  const managedPolicySurface = fs.readFileSync(
+    path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/managed-policy-surface.ts'),
+    'utf8',
+  );
+  assert.doesNotMatch(managedPolicySurface, /\bmanagedPolicyCurrentness\b/);
 });
 
 test('active Foundry operating-evidence contract uses only kernel canonical ids', () => {

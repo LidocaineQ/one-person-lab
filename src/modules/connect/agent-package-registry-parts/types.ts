@@ -317,31 +317,6 @@ export type AgentPackageManagedRuntimeSourceCarrier = {
   module_id: string;
 };
 
-export type AgentPackageManagedRuntimeSourceState = {
-  surface_kind: 'opl_agent_package_managed_runtime_source';
-  status: 'validated_no_write' | 'current' | 'retained_on_uninstall' | 'removed';
-  carrier_kind: 'opl_managed_module_source';
-  module_id: string;
-  checkout_path: string;
-  source_checkout_path?: string | null;
-  ownership: 'package_created' | 'preexisting_adopted';
-  source_mode?: 'package_channel' | 'developer_checkout' | 'bundled_full_runtime';
-  channel_version: string | null;
-  artifact_ref: string | null;
-  layer_digest: string | null;
-  source_archive_sha256: string | null;
-  source_git_head_sha: string | null;
-  tree_sha256: string;
-  runtime_snapshot_sha256?: string | null;
-  preparation_status: 'validated_no_write' | 'completed';
-  bootstrap_command: string[] | null;
-  package_prepare_command?: string[] | null;
-  health_check_command: string[];
-  handler_probe_command: string[];
-  preparation_root: string | null;
-  preparation_scope: 'managed_source_root' | 'developer_checkout_root' | 'developer_snapshot_root' | 'preexisting_read_only_probe';
-};
-
 export type AgentPackageManagedRuntimeSourceReadiness = {
   status: 'not_required' | 'missing' | 'current' | 'incompatible';
   operational_ready: boolean;
@@ -656,24 +631,6 @@ export type AgentPackageMaterializationReadiness = {
   };
 };
 
-export type AgentPackageScopeMaterialization = {
-  scope: 'workspace' | 'quest';
-  target_root: string;
-  provider_package_id: string;
-  provider_lock_ref: string;
-  consumer_profile_id?: string | null;
-  transaction_id: string;
-  required_skill_ids: string[];
-  managed_skill_ids: string[];
-  specialty_skill_ids: string[];
-  retired_skill_ids: string[];
-  skill_digests: Record<string, string>;
-  content_digest: string;
-  core_digest: string;
-  full_export_digest: string;
-  materialized_at: string;
-};
-
 export type AgentPackageProfileSurfaceConfig = {
   runtime_profile: {
     source_path: string;
@@ -685,117 +642,6 @@ export type AgentPackageProfileSurfaceConfig = {
   }>;
   merge_context_paths: string[];
   existing_profile_policy: 'semantic_merge_required';
-};
-
-export type AgentPackageProfileMigration = {
-  surface_kind: 'opl_package_profile_migration';
-  status:
-    | 'not_requested'
-    | 'validated_no_write'
-    | 'installed'
-    | 'updated'
-    | 'current'
-    | 'semantic_merge_required'
-    | 'semantic_merge_applied'
-    | 'rolled_back'
-    | 'retained_on_uninstall';
-  source_path: string | null;
-  target_path: string | null;
-  source_sha256: string | null;
-  target_sha256: string | null;
-  receipt_path: string | null;
-  merge_packet_path: string | null;
-  apply_command: string | null;
-  authoring_source_paths: string[];
-  mutation_actions: Array<{
-    surface_kind: 'runtime_profile' | 'authoring_source' | 'profile_receipt';
-    operation: 'created' | 'overwritten';
-    target_path: string;
-    backup_ref: string | null;
-    backup_sha256: string | null;
-    written_sha256: string;
-  }>;
-  rollback_backups_retained: boolean;
-  writes_performed: boolean;
-  note: string;
-};
-
-export type AgentPackagePhysicalSurface = {
-  surface_kind: 'opl_agent_package_physical_codex_surface';
-  status: 'not_requested' | 'validated_no_write' | 'materialized' | 'removed';
-  package_id: string;
-  plugin_id: string | null;
-  marketplace_id: string | null;
-  codex_home: string;
-  codex_config_path: string;
-  codex_config_preexisting: boolean;
-  plugin_source_path: string | null;
-  plugin_manifest_path: string | null;
-  codex_plugin_cache_path: string | null;
-  immutable_cache_digest?: string | null;
-  marketplace_root: string | null;
-  marketplace_path: string | null;
-  marketplace_plugin_path: string | null;
-  plugin_payload_manifest_url: string | null;
-  plugin_payload_manifest_sha256: string | null;
-  plugin_payload_cache_path: string | null;
-  materialized_required_skill_ids: string[];
-  materialized_required_skill_paths: string[];
-  removed_paths: string[];
-  writes_performed: boolean;
-  reload_required: boolean;
-  failure_reason: string | null;
-  note: string | null;
-  profile_config: AgentPackageProfileSurfaceConfig | null;
-  profile_migration: AgentPackageProfileMigration;
-  managed_policy_config: AgentPackageManagedPolicySurfaceConfig | null;
-  workflow_policy_migration: AgentPackageManagedPolicyMigration;
-  authority_boundary: AgentPackageAuthorityBoundary;
-};
-
-export type AgentPackageLock = {
-  surface_kind: 'opl_agent_package_lock';
-  package_id: string;
-  agent_id: string | null;
-  package_role?: AgentPackageRole;
-  display_name: string;
-  publisher: string;
-  package_version: string;
-  owner_language_version: AgentPackageOwnerLanguageVersion | null;
-  codex_visible_entry: string;
-  bundled_required_skill_ids: string[];
-  optional_skill_refs: string[];
-  source_kind: AgentPackageSourceKind;
-  trust_tier: string;
-  manifest_url: string;
-  manifest_sha256: string;
-  source_artifact_ref?: string | null;
-  artifact_digest?: string | null;
-  owner_source_commit?: string | null;
-  carrier_authority?: AgentPackageCarrierAuthority | null;
-  release_channel_ref?: string | null;
-  release_channel_digest?: string | null;
-  permission_scope_sha256: string;
-  lock_ref: string;
-  physical_surface?: AgentPackagePhysicalSurface;
-  exposure_state?: 'visible' | 'hidden' | 'enabled' | 'disabled';
-  capability_provider: AgentPackageCapabilityProvider | null;
-  capability_dependencies: AgentPackageCapabilityDependency[];
-  resolved_dependencies: AgentPackageResolvedDependency[];
-  dependency_closure_digest: string;
-  dependency_transaction_id: string;
-  content_digest: string;
-  content_lock_canonicalization?:
-    | 'ordered_path_nul_file_bytes'
-    | 'ordered_path_length_file_length_bytes'
-    | null;
-  content_lock_paths: string[];
-  package_content_digest?: string | null;
-  scope_materializations: AgentPackageScopeMaterialization[];
-  runtime_source_carrier: AgentPackageManagedRuntimeSourceCarrier | null;
-  managed_runtime_source: AgentPackageManagedRuntimeSourceState | null;
-  managed_update_source: AgentPackageManagedVersionCatalogSource | null;
-  developer_checkout_source?: AgentPackageDeveloperCheckoutSource | null;
 };
 
 // Read-only compatibility for immutable Attempt evidence produced before the
@@ -847,10 +693,4 @@ export type AgentPackageRegistryDocument = {
   registry_url: string;
   registry_sha256: string;
   entries: AgentPackageRegistryEntry[];
-};
-
-export type AgentPackageLockIndex = {
-  surface_kind: 'opl_agent_package_lock_index';
-  version: 'opl-agent-package-lock-index.v1';
-  packages: AgentPackageLock[];
 };
