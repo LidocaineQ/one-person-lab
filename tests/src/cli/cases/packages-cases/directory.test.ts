@@ -934,6 +934,32 @@ test('external registry selectors reject forged claims and never become a direct
   }
 });
 
+test('ordinary directory accepts an owner-channel selected catalog version', () => {
+  const manifest = agentPackageManifest({ packageId: 'third.party.owner-channel' });
+  const manifestJson = formatJsonPayload(manifest);
+  const normalized = normalizePackageCatalogDocument({
+    surface_kind: 'opl_package_catalog.v1',
+    packages: {
+      package_catalog: {
+        'third.party.owner-channel': {
+          package_id: 'third.party.owner-channel',
+          package_role: 'standard_agent',
+          source: 'third_party',
+          trust_tier: 'third_party_verified',
+          selected_version: '1.2.3',
+          versions: [{
+            package_version: '1.2.3',
+            selection_status: 'selected_for_owner_channel',
+            manifest_url: 'file:///tmp/owner-channel.json',
+            manifest_json: manifestJson,
+          }],
+        },
+      },
+    },
+  }, 'file:///tmp/owner-channel-catalog.json', 'catalog-sha');
+  assert.equal(normalized.entries[0].selected_version, '1.2.3');
+});
+
 
 test('ordinary list, status, App, and Home surfaces ignore retired Release Catalog cache files', () => {
   const fixture = isolatedPackageEnv('opl-package-directory');

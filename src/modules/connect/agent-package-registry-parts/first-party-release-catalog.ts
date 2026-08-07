@@ -76,7 +76,7 @@ export async function refreshFirstPartyPackageCatalogSnapshot(
       selected_version: manifest.version,
       versions: [{
         package_version: manifest.version,
-        selection_status: 'selected_for_release_set',
+        selection_status: 'selected_for_owner_channel',
         manifest_url: `opl+oci://${sourceArtifactRef}#/package-manifest.json`,
         manifest_sha256: artifact.manifest_layer_digest,
         manifest_json: artifact.manifest_json,

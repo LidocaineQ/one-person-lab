@@ -69,6 +69,28 @@ test('Package owner catalog selects the exact declared root version without comp
   assert.equal(selected.selection_status, 'retained_history');
 });
 
+test('Package owner catalog defaults selected versions to the owner channel', () => {
+  const payload = releaseSetCatalog({
+    example: {
+      package_id: 'example',
+      package_role: 'standard_agent',
+      selected_version: '2.0.0',
+      versions: [{
+        package_version: '2.0.0',
+        manifest_url: 'https://packages.example.test/example/2.0.0/manifest.json',
+        manifest_sha256: digest('2'),
+      }],
+    },
+  });
+
+  const selected = selectManagedCatalogPackageVersion(
+    normalizeManagedPackageCatalog(payload),
+    'example',
+  );
+
+  assert.equal(selected.selection_status, 'selected_for_owner_channel');
+});
+
 test('offline Release Set bridge without a surface kind retains exact selection and digest', () => {
   const payload = releaseSetCatalog({
     example: {

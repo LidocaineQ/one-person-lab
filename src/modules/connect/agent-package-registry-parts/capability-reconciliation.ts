@@ -20,7 +20,7 @@ export type ManagedCatalogVersion = {
   package_content_digest: string | null;
   owner_source_commit: string | null;
   dependency_package_ids: string[];
-  selection_status: 'selected_for_release_set' | 'retained_history';
+  selection_status: 'selected_for_owner_channel' | 'selected_for_release_set' | 'retained_history';
 };
 
 type ManagedCatalogEntry = {
@@ -42,7 +42,7 @@ function normalizedSha256(value: unknown) {
   return digest.startsWith('sha256:') ? digest : `sha256:${digest}`;
 }
 
-function releaseSetPackageCatalog(payload: unknown) {
+function packageCatalogPayload(payload: unknown) {
   if (!isRecord(payload)) return null;
   if (payload.surface_kind === 'opl_package_repository_index.v1') {
     throw new FrameworkContractError(
@@ -95,12 +95,14 @@ function normalizeCatalogVersion(value: unknown): ManagedCatalogVersion | null {
       : [],
     selection_status: value.selection_status === 'retained_history'
       ? 'retained_history'
-      : 'selected_for_release_set',
+      : value.selection_status === 'selected_for_release_set'
+        ? 'selected_for_release_set'
+        : 'selected_for_owner_channel',
   };
 }
 
 export function normalizeManagedPackageCatalog(payload: unknown): ManagedPackageCatalog {
-  const packageCatalog = releaseSetPackageCatalog(payload);
+  const packageCatalog = packageCatalogPayload(payload);
   if (!packageCatalog) {
     throw new FrameworkContractError('contract_shape_invalid', 'Managed Package source must declare a Package owner catalog.', {
       failure_code: 'agent_package_catalog_invalid',

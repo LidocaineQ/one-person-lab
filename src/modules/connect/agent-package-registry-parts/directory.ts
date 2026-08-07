@@ -167,7 +167,7 @@ function selectedCatalogVersion(entry: Record<string, unknown>, packageId: strin
   const versions = recordList(entry.versions);
   const selected = versions.find((candidate) =>
     stringValue(candidate.package_version) === selectedVersion
-    && candidate.selection_status === 'selected_for_release_set'
+    && candidate.selection_status !== 'retained_history'
   );
   if (!selectedVersion || !selected) {
     throw new FrameworkContractError('contract_shape_invalid', 'OPL package catalog entry has no selected stable version.', {
