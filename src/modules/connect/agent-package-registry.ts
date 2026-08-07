@@ -1261,15 +1261,6 @@ async function maybeRunDescriptorOwnedFirstPartyLifecycle(input: DescriptorOwned
   }
 }
 
-function configuredCarrierUsesDeveloperCheckout(packageId: string | null) {
-  return Boolean(
-    packageId
-    && resolveFirstPartyPackageCatalog(packageId)
-    && resolveAgentPackageEffectiveSourcePolicy(packageId).desired_source_kind
-      === 'developer_checkout_override',
-  );
-}
-
 function explicitLocalSourceRef(value: string | null) {
   if (!value) return false;
   if (value.startsWith('file:')) return true;
