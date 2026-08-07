@@ -123,6 +123,21 @@ test('retired Package lock and Skill projection writers stay absent', () => {
   assert.doesNotMatch(statePaths, /agent_package_lock_file/);
 });
 
+test('ordinary owner-channel catalog paths do not emit Release Set selection state', () => {
+  const capabilityReconciliation = fs.readFileSync(
+    path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/capability-reconciliation.ts'),
+    'utf8',
+  );
+  const firstPartyCatalog = fs.readFileSync(
+    path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/first-party-release-catalog.ts'),
+    'utf8',
+  );
+  assert.doesNotMatch(capabilityReconciliation, /function releaseSetPackageCatalog\b/);
+  assert.match(capabilityReconciliation, /selected_for_owner_channel/);
+  assert.match(firstPartyCatalog, /selection_status: 'selected_for_owner_channel'/);
+  assert.doesNotMatch(firstPartyCatalog, /selection_status: 'selected_for_release_set'/);
+});
+
 test('retired profile and MAG aliases remain history-only in active docs', () => {
   const machineSurfaceViolations: string[] = [];
   const retiredAliases = [

@@ -894,6 +894,10 @@ test('live owner refresh stays ephemeral and does not request the shared manifes
     assert.equal(snapshot.freshness, 'live');
     assert.equal(snapshot.catalog_ref, 'ghcr.io/fixture/one-person-lab-packages/opl-flow:latest-stable');
     assert.equal(snapshot.catalog_digest, fixture.artifactDigest);
+    assert.equal(
+      snapshot.catalog.get('opl-flow')?.versions[0]?.selection_status,
+      'selected_for_owner_channel',
+    );
     assert.equal(Object.hasOwn(snapshot, 'release_set_descriptor_digest'), false);
     assert.equal(Object.hasOwn(snapshot, 'channel_manifest_layer_digest'), false);
     assert.equal(Object.hasOwn(snapshot, 'package_catalog_digest'), false);
