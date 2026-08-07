@@ -195,7 +195,7 @@ export function writeManagedRuntimeSourceFixture(input: {
           selected_version: input.version,
           versions: [{
             package_version: input.version,
-            selection_status: 'selected_for_release_set',
+            selection_status: 'selected_for_owner_channel',
             ...(manifestJson && manifestDigest ? {
               manifest_url: `opl+oci://${sourceArtifactRef}#/package-manifest.json`,
               manifest_sha256: manifestDigest,

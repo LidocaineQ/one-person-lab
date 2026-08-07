@@ -448,7 +448,7 @@ export function writeStartupPackageChannelFixture(input: {
       selected_version: input.version,
       versions: [{
         package_version: input.version,
-        selection_status: 'selected_for_release_set',
+        selection_status: 'selected_for_owner_channel',
         source_artifact_ref: `ghcr.io/owner/one-person-lab-packages/${packageId}:${input.version}`,
         artifact_digest: `sha256:${artifactDigest}`,
         artifact_status: 'published_immutable',

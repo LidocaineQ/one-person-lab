@@ -858,7 +858,7 @@ test('external registry selectors reject forged claims and never become a direct
             selected_version: '1.2.3',
             versions: [{
               package_version: '1.2.3',
-              selection_status: 'selected_for_release_set',
+              selection_status: 'selected_for_owner_channel',
               manifest_url: manifestUrl,
               manifest_json: formatJsonPayload(manifest),
             }],
