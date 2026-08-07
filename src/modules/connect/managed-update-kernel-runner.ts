@@ -40,7 +40,6 @@ import { rollbackCodexRuntimeGeneration } from './system-installation/engine-hel
 import { resolveProjectRoot } from './system-installation/shared.ts';
 import {
   acquireManagedUpdateLock,
-  MANAGED_UPDATE_LOCK_STALE_AFTER_SECONDS,
 } from './managed-update-lock.ts';
 import {
   managedUpdateComponentReceiptLedgerFilePath,
@@ -819,10 +818,4 @@ export async function runManagedUpdateKernelOperation(
   } finally {
     lock.release();
   }
-}
-
-export function managedUpdateKernelLockProjection() {
-  return {
-    stale_after_seconds: MANAGED_UPDATE_LOCK_STALE_AFTER_SECONDS,
-  };
 }
