@@ -393,27 +393,12 @@ test('RCA first-party manifest resolves the projected 0.2.13 carrier payload', (
   assert.equal(manifest.carrier_source_commit, '5af06fd2163a04358ed43fcd2d75685e4ac277ea');
 });
 
-test('standard Agent manifests declare managed runtime source carriers while capability and policy packages do not', () => {
-  const expected = new Map([
-    ['mas.json', 'medautoscience'],
-    ['mag.json', 'medautogrant'],
-    ['rca.json', 'redcube'],
-    ['oma.json', 'oplmetaagent'],
-    ['obf.json', 'oplbookforge'],
-  ]);
+test('legacy managed runtime source input stays outside normalized Package truth', () => {
   const manifestRoot = path.join(repoRoot, 'contracts', 'opl-framework', 'packages');
-  for (const [file, moduleId] of expected) {
+  for (const file of ['mas.json', 'mag.json', 'rca.json', 'oma.json', 'obf.json']) {
     const manifestPath = path.join(manifestRoot, file);
     const manifest = normalizeManifest(parseJsonText(fs.readFileSync(manifestPath, 'utf8')), pathToFileURL(manifestPath).href);
-    assert.deepEqual(manifest.runtime_source_carrier, {
-      carrier_kind: 'opl_managed_module_source',
-      module_id: moduleId,
-    });
-  }
-  for (const file of ['opl-flow.json', 'mas-scholar-skills.json']) {
-    const manifestPath = path.join(manifestRoot, file);
-    const payload = parseJsonText(fs.readFileSync(manifestPath, 'utf8'));
-    assert.equal((payload as any).runtime_source_carrier, undefined);
+    assert.equal('runtime_source_carrier' in manifest, false, file);
   }
 });
 
@@ -855,7 +840,7 @@ test('packages fail closed on a legacy noncanonical lock identity without overwr
       ),
       false,
     );
-    assert.deepEqual(list.opl_agent_packages.installed_packages, []);
+    assert.equal(Object.hasOwn(list.opl_agent_packages, 'installed_packages'), false);
     assert.deepEqual(fs.readFileSync(lockPath), lockBytes);
     assert.deepEqual(fs.readFileSync(legacyLedgerPath), legacyLedgerBytes);
   } finally {

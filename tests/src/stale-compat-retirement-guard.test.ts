@@ -380,8 +380,23 @@ test('retired Package lifecycle lock construction stays absent', () => {
   for (const retiredReadinessType of [
     'AgentPackageManagedRuntimeSourceReadiness',
     'AgentPackageMaterializationReadiness',
+    'AgentPackageManagedRuntimeSourceCarrier',
   ]) {
     assert.doesNotMatch(packageTypes, new RegExp(`\\b${retiredReadinessType}\\b`), retiredReadinessType);
+  }
+  const manifestNormalizers = fs.readFileSync(
+    path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts'),
+    'utf8',
+  );
+  for (const retiredLegacySourceProjection of [
+    'runtime_source_carrier',
+    'managed_update_source',
+  ]) {
+    assert.doesNotMatch(
+      manifestNormalizers,
+      new RegExp(`\\b${retiredLegacySourceProjection}\\b`),
+      retiredLegacySourceProjection,
+    );
   }
   for (const retiredPolicyWriterType of [
     'AgentPackageManagedPolicyMigrationAction',

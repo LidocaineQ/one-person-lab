@@ -1156,22 +1156,6 @@ function resolveManifestRelativeSource(value: string, manifestUrl: string) {
   return path.resolve(path.dirname(manifestPath), value);
 }
 
-function normalizeManagedRuntimeSourceCarrier(value: unknown) {
-  if (value === undefined || value === null) return null;
-  if (!isRecord(value)
-    || value.carrier_kind !== 'opl_managed_module_source'
-    || !stringValue(value.module_id)) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package runtime_source_carrier must declare an OPL managed module id.', {
-      failure_code: 'agent_package_runtime_source_carrier_invalid',
-      required: ['carrier_kind=opl_managed_module_source', 'module_id'],
-    });
-  }
-  return {
-    carrier_kind: 'opl_managed_module_source' as const,
-    module_id: stringValue(value.module_id)!,
-  };
-}
-
 function normalizePackageVersion(value: unknown) {
   const version = assertStringValue(value, 'version');
   if (!/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(version)) {
@@ -1483,8 +1467,6 @@ export function normalizeManifest(payload: unknown, manifestUrl: string): AgentP
     plugin_payload_cache_path: null,
     profile_surface: normalizeProfileSurface(payload.profile_surface),
     managed_policy_surface: normalizeManagedPolicySurface(payload.managed_policy_surface),
-    runtime_source_carrier: normalizeManagedRuntimeSourceCarrier(payload.runtime_source_carrier),
-    managed_update_source: normalizeManagedVersionCatalogSource(payload.managed_update_source, manifestUrl),
     capability_dependencies: capabilityDependencies,
     capability_provider: capabilityProvider,
     content_digest: distributionPayload?.payload_digest_ref ?? null,
@@ -1656,8 +1638,6 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
     plugin_payload_cache_path: null,
     profile_surface: null,
     managed_policy_surface: null,
-    runtime_source_carrier: null,
-    managed_update_source: null,
     capability_dependencies: [],
     capability_provider: {
       capability_abi: capabilityAbi,
@@ -1759,8 +1739,6 @@ export function normalizeWorkflowProfilePackageManifest(payload: unknown, manife
     plugin_payload_cache_path: null,
     profile_surface: profileSurface,
     managed_policy_surface: managedPolicySurface,
-    runtime_source_carrier: null,
-    managed_update_source: null,
     capability_dependencies: [],
     capability_provider: null,
     content_digest: null,

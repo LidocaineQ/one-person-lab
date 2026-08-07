@@ -274,8 +274,6 @@ export type AgentPackageManifest = {
   plugin_payload_cache_path: string | null;
   profile_surface: AgentPackageProfileSurfaceConfig | null;
   managed_policy_surface: AgentPackageManagedPolicySurfaceConfig | null;
-  runtime_source_carrier: AgentPackageManagedRuntimeSourceCarrier | null;
-  managed_update_source: AgentPackageManagedVersionCatalogSource | null;
   capability_dependencies: AgentPackageCapabilityDependency[];
   capability_provider: AgentPackageCapabilityProvider | null;
   content_digest: string | null;
@@ -310,11 +308,6 @@ export type AgentPackageManagedVersionCatalogSource = {
   transport: 'json_url' | 'opl_oci_channel';
   catalog_ref: string;
   digest_authority: 'manifest_and_content_digest';
-};
-
-export type AgentPackageManagedRuntimeSourceCarrier = {
-  carrier_kind: 'opl_managed_module_source';
-  module_id: string;
 };
 
 export type AgentPackageManagedPolicySurfaceConfig = {

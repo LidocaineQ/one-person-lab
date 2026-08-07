@@ -839,7 +839,7 @@ test('Relay carrier projection is explicit in the Framework manifest and capabil
   assert.equal(carrierSchema.additionalProperties, false);
 });
 
-test('legacy catalog selection policy is accepted as input but omitted from normalized manifests', () => {
+test('legacy top-level managed update source is accepted as inert input but omitted from normalized manifests', () => {
   const manifestUrl = 'https://packages.example.test/third-party-research/manifest.json';
   const manifest = normalizeManifest({
     ...agentPackageManifest(),
@@ -852,13 +852,7 @@ test('legacy catalog selection policy is accepted as input but omitted from norm
     },
   }, manifestUrl);
 
-  assert.deepEqual(manifest.managed_update_source, {
-    kind: 'managed_version_catalog',
-    transport: 'json_url',
-    catalog_ref: 'https://packages.example.test/third-party-research/catalog.json',
-    digest_authority: 'manifest_and_content_digest',
-  });
-  assert.equal('selection_policy' in manifest.managed_update_source!, false);
+  assert.equal('managed_update_source' in manifest, false);
 });
 
 test('release channels normalize stable and preview aliases and reject bare latest', () => {
