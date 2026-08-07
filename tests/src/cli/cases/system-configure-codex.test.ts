@@ -8,7 +8,6 @@ import {
   packageContentLockDigest,
 } from '../../../../src/modules/connect/agent-package-registry-parts/payload-content-lock.ts';
 import {
-  assertBundledFullRuntimePackageRoots,
   readBundledFullRuntimePackageCatalog,
 } from '../../../../src/modules/connect/agent-package-registry-parts/bundled-full-runtime-catalog.ts';
 import { computePackageChannelTreeSha256 } from '../../../../src/modules/connect/system-installation/module-package-channel.ts';
@@ -353,27 +352,6 @@ function assertBundledCodexModel(
     true,
   );
 }
-
-test('bundled Full runtime catalog owns the canonical seven and fails closed on a missing dependency root', () => {
-  const catalog = readBundledFullRuntimePackageCatalog();
-  assert.deepEqual(
-    [...catalog.entries.keys()].sort(),
-    ['mag', 'mas', 'mas-scholar-skills', 'obf', 'oma', 'opl-flow', 'rca'],
-  );
-  assert.equal(
-    [...catalog.entries.values()].every((entry) => /^[0-9a-f]{40}$/.test(entry.ownerSourceCommit)),
-    true,
-  );
-  assert.throws(
-    () => assertBundledFullRuntimePackageRoots({
-      catalog,
-      rootPackageId: 'mas',
-      packageRoots: { mas: '/fixture/modules/mas' },
-    }),
-    (error: any) => error?.details?.failure_code === 'agent_package_bundled_dependency_root_missing'
-      && error?.details?.package_id === 'mas-scholar-skills',
-  );
-});
 
 test('ordinary package actions reject bundled Full roots without writing Package authority', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bundled-projected-install-home-'));

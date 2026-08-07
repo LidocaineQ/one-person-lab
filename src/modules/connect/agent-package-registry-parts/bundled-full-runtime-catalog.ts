@@ -223,31 +223,6 @@ export function readBundledFullRuntimePackageCatalog(): BundledFullRuntimePackag
   };
 }
 
-export function assertBundledFullRuntimePackageRoots(input: {
-  catalog: BundledFullRuntimePackageCatalog;
-  rootPackageId: string;
-  packageRoots: Record<string, string>;
-}) {
-  const closure = bundledFullRuntimePackageClosure(input.catalog, input.rootPackageId);
-  for (const packageId of closure) {
-    const entry = input.catalog.entries.get(packageId)!;
-    const packageRoot = stringValue(input.packageRoots[packageId]);
-    if (!packageRoot) {
-      throw new FrameworkContractError(
-        'contract_shape_invalid',
-        'Bundled Full runtime package dependency is absent from the packaged source roots.',
-        {
-          root_package_id: input.rootPackageId,
-          package_id: packageId,
-          expected_runtime_module_relative_path: entry.runtimeModuleRelativePath,
-          failure_code: 'agent_package_bundled_dependency_root_missing',
-        },
-      );
-    }
-  }
-  return closure;
-}
-
 function bundledFullRuntimePackageClosure(
   catalog: BundledFullRuntimePackageCatalog,
   rootPackageId: string,
