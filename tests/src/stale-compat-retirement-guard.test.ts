@@ -316,6 +316,19 @@ test('retired Package lifecycle lock construction stays absent', () => {
       retiredPhysicalSurfaceExport,
     );
   }
+  for (const retiredPhysicalSurfaceHelper of [
+    'readPayloadFileContent',
+    'normalizePayloadFiles',
+    'exactPayloadGenerationMatches',
+    'materializeArtifactPayloadSource',
+    'materializePayloadManifestSource',
+  ]) {
+    assert.doesNotMatch(
+      physicalSurface,
+      new RegExp(`\\b(?:async\\s+)?function\\s+${retiredPhysicalSurfaceHelper}\\b`),
+      retiredPhysicalSurfaceHelper,
+    );
+  }
 });
 
 test('active Foundry operating-evidence contract uses only kernel canonical ids', () => {

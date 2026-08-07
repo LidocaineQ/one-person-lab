@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { recordList, stringValue } from '../../../kernel/json-record.ts';
-import { makeNativeTemporaryDirectory } from '../../../kernel/native-temp-root.ts';
 import { resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
 import {
   materializeLocalCodexPluginMarketplace,
@@ -17,16 +16,10 @@ import {
   unregisterLocalCodexPlugin,
 } from '../system-installation/codex-plugin-registry.ts';
 import {
-  materializeOplPackageSourceArchive,
-  type ManagedModulePackageChannelSelection,
-} from '../system-installation/module-package-channel.ts';
-import {
-  fetchJsonSource,
   refsOnlyAuthorityBoundary,
   resolveCodexConfigPath,
   resolveCodexHome,
   safePathSegment,
-  validateUrlLike,
 } from './shared.ts';
 import {
   admitPackagePayloadManifest,
@@ -40,7 +33,6 @@ import {
   noManagedPolicyMigration,
   rollbackManagedPolicyMigration,
 } from './managed-policy-surface.ts';
-import { CANONICAL_PACKAGE_CONTENT_LOCK } from './payload-content-lock.ts';
 import {
   developerCheckoutPayloadDigest,
   type DeveloperCheckoutPayloadFile,
@@ -67,8 +59,6 @@ type PhysicalMaterializationOptions = {
   developerCheckoutPayloadFiles?: DeveloperCheckoutPayloadFile[];
   transactionId?: string;
 };
-
-const PACKAGE_SOURCE_FETCH_TIMEOUT_MS = 60_000;
 
 export type PluginGenerationMutation = {
   ownership: 'reused' | 'created' | 'replaced';
@@ -267,10 +257,6 @@ function noPackageProfileMigration(note: string): AgentPackageProfileMigration {
   };
 }
 
-function resolveLocalPath(value: string) {
-  return value.startsWith('file:') ? fileURLToPath(value) : path.resolve(value);
-}
-
 function safeRelativePayloadPath(value: string) {
   const normalized = path.normalize(value);
   if (
@@ -288,409 +274,8 @@ function safeRelativePayloadPath(value: string) {
   return normalized;
 }
 
-async function readPayloadFileContent(
-  entry: Record<string, unknown>,
-  payloadManifestUrl: string,
-  index: number,
-  dryRun: boolean,
-  artifactSource: { sourceRoot: string; sourceArtifactRef: string } | null,
-) {
-  const contentUtf8 = typeof entry.content_utf8 === 'string' ? entry.content_utf8 : null;
-  const contentBase64 = typeof entry.content_base64 === 'string' && entry.content_base64.trim()
-    ? entry.content_base64.trim()
-    : null;
-  const sourceUrl = stringValue(entry.source_url);
-  const sourcePath = stringValue(entry.source_path);
-  const sourceArtifactRef = stringValue(entry.source_artifact_ref);
-  const artifactSourceDeclared = sourcePath !== null || sourceArtifactRef !== null;
-  if (artifactSourceDeclared && (!sourcePath || !sourceArtifactRef)) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Artifact-backed package payload files require source_path and source_artifact_ref together.', {
-      payload_manifest_url: payloadManifestUrl,
-      file_index: index,
-      source_path: sourcePath,
-      source_artifact_ref: sourceArtifactRef,
-      failure_code: 'agent_package_payload_artifact_source_incomplete',
-    });
-  }
-  const sourceCount = [
-    contentUtf8 !== null,
-    contentBase64 !== null,
-    sourceUrl !== null,
-    artifactSourceDeclared,
-  ]
-    .filter(Boolean).length;
-  if (sourceCount !== 1) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package payload files require exactly one content source.', {
-      payload_manifest_url: payloadManifestUrl,
-      file_index: index,
-      required: ['exactly one of content_utf8, content_base64, source_url, or source_path + source_artifact_ref'],
-      failure_code: 'agent_package_payload_manifest_invalid',
-    });
-  }
-  if (contentBase64 !== null) return { content: Buffer.from(contentBase64, 'base64'), digestVerified: true, artifactBacked: false };
-  if (contentUtf8 !== null) return { content: Buffer.from(contentUtf8, 'utf8'), digestVerified: true, artifactBacked: false };
-
-  if (artifactSourceDeclared) {
-    if (!artifactSource || sourceArtifactRef !== artifactSource.sourceArtifactRef) {
-      throw new FrameworkContractError('contract_shape_invalid', 'Package payload file artifact source does not match the materialized source archive.', {
-        payload_manifest_url: payloadManifestUrl,
-        file_index: index,
-        source_path: sourcePath,
-        source_artifact_ref: sourceArtifactRef,
-        materialized_source_artifact_ref: artifactSource?.sourceArtifactRef ?? null,
-        failure_code: 'agent_package_payload_artifact_source_mismatch',
-      });
-    }
-    const relativeSourcePath = safeRelativePayloadPath(sourcePath!);
-    const sourceFilePath = path.join(artifactSource.sourceRoot, relativeSourcePath);
-    if (!sourceFilePath.startsWith(`${artifactSource.sourceRoot}${path.sep}`)
-      || !fs.existsSync(sourceFilePath)
-      || !fs.lstatSync(sourceFilePath).isFile()) {
-      throw new FrameworkContractError('contract_shape_invalid', 'Package payload source_path is missing from the selected source archive.', {
-        payload_manifest_url: payloadManifestUrl,
-        file_index: index,
-        source_path: sourcePath,
-        source_artifact_ref: sourceArtifactRef,
-        failure_code: 'agent_package_payload_artifact_source_missing',
-      });
-    }
-    const sourceRootReal = fs.realpathSync(artifactSource.sourceRoot);
-    const sourceFileReal = fs.realpathSync(sourceFilePath);
-    if (!sourceFileReal.startsWith(`${sourceRootReal}${path.sep}`)) {
-      throw new FrameworkContractError('contract_shape_invalid', 'Package payload source_path escapes the selected source archive root.', {
-        payload_manifest_url: payloadManifestUrl,
-        file_index: index,
-        source_path: sourcePath,
-        failure_code: 'agent_package_payload_artifact_source_escape',
-      });
-    }
-    return { content: fs.readFileSync(sourceFileReal), digestVerified: true, artifactBacked: true };
-  }
-
-  validateUrlLike(sourceUrl!, 'payload.files[].source_url');
-  if (sourceUrl!.startsWith('http://') || sourceUrl!.startsWith('https://')) {
-    if (dryRun) return { content: Buffer.alloc(0), digestVerified: false, artifactBacked: false };
-    const response = await fetch(sourceUrl!, {
-      signal: AbortSignal.timeout(PACKAGE_SOURCE_FETCH_TIMEOUT_MS),
-    });
-    if (!response.ok) {
-      throw new FrameworkContractError('codex_command_failed', 'Agent package payload file fetch failed.', {
-        source_url: sourceUrl,
-        status: response.status,
-        status_text: response.statusText,
-      });
-    }
-    return { content: Buffer.from(await response.arrayBuffer()), digestVerified: true, artifactBacked: false };
-  }
-  return { content: fs.readFileSync(resolveLocalPath(sourceUrl!)), digestVerified: true, artifactBacked: false };
-}
-
-async function normalizePayloadFiles(
-  payload: unknown,
-  payloadManifestUrl: string,
-  dryRun: boolean,
-  artifactSource: { sourceRoot: string; sourceArtifactRef: string } | null,
-  admission: PackagePayloadAdmission,
-): Promise<AgentPackagePayloadFile[]> {
-  if (!isRecord(payload) || !Array.isArray(payload.files)) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package payload manifest must contain a files array.', {
-      payload_manifest_url: payloadManifestUrl,
-      required: ['files'],
-      failure_code: 'agent_package_payload_manifest_invalid',
-    });
-  }
-  const fileRecords = recordList(payload.files);
-  if (fileRecords.length !== payload.files.length) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package payload manifest files must be JSON objects.', {
-      payload_manifest_url: payloadManifestUrl,
-      failure_code: 'agent_package_payload_manifest_invalid',
-    });
-  }
-  return Promise.all(fileRecords.map(async (entry, index) => {
-    const relativePath = stringValue(entry.path);
-    if (!relativePath) {
-      throw new FrameworkContractError('contract_shape_invalid', 'Agent package payload files require a path.', {
-        payload_manifest_url: payloadManifestUrl,
-        file_index: index,
-        required: ['path'],
-        failure_code: 'agent_package_payload_manifest_invalid',
-      });
-    }
-    const { content, digestVerified, artifactBacked } = await readPayloadFileContent(
-      entry,
-      payloadManifestUrl,
-      index,
-      dryRun,
-      artifactSource,
-    );
-    const sha256 = stringValue(entry.sha256);
-    if (artifactBacked && !sha256) {
-      throw new FrameworkContractError('contract_shape_invalid', 'Artifact-backed package payload files require a sha256 digest.', {
-        payload_manifest_url: payloadManifestUrl,
-        file_index: index,
-        payload_path: relativePath,
-        failure_code: 'agent_package_payload_artifact_file_digest_missing',
-      });
-    }
-    if (sha256 && digestVerified) {
-      const expected = sha256.startsWith('sha256:') ? sha256.slice('sha256:'.length) : sha256;
-      const actual = crypto.createHash('sha256').update(content).digest('hex');
-      if (actual !== expected) {
-        throw new FrameworkContractError('contract_shape_invalid', 'Agent package payload file sha256 mismatch.', {
-          payload_manifest_url: payloadManifestUrl,
-          payload_path: relativePath,
-          expected_sha256: sha256,
-          actual_sha256: `sha256:${actual}`,
-          failure_code: 'agent_package_payload_file_sha256_mismatch',
-        });
-      }
-    }
-    return {
-      relativePath: safeRelativePayloadPath(relativePath),
-      content,
-      sha256,
-      mode: payloadFileMode(admission, entry),
-      digestVerified,
-    };
-  }));
-}
-
-function normalizedSha256(value: string) {
-  return value.startsWith('sha256:') ? value : `sha256:${value}`;
-}
-
-function exactPayloadGenerationMatches(root: string, files: AgentPackagePayloadFile[]) {
-  if (!fs.existsSync(root)) return false;
-  const rootStat = fs.lstatSync(root);
-  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) return false;
-
-  const actualPaths: string[] = [];
-  const visit = (directory: string): boolean => {
-    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-      const absolutePath = path.join(directory, entry.name);
-      const stat = fs.lstatSync(absolutePath);
-      if (stat.isSymbolicLink()) return false;
-      if (stat.isDirectory()) {
-        if (!visit(absolutePath)) return false;
-      } else if (stat.isFile()) {
-        actualPaths.push(path.relative(root, absolutePath));
-      } else {
-        return false;
-      }
-    }
-    return true;
-  };
-  if (!visit(root)) return false;
-
-  const expectedPaths = files.map((file) => file.relativePath).sort();
-  actualPaths.sort();
-  if (actualPaths.length !== expectedPaths.length
-    || actualPaths.some((entry, index) => entry !== expectedPaths[index])) return false;
-
-  return files.every((file) => {
-    const targetPath = path.join(root, file.relativePath);
-    const stat = fs.lstatSync(targetPath);
-    return stat.isFile()
-      && !stat.isSymbolicLink()
-      && fs.readFileSync(targetPath).equals(file.content)
-      && (stat.mode & 0o777) === (file.mode === '100755' ? 0o755 : 0o644);
-  });
-}
-
-function materializeArtifactPayloadSource(input: {
-  payload: Record<string, unknown>;
-  manifest: AgentPackageManifest;
-  payloadManifestUrl: string;
-  selection: ManagedModulePackageChannelSelection | null;
-  targetPath: string;
-}) {
-  const files = recordList(input.payload.files);
-  const artifactFileCount = files.filter((entry) => (
-    stringValue(entry.source_path) !== null || stringValue(entry.source_artifact_ref) !== null
-  )).length;
-  if (!input.selection && artifactFileCount === 0) return null;
-  if (!input.selection) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Artifact-backed package payload requires the immutable catalog selection that supplied it.', {
-      package_id: input.manifest.package_id,
-      package_version: input.manifest.version,
-      payload_manifest_url: input.payloadManifestUrl,
-      failure_code: 'agent_package_payload_artifact_selection_missing',
-    });
-  }
-  if (files.length === 0 || artifactFileCount !== files.length) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Managed catalog payload files must all come from the selected source archive.', {
-      package_id: input.manifest.package_id,
-      package_version: input.manifest.version,
-      payload_manifest_url: input.payloadManifestUrl,
-      file_count: files.length,
-      artifact_file_count: artifactFileCount,
-      failure_code: 'agent_package_payload_catalog_source_bypass',
-    });
-  }
-  const packageSource = isRecord(input.payload.package_source) ? input.payload.package_source : null;
-  const transport = stringValue(packageSource?.transport);
-  const artifactRef = stringValue(packageSource?.artifact_ref);
-  const archiveSha256 = stringValue(packageSource?.archive_sha256);
-  const archiveRoot = stringValue(packageSource?.archive_root);
-  const payloadPackageId = stringValue(input.payload.package_id);
-  const payloadPackageVersion = stringValue(input.payload.package_version);
-  if (transport !== 'same_oci_artifact_source_archive'
-    || !artifactRef
-    || !archiveSha256
-    || !archiveRoot
-    || payloadPackageId !== input.manifest.package_id
-    || payloadPackageVersion !== input.manifest.version
-    || artifactRef !== input.selection.source_artifact_ref
-    || normalizedSha256(archiveSha256) !== normalizedSha256(input.selection.package_content_digest)) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Artifact-backed package payload does not match its immutable catalog selection.', {
-      package_id: input.manifest.package_id,
-      package_version: input.manifest.version,
-      payload_manifest_url: input.payloadManifestUrl,
-      payload_package_id: payloadPackageId,
-      payload_package_version: payloadPackageVersion,
-      transport,
-      payload_artifact_ref: artifactRef,
-      selected_artifact_ref: input.selection.source_artifact_ref,
-      payload_archive_sha256: archiveSha256,
-      selected_package_content_digest: input.selection.package_content_digest,
-      archive_root: archiveRoot,
-      failure_code: 'agent_package_payload_artifact_selection_mismatch',
-    });
-  }
-  materializeOplPackageSourceArchive({
-    selection: input.selection,
-    expectedPackageId: input.manifest.package_id,
-    archiveRoot,
-    targetPath: input.targetPath,
-    details: {
-      payload_manifest_url: input.payloadManifestUrl,
-      surface: 'agent_package_physical_source',
-    },
-  });
-  return {
-    sourceRoot: input.targetPath,
-    sourceArtifactRef: artifactRef,
-  };
-}
-
-async function materializePayloadManifestSource(input: {
-  manifest: AgentPackageManifest;
-  payloadManifestUrl: string;
-  dryRun: boolean;
-  catalogSelection: ManagedModulePackageChannelSelection | null;
-}) {
-  const fetched = await fetchJsonSource(input.payloadManifestUrl);
-  if (!isRecord(fetched.payload)) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package payload manifest must be a JSON object.', {
-      payload_manifest_url: input.payloadManifestUrl,
-      failure_code: 'agent_package_payload_manifest_invalid',
-    });
-  }
-  const admission = admitPackagePayloadManifest({
-    payload: fetched.payload,
-    manifest: input.manifest,
-    payloadManifestUrl: input.payloadManifestUrl,
-    catalogSelection: input.catalogSelection,
-  });
-  const artifactStageRoot = makeNativeTemporaryDirectory('opl-agent-package-source-');
-  let files: AgentPackagePayloadFile[];
-  try {
-    const artifactSource = materializeArtifactPayloadSource({
-      payload: fetched.payload,
-      manifest: input.manifest,
-      payloadManifestUrl: input.payloadManifestUrl,
-      selection: input.catalogSelection,
-      targetPath: path.join(artifactStageRoot, 'source'),
-    });
-    files = await normalizePayloadFiles(
-      fetched.payload,
-      input.payloadManifestUrl,
-      input.dryRun,
-      artifactSource,
-      admission,
-    );
-  } finally {
-    fs.rmSync(artifactStageRoot, { recursive: true, force: true });
-  }
-  verifyCanonicalPayloadContentLock(admission, files, input.payloadManifestUrl);
-  const persistentPayloadRoot = path.join(
-    resolveOplStatePaths().state_dir,
-    'agent-package-payloads',
-    safePathSegment(input.manifest.package_id),
-    `${safePathSegment(input.manifest.version)}-${fetched.source_sha256}`,
-  );
-  if (!input.dryRun) {
-    assertSafePersistedPackagePath({
-      candidatePath: persistentPayloadRoot,
-      allowedRoots: [path.join(resolveOplStatePaths().state_dir, 'agent-package-payloads')],
-      pathKind: 'agent_package_payload_generation',
-    });
-  }
-  const payloadRoot = input.dryRun
-    ? makeNativeTemporaryDirectory('opl-agent-package-payload-')
-    : `${persistentPayloadRoot}.stage-${process.pid}-${crypto.randomBytes(8).toString('hex')}`;
-  if (!input.dryRun && fs.existsSync(persistentPayloadRoot)) {
-    if (!exactPayloadGenerationMatches(persistentPayloadRoot, files)) {
-      throw new FrameworkContractError('contract_shape_invalid', 'Existing package payload generation does not match its immutable digest.', {
-        package_id: input.manifest.package_id,
-        payload_root: persistentPayloadRoot,
-        payload_manifest_sha256: fetched.source_sha256,
-        failure_code: 'agent_package_payload_generation_digest_mismatch',
-      });
-    }
-    return {
-      payloadRoot: persistentPayloadRoot,
-      payloadManifestSha256: fetched.source_sha256,
-      persistentCachePath: persistentPayloadRoot,
-      verifiedPayloadSourceCommit: admission.sourceCommit,
-    };
-  }
-  fs.mkdirSync(payloadRoot, { recursive: true });
-  try {
-    for (const file of files) {
-      const targetPath = path.join(payloadRoot, file.relativePath);
-      if (!targetPath.startsWith(`${payloadRoot}${path.sep}`)) {
-        throw new FrameworkContractError('contract_shape_invalid', 'Agent package payload file path escapes the payload root.', {
-          payload_manifest_url: input.payloadManifestUrl,
-          payload_path: file.relativePath,
-          failure_code: 'agent_package_payload_path_invalid',
-        });
-      }
-      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-      let descriptor: number | undefined;
-      try {
-        descriptor = fs.openSync(
-          targetPath,
-          fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | (fs.constants.O_NOFOLLOW ?? 0),
-          0o600,
-        );
-        fs.writeFileSync(descriptor, file.content);
-        fs.fchmodSync(descriptor, file.mode === '100755' ? 0o755 : 0o644);
-        fs.fsyncSync(descriptor);
-      } finally {
-        if (descriptor !== undefined) fs.closeSync(descriptor);
-      }
-    }
-    if (!input.dryRun) fs.renameSync(payloadRoot, persistentPayloadRoot);
-  } catch (error) {
-    fs.rmSync(payloadRoot, { recursive: true, force: true });
-    throw error;
-  }
-  const finalPayloadRoot = input.dryRun ? payloadRoot : persistentPayloadRoot;
-  if (!exactPayloadGenerationMatches(finalPayloadRoot, files)) {
-    if (!input.dryRun) fs.rmSync(finalPayloadRoot, { recursive: true, force: true });
-    throw new FrameworkContractError('contract_shape_invalid', 'Package payload generation failed exact-byte verification.', {
-      package_id: input.manifest.package_id,
-      payload_root: finalPayloadRoot,
-      failure_code: 'agent_package_payload_generation_digest_mismatch',
-    });
-  }
-  return {
-    payloadRoot: finalPayloadRoot,
-    payloadManifestSha256: fetched.source_sha256,
-    persistentCachePath: input.dryRun ? null : finalPayloadRoot,
-    verifiedPayloadSourceCommit: admission.sourceCommit,
-  };
+function resolveLocalPath(value: string) {
+  return value.startsWith('file:') ? fileURLToPath(value) : path.resolve(value);
 }
 
 function safeBundledSourceRoot(value: string) {
