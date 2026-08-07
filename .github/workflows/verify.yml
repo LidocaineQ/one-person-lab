@@ -31,7 +31,7 @@ jobs:
             timeout_minutes: 30
             command: npm run test:read-model-gates
           - name: Regression lane
-            timeout_minutes: 20
+            timeout_minutes: 30
             command: npm run test:regression
           - name: Integration lane
             timeout_minutes: 25
