@@ -8,6 +8,35 @@ Machine boundary: 本文解释架构和迁移方向，不是机器 truth。机�
 receipt、domain-owned manifests 和真实发布 evidence。本文不得被实现、发布脚本或
 用户界面当作第二套配置读取。
 
+## Framework archive provenance 与安装后 currentness
+
+Framework archive 的 `version` 只证明 SemVer identity，不能证明目标机器已经运行
+该版本对应的 bytes。一次安装验收必须把以下四层分开读取：
+
+1. **构建输入**：发布 workflow 必须 checkout 精确的
+   `expected_framework_source_commit`，并确认 harness HEAD 与 Framework source
+   HEAD 分别等于 workflow 输入和当前 workflow commit。
+2. **不可变产物**：Release manifest 同时绑定 `source_git.head_sha`、archive
+   SHA-256、OCI artifact digest 和 Framework layer。相同 SemVer 不得用不同 bytes
+   覆盖已有公共 ref；需要现场修复时使用 commit-qualified 的受控本地 artifact，
+   并保留其 archive SHA-256，不创建第二个公共版本源。
+3. **安装记录**：managed Framework root 的
+   `.opl-framework-source.json`（或等价 owner receipt）必须回读 source head、
+   archive SHA-256、target root 和更新结果。缺少 source/archive identity，或
+   installed content digest 为空时，只能判为 stale/unknown，不能按版本相同推断
+   current。
+4. **生效结果**：读取安装入口的 `opl --version`，再运行真实的
+   `opl packages update <package_id> --dry-run --json`，确认 package carrier、
+   source、version、executor route 和 required Skills 的 installed/effective
+   readback。CLI 可执行或 Package publication receipt 只能证明对应层，不能替代
+   Framework bytes 的 readback。
+
+受控修复的最短路径是：fresh fetch canonical `main` -> 用已吸收 commit 构建 archive
+并记录 commit/SHA -> 在唯一 owner 的受控机器上 apply -> 回读 metadata、archive
+SHA、CLI 和 package currentness -> 清理临时 artifact 与 lease。不要重复发布已完成
+的 Package channel，也不要手工编辑 Codex plugin/cache 来掩盖 Framework archive
+陈旧。
+
 ## 2026-07-24 planned supersession
 
 最新目标仍保留 `OPL Base ≈ R`、`OPL App ≈ RStudio`、`OPL Package ≈ R
