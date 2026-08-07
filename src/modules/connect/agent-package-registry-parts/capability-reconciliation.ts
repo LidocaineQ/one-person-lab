@@ -4,9 +4,6 @@ import { FrameworkContractError, isRecord } from '../../../kernel/contract-valid
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { recordList, stringValue } from '../../../kernel/json-record.ts';
 import { publicAgentPackageSelector } from '../agent-package-identity.ts';
-import type {
-  AgentPackageCapabilityDependency,
-} from './types.ts';
 
 export type ManagedCatalogVersion = {
   package_version: string;
@@ -181,14 +178,6 @@ export function selectManagedCatalogPackageVersion(
   _input: { currentBaseAbi?: string | null } = {},
 ) {
   return selectedCatalogVersion(catalog, packageId, 'root_package');
-}
-
-export function selectCapabilityCatalogVersion(
-  catalog: ManagedPackageCatalog,
-  dependency: AgentPackageCapabilityDependency,
-  _input: { currentBaseAbi?: string | null } = {},
-) {
-  return selectedCatalogVersion(catalog, dependency.package_id, 'capability_provider');
 }
 
 export function catalogManifestPayload(version: ManagedCatalogVersion) {

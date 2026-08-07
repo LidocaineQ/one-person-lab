@@ -3,10 +3,8 @@ import test from 'node:test';
 
 import {
   normalizeManagedPackageCatalog,
-  selectCapabilityCatalogVersion,
   selectManagedCatalogPackageVersion,
 } from '../../src/modules/connect/agent-package-registry-parts/capability-reconciliation.ts';
-import type { AgentPackageCapabilityDependency } from '../../src/modules/connect/agent-package-registry-parts/types.ts';
 
 function digest(character: string) {
   return `sha256:${character.repeat(64)}`;
@@ -43,20 +41,6 @@ function releaseSetCatalog(
   };
 }
 
-function capabilityDependency(): AgentPackageCapabilityDependency {
-  return {
-    package_id: 'provider',
-    required: true,
-    dependency_kind: 'hard_runtime_dependency',
-    version_requirement: '>=9.0.0 <10.0.0',
-    capability_abi: 'provider.v9',
-    required_export_ids: [],
-    required_module_ids: [],
-    bootstrap_manifest_url: null,
-    dependency_source: null,
-  };
-}
-
 test('Package owner catalog selects the exact declared root version without compatibility resolution', () => {
   const payload = releaseSetCatalog({
     example: {
@@ -83,37 +67,6 @@ test('Package owner catalog selects the exact declared root version without comp
 
   assert.equal(selected.package_version, '1.0.0-alpha.4');
   assert.equal(selected.selection_status, 'retained_history');
-});
-
-test('capability dependency uses its provider catalog selection without ABI or range admission', () => {
-  const payload = releaseSetCatalog({
-    provider: {
-      package_id: 'provider',
-      package_role: 'capability_package',
-      selected_version: '1.2.3',
-      versions: [
-        catalogVersion('9.1.0', {
-          capabilityAbi: 'provider.v9',
-          baseAbiRange: '>=9.0.0 <10.0.0',
-          selectionStatus: 'selected_for_release_set',
-        }),
-        catalogVersion('1.2.3', {
-          capabilityAbi: 'provider.v1',
-          baseAbiRange: '>=1.0.0 <2.0.0',
-        }),
-      ],
-    },
-  });
-
-  const selected = selectCapabilityCatalogVersion(
-    normalizeManagedPackageCatalog(payload),
-    capabilityDependency(),
-    { currentBaseAbi: '99.0.0' },
-  );
-
-  assert.equal(selected.package_version, '1.2.3');
-  assert.equal(Object.hasOwn(selected, 'capability_abi'), false);
-  assert.equal(Object.hasOwn(selected, 'compatibility'), false);
 });
 
 test('offline Release Set bridge without a surface kind retains exact selection and digest', () => {
