@@ -77,10 +77,6 @@ export type PluginGenerationMutation = {
   transaction_id: string;
 };
 
-const physicalSurfaceGenerationMutations = new WeakMap<
-  AgentPackagePhysicalSurface,
-  PluginGenerationMutation
->();
 const settledPluginGenerationMutations = new WeakSet<PluginGenerationMutation>();
 
 function pathEntryExists(candidatePath: string) {
@@ -268,19 +264,6 @@ function noPackageProfileMigration(note: string): AgentPackageProfileMigration {
     rollback_backups_retained: false,
     writes_performed: false,
     note,
-  };
-}
-
-function retainedPackageProfile(previous: AgentPackageProfileMigration | undefined) {
-  if (!previous || previous.status === 'not_requested') {
-    return noPackageProfileMigration('Package did not own a user profile surface.');
-  }
-  return {
-    ...previous,
-    status: 'retained_on_uninstall' as const,
-    writes_performed: false,
-    apply_command: null,
-    note: 'User profile and historical profile artifacts were retained during package uninstall.',
   };
 }
 
@@ -1396,17 +1379,6 @@ export function materializeImmutablePluginCacheTransaction(input: {
   }
 }
 
-export function materializeImmutablePluginCache(input: {
-  manifest: AgentPackageManifest;
-  sourcePath: string;
-  targetPath: string;
-  developerCheckoutPayloadFiles?: DeveloperCheckoutPayloadFile[];
-}) {
-  const mutation = materializeImmutablePluginCacheTransaction(input);
-  finalizePluginGenerationMutation(mutation);
-  return mutation.ownership !== 'reused';
-}
-
 function verifiedDeveloperCheckoutPayloadFiles(
   manifest: AgentPackageManifest,
   payloadFiles: DeveloperCheckoutPayloadFile[] | undefined,
@@ -1511,17 +1483,6 @@ function developerCheckoutCacheDigest(
       };
     }),
   );
-}
-
-export function assertDeveloperCheckoutPluginCacheGeneration(input: {
-  packageId: string;
-  cachePath: string;
-  source: NonNullable<AgentPackageManifest['developer_checkout_source']>;
-}) {
-  return developerCheckoutCacheDigest(input.cachePath, {
-    package_id: input.packageId,
-    developer_checkout_source: input.source,
-  } as AgentPackageManifest);
 }
 
 function copyDeveloperCheckoutSurface(
@@ -1878,128 +1839,5 @@ export function materializePhysicalCodexSurface(
     workflow_policy_migration: managedPolicyMigration,
     authority_boundary: refsOnlyAuthorityBoundary(),
   };
-  if (pluginGenerationMutation) physicalSurfaceGenerationMutations.set(surface, pluginGenerationMutation);
   return surface;
-}
-
-export function restorePhysicalCodexSurfaceMutation(surface: AgentPackagePhysicalSurface | undefined) {
-  if (!surface) return;
-  const mutation = physicalSurfaceGenerationMutations.get(surface);
-  if (!mutation) return;
-  restorePluginGenerationMutation(mutation);
-  physicalSurfaceGenerationMutations.delete(surface);
-}
-
-export function finalizePhysicalCodexSurfaceMutation(surface: AgentPackagePhysicalSurface | undefined) {
-  if (!surface) return;
-  const mutation = physicalSurfaceGenerationMutations.get(surface);
-  if (!mutation) return;
-  finalizePluginGenerationMutation(mutation);
-  physicalSurfaceGenerationMutations.delete(surface);
-}
-
-function removeCodexRegistration(
-  surface: AgentPackagePhysicalSurface | undefined,
-  codexConfigPath: string,
-  retainCodexRegistration: boolean,
-) {
-  if (retainCodexRegistration) return;
-  unregisterLocalCodexPlugin(codexConfigPath, surface?.marketplace_id ?? null, surface?.plugin_id ?? null);
-  removeCreatedEmptyCodexConfig(codexConfigPath, surface?.codex_config_preexisting ?? true);
-}
-
-export function removePhysicalCodexSurface(
-  surface: AgentPackagePhysicalSurface | undefined,
-  dryRun: boolean,
-  packageId?: string,
-  options: {
-    retainPayloadSource?: boolean;
-    retainPluginCache?: boolean;
-    retainCodexRegistration?: boolean;
-  } = {},
-): AgentPackagePhysicalSurface {
-  const codexHome = resolveCodexHome();
-  const expectedCodexConfigPath = resolveCodexConfigPath(codexHome);
-  const codexConfigPath = surface?.codex_config_path ?? expectedCodexConfigPath;
-  if (path.resolve(codexConfigPath) !== path.resolve(expectedCodexConfigPath)) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Persisted package Codex config path does not match the active Codex home.', {
-      codex_config_path: codexConfigPath,
-      expected_codex_config_path: expectedCodexConfigPath,
-      failure_code: 'agent_package_persisted_path_unsafe',
-    });
-  }
-  const stateDir = resolveOplStatePaths().state_dir;
-  const removals = [
-    surface?.marketplace_root ? {
-      path: surface.marketplace_root,
-      root: path.join(stateDir, 'codex-plugin-marketplaces'),
-      kind: 'physical_surface.marketplace_root',
-    } : null,
-    !options.retainPluginCache && surface?.codex_plugin_cache_path ? {
-      path: surface.codex_plugin_cache_path,
-      root: path.join(codexHome, 'plugins', 'cache'),
-      kind: 'physical_surface.codex_plugin_cache_path',
-    } : null,
-    !options.retainPayloadSource && surface?.plugin_payload_cache_path ? {
-      path: surface.plugin_payload_cache_path,
-      root: path.join(stateDir, 'agent-package-payloads'),
-      kind: 'physical_surface.plugin_payload_cache_path',
-    } : null,
-  ].flatMap((value) => value ? [value] : []);
-  const safeRemovals = removals.map((entry) => ({
-    ...entry,
-    path: assertSafePersistedPackagePath({
-      candidatePath: entry.path,
-      allowedRoots: [entry.root],
-      pathKind: entry.kind,
-    }),
-  }));
-  const removedPaths = safeRemovals.map((entry) => entry.path);
-
-  if (!dryRun) {
-    removeCodexRegistration(surface, codexConfigPath, options.retainCodexRegistration ?? false);
-    for (const removal of safeRemovals) {
-      makeGenerationTreeWritable(removal.path);
-      removeSafePersistedPackagePath({
-        candidatePath: removal.path,
-        allowedRoots: [removal.root],
-        pathKind: removal.kind,
-        recursive: true,
-      });
-    }
-  }
-
-  return {
-    surface_kind: 'opl_agent_package_physical_codex_surface',
-    status: dryRun ? 'validated_no_write' : 'removed',
-    package_id: surface?.package_id ?? packageId ?? '',
-    plugin_id: surface?.plugin_id ?? null,
-    marketplace_id: surface?.marketplace_id ?? null,
-    codex_home: surface?.codex_home ?? codexHome,
-    codex_config_path: codexConfigPath,
-    codex_config_preexisting: surface?.codex_config_preexisting ?? true,
-    plugin_source_path: surface?.plugin_source_path ?? null,
-    plugin_manifest_path: surface?.plugin_manifest_path ?? null,
-    codex_plugin_cache_path: surface?.codex_plugin_cache_path ?? null,
-    immutable_cache_digest: surface?.immutable_cache_digest ?? null,
-    marketplace_root: surface?.marketplace_root ?? null,
-    marketplace_path: surface?.marketplace_path ?? null,
-    marketplace_plugin_path: surface?.marketplace_plugin_path ?? null,
-    plugin_payload_manifest_url: surface?.plugin_payload_manifest_url ?? null,
-    plugin_payload_manifest_sha256: surface?.plugin_payload_manifest_sha256 ?? null,
-    plugin_payload_cache_path: surface?.plugin_payload_cache_path ?? null,
-    materialized_required_skill_ids: surface?.materialized_required_skill_ids ?? [],
-    materialized_required_skill_paths: surface?.materialized_required_skill_paths ?? [],
-    removed_paths: removedPaths,
-    writes_performed: !dryRun,
-    reload_required: !dryRun && removedPaths.length > 0,
-    failure_reason: null,
-    note: surface ? null : 'Installed package lock did not contain a physical Codex surface.',
-    profile_config: surface?.profile_config ?? null,
-    profile_migration: retainedPackageProfile(surface?.profile_migration),
-    managed_policy_config: surface?.managed_policy_config ?? null,
-    workflow_policy_migration: surface?.workflow_policy_migration
-      ?? noManagedPolicyMigration('Installed package did not request a managed policy surface.'),
-    authority_boundary: refsOnlyAuthorityBoundary(),
-  };
 }

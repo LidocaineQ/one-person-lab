@@ -300,6 +300,19 @@ test('retired Package lifecycle lock construction stays absent', () => {
     'utf8',
   );
   assert.doesNotMatch(physicalSurface, /\brematerializePhysicalCodexSurfaceFromLock\b/);
+  for (const retiredPhysicalSurfaceExport of [
+    'materializeImmutablePluginCache',
+    'assertDeveloperCheckoutPluginCacheGeneration',
+    'restorePhysicalCodexSurfaceMutation',
+    'finalizePhysicalCodexSurfaceMutation',
+    'removePhysicalCodexSurface',
+  ]) {
+    assert.doesNotMatch(
+      physicalSurface,
+      new RegExp(`\\bexport\\s+(?:async\\s+)?function\\s+${retiredPhysicalSurfaceExport}\\b`),
+      retiredPhysicalSurfaceExport,
+    );
+  }
 });
 
 test('active Foundry operating-evidence contract uses only kernel canonical ids', () => {
