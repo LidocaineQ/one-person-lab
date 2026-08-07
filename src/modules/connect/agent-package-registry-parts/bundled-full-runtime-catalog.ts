@@ -280,35 +280,6 @@ function bundledFullRuntimePackageClosure(
   return closure;
 }
 
-export function resolveBundledFullRuntimePackageClosureRoots(input: {
-  catalog: BundledFullRuntimePackageCatalog;
-  rootPackageId: string;
-  env?: NodeJS.ProcessEnv;
-}) {
-  const env = input.env ?? process.env;
-  const closure = bundledFullRuntimePackageClosure(input.catalog, input.rootPackageId);
-  const packageRoots: Record<string, string> = {};
-  for (const packageId of closure) {
-    const entry = input.catalog.entries.get(packageId)!;
-    const packageRoot = resolveBundledFullRuntimePackageRoot(entry, env)
-      ?? resolveInstalledRuntimePackageRoot(entry, env);
-    if (!packageRoot) {
-      throw new FrameworkContractError(
-        'contract_shape_invalid',
-        'Bundled Full runtime Package update requires the selected Package and its required dependencies only.',
-        {
-          root_package_id: input.rootPackageId,
-          package_id: packageId,
-          expected_runtime_module_relative_path: entry.runtimeModuleRelativePath,
-          failure_code: 'agent_package_bundled_dependency_root_missing',
-        },
-      );
-    }
-    packageRoots[packageId] = packageRoot;
-  }
-  return { closure, packageRoots };
-}
-
 function resolveInstalledRuntimePackageRoot(
   entry: BundledFullRuntimeCatalogEntry,
   env: NodeJS.ProcessEnv,

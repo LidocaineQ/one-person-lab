@@ -406,6 +406,15 @@ test('retired Package lifecycle lock construction stays absent', () => {
       retiredPolicyWriter,
     );
   }
+  for (const [relativePath, retiredHelper] of [
+    ['src/modules/connect/agent-package-registry-parts/capability-reconciliation.ts', 'catalogPayloadManifestJson'],
+    ['src/modules/connect/agent-package-registry-parts/shared.ts', 'normalizeSourceKind'],
+    ['src/modules/connect/agent-package-registry-parts/bundled-full-runtime-catalog.ts', 'resolveBundledFullRuntimePackageClosureRoots'],
+    ['src/modules/connect/agent-package-registry-parts/dependency-closure.ts', 'verifyManifestContentLock'],
+  ] as const) {
+    const source = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
+    assert.doesNotMatch(source, new RegExp(`\\b${retiredHelper}\\b`), retiredHelper);
+  }
 });
 
 test('active Foundry operating-evidence contract uses only kernel canonical ids', () => {

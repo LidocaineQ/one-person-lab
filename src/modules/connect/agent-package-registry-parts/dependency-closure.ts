@@ -1,10 +1,4 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { FrameworkContractError } from '../../../kernel/contract-validation.ts';
-import {
-  LEGACY_PACKAGE_CONTENT_LOCK,
-  packageContentLockDigest,
-} from './payload-content-lock.ts';
 import type {
   AgentPackageCapabilityDependency,
   AgentPackageDependencyReadinessItem,
@@ -32,34 +26,6 @@ export function manifestContentDigest(manifest: AgentPackageManifest, manifestSh
   return manifest.content_digest
     ?? manifest.distribution_payload?.payload_digest_ref
     ?? `sha256:${manifestSha256}`;
-}
-
-export function verifyManifestContentLock(manifest: AgentPackageManifest) {
-  if (!manifest.plugin_source_path || manifest.content_lock_paths.length === 0 || !manifest.content_digest) return;
-  const files: Array<{ path: string; content: Buffer }> = [];
-  for (const relativePath of manifest.content_lock_paths) {
-    const filePath = path.join(manifest.plugin_source_path, relativePath);
-    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-      throw new FrameworkContractError('contract_shape_invalid', 'Capability provider content lock path is missing.', {
-        package_id: manifest.package_id,
-        content_lock_path: relativePath,
-        failure_code: 'capability_package_content_lock_path_missing',
-      });
-    }
-    files.push({ path: relativePath, content: fs.readFileSync(filePath) });
-  }
-  const actualDigest = packageContentLockDigest(
-    manifest.content_lock_canonicalization ?? LEGACY_PACKAGE_CONTENT_LOCK,
-    files,
-  );
-  if (actualDigest !== manifest.content_digest) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Capability provider content lock digest does not match its source files.', {
-      package_id: manifest.package_id,
-      declared_content_digest: manifest.content_digest,
-      actual_content_digest: actualDigest,
-      failure_code: 'capability_package_content_digest_mismatch',
-    });
-  }
 }
 
 function sameStringSet(left: string[], right: string[]) {

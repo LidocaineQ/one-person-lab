@@ -206,18 +206,3 @@ export function catalogManifestPayload(version: ManagedCatalogVersion) {
   }
   return null;
 }
-
-export function catalogPayloadManifestJson(version: ManagedCatalogVersion) {
-  if (!version.payload_manifest_json) return null;
-  const actualPayloadManifestSha256 = sha256(version.payload_manifest_json);
-  if (!version.payload_manifest_sha256
-    || actualPayloadManifestSha256 !== version.payload_manifest_sha256) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Managed package catalog inline payload manifest digest is invalid.', {
-      package_version: version.package_version,
-      expected_payload_manifest_sha256: version.payload_manifest_sha256,
-      actual_payload_manifest_sha256: actualPayloadManifestSha256,
-      failure_code: 'agent_package_catalog_payload_manifest_digest_mismatch',
-    });
-  }
-  return version.payload_manifest_json;
-}

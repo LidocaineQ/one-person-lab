@@ -7,7 +7,7 @@ import { FrameworkContractError } from '../../../kernel/contract-validation.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { stringValue } from '../../../kernel/json-record.ts';
 import { FORBIDDEN_AGENT_PACKAGE_FIELDS } from './constants.ts';
-import type { AgentPackageAuthorityBoundary, AgentPackageSourceKind, FetchJsonResult } from './types.ts';
+import type { AgentPackageAuthorityBoundary, FetchJsonResult } from './types.ts';
 
 const RESERVED_FIRST_PARTY_REGISTRY_CLAIMS = [
   'first_party',
@@ -63,22 +63,6 @@ export function resolveCodexConfigPath(codexHome = resolveCodexHome()) {
 
 export function safePathSegment(value: string) {
   return value.replace(/[^A-Za-z0-9._-]/g, '-');
-}
-
-export function normalizeSourceKind(value: string | null | undefined, manifestUrl: string): AgentPackageSourceKind {
-  if (
-    value === 'first_party_managed_cohort'
-    || value === 'bundled_full_runtime_modules'
-    || value === 'local_manifest_file'
-    || value === 'manifest_url'
-    || value === 'manifest_import'
-    || value === 'developer_checkout_override'
-  ) {
-    return value;
-  }
-  return manifestUrl.startsWith('file:') || path.isAbsolute(manifestUrl)
-    ? 'local_manifest_file'
-    : 'manifest_url';
 }
 
 export function validateUrlLike(value: string, field: string) {
