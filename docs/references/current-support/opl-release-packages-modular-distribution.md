@@ -19,7 +19,10 @@ Framework archive 的 `version` 只证明 SemVer identity，不能证明目标�
 2. **不可变产物**：Release manifest 同时绑定 `source_git.head_sha`、archive
    SHA-256、OCI artifact digest 和 Framework layer。相同 SemVer 不得用不同 bytes
    覆盖已有公共 ref；需要现场修复时使用 commit-qualified 的受控本地 artifact，
-   并保留其 archive SHA-256，不创建第二个公共版本源。
+   并保留其 archive SHA-256，不创建第二个公共版本源。archive 必须通过
+   `scripts/package-archives.mjs` 生成；该路径会先执行 `npm run build`，并且验收时
+   还要从 archive 内回读关键 `dist/` bytes，确认它们与同一 source commit 的源码逻辑
+   一致。只绑定 source commit、版本或 archive SHA，不能证明编译产物没有沿用旧 bytes。
 3. **安装记录**：managed Framework root 的
    `.opl-framework-source.json`（或等价 owner receipt）必须回读 source head、
    archive SHA-256、target root 和更新结果。缺少 source/archive identity，或
