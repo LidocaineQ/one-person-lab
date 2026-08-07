@@ -427,6 +427,11 @@ test('every child Attempt preserves parent evidence and binds the latest executi
         checkout_path: executionPackRoot,
         operational_ready: true,
       },
+      configured_carrier: {
+        status: 'installed',
+        executor: { status: 'callable' },
+        plugin_source_path: executionPackRoot,
+      },
       package_use_binding: currentUseBinding,
     }),
     resolveStageBinding: () => binding(),

@@ -161,6 +161,16 @@ function packageUseBinding() {
   };
 }
 
+function nativeCarrierReadiness(checkoutRoot: string) {
+  return {
+    configured_carrier: {
+      status: 'installed',
+      executor: { status: 'callable' },
+      plugin_source_path: checkoutRoot,
+    },
+  };
+}
+
 function writeNativeCarrierDescriptor(checkoutRoot: string) {
   fs.writeFileSync(path.join(checkoutRoot, 'opl-package.json'), JSON.stringify({
     surface_kind: 'opl_agent_package_manifest.v1',
@@ -1496,6 +1506,7 @@ test('direct family-runtime create --start gates before attempt reserve and repl
     const runtime = {
       ensurePackageLaunchReady: async () => ({
         runtime_source_readiness: { checkout_path: checkoutRoot },
+        ...nativeCarrierReadiness(checkoutRoot),
         package_use_binding: packageUseBinding(),
       }) as never,
       resolveStageBinding: () => null,
@@ -1776,6 +1787,7 @@ test('provider-hosted launch preserves currentness observation and gates before 
     const options = {
       ensurePackageLaunchReady: async () => ({
         runtime_source_readiness: { checkout_path: checkoutRoot },
+        ...nativeCarrierReadiness(checkoutRoot),
         package_use_binding: packageUseBinding(),
       }) as never,
     };
@@ -1953,6 +1965,7 @@ test('route launch requires fresh active lifecycle on first launch and persisted
       findTargetStageRun: () => persistedTarget,
       ensurePackageLaunchReady: async () => ({
         runtime_source_readiness: { checkout_path: checkoutRoot },
+        ...nativeCarrierReadiness(checkoutRoot),
         package_use_binding: packageUseBinding(),
       }) as never,
       resolveStageBinding: (_root: string, stageId: string) => binding(stageId),
@@ -2079,6 +2092,7 @@ test('route launch requires fresh active lifecycle on first launch and persisted
         findTargetStageRun: () => laneTarget,
         ensurePackageLaunchReady: async () => ({
           runtime_source_readiness: { checkout_path: checkoutRoot },
+          ...nativeCarrierReadiness(checkoutRoot),
           package_use_binding: packageUseBinding(),
         }) as never,
         resolveStageBinding: (_root: string, stageId: string) => (
@@ -2116,6 +2130,7 @@ test('route launch requires fresh active lifecycle on first launch and persisted
           controllerDisallowedStarts += 1;
           return {
             runtime_source_readiness: { checkout_path: checkoutRoot },
+            ...nativeCarrierReadiness(checkoutRoot),
             package_use_binding: packageUseBinding(),
           } as never;
         },
@@ -2159,6 +2174,7 @@ test('route launch requires fresh active lifecycle on first launch and persisted
         rootDriftReadinessCalls += 1;
         return {
           runtime_source_readiness: { checkout_path: readinessCheckoutRoot },
+          ...nativeCarrierReadiness(readinessCheckoutRoot),
           package_use_binding: packageUseBinding(),
         } as never;
       },
@@ -2186,6 +2202,7 @@ test('route launch requires fresh active lifecycle on first launch and persisted
         rootDriftReadinessCalls += 1;
         return {
           runtime_source_readiness: { checkout_path: checkoutRoot },
+          ...nativeCarrierReadiness(checkoutRoot),
           package_use_binding: packageUseBinding(),
         } as never;
       },
@@ -2238,6 +2255,7 @@ test('route launch requires fresh active lifecycle on first launch and persisted
       findTargetStageRun: () => raceCandidateAvailable ? raceTarget : null,
       ensurePackageLaunchReady: async () => ({
         runtime_source_readiness: { checkout_path: readinessCheckoutRoot },
+        ...nativeCarrierReadiness(readinessCheckoutRoot),
         package_use_binding: packageUseBinding(),
       }) as never,
       resolveStageBinding: (root: string, stageId: string) => {
