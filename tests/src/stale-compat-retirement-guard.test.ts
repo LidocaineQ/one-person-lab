@@ -288,13 +288,12 @@ test('retired evaluation actor stays absent and Foundry exports remain kernel-on
 });
 
 test('retired Package lifecycle lock construction stays absent', () => {
-  assert.equal(
-    fs.existsSync(path.join(
-      repoRoot,
-      'src/modules/connect/agent-package-registry-parts/lifecycle-lock.ts',
-    )),
-    false,
-  );
+  for (const retiredPackageWriterPath of [
+    'src/modules/connect/agent-package-registry-parts/lifecycle-lock.ts',
+    'src/modules/connect/agent-package-registry-parts/persisted-path-safety.ts',
+  ]) {
+    assert.equal(fs.existsSync(path.join(repoRoot, retiredPackageWriterPath)), false);
+  }
   const physicalSurface = fs.readFileSync(
     path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/physical-surface.ts'),
     'utf8',
