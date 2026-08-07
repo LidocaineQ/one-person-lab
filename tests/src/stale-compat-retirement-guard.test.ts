@@ -384,11 +384,29 @@ test('retired Package lifecycle lock construction stays absent', () => {
   ]) {
     assert.doesNotMatch(packageTypes, new RegExp(`\\b${retiredReadinessType}\\b`), retiredReadinessType);
   }
+  for (const retiredPolicyWriterType of [
+    'AgentPackageManagedPolicyMigrationAction',
+    'AgentPackageManagedPolicyMigration',
+  ]) {
+    assert.doesNotMatch(packageTypes, new RegExp(`\\b${retiredPolicyWriterType}\\b`), retiredPolicyWriterType);
+  }
   const managedPolicySurface = fs.readFileSync(
     path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/managed-policy-surface.ts'),
     'utf8',
   );
   assert.doesNotMatch(managedPolicySurface, /\bmanagedPolicyCurrentness\b/);
+  for (const retiredPolicyWriter of [
+    'materializeManagedPolicySurface',
+    'rollbackManagedPolicyMigration',
+    'moveManagedPolicyPath',
+    'noManagedPolicyMigration',
+  ]) {
+    assert.doesNotMatch(
+      managedPolicySurface,
+      new RegExp(`\\b${retiredPolicyWriter}\\b`),
+      retiredPolicyWriter,
+    );
+  }
 });
 
 test('active Foundry operating-evidence contract uses only kernel canonical ids', () => {

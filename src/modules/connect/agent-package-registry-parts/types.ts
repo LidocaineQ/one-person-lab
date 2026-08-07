@@ -449,52 +449,11 @@ export type AgentPackageCodexModelPolicyProjection = {
   role: 'package_recommendation_consumed_from_framework_projection';
 };
 
-export type AgentPackageManagedPolicyMigrationAction = {
-  surface_kind: 'plugin' | 'skill' | 'service' | 'config_table' | 'prompt_or_agent' | 'historical_self_carrier';
-  canonical_id: string;
-  migration_id: string;
-  source_ref: string;
-  backup_ref: string;
-  backup_sha256: string;
-  source_preexisting: true;
-  written_sha256: string | null;
-  removed_toml_tables: Array<{
-    header: string;
-    content: string;
-    content_sha256: string;
-  }>;
-  action: 'backed_up_and_removed_from_discovery';
-};
-
 export type AgentPackageManagedPolicyDetectedConflict = {
   migration_id: string;
-  surface_kind: AgentPackageManagedPolicyMigrationAction['surface_kind'];
+  surface_kind: 'plugin' | 'skill' | 'service' | 'config_table' | 'prompt_or_agent' | 'historical_self_carrier';
   canonical_id: string;
   physical_ref: string;
-};
-
-export type AgentPackageManagedPolicyMigration = {
-  surface_kind: 'opl_package_managed_policy_migration';
-  status: 'not_requested' | 'validated_no_write' | 'current' | 'applied' | 'rolled_back';
-  policy_kind: 'opl_flow_workflow_policy' | null;
-  policy_path: string | null;
-  schema_path: string | null;
-  policy_sha256: string | null;
-  inventory_digest: string | null;
-  dependency_ids: string[];
-  dependencies: AgentPackageManagedPolicyDependency[];
-  optional_dependency_ids: string[];
-  migration_ids: string[];
-  detected_conflicts: AgentPackageManagedPolicyDetectedConflict[];
-  actions: AgentPackageManagedPolicyMigrationAction[];
-  service_actions: Array<Record<string, unknown>>;
-  dependency_sync: Record<string, unknown> | null;
-  model_projection: Record<string, unknown> | null;
-  capability_strategy: AgentPackageFlowCapabilityStrategyProjection | null;
-  backup_root: string | null;
-  backup_active: boolean;
-  writes_performed: boolean;
-  note: string;
 };
 
 export type AgentPackageManagedPolicyCurrentness = {
