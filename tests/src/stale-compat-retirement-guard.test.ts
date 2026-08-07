@@ -88,6 +88,8 @@ test('active OPL machine surfaces do not declare compatibility aliases as live',
 test('retired Package lock and Skill projection writers stay absent', () => {
   const retiredPaths = [
     'src/modules/connect/agent-package-registry-parts/installed-plugin-source.ts',
+    'src/modules/connect/agent-package-registry-parts/currentness.ts',
+    'src/modules/connect/agent-package-registry-parts/package-role.ts',
   ];
   for (const relativePath of retiredPaths) {
     assert.equal(fs.existsSync(path.join(repoRoot, relativePath)), false, relativePath);
@@ -109,6 +111,11 @@ test('retired Package lock and Skill projection writers stay absent', () => {
     'requiredDependents',
     'dependencyReadiness',
     'AgentPackageUseBinding',
+    'agentPackageTargetCurrentness',
+    'agentPackageClosureTargetCurrentness',
+    'packageRoleFromInstalledLock',
+    'developerCheckoutPackageCurrentness',
+    'mergeDeveloperCheckoutPackageManifest',
   ]) {
     assert.doesNotMatch(productionText, new RegExp(`\\b${retiredSymbol}\\b`), retiredSymbol);
   }

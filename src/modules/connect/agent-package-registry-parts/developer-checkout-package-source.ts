@@ -17,8 +17,6 @@ import {
 } from './payload-content-lock.ts';
 import type {
   AgentPackageDeveloperCheckoutSource,
-  AgentPackageLock,
-  AgentPackageManagedVersionCatalogSource,
   AgentPackageManifest,
 } from './types.ts';
 
@@ -862,74 +860,5 @@ export function developerCheckoutConfiguredCarrierTarget(
     },
     packageVersion: source.ownerManifest.version,
     developerSource: source,
-  };
-}
-
-export function mergeDeveloperCheckoutPackageManifest(input: {
-  base: AgentPackageManifest;
-  owner: AgentPackageManifest;
-  source: AgentPackageDeveloperCheckoutSource;
-  pluginId: string;
-  managedUpdateSource: AgentPackageManagedVersionCatalogSource | null;
-}) {
-  return {
-    ...input.base,
-    ...input.owner,
-    distribution_payload: null,
-    source: 'trusted_developer_checkout',
-    source_commit: input.source.source_git_head_sha,
-    carrier_source_commit: input.source.source_git_head_sha,
-    verified_payload_source_commit: null,
-    plugin_id: input.owner.plugin_id ?? input.base.plugin_id ?? input.pluginId,
-    plugin_source_path: input.source.plugin_source_path,
-    plugin_payload_manifest_url: null,
-    plugin_payload_manifest_sha256: null,
-    plugin_payload_cache_path: null,
-    profile_surface: input.owner.profile_surface ?? input.base.profile_surface,
-    managed_policy_surface: input.owner.managed_policy_surface ?? input.base.managed_policy_surface,
-    runtime_source_carrier: input.owner.runtime_source_carrier ?? input.base.runtime_source_carrier,
-    managed_update_source: input.managedUpdateSource,
-    content_digest: input.source.payload_digest,
-    content_lock_canonicalization: null,
-    content_lock_paths: [],
-    developer_checkout_source: input.source,
-  } satisfies AgentPackageManifest;
-}
-
-export function developerCheckoutPackageCurrentness(input: {
-  lock: AgentPackageLock;
-  ownerManifest: AgentPackageManifest;
-  source: AgentPackageDeveloperCheckoutSource;
-}) {
-  const reasons: string[] = [];
-  if (input.lock.source_kind !== 'developer_checkout_override') reasons.push('source_policy_mismatch');
-  if (input.lock.package_version !== input.ownerManifest.version) reasons.push('package_version_changed');
-  if (input.lock.manifest_sha256 !== input.source.owner_manifest_sha256) reasons.push('manifest_digest_changed');
-  if (input.lock.content_digest !== input.source.payload_digest) reasons.push('developer_payload_changed');
-  if ((input.lock.owner_source_commit ?? null) !== input.source.source_git_head_sha) {
-    reasons.push('developer_checkout_head_changed');
-  }
-  if ((input.lock.developer_checkout_source?.tree_sha256 ?? null) !== input.source.tree_sha256) {
-    reasons.push('developer_checkout_tree_changed');
-  }
-  if (path.resolve(input.lock.developer_checkout_source?.checkout_path ?? input.source.checkout_path)
-    !== path.resolve(input.source.checkout_path)) {
-    reasons.push('developer_checkout_path_changed');
-  }
-  return {
-    status: reasons.length === 0 ? 'current' as const : 'update_available' as const,
-    reasons,
-    installed_version: input.lock.package_version,
-    target_version: input.ownerManifest.version,
-    installed_content_digest: input.lock.content_digest,
-    target_content_digest: input.source.payload_digest,
-    installed_artifact_digest: input.lock.artifact_digest ?? null,
-    target_artifact_digest: null,
-    installed_manifest_sha256: input.lock.manifest_sha256,
-    target_manifest_sha256: input.source.owner_manifest_sha256,
-    installed_owner_source_commit: input.lock.owner_source_commit ?? null,
-    target_owner_source_commit: input.source.source_git_head_sha,
-    installed_tree_sha256: input.lock.developer_checkout_source?.tree_sha256 ?? null,
-    target_tree_sha256: input.source.tree_sha256,
   };
 }
