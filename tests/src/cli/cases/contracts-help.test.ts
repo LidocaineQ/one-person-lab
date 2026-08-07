@@ -368,6 +368,7 @@ test('domain selection uses installed owner descriptor routing signals for natur
     fs.writeFileSync(path.join(domainRepo, '.codex-plugin', 'plugin.json'), `${JSON.stringify({
       name: 'redcube-ai',
       version: '0.0.0-test',
+      skills: './skills/',
     })}\n`);
     fs.writeFileSync(path.join(domainRepo, '.agents', 'plugins', 'marketplace.json'), `${JSON.stringify({
       name: 'redcube-ai-local',

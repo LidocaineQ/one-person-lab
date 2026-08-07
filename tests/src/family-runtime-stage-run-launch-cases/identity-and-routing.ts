@@ -179,6 +179,11 @@ test('controller route materialization starts targets, replays idempotently, and
           operational_ready: true,
           checkout_path: routeCurrentPackRoot,
         },
+        configured_carrier: {
+          status: 'installed',
+          executor: { status: 'callable' },
+          plugin_source_path: routeCurrentPackRoot,
+        },
         package_use_binding: packageUseBinding({
           packageVersion: packageReadinessCalls === 1 ? '0.2.1' : '0.2.2',
         }),

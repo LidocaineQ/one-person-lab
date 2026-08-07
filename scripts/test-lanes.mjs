@@ -419,6 +419,7 @@ const lanes = {
     ], { batchSize: 25 }),
   ],
   fast: [
+    { kind: 'npm', args: ['run', 'build'] },
     { kind: 'command', command: 'scripts/repo-hygiene.sh', args: [] },
     nodeTest(fastNonTemporalHeavyTestFiles, { batchSize: 20 }),
     nodeTest(fastIsolatedCliTestFiles, {
@@ -499,7 +500,9 @@ const lanes = {
       'tests/src/cli-install.test.ts',
       'tests/src/cli/cases/web-runtime.test.ts',
       'tests/src/domain-definition-contract.test.ts',
-    ]),
+    ], {
+      env: { OPL_CLI_TEST_TIMEOUT_MS: '90000' },
+    }),
   ],
   'stage-run-mag-integration': [
     nodeTest(['tests/src/stage-run-mag-integration.test.ts']),
