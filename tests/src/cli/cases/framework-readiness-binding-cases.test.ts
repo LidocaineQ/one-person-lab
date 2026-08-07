@@ -23,6 +23,7 @@ test('framework readiness treats stale domain workspace bindings as registry att
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-readiness-stale-binding-state-'));
   const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-readiness-stale-binding-workspace-'));
   const familyWorkspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-readiness-stale-binding-family-'));
+  const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-readiness-stale-binding-codex-'));
   const { omaRepoDir, workspaceRoot } = createFamilyWorkspaceFixture(familyWorkspaceRoot);
 
   try {
@@ -43,9 +44,11 @@ test('framework readiness treats stale domain workspace bindings as registry att
     const previousStateDir = process.env.OPL_STATE_DIR;
     const previousFamilyWorkspaceRoot = process.env.OPL_FAMILY_WORKSPACE_ROOT;
     const previousOmaRepoDir = process.env.OPL_META_AGENT_REPO_DIR;
+    const previousCodexHome = process.env.CODEX_HOME;
     process.env.OPL_STATE_DIR = stateRoot;
     process.env.OPL_FAMILY_WORKSPACE_ROOT = workspaceRoot;
     process.env.OPL_META_AGENT_REPO_DIR = omaRepoDir;
+    process.env.CODEX_HOME = codexHome;
     try {
       const readiness = (await buildFrameworkReadinessSummary(loadFrameworkContracts(), {
         familyDefaults: true,
@@ -94,12 +97,14 @@ test('framework readiness treats stale domain workspace bindings as registry att
       restoreEnvVar('OPL_STATE_DIR', previousStateDir);
       restoreEnvVar('OPL_FAMILY_WORKSPACE_ROOT', previousFamilyWorkspaceRoot);
       restoreEnvVar('OPL_META_AGENT_REPO_DIR', previousOmaRepoDir);
+      restoreEnvVar('CODEX_HOME', previousCodexHome);
     }
   } finally {
     fs.rmSync(stateRoot, { recursive: true, force: true });
     fs.rmSync(workspacePath, { recursive: true, force: true });
     fs.rmSync(familyWorkspaceRoot, { recursive: true, force: true });
     fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    fs.rmSync(codexHome, { recursive: true, force: true });
   }
 });
 
@@ -107,6 +112,7 @@ test('framework readiness treats missing manifest commands as config attention, 
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-readiness-manifest-config-state-'));
   const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-readiness-manifest-config-workspace-'));
   const familyWorkspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-readiness-manifest-config-family-'));
+  const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-readiness-manifest-config-codex-'));
   const { omaRepoDir, workspaceRoot } = createFamilyWorkspaceFixture(familyWorkspaceRoot);
 
   try {
@@ -124,9 +130,11 @@ test('framework readiness treats missing manifest commands as config attention, 
     const previousStateDir = process.env.OPL_STATE_DIR;
     const previousFamilyWorkspaceRoot = process.env.OPL_FAMILY_WORKSPACE_ROOT;
     const previousOmaRepoDir = process.env.OPL_META_AGENT_REPO_DIR;
+    const previousCodexHome = process.env.CODEX_HOME;
     process.env.OPL_STATE_DIR = stateRoot;
     process.env.OPL_FAMILY_WORKSPACE_ROOT = workspaceRoot;
     process.env.OPL_META_AGENT_REPO_DIR = omaRepoDir;
+    process.env.CODEX_HOME = codexHome;
     try {
       const readiness = (await buildFrameworkReadinessSummary(loadFrameworkContracts(), {
         familyDefaults: true,
@@ -175,11 +183,13 @@ test('framework readiness treats missing manifest commands as config attention, 
       restoreEnvVar('OPL_STATE_DIR', previousStateDir);
       restoreEnvVar('OPL_FAMILY_WORKSPACE_ROOT', previousFamilyWorkspaceRoot);
       restoreEnvVar('OPL_META_AGENT_REPO_DIR', previousOmaRepoDir);
+      restoreEnvVar('CODEX_HOME', previousCodexHome);
     }
   } finally {
     fs.rmSync(stateRoot, { recursive: true, force: true });
     fs.rmSync(workspacePath, { recursive: true, force: true });
     fs.rmSync(familyWorkspaceRoot, { recursive: true, force: true });
     fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    fs.rmSync(codexHome, { recursive: true, force: true });
   }
 });
