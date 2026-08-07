@@ -6,29 +6,9 @@ import {
   assertFirstPartyPackageCatalogVersion,
   resolveFirstPartyPackageCatalog,
 } from '../agent-package-first-party.ts';
-import {
-  catalogManifestPayload,
-  type ManagedCatalogVersion,
-  type ManagedPackageCatalog,
-} from './capability-reconciliation.ts';
-import { agentPackageTargetCurrentness } from './currentness.ts';
-import {
-  developerCheckoutPackageCurrentness,
-  loadDeveloperCheckoutPackageSource,
-} from './developer-checkout-package-source.ts';
-import { normalizePackageManifest } from './manifest-normalizers.ts';
+import type { ManagedPackageCatalog } from './capability-reconciliation.ts';
 import { resolveAgentPackageEffectiveSourcePolicy } from './source-policy.ts';
-import type {
-  AgentPackageInstallInput,
-  AgentPackageLock,
-} from './types.ts';
-
-export type AgentPackageCatalogClosureTarget = {
-  packageId: string;
-  targetVersion: ManagedCatalogVersion | null;
-  developerTarget: ReturnType<typeof loadDeveloperCheckoutPackageSource> | null;
-  sourcePolicy: ReturnType<typeof resolveAgentPackageEffectiveSourcePolicy>;
-};
+import type { AgentPackageInstallInput } from './types.ts';
 
 export function assertFirstPartyPackageUpdateSelection(
   input: AgentPackageInstallInput,
@@ -93,17 +73,6 @@ export function assertFirstPartyPackageUpdateSelection(
   }
 }
 
-export function developerAgentRootsForPackageIds(packageIds: Iterable<string>) {
-  return Object.fromEntries([...new Set(packageIds)].flatMap((packageId) => {
-    const policy = resolveAgentPackageEffectiveSourcePolicy(packageId);
-    return policy.desired_source_kind === 'developer_checkout_override'
-      && policy.developer_checkout_available
-      && policy.developer_checkout_path
-      ? [[packageId, policy.developer_checkout_path]]
-      : [];
-  }));
-}
-
 export function ownerPackageCatalogVersion(
   catalog: ManagedPackageCatalog,
   packageId: string,
@@ -117,151 +86,4 @@ export function ownerPackageCatalogVersion(
     });
   }
   return versions[0];
-}
-
-export function firstPartyCatalogClosure(
-  catalog: ManagedPackageCatalog | null,
-  rootPackageId: string,
-  rootVersion: ManagedCatalogVersion | null,
-) {
-  const visited = new Set<string>();
-  const visiting = new Set<string>();
-  const ordered: AgentPackageCatalogClosureTarget[] = [];
-  const visit = (packageId: string, targetVersion: ManagedCatalogVersion | null) => {
-    if (visited.has(packageId)) return;
-    if (visiting.has(packageId)) {
-      throw new FrameworkContractError('contract_shape_invalid', 'First-party Package closure contains a dependency cycle.', {
-        package_id: packageId,
-        failure_code: 'agent_package_dependency_cycle',
-      });
-    }
-    visiting.add(packageId);
-    const sourcePolicy = resolveAgentPackageEffectiveSourcePolicy(packageId);
-    if (!sourcePolicy.desired_source_kind) {
-      throw new FrameworkContractError('contract_shape_invalid', 'First-party Package closure requires an effective managed or developer source policy.', {
-        package_id: packageId,
-        source_policy_reason: sourcePolicy.reason,
-        failure_code: 'first_party_package_source_policy_unresolved',
-      });
-    }
-    const developerTarget = sourcePolicy.desired_source_kind === 'developer_checkout_override'
-      && sourcePolicy.developer_checkout_available
-      && sourcePolicy.developer_checkout_path
-      ? loadDeveloperCheckoutPackageSource(packageId, sourcePolicy.developer_checkout_path)
-      : null;
-    if (sourcePolicy.desired_source_kind === 'developer_checkout_override' && !developerTarget) {
-      throw new FrameworkContractError('contract_shape_invalid', 'Developer Mode selected a package checkout that is not available.', {
-        package_id: packageId,
-        module_id: sourcePolicy.module_id,
-        checkout_path: sourcePolicy.developer_checkout_path,
-        source_policy_reason: sourcePolicy.reason,
-        failure_code: 'agent_package_developer_checkout_unavailable',
-      });
-    }
-    if (!developerTarget && !targetVersion) {
-      throw new FrameworkContractError('codex_command_failed', 'Package-channel source is unavailable for a managed closure member.', {
-        package_id: packageId,
-        failure_code: 'agent_package_capability_channel_unavailable',
-      });
-    }
-    const manifest = developerTarget
-      ? developerTarget.ownerManifest
-      : (() => {
-          assertFirstPartyPackageCatalogVersion(packageId, targetVersion!);
-          const payload = catalogManifestPayload(targetVersion!);
-          if (!payload) {
-            throw new FrameworkContractError('contract_shape_invalid', 'First-party Package currentness requires an inline owner manifest.', {
-              package_id: packageId,
-              package_version: targetVersion!.package_version,
-              failure_code: 'agent_package_catalog_inline_manifest_missing',
-            });
-          }
-          return normalizePackageManifest(payload, targetVersion!.manifest_url);
-        })();
-    if (manifest.package_id !== packageId
-      || (!developerTarget && manifest.version !== targetVersion!.package_version)) {
-      throw new FrameworkContractError('contract_shape_invalid', 'Package owner closure manifest identity does not match its Package selection.', {
-        package_id: packageId,
-        manifest_package_id: manifest.package_id,
-        package_version: targetVersion?.package_version ?? null,
-        manifest_version: manifest.version,
-        failure_code: 'agent_package_catalog_package_id_mismatch',
-      });
-    }
-    for (const dependency of manifest.capability_dependencies.filter((entry) =>
-      entry.required !== false)) {
-      const dependencyPolicy = resolveAgentPackageEffectiveSourcePolicy(dependency.package_id);
-      const dependencyVersion = dependencyPolicy.desired_source_kind === 'developer_checkout_override'
-        ? null
-        : catalog
-          ? ownerPackageCatalogVersion(catalog, dependency.package_id)
-          : null;
-      visit(dependency.package_id, dependencyVersion);
-    }
-    visiting.delete(packageId);
-    visited.add(packageId);
-    ordered.push({ packageId, targetVersion, developerTarget, sourcePolicy });
-  };
-  visit(rootPackageId, rootVersion);
-  return ordered;
-}
-
-export function agentPackageClosureTargetCurrentness(
-  packages: AgentPackageLock[],
-  targets: AgentPackageCatalogClosureTarget[],
-) {
-  const byId = new Map(packages.map((lock) => [lock.package_id, lock]));
-  return targets.map(({ packageId, targetVersion, developerTarget, sourcePolicy }) => {
-    const lock = byId.get(packageId) ?? null;
-    const currentness = lock
-      ? developerTarget
-        ? developerCheckoutPackageCurrentness({
-            lock,
-            ownerManifest: developerTarget.ownerManifest,
-            source: developerTarget.source,
-          })
-        : agentPackageTargetCurrentness({
-            lock,
-            target: targetVersion!,
-            desiredSourceKind: sourcePolicy.desired_source_kind!,
-          })
-      : null;
-    return {
-      package_id: packageId,
-      status: currentness?.status ?? 'update_available',
-      reasons: currentness?.reasons ?? ['package_lock_missing'],
-      target_version: developerTarget?.ownerManifest.version ?? targetVersion?.package_version ?? null,
-      developer_target: developerTarget ? {
-        package_version: developerTarget.ownerManifest.version,
-        manifest_sha256: developerTarget.source.owner_manifest_sha256,
-        content_digest: developerTarget.source.payload_digest,
-        owner_source_commit: developerTarget.source.source_git_head_sha,
-        tree_sha256: developerTarget.source.tree_sha256,
-        checkout_path: developerTarget.source.checkout_path,
-      } : null,
-      source_policy: sourcePolicy,
-      target_identity: developerTarget ? {
-        package_version: developerTarget.ownerManifest.version,
-        manifest_sha256: developerTarget.source.owner_manifest_sha256,
-        content_digest: developerTarget.source.payload_digest,
-        artifact_digest: null,
-        source_artifact_ref: null,
-      } : {
-        package_version: targetVersion!.package_version,
-        manifest_sha256: targetVersion!.manifest_sha256,
-        content_digest: targetVersion!.content_digest,
-        artifact_digest: targetVersion!.artifact_digest,
-        source_artifact_ref: targetVersion!.source_artifact_ref,
-      },
-      currentness,
-    };
-  });
-}
-
-export function installedPackageClosure(
-  packages: AgentPackageLock[],
-  targets: AgentPackageCatalogClosureTarget[],
-) {
-  const byId = new Map(packages.map((lock) => [lock.package_id, lock]));
-  return targets.map(({ packageId }) => byId.get(packageId)).filter((lock): lock is AgentPackageLock => Boolean(lock));
 }
