@@ -690,6 +690,68 @@ function frameworkFixture(root: string, version: string) {
   fs.writeFileSync(path.join(root, 'src', 'entrypoints', 'cli.ts'), `export const version = ${JSON.stringify(version)};\n`, 'utf8');
 }
 
+function runtimeFrameworkFixture(root: string, marker: string) {
+  fs.mkdirSync(path.join(root, 'bin'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'dist', 'entrypoints'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'package.json'), `${JSON.stringify({
+    name: 'opl-framework-fixture',
+    version: '0.3.5',
+    dependencies: { fixture: '1.0.0' },
+  })}\n`, 'utf8');
+  fs.writeFileSync(path.join(root, 'package-lock.json'), `${JSON.stringify({
+    name: 'opl-framework-fixture',
+    version: '0.3.5',
+    lockfileVersion: 3,
+    packages: {},
+  })}\n`, 'utf8');
+  executable(path.join(root, 'bin', 'opl'), marker);
+  fs.writeFileSync(path.join(root, 'dist', 'entrypoints', 'cli.js'), `export const marker = ${JSON.stringify(marker)};\n`, 'utf8');
+}
+
+test('Framework runtime archive installs dependencies into the incoming generation', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-archive-dependencies-'));
+  const targetRoot = path.join(root, 'framework');
+  const archiveParent = path.join(root, 'archive-source');
+  const archiveRoot = path.join(archiveParent, 'one-person-lab');
+  const archivePath = path.join(root, 'framework.tar.gz');
+  const fakeBin = path.join(root, 'fake-bin');
+  runtimeFrameworkFixture(targetRoot, 'old');
+  runtimeFrameworkFixture(archiveRoot, 'new');
+  fs.mkdirSync(path.join(targetRoot, 'node_modules'), { recursive: true });
+  fs.writeFileSync(path.join(targetRoot, 'node_modules', '.existing'), 'old generation\n', 'utf8');
+  fs.mkdirSync(fakeBin, { recursive: true });
+  fs.writeFileSync(path.join(fakeBin, 'npm'), [
+    '#!/bin/sh',
+    'set -eu',
+    'mkdir -p node_modules',
+    "printf 'incoming generation\\n' > node_modules/.installed",
+    '',
+  ].join('\n'), { mode: 0o755 });
+  execFileSync('tar', ['-czf', archivePath, '-C', archiveParent, 'one-person-lab']);
+  const archiveSha256 = execFileSync('shasum', ['-a', '256', archivePath], { encoding: 'utf8' }).trim().split(/\s+/)[0];
+
+  try {
+    const result = withEnvironment({
+      PATH: `${fakeBin}:${process.env.PATH ?? ''}`,
+      OPL_APP_PROCESS_INSTANCE_ID: 'framework-runtime-archive-dependencies',
+      OPL_FRAMEWORK_UPDATE_SKIP_DEPENDENCY_INSTALL: undefined,
+    }, () => runOplFrameworkSelfUpdate({
+      targetRoot,
+      sourceArchive: archivePath,
+      sourceArchiveSha256: archiveSha256,
+      allowChannelArtifact: false,
+    }));
+    assert.equal(result.status, 'completed');
+    assert.equal(result.reason, 'framework_runtime_artifact_staged_for_restart');
+    assert.equal(result.result?.dependency_install.required, true);
+    assert.equal(result.result?.dependency_install.status, 'completed');
+    assert.equal(fs.readFileSync(path.join(`${targetRoot}.pending`, 'node_modules', '.installed'), 'utf8'), 'incoming generation\n');
+    assert.equal(fs.existsSync(path.join(`${targetRoot}.pending`, 'node_modules', '.existing')), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('Framework and Temporal generation stages, activates on startup, and rolls back through the existing owner', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-pending-'));
   const targetRoot = path.join(root, 'framework');

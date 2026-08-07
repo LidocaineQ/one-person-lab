@@ -596,7 +596,9 @@ function applyFrameworkArchive(input: FrameworkSelfUpdateInput & {
     }
     const finalStageRoot = path.join(tempRoot, 'framework-stage');
     const copiedFileCount = copyDirectoryContents(extractedRoot, finalStageRoot);
-    const dependencyInstallRequired = dependencyInputsChanged(finalStageRoot, input.targetRoot);
+    // Activation swaps the whole root, so the incoming generation must carry its own dependencies.
+    const dependencyInstallRequired = dependencyInputsChanged(finalStageRoot, input.targetRoot)
+      || !fs.existsSync(path.join(finalStageRoot, 'node_modules'));
     const dependencyInstall = dependencyInstallRequired && !shouldSkipDependencyInstall(input)
       ? runDependencyInstall(finalStageRoot)
       : skippedDependencyInstall(dependencyInstallRequired);
