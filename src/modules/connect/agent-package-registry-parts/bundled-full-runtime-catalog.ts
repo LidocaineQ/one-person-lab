@@ -223,38 +223,6 @@ export function readBundledFullRuntimePackageCatalog(): BundledFullRuntimePackag
   };
 }
 
-function bundledFullRuntimePackageClosure(
-  catalog: BundledFullRuntimePackageCatalog,
-  rootPackageId: string,
-) {
-  const closure: string[] = [];
-  const visiting = new Set<string>();
-  const visited = new Set<string>();
-  const visit = (packageId: string) => {
-    if (visited.has(packageId)) return;
-    if (visiting.has(packageId)) {
-      fail('Bundled Full runtime package catalog contains a dependency cycle.', {
-        root_package_id: rootPackageId,
-        package_id: packageId,
-      });
-    }
-    const entry = catalog.entries.get(packageId);
-    if (!entry) {
-      fail('Bundled Full runtime package catalog dependency is missing.', {
-        root_package_id: rootPackageId,
-        package_id: packageId,
-      });
-    }
-    visiting.add(packageId);
-    for (const dependencyPackageId of entry.dependencyPackageIds) visit(dependencyPackageId);
-    visiting.delete(packageId);
-    visited.add(packageId);
-    closure.push(packageId);
-  };
-  visit(rootPackageId);
-  return closure;
-}
-
 function resolveInstalledRuntimePackageRoot(
   entry: BundledFullRuntimeCatalogEntry,
   env: NodeJS.ProcessEnv,
