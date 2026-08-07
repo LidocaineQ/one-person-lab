@@ -955,7 +955,7 @@ function buildPhysicalSurfacePaths(manifest: AgentPackageManifest) {
   };
 }
 
-export function inspectMaterializedPhysicalCodexSurface(manifest: AgentPackageManifest) {
+function inspectMaterializedPhysicalCodexSurface(manifest: AgentPackageManifest) {
   const paths = buildPhysicalSurfacePaths(manifest);
   const codexDefaultExposure = manifest.codex_default_exposure !== false;
   if (!manifest.plugin_id || !paths.codexPluginCachePath) {
@@ -1610,7 +1610,7 @@ function validateProjectedSkillContentClosure(
   }
 }
 
-export function materializePhysicalCodexSurface(
+function materializePhysicalCodexSurface(
   manifest: AgentPackageManifest,
   dryRun: boolean,
   options: PhysicalMaterializationOptions = {},

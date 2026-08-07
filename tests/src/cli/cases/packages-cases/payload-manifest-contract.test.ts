@@ -8,7 +8,6 @@ import {
   test,
 } from './helpers.ts';
 import {
-  materializePhysicalCodexSurface,
   resolveBundledFullRuntimeManifestPhysicalSource,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/physical-surface.ts';
 import type {
