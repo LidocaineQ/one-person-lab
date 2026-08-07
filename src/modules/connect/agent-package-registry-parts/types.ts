@@ -317,24 +317,6 @@ export type AgentPackageManagedRuntimeSourceCarrier = {
   module_id: string;
 };
 
-export type AgentPackageManagedRuntimeSourceReadiness = {
-  status: 'not_required' | 'missing' | 'current' | 'incompatible';
-  operational_ready: boolean;
-  module_id: string | null;
-  checkout_path: string | null;
-  expected_tree_sha256: string | null;
-  actual_tree_sha256: string | null;
-  reason: string | null;
-  provenance_observation?: {
-    policy: 'observation_only';
-    status: 'unchanged' | 'changed' | 'unavailable';
-    recorded_source_git_head_sha: string | null;
-    actual_source_git_head_sha: string | null;
-    recorded_tree_sha256: string;
-    actual_tree_sha256: string | null;
-  };
-};
-
 export type AgentPackageManagedPolicySurfaceConfig = {
   policy_kind: 'opl_flow_workflow_policy';
   source_path: string;
@@ -607,28 +589,6 @@ export type AgentPackageDependencyReadiness = {
   status: 'missing' | 'current' | 'incompatible';
   operational_ready: boolean;
   dependencies: AgentPackageDependencyReadinessItem[];
-};
-
-export type AgentPackageMaterializationReadiness = {
-  status: 'not_required' | 'scope_required' | 'missing' | 'current' | 'incompatible';
-  scope: 'workspace' | 'quest' | null;
-  target_root: string | null;
-  required_skill_ids: string[];
-  materialized_skill_ids: string[];
-  expected_digest: string | null;
-  actual_digest: string | null;
-  repair_command: string | null;
-  core_readiness: {
-    status: 'not_required' | 'missing' | 'current' | 'incompatible';
-    required_skill_ids: string[];
-    materialized_skill_ids: string[];
-  };
-  specialty_exposure: {
-    status: 'not_required' | 'current' | 'degraded';
-    declared_skill_ids: string[];
-    materialized_skill_ids: string[];
-    missing_skill_ids: string[];
-  };
 };
 
 export type AgentPackageProfileSurfaceConfig = {

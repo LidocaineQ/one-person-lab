@@ -378,6 +378,12 @@ test('retired Package lifecycle lock construction stays absent', () => {
   ]) {
     assert.doesNotMatch(packageTypes, new RegExp(`\\b${retiredLockType}\\b`), retiredLockType);
   }
+  for (const retiredReadinessType of [
+    'AgentPackageManagedRuntimeSourceReadiness',
+    'AgentPackageMaterializationReadiness',
+  ]) {
+    assert.doesNotMatch(packageTypes, new RegExp(`\\b${retiredReadinessType}\\b`), retiredReadinessType);
+  }
   const managedPolicySurface = fs.readFileSync(
     path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/managed-policy-surface.ts'),
     'utf8',
