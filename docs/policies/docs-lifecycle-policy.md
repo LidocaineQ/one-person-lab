@@ -7,13 +7,20 @@ Machine boundary: 本文是人读政策。机器真相继续归 contracts、sche
 
 ## 当前政策
 
-OPL series docs governance 默认覆盖 12 个维护 repo：`one-person-lab`、`one-person-lab-app`、`one-person-lab-cloud`、`opl-native-workbench`、`opl-flow`、`opl-doc`、`med-autoscience`、`med-autogrant`、`redcube-ai`、`opl-meta-agent`、`opl-bookforge` 和 `mas-scholar-skills`。其中 OPL、MAS、MAG、RCA 采用同一套 strict canonical docs 目录：
+OPL series docs governance 不维护固定仓库数量或具名 allowlist。每轮从 actual Git roots、
+repo-local owner 标识、canonical owner 和当轮用户范围 fresh 发现实际 OPL-owned scope；已退役
+或不存在的仓库不构成缺失项，upstream fork 主体保持只读排除。当前声明 framework / domain
+owner 职责的仓库采用同一套 strict canonical docs 目录：
 
 `active/public/product/runtime/delivery/source/policies/specs/references/history`
 
 这套目录不是按“当前有没有文件”决定保留，而是按 repo 长期生命周期职责决定保留。OPL/MAS/MAG/RCA 的目录如果承接长期职责，可以暂时只有索引；但索引必须写清 owner、purpose、state、machine boundary、当前承载状态和何时应新增正文。没有长期职责的目录不进入 taxonomy。
 
-`one-person-lab-cloud`、`opl-meta-agent`、`opl-bookforge`、`one-person-lab-app`、`opl-native-workbench`、`opl-flow`、`opl-doc` 和 `mas-scholar-skills` 纳入同一治理巡检，但按各自 repo 职责治理：Cloud 只持有长期、条件启用的 Cloud 产品包装与白皮书 truth，不把 Hosted Workspace 写成当前必要产品面；OMA 可以保持 target-agent builder 所需的轻量 docs 形态；BookForge 按 OPL-compatible authoring agent / artifact lifecycle owner 治理；App docs 归产品、release、testing、user guides 和 screenshot lifecycle；其余 support/candidate repo 只维护自身 GUI candidate、workflow profile、docs tooling 或 capability-pack truth。它们只有在出现长期 public、product、runtime、delivery、source、policies、specs 或 history 内容时，才新增对应目录索引。
+实际发现的其他产品、App、GUI candidate、workflow profile、docs tooling、agent、分发或
+capability-pack 仓库纳入同一治理巡检，但只按各自 repo-native 职责维护轻量 truth，不反向
+扩大 framework/domain taxonomy。Cloud 只持有长期、条件启用的产品包装与白皮书 truth，
+不把 Hosted Workspace 写成当前必要产品面；其他仓库也只有在出现长期 public、product、
+runtime、delivery、source、policies、specs 或 history 职责时，才新增对应目录索引。
 
 ## 文档基本原则
 

@@ -7,7 +7,12 @@ Machine boundary: 本文是人读 reference 支撑材料。机器 truth 继续�
 
 ## 目标
 
-本清单用于把 OPL series 12 个默认维护仓：`one-person-lab`、`one-person-lab-app`、`one-person-lab-cloud`、`opl-native-workbench`、`opl-flow`、`opl-doc`、`med-autoscience`、`med-autogrant`、`redcube-ai`、`opl-meta-agent`、`opl-bookforge` 和 `mas-scholar-skills` 放进统一文档管理口径里做巡检。OPL、MAS、MAG、RCA 采用完整同名 canonical docs taxonomy；其余仓按各自 App、条件 Cloud 产品、GUI candidate、workflow profile、docs tooling、agent 或 capability-pack 职责维护轻量 truth，不反向扩大 framework/domain taxonomy，也不把条件 Cloud 路线当作当前必要产品面。
+本清单用于把每轮从 actual Git roots、repo-local owner 标识、canonical owner 和当轮用户范围
+fresh 发现的 OPL-owned repos 放进统一文档管理口径里做巡检；它不保存默认仓库数量或具名
+allowlist。当前声明 framework/domain owner 职责的仓库采用完整同名 canonical docs taxonomy；
+其余仓按各自 App、条件 Cloud 产品、GUI candidate、workflow profile、docs tooling、agent、分发
+或 capability-pack 职责维护轻量 truth，不反向扩大 framework/domain taxonomy，也不把条件
+Cloud 路线当作当前必要产品面。
 它服务跨仓 docs intake、回归与持续对齐，不替代核心五件套、公开主线或 machine-readable contracts。
 
 ## 一、默认入口
