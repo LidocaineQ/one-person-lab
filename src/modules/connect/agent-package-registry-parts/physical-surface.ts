@@ -886,29 +886,6 @@ export function resolveBundledFullRuntimeManifestPhysicalSource(input: {
   };
 }
 
-export async function resolveManifestPhysicalSource(
-  manifest: AgentPackageManifest,
-  dryRun: boolean,
-  catalogSelection: ManagedModulePackageChannelSelection | null = null,
-): Promise<AgentPackageManifest> {
-  if (manifest.plugin_source_path || !manifest.plugin_payload_manifest_url) {
-    return manifest;
-  }
-  const payload = await materializePayloadManifestSource({
-    manifest,
-    payloadManifestUrl: manifest.plugin_payload_manifest_url,
-    dryRun,
-    catalogSelection,
-  });
-  return {
-    ...manifest,
-    plugin_source_path: payload.payloadRoot,
-    plugin_payload_manifest_sha256: payload.payloadManifestSha256,
-    plugin_payload_cache_path: payload.persistentCachePath,
-    verified_payload_source_commit: payload.verifiedPayloadSourceCommit,
-  };
-}
-
 function buildPhysicalSurfacePaths(manifest: AgentPackageManifest) {
   const codexHome = resolveCodexHome();
   const pluginId = manifest.plugin_id;

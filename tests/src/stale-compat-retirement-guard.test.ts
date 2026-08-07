@@ -306,6 +306,7 @@ test('retired Package lifecycle lock construction stays absent', () => {
     'restorePhysicalCodexSurfaceMutation',
     'finalizePhysicalCodexSurfaceMutation',
     'removePhysicalCodexSurface',
+    'resolveManifestPhysicalSource',
   ]) {
     assert.doesNotMatch(
       physicalSurface,

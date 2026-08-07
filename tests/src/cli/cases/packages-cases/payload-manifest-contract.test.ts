@@ -10,7 +10,6 @@ import {
 import {
   materializePhysicalCodexSurface,
   resolveBundledFullRuntimeManifestPhysicalSource,
-  resolveManifestPhysicalSource,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/physical-surface.ts';
 import type {
   BundledFullRuntimeCatalogEntry,
@@ -249,49 +248,6 @@ test('Connect admits only strict canonical first-party payload identity and expl
       owner_source_commit: 'b'.repeat(40),
     },
   }), (error: any) => error?.details?.failure_code === 'first_party_package_payload_identity_mismatch');
-});
-
-test('Connect verifies canonical bytes and preserves 100755 through physical Codex materialization', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-canonical-payload-mode-'));
-  const stateDir = path.join(root, 'state');
-  const homeDir = path.join(root, 'home');
-  const payloadPath = path.join(root, 'payload.json');
-  const fixture = canonicalFixture();
-  fs.writeFileSync(payloadPath, `${JSON.stringify(fixture.payload, null, 2)}\n`);
-  const previousEnvironment = {
-    HOME: process.env.HOME,
-    CODEX_HOME: process.env.CODEX_HOME,
-    OPL_STATE_DIR: process.env.OPL_STATE_DIR,
-  };
-  const previousFetch = globalThis.fetch;
-  process.env.HOME = homeDir;
-  process.env.CODEX_HOME = path.join(homeDir, '.codex');
-  process.env.OPL_STATE_DIR = stateDir;
-  fixture.manifest.plugin_payload_manifest_url = payloadPath;
-  globalThis.fetch = async (input) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    const file = fixture.files.find((candidate) => sourceUrl(candidate.path) === url);
-    return file
-      ? new Response(file.content, { status: 200 })
-      : new Response('not found', { status: 404 });
-  };
-
-  try {
-    const resolved = await resolveManifestPhysicalSource(fixture.manifest, false);
-    assert.equal(resolved.verified_payload_source_commit, sourceCommit);
-    const stagedSkill = path.join(resolved.plugin_source_path!, 'skills', pluginId, 'SKILL.md');
-    assert.equal(fs.statSync(stagedSkill).mode & 0o777, 0o755);
-    const physical = materializePhysicalCodexSurface(resolved, false);
-    const installedSkill = path.join(physical.codex_plugin_cache_path!, 'skills', pluginId, 'SKILL.md');
-    assert.equal(fs.statSync(installedSkill).mode & 0o777, 0o755);
-  } finally {
-    globalThis.fetch = previousFetch;
-    for (const [name, value] of Object.entries(previousEnvironment)) {
-      if (value === undefined) delete process.env[name];
-      else process.env[name] = value;
-    }
-    fs.rmSync(root, { recursive: true, force: true });
-  }
 });
 
 test('bundled Full runtime payloads stay offline and reject source-root or file path escape', () => {
