@@ -137,6 +137,8 @@
       "framework_derives_or_selects_study_id": false
     },
     "domain_output": {
+      "schema_authority": "installed_mas_output_schema",
+      "framework_validation_scope": "workspace_qualification_boundary_and_generic_cas_subset",
       "result_pointer": "/standard_agent_action_run/result",
       "allowed_statuses": ["authorized", "typed_blocker", "invalid_host_input"],
       "study_id_pointer": "/standard_agent_action_run/result/study_identity/study_id",
@@ -152,6 +154,7 @@
       "receipt_content_binding_output_field": "provisioning_receipt_content_binding",
       "operation_count": 3,
       "target_kinds": ["workspace_index", "lifecycle", "provisioning_receipt"],
+      "authorization_satisfied_gate_ids": [],
       "framework_receipt_pointer": "/standard_agent_action_run/host_materialization",
       "framework_receipt_path_pointer": "/standard_agent_action_run/host_materialization/receipt_path",
       "journaled_all_or_rollback": true,
