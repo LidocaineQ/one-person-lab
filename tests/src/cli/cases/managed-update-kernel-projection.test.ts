@@ -634,8 +634,8 @@ test('canonical bundled projection freezes root6 closure7 and OPL Flow eight-Ski
   assert.deepEqual(Object.keys(catalog.packages).sort(), [
     'mag', 'mas', 'mas-scholar-skills', 'obf', 'oma', 'opl-flow', 'rca',
   ]);
-  assert.equal(flow.package_version, '0.1.39');
-  assert.equal(manifest.version, '0.1.39');
+  assert.equal(flow.package_version, '0.1.40');
+  assert.equal(manifest.version, '0.1.40');
   assert.equal(manifest.profile_surface.existing_profile_policy, 'semantic_merge_required');
   assert.equal(manifest.managed_policy_surface.policy_kind, 'opl_flow_workflow_policy');
   assert.deepEqual(manifest.codex_surface.required_skill_ids, [
