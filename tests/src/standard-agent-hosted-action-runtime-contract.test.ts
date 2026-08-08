@@ -158,11 +158,15 @@ test('hosted action runtime exposes one receipt-bound qualification provisioning
   assert.equal(provisioning.input.framework_derives_or_selects_study_id, false);
   assert.equal(provisioning.domain_output.study_id_pointer,
     '/standard_agent_action_run/result/study_identity/study_id');
+  assert.equal(provisioning.domain_output.schema_authority, 'installed_mas_output_schema');
+  assert.equal(provisioning.domain_output.framework_validation_scope,
+    'workspace_qualification_boundary_and_generic_cas_subset');
   assert.equal(provisioning.domain_output.provisioning_receipt_path_pointer,
     '/standard_agent_action_run/result/provisioning_receipt/receipt_relative_path');
   assert.equal(provisioning.host_materialization.framework_receipt_path_pointer,
     '/standard_agent_action_run/host_materialization/receipt_path');
   assert.equal(provisioning.host_materialization.operation_count, 3);
+  assert.deepEqual(provisioning.host_materialization.authorization_satisfied_gate_ids, []);
   assert.equal(provisioning.host_materialization.journaled_all_or_rollback, true);
   assert.equal(provisioning.host_materialization.exact_request_replay_is_idempotent, true);
   assert.equal(provisioning.qualification_boundary.ordinary_stage_admission_reuse_allowed, false);

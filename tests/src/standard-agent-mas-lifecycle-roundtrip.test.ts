@@ -9,7 +9,10 @@ import { pathToFileURL } from 'node:url';
 import { canonicalJsonBytes } from '../../src/kernel/canonical-json.ts';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 import { resolveStandardAgent } from '../../src/kernel/standard-agent-registry.ts';
-import { runStandardAgentAction } from '../../src/modules/runway/standard-agent-action-runtime.ts';
+import {
+  runStandardAgentAction,
+  runStandardAgentQualificationProvisioning,
+} from '../../src/modules/runway/standard-agent-action-runtime.ts';
 import { runStandardAgentHandlerSandbox } from '../../src/modules/runway/standard-agent-handler-sandbox.ts';
 
 const checkout = process.env.OPL_MAS_ROUNDTRIP_CHECKOUT;
@@ -22,6 +25,7 @@ const expectedOperationCount = Number(process.env.OPL_MAS_ROUNDTRIP_EXPECTED_OPE
 const enabled = Boolean(
   checkout && sourceWorkspace && studyId && sourceUserAuthority && sourceRevisionIntake,
 );
+const qualificationEnabled = Boolean(checkout);
 
 function sha256(bytes: string | Buffer) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
@@ -62,6 +66,79 @@ function packageUseBinding() {
     dependency_closure_digest: '4'.repeat(64),
     core_skill_tree_digest: null,
     skill_tree_digest: null,
+  };
+}
+
+function nativeManagedCheckout(checkoutRoot: string, workspaceRoot: string) {
+  const sourceRoot = fs.realpathSync.native(checkoutRoot);
+  const installedVersion = `0.2.25-${'b'.repeat(64)}`;
+  const pluginId = 'med-autoscience@med-autoscience';
+  const marketplaceSource = 'gaofeng21cn/med-autoscience';
+  const manifestSha256 = `sha256:${sha256(fs.readFileSync(path.join(sourceRoot, 'opl-package.json')))}`;
+  return {
+    agent: resolveStandardAgent('mas')!,
+    package_id: 'mas',
+    workspace_root: fs.realpathSync.native(workspaceRoot),
+    checkout_root: sourceRoot,
+    package_status: {
+      installed_package_count: 1,
+      launch_allowed: true,
+      launch_blocked_reason: null,
+      runtime_source_readiness: { operational_ready: true, checkout_path: sourceRoot },
+      configured_carrier: {
+        surface_kind: 'opl_configured_codex_plugin_carrier_readback.v1',
+        package_id: 'mas',
+        carrier: {
+          kind: 'codex_plugin_manager',
+          plugin_id: pluginId,
+          marketplace_source: marketplaceSource,
+          observed_sources: [{
+            plugin_id: pluginId,
+            marketplace_source: marketplaceSource,
+            installed_version: installedVersion,
+            enabled: true,
+            plugin_source_path: sourceRoot,
+            source_tree_sha256: `sha256:${'c'.repeat(64)}`,
+          }],
+          precedence: 'exact_single_source',
+        },
+        executor: { route: 'codex_cli', required_skill_ids: ['med-autoscience'], status: 'callable' },
+        publication_ref: 'ghcr.io/gaofeng21cn/one-person-lab-packages/mas:latest-stable',
+        status: 'installed',
+        installed_version: installedVersion,
+        enabled: true,
+        plugin_source_path: sourceRoot,
+        operation: 'list',
+        native_command: ['plugin', 'list', '--json'],
+        native_action_dispatched: true,
+        reason: null,
+      },
+      installed_carrier_readback: {
+        kind: 'codex_plugin_manager',
+        identity: pluginId,
+        source_ref: sourceRoot,
+        version: installedVersion,
+        enabled: true,
+        lifecycle_authority: 'carrier_owned',
+      },
+      installed_readiness: {
+        installed: true,
+        physical_status: 'available',
+        callability: 'callable',
+      },
+    },
+    package_use_binding: null,
+    use_boundary_id: null,
+    runtime_source_kind: 'installed_native_carrier',
+    native_runtime: {
+      package_version: '0.2.25',
+      carrier_installed_version: installedVersion,
+      manifest_sha256: manifestSha256,
+      plugin_selector: pluginId,
+      marketplace_source: marketplaceSource,
+      plugin_source_path: sourceRoot,
+      source_tree_sha256: `sha256:${'c'.repeat(64)}`,
+    },
   };
 }
 
@@ -249,6 +326,120 @@ test('OPL round-trips real MAS lifecycle schema and Python authority handler', {
       .filter((relative: string) => /reactivation[_-]receipt/u.test(relative));
     assert.equal(receiptTargets.length, 1);
     assert.equal(fs.statSync(path.join(workspaceRoot, receiptTargets[0]!)).isFile(), true);
+  } finally {
+    if (previousStateRoot === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateRoot;
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+});
+
+test('OPL materializes and replays real MAS qualification provisioning bytes', {
+  skip: qualificationEnabled ? false : 'set OPL_MAS_ROUNDTRIP_CHECKOUT to run the qualification ABI test',
+}, async () => {
+  const masCheckout = fs.realpathSync.native(checkout!);
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-mas-real-qualification-roundtrip-'));
+  const checkoutRoot = path.join(fixtureRoot, 'mas-checkout');
+  let workspaceRoot = path.join(fixtureRoot, 'workspace');
+  const previousStateRoot = process.env.OPL_STATE_DIR;
+
+  try {
+    process.env.OPL_STATE_DIR = path.join(fixtureRoot, 'state');
+    fs.mkdirSync(checkoutRoot, { recursive: true });
+    fs.cpSync(path.join(masCheckout, 'src'), path.join(checkoutRoot, 'src'), { recursive: true });
+    fs.cpSync(path.join(masCheckout, 'contracts'), path.join(checkoutRoot, 'contracts'), { recursive: true });
+    fs.copyFileSync(path.join(masCheckout, 'opl-package.json'), path.join(checkoutRoot, 'opl-package.json'));
+    fs.cpSync(fs.realpathSync.native(path.join(process.cwd(), 'python')), path.join(checkoutRoot, 'python'), { recursive: true });
+    fs.mkdirSync(workspaceRoot, { recursive: true });
+    workspaceRoot = fs.realpathSync.native(workspaceRoot);
+    const authorityRecord = {
+      surface_kind: 'mas_qualification_work_item_provisioning_authority',
+      schema_version: 1,
+      authority_ref: 'mas-qualification-authority:real-roundtrip',
+      domain_owner: 'MedAutoScience',
+      domain_id: 'medautoscience',
+      canonical_workspace_root: workspaceRoot,
+      qualification_scope: 'standard_agent_full_vm_qualification',
+      issued_at: '2026-08-08T00:00:00Z',
+      single_use: true,
+      qualification_only: true,
+      provisions_work_item: true,
+      authorizes_stage_body: false,
+      authorizes_business_action: false,
+      authorizes_publication: false,
+      authorizes_submission: false,
+      provider_completion_is_domain_completion: false,
+    };
+    const authorityBytes = canonicalJsonBytes(authorityRecord);
+    const authoritySha256 = sha256(authorityBytes);
+    const payload = {
+      surface_kind: 'mas_qualification_work_item_provisioning_authority_request',
+      schema_version: 1,
+      authority_context: {
+        action_id: 'qualification_work_item_provisioning_authority_evaluate',
+        handler_call_ref: 'opl-handler-call:real-qualification-roundtrip',
+        owner_ledger_ref: 'opl-owner-ledger:real-qualification-roundtrip',
+      },
+      qualification_authority: {
+        authority_sha256: authoritySha256,
+        authority_bytes_base64: authorityBytes.toString('base64'),
+        authority_byte_size: authorityBytes.byteLength,
+        record: authorityRecord,
+      },
+      current_workspace_index: {
+        exists: false,
+        workspace_index_ref: 'workspace_index.json',
+        workspace_index_sha256: null,
+        workspace_index_bytes_base64: null,
+        workspace_index_byte_size: null,
+        record: null,
+      },
+    };
+    let handlerCalls = 0;
+    const dependencies = {
+      resolveManagedCheckout: async () => nativeManagedCheckout(checkoutRoot, workspaceRoot) as never,
+      runHandler: ((input: Parameters<typeof runStandardAgentHandlerSandbox>[0]) => {
+        handlerCalls += 1;
+        return runStandardAgentHandlerSandbox(input);
+      }) as never,
+      recordLedger: ((input: Record<string, unknown>) => ({
+        ledger_entry: { run_id: input.runId, status: input.status },
+        recorded_event: { event_type: 'standard_agent_action_run_recorded' },
+      })) as never,
+    };
+    const input = {
+      domainId: 'mas',
+      actionId: 'qualification_work_item_provisioning_authority_evaluate',
+      workspaceRoot,
+      payload,
+      runId: 'mas-real-qualification-roundtrip',
+    };
+
+    const first = await runStandardAgentQualificationProvisioning(input, dependencies);
+    const replay = await runStandardAgentQualificationProvisioning(input, dependencies);
+    const firstRun = first.standard_agent_action_run as Record<string, any>;
+    const replayRun = replay.standard_agent_action_run as Record<string, any>;
+    const studyId = `qualification-${authoritySha256}`;
+    const receiptPath = path.join(
+      workspaceRoot,
+      'studies',
+      studyId,
+      'artifacts',
+      'controller',
+      'qualification',
+      'provisioning-receipt.json',
+    );
+
+    assert.equal(handlerCalls, 1);
+    assert.equal(firstRun.execution_kind, 'handler_ref');
+    assert.equal(firstRun.result.study_identity.study_id, studyId);
+    assert.deepEqual(
+      firstRun.result.mas_qualification_work_item_cas_mutation_authorization.satisfied_gate_ids,
+      [],
+    );
+    assert.equal(firstRun.host_materialization.receipt_ref, replayRun.host_materialization.receipt_ref);
+    assert.equal(fs.statSync(path.join(workspaceRoot, 'workspace_index.json')).isFile(), true);
+    assert.equal(fs.statSync(path.join(workspaceRoot, 'studies', studyId, 'control', 'lifecycle.json')).isFile(), true);
+    assert.equal(fs.statSync(receiptPath).isFile(), true);
   } finally {
     if (previousStateRoot === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateRoot;

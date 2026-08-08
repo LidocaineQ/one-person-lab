@@ -267,9 +267,14 @@ function qualificationProvisioningMismatch(message: string, details: Record<stri
   fail(message, { failure_code: 'qualification_provisioning_contract_mismatch', ...details });
 }
 
-function qualificationRecord(value: unknown, label: string, fields: readonly string[]) {
+function qualificationObject(value: unknown, label: string) {
   if (!isRecord(value)) qualificationProvisioningMismatch(`${label} must be an object.`);
-  const actual = Object.keys(value).sort();
+  return value;
+}
+
+function qualificationRecord(value: unknown, label: string, fields: readonly string[]) {
+  const record = qualificationObject(value, label);
+  const actual = Object.keys(record).sort();
   const expected = [...fields].sort();
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     qualificationProvisioningMismatch(`${label} must use its exact closed shape.`, {
@@ -277,7 +282,7 @@ function qualificationRecord(value: unknown, label: string, fields: readonly str
       expected_fields: expected,
     });
   }
-  return value;
+  return record;
 }
 
 function qualificationText(value: unknown, label: string) {
@@ -308,18 +313,7 @@ function assertQualificationProvisioningOutput(input: {
   requestPayload: Record<string, unknown>;
   output: unknown;
 }) {
-  const output = qualificationRecord(input.output, 'qualification provisioning result', [
-    'surface_kind',
-    'schema_version',
-    'status',
-    'study_identity',
-    'provisioning_receipt',
-    'provisioning_receipt_content_binding',
-    'mas_qualification_work_item_cas_mutation_authorization',
-    'opl_host_materialization_request',
-    'typed_blocker',
-    'error',
-  ]);
+  const output = qualificationObject(input.output, 'qualification provisioning result');
   if (output.status !== 'authorized') return;
   if (
     output.surface_kind !== 'mas_qualification_work_item_provisioning_authority_result'
@@ -380,10 +374,7 @@ function assertQualificationProvisioningOutput(input: {
     || authorityRecord.provider_completion_is_domain_completion !== false
   ) qualificationProvisioningMismatch('Qualification authority exact bytes or qualification-only boundary do not match the host request.');
 
-  const identity = qualificationRecord(output.study_identity, 'study_identity', [
-    'study_id',
-    'canonical_study_root',
-  ]);
+  const identity = qualificationObject(output.study_identity, 'study_identity');
   const studyId = qualificationText(identity.study_id, 'study_identity.study_id');
   const studyRoot = `studies/${studyId}`;
   if (identity.canonical_study_root !== studyRoot) {
@@ -391,18 +382,7 @@ function assertQualificationProvisioningOutput(input: {
   }
   const lifecyclePath = `${studyRoot}/control/lifecycle.json`;
   const receiptPath = `${studyRoot}/artifacts/controller/qualification/provisioning-receipt.json`;
-  const receipt = qualificationRecord(output.provisioning_receipt, 'provisioning_receipt', [
-    'surface_kind', 'schema_version', 'domain_owner', 'domain_id', 'canonical_workspace_root',
-    'study_id', 'canonical_study_root', 'lifecycle_state', 'lifecycle_generation',
-    'qualification_scope', 'qualification_authority_ref', 'qualification_authority_sha256',
-    'qualification_authority_byte_size', 'handler_call_ref', 'owner_ledger_ref',
-    'workspace_index_ref', 'workspace_index_before_sha256', 'workspace_index_after_sha256',
-    'lifecycle_relative_path', 'lifecycle_sha256', 'receipt_relative_path', 'issued_at',
-    'single_use', 'qualification_only', 'stage_body_authorized', 'business_action_authorized',
-    'publication_authorized', 'submission_authorized', 'requires_opl_cas_materialization_receipt',
-    'materialization_semantics', 'provider_completion_is_domain_completion', 'receipt_ref',
-    'receipt_fingerprint',
-  ]);
+  const receipt = qualificationObject(output.provisioning_receipt, 'provisioning_receipt');
   const authorityRef = qualificationText(authorityRecord.authority_ref, 'qualification_authority.record.authority_ref');
   const receiptFingerprint = qualificationText(receipt.receipt_fingerprint, 'provisioning_receipt.receipt_fingerprint');
   const fingerprint = qualificationDigest(receiptFingerprint, 'provisioning_receipt.receipt_fingerprint');
@@ -441,17 +421,13 @@ function assertQualificationProvisioningOutput(input: {
     qualificationDigest(receipt.workspace_index_before_sha256, 'provisioning_receipt.workspace_index_before_sha256');
   }
 
-  const binding = qualificationRecord(
+  const binding = qualificationObject(
     output.provisioning_receipt_content_binding,
     'provisioning_receipt_content_binding',
-    ['surface_kind', 'schema_version', 'receipt_ref', 'target_relative_path', 'sha256', 'byte_size'],
   );
-  const authorization = qualificationRecord(
+  const authorization = qualificationObject(
     output.mas_qualification_work_item_cas_mutation_authorization,
     'mas_qualification_work_item_cas_mutation_authorization',
-    ['surface_kind', 'version', 'authorized', 'authorization_ref', 'capability_id', 'request_id',
-      'domain_id', 'operations_sha256', 'materialization_scope_sha256',
-      'absent_relative_path_preconditions', 'authority_receipt_ref', 'satisfied_gate_ids'],
   );
   const request = qualificationRecord(output.opl_host_materialization_request, 'opl_host_materialization_request', [
     'surface_kind', 'version', 'capability_id', 'request_id', 'domain_id', 'authorization_ref',
