@@ -19,14 +19,15 @@ function sha256(content: string) {
 }
 
 function writeOplFlowPackage(root: string) {
-  const version = '0.1.35';
-  const ownerSourceCommit = '6d8772cd9a8b2a14b2292c15afbf3c3cb5bfa8a4';
+  const version = '0.1.42';
+  const ownerSourceCommit = 'bd9e5a9b23e5e843bf2f0d33e094b1de11244542';
   const sourceRoot = path.join(root, 'source', 'opl-flow');
   const requiredSkillIds = [
     'coordinate-concurrent-tasks',
     'codex-app-owner-migration',
     'develop-and-deliver',
     'github-ssot-patrol',
+    'opl-doc',
     'opl-fleet',
     'opl-flow',
     'recover-codex-tasks',
