@@ -116,7 +116,7 @@ const nativeHelperPrebuildWorkflowPatterns = [
   /Validate native helper package retention policy/,
   /retention_policy_recorded/,
   /dry_run_first_explicit_execute_required/,
-  /actions\/upload-artifact@v7/,
+  /actions\/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7\.0\.1/,
   /FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'/,
 ];
 
