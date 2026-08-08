@@ -32,6 +32,7 @@ type CodexPluginListEntry = {
 
 type CodexPluginMarketplaceListEntry = {
   name: string | null;
+  sourceType: string | null;
   marketplaceSource: string | null;
 };
 
@@ -205,6 +206,7 @@ function marketplaceListEntry(value: unknown): CodexPluginMarketplaceListEntry |
   const marketplaceSource = isRecord(value.marketplaceSource) ? value.marketplaceSource : null;
   return {
     name: stringValue(value.name),
+    sourceType: stringValue(marketplaceSource?.sourceType),
     marketplaceSource: stringValue(marketplaceSource?.source),
   };
 }
@@ -743,7 +745,8 @@ function ensureMarketplaceAvailable(input: {
       .find((entry) => sameMarketplaceSource(entry.marketplaceSource, input.marketplaceSource)) ?? null
     : null;
   if (configuredMarketplace) {
-    if (input.action !== 'update' && input.action !== 'repair') return;
+    if ((input.action !== 'update' && input.action !== 'repair')
+      || configuredMarketplace.sourceType !== 'git') return;
     const upgradeArgs = [
       'plugin', 'marketplace', 'upgrade',
       configuredMarketplace.name ?? marketplaceName(input.pluginId),

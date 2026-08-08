@@ -636,7 +636,6 @@ test('configured Codex carrier repair replaces a stale same-name source after th
     assert.equal(readback.executor.status, 'callable');
     assert.deepEqual(calls, [
       'plugin marketplace list --json',
-      'plugin marketplace upgrade fixture-carrier --json',
       `plugin add ${pluginSelector} --json`,
       'plugin list --json',
       'plugin remove third-party-research@historical-carrier --json',
