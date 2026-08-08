@@ -21,12 +21,12 @@ jobs:
       contents: read
     steps:
       - name: Checkout whitepaper owner repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: source
 
       - name: Checkout the canonical OPL whitepaper toolchain
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: gaofeng21cn/one-person-lab
           ref: main
@@ -52,7 +52,7 @@ jobs:
           cp -R "source/tmp/pdfs/${{ inputs.output_name }}/rendered" artifact/evidence/rendered-pages
 
       - name: Upload approved-byte candidate
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: whitepaper-${{ inputs.output_name }}-${{ github.sha }}
           path: artifact
@@ -71,21 +71,21 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout current published site with history
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: gh-pages
           fetch-depth: 0
           path: site
 
       - name: Checkout the canonical OPL whitepaper toolchain
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: gaofeng21cn/one-person-lab
           ref: main
           path: toolchain
 
       - name: Download the exact build artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: whitepaper-${{ inputs.output_name }}-${{ github.sha }}
           path: artifact
@@ -114,7 +114,7 @@ jobs:
             --interval-ms 10000
 
       - name: Upload publication receipt
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: whitepaper-publication-receipt-${{ inputs.output_name }}-${{ github.sha }}
           path: publication-receipt.json

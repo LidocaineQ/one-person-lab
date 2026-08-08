@@ -154,13 +154,13 @@ jobs:
       promotion_request_id: ${{ steps.release.outputs.promotion_request_id }}
     steps:
       - name: Checkout exact release harness
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           path: .release-harness
 
       - name: Checkout frozen Framework source
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.expected_framework_source_commit }}
           path: .framework-source
@@ -232,7 +232,7 @@ jobs:
             "$OPL_PACKAGE_RELEASE_GATE" "$OPL_RELEASE_SET_GENERATION"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
           cache: npm
@@ -249,11 +249,11 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Setup ORAS
-        uses: oras-project/setup-oras@v1
+        uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d # v2.0.1
 
       - name: Download frozen owner cohort
         if: inputs.owner_cohort_artifact_name != ''
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ${{ inputs.owner_cohort_artifact_name }}
           path: ${{ runner.temp }}/opl-owner-cohort
@@ -672,7 +672,7 @@ jobs:
             --anonymous-readback true
 
       - name: Upload prepared Package artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: opl-release-set-${{ env.OPL_RELEASE_SET_GENERATION }}
           path: dist/opl-packages
@@ -711,7 +711,7 @@ jobs:
             image_suffix: one-person-lab-packages/opl-flow
     steps:
       - name: Download exact Release Set evidence
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: opl-release-set-${{ needs.package-release-set.outputs.release_set_generation }}
           path: dist/opl-packages
@@ -790,13 +790,13 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Download attested Release Set evidence
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: opl-release-set-${{ needs.package-release-set.outputs.release_set_generation }}
           path: dist/opl-packages
 
       - name: Upload candidate promotion receipt
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: opl-release-promotion-receipt-${{ needs.package-release-set.outputs.promotion_request_id }}-candidate
           path: dist/opl-packages/opl-release-promotion-receipt.json

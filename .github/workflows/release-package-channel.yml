@@ -280,7 +280,7 @@ jobs:
           exit 1
 
       - name: Checkout OPL
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
 
@@ -297,12 +297,12 @@ jobs:
           fi
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
 
       - name: Setup ORAS
-        uses: oras-project/setup-oras@v1
+        uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d # v2.0.1
 
       - name: Promote exact generation digest
         shell: bash
@@ -529,7 +529,7 @@ jobs:
           echo "OPL_PROMOTION_RECEIPT_PATH=$receipt_root/opl-release-promotion-receipt.json" >> "$GITHUB_ENV"
 
       - name: Upload latest-stable promotion receipt
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: opl-release-promotion-receipt-${{ env.OPL_PROMOTION_REQUEST_ID }}-latest-stable
           path: ${{ env.OPL_PROMOTION_RECEIPT_PATH }}
