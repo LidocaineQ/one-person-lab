@@ -234,6 +234,7 @@ test('package status projects required closure from installed owner descriptors'
     assert.equal(unexpectedSource.configured_carrier?.carrier.precedence, 'unexpected_same_plugin_name');
     assert.equal(unexpectedSource.installed_readiness?.callability, 'callable');
     assert.equal(unexpectedSource.status, 'not_installed');
+    assert.equal(unexpectedSource.installed_package_count, 0);
     assert.equal(unexpectedSource.operational_ready, false);
     assert.equal(unexpectedSource.launch_allowed, false);
     assert.equal(

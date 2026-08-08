@@ -1852,12 +1852,20 @@ function readAgentPackageStatusSnapshot(packageId?: string | null) {
 
 function agentPackageStatusReadbackStatus(input: {
   packageId: string | null;
+  installedDescriptorPresent: boolean;
   configuredCarrierStatus: ConfiguredCodexPluginCarrierReadback['status'] | null;
   configuredCarrierPrecedence: ConfiguredCodexPluginCarrierReadback['carrier']['precedence'] | null;
+  configuredCarrierLaunchGateRequired: boolean;
   operationalReady: boolean;
 }) {
   if (
     input.packageId
+    && !input.installedDescriptorPresent
+    && input.configuredCarrierStatus === null
+  ) return 'not_installed';
+  if (
+    input.packageId
+    && input.configuredCarrierLaunchGateRequired
     && input.configuredCarrierStatus !== 'installed'
   ) {
     return input.configuredCarrierStatus === 'physical_unavailable'
@@ -1943,17 +1951,20 @@ function buildOplAgentPackageStatus(
     && carrierReadiness.physical_status === 'available'
     && carrierReadiness.callability === 'callable',
   );
+  const configuredCarrierLaunchGateRequired = installedDescriptor
+    ? installedDescriptor.manifest.package_role === 'standard_agent'
+    : configuredCarrier !== null;
   const dependencyOperational = packageDependencyReadiness?.operational_ready !== false;
   const operationalReady = Boolean(
-    configuredCarrierReady
-    && neutralCarrierReady
+    neutralCarrierReady
+    && (!configuredCarrierLaunchGateRequired || configuredCarrierReady)
     && dependencyOperational
     && managedPolicyOperational,
   );
   const dependencyBlockedReason = packageDependencyReadiness && !dependencyOperational
     ? `package_dependency_${packageDependencyReadiness.status}`
     : null;
-  const launchBlockedReason = !configuredCarrierReady
+  const launchBlockedReason = configuredCarrierLaunchGateRequired && !configuredCarrierReady
     ? configuredCarrier
       ? configuredCarrier.reason ?? 'configured_native_carrier_attention_needed'
       : 'package_not_installed'
@@ -1991,7 +2002,9 @@ function buildOplAgentPackageStatus(
     ))
       ? 'optional_dependency_missing'
     : policyCurrentness.status === 'drifted' ? 'managed_policy_drifted' : null;
-  const installed = configuredCarrier?.status === 'installed' || carrierReadiness?.installed === true;
+  const installed = configuredCarrierLaunchGateRequired
+    ? configuredCarrier?.status === 'installed' && carrierReadiness?.installed === true
+    : configuredCarrier?.status === 'installed' || carrierReadiness?.installed === true;
   const launchState = deriveAgentPackageLaunchState({
     installed,
     exposure_state: installed ? 'visible' : 'not_installed',
@@ -2001,11 +2014,20 @@ function buildOplAgentPackageStatus(
     unavailable_reason: unavailableReason,
   });
   const globallyInstalledPackageIds = new Set([
-    ...[...installedCodexPluginDescriptors.values()]
-      .filter((descriptor) => descriptor.readiness.installed)
-      .map((descriptor) => descriptor.manifest.package_id),
+    ...[...installedCodexPluginDescriptors.entries()]
+      .filter(([installedPackageId, descriptor]) => (
+        descriptor.readiness.installed
+        && (
+          descriptor.manifest.package_role !== 'standard_agent'
+          || configuredCarriers.get(installedPackageId)?.status === 'installed'
+        )
+      ))
+      .map(([installedPackageId]) => installedPackageId),
     ...[...configuredCarriers.entries()]
-      .filter(([, readback]) => readback.status === 'installed')
+      .filter(([configuredPackageId, readback]) => (
+        readback.status === 'installed'
+        && installedCodexPluginDescriptors.get(configuredPackageId)?.manifest.package_role !== 'standard_agent'
+      ))
       .map(([installedPackageId]) => installedPackageId),
   ]);
   return {
@@ -2014,8 +2036,10 @@ function buildOplAgentPackageStatus(
       surface_kind: 'opl_agent_package_status',
       status: agentPackageStatusReadbackStatus({
         packageId,
+        installedDescriptorPresent: installedDescriptor !== null,
         configuredCarrierStatus: configuredCarrier?.status ?? null,
         configuredCarrierPrecedence: configuredCarrier?.carrier.precedence ?? null,
+        configuredCarrierLaunchGateRequired,
         operationalReady,
       }),
       package_id: packageId ?? null,
