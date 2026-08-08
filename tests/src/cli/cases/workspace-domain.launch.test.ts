@@ -37,7 +37,7 @@ function createInstalledRcaCarrierFixture(root: string) {
     `${JSON.stringify({
       name: 'redcube-ai',
       version: '0.2.11',
-      skills: './skills',
+      skills: './skills/',
     }, null, 2)}\n`,
   );
   fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), '# RedCube AI\n');
@@ -290,7 +290,7 @@ test('domain launch consumes native carrier readiness without entering legacy sc
   fs.writeFileSync(path.join(pluginSource, '.codex-plugin', 'plugin.json'), `${JSON.stringify({
     name: 'redcube-ai',
     version: '0.2.11',
-    skills: './skills',
+    skills: './skills/',
   }, null, 2)}\n`);
   fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), '# RedCube AI\n');
   fs.writeFileSync(path.join(pluginSource, 'opl-package.json'), `${JSON.stringify({
