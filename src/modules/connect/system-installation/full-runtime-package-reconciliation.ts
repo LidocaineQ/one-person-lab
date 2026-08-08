@@ -27,6 +27,10 @@ import type {
   AgentPackageManifest,
 } from '../agent-package-registry-parts/types.ts';
 import {
+  migrateLegacyOplDocInstall,
+  type LegacyOplDocInstallMigration,
+} from '../agent-package-registry-parts/legacy-opl-doc-install-migration.ts';
+import {
   materializeLocalCodexPluginMarketplaceRoute,
   resolveCanonicalOplFamilyMarketplaceId,
 } from './codex-plugin-registry.ts';
@@ -46,6 +50,9 @@ type FullRuntimePackageReconciliationOptions = {
   lifecycleAction?: 'install' | 'update';
   operationId?: string;
   requireSourceRoots?: boolean;
+  migrateLegacyOplDocInstall?: (input: {
+    env: NodeJS.ProcessEnv;
+  }) => LegacyOplDocInstallMigration;
 };
 
 function fail(message: string, details: Record<string, unknown>): never {
@@ -508,11 +515,18 @@ async function reconcileBundledFullRuntimePackages(
   const materializeCarrierRoute = options.materializeCarrierRoute
     ?? materializeLocalCodexPluginMarketplaceRoute;
   const runConfiguredCarrier = options.runConfiguredCarrier ?? runConfiguredCodexPluginCarrier;
+  const migrateLegacyOplDoc = options.migrateLegacyOplDocInstall ?? migrateLegacyOplDocInstall;
+  const legacyOplDocMigration = (packageId: string) => {
+    if (packageId !== 'opl-flow') return null;
+    if (!options.migrateLegacyOplDocInstall && !env.HOME?.trim()) return null;
+    return migrateLegacyOplDoc({ env });
+  };
   const rootClosures = new Map(roots.map((packageId) => [packageId, catalogClosure(catalog, packageId)]));
 
   for (const packageId of roots) {
     const closure = rootClosures.get(packageId)!;
     if (closure.every(isCurrent)) {
+      const migration = legacyOplDocMigration(packageId);
       rootInstalls.push({
         target_id: packageId,
         package_id: packageId,
@@ -523,6 +537,9 @@ async function reconcileBundledFullRuntimePackages(
         ...rootTargetIdentity(catalog, packageId),
         dependency_transaction_id: null,
         dependency_package_ids: closure,
+        ...(migration && migration.status !== 'absent'
+          ? { legacy_opl_doc_install_migration: migration }
+          : {}),
       });
       continue;
     }
@@ -604,6 +621,7 @@ async function reconcileBundledFullRuntimePackages(
         });
       }
       verifyCurrentClosure(packageId, closure);
+      const migration = legacyOplDocMigration(packageId);
       rootInstalls.push({
         target_id: packageId,
         package_id: packageId,
@@ -618,6 +636,9 @@ async function reconcileBundledFullRuntimePackages(
         ...rootTargetIdentity(catalog, packageId),
         dependency_transaction_id: null,
         dependency_package_ids: closure,
+        ...(migration && migration.status !== 'absent'
+          ? { legacy_opl_doc_install_migration: migration }
+          : {}),
       });
     } catch (error) {
       const initialFailure = failureReadback(error, packageId);

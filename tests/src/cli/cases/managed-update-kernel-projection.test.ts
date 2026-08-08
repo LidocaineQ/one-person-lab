@@ -616,7 +616,7 @@ test('generic apply selects only eligible background-safe components while expli
   assert.deepEqual(selectedManagedUpdateComponentIds({ operation: 'apply', componentId: 'opl_base' }, components), ['opl_base']);
 });
 
-test('canonical bundled projection freezes root6 closure7 and OPL Flow eight-Skill policy', () => {
+test('canonical bundled projection freezes root6 closure7 and OPL Flow nine-Skill policy', () => {
   const catalog = parseJsonText(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
     'utf8',
@@ -634,8 +634,8 @@ test('canonical bundled projection freezes root6 closure7 and OPL Flow eight-Ski
   assert.deepEqual(Object.keys(catalog.packages).sort(), [
     'mag', 'mas', 'mas-scholar-skills', 'obf', 'oma', 'opl-flow', 'rca',
   ]);
-  assert.equal(flow.package_version, '0.1.41');
-  assert.equal(manifest.version, '0.1.41');
+  assert.equal(flow.package_version, '0.1.42');
+  assert.equal(manifest.version, '0.1.42');
   assert.equal(manifest.profile_surface.existing_profile_policy, 'semantic_merge_required');
   assert.equal(manifest.managed_policy_surface.policy_kind, 'opl_flow_workflow_policy');
   assert.deepEqual(manifest.codex_surface.required_skill_ids, [
@@ -643,6 +643,7 @@ test('canonical bundled projection freezes root6 closure7 and OPL Flow eight-Ski
     'codex-app-owner-migration',
     'develop-and-deliver',
     'github-ssot-patrol',
+    'opl-doc',
     'opl-fleet',
     'opl-flow',
     'recover-codex-tasks',

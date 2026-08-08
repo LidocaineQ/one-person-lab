@@ -194,6 +194,14 @@ if (command === 'plugin marketplace list --json') {
   state.marketplaces.push({ id, source });
   writeState();
   process.stdout.write(JSON.stringify({ status: 'ok' }));
+} else if (args.length === 5
+    && args[0] === 'plugin'
+    && args[1] === 'marketplace'
+    && args[2] === 'upgrade'
+    && args[4] === '--json') {
+  const id = args[3];
+  if (!state.marketplaces.some((entry) => entry.id === id)) process.exit(2);
+  process.stdout.write(JSON.stringify({ status: 'ok' }));
 } else if (args.length === 4
     && args[0] === 'plugin'
     && args[1] === 'add'

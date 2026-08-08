@@ -225,6 +225,21 @@ test('Full runtime currentness ignores legacy lock state and installs each missi
     entries: [],
   };
   const installCalls: string[] = [];
+  const migrationCalls: string[] = [];
+  const migrateLegacyOplDocInstall = () => {
+    migrationCalls.push('opl-flow');
+    return {
+      surface_kind: 'opl_legacy_opl_doc_install_migration.v1' as const,
+      status: 'absent' as const,
+      writes_performed: false,
+      failure_code: null,
+      plugin_root: '/fixture/plugins/opl-doc',
+      command_path: '/fixture/.local/bin/opl-doc-doctor',
+      marketplace_path: '/fixture/.agents/plugins/marketplace.json',
+      before: { plugin_root: false, command: false, marketplace_entry: false },
+      after: { plugin_root: false, command: false, marketplace_entry: false },
+    };
+  };
   fs.mkdirSync(stateDir, { recursive: true });
   fs.writeFileSync(path.join(stateDir, 'agent-package-locks.json'), '{corrupt legacy second truth');
   try {
@@ -234,6 +249,7 @@ test('Full runtime currentness ignores legacy lock state and installs each missi
         {
           ...projectionOptions(state, catalog, stateDir, { carrierActions: installCalls }),
           readCatalog: () => catalog,
+          migrateLegacyOplDocInstall,
         },
       );
       assert.ok(first);
@@ -255,6 +271,7 @@ test('Full runtime currentness ignores legacy lock state and installs each missi
         {
           ...projectionOptions(state, catalog, stateDir, { carrierActions: installCalls }),
           readCatalog: () => catalog,
+          migrateLegacyOplDocInstall,
         },
       );
       assert.ok(current);
@@ -262,6 +279,7 @@ test('Full runtime currentness ignores legacy lock state and installs each missi
       assert.equal(current.summary.already_installed, 7);
       assert.equal(current.root_installs.every((entry) => entry.status === 'skipped'), true);
       assert.equal(installCalls.length, 0);
+      assert.deepEqual(migrationCalls, ['opl-flow', 'opl-flow']);
     });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
