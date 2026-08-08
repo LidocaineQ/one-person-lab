@@ -282,7 +282,9 @@ export function selectStageAttemptPackageIdentity(
 export function immutablePackageClosureFromWorkspaceLocator(
   workspaceLocator: Record<string, unknown>,
 ): Record<string, unknown> | null {
-  const binding = workspaceLocator.package_use_binding;
+  const binding = isRecord(workspaceLocator.package_use_binding)
+    ? workspaceLocator.package_use_binding
+    : workspaceLocator.native_package_closure;
   if (!isRecord(binding)) return null;
   const rootPackage = packageIdentity(binding.root_package, 'package_use_binding.root_package');
   const providerPackages = Array.isArray(binding.provider_packages)

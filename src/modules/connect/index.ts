@@ -1,8 +1,10 @@
 import { registerAgentPackageReadinessPort } from '../../kernel/agent-package-readiness-port.ts';
 import { runOplAgentPackageStatus } from './agent-package-registry.ts';
+import { resolveAgentPackageEffectiveSourcePolicy } from './agent-package-registry-parts/source-policy.ts';
 
 registerAgentPackageReadinessPort({
   readStatus: runOplAgentPackageStatus,
+  readSourcePolicy: resolveAgentPackageEffectiveSourcePolicy,
 });
 
 export const OPL_CONNECT_SOURCE_MODULE = {

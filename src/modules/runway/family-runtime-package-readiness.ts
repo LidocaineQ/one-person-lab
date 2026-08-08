@@ -1,3 +1,8 @@
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+
+import { canonicalJsonText } from '../../kernel/canonical-json.ts';
 import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
 import { requireAgentPackageReadinessPort } from '../../kernel/agent-package-readiness-port.ts';
 import {
@@ -13,6 +18,137 @@ type PackageScope = {
 
 function optionalString(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function sha256Digest(value: unknown) {
+  const text = optionalString(value);
+  if (!text) return null;
+  if (/^sha256:[a-f0-9]{64}$/.test(text)) return text;
+  return /^[a-f0-9]{64}$/.test(text) ? `sha256:${text}` : null;
+}
+
+function localCarrierRuntimeCheckout(packageStatus: any) {
+  const configured = isRecord(packageStatus?.configured_carrier)
+    ? packageStatus.configured_carrier
+    : null;
+  const carrier = isRecord(configured?.carrier) ? configured.carrier : null;
+  const installedCarrier = isRecord(packageStatus?.installed_carrier_readback)
+    ? packageStatus.installed_carrier_readback
+    : null;
+  const installedReady = packageStatus?.installed_readiness;
+  const observedSources = Array.isArray(carrier?.observed_sources)
+    ? carrier.observed_sources.filter(isRecord)
+    : [];
+  const marketplaceRoot = optionalString(carrier?.marketplace_source);
+  const pluginRoot = optionalString(configured?.plugin_source_path);
+  if (
+    configured?.status !== 'installed'
+    || carrier?.precedence !== 'exact_single_source'
+    || observedSources.length !== 1
+    || installedCarrier?.kind !== 'local'
+    || installedCarrier.lifecycle_authority !== 'carrier_owned'
+    || installedReady?.installed !== true
+    || installedReady?.physical_status !== 'available'
+    || installedReady?.callability !== 'callable'
+    || !marketplaceRoot
+    || !pluginRoot
+    || !path.isAbsolute(marketplaceRoot)
+    || !path.isAbsolute(pluginRoot)
+  ) return null;
+
+  let normalizedMarketplace: string;
+  let normalizedPlugin: string;
+  try {
+    normalizedMarketplace = fs.realpathSync.native(marketplaceRoot);
+    normalizedPlugin = fs.realpathSync.native(pluginRoot);
+  } catch {
+    return null;
+  }
+  const observed = observedSources[0];
+  if (
+    (normalizedPlugin !== normalizedMarketplace
+      && !normalizedPlugin.startsWith(`${normalizedMarketplace}${path.sep}`))
+    || optionalString(observed.marketplace_source) !== marketplaceRoot
+    || optionalString(observed.plugin_source_path) !== pluginRoot
+    || optionalString(installedCarrier.source_ref) !== pluginRoot
+  ) return null;
+  const descriptorPath = path.join(normalizedMarketplace, 'contracts', 'domain_descriptor.json');
+  try {
+    const descriptorStat = fs.lstatSync(descriptorPath);
+    const descriptorRealPath = fs.realpathSync.native(descriptorPath);
+    if (
+      !descriptorStat.isFile()
+      || descriptorStat.isSymbolicLink()
+      || (descriptorRealPath !== normalizedMarketplace
+        && !descriptorRealPath.startsWith(`${normalizedMarketplace}${path.sep}`))
+    ) return null;
+  } catch {
+    return null;
+  }
+  return normalizedMarketplace;
+}
+
+function nativePackageClosure(packageId: string, packageStatus: any) {
+  const configured = isRecord(packageStatus?.configured_carrier)
+    ? packageStatus.configured_carrier
+    : null;
+  const carrier = isRecord(configured?.carrier) ? configured.carrier : null;
+  const observedSources = Array.isArray(carrier?.observed_sources)
+    ? carrier.observed_sources.filter(isRecord)
+    : [];
+  const installedCarrier = isRecord(packageStatus?.installed_carrier_readback)
+    ? packageStatus.installed_carrier_readback
+    : null;
+  const rootDigest = observedSources.length === 1
+    ? sha256Digest(observedSources[0]?.source_tree_sha256)
+    : null;
+  const packageVersion = optionalString(configured?.installed_version)
+    ?? optionalString(installedCarrier?.version);
+  if (!rootDigest || !packageVersion) return null;
+
+  const providerPackages = [];
+  for (const dependency of packageStatus?.package_dependency_readiness?.dependencies ?? []) {
+    if (!isRecord(dependency)) continue;
+    const dependencyId = optionalString(dependency.package_id);
+    const dependencyVersion = optionalString(dependency.installed_version);
+    const contentDigest = sha256Digest(dependency.content_digest);
+    if (!dependencyId || !dependencyVersion || !contentDigest) {
+      if (dependency.required === false) continue;
+      return null;
+    }
+    providerPackages.push({
+      package_id: dependencyId,
+      package_version: dependencyVersion,
+      owner_language_version: null,
+      package_lock_ref: null,
+      manifest_sha256: sha256Digest(dependency.manifest_sha256),
+      content_digest: contentDigest,
+      source_artifact_ref: null,
+      artifact_digest: contentDigest,
+    });
+  }
+  providerPackages.sort((left, right) => left.package_id.localeCompare(right.package_id));
+  const rootPackage = {
+    package_id: packageId,
+    package_version: packageVersion,
+    owner_language_version: null,
+    package_lock_ref: null,
+    manifest_sha256: null,
+    content_digest: rootDigest,
+    source_artifact_ref: optionalString(installedCarrier?.source_ref),
+    artifact_digest: rootDigest,
+  };
+  const closureIdentity = { root_package: rootPackage, provider_packages: providerPackages };
+  return {
+    surface_kind: 'opl_native_agent_package_closure.v1',
+    version: 'opl-native-agent-package-closure.v1',
+    ...closureIdentity,
+    dependency_closure_digest: `sha256:${crypto.createHash('sha256')
+      .update(canonicalJsonText(closureIdentity))
+      .digest('hex')}`,
+    core_skill_tree_digest: null,
+    skill_tree_digest: null,
+  };
 }
 
 function locatorString(locator: Record<string, unknown>, keys: string[]): string | null {
@@ -59,6 +195,12 @@ export function packageRuntimeSourceCheckoutPath(packageReadiness: any): string 
     && installedReady?.physical_status === 'available'
     && installedReady?.callability === 'callable'
   ) {
+    const effectiveRuntimeCheckout = optionalString(
+      packageReadiness?.effective_runtime_checkout_path,
+    );
+    if (effectiveRuntimeCheckout) return effectiveRuntimeCheckout;
+    const localRuntimeCheckout = localCarrierRuntimeCheckout(packageReadiness);
+    if (localRuntimeCheckout) return localRuntimeCheckout;
     const sourceRef = optionalString(installedCarrier.source_ref);
     if (sourceRef) return sourceRef;
   }
@@ -123,6 +265,14 @@ export async function ensureFamilyRuntimePackageLaunchReady(input: {
     packageId,
     ...scope,
   }).opl_agent_package_status;
+  const sourcePolicy = packageReadiness.readSourcePolicy?.(packageId) ?? null;
+  const policyRuntimeCheckout = sourcePolicy?.desired_source_kind === 'developer_checkout_override'
+    && sourcePolicy.developer_checkout_available === true
+    ? optionalString(sourcePolicy.developer_checkout_path)
+    : null;
+  const effectiveRuntimeCheckout = policyRuntimeCheckout
+    ?? localCarrierRuntimeCheckout(packageStatus);
+  const effectiveNativePackageClosure = nativePackageClosure(packageId, packageStatus);
   const readbackUseBinding = isRecord(packageStatus.package_use_binding)
     ? packageStatus.package_use_binding
     : null;
@@ -130,6 +280,8 @@ export async function ensureFamilyRuntimePackageLaunchReady(input: {
   if (packageStatus.launch_allowed === true) {
     return {
       ...packageStatus,
+      effective_runtime_checkout_path: effectiveRuntimeCheckout,
+      native_package_closure: effectiveNativePackageClosure,
       package_use_binding: effectiveUseBinding,
       package_quality_debt: null,
     };
@@ -139,6 +291,8 @@ export async function ensureFamilyRuntimePackageLaunchReady(input: {
   if (!hardStopReason) {
     return {
       ...packageStatus,
+      effective_runtime_checkout_path: effectiveRuntimeCheckout,
+      native_package_closure: effectiveNativePackageClosure,
       package_use_binding: effectiveUseBinding,
       package_quality_debt: packageStatus.launch_blocked_reason,
       progression_effect: 'stage_launch_allowed_with_package_quality_debt',

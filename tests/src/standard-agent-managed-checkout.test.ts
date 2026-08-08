@@ -16,11 +16,14 @@ function fixture() {
   const checkoutRoot = path.join(root, 'native-source');
   fs.mkdirSync(workspaceRoot);
   fs.mkdirSync(checkoutRoot);
+  fs.mkdirSync(path.join(checkoutRoot, 'contracts'));
+  fs.writeFileSync(path.join(checkoutRoot, 'contracts', 'domain_descriptor.json'), '{}\n');
   fs.writeFileSync(path.join(checkoutRoot, 'opl-package.json'), `${JSON.stringify({
     surface_kind: 'opl_agent_package_manifest.v1',
     agent_id: 'mas',
     package_id: 'mas',
     version: '0.2.25',
+    domain_descriptor_ref: 'contracts/domain_descriptor.json',
     codex_surface: {
       plugin_id: 'med-autoscience',
       plugin_source_path: '.',
@@ -89,9 +92,13 @@ function status(checkoutRoot: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
-function packageReadiness(packageStatus: Record<string, unknown>) {
+function packageReadiness(
+  packageStatus: Record<string, unknown>,
+  sourcePolicy: Record<string, unknown> | null = null,
+) {
   return {
     readStatus: () => ({ opl_agent_package_status: packageStatus }),
+    readSourcePolicy: () => sourcePolicy,
   };
 }
 
@@ -152,6 +159,59 @@ test('managed checkout resolver accepts an exact owner SemVer carrier readback',
       packageReadiness: packageReadiness(packageStatus),
     });
     assert.equal(result.native_runtime.carrier_installed_version, '0.2.25');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('managed checkout resolver accepts only the policy-bound developer marketplace path', async () => {
+  const { root, workspaceRoot, checkoutRoot } = fixture();
+  try {
+    const marketplaceRoot = path.join(root, 'developer-marketplace');
+    const pluginRoot = path.join(marketplaceRoot, 'plugins', 'med-autoscience');
+    fs.mkdirSync(path.dirname(pluginRoot), { recursive: true });
+    fs.renameSync(checkoutRoot, pluginRoot);
+    fs.mkdirSync(path.join(marketplaceRoot, 'contracts'));
+    fs.copyFileSync(
+      path.join(pluginRoot, 'contracts', 'domain_descriptor.json'),
+      path.join(marketplaceRoot, 'contracts', 'domain_descriptor.json'),
+    );
+    const packageStatus = status(pluginRoot);
+    const configured = packageStatus.configured_carrier as any;
+    configured.carrier.marketplace_source = marketplaceRoot;
+    configured.carrier.observed_sources[0].marketplace_source = marketplaceRoot;
+    const sourcePolicy = {
+      desired_source_kind: 'developer_checkout_override',
+      developer_checkout_available: true,
+      developer_checkout_path: marketplaceRoot,
+    };
+    const result = await resolveStandardAgentManagedCheckout({
+      domainId: 'mas',
+      workspaceRoot,
+      packageReadiness: packageReadiness(packageStatus, sourcePolicy),
+    });
+    assert.equal(result.native_runtime.marketplace_source, 'gaofeng21cn/med-autoscience');
+    assert.equal(result.native_runtime.carrier_plugin_source_path, fs.realpathSync(pluginRoot));
+    assert.equal(result.native_runtime.plugin_source_path, fs.realpathSync(marketplaceRoot));
+    assert.equal(result.checkout_root, fs.realpathSync(marketplaceRoot));
+
+    sourcePolicy.developer_checkout_path = workspaceRoot;
+    await assert.rejects(resolveStandardAgentManagedCheckout({
+      domainId: 'mas',
+      workspaceRoot,
+      packageReadiness: packageReadiness(packageStatus, sourcePolicy),
+    }), (error: any) => {
+      assert.equal(error?.details?.failure_code, 'standard_agent_managed_checkout_not_launchable');
+      return true;
+    });
+
+    (packageStatus.installed_carrier_readback as any).kind = 'local';
+    const localCarrierResult = await resolveStandardAgentManagedCheckout({
+      domainId: 'mas',
+      workspaceRoot,
+      packageReadiness: packageReadiness(packageStatus),
+    });
+    assert.equal(localCarrierResult.native_runtime.plugin_source_path, fs.realpathSync(marketplaceRoot));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -223,7 +283,7 @@ test('managed checkout resolver fails closed on native carrier and owner identit
     'marketplace',
     'path',
     'digest',
-    'installed-kind',
+    'missing-installed-kind',
     'disabled',
   ] as const) {
     const { root, workspaceRoot, checkoutRoot } = fixture();
@@ -245,8 +305,8 @@ test('managed checkout resolver fails closed on native carrier and owner identit
       if (fault === 'marketplace') configured.carrier.marketplace_source = 'gaofeng21cn/unexpected';
       if (fault === 'path') configured.carrier.observed_sources[0].plugin_source_path = workspaceRoot;
       if (fault === 'digest') configured.carrier.observed_sources[0].source_tree_sha256 = null;
-      if (fault === 'installed-kind') {
-        (packageStatus.installed_carrier_readback as any).kind = 'framework_materializer';
+      if (fault === 'missing-installed-kind') {
+        (packageStatus.installed_carrier_readback as any).kind = null;
       }
       if (fault === 'disabled') {
         configured.enabled = false;

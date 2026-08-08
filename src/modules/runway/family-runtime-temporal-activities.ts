@@ -1363,6 +1363,9 @@ export async function stageQualityAttemptMaterializeActivity(
       ...(packageReadiness?.package_use_binding
         ? { package_use_binding: packageReadiness.package_use_binding }
         : {}),
+      ...(isRecord(packageReadiness?.native_package_closure)
+        ? { native_package_closure: packageReadiness.native_package_closure }
+        : {}),
     };
     const executionStageBinding = (
       options.resolveStageBinding

@@ -71,9 +71,37 @@ function pathsMatch(left: string, right: string) {
   }
 }
 
-function marketplaceMatches(observed: string, declared: string) {
+function pathWithin(root: string, candidate: string) {
+  return candidate === root || candidate.startsWith(`${root}${path.sep}`);
+}
+
+function runtimeRootContainsDescriptor(root: string, descriptorRef: string) {
+  const descriptorPath = path.resolve(root, descriptorRef);
+  if (!pathWithin(root, descriptorPath)) return false;
+  try {
+    const stat = fs.lstatSync(descriptorPath);
+    return stat.isFile()
+      && !stat.isSymbolicLink()
+      && pathWithin(root, fs.realpathSync.native(descriptorPath));
+  } catch {
+    return false;
+  }
+}
+
+function marketplaceMatches(
+  observed: string,
+  declared: string,
+  sourcePolicy?: Record<string, unknown> | null,
+  installedCarrierKind?: string,
+) {
   if (observed === declared) return true;
-  return path.isAbsolute(observed) && path.isAbsolute(declared) && pathsMatch(observed, declared);
+  if (path.isAbsolute(observed) && path.isAbsolute(declared)) return pathsMatch(observed, declared);
+  const policyMatches = sourcePolicy?.desired_source_kind === 'developer_checkout_override'
+    && sourcePolicy.developer_checkout_available === true
+    && typeof sourcePolicy.developer_checkout_path === 'string'
+    && path.isAbsolute(observed)
+    && pathsMatch(observed, sourcePolicy.developer_checkout_path);
+  return policyMatches || (installedCarrierKind === 'local' && path.isAbsolute(observed));
 }
 
 function installedVersionMatchesPackage(installedVersion: string, packageVersion: string) {
@@ -159,10 +187,18 @@ function ownerDescriptor(sourceRoot: string, packageId: string) {
     publication_ref: carrier.publication_ref === null || carrier.publication_ref === undefined
       ? null
       : text(carrier.publication_ref, 'configured_codex_plugin_carrier.publication_ref'),
+    domain_descriptor_ref: text(
+      manifest!.domain_descriptor_ref,
+      'opl-package.json#/domain_descriptor_ref',
+    ),
   };
 }
 
-function nativeRuntimeFromStatus(packageStatus: any, packageId: string) {
+function nativeRuntimeFromStatus(
+  packageStatus: any,
+  packageId: string,
+  sourcePolicy?: Record<string, unknown> | null,
+) {
   const launchBlockedReason = packageLaunchHardStopReason(packageStatus);
   if (launchBlockedReason) {
     blocked('Standard Agent action launch requires an installed and callable native carrier.', {
@@ -179,6 +215,7 @@ function nativeRuntimeFromStatus(packageStatus: any, packageId: string) {
   const executor = record(configured.executor, 'configured_carrier.executor');
   const installedCarrier = record(packageStatus?.installed_carrier_readback, 'installed_carrier_readback');
   const installedReadiness = record(packageStatus?.installed_readiness, 'installed_readiness');
+  const installedCarrierKind = text(installedCarrier.kind, 'installed_carrier_readback.kind');
   const pluginSourcePath = realDirectory(configured.plugin_source_path, 'configured_carrier.plugin_source_path');
   const descriptor = ownerDescriptor(pluginSourcePath, packageId);
   const pluginSelector = text(carrier.plugin_id, 'configured_carrier.carrier.plugin_id');
@@ -212,7 +249,12 @@ function nativeRuntimeFromStatus(packageStatus: any, packageId: string) {
     || carrier.kind !== 'codex_plugin_manager'
     || carrier.precedence !== 'exact_single_source'
     || pluginSelector !== descriptor.plugin_selector
-    || !marketplaceMatches(marketplaceSource, descriptor.marketplace_source)
+    || !marketplaceMatches(
+      marketplaceSource,
+      descriptor.marketplace_source,
+      sourcePolicy,
+      installedCarrierKind,
+    )
     || !installedVersionMatchesPackage(installedVersion, descriptor.package_version)
     || !pathsMatch(observedSourcePath, pluginSourcePath)
     || observed.plugin_id !== pluginSelector
@@ -223,7 +265,6 @@ function nativeRuntimeFromStatus(packageStatus: any, packageId: string) {
       marketplaceSource,
     )
     || configured.publication_ref !== descriptor.publication_ref
-    || installedCarrier.kind !== 'codex_plugin_manager'
     || installedCarrier.lifecycle_authority !== 'carrier_owned'
     || installedCarrier.identity !== pluginSelector
     || installedCarrier.version !== installedVersion
@@ -243,10 +284,37 @@ function nativeRuntimeFromStatus(packageStatus: any, packageId: string) {
       installed_readiness: installedReadiness,
     });
   }
+  const policyRuntimeCheckout = sourcePolicy?.desired_source_kind === 'developer_checkout_override'
+    && sourcePolicy.developer_checkout_available === true
+    && typeof sourcePolicy.developer_checkout_path === 'string'
+    ? realDirectory(sourcePolicy.developer_checkout_path, 'source_policy.developer_checkout_path')
+    : null;
+  const localCarrierMarketplace = installedCarrierKind === 'local'
+    ? realDirectory(marketplaceSource, 'configured_carrier.carrier.marketplace_source')
+    : null;
+  const runtimeCheckoutRoot = [policyRuntimeCheckout, localCarrierMarketplace, pluginSourcePath]
+    .filter((candidate): candidate is string => Boolean(candidate))
+    .find((candidate) => runtimeRootContainsDescriptor(candidate, descriptor.domain_descriptor_ref));
+  if (!runtimeCheckoutRoot) {
+    blocked('Standard Agent native carrier does not expose a complete runtime checkout.', {
+      package_id: packageId,
+      domain_descriptor_ref: descriptor.domain_descriptor_ref,
+      runtime_checkout_candidates: [policyRuntimeCheckout, localCarrierMarketplace, pluginSourcePath]
+        .filter((candidate): candidate is string => Boolean(candidate)),
+    });
+  }
+  if (!pathWithin(runtimeCheckoutRoot, pluginSourcePath)) {
+    blocked('Standard Agent native carrier plugin root is outside its runtime checkout.', {
+      package_id: packageId,
+      runtime_checkout_root: runtimeCheckoutRoot,
+      carrier_plugin_source_path: pluginSourcePath,
+    });
+  }
   return {
     ...descriptor,
     carrier_installed_version: installedVersion,
-    plugin_source_path: pluginSourcePath,
+    carrier_plugin_source_path: pluginSourcePath,
+    plugin_source_path: runtimeCheckoutRoot,
     source_tree_sha256: sourceTreeSha256,
   };
 }
@@ -277,7 +345,8 @@ export async function resolveStandardAgentManagedCheckout(input: {
   const packageId = agent.agent_id;
   const scope = { scope: 'workspace' as const, targetWorkspace: requestedWorkspaceRoot };
   const packageStatus = packageReadiness.readStatus({ packageId, ...scope }).opl_agent_package_status;
-  const nativeRuntime = nativeRuntimeFromStatus(packageStatus, packageId);
+  const sourcePolicy = packageReadiness.readSourcePolicy?.(packageId) ?? null;
+  const nativeRuntime = nativeRuntimeFromStatus(packageStatus, packageId, sourcePolicy);
 
   const workspaceEnsure = input.workspaceEnsurer
     ? input.workspaceEnsurer({ agentId: agent.agent_id, workspacePath: requestedWorkspaceRoot })

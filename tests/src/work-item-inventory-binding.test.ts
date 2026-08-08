@@ -59,6 +59,42 @@ test('inventory binding requires exactly one owner row', () => {
   }
 });
 
+test('managed OPL workspace binds work-item identity through canonical projects', () => {
+  const root = workspace();
+  try {
+    fs.mkdirSync(path.join(root, 'projects', 'study-001'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'workspace_index.json'), `${JSON.stringify({
+      surface_kind: 'opl_workspace_index',
+      version: 'workspace-index.v1',
+      agent: { project_id: 'medautoscience' },
+      projects: [{
+        project_id: 'study-001',
+        project_root: 'projects/study-001',
+      }],
+    })}\n`);
+    const binding = resolveWorkItemInventoryBinding({
+      workspaceRoot: root,
+      declaration,
+      domainWorkItemId: 'study-001',
+      managedWorkspaceProjectIds: ['mas', 'medautoscience'],
+    });
+    assert.equal(
+      binding.canonical_work_item_root,
+      fs.realpathSync.native(path.join(root, 'projects', 'study-001')),
+    );
+    assert.match(binding.inventory_ref, /#\/projects\/0$/u);
+
+    assert.throws(() => resolveWorkItemInventoryBinding({
+      workspaceRoot: root,
+      declaration,
+      domainWorkItemId: 'study-001',
+      managedWorkspaceProjectIds: ['redcube'],
+    }), (error: unknown) => failureCode(error) === 'work_item_inventory_workspace_agent_mismatch');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('inventory binding rejects root traversal and symlink escape', () => {
   const root = workspace();
   const outside = workspace();

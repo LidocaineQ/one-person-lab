@@ -1,5 +1,6 @@
 type AgentPackageReadinessPort = {
   readStatus: (input: any) => any;
+  readSourcePolicy?: (packageId: string) => any;
 };
 
 let registeredPort: AgentPackageReadinessPort | null = null;

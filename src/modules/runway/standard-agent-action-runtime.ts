@@ -644,6 +644,7 @@ function resolveActionExecutionScope(input: {
     workspaceRoot,
     declaration: inventoryDeclaration,
     domainWorkItemId: resolvedIdentity.domain_work_item_id,
+    managedWorkspaceProjectIds: [...acceptedProjectIds],
   });
   return createWorkItemExecutionScopeSnapshot({
     projectScopeId: binding.project_scope_id,

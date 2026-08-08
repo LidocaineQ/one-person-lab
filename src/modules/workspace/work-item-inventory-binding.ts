@@ -101,6 +101,7 @@ export function resolveWorkItemInventoryBinding(input: {
   workspaceRoot: string;
   declaration: StandardAgentInventoryProjection;
   domainWorkItemId: string;
+  managedWorkspaceProjectIds?: readonly string[];
 }) {
   const workspaceRoot = fs.realpathSync.native(path.resolve(input.workspaceRoot));
   const inventoryCandidate = path.resolve(workspaceRoot, input.declaration.relative_path);
@@ -120,14 +121,42 @@ export function resolveWorkItemInventoryBinding(input: {
     });
   }
   const payload = parseJsonText(fs.readFileSync(inventoryPath, 'utf8'));
-  const items = jsonPointer(payload, input.declaration.items_pointer);
+  let declaration = input.declaration;
+  if (
+    input.managedWorkspaceProjectIds
+    && input.declaration.relative_path === 'workspace_index.json'
+    && isRecord(payload)
+    && payload.surface_kind === 'opl_workspace_index'
+    && payload.version === 'workspace-index.v1'
+  ) {
+    const agent = isRecord(payload.agent) ? payload.agent : null;
+    const projectId = typeof agent?.project_id === 'string' ? agent.project_id.trim() : '';
+    if (!projectId || !input.managedWorkspaceProjectIds.includes(projectId)) {
+      fail('Managed OPL workspace identity conflicts with the Standard Agent runtime domain.', {
+        failure_code: 'work_item_inventory_workspace_agent_mismatch',
+        workspace_project_id: projectId || null,
+        accepted_project_ids: [...input.managedWorkspaceProjectIds].sort(),
+      });
+    }
+    declaration = {
+      ...input.declaration,
+      items_pointer: '/projects',
+      work_item_root_template: 'projects/{project_id}',
+      field_map: {
+        ...input.declaration.field_map,
+        work_item_id: 'project_id',
+        work_item_root: 'project_root',
+      },
+    };
+  }
+  const items = jsonPointer(payload, declaration.items_pointer);
   if (!Array.isArray(items)) {
     fail('Domain work-item inventory pointer does not resolve to an array.', {
       failure_code: 'work_item_inventory_pointer_invalid',
-      inventory_ref: `${inventoryPath}#${input.declaration.items_pointer}`,
+      inventory_ref: `${inventoryPath}#${declaration.items_pointer}`,
     });
   }
-  const itemIdField = input.declaration.field_map.work_item_id;
+  const itemIdField = declaration.field_map.work_item_id;
   const matches = items.filter((item) =>
     isRecord(item)
     && typeof item[itemIdField] === 'string'
@@ -139,7 +168,7 @@ export function resolveWorkItemInventoryBinding(input: {
         ? 'work_item_inventory_row_missing'
         : 'work_item_inventory_row_ambiguous',
       domain_work_item_id: input.domainWorkItemId,
-      inventory_ref: `${inventoryPath}#${input.declaration.items_pointer}`,
+      inventory_ref: `${inventoryPath}#${declaration.items_pointer}`,
       match_count: matches.length,
     });
   }
@@ -158,13 +187,13 @@ export function resolveWorkItemInventoryBinding(input: {
       domain_work_item_id: declaredId,
     });
   }
-  const rootField = input.declaration.field_map.work_item_root;
-  const { template, requiredPlaceholder } = requiredRootTemplate(input.declaration);
+  const rootField = declaration.field_map.work_item_root;
+  const { template, requiredPlaceholder } = requiredRootTemplate(declaration);
   const resolvedRows = items.map((rawItem, index) => {
     if (!isRecord(rawItem)) {
       fail('Domain work-item inventory rows must be objects before an action can launch.', {
         failure_code: 'work_item_inventory_row_invalid',
-        inventory_ref: `${inventoryPath}#${input.declaration.items_pointer}/${index}`,
+        inventory_ref: `${inventoryPath}#${declaration.items_pointer}/${index}`,
       });
     }
     const rowId = requiredItemString(rawItem, itemIdField, 'work_item_id');
@@ -241,8 +270,8 @@ export function resolveWorkItemInventoryBinding(input: {
   const selected = resolvedRows.find((row) => row.item === item)!;
   const inventoryBindingDigest = canonicalJsonText({
     version: 'opl-work-item-inventory-selected-row-binding.v1',
-    inventory_source: input.declaration.relative_path,
-    items_pointer: input.declaration.items_pointer,
+    inventory_source: declaration.relative_path,
+    items_pointer: declaration.items_pointer,
     work_item_root_template: template,
     identity_field: itemIdField,
     root_field: rootField,
@@ -251,6 +280,6 @@ export function resolveWorkItemInventoryBinding(input: {
   return {
     canonical_work_item_root: selected.canonicalWorkItemRoot,
     inventory_digest: `sha256:${createHash('sha256').update(inventoryBindingDigest).digest('hex')}`,
-    inventory_ref: `${inventoryPath}#${input.declaration.items_pointer}/${selected.index}`,
+    inventory_ref: `${inventoryPath}#${declaration.items_pointer}/${selected.index}`,
   } as const;
 }

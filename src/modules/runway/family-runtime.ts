@@ -195,6 +195,7 @@ function requireCurrentRuntimeRowsBeforeLaunchSideEffects(input: {
           const rowWorkspaceRoot = typeof error.details.workspace_root === 'string'
             ? error.details.workspace_root
             : null;
+          if (input.workspaceRoot && !rowWorkspaceRoot) continue;
           if (input.workspaceRoot && rowWorkspaceRoot && rowWorkspaceRoot !== input.workspaceRoot) continue;
         }
         throw error;
@@ -207,6 +208,7 @@ function stageRunReplayBusinessIdentity(
   input: Parameters<typeof launchRegisteredStageRun>[0]['stageRunInput'],
 ) {
   const spec = input.stage_run_spec;
+  const { native_package_closure: _nativePackageClosure, ...workspaceIdentity } = spec.workspace_identity;
   return {
     scope_kind: input.scope_kind ?? (input.execution_scope ? 'work_item' : 'domain'),
     execution_scope: input.execution_scope ?? null,
@@ -214,7 +216,7 @@ function stageRunReplayBusinessIdentity(
     stage_id: spec.stage_id,
     action_id: spec.action_id,
     task_id: spec.task_id,
-    workspace_identity: spec.workspace_identity,
+    workspace_identity: workspaceIdentity,
     source_fingerprint: spec.source_fingerprint,
     input_artifacts: spec.input_artifacts,
     executor_kind: spec.executor_kind,
@@ -794,15 +796,20 @@ export async function runFamilyRuntime(
       const selectedPackageUseBinding = parsed.input.start || stageQualityBinding?.enabled
         ? pinnedUseBinding ?? packageReadiness?.package_use_binding
         : null;
+      const nativePackageClosure = isRecord(packageReadiness?.native_package_closure)
+        ? packageReadiness.native_package_closure
+        : null;
       const useBoundWorkspaceLocator = selectedPackageUseBinding
         ? {
             ...parsed.input.workspaceLocator,
             ...(domainPackRoot ? { domain_pack_root: domainPackRoot } : {}),
+            ...(nativePackageClosure ? { native_package_closure: nativePackageClosure } : {}),
             package_use_binding: selectedPackageUseBinding,
           }
         : {
             ...parsed.input.workspaceLocator,
             ...(domainPackRoot ? { domain_pack_root: domainPackRoot } : {}),
+            ...(nativePackageClosure ? { native_package_closure: nativePackageClosure } : {}),
           };
       const providerKind = resolveFamilyRuntimeProviderKind(parsed.input.providerKind);
       const sourceFingerprint = parsed.input.sourceFingerprint?.trim() || null;
@@ -1103,11 +1110,19 @@ export async function runFamilyRuntime(
             ]),
           });
       const refreshedDomainPackRoot = packageRuntimeSourceCheckoutPath(packageReadiness) ?? '';
-      const refreshedWorkspaceLocator = packageReadiness?.package_use_binding
+      const refreshedNativePackageClosure = isRecord(packageReadiness?.native_package_closure)
+        ? packageReadiness.native_package_closure
+        : null;
+      const refreshedWorkspaceLocator = packageReadiness?.package_use_binding || refreshedNativePackageClosure
         ? {
             ...attempt.workspace_locator,
             ...(refreshedDomainPackRoot ? { domain_pack_root: refreshedDomainPackRoot } : {}),
-            package_use_binding: packageReadiness.package_use_binding,
+            ...(packageReadiness?.package_use_binding
+              ? { package_use_binding: packageReadiness.package_use_binding }
+              : {}),
+            ...(refreshedNativePackageClosure
+              ? { native_package_closure: refreshedNativePackageClosure }
+              : {}),
           }
         : attempt.workspace_locator;
       const reboundAttempt = launchBindingAlreadySelected

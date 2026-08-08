@@ -72,11 +72,12 @@ test('package launch ignores retired materialization readiness and enforces nati
   }), 'carrier_source_unavailable');
 });
 
-test('native carrier source is authoritative over compatibility runtime source', () => {
+test('effective runtime checkout is authoritative over the nested native carrier source', () => {
   assert.equal(packageRuntimeSourceCheckoutPath({
+    effective_runtime_checkout_path: '/tmp/native-runtime-checkout',
     installed_carrier_readback: {
       lifecycle_authority: 'carrier_owned',
-      source_ref: '/tmp/native-carrier',
+      source_ref: '/tmp/native-plugin',
     },
     installed_readiness: {
       installed: true,
@@ -86,14 +87,64 @@ test('native carrier source is authoritative over compatibility runtime source',
     configured_carrier: {
       status: 'installed',
       executor: { status: 'callable' },
-      plugin_source_path: '/tmp/native-carrier',
+      plugin_source_path: '/tmp/native-plugin',
     },
     runtime_source_readiness: {
       status: 'current',
       operational_ready: true,
       checkout_path: '/tmp/legacy-source',
     },
-  }), '/tmp/native-carrier');
+  }), '/tmp/native-runtime-checkout');
+});
+
+test('native carrier plugin source remains the fallback without an effective runtime checkout', () => {
+  assert.equal(packageRuntimeSourceCheckoutPath({
+    installed_carrier_readback: {
+      lifecycle_authority: 'carrier_owned',
+      source_ref: '/tmp/native-plugin',
+    },
+    installed_readiness: {
+      installed: true,
+      physical_status: 'available',
+      callability: 'callable',
+    },
+  }), '/tmp/native-plugin');
+});
+
+test('verified local carrier uses its marketplace root without state-local source policy', () => {
+  const marketplaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-marketplace-'));
+  const pluginRoot = path.join(marketplaceRoot, 'plugins', 'native-plugin');
+  fs.mkdirSync(path.join(marketplaceRoot, 'contracts'), { recursive: true });
+  fs.mkdirSync(pluginRoot, { recursive: true });
+  fs.writeFileSync(path.join(marketplaceRoot, 'contracts', 'domain_descriptor.json'), '{}\n');
+  try {
+    assert.equal(packageRuntimeSourceCheckoutPath({
+      installed_carrier_readback: {
+        kind: 'local',
+        lifecycle_authority: 'carrier_owned',
+        source_ref: pluginRoot,
+      },
+      installed_readiness: {
+        installed: true,
+        physical_status: 'available',
+        callability: 'callable',
+      },
+      configured_carrier: {
+        status: 'installed',
+        plugin_source_path: pluginRoot,
+        carrier: {
+          marketplace_source: marketplaceRoot,
+          precedence: 'exact_single_source',
+          observed_sources: [{
+            marketplace_source: marketplaceRoot,
+            plugin_source_path: pluginRoot,
+          }],
+        },
+      },
+    }), fs.realpathSync.native(marketplaceRoot));
+  } finally {
+    fs.rmSync(marketplaceRoot, { recursive: true, force: true });
+  }
 });
 
 test('native carrier with missing source fails closed instead of falling back', () => {
@@ -222,6 +273,11 @@ test('native package launch remains carrier-owned and creates no private lifecyc
     const duplicate = runCli(createArgs(workspace), env).family_runtime_stage_attempt.attempt;
     assert.equal(duplicate.stage_attempt_id, first.stage_attempt_id);
     assert.equal(Object.hasOwn(first.workspace_locator, 'package_use_binding'), false);
+    assert.equal(first.workspace_locator.native_package_closure.root_package.package_id, 'mas');
+    assert.match(
+      first.workspace_locator.native_package_closure.root_package.content_digest,
+      /^sha256:[a-f0-9]{64}$/,
+    );
     assert.equal(fs.existsSync(path.join(env.OPL_STATE_DIR, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite')), false);
     assert.equal(fs.existsSync(path.join(workspace, '.codex', 'skills')), false);

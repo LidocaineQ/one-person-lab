@@ -369,6 +369,7 @@ test('registered StageRun replay does not refresh package readiness or resolve a
             operational_ready: true,
           },
           package_use_binding: packageUseBinding(),
+          native_package_closure: packageUseBinding(),
         };
       }) as any,
       resolveStageBinding: () => {
@@ -383,6 +384,11 @@ test('registered StageRun replay does not refresh package readiness or resolve a
   try {
     const first = await runFamilyRuntime(args, runtime) as any;
     assert.equal(first.family_runtime_stage_run.durable_launch.start_status, 'started');
+    assert.equal(
+      first.family_runtime_stage_run.stage_run_input.stage_run_spec.workspace_identity
+        .native_package_closure.root_package.package_id,
+      'mas',
+    );
     assert.equal(readinessCalls, 1);
     assert.equal(bindingCalls, 1);
 
@@ -400,5 +406,83 @@ test('registered StageRun replay does not refresh package readiness or resolve a
     if (previousStateRoot === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateRoot;
     fs.rmSync(stateRoot, { recursive: true, force: true });
+  }
+});
+
+test('workspace-bound launch ignores an unresolved legacy row with no workspace identity', async () => {
+  const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-run-orphan-legacy-row-'));
+  const candidateWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-run-current-workspace-'));
+  const previousStateRoot = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = stateRoot;
+  try {
+    const { db } = openQueueDb();
+    const legacyAttempt = createStageAttempt(db, {
+      domainId: 'medautoscience',
+      stageId: 'intake',
+      providerKind: 'temporal',
+      workspaceLocator: {},
+      sourceFingerprint: 'sha256:legacy-row-without-workspace-identity',
+      scopeKind: 'domain',
+    }).attempt;
+    db.prepare(`
+      UPDATE stage_attempts
+      SET scope_kind = 'identity_unresolved', identity_state = 'identity_unresolved'
+      WHERE stage_attempt_id = ?
+    `).run(legacyAttempt.stage_attempt_id);
+    db.close();
+
+    const created = await runFamilyRuntime([
+      'attempt',
+      'create',
+      '--domain',
+      'medautoscience',
+      '--stage',
+      'intake',
+      '--provider',
+      'temporal',
+      '--workspace-locator',
+      JSON.stringify({ workspace_root: candidateWorkspace }),
+      '--source-fingerprint',
+      sha256('current-workspace-launch'),
+    ], {
+      stageRunRuntime: {
+        ensurePackageLaunchReady: (async () => ({
+          launch_allowed: true,
+          effective_runtime_checkout_path: domainPackRoot,
+          installed_carrier_readback: {
+            kind: 'local',
+            lifecycle_authority: 'carrier_owned',
+            source_ref: domainPackRoot,
+          },
+          installed_readiness: {
+            installed: true,
+            physical_status: 'available',
+            callability: 'callable',
+          },
+          package_use_binding: packageUseBinding(),
+          native_package_closure: packageUseBinding(),
+        })) as any,
+        resolveStageBinding: () => binding(),
+      },
+    }) as any;
+    assert.equal(created.family_runtime_stage_run.durable_launch.start_status, 'registered');
+    assert.match(created.family_runtime_stage_run.stage_run_input.stage_run_id, /^sr_/);
+
+    const { db: readbackDb } = openQueueDb();
+    const legacyReadback = readbackDb.prepare(`
+      SELECT status, scope_kind, identity_state, workspace_locator_json
+      FROM stage_attempts
+      WHERE stage_attempt_id = ?
+    `).get(legacyAttempt.stage_attempt_id) as Record<string, unknown>;
+    readbackDb.close();
+    assert.equal(legacyReadback.status, 'queued');
+    assert.equal(legacyReadback.scope_kind, 'identity_unresolved');
+    assert.equal(legacyReadback.identity_state, 'identity_unresolved');
+    assert.deepEqual(JSON.parse(String(legacyReadback.workspace_locator_json)), {});
+  } finally {
+    if (previousStateRoot === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateRoot;
+    fs.rmSync(stateRoot, { recursive: true, force: true });
+    fs.rmSync(candidateWorkspace, { recursive: true, force: true });
   }
 });
