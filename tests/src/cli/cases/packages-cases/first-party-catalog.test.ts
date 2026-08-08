@@ -43,6 +43,7 @@ const FLOW_SKILL_IDS = [
   'codex-app-owner-migration',
   'develop-and-deliver',
   'github-ssot-patrol',
+  'opl-doc',
   'opl-fleet',
   'opl-flow',
   'recover-codex-tasks',

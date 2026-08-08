@@ -46,6 +46,8 @@ if (args.join(' ') === 'plugin marketplace list --json') {
   state.marketplaceSource = args[3];
   fs.writeFileSync(stateFile, JSON.stringify(state));
   process.stdout.write('{}');
+} else if (args[0] === 'plugin' && args[1] === 'marketplace' && args[2] === 'upgrade') {
+  process.stdout.write('{}');
 } else if (args[0] === 'plugin' && args[1] === 'add') {
   state.installed = true;
   fs.writeFileSync(stateFile, JSON.stringify(state));
