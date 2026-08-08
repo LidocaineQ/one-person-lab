@@ -978,7 +978,7 @@ function configuredPluginSelection(input: {
     ? missingRequiredSkills(entry.sourcePath, input.descriptor.executor.requiredSkillIds)
     : input.descriptor.executor.requiredSkillIds;
   const callable = Boolean(entry?.installed && entry.enabled && missingSkills.length === 0 && !ambiguous && !unexpectedOnly);
-  return { installedSameName, entry, ambiguous, unexpectedOnly, missingSkills, callable };
+  return { installedSameName, entry, unexpectedSameName, ambiguous, unexpectedOnly, missingSkills, callable };
 }
 
 function configuredCarrierPrecedence(input: { ambiguous: boolean; unexpectedOnly: boolean; installed: boolean }) {
@@ -1107,6 +1107,36 @@ export function runConfiguredCodexPluginCarrier(input: {
     runner,
   });
   if (isConfiguredCarrierReadback(entries)) return entries;
+  if ((input.action === 'update' || input.action === 'repair') && marketplaceSource) {
+    const selection = configuredPluginSelection({ entries, descriptor: input.descriptor });
+    const targetReady = selection.entry?.installed === true
+      && selection.entry.enabled === true
+      && selection.missingSkills.length === 0
+      && sameMarketplaceSource(selection.entry.marketplaceSource, marketplaceSource);
+    if (targetReady && selection.unexpectedSameName.length > 0) {
+      for (const pluginId of new Set(selection.unexpectedSameName.map((entry) => entry.pluginId))) {
+        const removeArgs = nativeArgs('remove', pluginId);
+        dispatchConfiguredPluginAction({
+          dispatchAction: true,
+          packageId: input.descriptor.packageId,
+          action: input.action,
+          actionArgs: removeArgs,
+          binary,
+          env,
+          runner,
+        });
+      }
+      entries = readConfiguredPluginEntries({
+        descriptor: input.descriptor,
+        action: input.action,
+        dispatchAction: true,
+        binary,
+        env,
+        runner,
+      });
+      if (isConfiguredCarrierReadback(entries)) return entries;
+    }
+  }
   if (isConfigToggle && input.dryRun !== true) {
     setConfiguredPluginEnabled({
       descriptor: input.descriptor,

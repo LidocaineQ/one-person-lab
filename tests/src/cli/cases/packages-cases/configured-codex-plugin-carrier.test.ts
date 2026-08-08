@@ -566,6 +566,87 @@ test('configured Codex carrier reports an unexpected same-name source without se
   assert.equal(readback.carrier.observed_sources.length, 1);
 });
 
+test('configured Codex carrier repair replaces a stale same-name source after the target is ready', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-replace-source-'));
+  const targetSource = path.join(root, 'target');
+  const staleSource = path.join(root, 'stale');
+  const calls: string[] = [];
+  let targetInstalled = false;
+  let staleInstalled = true;
+  writePluginSource(targetSource, 'target');
+  writePluginSource(staleSource, 'stale');
+  const configured = {
+    ...descriptor,
+    carrier: { ...descriptor.carrier, marketplaceSource: root },
+  };
+  try {
+    const readback = runConfiguredCodexPluginCarrier({
+      descriptor: configured,
+      action: 'repair',
+      runner: ({ args }) => {
+        const command = args.join(' ');
+        calls.push(command);
+        if (command === 'plugin marketplace list --json') {
+          return {
+            status: 0,
+            stdout: JSON.stringify({
+              marketplaces: [{
+                name: 'fixture-carrier',
+                marketplaceSource: { sourceType: 'local', source: root },
+              }],
+            }),
+            stderr: '',
+            error: null,
+          };
+        }
+        if (command === `plugin add ${pluginSelector} --json`) {
+          targetInstalled = true;
+          return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+        }
+        if (command === 'plugin remove third-party-research@historical-carrier --json') {
+          assert.equal(targetInstalled, true);
+          staleInstalled = false;
+          return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+        }
+        if (command === 'plugin list --json') {
+          return {
+            status: 0,
+            stdout: pluginList([
+              ...(targetInstalled ? [{
+                pluginId: pluginSelector,
+                version: '1.0.1',
+                sourcePath: targetSource,
+                marketplaceSource: root,
+              }] : []),
+              ...(staleInstalled ? [{
+                pluginId: 'third-party-research@historical-carrier',
+                version: '1.0.1',
+                sourcePath: staleSource,
+                marketplaceSource: 'historical-carrier',
+              }] : []),
+            ]),
+            stderr: '',
+            error: null,
+          };
+        }
+        return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+      },
+    });
+    assert.equal(readback.carrier.precedence, 'exact_single_source');
+    assert.equal(readback.executor.status, 'callable');
+    assert.deepEqual(calls, [
+      'plugin marketplace list --json',
+      'plugin marketplace upgrade fixture-carrier --json',
+      `plugin add ${pluginSelector} --json`,
+      'plugin list --json',
+      'plugin remove third-party-research@historical-carrier --json',
+      'plugin list --json',
+    ]);
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
 test('configured Codex carrier reports a declared selector without a physical source as unavailable', () => {
   const readback = runConfiguredCodexPluginCarrier({
     descriptor,
