@@ -4,7 +4,7 @@ import {
   readStandardAgentDescriptorInterface,
   type StandardAgentInterface,
 } from '../../kernel/standard-agent-interface.ts';
-import { readInstalledStandardAgentDescriptorForPackage } from '../connect/standard-agent-interface-discovery.ts';
+import { readInstalledStandardAgentDescriptorForPackage } from '../connect/index.ts';
 import type {
   BoundaryExplanation,
   DomainContract,

@@ -83,6 +83,7 @@ export type {
   AgentPackageSkillProjection,
 } from './agent-package-registry-parts/types.ts';
 export {
+  readInstalledStandardAgentDescriptorForPackage,
   readPackageManagedStandardAgentDescriptor,
   readStandardAgentDescriptorForDomain,
   resolveStandardAgentContractCheckout,
