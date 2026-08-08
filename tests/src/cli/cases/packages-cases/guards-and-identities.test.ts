@@ -324,7 +324,7 @@ test('package actions describe both positional and flagged package selection', (
   );
 });
 
-test('OPL Flow manifest resolves its package-owned 0.1.40 native carrier and managed policy payload', () => {
+test('OPL Flow manifest resolves its package-owned 0.1.41 native carrier and managed policy payload', () => {
   const manifestPath = path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'opl-flow.json');
   const manifest = normalizePackageManifest(
     parseJsonText(fs.readFileSync(manifestPath, 'utf8')),
@@ -332,7 +332,7 @@ test('OPL Flow manifest resolves its package-owned 0.1.40 native carrier and man
   );
 
   assert.equal(manifest.package_id, 'opl-flow');
-  assert.equal(manifest.version, '0.1.40');
+  assert.equal(manifest.version, '0.1.41');
   assert.deepEqual(manifest.required_skill_ids, [
     'coordinate-concurrent-tasks',
     'codex-app-owner-migration',
@@ -345,7 +345,7 @@ test('OPL Flow manifest resolves its package-owned 0.1.40 native carrier and man
   ]);
   assert.equal(
     manifest.plugin_payload_manifest_url,
-    path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'payloads', 'opl-flow-0.1.40.json'),
+    path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'payloads', 'opl-flow-0.1.41.json'),
   );
   assert.deepEqual(manifest.configured_codex_plugin_carrier, {
     packageId: 'opl-flow',
