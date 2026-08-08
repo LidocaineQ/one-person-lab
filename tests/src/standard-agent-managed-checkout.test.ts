@@ -4,7 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { resolveStandardAgentManagedCheckout } from '../../src/modules/runway/standard-agent-managed-checkout.ts';
+import {
+  resolveStandardAgentManagedCheckout as resolveStandardAgentManagedCheckoutProduction,
+} from '../../src/modules/runway/standard-agent-managed-checkout.ts';
 
 const TREE_SHA256 = 'a'.repeat(64);
 
@@ -93,6 +95,26 @@ function packageReadiness(packageStatus: Record<string, unknown>) {
   };
 }
 
+function resolveStandardAgentManagedCheckout(
+  input: Parameters<typeof resolveStandardAgentManagedCheckoutProduction>[0],
+) {
+  return resolveStandardAgentManagedCheckoutProduction({
+    ...input,
+    workspaceEnsurer: ({ agentId, workspacePath }) => ({
+      version: 'g2',
+      contracts_context: {
+        contracts_dir: 'test-fixture',
+        contracts_root_source: 'test-fixture',
+      },
+      workspace_initialization: {
+        action: 'ensure',
+        agent: { agent_id: agentId },
+        workspace_path: fs.realpathSync.native(workspacePath),
+      },
+    } as unknown as ReturnType<NonNullable<Parameters<typeof resolveStandardAgentManagedCheckoutProduction>[0]['workspaceEnsurer']>>),
+  });
+}
+
 test('managed checkout resolver uses one installed descriptor and configured native carrier without scope activation', async () => {
   const { root, workspaceRoot, checkoutRoot } = fixture();
   try {
@@ -131,6 +153,63 @@ test('managed checkout resolver accepts an exact owner SemVer carrier readback',
     });
     assert.equal(result.native_runtime.carrier_installed_version, '0.2.25');
   } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('managed checkout resolver rejects a non-installed configured carrier even when legacy readiness is callable', async () => {
+  const { root, workspaceRoot, checkoutRoot } = fixture();
+  try {
+    const packageStatus = status(checkoutRoot, {
+      launch_allowed: false,
+      launch_blocked_reason: 'configured_native_carrier_unexpected_source_present',
+    });
+    Object.assign(packageStatus.configured_carrier, {
+      status: 'not_installed',
+      enabled: false,
+      reason: 'configured_native_carrier_unexpected_source_present',
+    });
+    (packageStatus.configured_carrier as any).carrier.precedence = 'unexpected_same_plugin_name';
+    (packageStatus.configured_carrier as any).executor.status = 'attention_needed';
+
+    await assert.rejects(resolveStandardAgentManagedCheckout({
+      domainId: 'mas',
+      workspaceRoot,
+      packageReadiness: packageReadiness(packageStatus),
+    }), (error: any) => {
+      assert.equal(error?.details?.failure_code, 'standard_agent_managed_checkout_not_launchable');
+      assert.equal(error?.details?.launch_blocked_reason, 'configured_native_carrier_unexpected_source_present');
+      return true;
+    });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('managed checkout resolver ensures a missing workspace without materializing local policy or Skills', async () => {
+  const { root, workspaceRoot, checkoutRoot } = fixture();
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  try {
+    fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    process.env.OPL_STATE_DIR = path.join(root, 'opl-state');
+
+    const result = await resolveStandardAgentManagedCheckoutProduction({
+      domainId: 'mas',
+      workspaceRoot,
+      packageReadiness: packageReadiness(status(checkoutRoot)),
+    });
+
+    assert.equal(result.workspace_root, fs.realpathSync(workspaceRoot));
+    assert.equal(result.workspace_initialization.action, 'ensure');
+    assert.equal(result.workspace_initialization.workspace_path, path.resolve(workspaceRoot));
+    assert.equal(fs.existsSync(path.join(workspaceRoot, 'workspace.yaml')), true);
+    assert.equal(fs.existsSync(path.join(workspaceRoot, 'workspace_index.json')), true);
+    assert.equal(fs.existsSync(path.join(workspaceRoot, 'AGENTS.md')), false);
+    assert.equal(fs.existsSync(path.join(workspaceRoot, 'skills')), false);
+    assert.equal(fs.existsSync(path.join(workspaceRoot, '.agents', 'skills')), false);
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

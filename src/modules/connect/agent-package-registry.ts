@@ -1852,17 +1852,13 @@ function readAgentPackageStatusSnapshot(packageId?: string | null) {
 
 function agentPackageStatusReadbackStatus(input: {
   packageId: string | null;
-  installedPackageCount: number;
   configuredCarrierStatus: ConfiguredCodexPluginCarrierReadback['status'] | null;
   configuredCarrierPrecedence: ConfiguredCodexPluginCarrierReadback['carrier']['precedence'] | null;
-  installedCarrierReady: boolean;
   operationalReady: boolean;
 }) {
   if (
     input.packageId
-    && input.installedPackageCount === 0
     && input.configuredCarrierStatus !== 'installed'
-    && !input.installedCarrierReady
   ) {
     return input.configuredCarrierStatus === 'physical_unavailable'
       && input.configuredCarrierPrecedence === 'unavailable'
@@ -1948,16 +1944,21 @@ function buildOplAgentPackageStatus(
     && carrierReadiness.callability === 'callable',
   );
   const dependencyOperational = packageDependencyReadiness?.operational_ready !== false;
-  const operationalReady = carrierReadiness
-    ? neutralCarrierReady && dependencyOperational && managedPolicyOperational
-    : configuredCarrier
-    ? configuredCarrierReady && dependencyOperational
-    : false;
+  const operationalReady = Boolean(
+    configuredCarrierReady
+    && neutralCarrierReady
+    && dependencyOperational
+    && managedPolicyOperational,
+  );
   const dependencyBlockedReason = packageDependencyReadiness && !dependencyOperational
     ? `package_dependency_${packageDependencyReadiness.status}`
     : null;
-  const launchBlockedReason = carrierReadiness
-    ? neutralCarrierReady
+  const launchBlockedReason = !configuredCarrierReady
+    ? configuredCarrier
+      ? configuredCarrier.reason ?? 'configured_native_carrier_attention_needed'
+      : 'package_not_installed'
+    : carrierReadiness
+      ? neutralCarrierReady
       ? dependencyBlockedReason
         ?? (managedPolicyOperational
           ? null
@@ -1969,12 +1970,7 @@ function buildOplAgentPackageStatus(
         : carrierReadiness.callability !== 'callable'
           ? 'carrier_disabled'
           : 'carrier_not_installed'
-    : configuredCarrier
-    ? configuredCarrierReady
-      ? dependencyBlockedReason
-        ?? null
-      : configuredCarrier.reason ?? 'configured_native_carrier_attention_needed'
-    : 'package_not_installed';
+      : 'installed_owner_descriptor_unavailable';
   const repairAction = launchBlockedReason
     ? !managedPolicyOperational
       ? policyCurrentness.repair_command
@@ -2018,10 +2014,8 @@ function buildOplAgentPackageStatus(
       surface_kind: 'opl_agent_package_status',
       status: agentPackageStatusReadbackStatus({
         packageId,
-        installedPackageCount: installed ? 1 : 0,
         configuredCarrierStatus: configuredCarrier?.status ?? null,
         configuredCarrierPrecedence: configuredCarrier?.carrier.precedence ?? null,
-        installedCarrierReady: carrierReadiness?.installed ?? false,
         operationalReady,
       }),
       package_id: packageId ?? null,

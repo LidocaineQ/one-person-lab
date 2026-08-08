@@ -9,6 +9,8 @@ import {
   resolveStandardAgent,
   STANDARD_AGENT_SERIES_MEMBERSHIP,
 } from '../../kernel/standard-agent-registry.ts';
+import { loadFrameworkContracts } from '../charter/index.ts';
+import { ensureWorkspace } from '../workspace/index.ts';
 import { packageLaunchHardStopReason } from './family-runtime-package-readiness.ts';
 
 type AgentPackageReadinessPort = ReturnType<typeof requireAgentPackageReadinessPort>;
@@ -254,6 +256,10 @@ export async function resolveStandardAgentManagedCheckout(input: {
   workspaceRoot: string;
   useBoundaryId?: string;
   packageReadiness?: AgentPackageReadinessPort;
+  workspaceEnsurer?: (input: {
+    agentId: string;
+    workspacePath: string;
+  }) => ReturnType<typeof ensureWorkspace>;
 }) {
   const agent = resolveStandardAgent(input.domainId);
   if (!agent || agent.series_membership !== STANDARD_AGENT_SERIES_MEMBERSHIP) {
@@ -261,23 +267,31 @@ export async function resolveStandardAgentManagedCheckout(input: {
       domain_id: input.domainId,
     });
   }
-  const workspaceRoot = path.resolve(input.workspaceRoot);
-  if (!path.isAbsolute(input.workspaceRoot) || !fs.existsSync(workspaceRoot) || !fs.statSync(workspaceRoot).isDirectory()) {
-    throw new FrameworkContractError('cli_usage_error', 'agents run requires an existing absolute workspace root.', {
+  if (!path.isAbsolute(input.workspaceRoot)) {
+    throw new FrameworkContractError('cli_usage_error', 'agents run requires an absolute workspace root.', {
       workspace_root: input.workspaceRoot,
     });
   }
-
+  const requestedWorkspaceRoot = path.resolve(input.workspaceRoot);
   const packageReadiness = input.packageReadiness ?? requireAgentPackageReadinessPort();
   const packageId = agent.agent_id;
-  const scope = { scope: 'workspace' as const, targetWorkspace: workspaceRoot };
+  const scope = { scope: 'workspace' as const, targetWorkspace: requestedWorkspaceRoot };
   const packageStatus = packageReadiness.readStatus({ packageId, ...scope }).opl_agent_package_status;
   const nativeRuntime = nativeRuntimeFromStatus(packageStatus, packageId);
+
+  const workspaceEnsure = input.workspaceEnsurer
+    ? input.workspaceEnsurer({ agentId: agent.agent_id, workspacePath: requestedWorkspaceRoot })
+    : ensureWorkspace(loadFrameworkContracts(), {
+        agentId: agent.agent_id,
+        workspacePath: requestedWorkspaceRoot,
+      });
+  const workspaceRoot = fs.realpathSync.native(workspaceEnsure.workspace_initialization.workspace_path);
 
   return {
     agent,
     package_id: packageId,
-    workspace_root: fs.realpathSync.native(workspaceRoot),
+    workspace_root: workspaceRoot,
+    workspace_initialization: workspaceEnsure.workspace_initialization,
     checkout_root: nativeRuntime.plugin_source_path,
     package_status: packageStatus,
     package_use_binding: null,

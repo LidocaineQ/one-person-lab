@@ -197,6 +197,49 @@ test('package status projects required closure from installed owner descriptors'
       'plugin list --json',
     ]);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
+
+    const historicalSource = path.join(root, 'historical-mas');
+    writePlugin(historicalSource, 'mas', '0.2.25');
+    fs.writeFileSync(path.join(historicalSource, 'opl-package.json'), formatJsonPayload({
+      ...rootManifest,
+      codex_surface: {
+        ...rootManifest.codex_surface,
+        plugin_source_path: path.relative(historicalSource, rootSource),
+        configured_codex_plugin_carrier: {
+          kind: 'codex_plugin_manager',
+          plugin_selector: 'med-autoscience@carrier',
+          executor_route: 'codex_cli',
+          marketplace_source: 'fixture',
+          publication_ref: null,
+        },
+      },
+    }));
+    fs.writeFileSync(binary, `#!/usr/bin/env node\nprocess.stdout.write(${JSON.stringify(pluginList([
+      {
+        pluginId: 'med-autoscience@historical-carrier',
+        version: '0.2.25',
+        sourcePath: historicalSource,
+        marketplaceSource: 'historical-carrier',
+      },
+      {
+        pluginId: 'mas-scholar-skills@carrier',
+        version: '0.2.24',
+        sourcePath: providerSource,
+        marketplaceSource: 'fixture',
+      },
+    ]))});\n`);
+    const unexpectedSource = runCli(['packages', 'status', '--package-id', 'mas'], env)
+      .opl_agent_package_status;
+    assert.equal(unexpectedSource.configured_carrier?.status, 'not_installed');
+    assert.equal(unexpectedSource.configured_carrier?.carrier.precedence, 'unexpected_same_plugin_name');
+    assert.equal(unexpectedSource.installed_readiness?.callability, 'callable');
+    assert.equal(unexpectedSource.status, 'not_installed');
+    assert.equal(unexpectedSource.operational_ready, false);
+    assert.equal(unexpectedSource.launch_allowed, false);
+    assert.equal(
+      unexpectedSource.launch_blocked_reason,
+      'configured_native_carrier_unexpected_source_present',
+    );
   } finally {
     removeFixtureTree(root);
   }
