@@ -122,6 +122,7 @@ test('package status projects required closure from installed owner descriptors'
   const rootSource = path.join(root, 'mas');
   const providerSource = path.join(root, 'scholar');
   const binary = path.join(root, 'fake-codex.mjs');
+  const callsPath = path.join(root, 'codex-calls.txt');
   const writePlugin = (source: string, packageId: string, version: string) => {
     fs.mkdirSync(path.join(source, '.codex-plugin'), { recursive: true });
     fs.mkdirSync(path.join(source, 'skills', packageId), { recursive: true });
@@ -172,7 +173,7 @@ test('package status projects required closure from installed owner descriptors'
   writePlugin(providerSource, 'mas-scholar-skills', '0.2.24');
   fs.writeFileSync(path.join(rootSource, 'opl-package.json'), formatJsonPayload(rootManifest));
   fs.writeFileSync(path.join(providerSource, 'opl-package.json'), formatJsonPayload(providerManifest));
-  fs.writeFileSync(binary, `#!/usr/bin/env node\nprocess.stdout.write(${JSON.stringify(pluginList([
+  fs.writeFileSync(binary, `#!/usr/bin/env node\nimport fs from 'node:fs';\nfs.appendFileSync(process.env.FIXTURE_CODEX_CALLS, process.argv.slice(2).join(' ') + '\\n');\nprocess.stdout.write(${JSON.stringify(pluginList([
     { pluginId: 'med-autoscience@carrier', version: '0.2.25', sourcePath: rootSource, marketplaceSource: 'fixture' },
     { pluginId: 'mas-scholar-skills@carrier', version: '0.2.24', sourcePath: providerSource, marketplaceSource: 'fixture' },
   ]))});\n`);
@@ -182,6 +183,7 @@ test('package status projects required closure from installed owner descriptors'
     CODEX_HOME: codexHome,
     OPL_STATE_DIR: stateDir,
     OPL_CODEX_PLUGIN_BIN: binary,
+    FIXTURE_CODEX_CALLS: callsPath,
   };
   try {
     const status = runCli(['packages', 'status', '--package-id', 'mas'], env).opl_agent_package_status;
@@ -190,6 +192,10 @@ test('package status projects required closure from installed owner descriptors'
     assert.equal(status.package_dependency_readiness?.dependencies[0]?.package_id, 'mas-scholar-skills');
     assert.equal(status.operational_ready, true);
     assert.equal(status.launch_allowed, true);
+    assert.deepEqual(fs.readFileSync(callsPath, 'utf8').trim().split('\n'), [
+      'plugin list --json',
+      'plugin list --json',
+    ]);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
   } finally {
     removeFixtureTree(root);
@@ -415,6 +421,82 @@ test('configured Codex carrier keeps native failures Package-local and rejects s
       === 'configured_codex_plugin_carrier_descriptor_invalid',
   );
   assert.equal(calls, 1);
+});
+
+test('configured Codex carrier refreshes an existing Git marketplace before update or repair', () => {
+  for (const action of ['update', 'repair'] as const) {
+    const calls: string[] = [];
+    const readback = runConfiguredCodexPluginCarrier({
+      descriptor: {
+        ...descriptor,
+        carrier: { ...descriptor.carrier, marketplaceSource: 'gaofeng21cn/example' },
+      },
+      action,
+      runner: ({ args }) => {
+        calls.push(args.join(' '));
+        if (args.join(' ') === 'plugin marketplace list --json') {
+          return {
+            status: 0,
+            stdout: JSON.stringify({
+              marketplaces: [{
+                name: 'fixture-carrier',
+                marketplaceSource: {
+                  sourceType: 'git',
+                  source: 'https://github.com/gaofeng21cn/example.git',
+                },
+              }],
+            }),
+            stderr: '',
+            error: null,
+          };
+        }
+        if (args.join(' ') === 'plugin list --json') {
+          return { status: 0, stdout: pluginList([]), stderr: '', error: null };
+        }
+        return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+      },
+    });
+    assert.equal(readback.operation, action);
+    assert.deepEqual(calls, [
+      'plugin marketplace list --json',
+      'plugin marketplace upgrade fixture-carrier --json',
+      `plugin add ${pluginSelector} --json`,
+      'plugin list --json',
+    ]);
+  }
+});
+
+test('configured Codex carrier adds a missing marketplace and dry-run never refreshes it', () => {
+  const calls: string[] = [];
+  const configured = {
+    ...descriptor,
+    carrier: { ...descriptor.carrier, marketplaceSource: 'gaofeng21cn/example' },
+  };
+  const runner: CodexPluginCommandRunner = ({ args }) => {
+    calls.push(args.join(' '));
+    if (args.join(' ') === 'plugin marketplace list --json') {
+      return {
+        status: 0,
+        stdout: JSON.stringify({ marketplaces: [] }),
+        stderr: '',
+        error: null,
+      };
+    }
+    if (args.join(' ') === 'plugin list --json') {
+      return { status: 0, stdout: pluginList([]), stderr: '', error: null };
+    }
+    return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+  };
+  runConfiguredCodexPluginCarrier({ descriptor: configured, action: 'install', runner });
+  assert.deepEqual(calls.slice(0, 3), [
+    'plugin marketplace list --json',
+    'plugin marketplace add gaofeng21cn/example --json',
+    `plugin add ${pluginSelector} --json`,
+  ]);
+
+  calls.length = 0;
+  runConfiguredCodexPluginCarrier({ descriptor: configured, action: 'update', dryRun: true, runner });
+  assert.deepEqual(calls, ['plugin list --json']);
 });
 
 test('configured Codex carrier reports an unexpected same-name source without selecting it', () => {

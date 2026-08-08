@@ -31,6 +31,7 @@ type CodexPluginListEntry = {
 };
 
 type CodexPluginMarketplaceListEntry = {
+  name: string | null;
   marketplaceSource: string | null;
 };
 
@@ -91,6 +92,42 @@ export type ConfiguredCodexPluginCarrierReadback = {
 
 function stringValue(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+export function githubMarketplaceSourceIdentity(value: string) {
+  const slug = value.match(/^([A-Za-z0-9][A-Za-z0-9-]*)\/([A-Za-z0-9][A-Za-z0-9._-]*)$/);
+  if (slug) return `${slug[1]!.toLowerCase()}/${slug[2]!.toLowerCase()}`;
+  try {
+    const source = new URL(value);
+    if (source.protocol !== 'https:'
+      || source.hostname.toLowerCase() !== 'github.com'
+      || source.port
+      || source.username
+      || source.password
+      || source.search
+      || source.hash) {
+      return null;
+    }
+    const parts = source.pathname.split('/').filter(Boolean);
+    if (parts.length !== 2) return null;
+    const owner = parts[0]!;
+    const repository = parts[1]!.replace(/\.git$/, '');
+    if (!/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(owner)
+      || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(repository)) {
+      return null;
+    }
+    return `${owner.toLowerCase()}/${repository.toLowerCase()}`;
+  } catch {
+    return null;
+  }
+}
+
+function sameMarketplaceSource(left: string | null, right: string) {
+  if (left === right) return true;
+  if (!left) return false;
+  const leftIdentity = githubMarketplaceSourceIdentity(left);
+  const rightIdentity = githubMarketplaceSourceIdentity(right);
+  return leftIdentity !== null && leftIdentity === rightIdentity;
 }
 
 function defaultRunner(input: {
@@ -166,7 +203,10 @@ function parsePluginList(value: string, packageId: string): CodexPluginListEntry
 function marketplaceListEntry(value: unknown): CodexPluginMarketplaceListEntry | null {
   if (!isRecord(value)) return null;
   const marketplaceSource = isRecord(value.marketplaceSource) ? value.marketplaceSource : null;
-  return { marketplaceSource: stringValue(marketplaceSource?.source) };
+  return {
+    name: stringValue(value.name),
+    marketplaceSource: stringValue(marketplaceSource?.source),
+  };
 }
 
 function parseMarketplaceList(value: string, packageId: string): CodexPluginMarketplaceListEntry[] {
@@ -679,9 +719,14 @@ function ensureMarketplaceArgs(source: string) {
   return ['plugin', 'marketplace', 'add', source, '--json'];
 }
 
+function marketplaceName(pluginId: string) {
+  return pluginId.slice(pluginId.lastIndexOf('@') + 1);
+}
+
 function ensureMarketplaceAvailable(input: {
   packageId: string;
   action: ConfiguredCodexPluginCarrierAction;
+  pluginId: string;
   marketplaceSource: string;
   binary: string;
   env: NodeJS.ProcessEnv;
@@ -693,11 +738,32 @@ function ensureMarketplaceAvailable(input: {
     args: marketplaceListArgs,
     env: input.env,
   });
-  const marketplacePresent = marketplaceList.status === 0 && !marketplaceList.error
+  const configuredMarketplace = marketplaceList.status === 0 && !marketplaceList.error
     ? parseMarketplaceList(marketplaceList.stdout, input.packageId)
-      .some((entry) => entry.marketplaceSource === input.marketplaceSource)
-    : false;
-  if (marketplacePresent) return;
+      .find((entry) => sameMarketplaceSource(entry.marketplaceSource, input.marketplaceSource)) ?? null
+    : null;
+  if (configuredMarketplace) {
+    if (input.action !== 'update' && input.action !== 'repair') return;
+    const upgradeArgs = [
+      'plugin', 'marketplace', 'upgrade',
+      configuredMarketplace.name ?? marketplaceName(input.pluginId),
+      '--json',
+    ];
+    const upgradeResult = input.runner({
+      binary: input.binary,
+      args: upgradeArgs,
+      env: input.env,
+    });
+    if (upgradeResult.status !== 0 || upgradeResult.error) {
+      commandFailure({
+        packageId: input.packageId,
+        action: input.action,
+        args: upgradeArgs,
+        result: upgradeResult,
+      });
+    }
+    return;
+  }
 
   const marketplaceArgs = ensureMarketplaceArgs(input.marketplaceSource);
   const marketplaceResult = input.runner({
@@ -1016,6 +1082,7 @@ export function runConfiguredCodexPluginCarrier(input: {
     ensureMarketplaceAvailable({
       packageId: input.descriptor.packageId,
       action: input.action,
+      pluginId: input.descriptor.carrier.pluginId,
       marketplaceSource,
       binary,
       env,

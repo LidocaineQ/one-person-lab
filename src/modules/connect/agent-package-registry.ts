@@ -49,6 +49,7 @@ import {
   discoverInstalledOwnerProfileDescriptors,
 } from './agent-package-registry-parts/installed-codex-plugin-directory.ts';
 import {
+  githubMarketplaceSourceIdentity,
   runConfiguredCodexPluginCarrier,
   type ConfiguredCodexPluginCarrierAction,
   type ConfiguredCodexPluginCarrierReadback,
@@ -770,34 +771,6 @@ function configuredCarrierLifecycleReadback(input: {
     } : {}),
     authority_boundary: refsOnlyAuthorityBoundary(),
   };
-}
-
-function githubMarketplaceSourceIdentity(value: string) {
-  const slug = value.match(/^([A-Za-z0-9][A-Za-z0-9-]*)\/([A-Za-z0-9][A-Za-z0-9._-]*)$/);
-  if (slug) return `${slug[1]!.toLowerCase()}/${slug[2]!.toLowerCase()}`;
-  try {
-    const source = new URL(value);
-    if (source.protocol !== 'https:'
-      || source.hostname.toLowerCase() !== 'github.com'
-      || source.port
-      || source.username
-      || source.password
-      || source.search
-      || source.hash) {
-      return null;
-    }
-    const parts = source.pathname.split('/').filter(Boolean);
-    if (parts.length !== 2) return null;
-    const owner = parts[0]!;
-    const repository = parts[1]!.replace(/\.git$/, '');
-    if (!/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(owner)
-      || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(repository)) {
-      return null;
-    }
-    return `${owner.toLowerCase()}/${repository.toLowerCase()}`;
-  } catch {
-    return null;
-  }
 }
 
 function sameConfiguredCarrierPath(left: string | null, right: string | null) {
@@ -1754,8 +1727,9 @@ function configuredCarrierReadbacks(
 
 function buildAgentPackageStatusSnapshot(
   installedCodexPluginDescriptors: ReturnType<typeof discoverInstalledCodexPluginDescriptors>,
+  packageId: string | null = null,
 ) {
-  const configuredCarriers = configuredCarrierReadbacks(installedCodexPluginDescriptors);
+  const configuredCarriers = configuredCarrierReadbacks(installedCodexPluginDescriptors, packageId);
   const directory = buildAgentPackageDirectory({
     detail: 'fast',
     configuredCarrierReadbacks: configuredCarriers,
@@ -1835,7 +1809,10 @@ function descriptorDependencyReadinessFor(
 
 function readAgentPackageStatusSnapshot(packageId?: string | null) {
   const installedCodexPluginDescriptors = discoverInstalledCodexPluginDescriptors();
-  return buildAgentPackageStatusSnapshot(installedCodexPluginDescriptors);
+  return buildAgentPackageStatusSnapshot(
+    installedCodexPluginDescriptors,
+    canonicalAgentPackageId(packageId),
+  );
 }
 
 function agentPackageStatusReadbackStatus(input: {
