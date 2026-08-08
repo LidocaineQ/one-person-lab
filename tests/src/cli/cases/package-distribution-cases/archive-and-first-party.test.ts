@@ -1357,8 +1357,8 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
     'utf8',
   )) as Record<string, any>;
   assert.equal(manifest.surface_kind, 'opl_workflow_profile_package_manifest.v1');
-  assert.equal(manifest.version, '0.1.41');
-  assert.equal(manifest.codex_surface.carrier_source_commit, '269c2b9a57f4332845d12eb9b0c3d61467b0a70a');
+  assert.equal(manifest.version, '0.1.42');
+  assert.equal(manifest.codex_surface.carrier_source_commit, 'bd9e5a9b23e5e843bf2f0d33e094b1de11244542');
   assert.deepEqual(manifest.codex_surface.configured_codex_plugin_carrier, {
     kind: 'codex_plugin_manager',
     plugin_selector: 'opl-flow@opl-flow-local',
@@ -1371,6 +1371,7 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
     'codex-app-owner-migration',
     'develop-and-deliver',
     'github-ssot-patrol',
+    'opl-doc',
     'opl-fleet',
     'opl-flow',
     'recover-codex-tasks',
@@ -1381,7 +1382,7 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
   assert.equal(normalized.agent_id, null);
   assert.equal(normalized.profile_surface?.existing_profile_policy, 'semantic_merge_required');
   assert.equal(payload.surface_kind, 'opl_package_payload_manifest.v2');
-  assert.equal(payload.source_commit, '269c2b9a57f4332845d12eb9b0c3d61467b0a70a');
+  assert.equal(payload.source_commit, 'bd9e5a9b23e5e843bf2f0d33e094b1de11244542');
   assert.equal(payload.files.some((file: Record<string, unknown>) => file.path === 'opl-package.json'), true);
   for (const requiredPath of [
     'contracts/fleet-telemetry-protocol.json',
@@ -1411,6 +1412,8 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
       'skills/github-ssot-patrol/agents/openai.yaml',
       'skills/github-ssot-patrol/references/decision-contract.md',
       'skills/github-ssot-patrol/scripts/github_patrol.py',
+      'skills/opl-doc/SKILL.md',
+      'skills/opl-doc/agents/openai.yaml',
       'skills/opl-fleet/SKILL.md',
       'skills/opl-fleet/agents/openai.yaml',
       'skills/opl-flow/SKILL.md',

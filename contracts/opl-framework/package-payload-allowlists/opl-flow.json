@@ -23,6 +23,8 @@
     "skills/github-ssot-patrol/agents/openai.yaml",
     "skills/github-ssot-patrol/references/decision-contract.md",
     "skills/github-ssot-patrol/scripts/github_patrol.py",
+    "skills/opl-doc/SKILL.md",
+    "skills/opl-doc/agents/openai.yaml",
     "skills/opl-fleet/SKILL.md",
     "skills/opl-fleet/agents/openai.yaml",
     "skills/opl-flow/SKILL.md",

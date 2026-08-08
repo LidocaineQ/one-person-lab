@@ -476,11 +476,11 @@ test('packages manifest exposes independent owner currentness and compatibility 
     `ghcr.io/gaofeng21cn/one-person-lab-packages/mas-scholar-skills:${scholarCatalogEntry.package_version}`,
   );
   assert.equal(output.packages_manifest.packages.package_artifacts['opl-flow'].package_id, 'opl-flow');
-  assert.equal(output.packages_manifest.packages.package_artifacts['opl-flow'].package_version, '0.1.41');
+  assert.equal(output.packages_manifest.packages.package_artifacts['opl-flow'].package_version, '0.1.42');
   assert.equal(output.packages_manifest.packages.package_artifacts['opl-flow'].codex_standalone_distribution, null);
   assert.equal(
     output.packages_manifest.packages.package_artifacts['opl-flow'].artifact,
-    'ghcr.io/gaofeng21cn/one-person-lab-packages/opl-flow:0.1.41',
+    'ghcr.io/gaofeng21cn/one-person-lab-packages/opl-flow:0.1.42',
   );
   assert.equal(
     output.packages_manifest.packages.package_artifacts['mas-scholar-skills'].scope,

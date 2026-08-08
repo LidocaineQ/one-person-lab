@@ -39,6 +39,7 @@ import {
 import {
   managedPolicyCurrentnessFromDescriptor,
 } from './agent-package-registry-parts/managed-policy-surface.ts';
+import { migrateLegacyOplDocInstall } from './agent-package-registry-parts/legacy-opl-doc-install-migration.ts';
 import {
   buildAgentPackageDirectory,
   firstPartyConfiguredCarrierDescriptors,
@@ -109,6 +110,12 @@ function packageActionStatus(action: AgentPackageLifecycleAction) {
     enable: 'enabled',
     disable: 'disabled',
   }[action];
+}
+
+function legacyOplDocMigrationForFlow(input: AgentPackageManifestValidateInput & { dryRun?: boolean }) {
+  if (canonicalAgentPackageId(input.packageId) !== 'opl-flow') return null;
+  const migration = migrateLegacyOplDocInstall({ dryRun: input.dryRun === true });
+  return migration.status === 'absent' ? null : migration;
 }
 
 function requirePackageId(packageId: string | null | undefined, action: string) {
@@ -1379,11 +1386,13 @@ export async function runOplAgentPackageInstall(input: AgentPackageInstallInput)
     action: 'install',
   });
   if (configured) {
+    const migration = legacyOplDocMigrationForFlow(input);
     return {
       version: 'g2',
       opl_agent_package_install: {
         surface_kind: 'opl_agent_package_install',
         ...configured,
+        ...(migration ? { legacy_opl_doc_install_migration: migration } : {}),
       },
     };
   }
@@ -1396,17 +1405,30 @@ export async function runOplAgentPackageUpdate(input: AgentPackageInstallInput) 
     selectionInput: input,
     action: 'update',
   });
-  if (descriptorOwned) return descriptorOwned;
+  if (descriptorOwned) {
+    const migration = legacyOplDocMigrationForFlow(input);
+    return migration
+      ? {
+          ...descriptorOwned,
+          opl_agent_package_update: {
+            ...descriptorOwned.opl_agent_package_update,
+            legacy_opl_doc_install_migration: migration,
+          },
+        }
+      : descriptorOwned;
+  }
   const configured = await maybeRunConfiguredCarrierLifecycle({
     selectionInput: input,
     action: 'update',
   });
   if (configured) {
+    const migration = legacyOplDocMigrationForFlow(input);
     return {
       version: 'g2',
       opl_agent_package_update: {
         surface_kind: 'opl_agent_package_update',
         ...configured,
+        ...(migration ? { legacy_opl_doc_install_migration: migration } : {}),
       },
     };
   }
@@ -1419,17 +1441,30 @@ export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
     selectionInput: input,
     action: 'repair',
   });
-  if (descriptorOwned) return descriptorOwned;
+  if (descriptorOwned) {
+    const migration = legacyOplDocMigrationForFlow(input);
+    return migration
+      ? {
+          ...descriptorOwned,
+          opl_agent_package_repair: {
+            ...descriptorOwned.opl_agent_package_repair,
+            legacy_opl_doc_install_migration: migration,
+          },
+        }
+      : descriptorOwned;
+  }
   const configured = await maybeRunConfiguredCarrierLifecycle({
     selectionInput: input,
     action: 'repair',
   });
   if (configured) {
+    const migration = legacyOplDocMigrationForFlow(input);
     return {
       version: 'g2',
       opl_agent_package_repair: {
         surface_kind: 'opl_agent_package_repair',
         ...configured,
+        ...(migration ? { legacy_opl_doc_install_migration: migration } : {}),
       },
     };
   }

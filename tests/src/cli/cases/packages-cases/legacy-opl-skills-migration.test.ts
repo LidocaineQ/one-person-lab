@@ -29,6 +29,7 @@ const flowSkillIds = [
   'codex-app-owner-migration',
   'develop-and-deliver',
   'github-ssot-patrol',
+  'opl-doc',
   'opl-fleet',
   'opl-flow',
   'recover-codex-tasks',
@@ -280,6 +281,27 @@ function seedInstalledFlow(input: {
     'plugin', 'add', flowPluginSelector, '--json',
   ], { env: { ...process.env, ...input.state.env }, stdio: 'ignore' });
   fs.rmSync(input.state.commandLog, { force: true });
+}
+
+function seedLegacyOplDocInstall(home: string) {
+  const pluginRoot = path.join(home, 'plugins', 'opl-doc');
+  const doctorPath = path.join(pluginRoot, 'scripts', 'opl_doc_doctor.py');
+  const commandPath = path.join(home, '.local', 'bin', 'opl-doc-doctor');
+  const marketplacePath = path.join(home, '.agents', 'plugins', 'marketplace.json');
+  fs.mkdirSync(path.join(pluginRoot, '.codex-plugin'), { recursive: true });
+  fs.mkdirSync(path.join(pluginRoot, 'skills', 'opl-doc'), { recursive: true });
+  fs.mkdirSync(path.dirname(doctorPath), { recursive: true });
+  fs.mkdirSync(path.dirname(commandPath), { recursive: true });
+  fs.mkdirSync(path.dirname(marketplacePath), { recursive: true });
+  fs.writeFileSync(path.join(pluginRoot, '.codex-plugin', 'plugin.json'), formatJsonPayload({ name: 'opl-doc' }));
+  fs.writeFileSync(path.join(pluginRoot, 'skills', 'opl-doc', 'SKILL.md'), '# OPL Doc\n');
+  fs.writeFileSync(doctorPath, '#!/usr/bin/env python3\n');
+  fs.symlinkSync(doctorPath, commandPath);
+  fs.writeFileSync(marketplacePath, formatJsonPayload({
+    name: 'fixture-personal',
+    plugins: [{ name: 'opl-doc', source: { source: 'local', path: './plugins/opl-doc' } }],
+  }));
+  return { pluginRoot, commandPath, marketplacePath };
 }
 
 function writeDeveloperFlowCheckout(
@@ -544,7 +566,7 @@ function fixture(
   };
 }
 
-test('descriptor-only packages update leaves legacy Skills inert while exposing the configured eight-Skill Flow target', () => {
+test('descriptor-only packages update migrates standalone OPL Doc after exposing the configured nine-Skill Flow target', () => {
   const state = publicLifecycleFixture('update-success');
   const before = fs.readFileSync(state.lockPath);
   try {
@@ -564,6 +586,7 @@ test('descriptor-only packages update leaves legacy Skills inert while exposing 
       next.manifestPath,
     );
     seedInstalledFlow({ state, oldMarketplaceRoot: previous.marketplaceRoot });
+    const legacyOplDoc = seedLegacyOplDocInstall(state.root);
 
     const update = runCli(['packages', 'update', 'opl-flow'], {
       ...ownerChannel.env,
@@ -576,6 +599,10 @@ test('descriptor-only packages update leaves legacy Skills inert while exposing 
       flowSkillIds,
     );
     assert.equal(update.opl_agent_package_update.configured_carrier.installed_version, '0.1.30');
+    assert.equal(update.opl_agent_package_update.legacy_opl_doc_install_migration.status, 'completed');
+    assert.equal(fs.existsSync(legacyOplDoc.pluginRoot), false);
+    assert.equal(fs.existsSync(legacyOplDoc.commandPath), false);
+    assert.deepEqual(JSON.parse(fs.readFileSync(legacyOplDoc.marketplacePath, 'utf8')).plugins, []);
     for (const skillId of skillIds) {
       assert.equal(fs.existsSync(path.join(state.skillsRoot, skillId)), true);
       assert.equal(fs.existsSync(path.join(next.pluginSource, 'skills', skillId, 'SKILL.md')), true);
@@ -658,7 +685,7 @@ test('public packages update leaves legacy directories and lock bytes inert afte
   }
 });
 
-test('public packages install from a developer checkout leaves legacy Skills inert while exposing eight Flow Skills', () => {
+test('public packages install from a developer checkout leaves legacy Skills inert while exposing nine Flow Skills', () => {
   const state = publicLifecycleFixture('install-developer-checkout');
   try {
     const skillLockBefore = fs.readFileSync(state.lockPath);
