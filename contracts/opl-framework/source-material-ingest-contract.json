@@ -17,14 +17,15 @@
   "handoff_policy": {
     "canonical_reference_design_path": [
       "SourceMaterialReceipt",
-      "extraction_receipt_refs",
-      "ReferenceDesignPatternPacket",
-      "OMA ReferenceDesignPacket"
+      "domain descriptor source_material_consumer role binding",
+      "family action catalog public action",
+      "provider manifest locator",
+      "ReferenceDesignPatternPacket"
     ],
     "consumers": [
       "domain_stage",
       "Codex CLI attempt",
-      "OPL Meta Agent reference-design distillation",
+      "descriptor-declared Standard Agent public action",
       "MAS or BookForge source intake"
     ],
     "handoff_refs": [
@@ -35,24 +36,49 @@
     ],
     "body_reader": "stage_or_domain_agent",
     "reference_design_pattern_handoff": {
-      "applicable_role": "reference_design",
       "receipt_field": "reference_design_pattern_handoff",
       "contract_ref": "contracts/opl-framework/source-material-ingest-contract.json#/handoff_policy/reference_design_pattern_handoff",
-      "schema_ref": "contracts/opl-framework/reference-design-pattern-packet.schema.json",
-      "input_ref_fields": [
-        "source_material_ref",
-        "source_material_receipt_ref",
-        "source_fingerprint_ref",
-        "stored_file_ref"
+      "consumer_projection": {
+        "descriptor_field": "source_material_consumer",
+        "version": "opl_source_material_consumer_projection.v1",
+        "role_bindings_field": "role_bindings",
+        "required_binding_fields": [
+          "applicability",
+          "public_action_id",
+          "request_ref_field"
+        ]
+      },
+      "receipt_fields": [
+        "applicability",
+        "contract_ref",
+        "source_material_role",
+        "consumer_projection_ref",
+        "consumer_route",
+        "semantic_extraction_executed",
+        "provider_execution_at_ingest",
+        "reason",
+        "authority_boundary"
       ],
-      "required_return_shape": "ReferenceDesignPatternPacket",
-      "required_return_fields_ref": "contracts/opl-framework/reference-design-pattern-packet.schema.json#/required",
-      "next_owner": "stage_or_domain_agent",
-      "next_owner_action": "extract_reference_design_patterns_and_return_typed_packet",
-      "packet_consumer": "oma",
-      "consumer_return_shape": "ReferenceDesignPacket",
-      "consumer_return_contract_ref": "oma-contract:reference-design-packet.v1",
-      "consumer_return_fields_ref": "oma-contract:reference-design-packet.v1#/required_fields",
+      "consumer_route_fields": [
+        "consumer_agent_id",
+        "public_action_id",
+        "action_catalog_ref",
+        "input_schema_ref",
+        "request_ref_field",
+        "provider_manifest_ref",
+        "provider_id"
+      ],
+      "applicability_policy": {
+        "declared_role_binding": "required",
+        "undeclared_role_or_non_consumer_agent": "not_applicable",
+        "consumer_descriptor_unavailable": "not_applicable",
+        "declared_binding_inconsistent": "contract_shape_invalid"
+      },
+      "not_applicable_reasons": [
+        "source_material_role_not_declared",
+        "consumer_descriptor_unavailable"
+      ],
+      "provider_execution_at_ingest": "not_applicable",
       "semantic_extraction_executed_by_ingest": false,
       "pattern_packet_created_by_ingest": false
     }

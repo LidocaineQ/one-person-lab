@@ -12,6 +12,7 @@ import {
   parseStandardAgentInterface,
   readStandardAgentDescriptorInterface,
   readStandardAgentInterface,
+  resolveStandardAgentSourceMaterialConsumerRoute,
   STANDARD_AGENT_INTERFACE_VERSION,
 } from '../../src/kernel/standard-agent-interface.ts';
 import {
@@ -74,6 +75,95 @@ function writeStandardAgentDescriptor(repoDir: string, descriptor: object) {
     path.join(repoDir, 'contracts', 'domain_descriptor.json'),
     `${JSON.stringify(descriptor, null, 2)}\n`,
   );
+}
+
+function writeJson(repoDir: string, relativePath: string, payload: object) {
+  const filePath = path.join(repoDir, relativePath);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`);
+}
+
+function sourceMaterialConsumerDescriptor() {
+  return {
+    ...standardAgentDescriptor('agent_engineering'),
+    kind: 'agent',
+    agent_id: 'oma',
+    package_id: 'oma',
+    public_action_ids: ['engineer-agent'],
+    action_catalog_ref: 'contracts/action_catalog.json',
+    source_material_consumer: {
+      version: 'opl_source_material_consumer_projection.v1',
+      role_bindings: {
+        reference_design: {
+          applicability: 'required',
+          public_action_id: 'engineer-agent',
+          request_ref_field: 'source_refs',
+        },
+      },
+      provider_execution_at_ingest: 'not_applicable',
+    },
+    standard_contract_refs: {
+      action_catalog: 'contracts/action_catalog.json',
+      foundry_provider: 'contracts/foundry_provider.json',
+    },
+  };
+}
+
+function sourceMaterialActionCatalog(requiredFields = ['source_refs']) {
+  return {
+    surface_kind: 'family_action_catalog',
+    version: 'family-action-catalog.v2',
+    catalog_id: 'oma_action_catalog',
+    target_domain_id: 'agent_engineering',
+    owner: 'oma',
+    authority_boundary: {
+      domain_truth_owner: 'oma',
+      opl_role: 'foundry_runtime_owner',
+      write_policy: 'no_domain_truth_writes',
+      opl_can_write_domain_truth: false,
+    },
+    actions: [{
+      action_id: 'engineer-agent',
+      title: 'Engineer Agent',
+      summary: 'Consume source refs through the declared public action.',
+      owner: 'oma',
+      effect: 'mutating',
+      execution_binding: {
+        kind: 'foundry_binding',
+        provider_manifest_ref: 'contracts/foundry_provider.json',
+      },
+      input_schema_ref: 'opl://foundry-protocol/DesignRequest',
+      output_schema_ref: 'opl://foundry-control/FoundryRun',
+      required_fields: requiredFields,
+      optional_fields: [],
+      workspace_locator_fields: [],
+      human_gate_ids: [],
+      supported_surfaces: {
+        cli: {},
+        mcp: { tool_name: 'oma_engineer_agent' },
+        skill: { command_contract_id: 'oma.engineer-agent' },
+        product_entry: { action_key: 'engineer-agent' },
+        openai: { tool_name: 'oma_engineer_agent' },
+        ai_sdk: { tool_name: 'oma_engineer_agent' },
+      },
+      authority_boundary: {
+        oma_can_write_target_domain_truth: false,
+        opl_can_write_target_domain_truth: false,
+      },
+    }],
+    notes: [],
+  };
+}
+
+function sourceMaterialProvider() {
+  return {
+    surface_kind: 'opl_foundry_provider',
+    version: 'opl-foundry-provider.v1',
+    provider_id: 'oma',
+    agent_id: 'oma',
+    package_id: 'oma',
+    domain_id: 'agent_engineering',
+  };
 }
 
 function initializeGitCheckout(repoDir: string) {
@@ -395,6 +485,104 @@ test('standard Agent interface follows a repo-local canonical JSON pointer', () 
     assert.equal(readStandardAgentInterface(repoDir)?.runtime.runtime_domain_id, 'fixture');
   } finally {
     fs.rmSync(repoDir, { recursive: true, force: true });
+  }
+});
+
+test('source material consumer route derives only descriptor, action catalog, and provider refs', () => {
+  const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-source-consumer-route-'));
+  try {
+    writeStandardAgentDescriptor(repoDir, sourceMaterialConsumerDescriptor());
+    writeJson(repoDir, 'contracts/action_catalog.json', sourceMaterialActionCatalog());
+    writeJson(repoDir, 'contracts/foundry_provider.json', sourceMaterialProvider());
+
+    assert.deepEqual(
+      resolveStandardAgentSourceMaterialConsumerRoute(repoDir, 'reference_design'),
+      {
+        applicability: 'required',
+        consumer_projection_ref:
+          'contracts/domain_descriptor.json#/source_material_consumer/role_bindings/reference_design',
+        consumer_route: {
+          consumer_agent_id: 'oma',
+          public_action_id: 'engineer-agent',
+          action_catalog_ref: 'contracts/action_catalog.json',
+          input_schema_ref: 'opl://foundry-protocol/DesignRequest',
+          request_ref_field: 'source_refs',
+          provider_manifest_ref: 'contracts/foundry_provider.json',
+          provider_id: 'oma',
+        },
+        reason: null,
+      },
+    );
+    assert.deepEqual(
+      resolveStandardAgentSourceMaterialConsumerRoute(repoDir, 'dataset'),
+      {
+        applicability: 'not_applicable',
+        consumer_projection_ref: 'contracts/domain_descriptor.json#/source_material_consumer',
+        consumer_route: null,
+        reason: 'source_material_role_not_declared',
+      },
+    );
+  } finally {
+    fs.rmSync(repoDir, { recursive: true, force: true });
+  }
+});
+
+test('source material consumer route distinguishes unavailable descriptors from inconsistent linkage', () => {
+  const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-source-consumer-invalid-'));
+  try {
+    assert.deepEqual(
+      resolveStandardAgentSourceMaterialConsumerRoute(repoDir, 'reference_design'),
+      {
+        applicability: 'not_applicable',
+        consumer_projection_ref: null,
+        consumer_route: null,
+        reason: 'consumer_descriptor_unavailable',
+      },
+    );
+
+    const malformedDescriptor = sourceMaterialConsumerDescriptor();
+    malformedDescriptor.source_material_consumer.role_bindings.reference_design = null as never;
+    writeStandardAgentDescriptor(repoDir, malformedDescriptor);
+    assert.throws(
+      () => resolveStandardAgentSourceMaterialConsumerRoute(repoDir, 'reference_design'),
+      /role binding is invalid/,
+    );
+
+    writeStandardAgentDescriptor(repoDir, sourceMaterialConsumerDescriptor());
+    writeJson(repoDir, 'contracts/action_catalog.json', sourceMaterialActionCatalog(['objective']));
+    writeJson(repoDir, 'contracts/foundry_provider.json', sourceMaterialProvider());
+    assert.throws(
+      () => resolveStandardAgentSourceMaterialConsumerRoute(repoDir, 'reference_design'),
+      (error: unknown) => {
+        assert.equal(error instanceof Error, true);
+        assert.match((error as Error).message, /request ref field is not declared/);
+        return true;
+      },
+    );
+  } finally {
+    fs.rmSync(repoDir, { recursive: true, force: true });
+  }
+});
+
+test('source material consumer route rejects repo linkage through an escaping symlink', () => {
+  const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-source-consumer-symlink-'));
+  const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-source-consumer-external-'));
+  try {
+    writeStandardAgentDescriptor(repoDir, sourceMaterialConsumerDescriptor());
+    writeJson(externalDir, 'action_catalog.json', sourceMaterialActionCatalog());
+    fs.mkdirSync(path.join(repoDir, 'contracts'), { recursive: true });
+    fs.symlinkSync(
+      path.join(externalDir, 'action_catalog.json'),
+      path.join(repoDir, 'contracts/action_catalog.json'),
+    );
+    writeJson(repoDir, 'contracts/foundry_provider.json', sourceMaterialProvider());
+    assert.throws(
+      () => resolveStandardAgentSourceMaterialConsumerRoute(repoDir, 'reference_design'),
+      /does not resolve to a repository JSON file/,
+    );
+  } finally {
+    fs.rmSync(repoDir, { recursive: true, force: true });
+    fs.rmSync(externalDir, { recursive: true, force: true });
   }
 });
 

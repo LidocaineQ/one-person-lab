@@ -88,12 +88,14 @@ function validReferenceDesignPatternPacket() {
     non_transferable_constraint_refs: ['constraint:hemaguide/domain-specific-thresholds'],
     authority_boundary_notes_ref: 'authority-notes:hemaguide/v1',
     consumer_route: {
-      consumer: 'oma',
-      next_owner: 'oma:reference-design-distillation',
-      next_owner_action: 'materialize_reference_design_packet',
-      required_return_shape: 'ReferenceDesignPacket',
-      required_return_contract_ref: 'oma-contract:reference-design-packet.v1',
-      required_return_fields_ref: 'oma-contract:reference-design-packet.v1#/required_fields',
+      consumer_agent_id: 'oma',
+      public_action_id: 'engineer-agent',
+      action_catalog_ref: 'contracts/action_catalog.json',
+      input_schema_ref: 'opl://foundry-protocol/DesignRequest',
+      request_ref_field: 'source_refs',
+      provider_manifest_ref: 'contracts/foundry_provider.json',
+      provider_id: 'oma',
+      provider_execution_at_ingest: 'not_applicable',
     },
     authority_boundary: {
       refs_only: true,
@@ -226,8 +228,8 @@ test('Ajv schema registry validates refs-only ReferenceDesignPatternPacket autho
     referenceDesignPatternPacketSchemaRef,
   );
   assert.equal(
-    packet.consumer_route.required_return_contract_ref,
-    'oma-contract:reference-design-packet.v1',
+    packet.consumer_route.provider_manifest_ref,
+    'contracts/foundry_provider.json',
   );
 
   const authorityOverclaim = {
@@ -255,21 +257,50 @@ test('Ajv schema registry validates refs-only ReferenceDesignPatternPacket autho
   );
 });
 
-test('ReferenceDesignPatternPacket schema is the only OPL required-fields authority', () => {
+test('source material contracts expose only descriptor-derived consumer routes', () => {
   const schema = readJson(referenceDesignPatternPacketSchemaRef) as any;
   const ingestContract = readJson(sourceMaterialIngestContractRef) as any;
   const handoff = ingestContract.handoff_policy.reference_design_pattern_handoff;
 
   assert.equal(Array.isArray(schema.required), true);
   assert.equal(schema.required.length > 0, true);
-  assert.equal(handoff.schema_ref, referenceDesignPatternPacketSchemaRef);
+  assert.deepEqual(handoff.receipt_fields, [
+    'applicability',
+    'contract_ref',
+    'source_material_role',
+    'consumer_projection_ref',
+    'consumer_route',
+    'semantic_extraction_executed',
+    'provider_execution_at_ingest',
+    'reason',
+    'authority_boundary',
+  ]);
+  assert.deepEqual(handoff.consumer_route_fields, [
+    'consumer_agent_id',
+    'public_action_id',
+    'action_catalog_ref',
+    'input_schema_ref',
+    'request_ref_field',
+    'provider_manifest_ref',
+    'provider_id',
+  ]);
+  assert.deepEqual(schema.properties.consumer_route.required, [
+    ...handoff.consumer_route_fields,
+    'provider_execution_at_ingest',
+  ]);
   assert.equal(
-    handoff.required_return_fields_ref,
-    `${referenceDesignPatternPacketSchemaRef}#/required`,
+    schema.properties.consumer_route.properties.provider_execution_at_ingest.const,
+    'not_applicable',
   );
-  assert.equal(Object.hasOwn(handoff, 'required_return_fields'), false);
-  assert.equal(
-    schema.properties.consumer_route.properties.required_return_fields_ref.const,
-    'oma-contract:reference-design-packet.v1#/required_fields',
-  );
+  assert.equal(handoff.provider_execution_at_ingest, 'not_applicable');
+  assert.equal(JSON.stringify(schema).includes('oma-contract:reference-design-packet.v1'), false);
+  assert.equal(JSON.stringify(ingestContract).includes('oma-contract:reference-design-packet.v1'), false);
+  for (const retiredField of [
+    'required_return_shape',
+    'required_return_fields_ref',
+    'consumer_after_return',
+    'consumer_return_contract_ref',
+  ]) {
+    assert.equal(Object.hasOwn(handoff, retiredField), false);
+  }
 });

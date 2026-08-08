@@ -3,7 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
+import {
+  resolveStandardAgentSourceMaterialConsumerRoute,
+} from '../../kernel/standard-agent-interface.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
+import { readStandardAgentDescriptorForDomain } from '../connect/index.ts';
 import { writeJsonArtifact } from './workspace-artifacts.ts';
 import { readValidatedWorkspaceIndex } from './workspace-lifecycle.ts';
 
@@ -20,8 +24,6 @@ export type WorkspaceSourceIngestOptions = {
 
 const SOURCE_MATERIAL_INGEST_CONTRACT_REF =
   'contracts/opl-framework/source-material-ingest-contract.json#/handoff_policy/reference_design_pattern_handoff';
-const REFERENCE_DESIGN_PATTERN_PACKET_SCHEMA_REF =
-  'contracts/opl-framework/reference-design-pattern-packet.schema.json';
 
 function normalizeOptionalString(value: string | undefined | null) {
   const trimmed = value?.trim();
@@ -51,6 +53,16 @@ function mimeTypeFor(filePath: string) {
     '.txt': 'text/plain',
     '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   }[ext] ?? 'application/octet-stream';
+}
+
+function sourceMaterialConsumerRoute(agentId: string, role: string) {
+  let repoDir: string | null = null;
+  try {
+    repoDir = readStandardAgentDescriptorForDomain(agentId)?.repo_dir ?? null;
+  } catch {
+    return resolveStandardAgentSourceMaterialConsumerRoute(null, role);
+  }
+  return resolveStandardAgentSourceMaterialConsumerRoute(repoDir, role);
 }
 
 export function ingestWorkspaceSourceMaterial(
@@ -92,33 +104,20 @@ export function ingestWorkspaceSourceMaterial(
   const sourceCopyPath = path.join(context.workspacePath, sourceCopyRef);
   const receiptPath = path.join(context.workspacePath, receiptRef);
   const apply = options.apply === true && options.dryRun !== true;
-  const referenceDesignApplicable = role === 'reference_design';
+  const consumerResolution = sourceMaterialConsumerRoute(context.agent.agent_id, role);
   const referenceDesignPatternHandoff = {
-    applicability: referenceDesignApplicable ? 'required' : 'not_applicable',
+    applicability: consumerResolution.applicability,
     contract_ref: SOURCE_MATERIAL_INGEST_CONTRACT_REF,
-    schema_ref: REFERENCE_DESIGN_PATTERN_PACKET_SCHEMA_REF,
-    input_refs: {
-      source_material_ref: sourceMaterialRef,
-      source_material_receipt_ref: receiptRef,
-      source_fingerprint_ref: sourceFingerprintRef,
-      stored_file_ref: sourceCopyRef,
-    },
-    required_return_shape: referenceDesignApplicable ? 'ReferenceDesignPatternPacket' : null,
-    required_return_fields_ref: referenceDesignApplicable
-      ? `${REFERENCE_DESIGN_PATTERN_PACKET_SCHEMA_REF}#/required`
-      : null,
-    next_owner: referenceDesignApplicable ? 'stage_or_domain_agent' : null,
-    next_owner_action: referenceDesignApplicable
-      ? 'extract_reference_design_patterns_and_return_typed_packet'
-      : null,
-    consumer_after_return: referenceDesignApplicable ? 'oma' : null,
+    source_material_role: role,
+    consumer_projection_ref: consumerResolution.consumer_projection_ref,
+    consumer_route: consumerResolution.consumer_route,
     semantic_extraction_executed: false,
-    pattern_packet_created: false,
+    provider_execution_at_ingest: 'not_applicable',
+    reason: consumerResolution.reason,
     authority_boundary: {
       refs_only: true,
       body_free: true,
       opl_can_extract_source_semantics: false,
-      opl_can_create_pattern_packet: false,
       opl_can_write_domain_truth: false,
       opl_can_copy_source_body_into_contract: false,
       opl_can_sign_owner_receipt: false,
@@ -165,9 +164,10 @@ export function ingestWorkspaceSourceMaterial(
     reference_design_pattern_handoff: referenceDesignPatternHandoff,
     extraction_policy: {
       codex_cli_can_read_source_ref: true,
-      extraction_can_be_requested_by_domain_stage: true,
-      extraction_owner: 'stage_or_domain_agent',
+      extraction_can_be_requested_by_domain_stage: consumerResolution.applicability === 'required',
+      extraction_owner: consumerResolution.consumer_route?.consumer_agent_id ?? null,
       framework_extracts_semantics: false,
+      provider_execution_at_ingest: 'not_applicable',
     },
     authority_boundary: {
       source_ingest_is_refs_only: true,

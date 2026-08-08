@@ -4,9 +4,9 @@
   "schema_id": "opl.reference_design_pattern_packet.v1",
   "surface_kind": "opl_reference_design_pattern_packet_schema",
   "owner": "OPL Workspace",
-  "purpose": "Define the refs-only handoff returned by source extraction before OMA materializes its ReferenceDesignPacket.",
+  "purpose": "Define the refs-only handoff returned by source extraction for a descriptor-declared Standard Agent consumer.",
   "state": "active_contract",
-  "machine_boundary": "OPL owns only the typed refs envelope. Source or domain stages read source bodies and supply extraction refs; OMA owns ReferenceDesignPacket, TransferMap, and AgentPackPlan semantics.",
+  "machine_boundary": "OPL owns only the typed refs envelope. Source or domain stages read source bodies and supply extraction refs; the descriptor-declared consumer owns downstream semantics.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -75,31 +75,39 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "consumer",
-        "next_owner",
-        "next_owner_action",
-        "required_return_shape",
-        "required_return_contract_ref",
-        "required_return_fields_ref"
+        "consumer_agent_id",
+        "public_action_id",
+        "action_catalog_ref",
+        "input_schema_ref",
+        "request_ref_field",
+        "provider_manifest_ref",
+        "provider_id",
+        "provider_execution_at_ingest"
       ],
       "properties": {
-        "consumer": {
-          "const": "oma"
-        },
-        "next_owner": {
+        "consumer_agent_id": {
           "$ref": "#/$defs/ref"
         },
-        "next_owner_action": {
+        "public_action_id": {
           "$ref": "#/$defs/ref"
         },
-        "required_return_shape": {
-          "const": "ReferenceDesignPacket"
+        "action_catalog_ref": {
+          "$ref": "#/$defs/ref"
         },
-        "required_return_contract_ref": {
-          "const": "oma-contract:reference-design-packet.v1"
+        "input_schema_ref": {
+          "$ref": "#/$defs/ref"
         },
-        "required_return_fields_ref": {
-          "const": "oma-contract:reference-design-packet.v1#/required_fields"
+        "request_ref_field": {
+          "$ref": "#/$defs/ref"
+        },
+        "provider_manifest_ref": {
+          "$ref": "#/$defs/ref"
+        },
+        "provider_id": {
+          "$ref": "#/$defs/ref"
+        },
+        "provider_execution_at_ingest": {
+          "const": "not_applicable"
         }
       }
     },

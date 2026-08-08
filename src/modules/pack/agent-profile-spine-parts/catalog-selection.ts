@@ -560,7 +560,7 @@ function buildSourceDerivedDesignReceipt(parsed: ParsedProfileSelectionArgs) {
     authority_boundary_notes: [
       'source-derived route may extract transferable design patterns only as refs',
       'OPL does not import external runtime truth or target domain truth',
-      'OMA or target agent owner must author and accept domain-specific pack content',
+      'target agent owner must author and accept domain-specific pack content',
     ],
   };
 }
