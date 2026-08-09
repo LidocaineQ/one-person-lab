@@ -6,6 +6,8 @@
 
 发布日期：2026-07-13
 
+最近修订：2026-08-10
+
 适用对象：希望理解 One Person Lab 为什么这样设计，以及这种设计怎样让复杂知识工作更好用、更可信的用户、合作者、早期采用者和技术决策者。
 
 核心判断：One Person Lab 让 AI 从一次回答走向可复查、可交付、可持续推进的专业工作。
@@ -65,13 +67,15 @@ One Person Lab 对用户呈现为一个连续产品，对内保持三层分工�
 
 **One Person Lab App** 是当前用户工作面，通过 desktop 与 Docker/WebUI 让用户选择任务、查看进度、打开文件、处理卡点和接收更新。**OPL Cloud** 是长期、条件启用的产品包装：只有真实 account、storage、isolation、backend 与 owner policy 齐备时，才把同一条工作线扩展到在线工作空间、托管资源、组织管理和协作场景。二者都沿用 Framework 与领域 owner 持有的运行事实和专业结论；Cloud 叙事不构成当前 release、runtime 或 production-ready 证明。
 
-**Foundry Agents** 是专业能力层。不同领域需要不同材料理解、工作方法、质量标准和交付权威。OPL 当前投入真实领域交付的 active domain agents（活跃领域智能体）是：
+**Foundry Agents** 是专业能力层。不同领域需要不同材料理解、工作方法、质量标准和交付权威。OPL 当前的五个标准 Foundry Agents 是：
 
 - [Med Auto Science（MAS）](https://github.com/gaofeng21cn/med-autoscience)：医学研究与论文交付；
 - [Med Auto Grant（MAG）](https://github.com/gaofeng21cn/med-autogrant)：基金方向、申请书、模拟评审与修订；
-- [RedCube AI（RCA）](https://github.com/gaofeng21cn/redcube-ai)：**Visual Deliverable Foundry**，负责演示文稿、报告、叙事、渲染、审阅与导出。
+- [RedCube AI（RCA）](https://github.com/gaofeng21cn/redcube-ai)：**Visual Deliverable Foundry**，负责演示文稿、报告、叙事、渲染、审阅与导出；
+- [OPL Meta Agent（OMA）](https://github.com/gaofeng21cn/opl-meta-agent)：理解新建、接管和改进目标，形成智能体蓝图、评测规格和基于证据的演进建议；
+- [OPL Book Forge（OBF）](https://github.com/gaofeng21cn/opl-bookforge)：面向书籍与长篇手稿的策划、写作、审阅与交付。
 
-[OPL Meta Agent（OMA）](https://github.com/gaofeng21cn/opl-meta-agent) 与 [OPL Book Forge](https://github.com/gaofeng21cn/opl-bookforge) 是由 OPL Packages 管理的扩展模块：前者通过唯一公开入口 `engineer-agent` 理解新建、接管和改进目标，形成智能体蓝图、评测规格和基于证据的演进建议；测试执行、候选物化、版本、灰度、激活和回滚由 OPL Foundry Kernel 承担，保护测试正文、最终验收、权限授权和生产采用由目标 owner 决定。后者面向书籍与长篇手稿。它们共享 OPL 的运行和分发方式，并与 MAS、MAG、RCA 三条活跃领域交付线保持清楚的产品类别区分。
+五者统一使用 OPL 的标准运行、分发和工作面，但专业判断与最终权威仍然归属清楚。OMA 负责智能体的设计语义；测试执行、候选物化、独立评估、不可变版本、激活和回滚由 OPL Foundry Kernel 承担；保护测试正文、最终验收、权限授权和生产采用仍由目标 owner 决定。
 
 三层之间有一条简单原则：Framework 负责“工作怎样可靠推进”，App（以及条件启用的 Cloud）负责“用户怎样看见并操作”，Foundry Agent 负责“这个专业领域什么算好、什么可以交付”。
 
@@ -159,7 +163,7 @@ Framework 说明运行是否发生、文件和证据在哪里；App 说明用户
 
 - **OPL Base**：Framework、Codex 执行路径、在线运行底座和通用能力；
 - **OPL App**：可选的桌面工作台与产品体验；
-- **OPL Packages**：MAS、MAG、RCA、OMA、Book Forge、工作流与能力包。
+- **OPL Packages**：MAS、MAG、RCA、OMA、OPL Book Forge、工作流与能力包。
 
 用户只需维护 Base、App 和 Packages。Base 管共同底座，App 管桌面体验，Packages 管专业能力；领域事实和质量权威仍留在对应 owner。这样的运维设计让“专业能力很多”与“日常维护简单”可以同时成立。
 
@@ -181,7 +185,7 @@ OPL 用克制建立这种信任：
 
 One Person Lab 的长期目标，是让一个人也能拥有过去只有专业团队才能提供的持续推进能力。
 
-AI 负责理解、比较、创作、审阅和修订；OPL Framework 负责阶段、工作空间、证据、恢复与交接；App 把这些能力变成当前清楚、可操作的 desktop + Docker/WebUI 工作体验，条件启用的 Cloud 可以在 owner prerequisites 齐备后扩展这一体验；MAS、MAG、RCA 等专业 Agent 负责各自领域的质量判断和交付权威。
+AI 负责理解、比较、创作、审阅和修订；OPL Framework 负责阶段、工作空间、证据、恢复与交接；App 把这些能力变成当前清楚、可操作的 desktop + Docker/WebUI 工作体验，条件启用的 Cloud 可以在 owner prerequisites 齐备后扩展这一体验；MAS、MAG、RCA、OMA 与 OPL Book Forge 五个标准 Foundry Agents 负责各自的专业判断，并把最终交付或采用决定交回相应 owner。
 
 OPL 相信，真正优秀的 AI 产品既能在用户提出问题时给出高质量回应，也能在漫长、复杂、充满反复的正式工作中，始终让下一份成果更近，让每个判断有依据，让每个问题有去向，让最终交付值得相信。
 
