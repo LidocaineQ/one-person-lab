@@ -9,6 +9,7 @@ import {
   resolveAgentPluginManifest,
 } from '../../../kernel/agent-plugin-manifest.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
+import { resolveCanonicalOplFamilyMarketplaceId } from '../system-installation/codex-plugin-registry.ts';
 import { computePackageChannelTreeSha256 } from '../system-installation/module-package-channel.ts';
 import {
   parseTomlDocument,
@@ -975,12 +976,28 @@ function configuredPluginSelection(input: {
   descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
 }) {
   const pluginId = input.descriptor.carrier.pluginId;
-  const installedSameName = input.entries.filter(
-    (candidate) => candidate.installed && pluginBareName(candidate.pluginId) === pluginBareName(pluginId),
+  const pluginName = pluginBareName(pluginId);
+  const canonicalMarketplaceId = resolveCanonicalOplFamilyMarketplaceId(
+    input.descriptor.packageId,
+    pluginName,
   );
-  const entry = input.entries.find((candidate) => candidate.pluginId === pluginId) ?? null;
-  const unexpectedSameName = installedSameName.filter((candidate) => candidate.pluginId !== pluginId);
-  const ambiguous = unexpectedSameName.some((candidate) => candidate.enabled) && Boolean(entry?.installed);
+  const acceptedPluginIds = new Set([
+    pluginId,
+    ...(canonicalMarketplaceId ? [`${pluginName}@${canonicalMarketplaceId}`] : []),
+  ]);
+  const installedSameName = input.entries.filter(
+    (candidate) => candidate.installed && pluginBareName(candidate.pluginId) === pluginName,
+  );
+  const acceptedEntries = installedSameName.filter((candidate) => acceptedPluginIds.has(candidate.pluginId));
+  const entry = acceptedEntries.find((candidate) => candidate.enabled)
+    ?? acceptedEntries.find((candidate) => candidate.pluginId === pluginId)
+    ?? acceptedEntries[0]
+    ?? null;
+  const unexpectedSameName = installedSameName.filter(
+    (candidate) => !acceptedPluginIds.has(candidate.pluginId),
+  );
+  const ambiguous = installedSameName.filter((candidate) => candidate.enabled).length > 1
+    && Boolean(entry?.installed);
   const unexpectedOnly = !entry?.installed && unexpectedSameName.length > 0;
   const missingSkills = entry
     ? missingRequiredSkills(entry.sourcePath, input.descriptor.executor.requiredSkillIds)

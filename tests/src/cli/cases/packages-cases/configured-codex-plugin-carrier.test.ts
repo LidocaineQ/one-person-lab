@@ -471,6 +471,56 @@ test('configured Codex carrier ignores a disabled duplicate source for launch pr
   }
 });
 
+test('standard Agent carrier accepts its single canonical local wrapper selector', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-standard-carrier-wrapper-'));
+  const source = path.join(root, 'wrapper');
+  const skillRoot = path.join(source, 'skills', 'med-autoscience');
+  fs.mkdirSync(path.join(source, '.codex-plugin'), { recursive: true });
+  fs.mkdirSync(skillRoot, { recursive: true });
+  fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), '# MedAutoScience\n', 'utf8');
+  fs.writeFileSync(path.join(source, '.codex-plugin', 'plugin.json'), formatJsonPayload({
+    name: 'med-autoscience',
+    version: '0.2.26',
+    skills: './skills/',
+  }));
+  try {
+    const readback = runConfiguredCodexPluginCarrier({
+      descriptor: {
+        packageId: 'mas',
+        carrier: {
+          kind: 'codex_plugin_manager',
+          pluginId: 'med-autoscience@med-autoscience',
+          marketplaceSource: null,
+        },
+        executor: {
+          route: 'codex_cli',
+          requiredSkillIds: ['med-autoscience'],
+        },
+        publicationRef: null,
+      },
+      action: 'list',
+      runner: () => ({
+        status: 0,
+        stdout: pluginList([{
+          pluginId: 'med-autoscience@med-autoscience-local',
+          version: '0.2.26',
+          sourcePath: source,
+          marketplaceSource: path.join(root, 'med-autoscience-local'),
+        }]),
+        stderr: '',
+        error: null,
+      }),
+    });
+    assert.equal(readback.status, 'installed');
+    assert.equal(readback.installed_version, '0.2.26');
+    assert.equal(readback.carrier.precedence, 'exact_single_source');
+    assert.equal(readback.executor.status, 'callable');
+    assert.equal(readback.reason, null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('configured Codex carrier resolves the plugin-declared Skill root and rejects unsafe roots', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-skill-root-'));
   const sourcePath = path.join(root, 'source');
