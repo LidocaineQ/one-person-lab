@@ -39,6 +39,7 @@ import {
 } from './agent-package-registry-parts/capability-reconciliation.ts';
 import {
   managedPolicyCurrentnessFromDescriptor,
+  repairManagedPolicyDependenciesFromDescriptor,
 } from './agent-package-registry-parts/managed-policy-surface.ts';
 import { migrateLegacyOplDocInstall } from './agent-package-registry-parts/legacy-opl-doc-install-migration.ts';
 import {
@@ -1243,6 +1244,58 @@ async function maybeRunDescriptorOwnedFirstPartyLifecycle(input: DescriptorOwned
   }
 }
 
+function maybeRunInstalledManagedPolicyRepair(input: AgentPackageRepairInput) {
+  const context = descriptorOwnedFirstPartyContext({
+    selectionInput: input,
+    action: 'repair',
+  });
+  if (!context) return null;
+  const config = context.installed.manifest.managed_policy_surface;
+  if (!config) return null;
+  const policyPath = path.resolve(context.installed.sourcePath, config.source_path);
+  const schemaPath = path.resolve(context.installed.sourcePath, config.schema_path);
+  if (!fs.existsSync(policyPath) || !fs.existsSync(schemaPath)) return null;
+
+  const carrier = runConfiguredCodexPluginCarrier({
+    descriptor: context.installed.carrier,
+    action: 'list',
+  });
+  const carrierReady = carrier.status === 'installed'
+    && carrier.executor.status === 'callable'
+    && carrier.carrier.precedence === 'exact_single_source';
+  if (!carrierReady) return null;
+
+  const managedPolicyRepair = repairManagedPolicyDependenciesFromDescriptor({
+    manifest: {
+      package_id: context.installed.manifest.package_id,
+      version: context.installed.manifest.version,
+      plugin_id: stringValue(context.installed.manifest.codex_surface.plugin_id),
+      required_skill_ids: context.installed.manifest.required_skill_ids,
+      managed_policy_surface: context.installed.manifest.managed_policy_surface,
+    },
+    sourceRoot: context.installed.sourcePath,
+    activeCarrierIdentity: context.installed.carrier_readback.identity,
+    dryRun: input.dryRun === true,
+  });
+  if (!managedPolicyRepair) return null;
+  if (!managedPolicyRepair.writes_performed) return null;
+  const migration = legacyOplDocMigrationForFlow(input);
+  return {
+    version: 'g2' as const,
+    opl_agent_package_repair: {
+      surface_kind: 'opl_agent_package_repair' as const,
+      ...configuredCarrierLifecycleReadback({
+        action: 'repair',
+        dryRun: input.dryRun === true,
+        carrier,
+      }),
+      repair_scope: 'installed_managed_policy_dependencies' as const,
+      managed_policy_repair: managedPolicyRepair,
+      ...(migration ? { legacy_opl_doc_install_migration: migration } : {}),
+    },
+  };
+}
+
 function explicitLocalSourceRef(value: string | null) {
   if (!value) return false;
   if (value.startsWith('file:')) return true;
@@ -1439,6 +1492,8 @@ export async function runOplAgentPackageUpdate(input: AgentPackageInstallInput) 
 
 export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
   assertNoExplicitRemoteFirstPartySource(input);
+  const installedManagedPolicy = maybeRunInstalledManagedPolicyRepair(input);
+  if (installedManagedPolicy) return installedManagedPolicy;
   const descriptorOwned = await maybeRunDescriptorOwnedFirstPartyLifecycle({
     selectionInput: input,
     action: 'repair',

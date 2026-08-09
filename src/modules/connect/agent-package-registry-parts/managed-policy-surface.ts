@@ -8,6 +8,7 @@ import { readLocalCodexDefaultsIfAvailable } from '../../../kernel/local-codex-d
 import { resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
 import {
   syncOplCompanionSkills,
+  type OplCompanionNetworkAccess,
   type OplManagedSkillDependency,
 } from '../install-companions.ts';
 import { resolveCodexConfigPath, resolveCodexHome, sha256Text } from './shared.ts';
@@ -1094,6 +1095,105 @@ function dependencySyncDriftReasons(
     }
   }
   return reasons;
+}
+
+export function repairManagedPolicyDependenciesFromDescriptor(input: {
+  manifest: Pick<
+    AgentPackageManifest,
+    'package_id' | 'version' | 'plugin_id' | 'required_skill_ids' | 'managed_policy_surface'
+  >;
+  sourceRoot: string;
+  activeCarrierIdentity?: string | null;
+  dryRun?: boolean;
+  networkAccess?: OplCompanionNetworkAccess;
+}) {
+  const { manifest, sourceRoot } = input;
+  const config = manifest.managed_policy_surface;
+  if (!config) return null;
+
+  const inspection = inspectManagedPolicySurface({
+    identity: {
+      packageId: manifest.package_id,
+      packageVersion: manifest.version,
+      pluginId: manifest.plugin_id,
+      activeCarrierIdentity: input.activeCarrierIdentity,
+      requiredSkillIds: manifest.required_skill_ids,
+      config,
+    },
+    sourceRoot,
+  });
+  const {
+    dependencies,
+    skillIds,
+    toolIds,
+    managedSkillDependencies,
+  } = managedPolicyDependencySelection({
+    schema: inspection.policy.schema,
+    requires: inspection.policy.requires,
+    recommends: inspection.policy.recommends,
+    experienceBaseline: inspection.policy.experience_baseline,
+  });
+  const dryRun = input.dryRun === true;
+  const dependencySync = syncOplCompanionSkills(inspection.home, {
+    mode: dryRun ? 'ask_to_apply' : 'managed',
+    skillIds,
+    toolIds,
+    managedSkillDependencies,
+    networkAccess: input.networkAccess ?? 'allowed',
+  });
+  const writesPerformed = !dryRun && (
+    dependencySync.items.some((entry) => ['synced', 'installed'].includes(entry.status))
+    || dependencySync.tools.some((entry) => entry.action === 'install' || entry.action === 'update')
+  );
+
+  if (dryRun) {
+    return {
+      surface_kind: 'opl_package_managed_policy_dependency_repair' as const,
+      status: 'validated_no_write' as const,
+      dependency_ids: [...new Set(dependencies.map((entry) => entry.id))],
+      dependency_sync: dependencySync,
+      currentness: managedPolicyCurrentnessFromDescriptor({
+        manifest,
+        sourceRoot,
+        activeCarrierIdentity: input.activeCarrierIdentity,
+      }),
+      writes_performed: false,
+    };
+  }
+
+  const readback = syncOplCompanionSkills(inspection.home, {
+    mode: 'observe',
+    skillIds,
+    toolIds,
+    managedSkillDependencies,
+    networkAccess: 'forbidden',
+  });
+  const remainingDrift = dependencySyncDriftReasons(readback, skillIds, toolIds);
+  if (remainingDrift.length > 0) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'Installed Package managed dependency repair did not converge.',
+      {
+        package_id: manifest.package_id,
+        remaining_drift: remainingDrift,
+        dependency_sync: readback,
+        failure_code: 'agent_package_managed_dependency_repair_incomplete',
+      },
+    );
+  }
+
+  return {
+    surface_kind: 'opl_package_managed_policy_dependency_repair' as const,
+    status: writesPerformed ? 'repaired' as const : 'current' as const,
+    dependency_ids: [...new Set(dependencies.map((entry) => entry.id))],
+    dependency_sync: readback,
+    currentness: managedPolicyCurrentnessFromDescriptor({
+      manifest,
+      sourceRoot,
+      activeCarrierIdentity: input.activeCarrierIdentity,
+    }),
+    writes_performed: writesPerformed,
+  };
 }
 
 function capabilityReadbackFromSync(input: {

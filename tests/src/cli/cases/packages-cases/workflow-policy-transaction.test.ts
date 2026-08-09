@@ -1,3 +1,6 @@
+import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
+
 import {
   assert,
   fs,
@@ -7,6 +10,23 @@ import {
   test,
 } from '../../helpers.ts';
 import { formatJsonPayload } from '../../../../../src/kernel/json-file.ts';
+import { repairManagedPolicyDependenciesFromDescriptor } from '../../../../../src/modules/connect/agent-package-registry-parts/managed-policy-surface.ts';
+
+function withEnvironment<T>(values: Record<string, string | undefined>, run: () => T): T {
+  const previous = new Map(Object.keys(values).map((key) => [key, process.env[key]]));
+  try {
+    for (const [key, value] of Object.entries(values)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    return run();
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
 
 function writeFile(filePath: string, content: string) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -518,6 +538,75 @@ test('installed native descriptor projects Flow policy planes and model recommen
     assert.equal(packageStatus.launch_allowed, true);
     assert.equal(packageStatus.launch_state, 'degraded');
     assert.equal(packageStatus.launch_state_reason, 'experience_baseline_degraded');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  }
+});
+
+test('installed Flow policy repair converges a managed Git Skill entrypoint', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-local-policy-repair-'));
+  const home = path.join(root, 'home');
+  const codexHome = path.join(home, '.codex');
+  const sourceRoot = path.join(root, 'fixture.opl-flow-source');
+  writeOplFlowPackage(root, {
+    policyVersion: 'v4',
+    includeManagedSkillCompanion: true,
+  });
+  const repositoryUrl = 'https://github.com/fixture/ui-ux-pro-max';
+  const repositoryDigest = crypto.createHash('sha256')
+    .update(repositoryUrl.toLowerCase())
+    .digest('hex')
+    .slice(0, 20);
+  const repositoryRoot = path.join(codexHome, 'opl-companion-sources', 'github', repositoryDigest);
+  const skillRoot = path.join(repositoryRoot, 'skill');
+  fs.mkdirSync(skillRoot, { recursive: true });
+  fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), [
+    '---',
+    'name: ui-ux-pro-max',
+    'description: Managed policy repair fixture.',
+    '---',
+    '',
+    '# UI UX Pro Max',
+    '',
+  ].join('\n'), 'utf8');
+  execFileSync('git', ['init', '--quiet'], { cwd: repositoryRoot });
+  execFileSync('git', ['config', 'user.name', 'OPL Test'], { cwd: repositoryRoot });
+  execFileSync('git', ['config', 'user.email', 'opl-test@example.invalid'], { cwd: repositoryRoot });
+  execFileSync('git', ['remote', 'add', 'origin', repositoryUrl], { cwd: repositoryRoot });
+  execFileSync('git', ['add', '.'], { cwd: repositoryRoot });
+  execFileSync('git', ['commit', '--quiet', '-m', 'fixture'], { cwd: repositoryRoot });
+
+  try {
+    withEnvironment({
+      HOME: home,
+      CODEX_HOME: codexHome,
+      OPL_STATE_DIR: path.join(root, 'state'),
+      OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
+    }, () => {
+      const repair = repairManagedPolicyDependenciesFromDescriptor({
+        manifest: {
+          package_id: 'fixture.opl-flow',
+          version: '0.1.16',
+          plugin_id: 'fixture.opl-flow',
+          required_skill_ids: ['fixture.opl-flow', 'codex-ops-kit'],
+          managed_policy_surface: {
+            policy_kind: 'opl_flow_workflow_policy',
+            source_path: 'contracts/workflow-policy.json',
+            schema_path: 'contracts/workflow-policy.schema.json',
+          },
+        },
+        sourceRoot,
+        activeCarrierIdentity: 'fixture.opl-flow@fixture-marketplace',
+        networkAccess: 'forbidden',
+      });
+
+      assert.equal(repair?.status, 'repaired');
+      assert.equal(repair?.writes_performed, true);
+      assert.equal(repair?.currentness.experience_baseline?.status, 'current');
+      const entrypoint = path.join(codexHome, 'skills', 'ui-ux-pro-max');
+      assert.equal(fs.lstatSync(entrypoint).isSymbolicLink(), true);
+      assert.equal(fs.realpathSync(entrypoint), fs.realpathSync(skillRoot));
+    });
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
   }

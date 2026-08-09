@@ -605,6 +605,7 @@ function writeFirstPartyCatalogFixture(
 function writeDescriptorOwnedFlowCarrier(input: {
   root: string;
   version: string;
+  localManagedPolicy?: boolean;
 }) {
   const marketplaceId = 'opl-agent-opl-flow-local';
   const marketplaceRoot = path.join(input.root, 'marketplace');
@@ -634,6 +635,80 @@ function writeDescriptorOwnedFlowCarrier(input: {
     skills: './skills/',
   }));
   fs.writeFileSync(path.join(pluginRoot, 'opl-package.json'), formatJsonPayload(manifest));
+  if (input.localManagedPolicy) {
+    fs.mkdirSync(path.join(pluginRoot, 'contracts'), { recursive: true });
+    fs.writeFileSync(path.join(pluginRoot, 'contracts', 'workflow-policy.json'), formatJsonPayload({
+      schema: 'opl_flow_workflow_policy.v3',
+      package: { id: 'opl-flow', version: input.version, owner: 'opl-flow', kind: 'workflow_profile' },
+      workflow_generation: 'fixture-local-repair',
+      provides: [
+        {
+          id: 'opl-flow',
+          kind: 'codex_plugin',
+          owner: 'opl-flow',
+          source: 'package:opl-flow',
+          online_install_default: true,
+          activation: 'always',
+        },
+        ...FLOW_SKILL_IDS.map((skillId) => ({
+          id: skillId,
+          kind: 'codex_skill',
+          owner: 'opl-flow',
+          source: 'https://github.com/fixture/opl-flow',
+          source_path: `skills/${skillId}`,
+          online_install_default: true,
+          activation: 'task_routed',
+        })),
+      ],
+      requires: [],
+      recommends: [{
+        id: 'fixture-managed-skill',
+        kind: 'codex_skill',
+        owner: 'fixture-owner',
+        install_source: 'framework_git_projection',
+        lifecycle_owner: 'opl-framework',
+        online_install_default: true,
+        activation: 'task_routed',
+        source: 'https://github.com/fixture/managed-skill',
+        source_path: 'skill',
+      }],
+      compatible_optional: [],
+      conflicts: [{
+        id: 'fixture-retirement',
+        discovery_ids: ['fixture-retired'],
+        auto_retire_on_optimize: true,
+        reason: 'fixture',
+      }],
+      retires: [],
+      migration_policy: {
+        trigger: 'explicit_opl_flow_install_update_optimize_or_generic_app_post_update_reconcile',
+        default_action: 'backup_disable_and_remove_from_discovery',
+        physical_delete: false,
+        receipt_owner: 'opl-framework',
+        rollback_required: true,
+        keep_override_supported: true,
+        fresh_discovery_required: true,
+      },
+      historical_fingerprints: {
+        plugin_ids: ['fixture-retired'],
+        skill_ids: ['fixture-retired'],
+        service_ids: ['fixture-retired'],
+        config_markers: ['fixture-retired'],
+        legacy_prompt_ids: ['fixture-retired'],
+      },
+      codex_model_policy: {
+        authority: 'opl-flow',
+        mode_default: 'auto',
+        configured_default: { model: 'gpt-5.6-sol', reasoning_effort: 'max' },
+        override_precedence: ['explicit_user_override', 'opl_flow_recommendation'],
+        catalog_policy: {},
+      },
+    }));
+    fs.writeFileSync(path.join(pluginRoot, 'contracts', 'workflow-policy.schema.json'), formatJsonPayload({
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+    }));
+  }
   fs.mkdirSync(path.join(marketplaceRoot, '.agents', 'plugins'), { recursive: true });
   fs.writeFileSync(
     path.join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json'),
@@ -1267,6 +1342,81 @@ test('descriptor-owned Flow update adopts the exact live owner target and become
     removeFixtureTree(root);
     fs.rmSync(currentOwner.root, { recursive: true, force: true });
     fs.rmSync(nextOwner.root, { recursive: true, force: true });
+  }
+});
+
+test('descriptor-owned Flow repair completes locally before an unavailable owner channel', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-flow-local-repair-'));
+  const stateDir = path.join(root, 'state');
+  const homeDir = path.join(root, 'home');
+  const codex = createFakeCodexPluginManagerFixture(path.join(root, 'fake-codex'));
+  const carrier = writeDescriptorOwnedFlowCarrier({
+    root,
+    version: '0.1.42',
+    localManagedPolicy: true,
+  });
+  const curlMarker = path.join(root, 'curl-called');
+  const binRoot = path.join(root, 'bin');
+  fs.mkdirSync(binRoot, { recursive: true });
+  fs.writeFileSync(path.join(binRoot, 'curl'), [
+    '#!/usr/bin/env bash',
+    `touch ${JSON.stringify(curlMarker)}`,
+    'exit 97',
+    '',
+  ].join('\n'), { mode: 0o755 });
+  const env = {
+    HOME: homeDir,
+    CODEX_HOME: path.join(homeDir, '.codex'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: codex.codexPath,
+    OPL_PACKAGES_OWNER: 'unavailable-fixture',
+    OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
+    PATH: `${binRoot}${path.delimiter}${process.env.PATH ?? ''}`,
+  };
+  try {
+    const repositoryUrl = 'https://github.com/fixture/managed-skill';
+    const repositoryDigest = crypto.createHash('sha256')
+      .update(repositoryUrl)
+      .digest('hex')
+      .slice(0, 20);
+    const repositoryRoot = path.join(
+      env.CODEX_HOME,
+      'opl-companion-sources',
+      'github',
+      repositoryDigest,
+    );
+    const skillRoot = path.join(repositoryRoot, 'skill');
+    fs.mkdirSync(skillRoot, { recursive: true });
+    fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), [
+      '---',
+      'name: fixture-managed-skill',
+      'description: First-party local repair fixture.',
+      '---',
+      '',
+      '# Fixture Managed Skill',
+      '',
+    ].join('\n'), 'utf8');
+    execFileSync('git', ['init', '--quiet'], { cwd: repositoryRoot });
+    execFileSync('git', ['config', 'user.name', 'OPL Test'], { cwd: repositoryRoot });
+    execFileSync('git', ['config', 'user.email', 'opl-test@example.invalid'], { cwd: repositoryRoot });
+    execFileSync('git', ['remote', 'add', 'origin', repositoryUrl], { cwd: repositoryRoot });
+    execFileSync('git', ['add', '.'], { cwd: repositoryRoot });
+    execFileSync('git', ['commit', '--quiet', '-m', 'fixture'], { cwd: repositoryRoot });
+    seedDescriptorOwnedFlowCarrier({ codexPath: codex.codexPath, carrier, env });
+    const repaired = runCli(['packages', 'repair', '--package-id', 'opl-flow'], env) as any;
+    assert.equal(repaired.opl_agent_package_repair.status, 'repaired');
+    assert.equal(
+      repaired.opl_agent_package_repair.repair_scope,
+      'installed_managed_policy_dependencies',
+    );
+    assert.equal(repaired.opl_agent_package_repair.managed_policy_repair.status, 'repaired');
+    assert.equal(
+      fs.realpathSync(path.join(env.CODEX_HOME, 'skills', 'fixture-managed-skill')),
+      fs.realpathSync(skillRoot),
+    );
+    assert.equal(fs.existsSync(curlMarker), false);
+  } finally {
+    removeFixtureTree(root);
   }
 });
 
