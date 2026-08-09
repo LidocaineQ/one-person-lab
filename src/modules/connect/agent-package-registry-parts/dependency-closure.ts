@@ -146,6 +146,7 @@ export function descriptorDependencyReadiness(input: {
       installed: boolean;
       physical_status: 'available' | 'unavailable';
       callability: 'callable' | 'disabled';
+      projection_callability?: 'callable' | 'disabled';
     };
   }>;
 }): AgentPackageDependencyReadiness {
@@ -161,7 +162,9 @@ export function descriptorDependencyReadiness(input: {
       if (provider.readiness.physical_status !== 'available') {
         reasons.push('dependency_physical_unavailable');
       }
-      if (provider.readiness.callability !== 'callable') reasons.push('dependency_disabled');
+      if ((provider.readiness.projection_callability ?? provider.readiness.callability) !== 'callable') {
+        reasons.push('dependency_disabled');
+      }
       if (!provider.manifest.capability_provider) {
         reasons.push('capability_provider_missing');
       } else {

@@ -32,6 +32,15 @@ function createArgs(workspace: string) {
   ];
 }
 
+function writeEmptyCapabilityMap(consumerRoot: string) {
+  const contractsRoot = path.join(consumerRoot, 'plugins', 'med-autoscience', 'contracts');
+  fs.mkdirSync(contractsRoot, { recursive: true });
+  fs.writeFileSync(path.join(contractsRoot, 'capability_map.json'), `${JSON.stringify({
+    surface_kind: 'opl_standard_agent_capability_map',
+    capabilities: [],
+  }, null, 2)}\n`);
+}
+
 test('package launch ignores retired materialization readiness and enforces native status', () => {
   assert.equal(packageLaunchHardStopReason({ installed_package_count: 0 }), 'package_not_installed');
   assert.equal(packageLaunchHardStopReason({
@@ -228,7 +237,7 @@ test('a retained legacy package lock is not accepted as an installed native carr
   }
 });
 
-test('native package launch remains carrier-owned and creates no private lifecycle state', async () => {
+test('native package launch projects Workspace Skills without private lifecycle state', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-native-package-launch-'));
   const workspace = path.join(root, 'workspace');
   const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0', {
@@ -240,6 +249,7 @@ test('native package launch remains carrier-owned and creates no private lifecyc
     '0.1.0a4',
     { configuredCarrier: true },
   );
+  writeEmptyCapabilityMap(path.join(root, 'consumer'));
   const releaseSet = writeCapabilityCatalog(
     path.join(root, 'release-set'),
     [consumerManifest, providerManifest],
@@ -261,11 +271,23 @@ test('native package launch remains carrier-owned and creates no private lifecyc
       'packages', 'install', 'mas',
       '--scope', 'workspace', '--target-workspace', workspace,
     ], env);
+    fs.mkdirSync(env.CODEX_HOME, { recursive: true });
+    fs.appendFileSync(
+      path.join(env.CODEX_HOME, 'config.toml'),
+      '\n[plugins."mas-scholar-skills@mas-scholar-skills-local"]\nenabled = false\n',
+    );
+    const providerStatus = runCli([
+      'packages', 'status', '--package-id', 'mas-scholar-skills',
+    ], env).opl_agent_package_status;
+    assert.equal(providerStatus.configured_carrier.enabled, false);
+    assert.equal(providerStatus.installed_readiness.callability, 'disabled');
+    assert.equal(providerStatus.installed_readiness.projection_callability, 'callable');
     const status = runCli([
       'packages', 'status', '--package-id', 'mas',
       '--scope', 'workspace', '--target-workspace', workspace,
     ], env).opl_agent_package_status;
     assert.equal(status.installed_readiness.callability, 'callable');
+    assert.equal(status.package_dependency_readiness.status, 'current');
     assert.equal(status.operational_ready, true);
     assert.equal(status.launch_allowed, true);
 
@@ -278,9 +300,10 @@ test('native package launch remains carrier-owned and creates no private lifecyc
       first.workspace_locator.native_package_closure.root_package.content_digest,
       /^sha256:[a-f0-9]{64}$/,
     );
+    assert.equal(first.workspace_locator.native_package_closure.skill_projection.skill_ids.length, 10);
     assert.equal(fs.existsSync(path.join(env.OPL_STATE_DIR, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite')), false);
-    assert.equal(fs.existsSync(path.join(workspace, '.codex', 'skills')), false);
+    assert.equal(fs.existsSync(path.join(workspace, '.codex', 'skills')), true);
 
     const startFailure = runCliFailure([
       'family-runtime', 'attempt', 'start', first.stage_attempt_id,

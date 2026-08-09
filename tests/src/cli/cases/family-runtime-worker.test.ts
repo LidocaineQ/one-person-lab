@@ -43,8 +43,18 @@ async function reserveLocalPort() {
 test('family-runtime service start waits for a delayed Temporal listener', async () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-family-runtime-service-start-'));
   const serverScript = path.join(stateRoot, 'delayed-server.mjs');
+  const unrelatedSupervisorPlist = path.join(
+    stateRoot,
+    'Library',
+    'LaunchAgents',
+    'ai.opl.family-runtime.temporal-service.plist',
+  );
+  const unrelatedSupervisorContent = '<plist>owned-by-another-state-root</plist>\n';
   const port = await reserveLocalPort();
   let stopOutput: Record<string, any> | null = null;
+  let preservedSupervisorContent: string | null = null;
+  fs.mkdirSync(path.dirname(unrelatedSupervisorPlist), { recursive: true });
+  fs.writeFileSync(unrelatedSupervisorPlist, unrelatedSupervisorContent, 'utf8');
   fs.writeFileSync(
     serverScript,
     [
@@ -58,6 +68,7 @@ test('family-runtime service start waits for a delayed Temporal listener', async
     'utf8',
   );
   const env = familyRuntimeEnv(stateRoot, {
+    HOME: stateRoot,
     OPL_TEMPORAL_ADDRESS: `127.0.0.1:${port}`,
     OPL_TEMPORAL_SERVICE_START_COMMAND:
       `exec ${shellSingleQuote(process.execPath)} ${shellSingleQuote(serverScript)} ${port}`,
@@ -73,6 +84,7 @@ test('family-runtime service start waits for a delayed Temporal listener', async
   } finally {
     try {
       stopOutput = runCli(['family-runtime', 'service', 'stop', '--provider', 'temporal'], env);
+      preservedSupervisorContent = fs.readFileSync(unrelatedSupervisorPlist, 'utf8');
     } finally {
       fs.rmSync(stateRoot, { recursive: true, force: true });
     }
@@ -82,6 +94,7 @@ test('family-runtime service start waits for a delayed Temporal listener', async
   assert.equal(stoppedService?.stop_status, 'stopped');
   assert.equal(Number.isInteger(stoppedService?.stopped_pid), true);
   assert.equal(stoppedService?.status.server_reachable, false);
+  assert.equal(preservedSupervisorContent, unrelatedSupervisorContent);
 });
 
 test('Temporal stable cohort gate materializes the shared workflow bundle and starts a real Worker', async () => {

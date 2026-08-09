@@ -1,9 +1,10 @@
-import { assert, fs, installRuntimePackageFixture, os, path, runCli, test } from '../helpers.ts';
+import { assert, createRuntimeWorkspaceFixture, fs, installRuntimePackageFixture, os, path, runCli, test } from '../helpers.ts';
 
 test('family-runtime usage readback exposes a refs-only public envelope', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-attempt-usage-envelope-'));
   try {
     installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'redcube-runtime');
     const created = runCli([
       'family-runtime',
       'attempt',
@@ -15,7 +16,7 @@ test('family-runtime usage readback exposes a refs-only public envelope', () => 
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/redcube-runtime"}',
+      JSON.stringify({ workspace_root: workspaceRoot }),
       '--retry-budget',
       '{"max_attempts":2}',
       '--source-fingerprint',

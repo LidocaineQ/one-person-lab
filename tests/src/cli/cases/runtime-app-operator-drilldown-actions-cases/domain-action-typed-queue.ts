@@ -1,6 +1,7 @@
 import {
   assert,
   createFamilyContractsFixtureRoot,
+  createRuntimeWorkspaceFixture,
   fs,
   installRuntimePackageFixture,
   os,
@@ -13,6 +14,7 @@ test('runtime action execute blocks domain actions instead of creating a local r
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-action-execute-domain-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
   installRuntimePackageFixture(stateRoot, 'mas');
+  const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-domain-action');
   try {
     const attempt = runCli([
       'family-runtime',
@@ -25,7 +27,10 @@ test('runtime action execute blocks domain actions instead of creating a local r
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/mas","artifact_root":"/tmp/mas/artifacts"}',
+      JSON.stringify({
+        workspace_root: workspaceRoot,
+        artifact_root: path.join(workspaceRoot, 'artifacts'),
+      }),
       '--task',
       'task-action-execute',
       '--source-fingerprint',

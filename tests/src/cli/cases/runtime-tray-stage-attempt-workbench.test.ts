@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { buildStageAttemptWorkbench } from '../../../../src/modules/console/runtime-tray-stage-attempt-workbench.ts';
 import { buildFamilyRuntimeControlledApplyContract } from '../../../../src/modules/runway/index.ts';
-import { assert, createFamilyContractsFixtureRoot, fs, installRuntimePackageFixture, os, path, repoRoot, runCli, test } from '../helpers.ts';
+import { assert, createFamilyContractsFixtureRoot, createRuntimeWorkspaceFixture, fs, installRuntimePackageFixture, os, path, repoRoot, runCli, test } from '../helpers.ts';
 
 test('controlled apply projects one generic return contract across domains', () => {
   const expectedReturnShapes = [
@@ -39,6 +39,7 @@ test('runtime snapshot projects stage attempt workbench without owning domain ve
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-attempt-workbench-state-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
   installRuntimePackageFixture(stateRoot, 'mas');
+  const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-stage-attempt-workbench');
   try {
     const attempt = runCli([
       'family-runtime',
@@ -52,9 +53,9 @@ test('runtime snapshot projects stage attempt workbench without owning domain ve
       'temporal',
       '--workspace-locator',
       JSON.stringify({
-        workspace_root: '/tmp/mas',
-        runtime_root: '/tmp/mas/runtime',
-        artifact_root: '/tmp/mas/artifacts',
+        workspace_root: workspaceRoot,
+        runtime_root: path.join(workspaceRoot, 'runtime'),
+        artifact_root: path.join(workspaceRoot, 'artifacts'),
         source_refs: ['source:dataset'],
         material_refs: ['material:table1'],
         missing_material_refs: ['material:irb'],
@@ -198,22 +199,25 @@ test('runtime snapshot groups multi-attempt workbench attention and counters', (
       ['medautoscience', 'analysis-campaign'],
       ['redcube', 'review'],
       ['medautogrant', 'draft'],
-    ].map(([domain, stage]) => runCli([
-      'family-runtime',
-      'attempt',
-      'create',
-      '--domain',
-      domain,
-      '--stage',
-      stage,
-      '--provider',
-      'temporal',
-      '--workspace-locator',
-      JSON.stringify({ workspace_root: `/tmp/${domain}` }),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    }).family_runtime_stage_attempt.attempt.stage_attempt_id);
+    ].map(([domain, stage]) => {
+      const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, domain);
+      return runCli([
+        'family-runtime',
+        'attempt',
+        'create',
+        '--domain',
+        domain,
+        '--stage',
+        stage,
+        '--provider',
+        'temporal',
+        '--workspace-locator',
+        JSON.stringify({ workspace_root: workspaceRoot }),
+      ], {
+        OPL_STATE_DIR: stateRoot,
+        OPL_CONTRACTS_DIR: fixtureContractsRoot,
+      }).family_runtime_stage_attempt.attempt.stage_attempt_id;
+    });
 
     runCli([
       'family-runtime',

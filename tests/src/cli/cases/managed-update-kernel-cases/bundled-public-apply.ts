@@ -158,7 +158,12 @@ test('public update apply retains successful bundled roots when another native c
       scopeRoot,
     ], commonEnv) as any;
     assert.equal(activated.opl_agent_package_activation.status, 'already_activated');
-    assert.equal(activated.opl_agent_package_activation.writes_performed, false);
+    assert.equal(activated.opl_agent_package_activation.writes_performed, true);
+    assert.equal(
+      activated.opl_agent_package_activation.workspace_skill_projection.status,
+      'materialized',
+    );
+    assert.equal(fs.existsSync(path.join(scopeRoot, '.codex', 'skills')), true);
     assert.equal(Object.hasOwn(activated.opl_agent_package_activation, 'package_lock'), false);
     assert.equal(Object.hasOwn(activated.opl_agent_package_activation, 'lifecycle_receipt'), false);
     assert.equal(fs.existsSync(legacyLockPath), false);

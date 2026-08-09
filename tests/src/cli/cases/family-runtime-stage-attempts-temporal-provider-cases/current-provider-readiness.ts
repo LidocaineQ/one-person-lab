@@ -9,6 +9,7 @@ import {
 test('family-runtime attempt inspect uses current readiness instead of its creation snapshot', async () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-attempt-current-provider-'));
   const runtimeRoot = path.join(stateRoot, 'family-runtime');
+  const workspaceRoot = path.join(stateRoot, 'workspace');
   const server = net.createServer((socket) => socket.end());
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = `127.0.0.1:${(server.address() as net.AddressInfo).port}`;
@@ -26,6 +27,7 @@ test('family-runtime attempt inspect uses current readiness instead of its creat
   try {
     installRuntimePackageFixture(stateRoot, 'redcube-ai');
     fs.mkdirSync(runtimeRoot, { recursive: true });
+    fs.mkdirSync(workspaceRoot, { recursive: true });
     const taskQueue = resolveTemporalWorkerTaskQueue({ root: runtimeRoot });
     fs.writeFileSync(path.join(runtimeRoot, 'temporal-service.json'), `${JSON.stringify({
       provider_kind: 'temporal',
@@ -65,7 +67,7 @@ test('family-runtime attempt inspect uses current readiness instead of its creat
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/redcube-runtime"}',
+      JSON.stringify({ workspace_root: workspaceRoot }),
     ], env);
     const inspected = runCli([
       'family-runtime',

@@ -26,6 +26,27 @@ function createPackageCarrierBinary(root: string) {
   return createFakeCodexPluginManagerFixture(path.join(root, 'fixture-bin')).codexPath;
 }
 
+function writeStandardAgentCapabilityMap(root: string, skillIds: string[]) {
+  const contractsRoot = path.join(root, 'contracts');
+  fs.mkdirSync(contractsRoot, { recursive: true });
+  fs.writeFileSync(path.join(contractsRoot, 'capability_map.json'), `${JSON.stringify({
+    surface_kind: 'opl_standard_agent_capability_map',
+    capabilities: skillIds.map((skillId) => ({
+      capability_id: skillId,
+      surface_role: 'professional_skill',
+      capability_kind: 'professional_skill',
+      physical_source_ref: {
+        ref_kind: 'repo_path',
+        ref: `agent/professional_skills/${skillId}/SKILL.md`,
+      },
+    })),
+  }, null, 2)}\n`);
+}
+
+function writeMasCapabilityMap(root: string) {
+  writeStandardAgentCapabilityMap(path.join(root, 'plugins', 'med-autoscience'), []);
+}
+
 function createInstalledRcaCarrierFixture(root: string) {
   const sourceRoot = path.join(root, 'installed-redcube-ai');
   const skillRoot = path.join(sourceRoot, 'skills', 'redcube-ai');
@@ -41,6 +62,15 @@ function createInstalledRcaCarrierFixture(root: string) {
     }, null, 2)}\n`,
   );
   fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), '# RedCube AI\n');
+  const professionalSkillRoot = path.join(
+    sourceRoot,
+    'agent',
+    'professional_skills',
+    'rca-fixture-method',
+  );
+  fs.mkdirSync(professionalSkillRoot, { recursive: true });
+  fs.writeFileSync(path.join(professionalSkillRoot, 'SKILL.md'), '# RCA fixture method\n');
+  writeStandardAgentCapabilityMap(sourceRoot, ['rca-fixture-method']);
   fs.writeFileSync(path.join(sourceRoot, 'opl-package.json'), `${JSON.stringify({
     surface_kind: 'opl_agent_package_manifest.v1',
     kind: 'agent',
@@ -293,6 +323,15 @@ test('domain launch consumes native carrier readiness without entering legacy sc
     skills: './skills/',
   }, null, 2)}\n`);
   fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), '# RedCube AI\n');
+  const professionalSkillRoot = path.join(
+    pluginSource,
+    'agent',
+    'professional_skills',
+    'rca-fixture-method',
+  );
+  fs.mkdirSync(professionalSkillRoot, { recursive: true });
+  fs.writeFileSync(path.join(professionalSkillRoot, 'SKILL.md'), '# RCA fixture method\n');
+  writeStandardAgentCapabilityMap(pluginSource, ['rca-fixture-method']);
   fs.writeFileSync(path.join(pluginSource, 'opl-package.json'), `${JSON.stringify({
     surface_kind: 'opl_agent_package_manifest.v1',
     kind: 'agent',
@@ -396,14 +435,17 @@ if (args.join(' ') === 'plugin list --json') {
     assert.equal(fs.readFileSync(lockPath, 'utf8'), legacyLockBytes);
     assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-lifecycle-ledger.json')), false);
     assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-lifecycle.sqlite')), false);
-    assert.equal(fs.existsSync(path.join(workspace, '.codex', 'skills')), false);
+    assert.equal(
+      fs.existsSync(path.join(workspace, '.codex', 'skills', 'rca-fixture-method', 'SKILL.md')),
+      true,
+    );
   } finally {
     removeFixtureTree(root);
     fs.rmSync(openFixture.fixtureRoot, { recursive: true, force: true });
   }
 });
 
-test('MAS launch consumes the native carrier without private workspace materialization', async () => {
+test('MAS launch projects Workspace Skills without private lifecycle materialization', async () => {
   const root = fs.mkdtempSync(`${os.tmpdir()}/opl-domain-launch-mas-scope-`);
   const stateRoot = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
@@ -414,6 +456,7 @@ test('MAS launch consumes the native carrier without private workspace materiali
   const consumerManifest = writeMasConsumer(root, providerManifest, '0.1.0a4', {
     configuredCarrier: true,
   });
+  writeMasCapabilityMap(root);
   const releaseSet = writeCapabilityCatalog(path.join(root, 'release-set'), [consumerManifest, providerManifest]);
   const openFixture = createFakeOpenFixture();
   const entryUrl = 'http://127.0.0.1:3310/mas';
@@ -455,7 +498,7 @@ test('MAS launch consumes the native carrier without private workspace materiali
     assert.equal(firstLaunch.dry_run, false);
     assert.equal(firstLaunch.launch_status, 'launched');
     assert.equal(fs.readFileSync(openFixture.capturePath, 'utf8').trim(), entryUrl);
-    assert.equal(fs.existsSync(skillsRoot), false);
+    assert.equal(fs.existsSync(skillsRoot), true);
     const current = runCli([
       'packages', 'status', '--package-id', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
     ], env).opl_agent_package_status;
@@ -470,7 +513,7 @@ test('MAS launch consumes the native carrier without private workspace materiali
   }
 });
 
-test('quest root activation reports the native MAS carrier already active without scope writes', async () => {
+test('quest root activation projects MAS Workspace Skills without private lifecycle writes', async () => {
   const root = fs.mkdtempSync(`${os.tmpdir()}/opl-quest-package-activation-`);
   const stateRoot = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
@@ -481,6 +524,7 @@ test('quest root activation reports the native MAS carrier already active withou
   const consumerManifest = writeMasConsumer(root, providerManifest, '0.1.0a4', {
     configuredCarrier: true,
   });
+  writeMasCapabilityMap(root);
   const releaseSet = writeCapabilityCatalog(path.join(root, 'release-set'), [consumerManifest, providerManifest]);
   const env = {
     OPL_STATE_DIR: stateRoot,
@@ -520,10 +564,10 @@ test('quest root activation reports the native MAS carrier already active withou
     ], env).opl_agent_package_activation;
     assert.equal(activation.status, 'already_activated');
     assert.equal(activation.package_id, 'mas');
-    assert.equal(activation.writes_performed, false);
+    assert.equal(activation.writes_performed, true);
     assert.equal(Object.hasOwn(activation, 'lifecycle_receipt_ref'), false);
     assert.equal(Object.hasOwn(activation, 'package_use_binding'), false);
-    assert.equal(fs.existsSync(path.join(quest, '.codex', 'skills')), false);
+    assert.equal(fs.existsSync(path.join(quest, '.codex', 'skills')), true);
     const current = runCli([
       'packages', 'status', '--package-id', 'mas', '--scope', 'workspace', '--target-workspace', quest,
     ], env).opl_agent_package_status;
@@ -549,6 +593,7 @@ test('workspace bindings reuse the native MAS carrier without per-workspace Skil
   const consumerManifest = writeMasConsumer(root, providerManifest, '0.1.0a4', {
     configuredCarrier: true,
   });
+  writeMasCapabilityMap(root);
   const releaseSet = writeCapabilityCatalog(path.join(root, 'release-set'), [consumerManifest, providerManifest]);
   const env = {
     OPL_STATE_DIR: stateRoot,

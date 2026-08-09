@@ -1,9 +1,10 @@
-import { assert, createFamilyContractsFixtureRoot, fs, installRuntimePackageFixture, os, path, runCli, test } from '../helpers.ts';
+import { assert, createFamilyContractsFixtureRoot, createRuntimeWorkspaceFixture, fs, installRuntimePackageFixture, os, path, runCli, test } from '../helpers.ts';
 
 test('runtime snapshot projects cognitive kernel launch and closeout boundaries into stage attempt workbench', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-attempt-workbench-cognitive-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
   installRuntimePackageFixture(stateRoot, 'mas');
+  const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-cognitive-workbench');
   try {
     const attempt = runCli([
       'family-runtime',
@@ -17,7 +18,7 @@ test('runtime snapshot projects cognitive kernel launch and closeout boundaries 
       'temporal',
       '--workspace-locator',
       JSON.stringify({
-        workspace_root: '/tmp/mas',
+        workspace_root: workspaceRoot,
         stage_goal: 'Repair table evidence and return an owner answer or typed blocker.',
         context_refs: ['context:table-review'],
         available_affordances: [

@@ -1,10 +1,12 @@
 import { registerAgentPackageReadinessPort } from '../../kernel/agent-package-readiness-port.ts';
 import { runOplAgentPackageStatus } from './agent-package-registry.ts';
 import { resolveAgentPackageEffectiveSourcePolicy } from './agent-package-registry-parts/source-policy.ts';
+import { refreshInstalledAgentPackageWorkspaceSkills } from './agent-package-registry-parts/skill-projection.ts';
 
 registerAgentPackageReadinessPort({
   readStatus: runOplAgentPackageStatus,
   readSourcePolicy: resolveAgentPackageEffectiveSourcePolicy,
+  refreshWorkspaceSkills: refreshInstalledAgentPackageWorkspaceSkills,
 });
 
 export const OPL_CONNECT_SOURCE_MODULE = {
@@ -79,10 +81,13 @@ export type {
 export {
   agentPackageSkillProjectionFromUnknown,
   assertAgentPackageSkillProjection,
+  materializeAgentPackageWorkspaceSkillProjection,
   projectionFiles,
+  refreshInstalledAgentPackageWorkspaceSkills,
 } from './agent-package-registry-parts/skill-projection.ts';
 export type {
   AgentPackageSkillProjection,
+  AgentPackageWorkspaceSkillRefresh,
 } from './agent-package-registry-parts/types.ts';
 export {
   readInstalledStandardAgentDescriptorForPackage,

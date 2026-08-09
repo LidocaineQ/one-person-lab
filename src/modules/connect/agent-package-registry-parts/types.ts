@@ -556,8 +556,9 @@ export type AgentPackageProfileSurfaceConfig = {
   existing_profile_policy: 'semantic_merge_required';
 };
 
-// Read-only compatibility for immutable Attempt evidence produced before the
-// native carrier cutover. Framework no longer materializes this projection.
+// Immutable professional-Skill generation pinned by one Attempt. Primary
+// Skills stay on their installed Codex plugins and are only named by
+// root_skill_ids; skill_ids contains Workspace-local professional Skills.
 export type AgentPackageSkillProjection = {
   surface_kind: 'opl_agent_package_skill_projection.v1';
   status: 'materialized';
@@ -565,6 +566,8 @@ export type AgentPackageSkillProjection = {
   projection_root: string;
   skills_root: string;
   root_package_id: string;
+  source_refs?: string[];
+  // Read-only compatibility for historical Package-lock-backed Attempts.
   package_lock_refs: string[];
   root_skill_ids: string[];
   core_skill_ids: string[];
@@ -573,6 +576,25 @@ export type AgentPackageSkillProjection = {
   skill_digests: Record<string, string>;
   core_digest: string;
   full_export_digest: string;
+};
+
+export type AgentPackageWorkspaceSkillRefresh = {
+  surface_kind: 'opl_agent_package_workspace_skill_refresh.v1';
+  package_id: string;
+  status:
+    | 'materialized'
+    | 'unchanged'
+    | 'planned_no_write'
+    | 'not_installed'
+    | 'attention_needed';
+  reason: string | null;
+  generation_id: string | null;
+  root_skill_ids: string[];
+  skill_ids: string[];
+  target_workspace: string | null;
+  workspace_skills_root: string | null;
+  writes_performed: boolean;
+  projection: AgentPackageSkillProjection | null;
 };
 
 export type AgentPackageHomeShortcutPreference = {

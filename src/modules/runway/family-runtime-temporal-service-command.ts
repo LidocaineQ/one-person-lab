@@ -307,7 +307,12 @@ export async function runTemporalServiceCommand(
 
   const lifecycleBefore = await inspectTemporalServiceLifecycle(paths);
   const supervisorBefore = inspectTemporalServiceSupervisorState(paths);
-  const supervisorOperation = supervisorBefore.plist_exists || supervisorBefore.config_exists
+  const ownsSupervisor = supervisorBefore.config_exists
+    && supervisorBefore.configuration_checks.config_valid
+    && supervisorBefore.configuration_checks.family_runtime_root_current
+    && supervisorBefore.configuration_checks.state_dir_current
+    && supervisorBefore.configuration_checks.plist_path_current;
+  const supervisorOperation = ownsSupervisor
     ? await runTemporalServiceSupervisorCommand(db, paths, 'remove')
     : null;
   const result = supervisorOperation

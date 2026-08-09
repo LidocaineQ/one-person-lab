@@ -1786,6 +1786,30 @@ test('fresh Developer install admits owner checkout manifests without a channel 
     masManifestPath: masManifest,
     providerManifestPath: providerManifest,
   });
+  fs.writeFileSync(
+    path.join(masCheckout, 'contracts', 'capability_map.json'),
+    formatJsonPayload({
+      surface_kind: 'opl_standard_agent_capability_map',
+      capabilities: [{
+        capability_id: 'mas-review-fixture',
+        surface_role: 'professional_skill',
+        capability_kind: 'professional_skill',
+        physical_source_ref: {
+          ref_kind: 'repo_path',
+          ref: 'agent/professional_skills/mas-review-fixture/SKILL.md',
+        },
+      }],
+    }),
+  );
+  const professionalSkill = path.join(
+    masCheckout,
+    'agent',
+    'professional_skills',
+    'mas-review-fixture',
+    'SKILL.md',
+  );
+  fs.mkdirSync(path.dirname(professionalSkill), { recursive: true });
+  fs.writeFileSync(professionalSkill, '# MAS review fixture\n');
   writeDeveloperMasCarrierAuthority({
     masCheckout,
     scholarCheckout,
@@ -1839,9 +1863,15 @@ test('fresh Developer install admits owner checkout manifests without a channel 
       '--scope', 'workspace', '--target-workspace', workspace,
     ], commonEnv) as any;
     assert.equal(activation.opl_agent_package_activation.status, 'already_activated');
-    assert.equal(activation.opl_agent_package_activation.writes_performed, false);
+    assert.equal(activation.opl_agent_package_activation.writes_performed, true);
     assert.equal(activation.opl_agent_package_activation.operational_ready, true);
     assert.equal(activation.opl_agent_package_activation.launch_allowed, true);
+    assert.equal(
+      activation.opl_agent_package_activation.workspace_skill_projection.skill_ids.includes(
+        'mas-review-fixture',
+      ),
+      true,
+    );
     assert.equal(Object.hasOwn(activation.opl_agent_package_activation, 'package_lock'), false);
     assert.equal(Object.hasOwn(activation.opl_agent_package_activation, 'package_use_binding'), false);
 

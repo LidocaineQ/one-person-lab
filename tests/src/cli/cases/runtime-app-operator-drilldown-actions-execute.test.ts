@@ -2,6 +2,7 @@ import {
   assert,
   buildManifestCommand,
   createFamilyContractsFixtureRoot,
+  createRuntimeWorkspaceFixture,
   fs,
   installRuntimePackageFixture,
   loadFamilyManifestFixtures,
@@ -159,6 +160,7 @@ test('runtime action execute records MAS paper-line owner-chain results as refs-
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-action-execute-mas-owner-chain-result-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
   installRuntimePackageFixture(stateRoot, 'mas');
+  const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-owner-chain');
   try {
     const created = runCli([
       'family-runtime',
@@ -171,7 +173,11 @@ test('runtime action execute records MAS paper-line owner-chain results as refs-
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/mas","artifact_root":"/tmp/mas/artifacts","dispatch_ref":"mas-domain-dispatch:dm003:paper-line-owner-chain"}',
+      JSON.stringify({
+        workspace_root: workspaceRoot,
+        artifact_root: path.join(workspaceRoot, 'artifacts'),
+        dispatch_ref: 'mas-domain-dispatch:dm003:paper-line-owner-chain',
+      }),
       '--task',
       'task-mas-paper-line-owner-chain',
       '--source-fingerprint',

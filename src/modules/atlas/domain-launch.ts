@@ -2,6 +2,8 @@ import { spawn, spawnSync } from 'node:child_process';
 
 import { findDomainOrThrow } from '../charter/index.ts';
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
+import { requireAgentPackageReadinessPort } from '../../kernel/agent-package-readiness-port.ts';
+import { resolveStandardAgent } from '../../kernel/standard-agent-registry.ts';
 import { buildDomainManifestCatalog } from './domain-manifest/catalog-builder.ts';
 import { resolveWorkspaceLocator } from '../workspace/index.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
@@ -151,6 +153,39 @@ export async function launchDomainEntry(
     url: binding.direct_entry.url,
     workspace_locator: binding.direct_entry.workspace_locator,
   };
+  const standardAgent = resolveStandardAgent(domain.domain_id)
+    ?? resolveStandardAgent(options.projectId)
+    ?? resolveStandardAgent(domain.project);
+  const workspaceSkillProjection = standardAgent
+    ? (() => {
+        const port = requireAgentPackageReadinessPort();
+        const packageStatus = port.readStatus({
+          packageId: standardAgent.agent_id,
+          scope: 'workspace',
+          targetWorkspace: workspaceLocator.absolute_path,
+        }).opl_agent_package_status;
+        return port.refreshWorkspaceSkills?.({
+          packageId: standardAgent.agent_id,
+          packageStatus,
+          targetWorkspace: workspaceLocator.absolute_path,
+          dryRun: options.dryRun === true,
+        }) ?? null;
+      })()
+    : null;
+  if (workspaceSkillProjection
+    && workspaceSkillProjection.status !== 'planned_no_write'
+    && !workspaceSkillProjection.projection) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Domain launch requires the installed Agent professional Skill closure.',
+      {
+        project_id: options.projectId,
+        package_id: standardAgent?.agent_id ?? null,
+        workspace_skill_projection: workspaceSkillProjection,
+        failure_code: 'agent_package_workspace_skill_projection_unavailable',
+      },
+    );
+  }
   const requestedStrategy = options.strategy ?? 'auto';
   const selectedStrategy = selectStrategy(locator, requestedStrategy);
   const manifestEntry =
@@ -197,6 +232,7 @@ export async function launchDomainEntry(
           binding_id: binding.binding_id,
         },
         direct_entry_locator: locator,
+        workspace_skill_projection: workspaceSkillProjection,
         manifest_status: manifestEntry?.status ?? 'not_bound',
         domain_manifest_recommendation: manifestEntry
           ? {
@@ -247,6 +283,7 @@ export async function launchDomainEntry(
         binding_id: binding.binding_id,
       },
       direct_entry_locator: locator,
+      workspace_skill_projection: workspaceSkillProjection,
       manifest_status: manifestEntry?.status ?? 'not_bound',
       domain_manifest_recommendation: manifestEntry
         ? {

@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import {
   assert,
+  createRuntimeWorkspaceFixture,
   fs,
   insertFamilyRuntimeTaskProjectionFixture,
   installRuntimePackageFixture,
@@ -17,6 +18,7 @@ const FULL_DETAIL_COMMAND = [...SUMMARY_COMMAND, '--detail', 'full'];
 test('runtime operator summary exposes running provider attempts as liveness refs only', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-operator-live-control-'));
   installRuntimePackageFixture(stateRoot, 'mas');
+  const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-live-control');
   try {
     const taskId = insertFamilyRuntimeTaskProjectionFixture({
       stateRoot,
@@ -26,7 +28,7 @@ test('runtime operator summary exposes running provider attempts as liveness ref
         study_id: 'DM002',
         action_type: 'run_quality_repair_batch',
         dispatch_ref: 'studies/DM002/default-executor-dispatch.json',
-        workspace_root: '/tmp/mas-live-control',
+        workspace_root: workspaceRoot,
         source_fingerprint: 'mas-default-executor-source:live-control',
       },
       dedupeKey: 'mas:DM002:default-executor:live-control-summary',
@@ -43,9 +45,9 @@ test('runtime operator summary exposes running provider attempts as liveness ref
       'temporal',
       '--workspace-locator',
       JSON.stringify({
-        workspace_root: '/tmp/mas-live-control',
-        runtime_root: '/tmp/mas-live-control/runtime',
-        artifact_root: '/tmp/mas-live-control/artifacts',
+        workspace_root: workspaceRoot,
+        runtime_root: path.join(workspaceRoot, 'runtime'),
+        artifact_root: path.join(workspaceRoot, 'artifacts'),
         domain_source_fingerprint: 'mas-default-executor-source:live-control',
         source_refs: ['source:dm002-live-control'],
       }),
@@ -142,6 +144,7 @@ test('runtime operator summary exposes running provider attempts as liveness ref
 test('runtime full detail preserves domain-authored quality debt reasons without inferring quality', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-operator-quality-debt-'));
   installRuntimePackageFixture(stateRoot, 'mas');
+  const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-quality-debt');
   try {
     const taskId = insertFamilyRuntimeTaskProjectionFixture({
       stateRoot,
@@ -151,7 +154,7 @@ test('runtime full detail preserves domain-authored quality debt reasons without
         study_id: 'DM003',
         action_type: 'finalize_and_publication_handoff',
         dispatch_ref: 'studies/DM003/finalize.json',
-        workspace_root: '/tmp/mas-quality-debt',
+        workspace_root: workspaceRoot,
         source_fingerprint: 'mas-source:quality-debt',
       },
       dedupeKey: 'mas:DM003:quality-debt-projection',
@@ -168,7 +171,7 @@ test('runtime full detail preserves domain-authored quality debt reasons without
       'temporal',
       '--workspace-locator',
       JSON.stringify({
-        workspace_root: '/tmp/mas-quality-debt',
+        workspace_root: workspaceRoot,
         domain_source_fingerprint: 'mas-source:quality-debt',
       }),
       '--source-fingerprint',
@@ -225,6 +228,7 @@ test('runtime full detail preserves domain-authored quality debt reasons without
 test('runtime operator projection does not count stale MAS work-unit live attempt as current running', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-operator-stale-workunit-'));
   installRuntimePackageFixture(stateRoot, 'mas');
+  const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-stale-workunit');
   try {
     const staleTaskId = insertFamilyRuntimeTaskProjectionFixture({
       stateRoot,
@@ -237,7 +241,7 @@ test('runtime operator projection does not count stale MAS work-unit live attemp
         dispatch_ref: 'studies/DM002/default-executor-dispatch/old-ai-reviewer.json',
         next_executable_owner: 'ai_reviewer',
         executor_kind: 'codex_cli_default',
-        workspace_root: '/tmp/mas-stale-workunit',
+        workspace_root: workspaceRoot,
         source_fingerprint: 'mas-domain-source:old-work-unit',
       },
       dedupeKey: 'mas:DM002:default-executor:old-ai-reviewer-work-unit',
@@ -254,7 +258,7 @@ test('runtime operator projection does not count stale MAS work-unit live attemp
       'temporal',
       '--workspace-locator',
       JSON.stringify({
-        workspace_root: '/tmp/mas-stale-workunit',
+        workspace_root: workspaceRoot,
         study_id: 'DM002',
         action_type: 'return_to_ai_reviewer_workflow',
         work_unit_id: 'produce_ai_reviewer_publication_eval_record_against_old_inputs',
@@ -281,7 +285,7 @@ test('runtime operator projection does not count stale MAS work-unit live attemp
         dispatch_ref: 'studies/DM002/default-executor-dispatch/current-writer.json',
         next_executable_owner: 'write',
         executor_kind: 'codex_cli_default',
-        workspace_root: '/tmp/mas-stale-workunit',
+        workspace_root: workspaceRoot,
         source_fingerprint: 'mas-domain-source:current-work-unit',
       },
       dedupeKey: 'mas:DM002:default-executor:current-writer-work-unit',
@@ -338,6 +342,7 @@ test('runtime operator projection does not count stale MAS work-unit live attemp
 test('runtime operator projection exposes stall lineage for repeated typed blockers', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-operator-stall-lineage-'));
   installRuntimePackageFixture(stateRoot, 'mas');
+  const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-stall-lineage');
   try {
     const attemptIds: string[] = [];
     for (const index of [0, 1]) {
@@ -353,9 +358,9 @@ test('runtime operator projection exposes stall lineage for repeated typed block
         'temporal',
         '--workspace-locator',
         JSON.stringify({
-          workspace_root: '/tmp/mas-stall-lineage',
-          runtime_root: '/tmp/mas-stall-lineage/runtime',
-          artifact_root: '/tmp/mas-stall-lineage/artifacts',
+          workspace_root: workspaceRoot,
+          runtime_root: path.join(workspaceRoot, 'runtime'),
+          artifact_root: path.join(workspaceRoot, 'artifacts'),
           study_id: 'DM002',
           action_type: 'reviewer_refresh',
           dispatch_ref: 'studies/DM002/reviewer-refresh.json',
@@ -429,6 +434,7 @@ test('runtime operator summary bounds running provider attempt liveness samples'
   try {
     const attemptIds: string[] = [];
     for (let index = 0; index < 7; index += 1) {
+      const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, `mas-live-control-${index}`);
       const taskId = insertFamilyRuntimeTaskProjectionFixture({
         stateRoot,
         domainId: 'medautoscience',
@@ -437,7 +443,7 @@ test('runtime operator summary bounds running provider attempt liveness samples'
           study_id: `DM${String(index).padStart(3, '0')}`,
           action_type: 'run_quality_repair_batch',
           dispatch_ref: `studies/DM${String(index).padStart(3, '0')}/default-executor-dispatch.json`,
-          workspace_root: `/tmp/mas-live-control-${index}`,
+          workspace_root: workspaceRoot,
           source_fingerprint: `mas-default-executor-source:live-control-${index}`,
         },
         dedupeKey: `mas:DM${String(index).padStart(3, '0')}:default-executor:live-control-summary`,
@@ -454,9 +460,9 @@ test('runtime operator summary bounds running provider attempt liveness samples'
         'temporal',
         '--workspace-locator',
         JSON.stringify({
-          workspace_root: `/tmp/mas-live-control-${index}`,
-          runtime_root: `/tmp/mas-live-control-${index}/runtime`,
-          artifact_root: `/tmp/mas-live-control-${index}/artifacts`,
+          workspace_root: workspaceRoot,
+          runtime_root: path.join(workspaceRoot, 'runtime'),
+          artifact_root: path.join(workspaceRoot, 'artifacts'),
           domain_source_fingerprint: `mas-default-executor-source:live-control-${index}`,
           source_refs: [`source:dm${index}-live-control`],
         }),

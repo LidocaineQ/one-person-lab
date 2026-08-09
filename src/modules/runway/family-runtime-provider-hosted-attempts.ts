@@ -766,15 +766,20 @@ export async function ensureProviderHostedStageAttempt(
     ]),
   });
   const domainPackRoot = packageRuntimeSourceCheckoutPath(packageReadiness) ?? '';
+  const nativePackageClosure = isRecord(packageReadiness?.native_package_closure)
+    ? packageReadiness.native_package_closure
+    : null;
   const useBoundWorkspaceLocator = packageReadiness?.package_use_binding
     ? {
         ...workspaceLocator,
         ...(domainPackRoot ? { domain_pack_root: domainPackRoot } : {}),
+        ...(nativePackageClosure ? { native_package_closure: nativePackageClosure } : {}),
         package_use_binding: packageReadiness.package_use_binding,
       }
     : {
         ...workspaceLocator,
         ...(domainPackRoot ? { domain_pack_root: domainPackRoot } : {}),
+        ...(nativePackageClosure ? { native_package_closure: nativePackageClosure } : {}),
       };
   const stageContextObservation = attachCapabilityRegistryStageContext(
     buildFamilyStageContextObservation(loadFrameworkContracts(), {

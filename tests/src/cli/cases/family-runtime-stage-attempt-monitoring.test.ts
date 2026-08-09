@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import {
   assert,
+  createRuntimeWorkspaceFixture,
   fs,
   insertFamilyRuntimeTaskProjectionFixture,
   installRuntimePackageFixture,
@@ -21,6 +22,7 @@ test('family-runtime compact timeline exposes filtered public currentness', () =
   };
   try {
     installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'redcube-runtime');
     const attempt = runCli([
       'family-runtime',
       'attempt',
@@ -32,7 +34,7 @@ test('family-runtime compact timeline exposes filtered public currentness', () =
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/redcube-runtime","study_id":"quest-artifact-owner"}',
+      JSON.stringify({ workspace_root: workspaceRoot, study_id: 'quest-artifact-owner' }),
       '--blocked-reason',
       'zero_readable_artifact',
     ], env).family_runtime_stage_attempt.attempt;
@@ -74,6 +76,7 @@ test('family-runtime monitoring projection remains callable without the tasks ta
   };
   try {
     installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'redcube-runtime');
     const task = insertFamilyRuntimeTaskProjectionFixture({
       stateRoot,
       domainId: 'redcube',
@@ -92,7 +95,7 @@ test('family-runtime monitoring projection remains callable without the tasks ta
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/redcube-runtime","study_id":"quest-artifact-owner"}',
+      JSON.stringify({ workspace_root: workspaceRoot, study_id: 'quest-artifact-owner' }),
       '--task',
       task.task_id,
       '--blocked-reason',

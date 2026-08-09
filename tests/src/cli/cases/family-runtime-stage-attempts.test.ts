@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url';
 
-import { assert, fs, installRuntimePackageFixture, os, path, runCli, runCliFailure, test } from '../helpers.ts';
+import { assert, createRuntimeWorkspaceFixture, fs, installRuntimePackageFixture, os, path, runCli, runCliFailure, test } from '../helpers.ts';
 
 function familyRuntimeEnv(stateRoot: string) {
   return { OPL_STATE_DIR: stateRoot };
@@ -8,6 +8,7 @@ function familyRuntimeEnv(stateRoot: string) {
 
 function createFixtureAttempt(stateRoot: string, sourceFingerprint: string) {
   installRuntimePackageFixture(stateRoot, 'opl-meta-agent');
+  const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'oma-runtime');
   return runCli([
     'family-runtime',
     'attempt',
@@ -19,7 +20,7 @@ function createFixtureAttempt(stateRoot: string, sourceFingerprint: string) {
     '--provider',
     'temporal',
     '--workspace-locator',
-    '{"workspace_root":"/tmp/oma-runtime"}',
+    JSON.stringify({ workspace_root: workspaceRoot }),
     '--source-fingerprint',
     sourceFingerprint,
   ], familyRuntimeEnv(stateRoot)).family_runtime_stage_attempt.attempt.stage_attempt_id as string;
@@ -29,6 +30,7 @@ test('family-runtime attempt query exposes a blocked public envelope', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-attempt-blocked-envelope-'));
   try {
     installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'redcube-runtime');
     const created = runCli([
       'family-runtime',
       'attempt',
@@ -40,7 +42,7 @@ test('family-runtime attempt query exposes a blocked public envelope', () => {
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/redcube-runtime"}',
+      JSON.stringify({ workspace_root: workspaceRoot }),
       '--source-fingerprint',
       'sha256:blocked-closeout',
       '--blocked-reason',
@@ -70,6 +72,7 @@ test('family-runtime attempt readback preserves provider lifecycle without domai
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-attempt-no-authority-'));
   try {
     installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'redcube-runtime');
     const created = runCli([
       'family-runtime',
       'attempt',
@@ -81,7 +84,7 @@ test('family-runtime attempt readback preserves provider lifecycle without domai
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/redcube-runtime"}',
+      JSON.stringify({ workspace_root: workspaceRoot }),
       '--source-fingerprint',
       'sha256:analysis',
     ], familyRuntimeEnv(stateRoot));

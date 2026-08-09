@@ -191,6 +191,32 @@ function materializeStandardAgentRuntimeFixture(pluginRoot: string, packageId: s
     },
     required_domain_pack_paths: stageRefs,
   });
+  const professionalSkillId = `${agent.agent_id}-runtime-fixture`;
+  writeJsonFixture(pluginRoot, 'contracts/capability_map.json', {
+    surface_kind: 'opl_standard_agent_capability_map',
+    capabilities: [{
+      capability_id: professionalSkillId,
+      surface_role: 'professional_skill',
+      capability_kind: 'professional_skill',
+      physical_source_ref: {
+        ref_kind: 'repo_path',
+        ref: `agent/professional_skills/${professionalSkillId}/SKILL.md`,
+      },
+    }],
+  });
+  const professionalSkillPath = path.join(
+    pluginRoot,
+    'agent',
+    'professional_skills',
+    professionalSkillId,
+    'SKILL.md',
+  );
+  fs.mkdirSync(path.dirname(professionalSkillPath), { recursive: true });
+  fs.writeFileSync(
+    professionalSkillPath,
+    `# ${agent.display_name} runtime fixture\n\nProfessional Skill fixture.\n`,
+    'utf8',
+  );
   writeJsonFixture(pluginRoot, 'agent/stages/manifest.json', {
     surface_kind: 'opl_standard_agent_declarative_stage_manifest',
     version: 'opl-standard-agent-declarative-stage-manifest.v1',
@@ -254,6 +280,9 @@ function installRuntimePackageFixtureClosure(
       };
       required_skill_ids?: unknown;
     };
+    exports?: {
+      all_skill_ids?: unknown;
+    };
     capability_dependencies?: Array<{
       package_id?: unknown;
       required?: unknown;
@@ -275,6 +304,10 @@ function installRuntimePackageFixtureClosure(
     ? packageManifest.codex_surface.required_skill_ids.filter(
       (value): value is string => typeof value === 'string' && value.length > 0,
     )
+    : Array.isArray(packageManifest.exports?.all_skill_ids)
+      ? packageManifest.exports.all_skill_ids.filter(
+        (value): value is string => typeof value === 'string' && value.length > 0,
+      )
     : [pluginId];
   for (const skillId of requiredSkillIds) {
     const skillRoot = path.join(pluginRoot, 'skills', skillId);
@@ -331,6 +364,12 @@ function installRuntimePackageFixtureClosure(
 
 export function installRuntimePackageFixture(stateRoot: string, packageId: string) {
   installRuntimePackageFixtureClosure(stateRoot, packageId, new Set());
+}
+
+export function createRuntimeWorkspaceFixture(stateRoot: string, name: string) {
+  const workspaceRoot = path.join(stateRoot, 'workspaces', name);
+  fs.mkdirSync(workspaceRoot, { recursive: true });
+  return workspaceRoot;
 }
 
 export function loadFamilyManifestFixtures() {

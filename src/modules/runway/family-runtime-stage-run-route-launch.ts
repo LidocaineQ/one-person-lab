@@ -397,10 +397,14 @@ export async function materializeStageRunRoute(
     targetBinding: resolveStageBinding(domainPackRoot, targetStageId),
   });
   const packageUseBinding = packageReadiness?.package_use_binding ?? pinnedUseBinding;
+  const nativePackageClosure = isRecord(packageReadiness?.native_package_closure)
+    ? packageReadiness.native_package_closure
+    : null;
   const workspaceLocator = {
     ...parentStageRun.workspace_locator,
     domain_pack_root: domainPackRoot,
     ...(packageUseBinding ? { package_use_binding: packageUseBinding } : {}),
+    ...(nativePackageClosure ? { native_package_closure: nativePackageClosure } : {}),
   };
   preflightDomainWorkspaceCheckoutCurrentness({
     domainId: parentStageRun.domain_id,

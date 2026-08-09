@@ -43,6 +43,7 @@ export type InstalledPackageReadiness = {
   installed: boolean;
   physical_status: 'available' | 'unavailable';
   callability: 'callable' | 'disabled';
+  projection_callability?: 'callable' | 'disabled';
 };
 
 export type InstalledPackageManifest = Pick<
@@ -268,6 +269,8 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
         },
         publicationRef: null,
       };
+    const projectionCallableWhileDisabled = manifest.package_role === 'capability_package'
+      && manifest.codex_default_exposure === false;
     return {
       manifest,
       manifestPath,
@@ -289,6 +292,9 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
         installed: true,
         physical_status: fs.existsSync(entry.sourcePath) ? 'available' : 'unavailable',
         callability: entry.enabled ? 'callable' : 'disabled',
+        ...(projectionCallableWhileDisabled
+          ? { projection_callability: 'callable' as const }
+          : {}),
       },
     };
   } catch {

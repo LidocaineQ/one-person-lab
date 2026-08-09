@@ -10,6 +10,9 @@ import { isRecord, type JsonRecord } from './family-runtime-codex-stage-runner-p
 
 function projectionFromAttempt(attempt: JsonRecord) {
   const locator = isRecord(attempt.workspace_locator) ? attempt.workspace_locator : {};
+  const nativeClosure = isRecord(locator.native_package_closure) ? locator.native_package_closure : null;
+  const nativeProjection = agentPackageSkillProjectionFromUnknown(nativeClosure?.skill_projection);
+  if (nativeProjection) return nativeProjection;
   const binding = isRecord(locator.package_use_binding) ? locator.package_use_binding : null;
   return agentPackageSkillProjectionFromUnknown(binding?.skill_projection);
 }

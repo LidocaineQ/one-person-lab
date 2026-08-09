@@ -13,8 +13,10 @@ function familyRuntimeEnv(stateRoot: string) {
 
 test('family-runtime maps a Temporal attempt to provider launch input without domain authority', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-temporal-attempt-input-'));
+  const workspaceRoot = path.join(stateRoot, 'workspace');
   try {
     installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    fs.mkdirSync(workspaceRoot, { recursive: true });
     const created = runCli([
       'family-runtime',
       'attempt',
@@ -26,7 +28,7 @@ test('family-runtime maps a Temporal attempt to provider launch input without do
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/redcube-runtime"}',
+      JSON.stringify({ workspace_root: workspaceRoot }),
       '--executor-kind',
       'codex_cli',
       '--source-fingerprint',
@@ -39,7 +41,7 @@ test('family-runtime maps a Temporal attempt to provider launch input without do
 
     assert.equal(input.stage_packet_ref, 'packets/artifact-owner.json');
     assert.equal(input.codex_stage_runner?.runner_mode, 'codex_cli');
-    assert.equal(input.workspace_locator.workspace_root, '/tmp/redcube-runtime');
+    assert.equal(input.workspace_locator.workspace_root, workspaceRoot);
     assert.equal(Object.hasOwn(input, 'opl_execution_authorization'), false);
   } finally {
     fs.rmSync(stateRoot, { recursive: true, force: true });
@@ -48,8 +50,10 @@ test('family-runtime maps a Temporal attempt to provider launch input without do
 
 test('family-runtime may transport a declared stage without source fingerprint format metadata', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-temporal-attempt-no-auth-'));
+  const workspaceRoot = path.join(stateRoot, 'workspace');
   try {
     installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    fs.mkdirSync(workspaceRoot, { recursive: true });
     const created = runCli([
       'family-runtime',
       'attempt',
@@ -61,7 +65,7 @@ test('family-runtime may transport a declared stage without source fingerprint f
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/redcube-runtime"}',
+      JSON.stringify({ workspace_root: workspaceRoot }),
       '--executor-kind',
       'codex_cli',
       '--checkpoint-ref',

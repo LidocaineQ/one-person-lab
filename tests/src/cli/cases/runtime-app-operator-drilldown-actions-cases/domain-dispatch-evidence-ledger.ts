@@ -1,6 +1,7 @@
 import {
   assert,
   createFamilyContractsFixtureRoot,
+  createRuntimeWorkspaceFixture,
   fs,
   installRuntimePackageFixture,
   os,
@@ -14,6 +15,7 @@ test('runtime action records readable domain progress without a launch authoriza
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-action-domain-progress-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
   installRuntimePackageFixture(stateRoot, 'mas');
+  const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-domain-progress');
   try {
     const created = runCli([
       'family-runtime',
@@ -26,7 +28,11 @@ test('runtime action records readable domain progress without a launch authoriza
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/mas","artifact_root":"/tmp/mas/artifacts","dispatch_ref":"mas-domain-dispatch:dm-cvd:domain-progress"}',
+      JSON.stringify({
+        workspace_root: workspaceRoot,
+        artifact_root: path.join(workspaceRoot, 'artifacts'),
+        dispatch_ref: 'mas-domain-dispatch:dm-cvd:domain-progress',
+      }),
       '--task',
       'task-domain-progress',
       '--source-fingerprint',

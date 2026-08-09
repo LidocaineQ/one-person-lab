@@ -6,7 +6,7 @@ import {
   runObservabilityCollectorSmoke,
   startObservabilityMetricsEndpoint,
 } from '../../../../src/modules/runway/observability-export.ts';
-import { assert, createFamilyContractsFixtureRoot, fs, installRuntimePackageFixture, loadFrameworkContracts, os, path, repoRoot, runCli, runCliRaw, test } from '../helpers.ts';
+import { assert, createFamilyContractsFixtureRoot, createRuntimeWorkspaceFixture, fs, installRuntimePackageFixture, loadFrameworkContracts, os, path, repoRoot, runCli, runCliRaw, test } from '../helpers.ts';
 
 test('runtime observability export aggregates provider, stage, gate, memory, and SLO receipt counters read-only', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-observability-export-state-'));
@@ -15,6 +15,9 @@ test('runtime observability export aggregates provider, stage, gate, memory, and
     installRuntimePackageFixture(stateRoot, 'mas');
     installRuntimePackageFixture(stateRoot, 'rca');
     installRuntimePackageFixture(stateRoot, 'mag');
+    const masWorkspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-observability');
+    const rcaWorkspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'rca-observability');
+    const magWorkspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mag-observability');
     runCli(['family-runtime', 'events', 'export'], {
       OPL_STATE_DIR: stateRoot,
       OPL_CONTRACTS_DIR: fixtureContractsRoot,
@@ -78,7 +81,7 @@ db.close();`,
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/mas"}',
+      JSON.stringify({ workspace_root: masWorkspaceRoot }),
     ], {
       OPL_STATE_DIR: stateRoot,
       OPL_CONTRACTS_DIR: fixtureContractsRoot,
@@ -106,7 +109,7 @@ db.close();`,
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/rca"}',
+      JSON.stringify({ workspace_root: rcaWorkspaceRoot }),
     ], {
       OPL_STATE_DIR: stateRoot,
       OPL_CONTRACTS_DIR: fixtureContractsRoot,
@@ -122,7 +125,7 @@ db.close();`,
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/mag"}',
+      JSON.stringify({ workspace_root: magWorkspaceRoot }),
     ], {
       OPL_STATE_DIR: stateRoot,
       OPL_CONTRACTS_DIR: fixtureContractsRoot,

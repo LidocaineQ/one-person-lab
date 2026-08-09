@@ -7,6 +7,7 @@ import { FrameworkContractError, isRecord } from '../../kernel/contract-validati
 import { parseJsonText } from '../../kernel/json-file.ts';
 import { stringValue } from '../../kernel/json-record.ts';
 import { resolveOplStatePaths } from '../../kernel/runtime-state-paths.ts';
+import { resolveStandardAgent } from '../../kernel/standard-agent-registry.ts';
 import { canonicalAgentPackageId } from './agent-package-identity.ts';
 import {
   assertFirstPartyPackageCatalogVersion,
@@ -60,6 +61,7 @@ import {
   resolveFirstPartyPackageCatalogSnapshot,
 } from './agent-package-registry-parts/first-party-release-catalog.ts';
 import { resolveAgentPackageEffectiveSourcePolicy } from './agent-package-registry-parts/source-policy.ts';
+import { refreshInstalledAgentPackageWorkspaceSkills } from './agent-package-registry-parts/skill-projection.ts';
 import {
   developerCheckoutConfiguredCarrierTarget,
   loadDeveloperCheckoutPackageSource,
@@ -1482,13 +1484,36 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
   const beforeStatus = nativeActivationReadback.packageStatus;
   const nativeCarrierState = packageNativeCarrierActivationState(beforeStatus);
   if (nativeCarrierState === 'ready') {
+    const workspaceSkillProjection = resolveStandardAgent(packageId)
+      && input.scope === 'workspace'
+      && input.targetWorkspace
+      ? refreshInstalledAgentPackageWorkspaceSkills({
+          packageId,
+          packageStatus: beforeStatus,
+          targetWorkspace: input.targetWorkspace,
+          dryRun: input.dryRun,
+        })
+      : null;
+    if (workspaceSkillProjection
+      && workspaceSkillProjection.status !== 'planned_no_write'
+      && !workspaceSkillProjection.projection) {
+      throw new FrameworkContractError(
+        'contract_shape_invalid',
+        'Package activation could not materialize its Workspace professional Skill closure.',
+        {
+          package_id: packageId,
+          workspace_skill_projection: workspaceSkillProjection,
+          failure_code: 'agent_package_workspace_skill_projection_unavailable',
+        },
+      );
+    }
     return {
       version: 'g2',
       opl_agent_package_activation: {
         surface_kind: 'opl_agent_package_activation',
         status: input.dryRun ? 'validated_no_write' : 'already_activated',
         package_id: packageId,
-        writes_performed: false,
+        writes_performed: workspaceSkillProjection?.writes_performed === true,
         operational_ready: true,
         launch_allowed: true,
         launch_blocked_reason: null,
@@ -1496,6 +1521,7 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
         launch_state: beforeStatus.launch_state,
         launch_state_reason: beforeStatus.launch_state_reason,
         use_boundary_id: input.useBoundaryId ?? null,
+        workspace_skill_projection: workspaceSkillProjection,
         authority_boundary: refsOnlyAuthorityBoundary(),
       },
     };
@@ -1786,6 +1812,7 @@ type DependencyProviderReadback = {
     installed: boolean;
     physical_status: 'available' | 'unavailable';
     callability: 'callable' | 'disabled';
+    projection_callability?: 'callable' | 'disabled';
   };
 };
 

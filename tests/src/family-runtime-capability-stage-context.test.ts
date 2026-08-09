@@ -781,6 +781,19 @@ test('provider-hosted attempt launch consumes typed capability readout without c
       plugins: [{ name: 'med-autoscience', source: { source: 'local', path: './' } }],
     })}\n`,
     'opl-package.json': `${JSON.stringify(packageManifest, null, 2)}\n`,
+    'contracts/capability_map.json': `${JSON.stringify({
+      surface_kind: 'opl_standard_agent_capability_map',
+      capabilities: [{
+        capability_id: 'mas-review-fixture',
+        surface_role: 'professional_skill',
+        capability_kind: 'professional_skill',
+        physical_source_ref: {
+          ref_kind: 'repo_path',
+          ref: 'agent/professional_skills/mas-review-fixture/SKILL.md',
+        },
+      }],
+    }, null, 2)}\n`,
+    'agent/professional_skills/mas-review-fixture/SKILL.md': '# MAS review fixture\n',
     'skills/med-autoscience/SKILL.md': '# Med Auto Science\n',
   };
   const packageFixtureEnv = writeManagedRuntimeSourceFixture({
@@ -869,6 +882,10 @@ test('provider-hosted attempt launch consumes typed capability readout without c
     assert.ok(attempt);
     assert.equal(attempt.status, 'queued');
     assert.equal(attempt.blocked_reason, null);
+    assert.deepEqual(
+      (attempt.workspace_locator.native_package_closure as any).skill_projection.skill_ids,
+      ['mas-review-fixture'],
+    );
     const launchEvent = attempt.activity_events.find((entry: any) => (
       entry.event_kind === 'stage_context_observed'
     ));

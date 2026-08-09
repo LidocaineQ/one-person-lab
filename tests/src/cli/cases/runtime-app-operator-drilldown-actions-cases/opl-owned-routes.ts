@@ -2,6 +2,7 @@ import {
   assert,
   buildManifestCommand,
   createFamilyContractsFixtureRoot,
+  createRuntimeWorkspaceFixture,
   fs,
   installRuntimePackageFixture,
   loadFamilyManifestFixtures,
@@ -21,6 +22,7 @@ test('runtime action execute can execute OPL-owned attempt query routes', () => 
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-action-execute-query-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
   installRuntimePackageFixture(stateRoot, 'mag');
+  const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mag-query');
   try {
     const attempt = runCli([
       'family-runtime',
@@ -33,7 +35,7 @@ test('runtime action execute can execute OPL-owned attempt query routes', () => 
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/mag"}',
+      JSON.stringify({ workspace_root: workspaceRoot }),
       '--source-fingerprint',
       'sha256:action-execute-query',
     ], {

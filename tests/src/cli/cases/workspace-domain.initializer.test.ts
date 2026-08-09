@@ -1,11 +1,14 @@
 import {
   assert,
+  createFakeCodexPluginManagerFixture,
   fs,
   os,
   parseJsonText,
   path,
+  removeFixtureTree,
   repoRoot,
   runCli,
+  runCliAsync,
   test,
 } from '../helpers.ts';
 import {
@@ -13,6 +16,11 @@ import {
   STANDARD_AGENT_SERIES_MEMBERSHIP,
 } from '../../../../src/kernel/standard-agent-registry.ts';
 import { validateJsonSchemaPayload } from '../../../../src/kernel/schema-registry.ts';
+import {
+  writeCapabilityCatalog,
+  writeCapabilityProvider,
+  writeMasConsumer,
+} from './packages-cases/capability-fixtures.ts';
 
 import './workspace-domain-initializer-cases/bookforge-artifact-lifecycle.ts';
 import './workspace-domain-initializer-cases/resource-provenance.ts';
@@ -27,6 +35,15 @@ function assertHasKeys(surface: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
     assert.equal(Object.hasOwn(surface, key), true, key);
   }
+}
+
+function writeMasCapabilityMap(root: string) {
+  const contractsRoot = path.join(root, 'plugins', 'med-autoscience', 'contracts');
+  fs.mkdirSync(contractsRoot, { recursive: true });
+  fs.writeFileSync(path.join(contractsRoot, 'capability_map.json'), `${JSON.stringify({
+    surface_kind: 'opl_standard_agent_capability_map',
+    capabilities: [],
+  }, null, 2)}\n`);
 }
 
 const workspaceIndexSchemaPath = path.join(
@@ -96,6 +113,58 @@ test('workspace init uses generic one-off topology without a current domain desc
   } finally {
     fs.rmSync(stateRoot, { recursive: true, force: true });
     fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test('workspace init projects the installed MAS professional Skill generation and reuses it', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-workspace-init-skill-generation-'));
+  const stateRoot = path.join(root, 'state');
+  const workspaceRoot = path.join(root, 'workspaces');
+  const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0', {
+    configuredCarrier: true,
+  });
+  const consumerManifest = writeMasConsumer(root, providerManifest, '0.1.0a4', {
+    configuredCarrier: true,
+  });
+  writeMasCapabilityMap(root);
+  const releaseSet = writeCapabilityCatalog(
+    path.join(root, 'release-set'),
+    [consumerManifest, providerManifest],
+  );
+  const env = {
+    OPL_STATE_DIR: stateRoot,
+    CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_CODEX_PLUGIN_BIN: createFakeCodexPluginManagerFixture(path.join(root, 'fixture-bin')).codexPath,
+    OPL_DEVELOPER_MODE_GITHUB_IDENTITY_FIXTURE: 'opl-managed-package-test',
+    ...releaseSet.env,
+  };
+
+  try {
+    await runCliAsync(['packages', 'install', 'mas'], env);
+    const args = [
+      'workspace', 'init',
+      '--agent', 'mas',
+      '--workspace-root', workspaceRoot,
+      '--workspace-id', 'mas-skill-ready',
+      '--project-id', 'MAS-SKILL-READY',
+    ];
+    const first = runCli(args, env).workspace_initialization;
+    const second = runCli(args, env).workspace_initialization;
+    const workspaceSkillsRoot = path.join(first.workspace_path, '.codex', 'skills');
+
+    assert.equal(first.workspace_skill_projection.status, 'materialized');
+    assert.equal(second.workspace_skill_projection.status, 'unchanged');
+    assert.equal(
+      second.workspace_skill_projection.generation_id,
+      first.workspace_skill_projection.generation_id,
+    );
+    assert.equal(first.workspace_skill_projection.skill_ids.length, 10);
+    assert.deepEqual(first.workspace_skill_projection.root_skill_ids, ['med-autoscience']);
+    assert.equal(fs.existsSync(path.join(workspaceSkillsRoot, 'med-autoscience')), false);
+    assert.equal(fs.existsSync(path.join(workspaceSkillsRoot, 'mas-scholar-skills')), false);
+    assert.equal(fs.readdirSync(workspaceSkillsRoot).length, 10);
+  } finally {
+    removeFixtureTree(root);
   }
 });
 

@@ -1,6 +1,12 @@
 type AgentPackageReadinessPort = {
   readStatus: (input: any) => any;
   readSourcePolicy?: (packageId: string) => any;
+  refreshWorkspaceSkills?: (input: {
+    packageId: string;
+    packageStatus?: any;
+    targetWorkspace?: string | null;
+    dryRun?: boolean;
+  }) => any;
 };
 
 let registeredPort: AgentPackageReadinessPort | null = null;

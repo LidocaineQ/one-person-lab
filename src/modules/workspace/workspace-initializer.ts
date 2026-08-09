@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
+import { requireAgentPackageReadinessPort } from '../../kernel/agent-package-readiness-port.ts';
 import {
   AGENT_WORKSPACE_NORM_CONTRACT_REF,
   buildAgentWorkspaceNormProjection,
@@ -142,6 +143,25 @@ function ensureDir(dirPath: string, created: string[]) {
   }
   fs.mkdirSync(dirPath, { recursive: true });
   created.push(dirPath);
+}
+
+function refreshWorkspaceProfessionalSkills(input: {
+  packageId: string;
+  workspacePath: string;
+  dryRun: boolean;
+}) {
+  const port = requireAgentPackageReadinessPort();
+  const packageStatus = port.readStatus({
+    packageId: input.packageId,
+    scope: 'workspace',
+    targetWorkspace: input.workspacePath,
+  }).opl_agent_package_status;
+  return port.refreshWorkspaceSkills?.({
+    packageId: input.packageId,
+    packageStatus,
+    targetWorkspace: input.workspacePath,
+    dryRun: input.dryRun,
+  }) ?? null;
 }
 
 function assertWritableMetadataPath(filePath: string, force: boolean | undefined) {
@@ -585,6 +605,11 @@ export function initializeWorkspace(
         workspaceRoot: agent.agent_id === 'rca' ? workspacePath : undefined,
       })
     : null;
+  const workspaceSkillProjection = refreshWorkspaceProfessionalSkills({
+    packageId: agent.agent_id,
+    workspacePath,
+    dryRun: options.dryRun === true,
+  });
 
   return {
     version: 'g2',
@@ -648,6 +673,7 @@ export function initializeWorkspace(
       user_inspection: workspaceIndex.user_inspection,
       authority_boundary: workspaceIndex.authority_boundary,
       interface_projection: workspaceIndex.interface_projection,
+      workspace_skill_projection: workspaceSkillProjection,
       binding: bindingPayload?.workspace_catalog.binding ?? null,
     },
   };
@@ -762,6 +788,11 @@ export function ensureWorkspace(
         updatedAt: refreshedWorkspaceIndex.updated_at,
       });
     }
+    const workspaceSkillProjection = refreshWorkspaceProfessionalSkills({
+      packageId: agent.agent_id,
+      workspacePath: activeWorkspacePath,
+      dryRun: options.dryRun === true,
+    });
     return {
       version: 'g2',
       contracts_context: {
@@ -808,6 +839,7 @@ export function ensureWorkspace(
           activeWorkspacePath,
           projectId,
         ),
+        workspace_skill_projection: workspaceSkillProjection,
       },
     };
   }

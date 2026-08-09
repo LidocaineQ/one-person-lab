@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import net from 'node:net';
 
-import { assert, createFamilyContractsFixtureRoot, fs, installRuntimePackageFixture, os, path, repoRoot, runCli, test } from '../helpers.ts';
+import { assert, createFamilyContractsFixtureRoot, createRuntimeWorkspaceFixture, fs, installRuntimePackageFixture, os, path, repoRoot, runCli, test } from '../helpers.ts';
 import { resolveTemporalWorkerTaskQueue } from '../../../../src/modules/runway/family-runtime-temporal-provider-parts/worker-task-queue.ts';
 
 type RuntimeEventRow = {
@@ -193,6 +193,7 @@ test('runtime snapshot workbench shows current managed Temporal readiness withou
   const runtimeRoot = path.join(stateRoot, 'family-runtime');
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
   installRuntimePackageFixture(stateRoot, 'mas');
+  const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-current-provider');
   const server = net.createServer((socket) => socket.end());
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = `127.0.0.1:${(server.address() as net.AddressInfo).port}`;
@@ -252,7 +253,7 @@ test('runtime snapshot workbench shows current managed Temporal readiness withou
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/mas"}',
+      JSON.stringify({ workspace_root: workspaceRoot }),
     ], env);
 
     const output = runCli(['runtime', 'snapshot'], env);

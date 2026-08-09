@@ -265,6 +265,23 @@ export async function ensureFamilyRuntimePackageLaunchReady(input: {
     packageId,
     ...scope,
   }).opl_agent_package_status;
+  const hardStopReason = packageLaunchHardStopReason(packageStatus);
+  if (hardStopReason) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Family runtime launch is blocked until the canonical agent package dependency closure and native carrier are ready.',
+      {
+        domain_id: input.domainId,
+        package_id: packageId,
+        launch_allowed: false,
+        launch_blocked_reason: hardStopReason,
+        allowed_when_blocked: packageStatus.allowed_when_blocked,
+        package_dependency_readiness: packageStatus.package_dependency_readiness,
+        repair_action: packageStatus.repair_action,
+        failure_code: 'agent_package_operational_readiness_blocked',
+      },
+    );
+  }
   const sourcePolicy = packageReadiness.readSourcePolicy?.(packageId) ?? null;
   const policyRuntimeCheckout = sourcePolicy?.desired_source_kind === 'developer_checkout_override'
     && sourcePolicy.developer_checkout_available === true
@@ -272,7 +289,34 @@ export async function ensureFamilyRuntimePackageLaunchReady(input: {
     : null;
   const effectiveRuntimeCheckout = policyRuntimeCheckout
     ?? localCarrierRuntimeCheckout(packageStatus);
-  const effectiveNativePackageClosure = nativePackageClosure(packageId, packageStatus);
+  const skillRefresh = packageReadiness.refreshWorkspaceSkills?.({
+    packageId,
+    packageStatus: packageStatus.launch_allowed === false
+      ? { ...packageStatus, launch_allowed: true, launch_blocked_reason: null }
+      : packageStatus,
+    targetWorkspace: scope?.scope === 'workspace' ? scope.targetWorkspace : null,
+  }) ?? null;
+  if (skillRefresh && !skillRefresh.projection) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Family runtime launch requires the installed Agent professional Skill closure.',
+      {
+        domain_id: input.domainId,
+        package_id: packageId,
+        workspace_skill_refresh: skillRefresh,
+        failure_code: 'agent_package_workspace_skill_projection_unavailable',
+      },
+    );
+  }
+  const nativeClosure = nativePackageClosure(packageId, packageStatus);
+  const effectiveNativePackageClosure = nativeClosure && skillRefresh?.projection
+    ? {
+        ...nativeClosure,
+        core_skill_tree_digest: skillRefresh.projection.core_digest,
+        skill_tree_digest: skillRefresh.projection.full_export_digest,
+        skill_projection: skillRefresh.projection,
+      }
+    : nativeClosure;
   const readbackUseBinding = isRecord(packageStatus.package_use_binding)
     ? packageStatus.package_use_binding
     : null;
@@ -287,31 +331,13 @@ export async function ensureFamilyRuntimePackageLaunchReady(input: {
     };
   }
 
-  const hardStopReason = packageLaunchHardStopReason(packageStatus);
-  if (!hardStopReason) {
-    return {
-      ...packageStatus,
-      effective_runtime_checkout_path: effectiveRuntimeCheckout,
-      native_package_closure: effectiveNativePackageClosure,
-      package_use_binding: effectiveUseBinding,
-      package_quality_debt: packageStatus.launch_blocked_reason,
-      progression_effect: 'stage_launch_allowed_with_package_quality_debt',
-      quality_claims_closed: true,
-    };
-  }
-
-  throw new FrameworkContractError(
-    'contract_shape_invalid',
-    'Family runtime launch is blocked until the canonical agent package dependency closure and native carrier are ready.',
-    {
-      domain_id: input.domainId,
-      package_id: packageId,
-      launch_allowed: false,
-      launch_blocked_reason: hardStopReason,
-      allowed_when_blocked: packageStatus.allowed_when_blocked,
-      package_dependency_readiness: packageStatus.package_dependency_readiness,
-      repair_action: packageStatus.repair_action,
-      failure_code: 'agent_package_operational_readiness_blocked',
-    },
-  );
+  return {
+    ...packageStatus,
+    effective_runtime_checkout_path: effectiveRuntimeCheckout,
+    native_package_closure: effectiveNativePackageClosure,
+    package_use_binding: effectiveUseBinding,
+    package_quality_debt: packageStatus.launch_blocked_reason,
+    progression_effect: 'stage_launch_allowed_with_package_quality_debt',
+    quality_claims_closed: true,
+  };
 }

@@ -369,7 +369,10 @@ test('domain memory read model projects runtime receipt refs without applying me
       '--provider',
       'temporal',
       '--workspace-locator',
-      '{"workspace_root":"/tmp/mag","runtime_root":"/tmp/mag/runtime"}',
+      JSON.stringify({
+        workspace_root: magPack.repoDir,
+        runtime_root: path.join(magPack.repoDir, 'runtime'),
+      }),
       '--source-fingerprint',
       'sha256:mag-memory',
     ], env);
