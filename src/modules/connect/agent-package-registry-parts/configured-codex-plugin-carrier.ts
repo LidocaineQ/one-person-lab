@@ -975,7 +975,7 @@ function configuredPluginSelection(input: {
   );
   const entry = input.entries.find((candidate) => candidate.pluginId === pluginId) ?? null;
   const unexpectedSameName = installedSameName.filter((candidate) => candidate.pluginId !== pluginId);
-  const ambiguous = unexpectedSameName.length > 0 && Boolean(entry?.installed);
+  const ambiguous = unexpectedSameName.some((candidate) => candidate.enabled) && Boolean(entry?.installed);
   const unexpectedOnly = !entry?.installed && unexpectedSameName.length > 0;
   const missingSkills = entry
     ? missingRequiredSkills(entry.sourcePath, input.descriptor.executor.requiredSkillIds)

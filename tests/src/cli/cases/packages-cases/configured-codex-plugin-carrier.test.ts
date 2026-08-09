@@ -266,13 +266,14 @@ function pluginList(entries: Array<{
   version: string;
   sourcePath: string;
   marketplaceSource: string;
+  enabled?: boolean;
 }>) {
   return JSON.stringify({
     installed: entries.map((entry) => ({
       pluginId: entry.pluginId,
       version: entry.version,
       installed: true,
-      enabled: true,
+      enabled: entry.enabled ?? true,
       source: { source: 'local', path: entry.sourcePath },
       marketplaceSource: { sourceType: 'local', source: entry.marketplaceSource },
     })),
@@ -373,6 +374,46 @@ test('configured Codex carrier exposes exact identity and fails closed on duplic
       readback.carrier.observed_sources[1].source_tree_sha256,
     );
     assert.equal(readback.native_action_dispatched, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('configured Codex carrier ignores a disabled duplicate source for launch precedence', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-disabled-duplicate-'));
+  const selectedSource = path.join(root, 'selected');
+  const duplicateSource = path.join(root, 'duplicate');
+  writePluginSource(selectedSource, 'selected');
+  writePluginSource(duplicateSource, 'duplicate');
+  const runner: CodexPluginCommandRunner = () => ({
+    status: 0,
+    stdout: pluginList([
+      {
+        pluginId: pluginSelector,
+        version: '1.0.1',
+        sourcePath: selectedSource,
+        marketplaceSource: 'fixture-carrier',
+      },
+      {
+        pluginId: 'third-party-research@historical-carrier',
+        version: '1.0.1',
+        sourcePath: duplicateSource,
+        marketplaceSource: 'historical-carrier',
+        enabled: false,
+      },
+    ]),
+    stderr: '',
+    error: null,
+  });
+  try {
+    const readback = runConfiguredCodexPluginCarrier({ descriptor, action: 'list', runner });
+    assert.equal(readback.status, 'installed');
+    assert.equal(readback.carrier.precedence, 'exact_single_source');
+    assert.equal(readback.executor.status, 'callable');
+    assert.equal(readback.reason, null);
+    assert.equal(readback.installed_version, '1.0.1');
+    assert.equal(readback.plugin_source_path, selectedSource);
+    assert.equal(readback.carrier.observed_sources.length, 2);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -315,7 +315,8 @@ export function discoverInstalledPackageDescriptors(input: {
     const descriptor = readInstalledPackageDescriptor(entry);
     if (!descriptor) continue;
     if (input.packageId && descriptor.manifest.package_id !== input.packageId) continue;
-    if (discovered.has(descriptor.manifest.package_id)) continue;
+    const previous = discovered.get(descriptor.manifest.package_id);
+    if (previous && (previous.enabled || !descriptor.enabled)) continue;
     discovered.set(descriptor.manifest.package_id, descriptor);
   }
   return discovered;

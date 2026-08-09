@@ -146,6 +146,57 @@ test('installed Codex plugins project owner descriptors without a registry entry
   }
 });
 
+test('installed descriptor discovery prefers an enabled carrier over a disabled duplicate', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-installed-plugin-precedence-'));
+  const disabledSource = path.join(root, 'disabled');
+  const enabledSource = path.join(root, 'enabled');
+  const descriptor = agentPackageManifest({
+    packageId: 'duplicate.installed.agent',
+    agentId: 'duplicate-installed-agent',
+    pluginId: 'duplicate-installed-agent',
+  });
+  fs.mkdirSync(disabledSource, { recursive: true });
+  fs.mkdirSync(enabledSource, { recursive: true });
+  fs.writeFileSync(path.join(disabledSource, 'opl-package.json'), formatJsonPayload(descriptor));
+  fs.writeFileSync(path.join(enabledSource, 'opl-package.json'), formatJsonPayload(descriptor));
+  try {
+    const discovered = discoverInstalledPackageDescriptors({
+      runner: () => ({
+        status: 0,
+        stdout: JSON.stringify({
+          installed: [
+            {
+              pluginId: 'duplicate-installed-agent@disabled-carrier',
+              version: '1.2.3',
+              enabled: false,
+              installed: true,
+              source: { source: 'local', path: disabledSource },
+              marketplaceSource: { sourceType: 'local', source: '/tmp/disabled-carrier' },
+            },
+            {
+              pluginId: 'duplicate-installed-agent@enabled-carrier',
+              version: '1.2.3',
+              enabled: true,
+              installed: true,
+              source: { source: 'local', path: enabledSource },
+              marketplaceSource: { sourceType: 'local', source: '/tmp/enabled-carrier' },
+            },
+          ],
+        }),
+        stderr: '',
+        error: null,
+      }),
+    });
+    const selected = discovered.get('duplicate.installed.agent');
+    assert.ok(selected);
+    assert.equal(selected.enabled, true);
+    assert.equal(selected.sourcePath, enabledSource);
+    assert.equal(selected.carrier_readback.identity, 'duplicate-installed-agent@enabled-carrier');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('installed Codex plugins fall back to the native plugin manifest without package-id tables', () => {
   const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-plugin-descriptor-'));
   const skillRoot = path.join(sourceRoot, 'skills', 'native-capability');
