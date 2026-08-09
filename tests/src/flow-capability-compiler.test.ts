@@ -533,6 +533,17 @@ test('Agent Reach owner adapter installs its Skill and requires core doctor chan
     const managedCalls = fs.readFileSync(calls, 'utf8').trim().split('\n');
     assert.equal(managedCalls.filter((call) => call === 'skill --install').length, 1);
 
+    const repeated = syncOplCompanionSkills(home, {
+      mode: 'managed',
+      skillIds: ['agent-reach'],
+      toolIds: ['agent-reach'],
+      managedSkillDependencies: [dependency],
+      networkAccess: 'forbidden',
+    });
+    assert.equal(repeated.items[0]?.status, 'ready');
+    const repeatedCalls = fs.readFileSync(calls, 'utf8').trim().split('\n');
+    assert.equal(repeatedCalls.filter((call) => call === 'skill --install').length, 1);
+
     const observed = syncOplCompanionSkills(home, {
       mode: 'observe',
       skillIds: ['agent-reach'],

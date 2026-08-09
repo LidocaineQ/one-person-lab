@@ -858,7 +858,10 @@ export function syncOplCompanionSkills(
     ...(selectedTools.has('mineru-open-api') ? [ensureMineruOpenApiTool(home, { networkAccess })] : []),
     ...(selectedTools.has('agent-reach') ? [ensureAgentReachTool(home, { networkAccess })] : []),
   ];
-  const ownerCliInstall = recommendedSkills.some((skill) => skill.managed_dependency_mode === 'owner_cli')
+  const ownerCliInstallNeeded = recommendedSkills.some((skill) =>
+    skill.managed_dependency_mode === 'owner_cli'
+      && !pickFirstExistingSkillSource(skill.expected_paths));
+  const ownerCliInstall = ownerCliInstallNeeded
     && tools.some((tool) => tool.tool_id === 'agent-reach' && tool.status === 'ready')
     ? installAgentReachSkill(home)
     : null;
