@@ -1,7 +1,9 @@
-import { STANDARD_PROGRESS_DELTA_POLICY } from './progress-delta.ts';
-import { STANDARD_STAGE_COMPLETION_POLICY } from './stage-completion.ts';
-import { STANDARD_TYPED_BLOCKER_LINEAGE_POLICY } from './typed-blocker.ts';
-import { STANDARD_USER_STAGE_LOG_CONTRACT } from './user-stage-log.ts';
+import {
+  STANDARD_PROGRESS_DELTA_POLICY,
+  STANDARD_STAGE_COMPLETION_POLICY,
+  STANDARD_TYPED_BLOCKER_LINEAGE_POLICY,
+  STANDARD_USER_STAGE_LOG_CONTRACT,
+} from '../../stagecraft/index.ts';
 import { WORKSPACE_TOPOLOGY_PROFILE_CONTRACT } from '../../../kernel/workspace-topology-profile-contract.ts';
 
 export const FOUNDRY_AGENT_SERIES_POLICY_RELEASE_REF =

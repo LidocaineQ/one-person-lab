@@ -22,10 +22,12 @@ export {
   STAGE_RUN_KERNEL_PROFILE,
 } from './standard-domain-agent-scaffold-constants-parts/stage-kernel.ts';
 export { STATE_INDEX_KERNEL_ADOPTION_POLICY } from './standard-domain-agent-scaffold-constants-parts/state-index-kernel.ts';
-export { STANDARD_STAGE_COMPLETION_POLICY } from './standard-domain-agent-scaffold-constants-parts/stage-completion.ts';
-export { STANDARD_PROGRESS_DELTA_POLICY } from './standard-domain-agent-scaffold-constants-parts/progress-delta.ts';
-export { STANDARD_TYPED_BLOCKER_LINEAGE_POLICY } from './standard-domain-agent-scaffold-constants-parts/typed-blocker.ts';
-export { STANDARD_USER_STAGE_LOG_CONTRACT } from './standard-domain-agent-scaffold-constants-parts/user-stage-log.ts';
+export {
+  STANDARD_PROGRESS_DELTA_POLICY,
+  STANDARD_STAGE_COMPLETION_POLICY,
+  STANDARD_TYPED_BLOCKER_LINEAGE_POLICY,
+  STANDARD_USER_STAGE_LOG_CONTRACT,
+} from '../stagecraft/index.ts';
 export {
   FOUNDRY_AGENT_SERIES_POLICY_BUNDLE_FINGERPRINT,
   FOUNDRY_AGENT_SERIES_CONSUMER_KIND,
