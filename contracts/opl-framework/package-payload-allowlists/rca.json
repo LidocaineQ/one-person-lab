@@ -5,6 +5,7 @@
   "source_repo": "https://github.com/gaofeng21cn/redcube-ai.git",
   "source_root": "plugins/redcube-ai",
   "paths": [
+    "plugin.json",
     ".codex-plugin/plugin.json",
     "opl-package.json",
     "assets/icon.png",

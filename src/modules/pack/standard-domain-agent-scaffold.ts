@@ -29,6 +29,10 @@ import {
 } from './standard-domain-agent-scaffold-constants.ts';
 import { buildStageRunCanaryEvidence } from './standard-domain-agent-scaffold-stage-run-canary.ts';
 import { STAGE_OPERATING_PRINCIPLES_POLICY } from './standard-domain-agent-stage-operating-principles.ts';
+import {
+  AGENT_PLUGIN_MANIFEST_SCHEMA_1_0_0,
+  normalizeAgentPluginName,
+} from '../../kernel/agent-plugin-manifest.ts';
 export {
   buildStandardDomainAgentScaffoldValidation,
   validateStandardDomainAgentScaffold,
@@ -284,6 +288,7 @@ function buildScaffoldConsumptionRefs(input: {
 export function buildStandardDomainAgentScaffold(input: ScaffoldInput = {}) {
   const domainId = normalizeDomainId(input.domainId);
   const domainLabel = domainLabelFromId(domainId, input.domainLabel);
+  const pluginName = normalizeAgentPluginName(domainId);
   const templateFiles = buildScaffoldFiles(domainId, domainLabel);
   const targetDir = input.targetDir ? path.resolve(input.targetDir) : null;
   const mode: ScaffoldMode = targetDir ? 'generate' : 'describe';
@@ -321,6 +326,21 @@ export function buildStandardDomainAgentScaffold(input: ScaffoldInput = {}) {
       target_dir: targetDir,
       domain_id: domainId,
       domain_label: domainLabel,
+      plugin_name: pluginName,
+      agent_plugin_standard: {
+        specification: 'Agent Plugins',
+        version: '1.0.0',
+        schema: AGENT_PLUGIN_MANIFEST_SCHEMA_1_0_0,
+        portable_manifest_ref: `plugins/${pluginName}/plugin.json`,
+        codex_compatibility_manifest_ref: `plugins/${pluginName}/.codex-plugin/plugin.json`,
+        primary_skill_source_ref: 'agent/primary_skill/SKILL.md',
+        primary_skill_carrier_ref: `plugins/${pluginName}/skills/${pluginName}/SKILL.md`,
+        mcp_config_ref: null,
+        standalone_mcp_server_default_enabled: false,
+        workspace_professional_skill_projection:
+          'complete_package_generation_on_workspace_initialization_and_pre_stage_or_attempt_refresh',
+        running_attempt_hot_replacement_allowed: false,
+      },
       repo_source_boundary: {
         required_dirs: REQUIRED_REPO_SOURCE_DIRS,
         forbidden_dirs: ['artifacts'],

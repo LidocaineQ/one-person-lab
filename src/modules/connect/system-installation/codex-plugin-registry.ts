@@ -3,8 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { isRecord } from '../../../kernel/contract-validation.ts';
-import { parseJsonText } from '../../../kernel/json-file.ts';
+import { resolveAgentPluginManifest } from '../../../kernel/agent-plugin-manifest.ts';
 import {
   FRAMEWORK_CAPABILITY_PACKAGE_MEMBERSHIP,
   loadStandardAgentRegistry,
@@ -336,15 +335,11 @@ function writeJsonFile(filePath: string, value: unknown) {
   }
 }
 
-function resolveFirstExistingPath(candidates: string[]) {
-  return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
-}
-
 function resolvePluginSourcePath(spec: CodexFamilyPluginSpec, repoPath: string) {
-  return resolveFirstExistingPath([
-    path.join(repoPath, '.codex-plugin', 'plugin.json'),
-    path.join(repoPath, 'plugins', spec.plugin_id, '.codex-plugin', 'plugin.json'),
-  ]);
+  return resolveAgentPluginManifest([
+    path.join(repoPath, 'plugins', spec.plugin_id),
+    repoPath,
+  ], { expectedName: spec.plugin_id });
 }
 
 function defaultRepoPathForSpec(spec: CodexFamilyPluginSpec, codexConfigPath: string) {
@@ -354,17 +349,16 @@ function defaultRepoPathForSpec(spec: CodexFamilyPluginSpec, codexConfigPath: st
   return path.join(path.dirname(path.dirname(path.dirname(codexConfigPath))), spec.repo_name);
 }
 
-function readJsonRecord(filePath: string): Record<string, unknown> {
-  const parsed = parseJsonText(fs.readFileSync(filePath, 'utf8'));
-  return isRecord(parsed) ? parsed : {};
-}
-
 function materializeRepoLocalPluginCarrier(
   spec: LocalCodexPluginMarketplaceSpec,
   pluginSourcePath: string,
   linkPath: string,
 ) {
-  const sourceManifest = readJsonRecord(path.join(pluginSourcePath, '.codex-plugin', 'plugin.json'));
+  const resolved = resolveAgentPluginManifest([pluginSourcePath], { expectedName: spec.plugin_id });
+  if (!resolved) {
+    throw new Error(`Plugin manifest is missing from ${pluginSourcePath}`);
+  }
+  const sourceManifest = resolved.manifest;
   if (sourceManifest.name !== spec.plugin_id) {
     throw new Error(`Plugin manifest name mismatch: expected ${spec.plugin_id}, got ${String(sourceManifest.name)}`);
   }
@@ -381,9 +375,9 @@ export function materializeLocalCodexPluginMarketplace(
 ): LocalCodexPluginMarketplace {
   const marketplacePath = path.join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json');
   const linkPath = path.join(marketplaceRoot, 'plugins', spec.plugin_id);
-  const pluginManifestPath = path.join(linkPath, '.codex-plugin', 'plugin.json');
 
   materializeRepoLocalPluginCarrier(spec, pluginSourcePath, linkPath);
+  const pluginManifestPath = resolveAgentPluginManifest([linkPath], { expectedName: spec.plugin_id })!.manifestPath;
   writeJsonFile(marketplacePath, {
     name: spec.marketplace_id,
     interface: {
@@ -424,12 +418,10 @@ export function materializeLocalCodexPluginMarketplaceRoute(
     throw new Error(`Plugin source must be a real directory: ${pluginSourcePath}`);
   }
   const sourcePath = fs.realpathSync.native(requestedSourcePath);
-  const pluginManifestPath = path.join(sourcePath, '.codex-plugin', 'plugin.json');
-  const pluginManifestStat = fs.lstatSync(pluginManifestPath);
-  if (!pluginManifestStat.isFile() || pluginManifestStat.isSymbolicLink()) {
-    throw new Error(`Plugin manifest must be a regular file: ${pluginManifestPath}`);
-  }
-  const sourceManifest = readJsonRecord(pluginManifestPath);
+  const resolved = resolveAgentPluginManifest([sourcePath], { expectedName: spec.plugin_id });
+  if (!resolved) throw new Error(`Plugin manifest is missing from ${sourcePath}`);
+  const pluginManifestPath = resolved.manifestPath;
+  const sourceManifest = resolved.manifest;
   if (sourceManifest.name !== spec.plugin_id) {
     throw new Error(`Plugin manifest name mismatch: expected ${spec.plugin_id}, got ${String(sourceManifest.name)}`);
   }
@@ -544,9 +536,10 @@ export function registerOplFamilyCodexPlugins(
     }
 
     const repoPath = moduleRepoPaths.get(spec.pack_id) ?? defaultRepoPathForSpec(spec, codexConfigPath);
-    const pluginManifestPath = resolvePluginSourcePath(spec, repoPath);
-    if (!fs.existsSync(pluginManifestPath)) {
-      const pluginSourcePath = path.dirname(path.dirname(pluginManifestPath));
+    const resolvedPlugin = resolvePluginSourcePath(spec, repoPath);
+    if (!resolvedPlugin) {
+      const pluginSourcePath = path.join(repoPath, 'plugins', spec.plugin_id);
+      const pluginManifestPath = path.join(pluginSourcePath, 'plugin.json');
       items.push({
         module_id: spec.module_id,
         pack_id: spec.pack_id,
@@ -570,7 +563,7 @@ export function registerOplFamilyCodexPlugins(
       continue;
     }
 
-    const pluginSourcePath = path.dirname(path.dirname(pluginManifestPath));
+    const pluginSourcePath = resolvedPlugin.pluginRoot;
     const marketplaceRoot = path.join(resolveOplStateDir(home), 'codex-plugin-marketplaces', spec.marketplace_id);
     const marketplace = materializeLocalCodexPluginMarketplace(spec, pluginSourcePath, marketplaceRoot);
     registerLocalCodexPlugin(

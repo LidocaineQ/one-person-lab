@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import workflowProfilePayloadAllowlistSchema from '../../../../contracts/opl-framework/package-payload-allowlist.schema.json' with { type: 'json' };
+import { resolveAgentPluginManifest } from '../../../kernel/agent-plugin-manifest.ts';
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { stringValue } from '../../../kernel/json-record.ts';
@@ -546,9 +547,22 @@ function collectConfiguredCarrierOwnerDescriptor(input: {
 function validatedDeveloperPluginId(input: {
   packageId: string;
   ownerManifest: AgentPackageManifest;
+  pluginRoot: string;
   pluginManifestPath: string;
 }) {
-  const pluginManifest = parseJsonText(fs.readFileSync(input.pluginManifestPath, 'utf8'));
+  let resolvedPlugin;
+  try {
+    resolvedPlugin = resolveAgentPluginManifest([input.pluginRoot], {
+      expectedName: input.ownerManifest.plugin_id ?? undefined,
+    });
+  } catch (error) {
+    throw sourceFailure('Developer checkout plugin manifest is invalid.', {
+      package_id: input.packageId,
+      plugin_manifest_path: input.pluginManifestPath,
+      cause: error instanceof Error ? error.message : String(error),
+    });
+  }
+  const pluginManifest = resolvedPlugin?.manifest;
   const pluginId = isRecord(pluginManifest) ? stringValue(pluginManifest.name) : null;
   const pluginVersion = isRecord(pluginManifest) ? stringValue(pluginManifest.version) : null;
   if (!pluginId
@@ -562,10 +576,18 @@ function validatedDeveloperPluginId(input: {
       plugin_manifest_id: pluginId,
       owner_version: input.ownerManifest.version,
       plugin_manifest_version: pluginVersion,
-      plugin_manifest_path: input.pluginManifestPath,
+      plugin_manifest_path: resolvedPlugin?.manifestPath ?? input.pluginManifestPath,
     });
   }
   return pluginId;
+}
+
+function developerPluginRoot(pluginManifestPath: string) {
+  const manifestDirectory = path.dirname(pluginManifestPath);
+  const rootCandidate = path.basename(manifestDirectory) === '.codex-plugin'
+    ? path.dirname(manifestDirectory)
+    : manifestDirectory;
+  return fs.realpathSync(rootCandidate);
 }
 
 function assertConfiguredCarrierOwnerDescriptor(input: {
@@ -640,9 +662,7 @@ export function loadDeveloperCheckoutPackageSource(packageId: string, checkoutPa
       owner_manifest_path: ownerManifestPath,
     });
   }
-  const pluginId = validatedDeveloperPluginId({ packageId, ownerManifest, pluginManifestPath });
-
-  const pluginRoot = fs.realpathSync(path.dirname(path.dirname(pluginManifestPath)));
+  const pluginRoot = developerPluginRoot(pluginManifestPath);
   if (!isInside(checkoutReal, pluginRoot)) {
     throw sourceFailure('Developer checkout plugin source escapes its checkout.', {
       package_id: packageId,
@@ -650,6 +670,12 @@ export function loadDeveloperCheckoutPackageSource(packageId: string, checkoutPa
       plugin_source_path: pluginRoot,
     });
   }
+  const pluginId = validatedDeveloperPluginId({
+    packageId,
+    ownerManifest,
+    pluginRoot,
+    pluginManifestPath,
+  });
   assertConfiguredCarrierOwnerDescriptor({ spec, ownerManifest, pluginRoot });
   const files = new Map<string, DeveloperCheckoutPayloadFile>();
   if (spec.owner_manifest_kind === 'workflow_profile') {

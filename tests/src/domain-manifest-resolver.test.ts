@@ -396,6 +396,14 @@ test('resolveBindingManifest rejects non-canonical or duplicated family contract
 test('resolveBindingManifest fails closed when the generated stage source manifest is missing', () => {
   const workspacePath = createGeneratedStageWorkspace();
   try {
+    const compilerInput = JSON.parse(fs.readFileSync(
+      path.join(workspacePath, 'contracts/pack_compiler_input.json'),
+      'utf8',
+    )) as { required_domain_pack_paths: string[] };
+    const missingPathIndex = compilerInput.required_domain_pack_paths.indexOf(
+      'agent/stages/manifest.json',
+    );
+    assert.notEqual(missingPathIndex, -1);
     fs.rmSync(path.join(workspacePath, 'agent/stages/manifest.json'));
     const manifest = canonicalRefManifest();
     const scriptPath = writeScript(
@@ -409,7 +417,10 @@ test('resolveBindingManifest fails closed when the generated stage source manife
     assert.equal(entry.status, 'invalid_manifest');
     assert.match(
       entry.error?.message ?? '',
-      /pack_compiler_input\.required_domain_pack_paths\[0\] does not resolve inside the standard Agent root/i,
+      new RegExp(
+        `pack_compiler_input\\.required_domain_pack_paths\\[${missingPathIndex}\\] does not resolve inside the standard Agent root`,
+        'i',
+      ),
     );
   } finally {
     fs.rmSync(workspacePath, { recursive: true, force: true });

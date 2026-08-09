@@ -224,6 +224,24 @@ function writeDeveloperMasCarrierAuthority(input: {
   assert.ok(providerManifest.codex_surface?.configured_codex_plugin_carrier);
 
   const masPluginRoot = path.join(input.masCheckout, 'plugins', 'med-autoscience');
+  const openAiInterface = { displayName: 'Med Auto Science' };
+  fs.writeFileSync(path.join(masPluginRoot, 'plugin.json'), formatJsonPayload({
+    $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+    name: 'med-autoscience',
+    version: masManifest.version,
+    description: 'Developer checkout fixture.',
+    extensions: { 'com.openai': { interface: openAiInterface } },
+  }));
+  fs.writeFileSync(
+    path.join(masPluginRoot, '.codex-plugin', 'plugin.json'),
+    formatJsonPayload({
+      name: 'med-autoscience',
+      version: masManifest.version,
+      description: 'Developer checkout fixture.',
+      skills: './skills/',
+      interface: openAiInterface,
+    }),
+  );
   fs.writeFileSync(path.join(masPluginRoot, 'opl-package.json'), formatJsonPayload(masManifest));
   fs.writeFileSync(
     path.join(input.scholarCheckout, 'opl-package.json'),

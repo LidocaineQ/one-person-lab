@@ -4,6 +4,10 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
+import {
+  agentPluginSkillsRelativeRoot,
+  resolveAgentPluginManifest,
+} from '../../../kernel/agent-plugin-manifest.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { computePackageChannelTreeSha256 } from '../system-installation/module-package-channel.ts';
 import {
@@ -261,16 +265,10 @@ function safeRelativeDirectory(rootPath: string, rootReal: string, relativePath:
 }
 
 function pluginSkillsRef(sourceRoot: string, sourceRootReal: string) {
-  const manifestDirectory = safeRelativeDirectory(sourceRoot, sourceRootReal, '.codex-plugin');
-  if (!manifestDirectory) return null;
-  const manifestPath = path.join(manifestDirectory, 'plugin.json');
   try {
-    const stat = fs.lstatSync(manifestPath);
-    const real = fs.realpathSync(manifestPath);
-    if (!stat.isFile() || stat.isSymbolicLink()
-      || !real.startsWith(`${sourceRootReal}${path.sep}`)) return null;
-    const manifest = parseJsonText(fs.readFileSync(manifestPath, 'utf8'));
-    return isRecord(manifest) ? stringValue(manifest.skills) : null;
+    const resolved = resolveAgentPluginManifest([sourceRoot]);
+    if (!resolved || resolved.pluginRoot !== sourceRoot) return null;
+    return agentPluginSkillsRelativeRoot(resolved);
   } catch {
     return null;
   }
@@ -596,8 +594,15 @@ function readConfiguredLocalPluginEntry(input: {
     );
   }
   const pluginSourcePath = safeRealDirectory(path.resolve(marketplaceRoot, relativeSourcePath), marketplaceRoot);
-  const pluginManifest = safeJsonRecord(
-    path.join(pluginSourcePath, '.codex-plugin', 'plugin.json'), pluginSourcePath);
+  const resolvedPlugin = resolveAgentPluginManifest([pluginSourcePath], { expectedName: pluginName });
+  if (!resolvedPlugin) {
+    localReadbackFailure(
+      'configured_codex_plugin_carrier_local_manifest_invalid',
+      'Configured Codex local carrier manifest is missing.',
+      { plugin_source_path: pluginSourcePath },
+    );
+  }
+  const pluginManifest = resolvedPlugin.manifest;
   const version = stringValue(pluginManifest.version);
   if (stringValue(pluginManifest.name) !== pluginName || !version) {
     localReadbackFailure(

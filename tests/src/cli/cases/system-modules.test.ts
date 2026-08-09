@@ -314,13 +314,28 @@ test('developer package snapshots cover Agent and Flow owners while excluding lo
           : ownerPayload;
 
       writeFixtureFile(checkoutPath, spec.owner_package_manifest_ref, `${JSON.stringify(ownerPayload, null, 2)}\n`);
+      const ownerPluginManifest = {
+        $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+        name: pluginId,
+        version: ownerVersion,
+      };
       writeFixtureFile(
         checkoutPath,
         spec.owner_plugin_manifest_ref,
-        `${JSON.stringify({ name: pluginId, version: ownerVersion, skills: './skills/' }, null, 2)}\n`,
+        `${JSON.stringify(ownerPluginManifest, null, 2)}\n`,
       );
       const pluginManifestPath = path.join(checkoutPath, spec.owner_plugin_manifest_ref);
-      const pluginRoot = path.dirname(path.dirname(pluginManifestPath));
+      const pluginManifestDirectory = path.dirname(pluginManifestPath);
+      const pluginRoot = path.basename(pluginManifestDirectory) === '.codex-plugin'
+        ? path.dirname(pluginManifestDirectory)
+        : pluginManifestDirectory;
+      if (path.basename(pluginManifestDirectory) !== '.codex-plugin') {
+        writeFixtureFile(
+          pluginRoot,
+          '.codex-plugin/plugin.json',
+          `${JSON.stringify({ name: pluginId, version: ownerVersion, skills: './skills/' }, null, 2)}\n`,
+        );
+      }
       writeFixtureFile(pluginRoot, 'opl-package.json', `${JSON.stringify(configuredCarrierPayload, null, 2)}\n`);
       for (const skillId of requiredSkillIds) {
         writeFixtureFile(pluginRoot, path.join('skills', skillId, 'SKILL.md'), `# ${skillId}\n`);
@@ -382,6 +397,10 @@ test('developer package snapshots cover Agent and Flow owners while excluding lo
 function createBasicMasModuleRemoteFixture(turnkeyLogPath: string) {
   return createGitModuleRemoteFixture('med-autoscience', {
     extraFiles: {
+      'plugins/med-autoscience/plugin.json': JSON.stringify({
+        $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+        name: 'med-autoscience',
+      }, null, 2),
       'plugins/med-autoscience/.codex-plugin/plugin.json': JSON.stringify({
         name: 'med-autoscience',
         skills: './skills/',
@@ -821,6 +840,13 @@ test('module install materializes Full runtime payloads into standard managed mo
       packaged_runtime: true,
       source_git: { head_sha: 'rca-full-sha' },
     }),
+  );
+  fs.writeFileSync(
+    path.join(rcaRoot, 'plugins', 'redcube-ai', 'plugin.json'),
+    JSON.stringify({
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+      name: 'redcube-ai',
+    }, null, 2),
   );
   fs.writeFileSync(
     path.join(rcaRoot, 'plugins', 'redcube-ai', '.codex-plugin', 'plugin.json'),

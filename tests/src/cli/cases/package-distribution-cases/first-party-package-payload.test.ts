@@ -83,11 +83,24 @@ function createSourceRepo(root: string, input: {
   git(repo, ['config', 'user.name', 'Payload Test']);
   git(repo, ['config', 'user.email', 'payload-test@example.invalid']);
   git(repo, ['remote', 'add', 'origin', sourceRepoUrl]);
-  const pluginPath = rootedPath(sourceRoot, '.codex-plugin/plugin.json');
+  const pluginName = input.pluginName ?? pluginId;
+  const pluginVersion = input.pluginVersion ?? packageVersion;
+  const openAiInterface = { displayName: 'Example Plugin' };
+  const pluginPath = rootedPath(sourceRoot, 'plugin.json');
   writeFile(
     repo,
     pluginPath,
-    input.pluginBytes ?? `${JSON.stringify({ name: input.pluginName ?? pluginId, version: input.pluginVersion ?? packageVersion })}\n`,
+    input.pluginBytes ?? `${JSON.stringify({
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+      name: pluginName,
+      version: pluginVersion,
+      extensions: { 'com.openai': { interface: openAiInterface } },
+    })}\n`,
+  );
+  writeFile(
+    repo,
+    rootedPath(sourceRoot, '.codex-plugin/plugin.json'),
+    `${JSON.stringify({ name: pluginName, version: pluginVersion, interface: openAiInterface })}\n`,
   );
   writeFile(repo, rootedPath(sourceRoot, 'assets/icon.bin'), input.assetBytes ?? Buffer.from([0, 1, 2, 255]));
   if (input.extraFile) {
@@ -104,6 +117,7 @@ function createSourceRepo(root: string, input: {
   writeFile(repo, rootedPath(sourceRoot, 'README.md'), 'not part of the carrier payload\n');
   writeFile(repo, 'docs/repository-only.md', 'must never be discovered recursively\n');
   const contentLockPaths = [
+    'plugin.json',
     '.codex-plugin/plugin.json',
     'assets/icon.bin',
     ...(input.extraFile ? [input.extraFile.path] : []),
@@ -337,7 +351,7 @@ test('generator consumes manifest identity and an exact allowlist, emits the can
 
   assert.equal(first.status, 'created');
   assert.equal(first.output, authority.output);
-  assert.equal(first.file_count, 3);
+  assert.equal(first.file_count, source.paths.length);
   assert.equal(first.payload_sha256, sha256(firstBytes));
   assert.equal(payload.surface_kind, 'opl_package_payload_manifest.v2');
   assert.equal(payload.schema_ref, 'contracts/opl-framework/package-payload-manifest-v2.schema.json');
@@ -348,13 +362,22 @@ test('generator consumes manifest identity and an exact allowlist, emits the can
   assert.equal(payload.source_commit, source.sourceCommit);
   assert.equal(payload.source_root, defaultSourceRoot);
   assert.deepEqual(payload.files.map((entry: Record<string, string>) => entry.path), source.paths);
-  assert.deepEqual(payload.files.map((entry: Record<string, string>) => entry.mode), ['100644', '100644', '100644']);
+  assert.deepEqual(
+    payload.files.map((entry: Record<string, string>) => entry.mode),
+    source.paths.map(() => '100644'),
+  );
   assert.equal(payload.content_lock.canonicalization, 'ordered_path_length_file_length_bytes');
   assert.equal(payload.content_lock.digest, expectedContentLock);
   assert.equal(payload.files.some((entry: Record<string, string>) => entry.path === 'README.md'), false);
-  assert.equal(payload.files[0].sha256, sha256(`${JSON.stringify({ name: pluginId, version: packageVersion })}\n`));
-  assert.equal(payload.files[1].sha256, sha256(Buffer.from([0, 1, 2, 255])));
-  assert.match(payload.files[0].source_url, new RegExp(`/${source.sourceCommit}/plugins/${pluginId}/\\.codex-plugin/plugin\\.json$`));
+  assert.equal(
+    payload.files[0].sha256,
+    sha256(fs.readFileSync(path.join(source.repo, rootedPath(source.sourceRoot, 'plugin.json')))),
+  );
+  assert.equal(payload.files[2].sha256, sha256(Buffer.from([0, 1, 2, 255])));
+  assert.match(
+    payload.files[1].source_url,
+    new RegExp(`/${source.sourceCommit}/plugins/${pluginId}/\\.codex-plugin/plugin\\.json$`),
+  );
   assert.equal(firstBytes.at(-1), 10);
   assert.equal(fs.readFileSync(previousPayload, 'utf8'), 'immutable-previous-payload\n');
 
@@ -711,7 +734,7 @@ test('manifest, allowlist, source repository, output, and committed plugin ident
           manifest.content_lock = {
             algorithm: 'sha256',
             canonicalization: 'ordered_path_length_file_length_bytes',
-            paths: ['.codex-plugin/plugin.json', `skills/${pluginId}/SKILL.md`],
+            paths: ['plugin.json', '.codex-plugin/plugin.json', `skills/${pluginId}/SKILL.md`],
             digest: `sha256:${'0'.repeat(64)}`,
           };
         });
@@ -725,7 +748,12 @@ test('manifest, allowlist, source repository, output, and committed plugin ident
           manifest.content_lock = {
             algorithm: 'sha256',
             canonicalization: 'ordered_path_length_file_length_bytes',
-            paths: ['.codex-plugin/plugin.json', 'assets/icon.bin', `skills/${pluginId}/SKILL.md`],
+            paths: [
+              'plugin.json',
+              '.codex-plugin/plugin.json',
+              'assets/icon.bin',
+              `skills/${pluginId}/SKILL.md`,
+            ],
             digest: `sha256:${'0'.repeat(64)}`,
           };
         });
@@ -840,7 +868,7 @@ test('manifest and committed plugin JSON require strict round-trip UTF-8', (t) =
     sourceCommit: invalidPlugin.sourceCommit,
   });
   assert.notEqual(pluginResult.status, 0);
-  assert.match(pluginResult.stderr, /Committed Codex plugin manifest is not valid UTF-8/);
+  assert.match(pluginResult.stderr, /Committed Agent Plugins manifest is not valid UTF-8/);
 
   const invalidManifestRoot = path.join(root, 'manifest');
   const source = createSourceRepo(invalidManifestRoot);

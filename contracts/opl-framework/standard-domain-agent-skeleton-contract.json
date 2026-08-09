@@ -253,6 +253,20 @@
     },
     "domain_id": "new-domain-agent",
     "domain_label": "New Domain Agent",
+    "plugin_name": "new-domain-agent",
+    "agent_plugin_standard": {
+      "specification": "Agent Plugins",
+      "version": "1.0.0",
+      "schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+      "portable_manifest_ref": "plugins/new-domain-agent/plugin.json",
+      "codex_compatibility_manifest_ref": "plugins/new-domain-agent/.codex-plugin/plugin.json",
+      "primary_skill_source_ref": "agent/primary_skill/SKILL.md",
+      "primary_skill_carrier_ref": "plugins/new-domain-agent/skills/new-domain-agent/SKILL.md",
+      "mcp_config_ref": null,
+      "standalone_mcp_server_default_enabled": false,
+      "workspace_professional_skill_projection": "complete_package_generation_on_workspace_initialization_and_pre_stage_or_attempt_refresh",
+      "running_attempt_hot_replacement_allowed": false
+    },
     "repo_source_boundary": {
       "required_dirs": [
         "agent",

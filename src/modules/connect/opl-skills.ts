@@ -6,6 +6,10 @@ import {
   isRecord,
 } from '../../kernel/contract-validation.ts';
 import {
+  resolveAgentPluginManifest,
+  type ResolvedAgentPluginManifest,
+} from '../../kernel/agent-plugin-manifest.ts';
+import {
   parseJsonText,
   readJsonFileResult,
 } from '../../kernel/json-file.ts';
@@ -30,8 +34,6 @@ import {
 import {
   buildInstallerCommandPreview,
   buildInstallerPath,
-  buildPluginManifestPath,
-  buildPluginSourcePath,
   buildSkillEntryPath,
   buildStandardPluginCarrierSkillPath,
   normalizeOptionalString,
@@ -341,42 +343,39 @@ function readSkillFrontmatter(content: string) {
   return { name, description, body };
 }
 
-function validatePluginManifest(spec: SkillPackSpec, pluginManifestPath: string, pluginManifestFound: boolean) {
+function validatePluginManifest(
+  spec: SkillPackSpec,
+  resolvedPlugin: ResolvedAgentPluginManifest | null,
+) {
   const errors: string[] = [];
 
-  if (!pluginManifestFound) {
+  if (!resolvedPlugin) {
     return { valid: false, errors };
   }
-
-  const manifestRead = readJsonFileResult(pluginManifestPath);
-  if (manifestRead.status !== 'resolved') {
-    return {
-      valid: false,
-      errors: [`failed_to_read_plugin_manifest:${manifestRead.error ?? 'missing'}`],
-    };
-  }
-  const manifest = manifestRead.payload;
-
-  if (!isRecord(manifest)) {
-    return {
-      valid: false,
-      errors: ['plugin_manifest_root_not_object'],
-    };
-  }
+  const manifest = resolvedPlugin.manifest;
 
   if (spec.distribution_role === 'domain_agent_plugin_pack' && 'mcpServers' in manifest) {
     errors.push('standard_domain_agent_manifest_must_not_expose_standalone_mcp_servers');
   }
+  if (spec.distribution_role === 'domain_agent_plugin_pack'
+    && resolvedPlugin.kind !== 'agent_plugins_1_0') {
+    errors.push('standard_domain_agent_manifest_not_agent_plugins_1_0');
+  }
+  const nonfatalFindings = resolvedPlugin.conformanceErrors.map(
+    (error) => `plugin_manifest_nonconformant_nonfatal:${error}`,
+  );
   if (manifest.name !== spec.plugin_name) {
     errors.push(`plugin_manifest_name_mismatch:${String(manifest.name ?? '<missing>')}`);
   }
-  if (spec.source_kind === 'repo_plugin_installer' && manifest.skills !== './skills/') {
+  if (spec.source_kind === 'repo_plugin_installer'
+    && resolvedPlugin.kind === 'codex_legacy'
+    && manifest.skills !== './skills/') {
     errors.push(`plugin_manifest_skills_root_mismatch:${String(manifest.skills ?? '<missing>')}`);
   }
 
   return {
     valid: errors.length === 0,
-    errors,
+    errors: [...errors, ...nonfatalFindings],
   };
 }
 
@@ -571,13 +570,18 @@ function inspectFamilySkillPackAtRepoRoot(
   repoRoot: string,
 ): InspectFamilySkillPack {
   const repoFound = fs.existsSync(repoRoot) && fs.statSync(repoRoot).isDirectory();
-  const pluginManifestPath = buildPluginManifestPath(spec, repoRoot);
-  const pluginSourcePath = buildPluginSourcePath(pluginManifestPath);
+  const pluginSourcePath = spec.source_kind === 'opl_standard_codex_carrier'
+    ? path.join(repoRoot, 'plugins', spec.plugin_name)
+    : repoRoot;
+  const resolvedPlugin = repoFound
+    ? resolveAgentPluginManifest([pluginSourcePath], { expectedName: spec.plugin_name })
+    : null;
+  const pluginManifestPath = resolvedPlugin?.manifestPath ?? path.join(pluginSourcePath, 'plugin.json');
   const skillEntryPath = buildSkillEntryPath(spec, repoRoot);
   const installerPath = buildInstallerPath(spec, repoRoot);
-  const pluginManifestFound = fs.existsSync(pluginManifestPath) && fs.statSync(pluginManifestPath).isFile();
+  const pluginManifestFound = resolvedPlugin !== null;
   const skillEntryFound = fs.existsSync(skillEntryPath) && fs.statSync(skillEntryPath).isFile();
-  const pluginManifestValidation = validatePluginManifest(spec, pluginManifestPath, pluginManifestFound);
+  const pluginManifestValidation = validatePluginManifest(spec, resolvedPlugin);
   const skillEntryValidation = validateSkillEntry(spec, skillEntryPath, skillEntryFound);
   const standardCarrierValidation = validateStandardPluginCarrier(
     spec,

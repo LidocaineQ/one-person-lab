@@ -19,6 +19,10 @@ import {
 } from './helpers.ts';
 import { validateJsonSchemaPayload } from '../../../../../src/kernel/schema-registry.ts';
 import {
+  normalizeAgentPluginName,
+  resolveAgentPluginManifest,
+} from '../../../../../src/kernel/agent-plugin-manifest.ts';
+import {
   runConfiguredCodexPluginCarrier,
   type CodexPluginCommandRunner,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/configured-codex-plugin-carrier.ts';
@@ -46,6 +50,54 @@ const descriptor = {
   },
   publicationRef: 'oci://example.invalid/third-party-research:latest-stable',
 };
+
+test('Agent Plugins 1.0 manifests win globally and fatal standard errors never fall back to legacy', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-plugin-resolution-'));
+  const legacyRoot = path.join(root, 'legacy');
+  const portableRoot = path.join(root, 'portable');
+  fs.mkdirSync(path.join(legacyRoot, '.codex-plugin'), { recursive: true });
+  fs.mkdirSync(path.join(portableRoot, '.codex-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(legacyRoot, '.codex-plugin', 'plugin.json'), formatJsonPayload({
+    name: 'sample-agent',
+    version: '0.9.0',
+  }));
+  fs.writeFileSync(path.join(portableRoot, '.codex-plugin', 'plugin.json'), formatJsonPayload({
+    name: 'sample-agent',
+    version: '0.8.0',
+  }));
+  const portablePath = path.join(portableRoot, 'plugin.json');
+  fs.writeFileSync(portablePath, formatJsonPayload({
+    $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+    name: 'sample-agent',
+    version: '1.0.0',
+    extensions: 'reported-and-ignored',
+    future_field: true,
+  }));
+  try {
+    assert.equal(normalizeAgentPluginName('sample_agent'), 'sample-agent');
+    const resolved = resolveAgentPluginManifest([legacyRoot, portableRoot], {
+      expectedName: 'sample-agent',
+    });
+    assert.ok(resolved);
+    assert.equal(resolved.kind, 'agent_plugins_1_0');
+    assert.equal(resolved.manifestPath, portablePath);
+    assert.deepEqual(resolved.conformanceErrors, [
+      'unknown_top_level_field:future_field',
+      'non_object_extensions_ignored',
+    ]);
+
+    fs.writeFileSync(portablePath, formatJsonPayload({
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+      name: 'Sample_Agent',
+    }));
+    assert.throws(
+      () => resolveAgentPluginManifest([legacyRoot, portableRoot], { expectedName: 'sample-agent' }),
+      /failed its fatal core contract/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('native descriptor dependency readiness is fail-closed without legacy lock state', () => {
   const dependency = {

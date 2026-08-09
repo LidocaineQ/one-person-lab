@@ -43,7 +43,7 @@ test('opl connect skills discovers the family plugin packs through the configure
       output.skill_catalog.packs.map((entry: { canonical_plugin_name: string }) => entry.canonical_plugin_name),
       ['mas', 'mag', 'rca', 'oma', 'obf', 'mas-scholar-skills'],
     );
-    assert.match(output.skill_catalog.packs[0].plugin_manifest_path, /med-autoscience\/plugins\/med-autoscience\/\.codex-plugin\/plugin\.json$/);
+    assert.match(output.skill_catalog.packs[0].plugin_manifest_path, /med-autoscience\/plugins\/med-autoscience\/plugin\.json$/);
     assert.match(output.skill_catalog.packs[0].skill_entry_path, /med-autoscience\/agent\/primary_skill\/SKILL\.md$/);
     assert.deepEqual(
       output.skill_catalog.packs.slice(0, 5).map((entry: { skill_entry_valid: boolean }) => entry.skill_entry_valid),
@@ -578,10 +578,11 @@ test('opl connect sync-skills registers tracked family plugin sources without wr
     const masWrapperPluginPath = path.join(masPlugin.marketplace_root, 'plugins', 'med-autoscience');
     assert.equal(fs.lstatSync(masWrapperPluginPath).isSymbolicLink(), false);
     const masWrapperManifest = parseJsonText(fs.readFileSync(masPlugin.plugin_manifest_path, 'utf8')) as Record<string, any>;
+    const masWrapperInterface = masWrapperManifest.extensions['com.openai'].interface;
     assert.equal(masWrapperManifest.name, 'med-autoscience');
-    assert.equal(Array.isArray(masWrapperManifest.interface.defaultPrompt), true);
-    assert.equal(masWrapperManifest.interface.defaultPrompt.length > 0, true);
-    assert.equal(masWrapperManifest.interface.composerIcon, './assets/icon.svg');
+    assert.equal(Array.isArray(masWrapperInterface.defaultPrompt), true);
+    assert.equal(masWrapperInterface.defaultPrompt.length > 0, true);
+    assert.equal(masWrapperInterface.composerIcon, './assets/icon.svg');
     assert.equal(
       fs.readFileSync(path.join(masWrapperPluginPath, 'skills', 'med-autoscience', 'SKILL.md'), 'utf8')
         .includes('name: med-autoscience'),
@@ -641,7 +642,7 @@ test('opl connect sync-skills refuses standard agent plugin MCP drift', () => {
   const { workspaceRoot } = createFakeFamilySkillWorkspace(captureDir);
   const homeDir = path.join(captureDir, 'home');
   const codexHome = path.join(homeDir, '.codex');
-  const masManifestPath = path.join(workspaceRoot, 'med-autoscience', 'plugins', 'med-autoscience', '.codex-plugin', 'plugin.json');
+  const masManifestPath = path.join(workspaceRoot, 'med-autoscience', 'plugins', 'med-autoscience', 'plugin.json');
   const masManifest = parseJsonText(fs.readFileSync(masManifestPath, 'utf8')) as Record<string, any>;
   masManifest.mcpServers = './.mcp.json';
   fs.writeFileSync(masManifestPath, `${JSON.stringify(masManifest, null, 2)}\n`, 'utf8');
@@ -659,7 +660,10 @@ test('opl connect sync-skills refuses standard agent plugin MCP drift', () => {
     assert.equal(masPack.sync_status, 'skipped');
     assert.equal(masPack.ready_to_sync, false);
     assert.equal(masPack.plugin_manifest_valid, false);
-    assert.deepEqual(masPack.plugin_manifest_errors, ['standard_domain_agent_manifest_must_not_expose_standalone_mcp_servers']);
+    assert.deepEqual(masPack.plugin_manifest_errors, [
+      'standard_domain_agent_manifest_must_not_expose_standalone_mcp_servers',
+      'plugin_manifest_nonconformant_nonfatal:unknown_top_level_field:mcpServers',
+    ]);
     assert.equal(output.skill_sync.codex_plugin_registry, null);
     assert.equal(fs.existsSync(path.join(codexHome, 'config.toml')), false);
   } finally {

@@ -63,16 +63,35 @@ function writeDeveloperPackageFixture(root: string, packageId: 'mag' | 'opl-flow
     spec.owner_package_manifest_ref,
     formatJsonPayload(ownerPayload),
   );
+  const pluginManifestPath = path.join(checkoutPath, spec.owner_plugin_manifest_ref);
+  const pluginManifestDirectory = path.dirname(pluginManifestPath);
+  const pluginRoot = path.basename(pluginManifestDirectory) === '.codex-plugin'
+    ? path.dirname(pluginManifestDirectory)
+    : pluginManifestDirectory;
+  const pluginId = frameworkManifest.codex_surface.plugin_id;
+  const openAiInterface = { displayName: frameworkManifest.display_name };
   writeFixtureFile(
-    checkoutPath,
-    spec.owner_plugin_manifest_ref,
+    pluginRoot,
+    'plugin.json',
     formatJsonPayload({
-      name: frameworkManifest.codex_surface.plugin_id,
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+      name: pluginId,
       version,
-      skills: './skills/',
+      description: `${frameworkManifest.display_name} fixture.`,
+      extensions: { 'com.openai': { interface: openAiInterface } },
     }),
   );
-  const pluginRoot = path.dirname(path.dirname(path.join(checkoutPath, spec.owner_plugin_manifest_ref)));
+  writeFixtureFile(
+    pluginRoot,
+    '.codex-plugin/plugin.json',
+    formatJsonPayload({
+      name: pluginId,
+      version,
+      description: `${frameworkManifest.display_name} fixture.`,
+      skills: './skills/',
+      interface: openAiInterface,
+    }),
+  );
   if (frameworkManifest.codex_surface.configured_codex_plugin_carrier) {
     writeFixtureFile(
       pluginRoot,

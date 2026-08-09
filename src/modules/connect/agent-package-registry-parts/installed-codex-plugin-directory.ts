@@ -4,6 +4,12 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
+import {
+  agentPluginOpenAiInterface,
+  agentPluginSkillsRelativeRoot,
+  resolveAgentPluginManifest,
+  type ResolvedAgentPluginManifest,
+} from '../../../kernel/agent-plugin-manifest.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
 import { resolveFirstPartyPackageCatalog } from '../agent-package-first-party.ts';
@@ -148,13 +154,13 @@ function pluginPackageId(pluginId: string) {
   return canonicalAgentPackageId(normalized) ?? normalized;
 }
 
-function pluginSkillIds(sourcePath: string, manifest: Record<string, unknown>) {
-  const declared = manifest.skills;
-  const roots = Array.isArray(declared)
-    ? declared.filter((value): value is string => typeof value === 'string')
-    : typeof declared === 'string'
-      ? [declared]
-      : ['./skills/'];
+function pluginSkillIds(sourcePath: string, resolved: ResolvedAgentPluginManifest) {
+  const declared = resolved.manifest.skills;
+  const roots = resolved.kind === 'agent_plugins_1_0'
+    ? [agentPluginSkillsRelativeRoot(resolved)]
+    : Array.isArray(declared)
+      ? declared.filter((value): value is string => typeof value === 'string')
+      : [agentPluginSkillsRelativeRoot(resolved)];
   const skillIds = new Set<string>();
   for (const root of roots) {
     if (!root.trim() || root.startsWith('/') || root.includes('\0')) continue;
@@ -175,15 +181,16 @@ function pluginSkillIds(sourcePath: string, manifest: Record<string, unknown>) {
 
 function normalizeNativeCarrierManifest(
   entry: InstalledCarrierEntry,
-  pluginPayload: Record<string, unknown>,
+  resolved: ResolvedAgentPluginManifest,
 ): InstalledPackageManifest {
+  const pluginPayload = resolved.manifest;
   const packageId = pluginPackageId(entry.pluginId);
   if (!packageId) throw new Error('plugin package id is empty');
-  const interfacePayload = isRecord(pluginPayload.interface) ? pluginPayload.interface : {};
+  const interfacePayload = agentPluginOpenAiInterface(pluginPayload) ?? {};
   const displayName = stringValue(interfacePayload.displayName)
     ?? stringValue(pluginPayload.name)
     ?? packageId;
-  const requiredSkillIds = pluginSkillIds(entry.sourcePath, pluginPayload);
+  const requiredSkillIds = pluginSkillIds(entry.sourcePath, resolved);
   const sourceRepo = stringValue(pluginPayload.repository) ?? stringValue(pluginPayload.homepage);
   const version = entry.version
     ?? stringValue(pluginPayload.version)
@@ -232,7 +239,6 @@ function normalizeNativeCarrierManifest(
 
 function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): InstalledPackageDescriptor | null {
   const ownerManifestPath = path.join(entry.sourcePath, 'opl-package.json');
-  const pluginManifestPath = path.join(entry.sourcePath, '.codex-plugin', 'plugin.json');
   try {
     let manifestPath = ownerManifestPath;
     let manifest: InstalledPackageManifest;
@@ -244,12 +250,11 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
         pathToFileURL(ownerManifestPath).toString(),
       );
     } else {
-      if (!fs.existsSync(pluginManifestPath) || !fs.statSync(pluginManifestPath).isFile()) return null;
-      manifestPath = pluginManifestPath;
-      manifestText = fs.readFileSync(pluginManifestPath, 'utf8');
-      const pluginPayload = JSON.parse(manifestText);
-      if (!isRecord(pluginPayload)) return null;
-      manifest = normalizeNativeCarrierManifest(entry, pluginPayload);
+      const resolvedPlugin = resolveAgentPluginManifest([entry.sourcePath]);
+      if (!resolvedPlugin) return null;
+      manifestPath = resolvedPlugin.manifestPath;
+      manifestText = fs.readFileSync(manifestPath, 'utf8');
+      manifest = normalizeNativeCarrierManifest(entry, resolvedPlugin);
       // First-party Package identity remains owned by its stable catalog. A
       // carrier-native manifest without an explicit Framework owner descriptor
       // must not synthesize a second authority for that identity.
@@ -384,7 +389,7 @@ export function readInstalledCarrierEntries(input: {
 
 /**
  * Profile defaults are owned by an installed first-party Package descriptor.
- * A carrier-native `.codex-plugin` manifest is not sufficient authority to
+ * A carrier-native Agent Plugin manifest is not sufficient authority to
  * replace user instructions, even when it presents a similar plugin surface.
  */
 export function discoverInstalledOwnerProfileDescriptors(input: {

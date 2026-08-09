@@ -73,6 +73,13 @@ function createOwnerPackageFixture(
     [manifestRef]: `${JSON.stringify(ownerManifest, null, 2)}\n`,
     [`${pluginRoot}/.codex-plugin/plugin.json`.replace(/^\.\//, '')]: `${JSON.stringify({ name: repoName, version: ownerVersion }, null, 2)}\n`,
   };
+  if (kind === 'standard_agent') {
+    extraFiles[`${pluginRoot}/plugin.json`] = `${JSON.stringify({
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+      name: repoName,
+      version: ownerVersion,
+    }, null, 2)}\n`;
+  }
   if (repoName === 'med-autoscience' || repoName === 'med-autogrant') {
     extraFiles['pyproject.toml'] = `[project]\nname = "${repoName}"\nversion = "${ownerVersion}"\n`;
   } else if (kind === 'standard_agent') {
@@ -1011,36 +1018,36 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
   const manifest = manifests.mas;
   const expectedReleases: Record<string, { version: string; sourceCommit: string; payloadRef: string }> = {
     mas: {
-      version: '0.2.25',
-      sourceCommit: 'd300337c453cce8a233e95fe7b2ef8e0e53ff748',
-      payloadRef: 'payloads/mas-0.2.25.json',
+      version: '0.2.26',
+      sourceCommit: 'e956ef62f1b92f1f18fd5fbe56674c1289e79c72',
+      payloadRef: 'payloads/mas-0.2.26.json',
     },
     mag: {
-      version: '0.3.8',
-      sourceCommit: '0967060defcfb7effca5ae1ec0ef60eb7fab11f1',
-      payloadRef: 'payloads/mag-0.3.8.json',
+      version: '0.3.9',
+      sourceCommit: '1ee26d285b0ce5a66a5292296ad37b9dfbdca653',
+      payloadRef: 'payloads/mag-0.3.9.json',
     },
     rca: {
-      version: '0.2.13',
-      sourceCommit: '5af06fd2163a04358ed43fcd2d75685e4ac277ea',
-      payloadRef: 'payloads/rca-0.2.13.json',
+      version: '0.2.14',
+      sourceCommit: '16e42cc05301b33ae5881f0fca3556ed1e418742',
+      payloadRef: 'payloads/rca-0.2.14.json',
     },
     oma: {
-      version: '0.4.7',
-      sourceCommit: 'd6115a31be96c4831b2a75006b131985c9b65a4b',
-      payloadRef: 'payloads/oma-0.4.7.json',
+      version: '0.4.8',
+      sourceCommit: '6e8b92e32753ad771afd33ddd0fd0aea18c2b20e',
+      payloadRef: 'payloads/oma-0.4.8.json',
     },
     obf: {
-      version: '0.3.9',
-      sourceCommit: 'cdf061c309bd1ed685e4fb0e677d29b2b96eb5ca',
-      payloadRef: 'payloads/obf-0.3.9.json',
+      version: '0.3.10',
+      sourceCommit: '4df70ebba59968835cc9f606e53070d39f00d0dd',
+      payloadRef: 'payloads/obf-0.3.10.json',
     },
   };
 
   assert.equal(manifest.schema_ref, 'contracts/opl-framework/agent-package-manifest.schema.json');
   assert.equal(manifest.package_id, 'mas');
   assert.equal(manifest.agent_id, 'mas');
-  assert.equal(manifest.version, '0.2.25');
+  assert.equal(manifest.version, '0.2.26');
   assert.equal(manifest.carrier_source_role, 'codex_plugin_default_carrier_not_package_truth');
   assert.equal(schema.required.includes('distribution_payload'), false);
   assert.equal(schema.properties.distribution_payload.properties.install_truth.const, 'resolved_digest_lock');
@@ -1573,7 +1580,7 @@ test('bundled Full MAS source projection advances to the immutable ordinary pack
     'd2ec1d23c37c337b96b18601071ca09be89c43946971e87b3aba8c759107df6e');
   assert.equal(priorOrdinaryManifest.version, '0.2.20');
   assert.equal(priorOrdinaryManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mas-0.2.20.json');
-  assert.equal(ordinaryManifest.version, '0.2.25');
+  assert.equal(ordinaryManifest.version, '0.2.26');
 });
 
 test('bundled Full MAG source projection advances to the immutable ordinary package version', () => {
@@ -1595,7 +1602,7 @@ test('bundled Full MAG source projection advances to the immutable ordinary pack
     '65f606d9ee8b8db722b51f8034008341d6abe4ae5697f760a2aad958807e0978');
   assert.equal(frozenManifest.version, '0.3.8');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mag-0.3.8.json');
-  assert.equal(ordinaryManifest.version, '0.3.8');
+  assert.equal(ordinaryManifest.version, '0.3.9');
 });
 
 test('bundled Full RCA source projection advances to the immutable ordinary package version', () => {
@@ -1617,7 +1624,7 @@ test('bundled Full RCA source projection advances to the immutable ordinary pack
     '8d638fd1c7555dc8d805ca3dbbdd5c5cd287b651ed68c9394bd2dc16d17f9c83');
   assert.equal(frozenManifest.version, '0.2.13');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/rca-0.2.13.json');
-  assert.equal(ordinaryManifest.version, '0.2.13');
+  assert.equal(ordinaryManifest.version, '0.2.14');
 });
 
 test('bundled Full OMA source projection advances independently of ordinary publication', () => {
@@ -1639,7 +1646,7 @@ test('bundled Full OMA source projection advances independently of ordinary publ
     '951d10cf5c57693c8a2f3f92f1981ff4b42d8a51783fc6c597564bec2e3b1617');
   assert.equal(frozenManifest.version, '0.4.7');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/oma-0.4.7.json');
-  assert.equal(ordinaryManifest.version, '0.4.7');
+  assert.equal(ordinaryManifest.version, '0.4.8');
 });
 
 test('bundled Full OBF source projection advances independently of ordinary publication', () => {
@@ -1661,7 +1668,7 @@ test('bundled Full OBF source projection advances independently of ordinary publ
     '87dbc954cf83a4b25903c84257a0088d06d52170b19f00b8ec5631f59f8659c4');
   assert.equal(frozenManifest.version, '0.3.9');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/obf-0.3.9.json');
-  assert.equal(ordinaryManifest.version, '0.3.9');
+  assert.equal(ordinaryManifest.version, '0.3.10');
 });
 
 test('MAS first-party agent package manifest fails closed for unsafe dependency declarations', () => {

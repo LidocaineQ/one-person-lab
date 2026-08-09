@@ -5,6 +5,7 @@ import {
   buildRepoGeneratedInterfaceBundle,
 } from '../../pack/index.ts';
 import { isRecord } from '../../../kernel/contract-validation.ts';
+import { resolveAgentPluginManifest } from '../../../kernel/agent-plugin-manifest.ts';
 import {
   resolveCodexHome,
   resolveMaterializedPluginRootForName,
@@ -149,8 +150,12 @@ export function writeOplMaterializedPluginCarrier(inspected: InspectFamilySkillP
   fs.rmSync(codexPluginNameSkillDir, { recursive: true, force: true });
 
   const pluginRoot = resolveMaterializedPluginRoot(inspected, resolvedHome);
-  const pluginManifestPath = path.join(inspected.plugin_source_path, '.codex-plugin', 'plugin.json');
-  const pluginManifest = JSON.parse(fs.readFileSync(pluginManifestPath, 'utf8')) as { version?: string };
+  const sourcePlugin = resolveAgentPluginManifest(
+    [inspected.plugin_source_path],
+    { expectedName: inspected.plugin_name },
+  );
+  if (!sourcePlugin) return null;
+  const pluginManifest = sourcePlugin.manifest;
   const pluginVersion = typeof pluginManifest.version === 'string' ? pluginManifest.version : '0.1.0';
   fs.rmSync(pluginRoot, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(pluginRoot), { recursive: true });
@@ -167,10 +172,12 @@ export function writeOplMaterializedPluginCarrier(inspected: InspectFamilySkillP
     resolvedHome,
     pluginVersion,
   );
+  const materializedPlugin = resolveAgentPluginManifest([pluginRoot], { expectedName: inspected.plugin_name });
+  if (!materializedPlugin) return null;
 
   return {
     plugin_root: pluginRoot,
-    plugin_manifest_path: path.join(pluginRoot, '.codex-plugin', 'plugin.json'),
+    plugin_manifest_path: materializedPlugin.manifestPath,
     marketplace_path: marketplacePath,
     skill_entry_path: path.join(pluginRoot, 'skills', inspected.plugin_name, 'SKILL.md'),
     carrier_provenance_path: carrierProvenancePath,

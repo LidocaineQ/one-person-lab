@@ -13,6 +13,7 @@ const PACKAGE_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.
 const PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.payload.v1+json';
 const CHANNEL_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.release.channel-manifest.v1+json';
 const FIXTURE_CODEX_VERSION = '0.134.0';
+const AGENT_PLUGIN_SCHEMA = 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json';
 
 function sha256(filePath: string) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
@@ -76,6 +77,22 @@ export function currentCodexEnvironment(
     OPL_MIN_CODEX_CLI_VERSION: FIXTURE_CODEX_VERSION,
     OPL_CODEX_CLI_LATEST_VERSION: FIXTURE_CODEX_VERSION,
     PATH: [codexFixture.fixtureRoot, ...additionalBinRoots, '/usr/bin', '/bin'].join(path.delimiter),
+  };
+}
+
+export function agentPluginManifestFixtureFiles(pluginName: string, prefix = ''): Record<string, string> {
+  return {
+    [`${prefix}plugin.json`]: JSON.stringify({
+      $schema: AGENT_PLUGIN_SCHEMA,
+      name: pluginName,
+      version: '0.1.0',
+      description: `${pluginName} startup-maintenance fixture.`,
+    }, null, 2),
+    [`${prefix}.codex-plugin/plugin.json`]: JSON.stringify({
+      name: pluginName,
+      version: '0.1.0',
+      skills: './skills/',
+    }, null, 2),
   };
 }
 
@@ -172,10 +189,7 @@ export function createDomainModuleRemote(input: {
 
   return createGitModuleRemoteFixture(input.repoName, {
     extraFiles: {
-      [`plugins/${input.pluginName}/.codex-plugin/plugin.json`]: JSON.stringify({
-        name: input.pluginName,
-        skills: './skills/',
-      }, null, 2),
+      ...agentPluginManifestFixtureFiles(input.pluginName, `plugins/${input.pluginName}/`),
       'agent/primary_skill/SKILL.md': [
         '---',
         `name: ${input.pluginName}`,
@@ -226,12 +240,9 @@ export function createScholarSkillsRemote() {
   });
 }
 
-export function scholarSkillsPluginFixtureFiles(fixture: string) {
+export function scholarSkillsPluginFixtureFiles(fixture: string): Record<string, string> {
   return {
-    '.codex-plugin/plugin.json': JSON.stringify({
-      name: 'mas-scholar-skills',
-      skills: './skills/',
-    }, null, 2),
+    ...agentPluginManifestFixtureFiles('mas-scholar-skills'),
     'skills/mas-scholar-skills/SKILL.md': [
       '---',
       'name: mas-scholar-skills',

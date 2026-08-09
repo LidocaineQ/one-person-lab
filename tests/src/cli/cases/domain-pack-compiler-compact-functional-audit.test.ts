@@ -10,7 +10,6 @@ import { buildReadyAgentRepo, writeJson } from './agents-conformance-fixtures.ts
 function writeCompactAudit(repoDir: string, codePaths: string[]) {
   for (const sourcePath of [
     ...codePaths,
-    'agent/primary_skill/SKILL.md',
     'runtime/domain-handler.ts',
   ]) {
     const filePath = path.join(repoDir, sourcePath);

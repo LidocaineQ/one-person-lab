@@ -1,5 +1,6 @@
 import { assert, fs, os, path, runCli, test } from '../../helpers.ts';
 import {
+  agentPluginManifestFixtureFiles,
   createCurrentCodexFixture,
   currentCodexEnvironment,
   readPackageChannelMarker,
@@ -18,7 +19,7 @@ test('system startup-maintenance silently updates package-channel modules and sy
       repoName: 'med-autoscience' as const,
       sourceHeadSha: `mas-${versionLabel}-sha`,
       files: {
-        'plugins/med-autoscience/.codex-plugin/plugin.json': JSON.stringify({ name: 'med-autoscience', skills: './skills/' }, null, 2),
+        ...agentPluginManifestFixtureFiles('med-autoscience', 'plugins/med-autoscience/'),
         'plugins/med-autoscience/skills/med-autoscience/SKILL.md': `---\nname: med-autoscience\ndescription: MAS ${versionLabel}.\n---\n\n# MAS ${versionLabel}\n`,
         'scripts/install-codex-plugin.sh': '#!/usr/bin/env bash\nset -euo pipefail\nprintf \'{"plugin":"mas","sync":"ok"}\\n\'\n',
       },
@@ -28,7 +29,7 @@ test('system startup-maintenance silently updates package-channel modules and sy
       repoName: 'med-autogrant' as const,
       sourceHeadSha: `mag-${versionLabel}-sha`,
       files: {
-        'plugins/med-autogrant/.codex-plugin/plugin.json': JSON.stringify({ name: 'med-autogrant', skills: './skills/' }, null, 2),
+        ...agentPluginManifestFixtureFiles('med-autogrant', 'plugins/med-autogrant/'),
         'plugins/med-autogrant/skills/med-autogrant/SKILL.md': `---\nname: med-autogrant\ndescription: MAG ${versionLabel}.\n---\n\n# MAG ${versionLabel}\n`,
         'scripts/install-codex-plugin.sh': '#!/usr/bin/env bash\nset -euo pipefail\nprintf \'{"plugin":"mag","sync":"ok"}\\n\'\n',
       },
@@ -38,7 +39,7 @@ test('system startup-maintenance silently updates package-channel modules and sy
       repoName: 'redcube-ai' as const,
       sourceHeadSha: `rca-${versionLabel}-sha`,
       files: {
-        'plugins/redcube-ai/.codex-plugin/plugin.json': JSON.stringify({ name: 'redcube-ai', skills: './skills/' }, null, 2),
+        ...agentPluginManifestFixtureFiles('redcube-ai', 'plugins/redcube-ai/'),
         'plugins/redcube-ai/skills/redcube-ai/SKILL.md': `---\nname: redcube-ai\ndescription: RCA ${versionLabel}.\n---\n\n# RCA ${versionLabel}\n`,
         'scripts/install-codex-plugin.mjs': 'console.log(JSON.stringify({ plugin: "rca", sync: "ok" }));\n',
       },
@@ -48,7 +49,7 @@ test('system startup-maintenance silently updates package-channel modules and sy
       repoName: 'opl-meta-agent' as const,
       sourceHeadSha: `oma-${versionLabel}-sha`,
       files: {
-        'plugins/opl-meta-agent/.codex-plugin/plugin.json': JSON.stringify({ name: 'opl-meta-agent', skills: './skills/' }, null, 2),
+        ...agentPluginManifestFixtureFiles('opl-meta-agent', 'plugins/opl-meta-agent/'),
         'plugins/opl-meta-agent/skills/opl-meta-agent/SKILL.md': `---\nname: opl-meta-agent\ndescription: OMA ${versionLabel}.\n---\n\n# OMA ${versionLabel}\n`,
         'scripts/verify.sh': '#!/usr/bin/env bash\nset -euo pipefail\ntest "${1:-}" = "fast"\n',
       },
@@ -58,7 +59,7 @@ test('system startup-maintenance silently updates package-channel modules and sy
       repoName: 'opl-bookforge' as const,
       sourceHeadSha: `bookforge-${versionLabel}-sha`,
       files: {
-        'plugins/opl-bookforge/.codex-plugin/plugin.json': JSON.stringify({ name: 'opl-bookforge', skills: './skills/' }, null, 2),
+        ...agentPluginManifestFixtureFiles('opl-bookforge', 'plugins/opl-bookforge/'),
         'plugins/opl-bookforge/skills/opl-bookforge/SKILL.md': `---\nname: opl-bookforge\ndescription: OPL Book Forge ${versionLabel}.\n---\n\n# OPL Book Forge ${versionLabel}\n`,
         'scripts/verify.sh': '#!/usr/bin/env bash\nset -euo pipefail\ntest "${1:-}" = "smoke"\n',
       },

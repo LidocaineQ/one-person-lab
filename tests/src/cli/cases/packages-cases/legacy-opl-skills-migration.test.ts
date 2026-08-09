@@ -91,10 +91,20 @@ function writeFlowMarketplace(input: {
     fs.mkdirSync(path.join(pluginSource, 'skills', skillId), { recursive: true });
     fs.writeFileSync(path.join(pluginSource, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`);
   }
+  const openAiInterface = { displayName: 'OPL Flow' };
+  fs.writeFileSync(path.join(pluginSource, 'plugin.json'), formatJsonPayload({
+    $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+    name: 'opl-flow',
+    version: input.version,
+    description: 'OPL Flow fixture.',
+    extensions: { 'com.openai': { interface: openAiInterface } },
+  }));
   fs.writeFileSync(path.join(pluginSource, '.codex-plugin', 'plugin.json'), formatJsonPayload({
     name: 'opl-flow',
     version: input.version,
+    description: 'OPL Flow fixture.',
     skills: './skills/',
+    interface: openAiInterface,
   }));
   fs.writeFileSync(path.join(pluginSource, 'opl-package.json'), formatJsonPayload(manifest));
   fs.mkdirSync(path.dirname(marketplaceManifest), { recursive: true });
@@ -381,10 +391,20 @@ function writeDeveloperFlowCheckout(
   fs.mkdirSync(path.join(checkout, 'contracts'), { recursive: true });
   fs.mkdirSync(path.join(checkout, 'profile', 'modules'), { recursive: true });
   fs.mkdirSync(path.join(checkout, 'templates'), { recursive: true });
+  const openAiInterface = { displayName: 'OPL Flow' };
+  fs.writeFileSync(path.join(checkout, 'plugin.json'), formatJsonPayload({
+    $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+    name: 'opl-flow',
+    version: '0.1.30',
+    description: 'OPL Flow fixture.',
+    extensions: { 'com.openai': { interface: openAiInterface } },
+  }));
   fs.writeFileSync(path.join(checkout, '.codex-plugin', 'plugin.json'), formatJsonPayload({
     name: 'opl-flow',
     version: '0.1.30',
+    description: 'OPL Flow fixture.',
     skills: './skills/',
+    interface: openAiInterface,
   }));
   fs.writeFileSync(path.join(checkout, 'contracts', 'workflow-policy.json'), formatJsonPayload(policy));
   fs.writeFileSync(path.join(checkout, 'contracts', 'workflow-policy.schema.json'), formatJsonPayload({
@@ -495,9 +515,24 @@ function writeDeveloperMasCarrierClosure(root: string) {
     'plugin.json',
   );
   const masPluginManifest = JSON.parse(fs.readFileSync(masPluginManifestPath, 'utf8'));
+  const masOpenAiInterface = { displayName: 'Med Auto Science' };
   fs.writeFileSync(
     masPluginManifestPath,
-    formatJsonPayload({ ...masPluginManifest, skills: './skills/' }),
+    formatJsonPayload({
+      ...masPluginManifest,
+      skills: './skills/',
+      interface: masOpenAiInterface,
+    }),
+  );
+  fs.writeFileSync(
+    path.join(masCheckout, 'plugins', 'med-autoscience', 'plugin.json'),
+    formatJsonPayload({
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+      name: masPluginManifest.name,
+      version: masPluginManifest.version,
+      description: 'Developer checkout fixture.',
+      extensions: { 'com.openai': { interface: masOpenAiInterface } },
+    }),
   );
   for (const skillId of scholarSkillsCoreSkillIds) {
     const skillRoot = path.join(scholarCheckout, 'skills', skillId);
@@ -1044,10 +1079,14 @@ test('developer Flow checkout rejects mismatched local marketplace and plugin id
         marketplace.plugins[0].source.path = '../';
         fs.writeFileSync(marketplacePath, formatJsonPayload(marketplace));
       } else {
-        const pluginPath = path.join(checkout, '.codex-plugin', 'plugin.json');
-        const plugin = JSON.parse(fs.readFileSync(pluginPath, 'utf8'));
-        plugin.version = '9.9.9';
-        fs.writeFileSync(pluginPath, formatJsonPayload(plugin));
+        for (const pluginPath of [
+          path.join(checkout, 'plugin.json'),
+          path.join(checkout, '.codex-plugin', 'plugin.json'),
+        ]) {
+          const plugin = JSON.parse(fs.readFileSync(pluginPath, 'utf8'));
+          plugin.version = '9.9.9';
+          fs.writeFileSync(pluginPath, formatJsonPayload(plugin));
+        }
       }
       const failure = runCliFailure(['packages', 'install', 'opl-flow'], {
         ...state.env,

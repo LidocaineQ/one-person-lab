@@ -2,7 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import standardAgentCapabilityMapSchema from '../../../contracts/opl-framework/standard-agent-capability-map.schema.json' with { type: 'json' };
+import agentPluginManifestSchema from '../../../contracts/opl-framework/agent-plugin-manifest-1.0.0.schema.json' with { type: 'json' };
 import { isRecord } from '../../kernel/contract-validation.ts';
+import {
+  agentPluginCoreSchemaPayload,
+  agentPluginOpenAiInterface,
+  normalizeAgentPluginName,
+  resolveAgentPluginManifest,
+} from '../../kernel/agent-plugin-manifest.ts';
 import { readJsonFileOrNull } from '../../kernel/json-file.ts';
 import { validateJsonSchemaPayload } from '../../kernel/schema-registry.ts';
 import {
@@ -201,6 +208,99 @@ function validateCapabilityMap(capabilityMap: unknown, repoDir: string) {
   };
 }
 
+function discoverPluginName(repoDir: string, domainId: string) {
+  const pluginsRoot = path.join(repoDir, 'plugins');
+  try {
+    const candidates = fs.readdirSync(pluginsRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((name) => (
+        fs.existsSync(path.join(pluginsRoot, name, 'plugin.json'))
+        || fs.existsSync(path.join(pluginsRoot, name, '.codex-plugin', 'plugin.json'))
+      ));
+    if (candidates.length === 1) return candidates[0]!;
+  } catch {
+    // A missing plugins root is reported by the conformance block below.
+  }
+  return normalizeAgentPluginName(domainId);
+}
+
+function validateAgentPluginCarrier(repoDir: string, domainId: string) {
+  const pluginName = discoverPluginName(repoDir, domainId);
+  const pluginRoot = path.join(repoDir, 'plugins', pluginName);
+  const portableManifestPath = path.join(pluginRoot, 'plugin.json');
+  const legacyManifestPath = path.join(pluginRoot, '.codex-plugin', 'plugin.json');
+  const primarySkillPath = path.join(repoDir, 'agent', 'primary_skill', 'SKILL.md');
+  const carrierSkillPath = path.join(pluginRoot, 'skills', pluginName, 'SKILL.md');
+  const mcpConfigPath = path.join(pluginRoot, 'mcp.json');
+  const blockers: string[] = [];
+  let resolved: ReturnType<typeof resolveAgentPluginManifest> = null;
+  try {
+    resolved = resolveAgentPluginManifest([pluginRoot], { expectedName: pluginName });
+  } catch (error) {
+    blockers.push(`agent_plugin_manifest_invalid:${error instanceof Error ? error.message : 'unknown_error'}`);
+  }
+  if (!resolved) blockers.push('agent_plugin_manifest_missing');
+  else if (resolved.kind !== 'agent_plugins_1_0') blockers.push('agent_plugin_portable_manifest_missing');
+
+  const schemaValidation = resolved?.kind === 'agent_plugins_1_0'
+    ? validateJsonSchemaPayload({
+        schemaId: 'agent-plugins.plugin-manifest.1.0.0',
+        schema: agentPluginManifestSchema,
+        sourceRef: 'contracts/opl-framework/agent-plugin-manifest-1.0.0.schema.json',
+      }, agentPluginCoreSchemaPayload(resolved))
+    : null;
+  if (schemaValidation && !schemaValidation.ok) {
+    blockers.push(...schemaValidation.errors.map((error) =>
+      `agent_plugin_schema_invalid:${error.instance_path || '/'}:${error.keyword}`
+    ));
+  }
+  const legacy = readJsonFileOrNull(legacyManifestPath);
+  if (!isRecord(legacy)) {
+    blockers.push('agent_plugin_codex_compatibility_manifest_missing_or_invalid');
+  }
+  if (resolved?.kind === 'agent_plugins_1_0' && isRecord(legacy)) {
+    const portableInterface = agentPluginOpenAiInterface(resolved.manifest);
+    const legacyInterface = isRecord(legacy.interface) ? legacy.interface : null;
+    if (legacy.name !== resolved.manifest.name || legacy.version !== resolved.manifest.version) {
+      blockers.push('agent_plugin_legacy_identity_or_version_mismatch');
+    }
+    if (JSON.stringify(legacyInterface) !== JSON.stringify(portableInterface)) {
+      blockers.push('agent_plugin_legacy_openai_interface_mismatch');
+    }
+  }
+  if (!fs.existsSync(primarySkillPath) || !fs.statSync(primarySkillPath).isFile()) {
+    blockers.push('agent_plugin_primary_skill_source_missing');
+  }
+  if (!fs.existsSync(carrierSkillPath) || !fs.statSync(carrierSkillPath).isFile()) {
+    blockers.push('agent_plugin_primary_skill_carrier_missing');
+  }
+  if (fs.existsSync(primarySkillPath) && fs.existsSync(carrierSkillPath)
+    && fs.readFileSync(primarySkillPath).compare(fs.readFileSync(carrierSkillPath)) !== 0) {
+    blockers.push('agent_plugin_primary_skill_carrier_not_byte_identical');
+  }
+  if (fs.existsSync(mcpConfigPath)) {
+    blockers.push('standard_agent_plugin_mcp_json_must_be_absent');
+  }
+  return {
+    surface_kind: 'opl_agent_plugin_1_0_conformance',
+    specification: 'Agent Plugins',
+    version: '1.0.0',
+    status: blockers.length === 0 ? 'passed' : 'blocked',
+    plugin_name: pluginName,
+    plugin_root: pluginRoot,
+    portable_manifest_path: portableManifestPath,
+    portable_manifest_selected: resolved?.manifestPath === portableManifestPath,
+    codex_compatibility_manifest_path: legacyManifestPath,
+    primary_skill_source_path: primarySkillPath,
+    primary_skill_carrier_path: carrierSkillPath,
+    mcp_config_path: mcpConfigPath,
+    standalone_mcp_server_default_enabled: false,
+    findings: resolved?.conformanceErrors ?? [],
+    blockers,
+  };
+}
+
 export function validateStandardDomainAgentScaffold(input: ScaffoldValidateInput) {
   const repoDir = path.resolve(input.repoDir);
   const executionProfile = resolveStandardAgentExecutionProfile(repoDir);
@@ -299,6 +399,10 @@ export function validateStandardDomainAgentScaffold(input: ScaffoldValidateInput
     : rawMissingForbiddenRoleGuards;
   const descriptor = readJsonFileOrNull(path.join(repoDir, 'contracts/domain_descriptor.json'));
   const descriptorRecord = isRecord(descriptor) ? descriptor : {};
+  const descriptorDomainId = typeof descriptorRecord.domain_id === 'string' && descriptorRecord.domain_id.trim()
+    ? descriptorRecord.domain_id.trim()
+    : 'new-domain-agent';
+  const agentPluginValidation = validateAgentPluginCarrier(repoDir, descriptorDomainId);
   let standardAgentInterfaceValidation: {
     status: 'passed' | 'blocked';
     interface_version: string | null;
@@ -410,6 +514,7 @@ export function validateStandardDomainAgentScaffold(input: ScaffoldValidateInput
     ...capabilityMapValidation.blockers,
     ...stagePackV2Validation.blockers,
     ...executionProfile.blockers,
+    ...agentPluginValidation.blockers,
   ].filter((entry): entry is string => Boolean(entry));
   const blockers = [
     ...missingRequiredDirs.map((item) => `missing_required_dir:${item}`),
@@ -427,6 +532,7 @@ export function validateStandardDomainAgentScaffold(input: ScaffoldValidateInput
     ...capabilityMapValidation.blockers,
     ...stagePackV2Validation.blockers,
     ...executionProfile.blockers,
+    ...agentPluginValidation.blockers,
   ].filter((entry): entry is string => Boolean(entry));
   const advisoryFindings = [
     ...agentPackValidation.advisory_findings,
@@ -465,6 +571,7 @@ export function validateStandardDomainAgentScaffold(input: ScaffoldValidateInput
       stage_pack_v2_validation: stagePackV2Validation,
       implementation_profile_validation: implementationProfileResolution,
       standard_agent_interface_validation: standardAgentInterfaceValidation,
+      agent_plugin_1_0_validation: agentPluginValidation,
       functional_privatization_audit_required: true,
       private_functional_surface_policy_validation: {
         status: privatePolicyBlockers.length === 0 ? 'passed' : 'blocked',

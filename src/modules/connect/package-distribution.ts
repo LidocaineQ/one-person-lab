@@ -154,7 +154,7 @@ export function loadOplPackageSpecs(packageDirectory?: string): PackageSpec[] {
       owner_plugin_manifest_ref: agentManifest?.owner_plugin_manifest_ref
         ?? (typeof publicationSource?.owner_plugin_manifest_ref === 'string'
           ? publicationSource.owner_plugin_manifest_ref
-          : '.codex-plugin/plugin.json'),
+          : 'plugin.json'),
       ...(agentManifest?.owner_language_version_ref
         ? { owner_language_version_ref: agentManifest.owner_language_version_ref }
         : typeof publicationSource?.owner_language_version_ref === 'string'

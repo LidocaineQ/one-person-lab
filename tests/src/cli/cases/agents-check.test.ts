@@ -124,6 +124,44 @@ test('standard agent scaffold inherits platform proof policy and keeps only doma
   }
 });
 
+test('standard agent scaffold emits an Agent Plugins 1.0 carrier with one byte-identical primary Skill', () => {
+  const targetDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-plugin-scaffold-'));
+  try {
+    const scaffold = buildStandardDomainAgentScaffold({
+      targetDir,
+      domainId: 'sample_agent',
+      domainLabel: 'Sample Agent',
+    }).standard_domain_agent_scaffold;
+    const pluginName = 'sample-agent';
+    const pluginRoot = path.join(targetDir, 'plugins', pluginName);
+    const portable = readJson(path.join(pluginRoot, 'plugin.json'));
+    const legacy = readJson(path.join(pluginRoot, '.codex-plugin', 'plugin.json'));
+    const primarySkill = fs.readFileSync(
+      path.join(targetDir, 'agent', 'primary_skill', 'SKILL.md'),
+    );
+    const carrierSkill = fs.readFileSync(
+      path.join(pluginRoot, 'skills', pluginName, 'SKILL.md'),
+    );
+    const packCompilerInput = readJson(path.join(targetDir, 'contracts', 'pack_compiler_input.json'));
+
+    assert.equal(scaffold.plugin_name, pluginName);
+    assert.equal(portable.$schema, 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json');
+    assert.equal(portable.name, pluginName);
+    assert.equal(legacy.name, portable.name);
+    assert.equal(legacy.version, portable.version);
+    assert.deepEqual(legacy.interface, portable.extensions['com.openai'].interface);
+    assert.equal(primarySkill.compare(carrierSkill), 0);
+    assert.equal(packCompilerInput.required_domain_pack_paths.includes('agent/primary_skill/SKILL.md'), true);
+    assert.equal(fs.existsSync(path.join(pluginRoot, 'mcp.json')), false);
+    const validation = validateStandardDomainAgentScaffold({ repoDir: targetDir })
+      .standard_domain_agent_scaffold_validation;
+    assert.equal(validation.agent_plugin_1_0_validation.status, 'passed');
+    assert.equal(validation.status, 'passed');
+  } finally {
+    fs.rmSync(targetDir, { recursive: true, force: true });
+  }
+});
+
 test('standard agent scaffold fails closed on repeated platform policy and morphology owner overclaims', () => {
   const targetDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-private-policy-fail-close-'));
   try {

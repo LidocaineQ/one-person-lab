@@ -70,7 +70,11 @@ function writePackageChannelFixture(input: {
   fs.mkdirSync(fakeBin, { recursive: true });
   fs.mkdirSync(sourceRoot, { recursive: true });
   fs.writeFileSync(path.join(sourceRoot, 'README.md'), `${input.repoName} package fixture\n`, 'utf8');
-  const sourceFiles = withStandardPrimarySkillCarrierFiles(input.repoName, input.sourceFiles ?? {});
+  const sourceFiles = withStandardPrimarySkillCarrierFiles(
+    input.repoName,
+    input.version,
+    input.sourceFiles ?? {},
+  );
   for (const [relativePath, contents] of Object.entries(sourceFiles)) {
     const targetPath = path.join(sourceRoot, relativePath);
     fs.mkdirSync(path.dirname(targetPath), { recursive: true });
@@ -171,7 +175,11 @@ function writePackageChannelFixture(input: {
   };
 }
 
-function withStandardPrimarySkillCarrierFiles(repoName: string, files: Record<string, string>) {
+function withStandardPrimarySkillCarrierFiles(
+  repoName: string,
+  version: string,
+  files: Record<string, string>,
+) {
   const pluginNameByRepo: Record<string, string> = {
     'med-autoscience': 'med-autoscience',
     'med-autogrant': 'med-autogrant',
@@ -180,16 +188,41 @@ function withStandardPrimarySkillCarrierFiles(repoName: string, files: Record<st
     'opl-bookforge': 'opl-bookforge',
   };
   const pluginName = pluginNameByRepo[repoName];
-  if (!pluginName || files['agent/primary_skill/SKILL.md']) {
-    return files;
-  }
-  const carrierSkill = files[`plugins/${pluginName}/skills/${pluginName}/SKILL.md`];
+  if (!pluginName) return files;
+  const openAiInterface = { displayName: pluginName };
+  const portableManifestPath = `plugins/${pluginName}/plugin.json`;
+  const legacyManifestPath = `plugins/${pluginName}/.codex-plugin/plugin.json`;
+  const legacyManifest = files[legacyManifestPath]
+    ? JSON.parse(files[legacyManifestPath]) as Record<string, unknown>
+    : {};
+  const filesWithManifests = {
+    ...files,
+    [portableManifestPath]: JSON.stringify({
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+      name: pluginName,
+      version,
+      description: `${pluginName} package channel fixture.`,
+      extensions: { 'com.openai': { interface: openAiInterface } },
+    }, null, 2),
+    [legacyManifestPath]: JSON.stringify({
+      ...legacyManifest,
+      name: pluginName,
+      version,
+      description: `${pluginName} package channel fixture.`,
+      skills: './skills/',
+      interface: openAiInterface,
+    }, null, 2),
+  };
+  if (filesWithManifests['agent/primary_skill/SKILL.md']) return filesWithManifests;
+  const carrierSkill = filesWithManifests[
+    `plugins/${pluginName}/skills/${pluginName}/SKILL.md`
+  ];
   return carrierSkill
     ? {
         'agent/primary_skill/SKILL.md': carrierSkill,
-        ...files,
+        ...filesWithManifests,
       }
-    : files;
+    : filesWithManifests;
 }
 
 test('managed module install and update consume the package channel by default', () => {

@@ -36,6 +36,10 @@ import {
   STANDARD_GENERATED_SURFACE_HANDOFF_DEFAULTS_PROFILE,
   STANDARD_FUNCTIONAL_PRIVATIZATION_AUDIT_DEFAULTS_PROFILE,
 } from './standard-agent-proof-contract-defaults.ts';
+import {
+  AGENT_PLUGIN_MANIFEST_SCHEMA_1_0_0,
+  normalizeAgentPluginName,
+} from '../../kernel/agent-plugin-manifest.ts';
 
 export {
   STANDARD_AGENT_CAPABILITY_MAP_CONTRACT,
@@ -280,9 +284,70 @@ function standardAgentConformanceProfile(domainId: string) {
   };
 }
 
+function primarySkill(domainId: string, domainLabel: string, pluginName: string) {
+  return `---\nname: ${pluginName}\ndescription: Use when Codex needs ${domainLabel} to interpret domain intent, select a declared Stage, and return domain-owner evidence.\n---\n\n# ${domainLabel}\n\nUse this primary Skill as the system-level entry into the ${domainLabel} Agent. Read the declared Stage, professional Skill, tool, knowledge, and quality-gate refs from the repo contracts; keep domain truth, quality verdicts, artifacts, owner receipts, and typed blockers with the domain owner.\n\nProfessional Skills are projected as a complete package-bound generation into the active Workspace. Before each Stage or Attempt, consume the current generation selected by OPL; do not hot-replace Skills inside a running Attempt.\n\nCanonical action: \`opl agents run --domain ${domainId} --action <action_id>\`.\n`;
+}
+
+function openAiInterface(domainLabel: string) {
+  return {
+    displayName: domainLabel,
+    shortDescription: `${domainLabel} domain Agent for Codex.`,
+    longDescription: `Provides the ${domainLabel} primary Skill while OPL hosts generated interfaces, Workspace Skill generations, and runtime orchestration.`,
+    developerName: domainLabel,
+    category: 'Productivity',
+    capabilities: ['Interactive', 'Write'],
+    defaultPrompt: [`Use ${domainLabel} to select and run the next domain Stage.`],
+  };
+}
+
+function agentPluginManifest(domainLabel: string, pluginName: string) {
+  return {
+    $schema: AGENT_PLUGIN_MANIFEST_SCHEMA_1_0_0,
+    name: pluginName,
+    version: '0.1.0',
+    description: `${domainLabel} standard domain Agent plugin.`,
+    author: { name: domainLabel },
+    keywords: ['opl', 'domain-agent'],
+    extensions: {
+      'com.openai': {
+        interface: openAiInterface(domainLabel),
+      },
+    },
+  };
+}
+
+function legacyCodexManifest(domainLabel: string, pluginName: string) {
+  return {
+    name: pluginName,
+    version: '0.1.0',
+    description: `${domainLabel} standard domain Agent plugin.`,
+    author: { name: domainLabel },
+    skills: './skills/',
+    interface: openAiInterface(domainLabel),
+  };
+}
+
 export function buildScaffoldFiles(domainId: string, domainLabel: string): ScaffoldFile[] {
   const json = (payload: unknown) => `${JSON.stringify(payload, null, 2)}\n`;
+  const pluginName = normalizeAgentPluginName(domainId);
+  const primarySkillContent = primarySkill(domainId, domainLabel, pluginName);
   return [
+    {
+      path: 'agent/primary_skill/SKILL.md',
+      content: primarySkillContent,
+    },
+    {
+      path: `plugins/${pluginName}/plugin.json`,
+      content: json(agentPluginManifest(domainLabel, pluginName)),
+    },
+    {
+      path: `plugins/${pluginName}/.codex-plugin/plugin.json`,
+      content: json(legacyCodexManifest(domainLabel, pluginName)),
+    },
+    {
+      path: `plugins/${pluginName}/skills/${pluginName}/SKILL.md`,
+      content: primarySkillContent,
+    },
     {
       path: 'agent/principles/README.md',
       content: `# ${domainLabel} Principles\n\nDeclare how this domain adopts OPL standard agent principles and where domain specialization begins. OPL owns the generic principles; this repo owns the domain mapping and authority boundaries.\n`,
@@ -488,6 +553,7 @@ export function buildScaffoldFiles(domainId: string, domainLabel: string): Scaff
         canonical_semantic_pack_root: 'agent/',
         canonical_semantic_pack_role: 'repo_source_declarative_domain_pack',
         required_domain_pack_paths: [
+          'agent/primary_skill/SKILL.md',
           'agent/stages/manifest.json',
           'agent/principles/opl-standard-agent-principles.md',
           'agent/principles/domain-specialization.md',

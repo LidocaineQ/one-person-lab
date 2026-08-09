@@ -17,6 +17,7 @@ const CANONICAL_PAYLOAD_SURFACE = 'opl_package_payload_manifest.v2';
 const CANONICAL_PAYLOAD_SCHEMA = 'contracts/opl-framework/package-payload-manifest-v2.schema.json';
 const CANONICAL_CONTENT_LOCK = 'ordered_path_length_file_length_bytes';
 const LEGACY_CONTENT_LOCK = 'ordered_path_nul_file_bytes';
+const AGENT_PLUGIN_SCHEMA = 'contracts/opl-framework/agent-plugin-manifest-1.0.0.schema.json';
 const LEGACY_PAYLOAD_SURFACES = new Set([
   'opl_agent_package_payload_manifest',
   'opl_package_payload_manifest.v1',
@@ -377,6 +378,9 @@ function loadAuthority(options) {
       digest: declared.digest,
     };
   }
+  if (!paths.includes('plugin.json')) {
+    throw new Error('Framework payload allowlist must include Agent Plugins 1.0 plugin.json');
+  }
   if (!paths.includes('.codex-plugin/plugin.json')) {
     throw new Error('Framework payload allowlist must include .codex-plugin/plugin.json');
   }
@@ -619,9 +623,10 @@ function readSourceSnapshot(options, authority) {
     gitBytes(options.repo, ['cat-file', 'blob', entry.objectId], `Cannot read carrier blob ${entry.objectId}`),
   ]));
   const plugin = requireObject(
-    parseJsonBytes(blobs.get('.codex-plugin/plugin.json'), 'Committed Codex plugin manifest'),
-    'Committed Codex plugin manifest',
+    parseJsonBytes(blobs.get('plugin.json'), 'Committed Agent Plugins manifest'),
+    'Committed Agent Plugins manifest',
   );
+  assertSchemaPayload(AGENT_PLUGIN_SCHEMA, plugin, 'Committed Agent Plugins manifest');
   if (plugin.name !== authority.pluginId) {
     throw new Error(`Committed plugin name does not match Framework identity: expected=${authority.pluginId} actual=${String(plugin.name)}`);
   }
@@ -629,6 +634,19 @@ function readSourceSnapshot(options, authority) {
   assertSemver(pluginVersion, 'Committed plugin version');
   if (pluginVersion !== authority.packageVersion) {
     throw new Error(`Committed plugin version does not match Framework package version: expected=${authority.packageVersion} actual=${pluginVersion}`);
+  }
+  const legacyPlugin = requireObject(
+    parseJsonBytes(blobs.get('.codex-plugin/plugin.json'), 'Committed Codex compatibility manifest'),
+    'Committed Codex compatibility manifest',
+  );
+  const openAiExtension = requireObject(
+    requireObject(plugin.extensions, 'Committed Agent Plugins extensions')['com.openai'],
+    'Committed Agent Plugins com.openai extension',
+  );
+  if (legacyPlugin.name !== plugin.name
+    || legacyPlugin.version !== plugin.version
+    || JSON.stringify(legacyPlugin.interface) !== JSON.stringify(openAiExtension.interface)) {
+    throw new Error('Committed Codex compatibility manifest identity, version, or interface differs from Agent Plugins 1.0 authority');
   }
   if (authority.ownerPackageDescriptorRef !== null) {
     const descriptorBytes = blobs.get(authority.ownerPackageDescriptorRef);

@@ -367,7 +367,7 @@ test('ScholarSkills sync rejects identity drift and unmanaged skill collisions',
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, content, 'utf8');
   }
-  const manifestPath = path.join(sourceRoot, '.codex-plugin', 'plugin.json');
+  const manifestPath = path.join(sourceRoot, 'plugin.json');
   const env = {
     HOME: homeRoot,
     CODEX_HOME: path.join(homeRoot, 'codex-home'),
@@ -377,19 +377,17 @@ test('ScholarSkills sync rejects identity drift and unmanaged skill collisions',
 
   try {
     fs.writeFileSync(manifestPath, JSON.stringify({
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
       name: 'wrong-package',
-      skills: './wrong-skills/',
     }), 'utf8');
-    const inspected = runCli(['connect', 'skills', '--domain', 'mas-scholar-skills'], env) as any;
-    const pack = inspected.skill_catalog.packs[0];
-    assert.equal(pack.plugin_manifest_valid, false);
-    assert.equal(pack.ready_to_sync, false);
-    assert.deepEqual(pack.plugin_manifest_errors, [
-      'plugin_manifest_name_mismatch:wrong-package',
-      'plugin_manifest_skills_root_mismatch:./wrong-skills/',
-    ]);
+    const identityDrift = runCliFailure(['connect', 'skills', '--domain', 'mas-scholar-skills'], env);
+    assert.equal(identityDrift.status, 3);
+    assert.equal(identityDrift.payload.error.code, 'contract_shape_invalid');
+    assert.equal(identityDrift.payload.error.details.failure_code, 'agent_plugin_manifest_invalid');
+    assert.equal(identityDrift.payload.error.details.expected_name, 'mas-scholar-skills');
+    assert.equal(identityDrift.payload.error.details.observed_name, 'wrong-package');
 
-    fs.writeFileSync(manifestPath, fixtureFiles['.codex-plugin/plugin.json'], 'utf8');
+    fs.writeFileSync(manifestPath, fixtureFiles['plugin.json'], 'utf8');
     const collisionRoot = path.join(workspaceRoot, '.codex', 'skills', 'example-specialist');
     fs.mkdirSync(collisionRoot, { recursive: true });
     fs.writeFileSync(path.join(collisionRoot, 'USER.md'), 'preserve me\n', 'utf8');

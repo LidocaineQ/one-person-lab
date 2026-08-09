@@ -197,24 +197,39 @@ test('installed descriptor discovery prefers an enabled carrier over a disabled 
   }
 });
 
-test('installed Codex plugins fall back to the native plugin manifest without package-id tables', () => {
+test('installed Codex plugins prefer Agent Plugins 1.0 metadata without package-id tables', () => {
   const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-plugin-descriptor-'));
   const skillRoot = path.join(sourceRoot, 'skills', 'native-capability');
   fs.mkdirSync(skillRoot, { recursive: true });
   fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), '# Native capability\n');
   fs.mkdirSync(path.join(sourceRoot, '.codex-plugin'));
   fs.writeFileSync(
-    path.join(sourceRoot, '.codex-plugin', 'plugin.json'),
+    path.join(sourceRoot, 'plugin.json'),
     formatJsonPayload({
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
       name: 'unknown-native-plugin',
       version: '1.2.3',
       description: 'Unknown native plugin',
       author: { name: 'Example owner' },
       repository: 'https://example.test/unknown-native-plugin',
+      extensions: {
+        'com.openai': {
+          interface: {
+            displayName: 'Unknown Native Plugin',
+            longDescription: 'A future plugin discovered from its portable manifest.',
+          },
+        },
+      },
+    }),
+  );
+  fs.writeFileSync(
+    path.join(sourceRoot, '.codex-plugin', 'plugin.json'),
+    formatJsonPayload({
+      name: 'unknown-native-plugin',
+      version: '9.9.9',
       skills: './skills/',
       interface: {
-        displayName: 'Unknown Native Plugin',
-        longDescription: 'A future plugin discovered from its own carrier manifest.',
+        displayName: 'Legacy Name Must Not Win',
       },
     }),
   );
@@ -255,7 +270,7 @@ test('installed Codex plugins fall back to the native plugin manifest without pa
       ].filter((field) => field in descriptor.manifest),
       [],
     );
-    assert.equal(descriptor.manifestPath, path.join(sourceRoot, '.codex-plugin', 'plugin.json'));
+    assert.equal(descriptor.manifestPath, path.join(sourceRoot, 'plugin.json'));
   } finally {
     fs.rmSync(sourceRoot, { recursive: true, force: true });
   }

@@ -180,6 +180,28 @@ function writeFakeRepoLocalPluginCarrier(repoRoot: string, pluginName: string) {
   fs.mkdirSync(path.join(pluginRoot, 'assets'), { recursive: true });
   fs.mkdirSync(skillRoot, { recursive: true });
   fs.writeFileSync(
+    path.join(pluginRoot, 'plugin.json'),
+    JSON.stringify({
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+      name: pluginName,
+      version: '0.1.0',
+      description: `${displayName} test carrier.`,
+      extensions: {
+        'com.openai': {
+          interface: {
+            displayName,
+            defaultPrompt: [
+              `Use ${displayName} to inspect the current domain state.`,
+              `Use ${displayName} to advance the domain workflow without bypassing authority.`,
+            ],
+            composerIcon: './assets/icon.svg',
+            logo: './assets/icon.svg',
+          },
+        },
+      },
+    }, null, 2),
+  );
+  fs.writeFileSync(
     path.join(pluginRoot, '.codex-plugin', 'plugin.json'),
     JSON.stringify({
       name: pluginName,
