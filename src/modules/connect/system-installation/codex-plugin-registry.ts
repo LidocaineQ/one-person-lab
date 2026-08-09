@@ -256,6 +256,8 @@ function supersededMarketplaceIds(packageId: string, pluginId: string) {
     return [];
   }
   return [...new Set([
+    agent.project,
+    agent.plugin_name,
     `${agent.agent_id}-local`,
     `opl-agent-${agent.agent_id}-local`,
   ])].filter((marketplaceId) => marketplaceId !== spec.marketplace_id);

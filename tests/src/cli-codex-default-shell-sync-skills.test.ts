@@ -461,6 +461,41 @@ test('opl connect sync-skills registers tracked family plugin sources without wr
       '[mcp_servers.opl-connect.env]',
       'LEGACY_OPL_CONNECT = "must-be-removed"',
       '',
+      '[marketplaces.med-autoscience]',
+      'source_type = "local"',
+      `source = "${path.join(workspaceRoot, 'med-autoscience')}"`,
+      '',
+      '[plugins."med-autoscience@med-autoscience"]',
+      'enabled = true',
+      '',
+      '[marketplaces.med-autogrant]',
+      'source_type = "local"',
+      `source = "${path.join(workspaceRoot, 'med-autogrant')}"`,
+      '',
+      '[plugins."med-autogrant@med-autogrant"]',
+      'enabled = true',
+      '',
+      '[marketplaces.redcube-ai]',
+      'source_type = "local"',
+      `source = "${path.join(workspaceRoot, 'redcube-ai')}"`,
+      '',
+      '[plugins."redcube-ai@redcube-ai"]',
+      'enabled = true',
+      '',
+      '[marketplaces.opl-meta-agent]',
+      'source_type = "local"',
+      `source = "${path.join(workspaceRoot, 'opl-meta-agent')}"`,
+      '',
+      '[plugins."opl-meta-agent@opl-meta-agent"]',
+      'enabled = true',
+      '',
+      '[marketplaces.opl-bookforge]',
+      'source_type = "local"',
+      `source = "${path.join(workspaceRoot, 'opl-bookforge')}"`,
+      '',
+      '[plugins."opl-bookforge@opl-bookforge"]',
+      'enabled = true',
+      '',
     ].join('\n'),
     'utf8',
   );
@@ -568,6 +603,7 @@ test('opl connect sync-skills registers tracked family plugin sources without wr
     assert.equal(output.skill_sync.codex_plugin_registry.surface_id, 'opl_codex_plugin_registry');
     assert.equal(output.skill_sync.codex_plugin_registry.summary.registered, 5);
     assert.equal(output.skill_sync.codex_plugin_registry.summary.removed_standalone_mcp_servers, 1);
+    assert.equal(output.skill_sync.codex_plugin_registry.summary.removed_superseded_plugin_tables, 10);
     assert.equal(output.skill_sync.codex_plugin_registry.summary.registered_unified_mcp_servers, 1);
     assert.equal(output.skill_sync.codex_plugin_registry.unified_mcp_server.server_id, 'opl-connect');
     assert.deepEqual(output.skill_sync.codex_plugin_registry.unified_mcp_server.args, ['connect', 'mcp-stdio']);
@@ -630,6 +666,11 @@ test('opl connect sync-skills registers tracked family plugin sources without wr
     assert.match(config, /\[plugins\."redcube-ai@redcube-ai-local"\]/);
     assert.match(config, /\[plugins\."opl-meta-agent@opl-meta-agent-local"\]/);
     assert.match(config, /\[plugins\."opl-bookforge@opl-bookforge-local"\]/);
+    assert.doesNotMatch(config, /\[plugins\."med-autoscience@med-autoscience"\]/);
+    assert.doesNotMatch(config, /\[plugins\."med-autogrant@med-autogrant"\]/);
+    assert.doesNotMatch(config, /\[plugins\."redcube-ai@redcube-ai"\]/);
+    assert.doesNotMatch(config, /\[plugins\."opl-meta-agent@opl-meta-agent"\]/);
+    assert.doesNotMatch(config, /\[plugins\."opl-bookforge@opl-bookforge"\]/);
     assert.doesNotMatch(config, /\[plugins\."mas-scholar-skills@mas-scholar-skills-local"\]/);
   } finally {
     fs.rmSync(captureDir, { recursive: true, force: true });
