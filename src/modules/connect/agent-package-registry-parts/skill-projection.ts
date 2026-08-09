@@ -5,10 +5,15 @@ import { FrameworkContractError, isRecord } from '../../../kernel/contract-valid
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { stringValue } from '../../../kernel/json-record.ts';
 import {
+  resolveStandardAgent,
+  STANDARD_AGENT_SERIES_MEMBERSHIP,
+} from '../../../kernel/standard-agent-registry.ts';
+import {
   ensureOplStateDir,
   resolveOplStatePaths,
 } from '../../../kernel/runtime-state-paths.ts';
 import { materializeStandardAgentCapabilityMap } from '../../pack/index.ts';
+import { inspectOplModule } from '../system-installation/modules.ts';
 import { discoverInstalledPackageDescriptors } from './installed-codex-plugin-directory.ts';
 import { sha256Text } from './shared.ts';
 import type {
@@ -587,13 +592,27 @@ function ancestors(candidate: string) {
   return values;
 }
 
-function installedAgentSourceRoot(descriptor: {
+function selectedAgentModuleSourceRoot(packageId: string) {
+  const agent = resolveStandardAgent(packageId);
+  if (!agent || agent.series_membership !== STANDARD_AGENT_SERIES_MEMBERSHIP) return null;
+  try {
+    const selected = inspectOplModule(agent.module_id, { profile: 'fast' });
+    return selected.installed && selected.health_status !== 'invalid_checkout'
+      ? realDirectory(selected.checkout_path)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function installedAgentSourceRoot(packageId: string, descriptor: {
   sourcePath: string;
   marketplaceSource: string | null;
 }) {
   const candidates = [
     realDirectory(descriptor.marketplaceSource),
     ...ancestors(descriptor.sourcePath).map((candidate) => realDirectory(candidate)),
+    selectedAgentModuleSourceRoot(packageId),
   ].filter((candidate): candidate is string => candidate !== null);
   return [...new Set(candidates)].find((candidate) => (
     containedRegularFile(candidate, 'contracts/capability_map.json') !== null
@@ -827,7 +846,7 @@ export function refreshInstalledAgentPackageWorkspaceSkills(input: {
   if (!root || root.manifest.package_role !== 'standard_agent') {
     return notInstalledRefresh(packageId, targetWorkspace);
   }
-  const rootSourceRoot = installedAgentSourceRoot(root);
+  const rootSourceRoot = installedAgentSourceRoot(packageId, root);
   if (!rootSourceRoot) {
     return attentionRefresh(packageId, 'installed_agent_capability_source_unavailable', targetWorkspace);
   }

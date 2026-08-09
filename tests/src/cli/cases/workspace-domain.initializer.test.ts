@@ -37,12 +37,19 @@ function assertHasKeys(surface: Record<string, unknown>, keys: string[]) {
   }
 }
 
-function writeMasCapabilityMap(root: string) {
-  const contractsRoot = path.join(root, 'plugins', 'med-autoscience', 'contracts');
+function writeMasManagedModuleCapabilityMap(modulesRoot: string) {
+  const moduleRoot = path.join(modulesRoot, 'med-autoscience');
+  const contractsRoot = path.join(moduleRoot, 'contracts');
   fs.mkdirSync(contractsRoot, { recursive: true });
   fs.writeFileSync(path.join(contractsRoot, 'capability_map.json'), `${JSON.stringify({
     surface_kind: 'opl_standard_agent_capability_map',
     capabilities: [],
+  }, null, 2)}\n`);
+  fs.writeFileSync(path.join(moduleRoot, 'opl-runtime-module.json'), `${JSON.stringify({
+    module_id: 'medautoscience',
+    repo_name: 'med-autoscience',
+    packaged_runtime: true,
+    source_git: {},
   }, null, 2)}\n`);
 }
 
@@ -119,6 +126,7 @@ test('workspace init uses generic one-off topology without a current domain desc
 test('workspace init projects the installed MAS professional Skill generation and reuses it', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-workspace-init-skill-generation-'));
   const stateRoot = path.join(root, 'state');
+  const modulesRoot = path.join(stateRoot, 'modules');
   const workspaceRoot = path.join(root, 'workspaces');
   const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0', {
     configuredCarrier: true,
@@ -126,13 +134,14 @@ test('workspace init projects the installed MAS professional Skill generation an
   const consumerManifest = writeMasConsumer(root, providerManifest, '0.1.0a4', {
     configuredCarrier: true,
   });
-  writeMasCapabilityMap(root);
+  writeMasManagedModuleCapabilityMap(modulesRoot);
   const releaseSet = writeCapabilityCatalog(
     path.join(root, 'release-set'),
     [consumerManifest, providerManifest],
   );
   const env = {
     OPL_STATE_DIR: stateRoot,
+    OPL_MODULES_ROOT: modulesRoot,
     CODEX_HOME: path.join(root, 'codex-home'),
     OPL_CODEX_PLUGIN_BIN: createFakeCodexPluginManagerFixture(path.join(root, 'fixture-bin')).codexPath,
     OPL_DEVELOPER_MODE_GITHUB_IDENTITY_FIXTURE: 'opl-managed-package-test',
