@@ -329,7 +329,13 @@ test('developer package snapshots cover Agent and Flow owners while excluding lo
       const pluginRoot = path.basename(pluginManifestDirectory) === '.codex-plugin'
         ? path.dirname(pluginManifestDirectory)
         : pluginManifestDirectory;
-      if (path.basename(pluginManifestDirectory) !== '.codex-plugin') {
+      if (path.basename(pluginManifestDirectory) === '.codex-plugin') {
+        writeFixtureFile(
+          pluginRoot,
+          'plugin.json',
+          `${JSON.stringify(ownerPluginManifest, null, 2)}\n`,
+        );
+      } else {
         writeFixtureFile(
           pluginRoot,
           '.codex-plugin/plugin.json',
