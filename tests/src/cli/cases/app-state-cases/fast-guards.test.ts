@@ -103,7 +103,7 @@ test('app state fast hot path avoids barrel imports and keeps full drilldown laz
   );
   assert.match(
     appStateSource,
-    /readInstalledStandardAgentDescriptorForDomain\(agentId,\s*readAgentPackageStatus\)/,
+    /readInstalledStandardAgentDescriptorForDomain\(\s*agentId,\s*\(statusInput = \{\}\) => readAgentPackageStatus\(\{ \.\.\.statusInput, detail: profile \}\),\s*\)/,
     'Runtime work-item descriptor discovery must reuse the app-state request Package status snapshot',
   );
 });
