@@ -323,6 +323,7 @@ function writeOplFlowPackage(
       {
         id: 'ponytail',
         discovery_ids: ['ponytail'],
+        surface_kinds: ['plugin', 'config_table', 'service', 'prompt_or_agent'],
         auto_retire_on_optimize: true,
         reason: 'fixture',
       },
@@ -662,6 +663,68 @@ test('installed native descriptor excludes its active marketplace from historica
     assert.deepEqual(packageStatus.managed_policy_currentness.detected_conflicts, []);
     assert.equal(packageStatus.operational_ready, true);
     assert.equal(packageStatus.launch_allowed, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  }
+});
+
+test('managed policy ignores inactive plugin payloads and preserves a manual Ponytail Skill', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-active-conflicts-'));
+  const home = path.join(root, 'home');
+  const codexHome = path.join(home, '.codex');
+  const sourceRoot = path.join(root, 'fixture.opl-flow-source');
+  const manifestPath = writeOplFlowPackage(root, { policyVersion: 'v4' });
+  const env = {
+    HOME: home,
+    CODEX_HOME: codexHome,
+    OPL_CODEX_PLUGIN_BIN: writeInstalledCodexPluginManager(root, sourceRoot),
+    OPL_STATE_DIR: path.join(root, 'state'),
+    OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
+  };
+  try {
+    fs.copyFileSync(manifestPath, path.join(sourceRoot, 'opl-package.json'));
+    writeFile(path.join(home, '.agents', 'skills', 'ponytail', 'SKILL.md'), '# Manual Ponytail\n');
+    writeFile(path.join(codexHome, '.tmp', 'plugins', 'plugins', 'superpowers', 'SKILL.md'), '# Cache\n');
+    writeFile(path.join(codexHome, 'plugins', 'cache', 'superpowers', 'SKILL.md'), '# Cache\n');
+    writeFile(path.join(codexHome, 'config.toml'), [
+      '[marketplaces.superpowers]',
+      'source = "cache-only"',
+      '',
+      '[plugins."superpowers@superpowers"]',
+      'enabled = false',
+      '',
+    ].join('\n'));
+
+    const inactiveStatus = (runCli([
+      'packages',
+      'status',
+      '--package-id',
+      'fixture.opl-flow',
+    ], env) as any).opl_agent_package_status;
+    assert.equal(inactiveStatus.managed_policy_currentness.status, 'current');
+    assert.deepEqual(inactiveStatus.managed_policy_currentness.detected_conflicts, []);
+
+    fs.appendFileSync(path.join(codexHome, 'config.toml'), [
+      '[plugins."ponytail@ponytail"]',
+      'enabled = true',
+      '',
+    ].join('\n'), 'utf8');
+    const activeStatus = (runCli([
+      'packages',
+      'status',
+      '--package-id',
+      'fixture.opl-flow',
+    ], env) as any).opl_agent_package_status;
+    assert.equal(activeStatus.managed_policy_currentness.status, 'drifted');
+    assert.deepEqual(activeStatus.managed_policy_currentness.detected_conflicts.map((entry: any) => ({
+      migration_id: entry.migration_id,
+      surface_kind: entry.surface_kind,
+      canonical_id: entry.canonical_id,
+    })), [{
+      migration_id: 'ponytail',
+      surface_kind: 'config_table',
+      canonical_id: 'plugins.ponytail@ponytail',
+    }]);
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
   }

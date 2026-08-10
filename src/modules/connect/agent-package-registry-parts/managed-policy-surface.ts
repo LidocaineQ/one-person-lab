@@ -28,9 +28,20 @@ import type {
   AgentPackageSpecializedCapabilitiesReadback,
 } from './types.ts';
 
+const MIGRATION_SURFACE_KINDS = [
+  'plugin',
+  'skill',
+  'service',
+  'config_table',
+  'prompt_or_agent',
+] as const;
+
+type MigrationSurfaceKind = typeof MIGRATION_SURFACE_KINDS[number];
+
 type MigrationGroup = {
   id: string;
   discovery_ids: string[];
+  surface_kinds: MigrationSurfaceKind[];
   auto_retire_on_optimize: boolean;
   reason: string;
 };
@@ -428,9 +439,23 @@ function normalizeGroups(value: unknown, field: string) {
         failure_code: 'agent_package_managed_policy_invalid',
       });
     }
+    const surfaceKinds = entry.surface_kinds === undefined
+      ? [...MIGRATION_SURFACE_KINDS]
+      : stringArray(entry.surface_kinds, `${field}[${index}].surface_kinds`);
+    const invalidSurfaceKinds = surfaceKinds.filter((surfaceKind) =>
+      !MIGRATION_SURFACE_KINDS.includes(surfaceKind as MigrationSurfaceKind));
+    if (invalidSurfaceKinds.length > 0) {
+      throw new FrameworkContractError('contract_shape_invalid', `${field}[${index}] has invalid surface kinds.`, {
+        field,
+        index,
+        invalid_surface_kinds: invalidSurfaceKinds,
+        failure_code: 'agent_package_managed_policy_invalid',
+      });
+    }
     return {
       id: entry.id,
       discovery_ids: stringArray(entry.discovery_ids, `${field}[${index}].discovery_ids`),
+      surface_kinds: surfaceKinds as MigrationSurfaceKind[],
       auto_retire_on_optimize: entry.auto_retire_on_optimize === true,
       reason: entry.reason,
     };
@@ -612,20 +637,6 @@ function directDirectoryInventory(root: string, surfaceKind: InventoryItem['surf
   }));
 }
 
-function nestedPluginInventory(root: string, depth = 0): InventoryItem[] {
-  if (depth > 3 || !fs.existsSync(root) || !fs.statSync(root).isDirectory()) return [];
-  return fs.readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
-    if (!entry.isDirectory()) return [];
-    const physicalRef = path.join(root, entry.name);
-    return [{
-      surfaceKind: 'plugin' as const,
-      canonicalId: entry.name,
-      aliases: idAliases(entry.name),
-      physicalRef,
-    }, ...nestedPluginInventory(physicalRef, depth + 1)];
-  });
-}
-
 function serviceInventory(home: string) {
   const roots = [
     path.join(home, 'Library', 'LaunchAgents'),
@@ -669,9 +680,6 @@ function filesystemInventory(home: string, codexHome: string) {
     ...directDirectoryInventory(path.join(home, '.agents', 'skills'), 'skill'),
     ...directDirectoryInventory(path.join(home, '.skills-manager', 'skills'), 'skill'),
     ...directDirectoryInventory(path.join(codexHome, 'skills'), 'skill'),
-    ...nestedPluginInventory(path.join(codexHome, 'plugins', 'cache')),
-    ...nestedPluginInventory(path.join(codexHome, 'plugins', 'data')),
-    ...nestedPluginInventory(path.join(codexHome, '.tmp', 'plugins', 'plugins')),
     ...serviceInventory(home),
     ...promptInventory(codexHome),
   ];
@@ -679,12 +687,11 @@ function filesystemInventory(home: string, codexHome: string) {
 
 function configTableInventory(configPath: string) {
   if (!fs.existsSync(configPath) || !fs.statSync(configPath).isFile()) return [];
-  return fs.readFileSync(configPath, 'utf8').split('\n').flatMap((line): InventoryItem[] => {
-    const match = line.trim().match(/^\[([^\]]+)\]$/);
-    if (!match) return [];
-    const canonicalId = match[1].replaceAll('"', '');
+  return parseTomlDocument(fs.readFileSync(configPath, 'utf8')).tables.flatMap((table): InventoryItem[] => {
+    const canonicalId = table.header.replaceAll('"', '');
     const [namespace, ...identityParts] = canonicalId.split('.');
-    if (namespace === 'projects') return [];
+    if (namespace === 'projects' || namespace === 'marketplaces') return [];
+    if (namespace === 'plugins' && !/^\s*enabled\s*=\s*true\s*(?:#.*)?$/m.test(table.content)) return [];
     const identity = identityParts.length > 0 ? identityParts.join('.') : canonicalId;
     return [{
       surfaceKind: 'config_table',
@@ -757,8 +764,12 @@ function inspectManagedPolicySurface(input: {
   const policy = normalizePolicy(policyPayload, input.identity);
   assertProvidedCapabilities(policy, input.identity);
   const groups = [...policy.conflicts, ...policy.retires];
-  const groupByAlias = new Map(groups.flatMap((group) =>
-    group.discovery_ids.flatMap((id) => idAliases(id).map((alias) => [alias, group] as const))));
+  const groupsByAlias = new Map<string, MigrationGroup[]>();
+  for (const group of groups) {
+    for (const alias of group.discovery_ids.flatMap(idAliases)) {
+      groupsByAlias.set(alias, [...(groupsByAlias.get(alias) ?? []), group]);
+    }
+  }
   const keep = new Set(input.keepMigrationIds ?? []);
   const explicitlyEnabled = input.enabledMigrationIds ? new Set(input.enabledMigrationIds) : null;
   const unknownMigrationIds = [...new Set([
@@ -786,7 +797,7 @@ function inspectManagedPolicySurface(input: {
     .flat()
     .filter((fingerprint) => {
       const aliases = idAliases(fingerprint);
-      return !aliases.some((alias) => groupByAlias.has(alias))
+      return !aliases.some((alias) => groupsByAlias.has(alias))
         && !selfCarrierFingerprints.includes(fingerprint);
     });
   if (unclassifiedFingerprints.length > 0) {
@@ -840,8 +851,11 @@ function inspectManagedPolicySurface(input: {
   const classified = inventory.flatMap((item): ClassifiedInventoryItem[] => {
     if (isCurrentManagedCarrier(item.physicalRef)) return [];
     if (item.surfaceKind === 'config_table' && managedConfigTables.has(item.canonicalId)) return [];
-    const group = item.aliases.map((alias) => groupByAlias.get(alias)).find(Boolean);
-    if (group && enabledGroups.has(group.id)) return [{ item, migrationId: group.id }];
+    const group = item.aliases
+      .flatMap((alias) => groupsByAlias.get(alias) ?? [])
+      .find((candidate) => enabledGroups.has(candidate.id)
+        && candidate.surface_kinds.includes(item.surfaceKind as MigrationSurfaceKind));
+    if (group) return [{ item, migrationId: group.id }];
     const selfCarrier = item.surfaceKind === 'plugin'
       && selfCarrierFingerprints.some((fingerprint) =>
         idAliases(fingerprint).some((alias) => item.aliases.includes(alias)));
