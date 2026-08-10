@@ -3,7 +3,7 @@
   "package_id": "opl-flow",
   "display_name": "OPL Flow",
   "publisher": "one-person-lab",
-  "version": "0.1.42",
+  "version": "0.1.44",
   "source": "first_party",
   "package_role": "workflow_profile",
   "registry_entry": {
@@ -43,8 +43,8 @@
   },
   "codex_surface": {
     "plugin_id": "opl-flow",
-    "plugin_payload_manifest_url": "payloads/opl-flow-0.1.42.json",
-    "carrier_source_commit": "bd9e5a9b23e5e843bf2f0d33e094b1de11244542",
+    "plugin_payload_manifest_url": "payloads/opl-flow-0.1.44.json",
+    "carrier_source_commit": "68926648c31296c0eda0efa4f5a11c41fc40b363",
     "configured_codex_plugin_carrier": {
       "kind": "codex_plugin_manager",
       "plugin_selector": "opl-flow@opl-flow-local",
