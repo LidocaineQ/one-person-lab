@@ -153,6 +153,22 @@ function defaultRunner(input: {
   };
 }
 
+export function createMemoizedCodexPluginListRunner(
+  runner: CodexPluginCommandRunner = defaultRunner,
+): CodexPluginCommandRunner {
+  let pluginListReadback: CodexPluginCommandResult | undefined;
+  return (input) => {
+    if (input.args.length === 3
+      && input.args[0] === 'plugin'
+      && input.args[1] === 'list'
+      && input.args[2] === '--json') {
+      pluginListReadback ??= runner(input);
+      return pluginListReadback;
+    }
+    return runner(input);
+  };
+}
+
 function commandFailure(input: {
   packageId: string;
   action: ConfiguredCodexPluginCarrierAction;

@@ -784,16 +784,19 @@ function buildNoApplyCompanionResult(
   skillIds?: string[],
   toolIds?: OplCompanionToolId[],
   managedSkillDependencies: OplManagedSkillDependency[] = [],
+  toolInspection: 'fast' | 'full' = 'full',
 ): OplCompanionSkillSyncResult {
   const selectedSkills = skillIds ? new Set(skillIds) : null;
   const selectedTools = new Set(toolIds ?? []);
-  const items = buildOplRecommendedSkills(home, managedSkillDependencies)
+  const items = buildOplRecommendedSkills(home, managedSkillDependencies, { toolInspection })
     .filter((skill) => !selectedSkills || selectedSkills.has(skill.skill_id))
     .map((skill) => buildObservedCompanionItem(home, skill, mode));
   const tools = [
     ...(selectedTools.has('officecli') ? [resolveOfficeCliTool(home)] : []),
     ...(selectedTools.has('mineru-open-api') ? [resolveMineruOpenApiTool(home)] : []),
-    ...(selectedTools.has('agent-reach') ? [resolveAgentReachTool(home)] : []),
+    ...(selectedTools.has('agent-reach') ? [resolveAgentReachTool(home, {
+      includeHealthCheck: toolInspection === 'full',
+    })] : []),
   ]
     .filter((tool): tool is OplCompanionToolSyncItem => Boolean(tool))
     .filter((tool) => selectedTools.has(tool.tool_id));
@@ -833,6 +836,7 @@ export function syncOplCompanionSkills(
     toolIds: OplCompanionToolId[];
     networkAccess: OplCompanionNetworkAccess;
     managedSkillDependencies: OplManagedSkillDependency[];
+    toolInspection: 'fast' | 'full';
   }> = {},
 ): OplCompanionSkillSyncResult {
   const mode = options.mode ?? 'observe';
@@ -843,12 +847,15 @@ export function syncOplCompanionSkills(
       options.skillIds,
       options.toolIds,
       options.managedSkillDependencies,
+      options.toolInspection,
     );
   }
 
   const codexSkillsDir = resolveCodexSkillsDir(home);
   const selectedSkills = options.skillIds ? new Set(options.skillIds) : null;
-  const recommendedSkills = buildOplRecommendedSkills(home, options.managedSkillDependencies)
+  const recommendedSkills = buildOplRecommendedSkills(home, options.managedSkillDependencies, {
+    toolInspection: options.toolInspection,
+  })
     .filter((skill) => !selectedSkills || selectedSkills.has(skill.skill_id));
   const items: OplCompanionSkillSyncItem[] = [];
   const selectedTools = new Set(options.toolIds ?? []);
@@ -959,13 +966,16 @@ export function syncOplCompanionSkills(
 export function buildOplRecommendedSkills(
   home = resolveHomeDir(),
   managedSkillDependencies: OplManagedSkillDependency[] = [],
+  options: { toolInspection?: 'fast' | 'full' } = {},
 ): OplRecommendedSkill[] {
   if (managedSkillDependencies.length === 0) return [];
   const selectedToolIds = new Set(managedSkillDependencies.flatMap((dependency) => dependency.requiredTools ?? []));
   const toolReadyById: Record<OplCompanionToolId, boolean> = {
     officecli: selectedToolIds.has('officecli') && Boolean(resolveOfficeCliTool(home)),
     'mineru-open-api': selectedToolIds.has('mineru-open-api') && Boolean(resolveMineruOpenApiTool(home)),
-    'agent-reach': selectedToolIds.has('agent-reach') && Boolean(resolveAgentReachTool(home)),
+    'agent-reach': selectedToolIds.has('agent-reach') && Boolean(resolveAgentReachTool(home, {
+      includeHealthCheck: options.toolInspection !== 'fast',
+    })),
   };
 
   const managedSpecs = managedSkillDependencies.map((dependency): Omit<OplRecommendedSkill, 'status'> => {

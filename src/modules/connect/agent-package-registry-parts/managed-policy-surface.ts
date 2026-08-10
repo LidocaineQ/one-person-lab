@@ -1351,6 +1351,7 @@ export function managedPolicyCurrentnessFromDescriptor(input: {
   activeCarrierIdentity?: string | null;
   enabledMigrationIds?: string[];
   expectedPolicySha256?: string | null;
+  detail?: 'fast' | 'full';
 }): AgentPackageManagedPolicyCurrentness {
   const { manifest, sourceRoot } = input;
   const config = manifest.managed_policy_surface;
@@ -1419,6 +1420,7 @@ export function managedPolicyCurrentnessFromDescriptor(input: {
       toolIds,
       managedSkillDependencies,
       networkAccess: 'forbidden',
+      toolInspection: input.detail === 'fast' ? 'fast' : 'full',
     });
     const dependencyDriftReasons = dependencySyncDriftReasons(dependencySync, skillIds, toolIds);
     const experienceBaseline = experienceBaselineReadback({

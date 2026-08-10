@@ -52,6 +52,7 @@ import {
   discoverInstalledOwnerProfileDescriptors,
 } from './agent-package-registry-parts/installed-codex-plugin-directory.ts';
 import {
+  createMemoizedCodexPluginListRunner,
   githubMarketplaceSourceIdentity,
   runConfiguredCodexPluginCarrier,
   type ConfiguredCodexPluginCarrierAction,
@@ -1823,11 +1824,13 @@ function configuredCarrierReadbacks(
   // Registry cache remains a compatibility directory source and an explicit
   // lifecycle-selection fallback, but must not synthesize installed state.
   const readbacks = new Map<string, ConfiguredCodexPluginCarrierReadback>();
+  const runner = createMemoizedCodexPluginListRunner();
   for (const discovered of installedCodexPluginDescriptors.values()) {
     if (packageId && discovered.manifest.package_id !== packageId) continue;
     readbacks.set(discovered.manifest.package_id, runConfiguredCodexPluginCarrier({
       descriptor: discovered.carrier,
       action: 'list',
+      runner,
     }));
   }
   for (const [projectedPackageId, descriptor] of firstPartyConfiguredCarrierDescriptors()) {
@@ -1836,6 +1839,7 @@ function configuredCarrierReadbacks(
     readbacks.set(projectedPackageId, runConfiguredCodexPluginCarrier({
       descriptor,
       action: 'list',
+      runner,
     }));
   }
   return readbacks;
@@ -1995,6 +1999,7 @@ function buildOplAgentPackageStatus(
         },
         sourceRoot: installedDescriptor.sourcePath,
         activeCarrierIdentity: installedDescriptor.carrier_readback.identity,
+        detail: input.detail === 'fast' ? 'fast' : 'full',
       })
     : {
         surface_kind: 'opl_package_managed_policy_currentness' as const,

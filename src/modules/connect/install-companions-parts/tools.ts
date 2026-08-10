@@ -238,9 +238,13 @@ function inspectMineruOpenApiBinary(binaryPath: string | null): OplCompanionTool
 
 const AGENT_REACH_CORE_CHANNELS = ['web', 'youtube', 'rss', 'github', 'bilibili', 'v2ex'] as const;
 
-function inspectAgentReachBinary(binaryPath: string | null): OplCompanionToolSyncItem | null {
+function inspectAgentReachBinary(
+  binaryPath: string | null,
+  options: { includeHealthCheck?: boolean } = {},
+): OplCompanionToolSyncItem | null {
   const inspected = inspectToolBinary('agent-reach', binaryPath, ['--version']);
   if (!inspected || !binaryPath) return null;
+  if (options.includeHealthCheck === false) return inspected;
   const doctorOutput = runCommandForOutput(binaryPath, ['doctor', '--json'], 15_000);
   let doctor: Record<string, unknown> | null = null;
   try {
@@ -310,14 +314,17 @@ export function resolveMineruOpenApiTool(home: string): OplCompanionToolSyncItem
   return null;
 }
 
-export function resolveAgentReachTool(home: string): OplCompanionToolSyncItem | null {
+export function resolveAgentReachTool(
+  home: string,
+  options: { includeHealthCheck?: boolean } = {},
+): OplCompanionToolSyncItem | null {
   const candidates = [
     process.env.OPL_AGENT_REACH_BIN?.trim() || null,
     findExecutableInPath('agent-reach'),
     path.join(home, '.local', 'bin', 'agent-reach'),
   ];
   for (const candidate of candidates) {
-    const inspected = inspectAgentReachBinary(candidate);
+    const inspected = inspectAgentReachBinary(candidate, options);
     if (inspected) return inspected;
   }
   return null;

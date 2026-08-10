@@ -554,6 +554,33 @@ test('Agent Reach owner adapter installs its Skill and requires core doctor chan
     assert.equal(observed.items[0]?.status, 'ready');
     const observedCalls = fs.readFileSync(calls, 'utf8').trim().split('\n');
     assert.equal(observedCalls.filter((call) => call === 'skill --install').length, 1);
+
+    fs.writeFileSync(calls, '', 'utf8');
+    const fastObserved = syncOplCompanionSkills(home, {
+      mode: 'observe',
+      skillIds: [],
+      toolIds: ['agent-reach'],
+      managedSkillDependencies: [],
+      networkAccess: 'forbidden',
+      toolInspection: 'fast',
+    });
+    assert.equal(fastObserved.tools[0]?.status, 'ready');
+    assert.equal(fastObserved.tools[0]?.health_check, undefined);
+    const fastCalls = fs.readFileSync(calls, 'utf8').trim().split('\n').filter(Boolean);
+    assert.deepEqual(fastCalls, ['--version']);
+
+    fs.writeFileSync(calls, '', 'utf8');
+    const fullObserved = syncOplCompanionSkills(home, {
+      mode: 'observe',
+      skillIds: [],
+      toolIds: ['agent-reach'],
+      managedSkillDependencies: [],
+      networkAccess: 'forbidden',
+      toolInspection: 'full',
+    });
+    assert.equal(fullObserved.tools[0]?.health_check?.status, 'ready');
+    const fullCalls = fs.readFileSync(calls, 'utf8').trim().split('\n').filter(Boolean);
+    assert.deepEqual(fullCalls, ['--version', 'doctor --json']);
   } finally {
     if (previousBinary === undefined) delete process.env.OPL_AGENT_REACH_BIN;
     else process.env.OPL_AGENT_REACH_BIN = previousBinary;

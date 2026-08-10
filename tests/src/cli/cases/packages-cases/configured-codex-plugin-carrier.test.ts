@@ -23,6 +23,7 @@ import {
   resolveAgentPluginManifest,
 } from '../../../../../src/kernel/agent-plugin-manifest.ts';
 import {
+  createMemoizedCodexPluginListRunner,
   runConfiguredCodexPluginCarrier,
   type CodexPluginCommandRunner,
 } from '../../../../../src/modules/connect/agent-package-registry-parts/configured-codex-plugin-carrier.ts';
@@ -50,6 +51,31 @@ const descriptor = {
   },
   publicationRef: 'oci://example.invalid/third-party-research:latest-stable',
 };
+
+test('configured carrier snapshot reuses one Codex plugin list across descriptors', () => {
+  let calls = 0;
+  const runner = createMemoizedCodexPluginListRunner(() => {
+    calls += 1;
+    return {
+      status: 0,
+      stdout: pluginList([]),
+      stderr: '',
+      error: null,
+    };
+  });
+  runConfiguredCodexPluginCarrier({ descriptor, action: 'list', runner });
+  runConfiguredCodexPluginCarrier({
+    descriptor: {
+      ...descriptor,
+      packageId: 'another.package',
+      carrier: { ...descriptor.carrier, pluginId: 'another-package@fixture-carrier' },
+      executor: { ...descriptor.executor, requiredSkillIds: [] },
+    },
+    action: 'list',
+    runner,
+  });
+  assert.equal(calls, 1);
+});
 
 test('Agent Plugins 1.0 manifests win globally and fatal standard errors never fall back to legacy', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-plugin-resolution-'));

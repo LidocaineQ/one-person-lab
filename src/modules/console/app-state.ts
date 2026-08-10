@@ -968,8 +968,10 @@ export async function buildOplAppState(input: {
     packageProjectionItems: runtimeSourceCarriers,
     packageStatusById: agentPackageStatuses,
     bindings: workspaceBindings,
-    resolveDescriptor: (agentId) =>
-      readInstalledStandardAgentDescriptorForDomain(agentId, readAgentPackageStatus),
+    resolveDescriptor: (agentId) => readInstalledStandardAgentDescriptorForDomain(
+      agentId,
+      (statusInput = {}) => readAgentPackageStatus({ ...statusInput, detail: profile }),
+    ),
   });
   const runtimeActivityItems = profile === 'full'
     ? projectRuntimeActivityItems(workItemProjectionV2)
