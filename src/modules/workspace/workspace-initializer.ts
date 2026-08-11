@@ -2,7 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
-import { requireAgentPackageReadinessPort } from '../../kernel/agent-package-readiness-port.ts';
+import {
+  requireAgentPackageReadinessPort,
+  type AgentPackageReadinessPort,
+} from '../../kernel/agent-package-readiness-port.ts';
 import {
   AGENT_WORKSPACE_NORM_CONTRACT_REF,
   buildAgentWorkspaceNormProjection,
@@ -65,6 +68,7 @@ export type WorkspaceInitializeOptions = {
   bind?: boolean;
   dryRun?: boolean;
   force?: boolean;
+  packageReadiness?: AgentPackageReadinessPort;
 };
 
 export type WorkspaceEnsureOptions = WorkspaceInitializeOptions;
@@ -149,8 +153,9 @@ function refreshWorkspaceProfessionalSkills(input: {
   packageId: string;
   workspacePath: string;
   dryRun: boolean;
+  packageReadiness?: AgentPackageReadinessPort;
 }) {
-  const port = requireAgentPackageReadinessPort();
+  const port = input.packageReadiness ?? requireAgentPackageReadinessPort();
   const packageStatus = port.readStatus({
     packageId: input.packageId,
     scope: 'workspace',
@@ -646,6 +651,7 @@ export function initializeWorkspace(
     packageId: agent.agent_id,
     workspacePath,
     dryRun: options.dryRun === true,
+    packageReadiness: options.packageReadiness,
   });
 
   return {
@@ -829,6 +835,7 @@ export function ensureWorkspace(
       packageId: agent.agent_id,
       workspacePath: activeWorkspacePath,
       dryRun: options.dryRun === true,
+      packageReadiness: options.packageReadiness,
     });
     return {
       version: 'g2',

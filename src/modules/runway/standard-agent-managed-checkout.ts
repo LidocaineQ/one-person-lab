@@ -353,6 +353,7 @@ export async function resolveStandardAgentManagedCheckout(input: {
     : ensureWorkspace(loadFrameworkContracts(), {
         agentId: agent.agent_id,
         workspacePath: requestedWorkspaceRoot,
+        packageReadiness,
       });
   const workspaceRoot = fs.realpathSync.native(workspaceEnsure.workspace_initialization.workspace_path);
 
