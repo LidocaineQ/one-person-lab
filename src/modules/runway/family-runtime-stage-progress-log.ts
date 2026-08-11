@@ -18,9 +18,9 @@ import {
 import { buildStageAttemptRuntimeCurrentness } from './family-runtime-stage-attempt-runtime-currentness.ts';
 import { isRecord } from '../../kernel/contract-validation.ts';
 import {
-  standardAgentProgressDeltaKeySet,
+  standardAgentProgressDeltaKeySetFromPackagePort,
   type StandardAgentProgressDeltaKeySet,
-} from '../connect/index.ts';
+} from '../../kernel/agent-package-readiness-port.ts';
 import {
   recordList as sharedRecordList,
   stringList as sharedStringList,
@@ -592,7 +592,8 @@ function buildUserStageLog(input: StageProgressLogInput, durationMsObserved: num
   const duration = durationForUserStageLog(input, durationMsObserved);
   const tokens = tokenUsageForUserStageLog(input);
   const cost = costForUserStageLog(input);
-  const progressDeltaKeys = input.progressDeltaKeys ?? standardAgentProgressDeltaKeySet(input.domainId);
+  const progressDeltaKeys = input.progressDeltaKeys
+    ?? standardAgentProgressDeltaKeySetFromPackagePort(input.domainId);
   const missingDomainFields = missingDomainStageLogFields(semanticSummary, progressDeltaKeys);
   const stageName = semanticText(semanticSummary, ['stage_name', 'stage_label', 'name'])
     ?? `${input.domainId}/${input.stageId}`;

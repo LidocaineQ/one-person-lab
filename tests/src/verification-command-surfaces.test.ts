@@ -405,6 +405,10 @@ test('scripts/verify.sh provides the canonical verification wrapper', () => {
   assert.match(verifyScript, /node scripts\/line-budget\.mjs/);
   assert.match(verifyScript, /node scripts\/line-budget\.mjs --strict/);
   assert.match(verifyScript, /OPL_STRUCTURAL_QUALITY_STRICT=1/);
+  assert.equal(
+    (verifyScript.match(/npm run source:modules -- --strict-imports --strict-cycles/g) ?? []).length,
+    2,
+  );
   assert.match(verifyScript, /npm run reuse-first:scan:diff/);
   assert.equal(
     (verifyScript.match(/node scripts\/line-budget\.mjs/g) ?? []).length,

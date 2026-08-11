@@ -395,6 +395,7 @@ const readModelGateNonTemporalHeavyTestFiles = readModelGateTestFiles.filter(
 
 const lanes = {
   smoke: [
+    { kind: 'npm', args: ['run', 'source:modules', '--', '--strict-imports', '--strict-cycles'] },
     nodeTest([
       'tests/src/verification-command-surfaces.test.ts',
       'tests/src/target-architecture-schema-contracts.test.ts',

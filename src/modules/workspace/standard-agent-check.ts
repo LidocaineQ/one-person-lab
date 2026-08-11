@@ -4,8 +4,8 @@ import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
+import { inspectStandardAgentFrameworkImports } from '../../kernel/standard-agent-framework-imports.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
-import { inspectStandardAgentFrameworkImports } from '../connect/index.ts';
 import { buildGeneratedAgentInterfaces } from '../pack/index.ts';
 import { buildAgentProfileConformance } from '../pack/index.ts';
 import { validateStandardDomainAgentScaffold } from '../pack/index.ts';

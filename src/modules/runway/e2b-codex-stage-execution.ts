@@ -10,7 +10,7 @@ import { stringValue as optionalString } from '../../kernel/json-record.ts';
 import { isRecord, normalizeTimeoutMs, type JsonRecord } from './family-runtime-codex-stage-runner-parts/shared.ts';
 import { inspectExternalSandboxProviderAdapterEnv } from './external-sandbox-provider-adapter.ts';
 import type { RunnerEventSummary } from './family-runtime-codex-stage-runner-parts/input-prompt.ts';
-import { projectionFiles } from '../connect/index.ts';
+import { agentPackageSkillProjectionFiles } from '../../kernel/agent-package-skill-projection.ts';
 import { sandboxAttemptSkillRuntime } from './family-runtime-attempt-skill-projection.ts';
 
 type E2bCommandResult = {
@@ -386,7 +386,7 @@ export async function runCodexInE2bSandbox(input: {
       failureCode: 'agent_package_skill_projection_sandbox_mkdir_failed',
       generationId: skillRuntime.projection.generation_id,
     });
-    for (const file of projectionFiles(skillRuntime.projection)) {
+    for (const file of agentPackageSkillProjectionFiles(skillRuntime.projection)) {
       const relativePath = file.relative_path.split(path.sep).join(path.posix.sep);
       const targetPath = path.posix.join(skillRuntime.skillsRoot, relativePath);
       await runRequiredE2bPreparation({

@@ -24,10 +24,12 @@ case "$lane" in
     npm run test:integration
     ;;
   structure)
+    npm run source:modules -- --strict-imports --strict-cycles
     node scripts/line-budget.mjs
     ./scripts/run-structural-quality-gate.sh
     ;;
   structure:strict)
+    npm run source:modules -- --strict-imports --strict-cycles
     node scripts/line-budget.mjs --strict
     OPL_STRUCTURAL_QUALITY_STRICT=1 ./scripts/run-structural-quality-gate.sh
     ;;

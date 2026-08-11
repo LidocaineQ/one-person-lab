@@ -1,5 +1,9 @@
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
 import {
+  readStandardAgentDescriptorForDomainFromPackagePort,
+  resolveStandardAgentContractCheckoutFromPackagePort,
+} from '../../kernel/agent-package-readiness-port.ts';
+import {
   resolveStandardAgent,
   STANDARD_AGENT_REGISTRY,
   STANDARD_AGENT_SERIES_MEMBERSHIP,
@@ -10,10 +14,6 @@ import {
   type StandardAgentInventoryProjection,
   type StandardAgentDescriptorInterface,
 } from '../../kernel/standard-agent-interface.ts';
-import {
-  readStandardAgentDescriptorForDomain,
-  resolveStandardAgentContractCheckout,
-} from '../connect/index.ts';
 
 type WorkspaceAgentRegistryEntry = Extract<
   typeof STANDARD_AGENT_REGISTRY[number],
@@ -39,7 +39,8 @@ export type WorkspaceAgentProfile = {
 
 function workspaceProfile(
   entry: WorkspaceAgentRegistryEntry,
-  descriptor: StandardAgentDescriptorInterface | null = readStandardAgentDescriptorForDomain(entry.target_domain_id),
+  descriptor: StandardAgentDescriptorInterface | null =
+    readStandardAgentDescriptorForDomainFromPackagePort(entry.target_domain_id),
 ): WorkspaceAgentProfile {
   const declared = descriptor
     ? assertStandardAgentDescriptorIdentity(descriptor, {
@@ -98,16 +99,11 @@ export function findWorkspaceAgentProfile(value: string | undefined) {
       allowed_agents: listWorkspaceAgentProfiles().map((entry) => entry.agent_id),
     });
   }
-  const descriptor = readStandardAgentDescriptorForDomain(entry.target_domain_id);
+  const descriptor = readStandardAgentDescriptorForDomainFromPackagePort(entry.target_domain_id);
   if (descriptor) {
     return workspaceProfile(entry, descriptor);
   }
-  const resolution = resolveStandardAgentContractCheckout(
-    entry.target_domain_id,
-    undefined,
-    undefined,
-    { result: 'typed_resolution' },
-  );
+  const resolution = resolveStandardAgentContractCheckoutFromPackagePort(entry.target_domain_id);
   if (resolution.status === 'resolved' && resolution.checkout) {
     throw new FrameworkContractError(
       'contract_shape_invalid',

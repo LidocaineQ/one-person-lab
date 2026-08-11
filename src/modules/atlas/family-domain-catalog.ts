@@ -1,6 +1,9 @@
 import type { DomainManifestCatalogEntry } from './domain-manifest/types.ts';
 import { record, stringList, stringValue, type JsonRecord } from '../../kernel/json-record.ts';
-import { getActiveWorkspaceBinding, type WorkspaceBinding } from '../workspace/index.ts';
+import {
+  readWorkspaceBindingPort,
+  type WorkspaceBinding,
+} from '../../kernel/workspace-binding-port.ts';
 
 type BuildFamilyDomainCatalogOptions = {
   resolveActiveWorkspaceBinding?: (projectId: string) => WorkspaceBinding | null;
@@ -139,7 +142,9 @@ function resolveActiveBinding(
   projectId: string,
   options: BuildFamilyDomainCatalogOptions,
 ) {
-  return (options.resolveActiveWorkspaceBinding ?? getActiveWorkspaceBinding)(projectId);
+  const resolver = options.resolveActiveWorkspaceBinding
+    ?? readWorkspaceBindingPort()?.getActiveWorkspaceBinding;
+  return resolver?.(projectId) ?? null;
 }
 
 function hasDomainAgentEntrySpec(manifest: DomainManifestCatalogEntry['manifest']) {

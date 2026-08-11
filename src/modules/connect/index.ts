@@ -2,11 +2,28 @@ import { registerAgentPackageReadinessPort } from '../../kernel/agent-package-re
 import { runOplAgentPackageStatus } from './agent-package-registry.ts';
 import { resolveAgentPackageEffectiveSourcePolicy } from './agent-package-registry-parts/source-policy.ts';
 import { refreshInstalledAgentPackageWorkspaceSkills } from './agent-package-registry-parts/skill-projection.ts';
+import {
+  readInstalledStandardAgentDescriptorForPackage,
+  readPackageManagedStandardAgentDescriptor,
+  readStandardAgentDescriptorForDomain,
+  resolveStandardAgentContractCheckout,
+  standardAgentProgressDeltaKeySet,
+} from './standard-agent-interface-discovery.ts';
 
 registerAgentPackageReadinessPort({
   readStatus: runOplAgentPackageStatus,
   readSourcePolicy: resolveAgentPackageEffectiveSourcePolicy,
   refreshWorkspaceSkills: refreshInstalledAgentPackageWorkspaceSkills,
+  readInstalledStandardAgentDescriptorForPackage,
+  readPackageManagedStandardAgentDescriptor,
+  readStandardAgentDescriptorForDomain,
+  resolveStandardAgentContractCheckout: (domainId) => resolveStandardAgentContractCheckout(
+    domainId,
+    undefined,
+    undefined,
+    { result: 'typed_resolution' },
+  ),
+  standardAgentProgressDeltaKeySet,
 });
 
 export const OPL_CONNECT_SOURCE_MODULE = {

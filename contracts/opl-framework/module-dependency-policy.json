@@ -29,10 +29,10 @@
     "reason": "Cross-module imports must use the target module public index or a thin public entry under public/**. The previous transition baseline has been migrated, so new internal cross-module imports fail the default source module boundary check."
   },
   "module_dependency_cycles": {
-    "failure_mode": "advisory",
+    "failure_mode": "strict",
     "strict_flag": "--strict-cycles",
     "detection": "directed_scc_from_cross_module_import_pair_graph",
-    "reason": "The current Framework source has public-entry-level module cycles. The checker reports strongly connected module components by default and fails only when this field or --strict-cycles asks for strict enforcement."
+    "reason": "The current Framework source module graph is acyclic. New public-entry-level strongly connected components fail the default source module boundary check."
   },
   "completion_audit_policy": {
     "done_evidence_fields": [
@@ -83,6 +83,26 @@
         "from_module_id": "foundry",
         "to_module_id": "console",
         "reason": "Foundry Kernel owns producer-neutral FoundryRun orchestration; Console-owned readiness and operator projections must not become a Foundry prerequisite."
+      },
+      {
+        "from_module_id": "atlas",
+        "to_module_id": "connect",
+        "reason": "Atlas owns catalogs and resolution projections; installed Package descriptor and checkout discovery enter through the kernel-owned readiness port rather than Connect implementation imports."
+      },
+      {
+        "from_module_id": "atlas",
+        "to_module_id": "workspace",
+        "reason": "Atlas consumes Workspace binding data through the kernel-owned binding port; Workspace remains the registry implementation owner."
+      },
+      {
+        "from_module_id": "runway",
+        "to_module_id": "connect",
+        "reason": "Runway owns execution and consumes Package readiness contracts through kernel-owned ports; Connect remains the installation and discovery implementation owner."
+      },
+      {
+        "from_module_id": "workspace",
+        "to_module_id": "connect",
+        "reason": "Workspace consumes Package descriptor and framework-import contracts through kernel-owned ports and primitives rather than Connect implementation imports."
       }
     ],
     "next_forbidden_dependency_candidates": [

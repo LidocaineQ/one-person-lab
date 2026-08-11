@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import type { SpawnSyncReturns } from 'node:child_process';
 import fs from 'node:fs';
 
-import type { WorkspaceBinding } from '../../workspace/index.ts';
+import type { WorkspaceBinding } from '../../../kernel/workspace-binding-port.ts';
 import {
   buildManagedShellEnvWithUvCacheRecovery,
   buildManagedShellRecoveryTmpRoot,

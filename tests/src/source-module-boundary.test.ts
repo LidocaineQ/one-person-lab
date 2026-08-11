@@ -230,13 +230,13 @@ test('source module boundary reports current repo cross-module import summary', 
   assert.equal(summary.cross_module_imports.policy.source_scan_scope, 'all_module_ts_files');
   assert.equal(summary.cross_module_imports.policy.deep_import_failure_mode, 'strict');
   assert.equal(summary.cross_module_imports.policy.strict_imports_requested, false);
-  assert.equal(summary.cross_module_imports.policy.dependency_cycle_failure_mode, 'advisory');
+  assert.equal(summary.cross_module_imports.policy.dependency_cycle_failure_mode, 'strict');
   assert.equal(summary.cross_module_imports.policy.strict_cycles_requested, false);
   assert.equal(summary.cross_module_imports.deep_import_violations.enforced, true);
   assert.equal(summary.cross_module_imports.deep_import_violations.count, 0);
   assert.equal(summary.cross_module_imports.forbidden_dependency_violations.count, 0);
-  assert.equal(summary.cross_module_imports.dependency_cycles.enforced, false);
-  assert.equal(summary.cross_module_imports.dependency_cycles.count, 1);
+  assert.equal(summary.cross_module_imports.dependency_cycles.enforced, true);
+  assert.equal(summary.cross_module_imports.dependency_cycles.count, 0);
   assert.equal(summary.module_entrypoints.unexpected_module_roots.length, 0);
   assert.ok(summary.cross_module_imports.pair_counts.length > 0);
   assert.equal(

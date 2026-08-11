@@ -21,7 +21,7 @@ import {
   buildStageProgressLog,
   summarizeStageProgressLogs,
 } from './family-runtime-stage-progress-log.ts';
-import type { StandardAgentProgressDeltaKeySet } from '../connect/index.ts';
+import type { StandardAgentProgressDeltaKeySet } from '../../kernel/agent-package-readiness-port.ts';
 import {
   buildStageRunCurrentnessIdentity,
   missingStageRunCurrentnessIdentityFields,

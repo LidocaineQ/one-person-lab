@@ -4,10 +4,12 @@ import path from 'node:path';
 
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
 import {
+  readStandardAgentDescriptorForDomainFromPackagePort,
+} from '../../kernel/agent-package-readiness-port.ts';
+import {
   resolveStandardAgentSourceMaterialConsumerRoute,
 } from '../../kernel/standard-agent-interface.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
-import { readStandardAgentDescriptorForDomain } from '../connect/index.ts';
 import { writeJsonArtifact } from './workspace-artifacts.ts';
 import { readValidatedWorkspaceIndex } from './workspace-lifecycle.ts';
 
@@ -58,7 +60,7 @@ function mimeTypeFor(filePath: string) {
 function sourceMaterialConsumerRoute(agentId: string, role: string) {
   let repoDir: string | null = null;
   try {
-    repoDir = readStandardAgentDescriptorForDomain(agentId)?.repo_dir ?? null;
+    repoDir = readStandardAgentDescriptorForDomainFromPackagePort(agentId)?.repo_dir ?? null;
   } catch {
     return resolveStandardAgentSourceMaterialConsumerRoute(null, role);
   }

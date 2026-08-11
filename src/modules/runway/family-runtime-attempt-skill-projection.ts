@@ -5,7 +5,7 @@ import {
   agentPackageSkillProjectionFromUnknown,
   assertAgentPackageSkillProjection,
   type AgentPackageSkillProjection,
-} from '../connect/index.ts';
+} from '../../kernel/agent-package-skill-projection.ts';
 import { isRecord, type JsonRecord } from './family-runtime-codex-stage-runner-parts/shared.ts';
 
 function projectionFromAttempt(attempt: JsonRecord) {

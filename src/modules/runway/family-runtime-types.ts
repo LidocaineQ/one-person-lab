@@ -4,13 +4,18 @@ import {
   STANDARD_AGENT_SERIES_MEMBERSHIP,
   type StandardAgentRegistryEntry,
 } from '../../kernel/standard-agent-registry.ts';
-import { readStandardAgentDescriptorForDomain } from '../connect/index.ts';
+import {
+  readStandardAgentDescriptorForDomainFromPackagePort,
+} from '../../kernel/agent-package-readiness-port.ts';
+import type { StandardAgentDescriptorInterface } from '../../kernel/standard-agent-interface.ts';
 
 type RuntimeAgent = StandardAgentRegistryEntry & {
   series_membership: typeof STANDARD_AGENT_SERIES_MEMBERSHIP;
 };
 
-type StandardAgentDescriptorReader = typeof readStandardAgentDescriptorForDomain;
+type StandardAgentDescriptorReader = (
+  domainId: string,
+) => StandardAgentDescriptorInterface | null;
 
 export type FamilyRuntimeDomainId = string;
 
@@ -28,14 +33,14 @@ function runtimeEnabledStandardAgents() {
 
 function descriptorFor(
   entry: RuntimeAgent,
-  readDescriptor: StandardAgentDescriptorReader = readStandardAgentDescriptorForDomain,
+  readDescriptor: StandardAgentDescriptorReader = readStandardAgentDescriptorForDomainFromPackagePort,
 ) {
   return readDescriptor(entry.target_domain_id);
 }
 
 function runtimeProfile(
   entry: RuntimeAgent,
-  readDescriptor: StandardAgentDescriptorReader = readStandardAgentDescriptorForDomain,
+  readDescriptor: StandardAgentDescriptorReader = readStandardAgentDescriptorForDomainFromPackagePort,
 ): StandardAgentFamilyRuntimeProfile {
   const runtime = descriptorFor(entry, readDescriptor)?.interface.runtime;
   return {
@@ -51,7 +56,7 @@ export const FAMILY_RUNTIME_DOMAIN_IDS = runtimeEnabledStandardAgents().map((ent
 
 export function runtimeDomainProfileFor(
   domainId: string,
-  readDescriptor: StandardAgentDescriptorReader = readStandardAgentDescriptorForDomain,
+  readDescriptor: StandardAgentDescriptorReader = readStandardAgentDescriptorForDomainFromPackagePort,
 ): StandardAgentFamilyRuntimeProfile | null {
   const entry = resolveStandardAgent(domainId);
   return entry?.series_membership === STANDARD_AGENT_SERIES_MEMBERSHIP
@@ -90,7 +95,7 @@ export function runtimeDomainOwnerProfiles() {
 }
 
 export function runtimeManagerDomainProfiles(
-  readDescriptor: StandardAgentDescriptorReader = readStandardAgentDescriptorForDomain,
+  readDescriptor: StandardAgentDescriptorReader = readStandardAgentDescriptorForDomainFromPackagePort,
 ) {
   return runtimeEnabledStandardAgents().map((entry) => {
     const profile = runtimeProfile(entry, readDescriptor);

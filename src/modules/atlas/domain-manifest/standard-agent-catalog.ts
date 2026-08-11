@@ -5,7 +5,9 @@ import {
   STANDARD_AGENT_REGISTRY,
   STANDARD_AGENT_SERIES_MEMBERSHIP,
 } from '../../../kernel/standard-agent-registry.ts';
-import { resolveStandardAgentContractCheckout } from '../../connect/index.ts';
+import {
+  resolveStandardAgentContractCheckoutFromPackagePort,
+} from '../../../kernel/agent-package-readiness-port.ts';
 import { buildDomainManifestCatalog, type DomainManifestCatalog } from './catalog-builder.ts';
 import { loadManagedStandardAgentContractCatalog } from './managed-standard-agent-contracts.ts';
 import { normalizeManifest } from './normalizers.ts';
@@ -203,12 +205,7 @@ function buildStandardAgentCatalogEntry(
   agent: StandardAgent,
   legacyEntry: DomainManifestCatalogEntry | null,
 ): DomainManifestCatalogEntry {
-  const resolution = resolveStandardAgentContractCheckout(
-    agent.agent_id,
-    undefined,
-    undefined,
-    { result: 'typed_resolution' },
-  );
+  const resolution = resolveStandardAgentContractCheckoutFromPackagePort(agent.agent_id);
   if (!resolution.checkout) {
     return {
       project_id: agent.domain_id,
