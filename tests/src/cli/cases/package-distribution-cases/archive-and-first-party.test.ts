@@ -1018,36 +1018,36 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
   const manifest = manifests.mas;
   const expectedReleases: Record<string, { version: string; sourceCommit: string; payloadRef: string }> = {
     mas: {
-      version: '0.2.26',
-      sourceCommit: 'e956ef62f1b92f1f18fd5fbe56674c1289e79c72',
-      payloadRef: 'payloads/mas-0.2.26.json',
+      version: '0.2.27',
+      sourceCommit: 'e4784dc5d187d945e0379b72b6afd0265bb03cae',
+      payloadRef: 'payloads/mas-0.2.27.json',
     },
     mag: {
-      version: '0.3.9',
-      sourceCommit: '1ee26d285b0ce5a66a5292296ad37b9dfbdca653',
-      payloadRef: 'payloads/mag-0.3.9.json',
+      version: '0.3.10',
+      sourceCommit: '2a40d5fbbdf5ed64e2d1bb550008a942e70edad8',
+      payloadRef: 'payloads/mag-0.3.10.json',
     },
     rca: {
-      version: '0.2.14',
-      sourceCommit: '16e42cc05301b33ae5881f0fca3556ed1e418742',
-      payloadRef: 'payloads/rca-0.2.14.json',
+      version: '0.2.15',
+      sourceCommit: '99f9b3c5d72dd512ef0a45fd6a2b0647a2d7e1f5',
+      payloadRef: 'payloads/rca-0.2.15.json',
     },
     oma: {
-      version: '0.4.8',
-      sourceCommit: '6e8b92e32753ad771afd33ddd0fd0aea18c2b20e',
-      payloadRef: 'payloads/oma-0.4.8.json',
+      version: '0.4.9',
+      sourceCommit: '13b9a151c1a05fb384f77ed7439adb3b1ece9c38',
+      payloadRef: 'payloads/oma-0.4.9.json',
     },
     obf: {
-      version: '0.3.10',
-      sourceCommit: '4df70ebba59968835cc9f606e53070d39f00d0dd',
-      payloadRef: 'payloads/obf-0.3.10.json',
+      version: '0.3.11',
+      sourceCommit: '92e3f4e70da94d079466276ae9e5df3bf0175139',
+      payloadRef: 'payloads/obf-0.3.11.json',
     },
   };
 
   assert.equal(manifest.schema_ref, 'contracts/opl-framework/agent-package-manifest.schema.json');
   assert.equal(manifest.package_id, 'mas');
   assert.equal(manifest.agent_id, 'mas');
-  assert.equal(manifest.version, '0.2.26');
+  assert.equal(manifest.version, '0.2.27');
   assert.equal(manifest.carrier_source_role, 'codex_plugin_default_carrier_not_package_truth');
   assert.equal(schema.required.includes('distribution_payload'), false);
   assert.equal(schema.properties.distribution_payload.properties.install_truth.const, 'resolved_digest_lock');
@@ -1070,8 +1070,8 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
       'en-US': 'Med Auto Science',
     },
     description_i18n: {
-      'zh-CN': '用于科研选题、文献分析、数据分析、论文写作、审稿、返修和投稿。',
-      'en-US': 'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.',
+      'zh-CN': '医学研究选题、文献分析、数据分析、论文写作、审稿、返修与投稿。',
+      'en-US': 'Medical research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.',
     },
     session_routing_summary_i18n: {
       'zh-CN': '科研、论文、数据分析、审稿、返修和投稿',
@@ -1098,8 +1098,8 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
       'zh-CN': 'OPL Meta Agent',
     },
     description_i18n: {
-      'en-US': 'Turns an Agent engineering objective into a reviewable semantic design.',
-      'zh-CN': '将智能体工程目标转化为可审查的语义设计。',
+      'en-US': 'OPL agent design, review, takeover, and evolution.',
+      'zh-CN': 'OPL 智能体的设计、评审、接管与演进。',
     },
     session_routing_summary_i18n: {
       'en-US': 'Create, take over, or improve an Agent through OPL Foundry.',
@@ -1119,6 +1119,19 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
         codex_visible_entry: 'opl-meta-agent',
       },
     }],
+  });
+  const expectedBrandNames: Record<string, string> = {
+    mag: 'Med Auto Grant',
+    mas: 'Med Auto Science',
+    obf: 'OPL Book Forge',
+    oma: 'OPL Meta Agent',
+    rca: 'RedCube AI',
+  };
+  Object.values(manifests).forEach((sourceManifest) => {
+    assert.equal(sourceManifest.presentation.display_name_i18n['en-US'], expectedBrandNames[sourceManifest.package_id]);
+    assert.equal(sourceManifest.presentation.display_name_i18n['zh-CN'], expectedBrandNames[sourceManifest.package_id]);
+    assert.equal(typeof sourceManifest.presentation.description_i18n['en-US'], 'string');
+    assert.equal(typeof sourceManifest.presentation.description_i18n['zh-CN'], 'string');
   });
   assert.deepEqual(manifest.codex_surface.required_skill_ids, ['med-autoscience']);
   assert.deepEqual(manifest.codex_surface.bundled_capability_package_ids, ['mas-scholar-skills']);
@@ -1580,7 +1593,7 @@ test('bundled Full MAS source projection advances to the immutable ordinary pack
     'd2ec1d23c37c337b96b18601071ca09be89c43946971e87b3aba8c759107df6e');
   assert.equal(priorOrdinaryManifest.version, '0.2.20');
   assert.equal(priorOrdinaryManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mas-0.2.20.json');
-  assert.equal(ordinaryManifest.version, '0.2.26');
+  assert.equal(ordinaryManifest.version, '0.2.27');
 });
 
 test('bundled Full MAG source projection advances to the immutable ordinary package version', () => {
@@ -1602,7 +1615,7 @@ test('bundled Full MAG source projection advances to the immutable ordinary pack
     '65f606d9ee8b8db722b51f8034008341d6abe4ae5697f760a2aad958807e0978');
   assert.equal(frozenManifest.version, '0.3.8');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mag-0.3.8.json');
-  assert.equal(ordinaryManifest.version, '0.3.9');
+  assert.equal(ordinaryManifest.version, '0.3.10');
 });
 
 test('bundled Full RCA source projection advances to the immutable ordinary package version', () => {
@@ -1624,7 +1637,7 @@ test('bundled Full RCA source projection advances to the immutable ordinary pack
     '8d638fd1c7555dc8d805ca3dbbdd5c5cd287b651ed68c9394bd2dc16d17f9c83');
   assert.equal(frozenManifest.version, '0.2.13');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/rca-0.2.13.json');
-  assert.equal(ordinaryManifest.version, '0.2.14');
+  assert.equal(ordinaryManifest.version, '0.2.15');
 });
 
 test('bundled Full OMA source projection advances independently of ordinary publication', () => {
@@ -1646,7 +1659,7 @@ test('bundled Full OMA source projection advances independently of ordinary publ
     '951d10cf5c57693c8a2f3f92f1981ff4b42d8a51783fc6c597564bec2e3b1617');
   assert.equal(frozenManifest.version, '0.4.7');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/oma-0.4.7.json');
-  assert.equal(ordinaryManifest.version, '0.4.8');
+  assert.equal(ordinaryManifest.version, '0.4.9');
 });
 
 test('bundled Full OBF source projection advances independently of ordinary publication', () => {
@@ -1668,7 +1681,7 @@ test('bundled Full OBF source projection advances independently of ordinary publ
     '87dbc954cf83a4b25903c84257a0088d06d52170b19f00b8ec5631f59f8659c4');
   assert.equal(frozenManifest.version, '0.3.9');
   assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/obf-0.3.9.json');
-  assert.equal(ordinaryManifest.version, '0.3.10');
+  assert.equal(ordinaryManifest.version, '0.3.11');
 });
 
 test('MAS first-party agent package manifest fails closed for unsafe dependency declarations', () => {
