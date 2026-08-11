@@ -5,6 +5,14 @@ import {
 import type { DomainManifestCatalogEntry } from '../../../../src/modules/atlas/domain-manifest/types.ts';
 import type { FrameworkContracts } from '../../../../src/kernel/types.ts';
 import {
+  applyProviderClosureEvidence,
+  providerClosureEvidence,
+  providerResidencyGapStatus,
+  readProviderContinuousProof,
+  runFamilyRuntimeLifecycleApply,
+} from '../../../../src/modules/runway/index.ts';
+import type { ProviderContinuousProof } from '../../../../src/modules/runway/index.ts';
+import {
   MINIMAL_AGENT_WORKSPACE_NORM_CONTRACT,
   MINIMAL_BRAND_CLI_GOVERNANCE_CONTRACT,
   MINIMAL_BRAND_MODULE_L5_OPERATING_EVIDENCE_CONTRACT,
@@ -33,6 +41,23 @@ import {
 } from '../helpers.ts';
 
 type JsonRecord = Record<string, unknown>;
+
+const noProviderProof = {
+  provider_kind: 'temporal',
+  continuous_proof_status: 'no_proof_observed',
+  proof_slo_status: 'no_proof_observed',
+  latest_closeout_status: null,
+  authority_boundary: { provider_completion_is_domain_ready: false },
+} as ProviderContinuousProof;
+
+const familyAgentProviderPort = {
+  readProviderContinuousProof: () => noProviderProof,
+  providerClosureEvidence,
+  providerResidencyGapStatus,
+  applyProviderClosureEvidence,
+};
+
+const familyAgentLifecyclePort = { runFamilyRuntimeLifecycleApply };
 
 const magDomain = {
   domain_id: 'medautogrant',
@@ -416,7 +441,10 @@ test('legacy cleanup gate emits executable OPL lifecycle apply plan without doma
     notes: [],
   };
 
-  const list = buildFamilyAgentsList(contracts, { domainManifests });
+  const list = buildFamilyAgentsList(contracts, {
+    domainManifests,
+    providerPort: familyAgentProviderPort,
+  });
   const mag = list.family_agents.agents[0];
   const plan = mag.physical_skeleton_follow_through_gate.executable_cleanup_plan;
 
@@ -486,7 +514,10 @@ test('MAS current standard-agent evidence closes cleanup ledger without resurrec
     notes: [],
   };
 
-  const list = buildFamilyAgentsList(contracts, { domainManifests });
+  const list = buildFamilyAgentsList(contracts, {
+    domainManifests,
+    providerPort: familyAgentProviderPort,
+  });
   const mas = list.family_agents.agents[0];
   const gate = mas.physical_skeleton_follow_through_gate;
   const plan = gate.executable_cleanup_plan;
@@ -621,7 +652,11 @@ test('agents legacy-cleanup apply records controlled cleanup receipts from the s
       'apply',
       '--source-ref',
       'mag://legacy-cleanup/physical-gate',
-    ], { domainManifests });
+    ], {
+      domainManifests,
+      providerPort: familyAgentProviderPort,
+      lifecyclePort: familyAgentLifecyclePort,
+    });
 
     const lifecycleApply = apply.family_agent_legacy_cleanup_apply.lifecycle_apply as JsonRecord;
     const lifecycleApplySummary = lifecycleApply.summary as JsonRecord;
@@ -648,7 +683,11 @@ test('agents legacy-cleanup apply records controlled cleanup receipts from the s
       'apply',
       '--source-ref',
       'mag://legacy-cleanup/physical-gate',
-    ], { domainManifests });
+    ], {
+      domainManifests,
+      providerPort: familyAgentProviderPort,
+      lifecyclePort: familyAgentLifecyclePort,
+    });
     const duplicateLifecycleApply = duplicateApply.family_agent_legacy_cleanup_apply
       .lifecycle_apply as JsonRecord;
     assert.equal(duplicateLifecycleApply.receipt_ref, applyReceiptRef);
@@ -660,7 +699,11 @@ test('agents legacy-cleanup apply records controlled cleanup receipts from the s
       'verify',
       '--receipt-ref',
       applyReceiptRef,
-    ], { domainManifests });
+    ], {
+      domainManifests,
+      providerPort: familyAgentProviderPort,
+      lifecyclePort: familyAgentLifecyclePort,
+    });
 
     const verifiedLifecycleApply = verified.family_agent_legacy_cleanup_apply.lifecycle_apply as JsonRecord;
     const verifiedSummary = verifiedLifecycleApply.summary as JsonRecord;
@@ -675,7 +718,11 @@ test('agents legacy-cleanup apply records controlled cleanup receipts from the s
       'mag',
       '--mode',
       'verify',
-    ], { domainManifests });
+    ], {
+      domainManifests,
+      providerPort: familyAgentProviderPort,
+      lifecyclePort: familyAgentLifecyclePort,
+    });
     const verifiedAllLifecycleApply = verifiedAll.family_agent_legacy_cleanup_apply
       .lifecycle_apply as JsonRecord;
     const verifiedAllSummary = verifiedAllLifecycleApply.summary as JsonRecord;
@@ -730,7 +777,11 @@ test('agents legacy-cleanup apply blocks a non-ready skeleton cleanup plan', () 
       'apply',
       '--source-ref',
       'mag://legacy-cleanup/physical-gate',
-    ], { domainManifests });
+    ], {
+      domainManifests,
+      providerPort: familyAgentProviderPort,
+      lifecyclePort: familyAgentLifecyclePort,
+    });
 
     const lifecycleApply = apply.family_agent_legacy_cleanup_apply.lifecycle_apply as JsonRecord;
     const lifecycleApplySummary = lifecycleApply.summary as JsonRecord;

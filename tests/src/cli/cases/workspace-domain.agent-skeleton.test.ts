@@ -5,10 +5,31 @@ import {
   buildFamilyAgentInspect,
   buildFamilyAgentsList,
 } from '../../../../src/modules/workspace/family-domain-agent-skeleton.ts';
-import { readProviderContinuousProof } from '../../../../src/modules/runway/index.ts';
+import {
+  applyProviderClosureEvidence,
+  providerClosureEvidence,
+  providerResidencyGapStatus,
+  readProviderContinuousProof,
+} from '../../../../src/modules/runway/index.ts';
+import type { ProviderContinuousProof } from '../../../../src/modules/runway/index.ts';
 import { createAdmittedStagePackFixture } from './workspace-domain-test-helper.ts';
 
 type JsonRecord = Record<string, unknown>;
+
+const noProviderProof = {
+  provider_kind: 'temporal',
+  continuous_proof_status: 'no_proof_observed',
+  proof_slo_status: 'no_proof_observed',
+  latest_closeout_status: null,
+  authority_boundary: { provider_completion_is_domain_ready: false },
+} as ProviderContinuousProof;
+
+const familyAgentProviderPort = {
+  readProviderContinuousProof: () => noProviderProof,
+  providerClosureEvidence,
+  providerResidencyGapStatus,
+  applyProviderClosureEvidence,
+};
 
 function readLegacyDomainManifests(
   fixtureContractsRoot: string,
@@ -127,16 +148,19 @@ test('standard domain-agent skeleton inspection requires repo-source dirs and ar
 
     const contracts = loadFrameworkContracts(fixtureContractsRoot);
     const domainManifests = readLegacyDomainManifests(fixtureContractsRoot, stateRoot);
-    const list = buildFamilyAgentsList(contracts, { domainManifests }) as any;
+    const list = buildFamilyAgentsList(contracts, {
+      domainManifests,
+      providerPort: familyAgentProviderPort,
+    }) as any;
     const inspect = buildFamilyAgentInspect(
       contracts,
       ['--domain', 'mas'],
-      { domainManifests },
+      { domainManifests, providerPort: familyAgentProviderPort },
     ) as any;
     const drift = buildFamilyAgentInspect(
       contracts,
       ['--domain', 'redcube'],
-      { domainManifests },
+      { domainManifests, providerPort: familyAgentProviderPort },
     ) as any;
 
     assert.equal(list.family_agents.summary.aligned_count, 1);
@@ -328,10 +352,11 @@ test('legacy domain-manifest skeleton inspection accepts MAS MAG RCA fixture sur
 
     const contracts = loadFrameworkContracts(fixtureContractsRoot);
     const domainManifests = readLegacyDomainManifests(fixtureContractsRoot, stateRoot);
-    const list = buildFamilyAgentsList(contracts, { domainManifests }) as any;
-    const mas = buildFamilyAgentInspect(contracts, ['--domain', 'mas'], { domainManifests }) as any;
-    const mag = buildFamilyAgentInspect(contracts, ['--domain', 'mag'], { domainManifests }) as any;
-    const rca = buildFamilyAgentInspect(contracts, ['--domain', 'rca'], { domainManifests }) as any;
+    const options = { domainManifests, providerPort: familyAgentProviderPort };
+    const list = buildFamilyAgentsList(contracts, options) as any;
+    const mas = buildFamilyAgentInspect(contracts, ['--domain', 'mas'], options) as any;
+    const mag = buildFamilyAgentInspect(contracts, ['--domain', 'mag'], options) as any;
+    const rca = buildFamilyAgentInspect(contracts, ['--domain', 'rca'], options) as any;
 
     assert.equal(list.family_agents.summary.aligned_count, 3);
     assert.equal(list.family_agents.summary.missing_count, 0);
@@ -478,12 +503,12 @@ db.close();`,
     }
     const list = buildFamilyAgentsList(
       contracts,
-      { domainManifests, providerContinuousProof },
+      { domainManifests, providerContinuousProof, providerPort: familyAgentProviderPort },
     ) as any;
     const mas = buildFamilyAgentInspect(
       contracts,
       ['--domain', 'mas'],
-      { domainManifests, providerContinuousProof },
+      { domainManifests, providerContinuousProof, providerPort: familyAgentProviderPort },
     ) as any;
 
     assert.equal(list.family_agents.summary.provider_temporal_residency_gap_status, 'closed_by_fresh_proven_proof');

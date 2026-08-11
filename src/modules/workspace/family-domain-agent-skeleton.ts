@@ -8,17 +8,6 @@ import {
 import { buildDomainManifestCatalog } from '../atlas/index.ts';
 import type { DomainManifestCatalog } from '../atlas/index.ts';
 import type { DomainManifestCatalogEntry } from '../atlas/index.ts';
-import {
-  runFamilyRuntimeLifecycleApply,
-  type LifecycleApplyMode,
-} from '../runway/index.ts';
-import {
-  applyProviderClosureEvidence,
-  providerClosureEvidence,
-  providerResidencyGapStatus,
-  readProviderContinuousProof,
-  type ProviderContinuousProof,
-} from '../runway/index.ts';
 import { buildPhysicalSkeletonFollowThroughGate } from './family-domain-agent-skeleton-parts/legacy-cleanup-evidence.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
 import {
@@ -60,6 +49,31 @@ const PRODUCTION_CLOSURE_GAPS = [
     waits_for: 'no_active_default_path_depends_on_legacy_surface',
   },
 ] as const;
+
+export type FamilyAgentLifecycleApplyMode = 'dry-run' | 'apply' | 'verify';
+
+export type FamilyAgentLifecycleApplyInput = {
+  mode: FamilyAgentLifecycleApplyMode;
+  target_domain_id: string;
+  source_ref?: string;
+  receipt_ref?: string | null;
+  actions?: unknown[];
+};
+
+/** Runtime evidence and lifecycle writes are supplied by the composition root. */
+export type FamilyAgentProviderPort<ProviderProof = unknown> = {
+  readProviderContinuousProof: () => ProviderProof;
+  providerClosureEvidence: (proof: ProviderProof) => JsonRecord;
+  providerResidencyGapStatus: (proof: ProviderProof) => string;
+  applyProviderClosureEvidence: (
+    gaps: Array<{ gap_id: string; [key: string]: unknown }>,
+    proof: ProviderProof,
+  ) => Array<{ gap_id: string; [key: string]: unknown }>;
+};
+
+export type FamilyAgentLifecyclePort = {
+  runFamilyRuntimeLifecycleApply: (input: FamilyAgentLifecycleApplyInput) => JsonRecord;
+};
 
 function uniqueStrings(values: string[]) {
   return [...new Set(values)];
@@ -424,9 +438,10 @@ function normalizeStandardDomainAgentSkeleton(value: unknown) {
   };
 }
 
-export function buildStandardDomainAgentSkeletonInspection(
+export function buildStandardDomainAgentSkeletonInspection<ProviderProof>(
   entry: DomainManifestCatalogEntry,
-  providerContinuousProof: ProviderContinuousProof = readProviderContinuousProof(),
+  providerPort: FamilyAgentProviderPort<ProviderProof>,
+  providerContinuousProof: ProviderProof = providerPort.readProviderContinuousProof(),
 ) {
   let skeleton = null;
   const issues: string[] = [];
@@ -481,8 +496,11 @@ export function buildStandardDomainAgentSkeletonInspection(
   const productionClosureGaps = buildProductionClosureGaps({
     physicalEvidenceObserved: physicalSkeletonLayoutAudit.status === 'repo_source_anchor_evidence_observed',
   });
-  const providerEvidence = providerClosureEvidence(providerContinuousProof);
-  const evidencedProductionClosureGaps = applyProviderClosureEvidence(productionClosureGaps, providerContinuousProof);
+  const providerEvidence = providerPort.providerClosureEvidence(providerContinuousProof);
+  const evidencedProductionClosureGaps = providerPort.applyProviderClosureEvidence(
+    productionClosureGaps,
+    providerContinuousProof,
+  );
 
   return {
     project_id: entry.project_id,
@@ -520,15 +538,25 @@ export function buildStandardDomainAgentSkeletonInspection(
   };
 }
 
-export function withStandardDomainAgentSkeletonInspection<T extends DomainManifestCatalog>(catalog: T): T {
-  const providerContinuousProof = readProviderContinuousProof();
+export function withStandardDomainAgentSkeletonInspection<
+  T extends DomainManifestCatalog,
+  ProviderProof,
+>(
+  catalog: T,
+  providerPort: FamilyAgentProviderPort<ProviderProof>,
+): T {
+  const providerContinuousProof = providerPort.readProviderContinuousProof();
   return {
     ...catalog,
     projects: catalog.projects.map((entry) => {
       if (!entry.manifest?.standard_domain_agent_skeleton) {
         return entry;
       }
-      const inspection = buildStandardDomainAgentSkeletonInspection(entry, providerContinuousProof);
+      const inspection = buildStandardDomainAgentSkeletonInspection(
+        entry,
+        providerPort,
+        providerContinuousProof,
+      );
       const skeleton = isRecord(entry.manifest.standard_domain_agent_skeleton)
         ? entry.manifest.standard_domain_agent_skeleton
         : {};
@@ -554,13 +582,22 @@ export function withStandardDomainAgentSkeletonInspection<T extends DomainManife
   };
 }
 
-type ManifestCatalogOptions = {
+type ManifestCatalogOptions<ProviderProof> = {
   manifestCommandTimeoutMs?: number;
   domainManifests?: DomainManifestCatalog;
-  providerContinuousProof?: ProviderContinuousProof;
+  providerContinuousProof?: ProviderProof;
+  providerPort: FamilyAgentProviderPort<ProviderProof>;
 };
 
-function findAgentEntry(contracts: FrameworkContracts, domain: string, options: ManifestCatalogOptions = {}) {
+type LegacyCleanupOptions<ProviderProof> = ManifestCatalogOptions<ProviderProof> & {
+  lifecyclePort: FamilyAgentLifecyclePort;
+};
+
+function findAgentEntry<ProviderProof>(
+  contracts: FrameworkContracts,
+  domain: string,
+  options: ManifestCatalogOptions<ProviderProof>,
+) {
   const catalog = options.domainManifests ?? buildDomainManifestCatalog(contracts, {
     manifestCommandTimeoutMs: options.manifestCommandTimeoutMs,
   }).domain_manifests;
@@ -605,7 +642,7 @@ function parseInspectArgs(args: string[]) {
 
 function parseLegacyCleanupApplyArgs(args: string[]) {
   let domain = '';
-  let mode: LifecycleApplyMode = 'dry-run';
+  let mode: FamilyAgentLifecycleApplyMode = 'dry-run';
   let sourceRef: string | undefined;
   let receiptRef: string | undefined;
   for (let index = 0; index < args.length; index += 1) {
@@ -637,13 +674,16 @@ function parseLegacyCleanupApplyArgs(args: string[]) {
   return { domain, mode, sourceRef, receiptRef };
 }
 
-export function buildFamilyAgentsList(contracts: FrameworkContracts, options: ManifestCatalogOptions = {}) {
+export function buildFamilyAgentsList<ProviderProof>(
+  contracts: FrameworkContracts,
+  options: ManifestCatalogOptions<ProviderProof>,
+) {
   const catalog = options.domainManifests ?? buildDomainManifestCatalog(contracts, {
     manifestCommandTimeoutMs: options.manifestCommandTimeoutMs,
   }).domain_manifests;
-  const providerContinuousProof = options.providerContinuousProof ?? readProviderContinuousProof();
+  const providerContinuousProof = options.providerContinuousProof ?? options.providerPort.readProviderContinuousProof();
   const agents = catalog.projects.map((entry) =>
-    buildStandardDomainAgentSkeletonInspection(entry, providerContinuousProof)
+    buildStandardDomainAgentSkeletonInspection(entry, options.providerPort, providerContinuousProof)
   );
   return {
     version: 'g2',
@@ -668,40 +708,42 @@ export function buildFamilyAgentsList(contracts: FrameworkContracts, options: Ma
           (total, agent) => total + agent.production_closure_gaps.length,
           0,
         ),
-        provider_temporal_residency_gap_status: providerResidencyGapStatus(providerContinuousProof),
+        provider_temporal_residency_gap_status:
+          options.providerPort.providerResidencyGapStatus(providerContinuousProof),
       },
       agents,
     },
   };
 }
 
-export function buildFamilyAgentInspect(
+export function buildFamilyAgentInspect<ProviderProof>(
   contracts: FrameworkContracts,
   args: string[],
-  options: ManifestCatalogOptions = {},
+  options: ManifestCatalogOptions<ProviderProof>,
 ) {
   const { domain } = parseInspectArgs(args);
   const entry = findAgentEntry(contracts, domain, options);
-  const providerContinuousProof = options.providerContinuousProof ?? readProviderContinuousProof();
+  const providerContinuousProof = options.providerContinuousProof ?? options.providerPort.readProviderContinuousProof();
   return {
     version: 'g2',
     family_agent: {
       surface_kind: 'opl_standard_domain_agent_skeleton_inspection',
-      ...buildStandardDomainAgentSkeletonInspection(entry, providerContinuousProof),
+      ...buildStandardDomainAgentSkeletonInspection(entry, options.providerPort, providerContinuousProof),
     },
   };
 }
 
-export function runFamilyAgentLegacyCleanupApply(
+export function runFamilyAgentLegacyCleanupApply<ProviderProof>(
   contracts: FrameworkContracts,
   args: string[],
-  options: ManifestCatalogOptions = {},
+  options: LegacyCleanupOptions<ProviderProof>,
 ) {
   const parsed = parseLegacyCleanupApplyArgs(args);
   const entry = findAgentEntry(contracts, parsed.domain, options);
   const inspection = buildStandardDomainAgentSkeletonInspection(
     entry,
-    options.providerContinuousProof ?? readProviderContinuousProof(),
+    options.providerPort,
+    options.providerContinuousProof ?? options.providerPort.readProviderContinuousProof(),
   );
   const plan = inspection.physical_skeleton_follow_through_gate.executable_cleanup_plan;
   const domainId = inspection.project_id ?? inspection.target_domain_id ?? parsed.domain;
@@ -717,7 +759,7 @@ export function runFamilyAgentLegacyCleanupApply(
         plan_status: plan.plan_status,
         source_surface: 'physical_skeleton_follow_through_gate',
         plan,
-        lifecycle_apply: runFamilyRuntimeLifecycleApply({
+        lifecycle_apply: options.lifecyclePort.runFamilyRuntimeLifecycleApply({
           mode: 'verify',
           target_domain_id: domainId,
           source_ref: sourceRef,
@@ -770,7 +812,7 @@ export function runFamilyAgentLegacyCleanupApply(
       },
     };
   }
-  const lifecycleApply = runFamilyRuntimeLifecycleApply({
+  const lifecycleApply = options.lifecyclePort.runFamilyRuntimeLifecycleApply({
     mode: parsed.mode,
     target_domain_id: domainId,
     source_ref: sourceRef,

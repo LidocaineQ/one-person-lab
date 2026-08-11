@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
-import { assert, fs, os, path, runCli, test } from '../helpers.ts';
+import { assert, fs, os, path, repoRoot, runCli, test } from '../helpers.ts';
 import { loadSourceClosureEffectContract } from '../../../../src/modules/workspace/standard-agent-source-closure-parts/analysis.ts';
 import { buildPythonSourceGraph } from '../../../../src/modules/workspace/standard-agent-source-closure-parts/python-graph.ts';
 
@@ -114,6 +114,31 @@ function runGit(repoDir: string, args: string[]) {
   const result = spawnSync('git', args, { cwd: repoDir, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
 }
+
+test('workspace source does not depend on runway implementation', () => {
+  const workspaceRoot = path.join(repoRoot, 'src', 'modules', 'workspace');
+  const pending = [workspaceRoot];
+  const violations: string[] = [];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current) {
+      continue;
+    }
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const entryPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(entryPath);
+      } else if (entry.isFile() && entry.name.endsWith('.ts')) {
+        const source = fs.readFileSync(entryPath, 'utf8');
+        if (/['"]\.\.\/runway(?:\/|['"])/u.test(source)) {
+          violations.push(path.relative(repoRoot, entryPath));
+        }
+      }
+    }
+  }
+
+  assert.deepEqual(violations, []);
+});
 
 test('agents source-closure resolves package, action, handler, and TypeScript calls', () => {
   const repoDir = buildRepo();

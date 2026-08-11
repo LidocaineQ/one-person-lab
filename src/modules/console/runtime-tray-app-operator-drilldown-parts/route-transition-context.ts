@@ -5,7 +5,13 @@ import {
 import type {
   ProviderContinuousProof,
 } from '../../runway/index.ts';
-import { buildDomainRouteSupportProjection } from '../../runway/index.ts';
+import {
+  applyProviderClosureEvidence,
+  buildDomainRouteSupportProjection,
+  providerClosureEvidence,
+  providerResidencyGapStatus,
+  readProviderContinuousProof,
+} from '../../runway/index.ts';
 import type { JsonRecord } from '../runtime-tray-snapshot-types.ts';
 import {
   buildAppDrilldownRefsOnlyAuthorityBoundary as refsOnlyAuthorityBoundary,
@@ -26,13 +32,20 @@ export function legacyCleanupPlanRefs(
   projects: DomainManifestCatalogEntry[],
   providerContinuousProof: JsonRecord,
 ) {
+  const providerPort = {
+    readProviderContinuousProof,
+    providerClosureEvidence,
+    providerResidencyGapStatus,
+    applyProviderClosureEvidence,
+  };
   const resolvedProjects = projects.filter((project) => (
     project.status === 'resolved' && project.manifest
   ));
   const plans = resolvedProjects.flatMap((project) => {
     const inspection = buildStandardDomainAgentSkeletonInspection(
       project,
-      providerContinuousProof as unknown as ProviderContinuousProof,
+      providerPort,
+      providerContinuousProof as ProviderContinuousProof,
     );
     const gate = record(inspection.physical_skeleton_follow_through_gate);
     const deleteGate = record(gate.delete_gate);

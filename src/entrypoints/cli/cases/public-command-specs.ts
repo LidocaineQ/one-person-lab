@@ -61,6 +61,13 @@ import {
   buildGenericSubstrateWorkbench,
 } from '../../../modules/runway/generic-substrate-projection.ts';
 import { readFamilyDomainMemoryRuntimeReceiptEvidenceByDomain } from '../../../modules/runway/index.ts';
+import {
+  applyProviderClosureEvidence,
+  providerClosureEvidence,
+  providerResidencyGapStatus,
+  readProviderContinuousProof,
+  runFamilyRuntimeLifecycleApply,
+} from '../../../modules/runway/index.ts';
 import { runProductEntryResume } from '../../../modules/console/product-entry-runtime.ts';
 import type { FrameworkContracts } from '../../../kernel/types.ts';
 import { buildPublicSystemCommandSpecs } from './system-public-command-specs.ts';
@@ -200,9 +207,17 @@ export function buildPublicCommandSpecs(
   const updateCommandSpecs = buildUpdateCommandSpecs(getContracts);
   const workspaceCommandSpecs = buildWorkspaceCommandSpecs(commandSpecs);
   const appCommandSpecs = buildPublicAppCommandSpecs(getContracts);
+  const familyAgentProviderPort = {
+    readProviderContinuousProof,
+    providerClosureEvidence,
+    providerResidencyGapStatus,
+    applyProviderClosureEvidence,
+  };
+  const familyAgentLifecyclePort = { runFamilyRuntimeLifecycleApply };
   const buildAgentDescriptorManifests = (options: Parameters<typeof buildDomainManifestCatalog>[1] = {}) =>
     withStandardDomainAgentSkeletonInspection(
       buildStandardAgentDomainManifestCatalog(getContracts(), options).domain_manifests,
+      familyAgentProviderPort,
     );
   const loadAgentDescriptorsForPackCompiler = () =>
     buildFamilyAgentDescriptorList(getContracts(), {
@@ -211,6 +226,7 @@ export function buildPublicCommandSpecs(
           manifestCommandTimeoutMs: 120_000,
           manifestCommandTimeoutPolicy: 'fixed',
         }).domain_manifests,
+        familyAgentProviderPort,
       ),
       manifestCommandTimeoutMs: 120_000,
       manifestCommandTimeoutPolicy: 'fixed',
@@ -598,6 +614,7 @@ export function buildPublicCommandSpecs(
         assertNoArgs(args, publicCommandSpecs['agents list']);
         return buildFamilyAgentsList(getContracts(), {
           domainManifests: buildAgentDescriptorManifests(),
+          providerPort: familyAgentProviderPort,
         });
       },
     },
@@ -608,6 +625,7 @@ export function buildPublicCommandSpecs(
       group: 'domain',
       handler: (args) => buildFamilyAgentInspect(getContracts(), args, {
         domainManifests: buildAgentDescriptorManifests(),
+        providerPort: familyAgentProviderPort,
       }),
     },
     'agents legacy-cleanup apply': {
@@ -620,7 +638,10 @@ export function buildPublicCommandSpecs(
         'opl agents legacy-cleanup apply --domain rca --mode verify',
       ],
       group: 'domain',
-      handler: (args) => runFamilyAgentLegacyCleanupApply(getContracts(), args),
+      handler: (args) => runFamilyAgentLegacyCleanupApply(getContracts(), args, {
+        providerPort: familyAgentProviderPort,
+        lifecyclePort: familyAgentLifecyclePort,
+      }),
     },
     'agents evidence apply': agentsEvidenceApplySpec,
     'agents run': cloneCommandSpec(commandSpecs['agents run'], {

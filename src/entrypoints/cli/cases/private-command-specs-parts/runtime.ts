@@ -2,7 +2,15 @@ import { FrameworkContractError } from '../../../../modules/charter/contracts.ts
 import { buildRuntimeTraySnapshot } from '../../../../modules/console/runtime-tray-snapshot.ts';
 import { buildRuntimeStatus, buildWorkspaceStatus } from '../../../../modules/console/management/workspace-runtime.ts';
 import { buildMemoryArtifactLifecycleReadback } from '../../../../modules/ledger/memory-artifact-lifecycle-readback.ts';
-import { buildRuntimeManager, runRuntimeManagerAction } from '../../../../modules/runway/index.ts';
+import {
+  applyProviderClosureEvidence,
+  buildRuntimeManager,
+  providerClosureEvidence,
+  providerResidencyGapStatus,
+  readProviderContinuousProof,
+  runFamilyRuntimeLifecycleApply,
+  runRuntimeManagerAction,
+} from '../../../../modules/runway/index.ts';
 import { runRuntimeOperatorActionExecute } from '../../../../modules/runway/runtime-operator-action-execution.ts';
 import {
   buildObservabilityExport,
@@ -334,7 +342,19 @@ export function buildPrivateRuntimeCommandSpecs({
       ],
       handler: (args) => runRuntimeOperatorActionExecute(getContracts(), args, {
         runtimeSnapshotProvider: buildRuntimeTraySnapshot,
-        runFamilyAgentLegacyCleanupApply,
+        runFamilyAgentLegacyCleanupApply: (contracts, cleanupArgs) => runFamilyAgentLegacyCleanupApply(
+          contracts,
+          cleanupArgs,
+          {
+            providerPort: {
+              readProviderContinuousProof,
+              providerClosureEvidence,
+              providerResidencyGapStatus,
+              applyProviderClosureEvidence,
+            },
+            lifecyclePort: { runFamilyRuntimeLifecycleApply },
+          },
+        ),
       }),
     },
     'runtime lifecycle apply': {
