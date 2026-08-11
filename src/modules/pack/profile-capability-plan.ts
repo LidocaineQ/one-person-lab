@@ -8,17 +8,87 @@ import { isRecord } from '../../kernel/contract-validation.ts';
 import { parseJsonText } from '../../kernel/json-file.ts';
 import { resolveContainedRepoJsonFile } from '../../kernel/repo-contained-json-file.ts';
 import { assertJsonSchemaPayload } from '../../kernel/schema-registry.ts';
-import {
-  buildCapabilityRegistryReadout,
-  type CapabilityBindingKind,
-  type CapabilityRegistryCatalog,
-  type CapabilityRegistryEntry,
-  type CurrentOwnerDeltaCapabilityBinding,
-  type CurrentOwnerDeltaCapabilityRequirement,
-} from '../connect/index.ts';
 import { materializeStandardAgentCapabilityMap } from './standard-agent-capability-map.ts';
 
 type JsonRecord = Record<string, unknown>;
+type CapabilityBindingKind = 'optional' | 'route_required';
+type CapabilityHardBoundary =
+  | 'source_data_evidence'
+  | 'owner_route_identity'
+  | 'forbidden_write'
+  | 'irreversible_mutation'
+  | 'reviewer_publication_hard_gate';
+
+type CapabilityRegistryEntry = {
+  capability_ref: string;
+  capability_id: string;
+  owner: string;
+  source_family: string;
+  surface_ref: string;
+  lifecycle: string;
+};
+
+type CapabilityRegistryCatalog = {
+  registry_id: string;
+  owner_modules: string[];
+  capabilities: CapabilityRegistryEntry[];
+};
+
+type CurrentOwnerDeltaCapabilityRequirement = {
+  capability_ref: string;
+  binding_kind: CapabilityBindingKind;
+  hard_boundary?: CapabilityHardBoundary | null;
+  required_by_delta_ref?: string | null;
+};
+
+type CurrentOwnerDeltaCapabilityBinding = {
+  surface_kind?: string;
+  schema_version?: string;
+  default_planning_root?: string;
+  delta_ref?: string;
+  delta_id?: string;
+  domain?: string;
+  task_or_study_ref?: string | null;
+  stage_ref?: string | null;
+  domain_id?: string;
+  work_unit_ref?: string;
+  current_owner?: string;
+  required_capability_refs?: CurrentOwnerDeltaCapabilityRequirement[];
+};
+
+type CapabilityRegistryReadoutRequest = {
+  registry: CapabilityRegistryCatalog;
+  currentOwnerDelta: CurrentOwnerDeltaCapabilityBinding;
+  requestedCapabilities: Array<{
+    capabilityRef: string;
+    taskOrStudyRef?: string | null;
+    stageRef?: string | null;
+    workUnitRef?: string;
+    bindingKind?: CapabilityBindingKind;
+  }>;
+};
+
+type CapabilityRegistryResolutionReadback = {
+  capability_ref: string;
+  resolution_status: 'resolved' | 'fail_open' | 'route_required_blocker_candidate';
+  selection: { surface_ref: string | null };
+  route_required_policy: { is_route_required: boolean };
+  blocker_candidate: {
+    missing_capability_ref: string;
+    route_back_owner: string;
+  } | null;
+};
+
+type CapabilityRegistryReadout = {
+  default_behavior: 'current_owner_delta_bound_jit_or_fail_open';
+  resolutions: CapabilityRegistryResolutionReadback[];
+};
+
+export type ProfileCapabilityPlanDependencies = {
+  buildCapabilityRegistryReadout: (
+    request: CapabilityRegistryReadoutRequest,
+  ) => CapabilityRegistryReadout;
+};
 
 type CatalogProvenance = {
   catalog_repo: string;
@@ -725,7 +795,10 @@ function dependencyFeasibility(metadata: CapabilityPlanningMetadata[]) {
   };
 }
 
-export function buildProfileCapabilityPlan(input: ProfileCapabilityPlanInput) {
+export function buildProfileCapabilityPlan(
+  input: ProfileCapabilityPlanInput,
+  dependencies: ProfileCapabilityPlanDependencies,
+) {
   const selectionPath = path.resolve(input.selectionFile);
   const selectionSource = readJsonRecord(selectionPath, 'Profile selection file');
   const selection = selectionReceipt(selectionSource.payload);
@@ -752,7 +825,7 @@ export function buildProfileCapabilityPlan(input: ProfileCapabilityPlanInput) {
   const workUnitRef = typeof delta.binding.work_unit_ref === 'string' && delta.binding.work_unit_ref.trim()
     ? delta.binding.work_unit_ref
     : `profile-selection:${selectionFingerprint.slice(0, 16)}`;
-  const exactReadout = buildCapabilityRegistryReadout({
+  const exactReadout = dependencies.buildCapabilityRegistryReadout({
     registry,
     currentOwnerDelta: delta.binding,
     requestedCapabilities: requestedCapabilityRefs.map((capabilityRef) => ({

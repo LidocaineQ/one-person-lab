@@ -9,9 +9,14 @@ import {
   materializeStandardAgentCapabilityMap,
 } from '../../src/modules/pack/standard-agent-capability-map.ts';
 import {
-  buildProfileCapabilityPlan,
+  buildProfileCapabilityPlan as buildProfileCapabilityPlanWithDependencies,
   buildProfileCapabilityPlanInputProjection,
 } from '../../src/modules/pack/profile-capability-plan.ts';
+import { buildCapabilityRegistryReadout } from '../../src/modules/connect/index.ts';
+
+const buildProfileCapabilityPlan = (
+  input: Parameters<typeof buildProfileCapabilityPlanWithDependencies>[0],
+) => buildProfileCapabilityPlanWithDependencies(input, { buildCapabilityRegistryReadout });
 
 const AUTHORITY_BOUNDARY = {
   can_write_domain_truth: false,

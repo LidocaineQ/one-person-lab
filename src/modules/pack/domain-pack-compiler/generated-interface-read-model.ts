@@ -31,7 +31,6 @@ import {
   stringList,
 } from '../../../kernel/json-record.ts';
 import { optionalString } from '../../../kernel/json-file.ts';
-import { resolveStandardAgentContractCheckout } from '../../connect/index.ts';
 
 type JsonRecord = Record<string, unknown>;
 export type GeneratedInterfaceFormat = FamilyActionExportFormat | 'product-entry';
@@ -346,41 +345,6 @@ function rawDescriptorSurface<T>(descriptor: JsonRecord, key: string): T | null 
   }
   const raw = surface.raw_descriptor;
   return isRecord(raw) ? raw as T : null;
-}
-
-function standardAgentContractResolutionForDescriptor(
-  descriptor: JsonRecord,
-  options: GeneratedInterfaceReadModelOptions,
-): StandardAgentContractResolutionReadback | null {
-  if (options.standardAgentContractResolution) {
-    return options.standardAgentContractResolution;
-  }
-  if (optionalString(descriptor.source_kind) === 'standard_agent_repo_contracts') {
-    return null;
-  }
-  const domainId = optionalString(descriptor.agent_id)
-    ?? optionalString(descriptor.requested_agent_id)
-    ?? optionalString(descriptor.project_id)
-    ?? optionalString(descriptor.target_domain_id);
-  if (!domainId) {
-    return null;
-  }
-  const resolution = resolveStandardAgentContractCheckout(
-    domainId,
-    undefined,
-    undefined,
-    { result: 'typed_resolution' },
-  );
-  if (resolution.status === 'not_applicable') {
-    return null;
-  }
-  return {
-    surface_kind: resolution.surface_kind,
-    status: resolution.status,
-    launch_allowed: resolution.launch_allowed,
-    reason: resolution.reason,
-    source_status: resolution.source_status,
-  };
 }
 
 function projectStandardAgentContractBlock<T extends JsonRecord>(
@@ -920,10 +884,7 @@ export function buildGeneratedInterfaceBundle(
   options: GeneratedInterfaceReadModelOptions = {},
 ) {
   const rawCatalog = rawDescriptorSurface<FamilyActionCatalog>(descriptor, 'family_action_catalog');
-  const standardAgentContractResolution = standardAgentContractResolutionForDescriptor(
-    descriptor,
-    options,
-  );
+  const standardAgentContractResolution = options.standardAgentContractResolution ?? null;
   const sourceBlockedReason = standardAgentContractResolution?.status === 'blocked'
     ? standardAgentContractResolution.reason ?? 'standard_agent_contract_resolution_blocked'
     : null;

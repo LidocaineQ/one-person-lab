@@ -64,6 +64,43 @@ type DomainPackCompilerOptions = {
   } | null;
 };
 
+function contractResolutionFromRepo(
+  repo: StandardDomainAgentRepoInput | ResolvedStandardAgentRepoInput,
+): StandardAgentContractResolutionReadback | undefined {
+  if (!('contract_resolution' in repo) || !isRecord(repo.contract_resolution)) {
+    return undefined;
+  }
+  return standardAgentContractResolutionReadback(repo.contract_resolution);
+}
+
+function standardAgentContractResolutionReadback(
+  value: JsonRecord,
+): StandardAgentContractResolutionReadback | undefined {
+  const status = optionalString(value.status);
+  if (
+    value.surface_kind !== 'opl_standard_agent_contract_checkout_resolution'
+    || (status !== 'resolved' && status !== 'blocked' && status !== 'not_applicable')
+    || typeof value.launch_allowed !== 'boolean'
+    || (value.reason !== null && typeof value.reason !== 'string')
+    || (value.source_status !== null && typeof value.source_status !== 'string')
+  ) {
+    return undefined;
+  }
+  return {
+    surface_kind: value.surface_kind,
+    status,
+    launch_allowed: value.launch_allowed,
+    reason: value.reason,
+    source_status: value.source_status,
+  };
+}
+
+function contractResolutionFromDescriptor(descriptor: JsonRecord) {
+  return isRecord(descriptor.standard_agent_contract_resolution)
+    ? standardAgentContractResolutionReadback(descriptor.standard_agent_contract_resolution)
+    : undefined;
+}
+
 function recordPathList(value: unknown) {
   return recordList(value)
     .map((entry) => optionalString(entry.path))
@@ -462,7 +499,10 @@ function surfaceProjection(descriptor: JsonRecord, surface: typeof GENERATED_SUR
   };
 }
 
-function buildPackCompilerProjection(descriptor: JsonRecord) {
+function buildPackCompilerProjection(
+  descriptor: JsonRecord,
+  standardAgentContractResolution = contractResolutionFromDescriptor(descriptor),
+) {
   const summary = functionalAuditSummary(descriptor);
   const packCompilerInput = isRecord(descriptor.pack_compiler_input_contract)
     ? descriptor.pack_compiler_input_contract
@@ -500,7 +540,9 @@ function buildPackCompilerProjection(descriptor: JsonRecord) {
     ...missingRequired.map((surface) => `missing_descriptor_surface:${surface}`),
   ].flatMap((reason) => Array.isArray(reason) ? reason : reason === null ? [] : [reason]);
   const status = blockerReasons.length === 0 ? 'ready' : 'blocked';
-  const generatedInterfaceBundle = buildGeneratedInterfaceBundle(descriptor, status);
+  const generatedInterfaceBundle = buildGeneratedInterfaceBundle(descriptor, status, 'all', {
+    standardAgentContractResolution,
+  });
 
   return {
     surface_kind: 'opl_domain_pack_compiler_projection',
@@ -588,12 +630,16 @@ function buildCompilerDomainFromRepo(repo: StandardDomainAgentRepoInput) {
           repo.requested_agent_id,
         ),
       ),
+      contractResolutionFromRepo(repo),
     );
   } catch (error) {
     if (!(error instanceof FrameworkContractError)) {
       throw error;
     }
-    return buildPackCompilerProjection(blockedRepoContractDescriptor(repo, error));
+    return buildPackCompilerProjection(
+      blockedRepoContractDescriptor(repo, error),
+      contractResolutionFromRepo(repo),
+    );
   }
 }
 
@@ -798,6 +844,7 @@ export function buildGeneratedAgentInterfaces(
           repo.repo_dir,
           format,
           repo.requested_agent_id,
+          contractResolutionFromRepo(repo),
         );
         const selected = generated.bundle;
         return {

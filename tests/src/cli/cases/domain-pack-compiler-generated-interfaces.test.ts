@@ -211,6 +211,24 @@ test('generated interfaces retain missing catalog reason only when the catalog i
   }
 });
 
+test('generated interfaces only consume caller-supplied standard agent contract resolution', () => {
+  const repoDir = buildReadyAgentRepo();
+  try {
+    retargetReadyRepo(repoDir, 'med-autoscience', 'Med Auto Science');
+    const descriptor = repoContractDescriptorForPackCompiler(
+      buildRepoContractDescriptor(repoDir),
+      'mas',
+    ) as Record<string, any>;
+    descriptor.source_kind = 'admitted_domain_manifest';
+
+    const bundle = buildGeneratedInterfaceBundle(descriptor, 'ready') as Record<string, any>;
+
+    assert.equal(bundle.standard_agent_contract_resolution, null);
+  } finally {
+    fs.rmSync(repoDir, { recursive: true, force: true });
+  }
+});
+
 test('generated interfaces block default cutover without handoff proof but keep authority false', () => {
   const { env, workspaceRoot } = boundFamilyEnv('opl-generated-interfaces-state-');
   fs.rmSync(path.join(

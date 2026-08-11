@@ -9,10 +9,15 @@ import test from 'node:test';
 import { buildProfileCommandSpecs } from '../../src/entrypoints/cli/cases/public-command-specs-parts/profiles.ts';
 import { parseJsonText, readJsonPayloadFile } from '../../src/kernel/json-file.ts';
 import {
-  buildProfileCapabilityPlan,
+  buildProfileCapabilityPlan as buildProfileCapabilityPlanWithDependencies,
   buildProfileCapabilityPlanInputProjection,
 } from '../../src/modules/pack/profile-capability-plan.ts';
+import { buildCapabilityRegistryReadout } from '../../src/modules/connect/index.ts';
 import { buildStandardDomainAgentScaffold } from '../../src/modules/pack/standard-domain-agent-scaffold.ts';
+
+const buildProfileCapabilityPlan = (
+  input: Parameters<typeof buildProfileCapabilityPlanWithDependencies>[0],
+) => buildProfileCapabilityPlanWithDependencies(input, { buildCapabilityRegistryReadout });
 
 type JsonRecord = Record<string, unknown>;
 

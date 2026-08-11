@@ -7,6 +7,7 @@ import {
   PROFILE_PATTERN_PACKET_OPTIONS,
   PROFILE_REFERENCE_SOURCE_OPTIONS,
 } from '../../../../modules/pack/index.ts';
+import { buildCapabilityRegistryReadout } from '../../../../modules/connect/index.ts';
 import {
   parseRegisteredCommandOptions,
   type CommandSpec,
@@ -144,14 +145,17 @@ export function buildProfileCommandSpecs(): Record<string, CommandSpec> {
         args,
         capabilityPlanSpec,
       );
-      return buildProfileCapabilityPlan({
-        selectionFile: String(options['selection-file']),
-        catalogRepos: optionStrings(options['catalog-repo']),
-        currentOwnerDeltaFile: typeof options['current-owner-delta-file'] === 'string'
-          ? options['current-owner-delta-file']
-          : null,
-        capabilityRefs: optionStrings(options['capability-ref']),
-      });
+      return buildProfileCapabilityPlan(
+        {
+          selectionFile: String(options['selection-file']),
+          catalogRepos: optionStrings(options['catalog-repo']),
+          currentOwnerDeltaFile: typeof options['current-owner-delta-file'] === 'string'
+            ? options['current-owner-delta-file']
+            : null,
+          capabilityRefs: optionStrings(options['capability-ref']),
+        },
+        { buildCapabilityRegistryReadout },
+      );
     },
   };
   return {
