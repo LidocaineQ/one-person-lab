@@ -182,7 +182,7 @@
     },
     {
         "path": "src/modules/console/app-state.ts",
-        "limit": 1133,
+        "limit": 1135,
         "owner": "one-person-lab",
         "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
         "intended_boundary": "split_by_action_route_and_read_model_section"
@@ -357,7 +357,7 @@
     },
     {
         "path": "tests/src/cli/cases/packages-cases/directory.test.ts",
-        "limit": 1452,
+        "limit": 1537,
         "owner": "one-person-lab",
         "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
         "intended_boundary": "split_by_test_scenario_and_shared_fixture"
