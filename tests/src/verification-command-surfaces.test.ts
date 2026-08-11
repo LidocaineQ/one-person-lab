@@ -403,8 +403,8 @@ test('scripts/verify.sh provides the canonical verification wrapper', () => {
   assert.match(verifyScript, /run-with-repo-temp-env\.sh/);
   assert.match(verifyScript, /OPL_REPO_TEMP_ENV_ACTIVE/);
   assert.match(verifyScript, /node scripts\/line-budget\.mjs/);
-  assert.match(verifyScript, /node scripts\/line-budget\.mjs --strict/);
-  assert.match(verifyScript, /OPL_STRUCTURAL_QUALITY_STRICT=1/);
+  assert.doesNotMatch(verifyScript, /node scripts\/line-budget\.mjs --strict/);
+  assert.doesNotMatch(verifyScript, /OPL_STRUCTURAL_QUALITY_STRICT=1/);
   assert.equal(
     (verifyScript.match(/npm run source:modules -- --strict-imports --strict-cycles/g) ?? []).length,
     2,

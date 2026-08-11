@@ -12,14 +12,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
 const scriptPath = path.join(repoRoot, 'scripts', 'line-budget.mjs');
 
-type BaselineInput = {
-  path: string;
-  limit: number;
-  owner?: string;
-  reason?: string;
-  intended_boundary?: string;
-};
-
 function writeLines(file: string, lineCount: number) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(
@@ -31,26 +23,20 @@ function writeLines(file: string, lineCount: number) {
 function fixture(input: {
   files: Record<string, number>;
   defaultLimit?: number;
-  baselines?: BaselineInput[];
+  contract?: Record<string, unknown>;
 }) {
   const root = fs.mkdtempSync(path.join(process.env.OPL_REPO_TEMP_ROOT || os.tmpdir(), 'opl-line-budget-'));
   const contractPath = path.join(root, 'line-budget.contract.json');
-  const contract = {
+  const contract = input.contract ?? {
     contract_kind: 'opl_source_structure_budget.v1',
     owner: 'one-person-lab',
     state: 'active_contract',
     default_limit: input.defaultLimit ?? 3,
     advisory_near_limit: input.defaultLimit ?? 3,
     baseline_policy: {
-      mode: 'scheduled_advisory_with_explicit_strict_ratchet',
+      mode: 'advisory_inventory_only',
     },
-    reviewed_baselines: (input.baselines ?? []).map((entry) => ({
-      owner: entry.owner ?? 'test-owner',
-      reason: entry.reason ?? 'fixture reviewed baseline',
-      intended_boundary: entry.intended_boundary ?? 'fixture semantic boundary',
-      review_after: '2026-12-31',
-      ...entry,
-    })),
+    reviewed_baselines: [],
   };
 
   const init = spawnSync('git', ['init'], { cwd: root, encoding: 'utf8' });
@@ -65,15 +51,20 @@ function fixture(input: {
   return { root, contractPath };
 }
 
-function runLineBudget(root: string, contractPath: string, extraArgs: string[] = []) {
+function runLineBudget(
+  root: string,
+  contractPath: string,
+  extraArgs: string[] = [],
+  env: NodeJS.ProcessEnv = process.env,
+) {
   return spawnSync(
     process.execPath,
     [scriptPath, '--root', root, '--baseline', contractPath, ...extraArgs],
-    { cwd: repoRoot, encoding: 'utf8' },
+    { cwd: repoRoot, encoding: 'utf8', env },
   );
 }
 
-test('line budget supports help and explicit machine json output', () => {
+test('line budget exposes advisory machine output without failure semantics', () => {
   const { root, contractPath } = fixture({
     files: { 'src/new-large-entry.ts': 4 },
     defaultLimit: 3,
@@ -84,175 +75,97 @@ test('line budget supports help and explicit machine json output', () => {
       cwd: repoRoot,
       encoding: 'utf8',
     });
-    const json = runLineBudget(root, contractPath, ['--format', 'json']);
-    const output = parseJsonText(json.stdout) as any;
+    const result = runLineBudget(root, contractPath, ['--format', 'json']);
+    const output = parseJsonText(result.stdout) as any;
 
     assert.equal(help.status, 0, help.stderr);
-    assert.match(help.stdout, /Usage: node scripts\/line-budget\.mjs/);
-    assert.match(help.stdout, /--format <text\|json>/);
-    assert.equal(json.status, 0, json.stderr);
+    assert.match(help.stdout, /Legacy compatibility alias; findings remain advisory/);
+    assert.equal(result.status, 0, result.stderr);
     assert.equal(output.surface_kind, 'opl_line_budget_check');
     assert.equal(output.status, 'advisory');
+    assert.equal(output.enforcement, 'advisory_only');
+    assert.equal(output.strict, false);
     assert.equal(output.oversize_count, 1);
-    assert.equal(output.oversize_files[0].path, 'src/new-large-entry.ts');
-    assert.equal(output.failure_count, 1);
+    assert.equal(output.finding_count, 1);
+    assert.equal(output.failure_count, 0);
+    assert.deepEqual(output.failures, []);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('line budget ratchet allows a reviewed oversized baseline without requiring a split', () => {
-  const { root, contractPath } = fixture({
-    files: { 'src/legacy-entry.ts': 4 },
-    defaultLimit: 3,
-    baselines: [{ path: 'src/legacy-entry.ts', limit: 4 }],
-  });
-
-  try {
-    const result = runLineBudget(root, contractPath);
-
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stderr, '');
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('line budget reports reviewed baseline growth as advisory by default', () => {
+test('oversized files remain advisory in normal legacy strict and strict-env modes', () => {
   const { root, contractPath } = fixture({
     files: { 'src/legacy-entry.ts': 5 },
     defaultLimit: 3,
-    baselines: [{ path: 'src/legacy-entry.ts', limit: 4 }],
   });
 
   try {
-    const result = runLineBudget(root, contractPath);
+    const normal = runLineBudget(root, contractPath);
+    const legacyStrict = runLineBudget(root, contractPath, ['--strict', '--format', 'json']);
+    const strictEnv = runLineBudget(root, contractPath, ['--format', 'json'], {
+      ...process.env,
+      OPL_LINE_BUDGET_STRICT: '1',
+    });
+    const legacyOutput = parseJsonText(legacyStrict.stdout) as any;
+    const envOutput = parseJsonText(strictEnv.stdout) as any;
 
-    assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stderr, /line budget advisory/);
-    assert.match(result.stderr, /src\/legacy-entry\.ts: 5 lines exceeds locked baseline 4/);
-    assert.match(result.stderr, /ratchet baseline/);
+    assert.equal(normal.status, 0, normal.stderr);
+    assert.match(normal.stderr, /line budget advisory/);
+    assert.match(normal.stderr, /split only when a natural boundary exists/);
+    assert.equal(legacyStrict.status, 0, legacyStrict.stderr);
+    assert.equal(strictEnv.status, 0, strictEnv.stderr);
+    assert.equal(legacyOutput.strict_requested, true);
+    assert.equal(envOutput.strict_requested, true);
+    assert.equal(legacyOutput.failure_count, 0);
+    assert.equal(envOutput.failure_count, 0);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('strict line budget blocks growth above a reviewed baseline', () => {
-  const { root, contractPath } = fixture({
-    files: { 'src/legacy-entry.ts': 5 },
-    defaultLimit: 3,
-    baselines: [{ path: 'src/legacy-entry.ts', limit: 4 }],
-  });
-
-  try {
-    const result = runLineBudget(root, contractPath, ['--strict']);
-
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /strict line budget check failed/);
-    assert.match(result.stderr, /src\/legacy-entry\.ts: 5 lines exceeds locked baseline 4/);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('line budget reports a new oversized file as advisory by default', () => {
+test('invalid structure contracts are reported as advisory diagnostics', () => {
   const { root, contractPath } = fixture({
     files: { 'src/new-large-entry.ts': 4 },
-    defaultLimit: 3,
+    contract: {
+      contract_kind: 'unexpected',
+      default_limit: 0,
+      baseline_policy: { mode: 'ratchet_no_growth' },
+    },
   });
 
   try {
-    const result = runLineBudget(root, contractPath);
+    const result = runLineBudget(root, contractPath, ['--strict', '--format', 'json']);
+    const output = parseJsonText(result.stdout) as any;
 
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stderr, /line budget advisory/);
-    assert.match(result.stderr, /src\/new-large-entry\.ts: 4 lines exceeds 3 line budget/);
-    assert.match(result.stderr, /add a reviewed baseline contract entry/);
+    assert.equal(output.enforcement, 'advisory_only');
+    assert.equal(output.failure_count, 0);
+    assert.ok(output.findings.some((finding: string) => finding.includes('contract_kind')));
+    assert.ok(output.findings.some((finding: string) => finding.includes('advisory_inventory_only')));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('strict line budget blocks a new oversized file until it has a reviewed baseline', () => {
+test('line budget list remains a descending maintenance inventory', () => {
   const { root, contractPath } = fixture({
-    files: { 'src/new-large-entry.ts': 4 },
+    files: {
+      'src/medium.ts': 4,
+      'src/largest.ts': 6,
+      'src/small.ts': 2,
+    },
     defaultLimit: 3,
   });
 
   try {
-    const result = runLineBudget(root, contractPath, ['--strict']);
-
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /strict line budget check failed/);
-    assert.match(result.stderr, /src\/new-large-entry\.ts: 4 lines exceeds 3 line budget/);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('line budget reports baseline entries without review metadata as advisory by default', () => {
-  const { root, contractPath } = fixture({
-    files: { 'src/legacy-entry.ts': 4 },
-    defaultLimit: 3,
-    baselines: [{
-      path: 'src/legacy-entry.ts',
-      limit: 4,
-      owner: '',
-      reason: '',
-      intended_boundary: '',
-    }],
-  });
-
-  try {
-    const result = runLineBudget(root, contractPath);
+    const result = runLineBudget(root, contractPath, ['--list']);
 
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stderr, /line budget advisory/);
-    assert.match(result.stderr, /baseline entry for src\/legacy-entry\.ts is missing owner/);
-    assert.match(result.stderr, /baseline entry for src\/legacy-entry\.ts is missing reason/);
-    assert.match(result.stderr, /baseline entry for src\/legacy-entry\.ts is missing intended_boundary/);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('strict line budget rejects baseline entries without review metadata', () => {
-  const { root, contractPath } = fixture({
-    files: { 'src/legacy-entry.ts': 4 },
-    defaultLimit: 3,
-    baselines: [{
-      path: 'src/legacy-entry.ts',
-      limit: 4,
-      owner: '',
-      reason: '',
-      intended_boundary: '',
-    }],
-  });
-
-  try {
-    const result = runLineBudget(root, contractPath, ['--strict']);
-
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /strict line budget check failed/);
-    assert.match(result.stderr, /baseline entry for src\/legacy-entry\.ts is missing owner/);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('line budget asks for retired baseline removal as advisory by default', () => {
-  const { root, contractPath } = fixture({
-    files: { 'src/legacy-entry.ts': 3 },
-    defaultLimit: 3,
-    baselines: [{ path: 'src/legacy-entry.ts', limit: 4 }],
-  });
-
-  try {
-    const result = runLineBudget(root, contractPath);
-
-    assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stderr, /line budget advisory/);
-    assert.match(result.stderr, /src\/legacy-entry\.ts: retired line-budget baseline entry/);
+    assert.deepEqual(result.stdout.trim().split('\n').map((line) => line.trim()), [
+      '6 src/largest.ts',
+      '4 src/medium.ts',
+    ]);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

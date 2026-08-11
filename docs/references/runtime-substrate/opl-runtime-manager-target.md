@@ -90,7 +90,7 @@ v1 registry 只登记 MAS、MAG、RCA 已声明的 projection surface：
 
 - `npm run test:integration` 覆盖 ACP/session runtime、install/configure 以及 retired Product API fail-closed 守护
 - `./scripts/verify.sh native` 覆盖 native helper lifecycle
-- `./scripts/verify.sh structure` 是本地结构质量 advisory 入口；line budget、Sentrux baseline regression 与 `.sentrux/rules.toml` explicit rules findings 都输出诊断 / OPL quality details 但默认不阻断普通开发；`./scripts/verify.sh structure:strict`、`./scripts/verify.sh line-budget:strict` 或对应 strict 环境变量才作为维护硬门；GitHub Sentrux Advisory workflow 只提供非阻断结构信号
+- `./scripts/verify.sh structure` 是本地结构质量 advisory 入口；line budget、Sentrux baseline regression 与 `.sentrux/rules.toml` explicit rules findings 都输出诊断 / OPL quality details 且不阻断普通开发；兼容的 `structure:strict`、`line-budget:strict` 与旧 strict 环境变量也不把 generic structure finding 升级为维护硬门
 
 ## 高频文件与状态索引
 

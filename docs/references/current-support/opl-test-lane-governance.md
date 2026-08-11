@@ -22,13 +22,13 @@ Currentness policy：查看当前 lane 集合时先读 `package.json` 的 `test:
 | artifact | `npm run test:artifact` | 构建后 artifact 行为，先 `npm run build`，再跑 built CLI 测试。 |
 | fresh-install | `npm run test:fresh-install` | 本机 clean-room install / initialize 矩阵；真实 GUI 首启由 `one-person-lab-app` 的 App VM workflow 承担，并通过 external checkout 调用 `opl-aion-shell`。 |
 
-`scripts/verify.sh` 是 repo-native 验证分发入口。它分发到 smoke、fast、meta、regression、integration、structure、structure:strict、family、fresh-install、artifact、native、full、lint、line-budget、line-budget:strict 或 typecheck。line budget 不再作为所有 lane 的前置硬门；`line-budget` lane 只执行 advisory 检查并默认 exit 0，`line-budget:strict` 才执行维护用 strict ratchet。line-budget 的预算、near-limit 阈值、reasonable-refactor 分类口径与 reviewed baseline 由 `contracts/opl-framework/source-structure-budget.json` 持有；脚本默认报告新增超线、超过 reviewed baseline、stale baseline 与 retired baseline，只有 `--strict` 或 `OPL_LINE_BUDGET_STRICT=1` 才把 findings 作为失败。
+`scripts/verify.sh` 是 repo-native 验证分发入口。它分发到 smoke、fast、meta、regression、integration、structure、structure:strict、family、fresh-install、artifact、native、full、lint、line-budget、line-budget:strict 或 typecheck。line budget 始终是 advisory inventory；`line-budget:strict`、`--strict` 与 `OPL_LINE_BUDGET_STRICT=1` 只保留兼容调用形状，不再产生 failure。预算、near-limit 阈值与 reasonable-refactor 分类口径由 `contracts/opl-framework/source-structure-budget.json` 持有，不再维护逐文件 reviewed baseline 或 no-growth ledger。
 
 | Verify lane | 命令 | 角色 |
 | --- | --- | --- |
 | native | `./scripts/verify.sh native` | native helper doctor、prebuild check、package dry-run、Rust test/build、state cache 与 family smoke。 |
 | structure | `./scripts/verify.sh structure` | 本地结构质量 advisory 入口；line budget 和 Sentrux baseline/rules findings 都会输出诊断与 OPL quality details，但默认不阻断普通开发。 |
-| structure:strict | `./scripts/verify.sh structure:strict` | 显式维护硬门；line budget strict 与 Sentrux explicit rules failure 会返回失败，供每日结构治理或维护者手动检查。 |
+| structure:strict | `./scripts/verify.sh structure:strict` | 兼容维护入口；模块 public-entry / forbidden dependency / module SCC 合同仍校验，line budget 与 generic Sentrux findings 保持 advisory。 |
 | family | `./scripts/verify.sh family` | Python shared harness bootstrap 验证；Python cache、pytest cache 和临时 venv 必须走 repo 外 temp env。 |
 | lint | `./scripts/verify.sh lint` | `npm run lint`，只执行 JS lint；行数预算通过 `line-budget` / `line-budget:strict` 或 `structure` / `structure:strict` 查看。 |
 | typecheck | `./scripts/verify.sh typecheck` | `npm run typecheck`。 |
@@ -68,11 +68,11 @@ Workspace 测试若调用 `workspace init` / `ensure`，不应依赖真实 regis
 
 ## CI 与结构质量
 
-GitHub `Verify` workflow 按 gate 拆开运行 build/typecheck、fast、read-model-gates、regression、integration、fresh-install、native、lint 和本地 structure。`lint-and-structure` job 会先取 `origin/main` compare ref、安装 Sentrux、运行 `./scripts/verify.sh lint`，再运行 `./scripts/verify.sh structure`。默认结构 lane 是 advisory：line budget、Sentrux baseline regression 与 explicit rules findings 都用于 review visibility 和每日治理队列，不阻断普通开发 CI。显式维护检查使用 `line-budget:strict` 或 `structure:strict`，不混入默认 feature verification。`artifact` 与 `full` 是本地 / clean-clone release-style 验证入口，不是当前 Verify workflow 的独立 job。
+GitHub `Verify` workflow 按 gate 拆开运行 build/typecheck、fast、read-model-gates、regression、integration、fresh-install、native、lint 和本地 structure。`lint-and-structure` job 会先取 `origin/main` compare ref、安装 Sentrux、运行 `./scripts/verify.sh lint`，再运行 `./scripts/verify.sh structure`。line budget、Sentrux baseline regression 与 explicit rules findings 都只用于 review visibility 和治理候选，不阻断普通开发 CI；兼容的 `line-budget:strict` / `structure:strict` 也不改变这一点。`artifact` 与 `full` 是本地 / clean-clone release-style 验证入口，不是当前 Verify workflow 的独立 job。
 
 `read-model-gates` 只放 owner/currentness/provider lifecycle、App/read-model 默认路径、StageRun closeout、workspace topology、domain-pack compiler、agent conformance 等会影响普通执行正确性的大边界。root help 是否列出某个细粒度入口、示例文案是否完整、报告措辞和 display-only discoverability 属于 `meta` / advisory 范围；命令本身 fail-closed、scoped help 可解析、JSON/usage shape 和 contract/API 行为仍可测试，但不应让 root help 展示细节阻断 default-branch hard CI。
 
-GitHub `Verify` 只按每日 schedule 或手动 dispatch 运行上述完整 hosted gates，不在每次 push/PR 重复启动。结构 findings 仍是非阻断 advisory signal，不替代显式 strict 维护入口，也不改变 `.sentrux/rules.toml`、line budget、reasonable-refactor 分类口径或 lane registry 的 owner；需要 JSON artifact 时显式消费 `.github/actions/quality-details`，本仓不再维护独立 advisory workflow。
+GitHub `Verify` 只按每日 schedule 或手动 dispatch 运行上述完整 hosted gates，不在每次 push/PR 重复启动。结构 findings 始终是非阻断 advisory signal，不改变 `.sentrux/rules.toml`、line budget、reasonable-refactor 分类口径或 lane registry 的 owner；需要 JSON artifact 时显式消费 `.github/actions/quality-details`，本仓不再维护独立 advisory workflow。
 
 更新测试文件时，先运行：
 

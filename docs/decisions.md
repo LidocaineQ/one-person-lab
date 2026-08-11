@@ -1333,19 +1333,19 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 - stderr 和 stdout 继续保留在 runtime event payload 中，供诊断命令噪声、环境同步或底层进程行为；但无结构化 owner 错误时才回退到 stderr。
 - 该规则只改善 OPL queue / retry / dead-letter 可观察性，不把 OPL 变成 MAS/MAG/RCA truth、quality verdict、artifact authority 或 owner receipt signer。
 
-### 决策：App drilldown 继续通过真实模块拆分恢复 line-budget gate
+### 决策：App drilldown 只在真实职责边界上收薄
 
-原因：OPL line budget 仍是结构维护信号，但不再作为普通 `scripts/verify.sh` 的第一道硬门。若当前 main 的 App drilldown 聚合器或长测试超过 reviewed baseline，应通过职责明确的 parts 模块和独立测试文件在结构治理任务中收薄，而不是让普通 feature verify 被行数预算卡住，或把结构 debt 当成下游 domain 任务失败。历史超线文件可以通过 `contracts/opl-framework/source-structure-budget.json` 记录 reviewed baseline，但 baseline 只表示已审查的维护账本，不表示该结构已经理想。
+原因：OPL line budget 只负责暴露结构维护候选，不能作为普通开发、显式 strict maintenance、merge、release 或 completion 的硬门。若当前 main 的 App drilldown 聚合器或长测试已经呈现独立 owner、行为场景或 contract 边界，应通过职责明确的 parts 模块和独立测试文件收薄；若没有安全自然边界，则保持 advisory 可见，不用逐文件 baseline、例外表或 no-growth ratchet 阻断工作。
 
 影响：
 
 - `runtime-tray-app-operator-drilldown` 继续保持薄聚合器；新增投影块进入 `runtime-tray-app-operator-drilldown-parts/`。
-- App drilldown 的 manifest-cache 等独立测试场景必须独立成 case 文件；文件回到默认预算内后必须删除 retired baseline。
+- App drilldown 的 manifest-cache 等独立测试场景在确有独立行为边界时拆成 case 文件；行数变化只用于 fresh maintenance readback，不产生 baseline 生命周期。
 - 该规则只恢复 OPL repo 结构验证与可维护性，不改变 MAS/MAG/RCA truth、quality verdict、artifact authority 或 owner receipt 边界。
 
-### 决策：Temporal provider 与长 CLI case 的 line-budget 恢复同样走 parts/cases 拆分
+### 决策：Temporal provider 与长 CLI case 同样按 parts/cases 自然边界拆分
 
-原因：同一 line-budget ratchet 规则适用于 provider runtime 与长 CLI test case。若 `family-runtime-temporal-provider.ts` 或 provider/system/MAS 相关测试超过 locked baseline，优先把稳定子职责迁入 `family-runtime-temporal-provider-parts/` 或独立 `tests/src/cli/cases/**` case/helper 文件；文件回到默认预算内后同步删除 retired baseline。
+原因：provider runtime 与长 CLI test case 都可能因为职责增长而需要拆分，但文件长度本身不是 correctness gate。若 `family-runtime-temporal-provider.ts` 或 provider/system/MAS 相关测试已经存在稳定子职责或独立行为场景，优先迁入 `family-runtime-temporal-provider-parts/` 或独立 `tests/src/cli/cases/**` case/helper 文件；否则仅保留 advisory finding，不能为了过阈值机械切片。
 
 影响：
 

@@ -24,8 +24,8 @@ const structuralGatePatterns = [
   /Compare ref \$\{compare_ref\} is unavailable; using HEAD\^ for quality details\./,
   /Sentrux baseline regression reported structural drift/,
   /OPL quality details exceeded \$\{quality_details_timeout_seconds\}s in the local structure gate/,
-  /default structure lane is advisory/,
-  /OPL_STRUCTURAL_QUALITY_STRICT=1/,
+  /Structural quality findings are advisory/,
+  /use it to select a natural refactor boundary rather than blocking unrelated work/,
   /sentrux check \./,
 ];
 
@@ -188,14 +188,14 @@ test('GitHub native helper prebuild workflow packs release artifacts across supp
   assertFilePatterns('.github/workflows/native-helper-prebuilds.yml', nativeHelperPrebuildWorkflowPatterns);
 });
 
-test('lint remains a JavaScript lint entrypoint while line-budget has explicit advisory and strict entrypoints', () => {
+test('lint remains independent while legacy line-budget strict naming is an advisory alias', () => {
   assert.equal(packageJson.scripts?.lint, 'node ./scripts/lint.mjs');
   assert.equal(packageJson.scripts?.['line-budget'], 'node ./scripts/line-budget.mjs');
-  assert.equal(packageJson.scripts?.['line-budget:strict'], 'node ./scripts/line-budget.mjs --strict');
+  assert.equal(packageJson.scripts?.['line-budget:strict'], 'node ./scripts/line-budget.mjs');
   assert.equal(fs.existsSync(path.join(repoRoot, 'scripts/line-budget.mjs')), true);
 });
 
-test('line-budget advisory is backed by a reviewed strict-ratchet contract', () => {
+test('line-budget contract is advisory-only and has no per-file lock ledger', () => {
   const contractPath = path.join(repoRoot, 'contracts/opl-framework/source-structure-budget.json');
   const contract = parseJsonText(fs.readFileSync(contractPath, 'utf8')) as {
     contract_kind?: string;
@@ -213,28 +213,27 @@ test('line-budget advisory is backed by a reviewed strict-ratchet contract', () 
 
   assert.equal(contract.contract_kind, 'opl_source_structure_budget.v1');
   assert.equal(contract.default_limit, 1000);
-  assert.equal(contract.baseline_policy?.mode, 'scheduled_advisory_with_explicit_strict_ratchet');
+  assert.equal(contract.baseline_policy?.mode, 'advisory_inventory_only');
   assert.equal(contract.reasonable_refactor_policy?.mode, 'line_budget_as_signal_not_splitter');
   assert.ok(contract.reasonable_refactor_policy?.preferred_split_boundaries?.includes('test_scenario'));
   assert.ok(contract.reasonable_refactor_policy?.characterization_first?.includes('runtime_authority'));
   assert.equal(
     contract.reasonable_refactor_policy?.completion_policy,
-    'p0_queue_processed_until_cleared_blocked_or_budget_then_reasonable_p1_batch',
+    'selected_batch_verified_or_no_safe_high_value_candidate',
   );
-  assert.equal(Array.isArray(contract.reviewed_baselines), true);
-  for (const entry of contract.reviewed_baselines ?? []) {
-    assert.equal(typeof entry.path, 'string');
-    assert.equal(typeof entry.limit, 'number');
-    assert.equal(typeof entry.owner, 'string');
-    assert.equal(typeof entry.reason, 'string');
-    assert.equal(typeof entry.intended_boundary, 'string');
-  }
+  assert.deepEqual(contract.reviewed_baselines, []);
   assert.match(script, /source-structure-budget\.json/);
   assert.match(script, /line budget advisory/);
   assert.match(script, /--strict/);
   assert.match(script, /OPL_LINE_BUDGET_STRICT/);
-  assert.match(script, /ratchet baseline blocks growth/);
-  assert.match(script, /reviewed baseline contract entry/);
+  assert.match(script, /enforcement: 'advisory_only'/);
+  assert.match(script, /split only when a natural boundary exists/);
+  const findingsBranchStart = script.indexOf('if (findings.length > 0) {');
+  const firstHelperStart = script.indexOf('\nfunction isCodeFile', findingsBranchStart);
+  assert.notEqual(findingsBranchStart, -1);
+  assert.notEqual(firstHelperStart, -1);
+  assert.doesNotMatch(script.slice(findingsBranchStart, firstHelperStart), /process\.exit\(/);
+  assert.doesNotMatch(script, /ratchet baseline blocks growth/);
 });
 
 test('reasonable refactor patrol keeps selection evidence-led and fork bodies excluded', () => {

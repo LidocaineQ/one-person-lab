@@ -52,9 +52,9 @@ AI reviewer route：需要从 `opl quality details --json`、Sentrux output 或 
 
 本地 structure lane 应先运行既有 Sentrux gate/check。在 OPL 中，`./scripts/verify.sh structure` 先运行 line-budget advisory，再委托给 `scripts/run-structural-quality-gate.sh`：
 
-- line budget 默认是 advisory，只有 `scripts/line-budget.mjs --strict`、`OPL_LINE_BUDGET_STRICT=1`、`npm run line-budget:strict` 或 `./scripts/verify.sh line-budget:strict` 才返回失败；
+- line budget 始终是 advisory；`--strict`、`OPL_LINE_BUDGET_STRICT=1`、`line-budget:strict` 只作为旧调用兼容别名，不能因行数 finding 返回失败；
 - `sentrux gate .` baseline regression 会输出 `opl quality details` 并按 advisory success 返回，因此普通 baseline drift 本身不阻断 lane；
-- `sentrux check .` rules failure 会输出 `opl quality details`，默认按 advisory success 返回；`OPL_STRUCTURAL_QUALITY_STRICT=1` 或 `./scripts/verify.sh structure:strict` 才保留 rules failure 的 blocking 状态；
+- `sentrux check .` rules failure 会输出 `opl quality details` 并按 advisory success 返回；旧 strict 环境变量和 `structure:strict` 不能把 generic quality finding 升级成阻断；
 - 缺少 `.sentrux/baseline.json` 或 `.sentrux/rules.toml` 会报告为 skipped local structural check，不伪造 pass/fail evidence。
 
 structure gate 输出 sidecar 时，命令形状是：
@@ -63,9 +63,9 @@ structure gate 输出 sidecar 时，命令形状是：
 opl quality details --root . --format markdown --limit 30 --focus auto --compare-ref "${OPL_QUALITY_DETAILS_COMPARE_REF:-origin/main}"
 ```
 
-这保持 Sentrux 作为 structural source，并让 function-level regression 在开发时可见，同时保留当前 policy split：默认开发入口 advisory，显式 strict 维护入口 blocking。
+这保持 Sentrux 作为 structural source，并让 function-level regression 在开发时可见；是否重构由 owner 根据自然边界判断，不由通用分数或文件行数自动阻断。
 
-GitHub `Verify` 只在每日 schedule 或手动 dispatch 时运行完整 hosted 验证，避免单人开发中每次 push/PR 都重复启动八个 macOS job。它的 `lint-and-structure` job 运行 `./scripts/verify.sh lint` 和默认 advisory `./scripts/verify.sh structure`；本地入口始终可用，blocking policy 只在 `line-budget:strict`、`structure:strict` 或显式 strict 环境变量中启用。`.github/actions/quality-details` 继续作为其他明确需要 artifact 的 workflow 可选消费面，但本仓不再重复运行独立 `Sentrux Advisory`。
+GitHub `Verify` 只在每日 schedule 或手动 dispatch 时运行完整 hosted 验证，避免单人开发中每次 push/PR 都重复启动八个 macOS job。它的 `lint-and-structure` job 运行 `./scripts/verify.sh lint` 和 advisory `./scripts/verify.sh structure`；`line-budget:strict` 与 `structure:strict` 保留命令兼容，但通用 line-budget/Sentrux findings 仍为 advisory。`.github/actions/quality-details` 继续作为其他明确需要 artifact 的 workflow 可选消费面，但本仓不再重复运行独立 `Sentrux Advisory`。
 
 GitHub composite action 会向 step summary 写 Markdown，并把 JSON sidecar 写到 `output-dir` 的 `quality-details.json`；默认 `limit=20` 只影响 Markdown，`json-limit=50` 影响 artifact JSON，`timeout-seconds=240` 分别约束 Markdown 与 JSON 生成。若 JSON 生成超时或失败，action 仍会写入同一 `quality-details.json` 路径，但内容保持 CLI JSON envelope，并在 `quality_details` 内带 `surface_kind=opl_code_quality_details.v1` 与 `diagnostic.status=timeout|failed`，避免 advisory workflow 因整段 composite step 被杀掉而丢失 artifact/readback。它需要目标分支实际包含本 action 和 OPL 依赖安装面，并在 action 内运行本仓 `bin/opl`。不要把 action artifact 的某次 findings 数量、triage target、baseline diff、diagnostic sidecar 或 upload 成功写成长期结构健康、release readiness、domain readiness 或 App readiness。
 

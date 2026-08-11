@@ -18,17 +18,11 @@ function writeLines(file: string, lineCount: number) {
 function fixture(input: {
   files: Record<string, number>;
   defaultLimit?: number;
-  baselines?: Array<{
-    path: string;
-    limit: number;
-    owner?: string;
-    reason?: string;
-    intended_boundary?: string;
-  }>;
+  contract?: Record<string, unknown>;
 }) {
   const root = fs.mkdtempSync(path.join(process.env.OPL_REPO_TEMP_ROOT || os.tmpdir(), 'opl-source-structure-'));
   const contractPath = path.join(root, 'contracts', 'opl-framework', 'source-structure-budget.json');
-  const contract = {
+  const contract = input.contract ?? {
     contract_kind: 'opl_source_structure_budget.v1',
     surface_kind: 'opl_source_structure_budget',
     owner: 'one-person-lab',
@@ -36,16 +30,11 @@ function fixture(input: {
     default_limit: input.defaultLimit ?? 3,
     advisory_near_limit: input.defaultLimit ?? 3,
     baseline_policy: {
-      mode: 'scheduled_advisory_with_explicit_strict_ratchet',
-      default_developer_behavior: 'advisory_exit_zero',
-      strict_entrypoints: ['npm run line-budget:strict'],
+      mode: 'advisory_inventory_only',
+      default_developer_behavior: 'findings_exit_zero',
+      compatibility_entrypoints: ['npm run line-budget:strict'],
     },
-    reviewed_baselines: (input.baselines ?? []).map((entry) => ({
-      owner: entry.owner ?? 'test-owner',
-      reason: entry.reason ?? 'fixture reviewed baseline',
-      intended_boundary: entry.intended_boundary ?? 'fixture semantic boundary',
-      ...entry,
-    })),
+    reviewed_baselines: [],
   };
 
   const init = spawnSync('git', ['init'], { cwd: root, encoding: 'utf8' });
@@ -61,7 +50,7 @@ function fixture(input: {
   return { root, contractPath };
 }
 
-test('source structure operator readback reports strict ratchet findings without claiming readiness', () => {
+test('source structure readback keeps legacy strict requests advisory', () => {
   const { root, contractPath } = fixture({
     files: {
       'src/new-large-entry.ts': 4,
@@ -78,62 +67,50 @@ test('source structure operator readback reports strict ratchet findings without
     }).source_structure_operator_readback;
 
     assert.equal(readback.surface_kind, 'opl_source_structure_operator_readback');
-    assert.equal(
-      readback.readback_role,
-      'operator_source_structure_guard_not_completion_audit_not_readiness_or_quality_verdict',
-    );
     assert.equal(readback.mode, 'strict_readback');
+    assert.equal(readback.enforcement_mode, 'advisory_only');
+    assert.equal(readback.strict_requested, true);
     assert.equal(readback.default_limit, 3);
-    assert.equal(readback.tracked_source_file_count, 2);
     assert.equal(readback.oversized_file_count, 1);
     assert.equal(readback.near_limit_file_count, 1);
-    assert.equal(readback.strict_ratchet_passed, false);
-    assert.equal(readback.strict_blocking_finding_count, 1);
-    assert.equal(readback.findings[0].finding_kind, 'new_oversized_file');
-    assert.equal(readback.findings[0].path, 'src/new-large-entry.ts');
+    assert.equal(readback.reviewed_baseline_count, 0);
+    assert.equal(readback.strict_ratchet_passed, true);
+    assert.equal(readback.strict_blocking_finding_count, 0);
+    assert.equal(readback.findings[0].finding_kind, 'oversized_file');
+    assert.equal(readback.findings[0].strict_blocks, false);
+    assert.equal(readback.oversized_files[0].reviewed_baseline_status, 'not_applicable');
+    assert.equal(readback.advisory_passed, true);
     assert.equal(readback.authority_boundary.can_claim_domain_ready, false);
-    assert.equal(readback.authority_boundary.can_claim_quality_verdict, false);
-    assert.equal(readback.false_ready_guard.line_budget_clean_can_claim_ready, false);
     assert.equal(readback.false_ready_guard.findings_are_maintenance_signal_not_domain_blocker, true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('source structure operator readback recognizes reviewed baselines and retired baseline findings', () => {
+test('retired per-file baseline metadata is reported but never blocks', () => {
   const { root, contractPath } = fixture({
-    files: {
-      'src/reviewed-entry.ts': 4,
-      'src/retired-entry.ts': 3,
-    },
+    files: { 'src/legacy-entry.ts': 4 },
     defaultLimit: 3,
-    baselines: [
-      { path: 'src/reviewed-entry.ts', limit: 4 },
-      { path: 'src/retired-entry.ts', limit: 4 },
-    ],
+    contract: {
+      contract_kind: 'opl_source_structure_budget.v1',
+      surface_kind: 'opl_source_structure_budget',
+      default_limit: 3,
+      advisory_near_limit: 3,
+      baseline_policy: { mode: 'advisory_inventory_only' },
+      reviewed_baselines: [{ path: 'src/legacy-entry.ts', limit: 4 }],
+    },
   });
 
   try {
-    const readback = buildSourceStructureOperatorReadback({
-      repoRoot: root,
-      contractPath,
-    }).source_structure_operator_readback;
+    const readback = buildSourceStructureOperatorReadback({ repoRoot: root, contractPath })
+      .source_structure_operator_readback;
 
-    assert.equal(readback.mode, 'advisory_readback');
-    assert.equal(readback.reviewed_baseline_count, 2);
-    assert.equal(readback.oversized_file_count, 1);
-    assert.equal(readback.strict_ratchet_passed, false);
-    assert.equal(
-      readback.oversized_files.find((entry) => entry.path === 'src/reviewed-entry.ts')
-        ?.reviewed_baseline_status,
-      'within_reviewed_baseline',
-    );
-    assert.ok(
-      readback.findings.some((finding) =>
-        finding.finding_kind === 'retired_reviewed_baseline'
-        && finding.path === 'src/retired-entry.ts'),
-    );
-    assert.equal(readback.advisory_passed, true);
+    assert.equal(readback.strict_blocking_finding_count, 0);
+    assert.equal(readback.strict_ratchet_passed, true);
+    assert.ok(readback.findings.some((finding) =>
+      finding.finding_kind === 'contract_invalid'
+      && finding.message.includes('reviewed_baselines is retired')
+      && finding.strict_blocks === false));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

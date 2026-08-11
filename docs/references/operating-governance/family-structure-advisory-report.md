@@ -37,7 +37,7 @@ Current JSON shape:
 ## Current Interpretation
 
 - A clean advisory scan only means the scanner's current pattern set did not find matching structural risk in that scope; it does not mean all structure is ideal.
-- Line budget remains a maintainability fitness function, advisory for ordinary development and blocking only in explicit strict maintenance. The strict maintenance unit is `new over-limit growth`、`baseline growth`、`stale baseline`、`retired baseline` or `missing reviewed owner/reason`; repair must be a natural semantic split, owner-boundary move, generated/source separation, or approved reviewed baseline.
+- Line budget remains a maintainability fitness signal and is advisory in every command mode, including legacy `--strict` / `line-budget:strict` / `structure:strict` entrypoints. Oversized or growing files enter a design queue only when caller, churn, complexity, dependency, contract or test evidence shows a real maintenance problem; repair must use a natural semantic split, owner-boundary move or generated/source separation. Without a safe boundary, the finding stays visible and non-blocking.
 - `parts/` is acceptable when it names a real owner subdomain. `*_parts/*_parts` or nested `parts` stacks are review signals; they become cleanup tasks only after reading the caller and confirming the directory name is merely a mechanical consequence of the budget.
 - Public-surface risk is usually generated contract/schema pressure or large shared helper bucket pressure. Treat it as generator/source modularity or shared-helper ownership review, not as physical JSON shard work.
 
@@ -68,9 +68,9 @@ For MAS, App or shell follow-up, run the same command with that repo's current c
 
 ## External Calibration
 
-- ESLint `max-lines` treats large files as a maintainability signal, notes that there is no objective universal maximum, and offers configurable `max` plus blank/comment skipping. This supports a ratchet / review policy instead of a universal physical split rule: <https://archive.eslint.org/docs/rules/max-lines>
+- ESLint `max-lines` treats large files as a maintainability signal, notes that there is no objective universal maximum, and offers configurable `max` plus blank/comment skipping. This supports review and candidate ranking instead of a universal physical split or no-growth gate: <https://archive.eslint.org/docs/rules/max-lines>
 - Checkstyle `FileLength` frames long files as hard to understand and says they should usually be refactored into classes with a specific task; it also uses a configurable `max` and file-extension scope. This supports semantic refactoring, not arbitrary chunks: <https://checkstyle.org/checks/sizes/filelength.html>
-- Thoughtworks' fitness-function guidance treats architectural checks as automated health signals, while warning that overly strict or poorly defined functions can impose unnecessary rigidity. This supports keeping line-budget/Sentrux as fitness signals with explicit escape/ratchet semantics: <https://www.thoughtworks.com/insights/decoder/f/fitness-functions>
+- Thoughtworks' fitness-function guidance treats architectural checks as automated health signals, while warning that overly strict or poorly defined functions can impose unnecessary rigidity. This supports keeping line-budget/Sentrux as advisory fitness signals whose remediation is selected by owner-aware engineering judgment: <https://www.thoughtworks.com/insights/decoder/f/fitness-functions>
 
 ## Operating Rule
 

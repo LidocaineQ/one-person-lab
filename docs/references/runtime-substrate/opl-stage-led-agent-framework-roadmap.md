@@ -320,7 +320,7 @@ Temporal provider 的定位是生产级 durable substrate，不是新的领域�
 
 当前读法：普通 product entry / resume、provider-backed family runtime、retired Hermes provider / Gateway / readiness 语境、explicit executor adapter 边界、descriptor/conformance/default-caller readiness 和 production evidence tail 都回到核心五件套、runtime boundary contract、active gap owner、live CLI/read-model 与 history/provenance 读取。本文只保留依赖顺序和 authority boundary；不冻结实现状态、counter、proof snapshot 或 per-domain closeout 数字。
 
-结构质量信号的当前语义也按这个边界执行：`sentrux gate .` baseline drift、`sentrux check .` explicit rules findings 和 line budget findings 默认都作为 advisory，并触发 OPL quality details 输出帮助定位结构变化；只有 `line-budget:strict`、`structure:strict`、`OPL_LINE_BUDGET_STRICT=1` 或 `OPL_STRUCTURAL_QUALITY_STRICT=1` 这类显式维护入口才把结构 findings 升级为 blocking。后续结构治理可以先做 audit、gap projection 和文档同步，不能把 advisory baseline drift 写成阻塞发布的 hard gate，也不能让 line budget / explicit rules 阻断普通开发提交流程。
+结构质量信号的当前语义也按这个边界执行：`sentrux gate .` baseline drift、`sentrux check .` explicit rules findings 和 line budget findings 始终作为 advisory，并触发 OPL quality details 输出帮助定位结构变化；旧 `line-budget:strict`、`structure:strict` 与 strict 环境变量只保留兼容调用形状，不能把 generic structure finding 升级为 blocking。后续结构治理按 owner 和自然边界推进，不能让 line budget / explicit rules 阻断正常开发。
 
 Domain agent 负责：
 

@@ -30,8 +30,8 @@ case "$lane" in
     ;;
   structure:strict)
     npm run source:modules -- --strict-imports --strict-cycles
-    node scripts/line-budget.mjs --strict
-    OPL_STRUCTURAL_QUALITY_STRICT=1 ./scripts/run-structural-quality-gate.sh
+    node scripts/line-budget.mjs
+    ./scripts/run-structural-quality-gate.sh
     ;;
   reuse-first)
     npm run reuse-first:scan:diff
@@ -82,7 +82,7 @@ case "$lane" in
     node scripts/line-budget.mjs
     ;;
   line-budget:strict)
-    node scripts/line-budget.mjs --strict
+    node scripts/line-budget.mjs
     ;;
   typecheck)
     npm run typecheck
