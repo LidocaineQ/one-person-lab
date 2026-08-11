@@ -29,3 +29,8 @@ export {
   inspectManagedComputerUse,
   readManagedComputerUseLock,
 } from '../managed-computer-use.ts';
+export {
+  buildManagedBrowserAutomationActionCatalog,
+  inspectManagedBrowserAutomation,
+  readManagedBrowserAutomationLock,
+} from '../managed-browser-automation.ts';

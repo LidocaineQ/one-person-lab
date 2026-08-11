@@ -1,5 +1,6 @@
 .DS_Store
 .officecli/
+.playwright-mcp/
 # legacy OMX local state (kept ignored after offboarding)
 .omx/
 .codegraph/

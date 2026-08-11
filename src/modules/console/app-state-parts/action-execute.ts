@@ -14,6 +14,10 @@ import {
   runManagedUpdateKernelOperation,
   listExternalOwnerDelegatedUpdateActions,
   runExternalOwnerDelegatedUpdate,
+  inspectManagedBrowserAutomation,
+  MANAGED_BROWSER_AUTOMATION_ACTION_IDS,
+  reconcileManagedBrowserAutomation,
+  type ManagedBrowserAutomationActionId,
   completeOplGatewaySetup,
   disconnectOplGatewayAccount,
   refreshOplGatewayAccount,
@@ -182,6 +186,25 @@ async function executeDirectAppAction(
           surface_kind: 'opl_managed_computer_use_action_result',
           action_id: actionId,
           current: reconcileManagedComputerUse(actionId),
+        },
+    };
+  }
+
+  if (MANAGED_BROWSER_AUTOMATION_ACTION_IDS.includes(options.actionId as ManagedBrowserAutomationActionId)) {
+    const actionId = options.actionId as ManagedBrowserAutomationActionId;
+    return {
+      delegatedSurface: `opl managed companion ${actionId}`,
+      result: options.dryRun
+        ? {
+          surface_kind: 'opl_managed_browser_automation_action_preflight',
+          action_id: actionId,
+          status: 'dry_run',
+          current: inspectManagedBrowserAutomation({ runExternalChecks: false }),
+        }
+        : {
+          surface_kind: 'opl_managed_browser_automation_action_result',
+          action_id: actionId,
+          current: reconcileManagedBrowserAutomation(actionId),
         },
     };
   }

@@ -525,11 +525,26 @@ enabled = true
     assert.equal(fs.existsSync(invocationLog), false);
     assert.equal(output.app_state.operator.workbench.managed_companions.computer_use_ref,
       'app_state.managed_companions[provider_id=kimi-cu]');
+    const browserAutomation = output.app_state.managed_companions.find(
+      (companion: any) => companion.provider_id === 'playwright-mcp',
+    );
+    assert.equal(browserAutomation.installed, true);
+    assert.equal(browserAutomation.registered, false);
+    assert.equal(browserAutomation.enabled, false);
+    assert.equal(browserAutomation.ready, false);
+    assert.equal(browserAutomation.status, 'not_registered');
+    assert.equal(browserAutomation.permission, 'not_required');
+    assert.equal(browserAutomation.mcp.initialize_ok, null);
+    assert.equal(browserAutomation.mcp.tools_exact, null);
+    assert.equal(output.app_state.operator.workbench.managed_companions.browser_automation_ref,
+      'app_state.managed_companions[provider_id=playwright-mcp]');
     for (const actionId of [
       'settings_request_computer_use_permissions',
       'settings_recheck_computer_use',
       'settings_repair_computer_use',
       'settings_reinstall_computer_use',
+      'settings_recheck_browser_automation',
+      'settings_repair_browser_automation',
     ]) {
       const action = output.app_state.actions.find((candidate: any) => candidate.action_id === actionId);
       assert.equal(action?.route, `opl app action execute --action ${actionId}`);

@@ -173,6 +173,18 @@ export type {
   ManagedComputerUseInspection,
   ManagedComputerUseLock,
 } from './managed-computer-use.ts';
+export {
+  buildManagedBrowserAutomationActionCatalog,
+  inspectManagedBrowserAutomation,
+  MANAGED_BROWSER_AUTOMATION_ACTION_IDS,
+  readManagedBrowserAutomationLock,
+  reconcileManagedBrowserAutomation,
+} from './managed-browser-automation.ts';
+export type {
+  ManagedBrowserAutomationActionId,
+  ManagedBrowserAutomationInspection,
+  ManagedBrowserAutomationLock,
+} from './managed-browser-automation.ts';
 export { registerOplManagedMcpServer } from './system-installation/codex-plugin-registry.ts';
 export { runOplEngineAction } from './system-installation/engine-actions.ts';
 export { resolveCodexVersion } from './system-installation/engine-helpers.ts';

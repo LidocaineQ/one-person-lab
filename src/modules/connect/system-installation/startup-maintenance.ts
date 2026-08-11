@@ -6,6 +6,11 @@ import {
 } from '../../runway/index.ts';
 import { recordManagedInstallUpdateReceipts } from '../managed-install-update-ledger.ts';
 import {
+  inspectManagedBrowserAutomation,
+  reconcileManagedBrowserAutomation,
+  type ManagedBrowserAutomationInspection,
+} from '../managed-browser-automation.ts';
+import {
   inspectManagedComputerUse,
   reconcileManagedComputerUse,
   type ManagedComputerUseInspection,
@@ -55,11 +60,11 @@ type StartupMaintenanceFrameworkTarget = ReturnType<typeof runOplFrameworkSelfUp
 type StartupMaintenanceCapabilityTarget = StartupMaintenanceModuleTarget;
 type StartupMaintenanceManagedCompanionTarget = {
   target_type: 'managed_companion';
-  target_id: 'kimi-cu';
+  target_id: 'kimi-cu' | 'playwright-mcp';
   status: 'completed' | 'skipped' | 'attention_required';
   reason: string;
   action: 'repair' | null;
-  result: ManagedComputerUseInspection;
+  result: ManagedComputerUseInspection | ManagedBrowserAutomationInspection;
   error: Record<string, unknown> | null;
   blocking: false;
 };
@@ -424,6 +429,59 @@ export function runManagedComputerUseStartupMaintenance(): StartupMaintenanceMan
   }
 }
 
+export function runManagedBrowserAutomationStartupMaintenance(): StartupMaintenanceManagedCompanionTarget {
+  const before = inspectManagedBrowserAutomation();
+  if (before.status === 'unsupported_runtime') {
+    return {
+      target_type: 'managed_companion',
+      target_id: 'playwright-mcp',
+      status: 'skipped',
+      reason: 'unsupported_runtime',
+      action: null,
+      result: before,
+      error: null,
+      blocking: false,
+    };
+  }
+  if (before.status === 'ready') {
+    return {
+      target_type: 'managed_companion',
+      target_id: 'playwright-mcp',
+      status: 'skipped',
+      reason: 'already_ready',
+      action: null,
+      result: before,
+      error: null,
+      blocking: false,
+    };
+  }
+
+  try {
+    const result = reconcileManagedBrowserAutomation('settings_repair_browser_automation');
+    return {
+      target_type: 'managed_companion',
+      target_id: 'playwright-mcp',
+      status: result.status === 'ready' ? 'completed' : 'attention_required',
+      reason: result.status === 'ready' ? 'default_browser_provider_reconciled' : 'reconcile_incomplete',
+      action: 'repair',
+      result,
+      error: null,
+      blocking: false,
+    };
+  } catch (error) {
+    return {
+      target_type: 'managed_companion',
+      target_id: 'playwright-mcp',
+      status: 'attention_required',
+      reason: 'reconcile_failed',
+      action: 'repair',
+      result: inspectManagedBrowserAutomation({ runExternalChecks: false }),
+      error: normalizeError(error),
+      blocking: false,
+    };
+  }
+}
+
 async function maybeRunEngineStartupMaintenance(
   contracts: FrameworkContracts,
   environment: OplSystemEnvironment,
@@ -525,7 +583,7 @@ export async function runOplStartupMaintenance(
     .filter((module) => module.scope === 'capability_package')
     .map((module) => runModuleStartupMaintenance(module));
   const managedCompanionTargets = process.env.OPL_APP_HOST_KIND?.trim() === 'desktop'
-    ? [runManagedComputerUseStartupMaintenance()]
+    ? [runManagedBrowserAutomationStartupMaintenance(), runManagedComputerUseStartupMaintenance()]
     : [];
   const frameworkSummary = summarizeFrameworkTargets(frameworkTargets);
   const engineSummary = summarizeTargets(engineTargets);

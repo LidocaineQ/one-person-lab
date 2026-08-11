@@ -2,6 +2,7 @@ import type { AgentWorkspaceNormContract, FrameworkContracts } from '../../kerne
 import { SETTINGS_CONTROL_CENTER_ACTIONS } from './app-state-settings-control-center.ts';
 import { hasExecutableAppContribution } from './app-contribution-broker.ts';
 import {
+  buildManagedBrowserAutomationActionCatalog,
   buildManagedComputerUseActionCatalog,
   listAgentPackageLaunchActions,
   listExternalOwnerDelegatedUpdateActions,
@@ -299,6 +300,7 @@ export function buildActionCatalog(
     })),
     ...moduleActions,
     ...buildManagedComputerUseActionCatalog(),
+    ...buildManagedBrowserAutomationActionCatalog(),
     ...(hasExecutableAppContribution()
       ? [{
           action_id: 'package_contribution_execute',

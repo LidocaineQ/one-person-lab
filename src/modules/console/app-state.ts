@@ -14,6 +14,7 @@ import {
   compactStorageOwnerInventorySnapshot,
   compactStorageOwnerProjection,
   createOplAgentPackageStatusReader,
+  inspectManagedBrowserAutomation,
   listOplAgentPackages,
   inspectManagedComputerUse,
   readOplFlowDefaultUserInstructions,
@@ -913,6 +914,7 @@ export async function buildOplAppState(input: {
   const workspaceRoot = readOplWorkspaceRoot();
   const core = buildCoreState(profile);
   const managedComputerUse = inspectManagedComputerUse({ runExternalChecks: profile === 'full' });
+  const managedBrowserAutomation = inspectManagedBrowserAutomation({ runExternalChecks: profile === 'full' });
   const rawActions = buildActionCatalog(contracts, { inspectExternalOwners: profile === 'full' });
   const actions = profile === 'fast'
     ? compactFastActionCatalog(rawActions as unknown as JsonRecord[])
@@ -1102,7 +1104,7 @@ export async function buildOplAppState(input: {
       developer_mode: developerMode,
       runtime_source_carriers: runtimeSourceCarriersState,
       agent_packages: agentPackagesProjection,
-      managed_companions: [managedComputerUse],
+      managed_companions: [managedBrowserAutomation, managedComputerUse],
       opl_agent_packages: profile === 'fast'
         ? compactFastLegacyAgentPackageDirectory(agentPackagesReadback)
         : agentPackagesReadback,

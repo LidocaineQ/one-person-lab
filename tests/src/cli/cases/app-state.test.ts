@@ -6,3 +6,4 @@ import './app-state-cases/contribution-broker.test.ts';
 import './app-state-cases/settings-projection.test.ts';
 import './app-state-cases/public-surface.ts';
 import './app-state-cases/managed-computer-use.test.ts';
+import './app-state-cases/managed-browser-automation.test.ts';
