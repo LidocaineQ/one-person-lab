@@ -411,7 +411,9 @@ function packageAction(
           : actionId === 'agent_package_repair'
             ? { semantic: 'repair', surface: 'settings' }
             : actionId === 'agent_package_preferences_set'
-              ? { semantic: 'preferences', surface: 'settings' }
+              ? payload.exposure_action === 'enable'
+                ? { semantic: 'enable', surface: 'settings' }
+                : { semantic: 'preferences', surface: 'settings' }
               : actionId === 'agent_package_uninstall'
                 ? { semantic: 'uninstall', surface: 'settings' }
                 : { semantic: 'custom', surface: 'settings' };
@@ -476,6 +478,7 @@ function availableActions(
   context: Pick<AgentPackagePackageActionInput, 'scope' | 'targetWorkspace' | 'targetQuest'> | null,
   activationAllowed: boolean,
   automaticUpdateAllowed: boolean,
+  configuredCarrierDisabled: boolean,
 ) {
   if (!source.package_role) {
     if (installed) {
@@ -519,10 +522,16 @@ function availableActions(
       ? [packageAction('agent_package_update', updatePayload, ['package_id'], true)]
       : []),
     packageAction('agent_package_repair', { package_id: source.package_id }, ['package_id'], true),
-    packageAction('agent_package_preferences_set', { package_id: source.package_id }, [
-      'package_id',
-      'exposure_action or shortcut_id',
-    ], false),
+    packageAction(
+      'agent_package_preferences_set',
+      configuredCarrierDisabled
+        ? { package_id: source.package_id, exposure_action: 'enable' }
+        : { package_id: source.package_id },
+      configuredCarrierDisabled
+        ? ['package_id', 'exposure_action']
+        : ['package_id', 'exposure_action or shortcut_id'],
+      false,
+    ),
     packageAction('agent_package_uninstall', { package_id: source.package_id }, ['package_id'], true),
   ];
 }
@@ -566,6 +575,10 @@ export function buildAgentPackageDirectory(input: {
     const carrierReadiness = installedDescriptor?.readiness ?? null;
     const configuredCarrier = input.configuredCarrierReadbacks?.get(source.package_id) ?? null;
     const configuredCarrierInstalled = configuredCarrier?.status === 'installed';
+    const configuredCarrierDisabled = Boolean(
+      configuredCarrierInstalled
+      && configuredCarrier?.reason === 'configured_native_carrier_disabled',
+    );
     const configuredCarrierNotInstalled = Boolean(
       configuredCarrier
       && (
@@ -600,16 +613,22 @@ export function buildAgentPackageDirectory(input: {
         && carrierReadiness.callability === 'callable';
       status = {
         status: carrierReady ? 'available' : 'attention_needed',
-        recommended_action: carrierReady ? null : 'agent_package_repair',
+        recommended_action: carrierReady
+          ? null
+          : configuredCarrierDisabled
+            ? 'agent_package_preferences_set'
+            : 'agent_package_repair',
         operational_ready: carrierReady,
         launch_allowed: carrierReady,
         launch_blocked_reason: carrierReady
           ? null
-          : carrierReadiness.physical_status !== 'available'
-            ? 'carrier_source_unavailable'
-            : carrierReadiness.callability !== 'callable'
-              ? 'carrier_disabled'
-              : 'carrier_not_installed',
+          : configuredCarrierDisabled
+            ? 'configured_native_carrier_disabled'
+            : carrierReadiness.physical_status !== 'available'
+              ? 'carrier_source_unavailable'
+              : carrierReadiness.callability !== 'callable'
+                ? 'carrier_disabled'
+                : 'carrier_not_installed',
       };
     } else if (configuredCarrier) {
       status = {
@@ -618,7 +637,11 @@ export function buildAgentPackageDirectory(input: {
           : configuredCarrierNotInstalled
             ? 'not_installed'
             : 'available',
-        recommended_action: configuredCarrierInstalled ? 'agent_package_repair' : null,
+        recommended_action: configuredCarrierDisabled
+          ? 'agent_package_preferences_set'
+          : configuredCarrierInstalled
+            ? 'agent_package_repair'
+            : null,
         operational_ready: configuredCarrierInstalled && !configuredCarrierAttention,
         launch_allowed: configuredCarrierInstalled && !configuredCarrierAttention,
         launch_blocked_reason: configuredCarrierAttention
@@ -645,6 +668,7 @@ export function buildAgentPackageDirectory(input: {
       input.actionContext?.(source.package_id) ?? null,
       configuredCarrier ? false : true,
       sourcePolicy?.package_channel_auto_update === true || !sourcePolicy,
+      configuredCarrierDisabled,
     );
     const recommendedAction = recommendedActionId({
       installed,

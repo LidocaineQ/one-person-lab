@@ -1304,6 +1304,91 @@ test('static Relay projection uses native readback as installed truth', () =>
   assert.equal(entry.recommended_action, 'install_from_manifest_url');
   }));
 
+test('disabled native carrier projects an exact enable action instead of repair', () => {
+  const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-disabled-plugin-descriptor-'));
+  const packageId = 'unknown.disabled.agent';
+  const pluginId = 'unknown-disabled-agent';
+  fs.writeFileSync(
+    path.join(sourceRoot, 'opl-package.json'),
+    formatJsonPayload(agentPackageManifest({ packageId, agentId: pluginId, pluginId })),
+  );
+  try {
+    withIsolatedStateDir('opl-package-directory-disabled-carrier', () => {
+  const discovered = discoverInstalledCodexPluginDescriptors({
+    runner: () => ({
+      status: 0,
+      stdout: JSON.stringify({
+        installed: [{
+          pluginId: `${pluginId}@owner-carrier`,
+          version: '1.0.0',
+          enabled: false,
+          installed: true,
+          source: { source: 'local', path: sourceRoot },
+          marketplaceSource: { sourceType: 'local', source: '/tmp/owner-carrier' },
+        }],
+      }),
+      stderr: '',
+      error: null,
+    }),
+  });
+  const disabledCarrier = {
+    surface_kind: 'opl_configured_codex_plugin_carrier_readback.v1',
+    package_id: packageId,
+    carrier: {
+      kind: 'codex_plugin_manager',
+      plugin_id: `${pluginId}@owner-carrier`,
+      marketplace_source: '/tmp/owner-carrier',
+      observed_sources: [{
+        plugin_id: `${pluginId}@owner-carrier`,
+        marketplace_source: '/tmp/owner-carrier',
+        installed_version: '1.0.0',
+        enabled: false,
+        plugin_source_path: sourceRoot,
+        source_tree_sha256: null,
+      }],
+      precedence: 'exact_single_source',
+    },
+    executor: {
+      route: 'codex_cli',
+      required_skill_ids: [],
+      status: 'attention_needed',
+    },
+    publication_ref: null,
+    status: 'installed',
+    operation: 'list',
+    installed_version: '1.0.0',
+    enabled: false,
+    plugin_source_path: sourceRoot,
+    native_command: ['plugin', 'list', '--json'],
+    native_action_dispatched: false,
+    reason: 'configured_native_carrier_disabled',
+  } as any;
+  const directory = buildAgentPackageDirectory({
+    detail: 'fast',
+    installedCodexPluginDescriptors: discovered,
+    configuredCarrierReadbacks: new Map([[packageId, disabledCarrier]]),
+  });
+  const entry = directory.entries.find((candidate) => candidate.package_id === packageId)!;
+  assert.equal(entry.installed, true);
+  assert.equal(entry.readiness.operational_ready, false);
+  assert.equal(entry.readiness.reason, 'configured_native_carrier_disabled');
+  assert.equal(entry.recommended_action, 'agent_package_preferences_set');
+  assert.deepEqual(entry.recommended_action_ref, {
+    action_id: 'agent_package_preferences_set',
+    action_ref: 'app_state.actions#agent_package_preferences_set',
+    payload: { package_id: packageId, exposure_action: 'enable' },
+    required_payload_fields: ['package_id', 'exposure_action'],
+    confirmation_required: false,
+    semantic: 'enable',
+    surface: 'settings',
+  });
+  assertRecommendedActionMatchesAvailable(entry);
+    });
+  } finally {
+    fs.rmSync(sourceRoot, { recursive: true, force: true });
+  }
+});
+
 test('legacy v1 Release Set cache file cannot restore ordinary directory currentness', () => {
   const fixture = isolatedPackageEnv('opl-package-directory-legacy-release-cache');
   const previousStateDir = process.env.OPL_STATE_DIR;
