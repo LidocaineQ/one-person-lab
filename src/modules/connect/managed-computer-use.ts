@@ -116,6 +116,7 @@ export type ManagedComputerUseLock = {
   health: {
     service_status_args: string[];
     xpc_ping_args: string[];
+    permission_status_args: string[];
     mcp_handshake: string[];
   };
   permission_model: {
@@ -257,6 +258,7 @@ export function readManagedComputerUseLock(): ManagedComputerUseLock {
     health: {
       service_status_args: requireStringArray(health?.service_status_args, 'health.service_status_args'),
       xpc_ping_args: requireStringArray(health?.xpc_ping_args, 'health.xpc_ping_args'),
+      permission_status_args: requireStringArray(health?.permission_status_args, 'health.permission_status_args'),
       mcp_handshake: requireStringArray(health?.mcp_handshake, 'health.mcp_handshake'),
     },
     permission_model: {
@@ -419,6 +421,24 @@ function observeMcpTools(lock: ManagedComputerUseLock, executable: string) {
   return [...new Set(tools)];
 }
 
+function parsePermissionStatus(
+  output: string | null,
+  label: 'Accessibility' | 'Screen Recording',
+  commandPassed: boolean,
+): 'granted' | 'required' | 'unknown' {
+  if (commandPassed) return 'granted';
+  const line = output?.split(/\r?\n/).find((entry) => entry.toLowerCase().includes(label.toLowerCase()));
+  if (!line) return 'unknown';
+  if (
+    line.includes('\u274c')
+    || /not granted|missing|denied|failed|required/i.test(line)
+  ) {
+    return 'required';
+  }
+  if (line.includes('\u2705') || /granted|passed|ready|\bok\b/i.test(line)) return 'granted';
+  return 'unknown';
+}
+
 export function inspectManagedComputerUse(options: { runExternalChecks?: boolean } = {}): ManagedComputerUseInspection {
   const lock = readManagedComputerUseLock();
   const currentPlatform = resolveCurrentPlatform();
@@ -447,27 +467,32 @@ export function inspectManagedComputerUse(options: { runExternalChecks?: boolean
   const xpc = shouldProbe && executableExists
     ? runCommand(executable, lock.health.xpc_ping_args)
     : { ok: false, output: null };
+  const permissionStatus = shouldProbe && executableExists
+    ? runCommand(executable, lock.health.permission_status_args)
+    : { ok: false, output: null };
   const observedTools = shouldProbe && executableExists ? observeMcpTools(lock, executable) : [];
   const toolsExact = observedTools.length > 0
     && lock.mcp.required_tools.every((tool) => observedTools.includes(tool))
     && observedTools.every((tool) => lock.mcp.required_tools.includes(tool));
   const registered = mcpRegistration.registered && identityVerified;
   const serviceRegistered = service.output?.includes('status=1') === true;
-  const permissionGranted = xpc.ok;
-  const permissionDetail = !shouldProbe
-    ? 'unknown'
-    : permissionGranted
-      ? 'granted'
-      : executableExists
-        ? 'required'
-        : 'unknown';
+  const accessibilityPermission = shouldProbe && executableExists
+    ? parsePermissionStatus(permissionStatus.output, 'Accessibility', permissionStatus.ok)
+    : 'unknown';
+  const screenRecordingPermission = shouldProbe && executableExists
+    ? parsePermissionStatus(permissionStatus.output, 'Screen Recording', permissionStatus.ok)
+    : 'unknown';
+  const permissionGranted = accessibilityPermission === 'granted'
+    && screenRecordingPermission === 'granted';
+  const permissionRequired = accessibilityPermission === 'required'
+    || screenRecordingPermission === 'required';
   const permission = !supportedPlatform
     ? 'unsupported'
     : !shouldProbe
       ? 'unknown'
     : permissionGranted
       ? 'granted'
-      : executableExists
+      : permissionRequired
         ? 'required'
         : 'unknown';
   const ready = supportedPlatform
@@ -476,6 +501,7 @@ export function inspectManagedComputerUse(options: { runExternalChecks?: boolean
     && mcpRegistration.enabled
     && serviceRegistered
     && xpc.ok
+    && permissionGranted
     && toolsExact;
   const status: ManagedComputerUseInspection['status'] = !supportedPlatform
     ? 'unsupported_platform'
@@ -536,8 +562,8 @@ export function inspectManagedComputerUse(options: { runExternalChecks?: boolean
       output: service.output || xpc.output,
     },
     permissions: {
-      accessibility: permissionDetail,
-      screen_recording: permissionDetail,
+      accessibility: accessibilityPermission,
+      screen_recording: screenRecordingPermission,
     },
     health_ref: `opl://managed-companions/${lock.provider_id}/health`,
     authority_boundary: {

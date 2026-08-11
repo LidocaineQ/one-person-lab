@@ -2,7 +2,7 @@
   "schema": "opl_framework_managed_computer_use.v1",
   "owner": "one-person-lab",
   "product_identity_source_ref": "one-person-lab-app/contracts/app-release-qualification-input-manifest.json#runtime_payloads.kimi_cu",
-  "product_identity_source_sha256": "2cb32ab7087f9b60bbf06c3f60d5d75f8fc390ed692ce778dc5c13bfee871c3d",
+  "product_identity_source_sha256": "5a7c64110f8de56de8c464a26aaf5209f8853dc2ff32f59d069410487b74258a",
   "provider_id": "kimi-cu",
   "product_name": "KimiCU",
   "version": "0.5.4",
@@ -43,6 +43,7 @@
   "health": {
     "service_status_args": ["service-status"],
     "xpc_ping_args": ["xpc-ping"],
+    "permission_status_args": ["doctor"],
     "mcp_handshake": ["initialize", "tools/list"]
   },
   "permission_model": {

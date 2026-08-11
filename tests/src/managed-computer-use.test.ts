@@ -10,6 +10,7 @@ import {
   readManagedComputerUseLock,
   reconcileManagedComputerUse,
 } from '../../src/modules/connect/managed-computer-use.ts';
+import { runManagedComputerUseStartupMaintenance } from '../../src/modules/connect/system-installation/startup-maintenance.ts';
 
 const REQUIRED_TOOLS = [
   'list_apps',
@@ -54,6 +55,7 @@ function createKimiFixture(root: string) {
 case "$1" in
   service-status) echo 'SMAppService status=1 (1=enabled)' ;;
   xpc-ping) echo 'xpc-ping: ok' ;;
+  doctor) printf '%s\\n' 'Accessibility: granted' 'Screen Recording: granted' ;;
   mcp) printf '%s\\n' '{"jsonrpc":"2.0","id":2,"result":{"tools":${JSON.stringify(REQUIRED_TOOLS.map((name) => ({ name })))}}}' ;;
   install) echo 'installed' ;;
   request-permissions) echo 'requested' ;;
@@ -70,6 +72,9 @@ test('managed Computer Use lock stays bound to the App-owned KimiCU identity', (
   assert.equal(lock.archive.sha256, '77a7515cf7fd4b7bfa46a95eab0dff7378d00a2c5003bcf7ad93f17667e2808e');
   assert.equal(lock.product_identity_source_ref,
     'one-person-lab-app/contracts/app-release-qualification-input-manifest.json#runtime_payloads.kimi_cu');
+  assert.equal(lock.product_identity_source_sha256,
+    '5a7c64110f8de56de8c464a26aaf5209f8853dc2ff32f59d069410487b74258a');
+  assert.deepEqual(lock.health.permission_status_args, ['doctor']);
   assert.deepEqual(lock.mcp.required_tools, REQUIRED_TOOLS);
   assert.deepEqual(lock.action_ids, buildManagedComputerUseActionCatalog().map((action) => action.action_id));
 });
@@ -114,7 +119,13 @@ test('missing TCC permission remains installed and enabled but not ready', () =>
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-computer-use-permission-'));
   const home = path.join(root, 'home');
   const fixture = createKimiFixture(root);
-  fs.writeFileSync(fixture.executable, '#!/bin/sh\n[ "$1" = service-status ] && echo "status=1"\n[ "$1" = xpc-ping ] && exit 1\n');
+  fs.writeFileSync(fixture.executable, `#!/bin/sh
+case "$1" in
+  service-status) echo 'status=1' ;;
+  xpc-ping) echo 'xpc-ping: ok' ;;
+  doctor) printf '%s\\n' 'Accessibility: required' 'Screen Recording: required'; exit 1 ;;
+esac
+`);
   fs.chmodSync(fixture.executable, 0o755);
   const codexHome = path.join(home, '.codex');
   fs.mkdirSync(codexHome, { recursive: true });
@@ -247,4 +258,81 @@ test('macOS below the pinned minimum stays unsupported', () => {
   assert.equal(projection.platform.current_version, '13.6.9');
   assert.equal(projection.platform.supported, false);
   assert.equal(projection.status, 'unsupported_platform');
+});
+
+test('startup maintenance keeps an installed permission-required companion idempotent and non-blocking', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-computer-use-startup-permission-'));
+  const home = path.join(root, 'home');
+  const fixture = createKimiFixture(root);
+  fs.writeFileSync(fixture.executable, `#!/bin/sh
+case "$1" in
+  service-status) echo 'status=1' ;;
+  xpc-ping) echo 'xpc-ping: ok' ;;
+  doctor) printf '%s\\n' 'Accessibility: required' 'Screen Recording: required'; exit 1 ;;
+esac
+`);
+  fs.chmodSync(fixture.executable, 0o755);
+  const codexHome = path.join(home, '.codex');
+  fs.mkdirSync(codexHome, { recursive: true });
+  fs.writeFileSync(path.join(codexHome, 'config.toml'), `[mcp_servers.kimi-cu]
+command = "${fixture.executable}"
+args = ["mcp"]
+enabled = true
+`);
+  try {
+    const target = withEnv({
+      HOME: home,
+      CODEX_HOME: codexHome,
+      OPL_COMPUTER_USE_PLATFORM: 'darwin-arm64',
+      OPL_COMPUTER_USE_OS_VERSION: '14.0',
+      OPL_KIMI_CU_INSTALL_PATH: fixture.appPath,
+      OPL_KIMI_CU_EXECUTABLE_PATH: fixture.executable,
+      OPL_KIMI_CU_TEAM_ID: '2J9472RW75',
+      OPL_KIMI_CU_ARCHITECTURE: 'arm64',
+      OPL_KIMI_CU_MCP_TOOLS: REQUIRED_TOOLS.join(','),
+    }, () => runManagedComputerUseStartupMaintenance());
+
+    assert.equal(target.status, 'skipped');
+    assert.equal(target.reason, 'installed_permission_required');
+    assert.equal(target.action, null);
+    assert.equal(target.result.installed, true);
+    assert.equal(target.result.registered, true);
+    assert.equal(target.result.enabled, true);
+    assert.equal(target.result.permission, 'required');
+    assert.equal(target.blocking, false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('startup maintenance records managed companion materialization failure without blocking OPL', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-computer-use-startup-failure-'));
+  const home = path.join(root, 'home');
+  const archivePath = path.join(root, 'KimiCU.app.zip');
+  const installPath = path.join(root, 'Applications', 'KimiCU.app');
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(archivePath, 'not the pinned archive');
+  try {
+    const target = withEnv({
+      HOME: home,
+      CODEX_HOME: path.join(home, '.codex'),
+      OPL_COMPUTER_USE_PLATFORM: 'darwin-arm64',
+      OPL_COMPUTER_USE_OS_VERSION: '14.0',
+      OPL_KIMI_CU_INSTALL_PATH: installPath,
+      OPL_KIMI_CU_EXECUTABLE_PATH: path.join(installPath, 'Contents', 'MacOS', 'kimi-cu'),
+      OPL_KIMI_CU_ARCHIVE_PATH: archivePath,
+      OPL_KIMI_CU_TEAM_ID: undefined,
+      OPL_KIMI_CU_ARCHITECTURE: undefined,
+      OPL_KIMI_CU_MCP_TOOLS: undefined,
+    }, () => runManagedComputerUseStartupMaintenance());
+
+    assert.equal(target.status, 'attention_required');
+    assert.equal(target.reason, 'reconcile_failed');
+    assert.equal(target.action, 'repair');
+    assert.equal(target.result.status, 'not_installed');
+    assert.equal(target.blocking, false);
+    assert.match(JSON.stringify(target.error), /archive SHA-256/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
