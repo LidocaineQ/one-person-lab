@@ -60,5 +60,398 @@
     "retired_baseline": "advisory_by_default_strict_blocks_until_removed",
     "line_count_ledger_owner": "this_contract_and_scripts_line_budget"
   },
-  "reviewed_baselines": []
+  "reviewed_baselines": [
+    {
+        "path": "src/kernel/standard-agent-interface.ts",
+        "limit": 1042,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_owner_domain_concept_or_runtime_surface"
+    },
+    {
+        "path": "src/modules/atlas/domain-manifest/normalizers.ts",
+        "limit": 1103,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_manifest_section_and_normalization_owner"
+    },
+    {
+        "path": "src/modules/charter/brand-module-contracts.ts",
+        "limit": 1024,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_contract_family"
+    },
+    {
+        "path": "src/modules/charter/contracts.ts",
+        "limit": 1003,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_contract_family"
+    },
+    {
+        "path": "src/modules/connect/agent-package-registry-parts/configured-codex-plugin-carrier.ts",
+        "limit": 1207,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_package_lifecycle_phase_and_carrier_owner"
+    },
+    {
+        "path": "src/modules/connect/agent-package-registry-parts/managed-policy-surface.ts",
+        "limit": 1494,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_package_lifecycle_phase_and_carrier_owner"
+    },
+    {
+        "path": "src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts",
+        "limit": 1763,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_package_lifecycle_phase_and_carrier_owner"
+    },
+    {
+        "path": "src/modules/connect/agent-package-registry.ts",
+        "limit": 2385,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_package_lifecycle_phase_and_carrier_owner"
+    },
+    {
+        "path": "src/modules/connect/developer-mode.ts",
+        "limit": 1066,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_owner_domain_concept_or_runtime_surface"
+    },
+    {
+        "path": "src/modules/connect/install-companions.ts",
+        "limit": 1011,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_owner_domain_concept_or_runtime_surface"
+    },
+    {
+        "path": "src/modules/connect/opl-connect-reference-verification.ts",
+        "limit": 1081,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_owner_domain_concept_or_runtime_surface"
+    },
+    {
+        "path": "src/modules/connect/package-distribution.ts",
+        "limit": 1086,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_owner_domain_concept_or_runtime_surface"
+    },
+    {
+        "path": "src/modules/connect/release-bundle/contracts.ts",
+        "limit": 1094,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_owner_domain_concept_or_runtime_surface"
+    },
+    {
+        "path": "src/modules/connect/system-installation/engine-helpers.ts",
+        "limit": 1354,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_installation_lifecycle_phase"
+    },
+    {
+        "path": "src/modules/connect/system-installation/framework-self-update.ts",
+        "limit": 1050,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_installation_lifecycle_phase"
+    },
+    {
+        "path": "src/modules/connect/system-installation/module-package-channel.ts",
+        "limit": 1300,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_installation_lifecycle_phase"
+    },
+    {
+        "path": "src/modules/connect/system-installation/modules.ts",
+        "limit": 1008,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_installation_lifecycle_phase"
+    },
+    {
+        "path": "src/modules/console/app-state.ts",
+        "limit": 1133,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_action_route_and_read_model_section"
+    },
+    {
+        "path": "src/modules/console/work-item-projection/execution.ts",
+        "limit": 1839,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_action_route_and_read_model_section"
+    },
+    {
+        "path": "src/modules/console/work-item-projection/session-activity.ts",
+        "limit": 1115,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_action_route_and_read_model_section"
+    },
+    {
+        "path": "src/modules/foundry/kernel.ts",
+        "limit": 1583,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_foundry_operation_phase"
+    },
+    {
+        "path": "src/modules/pack/domain-pack-compiler/generated-interface-read-model.ts",
+        "limit": 1124,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_pack_compilation_phase"
+    },
+    {
+        "path": "src/modules/pack/standard-agent-stage-manifest.ts",
+        "limit": 1673,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_pack_compilation_phase"
+    },
+    {
+        "path": "src/modules/runway/domain-artifact-cas-materialization.ts",
+        "limit": 1541,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_owner_domain_concept_or_runtime_surface"
+    },
+    {
+        "path": "src/modules/runway/family-runtime-codex-stage-runner.ts",
+        "limit": 1012,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_runtime_surface_and_lifecycle_phase"
+    },
+    {
+        "path": "src/modules/runway/family-runtime-stage-attempt-ledger.ts",
+        "limit": 1382,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_runtime_surface_and_lifecycle_phase"
+    },
+    {
+        "path": "src/modules/runway/family-runtime-stage-quality-cycle.ts",
+        "limit": 1041,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_runtime_surface_and_lifecycle_phase"
+    },
+    {
+        "path": "src/modules/runway/family-runtime-stage-run-identity-parts/content-bindings.ts",
+        "limit": 1173,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_runtime_surface_and_lifecycle_phase"
+    },
+    {
+        "path": "src/modules/runway/family-runtime-temporal-activities.ts",
+        "limit": 2012,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_temporal_lifecycle_phase"
+    },
+    {
+        "path": "src/modules/runway/family-runtime-temporal-workflows.ts",
+        "limit": 2181,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_temporal_lifecycle_phase"
+    },
+    {
+        "path": "src/modules/runway/family-runtime.ts",
+        "limit": 1420,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_runtime_surface_and_lifecycle_phase"
+    },
+    {
+        "path": "src/modules/runway/hosted-agent-runtime-binding.ts",
+        "limit": 1056,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_runtime_surface_and_lifecycle_phase"
+    },
+    {
+        "path": "src/modules/runway/standard-agent-action-run-state.ts",
+        "limit": 1338,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_owner_domain_concept_or_runtime_surface"
+    },
+    {
+        "path": "src/modules/runway/standard-agent-action-runtime.ts",
+        "limit": 3024,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_runtime_surface_and_lifecycle_phase"
+    },
+    {
+        "path": "src/modules/runway/standard-agent-domain-lifecycle-admission.ts",
+        "limit": 1547,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_owner_domain_concept_or_runtime_surface"
+    },
+    {
+        "path": "src/modules/workspace/agent-platform-surface-ownership.ts",
+        "limit": 1119,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_workspace_protocol_and_conformance_section"
+    },
+    {
+        "path": "src/modules/workspace/standard-domain-agent-conformance-adoption.ts",
+        "limit": 1162,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_workspace_protocol_and_conformance_section"
+    },
+    {
+        "path": "tests/src/cli/cases/agents-source-closure.test.ts",
+        "limit": 1167,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/cli/cases/package-distribution-cases/archive-and-first-party.test.ts",
+        "limit": 1932,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/cli/cases/package-distribution-cases/first-party-package-payload.test.ts",
+        "limit": 1096,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/cli/cases/packages-cases/capability-fixtures.ts",
+        "limit": 1011,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/cli/cases/packages-cases/configured-codex-plugin-carrier.test.ts",
+        "limit": 1987,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/cli/cases/packages-cases/directory.test.ts",
+        "limit": 1452,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/cli/cases/packages-cases/first-party-catalog.test.ts",
+        "limit": 2598,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/cli/cases/packages-cases/legacy-opl-skills-migration.test.ts",
+        "limit": 1144,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/cli/cases/system-configure-codex.test.ts",
+        "limit": 1003,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/cli/cases/system-modules.test.ts",
+        "limit": 1152,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/family-runtime-capability-stage-context.test.ts",
+        "limit": 1031,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/family-runtime-temporal-stage-run-controller.test.ts",
+        "limit": 1277,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/foundry-persistent-registry.test.ts",
+        "limit": 1155,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/fresh-install-smoke.test.ts",
+        "limit": 1042,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/stage-quality-review-receipt-ledger.test.ts",
+        "limit": 1207,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/standard-agent-action-runtime.test.ts",
+        "limit": 2189,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/standard-agent-interface.test.ts",
+        "limit": 1153,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/standard-agent-lifecycle-admission.test.ts",
+        "limit": 2516,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    },
+    {
+        "path": "tests/src/standard-agent-stage-manifest-compiler.test.ts",
+        "limit": 1751,
+        "owner": "one-person-lab",
+        "reason": "legacy_oversized_file_frozen_at_structure_strict_activation_no_growth_allowed",
+        "intended_boundary": "split_by_test_scenario_and_shared_fixture"
+    }
+]
 }

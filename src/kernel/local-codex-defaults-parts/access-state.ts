@@ -6,7 +6,7 @@ import type {
   LocalCodexAccessState,
   LocalCodexDefaults,
   LocalCodexModelAccessSource,
-} from '../local-codex-defaults.ts';
+} from './types.ts';
 
 type LocalCodexAuthState = {
   auth_found: boolean;

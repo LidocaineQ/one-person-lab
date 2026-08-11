@@ -4,11 +4,94 @@ import {
   STANDARD_AGENT_REGISTRY_REF,
   resolveStandardAgent,
 } from '../atlas/index.ts';
-import type {
-  FrameworkCapabilityPackageConformanceReport,
-  RepoConformanceReport,
-} from './standard-domain-agent-conformance.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
+
+type RepoConformanceReport = {
+  repo_dir: string;
+  requested_agent_id: string | null | undefined;
+  domain_id: string;
+  blockers: string[];
+  pack_compiler_checks: {
+    status?: unknown;
+    generated_surface_owner?: unknown;
+    domain_repo_can_own_generated_surface?: unknown;
+  };
+  generated_surface_handoff_checks: {
+    status?: unknown;
+    generated_surface_owner?: unknown;
+    domain_repo_can_own_generated_surface?: unknown;
+  };
+  generated_interface_checks: {
+    status?: unknown;
+    active_caller_cutover_proof_status?: unknown;
+    default_entry_source_of_work_gate: {
+      status?: unknown;
+      authority_boundary: {
+        can_write_domain_truth?: unknown;
+        can_claim_domain_ready?: unknown;
+      };
+    };
+  };
+  stage_operating_principle_checks: {
+    default_read_surface: {
+      root?: unknown;
+      raw_worklist_default?: unknown;
+      replay_packet_default?: unknown;
+      evidence_accounting_default?: unknown;
+      cleanup_delete_gate_default?: unknown;
+    };
+    speed_policy: {
+      strategy_refs_block_launch_by_default?: unknown;
+      tool_catalog_can_prescribe_workflow_sequence?: unknown;
+    };
+    authority_boundary: {
+      opl_can_create_typed_blocker?: unknown;
+      opl_can_sign_domain_owner_receipt?: unknown;
+      opl_can_authorize_quality_or_export?: unknown;
+    };
+  };
+  legacy_runtime_residue_guard: {
+    authority_boundary: {
+      guard_can_write_domain_truth?: unknown;
+      guard_can_authorize_quality_or_export?: unknown;
+    };
+  };
+  stage_run_kernel_profile_checks: {
+    authority_boundary: {
+      opl_can_sign_domain_owner_receipt?: unknown;
+    };
+    stage_run_state_machine: {
+      provider_completion_counts_as_domain_accepted?: unknown;
+    };
+  };
+  golden_path_default_surface_budget_checks: {
+    authority_boundary: {
+      guard_can_write_domain_truth?: unknown;
+    };
+  };
+};
+
+type FrameworkCapabilityPackageConformanceReport = {
+  repo_dir: string;
+  requested_agent_id: string | null | undefined;
+  domain_id: string;
+  canonical_agent_id: string;
+  package_scope: unknown;
+  status: unknown;
+  contract_status: unknown;
+  capability_contract_ref: unknown;
+  plugin_manifest_path: unknown;
+  skill_entry_path: unknown;
+  authority_boundary: {
+    can_claim_domain_ready: unknown;
+    can_claim_runtime_ready: unknown;
+    can_write_domain_truth: unknown;
+    can_sign_owner_receipt: unknown;
+    can_create_typed_blocker: unknown;
+    can_schedule_runtime: unknown;
+  };
+  blockers: string[];
+};
 
 type DefaultOwnerRoutePolicy = {
   surface_kind: string;

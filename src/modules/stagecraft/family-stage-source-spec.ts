@@ -4,7 +4,7 @@ import { isRecord } from '../../kernel/contract-validation.ts';
 import type { FamilyStageAssumptionLifecycleProjection } from './family-stage-assumption-lifecycle.ts';
 import type { FamilyStageCohortLoopProjection } from './family-stage-cohort-loop.ts';
 import type { FamilyStageControlPlane } from './family-stage-control-plane-contract.ts';
-import type { FamilyStageGraphProjection } from './family-stage-control-plane.ts';
+import type { FamilyStageGraphProjection } from './family-stage-control-plane-graph.ts';
 import type { FamilyStagePackRegistryProjection } from './family-stage-pack-registry.ts';
 import type { FamilyStageProofBundle } from './family-stage-proof-bundle.ts';
 import type { FamilyStageReplayCertification } from './family-stage-replay-certification.ts';

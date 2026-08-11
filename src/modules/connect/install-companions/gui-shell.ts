@@ -3,7 +3,36 @@ import path from 'node:path';
 
 import { resolveDefaultFamilyWorkspaceRoot } from '../../workspace/index.ts';
 import { buildOplGuiArtifactName, buildOplReleaseTag, getOplReleaseRepo, getOplReleaseVersion } from '../opl-release.ts';
-import type { OplGuiShellSurface } from '../install-companions.ts';
+
+export type OplGuiShellSurface = {
+  shell_id: 'opl_aion_shell';
+  label: 'OPL Desktop GUI';
+  owner: 'one-person-lab-app';
+  base_shell: 'aionui';
+  relation_to_opl: 'opl_branded_gui_shell';
+  repo_url: string;
+  active_shell_root: 'shells/aionui';
+  release_repo: string;
+  release_tag: string;
+  opl_release_version: string;
+  sibling_checkout_path: string;
+  sibling_checkout_found: boolean;
+  product_identity: {
+    app_name: string;
+    bundle_name: string;
+    required_branding: string[];
+    hidden_upstream_modules: string[];
+  };
+  release_strategy: 'prefer_prebuilt_release_then_source_build';
+  prebuilt_artifacts: Array<{
+    platform: 'macos' | 'windows' | 'linux';
+    architectures: string[];
+    distributable_patterns: string[];
+    updater_metadata: string[];
+  }>;
+  fallback_build_commands: string[];
+  notes: string[];
+};
 
 export function buildOplGuiShellSurface(repoRoot: string): OplGuiShellSurface {
   const workspaceRoot = resolveDefaultFamilyWorkspaceRoot({ repoRootHint: repoRoot });
