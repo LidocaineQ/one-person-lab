@@ -22,6 +22,7 @@ test('packages manifest exposes independent owner currentness and compatibility 
     'utf8',
   )) as Record<string, any>;
   const scholarCatalogEntry = catalog.packages['mas-scholar-skills'];
+  const flowCatalogEntry = catalog.packages['opl-flow'];
   const output = runCli(['connect', 'packages', 'manifest'], {
     OPL_RELEASE_SET_GENERATION: '26.4.27',
     OPL_PACKAGES_OWNER: 'gaofeng21cn',
@@ -476,11 +477,11 @@ test('packages manifest exposes independent owner currentness and compatibility 
     `ghcr.io/gaofeng21cn/one-person-lab-packages/mas-scholar-skills:${scholarCatalogEntry.package_version}`,
   );
   assert.equal(output.packages_manifest.packages.package_artifacts['opl-flow'].package_id, 'opl-flow');
-  assert.equal(output.packages_manifest.packages.package_artifacts['opl-flow'].package_version, '0.1.44');
+  assert.equal(output.packages_manifest.packages.package_artifacts['opl-flow'].package_version, flowCatalogEntry.package_version);
   assert.equal(output.packages_manifest.packages.package_artifacts['opl-flow'].codex_standalone_distribution, null);
   assert.equal(
     output.packages_manifest.packages.package_artifacts['opl-flow'].artifact,
-    'ghcr.io/gaofeng21cn/one-person-lab-packages/opl-flow:0.1.44',
+    `ghcr.io/gaofeng21cn/one-person-lab-packages/opl-flow:${flowCatalogEntry.package_version}`,
   );
   assert.equal(
     output.packages_manifest.packages.package_artifacts['mas-scholar-skills'].scope,
