@@ -172,7 +172,7 @@
           "developer checkout",
           "ahead",
           "diverged",
-          "no_upstream",
+          "no_upstream without verified managed package-channel identity",
           "unknown identity"
         ]
       },

@@ -69,6 +69,10 @@ function moduleState(module: Record<string, unknown>): ManagedUpdateComponentSta
   const healthStatus = stringValue(module, 'health_status');
   const recommendedAction = stringValue(module, 'recommended_action');
   const installOrigin = stringValue(module, 'install_origin');
+  const sourcePolicy = asRecord(module.source_policy);
+  const managedPackageChannel = installOrigin === 'managed_root'
+    && stringValue(sourcePolicy, 'effective_install_update_source') === 'package_channel'
+    && booleanValue(sourcePolicy, 'package_channel_auto_update') === true;
   const git = asRecord(module.git);
   const dirty = booleanValue(git, 'dirty') === true;
   const syncStatus = stringValue(git, 'sync_status');
@@ -83,7 +87,7 @@ function moduleState(module: Record<string, unknown>): ManagedUpdateComponentSta
     || installOrigin === 'sibling_workspace'
     || syncStatus === 'ahead'
     || syncStatus === 'diverged'
-    || syncStatus === 'no_upstream'
+    || (syncStatus === 'no_upstream' && !managedPackageChannel)
     || syncStatus === 'unknown'
   ) {
     return 'skipped_manual_required';
@@ -136,21 +140,19 @@ function buildCapabilityPackagesComponent(
   const cleanManagedTargetsCount = bundledReconciliationRequired
     ? Math.max(targetStates.length, 1)
     : nativeUpdateCount;
-  // A visible developer or dirty checkout fences the complete component. Keep
-  // other module states diagnostic-only until the owner resolves that boundary.
-  const state: ManagedUpdateComponentState = manualCount > 0
-      ? 'skipped_manual_required'
-      : failedWithRepairCount > 0
-        ? 'failed_with_repair'
-        : updateCount > 0
-          ? 'update_available'
+  const state: ManagedUpdateComponentState = failedWithRepairCount > 0
+      ? 'failed_with_repair'
+      : updateCount > 0
+        ? 'update_available'
+        : manualCount > 0
+          ? 'skipped_manual_required'
           : 'current';
-  const action = manualCount > 0
-      ? 'manual_review'
-      : failedWithRepairCount > 0
-        ? 'install'
-        : updateCount > 0
-          ? 'update'
+  const action = failedWithRepairCount > 0
+      ? 'install'
+      : updateCount > 0
+        ? 'update'
+        : manualCount > 0
+          ? 'manual_review'
           : 'none';
   const postApplyHooks = [
     'reconcile_packages',
@@ -158,7 +160,7 @@ function buildCapabilityPackagesComponent(
     'sync_plugin_registry',
     'sync_plugin_packaged_skills',
   ];
-  const cleanManagedScopeSafe = cleanManagedTargetsCount > 0 && manualCount === 0;
+  const cleanManagedScopeSafe = cleanManagedTargetsCount > 0;
   const autoApplyEligible = cleanManagedScopeSafe && action !== 'none';
   const packageApplyCommand = bundledRuntimeRequested
     ? 'opl update apply --json'
@@ -319,7 +321,9 @@ function buildCapabilityPackagesComponent(
         ? 'No managed capability package maintenance is required.'
         : action === 'manual_review'
           ? 'Manual review is required before OPL can update one or more native module roots.'
-          : 'Reconcile native module carriers against package-channel targets, then sync Codex-visible skills and plugins.',
+          : manualCount > 0
+            ? 'Reconcile eligible clean package-channel targets, leave manual targets unchanged, then sync Codex-visible skills and plugins.'
+            : 'Reconcile native module carriers against package-channel targets, then sync Codex-visible skills and plugins.',
       command_refs: action === 'manual_review'
         ? [
           manualCommand(
@@ -411,7 +415,10 @@ export async function buildManagedUpdateKernelProjection(
     }));
   }
   if (shouldBuildComponent(requested, 'opl_packages')) {
-    const modulesPayload = buildOplModules({ profile: 'fast' }).modules;
+    const refreshPackageCurrentness = input.operation === 'check'
+      || input.operation === 'plan'
+      || input.operation === 'apply';
+    const modulesPayload = buildOplModules({ profile: refreshPackageCurrentness ? 'full' : 'fast' }).modules;
     const modules = modulesPayload.modules as Record<string, unknown>[];
     const capabilityPackages = buildCapabilityPackagesComponent(modules, channel);
     const projectionStatus = buildCodexProjectionStatus(capabilityPackages);

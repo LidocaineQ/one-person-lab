@@ -568,7 +568,6 @@ exit 2
       OPL_CODEX_CLI_LATEST_VERSION: '0.134.0',
       OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
       OPL_PACKAGES_OWNER: 'owner',
-      OPL_PACKAGE_CHANNEL_MANIFEST_REF: 'ghcr.io/owner/one-person-lab-manifest:26.6.99-nightly',
       PATH: `${codexFixture.fixtureRoot}${path.delimiter}${packageChannel.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
     })) as any;
 
@@ -703,7 +702,6 @@ exit 2
       ...moduleEnv,
       OPL_CODEX_CLI_LATEST_VERSION: '0.134.0',
       OPL_PACKAGES_OWNER: 'owner',
-      OPL_PACKAGE_CHANNEL_MANIFEST_REF: 'ghcr.io/owner/one-person-lab-manifest:26.6.99-nightly',
       PATH: `${codexFixture.fixtureRoot}${path.delimiter}${packageChannel.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
     })) as any;
     assert.equal(status.managed_update.components[0].receipt.last_receipt_ref, receiptLedger.receipts[0].receipt_ref);
@@ -713,6 +711,51 @@ exit 2
     assert.equal(status.managed_update.components[0].receipt.status_detail.post_apply_status, 'completed');
     assert.equal(status.managed_update.components[0].receipt.status_detail.reload_status, 'recommended');
     assert.equal(status.managed_update.components[0].receipt.reload_guidance.reload_recommended, true);
+
+    const partialChannel = writeManagedUpdatePackageChannelFixture({
+      root: path.join(homeRoot, 'channel-update-partial'),
+      version: '26.6.100-nightly',
+      modules: managedUpdateModules('partial-head'),
+    });
+    const dirtyGrantRoot = path.join(moduleEnv.OPL_MODULES_ROOT, 'med-autogrant');
+    fs.writeFileSync(path.join(dirtyGrantRoot, 'LOCAL-CHANGE.md'), '# Local change\n', 'utf8');
+    const partialEnv = {
+      HOME: homeRoot,
+      CODEX_HOME: path.join(homeRoot, 'codex-home'),
+      OPL_STATE_DIR: stateRoot,
+      ...moduleEnv,
+      OPL_CODEX_CLI_LATEST_VERSION: '0.134.0',
+      OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
+      OPL_PACKAGES_OWNER: 'owner',
+      PATH: `${codexFixture.fixtureRoot}${path.delimiter}${partialChannel.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
+    };
+    const partialPlan = withCliTimeout('120000', () => runCli(['packages', 'update', '--dry-run'], partialEnv)) as any;
+    const partialComponent = partialPlan.managed_update.components[0];
+    assert.equal(partialComponent.state, 'update_available');
+    assert.equal(partialComponent.auto_apply.eligible, true);
+    assert.equal(partialComponent.status_detail.clean_managed_targets_count, 4);
+    assert.equal(partialComponent.status_detail.manual_required_targets_count, 1);
+
+    const partialUpdate = withCliTimeout('120000', () => runCli(['packages', 'update'], partialEnv)) as any;
+    const partialAdapter = partialUpdate.managed_update.execution.adapter_results[0];
+    const partialTargets = new Map<string, any>(
+      partialAdapter.result.targets.map((entry: any) => [entry.target_id, entry]),
+    );
+    assert.equal(partialAdapter.status, 'partial_success');
+    assert.equal(partialAdapter.apply_mode, 'auto_apply');
+    assert.equal(partialAdapter.result.summary.completed_targets_count, 4);
+    assert.equal(partialAdapter.result.summary.manual_required_targets_count, 1);
+    assert.equal(partialTargets.get('medautogrant')?.status, 'manual_required');
+    assert.equal(partialTargets.get('medautogrant')?.reason, 'developer_or_dirty_checkout_visible');
+    assert.equal(fs.existsSync(path.join(dirtyGrantRoot, 'LOCAL-CHANGE.md')), true);
+    assert.equal(
+      readModuleHeadSha(path.join(moduleEnv.OPL_MODULES_ROOT, 'med-autogrant', 'opl-runtime-module.json')),
+      'mag-updated-head-sha',
+    );
+    assert.equal(
+      readModuleHeadSha(path.join(moduleEnv.OPL_MODULES_ROOT, 'med-autoscience', 'opl-runtime-module.json')),
+      'mas-partial-head-sha',
+    );
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
     fs.rmSync(codexFixture.fixtureRoot, { recursive: true, force: true });

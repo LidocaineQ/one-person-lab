@@ -123,16 +123,19 @@ function moduleStatus(result: unknown) {
   return isRecord(result) && result.status === 'completed' ? 'completed' : 'manual_required';
 }
 
-function reconcileLegacyChannelTargets() {
-  if (!process.env.OPL_PACKAGE_CHANNEL_MANIFEST_REF?.trim()) return [];
+function reconcileManagedChannelTargets() {
   return buildOplModules().modules.modules.filter((module) => module.default_install).map((module) => {
     if (!module.installed || module.install_origin === 'missing') {
       const result = runOplModuleAction('install', module.module_id).module_action as Record<string, unknown>;
       return { target_type: 'module', target_id: module.module_id, status: moduleStatus(result), reason: 'module_missing', action: 'install', result };
     }
+    const managedPackageChannel = module.install_origin === 'managed_root'
+      && module.source_policy.effective_install_update_source === 'package_channel'
+      && module.source_policy.package_channel_auto_update;
     if (module.install_origin !== 'managed_root' || module.health_status === 'dirty'
       || module.health_status === 'invalid_checkout' || module.git?.dirty
-      || ['ahead', 'diverged', 'unknown'].includes(module.git?.sync_status ?? '')) {
+      || ['ahead', 'diverged', 'unknown'].includes(module.git?.sync_status ?? '')
+      || (module.git?.sync_status === 'no_upstream' && !managedPackageChannel)) {
       return { target_type: 'module', target_id: module.module_id, status: 'manual_required', reason: 'developer_or_dirty_checkout_visible', action: null, result: null };
     }
     const action = module.recommended_action === 'update' && module.available_actions.includes('update') ? 'update' : 'sync';
@@ -470,7 +473,7 @@ async function runAgentPackageAdapter(
           action: 'update',
           result: bundledReconciliation,
         }]
-      : reconcileLegacyChannelTargets();
+      : reconcileManagedChannelTargets();
   const manualCount = targets.filter((target) => target.status === 'manual_required').length;
   const completedCount = targets.filter((target) => target.status === 'completed').length;
   const validatedCount = targets.filter((target) => target.status === 'validated').length;
