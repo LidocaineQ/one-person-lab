@@ -86,6 +86,7 @@ export type StandardAgentInterface = {
     workspace_kind: string;
     project_kind: string;
     project_collection_label: string;
+    project_collection_path: string | null;
     default_workspace_id: string;
     default_project_id: string;
     required_locator_fields: StandardAgentLocatorField[];
@@ -167,6 +168,21 @@ function stringValue(value: unknown, field: string, sourceRef: string) {
   return value.trim();
 }
 
+function workspaceRelativePath(value: unknown, field: string, sourceRef: string) {
+  const relativePath = stringValue(value, field, sourceRef);
+  if (
+    path.isAbsolute(relativePath)
+    || relativePath.includes('\\')
+    || relativePath.split('/').some((segment) => !segment || segment === '.' || segment === '..')
+  ) {
+    invalid(`Standard Agent interface field ${field} must be a canonical workspace-relative path.`, sourceRef, {
+      field,
+      relative_path: relativePath,
+    });
+  }
+  return relativePath;
+}
+
 function stringArray(value: unknown, field: string, sourceRef: string) {
   if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string' || !entry.trim())) {
     invalid(`Standard Agent interface field ${field} must be an array of non-empty strings.`, sourceRef, { field });
@@ -188,7 +204,10 @@ function locatorFields(value: unknown, field: string, sourceRef: string) {
   return fields as StandardAgentLocatorField[];
 }
 
-function inventoryProjection(value: unknown, sourceRef: string): StandardAgentInventoryProjection | null {
+export function parseStandardAgentInventoryProjection(
+  value: unknown,
+  sourceRef: string,
+): StandardAgentInventoryProjection | null {
   if (value === undefined || value === null) return null;
   if (!isRecord(value)) {
     invalid('Standard Agent interface field inventory_projection must be an object.', sourceRef, {
@@ -532,6 +551,7 @@ export function parseStandardAgentInterface(value: unknown, sourceRef: string): 
     'workspace_kind',
     'project_kind',
     'project_collection_label',
+    'project_collection_path',
     'default_workspace_id',
     'default_project_id',
     'required_locator_fields',
@@ -582,7 +602,7 @@ export function parseStandardAgentInterface(value: unknown, sourceRef: string): 
   }
   return {
     version: STANDARD_AGENT_INTERFACE_VERSION,
-    inventory_projection: inventoryProjection(value.inventory_projection, sourceRef),
+    inventory_projection: parseStandardAgentInventoryProjection(value.inventory_projection, sourceRef),
     stage_catalog: stageCatalog(value.stage_catalog, sourceRef),
     domain_detail_views: domainDetailViews(value.domain_detail_views, sourceRef),
     workspace_binding: {
@@ -599,6 +619,13 @@ export function parseStandardAgentInterface(value: unknown, sourceRef: string): 
         'workspace_binding.project_collection_label',
         sourceRef,
       ),
+      project_collection_path: workspaceBinding.project_collection_path === undefined
+        ? null
+        : workspaceRelativePath(
+            workspaceBinding.project_collection_path,
+            'workspace_binding.project_collection_path',
+            sourceRef,
+          ),
       default_workspace_id: stringValue(
         workspaceBinding.default_workspace_id,
         'workspace_binding.default_workspace_id',
