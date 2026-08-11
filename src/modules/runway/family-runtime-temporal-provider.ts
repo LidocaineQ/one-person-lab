@@ -102,6 +102,20 @@ export {
 export { resolveTemporalWorkerForegroundPaths, resolveTemporalWorkerForegroundPathsFromArgv } from './family-runtime-temporal-provider-parts/foreground-paths.ts';
 import { resolveTemporalWorkerForegroundPathsFromArgv } from './family-runtime-temporal-provider-parts/foreground-paths.ts';
 
+function temporalWorkerBootstrapModuleUrl() {
+  const extension = import.meta.url.endsWith('.js') ? 'js' : 'ts';
+  return new URL(`../../entrypoints/temporal-worker-bootstrap.${extension}`, import.meta.url).href;
+}
+
+export function buildDetachedTemporalWorkerProcessArgs(modulePath = fileURLToPath(import.meta.url)) {
+  return [
+    ...(modulePath.endsWith('.ts') ? ['--experimental-strip-types'] : []),
+    '--import',
+    temporalWorkerBootstrapModuleUrl(),
+    modulePath,
+  ];
+}
+
 function temporalWorkerSpawnEnvironment(input: {
   temporalAddress: string | null;
   taskQueue: string;
@@ -376,8 +390,7 @@ export async function startTemporalWorkerLifecycle(paths: TemporalWorkerPaths, i
   const child = spawn(
     process.execPath,
     [
-      '--experimental-strip-types',
-      fileURLToPath(import.meta.url),
+      ...buildDetachedTemporalWorkerProcessArgs(),
       '--temporal-worker-foreground',
       '--family-runtime-root',
       paths.root,

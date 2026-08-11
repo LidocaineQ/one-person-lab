@@ -1,7 +1,7 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   probeTemporalServer,
@@ -23,6 +23,30 @@ function workerModulePath() {
   const current = fileURLToPath(import.meta.url);
   const extension = path.extname(current) || '.js';
   return path.join(path.dirname(current), `family-runtime-temporal-provider${extension}`);
+}
+
+function workerBootstrapModulePath() {
+  const current = fileURLToPath(import.meta.url);
+  const extension = path.extname(current) || '.js';
+  return path.join(
+    path.dirname(current),
+    '..',
+    '..',
+    'entrypoints',
+    `temporal-worker-bootstrap${extension}`,
+  );
+}
+
+export function buildTemporalProviderWorkerProcessArgs(
+  modulePath = workerModulePath(),
+  bootstrapPath = workerBootstrapModulePath(),
+) {
+  return [
+    ...(modulePath.endsWith('.ts') ? ['--experimental-strip-types'] : []),
+    '--import',
+    pathToFileURL(bootstrapPath).href,
+    modulePath,
+  ];
 }
 
 export function nextTemporalDependencyBackoffMs(attempt: number) {
@@ -149,8 +173,7 @@ export async function runProviderWorkerLauncher(argv = process.argv.slice(2)) {
 
     const modulePath = workerModulePath();
     child = spawn(process.execPath, [
-      ...(modulePath.endsWith('.ts') ? ['--experimental-strip-types'] : []),
-      modulePath,
+      ...buildTemporalProviderWorkerProcessArgs(modulePath),
       '--temporal-worker-foreground',
       '--family-runtime-root',
       paths.root,

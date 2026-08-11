@@ -9,7 +9,7 @@ export {
 } from './foundry-temporal-activities.ts';
 
 import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
-import { createTemporalStageActivitySessionObserver } from '../console/index.ts';
+import { createTemporalStageActivitySessionObserverFromPort } from './public/temporal-stage-activity-session-observer-port.ts';
 import {
   buildTemporalStageAttemptWorkflowInput,
   requireTemporalStageRunWorkflowInputLaunchable,
@@ -889,7 +889,7 @@ function providerRuntimeQualityDebtCloseout(input: {
 
 export async function codexStageActivity(input: TemporalStageAttemptWorkflowInput) {
   requirePersistedAttemptActivityIdentity(input, 'temporal_codex_stage_activity');
-  const coordinationObserver = createTemporalStageActivitySessionObserver(input);
+  const coordinationObserver = createTemporalStageActivitySessionObserverFromPort(input);
   const cancellationSignal = Context.current().cancellationSignal;
   const observedAt = new Date().toISOString();
   heartbeat({

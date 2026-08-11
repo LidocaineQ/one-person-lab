@@ -9,68 +9,24 @@ import {
   type WorkItemSessionActivityState,
 } from "./work-item-projection/session-activity.ts";
 import type { WorkItemProjectionItem } from "./work-item-projection/types.ts";
+import {
+  registerTemporalStageActivitySessionObserverFactory,
+  type TemporalStageActivityRunnerEvent,
+  type TemporalStageActivitySessionObservationResult,
+  type TemporalStageActivitySessionObservationSummary,
+  type TemporalStageActivitySessionObserverInput,
+  type TemporalStageActivitySessionTerminalState,
+} from "../runway/public/temporal-stage-activity-session-observer-port.ts";
 
-type WorkItemExecutionScope = {
-  domain_id?: unknown;
-  domain_work_item_id?: unknown;
-  project_scope_id?: unknown;
-  work_item_scope_id?: unknown;
-  workspace_binding_id?: unknown;
-};
-
-export type TemporalStageActivitySessionObserverInput = {
-  stage_attempt_id: string;
-  workflow_id: string;
-  domain_id: string;
-  execution_scope?: WorkItemExecutionScope | null;
-};
-
-export type TemporalStageActivityRunnerEvent = {
-  event_kind: string;
-  value?: string | null;
-};
-
-export type TemporalStageActivitySessionTerminalState = Extract<
-  WorkItemSessionActivityState,
-  "completed" | "failed" | "cancelled"
->;
+export type {
+  TemporalStageActivityRunnerEvent,
+  TemporalStageActivitySessionObservationResult,
+  TemporalStageActivitySessionObservationSummary,
+  TemporalStageActivitySessionObserverInput,
+  TemporalStageActivitySessionTerminalState,
+} from "../runway/public/temporal-stage-activity-session-observer-port.ts";
 
 type BindingReceipt = ReturnType<typeof observeWorkItemExecutionSessionBinding>;
-
-export type TemporalStageActivitySessionObservationResult = {
-  surface_kind: "opl_temporal_stage_activity_session_observation_result";
-  event_kind: "start" | "heartbeat" | "terminal" | "ignored";
-  status: "applied" | "unchanged" | "skipped" | "failed";
-  activity_state: WorkItemSessionActivityState | null;
-  execution_session_ref: string | null;
-  receipt_ref: string | null;
-  observed_at: string | null;
-  sequence: number | null;
-  reason: string | null;
-  failure_code: string | null;
-};
-
-export type TemporalStageActivitySessionObservationSummary = {
-  surface_kind: "opl_temporal_stage_activity_session_observation_summary";
-  schema_version: "opl-temporal-stage-activity-session-observation-summary.v1";
-  status: "not_started" | "active" | "terminal" | "degraded";
-  stage_attempt_ref: string;
-  workflow_ref: string;
-  execution_session_ref: string | null;
-  latest_receipt_ref: string | null;
-  latest_activity_state: WorkItemSessionActivityState | null;
-  terminal_state: TemporalStageActivitySessionTerminalState | null;
-  emitted_event_count: number;
-  heartbeat_count: number;
-  failure_codes: string[];
-  authority_boundary: {
-    projection_only: true;
-    coordination_is_execution_proof: false;
-    can_change_stage_attempt: false;
-    can_change_work_item_lifecycle: false;
-    can_write_domain_truth: false;
-  };
-};
 
 type ObserverDependencies = {
   now?: () => number;
@@ -447,3 +403,5 @@ export function createTemporalStageActivitySessionObserver(
 
   return { onRunnerProgress, heartbeat, terminal, summary };
 }
+
+registerTemporalStageActivitySessionObserverFactory(createTemporalStageActivitySessionObserver);

@@ -14,8 +14,15 @@ import {
   readWorkItemExecutionSessionBindings,
 } from "../../src/modules/console/work-item-projection/session-activity.ts";
 import type { WorkItemProjectionItem } from "../../src/modules/console/work-item-projection/types.ts";
+import {
+  temporalStageActivitySessionObserverFactoryRegistered,
+} from "../../src/modules/runway/public/temporal-stage-activity-session-observer-port.ts";
 
 const STARTED_AT = Date.parse("2026-07-22T08:00:00.000Z");
+
+test("Console composition registers the Runway session observer port", () => {
+  assert.equal(temporalStageActivitySessionObserverFactoryRegistered(), true);
+});
 
 function workItem(input: {
   workItemId: "001-dm-cvd-mortality-risk" | "002-dm-mortality-transportability";

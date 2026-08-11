@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import './family-runtime-temporal-provider-cases/closeout-payload-compaction.ts';
 import './family-runtime-temporal-provider-cases/operator-updates.ts';
@@ -25,8 +26,12 @@ import {
   userInstructionSignal,
 } from '../../src/modules/runway/family-runtime-temporal-workflows.ts';
 import {
+  buildDetachedTemporalWorkerProcessArgs,
   buildTemporalStageAttemptReplayGateForTest,
 } from '../../src/modules/runway/family-runtime-temporal-provider.ts';
+import {
+  buildTemporalProviderWorkerProcessArgs,
+} from '../../src/modules/runway/family-runtime-provider-worker-launcher.ts';
 import {
   buildTemporalStageAttemptMemo,
   buildTemporalStageAttemptSearchAttributes,
@@ -59,6 +64,38 @@ function workflowInput(): TemporalStageAttemptWorkflowInput {
     },
   };
 }
+
+test('detached Temporal worker processes preload the Console composition bootstrap', () => {
+  const providerPath = path.join(repoRoot, 'src', 'modules', 'runway', 'family-runtime-temporal-provider.ts');
+  const bootstrapPath = path.join(repoRoot, 'src', 'entrypoints', 'temporal-worker-bootstrap.ts');
+  const directArgs = buildDetachedTemporalWorkerProcessArgs(providerPath);
+  const launcherArgs = buildTemporalProviderWorkerProcessArgs(providerPath, bootstrapPath);
+
+  for (const args of [directArgs, launcherArgs]) {
+    assert.equal(args[0], '--experimental-strip-types');
+    assert.equal(args[1], '--import');
+    assert.match(args[2]!, /\/entrypoints\/temporal-worker-bootstrap\.ts$/);
+    assert.equal(args[3], providerPath);
+  }
+
+  const portUrl = pathToFileURL(path.join(
+    repoRoot,
+    'src',
+    'modules',
+    'runway',
+    'public',
+    'temporal-stage-activity-session-observer-port.ts',
+  )).href;
+  const registered = execFileSync(process.execPath, [
+    '--experimental-strip-types',
+    '--import',
+    pathToFileURL(bootstrapPath).href,
+    '--input-type=module',
+    '--eval',
+    `const port = await import(${JSON.stringify(portUrl)}); process.stdout.write(String(port.temporalStageActivitySessionObserverFactoryRegistered()));`,
+  ], { encoding: 'utf8' });
+  assert.equal(registered, 'true');
+});
 
 test('Temporal stage attempt contract exposes Codex runner total and no-output budgets', () => {
   const contract = buildTemporalStageAttemptWorkflowContract();
