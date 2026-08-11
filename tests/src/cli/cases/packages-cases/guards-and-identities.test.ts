@@ -324,7 +324,7 @@ test('package actions describe both positional and flagged package selection', (
   );
 });
 
-test('OPL Flow manifest resolves its package-owned 0.1.44 native carrier and managed policy payload', () => {
+test('OPL Flow manifest resolves its version-bound native carrier and managed policy payload', () => {
   const manifestPath = path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'opl-flow.json');
   const manifest = normalizePackageManifest(
     parseJsonText(fs.readFileSync(manifestPath, 'utf8')),
@@ -332,7 +332,7 @@ test('OPL Flow manifest resolves its package-owned 0.1.44 native carrier and man
   );
 
   assert.equal(manifest.package_id, 'opl-flow');
-  assert.equal(manifest.version, '0.1.44');
+  assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
   assert.deepEqual(manifest.required_skill_ids, [
     'coordinate-concurrent-tasks',
     'codex-app-owner-migration',
@@ -346,7 +346,7 @@ test('OPL Flow manifest resolves its package-owned 0.1.44 native carrier and man
   ]);
   assert.equal(
     manifest.plugin_payload_manifest_url,
-    path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'payloads', 'opl-flow-0.1.44.json'),
+    path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'payloads', `opl-flow-${manifest.version}.json`),
   );
   assert.deepEqual(manifest.configured_codex_plugin_carrier, {
     packageId: 'opl-flow',
@@ -378,7 +378,7 @@ test('OPL Flow manifest resolves its package-owned 0.1.44 native carrier and man
   });
 });
 
-test('RCA first-party manifest resolves the projected 0.2.14 carrier payload', () => {
+test('RCA first-party manifest resolves its version-bound carrier payload', () => {
   const manifestPath = path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'rca.json');
   const manifest = normalizePackageManifest(
     parseJsonText(fs.readFileSync(manifestPath, 'utf8')),
@@ -386,13 +386,14 @@ test('RCA first-party manifest resolves the projected 0.2.14 carrier payload', (
   );
 
   assert.equal(manifest.package_id, 'rca');
-  assert.equal(manifest.version, '0.2.14');
+  assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
   assert.deepEqual(manifest.required_skill_ids, ['redcube-ai']);
   assert.equal(
     manifest.plugin_payload_manifest_url,
-    path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'payloads', 'rca-0.2.14.json'),
+    path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'payloads', `rca-${manifest.version}.json`),
   );
-  assert.equal(manifest.carrier_source_commit, '16e42cc05301b33ae5881f0fca3556ed1e418742');
+  assert.ok(manifest.carrier_source_commit);
+  assert.match(manifest.carrier_source_commit, /^[0-9a-f]{40}$/);
 });
 
 test('legacy managed runtime source input stays outside normalized Package truth', () => {

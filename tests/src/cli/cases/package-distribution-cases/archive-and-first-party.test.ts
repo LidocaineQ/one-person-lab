@@ -1386,8 +1386,8 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
     'utf8',
   )) as Record<string, any>;
   assert.equal(manifest.surface_kind, 'opl_workflow_profile_package_manifest.v1');
-  assert.equal(manifest.version, '0.1.44');
-  assert.equal(manifest.codex_surface.carrier_source_commit, '68926648c31296c0eda0efa4f5a11c41fc40b363');
+  assert.equal(manifest.version, payload.package_version);
+  assert.equal(manifest.codex_surface.carrier_source_commit, payload.source_commit);
   assert.deepEqual(manifest.codex_surface.configured_codex_plugin_carrier, {
     kind: 'codex_plugin_manager',
     plugin_selector: 'opl-flow@opl-flow-local',
@@ -1411,7 +1411,7 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
   assert.equal(normalized.agent_id, null);
   assert.equal(normalized.profile_surface?.existing_profile_policy, 'semantic_merge_required');
   assert.equal(payload.surface_kind, 'opl_package_payload_manifest.v2');
-  assert.equal(payload.source_commit, '68926648c31296c0eda0efa4f5a11c41fc40b363');
+  assert.match(payload.source_commit, /^[0-9a-f]{40}$/);
   assert.equal(payload.files.some((file: Record<string, unknown>) => file.path === 'opl-package.json'), true);
   for (const requiredPath of [
     'contracts/fleet-telemetry-protocol.json',
