@@ -332,9 +332,11 @@ function validateWorkflow(manifest, manifestPath, failures) {
     && /Reconciled an unknown tag result/.test(releaseSource)
     && /not the exact target after bounded readback/.test(releaseSource), 'Stable promotion must reconcile an unknown tag result by exact readback without redispatch', failures);
   assertCondition(/group:\s*opl-package-publication-\$\{\{ inputs\.package_id \}\}/.test(packageStableSource)
-    && /environment:\s*release-stable/.test(packageStableSource)
+    && /environment:\s*\n\s+name:\s*\$\{\{ github\.event_name == 'schedule' && 'release-stable-automated' \|\| 'release-stable' \}\}/.test(packageStableSource)
+    && /PUBLICATION_ENVIRONMENT:\s*\$\{\{ github\.event_name == 'schedule' && 'release-stable-automated' \|\| 'release-stable' \}\}/.test(packageStableSource)
     && /oras tag "\$\{PACKAGE_IMAGE\}@\$\{digest\}" latest-stable/.test(packageStableSource)
-    && /--ref "\$LATEST_STABLE_REF"[\s\S]*--verify-only --expected-digest "\$digest" --anonymous/.test(packageStableSource), 'Each Package stable channel must remain owned and verified by the single-Package publisher', failures);
+    && /--ref "\$LATEST_STABLE_REF"[\s\S]*--verify-only --expected-digest "\$digest" --anonymous/.test(packageStableSource)
+    && /environment:\$publication_environment/.test(packageStableSource), 'Each Package stable channel must remain owned and verified by the single-Package publisher', failures);
   assertCondition(/environment:\s*release-stable/.test(releaseSource)
     && /Verify protected Stable environment/.test(releaseSource)
     && /release-stable must exist before dispatch/.test(releaseSource)

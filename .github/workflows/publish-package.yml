@@ -65,7 +65,8 @@ concurrency:
 jobs:
   publish-package:
     runs-on: ubuntu-latest
-    environment: release-stable
+    environment:
+      name: ${{ github.event_name == 'schedule' && 'release-stable-automated' || 'release-stable' }}
     permissions:
       contents: read
       id-token: write
@@ -78,6 +79,7 @@ jobs:
       EXPECTED_LATEST_STABLE_PREDECESSOR: ${{ inputs.expected_latest_stable_predecessor }}
       PUBLICATION_REQUEST_ID: ${{ inputs.publication_request_id }}
       PACKAGES_OWNER: ${{ github.repository_owner }}
+      PUBLICATION_ENVIRONMENT: ${{ github.event_name == 'schedule' && 'release-stable-automated' || 'release-stable' }}
     steps:
       - name: Checkout exact Framework source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -97,6 +99,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+            [ "$PUBLICATION_ENVIRONMENT" = release-stable-automated ]
+          else
+            [ "$PUBLICATION_ENVIRONMENT" = release-stable ]
+          fi
           [[ "$GITHUB_REF" == "refs/heads/main" ]]
           [[ "$EXPECTED_FRAMEWORK_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           [[ "$EXPECTED_OWNER_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
@@ -362,6 +369,7 @@ jobs:
             --arg subject "$subject" \
             --arg certificate_identity "$certificate_identity" \
             --arg repository "$GITHUB_REPOSITORY" \
+            --arg publication_environment "$PUBLICATION_ENVIRONMENT" \
             --arg run_id "$GITHUB_RUN_ID" \
             --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
             '{surface_kind:"opl_package_publication_receipt.v1",status:"published_and_verified",
@@ -376,7 +384,7 @@ jobs:
               anonymous_readback:{status:"verified",refs:[$immutable_ref,($immutable_ref|split(":")[0:-1]|join(":"))+"@"+$digest,$latest_ref]},
               mutation_boundary:{registry_atomic_cas_claim:false,
               controls:["protected_environment","single_package_concurrency","double_predecessor_inspect","anonymous_readback"]},
-              workflow:{repository:$repository,run_id:$run_id,run_attempt:$run_attempt,environment:"release-stable"}}' \
+              workflow:{repository:$repository,run_id:$run_id,run_attempt:$run_attempt,environment:$publication_environment}}' \
             > "$PACKAGE_ROOT/publication-receipt.json"
           (cd "$PACKAGE_ROOT" && sha256sum publication-receipt.json > publication-receipt.sha256)
 

@@ -200,7 +200,10 @@ test('framework packages workflow is release-gated and manually repairable witho
       < releaseCallerWorkflow.indexOf('promote_channel_ref "$ref"'),
   );
   assert.match(packageStableWorkflow, /group:\s*opl-package-publication-\$\{\{ inputs\.package_id \}\}/);
-  assert.match(packageStableWorkflow, /environment:\s*release-stable/);
+  assert.match(
+    packageStableWorkflow,
+    /environment:\s*\n\s+name:\s*\$\{\{ github\.event_name == 'schedule' && 'release-stable-automated' \|\| 'release-stable' \}\}/,
+  );
   assert.match(packageStableWorkflow, /oras tag "\$\{PACKAGE_IMAGE\}@\$\{digest\}" latest-stable/);
   assert.match(
     packageStableWorkflow,
@@ -448,7 +451,14 @@ test('single-Package publication is protected, selector-bound, and readback-only
   assert.match(workflow, /^  workflow_dispatch:$/m);
   assert.doesNotMatch(workflow, /^\s+(?:workflow_run|schedule):$/m);
   assert.match(workflow, /^permissions: \{\}$/m);
-  assert.match(workflow, /^    environment: release-stable$/m);
+  assert.match(
+    workflow,
+    /^    environment:\n      name: \$\{\{ github\.event_name == 'schedule' && 'release-stable-automated' \|\| 'release-stable' \}\}$/m,
+  );
+  assert.match(
+    workflow,
+    /^      PUBLICATION_ENVIRONMENT: \$\{\{ github\.event_name == 'schedule' && 'release-stable-automated' \|\| 'release-stable' \}\}$/m,
+  );
   assert.match(workflow, /^    permissions:\n      contents: read\n      id-token: write\n      packages: write$/m);
   assert.deepEqual(packageSpecs.map((spec) => spec.package_id), publisherPackageIds);
   assert.match(workflow, new RegExp(`options: \\[${publisherPackageIds.join(', ')}\\]`));
@@ -501,6 +511,8 @@ test('single-Package publication is protected, selector-bound, and readback-only
   assert.match(workflow, /immutable_result="reconciled_after_unknown"/);
   assert.match(workflow, /stable_result="reconciled_after_unknown"/);
   assert.match(workflow, /registry_atomic_cas_claim:false/);
+  assert.match(workflow, /if \[ "\$GITHUB_EVENT_NAME" = schedule \]; then[\s\S]*PUBLICATION_ENVIRONMENT.*release-stable-automated/);
+  assert.match(workflow, /environment:\$publication_environment/);
   assert.match(workflow, /--expected-digest "\$digest" --anonymous/g);
   assert.match(workflow, /ensure_public_package "one-person-lab-packages\/\$\{PACKAGE_ID\}"/);
   assert.match(workflow, /visibility == "public" and \.repository\.full_name == \$repo/);
