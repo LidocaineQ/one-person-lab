@@ -204,16 +204,23 @@ jobs:
           preflight_args=(
             --artifact-type application/vnd.onepersonlab.package.v1
             --source-url "$OCI_SOURCE_URL"
+            --allow-package-manifest-projection-drift
             --layer "${PACKAGE_ARCHIVE}=application/vnd.onepersonlab.package.source.v1+gzip"
             --layer "${PACKAGE_ROOT}/package-manifest.json=application/vnd.onepersonlab.package.manifest.v1+json"
             --layer "${PACKAGE_ROOT}/payload-manifest.json=application/vnd.onepersonlab.package.payload.v1+json"
           )
 
+          published_manifest_digest=""
           immutable_preflight="$(node scripts/oci-publication-preflight.mjs --ref "$IMMUTABLE_REF" "${preflight_args[@]}")"
           immutable_action="$(jq -r .action <<<"$immutable_preflight")"
           if [ "$immutable_action" = reuse ]; then
             digest="$(jq -er .digest <<<"$immutable_preflight")"
-            immutable_result="reused_identical"
+            if [ "$(jq -r '.package_manifest_projection_equivalent // false' <<<"$immutable_preflight")" = true ]; then
+              immutable_result="reused_registry_projection_equivalent"
+              published_manifest_digest="$(jq -er '.layers[] | select(.mediaType == "application/vnd.onepersonlab.package.manifest.v1+json") | .digest' <<<"$immutable_preflight")"
+            else
+              immutable_result="reused_identical"
+            fi
           else
             set +e
             push_result="$(oras push --format json "$IMMUTABLE_REF" \
@@ -231,7 +238,12 @@ jobs:
               immutable_reconcile="$(node scripts/oci-publication-preflight.mjs --ref "$IMMUTABLE_REF" "${preflight_args[@]}")"
               [ "$(jq -r .action <<<"$immutable_reconcile")" = reuse ]
               digest="$(jq -er .digest <<<"$immutable_reconcile")"
-              immutable_result="reconciled_after_unknown"
+              if [ "$(jq -r '.package_manifest_projection_equivalent // false' <<<"$immutable_reconcile")" = true ]; then
+                immutable_result="reconciled_registry_projection_equivalent_after_unknown"
+                published_manifest_digest="$(jq -er '.layers[] | select(.mediaType == "application/vnd.onepersonlab.package.manifest.v1+json") | .digest' <<<"$immutable_reconcile")"
+              else
+                immutable_result="reconciled_after_unknown"
+              fi
             fi
           fi
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
@@ -283,7 +295,7 @@ jobs:
             --verify-only --expected-digest "$digest" --anonymous
 
           archive_digest="sha256:$(sha256sum "$PACKAGE_ARCHIVE" | cut -d' ' -f1)"
-          manifest_digest="sha256:$(sha256sum "$PACKAGE_ROOT/package-manifest.json" | cut -d' ' -f1)"
+          manifest_digest="${published_manifest_digest:-sha256:$(sha256sum "$PACKAGE_ROOT/package-manifest.json" | cut -d' ' -f1)}"
           payload_digest="sha256:$(sha256sum "$PACKAGE_ROOT/payload-manifest.json" | cut -d' ' -f1)"
           subject="${PACKAGE_IMAGE}@${digest}"
           certificate_identity="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/publish-package.yml@${GITHUB_REF}"

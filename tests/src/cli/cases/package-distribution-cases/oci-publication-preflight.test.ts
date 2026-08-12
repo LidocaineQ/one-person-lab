@@ -37,7 +37,9 @@ if (process.env.FAKE_ORAS_MODE === 'missing') {
   console.error('manifest unknown');
   process.exit(1);
 }
-if (args.includes('--descriptor')) {
+if (args[0] === 'blob' && args[1] === 'fetch') {
+  process.stdout.write(process.env.FAKE_ORAS_BLOB || '');
+} else if (args.includes('--descriptor')) {
   process.stdout.write(process.env.FAKE_ORAS_DESCRIPTOR);
 } else {
   process.stdout.write(process.env.FAKE_ORAS_MANIFEST);
@@ -96,6 +98,83 @@ test('OCI publication preflight rejects same-tag content mutation', () => {
   assert.throws(() => execFileSync(process.execPath, args(value.layerPath), {
     encoding: 'utf8',
     env: { ...value.env, FAKE_ORAS_MANIFEST: JSON.stringify(changed) },
+  }), /Immutable OCI tag mutation rejected/);
+});
+
+test('OCI publication preflight reuses a Package when only Framework registry projection fields drift', () => {
+  const value = fixture();
+  const archivePath = value.layerPath;
+  const manifestPath = path.join(value.root, 'package-manifest.json');
+  const payloadPath = path.join(value.root, 'payload-manifest.json');
+  const remoteManifestBytes = Buffer.from(`${JSON.stringify({
+    package_id: 'mas',
+    version: '0.1.0',
+    display_name: 'Med Auto Science',
+  }, null, 2)}\n`);
+  fs.writeFileSync(manifestPath, `${JSON.stringify({
+    package_id: 'mas',
+    version: '0.1.0',
+    display_name: 'Med Auto Science',
+    publication_projection_order: 10,
+    publication_source: { module_id: 'medautoscience' },
+    compatibility_projection: { registry_aliases: ['mas'] },
+  }, null, 2)}\n`);
+  fs.writeFileSync(payloadPath, '{"content_lock":{"digest":"sha256:test"}}\n');
+  const remoteLayers = [
+    value.manifest.layers[0],
+    {
+      mediaType: 'application/vnd.onepersonlab.package.manifest.v1+json',
+      digest: sha256(remoteManifestBytes),
+      size: remoteManifestBytes.length,
+    },
+    {
+      mediaType: 'application/vnd.onepersonlab.package.payload.v1+json',
+      digest: sha256(fs.readFileSync(payloadPath)),
+      size: fs.statSync(payloadPath).size,
+    },
+  ];
+  const remoteManifest = { ...value.manifest, layers: remoteLayers };
+  const packageArgs = [
+    path.join(repoRoot, 'scripts/oci-publication-preflight.mjs'),
+    '--ref', 'ghcr.io/example/one-person-lab-packages/mas:0.1.0',
+    '--artifact-type', 'application/vnd.onepersonlab.package.v1',
+    '--source-url', 'https://github.com/example/one-person-lab',
+    '--allow-package-manifest-projection-drift',
+    '--layer', `${archivePath}=application/vnd.onepersonlab.package.source.v1+gzip`,
+    '--layer', `${manifestPath}=application/vnd.onepersonlab.package.manifest.v1+json`,
+    '--layer', `${payloadPath}=application/vnd.onepersonlab.package.payload.v1+json`,
+  ];
+  const env = {
+    ...value.env,
+    FAKE_ORAS_MANIFEST: JSON.stringify(remoteManifest),
+    FAKE_ORAS_BLOB: remoteManifestBytes.toString('utf8'),
+  };
+  const output = parseJsonText(execFileSync(process.execPath, packageArgs, {
+    encoding: 'utf8',
+    env,
+  })) as Record<string, any>;
+  assert.equal(output.action, 'reuse');
+  assert.equal(output.status, 'existing_package_projection_equivalent_reuse');
+  assert.equal(output.package_manifest_projection_equivalent, true);
+  assert.equal(
+    output.layers.find((entry: Record<string, unknown>) => entry.mediaType === 'application/vnd.onepersonlab.package.manifest.v1+json').digest,
+    sha256(remoteManifestBytes),
+  );
+
+  const nonProjectionDrift = parseJsonText(fs.readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
+  nonProjectionDrift.display_name = 'Changed Package Identity';
+  fs.writeFileSync(manifestPath, `${JSON.stringify(nonProjectionDrift, null, 2)}\n`);
+  assert.throws(() => execFileSync(process.execPath, packageArgs, {
+    encoding: 'utf8',
+    env,
+  }), /Immutable OCI tag mutation rejected/);
+
+  nonProjectionDrift.display_name = 'Med Auto Science';
+  fs.writeFileSync(manifestPath, `${JSON.stringify(nonProjectionDrift, null, 2)}\n`);
+  fs.writeFileSync(payloadPath, '{"content_lock":{"digest":"sha256:changed"}}\n');
+  assert.throws(() => execFileSync(process.execPath, packageArgs, {
+    encoding: 'utf8',
+    env,
   }), /Immutable OCI tag mutation rejected/);
 });
 

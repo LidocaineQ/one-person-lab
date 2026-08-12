@@ -500,6 +500,9 @@ test('single-Package publication is protected, selector-bound, and readback-only
   assert.ok(workflow.indexOf('git -C .owner-source archive') < workflow.indexOf('scripts/materialize-package-payload.mjs'));
   assert.ok(workflow.indexOf('scripts/materialize-package-payload.mjs') < workflow.indexOf('immutable_preflight='));
   assert.match(workflow, /scripts\/oci-publication-preflight\.mjs/);
+  assert.match(workflow, /--allow-package-manifest-projection-drift/);
+  assert.match(workflow, /reused_registry_projection_equivalent/);
+  assert.match(workflow, /published_manifest_digest/);
   assert.ok(workflow.indexOf('immutable_preflight=') < workflow.indexOf('oras push --format json'));
   assert.ok(workflow.indexOf('first_stable_digest=') < workflow.indexOf('second_stable_digest='));
   assert.ok(workflow.indexOf('second_stable_digest=') < workflow.indexOf('oras tag '));
