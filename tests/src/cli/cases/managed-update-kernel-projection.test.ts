@@ -36,11 +36,19 @@ function writeFixtureFile(root: string, relativePath: string, content: string) {
   return targetPath;
 }
 
+let macAppCarrierFixtureQueue = Promise.resolve();
+
 async function withMacAppCarrierFixture<T>(
   installedVersion: string,
   latestVersion: string | null,
   callback: () => Promise<T>,
 ): Promise<T> {
+  const previousFixture = macAppCarrierFixtureQueue;
+  let releaseFixture!: () => void;
+  macAppCarrierFixtureQueue = new Promise<void>((resolve) => {
+    releaseFixture = resolve;
+  });
+  await previousFixture;
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-macos-app-carrier-'));
   const appPath = path.join(root, 'One Person Lab.app');
   fs.mkdirSync(path.join(appPath, 'Contents'), { recursive: true });
@@ -81,6 +89,7 @@ async function withMacAppCarrierFixture<T>(
       else process.env[key] = value;
     }
     fs.rmSync(root, { recursive: true, force: true });
+    releaseFixture();
   }
 }
 
