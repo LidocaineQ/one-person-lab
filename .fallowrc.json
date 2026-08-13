@@ -42,7 +42,6 @@
     ]
   },
   "dynamicallyLoaded": [
-    "src/cli/cases/**/*.ts",
-    "src/cli/modules/**/*.ts"
+    "src/modules/runway/family-runtime-temporal-residency-proof.ts"
   ]
 }

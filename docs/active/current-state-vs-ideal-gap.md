@@ -35,7 +35,7 @@ North-star 参考仍归 [OPL 与 Foundry Agents 理想目标态](../references/r
 | 范围 | 当前完成状态 | 证据边界 |
 | --- | --- | --- |
 | 非 live 功能 / 结构基线 | `opl_package_platform_composition_phase_2_controlled_breaking_cutover_in_progress` | 当前唯一 selected gap 是 Package platform-first composition；本仓 owner 边界见 [`opl-package-platform-composition-migration.md`](./opl-package-platform-composition-migration.md)，跨仓唯一实施计划归 App SSOT。Phase 2 已获用户批准，当前按 successor-only 纵向链路、production caller 切换、affected OUT / carrier 验收与 owner-gated bulk deletion 顺序执行。 |
-| Ponytail 低风险简化 | `low_risk_slice_landed_owner_gated_tail_remains` | OPL Framework 已收敛已证明无生产 caller 的 pass-through exports、孤儿 runtime helpers、专属测试/脚本和无引用图片；对外 contracts、Package/payload 历史、release cohorts 与仍可能被外部消费的 schema 保持 owner-gated，不把仓内零引用当作物理删除授权。下一轮只从 fresh caller/consumer evidence 选择新的最小 cleanup slice。 |
+| Ponytail 低风险简化 | `low_risk_slice_landed_owner_gated_tail_remains` | OPL Framework 已删除已证明无生产 caller 的 pass-through facade 文件，同时通过 canonical kernel 保留既有 public symbols；并清理孤儿 runtime helpers、专属测试/脚本和无引用图片。对外 contracts、Package/payload 历史、release cohorts 与仍可能被外部消费的 schema 保持 owner-gated，不把仓内零引用当作物理删除授权。Fallow 动态入口只登记真实运行期拼接加载的模块；扫描配置校准不扩大删除授权。下一轮只从 fresh caller/consumer evidence 选择新的最小 cleanup slice。 |
 | Active Truth 治理 | `single_owner_guard_active` | 本文是唯一 active truth owner，只保留当前 gap、完成口径与下一轮 baton，不保存 dated proof 或 closeout 流水。 |
 | Live / release / production / owner evidence | `deferred_to_evidence_owners` | 继续由 App release、provider long-soak、Brand L5、domain owner receipt、typed blocker 与 human gate 等 owner surface 单独证明。 |
 
