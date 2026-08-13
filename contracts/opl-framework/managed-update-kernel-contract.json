@@ -385,6 +385,11 @@
         "package_manager",
         "package_name",
         "installed_version",
+        "app_path",
+        "bundle_identifier",
+        "latest_version",
+        "latest_version_status",
+        "release_metadata_url",
         "detected_package_managers",
         "host_update_route",
         "host_update_route_examples",
@@ -395,6 +400,30 @@
         "repair_actions"
       ],
       "carrier_variants": [
+        {
+          "carrier_type": "macos_standard",
+          "carrier_status_source": "installed macOS App bundle Info.plist and one-person-lab-app latest-mac.yml owner metadata",
+          "host_update_route": "one_person_lab_app_standard_updater_or_signed_installer",
+          "host_update_route_examples": [
+            "One Person Lab App standard updater",
+            "One-Person-Lab-<version>-mac-arm64.dmg"
+          ],
+          "managed_kernel_apply_allowed": false,
+          "host_executor_required": false,
+          "manual_required": "when installed bundle or owner metadata is unavailable",
+          "manual_required_when": [
+            "installed_bundle_missing_or_invalid",
+            "owner_latest_mac_metadata_unavailable_or_invalid"
+          ],
+          "currentness_values": [
+            "unknown",
+            "current",
+            "update_available"
+          ],
+          "installed_version_source": "CFBundleShortVersionString or CFBundleVersion from the installed bundle",
+          "latest_version_source": "one-person-lab-app latest-mac.yml version",
+          "monotonic_version_policy": "installed version equal to or newer than owner target is current; Framework never downgrades the App"
+        },
         {
           "carrier_type": "docker_webui_image",
           "carrier_status_source": "GHCR image digest, compose/container image readback, and Docker/WebUI installer or smoke-gate diagnostics",

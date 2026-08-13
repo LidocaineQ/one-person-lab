@@ -36,6 +36,54 @@ function writeFixtureFile(root: string, relativePath: string, content: string) {
   return targetPath;
 }
 
+async function withMacAppCarrierFixture<T>(
+  installedVersion: string,
+  latestVersion: string | null,
+  callback: () => Promise<T>,
+): Promise<T> {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-macos-app-carrier-'));
+  const appPath = path.join(root, 'One Person Lab.app');
+  fs.mkdirSync(path.join(appPath, 'Contents'), { recursive: true });
+  fs.writeFileSync(path.join(appPath, 'Contents', 'Info.plist'), 'fixture');
+  const plutilPath = writeFixtureFile(
+    root,
+    'bin/plutil',
+    `#!/bin/sh\nprintf '%s\\n' '{"CFBundleIdentifier":"cn.onepersonlab.opl","CFBundleShortVersionString":"${installedVersion}"}'\n`,
+  );
+  const curlPath = writeFixtureFile(
+    root,
+    'bin/curl',
+    latestVersion === null
+      ? '#!/bin/sh\nexit 28\n'
+      : `#!/bin/sh\nprintf '%s\\n' 'version: ${latestVersion}'\n`,
+  );
+  fs.chmodSync(plutilPath, 0o755);
+  fs.chmodSync(curlPath, 0o755);
+  const envKeys = [
+    'OPL_APP_CARRIER_PLATFORM',
+    'OPL_APP_INSTALLED_PATH',
+    'OPL_PLUTIL_BIN',
+    'OPL_CURL_BIN',
+    'OPL_APP_LATEST_METADATA_URL',
+  ] as const;
+  const previous = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
+  process.env.OPL_APP_CARRIER_PLATFORM = 'darwin';
+  process.env.OPL_APP_INSTALLED_PATH = appPath;
+  process.env.OPL_PLUTIL_BIN = plutilPath;
+  process.env.OPL_CURL_BIN = curlPath;
+  process.env.OPL_APP_LATEST_METADATA_URL = 'https://fixture.invalid/latest-mac.yml';
+  try {
+    return await callback();
+  } finally {
+    for (const key of envKeys) {
+      const value = previous[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function writeDeveloperPackageFixture(root: string, packageId: 'mag' | 'opl-flow', version: string) {
   const spec = getOplPackageSpecs().find((entry) => entry.package_id === packageId)!;
   const frameworkManifest = parseJsonText(fs.readFileSync(
@@ -216,6 +264,15 @@ test('managed update contract exposes only OPL Base, OPL App, and OPL Packages l
     contract.providers.map((entry: Record<string, unknown>) => entry.lifecycle_owner),
     ['opl_app', 'opl_base', 'opl_packages'],
   );
+  const appCarrier = contract.providers.find((entry: Record<string, unknown>) =>
+    entry.provider_id === 'installation_carrier'
+  ) as Record<string, any>;
+  const macCarrier = appCarrier.carrier_variants.find(
+    (entry: Record<string, unknown>) => entry.carrier_type === 'macos_standard',
+  );
+  assert.equal(macCarrier.host_update_route, 'one_person_lab_app_standard_updater_or_signed_installer');
+  assert.equal(macCarrier.latest_version_source, 'one-person-lab-app latest-mac.yml version');
+  assert.deepEqual(macCarrier.currentness_values, ['unknown', 'current', 'update_available']);
 
   const packages = contract.providers.find((entry: Record<string, unknown>) =>
     entry.lifecycle_owner === 'opl_packages'
@@ -1048,17 +1105,70 @@ test('developer Framework source override is visible but excluded from generic b
   }
 });
 
-test('OPL App keeps host update routing while remaining outside opl update apply', async () => {
-  const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
-    operation: 'status',
-    componentId: 'opl_app',
-  }) as Record<string, any>;
-  const component = output.managed_update.components[0];
+test('OPL App projects macOS owner currentness without entering opl update apply', async () => {
+  await withMacAppCarrierFixture('26.8.1290', '26.8.1290', async () => {
+    const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
+      operation: 'status',
+      componentId: 'opl_app',
+    }) as Record<string, any>;
+    const component = output.managed_update.components[0];
 
-  assert.equal(component.component_id, 'opl_app');
-  assert.equal(component.provider_id, 'installation_carrier');
-  assert.equal(component.owner_execution_boundary.runner_can_execute, false);
-  assert.equal(component.current.host_executor_required, true);
-  assert.equal(typeof component.current.host_update_route, 'string');
-  assert.equal(component.authority_boundary.can_mutate_installation_carrier, false);
+    assert.equal(component.component_id, 'opl_app');
+    assert.equal(component.provider_id, 'installation_carrier');
+    assert.equal(component.state, 'current');
+    assert.equal(component.current.carrier_type, 'macos_standard');
+    assert.equal(component.current.currentness, 'current');
+    assert.equal(component.current.installed_version, '26.8.1290');
+    assert.equal(component.current.latest_version, '26.8.1290');
+    assert.equal(component.current.host_update_route, 'one_person_lab_app_standard_updater_or_signed_installer');
+    assert.equal(component.current.host_executor_required, false);
+    assert.equal(component.owner_route.apply_owner, 'one-person-lab-app-standard-updater');
+    assert.equal(component.owner_execution_boundary.owner_executor_id, 'one-person-lab-app-standard-updater');
+    assert.equal(component.owner_execution_boundary.runner_can_execute, false);
+    assert.deepEqual(component.post_apply_guidance.command_refs, []);
+    assert.deepEqual(component.plan.command_refs, []);
+    assert.equal(component.authority_boundary.can_mutate_installation_carrier, false);
+  });
+});
+
+test('OPL App treats a newer installed macOS App as current without downgrade', async () => {
+  await withMacAppCarrierFixture('26.9.0', '26.8.1290', async () => {
+    const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
+      operation: 'status',
+      componentId: 'opl_app',
+    }) as Record<string, any>;
+    const component = output.managed_update.components[0];
+    assert.equal(component.state, 'current');
+    assert.equal(component.current.currentness, 'current');
+    assert.equal(component.current.update_available, false);
+    assert.equal(component.plan.action, 'none');
+  });
+});
+
+test('OPL App projects owner update_available for an older installed macOS App', async () => {
+  await withMacAppCarrierFixture('26.8.1200', '26.8.1290', async () => {
+    const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
+      operation: 'status',
+      componentId: 'opl_app',
+    }) as Record<string, any>;
+    const component = output.managed_update.components[0];
+    assert.equal(component.state, 'update_available');
+    assert.equal(component.current.currentness, 'update_available');
+    assert.equal(component.plan.action, 'manual_review');
+    assert.equal(component.current.host_update_route, 'one_person_lab_app_standard_updater_or_signed_installer');
+  });
+});
+
+test('OPL App remains manual_required when macOS owner metadata is unavailable', async () => {
+  await withMacAppCarrierFixture('26.8.1290', null, async () => {
+    const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
+      operation: 'status',
+      componentId: 'opl_app',
+    }) as Record<string, any>;
+    const component = output.managed_update.components[0];
+    assert.equal(component.state, 'skipped_manual_required');
+    assert.equal(component.current.currentness, 'unknown');
+    assert.equal(component.current.latest_version, null);
+    assert.equal(component.plan.action, 'manual_review');
+  });
 });
