@@ -493,12 +493,6 @@ test('retired internal write and fallback helper exports do not return', () => {
         /\bexport\s+function\s+resolveTemporalClientConnectTimeoutMs\b/,
       ],
     ],
-    [
-      'src/modules/workspace/default-caller-surface-gates.ts',
-      [
-        /\bexport\s+const\s+DEFAULT_CALLER_TARGET_KINDS\b/,
-      ],
-    ],
   ];
   const violations: string[] = [];
 

@@ -13,7 +13,7 @@ import {
   aggregateDefaultCallerOwnerDecisionResultShape,
   buildDefaultCallerOwnerDecisionReadModel,
   defaultCallerOwnerDecisionCloseoutReadout,
-} from './default-caller-retirement-guard.ts';
+} from '../../kernel/default-caller-retirement-guard.ts';
 import { buildPrivatePlatformResidueDeletionGate } from '../pack/index.ts';
 import {
   countValue as numberValue,

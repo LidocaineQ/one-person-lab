@@ -86,8 +86,31 @@ export type {
 } from './standard-agent-action-output.ts';
 export * from './agent-default-caller-delete-read-model.ts';
 export * from './agent-platform-surface-ownership.ts';
-export * from './default-caller-retirement-guard.ts';
-export * from './default-caller-surface-gates.ts';
+export {
+  DEFAULT_CALLER_DEFAULT_ORDINARY_LANE_ID,
+  DEFAULT_CALLER_OWNER_DECISION_ACCEPTED_RESULT_SHAPES,
+  DEFAULT_CALLER_OWNER_DECISION_NEXT_REQUIRED_ACTION,
+  DEFAULT_CALLER_PRIVATE_PLATFORM_CLEANUP_ALLOWED_DISPOSITIONS,
+  DEFAULT_CALLER_PRIVATE_PLATFORM_CLEANUP_LANE_ID,
+  DEFAULT_CALLER_PRIVATE_PLATFORM_RESIDUE_TARGET_KINDS,
+  DEFAULT_CALLER_RETIREMENT_MANDATORY_GATE_IDS,
+  DEFAULT_CALLER_RETIREMENT_NON_AUTHORIZING_SURFACES,
+  DEFAULT_CALLER_RETIREMENT_TARGET_CLASSES,
+  DEFAULT_CALLER_SAME_WORK_UNIT_LIVE_EVIDENCE_SCOPE,
+  DEFAULT_CALLER_STATIC_RETIREMENT_PREREQUISITE_GATE_IDS,
+  aggregateDefaultCallerOwnerDecisionResultShape,
+  buildDefaultCallerOwnerDecisionReadModel,
+  defaultCallerOwnerDecisionCloseoutReadout,
+} from '../../kernel/default-caller-retirement-guard.ts';
+export type {
+  DefaultCallerPrivatePlatformCleanupDisposition,
+  DefaultCallerPrivatePlatformResidueTargetKind,
+} from '../../kernel/default-caller-retirement-guard.ts';
+export {
+  DEFAULT_CALLER_DELETION_NOT_AUTHORIZED_CLAIMS,
+  DEFAULT_CALLER_PHYSICAL_DELETE_BLOCKERS,
+  defaultCallerSurfaceGates,
+} from '../../kernel/default-caller-surface-gates.ts';
 export * from './domain-private-platform-tail-matrix.ts';
 export * from './family-agent-conformance-probe.ts';
 export * from './family-domain-agent-skeleton.ts';

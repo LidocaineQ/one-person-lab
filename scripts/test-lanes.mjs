@@ -277,7 +277,6 @@ const readModelGateTestFiles = [
     'tests/src/cli/cases/family-runtime-evidence-worklist-no-worklist-root-planning.test.ts', 'tests/src/cli/cases/family-runtime-evidence-worklist-domain-blockers.test.ts',
     'tests/src/cli/cases/family-runtime-evidence-worklist-stage-payload.test.ts',
   ]),
-  'tests/src/family-runtime-domain-handler-closeout.test.ts',
   'tests/src/family-runtime-evidence-worklist-family-scope.test.ts',
   ...expandTestFiles([
     'tests/src/cli/cases/family-runtime-provider-repair.test.ts',

@@ -35,12 +35,12 @@ import {
   aggregateDefaultCallerOwnerDecisionResultShape,
   buildDefaultCallerOwnerDecisionReadModel,
   defaultCallerOwnerDecisionCloseoutReadout,
-} from './default-caller-retirement-guard.ts';
+} from '../../kernel/default-caller-retirement-guard.ts';
 import {
   DEFAULT_CALLER_DELETION_NOT_AUTHORIZED_CLAIMS,
   DEFAULT_CALLER_PHYSICAL_DELETE_BLOCKERS,
   defaultCallerSurfaceGates,
-} from './default-caller-surface-gates.ts';
+} from '../../kernel/default-caller-surface-gates.ts';
 import { buildDomainPrivatePlatformTailMatrixReadback } from './domain-private-platform-tail-matrix.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
 

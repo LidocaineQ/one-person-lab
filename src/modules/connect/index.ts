@@ -148,7 +148,7 @@ export {
 export { buildManagedShellCommandEnv, prepareManagedShellCommandCwd } from '../../kernel/managed-shell-command-env.ts';
 export { buildOplReleaseTag, getOplReleaseRepo, getOplReleaseVersion } from './opl-release.ts';
 export { resolveDefaultFamilyWorkspaceRoot, syncFamilySkillPacks } from './opl-skills.ts';
-export { canonicalOwnerId } from './owner-id.ts';
+export { canonicalOwnerId } from '../../kernel/owner-id.ts';
 export { parseGithubRepoFromUrl } from './developer-mode-source-policy.ts';
 export {
   buildScientificConnectorProviderRegistryReadback,
