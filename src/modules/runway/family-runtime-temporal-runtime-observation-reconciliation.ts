@@ -6,7 +6,18 @@ import {
   listStageAttemptRows,
   stageAttemptToPayload,
 } from './family-runtime-stage-attempt-ledger.ts';
+import {
+  ingestStageAttemptCloseout,
+  inspectStageAttempt,
+} from './family-runtime-stage-attempts.ts';
 import { syncStageAttemptFromTemporalTerminalObservation } from './family-runtime-stage-attempts-parts/temporal-terminal-observation.ts';
+import {
+  buildRawArtifactProgressCloseoutPacket,
+} from './family-runtime-codex-stage-runner.ts';
+import {
+  recoverFrameworkRawArtifactForAttempt,
+} from './family-runtime-codex-stage-runner-parts/raw-artifact-identity-verification.ts';
+import { verifyStageQualityCloseoutArtifactIdentity } from './family-runtime-codex-stage-runner-parts/artifact-identity-verification.ts';
 import { insertEvent, type familyRuntimePaths } from './family-runtime-store.ts';
 import { queryTemporalStageAttemptReadModel } from './family-runtime-temporal-query.ts';
 import { requireRuntimeExecutionScopeMutationAllowed } from './family-runtime-execution-scope-persistence.ts';
@@ -366,6 +377,105 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+function workspaceRootFromAttempt(attempt: JsonRecord) {
+  return stringValue(record(attempt.workspace_locator)?.workspace_root);
+}
+
+function reconcileAbsentWorkflowArtifact(
+  db: DatabaseSync,
+  attempt: JsonRecord,
+  observedAt: string,
+) {
+  const persistedAttempt = inspectStageAttempt(db, String(attempt.stage_attempt_id));
+  let rawArtifact: ReturnType<typeof recoverFrameworkRawArtifactForAttempt> = null;
+  let rawArtifactRecoveryFailure: string | null = null;
+  try {
+    rawArtifact = recoverFrameworkRawArtifactForAttempt(persistedAttempt);
+  } catch (error) {
+    rawArtifactRecoveryFailure = error instanceof FrameworkContractError
+      ? stringValue(error.details?.blocked_reason) ?? error.code
+      : 'raw_executor_output_recovery_failed';
+  }
+  if (rawArtifact) {
+    const closeoutPacket = buildRawArtifactProgressCloseoutPacket({
+      attempt: persistedAttempt,
+      stagePacketRef: 'unavailable',
+      rawArtifact,
+      normalizationFindings: [
+        'stage_packet_ref_missing_nonblocking_declared_stage_context_used',
+        'temporal_workflow_absent_raw_artifact_recovered',
+        'typed_closeout_not_required_raw_artifact_advanced',
+      ],
+    });
+    const verified = verifyStageQualityCloseoutArtifactIdentity({
+      closeoutPacket,
+      attempt: persistedAttempt,
+      workspaceRoot: workspaceRootFromAttempt(persistedAttempt) ?? '',
+    });
+    if (!verified) throw new Error('Recovered raw artifact produced no closeout packet.');
+    const ingested = ingestStageAttemptCloseout(db, {
+      stageAttemptId: persistedAttempt.stage_attempt_id,
+      packet: verified,
+    });
+    return {
+      reconciliation_status: 'workflow_absent_raw_artifact_recovered',
+      closeout_id: ingested.closeout.closeout_id,
+      artifact_ref: rawArtifact.output_ref,
+      idempotent_noop: ingested.closeout.idempotent_noop,
+    };
+  }
+
+  const blockerReason = rawArtifactRecoveryFailure
+    ? 'temporal_workflow_absent_raw_artifact_invalid'
+    : 'temporal_workflow_absent_no_closeout_or_raw_artifact';
+  const blocker = {
+    surface_kind: 'opl_temporal_workflow_absence_repair_blocker',
+    version: 'opl-temporal-workflow-absence-repair-blocker.v1',
+    stage_attempt_id: persistedAttempt.stage_attempt_id,
+    workflow_id: persistedAttempt.workflow_id,
+    reason: blockerReason,
+    raw_artifact_recovery_failure: rawArtifactRecoveryFailure,
+    repair_action: 'inspect_bound_executor_or_restart_stage_attempt',
+    observed_at: observedAt,
+    terminal: false,
+    authority_boundary: {
+      opl: 'attempt_runtime_repair_observation_only',
+      temporal: 'provider_lifecycle_authority',
+      domain: 'truth_quality_artifact_gate_owner',
+    },
+  };
+  const existing = record(persistedAttempt.provider_run.absence_repair_blocker);
+  if (existing?.stage_attempt_id === blocker.stage_attempt_id
+    && existing.workflow_id === blocker.workflow_id
+    && existing.reason === blocker.reason) {
+    return {
+      reconciliation_status: 'workflow_absent_repair_blocked',
+      blocker_ref: `opl://stage-attempts/${encodeURIComponent(persistedAttempt.stage_attempt_id)}/runtime-blockers/${blocker.reason}`,
+      idempotent_noop: true,
+    };
+  }
+  withReconciliationAttemptMutation(
+    db,
+    persistedAttempt.stage_attempt_id,
+    'record_temporal_workflow_absence_repair_blocker',
+    () => db.prepare(`
+      UPDATE stage_attempts
+      SET provider_run_json = json_set(
+        CASE WHEN json_valid(provider_run_json) THEN provider_run_json ELSE '{}' END,
+        '$.absence_repair_blocker', json(?)
+      )
+      WHERE stage_attempt_id = ?
+        AND workflow_id = ?
+        AND status IN ('queued', 'running', 'checkpointed', 'human_gate')
+    `).run(JSON.stringify(blocker), persistedAttempt.stage_attempt_id, persistedAttempt.workflow_id),
+  );
+  return {
+    reconciliation_status: 'workflow_absent_repair_blocked',
+    blocker_ref: `opl://stage-attempts/${encodeURIComponent(persistedAttempt.stage_attempt_id)}/runtime-blockers/${blocker.reason}`,
+    idempotent_noop: false,
+  };
+}
+
 export type TemporalRuntimeObservationReconciliationDeps = {
   queryTemporalStageAttemptReadModel?: (
     attempt: Parameters<typeof queryTemporalStageAttemptReadModel>[0],
@@ -430,10 +540,11 @@ export async function reconcileTemporalStageAttemptRuntimeObservations(
           const unavailable = record(temporalQuery);
           if (isTemporalWorkflowAbsentObservation(temporalQuery)) {
             syncStageAttemptFromTemporalTerminalObservation(db, temporalQuery);
+            const recovered = reconcileAbsentWorkflowArtifact(db, attempt, observedAt);
             results.push({
               stage_attempt_id: attempt.stage_attempt_id,
               workflow_id: attempt.workflow_id,
-              reconciliation_status: 'workflow_absent',
+              ...recovered,
               reason: 'temporal_workflow_not_started_or_not_found',
             });
             continue;
@@ -494,7 +605,8 @@ export async function reconcileTemporalStageAttemptRuntimeObservations(
     (result) => result.reconciliation_status === 'terminal_projected',
   ).length;
   const availabilityObservedTotal = results.filter(
-    (result) => result.reconciliation_status === 'workflow_absent',
+    (result) => result.reconciliation_status === 'workflow_absent_repair_blocked'
+      || result.reconciliation_status === 'workflow_absent_raw_artifact_recovered',
   ).length;
   const failedTotal = results.length
     - refreshedTotal

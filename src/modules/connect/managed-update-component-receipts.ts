@@ -438,9 +438,14 @@ export function recordManagedUpdateComponentReceipts(inputs: ManagedUpdateCompon
 }
 
 export function findLatestManagedUpdateReceipt(componentId: string) {
-  return readManagedUpdateComponentReceiptLedger().receipts.find((receipt) =>
-    receipt.component_id === componentId
-  ) ?? null;
+  return readManagedUpdateComponentReceiptLedger().receipts
+    .filter((receipt) => receipt.component_id === componentId)
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.activated_at || left.recorded_at);
+      const rightTime = Date.parse(right.activated_at || right.recorded_at);
+      return (Number.isFinite(rightTime) ? rightTime : 0)
+        - (Number.isFinite(leftTime) ? leftTime : 0);
+    })[0] ?? null;
 }
 
 export function managedUpdateComponentReceiptLedgerFilePath() {

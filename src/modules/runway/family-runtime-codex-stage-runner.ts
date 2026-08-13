@@ -236,10 +236,15 @@ function buildProviderRuntimeCloseoutPacket(input: {
   });
 }
 
-function buildRawArtifactProgressCloseoutPacket(input: {
+export function buildRawArtifactProgressCloseoutPacket(input: {
   attempt: JsonRecord;
   stagePacketRef: string;
-  rawArtifact: NonNullable<ReturnType<typeof persistRawStageOutput>>;
+  rawArtifact: {
+    output_ref: string;
+    metadata_ref: string;
+    sha256: string;
+    size_bytes: number;
+  };
   normalizationFindings: string[];
 }) {
   const stageAttemptId = optionalString(input.attempt.stage_attempt_id) ?? 'unknown-attempt';

@@ -57,6 +57,13 @@ export type VerifiedFrameworkRawProgress = {
   finalizeIdentityReceipt: (prepare: () => PendingIdentityReceipt) => string;
 };
 
+export type RecoveredFrameworkRawArtifact = {
+  output_ref: string;
+  metadata_ref: string;
+  sha256: string;
+  size_bytes: number;
+};
+
 function rawArtifactError(input: {
   message: string;
   blockedReason: string;
@@ -498,6 +505,113 @@ function rawArtifactMetadata(input: {
       details: { metadata_error: error instanceof Error ? error.message : String(error) },
     });
   }
+}
+
+export function recoverFrameworkRawArtifactForAttempt(
+  attempt: JsonRecord,
+): RecoveredFrameworkRawArtifact | null {
+  const attemptId = optionalString(attempt.stage_attempt_id);
+  if (!attemptId) return null;
+  const location = rawExecutorOutputLocation(attemptId);
+  if (!fs.existsSync(location.outputPath) && !fs.existsSync(location.metadataPath)) return null;
+  const artifactRef = pathToFileURL(location.outputPath).href;
+  if (!fs.existsSync(location.outputPath) || !fs.existsSync(location.metadataPath)) {
+    return rawProvenanceError({
+      artifactRef,
+      message: 'Framework raw executor output recovery requires both bytes and metadata.',
+      details: {
+        output_exists: fs.existsSync(location.outputPath),
+        metadata_exists: fs.existsSync(location.metadataPath),
+      },
+    });
+  }
+  const rootIdentity = rawRootIdentity({ location, artifactRef });
+  const provenance = rawArtifactMetadata({ location, rootIdentity, artifactRef });
+  const authority = isRecord(provenance.authority_boundary) ? provenance.authority_boundary : {};
+  const expectedProvenanceFields = [
+    'artifact_is_consumable_progress_input',
+    'artifact_is_domain_truth',
+    'artifact_is_owner_receipt',
+    'artifact_is_quality_verdict',
+    'authority_boundary',
+    'domain_id',
+    'observed_at',
+    'output_ref',
+    'physical_lineage',
+    'sha256',
+    'size_bytes',
+    'stage_attempt_id',
+    'stage_id',
+    'surface_kind',
+    'version',
+  ].sort();
+  let persistedPhysicalLineage: WorkItemRootIdentity;
+  try {
+    persistedPhysicalLineage = requireWorkItemRootIdentity(provenance.physical_lineage);
+  } catch (error) {
+    return rawProvenanceError({
+      artifactRef,
+      message: 'Recovered raw executor output metadata has invalid physical lineage.',
+      details: { lineage_error: error instanceof Error ? error.message : String(error) },
+    });
+  }
+  const declaredSha256 = optionalString(provenance.sha256);
+  const declaredSizeBytes = provenance.size_bytes;
+  if (
+    JSON.stringify(Object.keys(provenance).sort()) !== JSON.stringify(expectedProvenanceFields)
+    || provenance.surface_kind !== 'opl_raw_stage_output_artifact'
+    || provenance.version !== 'raw-stage-output-artifact.v1'
+    || provenance.domain_id !== optionalString(attempt.domain_id)
+    || provenance.stage_id !== optionalString(attempt.stage_id)
+    || provenance.stage_attempt_id !== attemptId
+    || provenance.output_ref !== artifactRef
+    || !declaredSha256?.match(/^[a-f0-9]{64}$/)
+    || typeof declaredSizeBytes !== 'number'
+    || !Number.isSafeInteger(declaredSizeBytes)
+    || declaredSizeBytes <= 0
+    || JSON.stringify(persistedPhysicalLineage) !== JSON.stringify(rootIdentity)
+    || !optionalString(provenance.observed_at)
+    || provenance.artifact_is_domain_truth !== false
+    || provenance.artifact_is_owner_receipt !== false
+    || provenance.artifact_is_quality_verdict !== false
+    || provenance.artifact_is_consumable_progress_input !== true
+    || JSON.stringify(Object.keys(authority).sort()) !== JSON.stringify(['domain', 'opl'])
+    || authority.opl !== 'raw_executor_output_persistence_and_refs_only_envelope'
+    || authority.domain !== 'semantic_interpretation_quality_and_route_back_owner'
+  ) {
+    return rawProvenanceError({
+      artifactRef,
+      message: 'Recovered raw executor output metadata does not match its bound Attempt identity.',
+    });
+  }
+  const output = readStableRawStateFile({
+    location,
+    rootIdentity,
+    filePath: location.outputPath,
+    artifactRef,
+  });
+  assertRawRootIdentity({ location, artifactRef, rootIdentity });
+  if (
+    output.sha256 !== `sha256:${declaredSha256}`
+    || output.byte_size !== declaredSizeBytes
+  ) {
+    return rawProvenanceError({
+      artifactRef,
+      message: 'Recovered raw executor output bytes do not match their framework metadata.',
+      details: {
+        declared_sha256: declaredSha256,
+        observed_sha256: output.sha256,
+        declared_size_bytes: declaredSizeBytes,
+        observed_size_bytes: output.byte_size,
+      },
+    });
+  }
+  return {
+    output_ref: artifactRef,
+    metadata_ref: pathToFileURL(location.metadataPath).href,
+    sha256: declaredSha256,
+    size_bytes: declaredSizeBytes,
+  };
 }
 
 export function verifyFrameworkRawProgressEnvelope(input: {

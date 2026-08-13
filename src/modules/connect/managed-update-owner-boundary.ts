@@ -307,8 +307,27 @@ export function ownerExecutionBoundary(
 }
 
 export function bindOwnerReceiptProjection(component: ManagedUpdateComponent): ManagedUpdateComponent {
+  const unreconciledReceiptFailure = component.receipt.verify_result === 'failed';
+  const state = unreconciledReceiptFailure && component.state === 'current'
+    ? 'failed_with_repair'
+    : component.state;
   return {
     ...component,
+    state,
+    status_detail: {
+      ...component.status_detail,
+      component_state: state,
+      failed_targets_count: unreconciledReceiptFailure
+        ? Math.max(component.status_detail.failed_targets_count ?? 0, 1)
+        : component.status_detail.failed_targets_count,
+    },
+    plan: unreconciledReceiptFailure && component.plan.action === 'none'
+      ? {
+          action: 'manual_review',
+          summary: 'The latest managed Package transaction failed verification and requires repair.',
+          command_refs: component.plan.command_refs,
+        }
+      : component.plan,
     receipt: {
       ...component.receipt,
       owner_projection: ownerReceiptProjection(component.owner_route),

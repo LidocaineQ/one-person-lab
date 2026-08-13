@@ -620,6 +620,248 @@ test('OPL Packages reads developer checkout readiness from the native module pro
   }
 });
 
+test('OPL Packages aggregate consumes explicit owner currentness for clean managed Packages', async () => {
+  const module = {
+    module_id: 'redcube',
+    label: 'RedCube AI',
+    default_install: true,
+    installed: true,
+    install_origin: 'managed_root',
+    checkout_path: '/fixture/modules/redcube-ai',
+    managed_checkout_path: '/fixture/modules/redcube-ai',
+    health_status: 'ready',
+    recommended_action: null,
+    source_policy: {
+      effective_install_update_source: 'package_channel',
+      package_channel_auto_update: true,
+    },
+    git: { dirty: false, sync_status: 'no_upstream' },
+  };
+  const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
+    operation: 'status',
+    componentId: 'opl_packages',
+  }, {
+    buildOplModules: (() => ({ modules: { modules: [module] } })) as never,
+    readFirstPartyPackageOwnerCurrentness: async (packageIds) => {
+      assert.deepEqual(packageIds, ['rca']);
+      return [{
+        package_id: 'rca',
+        status: 'update_available',
+        reasons: ['package_version_changed'],
+        installed_version: '0.2.7',
+        target_version: '0.2.15',
+        installed_content_digest: null,
+        target_content_digest: `sha256:${'1'.repeat(64)}`,
+        installed_artifact_digest: null,
+        target_artifact_digest: `sha256:${'2'.repeat(64)}`,
+        installed_manifest_sha256: null,
+        target_manifest_sha256: `sha256:${'3'.repeat(64)}`,
+        source_policy: null,
+        owner_channel_ref: 'ghcr.io/fixture/one-person-lab-packages/rca:latest-stable',
+        catalog_freshness: 'live',
+      }];
+    },
+  }) as Record<string, any>;
+  const packages = output.managed_update.components[0];
+  const rca = packages.current.module_states[0];
+
+  assert.equal(packages.state, 'update_available');
+  assert.equal(packages.plan.action, 'update');
+  assert.equal(output.managed_update.summary.update_available_components_count, 1);
+  assert.equal(rca.state, 'update_available');
+  assert.equal(rca.owner_currentness.installed_version, '0.2.7');
+  assert.equal(rca.owner_currentness.target_version, '0.2.15');
+  assert.equal(rca.owner_currentness.target_manifest_sha256, `sha256:${'3'.repeat(64)}`);
+  assert.equal(rca.owner_currentness.target_content_digest, `sha256:${'1'.repeat(64)}`);
+  assert.equal(rca.owner_currentness.target_artifact_digest, `sha256:${'2'.repeat(64)}`);
+});
+
+test('OPL Packages aggregate preserves protected managed checkout state without owner currentness', async () => {
+  const module = {
+    module_id: 'redcube',
+    label: 'RedCube AI',
+    default_install: true,
+    installed: true,
+    install_origin: 'managed_root',
+    checkout_path: '/fixture/modules/redcube-ai',
+    managed_checkout_path: '/fixture/modules/redcube-ai',
+    health_status: 'ready',
+    recommended_action: null,
+    source_policy: {
+      effective_install_update_source: 'package_channel',
+      package_channel_auto_update: true,
+    },
+    git: { dirty: false, sync_status: 'ahead' },
+  };
+  const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
+    operation: 'status',
+    componentId: 'opl_packages',
+  }, {
+    buildOplModules: (() => ({ modules: { modules: [module] } })) as never,
+    readFirstPartyPackageOwnerCurrentness: async (packageIds) => {
+      assert.deepEqual(packageIds, []);
+      return [];
+    },
+  }) as Record<string, any>;
+  const packages = output.managed_update.components[0];
+  const rca = packages.current.module_states[0];
+
+  assert.equal(packages.state, 'skipped_manual_required');
+  assert.equal(packages.plan.action, 'manual_review');
+  assert.equal(rca.state, 'skipped_manual_required');
+  assert.equal(rca.owner_currentness, null);
+});
+
+test('OPL Packages aggregate does not claim current when owner currentness is unavailable', async () => {
+  const module = {
+    module_id: 'redcube',
+    label: 'RedCube AI',
+    default_install: true,
+    installed: true,
+    install_origin: 'managed_root',
+    checkout_path: '/fixture/modules/redcube-ai',
+    managed_checkout_path: '/fixture/modules/redcube-ai',
+    health_status: 'ready',
+    recommended_action: null,
+    source_policy: {
+      effective_install_update_source: 'package_channel',
+      package_channel_auto_update: true,
+    },
+    git: { dirty: false, sync_status: 'no_upstream' },
+  };
+  const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
+    operation: 'status',
+    componentId: 'opl_packages',
+  }, {
+    buildOplModules: (() => ({ modules: { modules: [module] } })) as never,
+    readFirstPartyPackageOwnerCurrentness: async () => [{
+      package_id: 'rca',
+      status: 'unavailable',
+      reasons: ['agent_package_capability_channel_unavailable'],
+      installed_version: null,
+      target_version: null,
+      installed_content_digest: null,
+      target_content_digest: null,
+      installed_artifact_digest: null,
+      target_artifact_digest: null,
+      installed_manifest_sha256: null,
+      target_manifest_sha256: null,
+      source_policy: null,
+      owner_channel_ref: 'ghcr.io/fixture/one-person-lab-packages/rca:latest-stable',
+      catalog_freshness: 'unavailable',
+    }],
+  }) as Record<string, any>;
+  const packages = output.managed_update.components[0];
+  const rca = packages.current.module_states[0];
+
+  assert.equal(packages.state, 'skipped_manual_required');
+  assert.equal(packages.plan.action, 'manual_review');
+  assert.equal(rca.state, 'skipped_manual_required');
+  assert.equal(rca.owner_currentness.status, 'unavailable');
+});
+
+test('OPL Packages current state cannot mask the latest failed component receipt', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-update-failed-receipt-'));
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = root;
+  const module = {
+    module_id: 'redcube',
+    label: 'RedCube AI',
+    default_install: true,
+    installed: true,
+    install_origin: 'managed_root',
+    checkout_path: '/fixture/modules/redcube-ai',
+    managed_checkout_path: '/fixture/modules/redcube-ai',
+    health_status: 'ready',
+    recommended_action: null,
+    source_policy: {
+      effective_install_update_source: 'package_channel',
+      package_channel_auto_update: true,
+    },
+    git: { dirty: false, sync_status: 'no_upstream' },
+  };
+  const receipt = (verifyResult: 'passed' | 'failed', activatedAt: string) => ({
+    surface_kind: 'opl_managed_update_component_receipt',
+    schema_version: 'opl_managed_update_component_receipt.v1',
+    receipt_ref: `opl://fixture/${verifyResult}/${activatedAt}`,
+    receipt_status: 'recorded',
+    recorded_at: activatedAt,
+    operation: 'apply',
+    component_id: 'opl_packages',
+    provider_id: 'capability_packages',
+    adapter_id: 'capability_packages_adapter',
+    source_manifest_ref: 'opl://packages/per-package-owner-latest-stable', // reuse-first: allow existing owner-routed receipt fixture.
+    from_version: null,
+    from_digest: null, // reuse-first: allow existing owner-routed receipt fixture.
+    to_version: null,
+    to_digest: null, // reuse-first: allow existing owner-routed receipt fixture.
+    verify_result: verifyResult,
+    activated_at: activatedAt,
+    post_apply_hooks: [], // reuse-first: allow existing owner-routed receipt fixture.
+    rollback_ref: null,
+    repair_action: verifyResult === 'failed' ? 'update_packages' : null,
+    adapter_result_ref: null,
+    apply_mode: 'auto_apply',
+    owner_projection: {},
+    status_detail: {},
+    post_apply_action_statuses: [],
+    reload_guidance: {},
+    authority_boundary: {},
+  });
+  const project = () => buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
+    operation: 'status',
+    componentId: 'opl_packages',
+  }, {
+    buildOplModules: (() => ({ modules: { modules: [module] } })) as never,
+    readFirstPartyPackageOwnerCurrentness: async () => [{
+      package_id: 'rca',
+      status: 'current',
+      reasons: [],
+      installed_version: '0.2.15',
+      target_version: '0.2.15',
+      installed_content_digest: null,
+      target_content_digest: `sha256:${'1'.repeat(64)}`,
+      installed_artifact_digest: null,
+      target_artifact_digest: `sha256:${'2'.repeat(64)}`,
+      installed_manifest_sha256: null,
+      target_manifest_sha256: `sha256:${'3'.repeat(64)}`,
+      source_policy: null,
+      owner_channel_ref: 'ghcr.io/fixture/one-person-lab-packages/rca:latest-stable',
+      catalog_freshness: 'live',
+    }],
+  }) as Promise<Record<string, any>>;
+
+  try {
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(path.join(root, 'managed-update-component-receipts.json'), formatJsonPayload({
+      surface_kind: 'opl_managed_update_component_receipt_ledger',
+      version: 'opl-managed-update-component-receipts.v1',
+      receipts: [receipt('failed', '2026-08-13T00:00:00.000Z')],
+    }));
+    const failed = (await project()).managed_update.components[0];
+    assert.equal(failed.state, 'failed_with_repair');
+    assert.equal(failed.plan.action, 'manual_review');
+    assert.equal(failed.receipt.verify_result, 'failed');
+
+    fs.writeFileSync(path.join(root, 'managed-update-component-receipts.json'), formatJsonPayload({
+      surface_kind: 'opl_managed_update_component_receipt_ledger',
+      version: 'opl-managed-update-component-receipts.v1',
+      receipts: [
+        receipt('passed', '2026-08-13T00:01:00.000Z'),
+        receipt('failed', '2026-08-13T00:00:00.000Z'),
+      ],
+    }));
+    const recovered = (await project()).managed_update.components[0];
+    assert.equal(recovered.state, 'current');
+    assert.equal(recovered.plan.action, 'none');
+    assert.equal(recovered.receipt.verify_result, 'passed');
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('generic apply selects only eligible background-safe components while explicit owner actions stay scoped', async () => {
   const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
     operation: 'plan',

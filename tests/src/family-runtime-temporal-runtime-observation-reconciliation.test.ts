@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import {
@@ -23,6 +26,7 @@ import {
   reconcileTemporalStageAttemptRuntimeObservations,
 } from '../../src/modules/runway/family-runtime-temporal-runtime-observation-reconciliation.ts';
 import { temporalWorkerStatus } from './cli/cases/family-runtime-provider-slo-fixtures.ts';
+import { persistRawStageOutput } from '../../src/modules/runway/family-runtime-codex-stage-runner-parts/stage-closeout-capture.ts';
 
 function withDb(fn: (db: DatabaseSync) => Promise<void> | void) {
   const db = new DatabaseSync(':memory:');
@@ -161,7 +165,15 @@ test('Temporal workflow absence is reported without terminalizing the Attempt', 
       queryTemporalStageAttemptReadModel: async () => missingWorkflowObservation(attempt),
     });
 
-    assert.deepEqual(inspectStageAttempt(db, attempt.stage_attempt_id), before);
+    const after = inspectStageAttempt(db, attempt.stage_attempt_id);
+    const blocker = after.provider_run.absence_repair_blocker as Record<string, unknown>;
+    assert.equal(after.status, before.status);
+    assert.equal(after.blocked_reason, null);
+    assert.equal(
+      blocker.reason,
+      'temporal_workflow_absent_no_closeout_or_raw_artifact',
+    );
+    assert.equal(blocker.terminal, false);
     assert.equal(report.refreshed_total, 0);
     assert.equal(report.terminal_projected_total, 0);
     assert.equal(report.availability_observed_total, 1);
@@ -170,10 +182,111 @@ test('Temporal workflow absence is reported without terminalizing the Attempt', 
     assert.deepEqual(report.results, [{
       stage_attempt_id: attempt.stage_attempt_id,
       workflow_id: attempt.workflow_id,
-      reconciliation_status: 'workflow_absent',
+      reconciliation_status: 'workflow_absent_repair_blocked',
+      blocker_ref: `opl://stage-attempts/${encodeURIComponent(attempt.stage_attempt_id)}/runtime-blockers/temporal_workflow_absent_no_closeout_or_raw_artifact`,
+      idempotent_noop: false,
       reason: 'temporal_workflow_not_started_or_not_found',
     }]);
+
+    const repeated = await reconcileTemporalStageAttemptRuntimeObservations(db, { root: '/tmp' }, {
+      trigger: 'provider_slo_tick',
+      queryTemporalStageAttemptReadModel: async () => missingWorkflowObservation(attempt),
+    });
+    assert.equal(repeated.results[0]?.idempotent_noop, true);
+    assert.equal(inspectStageAttempt(db, attempt.stage_attempt_id).status, before.status);
   });
+});
+
+test('Temporal workflow absence recovers its identity-bound raw artifact exactly once', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-temporal-absence-raw-recovery-'));
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = path.join(root, 'state');
+  try {
+    await withDb(async (db) => {
+      const attempt = createAttempt(db, 'raw-recovery');
+      db.prepare(`
+        UPDATE stage_attempts
+        SET attempt_role = 'producer'
+        WHERE stage_attempt_id = ?
+      `).run(attempt.stage_attempt_id);
+      const persisted = inspectStageAttempt(db, attempt.stage_attempt_id);
+      const rawArtifact = persistRawStageOutput({
+        attempt: persisted,
+        content: 'recoverable RCA communication strategy output',
+      });
+      assert.ok(rawArtifact);
+
+      const report = await reconcileTemporalStageAttemptRuntimeObservations(db, { root: '/tmp' }, {
+        trigger: 'provider_slo_tick',
+        queryTemporalStageAttemptReadModel: async () => missingWorkflowObservation(attempt),
+      });
+      const recovered = inspectStageAttempt(db, attempt.stage_attempt_id);
+      const closeouts = listStageAttemptCloseouts(db, attempt.stage_attempt_id);
+
+      assert.equal(report.results[0]?.reconciliation_status, 'workflow_absent_raw_artifact_recovered');
+      assert.equal(recovered.status, 'completed');
+      assert.equal(recovered.closeout_receipt_status, 'framework_progress_envelope');
+      assert.equal(closeouts.length, 1);
+      assert.equal(closeouts[0]?.packet.domain_ready_verdict, 'completed_with_quality_debt');
+      assert.deepEqual(closeouts[0]?.packet.closeout_refs, [rawArtifact.output_ref]);
+
+      const repeated = await reconcileTemporalStageAttemptRuntimeObservations(db, { root: '/tmp' }, {
+        trigger: 'provider_slo_tick',
+        queryTemporalStageAttemptReadModel: async () => missingWorkflowObservation(attempt),
+      });
+      assert.equal(repeated.selected_total, 0);
+      assert.equal(listStageAttemptCloseouts(db, attempt.stage_attempt_id).length, 1);
+    });
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Temporal workflow absence records one repair blocker for an invalid raw artifact', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-temporal-absence-invalid-raw-'));
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = path.join(root, 'state');
+  try {
+    await withDb(async (db) => {
+      const attempt = createAttempt(db, 'invalid-raw');
+      const persisted = inspectStageAttempt(db, attempt.stage_attempt_id);
+      const rawArtifact = persistRawStageOutput({
+        attempt: persisted,
+        content: 'raw output whose bytes will no longer match metadata',
+      });
+      assert.ok(rawArtifact);
+      fs.appendFileSync(new URL(rawArtifact.output_ref), 'tampered\n');
+
+      const reconcile = () => reconcileTemporalStageAttemptRuntimeObservations(db, { root: '/tmp' }, {
+        trigger: 'provider_slo_tick' as const,
+        queryTemporalStageAttemptReadModel: async () => missingWorkflowObservation(attempt),
+      });
+      const report = await reconcile();
+      const after = inspectStageAttempt(db, attempt.stage_attempt_id);
+      const blocker = after.provider_run.absence_repair_blocker as Record<string, unknown>;
+
+      assert.equal(after.status, persisted.status);
+      assert.equal(listStageAttemptCloseouts(db, attempt.stage_attempt_id).length, 0);
+      assert.equal(blocker.reason, 'temporal_workflow_absent_raw_artifact_invalid');
+      assert.equal(
+        blocker.raw_artifact_recovery_failure,
+        'raw_executor_output_provenance_mismatch_authority_violation',
+      );
+      assert.equal(report.results[0]?.reconciliation_status, 'workflow_absent_repair_blocked');
+      assert.equal(report.results[0]?.idempotent_noop, false);
+      assert.equal(report.failed_total, 0);
+
+      const repeated = await reconcile();
+      assert.equal(repeated.results[0]?.idempotent_noop, true);
+      assert.equal(listStageAttemptCloseouts(db, attempt.stage_attempt_id).length, 0);
+    });
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('Temporal running query refreshes a TTL-bound cache without changing ledger status', async () => {

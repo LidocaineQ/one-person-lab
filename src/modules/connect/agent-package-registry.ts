@@ -13,6 +13,7 @@ import { canonicalAgentPackageId } from './agent-package-identity.ts';
 import {
   assertFirstPartyPackageCatalogVersion,
   resolveFirstPartyPackageCatalog,
+  resolveFirstPartyPackageOwnerChannelRef,
 } from './agent-package-first-party.ts';
 import { materializeStandardAgentFrameworkLink } from './standard-agent-framework-link.ts';
 import {
@@ -1060,7 +1061,16 @@ type DescriptorOwnedFirstPartyLifecycleInput = {
   action: 'update' | 'repair';
 };
 
-function descriptorOwnedFirstPartyContext(input: DescriptorOwnedFirstPartyLifecycleInput) {
+type InstalledDescriptorDiscoveryInput = NonNullable<
+  Parameters<typeof discoverInstalledCodexPluginDescriptors>[0]
+>;
+
+function descriptorOwnedFirstPartyContext(
+  input: DescriptorOwnedFirstPartyLifecycleInput,
+  options: {
+    runner?: InstalledDescriptorDiscoveryInput['runner'];
+  } = {},
+) {
   const packageId = canonicalAgentPackageId(input.selectionInput.packageId);
   const firstParty = resolveFirstPartyPackageCatalog(packageId);
   if (!packageId || !firstParty) {
@@ -1073,6 +1083,7 @@ function descriptorOwnedFirstPartyContext(input: DescriptorOwnedFirstPartyLifecy
   assertFirstPartyPackageUpdateSelection(input.selectionInput, firstParty, sourcePolicy);
   const installed = discoverInstalledCodexPluginDescriptors({
     packageId,
+    runner: options.runner,
     failClosedOnCarrierError: true,
   }).get(packageId) ?? null;
   if (!installed) return null;
@@ -1082,6 +1093,148 @@ function descriptorOwnedFirstPartyContext(input: DescriptorOwnedFirstPartyLifecy
     sourcePolicy,
     installed,
   };
+}
+
+async function resolveDescriptorOwnedFirstPartyCurrentness(
+  input: DescriptorOwnedFirstPartyLifecycleInput,
+  options: {
+    runner?: InstalledDescriptorDiscoveryInput['runner'];
+  } = {},
+) {
+  const context = descriptorOwnedFirstPartyContext(input, options);
+  if (!context) return null;
+  const {
+    packageId,
+    firstParty,
+    sourcePolicy,
+    installed,
+  } = context;
+  const snapshot = await resolveFirstPartyPackageCatalogSnapshot({
+    refresh: true,
+    packageId,
+  });
+  if (!snapshot || snapshot.freshness !== 'live') {
+    throw new FrameworkContractError('codex_command_failed', 'Descriptor-owned Package currentness requires a live owner package channel.', {
+      package_id: packageId,
+      catalog_ref: firstParty.catalogSource.catalog_ref,
+      available_catalog_freshness: snapshot?.freshness ?? null,
+      failure_code: 'agent_package_capability_channel_unavailable',
+    });
+  }
+  const targetVersion = ownerPackageCatalogVersion(snapshot.catalog, packageId);
+  assertFirstPartyPackageCatalogVersion(packageId, targetVersion);
+  const targetManifest = normalizePackageManifest(
+    catalogManifestPayload(targetVersion),
+    targetVersion.manifest_url,
+  );
+  const targetDescriptor = descriptorOwnedTargetDescriptor({
+    packageId,
+    targetVersion,
+    targetCarrier: targetManifest.configured_codex_plugin_carrier ?? null,
+  });
+  const observed = runConfiguredCodexPluginCarrier({
+    descriptor: installed.carrier,
+    action: 'list',
+    runner: options.runner,
+  });
+  return {
+    packageId,
+    sourcePolicy,
+    installed,
+    snapshot,
+    targetVersion,
+    targetManifest,
+    targetDescriptor,
+    observed,
+    currentness: descriptorOwnedCarrierCurrentness({
+      installedVersion: installed.manifest.version,
+      installedManifestVersion: installed.manifest.version,
+      installedSourcePath: installed.sourcePath,
+      readback: observed,
+      target: targetVersion,
+      installedDescriptor: installed.carrier,
+      targetDescriptor,
+    }),
+  };
+}
+
+export type FirstPartyPackageOwnerCurrentness = {
+  package_id: string;
+  status: 'current' | 'update_available' | 'newer_source_preserved' | 'unavailable' | 'not_applicable';
+  reasons: string[];
+  installed_version: string | null;
+  target_version: string | null;
+  installed_content_digest: string | null;
+  target_content_digest: string | null;
+  installed_artifact_digest: string | null;
+  target_artifact_digest: string | null;
+  installed_manifest_sha256: string | null;
+  target_manifest_sha256: string | null;
+  source_policy: ReturnType<typeof resolveAgentPackageEffectiveSourcePolicy> | null;
+  owner_channel_ref: string | null;
+  catalog_freshness: 'live' | 'unavailable' | null;
+};
+
+export async function readFirstPartyPackageOwnerCurrentness(
+  packageIds: string[],
+): Promise<FirstPartyPackageOwnerCurrentness[]> {
+  const runner = createMemoizedCodexPluginListRunner();
+  const canonicalPackageIds = packageIds
+    .map(canonicalAgentPackageId)
+    .filter((packageId): packageId is string => Boolean(packageId));
+  return Promise.all([...new Set(canonicalPackageIds)]
+    .map(async (packageId): Promise<FirstPartyPackageOwnerCurrentness> => {
+      try {
+        const resolved = await resolveDescriptorOwnedFirstPartyCurrentness({
+          selectionInput: { packageId, dryRun: true },
+          action: 'update',
+        }, { runner });
+        if (!resolved) {
+          return {
+            package_id: packageId,
+            status: 'not_applicable',
+            reasons: ['installed_descriptor_or_managed_owner_policy_not_applicable'],
+            installed_version: null,
+            target_version: null,
+            installed_content_digest: null,
+            target_content_digest: null,
+            installed_artifact_digest: null,
+            target_artifact_digest: null,
+            installed_manifest_sha256: null,
+            target_manifest_sha256: null,
+            source_policy: resolveAgentPackageEffectiveSourcePolicy(packageId),
+            owner_channel_ref: resolveFirstPartyPackageOwnerChannelRef(packageId),
+            catalog_freshness: null,
+          };
+        }
+        return {
+          package_id: packageId,
+          ...resolved.currentness,
+          source_policy: resolved.sourcePolicy,
+          owner_channel_ref: resolved.snapshot.catalog_ref,
+          catalog_freshness: resolved.snapshot.freshness,
+        };
+      } catch (error) {
+        return {
+          package_id: packageId,
+          status: 'unavailable',
+          reasons: [error instanceof FrameworkContractError
+            ? String(error.details?.failure_code ?? error.code)
+            : 'owner_currentness_read_failed'],
+          installed_version: null,
+          target_version: null,
+          installed_content_digest: null,
+          target_content_digest: null,
+          installed_artifact_digest: null,
+          target_artifact_digest: null,
+          installed_manifest_sha256: null,
+          target_manifest_sha256: null,
+          source_policy: resolveAgentPackageEffectiveSourcePolicy(packageId),
+          owner_channel_ref: resolveFirstPartyPackageOwnerChannelRef(packageId),
+          catalog_freshness: 'unavailable',
+        };
+      }
+    }));
 }
 
 function descriptorOwnedTargetDescriptor(input: {
@@ -1206,57 +1359,24 @@ function descriptorOwnedCurrentLifecycleResult(input: {
 }
 
 async function maybeRunDescriptorOwnedFirstPartyLifecycle(input: DescriptorOwnedFirstPartyLifecycleInput) {
-  const context = descriptorOwnedFirstPartyContext(input);
-  if (!context) return null;
+  const resolved = await resolveDescriptorOwnedFirstPartyCurrentness(input);
+  if (!resolved) return null;
   const {
     packageId,
-    firstParty,
-    sourcePolicy,
     installed,
-  } = context;
-
-  const snapshot = await resolveFirstPartyPackageCatalogSnapshot({
-    refresh: true,
-    packageId,
-  });
-  if (!snapshot || snapshot.freshness !== 'live') {
-    throw new FrameworkContractError('codex_command_failed', 'Descriptor-owned Package currentness requires a live owner package channel.', {
-      package_id: packageId,
-      catalog_ref: firstParty.catalogSource.catalog_ref,
-      available_catalog_freshness: snapshot?.freshness ?? null,
-      failure_code: 'agent_package_capability_channel_unavailable',
-    });
-  }
-  const targetVersion = ownerPackageCatalogVersion(snapshot.catalog, packageId);
-  assertFirstPartyPackageCatalogVersion(packageId, targetVersion);
-  const targetManifest = normalizePackageManifest(
-    catalogManifestPayload(targetVersion),
-    targetVersion.manifest_url,
-  );
-  const targetDescriptor = descriptorOwnedTargetDescriptor({
-    packageId,
+    snapshot,
     targetVersion,
-    targetCarrier: targetManifest.configured_codex_plugin_carrier ?? null,
-  });
+    targetManifest,
+    targetDescriptor,
+    observed,
+    currentness,
+  } = resolved;
   const closureTargets = configuredCarrierTargetsFromCatalog({
     catalog: snapshot.catalog,
     rootManifest: targetManifest,
     rootVersion: targetVersion,
   });
   const dryRun = input.selectionInput.dryRun === true;
-  const observed = runConfiguredCodexPluginCarrier({
-    descriptor: installed.carrier,
-    action: 'list',
-  });
-  const currentness = descriptorOwnedCarrierCurrentness({
-    installedVersion: installed.manifest.version,
-    installedManifestVersion: installed.manifest.version,
-    installedSourcePath: installed.sourcePath,
-    readback: observed,
-    target: targetVersion,
-    installedDescriptor: installed.carrier,
-    targetDescriptor,
-  });
   if (currentness.status === 'newer_source_preserved') {
     assertConfiguredCarrierReady(packageId, observed);
     return descriptorOwnedCurrentLifecycleResult({
