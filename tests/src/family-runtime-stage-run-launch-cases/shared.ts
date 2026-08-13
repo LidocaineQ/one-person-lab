@@ -195,6 +195,7 @@ function stageRunInput(input: {
     identityReceiptRef?: string;
   };
   executionScope?: ReturnType<typeof createWorkItemExecutionScopeSnapshot>;
+  routeBudget?: { max_route_back_rounds: number; route_back_rounds_used: number } | null;
 } = {}) {
   const stageId = input.stageId ?? 'intake';
   const fixtureArtifact = artifactFixtures[input.artifactId ?? 'request']!;
@@ -211,6 +212,7 @@ function stageRunInput(input: {
       : locator,
     scopeKind: input.executionScope ? 'work_item' : 'domain',
     executionScope: input.executionScope ?? null,
+    routeBudget: input.routeBudget,
     sourceFingerprint: input.sourceFingerprint ?? artifact.sha256,
     actionId: 'draft-paper',
     taskId: 'task:one',

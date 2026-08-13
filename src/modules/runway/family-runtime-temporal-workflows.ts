@@ -1196,6 +1196,9 @@ export async function StageRunWorkflow(
     current_role: null,
     repair_rounds_used: 0,
     max_repair_rounds: input.quality_policy.formal_review.max_repair_rounds,
+    route_budget: input.route_budget
+      ?? input.stage_run_spec?.route_budget
+      ?? { max_route_back_rounds: 3, route_back_rounds_used: 0 },
     quality_scope_budget: qualityScopeBudget,
     quality_scope_budget_usage: {
       attempts_used: 0,
@@ -1269,6 +1272,12 @@ export async function StageRunWorkflow(
       state = {
         ...state,
         next_stage_run_launch: nextStageRunLaunch,
+        route_quality_debt_refs: nextStageRunLaunch.materialization_status === 'route_budget_exhausted'
+          ? [...new Set([
+              ...state.route_quality_debt_refs,
+              qualityFailureRef(input, 'cross-stage-route-back-budget-exhausted'),
+            ])]
+          : state.route_quality_debt_refs,
         updated_at: nowIso(),
       };
     }
@@ -1688,6 +1697,7 @@ export async function StageRunWorkflow(
       quality_scope_budget_stop_reason: stopReason,
       quality_debt_refs: [...new Set([
         ...state.quality_debt_refs,
+        ...inputBudget.findings.map((finding) => `quality-debt:${finding.finding_id}`),
         ...(evaluation.disposition === 'complete_with_quality_debt' ? [budgetRef] : []),
       ])],
       updated_at: nowIso(),
@@ -1703,23 +1713,12 @@ export async function StageRunWorkflow(
         source_attempt_ref: inputBudget.sourceAttemptRef,
       });
     }
-    if (evaluation.disposition === 'route_back_or_human_owner') {
-      const humanGateRef = `opl://stage-runs/${encodeURIComponent(input.stage_run_id)}/human-gates/${stopReason}`;
-      return terminalize({
-        ...state,
-        status: 'human_gate',
-        current_role: null,
-        blocked_reason: `stage_quality_scope_budget_${stopReason}`,
-        hard_stop_class: 'human_decision_required',
-        human_gate_refs: [...new Set([...state.human_gate_refs, humanGateRef])],
-        source_attempt_ref: inputBudget.sourceAttemptRef,
-      });
-    }
     return terminalize({
       ...state,
       status: 'completed_with_quality_debt',
       current_role: null,
       quality_debt_refs: [...new Set([...state.quality_debt_refs, budgetRef])],
+      source_attempt_ref: inputBudget.sourceAttemptRef,
       updated_at: nowIso(),
     });
   };

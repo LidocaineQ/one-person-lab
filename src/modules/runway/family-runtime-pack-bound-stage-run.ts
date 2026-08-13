@@ -18,6 +18,7 @@ export function buildPackBoundTemporalStageRunInput(input: {
   stageId: string;
   stageRunInvocationId: string;
   parentRouteDecisionRef?: string | null;
+  routeBudget?: { max_route_back_rounds: number; route_back_rounds_used: number } | null;
   workspaceLocator: Record<string, unknown>;
   sourceFingerprint: string | null;
   executorKind?: string;
@@ -66,6 +67,7 @@ export function buildPackBoundTemporalStageRunInput(input: {
     artifactHashes: input.artifactHashes,
     artifactIdentityReceiptRefs: input.artifactIdentityReceiptRefs,
     parentRouteDecisionRef: input.parentRouteDecisionRef,
+    routeBudget: input.routeBudget ?? input.binding.route_budget ?? null,
   });
   const artifactIdentityReceiptRefs = stageRunSpec.input_artifacts.map(
     (artifact) => artifact.identity_receipt_ref,
@@ -78,6 +80,9 @@ export function buildPackBoundTemporalStageRunInput(input: {
     scope_kind: executionScope.scopeKind,
     execution_scope: executionScope.executionScope,
     parent_route_decision_ref: input.parentRouteDecisionRef ?? null,
+    ...(input.routeBudget ?? input.binding.route_budget
+      ? { route_budget: input.routeBudget ?? input.binding.route_budget }
+      : {}),
     workflow_id: deriveStageRunWorkflowId(stageRunId),
     domain_id: input.domainId,
     stage_id: input.stageId,

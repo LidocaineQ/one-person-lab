@@ -152,6 +152,15 @@ function fixtureProjection(workspaceRoot: string, workItemRoot: string): WorkIte
         updated_at: '2026-07-15T00:01:00.000Z',
         running_proof_status: 'observed',
         diagnostic_reason: null,
+        review_chain: {
+          stage_run_count: 1,
+          total_attempt_count: 1,
+          total_repair_rounds: 0,
+          max_route_back_rounds: null,
+          route_back_rounds_used: 0,
+          total_tokens_observed: 42,
+          token_observation_status: 'observed',
+        },
         quality_budget: {
           state: 'available',
           scope_id: 'quality-cycle:fixture',
@@ -531,6 +540,10 @@ test('hosted readback contract retires private control-plane compatibility autho
   assert.deepEqual(
     contract.projection_model.quality_budget_readback.effective_current_cycle_statuses,
     ['awaiting_producer', 'awaiting_review', 'awaiting_repair'],
+  );
+  assert.deepEqual(
+    contract.projection_model.review_chain_readback.fields,
+    ['stage_run_count', 'total_attempt_count', 'total_repair_rounds', 'max_route_back_rounds', 'route_back_rounds_used', 'total_tokens_observed', 'token_observation_status'],
   );
   assert.equal(
     contract.projection_model.quality_budget_readback.terminal_cycle_projection,

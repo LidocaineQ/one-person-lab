@@ -211,6 +211,15 @@ export type WorkItemProjectionItem = {
     updated_at: string | null;
     running_proof_status: string;
     diagnostic_reason: string | null;
+    review_chain: {
+      stage_run_count: number;
+      total_attempt_count: number;
+      total_repair_rounds: number;
+      max_route_back_rounds: number | null;
+      route_back_rounds_used: number;
+      total_tokens_observed: number | null;
+      token_observation_status: 'observed' | 'missing' | 'partial';
+    };
     quality_budget: {
       state: 'not_managed' | 'available' | 'exhausted' | 'unknown';
       scope_id: string | null;

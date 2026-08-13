@@ -147,7 +147,11 @@ test('route invocation makes A-B-A a new Run while replaying the same decision i
 
 test('controller route materialization starts targets, replays idempotently, and creates a new A-B-A Run', async () => {
   const db = new DatabaseSync(':memory:');
-  const parent = stageRunInput({ invocationId: 'sri_initial_a', stageId: 'intake' });
+  const parent = stageRunInput({
+    invocationId: 'sri_initial_a',
+    stageId: 'intake',
+    routeBudget: { max_route_back_rounds: 3, route_back_rounds_used: 2 },
+  });
   const routeCurrentPackRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-route-current-pack-'));
   fs.cpSync(domainPackRoot, routeCurrentPackRoot, { recursive: true });
   writeFixture(routeCurrentPackRoot, 'agent/prompts/publication_followup.md', '# publication followup prompt\n');
@@ -266,6 +270,26 @@ test('controller route materialization starts targets, replays idempotently, and
     assert.equal(bToA.materialization_status, 'launched');
     assert.notEqual(bToA.target_stage_run_id, parent.stage_run_id);
     assert.equal(temporalStarts, 2);
+    const routeBackTarget = launchedInputs.at(-1)!;
+
+    const exhausted = await materializeStageRunRoute({
+      parent_stage_run: routeBackTarget,
+      decisive_attempt_ref: 'opl://stage_attempts/reviewer-b-exhausted',
+      decisive_execution_content_binding: decisiveExecutionBinding(routeBackTarget, currentDeclaredStageIds),
+      decision: {
+        decision_kind: 'route_back',
+        target_stage_id: 'intake',
+        evidence_refs: ['artifact:b', 'finding:route-back'],
+      },
+      artifact_refs: [artifactFixtures.b!.ref],
+      artifact_hashes: [artifactFixtures.b!.sha256],
+      artifact_identity_receipt_refs: [],
+    }, {
+      ...dependencies,
+      launchTargetStageRun: async () => assert.fail('route-back budget must prevent a fourth launch'),
+    });
+    assert.equal(exhausted.materialization_status, 'route_budget_exhausted');
+    assert.equal(exhausted.target_stage_run_id, null);
 
     const laterDecision = await materializeStageRunRoute({
       ...aToB,

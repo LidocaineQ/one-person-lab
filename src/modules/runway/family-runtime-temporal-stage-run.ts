@@ -70,7 +70,13 @@ export type TemporalStageRunWorkflowInput = {
   artifact_hashes?: string[];
   artifact_identity_receipt_refs?: string[];
   lineage_refs?: string[];
+  route_budget?: StageRunRouteBudget | null;
   visibility_search_attributes_upsert_enabled?: boolean;
+};
+
+export type StageRunRouteBudget = {
+  max_route_back_rounds: number;
+  route_back_rounds_used: number;
 };
 
 export type TemporalStageRunRouteLaunchInput = {
@@ -86,7 +92,7 @@ export type TemporalStageRunRouteLaunchInput = {
 export type TemporalStageRunRouteLaunchReceipt = {
   surface_kind: 'opl_stage_run_route_launch_receipt';
   version: 'opl-stage-run-route-launch-receipt.v1';
-  materialization_status: 'workflow_complete' | 'launched' | 'existing';
+  materialization_status: 'workflow_complete' | 'launched' | 'existing' | 'route_budget_exhausted';
   parent_stage_run_id: string;
   decisive_attempt_ref: string;
   decisive_execution_content_binding_sha256: string;
@@ -168,6 +174,7 @@ export type TemporalStageRunWorkflowState = {
   current_role: StageQualityAttemptRole | null;
   repair_rounds_used: number;
   max_repair_rounds: number;
+  route_budget?: StageRunRouteBudget;
   quality_scope_budget?: StageQualityScopeBudget;
   quality_scope_budget_usage?: {
     attempts_used: number;

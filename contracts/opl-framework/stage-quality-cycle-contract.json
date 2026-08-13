@@ -107,7 +107,7 @@
       "surface_kind": "opl_stage_quality_scope_budget",
       "version": "opl-stage-quality-scope-budget.v1",
       "default_max_attempts": 3,
-      "default_max_elapsed_ms": 21600000,
+      "default_max_elapsed_ms": null,
       "default_max_tokens": null,
       "token_cap_activation": "explicit_owner_or_user_configuration_only",
       "token_budget_requires_observed_usage": true,
@@ -123,7 +123,7 @@
         "max_elapsed_exhausted",
         "max_tokens_exhausted"
       ],
-      "p0_or_p1_exhaustion": "route_back_or_human_owner",
+      "p0_or_p1_exhaustion": "completed_with_quality_debt_if_consumable",
       "p2_exhaustion_with_consumable_artifact": "completed_with_quality_debt"
     },
     "initial_producer_attempt_counts_as_repair": false,

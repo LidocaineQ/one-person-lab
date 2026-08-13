@@ -898,6 +898,7 @@ export function requireTemporalStageRunWorkflowInputLaunchable(
     executorKind: input.executor_kind,
     stageAttemptExecutorPolicy: input.stage_attempt_executor_policy,
     parentRouteDecisionRef: input.parent_route_decision_ref,
+    routeBudget: input.stage_run_spec.route_budget ?? input.route_budget,
   });
   const expectedSpecSha256 = stageRunSpecSha256(spec);
   if (input.stage_run_spec_sha256 !== expectedSpecSha256) {

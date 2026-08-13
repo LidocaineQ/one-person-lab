@@ -71,6 +71,7 @@ function routeReplayBusinessIdentity(input: TemporalStageRunWorkflowInput) {
     stage_attempt_executor_policy: spec.stage_attempt_executor_policy,
     parent_route_decision_ref: spec.parent_route_decision_ref,
     checkpoint_refs: spec.checkpoint_refs.filter((ref) => ref !== spec.stage_packet_ref),
+    route_budget: spec.route_budget ?? null,
   };
 }
 
@@ -82,6 +83,7 @@ function expectedRouteReplayBusinessIdentity(input: {
   artifactRefs: string[];
   artifactHashes: string[];
   artifactIdentityReceiptRefs: string[];
+  routeBudget: { max_route_back_rounds: number; route_back_rounds_used: number } | null;
 }) {
   const parentSpec = input.parentStageRun.stage_run_spec;
   return {
@@ -103,6 +105,9 @@ function expectedRouteReplayBusinessIdentity(input: {
     stage_attempt_executor_policy: input.stageAttemptExecutorPolicy,
     parent_route_decision_ref: input.parentRouteDecisionRef,
     checkpoint_refs: [],
+    ...(input.routeBudget
+      ? { route_budget: input.routeBudget }
+      : {}),
   };
 }
 
@@ -276,6 +281,45 @@ export async function materializeStageRunRoute(
       { decision_kind: input.decision.decision_kind },
     );
   }
+  const invocation = buildRouteStageRunInvocation({
+    parentStageRunId: parentStageRun.stage_run_id,
+    decisiveAttemptRef: input.decisive_attempt_ref,
+    decision: input.decision,
+    targetStageId,
+  });
+  const parentRouteBudget = parentStageRun.stage_run_spec.route_budget
+    ?? parentStageRun.route_budget
+    ?? null;
+  const isRouteBack = input.decision.decision_kind === 'route_back';
+  if (
+    isRouteBack
+    && parentRouteBudget
+    && parentRouteBudget.route_back_rounds_used >= parentRouteBudget.max_route_back_rounds
+  ) {
+    return {
+      surface_kind: 'opl_stage_run_route_launch_receipt',
+      version: 'opl-stage-run-route-launch-receipt.v1',
+      materialization_status: 'route_budget_exhausted',
+      parent_stage_run_id: routeDecision.parent_stage_run_id,
+      decisive_attempt_ref: routeDecision.decisive_attempt_ref,
+      decisive_execution_content_binding_sha256: decisiveBindingSha256,
+      parent_route_decision_ref: invocation.parent_route_decision_ref,
+      route_decision_sha256: invocation.route_decision_sha256,
+      decision: input.decision,
+      target_stage_run_id: null,
+      target_stage_run_invocation_id: null,
+      target_stage_run_spec_sha256: null,
+      target_workflow_id: null,
+      durable_launch: { route_budget: parentRouteBudget },
+      authority_boundary: authorityBoundary,
+    };
+  }
+  const targetRouteBudget = parentRouteBudget
+    ? {
+        ...parentRouteBudget,
+        route_back_rounds_used: parentRouteBudget.route_back_rounds_used + (isRouteBack ? 1 : 0),
+      }
+    : null;
   if (!decisiveDeclaredStageIds.includes(targetStageId)) {
     throw new FrameworkContractError(
       'contract_shape_invalid',
@@ -288,12 +332,6 @@ export async function materializeStageRunRoute(
       },
     );
   }
-  const invocation = buildRouteStageRunInvocation({
-    parentStageRunId: parentStageRun.stage_run_id,
-    decisiveAttemptRef: input.decisive_attempt_ref,
-    decision: input.decision,
-    targetStageId,
-  });
   const targetStageRunId = deriveStageRunId({
     domainId: parentStageRun.domain_id,
     stageId: targetStageId,
@@ -324,6 +362,7 @@ export async function materializeStageRunRoute(
       artifactRefs: input.artifact_refs,
       artifactHashes: input.artifact_hashes,
       artifactIdentityReceiptRefs: input.artifact_identity_receipt_refs,
+      routeBudget: targetRouteBudget,
     });
     return {
       target: requireMatchingRouteReplay({
@@ -431,6 +470,7 @@ export async function materializeStageRunRoute(
     artifactRefs: input.artifact_refs,
     artifactHashes: input.artifact_hashes,
     artifactIdentityReceiptRefs: input.artifact_identity_receipt_refs,
+    routeBudget: targetRouteBudget,
     actionId: parentStageRun.action_id,
     taskId: parentStageRun.task_id,
     scopeKind: parentStageRun.scope_kind,

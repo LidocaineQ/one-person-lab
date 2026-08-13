@@ -1445,6 +1445,7 @@ export async function stageQualityAttemptMaterializeActivity(
       artifactHashes: input.artifact_hashes,
       artifactIdentityReceiptRefs: input.artifact_identity_receipt_refs,
       parentRouteDecisionRef: stageRun.parent_route_decision_ref,
+      routeBudget: stageRun.stage_run_spec.route_budget ?? stageRun.route_budget,
     });
     const executionContentSpecSha256 = stageRunSpecSha256(executionContentSpec);
     const useBoundaryId = readString(packageReadiness?.package_use_binding?.use_boundary_id)

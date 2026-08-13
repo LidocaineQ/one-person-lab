@@ -15,6 +15,7 @@
     "required_runtime_fields": [
       "execution",
       "execution.quality_budget",
+      "execution.review_chain",
       "stage_map",
       "telemetry",
       "conditions",
@@ -54,6 +55,20 @@
       "historical_budget_evidence": "retained_in_stage_attempt_and_quality_cycle_ledgers",
       "missing_token_telemetry_is_not_zero_usage": true,
       "readback_can_override_controller_budget": false
+    },
+    "review_chain_readback": {
+      "fields": [
+        "stage_run_count",
+        "total_attempt_count",
+        "total_repair_rounds",
+        "max_route_back_rounds",
+        "route_back_rounds_used",
+        "total_tokens_observed",
+        "token_observation_status"
+      ],
+      "source": "resolved_work_item_stage_attempts_and_stage_run_input_route_budget",
+      "purpose": "operator_diagnosis_only",
+      "does_not_authorize_quality_or_ready_claims": true
     }
   },
   "source_manifest": {

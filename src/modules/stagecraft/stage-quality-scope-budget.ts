@@ -13,7 +13,7 @@ export type StageQualityScopeBudget = {
   surface_kind: 'opl_stage_quality_scope_budget';
   version: 'opl-stage-quality-scope-budget.v1';
   max_attempts: number;
-  max_elapsed_ms: number;
+  max_elapsed_ms: number | null;
   max_tokens: number | null;
   token_budget_requires_observed_usage: true;
   foreground_execution_must_use_managed_attempt: true;
@@ -25,7 +25,7 @@ export type StageQualityScopeBudgetUsage = {
   tokens_used: number | null;
 };
 
-export const DEFAULT_STAGE_QUALITY_SCOPE_MAX_ELAPSED_MS = 6 * 60 * 60 * 1000;
+export const DEFAULT_STAGE_QUALITY_SCOPE_MAX_ELAPSED_MS = null;
 export const DEFAULT_STAGE_QUALITY_SCOPE_MAX_TOKENS = null;
 
 export function aggregateStageQualityScopeTokenUsage(
@@ -117,12 +117,9 @@ export function normalizeStageQualityScopeBudget(
       { max_attempts: maxAttempts, max_repair_rounds: legacyMaxRepairRounds },
     );
   }
-  const maxElapsedMs = boundedInteger(
-    input.max_elapsed_ms ?? DEFAULT_STAGE_QUALITY_SCOPE_MAX_ELAPSED_MS,
-    'scope_budget.max_elapsed_ms',
-    1,
-    7 * 24 * 60 * 60 * 1000,
-  );
+  const maxElapsedMs = input.max_elapsed_ms === undefined || input.max_elapsed_ms === null
+    ? DEFAULT_STAGE_QUALITY_SCOPE_MAX_ELAPSED_MS
+    : boundedInteger(input.max_elapsed_ms, 'scope_budget.max_elapsed_ms', 1, 7 * 24 * 60 * 60 * 1000);
   const maxTokens = input.max_tokens === undefined || input.max_tokens === null
     ? DEFAULT_STAGE_QUALITY_SCOPE_MAX_TOKENS
     : boundedInteger(
@@ -174,7 +171,9 @@ export function evaluateStageQualityScopeBudget(input: {
     : boundedInteger(input.usage.tokens_used, 'usage.tokens_used', 0, Number.MAX_SAFE_INTEGER);
   const exhaustedReasons: StageQualityScopeBudgetStopReason[] = [];
   if (attemptsUsed >= budget.max_attempts) exhaustedReasons.push('max_attempts_exhausted');
-  if (elapsedMs >= budget.max_elapsed_ms) exhaustedReasons.push('max_elapsed_exhausted');
+  if (budget.max_elapsed_ms !== null && elapsedMs >= budget.max_elapsed_ms) {
+    exhaustedReasons.push('max_elapsed_exhausted');
+  }
   if (
     budget.max_tokens !== null
     && tokensUsed !== null
@@ -183,14 +182,11 @@ export function evaluateStageQualityScopeBudget(input: {
     exhaustedReasons.push('max_tokens_exhausted');
   }
   const exhausted = exhaustedReasons.length > 0;
-  const highPriorityOpen = input.openFindingPriorities.some((priority) => priority === 'p0' || priority === 'p1');
   const disposition = !exhausted
     ? 'continue'
     : !input.hasConsumableArtifact
       ? 'hard_stop_no_consumable_artifact'
-      : highPriorityOpen
-        ? 'route_back_or_human_owner'
-        : 'complete_with_quality_debt';
+      : 'complete_with_quality_debt';
   return {
     surface_kind: 'opl_stage_quality_scope_budget_evaluation' as const,
     version: 'opl-stage-quality-scope-budget-evaluation.v1' as const,
@@ -202,7 +198,9 @@ export function evaluateStageQualityScopeBudget(input: {
       attempts_used: attemptsUsed,
       attempts_remaining: Math.max(0, budget.max_attempts - attemptsUsed),
       elapsed_ms: elapsedMs,
-      elapsed_ms_remaining: Math.max(0, budget.max_elapsed_ms - elapsedMs),
+      elapsed_ms_remaining: budget.max_elapsed_ms === null
+        ? null
+        : Math.max(0, budget.max_elapsed_ms - elapsedMs),
       tokens_used: tokensUsed,
       tokens_remaining: tokensUsed === null || budget.max_tokens === null
         ? null

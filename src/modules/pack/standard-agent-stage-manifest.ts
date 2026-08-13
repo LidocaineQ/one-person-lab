@@ -137,6 +137,10 @@ export type StandardAgentStageQualityRuntimeBinding = {
   policy_ref: string;
   stage_prompt_ref: string;
   quality_policy: StandardAgentStageQualityPolicy;
+  route_budget?: {
+    max_route_back_rounds: number;
+    route_back_rounds_used: number;
+  } | null;
   handoff_review_boundary: StandardAgentHandoffReviewBoundary | null;
   review_lane_binding?: StandardAgentStageReviewLaneBinding | null;
   role_prompt_refs: {
@@ -1639,6 +1643,28 @@ export function resolveStandardAgentStageQualityRuntimeBinding(
       ? stage.handoff.review_boundary as StandardAgentHandoffReviewBoundary
       : null,
   });
+  const metaReviewPolicyRef = compilation.stage_control_plane.meta_review_policy_ref;
+  const metaReviewPolicy = metaReviewPolicyRef
+    ? record(
+        readJsonPointer(repoDir, metaReviewPolicyRef, `meta_review_policy:${stageId}`),
+        `meta_review_policy:${stageId}`,
+        repoDir,
+      )
+    : null;
+  const maxRouteBackRounds = metaReviewPolicy?.max_route_back_rounds;
+  if (
+    metaReviewPolicy
+    && (!Number.isInteger(maxRouteBackRounds) || Number(maxRouteBackRounds) < 0 || Number(maxRouteBackRounds) > 3)
+  ) {
+    fail('Meta Review route-back budget must be an integer between zero and three.', {
+      repo_dir: repoDir,
+      stage_id: stageId,
+      max_route_back_rounds: maxRouteBackRounds,
+    });
+  }
+  const routeBudget = metaReviewPolicy
+    ? { max_route_back_rounds: Number(maxRouteBackRounds), route_back_rounds_used: 0 }
+    : null;
   const officialAiStage = Boolean(compilation.stage_control_plane.quality_governance_profile_ref)
     && stage.trust_boundary?.lane !== 'human_gate';
   if (officialAiStage && !policy.enabled) {
@@ -1658,6 +1684,7 @@ export function resolveStandardAgentStageQualityRuntimeBinding(
     policy_ref: policyRef,
     stage_prompt_ref: policy.stage_prompt_ref,
     quality_policy: policy.quality_policy,
+    route_budget: routeBudget,
     handoff_review_boundary: policy.handoff_review_boundary,
     review_lane_binding: reviewLaneBinding(stage.stage_contract, repoDir),
     role_prompt_refs: policy.role_prompt_refs,

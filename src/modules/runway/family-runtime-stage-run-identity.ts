@@ -55,6 +55,10 @@ export type StageRunImmutableSpec = {
   executor_kind: string;
   stage_attempt_executor_policy: Record<string, unknown> | null;
   parent_route_decision_ref: string | null;
+  route_budget?: {
+    max_route_back_rounds: number;
+    route_back_rounds_used: number;
+  };
 };
 
 export type StageAttemptPackageIdentity = {
@@ -427,6 +431,7 @@ export function buildStageRunImmutableSpec(input: {
   artifactHashes?: string[];
   artifactIdentityReceiptRefs?: string[];
   parentRouteDecisionRef?: string | null;
+  routeBudget?: { max_route_back_rounds: number; route_back_rounds_used: number } | null;
 }): StageRunImmutableSpec {
   const checkpointRefs = stringList(input.checkpointRefs);
   const sourceRefs = stringList(input.binding.source_refs);
@@ -505,6 +510,7 @@ export function buildStageRunImmutableSpec(input: {
     executor_kind: optionalText(input.executorKind) ?? 'codex_cli',
     stage_attempt_executor_policy: input.stageAttemptExecutorPolicy ?? null,
     parent_route_decision_ref: optionalText(input.parentRouteDecisionRef),
+    ...(input.routeBudget ? { route_budget: input.routeBudget } : {}),
   };
 }
 
@@ -568,6 +574,7 @@ export function validateStageRunImmutableSpecEnvelope(input: {
   executorKind: string;
   stageAttemptExecutorPolicy?: Record<string, unknown> | null;
   parentRouteDecisionRef?: string | null;
+  routeBudget?: { max_route_back_rounds: number; route_back_rounds_used: number } | null;
 }) {
   const inputArtifacts = canonicalStageRunInputArtifacts(
     input.artifactRefs,
@@ -613,6 +620,7 @@ export function validateStageRunImmutableSpecEnvelope(input: {
     executor_kind: optionalText(input.executorKind) ?? 'codex_cli',
     stage_attempt_executor_policy: input.stageAttemptExecutorPolicy ?? null,
     parent_route_decision_ref: optionalText(input.parentRouteDecisionRef),
+    ...(input.routeBudget ? { route_budget: input.routeBudget } : {}),
   };
   if (canonicalJsonText(input.spec) !== canonicalJsonText(expected)) {
     throw new FrameworkContractError(

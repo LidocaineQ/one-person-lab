@@ -483,7 +483,7 @@
         },
         "execution": {
           "type": "object",
-          "required": ["state", "stage_id", "stage_status", "current_stage_id", "current_stage_display_name", "next_stage_id", "next_stage_display_name", "attempt_id", "attempt_ids", "workflow_id", "provider_kind", "started_at", "last_heartbeat_at", "updated_at", "running_proof_status", "diagnostic_reason", "quality_budget"],
+          "required": ["state", "stage_id", "stage_status", "current_stage_id", "current_stage_display_name", "next_stage_id", "next_stage_display_name", "attempt_id", "attempt_ids", "workflow_id", "provider_kind", "started_at", "last_heartbeat_at", "updated_at", "running_proof_status", "diagnostic_reason", "review_chain", "quality_budget"],
           "properties": {
             "state": { "enum": ["running", "queued", "idle", "succeeded", "failed", "unknown"] },
             "stage_id": { "$ref": "#/$defs/nullableString" },
@@ -501,6 +501,20 @@
             "updated_at": { "$ref": "#/$defs/nullableString" },
             "running_proof_status": { "type": "string", "minLength": 1 },
             "diagnostic_reason": { "$ref": "#/$defs/nullableString" },
+            "review_chain": {
+              "type": "object",
+              "required": ["stage_run_count", "total_attempt_count", "total_repair_rounds", "max_route_back_rounds", "route_back_rounds_used", "total_tokens_observed", "token_observation_status"],
+              "properties": {
+                "stage_run_count": { "type": "integer", "minimum": 0 },
+                "total_attempt_count": { "type": "integer", "minimum": 0 },
+                "total_repair_rounds": { "type": "integer", "minimum": 0 },
+                "max_route_back_rounds": { "type": ["integer", "null"], "minimum": 0 },
+                "route_back_rounds_used": { "type": "integer", "minimum": 0 },
+                "total_tokens_observed": { "type": ["integer", "null"], "minimum": 0 },
+                "token_observation_status": { "enum": ["observed", "missing", "partial"] }
+              },
+              "additionalProperties": false
+            },
             "quality_budget": { "$ref": "#/$defs/qualityBudget" }
           },
           "additionalProperties": false

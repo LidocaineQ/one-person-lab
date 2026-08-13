@@ -169,6 +169,43 @@ function missingToken(reason: string): TokenObservation {
   };
 }
 
+function reviewChainSummary(input: {
+  attempts: JsonRecord[];
+  cumulativeTokens: TokenObservation;
+}) {
+  const stageRuns = new Map<string, JsonRecord[]>();
+  for (const attempt of input.attempts) {
+    const stageRunId = stringValue(attempt.stage_run_id);
+    if (!stageRunId) continue;
+    stageRuns.set(stageRunId, [...(stageRuns.get(stageRunId) ?? []), attempt]);
+  }
+  let maxRouteBackRounds: number | null = null;
+  let routeBackRoundsUsed = 0;
+  let totalRepairRounds = 0;
+  for (const stageAttempts of stageRuns.values()) {
+    const launch = attemptStageRunLaunch(stageAttempts[0]!);
+    const routeBudget = record(record(launch.stage_run_input).route_budget);
+    const max = numberValue(routeBudget.max_route_back_rounds);
+    const used = numberValue(routeBudget.route_back_rounds_used);
+    if (max !== null) maxRouteBackRounds = maxRouteBackRounds === null ? max : Math.max(maxRouteBackRounds, max);
+    if (used !== null) routeBackRoundsUsed = Math.max(routeBackRoundsUsed, used);
+    totalRepairRounds += Math.max(0, ...stageAttempts.map((attempt) => numberValue(attempt.quality_round_index) ?? 0));
+  }
+  return {
+    stage_run_count: stageRuns.size,
+    total_attempt_count: input.attempts.length,
+    total_repair_rounds: totalRepairRounds,
+    max_route_back_rounds: maxRouteBackRounds,
+    route_back_rounds_used: routeBackRoundsUsed,
+    total_tokens_observed: input.cumulativeTokens.total_tokens,
+    token_observation_status: input.cumulativeTokens.state === 'observed'
+      ? 'observed' as const
+      : input.cumulativeTokens.state === 'stale'
+        ? 'partial' as const
+        : 'missing' as const,
+  };
+}
+
 const TEMPORAL_RUNTIME_OBSERVATION_SURFACE = 'temporal_stage_attempt_runtime_observation';
 const TEMPORAL_RUNTIME_OBSERVATION_SOURCE = 'temporal_workflow_query';
 
@@ -864,6 +901,7 @@ function readScopedWorkItemStageAttemptsFromDb(input: {
       ${launchColumn('identity_state')} AS stage_run_identity_state,
       ${launchColumn('stage_run_invocation_id')} AS launch_stage_run_invocation_id,
       ${launchColumn('stage_run_spec_sha256')} AS launch_stage_run_spec_sha256,
+      ${launchColumn('stage_run_input_json')} AS launch_stage_run_input_json,
       ${launchColumn('workflow_id')} AS launch_workflow_id,
       ${launchColumn('parent_route_decision_ref')} AS launch_parent_route_decision_ref,
       ${launchColumn('launch_status')} AS launch_status,
@@ -886,6 +924,7 @@ function readScopedWorkItemStageAttemptsFromDb(input: {
       NULL AS stage_run_identity_state,
       NULL AS launch_stage_run_invocation_id,
       NULL AS launch_stage_run_spec_sha256,
+      NULL AS launch_stage_run_input_json,
       NULL AS launch_workflow_id,
       NULL AS launch_parent_route_decision_ref,
       NULL AS launch_status,
@@ -977,6 +1016,7 @@ function readScopedWorkItemStageAttemptsFromDb(input: {
       stage_run_id: registeredStageRunId,
       stage_run_invocation_id: row.launch_stage_run_invocation_id,
       stage_run_spec_sha256: row.launch_stage_run_spec_sha256,
+      stage_run_input: parseCompactRecord(row.launch_stage_run_input_json),
       domain_id: row.stage_run_domain_id,
       stage_id: row.stage_run_stage_id,
       workflow_id: row.launch_workflow_id,
@@ -1523,6 +1563,7 @@ export function joinAttemptsToWorkItems(input: {
       projections: attemptProjections.map(({ projection }) => projection),
       observedAt: stringValue(latest.updated_at),
     });
+    const reviewChain = reviewChainSummary({ attempts, cumulativeTokens });
     const telemetryState: WorkItemProjectionItem['telemetry']['state'] = stale
       ? 'stale'
       : currentStageTokens.state === 'observed' && cumulativeTokens.state === 'observed'
@@ -1730,6 +1771,7 @@ export function joinAttemptsToWorkItems(input: {
             : attempts.length > 0 && !currentAttempt
               ? 'historical_attempts_not_current_business_execution'
               : null,
+        review_chain: reviewChain,
         quality_budget: managedQualityBudget
           ? {
               state: budgetStopReason ? 'exhausted' : 'available',

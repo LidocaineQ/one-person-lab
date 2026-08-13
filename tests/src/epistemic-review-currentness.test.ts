@@ -229,7 +229,7 @@ test('scope budget enforces attempts elapsed and observed tokens with typed disp
   const budget = normalizeStageQualityScopeBudget(undefined, { legacyMaxRepairRounds: 3 });
   assert.deepEqual(
     [budget.max_attempts, budget.max_elapsed_ms, budget.max_tokens],
-    [3, 21_600_000, null],
+    [3, null, null],
   );
   const missingTokens = evaluateStageQualityScopeBudget({
     budget,
@@ -273,7 +273,7 @@ test('scope budget enforces attempts elapsed and observed tokens with typed disp
     hasConsumableArtifact: true,
   });
   assert.equal(p0.stop_reason, 'max_attempts_exhausted');
-  assert.equal(p0.disposition, 'route_back_or_human_owner');
+  assert.equal(p0.disposition, 'complete_with_quality_debt');
 
   const noArtifact = evaluateStageQualityScopeBudget({
     budget,

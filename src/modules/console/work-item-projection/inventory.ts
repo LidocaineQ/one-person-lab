@@ -107,6 +107,15 @@ function emptyExecution(input: {
     updated_at: null,
     running_proof_status: 'not_applicable',
     diagnostic_reason: null,
+    review_chain: {
+      stage_run_count: 0,
+      total_attempt_count: 0,
+      total_repair_rounds: 0,
+      max_route_back_rounds: null,
+      route_back_rounds_used: 0,
+      total_tokens_observed: null,
+      token_observation_status: 'missing',
+    },
     quality_budget: {
       state: 'not_managed',
       scope_id: null,
