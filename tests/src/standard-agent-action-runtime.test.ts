@@ -22,6 +22,11 @@ import {
   reserveStandardAgentActionRunBinding,
 } from '../../src/modules/runway/standard-agent-action-run-state.ts';
 import { runStandardAgentAction } from '../../src/modules/runway/standard-agent-action-runtime.ts';
+import {
+  prevalidatedSourceTruthFingerprint,
+  readPrevalidatedSourceTruthRefs,
+  requirePrevalidatedSourceTruthFingerprint,
+} from '../../src/modules/runway/family-runtime-source-truth-refs.ts';
 import { runStandardAgentHandlerSandbox } from '../../src/modules/runway/standard-agent-handler-sandbox.ts';
 import { normalizeStageQualityCyclePolicy } from '../../src/modules/stagecraft/stage-quality-cycle.ts';
 
@@ -1261,6 +1266,145 @@ test('Hosted Stage action passes a SHA-bound request ref into Temporal StageRun 
     fs.rmSync(checkoutRoot, { recursive: true, force: true });
     fs.rmSync(workspaceRoot, { recursive: true, force: true });
   }
+});
+
+test('Hosted Stage action binds prevalidated source truth refs without treating them as input files', async () => {
+  const checkoutRoot = root('opl-stage-source-truth-checkout-');
+  const workspaceRoot = root('opl-stage-source-truth-workspace-');
+  const calls: string[][] = [];
+  const sourceTruthRefs = {
+    manifest_ref: 'opl-source-manifest:run-001',
+    readiness_ref: 'opl-source-readiness:run-001',
+    source_package_digest_ref: 'opl-source-package-digest:run-001',
+  };
+  try {
+    const stageAction = {
+      ...action({
+        actionId: 'launch',
+        executionBinding: { kind: 'stage_binding', stage_manifest_ref: 'agent/stages/manifest.json' },
+        stageRoute: {
+          entry_stage_ref: 'intake',
+          required_stage_refs: ['intake'],
+          optional_stage_refs: [],
+          terminal_stage_refs: ['intake'],
+          route_policy: 'ai_selected_progress_route',
+        },
+      }),
+      optional_fields: ['source_truth_refs'],
+    };
+    writeContracts(checkoutRoot, [stageAction]);
+    fs.writeFileSync(path.join(checkoutRoot, 'contracts', 'input.schema.json'), `${JSON.stringify({
+      $id: 'https://fixture.local/input.schema.json',
+      type: 'object',
+      required: ['workspace_root', 'value'],
+      properties: {
+        workspace_root: { type: 'string', minLength: 1 },
+        value: { type: 'integer' },
+        source_truth_refs: {
+          type: 'object',
+          required: ['manifest_ref', 'readiness_ref', 'source_package_digest_ref'],
+          properties: {
+            manifest_ref: { type: 'string', minLength: 1 },
+            readiness_ref: { type: 'string', minLength: 1 },
+            source_package_digest_ref: { type: 'string', minLength: 1 },
+          },
+          additionalProperties: false,
+        },
+      },
+      additionalProperties: false,
+    })}\n`);
+    const dependencies = {
+      resolveManagedCheckout: managed(checkoutRoot, workspaceRoot) as never,
+      compileStageManifest: (() => ({})) as never,
+      recordLedger,
+      runStageRuntime: async (args: string[]) => {
+        calls.push(args);
+        return args[0] === 'attempt'
+          ? {
+              family_runtime_stage_run: {
+                stage_run_input: { workflow_id: 'wf-source-truth' },
+                blocked_reason: null,
+                temporal_start: { start_status: 'started' },
+              },
+            }
+          : { family_runtime_stage_run_query: { status: 'running' } };
+      },
+    };
+    const request = {
+      domainId: 'mas',
+      actionId: 'launch',
+      workspaceRoot,
+      payload: { value: 3, source_truth_refs: sourceTruthRefs },
+      runId: 'source-truth-run',
+    };
+    await runStandardAgentAction(request, dependencies);
+    await runStandardAgentAction(request, dependencies);
+
+    const createCalls = calls.filter((args) => args[0] === 'attempt');
+    assert.equal(createCalls.length, 1);
+    const create = createCalls[0]!;
+    const locator = JSON.parse(create[create.indexOf('--workspace-locator') + 1]) as Record<string, unknown>;
+    assert.deepEqual(locator.source_truth_refs, sourceTruthRefs);
+    const sourceFingerprint = create[create.indexOf('--source-fingerprint') + 1];
+    const requestArtifactHash = create[create.indexOf('--input-artifact-sha256') + 1];
+    assert.equal(sourceFingerprint, prevalidatedSourceTruthFingerprint(sourceTruthRefs));
+    assert.notEqual(sourceFingerprint, requestArtifactHash);
+    assert.equal(create.includes('--source-ref'), false);
+
+    const callsBeforeConflict = calls.length;
+    await assert.rejects(
+      runStandardAgentAction({
+        ...request,
+        payload: {
+          value: 3,
+          source_truth_refs: { ...sourceTruthRefs, readiness_ref: 'opl-source-readiness:run-002' },
+        },
+      }, dependencies),
+      /payload conflicts with its frozen run plan/i,
+    );
+    assert.equal(calls.length, callsBeforeConflict);
+  } finally {
+    fs.rmSync(checkoutRoot, { recursive: true, force: true });
+    fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test('prevalidated source truth refs reject partial, body-bearing, and non-canonical shapes', () => {
+  assert.equal(readPrevalidatedSourceTruthRefs(undefined), null);
+  assert.throws(
+    () => readPrevalidatedSourceTruthRefs({ manifest_ref: 'manifest', readiness_ref: 'ready' }),
+    /exact declared fields/i,
+  );
+  assert.throws(
+    () => readPrevalidatedSourceTruthRefs({
+      manifest_ref: 'manifest',
+      readiness_ref: 'ready',
+      source_package_digest_ref: 'digest',
+      source_body: 'forbidden',
+    }),
+    /exact declared fields/i,
+  );
+  assert.throws(
+    () => readPrevalidatedSourceTruthRefs({
+      manifest_ref: ' manifest ',
+      readiness_ref: 'ready',
+      source_package_digest_ref: 'digest',
+    }),
+    /canonical strings/i,
+  );
+  const refs = readPrevalidatedSourceTruthRefs({
+    manifest_ref: 'manifest',
+    readiness_ref: 'ready',
+    source_package_digest_ref: 'digest',
+  })!;
+  assert.equal(
+    requirePrevalidatedSourceTruthFingerprint(refs, prevalidatedSourceTruthFingerprint(refs)),
+    prevalidatedSourceTruthFingerprint(refs),
+  );
+  assert.throws(
+    () => requirePrevalidatedSourceTruthFingerprint(refs, `sha256:${'f'.repeat(64)}`),
+    /exact canonical source fingerprint/i,
+  );
 });
 
 test('work-item scoped Stage actions resolve one binding before Temporal and isolate Studies in one root', async () => {

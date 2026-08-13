@@ -56,6 +56,10 @@ import { recordStandardAgentActionRunEvent } from './standard-agent-action-run-r
 import { runStandardAgentHandlerSandbox } from './standard-agent-handler-sandbox.ts';
 import { resolveStandardAgentManagedCheckout } from './standard-agent-managed-checkout.ts';
 import {
+  prevalidatedSourceTruthFingerprint,
+  readPrevalidatedSourceTruthRefs,
+} from './family-runtime-source-truth-refs.ts';
+import {
   applyDomainArtifactCasMaterialization,
   DOMAIN_ARTIFACT_CAS_CAPABILITY_ID,
 } from './domain-artifact-cas-materialization.ts';
@@ -2024,9 +2028,17 @@ async function runStageAction(input: {
     actionId: input.action.action_id,
     requestBytes: input.requestBytes,
   });
+  const sourceTruthRefs = readPrevalidatedSourceTruthRefs(
+    input.payload.source_truth_refs,
+    'action_payload.source_truth_refs',
+  );
+  const sourceFingerprint = sourceTruthRefs
+    ? prevalidatedSourceTruthFingerprint(sourceTruthRefs)
+    : prepared.request.sha256;
   const workspaceLocator = canonicalJsonText({
     workspace_root: input.workspaceRoot,
     ...actionWorkItemIdentityLocator(input.action, input.payload),
+    ...(sourceTruthRefs ? { source_truth_refs: sourceTruthRefs } : {}),
     ...(input.executionScope ? { execution_scope: input.executionScope } : {}),
     domain_pack_root: input.checkoutRoot,
     ...(input.packageUseBinding ? { package_use_binding: input.packageUseBinding } : {}),
@@ -2186,7 +2198,7 @@ async function runStageAction(input: {
             ]
           : []),
         '--source-fingerprint',
-        prepared.request.sha256,
+        sourceFingerprint,
         '--invocation-mode',
         'invocation',
         '--checkpoint-ref',

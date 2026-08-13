@@ -88,6 +88,32 @@ test('Codex stage activity accepts readable output without a typed closeout cont
   assert.equal(activity.expected_closeout.framework_derives_progress_envelope, true);
 });
 
+test('Codex Stage Attempt consumes frozen source truth refs without workspace rediscovery', () => {
+  const refs = {
+    manifest_ref: 'opl-source-manifest:prompt-test',
+    readiness_ref: 'opl-source-readiness:prompt-test',
+    source_package_digest_ref: 'opl-source-package-digest:prompt-test',
+  };
+  const activity = buildCodexStageActivityInput({
+    attempt: {
+      stage_attempt_id: 'sat_source_truth_prompt_test',
+      stage_id: 'source_intake',
+      executor_kind: 'codex_cli',
+      workspace_locator: {
+        workspace_root: '/tmp/rca',
+        source_truth_refs: refs,
+      },
+      checkpoint_refs: ['packet:source-intake'],
+    },
+  });
+
+  const commandPreview = activity.runner_status.command_preview.join('\n');
+  assert.match(commandPreview, /Prevalidated source truth refs/);
+  assert.match(commandPreview, /do not rediscover generic workspace files or recompute source-package hashes/);
+  assert.match(commandPreview, /locator\/currentness evidence only/);
+  for (const ref of Object.values(refs)) assert.match(commandPreview, new RegExp(ref));
+});
+
 test('Codex stage activity hydrates the declared domain stage prompt body into the final command preview', () => {
   const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-effective-stage-prompt-'));
   const promptBody = [
