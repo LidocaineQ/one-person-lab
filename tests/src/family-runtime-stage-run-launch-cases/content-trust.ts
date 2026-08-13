@@ -58,6 +58,7 @@ import {
   workerClose,
   waitForBarrierCount,
 } from './shared.ts';
+import { prevalidatedSourceTruthFingerprint } from '../../../src/modules/runway/family-runtime-source-truth-refs.ts';
 test('work-item content bindings reject local root escape and cross-study receipts', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-run-work-item-content-'));
   const previousStateRoot = process.env.OPL_STATE_DIR;
@@ -438,7 +439,32 @@ test('every child Attempt preserves parent evidence and binds the latest executi
   };
   process.env.OPL_STATE_DIR = stateRoot;
   try {
-    const input = stageRunInput({ invocationId: 'sri_child_executor_content' });
+    const sourceTruthRefs = {
+      manifest_ref: 'opl-source-manifest:child-executor-content',
+      readiness_ref: 'opl-source-readiness:child-executor-content',
+      source_package_digest_ref: 'opl-source-package-digest:child-executor-content',
+    };
+    const input = stageRunInput({
+      invocationId: 'sri_child_executor_content',
+      locator: { ...workspaceLocator(), source_truth_refs: sourceTruthRefs },
+      sourceFingerprint: prevalidatedSourceTruthFingerprint(sourceTruthRefs),
+    });
+    assert.deepEqual(input.stage_run_spec.workspace_identity.source_truth_refs, sourceTruthRefs);
+    assert.deepEqual(input.workspace_locator.source_truth_refs, sourceTruthRefs);
+    assert.equal(
+      input.stage_run_spec.content_bindings.some((binding) => (
+        Object.values(sourceTruthRefs).includes(binding.ref)
+      )),
+      false,
+    );
+    assert.throws(() => stageRunInput({
+      invocationId: 'sri_source_truth_fingerprint_conflict',
+      locator: { ...workspaceLocator(), source_truth_refs: sourceTruthRefs },
+      sourceFingerprint: `sha256:${'f'.repeat(64)}`,
+    }), (error: any) => {
+      assert.equal(error.details?.failure_code, 'source_truth_refs_fingerprint_mismatch');
+      return true;
+    });
     registerStageRunInConfiguredState(input);
     const materialized = await stageQualityAttemptMaterializeActivity({
       stage_run: input,
@@ -454,6 +480,7 @@ test('every child Attempt preserves parent evidence and binds the latest executi
       'opl-stage-run-attempt-content-binding.v1',
     );
     assert.deepEqual(materialized.workflow_input.stage_run_spec, input.stage_run_spec);
+    assert.deepEqual(materialized.workflow_input.workspace_locator.source_truth_refs, sourceTruthRefs);
     assert.equal(materialized.workflow_input.stage_run_spec_sha256, input.stage_run_spec_sha256);
     assert.equal(materialized.workflow_input.domain_pack_root, executionPackRoot);
     assert.equal(

@@ -16,6 +16,10 @@ import {
   revalidateStageRunImmutableContentBindings,
   type StageRunImmutableContentBinding,
 } from './family-runtime-stage-run-identity-parts/content-bindings.ts';
+import {
+  readPrevalidatedSourceTruthRefs,
+  requirePrevalidatedSourceTruthFingerprint,
+} from './family-runtime-source-truth-refs.ts';
 
 export type StageRunImmutableSpec = {
   surface_kind: 'opl_stage_run_immutable_spec';
@@ -439,6 +443,13 @@ export function buildStageRunImmutableSpec(input: {
     input.artifactHashes,
     input.artifactIdentityReceiptRefs,
   );
+  const sourceTruthRefs = readPrevalidatedSourceTruthRefs(
+    input.workspaceLocator.source_truth_refs,
+    'workspace_locator.source_truth_refs',
+  );
+  if (sourceTruthRefs) {
+    requirePrevalidatedSourceTruthFingerprint(sourceTruthRefs, input.sourceFingerprint);
+  }
   const workspaceRoot = optionalText(input.workspaceLocator.workspace_root)
     ?? optionalText(input.workspaceLocator.repo_root);
   const contentBindings = buildStageRunImmutableContentBindings({
@@ -563,6 +574,13 @@ export function validateStageRunImmutableSpecEnvelope(input: {
     input.artifactHashes,
     input.artifactIdentityReceiptRefs,
   );
+  const sourceTruthRefs = readPrevalidatedSourceTruthRefs(
+    input.workspaceLocator.source_truth_refs,
+    'workspace_locator.source_truth_refs',
+  );
+  if (sourceTruthRefs) {
+    requirePrevalidatedSourceTruthFingerprint(sourceTruthRefs, input.sourceFingerprint);
+  }
   const expected: StageRunImmutableSpec = {
     surface_kind: 'opl_stage_run_immutable_spec',
     version: 'opl-stage-run-immutable-spec.v1',

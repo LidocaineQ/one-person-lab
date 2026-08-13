@@ -14,6 +14,7 @@ import {
   type JsonRecord,
 } from './shared.ts';
 import { domainStageRoutePromptLines } from './stage-route-prompt-profiles.ts';
+import { readPrevalidatedSourceTruthRefs } from '../family-runtime-source-truth-refs.ts';
 
 export type CodexStageRunnerMode = 'dry_run' | 'live_dry_run' | 'codex_cli';
 
@@ -117,6 +118,19 @@ function domainPackRootFromAttempt(attempt: JsonRecord) {
 
 function workspaceLocatorFromAttempt(attempt: JsonRecord) {
   return isRecord(attempt.workspace_locator) ? attempt.workspace_locator : {};
+}
+
+function sourceTruthPromptLines(attempt: JsonRecord) {
+  const refs = readPrevalidatedSourceTruthRefs(
+    workspaceLocatorFromAttempt(attempt).source_truth_refs,
+    'attempt.workspace_locator.source_truth_refs',
+  );
+  if (!refs) return [];
+  return [
+    `Prevalidated source truth refs: ${JSON.stringify(refs)}`,
+    'Use these frozen refs as the source identity for this Attempt. Consume the referenced domain evidence directly; do not rediscover generic workspace files or recompute source-package hashes.',
+    'The source_package_digest_ref is locator/currentness evidence only. The domain Agent still owns semantic source-readiness judgment.',
+  ];
 }
 
 export function effectiveStagePromptFor(input: {
@@ -361,6 +375,7 @@ export function runnerPromptFor(input: {
       : 'No stage packet was supplied. Start from the declared stage id, hydrated stage prompt, workspace context, and any readable prior artifacts; record the missing packet as quality debt rather than stopping.',
     'Return progress through structured events when available.',
     ...qualityAttemptPromptLines(input.attempt, input.effectiveQualityRolePrompt),
+    ...sourceTruthPromptLines(input.attempt),
     ...effectiveStagePromptLines(input),
     ...providerAuthorizationPromptLines(input),
     ...typedCloseoutScopeBindingLines(input.providerIdentityAttempt ?? input.attempt),
