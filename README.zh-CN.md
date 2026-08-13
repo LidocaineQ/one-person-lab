@@ -132,7 +132,7 @@ One Person Lab 同时包含框架、桌面工作台和专业 Agent 三层：
 
 ## 给 Codex / Agent
 
-在新机器上，让 Codex 按 [新机器 Codex 全家桶安装入口](docs/references/current-support/opl-new-machine-codex-bootstrap.md) 自动安装配置 OPL runtime、MAS/MAG/RCA/OMA/Book Forge 智能体可见面、OPL Flow、OPL Doc 和推荐 companion tools：
+在新机器上，让 Codex 按 [新机器 Codex 全家桶安装入口](docs/references/current-support/opl-new-machine-codex-bootstrap.md) 自动安装配置 OPL runtime、MAS/MAG/RCA/OMA/Book Forge 智能体可见面、包含 `$opl-doc` 文档治理工作流的 OPL Flow 和推荐 companion tools：
 
 ```text
 请按 One Person Lab 官方新机器指南，帮我完成这台机器的 OPL 智能体运行环境和 Codex 工作流全家桶安装配置。

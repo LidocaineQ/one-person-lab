@@ -29,7 +29,7 @@ Owner-route / currentness 审计口径：current-control residue、accepted clos
 评估范围：
 
 - Core repos: `one-person-lab`、`one-person-lab-app`、`med-autoscience`、`med-autogrant`、`redcube-ai`、`opl-meta-agent`。
-- Support repos: `opl-aion-shell`、`opl-doc`。它们是 implementation / governance support，不是 Foundry Agent truth owner。
+- Support repo: `opl-aion-shell`。`opl-doc` 是已退休的 governance tombstone，仅保留 provenance，不是当前 support owner 或 Foundry Agent truth owner。
 
 当前 gap、gate、next action 和执行顺序的唯一 active owner 是 [OPL Family 当前状态与理想目标差距](./current-state-vs-ideal-gap.md)。目标操作架构回到 [OPL Foundry Agent Target Operating Architecture](./opl-foundry-agent-target-operating-architecture.md)。本文件只承载顶层重设计判断、跨仓优化方向和审计标准。
 
@@ -202,7 +202,7 @@ App 和 CLI 都应使用同一套专业名词，但保持用户面简洁：普�
 | `redcube-ai` | RCA visual pack、image-first path、Stage Artifact adoption、review/export authority、production acceptance refs shape 强；retained wrapper 审计已有 delete-auth false / safe-to-delete false guard。 | session/domain_action_adapter/runtimeWatch/operator projection 和 route variants 仍有 tail；long-soak / no-regression 是真实 production evidence tail。 | `needs_retirement` |
 | `opl-meta-agent` | OMA 已收敛为纯 semantic provider：一个公开 `engineer-agent` action、内部 `design|diagnose`、八个语义 Stage 与四协议 fixture；无本地执行层。 | 持续保证输出只包含 `AgentBlueprint` / `EvalSpec` / `EvolutionProposal` 语义，不重新引入物化、评测、版本或晋级状态。 | `meets_target` |
 | `opl-aion-shell` | Shell boundary 已声明只实现 App-owned contracts；Runtime bridge 默认消费 `opl app state`；ACP initial message warmup 与 Full runtime payload trust 已落地。 | Root/upstream shell叙事和 implementation detail 仍需防止反向定义 OPL/App/domain truth；legacy IPC / migration path 走 deletion gates。 | `meets_target` |
-| `opl-doc` | Doctor / native profile / family-plan 的 no-authority boundary 清楚，README/usage/invariants 已强化 support repo 不进入 Foundry Agent truth set。 | 风险是把 doctor clean、profile sync 或 family-plan 当 truth/readiness；应保持 workflow steward 定位。 | `meets_target` |
+| `opl-doc` | Standalone repo 已退休并保留 README tombstone；可复用的文档治理语义已由 OPL Flow bundled `$opl-doc` Skill 承接。 | 不得恢复 standalone doctor、native-profile writer 或 family-plan generator；Skill 仍不是 machine truth 或 readiness validator。 | `retired_successor_absorbed` |
 
 ## Ideal Top-Level Redesign
 
@@ -311,10 +311,10 @@ OPL 对 MAS 的进一步优化重点不是再补 MAS 私有推进器，而是让
 
 ### 4. Support Repos
 
-`opl-aion-shell`、`opl-agui-codex-shell` 和 `opl-doc` 不进入 Foundry Agent core truth set。
+`opl-aion-shell`、`opl-agui-codex-shell` 和已退休的 `opl-doc` tombstone 不进入 Foundry Agent core truth set。
 
 - Shell：AionUI shell 是当前 App GUI 主线，只实现 App contract；`opl-native-workbench` 是 foreground alternative；Hermes Desktop 是 retained explicit reference candidate；AGUI shell 只保留为 archived technical proof / explicit replay provenance，不做默认更新或完善。上游 AionUI detail 是 implementation material。
-- OPL Doc：只做 workflow steward / doctor / profile sync；doctor clean 不是 truth clean。
+- OPL Doc：standalone repo 只保留 provenance；当前 workflow steward 是 OPL Flow bundled `$opl-doc` Skill。它不提供 doctor CLI 或 profile sync writer，Skill/文档检查通过也不是 truth clean。
 
 ## Redesign Support Index
 

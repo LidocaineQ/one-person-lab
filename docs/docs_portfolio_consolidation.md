@@ -36,7 +36,7 @@ OPL 系列项目开发主参考是 [OPL 系列项目开发主参考](./active/op
 - OPL 全局目标、全局差距、shared primitive 上收边界、App/workbench 目标、domain admission 与跨仓开发顺序；
 - MAS/MAG/RCA 单仓目标、差距、authority、direct/hosted 边界和上收候选的放置规则；
 - 过时模块、接口、alias、facade、聚合测试和旧文档入口的 direct retirement 规则；
-- OPL/MAS/MAG/RCA canonical docs taxonomy、Cloud/OMA/BookForge/App/Native Workbench/OPL Flow/OPL Doc/MAS Scholar Skills repo-specific docs governance 范围，以及非 canonical 目录迁移规则。
+- OPL/MAS/MAG/RCA canonical docs taxonomy、Cloud/OMA/BookForge/App/Native Workbench/OPL Flow/MAS Scholar Skills repo-specific docs governance 范围，以及已退休 OPL Doc tombstone 的 provenance 规则和非 canonical 目录迁移规则。
 
 单仓文档只维护本仓 truth、差距、计划、authority 和与 OPL 的上收边界。MAS/MAG/RCA 不在本仓维护其他 domain 的 backlog，也不保留 parallel framework plan。
 
@@ -150,7 +150,7 @@ fresh discovery 新发现的 OPL-owned 仓库。仓库是否进入某轮治理�
 | `One Person Lab Cloud` | 纳入维护巡检；只持有长期、条件启用的 Cloud 产品包装、owner policy 与公开白皮书 truth。Hosted Workspace、Gateway、Fabric、Console 或组织协作面只有在 account、storage、isolation、backend 与 owner policy 齐备时才进入产品面，不成为当前 App desktop + Docker/WebUI、Framework runtime 或 release 必要 gate。 |
 | `OPL Native Workbench` | 纳入维护巡检；作为 native GUI / workbench candidate 的 repo-native truth 读取，只对 App / Framework canonical `app_state`、`action_refs`、package/runtime/task projection 的消费边界负责，不声明 App release ready 或 runtime ready。 |
 | `OPL Flow` | 纳入维护巡检；只持有 workflow profile、managed surface sync 和 repo profile drift 检查边界，不替代目标 repo 的 source/contracts/docs/runtime truth。 |
-| `OPL Doc` | 纳入维护巡检；只持有 docs doctor、support repo policy、family-plan workflow 和文档治理工具边界，不成为 OPL family domain/App/runtime truth。 |
+| `OPL Doc` | 已退休；仓库只保留 tombstone/provenance。当前文档治理 workflow 归 OPL Flow bundled `$opl-doc` Skill；不恢复 docs doctor、support repo policy、family-plan writer，也不成为 OPL family domain/App/runtime truth。 |
 | `MAS Scholar Skills` | 纳入维护巡检；当前维护仓是 `mas-scholar-skills`。历史 `opl-scholarskills` 只作 tombstone/provenance alias；能力源、Skill source 和 capability-pack truth 回 MAS Scholar Skills repo，不作为 standard domain agent truth。 |
 
 ## 内容级整合规则

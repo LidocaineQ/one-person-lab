@@ -19,7 +19,7 @@ checksum/attestation、Temporal durability、domain artifact/evidence 以及用�
 atomic write 继续归各自 owner，不属于上述删除范围。
 Machine boundary: 本文是核心人读真相面。机器真相继续归 `contracts/`、source、CLI/API 行为、runtime ledger、provider receipt、domain-owned manifest 和真实 workspace / App evidence。
 
-Plugin native profile pointer: `contracts/opl-native-profile.json` 只声明 OPL Flow / OPL Doc 插件同步与 drift 检查所需的 repo-native profile；它不是 framework truth、runtime truth、domain truth、artifact authority、owner receipt 或 production-ready 证据。
+Plugin native profile pointer: `contracts/opl-native-profile.json` 只声明 OPL Flow bundled Skills 的 repo-native profile 与 drift 检查所需入口；它不是 framework truth、runtime truth、domain truth、artifact authority、owner receipt 或 production-ready 证据。已退休的 OPL Doc repo 不再提供 plugin、doctor 或 profile writer。
 
 Source structure 当前读法：品牌模块依赖图继续要求 deep import、forbidden dependency 和 module SCC 全部为零，因为它们是明确的 source owner 合同；文件行数、Sentrux baseline drift 和 generic quality rules 只提供 advisory maintenance inventory。`source-structure-budget.json` 不再保存 56 个逐文件 no-growth baseline，`--strict`、`line-budget:strict`、`structure:strict` 和旧 strict 环境变量均不能把行数或通用质量 findings 升级成失败。超长文件只在有可证明的 owner、contract、lifecycle、action route 或 test scenario 自然边界时拆分；没有安全边界时保持可见但不阻断正常开发。
 
@@ -133,7 +133,7 @@ Memory / artifact / lifecycle、OPL primitive/runtime/owner-route、strict sourc
 
 同一读面中的 `generated_hosted_surface_boundary` 仍只帮助 tranche 选择和跨仓 guard 对齐；它不能把 generated consumption bundle、pack compiler family-default feed、App projection、support profile、default-caller evidence worklist 或 refs-only consumption 写成 domain ready、App live rendering complete、production ready、default caller cutover、physical delete authorized、owner receipt signed、typed blocker created 或 Foundry Agent truth ownership。
 
-同一读面也包含 `cross_repo_ref_integrity_guard`：它只校验 tranche backlog 中的跨 repo refs 是否使用 owning repo 的 canonical path，或是否已被 owning repo 显式标记为 forbidden legacy ref。当前 `support_repo_profile_no_resurrection` 只消费 `opl-doc:contracts/support-repo-policy.json`；旧 `contracts/support_repo_policy.json` 只能作为 forbidden legacy ref 出现在 guard 中，不创建 alias、不作为第二 support-policy 合同真相。该 guard 不能替代目标 repo truth、support repo readiness、Foundry Agent truth set membership、Plan Completion Audit 或 Live Evidence。
+同一读面也包含 `cross_repo_ref_integrity_guard`：它只校验 tranche backlog 中的跨 repo refs 是否使用 owning repo 的 canonical path，或是否已被 owning repo 显式标记为 forbidden legacy ref。已退休的 OPL Doc repo 不再有 support-policy contract；任何旧 `opl-doc:*` 或 `support_repo_policy.json` ref 只能作为 forbidden legacy provenance 出现，不创建 alias、不作为第二 support-policy 合同真相。该 guard 不能替代目标 repo truth、support repo readiness、Foundry Agent truth set membership、Plan Completion Audit 或 Live Evidence。
 
 
 同一读面也包含 `memory_artifact_lifecycle_boundary_guard`：它从 `src/memory-artifact-lifecycle-evidence-ledger.ts`、`src/memory-artifact-lifecycle-readback.ts`、App drilldown memory/artifact/lifecycle evidence builder 和 `runtime memory-artifact-lifecycle-evidence` CLI spec 派生 refs-only evidence intake、readback projection、owner work-order projection、workspace review-repair transport 和 accepted ref shapes。该块把 memory / artifact / lifecycle 的功能接口边界折进 P0 tranche readback，并带 `structural_closeout_guard.cannot_claim` 防止 false-ready；不能把 refs observed、verified refs-only ledger、owner acceptance ref、typed blocker ref、open_count=0、reconcile clean、review-repair transport passed 或 OPL cleanup apply 写成 memory accepted、artifact mutated、repair accepted、package/export ready、physical delete authorized、domain ready 或 production ready，也不能让 OPL 读取 / 保存 memory body、修改 artifact body、签 owner receipt 或创建 typed blocker。

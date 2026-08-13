@@ -26,7 +26,7 @@ Live Evidence 后置：release、production、Brand L5、owner-chain scaleout、
 - `opl-meta-agent` 和 `opl-bookforge` 按标准 OPL Agent / Foundry Agent 目标态维护：domain pack、generated/hosted surface、default path、accepted owner-answer shape、source morphology、retired helper provenance 和 no-forbidden-write guard 清楚。
 - `one-person-lab-app` 是普通用户与 operator 的产品入口：Docker/WebUI beginner path、Settings control plane、runtime proxy、release/operator progress、active shell policy 和 App-owned contract 归 App owner；Framework 只提供受控 read/action surface。
 - Package 生态目标固定为 `OPL Base ≈ R`、`OPL App ≈ RStudio`、`OPL Package ≈ R Package`：Package 是唯一安装单元，标准 Agent 只是 `kind=agent` 的普通 Package；每个 owner 以独立 GHCR `latest-stable` 发布完整 runtime，shared manifest 只服务 Full/offline/integration/QA；Package identity、carrier 与 executor route 相互独立，Framework 只保留薄 OCI/native adapter、carrier-neutral installed aggregation、presence/callability 与 Runtime 投影。
-- Support repos、Aion/Hermes、MAS Scholar Skills、Homebrew、OPL Doc 和 Native Workbench 只按 carrier / support / capability-pack / distribution / GUI candidate 边界读取；它们不成为 framework/domain/App release truth owner，也不替代对应 owner 的 evidence surface。
+- Support repos、Aion/Hermes、MAS Scholar Skills、Homebrew、OPL Doc retired tombstone 和 Native Workbench 只按 carrier / support / capability-pack / distribution / GUI candidate 边界读取；它们不成为 framework/domain/App release truth owner，也不替代对应 owner 的 evidence surface。当前文档治理工作流由 OPL Flow bundled `$opl-doc` Skill 提供。
 
 North-star 参考仍归 [OPL 与 Foundry Agents 理想目标态](../references/runtime-substrate/opl-family-agent-ideal-state.md)、[OPL Family 理想系统评估](../references/runtime-substrate/opl-family-ideal-system-assessment.md)、[OPL Family Ideal Operating Model Redesign](./opl-family-ideal-operating-model-redesign.md) 和核心五件套。本文不复制这些目标态细节，只维护当前 gap 与 baton。
 
@@ -91,7 +91,7 @@ Stable、Latest、Package publication、Foundry 和其他工作不受本阶段�
 | Gap class | Status | Owner | 当前处理 |
 | --- | --- | --- | --- |
 | Package platform-first composition | `phase_2_controlled_breaking_cutover_in_progress` | OPL Framework + OPL App | Phase 1 的 SSOT、旧 resolver/lock/payload/receipt/Durable 扩张禁令与 no-resurrection 边界已冻结；Phase 2 按 M1 successor-only public actions、M2 App/Shell caller switch、M3 affected OUT / real-carrier acceptance、M4 owner-gated legacy bulk deletion 与同 outcome 复验推进。 |
-| 文档 SSOT / active gap 污染 | `active_governance_guard` | OPL + OPL Doc | 理想态定义保留在 support/reference；active gap 文档只保留当前 gap、完成口径和下一轮 baton；已完成过程进 history。 |
+| 文档 SSOT / active gap 污染 | `active_governance_guard` | OPL + OPL Flow `$opl-doc` Skill | 理想态定义保留在 support/reference；active gap 文档只保留当前 gap、完成口径和下一轮 baton；已完成过程进 history。 |
 | Live / release / production / owner evidence | `deferred_evidence_lane` | 对应 evidence owner | 单独走 live evidence 维护入口，不混入本文 active gap。 |
 | 不可逆 cleanup / physical delete | `owner_decision_gated` | 对应 repo owner | 只有 owner decision、no-active-caller、replacement owner、no-forbidden-write 和 tombstone/provenance 齐备时才开 lane。 |
 
@@ -120,12 +120,12 @@ mutation。
 若 fresh audit 发现新的非 live gap，使用以下 prompt 形状开启，而不是复用历史清单：
 
 ```text
-Objective: 使用 OPL Doc / SSOT 原则，为 <repo-or-theme> 重新审计当前理想态与实际实现差距。
+Objective: 使用 OPL Flow bundled `$opl-doc` Skill / SSOT 原则，为 <repo-or-theme> 重新审计当前理想态与实际实现差距。
 Write scope: 先限定到目标 repo 的 active truth owner、核心五件套、直接相关 support/reference/history 文档，以及必要的 source / contract / tests / CLI read-model 证明面；编辑前输出 governance_worklist / authority-aware matrix，标注 semantic theme、SSOT owner、owner surface、allowed/forbidden write set、verification command、completion gate 和 forbidden claims。
 Non-goals: 不复活已完成历史清单；不把 docs、doctor、contract pass、focused tests、projection clean 或 refs-only ledger 写成 release-ready、production-ready、Brand L5、domain ready、owner acceptance、owner receipt、typed blocker、human gate 或 physical delete。
 Live truth inputs: AGENTS.md、核心五件套、ideal-state reference、active truth owner、source、contracts、tests、CLI/read-model、runtime/evidence owner surfaces 和相关 owner docs。历史 proof、branch、SHA、receipt id、worktree closeout 和 dated command transcript 只作 provenance。
 Required actions: 只选择当前 fresh evidence 证明仍开放的非 live 功能/结构 gap；把已关闭内容压缩为 current status 或 history pointer；按语义主题确定 SSOT 后再治理 peer docs。
-Verification commands: docs-only 使用 rtk git diff --check、rtk rg -n '^(<<<<<<<|=======|>>>>>>>)' docs 和 OPL Doc doctor risk map；触及 source/contract/runtime/App 行为时使用对应 repo-native verification。
+Verification commands: docs-only 使用 rtk git diff --check、rtk rg -n '^(<<<<<<<|=======|>>>>>>>)' docs、tracked relative-Markdown-link check 和必要的 JSON parse；OPL Flow `$opl-doc` 是语义治理 workflow，不是 machine validator。触及 source/contract/runtime/App 行为时使用对应 repo-native verification。
 Completion gate: active owner 只保留当前状态、开放 gap、后置 evidence 指针、forbidden claims 和下一轮 baton；没有完成过程长清单、live evidence 混写或第二 backlog。
 Foldback target: 当前结论折回 active owner、核心五件套、contracts/source/tests/read-model 或对应 owner doc；过程材料折回 docs/history、runtime ledger、owner repo provenance 或提交历史。
 ```
@@ -152,5 +152,5 @@ rtk rg -n '^(<<<<<<<|=======|>>>>>>>)' docs
 
 - `functional_structure_baseline_landed` 不等于 release-ready、production-ready、Brand L5、domain ready、artifact ready、quality/export ready、owner acceptance 或 physical delete authorized。
 - Docs foldback、contract pass、focused tests、projection clean、doctor clean、native-check pass 或 refs-only ledger 不能替代 runtime/live/owner evidence。
-- Support repo、Aion/Hermes、MAS Scholar Skills、Homebrew、OPL Doc 或 Native Workbench 不能反向定义 domain/App/framework truth。
+- Support repo、Aion/Hermes、MAS Scholar Skills、Homebrew、OPL Doc retired tombstone 或 Native Workbench 不能反向定义 domain/App/framework truth。
 - 历史归档不能替代实现清理；旧模块、旧接口、旧测试和旧文档入口被当前 owner surface 替代后，只能按 owner decision 直接退役或 tombstone。

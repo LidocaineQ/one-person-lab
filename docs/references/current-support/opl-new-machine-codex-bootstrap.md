@@ -39,7 +39,7 @@ Source of truth:
 | OPL App | `one-person-lab-app` | 可选 Desktop GUI、Base/Packages 管理界面、Full first-install DMG、release gates 与首启用户路径 |
 | OPL Packages | package manifest + owning repo | MAS/MAG/RCA/OMA/Book Forge、OPL Flow 及其 plugin/skill/profile 投影；domain truth 仍归各 domain owner |
 | Base dependencies | OPL Base | OfficeCLI、MinerU、native helpers 等依赖/集成状态，不作为独立用户生命周期对象 |
-| Developer support | owning source repo | `opl-doc` 等开发治理工具只服务源码维护，不进入普通用户必装清单 |
+| Developer support | OPL Flow bundled Skill | `$opl-doc` 只提供文档治理 workflow；已退休的 `opl-doc` repo 仅保留 tombstone/provenance，不进入普通用户必装清单 |
 
 ## 推荐执行顺序
 
@@ -117,7 +117,7 @@ opl packages update rca --json
 - OPL Flow 的 plugin、`AGENTS.md` 和 `TASTE.md` 由同一 package transaction 管理。已有 `AGENTS.md` 时不覆盖，只返回 review packet；Framework 不提供 profile apply 命令，reviewed bytes 由 owner-controlled profile workflow 写回。
 - `opl packages install mas` 自动安装兼容的 `mas-scholar-skills` closure。workspace bind/activate、domain launch 或 MAS quest owner 每次进入 use boundary 都对账 MAS latest-stable root 与兼容 provider，并从 provider manifest 动态物化当前发布包声明的全部 35 Skills；11 core + 10 modules 只是 readiness floor。managed projection 缺失或漂移自动恢复，用户不需要为每个论文目录运行 repair。
 - MAS/MAG/RCA 不应同时作为重复裸 skill 出现在 `~/.codex/skills/{mas,mag,rca}`。
-- `opl-doc` 是开发者 support repo，不属于普通用户的 Base/App/Packages 安装清单；源码维护时才使用其 repo-native developer installer。
+- `$opl-doc` 是 OPL Flow 内置的开发者文档治理 workflow，不属于独立用户生命周期对象；已退休的 `opl-doc` repo 仅作 tombstone/provenance，不能再调用 standalone installer 或 doctor CLI。
 
 ### 5. 检查 Base 依赖与集成
 
