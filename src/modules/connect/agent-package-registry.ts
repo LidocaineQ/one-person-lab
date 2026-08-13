@@ -850,11 +850,16 @@ function descriptorOwnedCarrierCurrentness(input: {
   if (!sameConfiguredCarrierPath(input.readback.plugin_source_path, input.installedSourcePath)) {
     reasons.push('configured_carrier_source_changed');
   }
-  if (input.installedDescriptor.carrier.pluginId !== input.targetDescriptor.carrier.pluginId
+  const canonicalOwnerTargetAdopted = configuredCarrierReadbackIncludesTarget({
+    readback: input.readback,
+    descriptor: input.targetDescriptor,
+    packageVersion: input.target.package_version,
+  }) && sameConfiguredCarrierPath(input.readback.plugin_source_path, input.installedSourcePath);
+  if ((input.installedDescriptor.carrier.pluginId !== input.targetDescriptor.carrier.pluginId
     || !sameConfiguredCarrierPath(
       input.installedDescriptor.carrier.marketplaceSource,
       input.targetDescriptor.carrier.marketplaceSource,
-    )) {
+    )) && !canonicalOwnerTargetAdopted) {
     reasons.push('configured_carrier_route_changed');
   }
   if (installedVersionComparison !== null && installedVersionComparison > 0) {
@@ -967,6 +972,7 @@ function transferDescriptorOwnedCarrierRoute(input: {
   packageId: string;
   action: 'update' | 'repair';
   installedDescriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  installedSourcePath: string;
   targetDescriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
   targetVersion: ManagedCatalogVersion;
   selectorChanged: boolean;
@@ -974,6 +980,7 @@ function transferDescriptorOwnedCarrierRoute(input: {
 }) {
   let previousRemoved = false;
   let targetDispatched = false;
+  let sameInstalledEntityAdopted = false;
   try {
     targetDispatched = true;
     const provisional = runConfiguredCodexPluginCarrier({
@@ -981,7 +988,9 @@ function transferDescriptorOwnedCarrierRoute(input: {
       action: input.action,
     });
     assertConfiguredCarrierReachedOwnerTarget({ ...input, readback: provisional });
-    if (input.selectorChanged) {
+    sameInstalledEntityAdopted = input.selectorChanged
+      && sameConfiguredCarrierPath(provisional.plugin_source_path, input.installedSourcePath);
+    if (input.selectorChanged && !sameInstalledEntityAdopted) {
       const removed = runConfiguredCodexPluginCarrier({
         descriptor: input.installedDescriptor,
         action: 'remove',
@@ -1015,10 +1024,10 @@ function transferDescriptorOwnedCarrierRoute(input: {
     assertConfiguredCarrierReachedOwnerTarget({ ...input, readback: carrier });
     return carrier;
   } catch (error) {
-    if (targetDispatched && input.selectorChanged) {
+    if (targetDispatched && input.selectorChanged && !sameInstalledEntityAdopted) {
       runConfiguredCodexPluginCarrier({ descriptor: input.targetDescriptor, action: 'remove' });
     }
-    if (previousRemoved || input.sourceChanged) {
+    if ((previousRemoved || input.sourceChanged) && !sameInstalledEntityAdopted) {
       const restored = runConfiguredCodexPluginCarrier({
         descriptor: input.installedDescriptor,
         action: 'install',
@@ -1034,6 +1043,7 @@ function adoptDescriptorOwnedCarrierTarget(input: {
   action: 'update' | 'repair';
   dryRun: boolean;
   installedDescriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
+  installedSourcePath: string;
   targetDescriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
   targetVersion: ManagedCatalogVersion;
 }) {
@@ -1447,6 +1457,7 @@ async function maybeRunDescriptorOwnedFirstPartyLifecycle(input: DescriptorOwned
       action: input.action,
       dryRun,
       installedDescriptor: installed.carrier,
+      installedSourcePath: installed.sourcePath,
       targetDescriptor,
       targetVersion,
     });
