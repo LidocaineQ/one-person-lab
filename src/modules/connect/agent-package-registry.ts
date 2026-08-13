@@ -60,6 +60,7 @@ import {
   type ConfiguredCodexPluginCarrierAction,
   type ConfiguredCodexPluginCarrierReadback,
 } from './agent-package-registry-parts/configured-codex-plugin-carrier.ts';
+import { resolveCanonicalOplFamilyMarketplaceId } from './system-installation/codex-plugin-registry.ts';
 import {
   refreshFirstPartyPackageCatalogSnapshot,
   resolveFirstPartyPackageCatalogSnapshot,
@@ -156,17 +157,29 @@ function configuredCarrierObservedSourceMatchesPackage(
   return generation !== null && generation === source.source_tree_sha256;
 }
 
-function configuredCarrierReadbackIncludesTarget(input: {
+export function configuredCarrierReadbackIncludesTarget(input: {
   readback: ConfiguredCodexPluginCarrierReadback;
   descriptor: AgentPackageConfiguredCodexPluginCarrierDescriptor;
   packageVersion: string;
 }) {
+  if (input.readback.status !== 'installed'
+    || input.readback.carrier.precedence !== 'exact_single_source'
+    || !input.readback.plugin_source_path) return false;
+  const targetPluginName = input.descriptor.carrier.pluginId.split('@', 1)[0] ?? input.descriptor.carrier.pluginId;
+  const canonicalMarketplaceId = resolveCanonicalOplFamilyMarketplaceId(
+    input.descriptor.packageId,
+    targetPluginName,
+  );
   return input.readback.carrier.observed_sources.some((source) =>
-    source.plugin_id === input.descriptor.carrier.pluginId
-    && sameConfiguredCarrierPath(
+    (source.plugin_id.split('@', 1)[0] ?? source.plugin_id) === targetPluginName
+    && (sameConfiguredCarrierPath(
       source.marketplace_source,
       input.descriptor.carrier.marketplaceSource,
-    )
+    ) || (canonicalMarketplaceId !== null
+      && source.marketplace_source !== null
+      && path.isAbsolute(source.marketplace_source)
+      && path.basename(path.resolve(source.marketplace_source)) === canonicalMarketplaceId))
+    && sameConfiguredCarrierPath(source.plugin_source_path, input.readback.plugin_source_path)
     && configuredCarrierObservedSourceMatchesPackage(source, input.packageVersion));
 }
 

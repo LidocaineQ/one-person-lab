@@ -17,6 +17,7 @@ import {
   test,
 } from './helpers.ts';
 import { createFakeCodexPluginManagerFixture } from '../../helpers.ts';
+import { configuredCarrierReadbackIncludesTarget } from '../../../../../src/modules/connect/agent-package-registry.ts';
 import { resolveFirstPartyPackageCatalog } from '../../../../../src/modules/connect/agent-package-first-party.ts';
 import { refreshFirstPartyPackageCatalogSnapshot } from '../../../../../src/modules/connect/agent-package-registry-parts/first-party-release-catalog.ts';
 import { normalizeManifest } from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
@@ -1277,7 +1278,10 @@ test('descriptor-owned Flow update adopts the exact live owner target and become
   const nextOwner = writeFirstPartyCatalogFixture('0.1.32', '2'.repeat(40), {
     requiredSkillIds: FLOW_SKILL_IDS,
   });
-  const carrier = writeDescriptorOwnedFlowCarrier({ root, version: '0.1.31' });
+  const carrier = writeDescriptorOwnedFlowCarrier({
+    root,
+    version: '0.1.31',
+  });
   const commonEnv = {
     HOME: homeDir,
     CODEX_HOME: codexHome,
@@ -1361,6 +1365,51 @@ test('descriptor-owned Flow update adopts the exact live owner target and become
     fs.rmSync(currentOwner.root, { recursive: true, force: true });
     fs.rmSync(nextOwner.root, { recursive: true, force: true });
   }
+});
+
+test('first-party currentness reuses the carrier-selected canonical local source', () => {
+  const pluginSourcePath = '/tmp/redcube-ai-local/plugins/redcube-ai';
+  assert.equal(configuredCarrierReadbackIncludesTarget({
+    descriptor: {
+      packageId: 'rca',
+      carrier: {
+        kind: 'codex_plugin_manager',
+        pluginId: 'redcube-ai@redcube-ai',
+        marketplaceSource: 'gaofeng21cn/redcube-ai',
+      },
+      executor: { route: 'codex_cli', requiredSkillIds: ['redcube-ai'] },
+      publicationRef: 'ghcr.io/gaofeng21cn/one-person-lab-packages/rca:latest-stable',
+    },
+    packageVersion: '0.2.15',
+    readback: {
+      surface_kind: 'opl_configured_codex_plugin_carrier_readback.v1',
+      package_id: 'rca',
+      carrier: {
+        kind: 'codex_plugin_manager',
+        plugin_id: 'redcube-ai@redcube-ai',
+        marketplace_source: '/tmp/redcube-ai-local',
+        observed_sources: [{
+          plugin_id: 'redcube-ai@redcube-ai-local',
+          marketplace_source: '/tmp/redcube-ai-local',
+          installed_version: '0.2.15',
+          enabled: true,
+          plugin_source_path: pluginSourcePath,
+          source_tree_sha256: 'a'.repeat(64),
+        }],
+        precedence: 'exact_single_source',
+      },
+      executor: { route: 'codex_cli', required_skill_ids: ['redcube-ai'], status: 'callable' },
+      publication_ref: 'ghcr.io/gaofeng21cn/one-person-lab-packages/rca:latest-stable',
+      status: 'installed',
+      installed_version: '0.2.15',
+      enabled: true,
+      plugin_source_path: pluginSourcePath,
+      operation: 'list',
+      native_command: ['plugin', 'list', '--json'],
+      native_action_dispatched: true,
+      reason: null,
+    },
+  }), true);
 });
 
 test('descriptor-owned Flow repair completes locally before an unavailable owner channel', () => {
