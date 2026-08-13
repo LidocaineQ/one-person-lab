@@ -5,6 +5,7 @@
   "source_repo": "https://github.com/gaofeng21cn/mas-scholar-skills.git",
   "source_root": ".",
   "paths": [
+    "plugin.json",
     ".codex-plugin/plugin.json",
     "opl-package.json",
     "contracts/scholar-skills-capability-modules.json",
@@ -106,6 +107,10 @@
     "skills/scientific-compute-runner/kernel.py",
     "skills/medical-protocol-and-sap-planner/SKILL.md",
     "skills/medical-protocol-and-sap-planner/kernel.py",
+    "skills/medical-clinical-note-abstraction/SKILL.md",
+    "skills/medical-clinical-note-abstraction/agents/openai.yaml",
+    "skills/medical-clinical-note-abstraction/kernel.py",
+    "skills/medical-clinical-note-abstraction/references/abstraction-contract.md",
     "skills/medical-cohort-phenotyping/SKILL.md",
     "skills/medical-cohort-phenotyping/kernel.py",
     "skills/medical-cohort-phenotyping/references/professional-quality-ref-templates.md",

@@ -17,12 +17,12 @@
     "mag": {
       "package_id": "mag",
       "package_role": "standard_agent",
-      "package_version": "0.3.8",
-      "owner_source_commit": "0967060defcfb7effca5ae1ec0ef60eb7fab11f1",
-      "manifest_ref": "packages/mag-0.3.8.json",
-      "manifest_sha256": "sha256:65f606d9ee8b8db722b51f8034008341d6abe4ae5697f760a2aad958807e0978",
-      "payload_manifest_ref": "packages/payloads/mag-0.3.8.json",
-      "payload_manifest_sha256": "sha256:8a7b9c7bdbc6f010ab65ae5dce21789f10fc57cd362e7fec8f55086faeeb72b7",
+      "package_version": "0.3.11",
+      "owner_source_commit": "7c517059c7948a2bdc0a8f99d2075f3e7366da79",
+      "manifest_ref": "packages/mag-0.3.11.json",
+      "manifest_sha256": "sha256:a03d62d7cd3b053e6134963250614305fa2c591193c7bbc28ae5ceed2024201b",
+      "payload_manifest_ref": "packages/payloads/mag-0.3.11.json",
+      "payload_manifest_sha256": "sha256:392642936aa487386e1f8c43edd1508859d4df15e6b37cb6cb4b002ab7be569d",
       "runtime_module_relative_path": "modules/mag"
     },
     "rca": {
@@ -61,12 +61,12 @@
     "mas-scholar-skills": {
       "package_id": "mas-scholar-skills",
       "package_role": "capability_package",
-      "package_version": "0.2.24",
-      "owner_source_commit": "805149d3649bc20ea4d1b1214e897c5ec66fe41f",
-      "manifest_ref": "packages/mas-scholar-skills-0.2.24.json",
-      "manifest_sha256": "sha256:698bfc29e1ef250067831d1138e2de836a91f8d011e17acc1f409e586aaaa8cb",
-      "payload_manifest_ref": "packages/payloads/mas-scholar-skills-0.2.24.json",
-      "payload_manifest_sha256": "sha256:fecd9191a8a75b849d40e08658a3618bc106bdf99c83565f4c60e617d979eef4",
+      "package_version": "0.2.27",
+      "owner_source_commit": "b150e359761b6d2c5e2cdd435b77a668b3c3b8c1",
+      "manifest_ref": "packages/mas-scholar-skills-0.2.27.json",
+      "manifest_sha256": "sha256:1a82b1206280d84f5261563f64ebeae0509659b84b79a09791077b5030d40d45",
+      "payload_manifest_ref": "packages/payloads/mas-scholar-skills-0.2.27.json",
+      "payload_manifest_sha256": "sha256:7ee45e681e39d74a3a2f5c4ea622fffd9771b22cd6d68a4e74061c0c6c8d60d3",
       "runtime_module_relative_path": "modules/mas-scholar-skills"
     },
     "opl-flow": {

@@ -1023,9 +1023,9 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
       payloadRef: 'payloads/mas-0.2.27.json',
     },
     mag: {
-      version: '0.3.10',
-      sourceCommit: '2a40d5fbbdf5ed64e2d1bb550008a942e70edad8',
-      payloadRef: 'payloads/mag-0.3.10.json',
+      version: '0.3.11',
+      sourceCommit: '7c517059c7948a2bdc0a8f99d2075f3e7366da79',
+      payloadRef: 'payloads/mag-0.3.11.json',
     },
     rca: {
       version: '0.2.15',
@@ -1155,8 +1155,8 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
       },
       {
         package_id: 'mag',
-        required: false,
-        dependency_kind: 'optional_enhancement',
+        required: true,
+        dependency_kind: 'hard_runtime_dependency',
         consumer_profile_id: 'mag-medical-grant.v1',
       },
     ],
@@ -1236,7 +1236,7 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
       ]),
     ),
     {
-      mag: '启动基金申报',
+      mag: undefined,
       mas: '开展科研工作',
       obf: '规划书稿结构',
       oma: '构建与迭代智能体',
@@ -1334,7 +1334,7 @@ test('MAS Scholar Skills provider manifest separates core Skill exports from mod
   );
   const payloadPath = path.join(path.dirname(manifestPath), manifest.codex_surface.plugin_payload_manifest_url);
   const payload = parseJsonText(fs.readFileSync(payloadPath, 'utf8')) as Record<string, any>;
-  assert.equal(catalogEntry.manifest_ref, 'packages/mas-scholar-skills-0.2.24.json');
+  assert.equal(catalogEntry.manifest_ref, 'packages/mas-scholar-skills-0.2.27.json');
   const {
     publication_projection_order: publicationProjectionOrder,
     publication_source: publicationSource,
@@ -1346,15 +1346,15 @@ test('MAS Scholar Skills provider manifest separates core Skill exports from mod
   assert.equal(compatibilityProjection.registry_short_label, 'ScholarSkills');
   assert.deepEqual(frozenManifest, ownerManifestProjection);
   assert.equal(manifest.version, catalogEntry.package_version);
-  assert.deepEqual(manifest.consumer_policy.supported_required_by, []);
-  assert.deepEqual(manifest.consumer_policy.supported_optional_consumer_agent_ids, ['mas', 'mag']);
+  assert.deepEqual(manifest.consumer_policy.supported_required_by, ['mas', 'mag']);
+  assert.equal(manifest.consumer_policy.supported_optional_consumer_agent_ids, undefined);
   assert.equal(manifest.content_lock.canonicalization, 'ordered_path_length_file_length_bytes');
   assert.equal(manifest.content_lock.digest, payload.content_lock.digest);
   assert.equal(manifest.codex_surface.carrier_source_commit, catalogEntry.owner_source_commit);
-  assert.equal(normalized.required_skill_ids.length, 35);
+  assert.equal(normalized.required_skill_ids.length, 36);
   assert.equal(normalized.capability_provider?.module_export_ids.length, 10);
   assert.equal(normalized.capability_provider?.exports.filter((entry) => entry.install_mode === 'core_required').length, 11);
-  assert.equal(normalized.capability_provider?.exports.filter((entry) => entry.install_mode !== 'core_required').length, 24);
+  assert.equal(normalized.capability_provider?.exports.filter((entry) => entry.install_mode !== 'core_required').length, 25);
   assert.equal(normalized.optional_skill_refs.length, 1);
   assert.equal(payload.package_id, manifest.package_id);
   assert.equal(payload.package_version, manifest.version);
@@ -1610,12 +1610,12 @@ test('bundled Full MAG source projection advances to the immutable ordinary pack
     'utf8',
   )) as Record<string, any>;
 
-  assert.equal(frozenRef, 'packages/mag-0.3.8.json');
+  assert.equal(frozenRef, 'packages/mag-0.3.11.json');
   assert.equal(crypto.createHash('sha256').update(frozenBytes).digest('hex'),
-    '65f606d9ee8b8db722b51f8034008341d6abe4ae5697f760a2aad958807e0978');
-  assert.equal(frozenManifest.version, '0.3.8');
-  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mag-0.3.8.json');
-  assert.equal(ordinaryManifest.version, '0.3.10');
+    'a03d62d7cd3b053e6134963250614305fa2c591193c7bbc28ae5ceed2024201b');
+  assert.equal(frozenManifest.version, '0.3.11');
+  assert.equal(frozenManifest.codex_surface.plugin_payload_manifest_url, 'payloads/mag-0.3.11.json');
+  assert.equal(ordinaryManifest.version, '0.3.11');
 });
 
 test('bundled Full RCA source projection advances to the immutable ordinary package version', () => {
