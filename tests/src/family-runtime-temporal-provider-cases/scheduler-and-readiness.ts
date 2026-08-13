@@ -10,6 +10,7 @@ import {
   buildTemporalSchedulerHealthProjection,
   buildTemporalSchedulerTickWorkflowArgs,
   inspectTemporalSchedulerCadenceReadiness,
+  isTemporalSchedulerRunningActionLive,
 } from '../../../src/modules/runway/family-runtime-temporal-provider-parts/scheduler-cadence.ts';
 import { runTemporalSchedulerCadenceCommand } from '../../../src/modules/runway/family-runtime-scheduler.ts';
 import {
@@ -103,6 +104,40 @@ test('Temporal scheduler health projection surfaces current stale action repair 
   assert.equal(stale.repair_action.terminate_stale_workflow_requires_operator, true);
   assert.equal(stale.authority_boundary.can_terminate_workflow_automatically, false);
   assert.equal(stale.authority_boundary.can_write_domain_truth, false);
+});
+
+test('Temporal scheduler running action requires exact workflow and execution-chain identity', () => {
+  const action = {
+    type: 'startWorkflow',
+    workflow: {
+      workflowId: 'scheduler-tick-1',
+      firstExecutionRunId: 'run-1',
+    },
+  };
+  const baseDescription = {
+    workflowId: 'scheduler-tick-1',
+    runId: 'run-1',
+    status: { name: 'RUNNING' },
+    raw: { workflowExecutionInfo: { firstRunId: 'run-1' } },
+  };
+
+  assert.equal(isTemporalSchedulerRunningActionLive({ action, description: baseDescription }), true);
+  assert.equal(isTemporalSchedulerRunningActionLive({
+    action,
+    description: { ...baseDescription, workflowId: 'unrelated-workflow' },
+  }), false);
+  assert.equal(isTemporalSchedulerRunningActionLive({
+    action,
+    description: {
+      ...baseDescription,
+      runId: 'run-2',
+      raw: { workflowExecutionInfo: { firstRunId: 'unrelated-first-run' } },
+    },
+  }), false);
+  assert.equal(isTemporalSchedulerRunningActionLive({
+    action,
+    description: { ...baseDescription, status: { name: 'COMPLETED' } },
+  }), false);
 });
 
 test('Temporal scheduler health projection requires cadence install when missing', () => {

@@ -44,6 +44,7 @@ Machine boundary: 本文是人读公开路线图。当前实现和 readiness tru
 - 保持 provider-backed stage runtime 的诚实表达：Temporal 是 production online runtime 的必需 substrate，`hermes_agent`、`claude_code` 与 `antigravity_cli` 是 canonical 的显式非默认 executor adapter/backend，并通过独立 receipt、audit、executor binding ref 与 fail-closed gate 约束；旧 Hermes provider / Gateway 语料只保留为 provenance、diagnostic、fixture 或负向 guard
 - 保持 public help、当前文档与 operator-facing guidance 不再展示默认 Hermes/Gateway/frontdoor/local-manager wording；保留旧名时必须显式属于 legacy/provenance/diagnostic/history/fixture
 - 保持未来 hosted / desktop 入口继续围绕 Codex-default executor 路径背后的 runtime / activation boundary 演进
+- Temporal-backed Framework provider 的 production residency transport、supervisor-aware restart/requery、scheduler cadence currentness 和正式 StageAttempt terminal projection 已形成可重复验证的闭环；后续路线只继续推进 domain owner-chain、provider long-soak 与 App/release evidence，不再把 OPL 本地 proof 当作这些 owner 证据的替代。
 - 保持 `OPL Meta Agent` 的 `engineer-agent` 作为 Agent Foundry 唯一公开入口；`design` / `diagnose` 仅为内部 operation，OMA 只持有目标理解、设计依据、`AgentBlueprint` / `EvalSpec`、证据诊断和 `EvolutionProposal`，不执行评测或候选生命周期
 - 保持 candidate domain 沿定义、审查与 onboarding 路径推进
 

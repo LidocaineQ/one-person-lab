@@ -8,9 +8,22 @@ import temporalProto from '@temporalio/proto';
 import { readTemporalStableCohort } from '../../src/modules/connect/temporal-stable-cohort.ts';
 import { buildTemporalStageAttemptReplayGateForTest } from '../../src/modules/runway/family-runtime-temporal-provider.ts';
 import {
+  syncTemporalProductionProbeAttemptProjection,
   temporalProductionProbeInput,
   temporalProductionTypedCloseoutPacket,
+  temporalProductionWorkerRestartPlan,
 } from '../../src/modules/runway/family-runtime-temporal-provider-parts/production-proof.ts';
+import {
+  createStageAttempt,
+  recordStageAttemptActivityHeartbeat,
+} from '../../src/modules/runway/family-runtime-stage-attempts.ts';
+import type {
+  TemporalStageAttemptWorkflowState,
+} from '../../src/modules/runway/family-runtime-temporal.ts';
+import {
+  completedTemporalObservation,
+  withStageAttemptDb,
+} from './family-runtime-temporal-terminal-sync-cases/helpers.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '../..');
 
@@ -47,6 +60,114 @@ test('Temporal production proof materializes its worker workspace before dispatc
   });
   assert.equal(fs.statSync(workspaceRoot).isDirectory(), true);
   assert.equal(fs.statSync(artifactRoot).isDirectory(), true);
+});
+
+test('Temporal production proof never races a KeepAlive supervisor with a manual worker start', () => {
+  const supervised = temporalProductionWorkerRestartPlan(true);
+  const manual = temporalProductionWorkerRestartPlan(false);
+
+  assert.equal(supervised.restart_strategy, 'supervisor_keepalive_stop_only');
+  assert.equal(supervised.manual_start_allowed, false);
+  assert.ok(supervised.timeout_ms > 60_000);
+  assert.equal(manual.restart_strategy, 'manual_stop_then_start');
+  assert.equal(manual.manual_start_allowed, true);
+  assert.equal(manual.timeout_ms, 30_000);
+});
+
+test('Temporal production proof persists terminal Attempt projection through the owner sync path', () => {
+  withStageAttemptDb((db) => {
+    const completedAttempt = createStageAttempt(db, {
+      domainId: 'example-domain',
+      stageId: 'production-residency-proof',
+      providerKind: 'temporal',
+      workspaceLocator: { workspace_root: '/tmp/opl-temporal-proof-completed' },
+      sourceFingerprint: 'sha256:temporal-production-proof-completed',
+      executorKind: 'codex_cli',
+      checkpointRefs: ['checkpoint:temporal-production-proof-completed'],
+    }).attempt;
+    recordStageAttemptActivityHeartbeat(db, {
+      stageAttemptId: completedAttempt.stage_attempt_id,
+      heartbeatKind: 'codex_stage_activity_started',
+      namespace: 'opl-foundry',
+    });
+    const completed = completedTemporalObservation({
+      stageAttemptId: completedAttempt.stage_attempt_id,
+      workflowId: completedAttempt.workflow_id,
+      createdAt: completedAttempt.created_at,
+      domainId: completedAttempt.domain_id,
+      stageId: completedAttempt.stage_id,
+      checkpointRef: 'checkpoint:temporal-production-proof-completed',
+      nextOwner: completedAttempt.domain_id,
+    }).query as unknown as TemporalStageAttemptWorkflowState;
+    const completedProjection = syncTemporalProductionProbeAttemptProjection(db, completed);
+
+    assert.equal(completedProjection.status, 'completed');
+    assert.equal(completedProjection.provider_run.provider_status, 'completed');
+    assert.equal(completedProjection.provider_run.namespace, 'opl-foundry');
+    assert.equal(completedProjection.closeout_receipt_status, 'accepted_typed_closeout');
+    assert.ok(completedProjection.closeout_refs.includes('receipt:domain-closeout'));
+
+    const diagnosticAttempt = createStageAttempt(db, {
+      domainId: 'example-domain',
+      stageId: 'production-residency-proof',
+      providerKind: 'temporal',
+      workspaceLocator: { workspace_root: '/tmp/opl-temporal-proof-diagnostic' },
+      sourceFingerprint: 'sha256:temporal-production-proof-diagnostic',
+      executorKind: 'codex_cli',
+      checkpointRefs: ['checkpoint:temporal-production-proof-diagnostic'],
+    }).attempt;
+    recordStageAttemptActivityHeartbeat(db, {
+      stageAttemptId: diagnosticAttempt.stage_attempt_id,
+      heartbeatKind: 'codex_stage_activity_started',
+      namespace: 'opl-foundry',
+    });
+    const diagnosticRef = `opl://stage-attempts/${diagnosticAttempt.stage_attempt_id}/no-output-diagnostic`;
+    const diagnosticBase = completedTemporalObservation({
+      stageAttemptId: diagnosticAttempt.stage_attempt_id,
+      workflowId: diagnosticAttempt.workflow_id,
+      createdAt: diagnosticAttempt.created_at,
+      domainId: diagnosticAttempt.domain_id,
+      stageId: diagnosticAttempt.stage_id,
+      checkpointRef: 'checkpoint:temporal-production-proof-diagnostic',
+      nextOwner: diagnosticAttempt.domain_id,
+    }).query;
+    const diagnostic = {
+      ...diagnosticBase,
+      closeout_refs: [diagnosticRef],
+      route_impact: {
+        progression_effect: 'next_stage_may_start',
+        quality_debt_refs: [diagnosticRef],
+        no_output_diagnostic_ref: diagnosticRef,
+      },
+      closeout_packet: {
+        surface_kind: 'temporal_domain_handler_dispatch_receipt',
+        closeout_packet_surface_kind: 'stage_attempt_closeout_packet',
+        closeout_refs: [diagnosticRef],
+        consumed_refs: [],
+        consumed_memory_refs: [],
+        writeback_receipt_refs: [],
+        rejected_writes: [],
+        next_owner: diagnosticAttempt.domain_id,
+        domain_ready_verdict: null,
+        route_impact: {
+          progression_effect: 'next_stage_may_start',
+          quality_debt_refs: [diagnosticRef],
+          no_output_diagnostic_ref: diagnosticRef,
+        },
+        authority_boundary: {
+          opl: 'provider_quality_debt_diagnostic_projection_only',
+          domain: 'truth_quality_artifact_gate_owner',
+        },
+      },
+    } as unknown as TemporalStageAttemptWorkflowState;
+    const diagnosticProjection = syncTemporalProductionProbeAttemptProjection(db, diagnostic);
+
+    assert.equal(diagnosticProjection.status, 'completed');
+    assert.equal(diagnosticProjection.provider_run.namespace, 'opl-foundry');
+    assert.equal(diagnosticProjection.closeout_receipt_status, 'accepted_typed_closeout');
+    assert.ok(diagnosticProjection.closeout_refs.includes(diagnosticRef));
+    assert.equal(diagnosticProjection.route_impact.no_output_diagnostic_ref, diagnosticRef);
+  });
 });
 
 test('current workflow bundle replays every immutable stable-cohort history fixture', async () => {

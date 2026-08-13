@@ -900,7 +900,15 @@ export async function StageAttemptWorkflow(
     throw error;
   }
 
-  await condition(() => false, '1 second');
+  const operatorUpdateWindowMs = Number.isFinite(
+    asRecord(input.route_impact).operator_update_window_ms,
+  )
+    ? Math.max(1_000, Math.min(
+      60_000,
+      Number(asRecord(input.route_impact).operator_update_window_ms),
+    ))
+    : 1_000;
+  await condition(() => false, `${operatorUpdateWindowMs} milliseconds`);
   return state;
 }
 

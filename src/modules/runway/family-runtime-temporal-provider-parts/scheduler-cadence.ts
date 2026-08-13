@@ -1,4 +1,5 @@
 import { ScheduleAlreadyRunning, ScheduleNotFoundError, ScheduleOverlapPolicy } from '@temporalio/client';
+import { WorkflowNotFoundError } from '@temporalio/common';
 
 import {
   resolveTemporalTaskQueue,
@@ -20,7 +21,47 @@ import { record, stringValue } from '../../../kernel/json-record.ts';
 type TemporalSchedulerInfoProjection = {
   num_actions_skipped_overlap?: number;
   running_actions?: unknown[];
+  unverified_running_action_count?: number;
 };
+
+type TemporalSchedulerRunningAction = {
+  type?: string;
+  workflow?: {
+    workflowId?: string;
+    firstExecutionRunId?: string;
+  };
+};
+
+type TemporalSchedulerWorkflowDescription = {
+  workflowId?: string;
+  runId?: string;
+  status?: { name?: string };
+  raw?: {
+    workflowExecutionInfo?: {
+      firstRunId?: string | null;
+    } | null;
+  };
+};
+
+/**
+ * Schedule runningActions contain the first run in an execution chain, while
+ * WorkflowHandle.describe() exposes the current run. Compare both identities
+ * before treating a schedule projection as a live workflow.
+ */
+export function isTemporalSchedulerRunningActionLive(input: {
+  action: TemporalSchedulerRunningAction;
+  description: TemporalSchedulerWorkflowDescription;
+}) {
+  const expectedWorkflowId = input.action.workflow?.workflowId;
+  const expectedFirstExecutionRunId = input.action.workflow?.firstExecutionRunId;
+  if (!expectedWorkflowId || !expectedFirstExecutionRunId) return false;
+  if (input.description.workflowId !== expectedWorkflowId) return false;
+  if (input.description.status?.name !== 'RUNNING') return false;
+  const observedFirstExecutionRunId =
+    input.description.raw?.workflowExecutionInfo?.firstRunId
+    ?? input.description.runId;
+  return observedFirstExecutionRunId === expectedFirstExecutionRunId;
+}
 
 const TEMPORAL_SCHEDULER_APP_CONNECT_TIMEOUT_MS = 750;
 const TEMPORAL_SCHEDULER_APP_RPC_TIMEOUT_MS = 750;
@@ -184,6 +225,7 @@ function temporalSchedulerClientOptions(
   input: { connectTimeoutMs?: number; rpcTimeoutMs?: number } = {},
 ) {
   return {
+    paths,
     addressOverride: temporalAddressForScheduler(paths),
     ...input,
   };
@@ -215,13 +257,17 @@ export function buildTemporalSchedulerHealthProjection(input: {
   const skippedOverlap = Number.isFinite(input.info?.num_actions_skipped_overlap)
     ? Number(input.info?.num_actions_skipped_overlap)
     : 0;
+  const unverifiedRunningActionCount = Number.isFinite(input.info?.unverified_running_action_count)
+    ? Number(input.info?.unverified_running_action_count)
+    : 0;
   const needsInstall = input.scheduleStatus === 'not_installed';
   const needsAttention = needsInstall
-    || (input.scheduleStatus === 'active' && runningActions.length > 0);
+    || (input.scheduleStatus === 'active' && (runningActions.length > 0 || unverifiedRunningActionCount > 0));
   return {
     surface_kind: 'temporal_scheduler_cadence_health',
     health_status: needsAttention ? 'attention_required' : 'healthy',
     running_action_count: runningActions.length,
+    unverified_running_action_count: unverifiedRunningActionCount,
     num_actions_skipped_overlap: skippedOverlap,
     historical_overlap_skip_observed: skippedOverlap > 0,
     overlap_policy: 'SKIP',
@@ -234,7 +280,9 @@ export function buildTemporalSchedulerHealthProjection(input: {
       : needsAttention
         ? {
           action_id: 'inspect_or_repair_stale_scheduler_tick',
-          reason: 'running_scheduler_tick_action_observed',
+          reason: unverifiedRunningActionCount > 0
+            ? 'scheduler_tick_running_state_probe_incomplete'
+            : 'running_scheduler_tick_action_observed',
           safe_first_steps: [
             'opl family-runtime worker status --provider temporal',
             'opl family-runtime worker stop --provider temporal',
@@ -355,6 +403,48 @@ export async function inspectTemporalSchedulerCadence(
         () => handle.describe(),
         clientOptions,
       );
+      const projectedRunningActions = Array.isArray(description.info.runningActions)
+        ? description.info.runningActions
+        : [];
+      const liveRunningActions: TemporalSchedulerRunningAction[] = [];
+      let unverifiedRunningActionCount = 0;
+      for (const action of projectedRunningActions) {
+        const candidate = action as TemporalSchedulerRunningAction;
+        const workflowId = candidate.workflow?.workflowId;
+        if (!workflowId) {
+          unverifiedRunningActionCount += 1;
+          continue;
+        }
+        try {
+          const workflowHandle = client.workflow.getHandle(
+            workflowId,
+            undefined,
+            candidate.workflow?.firstExecutionRunId
+              ? { firstExecutionRunId: candidate.workflow.firstExecutionRunId }
+              : undefined,
+          );
+          const workflowDescription = await withTemporalRpcDeadline(
+            client,
+            () => workflowHandle.describe(),
+            clientOptions,
+          );
+          if (isTemporalSchedulerRunningActionLive({
+            action: candidate,
+            description: workflowDescription,
+          })) {
+            liveRunningActions.push(candidate);
+          }
+        } catch (error) {
+          if (error instanceof WorkflowNotFoundError) {
+            // A completed/expired workflow is a stale schedule projection, not
+            // an unverified live action.
+            continue;
+          }
+          // A schedule projection is not enough to claim a live workflow. Keep
+          // the action unverified so readiness remains attention-required.
+          unverifiedRunningActionCount += 1;
+        }
+      }
       return {
         surface_kind: 'temporal_scheduler_cadence_status',
         provider_kind: 'temporal',
@@ -368,13 +458,15 @@ export async function inspectTemporalSchedulerCadence(
           num_actions_taken: description.info.numActionsTaken,
           num_actions_missed_catchup_window: description.info.numActionsMissedCatchupWindow,
           num_actions_skipped_overlap: description.info.numActionsSkippedOverlap,
-          running_actions: description.info.runningActions,
+          running_actions: liveRunningActions,
+          unverified_running_action_count: unverifiedRunningActionCount,
         },
         health: buildTemporalSchedulerHealthProjection({
           scheduleStatus: description.state.paused ? 'paused' : 'active',
           info: {
             num_actions_skipped_overlap: description.info.numActionsSkippedOverlap,
-            running_actions: description.info.runningActions,
+            running_actions: liveRunningActions,
+            unverified_running_action_count: unverifiedRunningActionCount,
           },
         }),
       };

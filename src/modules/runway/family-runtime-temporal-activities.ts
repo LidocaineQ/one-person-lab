@@ -782,6 +782,7 @@ export function compactSchedulerTickForTemporalResult(value: unknown) {
 function recordActivityHeartbeat(input: {
   stageAttemptId: string;
   heartbeatKind: string;
+  namespace?: string | null;
   runnerEventKind?: string | null;
   executionSessionRef?: string | null;
   checkpointRefs?: string[];
@@ -900,6 +901,7 @@ export async function codexStageActivity(input: TemporalStageAttemptWorkflowInpu
   recordActivityHeartbeat({
     stageAttemptId: input.stage_attempt_id,
     heartbeatKind: 'codex_stage_activity_started',
+    namespace: Context.current().info.namespace,
     checkpointRefs: input.checkpoint_refs ?? [],
   });
   const heartbeatInterval = setInterval(() => {
@@ -912,6 +914,7 @@ export async function codexStageActivity(input: TemporalStageAttemptWorkflowInpu
     recordActivityHeartbeat({
       stageAttemptId: input.stage_attempt_id,
       heartbeatKind: 'codex_stage_activity_supervision',
+      namespace: Context.current().info.namespace,
       checkpointRefs: input.checkpoint_refs ?? [],
     });
     coordinationObserver.heartbeat();
@@ -942,6 +945,7 @@ export async function codexStageActivity(input: TemporalStageAttemptWorkflowInpu
         recordActivityHeartbeat({
           stageAttemptId: input.stage_attempt_id,
           heartbeatKind: 'codex_stage_activity_runner_progress',
+          namespace: Context.current().info.namespace,
           runnerEventKind: event.event_kind,
           executionSessionRef,
           checkpointRefs: input.checkpoint_refs ?? [],

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { DatabaseSync } from 'node:sqlite';
 
 import { WorkflowIdConflictPolicy, WorkflowIdReusePolicy } from '@temporalio/common';
 import type { Client } from '@temporalio/client';
@@ -8,9 +9,16 @@ import type { Client } from '@temporalio/client';
 import {
   resolveTemporalNamespace,
   resolveTemporalTaskQueue,
+  buildTemporalStageAttemptWorkflowInput,
   type TemporalStageAttemptWorkflowInput,
   type TemporalStageAttemptWorkflowState,
 } from '../family-runtime-temporal.ts';
+import {
+  createStageAttempt,
+  inspectStageAttempt,
+  syncStageAttemptFromTemporalTerminalObservation,
+} from '../family-runtime-stage-attempts.ts';
+import { familyRuntimePaths, openQueueDb } from '../family-runtime-store.ts';
 import {
   requireTemporalAddress,
   resolveTemporalClientRpcTimeoutMs,
@@ -23,9 +31,18 @@ import {
   stageAttemptQuery,
 } from '../family-runtime-temporal-workflows.ts';
 import { taskRetryBudgetProjection } from '../family-runtime-queue-projection-boundary.ts';
+import {
+  inspectProviderWorkerSupervisorState,
+  PROVIDER_WORKER_SUPERVISOR_THROTTLE_SECONDS,
+  supervisorOwnsFamilyRuntimeRoot,
+} from '../family-runtime-provider-worker-supervisor-state.ts';
 
 const TEMPORAL_PRODUCTION_PROOF_RESULT_RPC_TIMEOUT_MS = 60_000;
 const TEMPORAL_PRODUCTION_PROOF_WORKSPACE_NAME = 'opl-temporal-production-residency-proof';
+const TEMPORAL_PRODUCTION_WORKER_RESTART_TIMEOUT_MS = 30_000;
+const TEMPORAL_PRODUCTION_SUPERVISED_WORKER_RESTART_TIMEOUT_MS =
+  PROVIDER_WORKER_SUPERVISOR_THROTTLE_SECONDS * 1_000 + 45_000;
+const TEMPORAL_PRODUCTION_WORKER_RESTART_POLL_MS = 250;
 
 type TemporalProductionWorkerLifecycle = {
   address: string | null;
@@ -37,6 +54,8 @@ type TemporalProductionWorkerLifecycle = {
   worker_ready: boolean | null;
   managed_worker_pid?: number | null;
   managed_worker_state_path?: string | null;
+  managed_worker_source_current?: boolean | null;
+  managed_worker_workflow_bundle_source_current?: boolean | null;
   temporal_service_lifecycle?: Record<string, unknown> | null;
   blockers: string[];
   repair_action: Record<string, unknown> & {
@@ -77,8 +96,86 @@ export function temporalProductionProbeInput(
     stage_packet_ref: `packet:temporal-production-residency:${suffix}`,
     checkpoint_refs: [`checkpoint:temporal-production-residency:${suffix}`],
     closeout_packet: closeoutPacket,
+    route_impact: {
+      operator_update_window_ms: 10_000,
+      decision: 'production_residency_transport_probe',
+    },
   };
 }
+
+function materializeTemporalProductionProbeInput(
+  suffix: string,
+  closeoutPacket: Record<string, unknown> | null,
+  options: { workspaceRoot?: string } = {},
+): TemporalStageAttemptWorkflowInput {
+  const fixture = temporalProductionProbeInput(suffix, closeoutPacket, options);
+  const { db } = openQueueDb();
+  try {
+    const attempt = createStageAttempt(db, {
+      domainId: fixture.domain_id,
+      stageId: fixture.stage_id,
+      providerKind: 'temporal',
+      workspaceLocator: fixture.workspace_locator,
+      sourceFingerprint: fixture.source_fingerprint ?? undefined,
+      executorKind: fixture.executor_kind,
+      taskId: fixture.task_id ?? undefined,
+      retryBudget: fixture.retry_budget,
+      checkpointRefs: fixture.checkpoint_refs,
+      idempotencyBoundaryId: `temporal-production-residency:${suffix}`,
+    }).attempt;
+    return {
+      ...buildTemporalStageAttemptWorkflowInput(attempt),
+      stage_packet_ref: fixture.stage_packet_ref,
+      checkpoint_refs: fixture.checkpoint_refs,
+      codex_stage_runner: { runner_mode: 'dry_run' },
+      closeout_packet: closeoutPacket,
+      route_impact: fixture.route_impact,
+    };
+  } finally {
+    db.close();
+  }
+}
+
+export function syncTemporalProductionProbeAttemptProjection(
+  db: DatabaseSync,
+  state: TemporalStageAttemptWorkflowState,
+) {
+  syncStageAttemptFromTemporalTerminalObservation(db, {
+    surface_kind: 'temporal_stage_attempt_query_receipt',
+    provider_kind: 'temporal',
+    stage_attempt_id: state.stage_attempt_id,
+    workflow_id: state.workflow_id,
+    workflow_status: 'COMPLETED',
+    query: state,
+  });
+  return inspectStageAttempt(db, state.stage_attempt_id);
+}
+
+function persistTemporalProductionProbeAttemptProjection(
+  state: TemporalStageAttemptWorkflowState,
+) {
+  const { db } = openQueueDb();
+  try {
+    return syncTemporalProductionProbeAttemptProjection(db, state);
+  } finally {
+    db.close();
+  }
+}
+
+export function temporalProductionWorkerRestartPlan(supervisorManaged: boolean) {
+  return supervisorManaged
+    ? {
+        restart_strategy: 'supervisor_keepalive_stop_only',
+        timeout_ms: TEMPORAL_PRODUCTION_SUPERVISED_WORKER_RESTART_TIMEOUT_MS,
+        manual_start_allowed: false,
+      }
+    : {
+        restart_strategy: 'manual_stop_then_start',
+        timeout_ms: TEMPORAL_PRODUCTION_WORKER_RESTART_TIMEOUT_MS,
+        manual_start_allowed: true,
+      };
+}
+
 export function temporalProductionTypedCloseoutPacket() {
   return {
     surface_kind: 'stage_attempt_closeout_packet',
@@ -118,6 +215,31 @@ function temporalProductionProofEnvironment(worker: TemporalProductionWorkerLife
   return worker.address_source === 'managed_local_service_state'
     ? 'local_temporal_service_and_managed_worker'
     : 'external_temporal_service_and_managed_worker';
+}
+
+async function waitForManagedWorkerRestart(input: {
+  previousPid: number | null | undefined;
+  inspect: () => Promise<TemporalProductionWorkerLifecycle>;
+  timeoutMs?: number;
+}) {
+  const deadline = Date.now() + (input.timeoutMs ?? TEMPORAL_PRODUCTION_WORKER_RESTART_TIMEOUT_MS);
+  let latest = await input.inspect();
+  while (Date.now() < deadline) {
+    if (
+      latest.lifecycle_status === 'ready'
+      && latest.worker_ready === true
+      && latest.managed_worker_source_current === true
+      && latest.managed_worker_workflow_bundle_source_current === true
+      && typeof latest.managed_worker_pid === 'number'
+      && latest.managed_worker_pid > 0
+      && latest.managed_worker_pid !== input.previousPid
+    ) {
+      return latest;
+    }
+    await new Promise((resolve) => setTimeout(resolve, TEMPORAL_PRODUCTION_WORKER_RESTART_POLL_MS));
+    latest = await input.inspect();
+  }
+  return latest;
 }
 
 function blockedTemporalProductionResidencyProof(input: {
@@ -229,11 +351,9 @@ export async function runTemporalProductionResidencyProofForWorker(
   const namespace = worker.namespace;
   const taskQueue = resolveTemporalTaskQueue();
   const suffix = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  const completedWorkflowId = `wf-temporal-production-complete-${suffix}`;
-  const diagnosticWorkflowId = `wf-temporal-production-diagnostic-${suffix}`;
-  const temporalClientOptions = { addressOverride: address, namespaceOverride: namespace };
-  const temporalProofResultClientOptions: TemporalClientOptions = {
-    ...temporalClientOptions,
+  const temporalClientOptions: TemporalClientOptions = {
+    addressOverride: address,
+    namespaceOverride: namespace,
     rpcTimeoutMs: Math.max(
       resolveTemporalClientRpcTimeoutMs(),
       TEMPORAL_PRODUCTION_PROOF_RESULT_RPC_TIMEOUT_MS,
@@ -241,12 +361,14 @@ export async function runTemporalProductionResidencyProofForWorker(
   };
   try {
     return await withTemporalClient(async (client) => {
+      const completedInput = materializeTemporalProductionProbeInput(
+        `complete-${suffix}`,
+        temporalProductionTypedCloseoutPacket(),
+      );
+      const completedWorkflowId = completedInput.workflow_id;
       const completedHandle = await withTemporalRpcDeadline(client, () => client.workflow.start('StageAttemptWorkflow', {
         args: [
-          {
-            ...temporalProductionProbeInput('complete', temporalProductionTypedCloseoutPacket()),
-            workflow_id: completedWorkflowId,
-          },
+          completedInput,
         ],
         taskQueue,
         workflowId: completedWorkflowId,
@@ -262,14 +384,45 @@ export async function runTemporalProductionResidencyProofForWorker(
       const completedState = await withTemporalRpcDeadline(
         client,
         () => completedHandle.result(),
-        temporalProofResultClientOptions,
+        temporalClientOptions,
       );
+      const completedProjection = persistTemporalProductionProbeAttemptProjection(completedState);
 
-      const restartedHandle = client.workflow.getHandle(
-        completedWorkflowId,
-        undefined,
-        { firstExecutionRunId: completedHandle.firstExecutionRunId },
+      const workerPidBeforeRestart = worker.managed_worker_pid ?? null;
+      const temporalProvider = await import('../family-runtime-temporal-provider.ts');
+      const workerPaths = familyRuntimePaths();
+      const supervisorState = inspectProviderWorkerSupervisorState(workerPaths);
+      const workerRestartPlan = temporalProductionWorkerRestartPlan(
+        supervisorOwnsFamilyRuntimeRoot(supervisorState),
       );
+      const workerStop = await temporalProvider.stopTemporalWorkerLifecycle(workerPaths);
+      let restartedWorker = await waitForManagedWorkerRestart({
+        previousPid: workerPidBeforeRestart,
+        inspect: () => temporalProvider.inspectTemporalWorkerLifecycle(workerPaths),
+        timeoutMs: workerRestartPlan.timeout_ms,
+      });
+      let workerStart: Record<string, unknown> | null = null;
+      if (
+        restartedWorker.lifecycle_status !== 'ready'
+        && workerRestartPlan.manual_start_allowed
+      ) {
+        const start = await temporalProvider.startTemporalWorkerLifecycle(workerPaths);
+        workerStart = start as unknown as Record<string, unknown>;
+        restartedWorker = await waitForManagedWorkerRestart({
+          previousPid: workerPidBeforeRestart,
+          inspect: () => temporalProvider.inspectTemporalWorkerLifecycle(workerPaths),
+          timeoutMs: workerRestartPlan.timeout_ms,
+        });
+      }
+      const restartReady =
+        restartedWorker.lifecycle_status === 'ready'
+        && restartedWorker.worker_ready === true
+        && restartedWorker.managed_worker_source_current === true
+        && restartedWorker.managed_worker_workflow_bundle_source_current === true
+        && typeof restartedWorker.managed_worker_pid === 'number'
+        && restartedWorker.managed_worker_pid > 0
+        && restartedWorker.managed_worker_pid !== workerPidBeforeRestart;
+
       let requery: {
         requery_status: string;
         query_available: boolean;
@@ -279,36 +432,52 @@ export async function runTemporalProductionResidencyProofForWorker(
         query_error?: string;
       };
       try {
-        requery = {
-          requery_status: 'stage_attempt_query_available_after_worker_restart',
-          query_available: true,
-          query: await withTemporalRpcDeadline(
-            client,
-            () => restartedHandle.query<TemporalStageAttemptWorkflowState>(stageAttemptQuery),
-            temporalClientOptions,
-          ),
-        };
+        if (!restartReady) {
+          throw new Error('Managed Temporal worker did not become ready with a new PID after restart.');
+        }
+        requery = await withTemporalClient(async (restartedClient) => {
+          const restartedHandle = restartedClient.workflow.getHandle(
+            completedWorkflowId,
+            undefined,
+            { firstExecutionRunId: completedHandle.firstExecutionRunId },
+          );
+          return {
+            requery_status: 'stage_attempt_query_available_after_worker_restart',
+            query_available: true,
+            query: await withTemporalRpcDeadline(
+              restartedClient,
+              () => restartedHandle.query<TemporalStageAttemptWorkflowState>(stageAttemptQuery),
+              temporalClientOptions,
+            ),
+          };
+        }, temporalClientOptions);
       } catch (error) {
-        const description = await withTemporalRpcDeadline(
-          client,
-          () => restartedHandle.describe(),
-          temporalClientOptions,
-        );
+        const diagnosticClient = await withTemporalClient(async (restartedClient) => {
+          const restartedHandle = restartedClient.workflow.getHandle(
+            completedWorkflowId,
+            undefined,
+            { firstExecutionRunId: completedHandle.firstExecutionRunId },
+          );
+          return await withTemporalRpcDeadline(
+            restartedClient,
+            () => restartedHandle.describe(),
+            temporalClientOptions,
+          );
+        }, temporalClientOptions);
         requery = {
           requery_status: 'stage_attempt_query_unavailable_after_worker_restart',
           query_available: false,
           query_error: error instanceof Error ? error.message : String(error),
-          diagnostic_workflow_status: description.status.name,
-          diagnostic_run_id: description.runId,
+          diagnostic_workflow_status: diagnosticClient.status.name,
+          diagnostic_run_id: diagnosticClient.runId,
         };
       }
 
+      const diagnosticInput = materializeTemporalProductionProbeInput(`blocked-${suffix}`, null);
+      const diagnosticWorkflowId = diagnosticInput.workflow_id;
       const diagnosticHandle = await withTemporalRpcDeadline(client, () => client.workflow.start('StageAttemptWorkflow', {
         args: [
-          {
-            ...temporalProductionProbeInput('blocked', null),
-            workflow_id: diagnosticWorkflowId,
-          },
+          diagnosticInput,
         ],
         taskQueue,
         workflowId: diagnosticWorkflowId,
@@ -318,13 +487,16 @@ export async function runTemporalProductionResidencyProofForWorker(
       const diagnosticState = await withTemporalRpcDeadline(
         client,
         () => diagnosticHandle.result(),
-        temporalProofResultClientOptions,
+        temporalClientOptions,
       );
+      const diagnosticProjection = persistTemporalProductionProbeAttemptProjection(diagnosticState);
       const requeryState = requery.query_available && requery.query ? requery.query : null;
       const checks = {
-        external_temporal_server_reachable: true,
-        managed_worker_ready: true,
-        worker_completed_attempt: completedState.status === 'completed',
+        external_temporal_server_reachable: restartedWorker.server_reachable === true,
+        managed_worker_ready: worker.worker_ready === true && restartReady,
+        worker_completed_attempt:
+          completedState.status === 'completed'
+          && completedProjection.status === 'completed',
         worker_restart_requery: requeryState?.stage_attempt_id === completedState.stage_attempt_id,
         signal_history_preserved:
           completedState.signals.length === 3
@@ -334,6 +506,7 @@ export async function runTemporalProductionResidencyProofForWorker(
           && completedState.closeout_refs.length > 0,
         missing_closeout_advances_with_diagnostic:
           diagnosticState.status === 'completed'
+          && diagnosticProjection.status === 'completed'
           && diagnosticState.completion_boundary.provider_completion === 'completed'
           && diagnosticState.closeout_refs.some((ref: string) => ref.includes('/no-output-diagnostic')),
         no_output_diagnostic_boundary_observed:
@@ -373,6 +546,13 @@ export async function runTemporalProductionResidencyProofForWorker(
           consumed_memory_refs: completedState.consumed_memory_refs,
           writeback_receipt_refs: completedState.writeback_receipt_refs,
           domain_ready_verdict: completedState.completion_boundary.domain_ready_verdict,
+          stage_attempt_projection: {
+            stage_attempt_id: completedProjection.stage_attempt_id,
+            status: completedProjection.status,
+            provider_status: completedProjection.provider_run.provider_status ?? null,
+            namespace: completedProjection.provider_run.namespace ?? null,
+            closeout_receipt_status: completedProjection.closeout_receipt_status,
+          },
         },
         restarted_worker_requery: {
           workflow_id: completedWorkflowId,
@@ -380,6 +560,16 @@ export async function runTemporalProductionResidencyProofForWorker(
           query_available: requery.query_available,
           status: requeryState?.status ?? null,
           run_id: requeryState ? completedHandle.firstExecutionRunId : null,
+          worker_pid_before: workerPidBeforeRestart,
+          worker_pid_after: restartedWorker.managed_worker_pid ?? null,
+          worker_restart_status: workerStop.stop_status,
+          worker_restart_strategy: workerRestartPlan.restart_strategy,
+          worker_restart_timeout_ms: workerRestartPlan.timeout_ms,
+          worker_start_status: workerStart?.start_status ?? null,
+          worker_restart_ready: restartReady,
+          worker_source_current_after_restart: restartedWorker.managed_worker_source_current === true,
+          worker_bundle_source_current_after_restart:
+            restartedWorker.managed_worker_workflow_bundle_source_current === true,
           diagnostic_workflow_status: requery.diagnostic_workflow_status ?? null,
           diagnostic_run_id: requery.diagnostic_run_id ?? null,
         },
@@ -393,6 +583,13 @@ export async function runTemporalProductionResidencyProofForWorker(
             diagnosticState.activity_events.find(
               (event: Record<string, unknown>) => event.activity_kind === 'domain_handler_dispatch_activity',
             )?.route_impact?.no_output_diagnostic_ref ?? null,
+          stage_attempt_projection: {
+            stage_attempt_id: diagnosticProjection.stage_attempt_id,
+            status: diagnosticProjection.status,
+            provider_status: diagnosticProjection.provider_run.provider_status ?? null,
+            namespace: diagnosticProjection.provider_run.namespace ?? null,
+            closeout_receipt_status: diagnosticProjection.closeout_receipt_status,
+          },
         },
         proof_receipt: {
           receipt_kind: 'temporal_production_residency_proof',

@@ -117,6 +117,7 @@ export function recordStageAttemptActivityHeartbeat(
   input: {
     stageAttemptId: string;
     heartbeatKind: string;
+    namespace?: string | null;
     runnerEventKind?: string | null;
     executionSessionRef?: string | null;
     checkpointRefs?: string[];
@@ -151,6 +152,7 @@ export function recordStageAttemptActivityHeartbeat(
   const currentProviderRun = parseStageAttemptJsonObject(row.provider_run_json);
   const providerRun = {
     ...currentProviderRun,
+    namespace: input.namespace?.trim() || currentProviderRun.namespace || null,
     provider_status: 'running',
     started_at: currentProviderRun.started_at ?? observedAt,
     last_heartbeat_at: observedAt,
