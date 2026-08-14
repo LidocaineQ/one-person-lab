@@ -25,6 +25,7 @@ type CliCommandRegistryContract = {
 const registryCases = [
   ['install', 'install', ['headless', 'with-app', 'skip-packages', 'skip-engines', 'skip-native-helper-repair', 'no-online-runtime'], 'OPL Framework'],
   ['app compatibility receipt', 'app_compatibility_receipt', ['requirements-file', 'subject-file', 'output', 'ttl-seconds'], 'OPL Framework'],
+  ['cordis inspect', 'cordis_inspect', [], 'OPL Framework'],
   ['connect scientific search', 'connect_scientific_search', ['provider', 'query', 'limit'], undefined],
   ['connect references verify', 'connect_references_verify', ['references-file', 'providers', 'cache-root', 'max-retries'], undefined],
   ['connect gateway login', 'connect_gateway_login', ['credentials-stdin'], undefined],
@@ -122,7 +123,7 @@ function loadCliCommandRegistryContract() {
 test('registered command help mirrors the canonical command registry', () => {
   const contract = loadCliCommandRegistryContract();
 
-  for (const prefix of ['status', 'runtime manager', 'stages', 'runtime observability', 'update', 'packages', 'release']) {
+  for (const prefix of ['status', 'runtime manager', 'stages', 'runtime observability', 'update', 'packages', 'release', 'cordis inspect']) {
     assert.equal(contract.protected_command_prefixes.includes(prefix), true, prefix);
   }
   assert.equal(contract.protected_command_prefixes.includes('connect pubmed'), false);

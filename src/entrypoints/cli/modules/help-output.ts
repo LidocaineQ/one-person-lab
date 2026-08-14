@@ -97,6 +97,7 @@ const NON_PASSTHROUGH_COMMAND_PREFIXES = new Set([
   'charter',
   'chat',
   'connect',
+  'cordis',
   'env',
   'console',
   'framework',

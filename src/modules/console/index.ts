@@ -5,6 +5,20 @@ export const OPL_CONSOLE_SOURCE_MODULE = {
   physicalRoot: 'src/modules/console',
 } as const;
 
+export {
+  buildCordisCompositionInspect,
+  markCordisCompositionInspectDisposed,
+  CORDIS_AGENT_EXECUTOR_INSPECT_METADATA,
+  CORDIS_COMPOSITION_INSPECT_SCHEMA_REF,
+  CORDIS_COMPOSITION_INSPECT_VERSION,
+} from './cordis-composition-inspect.ts';
+export type {
+  CordisCompositionInspect,
+  CordisCompositionPluginEvent,
+  CordisCompositionPluginMetadata,
+  CordisCompositionSnapshotLike,
+} from './cordis-composition-inspect.ts';
+
 export { buildEvidenceGroundedDecisionAgentProfileConsoleDrilldown } from './evidence-grounded-profile-drilldown.ts';
 export type { EvidenceGroundedDecisionAgentProfileDrilldownInput } from './evidence-grounded-profile-drilldown.ts';
 export * from './agent-readiness.ts';

@@ -22,9 +22,28 @@
     "pack provision-submission-resource",
     "packages",
     "system codex-config-hygiene",
-    "workspace work-item readback"
+    "workspace work-item readback",
+    "cordis inspect"
   ],
   "commands": {
+    "cordis_inspect": {
+      "command_id": "cordis inspect",
+      "owner": "OPL Framework",
+      "parser_adapter": "node_util_parse_args",
+      "options": [],
+      "output_schema": {
+        "$ref": "./cordis-composition-inspect.schema.json"
+      },
+      "authority_boundary": {
+        "can_write_domain_truth": false,
+        "can_create_owner_receipt": false,
+        "can_create_typed_blocker": false,
+        "can_claim_domain_ready": false,
+        "can_claim_production_ready": false,
+        "owner": "OPL Framework",
+        "surface": "cordis_composition_inspect_readback"
+      }
+    },
     "app_compatibility_receipt": {
       "command_id": "app compatibility receipt",
       "owner": "OPL Framework",

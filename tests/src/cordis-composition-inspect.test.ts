@@ -1,0 +1,141 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import test from 'node:test';
+
+import { Context } from '@deepseek-ai/cordis';
+
+import { parseJsonText } from '../../src/kernel/json-file.ts';
+import { validateJsonSchemaPayload } from '../../src/kernel/schema-registry.ts';
+import {
+  buildCordisCompositionInspect,
+  CORDIS_AGENT_EXECUTOR_INSPECT_METADATA,
+} from '../../src/modules/console/cordis-composition-inspect.ts';
+import {
+  buildCordisAgentExecutorCompositionSnapshot,
+  cordisAgentExecutorServicePlugin,
+} from '../../src/modules/runway/cordis-agent-executor-experiment.ts';
+import {
+  contractsDir,
+  repoRoot,
+  runCli,
+  runCliReadOnlyInCwd,
+} from './cli/helpers.ts';
+
+function readJson(relativePath: string): Record<string, unknown> {
+  return parseJsonText(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')) as Record<string, unknown>;
+}
+
+test('Cordis composition inspect schema and CLI output are deterministic and read-only', async () => {
+  const help = runCli(['help', 'cordis', 'inspect']).help;
+  assert.equal(help.registry.command_id, 'cordis inspect');
+  assert.equal(help.registry.authority_boundary.surface, 'cordis_composition_inspect_readback');
+  assert.equal(
+    help.registry.json_output_schema_ref,
+    'contracts/opl-framework/cli-command-registry.json#/commands/cordis_inspect/output_schema',
+  );
+
+  const first = runCli(['cordis', 'inspect']);
+  const second = runCli(['cordis', 'inspect']);
+  assert.deepEqual(first, second);
+
+  const launcher = spawnSync(path.join(repoRoot, 'bin', 'opl'), ['cordis', 'inspect', '--json'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    env: { ...process.env, NODE_NO_WARNINGS: '1' },
+  });
+  assert.equal(launcher.status, 0, launcher.stderr);
+  assert.deepEqual(parseJsonText(launcher.stdout), first);
+
+  const schema = readJson('contracts/opl-framework/cordis-composition-inspect.schema.json');
+  const validation = validateJsonSchemaPayload({
+    schemaId: 'opl.cordis_composition_inspect.v1',
+    schema,
+    sourceRef: 'contracts/opl-framework/cordis-composition-inspect.schema.json',
+  }, first);
+  assert.equal(validation.ok, true, validation.ok ? undefined : JSON.stringify(validation.errors));
+
+  assert.equal(first.surface_kind, 'opl_cordis_composition_inspect');
+  assert.equal(first.authority_boundary.installed_truth, false);
+  assert.equal(first.authority_boundary.domain_truth, false);
+  assert.equal(first.authority_boundary.readiness_truth, false);
+  assert.equal(first.side_effects.external_writes, false);
+  assert.equal(first.observation.teardown_status, 'disposed_after_observation');
+  assert.equal(first.composition.default_caller_activated, false);
+
+  const pluginIds = first.plugins.map((plugin: { id: string }) => plugin.id);
+  assert.deepEqual(pluginIds, [...pluginIds].sort((left, right) => left.localeCompare(right)));
+  const service = first.plugins.find((plugin: { id: string }) => plugin.id === 'opl-cordis-agent-executor-service');
+  assert.equal(service.state, 'active');
+  assert.deepEqual(service.injects, ['opl.runway.executor.adapter']);
+  assert.deepEqual(service.events.map((event: { name: string; mode: string }) => `${event.name}:${event.mode}`), [
+    'opl/runway/executor/completed:parallel',
+    'opl/runway/executor/requested:emit',
+  ]);
+  const observer = first.plugins.find((plugin: { id: string }) => plugin.id === 'opl-cordis-agent-executor-observer');
+  assert.equal(observer.state, 'not_loaded');
+  assert.equal(first.diagnostics.some((entry: { code: string }) => entry.code === 'optional_plugin_not_loaded'), true);
+
+  const emptyRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-cordis-inspect-read-only-'));
+  try {
+    const before = fs.readdirSync(emptyRoot);
+    await runCliReadOnlyInCwd(
+      ['--contracts-dir', contractsDir, 'cordis', 'inspect'],
+      emptyRoot,
+    );
+    assert.deepEqual(fs.readdirSync(emptyRoot), before);
+  } finally {
+    fs.rmSync(emptyRoot, { recursive: true, force: true });
+  }
+});
+
+test('Cordis composition inspect safely degrades for an unknown plugin', async () => {
+  const context = new Context();
+  const unknownPlugin = {
+    name: 'unknown-third-party-plugin',
+    apply() {},
+  };
+  const fiber = await context.plugin(unknownPlugin);
+  try {
+    const inspect = buildCordisCompositionInspect({
+      context,
+      snapshot: {
+        version: 'fixture.snapshot.v1',
+        framework: { package: '@deepseek-ai/cordis', version: '4.0.1' },
+        binding: {},
+        plugins: [],
+      },
+    });
+    const plugin = inspect.plugins.find((entry) => entry.id === 'unknown-third-party-plugin');
+    assert.ok(plugin);
+    assert.equal(plugin.metadata_status, 'unknown');
+    assert.equal(plugin.source_ref, null);
+    assert.equal(plugin.state, 'active');
+    assert.equal(inspect.diagnostics[0]?.code, 'unknown_plugin_metadata');
+  } finally {
+    await fiber.dispose();
+    await context.fiber.dispose();
+  }
+});
+
+test('Cordis composition inspect reports missing required providers without writing state', async () => {
+  const context = new Context();
+  const pendingFiber = context.plugin(cordisAgentExecutorServicePlugin);
+  try {
+    const inspect = buildCordisCompositionInspect({
+      context,
+      snapshot: buildCordisAgentExecutorCompositionSnapshot('fixture-adapter'),
+      metadata: CORDIS_AGENT_EXECUTOR_INSPECT_METADATA,
+    });
+    const service = inspect.plugins.find((entry) => entry.id === 'opl-cordis-agent-executor-service');
+    assert.equal(service?.state, 'pending');
+    assert.equal(service?.disposer_status, 'registered_at_observation');
+    assert.equal(inspect.diagnostics.some((entry) => entry.code === 'required_plugin_not_loaded'), true);
+    assert.equal(inspect.side_effects.persistent_writes, false);
+  } finally {
+    await pendingFiber.dispose();
+    await context.fiber.dispose();
+  }
+});

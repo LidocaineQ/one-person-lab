@@ -88,6 +88,7 @@ import { buildReleaseCommandSpecs } from './public-command-specs-parts/release.t
 import { buildStageCommandSpecs, validateStageDerivedLensCommandSpecs } from './public-command-specs-parts/stages.ts';
 import { buildUpdateCommandSpecs } from './public-command-specs-parts/update.ts';
 import { buildWorkspaceCommandSpecs } from './public-command-specs-parts/workspace.ts';
+import { buildCordisCommandSpecs } from './public-command-specs-parts/cordis.ts';
 import { buildPublicAppCommandSpecs } from './app-public-command-specs.ts';
 
 export function buildPublicCommandSpecs(
@@ -302,6 +303,7 @@ export function buildPublicCommandSpecs(
     ...packagesCommandSpecs,
     ...updateCommandSpecs,
     ...okfCommandSpecs,
+    ...buildCordisCommandSpecs(),
     'framework locate': {
       usage: 'opl framework locate',
       summary: 'Locate the OPL Framework runtime dependency for an OPL-compatible agent.',
