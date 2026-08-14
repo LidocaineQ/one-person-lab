@@ -1,5 +1,9 @@
 import { Context } from '@deepseek-ai/cordis';
 
+import {
+  buildCordisPluginDescriptor,
+  type CordisPluginDescriptor,
+} from '../pack/index.ts';
 import { buildCurrentOwnerDeltaTopline } from './current-owner-delta-topline.ts';
 
 export const CORDIS_OWNER_DELTA_OBSERVER_PLUGIN_ID = 'opl-ledger-owner-delta-observer';
@@ -8,7 +12,19 @@ export const CORDIS_OWNER_DELTA_OBSERVER_SERVICE = 'opl.ledger.owner-delta-obser
 export const CORDIS_OWNER_DELTA_OBSERVER_SOURCE_REF =
   'src/modules/ledger/cordis-owner-delta-observer.ts';
 export const CORDIS_OWNER_DELTA_OBSERVER_SOURCE_COMMIT =
-  '84f914171bbc1424c372b34131b4c0298120660e';
+  '1499a9234c0de28b76d2ef2905572e4e6faba276';
+
+const ledgerAuthorityBoundary = Object.freeze([
+  'app_product_truth',
+  'domain_quality_verdict',
+  'domain_truth',
+  'ledger_evidence_persistence',
+  'ledger_receipt_authority',
+  'package_currentness',
+  'package_installed_truth',
+  'workspace_binding_registry',
+  'workspace_file_bytes',
+]);
 
 export type CordisOwnerDeltaObservationInput = {
   currentOwnerDeltaReadModel: unknown;
@@ -44,6 +60,31 @@ export const cordisOwnerDeltaObserverPlugin = {
     ctx.provide(CORDIS_OWNER_DELTA_OBSERVER_SERVICE, service);
   },
 };
+
+export const CORDIS_OWNER_DELTA_OBSERVER_PLUGIN_DESCRIPTOR: CordisPluginDescriptor =
+  buildCordisPluginDescriptor({
+    plugin_id: CORDIS_OWNER_DELTA_OBSERVER_PLUGIN_ID,
+    plugin_api_version: CORDIS_OWNER_DELTA_OBSERVER_PLUGIN_API_VERSION,
+    source_ref: CORDIS_OWNER_DELTA_OBSERVER_SOURCE_REF,
+    source_commit: CORDIS_OWNER_DELTA_OBSERVER_SOURCE_COMMIT,
+    package_ref: null,
+    required: true,
+    provides: [CORDIS_OWNER_DELTA_OBSERVER_SERVICE],
+    injects: { required: [], optional: [] },
+    events: [{
+      name: 'opl/ledger/owner-delta/observed',
+      mode: 'emit',
+      role: 'publish',
+      payload_schema_ref: null,
+    }],
+    scope: 'composition',
+    trust: 'first_party_privileged',
+    disposer: { required: true, boundary: 'plugin_fiber' },
+    authority_boundary: { forbidden_authorities: ledgerAuthorityBoundary },
+  });
+
+export const CORDIS_OWNER_DELTA_OBSERVER_PLUGIN_DESCRIPTORS: readonly CordisPluginDescriptor[] =
+  Object.freeze([CORDIS_OWNER_DELTA_OBSERVER_PLUGIN_DESCRIPTOR]);
 
 export async function createCordisOwnerDeltaObserverComposition() {
   const ctx = new Context();

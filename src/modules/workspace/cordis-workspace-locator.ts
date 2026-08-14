@@ -1,6 +1,10 @@
 import { Context } from '@deepseek-ai/cordis';
 
 import {
+  buildCordisPluginDescriptor,
+  type CordisPluginDescriptor,
+} from '../pack/index.ts';
+import {
   getActiveWorkspaceBinding,
   listWorkspaceBindings,
   resolveWorkspaceLocator,
@@ -13,7 +17,19 @@ export const CORDIS_WORKSPACE_LOCATOR_SERVICE = 'opl.workspace.locator';
 export const CORDIS_WORKSPACE_LOCATOR_SOURCE_REF =
   'src/modules/workspace/cordis-workspace-locator.ts';
 export const CORDIS_WORKSPACE_LOCATOR_SOURCE_COMMIT =
-  '84f914171bbc1424c372b34131b4c0298120660e';
+  '1499a9234c0de28b76d2ef2905572e4e6faba276';
+
+const workspaceAuthorityBoundary = Object.freeze([
+  'app_product_truth',
+  'domain_quality_verdict',
+  'domain_truth',
+  'ledger_evidence_persistence',
+  'ledger_receipt_authority',
+  'package_currentness',
+  'package_installed_truth',
+  'workspace_binding_registry',
+  'workspace_file_bytes',
+]);
 
 export type CordisWorkspaceLocator = ReturnType<typeof resolveWorkspaceLocator>;
 
@@ -53,6 +69,31 @@ export const cordisWorkspaceLocatorPlugin = {
     ctx.provide(CORDIS_WORKSPACE_LOCATOR_SERVICE, service);
   },
 };
+
+export const CORDIS_WORKSPACE_LOCATOR_PLUGIN_DESCRIPTOR: CordisPluginDescriptor =
+  buildCordisPluginDescriptor({
+    plugin_id: CORDIS_WORKSPACE_LOCATOR_PLUGIN_ID,
+    plugin_api_version: CORDIS_WORKSPACE_LOCATOR_PLUGIN_API_VERSION,
+    source_ref: CORDIS_WORKSPACE_LOCATOR_SOURCE_REF,
+    source_commit: CORDIS_WORKSPACE_LOCATOR_SOURCE_COMMIT,
+    package_ref: null,
+    required: true,
+    provides: [CORDIS_WORKSPACE_LOCATOR_SERVICE],
+    injects: { required: [], optional: [] },
+    events: [{
+      name: 'opl/workspace/locator/resolved',
+      mode: 'emit',
+      role: 'publish',
+      payload_schema_ref: null,
+    }],
+    scope: 'composition',
+    trust: 'first_party_privileged',
+    disposer: { required: true, boundary: 'plugin_fiber' },
+    authority_boundary: { forbidden_authorities: workspaceAuthorityBoundary },
+  });
+
+export const CORDIS_WORKSPACE_LOCATOR_PLUGIN_DESCRIPTORS: readonly CordisPluginDescriptor[] =
+  Object.freeze([CORDIS_WORKSPACE_LOCATOR_PLUGIN_DESCRIPTOR]);
 
 export async function createCordisWorkspaceLocatorComposition() {
   const ctx = new Context();

@@ -44,6 +44,13 @@ export * from './framework-readiness-attention-actions.ts';
 export * from './framework-readiness-attention-counts.ts';
 export * from './framework-readiness-compact-readback.ts';
 export * from './framework-readiness-owner-delta-handoff-summary.ts';
+export {
+  CORDIS_WORKSPACE_LEDGER_COMPOSITION_ID,
+  CORDIS_WORKSPACE_LEDGER_PLUGIN_DESCRIPTORS,
+  buildCordisWorkspaceLedgerCompositionSnapshot,
+  createCordisWorkspaceLedgerComposition,
+  defaultCordisWorkspaceLedgerComposition,
+} from './cordis-workspace-ledger.ts';
 export * from './framework-readiness-typed-blocker-attention.ts';
 export * from './framework-readiness.ts';
 export * from './framework-semantic-hygiene.ts';

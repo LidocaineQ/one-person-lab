@@ -13,7 +13,15 @@ import {
   createCordisOwnerDeltaObserverComposition,
 } from '../../src/modules/ledger/cordis-owner-delta-observer.ts';
 import { buildCurrentOwnerDeltaTopline as buildDirectTopline } from '../../src/modules/ledger/current-owner-delta-topline.ts';
-import { buildCurrentOwnerDeltaTopline as buildCordisTopline } from '../../src/modules/ledger/index.ts';
+import { buildAppOperatorOwnerDeltaTopline } from '../../src/modules/console/runtime-tray-app-operator-drilldown-parts/owner-delta-topline.ts';
+import { buildProductEntryHandoffBundleView } from '../../src/modules/console/product-entry-handoff-bundle.ts';
+import {
+  buildCordisWorkspaceLedgerCompositionSnapshot,
+  createCordisWorkspaceLedgerComposition,
+} from '../../src/modules/console/cordis-workspace-ledger.ts';
+import { CordisCompositionContractError, validateCordisCompositionSnapshot } from '../../src/modules/pack/index.ts';
+import { loadFrameworkContracts } from '../../src/modules/charter/contracts.ts';
+import type { BoundaryExplanation, ResolutionResult } from '../../src/kernel/types.ts';
 import { resolveWorkspaceLocator as resolveCordisWorkspaceLocator } from '../../src/modules/workspace/index.ts';
 
 test('Cordis Workspace locator delegates to the registry and tears down cleanly', async (t) => {
@@ -70,7 +78,58 @@ test('Cordis Ledger observer emits a refs-only projection without persistence', 
   assert.equal(composition.ctx.get(CORDIS_OWNER_DELTA_OBSERVER_SERVICE), undefined);
 });
 
-test('Ledger public topline caller uses the Cordis observer composition', () => {
+test('Console production consumers use injected Cordis services rather than legacy direct paths', () => {
+  const workspaceCalls: string[] = [];
+  const workspaceLocator = {
+    resolve(projectId: string, explicitWorkspacePath?: string) {
+      workspaceCalls.push(projectId);
+      return {
+        project_id: projectId,
+        requested_path: explicitWorkspacePath ?? null,
+        absolute_path: '/injected/workspace',
+        source: 'injected_cordis_provider',
+        binding: null,
+      };
+    },
+    active() {
+      return null;
+    },
+    list() {
+      return [];
+    },
+  };
+  const selected: ResolutionResult = {
+    status: 'selected_domain_agent_entry',
+    request_kind: 'product_entry',
+    workstream_id: 'presentation_ops',
+    domain_id: 'redcube',
+    entry_surface: 'domain_agent_entry',
+    recommended_family: 'ppt_deck',
+    confidence: 'high',
+    reason: 'injected service consumer test',
+    selection_evidence: ['injected'],
+  };
+  const boundary: BoundaryExplanation = {
+    request_summary: 'injected service consumer test',
+    boundary_status: 'selected_domain_agent_entry',
+    boundary_evidence: ['injected'],
+    resolved_domain: 'redcube',
+    resolved_workstream_id: 'presentation_ops',
+    reason: 'injected',
+    rejected_domains: [],
+  };
+  const bundle = buildProductEntryHandoffBundleView(loadFrameworkContracts(), {
+    mode: 'ask',
+    goal: 'injected service consumer test',
+    intent: 'injected',
+    stageSelection: selected,
+    boundary,
+    workspaceLocator,
+  });
+  assert.deepEqual(workspaceCalls, ['redcube']);
+  assert.equal(bundle.handoff_bundle.workspace_locator.absolute_path, '/injected/workspace');
+  assert.equal(bundle.handoff_bundle.workspace_locator.source, 'injected_cordis_provider');
+
   const input = {
     currentOwnerDeltaReadModel: {
       current_owner_delta: {
@@ -79,5 +138,55 @@ test('Ledger public topline caller uses the Cordis observer composition', () => 
       },
     },
   };
-  assert.deepEqual(buildCordisTopline(input), buildDirectTopline(input));
+  const direct = buildDirectTopline(input);
+  let observerCalls = 0;
+  const injectedObserver = {
+    observe(observationInput: { currentOwnerDeltaReadModel: unknown }) {
+      observerCalls += 1;
+      const topline = buildDirectTopline(observationInput);
+      return {
+        ...topline,
+        current_owner_delta: {
+          ...topline.current_owner_delta,
+          current_owner: 'injected-cordis-owner',
+        },
+      };
+    },
+  };
+  const output = buildAppOperatorOwnerDeltaTopline({
+    attentionFirstPayload: {
+      current_owner_delta_read_model: input.currentOwnerDeltaReadModel,
+    },
+  }, injectedObserver);
+  assert.equal(observerCalls, 1);
+  assert.equal(output.operator.current_owner_delta.current_owner, 'injected-cordis-owner');
+  assert.equal(direct.current_owner_delta.current_owner, 'one-person-lab');
+});
+
+test('Workspace/Ledger Cordis composition is deterministic, schema-valid, and typed on missing providers', async () => {
+  const snapshot = buildCordisWorkspaceLedgerCompositionSnapshot();
+  assert.deepEqual(snapshot, buildCordisWorkspaceLedgerCompositionSnapshot());
+  assert.equal(validateCordisCompositionSnapshot(snapshot).ok, true);
+  assert.deepEqual(snapshot.plugins.map((plugin) => plugin.plugin_id), [
+    'opl-ledger-owner-delta-observer',
+    'opl-workspace-locator',
+  ]);
+  assert.equal(snapshot.plugins.every((plugin) => plugin.source_commit === '1499a9234c0de28b76d2ef2905572e4e6faba276'), true);
+
+  const composition = await createCordisWorkspaceLedgerComposition();
+  assert.equal(composition.ctx.get(CORDIS_WORKSPACE_LOCATOR_SERVICE), composition.workspaceLocator);
+  assert.equal(composition.ctx.get(CORDIS_OWNER_DELTA_OBSERVER_SERVICE), composition.ownerDeltaObserver);
+  await composition.dispose();
+  assert.equal(composition.ctx.get(CORDIS_WORKSPACE_LOCATOR_SERVICE), undefined);
+  assert.equal(composition.ctx.get(CORDIS_OWNER_DELTA_OBSERVER_SERVICE), undefined);
+
+  await assert.rejects(
+    createCordisWorkspaceLedgerComposition({ mountWorkspaceLocator: false }),
+    (error: unknown) => {
+      assert.ok(error instanceof CordisCompositionContractError);
+      assert.equal(error.code, 'missing_required_provider');
+      assert.equal(error.details.service_id, CORDIS_WORKSPACE_LOCATOR_SERVICE);
+      return true;
+    },
+  );
 });

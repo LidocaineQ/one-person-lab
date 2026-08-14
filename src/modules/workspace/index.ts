@@ -36,6 +36,8 @@ export {
 } from './repo-source-byproduct-guard.ts';
 export {
   CORDIS_WORKSPACE_LOCATOR_PLUGIN_API_VERSION,
+  CORDIS_WORKSPACE_LOCATOR_PLUGIN_DESCRIPTOR,
+  CORDIS_WORKSPACE_LOCATOR_PLUGIN_DESCRIPTORS,
   CORDIS_WORKSPACE_LOCATOR_PLUGIN_ID,
   CORDIS_WORKSPACE_LOCATOR_SERVICE,
   CORDIS_WORKSPACE_LOCATOR_SOURCE_COMMIT,
@@ -48,31 +50,18 @@ export type {
   CordisWorkspaceLocatorService,
 } from './cordis-workspace-locator.ts';
 import {
-  createCordisWorkspaceLocatorComposition,
-} from './cordis-workspace-locator.ts';
-import {
   buildWorkspaceCatalog,
   inspectWorkspacePathCurrentness,
   pruneWorkspaceRegistry,
+  getActiveWorkspaceBinding,
+  resolveWorkspaceLocator,
 } from './workspace-registry.ts';
 export {
   buildWorkspaceCatalog,
   inspectWorkspacePathCurrentness,
   pruneWorkspaceRegistry,
 };
-const cordisWorkspaceLocatorComposition = await createCordisWorkspaceLocatorComposition();
-
-export function getActiveWorkspaceBinding(projectId: string) {
-  return cordisWorkspaceLocatorComposition.locator.active(projectId);
-}
-
-export function listWorkspaceBindings() {
-  return cordisWorkspaceLocatorComposition.locator.list();
-}
-
-export function resolveWorkspaceLocator(projectId: string, explicitWorkspacePath?: string) {
-  return cordisWorkspaceLocatorComposition.locator.resolve(projectId, explicitWorkspacePath);
-}
+export { getActiveWorkspaceBinding, listWorkspaceBindings, resolveWorkspaceLocator } from './workspace-registry.ts';
 registerWorkspaceBindingPort({
   getActiveWorkspaceBinding,
   resolveWorkspaceLocator,
