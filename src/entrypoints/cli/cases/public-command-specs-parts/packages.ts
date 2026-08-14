@@ -23,11 +23,7 @@ import {
 import { FrameworkContractError } from '../../../../kernel/contract-validation.ts';
 import type { FrameworkContracts } from '../../../../kernel/types.ts';
 import { STANDARD_AGENT_REGISTRY } from '../../../../kernel/standard-agent-registry.ts';
-import {
-  getActiveWorkspaceBinding,
-  listWorkspaceBindings,
-  resolveWorkspaceLocator,
-} from '../../../../modules/workspace/index.ts';
+import type { CordisWorkspaceLocatorService } from '../../../../modules/workspace/index.ts';
 import { readOptionalString } from '../../modules/json-boundary.ts';
 import {
   buildUsageError,
@@ -157,6 +153,7 @@ function pathIsWithin(root: string, candidate: string) {
 export function admitMasWorkspaceScopedPackageMutation<T extends ScopedPackageMutationInput>(
   command: string,
   input: T,
+  workspaceLocator?: CordisWorkspaceLocatorService,
 ): T {
   if (!input.scope) return input;
   const packageId = canonicalAgentPackageId(input.packageId);
@@ -164,8 +161,11 @@ export function admitMasWorkspaceScopedPackageMutation<T extends ScopedPackageMu
     && Boolean(input.manifestUrl || input.registryUrl || input.agentRoot);
   if (packageId !== 'mas' && !unresolvedExplicitSelection) return input;
   if (input.scope === 'quest' && input.targetQuest && !input.targetWorkspace) {
+    if (!workspaceLocator) {
+      throw new Error('Package workspace-scoped commands require an explicit Cordis workspace locator service.');
+    }
     const targetQuest = path.resolve(input.targetQuest);
-    const containingBindings = listWorkspaceBindings()
+    const containingBindings = workspaceLocator.list()
       .filter((binding) => pathIsWithin(binding.workspace_path, targetQuest))
       .sort((left, right) => right.workspace_path.length - left.workspace_path.length);
     const mostSpecificRoot = containingBindings[0]?.workspace_path ?? null;
@@ -215,9 +215,12 @@ export function admitMasWorkspaceScopedPackageMutation<T extends ScopedPackageMu
     );
   }
 
-  let locator: ReturnType<typeof resolveWorkspaceLocator>;
+  let locator: ReturnType<CordisWorkspaceLocatorService['resolve']>;
+  if (!workspaceLocator) {
+    throw new Error('Package workspace-scoped commands require an explicit Cordis workspace locator service.');
+  }
   try {
-    locator = resolveWorkspaceLocator('medautoscience', input.targetWorkspace);
+    locator = workspaceLocator.resolve('medautoscience', input.targetWorkspace);
   } catch (error) {
     throw new FrameworkContractError(
       'contract_shape_invalid',
@@ -231,7 +234,7 @@ export function admitMasWorkspaceScopedPackageMutation<T extends ScopedPackageMu
       },
     );
   }
-  const samePathBindings = listWorkspaceBindings().filter((binding) =>
+  const samePathBindings = workspaceLocator.list().filter((binding) =>
     path.resolve(binding.workspace_path) === locator.absolute_path
   );
   if (!locator.binding || locator.binding.status === 'archived') {
@@ -257,13 +260,14 @@ export function admitMasWorkspaceScopedPackageMutation<T extends ScopedPackageMu
 async function installPackageWithActiveWorkspace(
   input: AgentPackageInstallInput,
   descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>,
+  workspaceLocator?: CordisWorkspaceLocatorService,
 ) {
   const result = await runOplAgentPackageInstall(input);
   if (input.dryRun || input.scope) return result;
   const packageId = result.opl_agent_package_install.package_id;
   if (!packageId) return result;
   const agent = STANDARD_AGENT_REGISTRY.find((entry) => entry.project === packageId);
-  const binding = agent ? getActiveWorkspaceBinding(agent.domain_id) : null;
+  const binding = agent ? workspaceLocator?.active(agent.domain_id) : null;
   if (!binding) return result;
   const defaultScopeActivation = (await runOplAgentPackageActivate({
     packageId,
@@ -324,6 +328,7 @@ export function buildPackagesCommandSpecs(
   getContracts: () => FrameworkContracts,
   getCommandSpec: (command: string) => CommandSpec,
   descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>,
+  workspaceLocator?: CordisWorkspaceLocatorService,
 ): Record<string, CommandSpec> {
   const specs: Record<string, CommandSpec> = {
     'packages list': {
@@ -380,8 +385,10 @@ export function buildPackagesCommandSpecs(
         admitMasWorkspaceScopedPackageMutation(
           'packages install',
           parsePackageSelection('packages install', args, getCommandSpec('packages install')),
+          workspaceLocator,
         ),
         descriptorDiscovery,
+        workspaceLocator,
       ),
     },
     'packages activate': {
@@ -397,6 +404,7 @@ export function buildPackagesCommandSpecs(
         admitMasWorkspaceScopedPackageMutation(
           'packages activate',
           parsePackageAction('packages activate', args, getCommandSpec('packages activate')),
+          workspaceLocator,
         ),
         { descriptorDiscovery },
       ),
@@ -414,6 +422,7 @@ export function buildPackagesCommandSpecs(
         const input = admitMasWorkspaceScopedPackageMutation(
           'packages update',
           parsePackageSelection('packages update', args, getCommandSpec('packages update')),
+          workspaceLocator,
         );
         if (hasExplicitPackageSelection(input)) {
           return runOplAgentPackageUpdate(input);
@@ -493,6 +502,7 @@ export function buildPackagesCommandSpecs(
       handler: (args) => runOplAgentPackageRepair(admitMasWorkspaceScopedPackageMutation(
         'packages repair',
         parsePackageRepair(args, getCommandSpec('packages repair')),
+        workspaceLocator,
       )),
     },
     'packages uninstall': {

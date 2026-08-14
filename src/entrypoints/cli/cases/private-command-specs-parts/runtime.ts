@@ -62,12 +62,14 @@ type PrivateRuntimeCommandSpecsOptions = {
   getCommandSpecs: () => Record<string, CommandSpec>;
   getContracts: () => FrameworkContracts;
   familyRuntime: typeof runFamilyRuntime;
+  runtimeSnapshotProvider: typeof buildRuntimeTraySnapshot;
 };
 
 export function buildPrivateRuntimeCommandSpecs({
   getCommandSpecs,
   getContracts,
   familyRuntime,
+  runtimeSnapshotProvider,
 }: PrivateRuntimeCommandSpecsOptions): Record<string, CommandSpec> {
   return {
     'status workspace': {
@@ -231,7 +233,7 @@ export function buildPrivateRuntimeCommandSpecs({
       examples: ['opl runtime snapshot', 'opl runtime snapshot --json'],
       handler: (args) => {
         assertNoArgs(args, getCommandSpecs()['runtime snapshot']);
-        return buildRuntimeTraySnapshot(getContracts());
+        return runtimeSnapshotProvider(getContracts());
       },
     },
     'runtime app-operator-drilldown': { // reuse-first: allow diagnostic drilldown command projection.
@@ -292,7 +294,7 @@ export function buildPrivateRuntimeCommandSpecs({
             },
           );
         }
-        const snapshot = await buildRuntimeTraySnapshot(getContracts(), {
+        const snapshot = await runtimeSnapshotProvider(getContracts(), {
           appOperatorDrilldownDetailLevel:
             parsed.full === true ? 'full' : (parsed.detail as 'summary' | 'full' | undefined) ?? 'summary',
         });
@@ -311,7 +313,7 @@ export function buildPrivateRuntimeCommandSpecs({
       ],
       handler: async (args) => {
         assertNoArgs(args, getCommandSpecs()['runtime memory-artifact-lifecycle']);
-        const snapshot = await buildRuntimeTraySnapshot(getContracts(), {
+        const snapshot = await runtimeSnapshotProvider(getContracts(), {
           appOperatorDrilldownDetailLevel: 'full',
         });
         return {
@@ -343,7 +345,7 @@ export function buildPrivateRuntimeCommandSpecs({
         'opl runtime action execute --action action:sat_demo:domain-repair-command:0 --payload \'{"reason":"operator_selected"}\'',
       ],
       handler: (args) => runRuntimeOperatorActionExecute(getContracts(), args, {
-        runtimeSnapshotProvider: buildRuntimeTraySnapshot,
+        runtimeSnapshotProvider,
         runFamilyAgentLegacyCleanupApply: (contracts, cleanupArgs) => runFamilyAgentLegacyCleanupApply(
           contracts,
           cleanupArgs,
@@ -467,7 +469,7 @@ export function buildPrivateRuntimeCommandSpecs({
           : 'json';
         const exportPayload = await buildObservabilityExport(getContracts(), {
           format,
-          runtimeSnapshotProvider: buildRuntimeTraySnapshot,
+          runtimeSnapshotProvider,
         });
         if (format === 'openmetrics') {
           process.stdout.write(renderObservabilityOpenMetrics(exportPayload));
@@ -555,7 +557,7 @@ export function buildPrivateRuntimeCommandSpecs({
           metricsPath: parsed['metrics-path'] as string | undefined,
           once: parsed.once === true,
           readyFile: parsed['ready-file'] as string | undefined,
-          runtimeSnapshotProvider: buildRuntimeTraySnapshot,
+          runtimeSnapshotProvider,
         });
         return { __handled: true as const };
       },
@@ -645,7 +647,7 @@ export function buildPrivateRuntimeCommandSpecs({
             port: parsed.port as number | undefined,
             metricsPath: parsed['metrics-path'] as string | undefined,
             timeoutMs: parsed['timeout-ms'] as number | undefined,
-            runtimeSnapshotProvider: buildRuntimeTraySnapshot,
+            runtimeSnapshotProvider,
           }),
         };
       },
@@ -693,7 +695,7 @@ export function buildPrivateRuntimeCommandSpecs({
         'opl family-runtime evidence-worklist --family-defaults --provider temporal --executor-kind codex_cli --detail full --json',
       ],
       handler: (args) => familyRuntime(args, {
-        runtimeSnapshotProvider: buildRuntimeTraySnapshot,
+        runtimeSnapshotProvider,
       }),
     },
     'stage-artifact': {

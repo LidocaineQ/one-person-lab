@@ -10,14 +10,11 @@ import {
 } from '../helpers.ts';
 import { buildFrameworkReadinessSummary } from '../../../../src/modules/console/framework-readiness.ts';
 import { buildRuntimeTraySnapshot } from '../../../../src/modules/console/runtime-tray-snapshot.ts';
-import {
-  buildDomainManifestCatalog,
-  buildStandardAgentDomainManifestCatalog,
-} from '../../../../src/modules/atlas/index.ts';
 import { buildManyStageManifest } from './runtime-app-operator-drilldown-summary-fixtures.ts';
 import { createFamilyWorkspaceFixture } from './runtime-app-operator-drilldown-helpers.ts';
 import { createAdmittedStagePackFixture } from './workspace-domain-test-helper.ts';
 import { createCordisOwnerDeltaObserverComposition } from '../../../../src/modules/ledger/cordis-owner-delta-observer.ts';
+import { createCordisBaseHeadlessComposition } from '../../../../src/entrypoints/cordis/composition-profiles.ts';
 
 test('framework readiness keeps domain manifest live refresh bounded and uses projection cache on slow manifests', async () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-readiness-cache-state-'));
@@ -71,18 +68,20 @@ test('framework readiness keeps domain manifest live refresh bounded and uses pr
     process.env.OPL_FAMILY_WORKSPACE_ROOT = workspaceRoot;
     process.env.OPL_META_AGENT_REPO_DIR = omaRepoDir;
     let observerComposition: Awaited<ReturnType<typeof createCordisOwnerDeltaObserverComposition>> | undefined;
+    let cordisComposition: Awaited<ReturnType<typeof createCordisBaseHeadlessComposition>> | undefined;
     try {
       const contracts = loadFrameworkContracts();
       observerComposition = await createCordisOwnerDeltaObserverComposition();
-      const domainManifests = buildDomainManifestCatalog(contracts, {
+      cordisComposition = await createCordisBaseHeadlessComposition();
+      const domainManifests = cordisComposition.services.atlas(contracts, {
         manifestCommandTimeoutMs: 5_000,
         manifestCommandTimeoutPolicy: 'fixed',
         materializeFamilyTransitions: false,
         useProjectionCacheOnFailure: true,
-      }).domain_manifests;
-      const standardAgentDomainManifests = buildStandardAgentDomainManifestCatalog(contracts, {
+      });
+      const standardAgentDomainManifests = cordisComposition.services.atlas.buildStandardAgent(contracts, {
         legacyDomainManifests: domainManifests,
-      }).domain_manifests;
+      });
       const readiness = (await buildFrameworkReadinessSummary(contracts, {
         familyDefaults: true,
       }, {
@@ -101,6 +100,7 @@ test('framework readiness keeps domain manifest live refresh bounded and uses pr
       );
     } finally {
       await observerComposition?.dispose();
+      await cordisComposition?.dispose();
       restoreEnvVar('OPL_STATE_DIR', previousStateDir);
       restoreEnvVar('OPL_CONTRACTS_DIR', previousContractsDir);
       restoreEnvVar('OPL_FAMILY_WORKSPACE_ROOT', previousFamilyWorkspaceRoot);
@@ -157,9 +157,17 @@ test('runtime tray full detail keeps manifest live refresh bounded and uses proj
     const previousContractsDir = process.env.OPL_CONTRACTS_DIR;
     process.env.OPL_STATE_DIR = stateRoot;
     process.env.OPL_CONTRACTS_DIR = fixtureContractsRoot;
+    let cordisComposition: Awaited<ReturnType<typeof createCordisBaseHeadlessComposition>> | undefined;
     try {
-      const snapshot = await buildRuntimeTraySnapshot(loadFrameworkContracts(), {
+      const contracts = loadFrameworkContracts();
+      cordisComposition = await createCordisBaseHeadlessComposition();
+      const snapshot = await buildRuntimeTraySnapshot(contracts, {
         appOperatorDrilldownDetailLevel: 'full',
+        domainManifests: cordisComposition.services.atlas(contracts, {
+          manifestCommandTimeoutMs: 5_000,
+          manifestCommandTimeoutPolicy: 'fixed',
+          useProjectionCacheOnFailure: true,
+        }),
       });
       const tray = snapshot.runtime_tray_snapshot;
       assert.equal(tray.app_operator_drilldown.stage_production_evidence.summary.stage_count, 3);
@@ -176,6 +184,7 @@ test('runtime tray full detail keeps manifest live refresh bounded and uses proj
       assert.ok(cachedProject.cache.source_error && typeof cachedProject.cache.source_error === 'object');
       assert.equal((cachedProject.cache.source_error as { timeout_ms?: number }).timeout_ms, 5000);
     } finally {
+      await cordisComposition?.dispose();
       restoreEnvVar('OPL_STATE_DIR', previousStateDir);
       restoreEnvVar('OPL_CONTRACTS_DIR', previousContractsDir);
     }

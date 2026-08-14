@@ -1,9 +1,6 @@
 import type { DomainManifestCatalogEntry } from './domain-manifest/types.ts';
 import { record, stringList, stringValue, type JsonRecord } from '../../kernel/json-record.ts';
-import {
-  readWorkspaceBindingPort,
-  type WorkspaceBinding,
-} from '../../kernel/workspace-binding-port.ts';
+import type { WorkspaceBinding } from '../../kernel/workspace-binding-port.ts';
 
 type BuildFamilyDomainCatalogOptions = {
   resolveActiveWorkspaceBinding?: (projectId: string) => WorkspaceBinding | null;
@@ -142,8 +139,7 @@ function resolveActiveBinding(
   projectId: string,
   options: BuildFamilyDomainCatalogOptions,
 ) {
-  const resolver = options.resolveActiveWorkspaceBinding
-    ?? readWorkspaceBindingPort()?.getActiveWorkspaceBinding;
+  const resolver = options.resolveActiveWorkspaceBinding;
   return resolver?.(projectId) ?? null;
 }
 

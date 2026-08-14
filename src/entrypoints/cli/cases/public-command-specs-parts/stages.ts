@@ -12,7 +12,10 @@ import {
   buildFamilyStagesList,
 } from '../../../../modules/stagecraft/family-stage-control-plane.ts';
 import {
-  buildStandardAgentDomainManifestCatalog,
+} from '../../../../modules/atlas/index.ts';
+import type {
+  CordisAtlasCatalogService,
+  CordisDomainManifestCatalogOptions,
 } from '../../../../modules/atlas/index.ts';
 import {
   familyStageDiagnosticLensCommands,
@@ -104,11 +107,21 @@ function assertRegisteredStageArgs(
 
 export function buildStageCommandSpecs(
   getContracts: () => FrameworkContracts,
+  atlasService?: CordisAtlasCatalogService,
 ): Record<string, CommandSpec> {
   const loadDomainManifests = (
     contracts: FrameworkContracts,
-    options: Parameters<typeof buildStandardAgentDomainManifestCatalog>[1],
-  ) => buildStandardAgentDomainManifestCatalog(contracts, options).domain_manifests;
+    options: CordisDomainManifestCatalogOptions,
+  ): ReturnType<CordisAtlasCatalogService['buildStandardAgent']> => {
+    if (!atlasService) {
+      throw new Error('Stage command requires an explicit Cordis Atlas catalog service.');
+    }
+    const legacyDomainManifests = atlasService(contracts, options);
+    return atlasService.buildStandardAgent(contracts, {
+      ...options,
+      legacyDomainManifests,
+    });
+  };
   const stageCommandSpecs: Record<string, CommandSpec> = {
     'stages list': {
       usage: 'opl stages list',

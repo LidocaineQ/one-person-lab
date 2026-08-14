@@ -5,6 +5,7 @@ import { FrameworkContractError } from '../../kernel/contract-validation.ts';
 import { requireAgentPackageReadinessPort } from '../../kernel/agent-package-readiness-port.ts';
 import { resolveStandardAgent } from '../../kernel/standard-agent-registry.ts';
 import { buildDomainManifestCatalog } from './domain-manifest/catalog-builder.ts';
+import type { CordisAtlasCatalogService } from './cordis-domain-manifest-catalog.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
 import type { WorkspaceLocator } from '../../kernel/workspace-binding-port.ts';
 
@@ -16,6 +17,7 @@ export type LaunchDomainEntryOptions = {
   workspaceLocator: {
     resolve(projectId: string, explicitWorkspacePath?: string): WorkspaceLocator;
   };
+  atlas?: CordisAtlasCatalogService;
   strategy?: DomainLaunchStrategy;
   dryRun?: boolean;
 };
@@ -194,8 +196,13 @@ export async function launchDomainEntry(
   }
   const requestedStrategy = options.strategy ?? 'auto';
   const selectedStrategy = selectStrategy(locator, requestedStrategy);
+  const domainManifests = options.atlas
+    ? options.atlas(contracts)
+    : buildDomainManifestCatalog(contracts, {
+        resolveActiveWorkspaceBinding: (projectId) => options.workspaceLocator.resolve(projectId).binding,
+      }).domain_manifests;
   const manifestEntry =
-    buildDomainManifestCatalog(contracts).domain_manifests.projects.find(
+    domainManifests.projects.find(
       (entry) => entry.project_id === options.projectId,
     ) ?? null;
 

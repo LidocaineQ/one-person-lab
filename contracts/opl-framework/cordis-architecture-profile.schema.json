@@ -21,7 +21,7 @@
     "version": { "const": "cordis-architecture-profile.v1" },
     "scope": { "const": "opl_framework_cordis_architecture_profile" },
     "owner": { "const": "OPL Framework" },
-    "state": { "const": "p5r_rebaseline_active" },
+    "state": { "const": "landed/default" },
     "machine_boundary": { "type": "string", "minLength": 1 },
     "source_refs": {
       "type": "array",
@@ -197,6 +197,7 @@
         "default_candidate",
         "caller_refs",
         "plugin_allowlist",
+        "child_composition_allowlist",
         "composition_scope",
         "runtime_constraints",
         "authority_boundary"
@@ -204,7 +205,7 @@
       "additionalProperties": false,
       "properties": {
         "profile_id": { "type": "string", "minLength": 1 },
-        "status": { "enum": ["planned", "candidate", "active"] },
+        "status": { "enum": ["planned", "candidate", "active", "landed/default", "landed/available"] },
         "host": { "enum": ["headless", "app", "foundry_dev"] },
         "default_candidate": { "type": "boolean" },
         "caller_refs": {
@@ -217,6 +218,13 @@
           "type": "array",
           "minItems": 1,
           "items": { "$ref": "#/$defs/profile_plugin" }
+        },
+        "child_composition_allowlist": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["agent_executor_request", "runway_attempt", "pack_stagecraft_route"]
+          }
         },
         "composition_scope": { "enum": ["process", "session", "attempt"] },
         "runtime_constraints": {
@@ -287,7 +295,14 @@
           "uniqueItems": true,
           "items": { "type": "string", "minLength": 1 }
         },
-        "default_path_changed": { "type": "boolean" }
+        "default_path_changed": { "type": "boolean" },
+        "profile_route": { "type": "string", "minLength": 1 },
+        "child_composition_snapshot_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
       }
     },
     "gate": {

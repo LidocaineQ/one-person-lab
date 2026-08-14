@@ -1,5 +1,6 @@
 import { findDomainOrThrow } from '../charter/index.ts';
 import { buildDomainManifestCatalog } from '../atlas/index.ts';
+import type { CordisAtlasCatalogService } from '../atlas/index.ts';
 import { buildDomainEntryParity, buildRecommendedEntrySurfaces } from '../atlas/index.ts';
 import type { CordisWorkspaceLocatorService } from './cordis-workspace-ledger.ts';
 import { buildOplRuntimeEndpoints } from '../../kernel/opl-runtime-endpoints.ts';
@@ -32,6 +33,7 @@ type BuildProductEntryHandoffBundleOptions = {
   sessionId?: string | null;
   basePath?: string;
   workspaceLocator: CordisWorkspaceLocatorService;
+  atlas?: CordisAtlasCatalogService;
 };
 
 function resolveSelectedDomainId(stageSelection: ResolutionResult) {
@@ -58,7 +60,11 @@ export function buildProductEntryHandoffBundleView(
         source: options.workspacePath ? 'explicit_path' : 'none',
         binding: null,
       };
-  const domainManifestCatalog = buildDomainManifestCatalog(contracts).domain_manifests;
+  const domainManifestCatalog = options.atlas
+    ? options.atlas(contracts)
+    : buildDomainManifestCatalog(contracts, {
+        resolveActiveWorkspaceBinding: workspaceLocatorService.active,
+      }).domain_manifests;
   const domainManifestEntry = targetDomainId
     ? domainManifestCatalog.projects.find(
         (entry) => entry.project_id === targetDomainId,

@@ -1,5 +1,5 @@
 import type { AgentWorkspaceNormContract, FrameworkContracts } from '../../kernel/types.ts';
-import type { CordisConnectDescriptorDiscoveryService } from '../connect/index.ts';
+import type { CordisConnectDescriptorDiscoveryService } from '../connect/cordis-connect-services.ts';
 import { SETTINGS_CONTROL_CENTER_ACTIONS } from './app-state-settings-control-center.ts';
 import { hasExecutableAppContribution } from './app-contribution-broker.ts';
 import {

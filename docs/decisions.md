@@ -14,17 +14,17 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 影响：
 
 - 长期目标固定为使用正式 `@deepseek-ai/cordis`，而不是 OPL 自研 `Cordis-like` 内核。不得新增通用 OPL plugin registry、平行 service locator、平行 event bus、平行 effect/lifecycle 或长期兼容内核。
-- P4-P6 必须继续实施到所有有真实收益的进程内 seam、默认 Base/headless 与 App/托管入口完成切换，并在 successor 通过后退役旧通用组合内核。迁移成本不再作为 go/no-go；只有安全、权限、数据完整性、不可伪造性和原 owner authority 是硬边界。
+- P4-P6 已实施到有真实收益的进程内 seam，默认 Base/headless 与 Framework-hosted composition 已切换；App/AionUI GUI ABI 仍由 App owner验收。迁移成本不再作为 go/no-go；只有安全、权限、数据完整性、不可伪造性和原 owner authority 是硬边界。
 - DSH 是首要参考架构和首要兼容目标。当前公开观察为 DSH 根版本 `0.1.0-rc.5`、`master` 提交 `47f943859bef60e4160492346772ded9b24f765a`，其 `vendor/cordis` 发布为 `@deepseek-ai/cordis@4.0.1`；独立上游包 `cordis@4.0.0-rc.8` 只作参考。实验和发布必须锁定 DSH source commit、scoped package exact version、lockfile integrity 与运行时版本，不得使用 `latest` 或未锁定 upstream 包。
 - Brand module、Package、Cordis plugin、composition snapshot 与 executor route 是五个正交身份。品牌模块继续是当前源码/bounded-context owner 和开发者认知地图，但不预先决定最终 plugin 数量；Package 继续是安装/发布/分发单元；Cordis plugin 只表示进程内贡献；composition snapshot 只冻结一次执行的组合输入；executor route 只表示可调用的真实执行器。
 - Cordis 只负责进程内 Context、service 依赖注入、typed event、可撤销 effect 和 scope teardown。Package installed truth/currentness、Temporal durable workflow、Workspace 文件与绑定、Ledger evidence/receipt、Foundry version/promotion/activation、domain truth/quality verdict 和 App product truth 不迁入 Cordis。
-- 首个真实实验固定选择 `Agent Executor` seam。P1 十模块 surface map 与 P2 隔离 composition 已使用真实 `@deepseek-ai/cordis@4.0.1` 落地；默认生产入口、Temporal durable substrate、Package lifecycle 和 Ledger authority 在 P6 前保持不变。完整阶段、owner、写集、验证和回退门见 [`docs/active/cordis-adoption-plan.md`](./active/cordis-adoption-plan.md)。
+- 首个真实实验固定选择 `Agent Executor` seam。P1 十模块 surface map 与 P2 隔离 composition 使用真实 `@deepseek-ai/cordis@4.0.1` 落地，P5 vertical seams 和 P6 `base-headless` 默认入口随后完成切换；Temporal durable substrate、Package lifecycle 和 Ledger authority 始终保持原 owner。完整阶段、owner、写集、验证和回退门见 [`docs/active/cordis-adoption-plan.md`](./active/cordis-adoption-plan.md)。
 - plugin 可以独立版本、分支和发布，但组合依赖显式 descriptor/compatibility contract，不建立中央 SemVer resolver；缺依赖、API 不兼容、trust 或 scope 冲突必须产生可诊断失败。生产 attempt 在启动时冻结 composition snapshot，禁止运行中热换。
-- 在 P5 早期证据形成后、P6 默认切换前执行 `Cordis-native architecture re-baseline`：重新确定 authority domain、Package、Cordis plugin 和 curated composition profile 四层边界。当前十品牌模块只作为盘点和源码兼容基线；可以保留、拆分、合并或降级，判断依据是独立 authority、caller、lifecycle、scope、trust、故障隔离、发布节奏和替换价值，而不是目录对称或命名偏好。
+- P5-R 已执行 `Cordis-native architecture re-baseline`：authority domain、Package、Cordis plugin 和 curated composition profile 四层边界已冻结。当前十品牌模块只作为源码/认知基线；可保留、拆分、合并或降级，判断依据是独立 authority、caller、lifecycle、scope、trust、故障隔离、发布节奏和替换价值，而不是目录对称或命名偏好。
 - Cordis 不是安全沙箱。不可信 plugin 不得因拥有 plugin 身份而进入 privileged root；需要隔离时使用现有 sandbox/provider 或独立进程。Cordis event 是进程内 transport，durable/replay/evidence 事实仍归 Temporal/Ledger/owner receipt。
-- P0-P6 路线图、收益、代价和 go/no-go 已冻结。当前已证明的收益包括 seam 可见性、executor 可替换、依赖注入、typed event、scope teardown、composition isolation 与 P3 组合可观测性；完整收益还包括较小改动半径、受控 profile、独立 Package/plugin 版本组合、可诊断 teardown、较低维护负担和 Harness 自进化 substrate。后者仍必须分别通过 P4、P5-R、P5 caller switch 与 P6 的真实 readback 后才能声明完成。
+- P0-P6 路线图已完成。已证明的收益包括 seam 可见性、executor/provider/observer 可替换、依赖注入、typed event、scope teardown、composition isolation、受控 profile、snapshot/digest 回放、较小改动半径、较低 wiring 维护负担和 Harness 自进化 substrate；live/production 自进化结果仍须由真实 owner evidence 单独证明。
 
-本决策把目标 runtime composition 从“方向与实验”升级为“完整迁移终态”，但不改写既有 Package successor-first、Temporal production substrate、FoundryRun authority、Ledger refs-only 或 domain/App owner 决策。当前状态为 `roadmap_complete / full_migration_authorized / p1_p2_p3_p4_landed / p5a_active / p5r_active / p5b_p6_not_started`；exact devDependency、隔离实验、只读 inspect、组合合同与重基线草案仍不能写成已 Cordis-native、已默认运行、已兼容 DSH 或已发布。
+本决策把目标 runtime composition 从“方向与实验”升级为并完成“Framework 全面迁移终态”，但不改写既有 Package successor-first、Temporal production substrate、FoundryRun authority、Ledger refs-only 或 domain/App owner 决策。当前状态为 `p1_p2_p3_p4_p5_p5r_p6_landed / base_headless_default`；exact runtime dependency、默认 profile、child snapshot refs 和 teardown 已落地，但这不等于 DSH 上游兼容、App release 或各 owner live/production readiness 已完成。
 
 ## 2026-08-06
 

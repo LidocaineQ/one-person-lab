@@ -1,10 +1,21 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 import { validateJsonSchemaPayload } from '../../src/kernel/schema-registry.ts';
+import {
+  createCordisAppFullComposition,
+  createCordisBaseHeadlessComposition,
+  createCordisFoundryDevComposition,
+} from '../../src/entrypoints/cordis/composition-profiles.ts';
+import {
+  buildCordisAgentExecutorCompositionSnapshot,
+  buildCordisPackStagecraftCompositionSnapshot,
+} from '../../src/modules/runway/cordis-agent-executor-experiment.ts';
+import { buildCordisRunwayAttemptCompositionSnapshot } from '../../src/modules/runway/cordis-runway-attempt.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..');
 const contractRef = 'contracts/opl-framework/cordis-architecture-profile.json';
@@ -74,8 +85,83 @@ test('profiles are explicit allowlists with only real caller evidence', () => {
     for (const plugin of selected.plugin_allowlist) assert.equal(contributions.has(plugin.plugin_id), true, plugin.plugin_id);
   }
   assert.equal(profile.profiles.some((entry: JsonObject) => entry.default_candidate), true);
-  assert.equal(profile.cutover.current_default_profile, null);
-  assert.equal(profile.cutover.p6.status, 'not_started');
+  assert.equal(profile.cutover.current_default_profile, 'base-headless');
+  assert.equal(profile.cutover.p6.status, 'landed');
+});
+
+test('profile runtime snapshots match their root and child composition allowlists', async () => {
+  const contract = readJson(contractRef);
+  const compositions = [
+    await createCordisBaseHeadlessComposition(),
+    await createCordisAppFullComposition({
+      runtimeSnapshotProvider: async () => ({ runtime_tray_snapshot: {} }),
+    }),
+    await createCordisFoundryDevComposition(),
+  ];
+  try {
+    for (const composition of compositions) {
+      const profile = contract.profiles.find(
+        (entry: JsonObject) => entry.profile_id === composition.profileId,
+      );
+      assert.ok(profile, composition.profileId);
+      const allowed = new Map<string, boolean>(
+        profile.plugin_allowlist.map((entry: JsonObject) => [entry.plugin_id, entry.required]),
+      );
+      const runtime = new Map<string, boolean>(
+        composition.snapshot.plugins.map((entry) => [entry.plugin_id, entry.required]),
+      );
+      assert.deepEqual(
+        [...runtime.keys()].sort(),
+        [...allowed.entries()]
+          .filter(([pluginId, required]) => required || runtime.has(pluginId))
+          .map(([pluginId]) => pluginId)
+          .sort(),
+        `${composition.profileId}: runtime root plugin set`,
+      );
+      for (const [pluginId, required] of allowed) {
+        if (required) assert.equal(runtime.get(pluginId), true, `${composition.profileId}:${pluginId}`);
+      }
+      assert.deepEqual(
+        Object.keys(composition.snapshot.binding.child_composition_snapshot_refs ?? {}).sort(),
+        [...profile.child_composition_allowlist].sort(),
+        `${composition.profileId}: child composition set`,
+      );
+    }
+  } finally {
+    for (const composition of compositions.reverse()) await composition.dispose();
+  }
+});
+
+test('every profile and child descriptor source identity resolves to reachable Git bytes', async () => {
+  const compositions = [
+    await createCordisBaseHeadlessComposition(),
+    await createCordisAppFullComposition({
+      runtimeSnapshotProvider: async () => ({ runtime_tray_snapshot: {} }),
+    }),
+    await createCordisFoundryDevComposition(),
+  ];
+  try {
+    const descriptors = [
+      ...compositions.flatMap((composition) => composition.snapshot.plugins),
+      ...buildCordisAgentExecutorCompositionSnapshot().plugins,
+      ...buildCordisRunwayAttemptCompositionSnapshot().plugins,
+      ...buildCordisPackStagecraftCompositionSnapshot().plugins,
+    ];
+    for (const descriptor of descriptors) {
+      assert.doesNotThrow(() => execFileSync(
+        'git',
+        ['cat-file', '-e', `${descriptor.source_commit}:${descriptor.source_ref}`],
+        { cwd: repoRoot, stdio: 'pipe' },
+      ), descriptor.source_identity);
+      assert.doesNotThrow(() => execFileSync(
+        'git',
+        ['merge-base', '--is-ancestor', descriptor.source_commit, 'HEAD'],
+        { cwd: repoRoot, stdio: 'pipe' },
+      ), `${descriptor.source_identity}: source commit is not reachable from HEAD`);
+    }
+  } finally {
+    for (const composition of compositions.reverse()) await composition.dispose();
+  }
 });
 
 test('authority boundaries and retirement gates do not create a second registry or lifecycle', () => {

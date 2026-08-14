@@ -1,7 +1,7 @@
 import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
 import { stringValue as optionalString, type JsonRecord } from '../../kernel/json-record.ts';
 import { buildDomainManifestCatalog } from '../atlas/index.ts';
-import type { DomainManifestCatalogEntry, NormalizedDomainManifest } from '../atlas/index.ts';
+import type { DomainManifestCatalog, DomainManifestCatalogEntry, NormalizedDomainManifest } from '../atlas/index.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
 import {
   matchesStandardDomainAgentCatalogEntry,
@@ -330,8 +330,20 @@ export function buildGenericSubstrateProjection(entry: DomainManifestCatalogEntr
   };
 }
 
-function findProjectionEntry(contracts: FrameworkContracts, domain: string) {
-  const catalog = buildDomainManifestCatalog(contracts).domain_manifests;
+type GenericSubstrateOptions = {
+  domainManifests?: DomainManifestCatalog;
+};
+
+function manifestCatalog(contracts: FrameworkContracts, options: GenericSubstrateOptions) {
+  return options.domainManifests ?? buildDomainManifestCatalog(contracts).domain_manifests;
+}
+
+function findProjectionEntry(
+  contracts: FrameworkContracts,
+  domain: string,
+  options: GenericSubstrateOptions,
+) {
+  const catalog = manifestCatalog(contracts, options);
   const normalized = normalizeDomainSelection(domain);
   const entry = catalog.projects.find((candidate) => {
     const manifest = candidate.manifest;
@@ -355,8 +367,11 @@ function findProjectionEntry(contracts: FrameworkContracts, domain: string) {
   return entry;
 }
 
-export function buildGenericSubstrateProjectionList(contracts: FrameworkContracts) {
-  const catalog = buildDomainManifestCatalog(contracts).domain_manifests;
+export function buildGenericSubstrateProjectionList(
+  contracts: FrameworkContracts,
+  options: GenericSubstrateOptions = {},
+) {
+  const catalog = manifestCatalog(contracts, options);
   const projections = catalog.projects.map(buildGenericSubstrateProjection);
   return {
     version: 'g2',
@@ -384,8 +399,11 @@ export function buildGenericSubstrateProjectionList(contracts: FrameworkContract
   };
 }
 
-export function buildGenericSubstrateWorkbench(contracts: FrameworkContracts) {
-  const catalog = buildDomainManifestCatalog(contracts).domain_manifests;
+export function buildGenericSubstrateWorkbench(
+  contracts: FrameworkContracts,
+  options: GenericSubstrateOptions = {},
+) {
+  const catalog = manifestCatalog(contracts, options);
   const projections = catalog.projects.map(buildGenericSubstrateProjection);
   const refCounts = projections.map(refCount);
   const refFamilies = {
@@ -468,9 +486,13 @@ export function buildGenericSubstrateWorkbench(contracts: FrameworkContracts) {
   };
 }
 
-export function buildGenericSubstrateProjectionInspect(contracts: FrameworkContracts, args: string[]) {
+export function buildGenericSubstrateProjectionInspect(
+  contracts: FrameworkContracts,
+  args: string[],
+  options: GenericSubstrateOptions = {},
+) {
   const { domain } = parseProjectionArgs(args);
-  const entry = findProjectionEntry(contracts, domain);
+  const entry = findProjectionEntry(contracts, domain, options);
   const projection = buildGenericSubstrateProjection(entry);
   return {
     version: 'g2',

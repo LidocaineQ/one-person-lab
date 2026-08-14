@@ -2,7 +2,7 @@
   "version": "cordis-architecture-profile.v1",
   "scope": "opl_framework_cordis_architecture_profile",
   "owner": "OPL Framework",
-  "state": "p5r_rebaseline_active",
+  "state": "landed/default",
   "machine_boundary": "This contract freezes the Cordis-native target shape and migration gates. It is not an installed Package registry, currentness record, lock, resolver, durable event log, domain verdict, Foundry activation record, or App product truth.",
   "source_refs": [
     "contracts/opl-framework/cordis-surface-map.json",
@@ -176,7 +176,7 @@
           "contribution_id": "workspace-locator",
           "plugin_id": "opl-workspace-locator",
           "disposition": "split",
-          "implementation_state": "planned",
+          "implementation_state": "landed",
           "source_refs": ["src/modules/workspace/workspace-registry.ts"],
           "caller_refs": ["src/modules/console/product-entry-handoff-bundle.ts", "src/modules/atlas/domain-launch.ts"],
           "scope": "session",
@@ -285,7 +285,7 @@
           "contribution_id": "ledger-owner-delta-observer",
           "plugin_id": "opl-ledger-owner-delta-observer",
           "disposition": "split",
-          "implementation_state": "planned",
+          "implementation_state": "landed",
           "source_refs": ["src/modules/ledger/current-owner-delta-topline.ts"],
           "caller_refs": ["src/modules/console/framework-readiness.ts", "src/modules/runway/family-runtime-evidence-worklist.ts"],
           "scope": "session",
@@ -335,7 +335,7 @@
           "disposition": "split",
           "implementation_state": "landed",
           "source_refs": ["src/modules/foundry/cordis-foundry-adapters.ts"],
-          "caller_refs": ["src/modules/runway/standard-agent-action-run-state.ts"],
+          "caller_refs": ["src/modules/runway/foundry-production-runtime.ts", "src/modules/runway/standard-agent-action-runtime.ts"],
           "scope": "composition",
           "trust": "first_party_privileged",
           "authority_role": "Provider manifest normalization adapter; AgentVersion and activation remain Foundry-owned.",
@@ -348,7 +348,7 @@
           "disposition": "split",
           "implementation_state": "landed",
           "source_refs": ["src/modules/foundry/cordis-foundry-adapters.ts"],
-          "caller_refs": ["src/modules/runway/standard-agent-action-run-state.ts"],
+          "caller_refs": ["src/entrypoints/cordis/composition-profiles.ts"],
           "scope": "attempt",
           "trust": "first_party_restricted",
           "authority_role": "Evaluation input/output adapter; it cannot rank, promote, activate, or sign domain receipts.",
@@ -386,79 +386,82 @@
   "profiles": [
     {
       "profile_id": "base-headless",
-      "status": "planned",
+      "status": "landed/default",
       "host": "headless",
       "default_candidate": true,
       "caller_refs": ["src/modules/runway/family-runtime.ts", "src/modules/runway/family-runtime-temporal-activities.ts"],
       "plugin_allowlist": [
         { "plugin_id": "opl-charter-policy", "required": true, "reason": "Process contract/policy dependency." },
         { "plugin_id": "opl-atlas-catalog", "required": true, "reason": "Typed discovery for domain and capability selection." },
-        { "plugin_id": "opl-workspace-locator", "required": false, "reason": "Session locator when a task has an OPL workspace." },
+        { "plugin_id": "opl-workspace-locator", "required": true, "reason": "Default CLI and runtime projections use the explicit profile-bound locator service." },
         { "plugin_id": "opl-pack-stage-binding", "required": true, "reason": "Stage binding is needed by the headless stage route." },
         { "plugin_id": "opl-stagecraft-context", "required": true, "reason": "Stage context and policy observation are composition dependencies." },
-        { "plugin_id": "opl-cordis-runway-attempt-adapter", "required": true, "reason": "Attempt transport delegates to the existing runner." },
-        { "plugin_id": "opl-cordis-runway-attempt-executor", "required": true, "reason": "Attempt-scoped execution service." },
-        { "plugin_id": "opl-ledger-owner-delta-observer", "required": false, "reason": "Refs-only operator observation is optional for headless execution." },
-        { "plugin_id": "opl-connect-descriptor-discovery", "required": false, "reason": "Descriptor discovery is optional unless package capabilities are requested." }
+        { "plugin_id": "opl-ledger-owner-delta-observer", "required": true, "reason": "Default CLI and runtime projections use the profile-bound refs-only observer." },
+        { "plugin_id": "opl-connect-descriptor-discovery", "required": true, "reason": "Default CLI package and contribution surfaces use profile-bound discovery." }
       ],
+      "child_composition_allowlist": ["agent_executor_request", "runway_attempt", "pack_stagecraft_route"],
       "composition_scope": "process",
       "runtime_constraints": ["Attempt composition is frozen before execution.", "Temporal remains the durable workflow and retry/replay owner.", "No third-party plugin enters the privileged root."],
       "authority_boundary": { "can_write_domain_truth": false, "can_write_package_currentness": false, "can_write_durable_history": false, "can_write_app_product_truth": false }
     },
     {
       "profile_id": "app-full",
-      "status": "planned",
+      "status": "landed/available",
       "host": "app",
       "default_candidate": false,
-      "caller_refs": ["src/entrypoints/cli/cases/public-command-specs-parts/cordis.ts", "src/modules/console/app-contribution-broker.ts"],
+      "caller_refs": ["src/entrypoints/cli/main.ts", "src/entrypoints/cli/cases/app-public-command-specs.ts"],
       "plugin_allowlist": [
         { "plugin_id": "opl-charter-policy", "required": true, "reason": "Framework contract/policy dependency." },
         { "plugin_id": "opl-atlas-catalog", "required": true, "reason": "App readiness and discovery projection dependency." },
-        { "plugin_id": "opl-workspace-locator", "required": false, "reason": "Workspace actions may mount a session locator." },
+        { "plugin_id": "opl-workspace-locator", "required": true, "reason": "App commands and workspace-scoped projections use the profile-bound locator." },
         { "plugin_id": "opl-pack-stage-binding", "required": true, "reason": "App-hosted stage route uses the same Pack binding contract." },
         { "plugin_id": "opl-stagecraft-context", "required": true, "reason": "App preview and hosted route share typed stage context." },
-        { "plugin_id": "opl-cordis-runway-attempt-adapter", "required": false, "reason": "Only mounted for an explicit execution attempt." },
-        { "plugin_id": "opl-cordis-runway-attempt-executor", "required": false, "reason": "Only mounted for an explicit execution attempt." },
         { "plugin_id": "opl-ledger-owner-delta-observer", "required": true, "reason": "App readiness uses refs-only owner-delta observation." },
         { "plugin_id": "opl-console-readiness-projection", "required": true, "reason": "Framework read-only projection consumed by the App boundary." },
-        { "plugin_id": "opl-connect-descriptor-discovery", "required": false, "reason": "Package contribution projection is explicitly selected by the App." }
+        { "plugin_id": "opl-connect-descriptor-discovery", "required": true, "reason": "App contribution and package projections use profile-bound discovery." }
       ],
+      "child_composition_allowlist": ["agent_executor_request", "runway_attempt", "pack_stagecraft_route"],
       "composition_scope": "session",
       "runtime_constraints": ["App product truth and GUI actions remain App-owned.", "Projection output cannot claim domain, quality, package, or production readiness.", "Attempt execution uses an attempt child context and explicit executor route."],
       "authority_boundary": { "can_write_domain_truth": false, "can_write_package_currentness": false, "can_write_durable_history": false, "can_write_app_product_truth": false }
     },
     {
       "profile_id": "foundry-dev",
-      "status": "planned",
+      "status": "landed/available",
       "host": "foundry_dev",
       "default_candidate": false,
-      "caller_refs": ["src/modules/runway/standard-agent-action-run-state.ts", "src/modules/foundry/designer-adapter.ts"],
+      "caller_refs": ["src/modules/runway/foundry-production-runtime.ts", "src/modules/runway/standard-agent-action-runtime.ts"],
       "plugin_allowlist": [
         { "plugin_id": "opl-charter-policy", "required": true, "reason": "Foundry composition needs framework contract policy." },
         { "plugin_id": "opl-atlas-catalog", "required": true, "reason": "Candidate capability and agent discovery." },
         { "plugin_id": "opl-pack-stage-binding", "required": true, "reason": "Candidate stages use the Pack binding ABI." },
         { "plugin_id": "opl-stagecraft-context", "required": true, "reason": "Candidate stage context and policy observation." },
-        { "plugin_id": "opl-cordis-runway-attempt-adapter", "required": true, "reason": "Evaluation attempts use the existing runner adapter." },
-        { "plugin_id": "opl-cordis-runway-attempt-executor", "required": true, "reason": "Evaluation attempt transport." },
         { "plugin_id": "opl-foundry-provider-manifest", "required": true, "reason": "Provider manifest normalization seam has a real Foundry caller." },
         { "plugin_id": "opl-foundry-evaluation-adapter", "required": false, "reason": "Optional evaluation adapter for candidate experiments." }
       ],
+      "child_composition_allowlist": ["runway_attempt"],
       "composition_scope": "attempt",
       "runtime_constraints": ["Foundry activation, promotion, rollback, and AgentVersion remain Foundry-owned.", "Candidate composition is immutable for an attempt and must be evaluated before activation.", "Cordis is not a sandbox for untrusted candidate code."],
       "authority_boundary": { "can_write_domain_truth": false, "can_write_package_currentness": false, "can_write_durable_history": false, "can_write_app_product_truth": false }
     }
   ],
   "cutover": {
-    "current_default_profile": null,
+    "current_default_profile": "base-headless",
     "p5": {
-      "status": "active",
+      "status": "landed",
       "required_outputs": ["successor plugin seams", "real caller evidence", "owner boundary readback", "composition snapshot and teardown evidence"],
-      "default_path_changed": false
+      "default_path_changed": true
     },
     "p6": {
-      "status": "not_started",
+      "status": "landed",
       "required_outputs": ["base-headless default switch", "App/hosted entry switch", "legacy wiring caller-zero", "full owner-authoritative readback"],
-      "default_path_changed": false
+      "default_path_changed": true,
+      "profile_route": "opl.profile.base-headless",
+      "child_composition_snapshot_refs": [
+        "agent_executor_request",
+        "runway_attempt",
+        "pack_stagecraft_route"
+      ]
     },
     "legacy_caller_zero_gate": {
       "required": true,

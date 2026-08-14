@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://one-person-lab.dev/contracts/opl-framework/cordis-surface-map.schema.json",
-  "title": "OPL Cordis Candidate Surface Map",
+  "title": "OPL Cordis Surface Map",
   "type": "object",
   "required": [
     "version",
@@ -26,7 +26,7 @@
       "const": "OPL Framework"
     },
     "state": {
-      "const": "p1_candidate_inventory"
+      "const": "landed/default"
     },
     "machine_boundary": {
       "type": "string",
@@ -47,23 +47,31 @@
         "cordis_runtime_dependency_added",
         "default_caller_changed",
         "production_path_changed",
-        "composition_snapshot_approved"
+        "composition_snapshot_approved",
+        "current_default_profile",
+        "default_route"
       ],
       "properties": {
         "cordis_adopted": {
-          "const": false
+          "const": true
         },
         "cordis_runtime_dependency_added": {
-          "const": false
+          "const": true
         },
         "default_caller_changed": {
-          "const": false
+          "const": true
         },
         "production_path_changed": {
-          "const": false
+          "const": true
         },
         "composition_snapshot_approved": {
-          "const": false
+          "const": true
+        },
+        "current_default_profile": {
+          "const": "base-headless"
+        },
+        "default_route": {
+          "const": "opl.profile.base-headless"
         }
       },
       "additionalProperties": false

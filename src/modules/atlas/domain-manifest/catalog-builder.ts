@@ -1,8 +1,5 @@
 import type { FrameworkContracts } from '../../../kernel/types.ts';
-import {
-  readWorkspaceBindingPort,
-  type WorkspaceBinding,
-} from '../../../kernel/workspace-binding-port.ts';
+import type { WorkspaceBinding } from '../../../kernel/workspace-binding-port.ts';
 import type { ManifestCommandTimeoutPolicy } from './resolver.ts';
 import { resolveBindingManifest } from './resolver.ts';
 import {
@@ -165,8 +162,7 @@ export function buildDomainManifestCatalog(
     resolveActiveWorkspaceBinding?: (projectId: string) => WorkspaceBinding | null;
   } = {},
 ) {
-  const resolveActiveWorkspaceBinding = options.resolveActiveWorkspaceBinding
-    ?? readWorkspaceBindingPort()?.getActiveWorkspaceBinding;
+  const resolveActiveWorkspaceBinding = options.resolveActiveWorkspaceBinding;
   const liveProjects = contracts.domains.domains.map((domain) => {
     const binding = resolveActiveWorkspaceBinding?.(domain.domain_id) ?? null;
     if (!binding) {

@@ -7,7 +7,7 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 
 ## 顶层分层
 
-`OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。当前产品认知分成 `OPL Framework`、`One Person Lab App` 和 `Foundry Agents` 三层：Framework 负责开发与运行框架，App 负责普通用户工作台，Foundry Agents 负责领域智能体与交付权威。用户已授权把长期进程内组合全面迁移到 DSH 体系的正式 `@deepseek-ai/cordis`；P1 surface map、P2 隔离 executor experiment、P3 deterministic composition inspect 与 P4 composition contract 已落地，P5/P5-R/P6 将完成真实 seam caller 切换、四层架构重基线和默认路径切换。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
+`OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。当前产品认知分成 `OPL Framework`、`One Person Lab App` 和 `Foundry Agents` 三层：Framework 负责开发与运行框架，App 负责普通用户工作台，Foundry Agents 负责领域智能体与交付权威。OPL 已完成向 DSH 正式 `@deepseek-ai/cordis` 的 Framework 全面迁移：`base-headless` 是默认 composition，P1-P6、真实默认 caller、snapshot/digest、child fiber teardown 与显式 Atlas/Workspace/Connect/Runway services 均已落地。Cordis 只负责进程内 composition；Package/native carrier、Temporal durable history/retry/replay、Workspace bytes/binding、Ledger receipts/evidence、Foundry activation、domain truth 与 App GUI ABI 仍归各自 owner。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
 
 ### Codex executable carrier 边界
 
@@ -91,7 +91,7 @@ Temporal / Workspace / Ledger / Foundry / domain owner remain authoritative
 
 Cordis plugin 可独立版本、分支和发布；组合只通过显式 `provides/injects`、API compatibility、scope 和 trust contract 校验，不建立中央版本 resolver。required plugin 缺失或不兼容时，composition fail closed；optional plugin 只能形成诊断/降级，不得写 domain verdict。生产 attempt 在启动时冻结 composition snapshot，运行中不得 hot swap；HMR/reload 仅限 dev/experimental scope。Cordis 不是安全沙箱，不可信 plugin 必须由现有 sandbox/provider 或独立进程隔离。
 
-Cordis adoption 的详细阶段、owner、写集、验证、完成门和回退见 [`docs/active/cordis-adoption-plan.md`](./active/cordis-adoption-plan.md)。当前 P1-P4 已进入 canonical main，P5-A 正在切换 Pack/Stagecraft/Runway 的真实 successor，P5 其余批次和 P6 尚未切换默认 caller。迁移成本不再是否决条件；既有 Package lifecycle、Temporal、Foundry、Ledger 与 domain/App owner 边界继续有效。
+Cordis adoption 的详细阶段、owner、写集、验证、完成门和回退见 [`docs/active/cordis-adoption-plan.md`](./active/cordis-adoption-plan.md)。当前 P1-P6 已进入 canonical main，默认 Framework 路径已切换并完成 legacy WorkspaceBindingPort caller-zero；App/AionUI GUI ABI 与各 owner 的 live/production readiness 仍由对应 owner fresh readback。迁移成本不再是否决条件；既有 Package lifecycle、Temporal、Foundry、Ledger 与 domain/App owner 边界继续有效。
 
 ### Legacy Package Manager compatibility inventory
 
@@ -198,7 +198,7 @@ authority domain -> Package -> Cordis plugin contributions -> curated compositio
 2. 独立安装、发布、carrier 或 currentness 节奏，拆为 Package。
 3. 独立进程内 lifecycle、scope、trust、故障隔离、provider 替换或 teardown，拆为 Cordis plugin contribution。
 4. 没有独立 caller、责任或替换价值的模块面，合并、收缩或保留为纯 authority/read-model surface。
-5. 用少量 `base-headless`、`app-full`、`research`、`grant`、`visual`、`foundry-dev` 等 profile 隐藏组合矩阵，不把任意 plugin 组合暴露给普通用户。
+5. 用少量受控 profile（当前为 `base-headless`、`app-full`、`foundry-dev`）隐藏组合矩阵；`research`、`grant`、`visual` 只有在出现独立真实 caller/owner 证据后才新增，不把任意 plugin 组合暴露给普通用户。
 
 因此，`Charter` 可能收缩为 policy authority，`Atlas` / `Connect` 可能按 discovery/provider/carrier lifecycle 拆分，`Pack` / `Stagecraft` 可能分别贡献 descriptor/compiler 与 stage-context plugin，`Console` 可能只保留 read-model projection，`Ledger` / `Foundry` / `Workspace` 的 durable/authority owner 仍不能被 Cordis 内存对象取代。上述只是重基线候选，最终变更必须等待 P5-R 的真实 caller、owner、lifecycle、Package 和 profile 证据。
 
@@ -544,7 +544,7 @@ Stage attempt 的终态只允许收敛到三类：`success` 表示 required outp
 - provider execution：Temporal `StageAttemptWorkflow`、Codex / domain sidecar activity、human gate / user instruction / resume signal、stage attempt query、CLI `attempt start|query|signal`、worker lifecycle status 和 fail-closed readiness 已落地为 source / CLI / contract / projection surface。2026-05-14 本机 managed Temporal service / worker proof 只作为历史 provider proof provenance；当前 `full_online_ready`、`durable_online_ready`、SLO、worker lifecycle 或 production-residency 读法必须 fresh-read runtime / readiness owner surface，不能从本文继承。
 - typed receipt / workbench：Codex stage activity 已有 dry-run / live-dry-run / `codex_cli` runner repo/test harness、typed closeout claim-evidence 捕获、raw/partial/no-output diagnostic progress、consumed refs / memory refs / writeback receipt refs / rejected writes / route impact / next owner 投影；`opl runtime snapshot` 已输出只读 `stage_attempt_workbench`。typed closeout 只提高 lineage 与 owner/quality/ready claim 证据质量，不是 stage completion 或 transition gate。
 
-Cordis adoption 当前仍是默认运行结构缺口，但终态已升级为完整迁移：DSH scoped `@deepseek-ai/cordis@4.0.1` 已作为 exact devDependency 安装，P1 surface map、P2 隔离 Agent Executor composition、P3 deterministic read-only inspect 与 P4 plugin/package version contract 已落地；P5-A 正在实现 Pack/Stagecraft/Runway successor，P5-R 将在 P6 前重新冻结 authority、Package、plugin 与 curated profile 的目标边界，P5 其余批次和 P6 默认切换尚未完成。P3 inspect 已提供 plugin/fiber state、service ownership、inject、event mode、disposer 与 diagnostics 的只读回读，P4 已提供可重放 snapshot/digest 和 typed compatibility failure。当前十个品牌模块仍是源码/认知基线，不是最终 plugin 数量。具体完成门见 [`Cordis Adoption Plan`](./active/cordis-adoption-plan.md)；在 P6 真实 readback 前仍不能声称默认 Cordis-native，Temporal durable path、Package installed truth 或 domain/App authority 也不迁入 Cordis。
+Cordis adoption 已完成默认 Framework composition cutover：DSH scoped `@deepseek-ai/cordis@4.0.1` 是 runtime dependency，`base-headless` 通过真实 profile 创建并销毁 composition，P3 inspect 回读 active default profile，P4 snapshot/digest contract 与 child composition refs 已启用，P5 vertical seams 和 P6 CLI/Runtime caller switch 已落地。当前十个品牌模块仍是源码/认知基线，不是最终 plugin 数量；插件贡献可独立替换和版本化，profile 负责受控组合。Cordis 不迁入 Temporal durable path、Package installed truth、Workspace bytes/binding、Ledger persistence、Foundry activation、domain truth 或 App GUI ABI；这些 owner-authoritative/live 事实继续 fresh readback。具体收益和运营门见 [`Cordis Adoption Plan`](./active/cordis-adoption-plan.md)。
 
 当前尚未闭合的是完整生产级 long domain owner chain：
 

@@ -48,7 +48,7 @@ test('Cordis surface map is valid against its machine contract', () => {
   const overclaim = structuredClone(mapPayload()) as {
     phase_state: { cordis_adopted: boolean };
   };
-  overclaim.phase_state.cordis_adopted = true;
+  overclaim.phase_state.cordis_adopted = false;
   const rejected = validateJsonSchemaPayload(schemaEntry, overclaim);
   assert.equal(rejected.ok, false);
   if (rejected.ok) assert.fail('Cordis adoption overclaim unexpectedly passed schema validation');
@@ -156,11 +156,13 @@ test('candidate events and authority boundaries stay in-process and non-authorit
   };
 
   assert.deepEqual(map.phase_state, {
-    cordis_adopted: false,
-    cordis_runtime_dependency_added: false,
-    default_caller_changed: false,
-    production_path_changed: false,
-    composition_snapshot_approved: false,
+    cordis_adopted: true,
+    cordis_runtime_dependency_added: true,
+    default_caller_changed: true,
+    production_path_changed: true,
+    composition_snapshot_approved: true,
+    current_default_profile: 'base-headless',
+    default_route: 'opl.profile.base-headless',
   });
   for (const value of Object.values(map.authority_boundary)) {
     assert.equal(value, false);
@@ -187,9 +189,9 @@ test('candidate events and authority boundaries stay in-process and non-authorit
   assert.ok(eventIds.size >= map.modules.length);
 });
 
-test('surface map does not add Cordis to the production dependency graph', () => {
+test('surface map records the exact Cordis runtime dependency', () => {
   const packageJson = readJson('package.json') as {
     dependencies?: Record<string, unknown>;
   };
-  assert.equal(packageJson.dependencies?.['@deepseek-ai/cordis'], undefined);
+  assert.equal(packageJson.dependencies?.['@deepseek-ai/cordis'], '4.0.1');
 });

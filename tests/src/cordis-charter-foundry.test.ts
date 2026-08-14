@@ -40,7 +40,7 @@ test('Charter and Foundry publish P4-compatible plugin descriptors without takin
     assert.equal(descriptor.package_ref, null);
   }
   assert.equal(CORDIS_CHARTER_POLICY_PLUGIN_DESCRIPTOR.required, true);
-  assert.equal(CORDIS_FOUNDRY_PROVIDER_MANIFEST_PLUGIN_DESCRIPTOR.required, false);
+  assert.equal(CORDIS_FOUNDRY_PROVIDER_MANIFEST_PLUGIN_DESCRIPTOR.required, true);
   assert.equal(CORDIS_FOUNDRY_EVALUATION_ADAPTER_PLUGIN_DESCRIPTOR.scope, 'attempt');
   assert.equal(
     CORDIS_FOUNDRY_EVALUATION_ADAPTER_PLUGIN_DESCRIPTOR

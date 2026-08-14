@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { buildCurrentOwnerDeltaTopline } from '../../src/modules/ledger/current-owner-delta-topline.ts';
 import { buildOplAppOperatorViewModel } from '../../src/modules/console/app-state-view-model.ts';
+
+const ownerDeltaObserver = { observe: buildCurrentOwnerDeltaTopline };
 
 function buildOperatorForRuntimeItems(runtimeActivityItems: Array<Record<string, unknown>>) {
   return buildOplAppOperatorViewModel({
@@ -18,6 +21,7 @@ function buildOperatorForRuntimeItems(runtimeActivityItems: Array<Record<string,
     brandSystemProfile: {},
     targetOperatingArchitecture: {},
     runtimeActivityItems,
+    ownerDeltaObserver,
   });
 }
 

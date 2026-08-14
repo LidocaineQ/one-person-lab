@@ -14,7 +14,10 @@ import { buildUsageError } from './modules/cli-errors.ts';
 import { printJson, type CliOutputStream } from './modules/cli-output.ts';
 import { buildInternalCommandSpecs } from './cases/private-command-specs.ts';
 import { buildPublicCommandSpecs } from './cases/public-command-specs.ts';
-import { createCordisBaseHeadlessComposition } from '../cordis/composition-profiles.ts';
+import {
+  createCordisAppFullComposition,
+  createCordisBaseHeadlessComposition,
+} from '../cordis/composition-profiles.ts';
 
 async function runCodexPassthroughHandled(args: string[]) {
   const runtimeHelpers = await import('./modules/runtime-helpers.ts');
@@ -121,7 +124,16 @@ export type CliMainOptions = {
 export async function main(options: CliMainOptions = {}) {
   const stdout = options.stdout ?? process.stdout;
   const parsedInput = parseCliInput(options.argv ?? process.argv.slice(2));
-  const composition = await createCordisBaseHeadlessComposition();
+  const composition = parsedInput.command === 'app'
+    ? await createCordisAppFullComposition({
+        runtimeSnapshotProvider: async (contracts, snapshotOptions) => {
+          const { buildRuntimeTraySnapshot } = await import(
+            '../../modules/console/runtime-tray-snapshot.ts'
+          );
+          return buildRuntimeTraySnapshot(contracts, snapshotOptions);
+        },
+      })
+    : await createCordisBaseHeadlessComposition();
   try {
     const shouldPrintHumanHelp = parsedInput.textOutput
       || ((options.stdoutIsTTY ?? process.stdout.isTTY) && !parsedInput.jsonOutput);

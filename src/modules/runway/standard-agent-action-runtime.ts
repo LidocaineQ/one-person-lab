@@ -12,7 +12,6 @@ import { parseJsonText } from '../../kernel/json-file.ts';
 import { assertRepoJsonSchemaPayload } from '../../kernel/repo-json-schema.ts';
 import { readStandardAgentDescriptorInterface } from '../../kernel/standard-agent-interface.ts';
 import {
-  readFoundryProviderManifest,
   validateDesignRequest,
   type FoundryProviderManifest,
 } from '../foundry/index.ts';
@@ -2366,11 +2365,11 @@ async function runStageAction(input: {
   };
 }
 
-function buildLiveActionContext(input: {
+async function buildLiveActionContext(input: {
   runtimeInput: StandardAgentActionRuntimeInput;
   runtimeBinding: HostedAgentRuntimeBindingSnapshot;
   dependencies: RuntimeDependencies;
-}): StandardAgentActionContext {
+}): Promise<StandardAgentActionContext> {
   const { catalog, registry } = readHostedAgentRuntimeActionContracts(
     input.runtimeBinding.checkout_root,
     input.runtimeBinding.catalog_target_domain_ids,
@@ -2406,12 +2405,21 @@ function buildLiveActionContext(input: {
   const foundryRequest = action.execution_binding.kind === 'foundry_binding'
     ? validateDesignRequest(payload)
     : null;
-  const foundryProvider = action.execution_binding.kind === 'foundry_binding'
-    ? readFoundryProviderManifest(
+  let foundryProvider: FoundryProviderManifest | null = null;
+  if (action.execution_binding.kind === 'foundry_binding') {
+    const { createCordisFoundryDevComposition } = await import(
+      '../../entrypoints/cordis/composition-profiles.ts'
+    );
+    const composition = await createCordisFoundryDevComposition();
+    try {
+      foundryProvider = composition.services.foundryProviderManifest.read(
         input.runtimeBinding.checkout_root,
         action.execution_binding.provider_manifest_ref,
-      )
-    : null;
+      );
+    } finally {
+      await composition.dispose();
+    }
+  }
   const inputValidation = foundryRequest
     ? {
         status: 'valid' as const,
@@ -2887,7 +2895,7 @@ export async function runStandardAgentAction(
   )) {
     fail('Hosted Agent action request conflicts with its frozen legacy run binding.', { run_id: runId });
   }
-  let liveContext = buildLiveActionContext({
+  let liveContext = await buildLiveActionContext({
     runtimeInput: input,
     runtimeBinding,
     dependencies,

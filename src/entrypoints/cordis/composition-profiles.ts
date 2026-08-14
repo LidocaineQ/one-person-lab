@@ -106,6 +106,18 @@ export type CordisBaseHeadlessServices = {
   };
 };
 
+type CordisFoundryDevServices = Pick<
+  CordisBaseHeadlessServices,
+  'charter' | 'atlas' | 'stageBinding' | 'stageContext'
+> & {
+  childFactories: Pick<
+    CordisBaseHeadlessServices['childFactories'],
+    'createRunwayAttemptComposition'
+  >;
+  foundryProviderManifest: CordisFoundryProviderManifestService;
+  foundryEvaluation: CordisFoundryEvaluationService | null;
+};
+
 export type CordisBaseHeadlessComposition = {
   profileId: 'base-headless';
   ctx: Context;
@@ -122,12 +134,13 @@ export type CordisAppFullComposition = Omit<CordisBaseHeadlessComposition, 'prof
   dispose(): Promise<void>;
 };
 
-export type CordisFoundryDevComposition = Omit<CordisBaseHeadlessComposition, 'profileId' | 'dispose'> & {
+export type CordisCliComposition = CordisBaseHeadlessComposition | CordisAppFullComposition;
+
+export type CordisFoundryDevComposition = {
   profileId: 'foundry-dev';
-  services: CordisBaseHeadlessServices & {
-    foundryProviderManifest: CordisFoundryProviderManifestService;
-    foundryEvaluation: CordisFoundryEvaluationService | null;
-  };
+  ctx: Context;
+  services: CordisFoundryDevServices;
+  snapshot: CordisCompositionSnapshot;
   dispose(): Promise<void>;
 };
 
@@ -150,6 +163,9 @@ function requiredService<T>(ctx: Context, serviceId: string): T {
 function profileSnapshot(
   profileId: CordisCompositionProfileId,
   plugins: readonly CordisPluginDescriptor[],
+  childCompositionIds: readonly (
+    'agent_executor_request' | 'runway_attempt' | 'pack_stagecraft_route'
+  )[] = ['agent_executor_request', 'runway_attempt', 'pack_stagecraft_route'],
 ) {
   const childSnapshots = {
     agent_executor_request: buildCordisAgentExecutorCompositionSnapshot(),
@@ -166,10 +182,13 @@ function profileSnapshot(
       executor_adapter_id: `opl-cordis-profile:${profileId}`,
       executor_route: `opl.profile.${profileId}`,
       child_composition_snapshot_refs: Object.fromEntries(
-        Object.entries(childSnapshots).map(([id, snapshot]) => [id, {
+        childCompositionIds.map((id) => {
+          const snapshot = childSnapshots[id];
+          return [id, {
           snapshot_id: snapshot.snapshot_id,
           snapshot_digest: snapshot.snapshot_digest,
-        }]),
+          }];
+        }),
       ),
     },
     foundry_evidence_ref: null,
@@ -214,12 +233,13 @@ export async function createCordisBaseHeadlessComposition(options: {
       ctx,
       CORDIS_STAGECRAFT_CONTEXT_SERVICE,
     );
+    const atlas = requiredService<CordisAtlasCatalogService>(ctx, CORDIS_ATLAS_CATALOG_SERVICE);
     return {
       profileId: CORDIS_DEFAULT_PROFILE_ID,
       ctx,
       services: {
         charter: requiredService(ctx, CORDIS_CHARTER_CONTRACTS_SERVICE),
-        atlas: requiredService(ctx, CORDIS_ATLAS_CATALOG_SERVICE),
+        atlas,
         workspaceLocator,
         stageBinding,
         stageContext,
@@ -227,6 +247,7 @@ export async function createCordisBaseHeadlessComposition(options: {
         descriptorDiscovery: requiredService(ctx, CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_SERVICE),
         familyRuntime: (args, runtimeOptions = {}) => runFamilyRuntime(args, {
           ...runtimeOptions,
+          loadDomainManifests: runtimeOptions.loadDomainManifests ?? atlas,
           stageRunRuntime: {
             ...runtimeOptions.stageRunRuntime,
             stageBindingService: stageBinding,
@@ -298,39 +319,51 @@ export async function createCordisFoundryDevComposition(options: {
   atlas?: CordisAtlasCatalogPluginConfig;
   connect?: CordisConnectDescriptorDiscoveryPluginConfig;
 } = {}): Promise<CordisFoundryDevComposition> {
-  const base = await createCordisBaseHeadlessComposition(options);
+  const ctx = new Context();
   const fibers: CordisFiber[] = [];
   try {
-    fibers.push(await base.ctx.plugin(cordisFoundryProviderManifestPlugin));
+    fibers.push(await ctx.plugin(cordisCharterPolicyPlugin));
+    fibers.push(await ctx.plugin(cordisAtlasCatalogPlugin, options.atlas ?? {}));
+    fibers.push(await ctx.plugin(cordisStagecraftContextPlugin));
+    fibers.push(await ctx.plugin(cordisPackStageBindingPlugin));
+    fibers.push(await ctx.plugin(cordisFoundryProviderManifestPlugin));
     if (options.evaluation) {
-      fibers.push(await base.ctx.plugin(cordisFoundryEvaluationAdapterPlugin, options.evaluation));
+      fibers.push(await ctx.plugin(cordisFoundryEvaluationAdapterPlugin, options.evaluation));
     }
     return {
       profileId: 'foundry-dev',
-      ctx: base.ctx,
+      ctx,
       services: {
-        ...base.services,
+        charter: requiredService(ctx, CORDIS_CHARTER_CONTRACTS_SERVICE),
+        atlas: requiredService(ctx, CORDIS_ATLAS_CATALOG_SERVICE),
+        stageBinding: requiredService(ctx, CORDIS_PACK_STAGE_BINDING_SERVICE),
+        stageContext: requiredService(ctx, CORDIS_STAGECRAFT_CONTEXT_SERVICE),
+        childFactories: {
+          createRunwayAttemptComposition: createCordisRunwayAttemptComposition,
+        },
         foundryProviderManifest: requiredService(
-          base.ctx,
+          ctx,
           CORDIS_FOUNDRY_PROVIDER_MANIFEST_SERVICE,
         ),
         foundryEvaluation: options.evaluation
-          ? requiredService(base.ctx, CORDIS_FOUNDRY_EVALUATION_SERVICE)
+          ? requiredService(ctx, CORDIS_FOUNDRY_EVALUATION_SERVICE)
           : null,
       },
       snapshot: profileSnapshot('foundry-dev', [
-        ...CORDIS_BASE_HEADLESS_PLUGIN_DESCRIPTORS,
+        CORDIS_CHARTER_POLICY_PLUGIN_DESCRIPTOR,
+        CORDIS_ATLAS_CATALOG_PLUGIN_DESCRIPTOR,
+        ...CORDIS_PACK_STAGECRAFT_PLUGIN_DESCRIPTORS,
         CORDIS_FOUNDRY_PROVIDER_MANIFEST_PLUGIN_DESCRIPTOR,
         ...(options.evaluation ? [CORDIS_FOUNDRY_EVALUATION_ADAPTER_PLUGIN_DESCRIPTOR] : []),
-      ]),
+      ], ['runway_attempt']),
       async dispose() {
         await disposeFibers(fibers);
-        await base.dispose();
+        await ctx.fiber.dispose();
       },
     };
   } catch (error) {
     await disposeFibers(fibers);
-    await base.dispose();
+    await ctx.fiber.dispose();
     throw error;
   }
 }

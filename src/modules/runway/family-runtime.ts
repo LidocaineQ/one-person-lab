@@ -352,6 +352,9 @@ export async function runFamilyRuntime(
   args: string[],
   options: {
     runtimeSnapshotProvider?: RuntimeTraySnapshotProvider;
+    loadDomainManifests?: (
+      ...args: Parameters<typeof buildDomainManifestCatalog>
+    ) => ReturnType<typeof buildDomainManifestCatalog>['domain_manifests'];
     stageReplayMissingReceiptExtraReceipts?: Parameters<
       typeof runFamilyRuntimeEvidenceWorklistCommand
     >[0]['stageReplayMissingReceiptExtraReceipts'];
@@ -385,6 +388,24 @@ export async function runFamilyRuntime(
 ): Promise<Record<string, unknown>> {
   const parsed = parseFamilyRuntimeCommand(args);
   const paths = familyRuntimePaths();
+  let loadedDomainManifests: ReturnType<typeof buildDomainManifestCatalog>['domain_manifests'] | null = null;
+  const domainManifests = () => {
+    loadedDomainManifests ??= (options.loadDomainManifests
+      ?? ((contracts, manifestOptions) =>
+        buildDomainManifestCatalog(contracts, manifestOptions).domain_manifests))(
+      loadFrameworkContracts(),
+      {
+        manifestCommandTimeoutMs: 5_000,
+        manifestCommandTimeoutPolicy: 'fixed',
+        materializeFamilyTransitions: false,
+        useProjectionCacheOnFailure: true,
+      },
+    );
+    return loadedDomainManifests;
+  };
+  const managedProviderProjection = () => readManagedProviderProjectionSummary({
+    domainManifests: domainManifests(),
+  });
 
   // Worker lifecycle commands must remain operable while the runtime ledger is
   // busy or undergoing a long startup migration. Opening queue.sqlite first
@@ -628,6 +649,7 @@ export async function runFamilyRuntime(
           : parsed.input;
       return runFamilyRuntimeEvidenceWorklistCommand(evidenceWorklistInput, {
         runtimeSnapshotProvider: options.runtimeSnapshotProvider,
+        ...(options.loadDomainManifests ? { domainManifests: domainManifests() } : {}),
       });
     }
     if (parsed.mode === 'stage_artifact') {
@@ -823,9 +845,6 @@ export async function runFamilyRuntime(
         domainId: parsed.input.domainId,
         stageId: parsed.input.stageId,
         actionId: parsed.input.actionId,
-      }, {
-        loadDomainManifests: (contracts, options) =>
-          buildDomainManifestCatalog(contracts, options).domain_manifests,
       });
       const checkoutCurrentnessPreflight = preflightDomainWorkspaceCheckoutCurrentness({
         domainId: parsed.input.domainId,
@@ -1192,7 +1211,7 @@ export async function runFamilyRuntime(
       const temporal_query = await queryTemporalStageAttemptReadModel(attempt, { paths });
       syncStageAttemptFromTemporalTerminalObservation(db, temporal_query);
       const projectedAttempt = await inspectStageAttemptWithCurrentProviderReadiness(db, parsed.stageAttemptId, paths, {
-        managedProviderProjection: readManagedProviderProjectionSummary(),
+        managedProviderProjection: managedProviderProjection(),
       });
       insertEvent(db, {
         taskId: projectedAttempt.task_id,
@@ -1252,7 +1271,7 @@ export async function runFamilyRuntime(
     }
     if (parsed.mode === 'attempt_list') {
       const projection = await listStageAttemptsWithMonitoringProjection(db, paths, {
-        managedProviderProjection: readManagedProviderProjectionSummary(),
+        managedProviderProjection: managedProviderProjection(),
       }, parsed.filters);
       return {
         version: 'g2',
@@ -1284,7 +1303,7 @@ export async function runFamilyRuntime(
         family_runtime_stage_attempt: {
           surface_id: 'opl_family_runtime_stage_attempt',
           attempt: await inspectStageAttemptWithCurrentProviderReadiness(db, parsed.stageAttemptId, paths, {
-            managedProviderProjection: readManagedProviderProjectionSummary(),
+            managedProviderProjection: managedProviderProjection(),
           }),
           temporal_query,
         },
@@ -1303,7 +1322,7 @@ export async function runFamilyRuntime(
         : null;
       if (mayRefresh) syncStageAttemptFromTemporalTerminalObservation(db, temporal_query);
       const projectedQuery = await queryStageAttemptWithCurrentProviderReadiness(db, parsed.stageAttemptId, paths, {
-        managedProviderProjection: readManagedProviderProjectionSummary(),
+        managedProviderProjection: managedProviderProjection(),
       }, {
         temporalQuery: temporal_query && typeof temporal_query === 'object' && !Array.isArray(temporal_query)
           ? temporal_query

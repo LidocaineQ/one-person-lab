@@ -2,6 +2,7 @@ import { registerAgentPackageReadinessPort } from '../../kernel/agent-package-re
 import { runOplAgentPackageStatus } from './agent-package-registry.ts';
 import { resolveAgentPackageEffectiveSourcePolicy } from './agent-package-registry-parts/source-policy.ts';
 import { refreshInstalledAgentPackageWorkspaceSkills } from './agent-package-registry-parts/skill-projection.ts';
+import { createCordisConnectComposition } from './cordis-connect-services.ts';
 import {
   readInstalledStandardAgentDescriptorForPackage,
   readPackageManagedStandardAgentDescriptor,
@@ -13,7 +14,17 @@ import {
 registerAgentPackageReadinessPort({
   readStatus: runOplAgentPackageStatus,
   readSourcePolicy: resolveAgentPackageEffectiveSourcePolicy,
-  refreshWorkspaceSkills: refreshInstalledAgentPackageWorkspaceSkills,
+  async refreshWorkspaceSkills(input) {
+    const composition = await createCordisConnectComposition();
+    try {
+      return refreshInstalledAgentPackageWorkspaceSkills({
+        ...input,
+        descriptorDiscovery: composition.descriptorDiscovery,
+      });
+    } finally {
+      await composition.dispose();
+    }
+  },
   readInstalledStandardAgentDescriptorForPackage,
   readPackageManagedStandardAgentDescriptor,
   readStandardAgentDescriptorForDomain,

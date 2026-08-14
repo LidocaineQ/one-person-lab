@@ -21,7 +21,7 @@ export const CORDIS_RUNWAY_ATTEMPT_PLUGIN_API_VERSION = '1.0.0';
 export const CORDIS_RUNWAY_ATTEMPT_PLUGIN_ID = 'opl-cordis-runway-attempt-executor';
 export const CORDIS_RUNWAY_ATTEMPT_SERVICE = 'opl.runway.attempt.executor';
 export const CORDIS_RUNWAY_ATTEMPT_SOURCE_REF = 'src/modules/runway/cordis-runway-attempt.ts';
-export const CORDIS_RUNWAY_ATTEMPT_SOURCE_COMMIT = 'c55ef36ab6abe71aaf27e2cd8515943fb6308fbf';
+export const CORDIS_RUNWAY_ATTEMPT_SOURCE_COMMIT = '3de37ca5aec1007a111b9401b1cb7ccca8d57379';
 
 export type CordisRunwayAttemptExecutionReceipt = Awaited<ReturnType<typeof runAgentStageRunner>>;
 

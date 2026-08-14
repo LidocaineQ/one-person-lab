@@ -50,7 +50,8 @@ import {
   projectAppAgentPackageStatus,
   unavailableAgentPackageCanonicalFields,
 } from './app-state-agent-packages.ts';
-import type { CordisConnectDescriptorDiscoveryService } from '../connect/index.ts';
+import type { CordisConnectDescriptorDiscoveryService } from '../connect/cordis-connect-services.ts';
+import type { CordisOwnerDeltaObserverService } from '../ledger/cordis-owner-delta-observer.ts';
 
 function nowIso() {
   return new Date().toISOString();
@@ -892,7 +893,8 @@ export async function buildOplAppState(input: {
   profile?: AppStateProfile;
   readAgentPackageStatus?: AgentPackageStatusReader;
   descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
-} = {}) {
+  ownerDeltaObserver: CordisOwnerDeltaObserverService;
+}) {
   const startedAt = Date.now();
   const profile = input.profile ?? 'fast';
   const contracts = loadFrameworkContracts() as FrameworkContracts;
@@ -989,6 +991,7 @@ export async function buildOplAppState(input: {
   const fullRuntimeDrilldown = profile === 'full'
     ? (await (await import('./runtime-tray-snapshot.ts')).buildRuntimeTraySnapshot(contracts, {
         appOperatorDrilldownDetailLevel: 'full',
+        ownerDeltaObserver: input.ownerDeltaObserver,
       })).runtime_tray_snapshot.app_operator_drilldown as JsonRecord
     : null;
   const currentOwnerDeltaReadModel = selectAppStateCurrentOwnerDeltaReadModel({
@@ -1061,6 +1064,7 @@ export async function buildOplAppState(input: {
     brandSystemProfile: contracts.brandSystemProfile as unknown as JsonRecord,
     targetOperatingArchitecture: contracts.targetOperatingArchitecture as unknown as JsonRecord,
     currentOwnerDeltaReadModel,
+    ownerDeltaObserver: input.ownerDeltaObserver,
     foundry,
   });
   const operator = profile === 'fast'

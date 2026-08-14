@@ -23,6 +23,7 @@ import { HostedFoundryActivationRuntime } from './foundry-activation-runtime.ts'
 import { DefaultHostedAgentRuntimeBindingResolver } from './hosted-agent-runtime-binding.ts';
 import { configuredFoundryOwnerGate } from './foundry-owner-gate.ts';
 import { resolveStandardAgentManagedCheckout } from './standard-agent-managed-checkout.ts';
+import { createCordisFoundryDevComposition } from '../../entrypoints/cordis/composition-profiles.ts';
 
 export function preflightProductionFoundryBaselineAdoption(input: {
   request: unknown;
@@ -69,9 +70,19 @@ export async function createProductionFoundryKernel(input: {
     },
   });
   const versions = new LedgerVersionRegistry(input.root_override);
+  const foundryComposition = await createCordisFoundryDevComposition();
+  let providerManifest;
+  try {
+    providerManifest = foundryComposition.services.foundryProviderManifest.read(
+      managed.checkout_root,
+    );
+  } finally {
+    await foundryComposition.dispose();
+  }
   return new FoundryKernel({
     designer: new ManifestFoundryDesignerAdapter({
       checkout_root: managed.checkout_root,
+      provider_manifest: providerManifest,
       invoker: new StageRunFoundryProviderInvoker({ storage_root: storage.root }),
     }),
     compiler,

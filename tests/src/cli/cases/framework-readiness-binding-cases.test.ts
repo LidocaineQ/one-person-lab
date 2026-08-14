@@ -9,12 +9,9 @@ import {
 } from '../helpers.ts';
 import { buildFrameworkReadinessSummary } from '../../../../src/modules/console/framework-readiness.ts';
 import { buildRuntimeTraySnapshot } from '../../../../src/modules/console/runtime-tray-snapshot.ts';
-import {
-  buildDomainManifestCatalog,
-  buildStandardAgentDomainManifestCatalog,
-} from '../../../../src/modules/atlas/index.ts';
 import { createFamilyWorkspaceFixture } from './runtime-app-operator-drilldown-helpers.ts';
 import { createCordisOwnerDeltaObserverComposition } from '../../../../src/modules/ledger/cordis-owner-delta-observer.ts';
+import { createCordisBaseHeadlessComposition } from '../../../../src/entrypoints/cordis/composition-profiles.ts';
 
 function restoreEnvVar(name: string, previousValue: string | undefined): void {
   if (previousValue === undefined) {
@@ -24,18 +21,21 @@ function restoreEnvVar(name: string, previousValue: string | undefined): void {
   }
 }
 
-function readinessCatalogs(contracts: ReturnType<typeof loadFrameworkContracts>) {
-  const domainManifests = buildDomainManifestCatalog(contracts, {
+function readinessCatalogs(
+  contracts: ReturnType<typeof loadFrameworkContracts>,
+  atlas: Awaited<ReturnType<typeof createCordisBaseHeadlessComposition>>['services']['atlas'],
+) {
+  const domainManifests = atlas(contracts, {
     manifestCommandTimeoutMs: 5_000,
     manifestCommandTimeoutPolicy: 'fixed',
     materializeFamilyTransitions: false,
     useProjectionCacheOnFailure: true,
-  }).domain_manifests;
+  });
   return {
     domainManifests,
-    standardAgentDomainManifests: buildStandardAgentDomainManifestCatalog(contracts, {
+    standardAgentDomainManifests: atlas.buildStandardAgent(contracts, {
       legacyDomainManifests: domainManifests,
-    }).domain_manifests,
+    }),
   };
 }
 
@@ -70,15 +70,17 @@ test('framework readiness treats stale domain workspace bindings as registry att
     process.env.OPL_META_AGENT_REPO_DIR = omaRepoDir;
     process.env.CODEX_HOME = codexHome;
     let observerComposition: Awaited<ReturnType<typeof createCordisOwnerDeltaObserverComposition>> | undefined;
+    let cordisComposition: Awaited<ReturnType<typeof createCordisBaseHeadlessComposition>> | undefined;
     try {
       const contracts = loadFrameworkContracts();
       observerComposition = await createCordisOwnerDeltaObserverComposition();
+      cordisComposition = await createCordisBaseHeadlessComposition();
       const readiness = (await buildFrameworkReadinessSummary(contracts, {
         familyDefaults: true,
       }, {
         runtimeSnapshotProvider: buildRuntimeTraySnapshot,
         ownerDeltaObserver: observerComposition.observer,
-        ...readinessCatalogs(contracts),
+        ...readinessCatalogs(contracts, cordisComposition.services.atlas),
       })).framework_readiness;
       assert.equal(readiness.summary.domain_manifest_stale_binding_count, 1);
       assert.deepEqual(readiness.summary.domain_manifest_stale_binding_project_ids, ['redcube']);
@@ -122,6 +124,7 @@ test('framework readiness treats stale domain workspace bindings as registry att
       );
     } finally {
       await observerComposition?.dispose();
+      await cordisComposition?.dispose();
       restoreEnvVar('OPL_STATE_DIR', previousStateDir);
       restoreEnvVar('OPL_FAMILY_WORKSPACE_ROOT', previousFamilyWorkspaceRoot);
       restoreEnvVar('OPL_META_AGENT_REPO_DIR', previousOmaRepoDir);
@@ -164,15 +167,17 @@ test('framework readiness treats missing manifest commands as config attention, 
     process.env.OPL_META_AGENT_REPO_DIR = omaRepoDir;
     process.env.CODEX_HOME = codexHome;
     let observerComposition: Awaited<ReturnType<typeof createCordisOwnerDeltaObserverComposition>> | undefined;
+    let cordisComposition: Awaited<ReturnType<typeof createCordisBaseHeadlessComposition>> | undefined;
     try {
       const contracts = loadFrameworkContracts();
       observerComposition = await createCordisOwnerDeltaObserverComposition();
+      cordisComposition = await createCordisBaseHeadlessComposition();
       const readiness = (await buildFrameworkReadinessSummary(contracts, {
         familyDefaults: true,
       }, {
         runtimeSnapshotProvider: buildRuntimeTraySnapshot,
         ownerDeltaObserver: observerComposition.observer,
-        ...readinessCatalogs(contracts),
+        ...readinessCatalogs(contracts, cordisComposition.services.atlas),
       })).framework_readiness;
       assert.equal(readiness.summary.domain_manifest_not_configured_count, 1);
       assert.deepEqual(readiness.summary.domain_manifest_not_configured_project_ids, ['medautogrant']);
@@ -216,6 +221,7 @@ test('framework readiness treats missing manifest commands as config attention, 
       );
     } finally {
       await observerComposition?.dispose();
+      await cordisComposition?.dispose();
       restoreEnvVar('OPL_STATE_DIR', previousStateDir);
       restoreEnvVar('OPL_FAMILY_WORKSPACE_ROOT', previousFamilyWorkspaceRoot);
       restoreEnvVar('OPL_META_AGENT_REPO_DIR', previousOmaRepoDir);

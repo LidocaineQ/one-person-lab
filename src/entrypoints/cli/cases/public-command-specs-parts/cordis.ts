@@ -8,16 +8,16 @@ import type { RuntimeTraySnapshotProvider } from '../../../../modules/runway/ind
 import type { FrameworkContracts } from '../../../../kernel/types.ts';
 import {
   createCordisAppFullComposition,
-  type CordisBaseHeadlessComposition,
+  type CordisCliComposition,
 } from '../../../cordis/composition-profiles.ts';
 import { parseRegisteredCommandOptions } from '../../modules/support.ts';
 import type { CommandSpec } from '../../modules/support.ts';
 
-export type { CordisBaseHeadlessComposition } from '../../../cordis/composition-profiles.ts';
+export type { CordisCliComposition } from '../../../cordis/composition-profiles.ts';
 
 function requireCordisComposition(
-  composition: CordisBaseHeadlessComposition | undefined,
-): CordisBaseHeadlessComposition {
+  composition: CordisCliComposition | undefined,
+): CordisCliComposition {
   if (!composition) {
     throw new Error('CLI command requires an explicit Cordis base-headless composition.');
   }
@@ -25,7 +25,7 @@ function requireCordisComposition(
 }
 
 export function buildCordisCommandSpecs(
-  cordis?: CordisBaseHeadlessComposition,
+  cordis?: CordisCliComposition,
 ): Record<string, CommandSpec> {
   const specs: Record<string, CommandSpec> = {
     'cordis inspect': {

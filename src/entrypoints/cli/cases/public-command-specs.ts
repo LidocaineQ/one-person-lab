@@ -24,11 +24,13 @@ import {
   buildFamilyAgentDescriptorInspect,
   buildFamilyAgentDescriptorList,
 } from '../../../modules/atlas/family-domain-agent-descriptor.ts';
-import { buildDomainManifestCatalog } from '../../../modules/atlas/domain-manifest/catalog-builder.ts';
 import {
-  buildStandardAgentDomainManifestCatalog,
   defaultStandardDomainAgentRepoInputs,
   DEFAULT_STANDARD_DOMAIN_AGENT_REPOS,
+} from '../../../modules/atlas/index.ts';
+import type {
+  CordisAtlasCatalogService,
+  CordisDomainManifestCatalogOptions,
 } from '../../../modules/atlas/index.ts';
 import {
   buildGeneratedAgentInterfaces,
@@ -89,14 +91,14 @@ import { buildWorkspaceCommandSpecs } from './public-command-specs-parts/workspa
 import {
   buildCordisCommandSpecs,
   runCordisFrameworkReadiness,
-  type CordisBaseHeadlessComposition,
+  type CordisCliComposition,
 } from './public-command-specs-parts/cordis.ts';
 import { buildPublicAppCommandSpecs } from './app-public-command-specs.ts';
 
 export function buildPublicCommandSpecs(
   commandSpecs: Record<string, CommandSpec>,
   getContracts: () => FrameworkContracts,
-  cordis?: CordisBaseHeadlessComposition,
+  cordis?: CordisCliComposition,
 ): Record<string, CommandSpec> {
   const standardAgentPackCompilerInputs = () => ({
     familyRepoInputs: defaultStandardDomainAgentRepoInputs(),
@@ -213,16 +215,38 @@ export function buildPublicCommandSpecs(
     getContracts,
     (command) => publicCommandSpecs[command],
     cordis?.services.descriptorDiscovery,
+    cordis?.services.workspaceLocator,
   );
   const profileCommandSpecs = buildProfileCommandSpecs();
   const releaseCommandSpecs = buildReleaseCommandSpecs((command) => publicCommandSpecs[command]);
-  const stageCommandSpecs = buildStageCommandSpecs(getContracts);
+  const atlasService = cordis?.services.atlas;
+  const requireAtlasService = (): CordisAtlasCatalogService => {
+    if (!atlasService) {
+      throw new Error('CLI command requires an explicit Cordis Atlas catalog service.');
+    }
+    return atlasService;
+  };
+  const loadDomainManifests = (
+    options: CordisDomainManifestCatalogOptions = {},
+  ): ReturnType<CordisAtlasCatalogService> => requireAtlasService()(getContracts(), options);
+  const loadStandardAgentDomainManifests = (
+    options: Parameters<CordisAtlasCatalogService['buildStandardAgent']>[1] = {},
+  ): ReturnType<CordisAtlasCatalogService['buildStandardAgent']> => {
+    const atlas = requireAtlasService();
+    const legacyDomainManifests = loadDomainManifests(options);
+    return atlas.buildStandardAgent(getContracts(), {
+      ...options,
+      legacyDomainManifests,
+    });
+  };
+  const stageCommandSpecs = buildStageCommandSpecs(getContracts, atlasService);
   const updateCommandSpecs = buildUpdateCommandSpecs(getContracts);
   const workspaceCommandSpecs = buildWorkspaceCommandSpecs(commandSpecs);
   const appCommandSpecs = buildPublicAppCommandSpecs(
     getContracts,
     cordis?.services.descriptorDiscovery,
     cordis?.services.familyRuntime,
+    cordis?.services.ownerDeltaObserver,
   );
   const familyAgentProviderPort = {
     readProviderContinuousProof,
@@ -231,18 +255,20 @@ export function buildPublicCommandSpecs(
     applyProviderClosureEvidence,
   };
   const familyAgentLifecyclePort = { runFamilyRuntimeLifecycleApply };
-  const buildAgentDescriptorManifests = (options: Parameters<typeof buildDomainManifestCatalog>[1] = {}) =>
+  const buildAgentDescriptorManifests = (
+    options: Parameters<CordisAtlasCatalogService['buildStandardAgent']>[1] = {},
+  ) =>
     withStandardDomainAgentSkeletonInspection(
-      buildStandardAgentDomainManifestCatalog(getContracts(), options).domain_manifests,
+      loadStandardAgentDomainManifests(options),
       familyAgentProviderPort,
     );
   const loadAgentDescriptorsForPackCompiler = () =>
     buildFamilyAgentDescriptorList(getContracts(), {
       domainManifests: withStandardDomainAgentSkeletonInspection(
-        buildDomainManifestCatalog(getContracts(), {
+        loadStandardAgentDomainManifests({
           manifestCommandTimeoutMs: 120_000,
           manifestCommandTimeoutPolicy: 'fixed',
-        }).domain_manifests,
+        }),
         familyAgentProviderPort,
       ),
       manifestCommandTimeoutMs: 120_000,
@@ -814,7 +840,9 @@ export function buildPublicCommandSpecs(
       group: 'domain',
       handler: (args) => {
         assertNoArgs(args, publicCommandSpecs['substrate projections']);
-        return buildGenericSubstrateProjectionList(getContracts());
+        return buildGenericSubstrateProjectionList(getContracts(), {
+          domainManifests: loadDomainManifests(),
+        });
       },
     },
     'substrate projection': {
@@ -822,7 +850,9 @@ export function buildPublicCommandSpecs(
       summary: 'Inspect one framework-owned substrate projection without reading domain truth, artifact bodies, or memory bodies.',
       examples: ['opl substrate projection --domain mas'],
       group: 'domain',
-      handler: (args) => buildGenericSubstrateProjectionInspect(getContracts(), args),
+      handler: (args) => buildGenericSubstrateProjectionInspect(getContracts(), args, {
+        domainManifests: loadDomainManifests(),
+      }),
     },
     'substrate workbench': {
       usage: 'opl substrate workbench',
@@ -831,7 +861,9 @@ export function buildPublicCommandSpecs(
       group: 'domain',
       handler: (args) => {
         assertNoArgs(args, publicCommandSpecs['substrate workbench']);
-        return buildGenericSubstrateWorkbench(getContracts());
+        return buildGenericSubstrateWorkbench(getContracts(), {
+          domainManifests: loadDomainManifests(),
+        });
       },
     },
     'domain-memory list': {
@@ -842,6 +874,7 @@ export function buildPublicCommandSpecs(
       handler: (args) => {
         assertNoArgs(args, publicCommandSpecs['domain-memory list']);
         return buildFamilyDomainMemoryList(getContracts(), {
+          domainManifests: loadDomainManifests(),
           runtimeReceiptEvidenceIndex: readFamilyDomainMemoryRuntimeReceiptEvidenceByDomain(),
         });
       },
@@ -852,6 +885,7 @@ export function buildPublicCommandSpecs(
       examples: ['opl domain-memory inspect --domain mas'],
       group: 'domain',
       handler: (args) => buildFamilyDomainMemoryInspect(getContracts(), args, {
+        domainManifests: loadDomainManifests(),
         runtimeReceiptEvidenceIndex: readFamilyDomainMemoryRuntimeReceiptEvidenceByDomain(),
       }),
     },
@@ -861,6 +895,7 @@ export function buildPublicCommandSpecs(
       examples: ['opl domain-memory migration-plan --domain mas'],
       group: 'domain',
       handler: (args) => buildFamilyDomainMemoryMigrationPlan(getContracts(), args, {
+        domainManifests: loadDomainManifests(),
         runtimeReceiptEvidenceIndex: readFamilyDomainMemoryRuntimeReceiptEvidenceByDomain(),
       }),
     },

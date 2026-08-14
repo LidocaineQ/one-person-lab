@@ -2,7 +2,7 @@
 
 Owner: `One Person Lab`
 Purpose: `brand_module_ideal_state_index`
-State: `support_reference / current_cognitive_baseline_pending_cordis_rebaseline`
+State: `support_reference / cordis_rebaseline_landed`
 Machine boundary: 本文是人读目标态参考。机器真相继续归核心五件套、contracts、source、CLI/API 行为、runtime ledger、provider receipt、domain-owned manifests、App release/user-path evidence 和真实 workspace evidence。
 
 ## 读法
@@ -18,7 +18,7 @@ Machine boundary: 本文是人读目标态参考。机器真相继续归核心�
 
 当前品牌系统冻结基线归 `contracts/opl-framework/brand-system-profile.json`。它把三层产品认知、品牌模块 product grammar、Foundry Agent 命名、App 状态语言、design-token/icon/card/status pattern，以及 receipt/blocker 文案规则落成机器可读 contract；该 contract 只约束当前品牌系统语言和 pattern，不声明十模块是最终 authority/Package/plugin/profile 拓扑，也不声明 L5、domain ready、quality verdict、artifact authority、App release ready 或 production ready。
 
-Cordis 全面迁移新增了一条更高优先级的目标态约束：`品牌模块/认知地图 != authority owner != Package 发布单元 != Cordis plugin 运行单元`。P5-R 将依据真实 caller、authority、lifecycle、scope、trust、故障隔离和发布节奏，对下列模块执行保留、拆分、合并或降级评估。评估完成前，下表仍是当前文档与源码导航基线，不应提前制造目录 churn。
+Cordis 全面迁移已冻结一条更高优先级的目标态约束：`品牌模块/认知地图 != authority owner != Package 发布单元 != Cordis plugin 运行单元`。P5-R 已依据真实 caller、authority、lifecycle、scope、trust、故障隔离和发布节奏形成四层目标图；下表继续作为文档与源码导航基线，不代表一模块一 plugin，也不授权目录对称化 churn。
 
 ## 外部经验吸收
 
@@ -113,6 +113,6 @@ src/modules/foundry
 src/modules/connect
 ```
 
-App / Cloud 产品语义可以把这些模块组合成面向用户的能力、页面、任务入口或托管产品面；Framework 实现目前仍以这十个目录为源码 owner。`contracts/opl-framework/source-module-map.json` 负责归属校验和历史 root 文件 readback，不替代模块目录，也不是最终 Cordis registry。`entrypoints/` 和 `kernel/` 是非品牌技术层：`entrypoints/` 负责 CLI / App / Cloud / adapter 启动连接，`kernel/` 负责共享 runtime primitive；它们不拥有品牌模块，不直接接管产品语义。新代码进入当前 owning module，跨模块从 owning module `index.ts` public exports 或 `public/**` 薄入口走；需要总入口时使用 `src/modules/index.ts` 的模块身份常量或命名空间聚合，避免把不同模块的同名 API 压成一个无边界 barrel。P5-R 只有在冻结 target owner、Package、plugin、profile 和 source-to-target mapping 后，才授权调整这些目录或 registry。
+App / Cloud 产品语义可以把这些模块组合成面向用户的能力、页面、任务入口或托管产品面；Framework 实现目前仍以这十个目录为源码 owner。`contracts/opl-framework/source-module-map.json` 负责归属校验和历史 root 文件 readback，不替代模块目录，也不是 Cordis registry。`entrypoints/` 和 `kernel/` 是非品牌技术层：`entrypoints/` 负责 CLI / App / Cloud / adapter 启动连接，`kernel/` 负责共享 runtime primitive；它们不拥有品牌模块，不直接接管产品语义。新代码进入当前 owning module，跨模块从 owning module `index.ts` public exports 或 `public/**` 薄入口走；需要总入口时使用 `src/modules/index.ts` 的模块身份常量或命名空间聚合，避免把不同模块的同名 API 压成一个无边界 barrel。后续目录或 registry 调整继续受 P5-R 冻结的 owner、Package、plugin、profile 和 source-to-target mapping 约束。
 
 源码边界的默认门已经切到 public interface：模块内代码保持在同一 owning module 内聚，优先使用相对 import；跨模块使用 owning module public index 或 `public/**` 薄入口。薄入口用于高频、低依赖、容易被多个模块消费的稳定 API，避免大 index eager-load 造成初始化循环。跨模块内部文件 import 不再作为迁移债存在，`npm run source:modules -- --strict-imports` 默认按 strict policy 失败。若一个内部符号确实需要被其他模块消费，先把它加入目标模块 `index.ts` 或 `public/**` 薄入口，再迁移调用方。当前完成口径是“物理归位 + public entrypoint 硬门 + deep import 清零”；public-level 依赖热点和 cycle 收薄作为后续依赖方向治理处理。

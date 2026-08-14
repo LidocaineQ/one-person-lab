@@ -171,7 +171,7 @@ test('Workspace/Ledger Cordis composition is deterministic, schema-valid, and ty
     'opl-ledger-owner-delta-observer',
     'opl-workspace-locator',
   ]);
-  assert.equal(snapshot.plugins.every((plugin) => plugin.source_commit === '1499a9234c0de28b76d2ef2905572e4e6faba276'), true);
+  assert.equal(snapshot.plugins.every((plugin) => plugin.source_commit === 'a896276b27b9f4ccfcf4e48ed636061d131094ae'), true);
 
   const composition = await createCordisWorkspaceLedgerComposition();
   assert.equal(composition.ctx.get(CORDIS_WORKSPACE_LOCATOR_SERVICE), composition.workspaceLocator);

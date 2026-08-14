@@ -1,4 +1,4 @@
-import { buildCurrentOwnerDeltaTopline } from '../ledger/public/app-state.ts';
+import type { CordisOwnerDeltaObserverService } from '../ledger/cordis-owner-delta-observer.ts';
 import { resolveStandardAgent } from '../../kernel/standard-agent-registry.ts';
 import { buildTaskRunProjectionV2 } from './app-state-task-run-projection.ts';
 import {
@@ -32,6 +32,7 @@ export type OplAppOperatorViewModelInput = {
   brandSystemProfile: JsonRecord;
   targetOperatingArchitecture: JsonRecord;
   currentOwnerDeltaReadModel?: JsonRecord;
+  ownerDeltaObserver: CordisOwnerDeltaObserverService;
   foundry?: JsonRecord;
 };
 
@@ -721,7 +722,7 @@ export function buildOplAppOperatorViewModel(input: OplAppOperatorViewModelInput
   const taskDrilldowns = buildTaskDrilldowns(input);
   const taskRunProjection = buildTaskRunProjectionV2(runtimeTasks);
   const currentOwnerDeltaReadModel = asRecord(input.currentOwnerDeltaReadModel);
-  const currentOwnerDeltaTopline = buildCurrentOwnerDeltaTopline({
+  const currentOwnerDeltaTopline = input.ownerDeltaObserver.observe({
     currentOwnerDeltaReadModel,
   });
   const defaultReadSurfacePolicy = buildDefaultReadSurfacePolicy(input);

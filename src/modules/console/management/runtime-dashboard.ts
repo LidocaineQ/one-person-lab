@@ -1,9 +1,11 @@
 import { findDomainOrThrow } from '../../charter/index.ts';
 import { FrameworkContractError } from '../../../kernel/contract-validation.ts';
 import { buildDomainEntryParity, buildRecommendedEntrySurfaces } from '../../atlas/index.ts';
+import type { CordisAtlasCatalogService } from '../../atlas/index.ts';
 import { buildOplRuntimeEndpoints } from '../../runway/index.ts';
 import { readOplRuntimeModes } from '../../../kernel/runtime-modes.ts';
-import { buildWorkspaceCatalog, getActiveWorkspaceBinding } from '../../workspace/index.ts';
+import { buildWorkspaceCatalog } from '../../workspace/index.ts';
+import type { CordisWorkspaceLocatorService } from '../../workspace/index.ts';
 import type { FrameworkContracts } from '../../../kernel/types.ts';
 import { buildDomainManifestCatalog } from '../../atlas/index.ts';
 
@@ -11,7 +13,12 @@ import type { DashboardOptions, StartSurfaceOptions } from './types.ts';
 import { buildCurrentDashboardSurfaceRefs } from './readiness.ts';
 import { buildRuntimeStatus, buildWorkspaceStatus } from './workspace-runtime.ts';
 
-export function buildProjectsOverview(contracts: FrameworkContracts) {
+export function buildProjectsOverview(
+  contracts: FrameworkContracts,
+  options: {
+    workspaceLocator?: CordisWorkspaceLocatorService;
+  } = {},
+) {
   return {
     version: 'g2',
     contracts_context: {
@@ -24,7 +31,7 @@ export function buildProjectsOverview(contracts: FrameworkContracts) {
         project: 'one-person-lab',
         scope: 'opl_framework',
         direct_entry_surface: 'opl',
-        active_binding: getActiveWorkspaceBinding('opl'),
+        active_binding: options.workspaceLocator?.active('opl') ?? null,
         owned_workstreams: contracts.workstreams.workstreams.map((workstream) => workstream.workstream_id),
       },
       ...contracts.domains.domains.map((domain) => ({
@@ -37,7 +44,7 @@ export function buildProjectsOverview(contracts: FrameworkContracts) {
         opl_projection_role: domain.opl_projection_role,
         runtime_dependency_boundary: domain.runtime_dependency_boundary,
         standalone_allowed: domain.standalone_allowed,
-        active_binding: getActiveWorkspaceBinding(domain.domain_id),
+        active_binding: options.workspaceLocator?.active(domain.domain_id) ?? null,
         owned_workstreams: domain.owned_workstreams,
       })),
     ],
@@ -47,6 +54,10 @@ export function buildProjectsOverview(contracts: FrameworkContracts) {
 export function buildOplStart(
   contracts: FrameworkContracts,
   options: StartSurfaceOptions,
+  services: {
+    atlas?: CordisAtlasCatalogService;
+    workspaceLocator?: CordisWorkspaceLocatorService;
+  } = {},
 ) {
   if (!options.projectId) {
     throw new FrameworkContractError(
@@ -59,7 +70,11 @@ export function buildOplStart(
   }
 
   findDomainOrThrow(contracts, options.projectId);
-  const domainManifests = buildDomainManifestCatalog(contracts).domain_manifests;
+  const domainManifests = services.atlas
+    ? services.atlas(contracts)
+    : buildDomainManifestCatalog(contracts, {
+        resolveActiveWorkspaceBinding: services.workspaceLocator?.active,
+      }).domain_manifests;
   const entry = domainManifests.projects.find((candidate) => candidate.project_id === options.projectId);
 
   if (!entry) {
@@ -128,18 +143,25 @@ export function buildOplStart(
 
 export async function buildOplDashboard(
   contracts: FrameworkContracts,
-  options: DashboardOptions = {},
+  options: DashboardOptions & {
+    atlas?: CordisAtlasCatalogService;
+    workspaceLocator?: CordisWorkspaceLocatorService;
+  } = {},
 ) {
   const endpoints = buildOplRuntimeEndpoints(options.basePath);
   const runtimeModes = readOplRuntimeModes();
-  const projects = buildProjectsOverview(contracts).projects;
+  const projects = buildProjectsOverview(contracts, options).projects;
   const workspace = buildWorkspaceStatus({ workspacePath: options.workspacePath }).workspace;
   const runtimeStatus = (await buildRuntimeStatus({
     sessionsLimit: options.sessionsLimit,
     ledgerLimit: options.sessionsLimit,
   })).runtime_status;
   const workspaceCatalog = buildWorkspaceCatalog(contracts).workspace_catalog;
-  const domainManifests = buildDomainManifestCatalog(contracts).domain_manifests;
+  const domainManifests = options.atlas
+    ? options.atlas(contracts)
+    : buildDomainManifestCatalog(contracts, {
+        resolveActiveWorkspaceBinding: options.workspaceLocator?.active,
+      }).domain_manifests;
   const domainEntryParity = buildDomainEntryParity(domainManifests.projects);
   const recommendedEntrySurfaces = buildRecommendedEntrySurfaces(domainManifests.projects);
   const currentSurfaceRefs = buildCurrentDashboardSurfaceRefs(options);

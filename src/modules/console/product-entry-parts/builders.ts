@@ -8,6 +8,7 @@ import type {
 } from '../../../kernel/types.ts';
 import type { ProductEntryCliInput, ProductEntryMode } from './types.ts';
 import type { CordisWorkspaceLocatorService } from '../cordis-workspace-ledger.ts';
+import type { CordisAtlasCatalogService } from '../../atlas/index.ts';
 
 export function buildDomainAgentSelectionInput(
   input: ProductEntryCliInput,
@@ -166,11 +167,13 @@ export function buildProductEntryHandoffBundle(
   stageSelection: ResolutionResult,
   boundary: BoundaryExplanation,
   workspaceLocator: CordisWorkspaceLocatorService,
+  atlas?: CordisAtlasCatalogService,
   sessionId?: string,
 ) {
   return buildProductEntryHandoffBundleView(contracts, {
     ...buildHandoffBundleInput(mode, input, stageSelection, boundary),
     workspaceLocator,
+    atlas,
     sessionId,
   });
 }

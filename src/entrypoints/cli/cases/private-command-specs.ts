@@ -2,10 +2,10 @@ import { FrameworkContractError, findDomainOrThrow, findSurfaceOrThrow, findWork
 import { buildOplWorkspaceRootSurface, writeOplWorkspaceRootSurface } from '../../../modules/connect/system-installation/workspace-root.ts';
 import { buildProductEntryHandoffEnvelope } from '../../../modules/console/product-entry-handoff-envelope.ts';
 import { buildProductEntryDoctor } from '../../../modules/console/product-entry-runtime.ts';
+import { buildRuntimeTraySnapshot } from '../../../modules/console/runtime-tray-snapshot.ts';
 import { runAgentExecutorDoctor, runAgentExecutorRequestFile } from '../../../modules/runway/agent-executor.ts';
 import { packageLaunchHardStopReason } from '../../../modules/runway/family-runtime-package-readiness.ts';
 import { launchDomainEntry } from '../../../modules/atlas/domain-launch.ts';
-import { buildDomainManifestCatalog } from '../../../modules/atlas/domain-manifest/catalog-builder.ts';
 import { buildOplDashboard, buildOplStart, buildProjectsOverview } from '../../../modules/console/management/runtime-dashboard.ts';
 import { runAcpStdioBridge } from '../../../modules/connect/opl-acp-stdio.ts';
 import { syncOplCompanionSkills } from '../../../modules/connect/install-companions.ts';
@@ -23,11 +23,14 @@ import { buildPrivateAgentCommandSpecs } from './private-command-specs-parts/age
 import { buildPrivateRuntimeCommandSpecs } from './private-command-specs-parts/runtime.ts';
 import { assertNoArgs, buildCommandHelp, buildRootHelp, buildUsageError, parseCommandOptions, parseExecutorExecArgs, parseExecutorOption, parseExecutorRequestPath, parseKeyValueArgs, parseLaunchDomainArgs, parseProductEntryArgs, parseRegisteredCommandOptions, parseSessionLedgerArgs, parseSessionRuntimeArgs, parseSkillPackArgs, parseStartArgs, parseWorkspaceRegistryArgs, parseWorkspaceRootArgs, runCodexPassthroughHandled, withContractsContext } from '../modules/support.ts';
 import type { CommandSpec, ParsedCliInput } from '../modules/support.ts';
-import type { CordisBaseHeadlessComposition } from '../../cordis/composition-profiles.ts';
+import type {
+  CordisBaseHeadlessComposition,
+  CordisCliComposition,
+} from '../../cordis/composition-profiles.ts';
 
 function requireCordisComposition(
-  cordis: CordisBaseHeadlessComposition | undefined,
-): CordisBaseHeadlessComposition {
+  cordis: CordisCliComposition | undefined,
+): CordisCliComposition {
   if (!cordis) {
     throw new Error('CLI command requires an explicit Cordis base-headless composition.');
   }
@@ -77,8 +80,19 @@ async function ensureDomainPackageLaunchReady(
 export function buildInternalCommandSpecs(
   parsedInput: ParsedCliInput,
   getContracts: () => FrameworkContracts,
-  cordis?: CordisBaseHeadlessComposition,
+  cordis?: CordisCliComposition,
 ): Record<string, CommandSpec> {
+  const composition = requireCordisComposition(cordis);
+  const runtimeSnapshotProvider: typeof buildRuntimeTraySnapshot = (contracts, options = {}) =>
+    buildRuntimeTraySnapshot(contracts, {
+      ...options,
+      domainManifests: options.domainManifests ?? composition.services.atlas(contracts, {
+        manifestCommandTimeoutMs: 5_000,
+        manifestCommandTimeoutPolicy: 'fixed',
+        useProjectionCacheOnFailure: true,
+      }),
+      ownerDeltaObserver: options.ownerDeltaObserver ?? composition.services.ownerDeltaObserver,
+    });
   const getCommandSpecs = () => commandSpecs;
   const commandSpecs: Record<string, CommandSpec> = {
     help: {
@@ -243,12 +257,15 @@ export function buildInternalCommandSpecs(
       usage: 'opl projects',
       summary: 'List the current OPL family project surfaces and their admitted workstreams.',
       examples: ['opl projects'],
-      handler: () => buildProjectsOverview(getContracts()),
+      handler: () => buildProjectsOverview(getContracts(), {
+        workspaceLocator: requireCordisComposition(cordis).services.workspaceLocator,
+      }),
     },
     ...buildPrivateRuntimeCommandSpecs({
       getCommandSpecs,
       getContracts,
-      familyRuntime: requireCordisComposition(cordis).services.familyRuntime,
+      familyRuntime: composition.services.familyRuntime,
+      runtimeSnapshotProvider,
     }),
     ...buildPrivateAgentCommandSpecs({ getCommandSpecs }),
     'status dashboard': {
@@ -263,6 +280,8 @@ export function buildInternalCommandSpecs(
         return buildOplDashboard(getContracts(), {
           workspacePath: parsed.path as string | undefined,
           sessionsLimit: parsed['sessions-limit'] as number | undefined,
+          atlas: requireCordisComposition(cordis).services.atlas,
+          workspaceLocator: requireCordisComposition(cordis).services.workspaceLocator,
         });
       },
     },
@@ -283,10 +302,18 @@ export function buildInternalCommandSpecs(
           );
         }
 
-        return buildOplStart(getContracts(), {
-          projectId: parsed.projectId,
-          modeId: parsed.modeId,
-        });
+        const composition = requireCordisComposition(cordis);
+        return buildOplStart(
+          getContracts(),
+          {
+            projectId: parsed.projectId,
+            modeId: parsed.modeId,
+          },
+          {
+            atlas: composition.services.atlas,
+            workspaceLocator: composition.services.workspaceLocator,
+          },
+        );
       },
     },
     'skill-list': {
@@ -393,6 +420,7 @@ export function buildInternalCommandSpecs(
           projectId: parsed.projectId,
           workspacePath: parsed.workspacePath,
           workspaceLocator: composition.services.workspaceLocator,
+          atlas: composition.services.atlas,
           strategy: parsed.strategy,
           dryRun: parsed.dryRun,
         });
@@ -405,10 +433,14 @@ export function buildInternalCommandSpecs(
       examples: ['opl domain manifests'],
       handler: (args) => {
         assertNoArgs(args, commandSpecs['domain manifests']);
-        const catalog = buildDomainManifestCatalog(getContracts());
+        const domainManifests = requireCordisComposition(cordis).services.atlas(getContracts());
         return {
-          ...catalog,
-          domain_manifests: catalog.domain_manifests,
+          version: 'g2',
+          contracts_context: {
+            contracts_dir: getContracts().contractsDir,
+            contracts_root_source: getContracts().contractsRootSource,
+          },
+          domain_manifests: domainManifests,
         };
       },
     },
@@ -739,6 +771,7 @@ resume: {
           parseProductEntryArgs(args, commandSpecs['contract handoff-envelope']),
           getContracts(),
           composition.services.workspaceLocator,
+          composition.services.atlas,
         );
       },
     },

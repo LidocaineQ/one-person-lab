@@ -120,6 +120,7 @@ const foundryForbiddenAuthorities = Object.freeze([
 function foundryDescriptor(input: {
   pluginId: string;
   serviceId: string;
+  required: boolean;
   scope: 'composition' | 'attempt';
   events: readonly {
     name: string;
@@ -138,7 +139,7 @@ function foundryDescriptor(input: {
     source_commit: CORDIS_FOUNDRY_ADAPTERS_SOURCE_COMMIT,
     source_identity: `git:${CORDIS_FOUNDRY_ADAPTERS_SOURCE_COMMIT}:${CORDIS_FOUNDRY_ADAPTERS_SOURCE_REF}`,
     package_ref: null,
-    required: false,
+    required: input.required,
     provides: [input.serviceId],
     injects: { required: [], optional: [] },
     events: input.events,
@@ -157,6 +158,7 @@ export const CORDIS_FOUNDRY_PROVIDER_MANIFEST_PLUGIN_DESCRIPTOR =
   foundryDescriptor({
     pluginId: CORDIS_FOUNDRY_PROVIDER_MANIFEST_PLUGIN_ID,
     serviceId: CORDIS_FOUNDRY_PROVIDER_MANIFEST_SERVICE,
+    required: true,
     scope: 'composition',
     events: [{
       name: 'opl/foundry/provider-manifest/normalized',
@@ -170,6 +172,7 @@ export const CORDIS_FOUNDRY_EVALUATION_ADAPTER_PLUGIN_DESCRIPTOR =
   foundryDescriptor({
     pluginId: CORDIS_FOUNDRY_EVALUATION_ADAPTER_PLUGIN_ID,
     serviceId: CORDIS_FOUNDRY_EVALUATION_SERVICE,
+    required: false,
     scope: 'attempt',
     events: [
       {

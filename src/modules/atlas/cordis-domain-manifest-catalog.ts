@@ -51,7 +51,11 @@ export const cordisAtlasCatalogPlugin = {
   apply(ctx: Context, config: CordisAtlasCatalogPluginConfig = {}) {
     const buildCatalog = config.buildCatalog ?? buildDomainManifestCatalog;
     const buildStandardAgentCatalog = config.buildStandardAgentCatalog
-      ?? buildStandardAgentDomainManifestCatalog;
+      ?? ((contracts, options = {}) => buildStandardAgentDomainManifestCatalog(contracts, {
+        ...options,
+        legacyDomainManifests: options.legacyDomainManifests
+          ?? buildCatalog(contracts, options).domain_manifests,
+      }));
     const load: CordisAtlasCatalogLoader = (contracts, options = {}) => {
       const result = buildCatalog(contracts, options);
       ctx.emit('opl/atlas/catalog/observed', result.domain_manifests);

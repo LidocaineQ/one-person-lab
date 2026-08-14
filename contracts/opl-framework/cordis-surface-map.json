@@ -2,8 +2,8 @@
   "version": "cordis-surface-map.v1",
   "scope": "opl_framework_cordis_candidate_surface_map",
   "owner": "OPL Framework",
-  "state": "p1_candidate_inventory",
-  "machine_boundary": "This remains the ten-module Cordis surface inventory. Pack and Stagecraft now have real composition-scoped plugins consumed by Runway; the map still does not own installed/currentness, durable workflow history, domain truth, Foundry activation, or App product truth.",
+  "state": "landed/default",
+  "machine_boundary": "This retains the original ten-module candidate evidence and records the landed default-profile phase. Actual plugin identities, dispositions, profiles, and cutover gates are canonical in cordis-architecture-profile.json. Cordis owns only in-process composition, service injection, typed events, fibers, and teardown; all forbidden authorities remain with their existing owners.",
   "evidence_refs": [
     "contracts/opl-framework/source-module-map.json",
     "contracts/opl-framework/module-dependency-policy.json",
@@ -11,11 +11,13 @@
     "src/modules/index.ts"
   ],
   "phase_state": {
-    "cordis_adopted": false,
-    "cordis_runtime_dependency_added": false,
-    "default_caller_changed": false,
-    "production_path_changed": false,
-    "composition_snapshot_approved": false
+    "cordis_adopted": true,
+    "cordis_runtime_dependency_added": true,
+    "default_caller_changed": true,
+    "production_path_changed": true,
+    "composition_snapshot_approved": true,
+    "current_default_profile": "base-headless",
+    "default_route": "opl.profile.base-headless"
   },
   "authority_boundary": {
     "cordis_can_own_package_installed_truth": false,
@@ -68,9 +70,7 @@
           "declaration_ref": "src/modules/charter/contracts.ts",
           "public_entrypoint_ref": "src/modules/charter/index.ts",
           "caller_refs": [
-            "src/modules/runway/family-runtime.ts",
-            "src/modules/workspace/standard-domain-agent-conformance.ts",
-            "src/modules/connect/opl-acp-stdio.ts"
+            "src/modules/charter/cordis-charter-policy.ts"
           ]
         }
       ],
@@ -130,9 +130,7 @@
           "declaration_ref": "src/modules/atlas/domain-manifest/catalog-builder.ts",
           "public_entrypoint_ref": "src/modules/atlas/index.ts",
           "caller_refs": [
-            "src/modules/console/framework-readiness.ts",
-            "src/modules/console/product-entry-handoff-bundle.ts",
-            "src/modules/runway/family-runtime-managed-provider-projection.ts"
+            "src/modules/atlas/cordis-domain-manifest-catalog.ts"
           ]
         }
       ],
@@ -201,9 +199,7 @@
           "declaration_ref": "src/modules/workspace/workspace-registry.ts",
           "public_entrypoint_ref": "src/modules/workspace/index.ts",
           "caller_refs": [
-            "src/modules/console/product-entry-handoff-bundle.ts",
-            "src/modules/atlas/domain-launch.ts",
-            "src/entrypoints/cli/cases/public-command-specs-parts/packages.ts"
+        "src/modules/workspace/cordis-workspace-locator.ts"
           ]
         }
       ],
@@ -264,9 +260,7 @@
           "declaration_ref": "src/modules/pack/standard-agent-stage-manifest.ts",
           "public_entrypoint_ref": "src/modules/pack/index.ts",
           "caller_refs": [
-            "src/modules/runway/family-runtime.ts",
-            "src/modules/runway/family-runtime-temporal-activities.ts",
-            "src/modules/runway/family-runtime-stage-run-route-launch.ts"
+            "src/modules/pack/cordis-pack-stage-binding-plugin.ts"
           ]
         }
       ],
@@ -334,8 +328,7 @@
           "declaration_ref": "src/modules/stagecraft/family-stage-control-plane.ts",
           "public_entrypoint_ref": "src/modules/stagecraft/index.ts",
           "caller_refs": [
-            "src/modules/runway/family-runtime.ts",
-            "src/modules/runway/family-runtime-provider-hosted-attempts.ts"
+            "src/modules/stagecraft/cordis-stagecraft-context-plugin.ts"
           ]
         }
       ],
@@ -396,10 +389,7 @@
           "declaration_ref": "src/modules/runway/agent-executor.ts",
           "public_entrypoint_ref": "src/modules/runway/index.ts",
           "caller_refs": [
-            "src/modules/console/product-entry.ts",
-            "src/modules/runway/domain-task-runtime.ts",
-            "src/modules/runway/family-runtime-codex-stage-runner.ts",
-            "src/entrypoints/cli/cases/private-command-specs.ts"
+            "src/modules/runway/cordis-agent-executor-experiment.ts"
           ]
         }
       ],
@@ -469,9 +459,7 @@
           "declaration_ref": "src/modules/ledger/current-owner-delta-topline.ts",
           "public_entrypoint_ref": "src/modules/ledger/index.ts",
           "caller_refs": [
-            "src/modules/console/framework-readiness.ts",
-            "src/modules/console/framework-readiness-compact-readback.ts",
-            "src/modules/runway/family-runtime-evidence-worklist.ts"
+        "src/modules/ledger/cordis-owner-delta-observer.ts"
           ]
         }
       ],
@@ -539,7 +527,7 @@
           "declaration_ref": "src/modules/console/framework-readiness.ts",
           "public_entrypoint_ref": "src/modules/console/index.ts",
           "caller_refs": [
-            "src/entrypoints/cli/cases/public-command-specs.ts"
+            "src/modules/console/cordis-framework-readiness.ts"
           ]
         }
       ],
@@ -622,7 +610,7 @@
           "declaration_ref": "src/modules/foundry/designer-adapter.ts",
           "public_entrypoint_ref": "src/modules/foundry/index.ts",
           "caller_refs": [
-            "src/modules/runway/standard-agent-action-run-state.ts"
+            "src/modules/foundry/cordis-foundry-adapters.ts"
           ]
         }
       ],
@@ -684,8 +672,7 @@
           "declaration_ref": "src/modules/connect/agent-package-registry-parts/installed-codex-plugin-directory.ts",
           "public_entrypoint_ref": "src/modules/connect/index.ts",
           "caller_refs": [
-            "src/modules/console/app-contribution-broker.ts",
-            "src/modules/connect/agent-package-registry-parts/skill-projection.ts"
+            "src/modules/connect/cordis-connect-services.ts"
           ]
         }
       ],

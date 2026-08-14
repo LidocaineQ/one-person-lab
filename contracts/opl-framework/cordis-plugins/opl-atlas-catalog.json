@@ -5,8 +5,8 @@
   "plugin_ref": "cordis:plugin:opl-atlas-catalog@1.0.0",
   "plugin_api_version": "1.0.0",
   "source_ref": "src/modules/atlas/cordis-domain-manifest-catalog.ts",
-  "source_commit": "c55ef36ab6abe71aaf27e2cd8515943fb6308fbf",
-  "source_identity": "git:c55ef36ab6abe71aaf27e2cd8515943fb6308fbf:src/modules/atlas/cordis-domain-manifest-catalog.ts",
+  "source_commit": "898c21f3bbb4e55b771cc411aa51898476023973",
+  "source_identity": "git:898c21f3bbb4e55b771cc411aa51898476023973:src/modules/atlas/cordis-domain-manifest-catalog.ts",
   "package_ref": null,
   "required": true,
   "provides": [

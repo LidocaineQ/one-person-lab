@@ -289,7 +289,7 @@ export async function ensureFamilyRuntimePackageLaunchReady(input: {
     : null;
   const effectiveRuntimeCheckout = policyRuntimeCheckout
     ?? localCarrierRuntimeCheckout(packageStatus);
-  const skillRefresh = packageReadiness.refreshWorkspaceSkills?.({
+  const skillRefresh = await packageReadiness.refreshWorkspaceSkills?.({
     packageId,
     packageStatus: packageStatus.launch_allowed === false
       ? { ...packageStatus, launch_allowed: true, launch_blocked_reason: null }

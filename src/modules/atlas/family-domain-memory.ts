@@ -253,7 +253,9 @@ export function buildFamilyDomainMemoryInspect(
 ) {
   const parsed = parseOptionArgs(args, ['domain']);
   const normalized = normalizeDomainSelection(parsed.domain);
-  const catalog = buildDomainManifestCatalog(contracts).domain_manifests;
+  const catalog = options.domainManifests ?? buildDomainManifestCatalog(contracts, {
+    manifestCommandTimeoutMs: options.manifestCommandTimeoutMs,
+  }).domain_manifests;
   const entry = catalog.projects.find((candidate) => {
     const descriptor = candidate.status === 'resolved' ? candidate.manifest?.domain_memory_descriptor ?? null : null;
     return candidate.project_id === normalized
