@@ -248,7 +248,7 @@ App product readiness。机器真相归 `package-host-integration.schema.json`�
 
 ### P5：按依赖图迁移已证进程内 seam
 
-状态：`landed`。P4 contract、P5 vertical seams、P5-R target profile 和 P6 default cutover 已完成；旧 WorkspaceBindingPort 生产 caller-zero 已验证，profile-bound service 注入覆盖 CLI/Runtime 默认路径。
+状态：`landed`。P4 contract、P5 vertical seams、P5-R target profile 和 P6 default cutover 已完成；旧 WorkspaceBindingPort 生产 caller-zero 已验证，profile-bound service 注入覆盖 CLI、App action、Workspace adopt/ensure、managed Agent checkout 和 Runtime 默认路径。Workspace Skill projection 只接受当前 profile 的同步 Connect discovery service，不再消费 import-time/global fallback，也不为单个 caller 创建第二 Cordis composition。
 
 迁移采用 successor-first：先在 Cordis composition 中证明一个真实 seam 的 vertical path，再切 production caller，最后以 structural caller=0、affected outcome 和 build/readback 为门批量退役旧手写路径。以下仍按当前十模块便于导航，但它们是证据批次而不是终态边界：
 
@@ -279,11 +279,11 @@ P5-R 的结果可以让一个品牌模块贡献多个 plugin、多个品牌模�
 | 项目 | 内容 |
 | --- | --- |
 | Owner | Framework Integrator；App、Package owner、Foundry、Temporal、Ledger 和 domain owner 共同验收各自边界。 |
-| 状态 | `landed/default`；`base-headless` 已是非 App CLI/Runtime 默认 composition，`app-full` 由 `opl app ...` 入口选择，`foundry-dev` 由 Foundry provider/action caller 选择；App/AionUI GUI ABI 保持 App owner 边界。 |
+| 状态 | `landed/default`；`base-headless` 已是非 App CLI/Runtime 默认 composition，`app-full` 由 `opl app ...` 入口选择，`foundry-dev` 由 Foundry provider/action caller 选择；post-cutover caller reconciliation 已消除 Workspace Skill refresh、Atlas catalog、managed-provider projection 和 command-test composition 的隐式 fallback；App/AionUI GUI ABI 保持 App owner 边界。 |
 | 前置 | P1-P5 与 P5-R gates 全部通过；默认入口已有 Cordis composition snapshot；生产/开发 profile 明确；没有 active caller 仍指向被替代的通用内核。 |
 | 切换 | 先切 `OPL Base`/headless 的受控 profile，再切 App/托管入口；Foundry 与 Runway 使用 attempt child composition；每个 attempt 启动时冻结 snapshot；不在运行中热换。 |
-| 验证 | clean install/managed readback、Codex-default session、Temporal restart/replay、Workspace/receipt refs、App projection、executor failure/teardown、source-module strict gates 和跨模块 focused/aggregate tests。 |
-| 完成门 | 默认进程确实由 Cordis 组合；inspect/readback 与实际 bytes 一致；Package/Temporal/Foundry/Ledger/domain/App owner 仍能独立回读；没有第二 registry/lifecycle；回退可由上一 immutable build/restart 完成。 |
+| 验证 | clean install/managed readback、Codex-default session、Temporal restart/replay、Workspace/receipt refs、App projection、executor failure/teardown、source-module strict gates、完整 Git history ancestry gate 和跨模块 focused/aggregate tests。 |
+| 完成门 | 默认进程确实由 Cordis 组合；每个真实 caller 显式消费其 profile service；默认 pack compiler、managed checkout 和 family-defaults 等不同 source mode 不混用；inspect/readback 与实际 bytes 一致；Package/Temporal/Foundry/Ledger/domain/App owner 仍能独立回读；没有第二 registry/lifecycle；回退可由上一 immutable build/restart 完成。 |
 | 回退 | canonical Git revert 或上一 immutable artifact；停止新 composition profile，不在运行时保留永久兼容分支。 |
 
 ### 持续项：DSH 上游跟踪
@@ -333,7 +333,7 @@ Cordis 的收益不是“代码看起来像插件”，而是把已经存在的�
 
 1. **强收益（当前已证明）**：P1 的 seam 可见性；P2 的 executor 替换、依赖注入、typed event、scope teardown 与 composition isolation。
 2. **值得推进**：P3 的 inspect 可观测性；P4 的显式 plugin contract 与可重放 snapshot。
-3. **目标收益（已落地）**：P5/P5-R/P6 已提供独立 plugin/service seam、显式 profile、较小改动半径、可诊断 teardown、snapshot/digest 回放和 Harness 自进化 substrate。生产 caller 已切换到 base-headless；Package/native carrier、Temporal、Ledger、Foundry、domain 与 App owner readback 仍保持独立，不能由 Cordis inspect 代替。
+3. **目标收益（已落地）**：P5/P5-R/P6 已提供独立 plugin/service seam、显式 profile、较小改动半径、可诊断 teardown、snapshot/digest 回放和 Harness 自进化 substrate。CLI、App action、Workspace adopt/ensure、managed Agent checkout 与 Runtime caller 已切换到对应 profile service；Package/native carrier、Temporal、Ledger、Foundry、domain 与 App owner readback 仍保持独立，不能由 Cordis inspect 代替。
 
 ### Go/no-go 规则
 
