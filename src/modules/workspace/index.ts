@@ -5,6 +5,8 @@ export const OPL_WORKSPACE_SOURCE_MODULE = {
   physicalRoot: 'src/modules/workspace',
 } as const;
 
+import { registerWorkspaceBindingPort } from '../../kernel/workspace-binding-port.ts';
+
 // Public cross-module surface generated from existing module consumers.
 export { buildEvidenceGroundedWorkspaceSubstrate } from './evidence-grounded-substrate.ts';
 export { buildAgentWorkspaceNormChecks, buildAgentWorkspaceNormProjection } from './agent-workspace-norm.ts';
@@ -32,7 +34,49 @@ export {
   fixRepoSourceByproducts,
   inspectRepoSourceByproducts,
 } from './repo-source-byproduct-guard.ts';
-export { buildWorkspaceCatalog, getActiveWorkspaceBinding, inspectWorkspacePathCurrentness, listWorkspaceBindings, pruneWorkspaceRegistry, resolveWorkspaceLocator } from './workspace-registry.ts';
+export {
+  CORDIS_WORKSPACE_LOCATOR_PLUGIN_API_VERSION,
+  CORDIS_WORKSPACE_LOCATOR_PLUGIN_ID,
+  CORDIS_WORKSPACE_LOCATOR_SERVICE,
+  CORDIS_WORKSPACE_LOCATOR_SOURCE_COMMIT,
+  CORDIS_WORKSPACE_LOCATOR_SOURCE_REF,
+  cordisWorkspaceLocatorPlugin,
+  createCordisWorkspaceLocatorComposition,
+} from './cordis-workspace-locator.ts';
+export type {
+  CordisWorkspaceLocator,
+  CordisWorkspaceLocatorService,
+} from './cordis-workspace-locator.ts';
+import {
+  createCordisWorkspaceLocatorComposition,
+} from './cordis-workspace-locator.ts';
+import {
+  buildWorkspaceCatalog,
+  inspectWorkspacePathCurrentness,
+  pruneWorkspaceRegistry,
+} from './workspace-registry.ts';
+export {
+  buildWorkspaceCatalog,
+  inspectWorkspacePathCurrentness,
+  pruneWorkspaceRegistry,
+};
+const cordisWorkspaceLocatorComposition = await createCordisWorkspaceLocatorComposition();
+
+export function getActiveWorkspaceBinding(projectId: string) {
+  return cordisWorkspaceLocatorComposition.locator.active(projectId);
+}
+
+export function listWorkspaceBindings() {
+  return cordisWorkspaceLocatorComposition.locator.list();
+}
+
+export function resolveWorkspaceLocator(projectId: string, explicitWorkspacePath?: string) {
+  return cordisWorkspaceLocatorComposition.locator.resolve(projectId, explicitWorkspacePath);
+}
+registerWorkspaceBindingPort({
+  getActiveWorkspaceBinding,
+  resolveWorkspaceLocator,
+});
 export type { WorkspaceBinding, WorkspacePathCurrentness } from './workspace-registry.ts';
 export {
   assertSameExecutionScope,
