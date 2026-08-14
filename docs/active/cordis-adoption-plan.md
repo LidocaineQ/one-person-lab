@@ -2,7 +2,7 @@
 
 Owner: `OPL Framework`
 Purpose: `cordis_adoption_support_plan`
-State: `roadmap_complete / implementation_p1_p2_landed_p3_not_started`
+State: `roadmap_complete / implementation_p1_p2_landed_p3_active_not_landed`
 Updated: `2026-08-14`
 SSOT role: 本文是详细支撑计划；当前 active gap、优先级和下一棒仍只归 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md)。
 Machine boundary: 本文只证明 Cordis 已作为 exact devDependency 进入隔离实验，并已运行 P2 focused fixture；不证明默认或 production 路径已切换、已 Cordis-native、已发布或已完成 DSH 兼容。Package currentness、Temporal、Foundry、Ledger、domain 和 App 的事实必须分别回到对应 owner surface。
@@ -11,7 +11,7 @@ Machine boundary: 本文只证明 Cordis 已作为 exact devDependency 进入隔
 
 OPL 采用 DeepSeek Harness（DSH）所使用的正式 `@deepseek-ai/cordis` 作为长期目标的进程内组合框架。目标是最终使用 Cordis 本身，不再另造 `Cordis-like` 内核、平行 event bus、平行 service registry 或平行 plugin lifecycle。
 
-这是一项已经完成 P0-P6 路线图、并进入实验验证的架构方向，不是默认运行状态。P1 surface map 与 P2 `Agent Executor` 隔离实验已经落地，P3 尚未开始；当前 OPL 默认生产链仍按既有手写 runtime 运行。首个实验选择 `Agent Executor` seam，因为 Codex、Claude Code、Hermes 和 Antigravity 已经有多个显式 adapter，且该 seam 已在不改变 Temporal durable truth 的情况下证明真实 Cordis 组合、依赖注入、事件、scope isolation 和 teardown。
+这是一项已经完成 P0-P6 路线图、并进入实验验证的架构方向，不是默认运行状态。P1 surface map 与 P2 `Agent Executor` 隔离实验已经落地；P3 composition inspect 已完成 fresh admission、冻结只读边界并进入实施，但尚未吸收。当前 OPL 默认生产链仍按既有手写 runtime 运行。首个实验选择 `Agent Executor` seam，因为 Codex、Claude Code、Hermes 和 Antigravity 已经有多个显式 adapter，且该 seam 已在不改变 Temporal durable truth 的情况下证明真实 Cordis 组合、依赖注入、事件、scope isolation 和 teardown。
 
 Cordis 的职责只限于同一进程内的：
 
@@ -174,7 +174,7 @@ Cordis 只负责箭头中 `context -> plugin -> in-process service/event` 的部
 | 项目 | 内容 |
 | --- | --- |
 | Owner | `OPL Atlas` + `OPL Console`；`Ledger` 只提供 refs-only observation。 |
-| 状态 | `not_started`；P2 已提供最小 composition snapshot，P3 只读 inspect 尚未准入。 |
+| 状态 | `active_not_landed`；P2 最小 composition snapshot/readback 已 fresh 确认，P3 只读 inspect 已冻结 owner、写集、验证和回退边界并进入独立实施，尚未吸收为 Framework truth。 |
 | 依赖 | P2 focused readback、P1 surface map、现有 Console/Atlas read-only projection owner。 |
 | 写集 | 只读 `opl cordis inspect --json`（或等价现有 inspect surface）、composition projection、schema/test；不新增 registry writer。 |
 | 输入 | P2 实际 context、plugin descriptor、composition snapshot、scope/trust/event metadata。 |
@@ -289,7 +289,7 @@ Cordis 的收益不是“代码看起来像插件”，而是把已经存在的�
 
 ## 9. 下一棒
 
-P0-P6 路线图已完整冻结，P1 surface map 和 P2 隔离 executor experiment 已串行吸收，P2 仅在 dev/experimental dependency graph 使用 `@deepseek-ai/cordis@4.0.1`。当前下一棒不再是补规划，而是对 P3 composition inspect 做 fresh implementation admission：确认 P2 snapshot/readback 仍 current，冻结实际文件级写集并实现只读 inspect。P3 尚未开始，也不提前迁移十模块、Temporal、Package lifecycle 或 App。实际 active 优先级、owner、write set 和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准，本计划只作为支撑细节被引用。
+P0-P6 路线图已完整冻结，P1 surface map 和 P2 隔离 executor experiment 已串行吸收，P2 仅在 dev/experimental dependency graph 使用 `@deepseek-ai/cordis@4.0.1`。P3 composition inspect 已完成 fresh implementation admission并进入独立实施；当前下一棒是基于 P2 实际 snapshot 完成 deterministic 只读 projection、CLI/schema/focused test，随后由 Framework Integrator 在 fresh `main` 上串行吸收和回读。P3 未落地前不提前迁移十模块、Temporal、Package lifecycle 或 App。实际 active 优先级、owner、write set 和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准，本计划只作为支撑细节被引用。
 
 ## 10. 禁止声明
 
