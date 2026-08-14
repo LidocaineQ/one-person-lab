@@ -8,6 +8,11 @@
     "contracts/opl-framework/cordis-surface-map.json",
     "contracts/opl-framework/cordis-plugin-descriptor.schema.json",
     "contracts/opl-framework/cordis-composition-snapshot.schema.json",
+    "contracts/opl-framework/package-host-integration.schema.json",
+    "contracts/opl-framework/package-host-context.schema.json",
+    "contracts/opl-framework/standard-agent-host-contract.json",
+    "contracts/opl-framework/capability-package-host-contract.json",
+    "contracts/opl-framework/workflow-profile-host-contract.json",
     "contracts/opl-framework/target-operating-architecture-contract.json",
     "contracts/opl-framework/agent-package-manifest.schema.json",
     "src/modules/index.ts"
@@ -208,6 +213,19 @@
           "authority_role": "Stage binding compiler service; Package descriptors and currentness stay Pack/carrier-owned.",
           "forbidden_authorities": ["package_currentness", "native_carrier_lifecycle", "domain_quality_verdict"],
           "allowed_profiles": ["base-headless", "app-full", "foundry-dev"]
+        },
+        {
+          "contribution_id": "package-host",
+          "plugin_id": "opl-package-host",
+          "disposition": "split",
+          "implementation_state": "landed",
+          "source_refs": ["src/modules/pack/cordis-package-host-plugin.ts", "src/modules/pack/package-host-integration.ts"],
+          "caller_refs": ["src/entrypoints/cordis/composition-profiles.ts"],
+          "scope": "composition",
+          "trust": "first_party_privileged",
+          "authority_role": "Maps validated Package manifest kinds to host capability requirements and emits immutable host contexts; Package identity, currentness, domain authority, and durable lifecycle remain with their existing owners.",
+          "forbidden_authorities": ["package_installed_truth", "package_currentness", "native_carrier_lifecycle", "temporal_workflow_history", "workspace_file_bytes", "ledger_receipt_authority", "foundry_promotion_activation", "domain_truth", "domain_quality_verdict", "app_product_truth"],
+          "allowed_profiles": ["base-headless", "app-full", "foundry-dev"]
         }
       ],
       "authority_continues_refs": ["src/modules/pack/standard-agent-stage-manifest.ts", "contracts/opl-framework/agent-package-manifest.schema.json"]
@@ -396,6 +414,7 @@
         { "plugin_id": "opl-workspace-locator", "required": true, "reason": "Default CLI and runtime projections use the explicit profile-bound locator service." },
         { "plugin_id": "opl-pack-stage-binding", "required": true, "reason": "Stage binding is needed by the headless stage route." },
         { "plugin_id": "opl-stagecraft-context", "required": true, "reason": "Stage context and policy observation are composition dependencies." },
+        { "plugin_id": "opl-package-host", "required": true, "reason": "Standard agents, capability packages, and workflow profiles need a profile-bound host compatibility service." },
         { "plugin_id": "opl-ledger-owner-delta-observer", "required": true, "reason": "Default CLI and runtime projections use the profile-bound refs-only observer." },
         { "plugin_id": "opl-connect-descriptor-discovery", "required": true, "reason": "Default CLI package and contribution surfaces use profile-bound discovery." }
       ],
@@ -416,6 +435,7 @@
         { "plugin_id": "opl-workspace-locator", "required": true, "reason": "App commands and workspace-scoped projections use the profile-bound locator." },
         { "plugin_id": "opl-pack-stage-binding", "required": true, "reason": "App-hosted stage route uses the same Pack binding contract." },
         { "plugin_id": "opl-stagecraft-context", "required": true, "reason": "App preview and hosted route share typed stage context." },
+        { "plugin_id": "opl-package-host", "required": true, "reason": "App-hosted Packages need the same profile-bound compatibility context without duplicating a Package runtime." },
         { "plugin_id": "opl-ledger-owner-delta-observer", "required": true, "reason": "App readiness uses refs-only owner-delta observation." },
         { "plugin_id": "opl-console-readiness-projection", "required": true, "reason": "Framework read-only projection consumed by the App boundary." },
         { "plugin_id": "opl-connect-descriptor-discovery", "required": true, "reason": "App contribution and package projections use profile-bound discovery." }
@@ -436,6 +456,7 @@
         { "plugin_id": "opl-atlas-catalog", "required": true, "reason": "Candidate capability and agent discovery." },
         { "plugin_id": "opl-pack-stage-binding", "required": true, "reason": "Candidate stages use the Pack binding ABI." },
         { "plugin_id": "opl-stagecraft-context", "required": true, "reason": "Candidate stage context and policy observation." },
+        { "plugin_id": "opl-package-host", "required": true, "reason": "Foundry candidate bindings need a frozen host compatibility context before evaluation." },
         { "plugin_id": "opl-foundry-provider-manifest", "required": true, "reason": "Provider manifest normalization seam has a real Foundry caller." },
         { "plugin_id": "opl-foundry-evaluation-adapter", "required": false, "reason": "Optional evaluation adapter for candidate experiments." }
       ],

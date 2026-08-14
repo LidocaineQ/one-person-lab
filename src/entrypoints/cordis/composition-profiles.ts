@@ -46,9 +46,13 @@ import {
 } from '../../modules/ledger/index.ts';
 import {
   buildCordisCompositionSnapshot,
+  CORDIS_PACKAGE_HOST_PLUGIN_DESCRIPTOR,
+  CORDIS_PACKAGE_HOST_SERVICE,
   CORDIS_PACK_STAGE_BINDING_SERVICE,
+  cordisPackageHostPlugin,
   cordisPackStageBindingPlugin,
   type CordisCompositionSnapshot,
+  type CordisPackageHostService,
   type CordisPackStageBindingService,
   type CordisPluginDescriptor,
 } from '../../modules/pack/index.ts';
@@ -98,6 +102,7 @@ export type CordisBaseHeadlessServices = {
   stageContext: CordisStagecraftContextService;
   ownerDeltaObserver: CordisOwnerDeltaObserverService;
   descriptorDiscovery: CordisConnectDescriptorDiscoveryService;
+  packageHost: CordisPackageHostService;
   familyRuntime: typeof runFamilyRuntime;
   childFactories: {
     createAgentExecutorRequest: typeof createCordisAgentExecutorRequest;
@@ -108,7 +113,7 @@ export type CordisBaseHeadlessServices = {
 
 type CordisFoundryDevServices = Pick<
   CordisBaseHeadlessServices,
-  'charter' | 'atlas' | 'stageBinding' | 'stageContext'
+  'charter' | 'atlas' | 'stageBinding' | 'stageContext' | 'packageHost'
 > & {
   childFactories: Pick<
     CordisBaseHeadlessServices['childFactories'],
@@ -150,6 +155,7 @@ export const CORDIS_BASE_HEADLESS_PLUGIN_DESCRIPTORS: readonly CordisPluginDescr
     CORDIS_ATLAS_CATALOG_PLUGIN_DESCRIPTOR,
     CORDIS_WORKSPACE_LOCATOR_PLUGIN_DESCRIPTOR,
     ...CORDIS_PACK_STAGECRAFT_PLUGIN_DESCRIPTORS,
+    CORDIS_PACKAGE_HOST_PLUGIN_DESCRIPTOR,
     CORDIS_OWNER_DELTA_OBSERVER_PLUGIN_DESCRIPTOR,
     CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_PLUGIN_DESCRIPTOR,
   ] as CordisPluginDescriptor[]);
@@ -200,10 +206,16 @@ async function disposeFibers(fibers: readonly CordisFiber[]) {
   for (const fiber of [...fibers].reverse()) await fiber.dispose();
 }
 
-export async function createCordisBaseHeadlessComposition(options: {
+type CordisBaseCompositionOptions = {
   atlas?: CordisAtlasCatalogPluginConfig;
   connect?: CordisConnectDescriptorDiscoveryPluginConfig;
-} = {}): Promise<CordisBaseHeadlessComposition> {
+};
+type CordisBaseComposition = Omit<CordisBaseHeadlessComposition, 'profileId'>;
+
+async function createCordisBaseComposition(
+  profileId: 'base-headless' | 'app-full',
+  options: CordisBaseCompositionOptions = {},
+): Promise<CordisBaseComposition> {
   const ctx = new Context();
   const fibers: CordisFiber[] = [];
   try {
@@ -224,6 +236,7 @@ export async function createCordisBaseHeadlessComposition(options: {
     }));
     fibers.push(await ctx.plugin(cordisStagecraftContextPlugin));
     fibers.push(await ctx.plugin(cordisPackStageBindingPlugin));
+    fibers.push(await ctx.plugin(cordisPackageHostPlugin, { profile_id: profileId }));
     fibers.push(await ctx.plugin(cordisOwnerDeltaObserverPlugin));
     const stageBinding = requiredService<CordisPackStageBindingService>(
       ctx,
@@ -235,7 +248,6 @@ export async function createCordisBaseHeadlessComposition(options: {
     );
     const atlas = requiredService<CordisAtlasCatalogService>(ctx, CORDIS_ATLAS_CATALOG_SERVICE);
     return {
-      profileId: CORDIS_DEFAULT_PROFILE_ID,
       ctx,
       services: {
         charter: requiredService(ctx, CORDIS_CHARTER_CONTRACTS_SERVICE),
@@ -245,6 +257,7 @@ export async function createCordisBaseHeadlessComposition(options: {
         stageContext,
         ownerDeltaObserver: requiredService(ctx, CORDIS_OWNER_DELTA_OBSERVER_SERVICE),
         descriptorDiscovery: requiredService(ctx, CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_SERVICE),
+        packageHost: requiredService(ctx, CORDIS_PACKAGE_HOST_SERVICE),
         familyRuntime: (args, runtimeOptions = {}) => runFamilyRuntime(args, {
           ...runtimeOptions,
           loadDomainManifests: runtimeOptions.loadDomainManifests ?? atlas,
@@ -262,7 +275,7 @@ export async function createCordisBaseHeadlessComposition(options: {
           createStageRouteComposition: createCordisStageRouteComposition,
         },
       },
-      snapshot: profileSnapshot(CORDIS_DEFAULT_PROFILE_ID, CORDIS_BASE_HEADLESS_PLUGIN_DESCRIPTORS),
+      snapshot: profileSnapshot(profileId, CORDIS_BASE_HEADLESS_PLUGIN_DESCRIPTORS),
       async dispose() {
         await disposeFibers(fibers);
         await ctx.fiber.dispose();
@@ -275,12 +288,22 @@ export async function createCordisBaseHeadlessComposition(options: {
   }
 }
 
+export async function createCordisBaseHeadlessComposition(
+  options: CordisBaseCompositionOptions = {},
+): Promise<CordisBaseHeadlessComposition> {
+  const base = await createCordisBaseComposition(CORDIS_DEFAULT_PROFILE_ID, options);
+  return {
+    profileId: CORDIS_DEFAULT_PROFILE_ID,
+    ...base,
+  };
+}
+
 export async function createCordisAppFullComposition(options: {
   runtimeSnapshotProvider: RuntimeTraySnapshotProvider;
   atlas?: CordisAtlasCatalogPluginConfig;
   connect?: CordisConnectDescriptorDiscoveryPluginConfig;
 }): Promise<CordisAppFullComposition> {
-  const base = await createCordisBaseHeadlessComposition(options);
+  const base = await createCordisBaseComposition('app-full', options);
   let readinessFiber: CordisFiber | null = null;
   try {
     const runtimeSnapshotProvider: RuntimeTraySnapshotProvider = (contracts, snapshotOptions) =>
@@ -326,6 +349,7 @@ export async function createCordisFoundryDevComposition(options: {
     fibers.push(await ctx.plugin(cordisAtlasCatalogPlugin, options.atlas ?? {}));
     fibers.push(await ctx.plugin(cordisStagecraftContextPlugin));
     fibers.push(await ctx.plugin(cordisPackStageBindingPlugin));
+    fibers.push(await ctx.plugin(cordisPackageHostPlugin, { profile_id: 'foundry-dev' }));
     fibers.push(await ctx.plugin(cordisFoundryProviderManifestPlugin));
     if (options.evaluation) {
       fibers.push(await ctx.plugin(cordisFoundryEvaluationAdapterPlugin, options.evaluation));
@@ -338,6 +362,7 @@ export async function createCordisFoundryDevComposition(options: {
         atlas: requiredService(ctx, CORDIS_ATLAS_CATALOG_SERVICE),
         stageBinding: requiredService(ctx, CORDIS_PACK_STAGE_BINDING_SERVICE),
         stageContext: requiredService(ctx, CORDIS_STAGECRAFT_CONTEXT_SERVICE),
+        packageHost: requiredService(ctx, CORDIS_PACKAGE_HOST_SERVICE),
         childFactories: {
           createRunwayAttemptComposition: createCordisRunwayAttemptComposition,
         },
@@ -353,6 +378,7 @@ export async function createCordisFoundryDevComposition(options: {
         CORDIS_CHARTER_POLICY_PLUGIN_DESCRIPTOR,
         CORDIS_ATLAS_CATALOG_PLUGIN_DESCRIPTOR,
         ...CORDIS_PACK_STAGECRAFT_PLUGIN_DESCRIPTORS,
+        CORDIS_PACKAGE_HOST_PLUGIN_DESCRIPTOR,
         CORDIS_FOUNDRY_PROVIDER_MANIFEST_PLUGIN_DESCRIPTOR,
         ...(options.evaluation ? [CORDIS_FOUNDRY_EVALUATION_ADAPTER_PLUGIN_DESCRIPTOR] : []),
       ], ['runway_attempt']),

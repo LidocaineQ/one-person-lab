@@ -29,7 +29,9 @@
     "./source-derived-agent-design-abi": "./dist/modules/pack/public/source-derived-agent-design-abi.js",
     "./reference-design-pattern-packet": "./dist/modules/workspace/reference-design-pattern-packet.js",
     "./standard-agent-pack-abi": "./dist/modules/pack/public/standard-agent-pack-abi.js",
-    "./standard-agent-implementation-profile": "./dist/modules/pack/public/standard-agent-implementation-profile.js"
+    "./standard-agent-implementation-profile": "./dist/modules/pack/public/standard-agent-implementation-profile.js",
+    "./package-host-integration": "./dist/modules/pack/package-host-integration.js",
+    "./cordis-package-host": "./dist/modules/pack/cordis-package-host-plugin.js"
   },
   "bin": {
     "opl": "./bin/opl"
