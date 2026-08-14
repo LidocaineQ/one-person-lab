@@ -105,9 +105,7 @@ function expectedRouteReplayBusinessIdentity(input: {
     stage_attempt_executor_policy: input.stageAttemptExecutorPolicy,
     parent_route_decision_ref: input.parentRouteDecisionRef,
     checkpoint_refs: [],
-    ...(input.routeBudget
-      ? { route_budget: input.routeBudget }
-      : {}),
+    route_budget: input.routeBudget,
   };
 }
 

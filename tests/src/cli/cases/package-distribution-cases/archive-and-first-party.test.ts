@@ -1236,7 +1236,7 @@ test('first-party agent package manifests declare Codex carrier and OPL package 
       ]),
     ),
     {
-      mag: undefined,
+      mag: '开展基金申请工作',
       mas: '开展科研工作',
       obf: '规划书稿结构',
       oma: '构建与迭代智能体',

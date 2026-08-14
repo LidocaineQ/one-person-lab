@@ -278,7 +278,7 @@ test('bundled catalog includes required dependencies without relaxing member int
 
   const selected = readBundledFullRuntimePackageCatalog();
   assert.deepEqual(selected.entries.get('mas')?.dependencyPackageIds, ['mas-scholar-skills']);
-  assert.deepEqual(selected.entries.get('mag')?.dependencyPackageIds, []);
+  assert.deepEqual(selected.entries.get('mag')?.dependencyPackageIds, ['mas-scholar-skills']);
   assert.ok(selected.entries.has('mas-scholar-skills'));
 
   const scholarPayloadPath = path.join(

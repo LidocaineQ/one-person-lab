@@ -729,7 +729,7 @@ test('max=0 initial reviewer repair_required fails open with consumable quality 
   assert.equal(state.hard_stop_class, null);
   assert.equal(state.repair_rounds_used, 0);
   assert.equal(state.review_receipts[0]?.verdict, 'repair_required');
-  assert.equal(state.source_attempt_ref, null);
+  assert.equal(state.source_attempt_ref, `opl://stage_attempts/${state.attempts[1]?.stage_attempt_id}`);
   assert.equal(state.decisive_attempt_role, null);
   assert.equal(state.selected_stage_route, null);
   assert.equal(state.quality_debt_refs.includes('quality-debt:finding:visual-clipping'), true);

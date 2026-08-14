@@ -21,6 +21,7 @@
       {
         "shortcut_id": "open_grant_user_loop",
         "label_i18n": {
+          "zh-CN": "开展基金申请工作",
           "en-US": "Open MAG user loop"
         },
         "default_visible": true,

@@ -621,7 +621,11 @@ Re-review.
         },
       },
     },
-    meta_review_policy: { stage_ref: 'intake', independent_stage_run_required: true },
+    meta_review_policy: {
+      stage_ref: 'intake',
+      independent_stage_run_required: true,
+      max_route_back_rounds: 3,
+    },
   });
   const manifest = readManifest(root);
   manifest.quality_governance_profile_ref =
