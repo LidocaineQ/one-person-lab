@@ -5,6 +5,8 @@ export const OPL_CHARTER_SOURCE_MODULE = {
   physicalRoot: 'src/modules/charter',
 } as const;
 
+export * from './cordis-charter-policy.ts';
+
 // Public cross-module surface generated from existing module consumers.
 export { buildEvidenceGroundedCharterProfileBoundaryReadback } from './evidence-grounded-decision-agent-profile.ts';
 export { buildBrandModuleL5Status } from './brand-module-l5-evidence.ts';
