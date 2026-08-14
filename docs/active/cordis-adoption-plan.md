@@ -244,7 +244,7 @@ Cordis 只负责箭头中 `context -> plugin -> in-process service/event` 的部
 
 ## 8. 下一棒
 
-本轮完成 P0。下一次实现任务只做 P1 的 surface map 和 P2 的隔离 executor spike；不要提前迁移十模块、Temporal、Package lifecycle 或 App。实际 active 优先级、owner、write set 和状态必须先写回 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md)，本计划只作为支撑细节被引用。
+P0 已完成，P1 surface map 与 P2 隔离 executor spike 已按独立 worktree/write set 启动。当前下一棒是完成两条 lane 的 focused verification 与可恢复 checkpoint，由 Framework Integrator 基于 fresh `main` 串行吸收并回读；在 P1/P2 完成门闭合前，不进入 P3，也不提前迁移十模块、Temporal、Package lifecycle 或 App。实际 active 优先级、owner、write set 和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准，本计划只作为支撑细节被引用。
 
 ## 9. 禁止声明
 
