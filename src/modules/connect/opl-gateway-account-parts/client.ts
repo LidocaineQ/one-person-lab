@@ -17,6 +17,8 @@ type RequestOptions = {
   safeGetRetry?: boolean;
 };
 
+const DEFAULT_GATEWAY_MAX_RESPONSE_BODY_BYTES = 1024 * 1024;
+
 function gatewayError(code: string, message: string, status?: number) {
   return new FrameworkContractError('launcher_failed', message, {
     reason_code: code,
@@ -111,7 +113,7 @@ async function request(path: string, options: RequestOptions = {}) {
         if (method === 'GET' && response.status >= 500 && attempt + 1 < attempts) continue;
         throw gatewayError(errorCode(response.status), 'OPL Gateway rejected the request.', response.status);
       }
-      const raw = await readResponseBody(response, maxResponseBodyBytes());
+      const raw = await readResponseBody(response, maxResponseBodyBytes(DEFAULT_GATEWAY_MAX_RESPONSE_BODY_BYTES));
       if (!raw) return {};
       let parsed: unknown;
       try {

@@ -321,6 +321,35 @@ test('gateway client bounds chunked oversized responses without retrying the cur
   }
 });
 
+test('gateway client preserves the default 1 MiB response limit', async () => {
+  const previousLimit = process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES;
+  delete process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES;
+  const prefix = '{"code":0,"data":{"server_timezone":"Asia/Shanghai","padding":"';
+  const suffix = '"}}';
+  const atLimit = `${prefix}${'x'.repeat(1024 * 1024 - prefix.length - suffix.length)}${suffix}`;
+  let responseBody = atLimit;
+  let settingsRequests = 0;
+  try {
+    await withControlServer((request, response) => {
+      if (request.url !== '/api/v1/settings/public') return json(response, { code: 404 }, 404);
+      settingsRequests += 1;
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(responseBody);
+    }, async () => {
+      const legal = await inspectGatewayPublicSettings();
+      assert.equal(legal.server_timezone, 'Asia/Shanghai');
+
+      responseBody = `${atLimit} `;
+      await assert.rejects(inspectGatewayPublicSettings(), (error: unknown) =>
+        error instanceof FrameworkContractError && error.details?.reason_code === 'gateway_response_too_large');
+      assert.equal(settingsRequests, 2);
+    });
+  } finally {
+    if (previousLimit === undefined) delete process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES;
+    else process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES = previousLimit;
+  }
+});
+
 test('managed key reconcile fails closed for duplicate names and renamed known IDs', async () => {
   const installation = buildGatewayInstallation('Conflict Device', '11111111-2222-4333-8444-555555555555');
   let mutations = 0;

@@ -13,11 +13,11 @@ export class ResponseBodyTooLargeError extends Error {
   }
 }
 
-export function maxResponseBodyBytes() {
+export function maxResponseBodyBytes(callerDefaultBytes = DEFAULT_MAX_RESPONSE_BODY_BYTES) {
   const raw = process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES?.trim();
-  if (!raw) return DEFAULT_MAX_RESPONSE_BODY_BYTES;
+  if (!raw) return callerDefaultBytes;
   const parsed = Number(raw);
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_RESPONSE_BODY_BYTES;
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : callerDefaultBytes;
 }
 
 function declaredContentLength(response: Response) {
