@@ -7,7 +7,7 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 
 ## 顶层分层
 
-`OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。当前产品认知分成 `OPL Framework`、`One Person Lab App` 和 `Foundry Agents` 三层：Framework 负责开发与运行框架，App 负责普通用户工作台，Foundry Agents 负责领域智能体与交付权威。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
+`OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。当前产品认知分成 `OPL Framework`、`One Person Lab App` 和 `Foundry Agents` 三层：Framework 负责开发与运行框架，App 负责普通用户工作台，Foundry Agents 负责领域智能体与交付权威。长期进程内组合目标采用 DSH 体系的正式 `@deepseek-ai/cordis`；当前仍是 planned/experimental 方向，不表示已经接入默认路径。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
 
 ### Codex executable carrier 边界
 
@@ -52,6 +52,46 @@ Framework 目标只保留 OCI 和其他 native carrier 的薄 adapter、carrier-
 Agent 自己持有业务 Work Item inventory 和扩展数据接口；Temporal 只持有 execution history/status；App 组合两者。MAS 科研路线通过 Agent-owned typed data view + App-owned renderer 展示，未知 view 安全降级，Package 不向 App 注入任意可执行 UI。新增 Agent 仅需安装并暴露 descriptor，即可进入 Runtime 页面，不修改 Framework 固定数组。
 
 release manifest/checksum/attestation、Temporal Worker Versioning 和 domain artifact/evidence digest 仍由各自 owner 保留；它们不属于 Package lock，也不得成为普通安装或运行门禁。完整迁移、功能等价和物理删除门见 [`docs/active/opl-package-platform-composition-migration.md`](./active/opl-package-platform-composition-migration.md)。该目标当前为 `planned`；在 platform fresh proof 和兼容桥完成前，现有 `opl packages`、lock/receipt/LKG 等只作为 current compatibility implementation，不能据此继续扩张目标架构。
+
+### Planned：DSH Cordis 进程内组合层
+
+OPL 的 Cordis 目标层只处理进程内组合：Context、service、`inject` 依赖、typed event、`effect()` disposer 和 scope teardown。它把十个品牌模块的可替换运行贡献组合到一个 process/session/attempt context 中，但不重新定义模块 owner，也不把内存中的 service 变成 durable truth。
+
+```text
+Brand module source owner -> Package/carrier projection -> Cordis plugin contribution
+                                                     -> process/session/attempt composition
+Executor route <------------------------------------+
+Temporal / Workspace / Ledger / Foundry / domain owner remain authoritative
+```
+
+五个身份必须分开：
+
+| 身份 | OPL 语义 | Cordis 是否拥有 |
+| --- | --- | --- |
+| Brand module | 源码 owner / bounded context | 只消费其公开 plugin contribution，不改变 owner。 |
+| Package | 安装、发布、分发和 carrier 生命周期单元 | 不拥有；plugin 只是 Package 的进程内 projection。 |
+| Cordis plugin | service、event、effect 和 lifecycle 贡献 | 负责进程内挂载和卸载。 |
+| Composition snapshot | 一次执行选中的 exact plugin/source/package 输入 | 只作为不可变 execution input，不是 installed lock 或 currentness。 |
+| Executor route | Codex/Claude/Hermes/Antigravity 的实际可调用能力 | 通过 plugin 暴露 route，不改变 executor 或 Temporal authority。 |
+
+十个品牌模块的候选贡献如下；这不是强制迁移清单，P1 必须用真实 caller 和依赖图确认：
+
+| 模块 | Cordis 候选贡献 | 继续保留的权威 |
+| --- | --- | --- |
+| `Charter` | policy/config service、forbidden-claim event | ADR、术语、owner split。 |
+| `Atlas` | catalog/discovery service | identity、catalog source、owner metadata。 |
+| `Workspace` | locator/binding/lifecycle adapter | workspace registry、文件 bytes、restore/delete。 |
+| `Pack` | descriptor/ABI/compiler service | Package descriptor、ABI、安装/分发。 |
+| `Stagecraft` | stage context、capability policy service | stage 语义、route judgment、quality policy。 |
+| `Runway` | executor/attempt transport service | Temporal history、retry、signal、worker durability。 |
+| `Ledger` | refs-only observer/receipt adapter | evidence、receipt、lineage 和审计事实。 |
+| `Console` | read-only inspect/projection service | App GUI/product truth、用户 action。 |
+| `Foundry Kernel` | design/eval/activation adapter | AgentVersion、qualification、canary、activation CAS。 |
+| `Connect` | carrier/provider/plugin loader adapter | native installed truth、Package currentness、credential。 |
+
+Cordis plugin 可独立版本、分支和发布；组合只通过显式 `provides/injects`、API compatibility、scope 和 trust contract 校验，不建立中央版本 resolver。required plugin 缺失或不兼容时，composition fail closed；optional plugin 只能形成诊断/降级，不得写 domain verdict。生产 attempt 在启动时冻结 composition snapshot，运行中不得 hot swap；HMR/reload 仅限 dev/experimental scope。Cordis 不是安全沙箱，不可信 plugin 必须由现有 sandbox/provider 或独立进程隔离。
+
+Cordis adoption 的详细阶段、owner、写集、验证、完成门和回退见 [`docs/active/cordis-adoption-plan.md`](./active/cordis-adoption-plan.md)。当前只完成方向决策，尚未安装或切换 Cordis；既有 Package lifecycle、Temporal、Foundry、Ledger 与 domain/App owner 边界继续有效。
 
 ### Legacy Package Manager compatibility inventory
 
@@ -485,6 +525,8 @@ Stage attempt 的终态只允许收敛到三类：`success` 表示 required outp
 - Runway provider attempt：只消费 Codex 显式选择的 declared stage-attempt request，把stage/run identity、idempotency key、source generation与expected version normalize成provider transport/readback。OPL不根据domain read-model、action_queue形状、quality gate、receipt completeness或recovery文案自行推导、批准或拒绝下一步domain stage。
 - provider execution：Temporal `StageAttemptWorkflow`、Codex / domain sidecar activity、human gate / user instruction / resume signal、stage attempt query、CLI `attempt start|query|signal`、worker lifecycle status 和 fail-closed readiness 已落地为 source / CLI / contract / projection surface。2026-05-14 本机 managed Temporal service / worker proof 只作为历史 provider proof provenance；当前 `full_online_ready`、`durable_online_ready`、SLO、worker lifecycle 或 production-residency 读法必须 fresh-read runtime / readiness owner surface，不能从本文继承。
 - typed receipt / workbench：Codex stage activity 已有 dry-run / live-dry-run / `codex_cli` runner repo/test harness、typed closeout claim-evidence 捕获、raw/partial/no-output diagnostic progress、consumed refs / memory refs / writeback receipt refs / rejected writes / route impact / next owner 投影；`opl runtime snapshot` 已输出只读 `stage_attempt_workbench`。typed closeout 只提高 lineage 与 owner/quality/ready claim 证据质量，不是 stage completion 或 transition gate。
+
+Cordis adoption 当前仍是结构规划缺口：目标依赖已锁定为 DSH scoped `@deepseek-ai/cordis`，但本仓尚未安装、尚未创建实验 composition、尚未把任何默认 caller 切换到 Cordis。首个 seam 是 Agent Executor；P1 surface map、P2 隔离实验、P3 inspect、P4 plugin/package version contract、P5 分批迁移和 P6 默认切换的具体门槛见 [`Cordis Adoption Plan`](./active/cordis-adoption-plan.md)。该规划不改变当前 Temporal durable path、Package installed truth 或 domain/App authority。
 
 当前尚未闭合的是完整生产级 long domain owner chain：
 

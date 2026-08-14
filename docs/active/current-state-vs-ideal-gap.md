@@ -34,7 +34,8 @@ North-star 参考仍归 [OPL 与 Foundry Agents 理想目标态](../references/r
 
 | 范围 | 当前完成状态 | 证据边界 |
 | --- | --- | --- |
-| 非 live 功能 / 结构基线 | `opl_package_platform_composition_phase_2_controlled_breaking_cutover_in_progress` | 当前唯一 selected gap 是 Package platform-first composition；本仓 owner 边界见 [`opl-package-platform-composition-migration.md`](./opl-package-platform-composition-migration.md)，跨仓唯一实施计划归 App SSOT。Phase 2 已获用户批准，当前按 successor-only 纵向链路、production caller 切换、affected OUT / carrier 验收与 owner-gated bulk deletion 顺序执行。 |
+| 非 live 功能 / 结构基线 | `opl_package_platform_composition_phase_2_controlled_breaking_cutover_in_progress` | 既有 Package platform-first composition 仍是独立 active migration slice；本仓 owner 边界见 [`opl-package-platform-composition-migration.md`](./opl-package-platform-composition-migration.md)，跨仓唯一实施计划归 App SSOT。Phase 2 已获用户批准，当前按 successor-only 纵向链路、production caller 切换、affected OUT / carrier 验收与 owner-gated bulk deletion 顺序执行。 |
+| Cordis 进程内组合 | `planned_ssot_frozen_experiment_not_started` | 用户已确定正式 `@deepseek-ai/cordis` 为目标组合框架；当前只完成决策、架构和计划，尚未安装、尚未创建实验 composition、尚未切换默认 caller。首个 seam 是 Agent Executor，详细门槛见 [`cordis-adoption-plan.md`](./cordis-adoption-plan.md)。 |
 | Ponytail 低风险简化 | `low_risk_slice_landed_owner_gated_tail_remains` | OPL Framework 已删除已证明无生产 caller 的 pass-through facade 文件，同时通过 canonical kernel 保留既有 public symbols；并清理孤儿 runtime helpers、专属测试/脚本和无引用图片。对外 contracts、Package/payload 历史、release cohorts 与仍可能被外部消费的 schema 保持 owner-gated，不把仓内零引用当作物理删除授权。Fallow 动态入口只登记真实运行期拼接加载的模块；扫描配置校准不扩大删除授权。下一轮只从 fresh caller/consumer evidence 选择新的最小 cleanup slice。 |
 | Active Truth 治理 | `single_owner_guard_active` | 本文是唯一 active truth owner，只保留当前 gap、完成口径与下一轮 baton，不保存 dated proof 或 closeout 流水。 |
 | Live / release / production / owner evidence | `deferred_to_evidence_owners` | 继续由 App release、provider long-soak、Brand L5、domain owner receipt、typed blocker 与 human gate 等 owner surface 单独证明。 |
@@ -45,22 +46,25 @@ North-star 参考仍归 [OPL 与 Foundry Agents 理想目标态](../references/r
 
 当前默认读法：默认 OPL family maintained repo 的非 live 功能/结构基线只能从 fresh repo truth、四份 `contracts/opl-framework/foundry-*.schema.json`、FoundryRun source/tests 与各 domain owner surface 读取。本文不冻结日期、branch、SHA、`origin/main` 状态、receipt id、worktree closeout、workflow run 或某轮 readback。
 
-当前唯一已选中的 active 非 live 功能/结构 gap 是
-`opl_package_platform_composition`。Phase 1 已完成 SSOT 与冻结实施计划；Phase 2 已获
-用户批准并进入 successor-first controlled cutover。先让 successor-only Package plane
-形成可验证、可回退的真实纵向链路，再切换全部 production caller 并通过 affected OUT /
-real-carrier acceptance；只有 structural caller 为零且对应 owner decision / physical-delete
-gate 成立后，才进入一个受控 legacy bulk deletion 批次。逐字段、逐 family retirement
-ceremony 不再是主路径。每条实施切片仍须 fresh 登记唯一 owner 与 exact write set。该实施
-授权不覆盖 Package publication、
-Stable/Latest、真实用户 managed state 或其他 public mutation。Phase 1 形成期间已由独立 owner canonical 的
-owner-channel currentness/MAS required selection保留为 current truth，不回退也不重复
-实施。本仓
-[`Framework counterpart`](./opl-package-platform-composition-migration.md) 只登记
-owner 边界和兼容面，跨仓唯一工作包、依赖、功能不降级验收与删除顺序归 App 主
-SSOT。本文只持有 gap/baton，不复制执行计划，也不能把 docs、focused tests 或
-compatibility bridge 写成迁移完成。与本迁移写集零交叉且拥有独立 authority 的
-Stable、Latest、Package publication、Foundry 和其他工作不受本阶段门限制。
+当前 active 非 live 功能/结构 gap 有两个相互关联但不互相替代的切片：
+
+1. `cordis_runtime_composition_adoption` 是新的战略主线。用户已确定正式
+   `@deepseek-ai/cordis` 为 OPL 长期进程内组合框架；P0 已冻结 SSOT，下一棒是 P1
+   surface map 和 P2 隔离的 Agent Executor 实验。实现前不得安装到默认 production
+   dependency graph，也不得把计划写成已插件化或已 Cordis-native。详细 owner、写集、
+   验证和回退见 [`cordis-adoption-plan.md`](./cordis-adoption-plan.md)。
+2. `opl_package_platform_composition` 是保留的独立迁移切片。Phase 1 已完成 SSOT 与冻结
+   实施计划；Phase 2 已获用户批准并进入 successor-first controlled cutover。先让
+   successor-only Package plane 形成可验证、可回退的真实纵向链路，再切换全部 production
+   caller 并通过 affected OUT / real-carrier acceptance；只有 structural caller 为零且
+   对应 owner decision / physical-delete gate 成立后，才进入受控 legacy bulk deletion。其
+   计划见 [`opl-package-platform-composition-migration.md`](./opl-package-platform-composition-migration.md)。
+
+两条切片共享 Framework Integrator，但 authority 不合并：Cordis plugin 只做进程内组合，
+Package 仍持有安装/currentness；Cordis adoption 不授权 Package publication、Stable/Latest、
+真实用户 managed state 或其他 public mutation。每条实施切片仍须 fresh 登记唯一 owner 与
+exact write set。本文只持有 gap/baton，不复制两份执行计划，也不能把 docs、focused tests、
+composition inspect 或 compatibility bridge 写成迁移完成。
 
 ## 八条调研建议 Current Tracker
 
@@ -91,6 +95,7 @@ Stable、Latest、Package publication、Foundry 和其他工作不受本阶段�
 
 | Gap class | Status | Owner | 当前处理 |
 | --- | --- | --- | --- |
+| Cordis runtime composition adoption | `planned_ssot_frozen_experiment_not_started` | OPL Charter + Framework Integrator；P2 由 Runway/Connect 负责 | 只采用 DSH scoped `@deepseek-ai/cordis`；先做 P1 surface map，再做隔离 Agent Executor 实验，后续按 P3 inspect、P4 version contract、P5 分批迁移、P6 默认切换推进。当前不安装、不切默认 caller、不新增第二 registry/lifecycle。 |
 | Package platform-first composition | `phase_2_controlled_breaking_cutover_in_progress` | OPL Framework + OPL App | Phase 1 的 SSOT、旧 resolver/lock/payload/receipt/Durable 扩张禁令与 no-resurrection 边界已冻结；Phase 2 按 M1 successor-only public actions、M2 App/Shell caller switch、M3 affected OUT / real-carrier acceptance、M4 owner-gated legacy bulk deletion 与同 outcome 复验推进。 |
 | 文档 SSOT / active gap 污染 | `active_governance_guard` | OPL + OPL Flow `$opl-doc` Skill | 理想态定义保留在 support/reference；active gap 文档只保留当前 gap、完成口径和下一轮 baton；已完成过程进 history。 |
 | Live / release / production / owner evidence | `deferred_evidence_lane` | 对应 evidence owner | 单独走 live evidence 维护入口，不混入本文 active gap。 |
@@ -107,16 +112,14 @@ Stable、Latest、Package publication、Foundry 和其他工作不受本阶段�
 
 ## Next-Round Agent Prompt
 
-当前默认非 live 功能/结构主题是 `opl_package_platform_composition`，但
-`next_action=按 successor-first M1-M4 里程碑继续 Phase 2`。每轮先读取 fresh App 主 SSOT
-和本仓 [`Framework counterpart`](./opl-package-platform-composition-migration.md)，
-再从 source、真实 caller 与 carrier readback 选择当前最小可验收缺口，重新冻结唯一
-owner、exact write set、successor、affected outcome 与回退门禁。只有全部 production
-caller 已切换、structural caller 为零、受影响 OUT 通过且 physical-delete owner gate
-成立时才进入 M4；closed read-model counter 本身不授权物理删除。不得把计划、docs、
-测试或未吸收候选写成
-完成，也不得把本授权扩展到 Package publication、真实用户 managed state 或其他 public
-mutation。
+当前默认非 live 功能/结构主题是 `cordis_runtime_composition_adoption`，
+`next_action=完成 P1 surface map，并在独立实验 lane 启动 P2 Agent Executor spike`。每轮先
+读取本计划、fresh source/module caller、DSH scoped package/source lock 和对应 owner
+contracts，再冻结唯一 owner、exact write set、composition snapshot、affected outcome 与
+回退门禁。P2 前不得把 Cordis 依赖写入默认 production graph；P5/P6 前不得切换默认 caller。
+Package platform composition 仍按其独立 M1-M4 baton 推进，不能被 Cordis docs 或实验替代。
+不得把计划、docs、inspect、测试、候选 branch 或未吸收 composition 写成完成，也不得把本
+授权扩展到 Package publication、真实用户 managed state 或其他 public mutation。
 
 若 fresh audit 发现新的非 live gap，使用以下 prompt 形状开启，而不是复用历史清单：
 
@@ -152,6 +155,7 @@ rtk rg -n '^(<<<<<<<|=======|>>>>>>>)' docs
 ## Forbidden Claims
 
 - `functional_structure_baseline_landed` 不等于 release-ready、production-ready、Brand L5、domain ready、artifact ready、quality/export ready、owner acceptance 或 physical delete authorized。
+- Cordis adoption 的 SSOT/计划、真实包版本观察、plugin inspect、composition snapshot 或 P2 demo 不等于已安装、已默认运行、已 Cordis-native、已支持独立模块版本组合、DSH 兼容已闭合或 Harness 自进化 ready。
 - Docs foldback、contract pass、focused tests、projection clean、doctor clean、native-check pass 或 refs-only ledger 不能替代 runtime/live/owner evidence。
 - Support repo、Aion/Hermes、MAS Scholar Skills、Homebrew、OPL Doc retired tombstone 或 Native Workbench 不能反向定义 domain/App/framework truth。
 - 历史归档不能替代实现清理；旧模块、旧接口、旧测试和旧文档入口被当前 owner surface 替代后，只能按 owner decision 直接退役或 tombstone。

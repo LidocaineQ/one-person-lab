@@ -19,6 +19,8 @@ checksum/attestation、Temporal durability、domain artifact/evidence 以及用�
 atomic write 继续归各自 owner，不属于上述删除范围。
 Machine boundary: 本文是核心人读真相面。机器真相继续归 `contracts/`、source、CLI/API 行为、runtime ledger、provider receipt、domain-owned manifest 和真实 workspace / App evidence。
 
+Cordis adoption 当前状态：方向已由用户正式确定为 DSH 体系的 `@deepseek-ai/cordis`，SSOT 与分阶段计划已建立；实现仍为 `planned / experimental-not-started`。截至当前，没有 Cordis dependency、Cordis root context、Cordis plugin composition 或默认 caller 切换进入 OPL 生产路径。DSH source/package 的版本信息只是 provenance observation，不能写成已安装、已运行、已兼容或已发布。首个实验固定为隔离的 Agent Executor seam；Package installed truth、Temporal durability、Foundry version/promotion、Ledger evidence 和 domain/App authority 不变。详细 owner、write set、门槛和回退见 [`docs/active/cordis-adoption-plan.md`](./active/cordis-adoption-plan.md)。
+
 Plugin native profile pointer: `contracts/opl-native-profile.json` 只声明 OPL Flow bundled Skills 的 repo-native profile 与 drift 检查所需入口；它不是 framework truth、runtime truth、domain truth、artifact authority、owner receipt 或 production-ready 证据。已退休的 OPL Doc repo 不再提供 plugin、doctor 或 profile writer。
 
 Source structure 当前读法：品牌模块依赖图继续要求 deep import、forbidden dependency 和 module SCC 全部为零，因为它们是明确的 source owner 合同；文件行数、Sentrux baseline drift 和 generic quality rules 只提供 advisory maintenance inventory。`source-structure-budget.json` 不再保存 56 个逐文件 no-growth baseline，`--strict`、`line-budget:strict`、`structure:strict` 和旧 strict 环境变量均不能把行数或通用质量 findings 升级成失败。超长文件只在有可证明的 owner、contract、lifecycle、action route 或 test scenario 自然边界时拆分；没有安全边界时保持可见但不阻断正常开发。
@@ -360,4 +362,5 @@ Agent Package directory 安全边界：canonical first-party identity、source �
 - [硬约束](./invariants.md)
 - [关键决策](./decisions.md)
 - [OPL Family 当前状态与理想目标差距](./active/current-state-vs-ideal-gap.md)
+- [Cordis Adoption Plan](./active/cordis-adoption-plan.md)
 - [OPL 与 Foundry Agents 理想目标态](./references/runtime-substrate/opl-family-agent-ideal-state.md)
