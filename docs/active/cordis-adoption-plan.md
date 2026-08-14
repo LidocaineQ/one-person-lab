@@ -293,7 +293,7 @@ P0-P6 路线图已完整冻结，P1 surface map、P2 隔离 executor experiment 
 
 ## 10. 禁止声明
 
-在 P6 完成并有 owner-authoritative readback 前，不得声明 OPL 已采用 Cordis、已 Cordis-native、已插件化、已支持自由组合、已拥有独立模块版本/分支组合、已兼容 DSH 生态或已达到 Harness 自进化能力。P1/P2 只证明候选 surface 与隔离 executor composition；它们不表示 Cordis 默认运行、Package 发布、Temporal/Foundry/Ledger/domain/App readiness 或生产发布完成。
+在 P6 完成并有 owner-authoritative readback 前，不得声明 OPL 已采用 Cordis、已 Cordis-native、已插件化、已支持自由组合、已拥有独立模块版本/分支组合、已兼容 DSH 生态或已达到 Harness 自进化能力。P1-P3 只证明候选 surface、隔离 executor composition 与只读组合可观测性；它们不表示 Cordis 默认运行、Package 发布、Temporal/Foundry/Ledger/domain/App readiness 或生产发布完成。
 
 ## 11. 本仓验证入口
 
