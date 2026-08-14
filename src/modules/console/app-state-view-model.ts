@@ -1,4 +1,4 @@
-import type { CordisOwnerDeltaObserverService } from '../ledger/cordis-owner-delta-observer.ts';
+import type { CordisOwnerDeltaObserverService } from '../ledger/index.ts';
 import { resolveStandardAgent } from '../../kernel/standard-agent-registry.ts';
 import { buildTaskRunProjectionV2 } from './app-state-task-run-projection.ts';
 import {

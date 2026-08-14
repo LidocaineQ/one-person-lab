@@ -50,8 +50,8 @@ import {
   projectAppAgentPackageStatus,
   unavailableAgentPackageCanonicalFields,
 } from './app-state-agent-packages.ts';
-import type { CordisConnectDescriptorDiscoveryService } from '../connect/cordis-connect-services.ts';
-import type { CordisOwnerDeltaObserverService } from '../ledger/cordis-owner-delta-observer.ts';
+import type { CordisConnectDescriptorDiscoveryService } from '../connect/index.ts';
+import type { CordisOwnerDeltaObserverService } from '../ledger/index.ts';
 
 function nowIso() {
   return new Date().toISOString();
