@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { assert, runCliAsync, runCliFailure, test } from '../helpers.ts';
 import {
   buildScientificConnectorProviderRegistryReadback,
+  runOplConnectScientificSearch,
   scientificConnectorProviderIds,
 } from '../../../../src/modules/connect/opl-connect-scientific.ts';
 import {
@@ -326,4 +327,51 @@ test('connect scientific search requires provider and query', () => {
   assert.equal(compatibility.status, 2);
   assert.equal(compatibility.payload.error.code, 'unknown_command');
 
+});
+
+test('connect scientific bounds chunked provider bodies and keeps legal responses working', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalLimit = process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES;
+  let activeSignal: AbortSignal | undefined;
+  let cancelled = false;
+  process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES = '64';
+  try {
+    globalThis.fetch = async (_input, init) => {
+      activeSignal = init?.signal ?? undefined;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('x'.repeat(40)));
+          controller.enqueue(new TextEncoder().encode('x'.repeat(40)));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      });
+      return new Response(body, { headers: { 'content-type': 'application/json' } });
+    };
+
+    let failure: unknown;
+    try {
+      await runOplConnectScientificSearch({ provider: 'crossref', query: 'oversized', limit: 1 });
+    } catch (error) {
+      failure = error;
+    }
+    assert.equal((failure as { details?: { reason_code?: string } }).details?.reason_code, 'provider_response_too_large');
+    assert.equal(cancelled, true);
+    assert.equal(activeSignal?.aborted, true);
+
+    globalThis.fetch = async (_input, init) => {
+      activeSignal = init?.signal ?? undefined;
+      return new Response(JSON.stringify({ message: { items: [] } }), {
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+    const legal = await runOplConnectScientificSearch({ provider: 'crossref', query: 'legal', limit: 1 });
+    assert.deepEqual(legal.opl_connect_scientific.normalized_results, []);
+    assert.equal(activeSignal?.aborted, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalLimit === undefined) delete process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES;
+    else process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES = originalLimit;
+  }
 });

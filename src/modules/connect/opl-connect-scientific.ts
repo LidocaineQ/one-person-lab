@@ -2,6 +2,11 @@ import crypto from 'node:crypto';
 
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
 import {
+  maxResponseBodyBytes,
+  readResponseBody,
+  ResponseBodyTooLargeError,
+} from './http-response-body.ts';
+import {
   parseEuropePmcResults,
   parsePubmedSummary,
   type NcbiReferenceRecord,
@@ -134,10 +139,40 @@ function buildOwnershipBoundary(provider: ScientificConnectorProviderId) {
 async function fetchJson(url: URL, provider: ScientificConnectorProviderId, timeout: number) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
-  let response: Response;
   try {
-    response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector request returned a non-OK status.', {
+        connector_id: 'scientific',
+        provider_id: provider,
+        url: url.toString(),
+        status: response.status,
+        status_text: response.statusText,
+      });
+    }
+    const raw = await readResponseBody(response, maxResponseBodyBytes());
+    try {
+      return JSON.parse(raw) as unknown;
+    } catch (error) {
+      throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector response was not valid JSON.', {
+        connector_id: 'scientific',
+        provider_id: provider,
+        url: url.toString(),
+        cause: error instanceof Error ? error.message : String(error),
+      });
+    }
   } catch (error) {
+    if (error instanceof ResponseBodyTooLargeError) {
+      throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector response body exceeded the configured limit.', {
+        connector_id: 'scientific',
+        provider_id: provider,
+        url: url.toString(),
+        reason_code: 'provider_response_too_large',
+        response_body_limit_bytes: error.limitBytes,
+        response_body_bytes: error.observedBytes,
+      });
+    }
+    if (error instanceof FrameworkContractError) throw error;
     throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector request failed.', {
       connector_id: 'scientific',
       provider_id: provider,
@@ -147,25 +182,7 @@ async function fetchJson(url: URL, provider: ScientificConnectorProviderId, time
     });
   } finally {
     clearTimeout(timer);
-  }
-  if (!response.ok) {
-    throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector request returned a non-OK status.', {
-      connector_id: 'scientific',
-      provider_id: provider,
-      url: url.toString(),
-      status: response.status,
-      status_text: response.statusText,
-    });
-  }
-  try {
-    return await response.json() as unknown;
-  } catch (error) {
-    throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector response was not valid JSON.', {
-      connector_id: 'scientific',
-      provider_id: provider,
-      url: url.toString(),
-      cause: error instanceof Error ? error.message : String(error),
-    });
+    controller.abort();
   }
 }
 

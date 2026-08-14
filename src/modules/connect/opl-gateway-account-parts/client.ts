@@ -3,6 +3,11 @@ import {
   OPL_GATEWAY_CONTROL_BASE_URL,
   type GatewayManagedKey,
 } from './types.ts';
+import {
+  maxResponseBodyBytes,
+  readResponseBody,
+  ResponseBodyTooLargeError,
+} from '../http-response-body.ts';
 
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PUT';
@@ -106,14 +111,7 @@ async function request(path: string, options: RequestOptions = {}) {
         if (method === 'GET' && response.status >= 500 && attempt + 1 < attempts) continue;
         throw gatewayError(errorCode(response.status), 'OPL Gateway rejected the request.', response.status);
       }
-      const contentLength = Number(response.headers.get('content-length') ?? '0');
-      if (contentLength > 1024 * 1024) {
-        throw gatewayError('gateway_response_too_large', 'OPL Gateway returned an oversized response.');
-      }
-      const raw = await response.text();
-      if (Buffer.byteLength(raw, 'utf8') > 1024 * 1024) {
-        throw gatewayError('gateway_response_too_large', 'OPL Gateway returned an oversized response.');
-      }
+      const raw = await readResponseBody(response, maxResponseBodyBytes());
       if (!raw) return {};
       let parsed: unknown;
       try {
@@ -129,6 +127,9 @@ async function request(path: string, options: RequestOptions = {}) {
       return parsed;
     } catch (error) {
       if (error instanceof FrameworkContractError) throw error;
+      if (error instanceof ResponseBodyTooLargeError) {
+        throw gatewayError('gateway_response_too_large', 'OPL Gateway returned an oversized response.');
+      }
       if (method === 'GET' && attempt + 1 < attempts) continue;
       const timeoutFailure = error instanceof Error && error.name === 'AbortError';
       throw gatewayError(
@@ -137,6 +138,7 @@ async function request(path: string, options: RequestOptions = {}) {
       );
     } finally {
       clearTimeout(timeout);
+      controller.abort();
     }
   }
   throw gatewayError('gateway_unavailable', 'OPL Gateway could not be reached.');

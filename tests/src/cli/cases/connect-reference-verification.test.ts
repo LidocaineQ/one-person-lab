@@ -726,3 +726,64 @@ test('connect references verify declares publisher DOI requirement without prete
     'publisher',
   ]);
 });
+
+test('connect references defer a chunked oversized provider body and abort its attempt', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalLimit = process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES;
+  let activeSignal: AbortSignal | undefined;
+  let cancelled = false;
+  process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES = '64';
+  globalThis.fetch = async (_input, init) => {
+    activeSignal = init?.signal ?? undefined;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('x'.repeat(40)));
+        controller.enqueue(new TextEncoder().encode('x'.repeat(40)));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    return new Response(body, { headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const result = await runOplConnectReferenceVerification({
+      references: [{ id: 'ref-large', pmid: '123456' }],
+      providers: ['pubmed'],
+      maxRetries: 0,
+    });
+    const evidence = result.opl_connect_reference_verification.provider_evidence[0];
+    assert.equal(result.opl_connect_reference_verification.status, 'completed');
+    assert.equal(evidence.lookup_status, 'error');
+    assert.equal(evidence.status, 'deferred');
+    assert.equal(evidence.error?.code, 'provider_response_too_large');
+    assert.equal(cancelled, true);
+    assert.equal(activeSignal?.aborted, true);
+
+    process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES = '1024';
+    globalThis.fetch = async (_input, init) => {
+      activeSignal = init?.signal ?? undefined;
+      return new Response(JSON.stringify({
+        result: {
+          uids: ['123456'],
+          '123456': {
+            uid: '123456',
+            title: 'Bounded legal provider response',
+            articleids: [{ idtype: 'doi', value: '10.1234/bounded' }],
+          },
+        },
+      }), { headers: { 'content-type': 'application/json' } });
+    };
+    const legal = await runOplConnectReferenceVerification({
+      references: [{ id: 'ref-legal', pmid: '123456' }],
+      providers: ['pubmed'],
+      maxRetries: 0,
+    });
+    assert.equal(legal.opl_connect_reference_verification.provider_evidence[0].status, 'matched');
+    assert.equal(activeSignal?.aborted, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalLimit === undefined) delete process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES;
+    else process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES = originalLimit;
+  }
+});

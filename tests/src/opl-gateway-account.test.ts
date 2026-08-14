@@ -290,6 +290,37 @@ test('gateway client preserves typed failures for 2FA and non-success HTTP 200 e
   });
 });
 
+test('gateway client bounds chunked oversized responses without retrying the current request', async () => {
+  const previousLimit = process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES;
+  let oversized = true;
+  let settingsRequests = 0;
+  process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES = '64';
+  try {
+    await withControlServer((request, response) => {
+      if (request.url !== '/api/v1/settings/public') return json(response, { code: 404 }, 404);
+      settingsRequests += 1;
+      if (oversized) {
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end('x'.repeat(128));
+        return;
+      }
+      return json(response, { code: 0, data: { server_timezone: 'Asia/Shanghai' } });
+    }, async () => {
+      await assert.rejects(inspectGatewayPublicSettings(), (error: unknown) =>
+        error instanceof FrameworkContractError && error.details?.reason_code === 'gateway_response_too_large');
+      assert.equal(settingsRequests, 1);
+
+      oversized = false;
+      const recovered = await inspectGatewayPublicSettings();
+      assert.equal(recovered.server_timezone, 'Asia/Shanghai');
+      assert.equal(settingsRequests, 2);
+    });
+  } finally {
+    if (previousLimit === undefined) delete process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES;
+    else process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES = previousLimit;
+  }
+});
+
 test('managed key reconcile fails closed for duplicate names and renamed known IDs', async () => {
   const installation = buildGatewayInstallation('Conflict Device', '11111111-2222-4333-8444-555555555555');
   let mutations = 0;

@@ -5,6 +5,11 @@ import path from 'node:path';
 import { parseJsonText } from '../../kernel/json-file.ts';
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
 import {
+  maxResponseBodyBytes,
+  readResponseBody,
+  ResponseBodyTooLargeError,
+} from './http-response-body.ts';
+import {
   normalizePmcid,
   parseEuropePmcSearch,
   parsePubmedSummary,
@@ -257,12 +262,20 @@ async function fetchWithRetry(
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
+    const cleanup = () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
     try {
       const response = await fetch(url, { ...init, signal: controller.signal });
       if (!response.ok) {
         const status = response.status >= 500 && attempt < maxRetries ? 'retryable_error' : 'failed';
         retryAttempts.push({ attempt, status, http_status: response.status });
-        if (status === 'retryable_error') continue;
+        if (status === 'retryable_error') {
+          cleanup();
+          continue;
+        }
+        cleanup();
         throw new FrameworkContractError('codex_command_failed', 'Reference provider returned a non-OK status.', {
           provider_id: providerId,
           status: response.status,
@@ -271,16 +284,18 @@ async function fetchWithRetry(
         });
       }
       retryAttempts.push({ attempt, status: 'success', http_status: response.status });
-      return { response, retryAttempts };
+      return { response, retryAttempts, cleanup };
     } catch (error) {
       lastError = error;
-      if (error instanceof FrameworkContractError) throw error;
+      if (error instanceof FrameworkContractError) {
+        cleanup();
+        throw error;
+      }
       const status = attempt < maxRetries ? 'retryable_error' : 'failed';
       retryAttempts.push({ attempt, status, http_status: null });
+      cleanup();
       if (status === 'retryable_error') continue;
       break;
-    } finally {
-      clearTimeout(timer);
     }
   }
   throw new FrameworkContractError('codex_command_failed', 'Reference provider request failed.', {
@@ -292,11 +307,25 @@ async function fetchWithRetry(
 }
 
 async function fetchJsonWithRetry(url: URL, maxRetries: number, providerId: ProviderId, timeout: number) {
-  const { response, retryAttempts } = await fetchWithRetry(url, maxRetries, providerId, timeout);
-  return {
-    json: await response.json() as unknown,
-    retryAttempts,
-  };
+  const { response, retryAttempts, cleanup } = await fetchWithRetry(url, maxRetries, providerId, timeout);
+  try {
+    const raw = await readResponseBody(response, maxResponseBodyBytes());
+    return { json: JSON.parse(raw) as unknown, retryAttempts };
+  } catch (error) {
+    if (error instanceof ResponseBodyTooLargeError) {
+      throw new FrameworkContractError('codex_command_failed', 'Reference provider response body exceeded the configured limit.', {
+        provider_id: providerId,
+        url: url.toString(),
+        reason_code: 'provider_response_too_large',
+        response_body_limit_bytes: error.limitBytes,
+        response_body_bytes: error.observedBytes,
+        retry_attempts: retryAttempts,
+      });
+    }
+    throw error;
+  } finally {
+    cleanup();
+  }
 }
 
 async function fetchTextWithRetry(
@@ -306,13 +335,29 @@ async function fetchTextWithRetry(
   timeout: number,
   init: RequestInit = {},
 ) {
-  const { response, retryAttempts } = await fetchWithRetry(url, maxRetries, providerId, timeout, init);
-  return {
-    text: await response.text(),
-    responseUrl: response.url || url.toString(),
-    contentType: response.headers.get('content-type'),
-    retryAttempts,
-  };
+  const { response, retryAttempts, cleanup } = await fetchWithRetry(url, maxRetries, providerId, timeout, init);
+  try {
+    return {
+      text: await readResponseBody(response, maxResponseBodyBytes()),
+      responseUrl: response.url || url.toString(),
+      contentType: response.headers.get('content-type'),
+      retryAttempts,
+    };
+  } catch (error) {
+    if (error instanceof ResponseBodyTooLargeError) {
+      throw new FrameworkContractError('codex_command_failed', 'Reference provider response body exceeded the configured limit.', {
+        provider_id: providerId,
+        url: url.toString(),
+        reason_code: 'provider_response_too_large',
+        response_body_limit_bytes: error.limitBytes,
+        response_body_bytes: error.observedBytes,
+        retry_attempts: retryAttempts,
+      });
+    }
+    throw error;
+  } finally {
+    cleanup();
+  }
 }
 
 function deferredEvidence(reference: ReferenceRecord, providerId: ProviderId, reason: string): ProviderEvidenceDraft {
@@ -388,7 +433,9 @@ function providerErrorEvidence(reference: ReferenceRecord, providerId: ProviderI
 function providerErrorPayload(error: unknown): ProviderEvidenceError {
   if (error instanceof FrameworkContractError) {
     return {
-      code: typeof error.details?.status === 'number' ? 'provider_non_ok_status' : 'provider_request_failed',
+      code: typeof error.details?.reason_code === 'string'
+        ? error.details.reason_code
+        : typeof error.details?.status === 'number' ? 'provider_non_ok_status' : 'provider_request_failed',
       message: error.message,
       ...(error.details ? { details: error.details } : {}),
     };
