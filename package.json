@@ -122,6 +122,7 @@
     "typescript": "^5.8.3"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
     "@temporalio/testing": "1.20.3",
     "@types/node": "^24.5.2"
   },
