@@ -68,6 +68,16 @@ export type { MemoryTraceProjection } from './stage-attempt-projections/memory-l
 
 // Public cross-module surface generated from existing module consumers.
 export { runAgentExecutor } from './agent-executor.ts';
+export {
+  CORDIS_RUNWAY_ATTEMPT_PLUGIN_API_VERSION,
+  CORDIS_RUNWAY_ATTEMPT_PLUGIN_ID,
+  CORDIS_RUNWAY_ATTEMPT_SERVICE,
+  CORDIS_RUNWAY_ATTEMPT_PLUGIN_DESCRIPTORS,
+  cordisRunwayAttemptAdapterPlugin,
+  cordisRunwayAttemptObserverPlugin,
+  cordisRunwayAttemptServicePlugin,
+  createCordisRunwayAttemptComposition,
+} from './cordis-runway-attempt.ts';
 export { appendDomainRunEvent, createDomainRunRecord, dispatchDomainAction, executeDomainTask, readDomainRunEvents, runDomainCodexPrompt } from './domain-task-runtime.ts';
 export type { DomainActionHandler, DomainCodexPromptRunner, DomainRunIdentity } from './domain-task-runtime.ts';
 export { resolveDomainPythonCommand, runDomainPythonHelper } from './domain-helper-runtime.ts';
