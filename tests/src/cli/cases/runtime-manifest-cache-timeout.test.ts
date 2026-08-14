@@ -10,6 +10,10 @@ import {
 } from '../helpers.ts';
 import { buildFrameworkReadinessSummary } from '../../../../src/modules/console/framework-readiness.ts';
 import { buildRuntimeTraySnapshot } from '../../../../src/modules/console/runtime-tray-snapshot.ts';
+import {
+  buildDomainManifestCatalog,
+  buildStandardAgentDomainManifestCatalog,
+} from '../../../../src/modules/atlas/index.ts';
 import { buildManyStageManifest } from './runtime-app-operator-drilldown-summary-fixtures.ts';
 import { createFamilyWorkspaceFixture } from './runtime-app-operator-drilldown-helpers.ts';
 import { createAdmittedStagePackFixture } from './workspace-domain-test-helper.ts';
@@ -66,9 +70,23 @@ test('framework readiness keeps domain manifest live refresh bounded and uses pr
     process.env.OPL_FAMILY_WORKSPACE_ROOT = workspaceRoot;
     process.env.OPL_META_AGENT_REPO_DIR = omaRepoDir;
     try {
-      const readiness = (await buildFrameworkReadinessSummary(loadFrameworkContracts(), {
+      const contracts = loadFrameworkContracts();
+      const domainManifests = buildDomainManifestCatalog(contracts, {
+        manifestCommandTimeoutMs: 5_000,
+        manifestCommandTimeoutPolicy: 'fixed',
+        materializeFamilyTransitions: false,
+        useProjectionCacheOnFailure: true,
+      }).domain_manifests;
+      const standardAgentDomainManifests = buildStandardAgentDomainManifestCatalog(contracts, {
+        legacyDomainManifests: domainManifests,
+      }).domain_manifests;
+      const readiness = (await buildFrameworkReadinessSummary(contracts, {
         familyDefaults: true,
-      }, { runtimeSnapshotProvider: buildRuntimeTraySnapshot })).framework_readiness;
+      }, {
+        runtimeSnapshotProvider: buildRuntimeTraySnapshot,
+        domainManifests,
+        standardAgentDomainManifests,
+      })).framework_readiness;
       assert.equal(readiness.surface_kind, 'opl_framework_readiness_summary');
       assert.equal(readiness.summary.domain_manifest_projection_cache_used_count, 1);
       assert.deepEqual(readiness.summary.domain_manifest_live_failed_project_ids, ['medautoscience']);

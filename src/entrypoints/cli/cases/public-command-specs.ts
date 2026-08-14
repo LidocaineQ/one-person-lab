@@ -8,8 +8,6 @@ import { resolveStandardAgentContractCheckout } from '../../../modules/connect/i
 import {
   buildFrameworkOperatingMaturityCompactReadback,
   buildFrameworkOperatingMaturityReadout,
-  buildFrameworkReadinessCompactReadback,
-  buildFrameworkReadinessSummary,
   buildPrivatePlatformResidueOwnerDecisionLedgerCommand,
   buildAgentReadinessSummary,
 } from '../../../modules/console/index.ts';
@@ -88,7 +86,10 @@ import { buildReleaseCommandSpecs } from './public-command-specs-parts/release.t
 import { buildStageCommandSpecs, validateStageDerivedLensCommandSpecs } from './public-command-specs-parts/stages.ts';
 import { buildUpdateCommandSpecs } from './public-command-specs-parts/update.ts';
 import { buildWorkspaceCommandSpecs } from './public-command-specs-parts/workspace.ts';
-import { buildCordisCommandSpecs } from './public-command-specs-parts/cordis.ts';
+import {
+  buildCordisCommandSpecs,
+  runCordisFrameworkReadiness,
+} from './public-command-specs-parts/cordis.ts';
 import { buildPublicAppCommandSpecs } from './app-public-command-specs.ts';
 
 export function buildPublicCommandSpecs(
@@ -332,17 +333,10 @@ export function buildPublicCommandSpecs(
           publicCommandSpecs['framework readiness'],
           'framework readiness',
         );
-        if (detail === 'compact') {
-          return await buildFrameworkReadinessCompactReadback(
-            getContracts(),
-            { familyDefaults: true },
-            { runtimeSnapshotProvider: buildRuntimeTraySnapshot },
-          );
-        }
-        return await buildFrameworkReadinessSummary(
+        return await runCordisFrameworkReadiness(
           getContracts(),
-          { familyDefaults: true },
-          { runtimeSnapshotProvider: buildRuntimeTraySnapshot },
+          detail,
+          buildRuntimeTraySnapshot,
         );
       },
     },
