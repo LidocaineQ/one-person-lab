@@ -1,4 +1,5 @@
 import type { FrameworkContracts } from '../../../kernel/types.ts';
+import type { CordisConnectDescriptorDiscoveryService } from '../../../modules/connect/index.ts';
 import {
   parseRegisteredCommandOptions,
   type CommandSpec,
@@ -6,6 +7,7 @@ import {
 
 export function buildPublicAppCommandSpecs(
   getContracts: () => FrameworkContracts,
+  descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>,
 ): Record<string, CommandSpec> {
   const commandSpecs: Record<string, CommandSpec> = {
     'app state': {
@@ -25,7 +27,7 @@ export function buildPublicAppCommandSpecs(
           return buildOplRuntimeAppState();
         }
         const { buildOplAppState } = await import('../../../modules/console/app-state.ts');
-        return buildOplAppState({ profile: input.profile });
+          return buildOplAppState({ profile: input.profile, descriptorDiscovery });
       },
     },
     'app action execute': {
@@ -44,7 +46,7 @@ export function buildPublicAppCommandSpecs(
         const { runOplAppActionExecute } = await import(
           '../../../modules/console/app-state-parts/action-execute.ts'
         );
-        return runOplAppActionExecute(getContracts(), options);
+        return runOplAppActionExecute(getContracts(), options, { descriptorDiscovery });
       },
     },
     'app contribution read': {
@@ -58,7 +60,7 @@ export function buildPublicAppCommandSpecs(
         const { parseAppContributionArgs, runAppContribution } = await import(
           '../../../modules/console/app-contribution-broker.ts'
         );
-        return runAppContribution(parseAppContributionArgs(args, 'read'));
+        return runAppContribution(parseAppContributionArgs(args, 'read'), { descriptorDiscovery });
       },
     },
     'app contribution execute': {
@@ -72,7 +74,7 @@ export function buildPublicAppCommandSpecs(
         const { parseAppContributionArgs, runAppContribution } = await import(
           '../../../modules/console/app-contribution-broker.ts'
         );
-        return runAppContribution(parseAppContributionArgs(args, 'execute'));
+        return runAppContribution(parseAppContributionArgs(args, 'execute'), { descriptorDiscovery });
       },
     },
     'app view read': {

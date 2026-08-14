@@ -75,6 +75,7 @@ import {
   assertFirstPartyPackageUpdateSelection,
   ownerPackageCatalogVersion,
 } from './agent-package-registry-parts/update-reconciliation.ts';
+import type { CordisConnectDescriptorDiscoveryService } from './cordis-connect-services.ts';
 import {
   fetchJsonSource,
   nowIso,
@@ -1776,7 +1777,12 @@ export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
   throwPackageNativeOwnerRequired(input, 'repair');
 }
 
-async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActionInput) {
+async function runOplAgentPackageActivateUnlocked(
+  input: AgentPackagePackageActionInput,
+  options: {
+    descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
+  } = {},
+) {
   const packageId = requirePackageId(input.packageId, 'activate');
   const nativeActivationReadback = packageStatusForActivation({
     packageId,
@@ -1795,6 +1801,7 @@ async function runOplAgentPackageActivateUnlocked(input: AgentPackagePackageActi
           packageStatus: beforeStatus,
           targetWorkspace: input.targetWorkspace,
           dryRun: input.dryRun,
+          descriptorDiscovery: options.descriptorDiscovery,
         })
       : null;
     if (workspaceSkillProjection
@@ -1902,8 +1909,13 @@ function throwNativeCarrierActivationBlocked(packageId: string, packageStatus: a
   );
 }
 
-export async function runOplAgentPackageActivate(input: AgentPackagePackageActionInput) {
-  return runOplAgentPackageActivateUnlocked(input);
+export async function runOplAgentPackageActivate(
+  input: AgentPackagePackageActionInput,
+  options: {
+    descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
+  } = {},
+) {
+  return runOplAgentPackageActivateUnlocked(input, options);
 }
 
 export async function runOplAgentPackageFrameworkLink(input: { agentRoot: string; dryRun?: boolean; checkOnly?: boolean }) {

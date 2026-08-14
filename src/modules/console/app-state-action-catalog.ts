@@ -1,4 +1,5 @@
 import type { AgentWorkspaceNormContract, FrameworkContracts } from '../../kernel/types.ts';
+import type { CordisConnectDescriptorDiscoveryService } from '../connect/index.ts';
 import { SETTINGS_CONTROL_CENTER_ACTIONS } from './app-state-settings-control-center.ts';
 import { hasExecutableAppContribution } from './app-contribution-broker.ts';
 import {
@@ -236,7 +237,10 @@ function workspaceActionsFromNorm(contract: AgentWorkspaceNormContract): AppActi
 
 export function buildActionCatalog(
   contracts: FrameworkContracts,
-  options: { inspectExternalOwners?: boolean } = {},
+  options: {
+    inspectExternalOwners?: boolean;
+    descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
+  } = {},
 ) {
   const codexActions: AppActionCatalogEntry[] = (['install', 'update', 'reinstall', 'remove'] as const).map((action) => ({
     action_id: `codex_${action}`,
@@ -301,7 +305,7 @@ export function buildActionCatalog(
     ...moduleActions,
     ...buildManagedComputerUseActionCatalog(),
     ...buildManagedBrowserAutomationActionCatalog(),
-    ...(hasExecutableAppContribution()
+    ...(hasExecutableAppContribution({ descriptorDiscovery: options.descriptorDiscovery })
       ? [{
           action_id: 'package_contribution_execute',
           label: 'Execute installed Package contribution',

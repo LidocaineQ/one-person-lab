@@ -50,6 +50,7 @@ import {
   projectAppAgentPackageStatus,
   unavailableAgentPackageCanonicalFields,
 } from './app-state-agent-packages.ts';
+import type { CordisConnectDescriptorDiscoveryService } from '../connect/index.ts';
 
 function nowIso() {
   return new Date().toISOString();
@@ -890,6 +891,7 @@ function compactFastOperatorRuntimeProjection(operator: JsonRecord) {
 export async function buildOplAppState(input: {
   profile?: AppStateProfile;
   readAgentPackageStatus?: AgentPackageStatusReader;
+  descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
 } = {}) {
   const startedAt = Date.now();
   const profile = input.profile ?? 'fast';
@@ -915,7 +917,10 @@ export async function buildOplAppState(input: {
   const core = buildCoreState(profile);
   const managedComputerUse = inspectManagedComputerUse({ runExternalChecks: profile === 'full' });
   const managedBrowserAutomation = inspectManagedBrowserAutomation({ runExternalChecks: profile === 'full' });
-  const rawActions = buildActionCatalog(contracts, { inspectExternalOwners: profile === 'full' });
+  const rawActions = buildActionCatalog(contracts, {
+    inspectExternalOwners: profile === 'full',
+    descriptorDiscovery: input.descriptorDiscovery,
+  });
   const actions = profile === 'fast'
     ? compactFastActionCatalog(rawActions as unknown as JsonRecord[])
     : rawActions;

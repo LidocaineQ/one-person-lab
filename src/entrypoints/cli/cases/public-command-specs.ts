@@ -204,13 +204,20 @@ export function buildPublicCommandSpecs(
   const connectCommandSpecs = buildConnectCommandSpecs(commandSpecs, systemCommandSpecs);
   const foundryCommandSpecs = buildFoundryCommandSpecs();
   const okfCommandSpecs = buildOkfCommandSpecs();
-  const packagesCommandSpecs = buildPackagesCommandSpecs(getContracts, (command) => publicCommandSpecs[command]);
+  const packagesCommandSpecs = buildPackagesCommandSpecs(
+    getContracts,
+    (command) => publicCommandSpecs[command],
+    cordis?.services.descriptorDiscovery,
+  );
   const profileCommandSpecs = buildProfileCommandSpecs();
   const releaseCommandSpecs = buildReleaseCommandSpecs((command) => publicCommandSpecs[command]);
   const stageCommandSpecs = buildStageCommandSpecs(getContracts);
   const updateCommandSpecs = buildUpdateCommandSpecs(getContracts);
   const workspaceCommandSpecs = buildWorkspaceCommandSpecs(commandSpecs);
-  const appCommandSpecs = buildPublicAppCommandSpecs(getContracts);
+  const appCommandSpecs = buildPublicAppCommandSpecs(
+    getContracts,
+    cordis?.services.descriptorDiscovery,
+  );
   const familyAgentProviderPort = {
     readProviderContinuousProof,
     providerClosureEvidence,

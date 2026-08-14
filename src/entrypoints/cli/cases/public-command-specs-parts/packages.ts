@@ -18,6 +18,7 @@ import {
   type AgentPackageHomeShortcutPreferencesSetInput,
   type AgentPackagePackageActionInput,
   type AgentPackageRepairInput,
+  type CordisConnectDescriptorDiscoveryService,
 } from '../../../../modules/connect/index.ts';
 import { FrameworkContractError } from '../../../../kernel/contract-validation.ts';
 import type { FrameworkContracts } from '../../../../kernel/types.ts';
@@ -253,7 +254,10 @@ export function admitMasWorkspaceScopedPackageMutation<T extends ScopedPackageMu
   return input;
 }
 
-async function installPackageWithActiveWorkspace(input: AgentPackageInstallInput) {
+async function installPackageWithActiveWorkspace(
+  input: AgentPackageInstallInput,
+  descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>,
+) {
   const result = await runOplAgentPackageInstall(input);
   if (input.dryRun || input.scope) return result;
   const packageId = result.opl_agent_package_install.package_id;
@@ -265,7 +269,7 @@ async function installPackageWithActiveWorkspace(input: AgentPackageInstallInput
     packageId,
     scope: 'workspace',
     targetWorkspace: binding.workspace_path,
-  })).opl_agent_package_activation;
+  }, { descriptorDiscovery })).opl_agent_package_activation;
   return {
     ...result,
     opl_agent_package_install: {
@@ -319,6 +323,7 @@ function parsePreferences(
 export function buildPackagesCommandSpecs(
   getContracts: () => FrameworkContracts,
   getCommandSpec: (command: string) => CommandSpec,
+  descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>,
 ): Record<string, CommandSpec> {
   const specs: Record<string, CommandSpec> = {
     'packages list': {
@@ -371,10 +376,13 @@ export function buildPackagesCommandSpecs(
       ],
       group: 'packages',
       help_surface: 'default',
-      handler: (args) => installPackageWithActiveWorkspace(admitMasWorkspaceScopedPackageMutation(
-        'packages install',
-        parsePackageSelection('packages install', args, getCommandSpec('packages install')),
-      )),
+      handler: (args) => installPackageWithActiveWorkspace(
+        admitMasWorkspaceScopedPackageMutation(
+          'packages install',
+          parsePackageSelection('packages install', args, getCommandSpec('packages install')),
+        ),
+        descriptorDiscovery,
+      ),
     },
     'packages activate': {
       usage: 'opl packages activate <package_id> --scope workspace|quest [--target-workspace <path>|--target-quest <path>] [--dry-run]',
@@ -385,10 +393,13 @@ export function buildPackagesCommandSpecs(
       ],
       group: 'packages',
       help_surface: 'migration_compatibility',
-      handler: (args) => runOplAgentPackageActivate(admitMasWorkspaceScopedPackageMutation(
-        'packages activate',
-        parsePackageAction('packages activate', args, getCommandSpec('packages activate')),
-      )),
+      handler: (args) => runOplAgentPackageActivate(
+        admitMasWorkspaceScopedPackageMutation(
+          'packages activate',
+          parsePackageAction('packages activate', args, getCommandSpec('packages activate')),
+        ),
+        { descriptorDiscovery },
+      ),
     },
     'packages update': {
       usage: 'opl packages update [<package_id>] [--scope workspace|quest --target-workspace <path>|--target-quest <path>] [--keep-migration <id,...>] [--manifest-url <url>|--registry-url <url>] [--trust-tier <tier>] [--source-kind <kind>] [--agent-root <repo>] [--dry-run]',

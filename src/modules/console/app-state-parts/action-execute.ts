@@ -29,6 +29,7 @@ import {
   MANAGED_COMPUTER_USE_ACTION_IDS,
   reconcileManagedComputerUse,
   type ManagedComputerUseActionId,
+  type CordisConnectDescriptorDiscoveryService,
 } from '../../connect/index.ts';
 import { runOplSystemAction } from '../../connect/index.ts';
 import { writeOplWorkspaceRootSurface } from '../../connect/index.ts';
@@ -167,6 +168,7 @@ async function withTemporaryEnv<T>(updates: Record<string, string | null>, run: 
 async function executeDirectAppAction(
   contracts: FrameworkContracts,
   options: AppActionExecuteOptions,
+  descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>,
 ) {
   const connectionAction = await executeConnectionAppAction(options);
   if (connectionAction) return connectionAction;
@@ -215,8 +217,8 @@ async function executeDirectAppAction(
     return {
       delegatedSurface: 'opl app contribution execute',
       result: options.dryRun
-        ? preflightAppContribution(request)
-        : runAppContribution(request),
+        ? preflightAppContribution(request, { descriptorDiscovery })
+        : runAppContribution(request, { descriptorDiscovery }),
     };
   }
 
@@ -616,7 +618,7 @@ async function executeDirectAppAction(
       result: await runOplAgentPackageActivate({
         ...activation,
         dryRun: options.dryRun,
-      }),
+      }, { descriptorDiscovery }),
     };
   }
 
@@ -935,8 +937,15 @@ async function executeDirectAppAction(
 export async function runOplAppActionExecute(
   contracts: FrameworkContracts,
   options: AppActionExecuteOptions,
+  services: {
+    descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
+  } = {},
 ) {
-  const direct = await executeDirectAppAction(contracts, options);
+  const direct = await executeDirectAppAction(
+    contracts,
+    options,
+    services.descriptorDiscovery,
+  );
   if (direct) {
     return {
       version: 'g2',
