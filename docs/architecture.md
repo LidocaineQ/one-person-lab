@@ -91,7 +91,7 @@ Temporal / Workspace / Ledger / Foundry / domain owner remain authoritative
 
 Cordis plugin 可独立版本、分支和发布；组合只通过显式 `provides/injects`、API compatibility、scope 和 trust contract 校验，不建立中央版本 resolver。required plugin 缺失或不兼容时，composition fail closed；optional plugin 只能形成诊断/降级，不得写 domain verdict。生产 attempt 在启动时冻结 composition snapshot，运行中不得 hot swap；HMR/reload 仅限 dev/experimental scope。Cordis 不是安全沙箱，不可信 plugin 必须由现有 sandbox/provider 或独立进程隔离。
 
-Cordis adoption 的详细阶段、owner、写集、验证、完成门和回退见 [`docs/active/cordis-adoption-plan.md`](./active/cordis-adoption-plan.md)。当前 P1-P3 已进入 canonical main，P4 ACTIVE，P5/P6 尚未切换默认 caller。迁移成本不再是否决条件；既有 Package lifecycle、Temporal、Foundry、Ledger 与 domain/App owner 边界继续有效。
+Cordis adoption 的详细阶段、owner、写集、验证、完成门和回退见 [`docs/active/cordis-adoption-plan.md`](./active/cordis-adoption-plan.md)。当前 P1-P4 已进入 canonical main，P5-A 正在切换 Pack/Stagecraft/Runway 的真实 successor，P5 其余批次和 P6 尚未切换默认 caller。迁移成本不再是否决条件；既有 Package lifecycle、Temporal、Foundry、Ledger 与 domain/App owner 边界继续有效。
 
 ### Legacy Package Manager compatibility inventory
 
@@ -526,7 +526,7 @@ Stage attempt 的终态只允许收敛到三类：`success` 表示 required outp
 - provider execution：Temporal `StageAttemptWorkflow`、Codex / domain sidecar activity、human gate / user instruction / resume signal、stage attempt query、CLI `attempt start|query|signal`、worker lifecycle status 和 fail-closed readiness 已落地为 source / CLI / contract / projection surface。2026-05-14 本机 managed Temporal service / worker proof 只作为历史 provider proof provenance；当前 `full_online_ready`、`durable_online_ready`、SLO、worker lifecycle 或 production-residency 读法必须 fresh-read runtime / readiness owner surface，不能从本文继承。
 - typed receipt / workbench：Codex stage activity 已有 dry-run / live-dry-run / `codex_cli` runner repo/test harness、typed closeout claim-evidence 捕获、raw/partial/no-output diagnostic progress、consumed refs / memory refs / writeback receipt refs / rejected writes / route impact / next owner 投影；`opl runtime snapshot` 已输出只读 `stage_attempt_workbench`。typed closeout 只提高 lineage 与 owner/quality/ready claim 证据质量，不是 stage completion 或 transition gate。
 
-Cordis adoption 当前仍是默认运行结构缺口，但终态已升级为完整迁移：DSH scoped `@deepseek-ai/cordis@4.0.1` 已作为 exact devDependency 安装，P1 surface map、P2 隔离 Agent Executor composition 与 P3 deterministic read-only inspect 已落地，P4 plugin/package version contract 正在实现；P5 分批迁移和 P6 默认切换尚未完成。P3 inspect 已提供 plugin/fiber state、service ownership、inject、event mode、disposer 与 diagnostics 的只读回读。具体完成门见 [`Cordis Adoption Plan`](./active/cordis-adoption-plan.md)；在 P6 真实 readback 前仍不能声称默认 Cordis-native，Temporal durable path、Package installed truth 或 domain/App authority也不迁入 Cordis。
+Cordis adoption 当前仍是默认运行结构缺口，但终态已升级为完整迁移：DSH scoped `@deepseek-ai/cordis@4.0.1` 已作为 exact devDependency 安装，P1 surface map、P2 隔离 Agent Executor composition、P3 deterministic read-only inspect 与 P4 plugin/package version contract 已落地；P5-A 正在实现 Pack/Stagecraft/Runway successor，P5 其余批次和 P6 默认切换尚未完成。P3 inspect 已提供 plugin/fiber state、service ownership、inject、event mode、disposer 与 diagnostics 的只读回读，P4 已提供可重放 snapshot/digest 和 typed compatibility failure。具体完成门见 [`Cordis Adoption Plan`](./active/cordis-adoption-plan.md)；在 P6 真实 readback 前仍不能声称默认 Cordis-native，Temporal durable path、Package installed truth 或 domain/App authority 也不迁入 Cordis。
 
 当前尚未闭合的是完整生产级 long domain owner chain：
 

@@ -2,7 +2,7 @@
 
 Owner: `OPL Framework`
 Purpose: `cordis_adoption_support_plan`
-State: `roadmap_complete / full_migration_authorized_p4_active_p5_p6_not_started`
+State: `roadmap_complete / full_migration_authorized_p4_landed_p5a_active_p5b_p6_not_started`
 Updated: `2026-08-14`
 SSOT role: 本文是详细支撑计划；当前 active gap、优先级和下一棒仍只归 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md)。
 Machine boundary: 用户已明确授权把长期终态推进到 Cordis 全面迁移；本文的阶段状态仍只由 canonical source、contracts、tests 和 owner-authoritative readback 证明。P4/P5/P6 尚未完成时，不得把计划、候选分支或 focused test 写成默认/production 已 Cordis-native。Package currentness、Temporal、Foundry、Ledger、domain 和 App 的事实必须分别回到对应 owner surface。
@@ -188,7 +188,7 @@ Cordis 只负责箭头中 `context -> plugin -> in-process service/event` 的部
 | 项目 | 内容 |
 | --- | --- |
 | Owner | `OPL Pack`（descriptor/ABI）+ `OPL Connect`（carrier）+ `OPL Foundry Kernel`（candidate/version evidence）。 |
-| 状态 | `active`；用户已授权完整迁移，P4 先冻结真实 plugin contract，并为 P5/P6 提供 canonical composition ABI。 |
+| 状态 | `landed`；Pack-owned plugin descriptor、composition snapshot、typed diagnostics 与 P2/P3 consumers 已进入 canonical main。 |
 | 依赖 | P3 inspect 的实际字段、P2 snapshot identity、Package descriptor 与 Foundry AgentVersion owner contract。 |
 | 写集 | `contracts/opl-framework/cordis-plugin-descriptor.schema.json`、`cordis-composition-snapshot.schema.json`、compatibility validator、fixture matrix；不创建中央 resolver/installed lock。 |
 | 输入 | P2/P3 真实 plugin、Package descriptor、Foundry AgentVersion、executor binding、现有 release/receipt contracts。 |
@@ -199,7 +199,7 @@ Cordis 只负责箭头中 `context -> plugin -> in-process service/event` 的部
 
 ### P5：按依赖图分批迁移十模块
 
-状态：`planned_after_p4`。P1 已为十模块确认候选 surface；P4 contract 通过后，六个依赖批次立即并发实现 successor，随后由 Integrator 逐批串行切换 canonical caller。真实 caller、回退 successor、affected outcome 和 owner acceptance 仍是正确性/权限门，而不是迁移成本门。
+状态：`p5a_active`。P4 contract 已通过；第一条 successor 是 Pack stage-binding + Stagecraft context，并切换 Runway 的 5 个真实 callback caller。Connect、Workspace/Ledger、Atlas/Console 和 Foundry/Charter 的 adapter 可并行准备，但 canonical caller switch 仍逐批串行。
 
 迁移采用 successor-first：先在 Cordis composition 中证明一个模块的真实 vertical path，再切 production caller，最后以 structural caller=0、affected outcome 和 build/readback 为门批量退役旧手写路径。建议顺序如下，实际顺序以 P1 graph 为准：
 
@@ -289,7 +289,7 @@ Cordis 的收益不是“代码看起来像插件”，而是把已经存在的�
 
 ## 9. 下一棒
 
-P0-P6 路线图已完整冻结，P1 surface map、P2 隔离 executor experiment 与 P3 composition inspect 已串行吸收，P4 已登记并进入实现；P5 六个模块批次的 caller/authority 盘点与 fixture 准备可并行推进，canonical 吸收仍固定 `P4 -> P5 -> P6`。当前下一棒是完成 P4 plugin/package version contract，并基于 fresh main 进入第一批 P5 successor。实际 active 优先级、owner、write set 和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准，本计划只作为支撑细节被引用。
+P0-P6 路线图已完整冻结，P1 surface map、P2 隔离 executor experiment、P3 composition inspect 与 P4 plugin/package version contract 已串行吸收；P5-A 已登记并进入实现，P5 其余批次继续按依赖图准备，canonical 吸收仍固定 `P4 -> P5 -> P6`。当前下一棒是完成 P5-A 的 Pack/Stagecraft successor，并在 fresh main 上切换 Runway 五个真实 caller。实际 active 优先级、owner、write set 和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准，本计划只作为支撑细节被引用。
 
 ## 10. 禁止声明
 

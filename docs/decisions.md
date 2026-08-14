@@ -23,7 +23,7 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 - Cordis 不是安全沙箱。不可信 plugin 不得因拥有 plugin 身份而进入 privileged root；需要隔离时使用现有 sandbox/provider 或独立进程。Cordis event 是进程内 transport，durable/replay/evidence 事实仍归 Temporal/Ledger/owner receipt。
 - P0-P6 路线图、收益、代价和 go/no-go 已冻结。当前已证明的收益包括 seam 可见性、executor 可替换、依赖注入、typed event、scope teardown、composition isolation 与 P3 组合可观测性；独立版本组合、十模块迁移和 Harness 自进化 substrate 是已授权目标，仍必须分别通过 P4-P6 的真实 readback 后才能声明完成。
 
-本决策把目标 runtime composition 从“方向与实验”升级为“完整迁移终态”，但不改写既有 Package successor-first、Temporal production substrate、FoundryRun authority、Ledger refs-only 或 domain/App owner 决策。当前状态为 `roadmap_complete / full_migration_authorized / p1_p2_p3_landed / p4_active / p5_p6_not_started`；exact devDependency、隔离实验与只读 inspect 仍不能写成已 Cordis-native、已默认运行、已兼容 DSH 或已发布。
+本决策把目标 runtime composition 从“方向与实验”升级为“完整迁移终态”，但不改写既有 Package successor-first、Temporal production substrate、FoundryRun authority、Ledger refs-only 或 domain/App owner 决策。当前状态为 `roadmap_complete / full_migration_authorized / p1_p2_p3_p4_landed / p5a_active / p5b_p6_not_started`；exact devDependency、隔离实验与只读 inspect 仍不能写成已 Cordis-native、已默认运行、已兼容 DSH 或已发布。
 
 ## 2026-08-06
 
