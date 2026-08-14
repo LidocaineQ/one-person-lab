@@ -2,16 +2,16 @@
 
 Owner: `OPL Framework`
 Purpose: `cordis_adoption_support_plan`
-State: `roadmap_complete / implementation_p1_p2_p3_landed_p4_not_started`
+State: `roadmap_complete / full_migration_authorized_p4_active_p5_p6_not_started`
 Updated: `2026-08-14`
 SSOT role: 本文是详细支撑计划；当前 active gap、优先级和下一棒仍只归 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md)。
-Machine boundary: 本文只证明 Cordis 已作为 exact devDependency 进入隔离实验，P2 focused fixture 与 P3 只读 inspect 已通过；不证明默认或 production 路径已切换、已 Cordis-native、已发布或已完成 DSH 兼容。Package currentness、Temporal、Foundry、Ledger、domain 和 App 的事实必须分别回到对应 owner surface。
+Machine boundary: 用户已明确授权把长期终态推进到 Cordis 全面迁移；本文的阶段状态仍只由 canonical source、contracts、tests 和 owner-authoritative readback 证明。P4/P5/P6 尚未完成时，不得把计划、候选分支或 focused test 写成默认/production 已 Cordis-native。Package currentness、Temporal、Foundry、Ledger、domain 和 App 的事实必须分别回到对应 owner surface。
 
 ## 1. 结论
 
 OPL 采用 DeepSeek Harness（DSH）所使用的正式 `@deepseek-ai/cordis` 作为长期目标的进程内组合框架。目标是最终使用 Cordis 本身，不再另造 `Cordis-like` 内核、平行 event bus、平行 service registry 或平行 plugin lifecycle。
 
-这是一项已经完成 P0-P6 路线图、并进入实验验证的架构方向，不是默认运行状态。P1 surface map、P2 `Agent Executor` 隔离实验与 P3 只读 composition inspect 已落地；P3 已证明 operator 可稳定回读 plugin/fiber state、service ownership、inject、event mode、disposer 和 diagnostic refs，并在观察后销毁隔离 composition。当前 OPL 默认生产链仍按既有手写 runtime 运行。首个实验选择 `Agent Executor` seam，因为 Codex、Claude Code、Hermes 和 Antigravity 已经有多个显式 adapter，且该 seam 已在不改变 Temporal durable truth 的情况下证明真实 Cordis 组合、依赖注入、事件、scope isolation 和 teardown。
+这是一项已经完成 P0-P3、正在按用户授权推进 P4-P6 的架构迁移，不再以迁移成本作为 go/no-go。P1 surface map、P2 `Agent Executor` 隔离实验与 P3 只读 composition inspect 已落地；P4 现在进入实现，P5/P6 负责十模块 caller 切换和默认路径切换。当前 OPL 默认生产链仍按既有手写 runtime 运行，直到 P6 的真实 readback 闭合。首个实验选择 `Agent Executor` seam，因为 Codex、Claude Code、Hermes 和 Antigravity 已经有多个显式 adapter，且该 seam 已在不改变 Temporal durable truth 的情况下证明真实 Cordis 组合、依赖注入、事件、scope isolation 和 teardown。
 
 Cordis 的职责只限于同一进程内的：
 
@@ -84,7 +84,7 @@ Cordis 只负责箭头中 `context -> plugin -> in-process service/event` 的部
 | `OPL Foundry Kernel` | design/eval/activation adapter、candidate events | AgentVersion、qualification、canary、activation CAS、rollback authority。 |
 | `OPL Connect` | carrier/provider/plugin loader adapter、source discovery events | native carrier installed truth、Package currentness、credential boundary。 |
 
-这张表是候选 seam，不是批准的迁移清单。P1 必须用真实 caller、dependency graph 和 source-module public index 逐项确认；没有真实进程内收益的模块保持现状。
+这张表已由 P1 surface map 与真实 caller 证据支付第一轮收益门。P5 将按依赖图逐模块实现 successor 并切换 caller；只有真实安全、权限、数据完整性或 owner authority 边界可以阻止具体写入，迁移成本本身不再阻止已确认的模块。
 
 ### 3.4 Authority mapping
 
@@ -188,7 +188,7 @@ Cordis 只负责箭头中 `context -> plugin -> in-process service/event` 的部
 | 项目 | 内容 |
 | --- | --- |
 | Owner | `OPL Pack`（descriptor/ABI）+ `OPL Connect`（carrier）+ `OPL Foundry Kernel`（candidate/version evidence）。 |
-| 状态 | `not_started`；必须先通过 P3，且只冻结真实出现的 plugin contract，不为未来模块预建 schema。 |
+| 状态 | `active`；用户已授权完整迁移，P4 先冻结真实 plugin contract，并为 P5/P6 提供 canonical composition ABI。 |
 | 依赖 | P3 inspect 的实际字段、P2 snapshot identity、Package descriptor 与 Foundry AgentVersion owner contract。 |
 | 写集 | `contracts/opl-framework/cordis-plugin-descriptor.schema.json`、`cordis-composition-snapshot.schema.json`、compatibility validator、fixture matrix；不创建中央 resolver/installed lock。 |
 | 输入 | P2/P3 真实 plugin、Package descriptor、Foundry AgentVersion、executor binding、现有 release/receipt contracts。 |
@@ -199,7 +199,7 @@ Cordis 只负责箭头中 `context -> plugin -> in-process service/event` 的部
 
 ### P5：按依赖图分批迁移十模块
 
-状态：`not_started`。只有 P4 contract 通过，并且某一模块存在真实 caller、可回退 successor 和明确 owner acceptance 时，才为该模块开启迁移批次；没有收益证据的模块保持现状。
+状态：`planned_after_p4`。P1 已为十模块确认候选 surface；P4 contract 通过后，六个依赖批次立即并发实现 successor，随后由 Integrator 逐批串行切换 canonical caller。真实 caller、回退 successor、affected outcome 和 owner acceptance 仍是正确性/权限门，而不是迁移成本门。
 
 迁移采用 successor-first：先在 Cordis composition 中证明一个模块的真实 vertical path，再切 production caller，最后以 structural caller=0、affected outcome 和 build/readback 为门批量退役旧手写路径。建议顺序如下，实际顺序以 P1 graph 为准：
 
@@ -254,13 +254,13 @@ Cordis 的收益不是“代码看起来像插件”，而是把已经存在的�
 
 1. **强收益（当前已证明）**：P1 的 seam 可见性；P2 的 executor 替换、依赖注入、typed event、scope teardown 与 composition isolation。
 2. **值得推进**：P3 的 inspect 可观测性；P4 的显式 plugin contract 与可重放 snapshot。
-3. **条件收益**：P5/P6 的独立模块版本/分支组合、自由组合和自进化 substrate。只有生产 caller 切换与 owner readback 闭合后才成立，不能从 P2 demo 推导。
+3. **目标收益（已授权，待实现）**：P5/P6 的独立模块版本/分支组合、自由组合、较小改动半径和 Harness 自进化 substrate。它们必须以生产 caller 切换与 owner readback 闭合为终态证据，不能从 P2 demo 提前宣称。
 
 ### Go/no-go 规则
 
 - **Go P3**：P2 的 snapshot、实际 bytes、teardown 和 owner boundary 均可回读；P3 只读写集已冻结。
 - **Go P4**：P3 inspect 不产生第二 truth，且至少有两个真实 plugin contract 字段消费者；否则继续收敛 P3。
-- **Go P5 单模块批次**：该模块有真实 caller、successor 纵向链路、affected outcome 和 canonical revert；否则不迁移。
+- **Go P5 单模块批次**：该模块有真实 caller、successor 纵向链路、affected outcome、canonical revert 和必要 owner acceptance；这些是正确性/权限门，不以实现成本否决迁移。
 - **Go P6**：全部 production caller 已切换、旧路径 structural caller=0、Temporal/Package/Ledger/Foundry/domain/App owner 独立回读 green；否则保持旧默认路径。
 - **No-go 任一阶段**：需要新增第二 registry、installed lock、durable event log、Cordis sandbox、永久 fallback，或把 optional plugin/inspect 结果升级为 domain/ready authority。
 
@@ -289,7 +289,7 @@ Cordis 的收益不是“代码看起来像插件”，而是把已经存在的�
 
 ## 9. 下一棒
 
-P0-P6 路线图已完整冻结，P1 surface map、P2 隔离 executor experiment 与 P3 composition inspect 已串行吸收，P2/P3 仅在 dev/experimental dependency graph 使用并观察正式 `@deepseek-ai/cordis@4.0.1`。当前下一棒是对 P4 plugin/package version contract 做 fresh admission：只从 P3 实际字段、P2 snapshot identity、Package descriptor 与 Foundry AgentVersion owner contract 冻结最小版本/组合合同；未通过前不迁移十模块、Temporal、Package lifecycle 或 App。实际 active 优先级、owner、write set 和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准，本计划只作为支撑细节被引用。
+P0-P6 路线图已完整冻结，P1 surface map、P2 隔离 executor experiment 与 P3 composition inspect 已串行吸收，P4 已登记并进入实现；P5 六个模块批次的 caller/authority 盘点与 fixture 准备可并行推进，canonical 吸收仍固定 `P4 -> P5 -> P6`。当前下一棒是完成 P4 plugin/package version contract，并基于 fresh main 进入第一批 P5 successor。实际 active 优先级、owner、write set 和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准，本计划只作为支撑细节被引用。
 
 ## 10. 禁止声明
 

@@ -35,7 +35,7 @@ North-star 参考仍归 [OPL 与 Foundry Agents 理想目标态](../references/r
 | 范围 | 当前完成状态 | 证据边界 |
 | --- | --- | --- |
 | 非 live 功能 / 结构基线 | `opl_package_platform_composition_phase_2_controlled_breaking_cutover_in_progress` | 既有 Package platform-first composition 仍是独立 active migration slice；本仓 owner 边界见 [`opl-package-platform-composition-migration.md`](./opl-package-platform-composition-migration.md)，跨仓唯一实施计划归 App SSOT。Phase 2 已获用户批准，当前按 successor-only 纵向链路、production caller 切换、affected OUT / carrier 验收与 owner-gated bulk deletion 顺序执行。 |
-| Cordis 进程内组合 | `roadmap_complete_p1_p2_p3_landed_p4_not_started` | P0-P6 路线图、收益、代价和 go/no-go 已冻结；P1 十模块 surface map、P2 隔离 Agent Executor composition 与 P3 deterministic 只读 inspect 已落地。P3 能回读 plugin/fiber state、service ownership、inject、event mode、disposer 与 diagnostics，并保持无外部写入、unknown-plugin 降级和观察后 teardown。Cordis 仍只在 dev/experimental dependency graph 使用，默认 production caller、Temporal、Package lifecycle、Ledger 与 domain/App authority 均未切换。详细门槛见 [`cordis-adoption-plan.md`](./cordis-adoption-plan.md)。 |
+| Cordis 进程内组合 | `roadmap_complete_full_migration_authorized_p4_active_p5_p6_not_started` | 用户已明确授权完成 Cordis 全面迁移，迁移成本不再作为否决条件。P1 十模块 surface map、P2 隔离 Agent Executor composition 与 P3 deterministic 只读 inspect 已落地；P4 plugin/package version contract 正在实现，P5/P6 尚未切换默认 caller。Package currentness、Temporal、Ledger、Foundry、domain 和 App authority 继续由各自 owner 持有。详细门槛见 [`cordis-adoption-plan.md`](./cordis-adoption-plan.md)。 |
 | Bounded security hardening | `first_local_compatibility_batch_implemented_verified` | Codex Security scan `03a5506e-0f1b-4ddd-ba53-b33a0c8e6a83` 的处置由 [`security-hardening-worklist.json`](../../contracts/opl-framework/security-hardening-worklist.json) 持有。首批四项局部兼容修复已实现并通过回归；安全 lane 默认在真实受损边界内局部拒绝，在边界外 fail open，不把 finding 清零当成交付指标。 |
 | Ponytail 低风险简化 | `low_risk_slice_landed_owner_gated_tail_remains` | OPL Framework 已删除已证明无生产 caller 的 pass-through facade 文件，同时通过 canonical kernel 保留既有 public symbols；并清理孤儿 runtime helpers、专属测试/脚本和无引用图片。对外 contracts、Package/payload 历史、release cohorts 与仍可能被外部消费的 schema 保持 owner-gated，不把仓内零引用当作物理删除授权。Fallow 动态入口只登记真实运行期拼接加载的模块；扫描配置校准不扩大删除授权。下一轮只从 fresh caller/consumer evidence 选择新的最小 cleanup slice。 |
 | Active Truth 治理 | `single_owner_guard_active` | 本文是唯一 active truth owner，只保留当前 gap、完成口径与下一轮 baton，不保存 dated proof 或 closeout 流水。 |
@@ -104,7 +104,7 @@ composition inspect 或 compatibility bridge 写成迁移完成。
 
 | Gap class | Status | Owner | 当前处理 |
 | --- | --- | --- | --- |
-| Cordis runtime composition adoption | `roadmap_complete_p1_p2_p3_landed_p4_not_started` | Framework Integrator；P4 fresh admission 待登记 | P0-P6 路线图已完整冻结；P1 machine-readable surface map、P2 DSH scoped `@deepseek-ai/cordis` 隔离 executor composition 与 P3 deterministic inspect 已落地，并证明 seam 可见性、executor 可替换、依赖注入、typed event、scope teardown、composition isolation 与组合可观测性。P4-P6 的收益与 go/no-go 见 [`cordis-adoption-plan.md`](./cordis-adoption-plan.md)。当前不切默认 caller、不迁移 Temporal/Package lifecycle/Ledger/Foundry/domain/App authority、不新增第二 registry/lifecycle。 |
+| Cordis runtime composition adoption | `full_migration_authorized_p4_active_p5_p6_not_started` | Framework Integrator；P4 `cordis-p4-composition-contract` ACTIVE；P5 六批次并行准备 | P0-P3 证据已进入 canonical main。当前实施 P4 合同层；P5 将按依赖图迁移十模块，P6 最后切换 Base/headless 与 App/托管默认入口。不得新增第二 registry/lifecycle，或越过 Package/Temporal/Ledger/Foundry/domain/App owner 边界。 |
 | Package platform-first composition | `phase_2_controlled_breaking_cutover_in_progress` | OPL Framework + OPL App | Phase 1 的 SSOT、旧 resolver/lock/payload/receipt/Durable 扩张禁令与 no-resurrection 边界已冻结；Phase 2 按 M1 successor-only public actions、M2 App/Shell caller switch、M3 affected OUT / real-carrier acceptance、M4 owner-gated legacy bulk deletion 与同 outcome 复验推进。 |
 | Bounded security hardening | `first_local_compatibility_batch_implemented_verified` | OPL Framework | 10 条 finding 的当前 disposition 归 `security-hardening-worklist.json`；首批已验证修复只收紧 Host 请求、durable Git URL evidence、Provider body consumption 与 Workspace Skill projection。单一危险输入不得阻断无关 Provider、Workspace、Carrier、Attempt 或已安装 generation。 |
 | 文档 SSOT / active gap 污染 | `active_governance_guard` | OPL + OPL Flow `$opl-doc` Skill | 理想态定义保留在 support/reference；active gap 文档只保留当前 gap、完成口径和下一轮 baton；已完成过程进 history。 |
@@ -123,7 +123,7 @@ composition inspect 或 compatibility bridge 写成迁移完成。
 ## Next-Round Agent Prompt
 
 当前默认非 live 功能/结构主题是 `cordis_runtime_composition_adoption`，
-`next_action=对 P4 plugin/package version contract 做 fresh implementation admission`。每轮先
+`next_action=完成 P4 plugin/package version contract，并在 fresh main 上开启第一批 P5 successor`。每轮先
 读取本计划、fresh source/module caller、DSH scoped package/source lock 和对应 owner
 contracts，再冻结唯一 owner、exact write set、composition snapshot、affected outcome 与
 回退门禁。Cordis 只保留在 dev/experimental graph；P5/P6 前不得切换默认 caller。
