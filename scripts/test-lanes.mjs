@@ -54,6 +54,7 @@ const fastTestFiles = [
   'tests/src/cordis-pack-stagecraft-runtime.test.ts',
   'tests/src/cordis-composition-contract.test.ts',
   'tests/src/cordis-composition-inspect.test.ts',
+  'tests/src/cordis-architecture-profile.test.ts',
   'tests/src/domain-task-codex-stdin.test.ts',
   'tests/src/family-runtime-domain-task-runtime-context.test.ts',
   'tests/src/family-runtime-execution-scope-persistence.test.ts',
