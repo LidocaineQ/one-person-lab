@@ -19,7 +19,7 @@ checksum/attestation、Temporal durability、domain artifact/evidence 以及用�
 atomic write 继续归各自 owner，不属于上述删除范围。
 Machine boundary: 本文是核心人读真相面。机器真相继续归 `contracts/`、source、CLI/API 行为、runtime ledger、provider receipt、domain-owned manifest 和真实 workspace / App evidence。
 
-Cordis adoption 当前状态：用户已正式授权按 DSH 体系的 `@deepseek-ai/cordis` 完成全面迁移，迁移成本不再作为 go/no-go；P1/P2/P3/P4 已 landed，P5-A 的 Pack stage-binding + Stagecraft context successor 正在实现，P5 其余批次并行准备，P6 尚未开始 canonical default-path 切换。`@deepseek-ai/cordis@4.0.1` 仍是 exact devDependency；P4 已将 plugin API、source/package refs、composition digest 和 typed compatibility failures 固定为 Pack-owned contract。当前仍没有默认 production caller 切换。完整迁移的终态是十模块进程内贡献通过 Cordis composition 组合、生产 attempt 冻结 snapshot、Base/App 默认入口切换并退役旧通用内核；Package installed truth、Temporal durability、Foundry version/promotion、Ledger evidence 和 domain/App authority 仍由原 owner 持有。完整收益、实施顺序和验收门见 [`docs/active/cordis-adoption-plan.md`](./active/cordis-adoption-plan.md)。
+Cordis adoption 当前状态：用户已正式授权按 DSH 体系的 `@deepseek-ai/cordis` 完成全面迁移，迁移成本不再作为 go/no-go；P1/P2/P3/P4 已 landed，P5-A 的 Pack stage-binding + Stagecraft context successor 正在实现，P5-R 同步重做 Cordis-native 架构基线，P5 其余 seam 批次并行准备，P6 尚未开始 canonical default-path 切换。`@deepseek-ai/cordis@4.0.1` 仍是 exact devDependency；P4 已将 plugin API、source/package refs、composition digest 和 typed compatibility failures 固定为 Pack-owned contract。当前仍没有默认 production caller 切换。完整迁移的终态是稳定 authority domain、独立 Package、细粒度 Cordis plugin contribution 和少量 curated composition profile 四层分离，生产 attempt 冻结 snapshot，Base/App 默认入口切换并退役旧通用内核；当前十品牌模块只是源码/认知基线，不是固定的最终 plugin 拓扑。Package installed truth、Temporal durability、Foundry version/promotion、Ledger evidence 和 domain/App authority 仍由原 owner 持有。完整收益、实施顺序和验收门见 [`docs/active/cordis-adoption-plan.md`](./active/cordis-adoption-plan.md)。
 
 Plugin native profile pointer: `contracts/opl-native-profile.json` 只声明 OPL Flow bundled Skills 的 repo-native profile 与 drift 检查所需入口；它不是 framework truth、runtime truth、domain truth、artifact authority、owner receipt 或 production-ready 证据。已退休的 OPL Doc repo 不再提供 plugin、doctor 或 profile writer。
 
@@ -154,7 +154,7 @@ Wrapper-aware readout discipline：`framework readiness`、`operating-maturity`�
 
 ## 品牌模块成熟度
 
-OPL 顶层设计按当前十个品牌模块管理：`OPL Charter`、`OPL Atlas`、`OPL Workspace`、`OPL Pack`、`OPL Stagecraft`、`OPL Runway`、`OPL Ledger`、`OPL Console`、`OPL Foundry Kernel` 和 `OPL Connect`。品牌模块是 Framework 内部 bounded context、源码物理 owner 和成熟度语言，不是新的 runtime、第二 truth source 或 production-ready 证明；模块数量不作为硬约束，只有边界清楚的新 bounded context 才进入 registry。当前 App 与条件启用的 Cloud 产品语义可以和这十个模块对齐，方便把 Framework 能力包装成用户可见产品能力；`OPL Cloud`、在线 Workspace、Console 页面或 Gateway/API 体验不反向改写 `src/modules/<module_id>/` 的源码 owner，也不成为当前 App desktop + Docker/WebUI 的必要 gate。
+OPL 顶层设计当前按十个品牌模块管理：`OPL Charter`、`OPL Atlas`、`OPL Workspace`、`OPL Pack`、`OPL Stagecraft`、`OPL Runway`、`OPL Ledger`、`OPL Console`、`OPL Foundry Kernel` 和 `OPL Connect`。品牌模块是 Framework 当前 bounded context、源码物理 owner、产品认知和成熟度语言，不是新的 runtime、第二 truth source、production-ready 证明或固定 Cordis plugin 数量；模块数量和边界不作为硬约束。P5-R 将按 authority、caller、lifecycle、scope、trust、故障隔离和发布节奏决定保留、拆分、合并或降级，在结果冻结前继续用当前 registry 和目录作为兼容基线。当前 App 与条件启用的 Cloud 产品语义可以和这十个模块对齐，方便把 Framework 能力包装成用户可见产品能力；`OPL Cloud`、在线 Workspace、Console 页面或 Gateway/API 体验不反向改写 `src/modules/<module_id>/` 的源码 owner，也不成为当前 App desktop + Docker/WebUI 的必要 gate。
 
 成熟度读法固定为五级：
 

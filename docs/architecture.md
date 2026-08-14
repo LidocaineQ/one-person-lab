@@ -7,7 +7,7 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 
 ## 顶层分层
 
-`OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。当前产品认知分成 `OPL Framework`、`One Person Lab App` 和 `Foundry Agents` 三层：Framework 负责开发与运行框架，App 负责普通用户工作台，Foundry Agents 负责领域智能体与交付权威。用户已授权把长期进程内组合全面迁移到 DSH 体系的正式 `@deepseek-ai/cordis`；P1 surface map、P2 隔离 executor experiment 与 P3 deterministic composition inspect 已落地，P4 正在实现，P5/P6 将完成十模块 caller 和默认路径切换。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
+`OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。当前产品认知分成 `OPL Framework`、`One Person Lab App` 和 `Foundry Agents` 三层：Framework 负责开发与运行框架，App 负责普通用户工作台，Foundry Agents 负责领域智能体与交付权威。用户已授权把长期进程内组合全面迁移到 DSH 体系的正式 `@deepseek-ai/cordis`；P1 surface map、P2 隔离 executor experiment、P3 deterministic composition inspect 与 P4 composition contract 已落地，P5/P5-R/P6 将完成真实 seam caller 切换、四层架构重基线和默认路径切换。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
 
 ### Codex executable carrier 边界
 
@@ -163,13 +163,13 @@ OPL Framework 允许使用 sandbox provider，但框架职责归 OPL：stage att
 
 ## 品牌模块架构
 
-OPL 的三层产品认知说明“面向谁”，当前十个品牌模块说明 Framework 内部能力如何高内聚、低耦合地演进。品牌模块不是新的 runtime，也不是第二 truth source；它们把已经存在的 contracts、source、CLI/App 产品行为、read model、runtime ledger、provider receipt 和 docs support 归入稳定 owner boundary。当前必要工作面是 App desktop + Docker/WebUI；条件启用的 Cloud 产品可以用这些模块命名用户可见能力，但 Framework 代码仍按模块 owner 物理落在 `src/modules/<module_id>/`。
+OPL 的三层产品认知说明“面向谁”，当前十个品牌模块说明 Framework 内部能力如何高内聚、低耦合地演进。品牌模块不是新的 runtime，也不是第二 truth source；它们把已经存在的 contracts、source、CLI/App 产品行为、read model、runtime ledger、provider receipt 和 docs support 归入当前稳定 owner boundary。当前必要工作面是 App desktop + Docker/WebUI；条件启用的 Cloud 产品可以用这些模块命名用户可见能力，但 Framework 代码目前仍按模块 owner 物理落在 `src/modules/<module_id>/`。这套十模块是当前源码和认知基线，不是 Cordis 终局 plugin 拓扑。
 
 产品语义和源码组织的对齐规则是：`OPL Cloud`、在线 `OPL Workspace`、Console 页面和 Gateway/API 体验属于长期、条件启用的用户可见产品包装，只有真实 account、storage、isolation、backend 与 owner policy 齐备时才出现；`src/modules/<module_id>/` 属于 Framework 物理 owner。条件产品可以组合多个模块，但不能把产品名反向写成源码模块 owner，也不能成为当前 App desktop + Docker/WebUI 的 release/runtime 硬门。`OPL Fabric` 是 Cloud / Product 层的通用资源底座语义，不新增当前十模块之外的第 11 个源码模块；它的实现由 `Connect` 的连接与分发、`Runway` 的 durable execution、`Pack` 的 ABI / descriptor、`Workspace` 的物理落点和 `Ledger` 的 refs-only evidence 协作承接。`OPL Connect` 是 Fabric 上可独立调用的连接能力，`OPL Console` 负责治理、投影和管理集成。
 
-代码层的终局组织是 `src/modules/`。`src/modules/<module_id>/` 是当前十个 Framework 模块的真实物理边界，每个模块通过自己的 `index.ts` 暴露 public index；少量高频、低依赖、容易触发初始化循环的公共 API 可以放在 `src/modules/<module_id>/public/**/*.ts` 薄入口。`src/modules/index.ts` 只导出模块身份常量和命名空间聚合，避免不同模块的同名 API 混在同一个大 barrel 里。`contracts/opl-framework/source-module-map.json` 是归属校验面，不是第二套目录规划。`entrypoints/` 和 `kernel/` 属于非品牌技术层：前者承接 CLI / product / adapter 启动面，后者承接共享 runtime primitive；二者必须挂靠并服务十大模块，不获得独立 brand owner。新代码默认进入 owning module；跨模块调用只走 owning module public index 或薄 public entry；root-level `src/*.ts` 不再接受新扩展。维护者的 canonical 源码边界读法见 [OPL Framework 源码模块边界](./references/source-module-boundary.md)。
+代码层当前仍以 `src/modules/` 作为物理组织。`src/modules/<module_id>/` 是当前十个 Framework 模块的真实物理边界，每个模块通过自己的 `index.ts` 暴露 public index；少量高频、低依赖、容易触发初始化循环的公共 API 可以放在 `src/modules/<module_id>/public/**/*.ts` 薄入口。`src/modules/index.ts` 只导出模块身份常量和命名空间聚合，避免不同模块的同名 API 混在同一个大 barrel 里。`contracts/opl-framework/source-module-map.json` 是归属校验面，不是第二套目录规划。`entrypoints/` 和 `kernel/` 属于非品牌技术层：前者承接 CLI / product / adapter 启动面，后者承接共享 runtime primitive；二者必须挂靠并服务当前 owner，不获得独立 brand owner。新代码默认进入当前 owning module；跨模块调用只走 owning module public index 或薄 public entry；root-level `src/*.ts` 不再接受新扩展。Cordis-native 重基线完成后，某一模块可以贡献多个 plugin、多个模块可以合并为一个运行时 contribution，或某个模块仅保留 authority surface；这些变化必须经 P5-R 的真实 caller/owner/lifecycle 证据和 source-to-target mapping 冻结后再改目录。维护者的 canonical 源码边界读法见 [OPL Framework 源码模块边界](./references/source-module-boundary.md)。
 
-物理归位是模块化的起点，真正模块化还要求 public interface 清晰、模块内高聚合、模块间低耦合。模块 public interface 由该模块 `index.ts`、少量 `public/**` 薄入口和对应 contract ref 组成；跨模块 public entrypoint 是 owning module `index.ts`、owning module `public/**` 或 `src/modules/index.ts` 命名空间聚合出口，CLI / App / Cloud entrypoint 只把请求转入这些 public entry。模块内部优先使用相对 import 连接同一 owner 下的 parts / cases / helpers；跨模块直接 import 对方内部文件、parts 或 case 文件已经进入 strict source boundary，模块依赖环也进入默认 strict gate：`npm run source:modules -- --strict-imports --strict-cycles` 必须同时保持 deep import、forbidden dependency 和 dependency cycle 为 0。当前源码模块化完成度可表述为“十模块物理归位 + public entrypoint 硬门 + deep import 清零 + public-entry dependency cycle 清零”。Connect 仍持有 Package 安装与 descriptor/checkout discovery 实现，Workspace 仍持有 binding registry；Runway、Workspace、Atlas 只通过 kernel-owned port / primitive 消费这些能力，当前反向方向 `atlas -> connect`、`atlas -> workspace`、`runway -> connect`、`workspace -> connect` 已列入 forbidden policy。public API 的 broad re-export 与 pair-count 热点仍是后续维护项；结构门通过不作为 runtime、release 或 production ready 证据。
+物理归位是模块化的起点，真正模块化还要求 public interface 清晰、模块内高聚合、模块间低耦合。模块 public interface 由该模块 `index.ts`、少量 `public/**` 薄入口和对应 contract ref 组成；跨模块 public entrypoint 是 owning module `index.ts`、owning module `public/**` 或 `src/modules/index.ts` 命名空间聚合出口，CLI / App / Cloud entrypoint 只把请求转入这些 public entry。模块内部优先使用相对 import 连接同一 owner 下的 parts / cases / helpers；跨模块直接 import 对方内部文件、parts 或 case 文件已经进入 strict source boundary，模块依赖环也进入默认 strict gate：`npm run source:modules -- --strict-imports --strict-cycles` 必须同时保持 deep import、forbidden dependency 和 dependency cycle 为 0。当前源码模块化完成度可表述为“十模块物理归位 + public entrypoint 硬门 + deep import 清零 + public-entry dependency cycle 清零”；这只是当前 source boundary，不是 Cordis plugin 数量或最终 Package 边界。Connect 仍持有 Package 安装与 descriptor/checkout discovery 实现，Workspace 仍持有 binding registry；Runway、Workspace、Atlas 只通过 kernel-owned port / primitive 消费这些能力，当前反向方向 `atlas -> connect`、`atlas -> workspace`、`runway -> connect`、`workspace -> connect` 已列入 forbidden policy。public API 的 broad re-export 与 pair-count 热点仍是后续维护项；结构门通过不作为 runtime、release 或 production ready 证据。
 
 | 模块 | 主聚合面 | 主要消费 | 明确不拥有 |
 | --- | --- | --- | --- |
@@ -183,6 +183,24 @@ OPL 的三层产品认知说明“面向谁”，当前十个品牌模块说明 
 | `OPL Console` | App/operator 工作台、`current_owner_delta` default read root、invocation-plan projection、current owner、next action、阻塞、产物投影、治理和 drilldown。 | framework readiness、App state、domain-owned projection、CapabilityInvocationPlan refs、Ledger refs、Connect policy projection。 | Connect 私有后端、runtime truth、domain truth、owner answer、App release verdict。 |
 | `OPL Foundry Kernel` | Agent 创建、接管、改进、确定性物化、独立评测、EvidenceBundle、AgentVersion、canary、activation 和 rollback。 | DesignRequest、AgentBlueprint / EvalSpec、evaluation evidence、Owner decision receipts。 | MAS/MAG/RCA/OMA/OBF 的 domain authority 与保护测试正文。 |
 | `OPL Connect` | 可独立调用的 source connector、CLI、MCP、OpenAI/AI SDK tools、ToolResultEnvelope descriptors、Skill/plugin、module install、release/install 分发和 drift matrix。 | public surface index、module registry、skill/plugin metadata、tool descriptor refs、source refs、release/install contracts。 | Console-only backend、语义重新解释、domain-owned handler、tool result authority、release evidence 伪造。 |
+
+### Cordis-native 重基线读法
+
+在完整迁移前，维护者必须把四种边界分开读取：
+
+```text
+authority domain -> Package -> Cordis plugin contributions -> curated composition profile
+```
+
+当前十模块表是源码与产品认知的导航层，不等于以上四层的一对一映射。重基线的判断顺序是：
+
+1. 独立事实权威、产品责任、权限或不可伪造边界，保留为 authority owner。
+2. 独立安装、发布、carrier 或 currentness 节奏，拆为 Package。
+3. 独立进程内 lifecycle、scope、trust、故障隔离、provider 替换或 teardown，拆为 Cordis plugin contribution。
+4. 没有独立 caller、责任或替换价值的模块面，合并、收缩或保留为纯 authority/read-model surface。
+5. 用少量 `base-headless`、`app-full`、`research`、`grant`、`visual`、`foundry-dev` 等 profile 隐藏组合矩阵，不把任意 plugin 组合暴露给普通用户。
+
+因此，`Charter` 可能收缩为 policy authority，`Atlas` / `Connect` 可能按 discovery/provider/carrier lifecycle 拆分，`Pack` / `Stagecraft` 可能分别贡献 descriptor/compiler 与 stage-context plugin，`Console` 可能只保留 read-model projection，`Ledger` / `Foundry` / `Workspace` 的 durable/authority owner 仍不能被 Cordis 内存对象取代。上述只是重基线候选，最终变更必须等待 P5-R 的真实 caller、owner、lifecycle、Package 和 profile 证据。
 
 `OPL Pack` 的 family action catalog v2 显式区分 required、optional 与 workspace locator 字段，并把执行 ABI 收敛为 closed `handler_ref` / `stage_binding` union。`OPL Runway` 的 `opl agents run` 从 `OPL Connect` 为本次 action 解析的 current/LKG immutable generation 加载 action catalog、handler registry 与 stage manifest：普通用户的 `latest-stable` 和开发者的可信本地 checkout 只决定 source channel，Git/digest/version/lock/receipt 记录 provenance；发布 admission 仍严格验证新 generation，但 provenance 漂移不阻断已有可运行 generation。handler 在只读 sandbox 中执行并校验 input/output schema，stage binding 则把已持久化 request ref 与 SHA 绑定到 Temporal StageRun；每个新 child Attempt 重新解析 latest/LKG，并冻结自己的 prompt、rubric、Skill 与 policy bytes，运行中不热换。请求/输出 exact bytes 落到 Workspace，Ledger 只记 refs；Stage `started` 只表示已启动，不等于 domain completion、owner receipt 或 ready，后续软件升级也不撤销历史 artifact/evidence。
 
@@ -526,7 +544,7 @@ Stage attempt 的终态只允许收敛到三类：`success` 表示 required outp
 - provider execution：Temporal `StageAttemptWorkflow`、Codex / domain sidecar activity、human gate / user instruction / resume signal、stage attempt query、CLI `attempt start|query|signal`、worker lifecycle status 和 fail-closed readiness 已落地为 source / CLI / contract / projection surface。2026-05-14 本机 managed Temporal service / worker proof 只作为历史 provider proof provenance；当前 `full_online_ready`、`durable_online_ready`、SLO、worker lifecycle 或 production-residency 读法必须 fresh-read runtime / readiness owner surface，不能从本文继承。
 - typed receipt / workbench：Codex stage activity 已有 dry-run / live-dry-run / `codex_cli` runner repo/test harness、typed closeout claim-evidence 捕获、raw/partial/no-output diagnostic progress、consumed refs / memory refs / writeback receipt refs / rejected writes / route impact / next owner 投影；`opl runtime snapshot` 已输出只读 `stage_attempt_workbench`。typed closeout 只提高 lineage 与 owner/quality/ready claim 证据质量，不是 stage completion 或 transition gate。
 
-Cordis adoption 当前仍是默认运行结构缺口，但终态已升级为完整迁移：DSH scoped `@deepseek-ai/cordis@4.0.1` 已作为 exact devDependency 安装，P1 surface map、P2 隔离 Agent Executor composition、P3 deterministic read-only inspect 与 P4 plugin/package version contract 已落地；P5-A 正在实现 Pack/Stagecraft/Runway successor，P5 其余批次和 P6 默认切换尚未完成。P3 inspect 已提供 plugin/fiber state、service ownership、inject、event mode、disposer 与 diagnostics 的只读回读，P4 已提供可重放 snapshot/digest 和 typed compatibility failure。具体完成门见 [`Cordis Adoption Plan`](./active/cordis-adoption-plan.md)；在 P6 真实 readback 前仍不能声称默认 Cordis-native，Temporal durable path、Package installed truth 或 domain/App authority 也不迁入 Cordis。
+Cordis adoption 当前仍是默认运行结构缺口，但终态已升级为完整迁移：DSH scoped `@deepseek-ai/cordis@4.0.1` 已作为 exact devDependency 安装，P1 surface map、P2 隔离 Agent Executor composition、P3 deterministic read-only inspect 与 P4 plugin/package version contract 已落地；P5-A 正在实现 Pack/Stagecraft/Runway successor，P5-R 将在 P6 前重新冻结 authority、Package、plugin 与 curated profile 的目标边界，P5 其余批次和 P6 默认切换尚未完成。P3 inspect 已提供 plugin/fiber state、service ownership、inject、event mode、disposer 与 diagnostics 的只读回读，P4 已提供可重放 snapshot/digest 和 typed compatibility failure。当前十个品牌模块仍是源码/认知基线，不是最终 plugin 数量。具体完成门见 [`Cordis Adoption Plan`](./active/cordis-adoption-plan.md)；在 P6 真实 readback 前仍不能声称默认 Cordis-native，Temporal durable path、Package installed truth 或 domain/App authority 也不迁入 Cordis。
 
 当前尚未闭合的是完整生产级 long domain owner chain：
 

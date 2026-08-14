@@ -2,7 +2,7 @@
 
 Owner: `One Person Lab`
 Purpose: `brand_module_ideal_state_index`
-State: `support_reference`
+State: `support_reference / current_cognitive_baseline_pending_cordis_rebaseline`
 Machine boundary: 本文是人读目标态参考。机器真相继续归核心五件套、contracts、source、CLI/API 行为、runtime ledger、provider receipt、domain-owned manifests、App release/user-path evidence 和真实 workspace evidence。
 
 ## 读法
@@ -12,15 +12,17 @@ Machine boundary: 本文是人读目标态参考。机器真相继续归核心�
 - 顶层设计应该分成哪些高内聚、低耦合的部分。
 - 每个部分的品牌名、设计理念、核心对象和边界是什么。
 - 这些模块如何服务维护、使用、持续开发和后续重构。
-- Framework 十大模块如何对齐 App / Cloud 产品语义，同时保持 `src/modules/<module_id>/` 这一套 Framework 物理组织。
+- 当前 Framework 十大模块如何对齐 App / Cloud 产品语义，以及它们在 Cordis-native 重基线前如何维持 `src/modules/<module_id>/` 的现有物理组织。
 
 本文不冻结当前完成度、receipt id、worklist 计数、branch、worktree 或 release 证据。当前事实继续回到 `docs/status.md`、`docs/active/current-state-vs-ideal-gap.md` 和 fresh CLI/read-model。
 
-当前品牌系统冻结基线归 `contracts/opl-framework/brand-system-profile.json`。它把三层产品认知、品牌模块 product grammar、Foundry Agent 命名、App 状态语言、design-token/icon/card/status pattern，以及 receipt/blocker 文案规则落成机器可读 contract；该 contract 只约束品牌系统语言和 pattern，不声明 L5、domain ready、quality verdict、artifact authority、App release ready 或 production ready。
+当前品牌系统冻结基线归 `contracts/opl-framework/brand-system-profile.json`。它把三层产品认知、品牌模块 product grammar、Foundry Agent 命名、App 状态语言、design-token/icon/card/status pattern，以及 receipt/blocker 文案规则落成机器可读 contract；该 contract 只约束当前品牌系统语言和 pattern，不声明十模块是最终 authority/Package/plugin/profile 拓扑，也不声明 L5、domain ready、quality verdict、artifact authority、App release ready 或 production ready。
+
+Cordis 全面迁移新增了一条更高优先级的目标态约束：`品牌模块/认知地图 != authority owner != Package 发布单元 != Cordis plugin 运行单元`。P5-R 将依据真实 caller、authority、lifecycle、scope、trust、故障隔离和发布节奏，对下列模块执行保留、拆分、合并或降级评估。评估完成前，下表仍是当前文档与源码导航基线，不应提前制造目录 churn。
 
 ## 外部经验吸收
 
-OPL 借鉴的是成熟工程的分层原则，不引入外部 runtime dependency 或第二真相源：
+OPL 借鉴的是成熟工程的分层原则；Cordis 是已授权采用的进程内组合 runtime，但仍不得成为第二真相源：
 
 - Kubernetes Operator pattern：用声明式对象、status 和 control loop 管理长生命周期系统。
 - Temporal durable execution：把 workflow history、task queue、timer、恢复、重试和 timeout 交给 durable substrate；worker process/service lifecycle 仍归 OPL Runway 和部署 substrate，业务判断留给 owner。
@@ -29,8 +31,9 @@ OPL 借鉴的是成熟工程的分层原则，不引入外部 runtime dependency
 - Dagster software-defined assets：把产物、lineage、materialization 和观测状态作为一等资产。
 - OpenAPI / MCP：外部调用面从机器可读描述派生，prose 不做接口真相。
 - ADR：关键架构决策要留下原因、取舍和 supersession 关系。
+- DeepSeek Harness / Cordis：用 Context、service injection、typed event、effect/disposer 和 scope teardown 组合进程内贡献；Package、Temporal、Workspace、Ledger、Foundry、domain 与 App authority 继续分离。
 
-## 当前十个品牌模块
+## 当前十个品牌模块（重基线输入）
 
 | 模块 | 品牌一句话 | 默认 owner |
 | --- | --- | --- |
@@ -46,6 +49,8 @@ OPL 借鉴的是成熟工程的分层原则，不引入外部 runtime dependency
 | [OPL Connect](./connect.md) | CLI、MCP、OpenAI/AI SDK tools、execution view / operational card / ToolResultEnvelope descriptor、Skill/plugin、release/install 分发。 | OPL Framework + App release owner |
 
 ## 模块关系
+
+下图只是文档导航顺序，不是启动顺序、依赖图或 Cordis composition：
 
 ```text
 OPL Charter
@@ -93,7 +98,7 @@ node --experimental-strip-types --test tests/src/cli/cases/brand-modules.test.ts
 
 ## 代码组织对齐
 
-OPL Framework 的物理代码组织以 `src/modules/` 作为品牌模块终局入口。源码边界、public entrypoint 规则、完成度口径和后续依赖治理读法见 [OPL Framework 源码模块边界](../source-module-boundary.md)。每个顶层品牌模块都有对应目录：
+OPL Framework 的当前物理代码组织以 `src/modules/` 作为品牌模块入口。源码边界、public entrypoint 规则、完成度口径和后续依赖治理读法见 [OPL Framework 源码模块边界](../source-module-boundary.md)。每个当前顶层品牌模块都有对应目录：
 
 ```text
 src/modules/charter
@@ -108,6 +113,6 @@ src/modules/foundry
 src/modules/connect
 ```
 
-App / Cloud 产品语义可以把这些模块组合成面向用户的能力、页面、任务入口或托管产品面；Framework 实现仍以这十个目录为源码 owner。`contracts/opl-framework/source-module-map.json` 负责归属校验和历史 root 文件 readback，不替代模块目录。`entrypoints/` 和 `kernel/` 是非品牌技术层：`entrypoints/` 负责 CLI / App / Cloud / adapter 启动连接，`kernel/` 负责共享 runtime primitive；它们不拥有品牌模块，不直接接管产品语义。新代码进入 owning module，跨模块从 owning module `index.ts` public exports 或 `public/**` 薄入口走；需要总入口时使用 `src/modules/index.ts` 的模块身份常量或命名空间聚合，避免把不同模块的同名 API 压成一个无边界 barrel。
+App / Cloud 产品语义可以把这些模块组合成面向用户的能力、页面、任务入口或托管产品面；Framework 实现目前仍以这十个目录为源码 owner。`contracts/opl-framework/source-module-map.json` 负责归属校验和历史 root 文件 readback，不替代模块目录，也不是最终 Cordis registry。`entrypoints/` 和 `kernel/` 是非品牌技术层：`entrypoints/` 负责 CLI / App / Cloud / adapter 启动连接，`kernel/` 负责共享 runtime primitive；它们不拥有品牌模块，不直接接管产品语义。新代码进入当前 owning module，跨模块从 owning module `index.ts` public exports 或 `public/**` 薄入口走；需要总入口时使用 `src/modules/index.ts` 的模块身份常量或命名空间聚合，避免把不同模块的同名 API 压成一个无边界 barrel。P5-R 只有在冻结 target owner、Package、plugin、profile 和 source-to-target mapping 后，才授权调整这些目录或 registry。
 
 源码边界的默认门已经切到 public interface：模块内代码保持在同一 owning module 内聚，优先使用相对 import；跨模块使用 owning module public index 或 `public/**` 薄入口。薄入口用于高频、低依赖、容易被多个模块消费的稳定 API，避免大 index eager-load 造成初始化循环。跨模块内部文件 import 不再作为迁移债存在，`npm run source:modules -- --strict-imports` 默认按 strict policy 失败。若一个内部符号确实需要被其他模块消费，先把它加入目标模块 `index.ts` 或 `public/**` 薄入口，再迁移调用方。当前完成口径是“物理归位 + public entrypoint 硬门 + deep import 清零”；public-level 依赖热点和 cycle 收薄作为后续依赖方向治理处理。
