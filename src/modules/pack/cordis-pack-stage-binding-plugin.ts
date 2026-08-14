@@ -15,7 +15,7 @@ export const CORDIS_PACK_STAGE_BINDING_SERVICE = 'opl.pack.stage-binding';
 export const CORDIS_PACK_STAGE_BINDING_SOURCE_REF =
   'src/modules/pack/cordis-pack-stage-binding-plugin.ts';
 export const CORDIS_PACK_STAGE_BINDING_SOURCE_COMMIT =
-  '3d91c10ea8c6d7a2f8de2a39e79e40b3f7d9d1b4';
+  '608cdef6ae3c9ef9ad26c30934fec4f23141b954';
 
 export type CordisPackStageBindingService = {
   resolve(

@@ -14,7 +14,7 @@ export const CORDIS_ATLAS_CATALOG_SERVICE = 'opl.atlas.catalog';
 export const CORDIS_STAGECRAFT_CONTEXT_SOURCE_REF =
   'src/modules/stagecraft/cordis-stagecraft-context-plugin.ts';
 export const CORDIS_STAGECRAFT_CONTEXT_SOURCE_COMMIT =
-  '3d91c10ea8c6d7a2f8de2a39e79e40b3f7d9d1b4';
+  '608cdef6ae3c9ef9ad26c30934fec4f23141b954';
 
 type ManifestCatalogOptions = Parameters<typeof buildFamilyStageContextObservation>[2];
 export type CordisAtlasCatalogService = NonNullable<
