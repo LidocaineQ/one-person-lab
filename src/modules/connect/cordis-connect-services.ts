@@ -19,7 +19,7 @@ export const CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_SERVICE =
 export const CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_SOURCE_REF =
   'src/modules/connect/cordis-connect-services.ts';
 export const CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_SOURCE_COMMIT =
-  '1130c4ec19d1f072cfd41e9f5c277f140be38d4a';
+  '85afddae723c400f4d4ca79a2720111618369de0';
 
 const CORDIS_FRAMEWORK_PACKAGE = '@deepseek-ai/cordis';
 const CORDIS_FRAMEWORK_VERSION = '4.0.1';
