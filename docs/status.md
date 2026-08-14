@@ -19,7 +19,7 @@ checksum/attestation、Temporal durability、domain artifact/evidence 以及用�
 atomic write 继续归各自 owner，不属于上述删除范围。
 Machine boundary: 本文是核心人读真相面。机器真相继续归 `contracts/`、source、CLI/API 行为、runtime ledger、provider receipt、domain-owned manifest 和真实 workspace / App evidence。
 
-Cordis adoption 当前状态：方向已由用户正式确定为 DSH 体系的 `@deepseek-ai/cordis`，SSOT 与分阶段计划已建立；P1 surface map 与 P2 隔离 Agent Executor 实验已登记并执行中。正式 Cordis dependency、root context 和 plugin composition 只允许进入 P2 实验路径；截至当前，没有默认 production caller 切换。DSH source/package 的版本信息只是 provenance observation，不能写成已安装、已运行、已兼容或已发布。Package installed truth、Temporal durability、Foundry version/promotion、Ledger evidence 和 domain/App authority 不变。详细 owner、write set、门槛和回退见 [`docs/active/cordis-adoption-plan.md`](./active/cordis-adoption-plan.md)。
+Cordis adoption 当前状态：方向已由用户正式确定为 DSH 体系的 `@deepseek-ai/cordis`，P1 十模块 surface map 与 P2 隔离 Agent Executor composition 已落地，P3 尚未开始。`@deepseek-ai/cordis@4.0.1` 是 exact devDependency；真实 Cordis root context、required adapter/service、optional observer、typed request/completion event、scope isolation 与 teardown 只存在于实验路径。截至当前，没有默认 production caller 切换。DSH source/package 的版本信息仍只是 provenance observation，不能写成已兼容或已发布；Package installed truth、Temporal durability、Foundry version/promotion、Ledger evidence 和 domain/App authority 不变。详细门槛和回退见 [`docs/active/cordis-adoption-plan.md`](./active/cordis-adoption-plan.md)。
 
 Plugin native profile pointer: `contracts/opl-native-profile.json` 只声明 OPL Flow bundled Skills 的 repo-native profile 与 drift 检查所需入口；它不是 framework truth、runtime truth、domain truth、artifact authority、owner receipt 或 production-ready 证据。已退休的 OPL Doc repo 不再提供 plugin、doctor 或 profile writer。
 

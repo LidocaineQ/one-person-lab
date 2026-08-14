@@ -187,11 +187,9 @@ test('candidate events and authority boundaries stay in-process and non-authorit
   assert.ok(eventIds.size >= map.modules.length);
 });
 
-test('surface map does not add a Cordis runtime dependency', () => {
+test('surface map does not add Cordis to the production dependency graph', () => {
   const packageJson = readJson('package.json') as {
     dependencies?: Record<string, unknown>;
-    devDependencies?: Record<string, unknown>;
   };
   assert.equal(packageJson.dependencies?.['@deepseek-ai/cordis'], undefined);
-  assert.equal(packageJson.devDependencies?.['@deepseek-ai/cordis'], undefined);
 });

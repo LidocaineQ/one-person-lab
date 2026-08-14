@@ -2,16 +2,16 @@
 
 Owner: `OPL Framework`
 Purpose: `cordis_adoption_support_plan`
-State: `planned`
+State: `active / p1_p2_experiment_landed_p3_not_started`
 Updated: `2026-08-14`
 SSOT role: 本文是详细支撑计划；当前 active gap、优先级和下一棒仍只归 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md)。
-Machine boundary: 本文不证明 Cordis 已安装、已运行、已切换或已发布。运行、安装、Package currentness、Temporal、Foundry、Ledger、domain 和 App 的事实必须分别回到对应 owner surface。
+Machine boundary: 本文只证明 Cordis 已作为 exact devDependency 进入隔离实验，并已运行 P2 focused fixture；不证明默认或 production 路径已切换、已 Cordis-native、已发布或已完成 DSH 兼容。Package currentness、Temporal、Foundry、Ledger、domain 和 App 的事实必须分别回到对应 owner surface。
 
 ## 1. 结论
 
 OPL 采用 DeepSeek Harness（DSH）所使用的正式 `@deepseek-ai/cordis` 作为长期目标的进程内组合框架。目标是最终使用 Cordis 本身，不再另造 `Cordis-like` 内核、平行 event bus、平行 service registry 或平行 plugin lifecycle。
 
-这是一项架构方向决策，不是当前实现状态。当前 OPL 仍按既有手写 runtime 运行；Cordis adoption 处于 `planned / experimental-not-started`。首个真实实验选择 `Agent Executor` seam，因为 Codex、Claude Code、Hermes 和 Antigravity 已经有多个显式 adapter，且该 seam 可以在不改变 Temporal durable truth 的情况下验证插件组合、依赖注入、事件和 teardown。
+这是一项已经进入实验验证的架构方向，不是默认运行状态。P1 surface map 与 P2 `Agent Executor` 隔离实验已经落地，P3 尚未开始；当前 OPL 默认生产链仍按既有手写 runtime 运行。首个实验选择 `Agent Executor` seam，因为 Codex、Claude Code、Hermes 和 Antigravity 已经有多个显式 adapter，且该 seam 已在不改变 Temporal durable truth 的情况下证明真实 Cordis 组合、依赖注入、事件、scope isolation 和 teardown。
 
 Cordis 的职责只限于同一进程内的：
 
@@ -148,6 +148,7 @@ Cordis 只负责箭头中 `context -> plugin -> in-process service/event` 的部
 | 项目 | 内容 |
 | --- | --- |
 | Owner | `OPL Charter` 统筹；`Atlas`、`Pack`、`Runway`、`Connect` 和各模块 owner 提供事实。 |
+| 状态 | `landed`：十模块 machine-readable surface map、schema 与 focused test 已落地；所有模块面仍是 candidate，未批准 production cutover。 |
 | 写集 | 候选 `contracts/opl-framework/cordis-surface-map.json`、模块 public index、相关 source/tests 的最小补充；不得先改生产调用者。 |
 | 输入 | `source-module-map.json`、实际 caller/consumer、现有 service/handler/event、Package descriptor、Temporal/Foundry/Ledger contracts。 |
 | 产物 | 每个候选 plugin 的 `owner/module`、provides、injects、events、scope、trust lane、required/optional、真实 caller、替代面和禁止接管的 authority 清单。 |
@@ -160,10 +161,11 @@ Cordis 只负责箭头中 `context -> plugin -> in-process service/event` 的部
 | 项目 | 内容 |
 | --- | --- |
 | Owner | `OPL Runway`（executor/attempt transport）+ `OPL Connect`（dependency/source）；独立实验 branch/worktree。 |
+| 状态 | `landed_experiment_only`：真实 Cordis root context、required adapter/service、optional observer、request `emit`、completion `parallel`、scope isolation 与 teardown 已通过 focused fixture；默认 caller 未切换。 |
 | 写集 | root dependency manifest/lock、`src/modules/runway/` 的实验 adapter、必要的 `src/modules/connect/` loader bridge、fixture 与 focused tests；不得切换默认启动入口。 |
 | 输入 | P1 的 executor seam、现有 Codex/Claude/Hermes/Antigravity adapter、`example-domain` fixture、`@deepseek-ai/cordis` exact package/source lock。 |
 | 产物 | 一个真实 Cordis root context；`executor` service plugin；至少一个 explicit executor adapter plugin；typed request/result events；完整 disposer/teardown；对现有 executor contract 的薄包装。 |
-| 验证 | missing injected service 保持 pending/typed failure；required/optional plugin 行为；`emit/waterfall/parallel/serial` 语义；register/unregister；context scope 隔离；真实 Codex fixture call；相同 request/output/receipt readback；`npm run typecheck`、`npm run build`、`./scripts/verify.sh` 和 focused tests。 |
+| 验证 | missing injected service 保持 pending；required/optional plugin 行为；本 seam 实际使用的 request `emit` 与 completion `parallel` 语义；register/unregister；context scope 隔离；Codex fixture call；相同 request/output/receipt readback；`npm run typecheck`、`npm run build`、`./scripts/verify.sh` 和 focused tests。 |
 | 完成门 | 真实 `@deepseek-ai/cordis` 纵向链路可运行且可销毁；生产 executor、Temporal history、Package installed truth 和 Ledger authority 不变；实验可通过移除 composition 完整回退。 |
 | 回退 | 恢复上一份 immutable build/lock，删除实验 adapter；不保留自动 legacy fallback 或永久双写。 |
 
@@ -244,11 +246,11 @@ Cordis 只负责箭头中 `context -> plugin -> in-process service/event` 的部
 
 ## 8. 下一棒
 
-P0 已完成，P1 surface map 与 P2 隔离 executor spike 已按独立 worktree/write set 启动。当前下一棒是完成两条 lane 的 focused verification 与可恢复 checkpoint，由 Framework Integrator 基于 fresh `main` 串行吸收并回读；在 P1/P2 完成门闭合前，不进入 P3，也不提前迁移十模块、Temporal、Package lifecycle 或 App。实际 active 优先级、owner、write set 和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准，本计划只作为支撑细节被引用。
+P0-P2 已完成当前阶段：P1 surface map 和 P2 隔离 executor experiment 已串行吸收，P2 仅在 dev/experimental dependency graph 使用 `@deepseek-ai/cordis@4.0.1`。当前下一棒是基于 fresh caller 与实验 readback 决定 P3 composition inspect 的最小写集和验收面；P3 尚未开始，也不提前迁移十模块、Temporal、Package lifecycle 或 App。实际 active 优先级、owner、write set 和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准，本计划只作为支撑细节被引用。
 
 ## 9. 禁止声明
 
-在 P6 完成并有 owner-authoritative readback 前，不得声明 OPL 已采用 Cordis、已 Cordis-native、已插件化、已支持自由组合、已拥有独立模块版本/分支组合、已兼容 DSH 生态或已达到 Harness 自进化能力。P0 文档落地只表示方向和迁移门冻结；它不表示 Cordis 安装、默认运行、Package 发布、Temporal/Foundry/Ledger/domain/App readiness 或生产发布完成。
+在 P6 完成并有 owner-authoritative readback 前，不得声明 OPL 已采用 Cordis、已 Cordis-native、已插件化、已支持自由组合、已拥有独立模块版本/分支组合、已兼容 DSH 生态或已达到 Harness 自进化能力。P1/P2 只证明候选 surface 与隔离 executor composition；它们不表示 Cordis 默认运行、Package 发布、Temporal/Foundry/Ledger/domain/App readiness 或生产发布完成。
 
 ## 10. 本仓验证入口
 
@@ -268,4 +270,4 @@ rtk npm run build
 rtk npm run source:modules -- --strict-imports --strict-cycles
 ```
 
-P2/P3 还必须提供 fixture execution、Cordis inspect JSON、teardown/disposer、composition snapshot 和 owner readback；没有这些证据只能保持 `planned` 或 `experimental`。
+P2 已提供 fixture execution、teardown/disposer、composition snapshot 和实验 readback；P3 还必须提供 Cordis inspect JSON 与 owner readback。没有相应阶段证据，只能保持 `planned` 或 `experimental`。

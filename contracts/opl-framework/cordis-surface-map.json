@@ -3,7 +3,7 @@
   "scope": "opl_framework_cordis_candidate_surface_map",
   "owner": "OPL Framework",
   "state": "p1_candidate_inventory",
-  "machine_boundary": "This is an evidence-backed inventory of candidate in-process Cordis services, injections, events, scopes, and trust lanes. It is not a plugin registry, installed-package surface, composition snapshot, runtime dependency declaration, caller cutover, adoption claim, or lifecycle implementation.",
+  "machine_boundary": "This is an evidence-backed inventory of candidate in-process Cordis services, injections, events, scopes, and trust lanes. It is not a plugin registry, installed-package surface, composition snapshot, production runtime dependency declaration, caller cutover, adoption claim, or lifecycle implementation.",
   "evidence_refs": [
     "contracts/opl-framework/source-module-map.json",
     "contracts/opl-framework/module-dependency-policy.json",
@@ -422,7 +422,7 @@
         },
         {
           "event_id": "opl/runway/executor/completed",
-          "mode": "emit",
+          "mode": "parallel",
           "payload_owner": "OPL Runway",
           "payload_ref": "src/modules/runway/agent-executor.ts",
           "durability": "in_process_only",
