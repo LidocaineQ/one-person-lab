@@ -48,6 +48,7 @@ import {
   type CodexStageRunnerInput,
   type RunnerEventSummary,
 } from './family-runtime-codex-stage-runner-parts/input-prompt.ts';
+export type { CodexStageRunnerInput } from './family-runtime-codex-stage-runner-parts/input-prompt.ts';
 import { verifyStageQualityCloseoutArtifactIdentity } from './family-runtime-codex-stage-runner-parts/artifact-identity-verification.ts';
 import {
   parseCloseoutFromCodexMessages,

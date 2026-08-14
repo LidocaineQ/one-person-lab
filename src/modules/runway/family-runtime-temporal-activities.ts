@@ -56,7 +56,6 @@ import {
 } from './family-runtime-stage-quality-cycle.ts';
 import {
   normalizeTypedStageCloseoutPacket,
-  runAgentStageRunner,
 } from './family-runtime-codex-stage-runner.ts';
 import { verifyStageQualityArtifactIdentityAtAttemptBoundary } from './family-runtime-codex-stage-runner-parts/artifact-identity-verification.ts';
 import { codexActivityEventForTemporalHistory } from './family-runtime-temporal-history-summary.ts';
@@ -107,6 +106,9 @@ import {
   packageRuntimeSourceCheckoutPath,
 } from './family-runtime-package-readiness.ts';
 import { createCordisPackStagecraftComposition } from './cordis-agent-executor-experiment.ts';
+import {
+  createCordisRunwayAttemptComposition,
+} from './cordis-runway-attempt.ts';
 
 function closeoutPacketFromRunnerReceipt(receipt: Record<string, unknown>) {
   if (isRecord(receipt.closeout_packet)) {
@@ -889,7 +891,12 @@ function providerRuntimeQualityDebtCloseout(input: {
   };
 }
 
-export async function codexStageActivity(input: TemporalStageAttemptWorkflowInput) {
+export async function codexStageActivity(
+  input: TemporalStageAttemptWorkflowInput,
+  options: {
+    createAttemptComposition?: typeof createCordisRunwayAttemptComposition;
+  } = {},
+) {
   requirePersistedAttemptActivityIdentity(input, 'temporal_codex_stage_activity');
   const coordinationObserver = createTemporalStageActivitySessionObserverFromPort(input);
   const cancellationSignal = Context.current().cancellationSignal;
@@ -920,9 +927,14 @@ export async function codexStageActivity(input: TemporalStageAttemptWorkflowInpu
     });
     coordinationObserver.heartbeat();
   }, DEFAULT_CODEX_STAGE_ACTIVITY_HEARTBEAT_INTERVAL_MS);
+  let attemptComposition: Awaited<ReturnType<typeof createCordisRunwayAttemptComposition>> | null = null;
   try {
     const executorContent = resolveStageRunAttemptExecutorContent(input);
-    const runnerReceipt = await runAgentStageRunner({
+    attemptComposition = await (options.createAttemptComposition
+      ?? createCordisRunwayAttemptComposition)({
+      attemptRef: `opl://stage-attempts/${encodeURIComponent(input.stage_attempt_id)}`,
+    });
+    const runnerReceipt = await attemptComposition.executor.execute({
       attempt: input as unknown as Record<string, unknown>,
       ...executorContent,
       stagePacketRef: input.stage_packet_ref,
@@ -1031,6 +1043,7 @@ export async function codexStageActivity(input: TemporalStageAttemptWorkflowInpu
     };
   } finally {
     clearInterval(heartbeatInterval);
+    await attemptComposition?.dispose();
   }
 }
 
