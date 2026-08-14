@@ -343,6 +343,40 @@ test('app action execute dry-runs Codex, module, scheduler, and worker actions f
     assert.equal(appUpdate.result.managed_update.components[0].coordination_role, 'owner_handoff');
     assert.equal(appUpdate.result.managed_update.components[0].current.managed_kernel_apply_allowed, false);
 
+    const baseUpdateCheck = runCli([
+      'app',
+      'action',
+      'execute',
+      '--action',
+      'settings_check_opl_base_update',
+      '--dry-run',
+    ], env).app_action_execution;
+
+    assert.equal(baseUpdateCheck.delegated_surface, 'opl update check');
+    assert.equal(baseUpdateCheck.result.settings_control_center_action.task_kind, 'check');
+    assert.equal(baseUpdateCheck.result.settings_control_center_action.mutates, 'none_read_only');
+    assert.deepEqual(
+      baseUpdateCheck.result.managed_update.components.map((component: any) => component.component_id),
+      ['opl_base'],
+    );
+
+    const baseUpdateApply = runCli([
+      'app',
+      'action',
+      'execute',
+      '--action',
+      'settings_apply_opl_base_update',
+      '--dry-run',
+    ], env).app_action_execution;
+
+    assert.equal(baseUpdateApply.delegated_surface, 'opl update apply');
+    assert.equal(baseUpdateApply.result.settings_control_center_action.task_kind, 'apply');
+    assert.equal(baseUpdateApply.result.settings_control_center_action.confirmation_required, true);
+    assert.deepEqual(
+      baseUpdateApply.result.managed_update.components.map((component: any) => component.component_id),
+      ['opl_base'],
+    );
+
     const cleanupPlan = runCli([
       'app',
       'action',

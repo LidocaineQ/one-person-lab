@@ -3,11 +3,13 @@ import { buildAppUiContributionsProjection } from '../../../../../src/modules/co
 
 function packageStatus(input: {
   installed?: boolean;
+  exposureStatus?: string;
   contributionId: string;
   sortOrder: number;
 }) {
   return {
     presence: { installed: input.installed !== false },
+    capability_exposure: { status: input.exposureStatus ?? 'visible' },
     app_contributions: {
       schema_version: 'opl-app-contributions.v1',
       navigation: [],
@@ -49,8 +51,13 @@ test('Framework resolves installed Package UI contributions into stable slots', 
     'z-package': packageStatus({ contributionId: 'later', sortOrder: 20 }),
     'a-package': packageStatus({ contributionId: 'first', sortOrder: 10 }),
     'disabled-package': packageStatus({
-      installed: false,
+      exposureStatus: 'disabled',
       contributionId: 'disabled',
+      sortOrder: 0,
+    }),
+    'uninstalled-package': packageStatus({
+      installed: false,
+      contributionId: 'uninstalled',
       sortOrder: 0,
     }),
   });

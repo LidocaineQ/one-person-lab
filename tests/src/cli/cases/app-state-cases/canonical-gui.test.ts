@@ -81,6 +81,14 @@ exit 1
       true,
     );
     assert.equal(
+      output.app_state.settings_control_center.allowed_action_ids.includes('settings_check_opl_base_update'),
+      true,
+    );
+    assert.equal(
+      output.app_state.settings_control_center.allowed_action_ids.includes('settings_apply_opl_base_update'),
+      true,
+    );
+    assert.equal(
       output.app_state.settings_control_center.allowed_action_ids.includes('settings_rollback_runtime_substrate'),
       true,
     );

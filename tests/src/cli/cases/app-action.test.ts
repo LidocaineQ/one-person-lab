@@ -102,6 +102,8 @@ test('app action catalog exposes representative safe delegated action refs', () 
       'workspace_initialize',
       'workspace_validate',
       'settings_sync_capabilities',
+      'settings_check_opl_base_update',
+      'settings_apply_opl_base_update',
       'settings_check_app_update',
       'settings_rollback_runtime_substrate',
       'settings_configure_webui_api_key',
@@ -236,6 +238,11 @@ test('app action catalog exposes representative safe delegated action refs', () 
     assert.equal(actions.get('settings_sync_capabilities')?.confirmation_required, false);
     assert.equal(actions.get('settings_sync_capabilities')?.danger_level, 'low');
     assert.equal(actions.get('settings_sync_capabilities')?.can_submit_to_safe_action_shell, true);
+    assert.equal(actions.get('settings_check_opl_base_update')?.delegated_surface, 'opl update check');
+    assert.equal(actions.get('settings_check_opl_base_update')?.mutates, 'none_read_only');
+    assert.equal(actions.get('settings_apply_opl_base_update')?.delegated_surface, 'opl update apply');
+    assert.equal(actions.get('settings_apply_opl_base_update')?.mutates, 'opl_base_runtime_substrate');
+    assert.equal(actions.get('settings_apply_opl_base_update')?.confirmation_required, true);
     assert.equal(
       actions.get('settings_check_app_update')?.delegated_surface,
       'opl app state --profile fast',

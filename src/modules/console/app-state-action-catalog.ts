@@ -1,5 +1,4 @@
 import type { AgentWorkspaceNormContract, FrameworkContracts } from '../../kernel/types.ts';
-import type { CordisConnectDescriptorDiscoveryService } from '../connect/index.ts';
 import { SETTINGS_CONTROL_CENTER_ACTIONS } from './app-state-settings-control-center.ts';
 import { hasExecutableAppContribution } from './app-contribution-broker.ts';
 import {
@@ -7,6 +6,7 @@ import {
   buildManagedComputerUseActionCatalog,
   listAgentPackageLaunchActions,
   listExternalOwnerDelegatedUpdateActions,
+  type CordisConnectDescriptorDiscoveryService,
 } from '../connect/public/app-state.ts';
 
 type AppActionCatalogEntry = {

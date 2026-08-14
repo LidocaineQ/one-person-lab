@@ -199,6 +199,9 @@ test('installed descriptor discovery prefers an enabled carrier over a disabled 
 
 test('installed Codex plugins prefer Agent Plugins 1.0 metadata without package-id tables', () => {
   const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-plugin-descriptor-'));
+  const stateFixture = isolatedPackageEnv('native-plugin-descriptor');
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = stateFixture.env.OPL_STATE_DIR;
   const skillRoot = path.join(sourceRoot, 'skills', 'native-capability');
   fs.mkdirSync(skillRoot, { recursive: true });
   fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), '# Native capability\n');
@@ -253,6 +256,7 @@ test('installed Codex plugins prefer Agent Plugins 1.0 metadata without package-
     });
     const descriptor = discovered.get('unknown-native-plugin');
     assert.ok(descriptor);
+    assert.equal(descriptor.manifest.package_role, 'capability_package');
     assert.equal(descriptor.manifest.display_name, 'Unknown Native Plugin');
     assert.equal(descriptor.manifest.publisher, 'Example owner');
     assert.deepEqual(descriptor.manifest.required_skill_ids, ['native-capability']);
@@ -271,7 +275,21 @@ test('installed Codex plugins prefer Agent Plugins 1.0 metadata without package-
       [],
     );
     assert.equal(descriptor.manifestPath, path.join(sourceRoot, 'plugin.json'));
+
+    const directory = buildAgentPackageDirectory({
+      detail: 'fast',
+      installedCodexPluginDescriptors: discovered,
+    });
+    const entry = directory.entries.find((candidate) => candidate.package_id === 'unknown-native-plugin');
+    assert.ok(entry);
+    assert.equal(entry.package_role, 'capability_package');
+    assert.equal(entry.capability_metadata, null);
+    assert.deepEqual(entry.home_shortcuts, []);
+    assert.deepEqual(entry.home_shortcut_ids, []);
   } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    fs.rmSync(stateFixture.home, { recursive: true, force: true });
     fs.rmSync(sourceRoot, { recursive: true, force: true });
   }
 });

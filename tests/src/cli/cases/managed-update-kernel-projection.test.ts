@@ -383,6 +383,8 @@ test('managed update contract exposes only OPL Base, OPL App, and OPL Packages l
     module_sync: 'opl packages update',
     settings_sync_capabilities: 'opl packages update',
     settings_apply_opl_packages: 'opl packages update',
+    settings_check_opl_base_update: 'opl update check',
+    settings_apply_opl_base_update: 'opl update apply',
     settings_check_app_update: 'opl app state --profile fast',
     settings_rollback_runtime_substrate: 'opl update rollback',
   });

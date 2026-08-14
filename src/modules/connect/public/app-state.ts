@@ -1,4 +1,5 @@
 export { CANONICAL_OPL_PACKAGE_IDS, canonicalAgentPackageId } from '../agent-package-identity.ts';
+export type { CordisConnectDescriptorDiscoveryService } from '../cordis-connect-services.ts';
 export {
   createOplAgentPackageStatusReader,
   listOplAgentPackages,

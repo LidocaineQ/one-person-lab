@@ -13,15 +13,17 @@ function recordArray(value: unknown) {
   return Array.isArray(value) ? value.filter(isRecord) : [];
 }
 
-function installedPackage(status: JsonRecord) {
-  return isRecord(status.presence) && status.presence.installed === true;
+function enabledInstalledPackage(status: JsonRecord) {
+  return isRecord(status.presence)
+    && status.presence.installed === true
+    && (!isRecord(status.capability_exposure) || status.capability_exposure.status !== 'disabled');
 }
 
 export function buildAppUiContributionsProjection(
   packageStatusById: Record<string, JsonRecord>,
 ) {
   const entries = Object.entries(packageStatusById).flatMap(([packageId, status]) => {
-    if (!installedPackage(status) || !isRecord(status.app_contributions)) return [];
+    if (!enabledInstalledPackage(status) || !isRecord(status.app_contributions)) return [];
     const descriptor = status.app_contributions;
     const views = new Map(recordArray(descriptor.views).map((view) => [view.view_id, view]));
     const commands = new Map(recordArray(descriptor.commands).map((command) => [command.command_id, command]));

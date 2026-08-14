@@ -122,7 +122,7 @@ async function buildManagedUpdateControlCenterDryRun(
   contracts: FrameworkContracts,
   options: AppActionExecuteOptions,
   componentId: string,
-  operation: 'status' | 'plan' = 'plan',
+  operation: 'status' | 'check' | 'plan' = 'plan',
 ) {
   const projection = await buildManagedUpdateKernelProjection(contracts, {
     operation,
@@ -546,6 +546,15 @@ async function executeDirectAppAction(
     };
   }
 
+  if (options.actionId === 'settings_apply_opl_base_update') {
+    return {
+      delegatedSurface: managedUpdateCommand('apply', 'opl_base', { json: false }),
+      result: options.dryRun
+        ? await buildManagedUpdateControlCenterDryRun(contracts, options, 'opl_base')
+        : await runManagedUpdateApply(contracts, 'opl_base'),
+    };
+  }
+
   if (
     options.actionId === 'install_from_manifest_url'
     || options.actionId === 'agent_package_install_from_manifest_url'
@@ -622,6 +631,13 @@ async function executeDirectAppAction(
         ...activation,
         dryRun: options.dryRun,
       }, { descriptorDiscovery: services.descriptorDiscovery }),
+    };
+  }
+
+  if (options.actionId === 'settings_check_opl_base_update') {
+    return {
+      delegatedSurface: managedUpdateCommand('check', 'opl_base', { json: false }),
+      result: await buildManagedUpdateControlCenterDryRun(contracts, options, 'opl_base', 'check'),
     };
   }
 

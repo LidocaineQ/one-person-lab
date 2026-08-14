@@ -22,6 +22,7 @@ import {
   resolveCodexVersion,
   resolveDefaultFamilyWorkspaceRoot,
   runOplAgentPackageStatus,
+  type CordisConnectDescriptorDiscoveryService,
 } from '../connect/public/app-state.ts';
 import { readInstalledStandardAgentDescriptorForDomain } from '../connect/public/standard-agent-interface.ts';
 import { listWorkspaceBindings } from '../workspace/public/app-state.ts';
@@ -50,8 +51,7 @@ import {
   projectAppAgentPackageStatus,
   unavailableAgentPackageCanonicalFields,
 } from './app-state-agent-packages.ts';
-import type { CordisConnectDescriptorDiscoveryService } from '../connect/index.ts';
-import type { CordisOwnerDeltaObserverService } from '../ledger/index.ts';
+import type { CordisOwnerDeltaObserverService } from '../ledger/public/app-state.ts';
 import { buildAppUiContributionsProjection } from './app-state-ui-contributions.ts';
 
 function nowIso() {

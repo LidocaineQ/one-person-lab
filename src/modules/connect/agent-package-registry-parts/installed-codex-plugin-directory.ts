@@ -198,7 +198,7 @@ function normalizeNativeCarrierManifest(
   return {
     package_id: packageId,
     agent_id: null,
-    package_role: 'standard_agent',
+    package_role: 'capability_package',
     display_name: displayName,
     publisher: stringValue(isRecord(pluginPayload.author) ? pluginPayload.author.name : null)
       ?? 'installed-plugin',

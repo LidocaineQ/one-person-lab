@@ -761,6 +761,8 @@ function buildAppSettingsReadModel(
       developer_supervisor_config_file: asString(input.paths.developer_supervisor_config_file),
       release_channel: asString(input.release.channel) ?? 'unknown',
       app_update_action_id: 'settings_check_app_update',
+      opl_base_update_check_action_id: 'settings_check_opl_base_update',
+      opl_base_update_apply_action_id: 'settings_apply_opl_base_update',
       runtime_roots_cleanup_action_id: 'settings_prune_runtime_roots_dry_run',
       runtime_substrate_rollback_action_id: 'settings_rollback_runtime_substrate',
       temporal_provider: statusTone(temporalStatus),
