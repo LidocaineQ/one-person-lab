@@ -5,7 +5,8 @@ import { spawnSync } from 'node:child_process';
 import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
 import { parseJsonText } from '../../kernel/json-file.ts';
 import {
-  discoverInstalledPackageDescriptors,
+  discoverInstalledPackageDescriptorsViaCordis,
+  type CordisConnectDescriptorDiscoveryService,
   type InstalledPackageDescriptor,
 } from '../connect/index.ts';
 
@@ -313,9 +314,13 @@ function invokeContribution(resolved: ResolvedContribution, request: AppContribu
 
 export function runAppContribution(
   request: AppContributionRequest,
-  options: { discover?: () => Map<string, InstalledPackageDescriptor> } = {},
+  options: {
+    descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
+  } = {},
 ) {
-  const resolved = resolveContribution(request, options.discover ?? discoverInstalledPackageDescriptors);
+  const discover = options.descriptorDiscovery?.discover
+    ?? discoverInstalledPackageDescriptorsViaCordis;
+  const resolved = resolveContribution(request, discover);
   const response = invokeContribution(resolved, request);
   return {
     opl_app_contribution: {
@@ -327,9 +332,13 @@ export function runAppContribution(
 
 export function preflightAppContribution(
   request: AppContributionRequest,
-  options: { discover?: () => Map<string, InstalledPackageDescriptor> } = {},
+  options: {
+    descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
+  } = {},
 ) {
-  const resolved = resolveContribution(request, options.discover ?? discoverInstalledPackageDescriptors);
+  const discover = options.descriptorDiscovery?.discover
+    ?? discoverInstalledPackageDescriptorsViaCordis;
+  const resolved = resolveContribution(request, discover);
   return {
     opl_app_contribution_preflight: {
       ...contributionReadback(resolved, request),
@@ -340,10 +349,14 @@ export function preflightAppContribution(
 }
 
 export function hasExecutableAppContribution(
-  options: { discover?: () => Map<string, InstalledPackageDescriptor> } = {},
+  options: {
+    descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
+  } = {},
 ): boolean {
   try {
-    return [...(options.discover ?? discoverInstalledPackageDescriptors)().values()].some((descriptor) => {
+    const discover = options.descriptorDiscovery?.discover
+      ?? discoverInstalledPackageDescriptorsViaCordis;
+    return [...discover().values()].some((descriptor) => {
       if (
         !descriptor.enabled
         || !descriptor.readiness.installed
