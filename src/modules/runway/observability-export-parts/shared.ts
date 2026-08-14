@@ -1,4 +1,4 @@
-import type { Server, ServerResponse } from 'node:http';
+import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 
 import { stringValue } from '../../../kernel/json-record.ts';
 import type { FrameworkContracts } from '../../../kernel/types.ts';
@@ -371,6 +371,32 @@ export function normalizeMetricsPath(value: string | undefined) {
 
 export function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+export function observabilityRequestUrl(request: IncomingMessage) {
+  const host = request.headers.host;
+  const rawTarget = request.url ?? '/';
+  try {
+    if (!rawTarget.startsWith('/') || rawTarget.startsWith('//')) {
+      return null;
+    }
+    if (host !== undefined) {
+      const parsedHost = new URL(`http://${host}`);
+      if (
+        parsedHost.username
+        || parsedHost.password
+        || parsedHost.pathname !== '/'
+        || parsedHost.search
+        || parsedHost.hash
+        || /[\u0000-\u0020"'<>`\\]/.test(host)
+      ) {
+        return null;
+      }
+    }
+    return new URL(rawTarget, 'http://127.0.0.1');
+  } catch {
+    return null;
+  }
 }
 
 export function metricValueOrUndefined(value: number) {

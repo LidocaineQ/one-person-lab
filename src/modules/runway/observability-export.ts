@@ -36,6 +36,7 @@ import {
   firstString,
   metricValueOrUndefined,
   normalizeMetricsPath,
+  observabilityRequestUrl,
   writeJsonResponse,
   type ObservabilityExportFormat,
   type ObservabilityMetricsEndpointHandle,
@@ -506,7 +507,14 @@ export async function startObservabilityMetricsEndpoint(
   let closeStarted = false;
 
   const server = createServer((request, response) => {
-    const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? host}`);
+    const requestUrl = observabilityRequestUrl(request);
+    if (!requestUrl) {
+      if (options.once === true) response.once('finish', () => close());
+      writeJsonResponse(response, 400, {
+        error: 'invalid_metrics_request_target',
+      });
+      return;
+    }
     if (request.method !== 'GET' || requestUrl.pathname !== metricsPath) {
       if (options.once === true) response.once('finish', () => close());
       writeJsonResponse(response, 404, {

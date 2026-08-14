@@ -20,6 +20,7 @@ import {
   buildObservabilityOwnerRouteReadback,
   errorMessage,
   normalizeMetricsPath,
+  observabilityRequestUrl,
   targetForEndpoint,
   writeJsonResponse,
   type ObservabilityCollectorSmokeOptions,
@@ -247,7 +248,13 @@ async function startCollectorSmokeMetricsEndpoint(
   let closeStarted = false;
 
   const server = createServer((request, response) => {
-    const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? host}`);
+    const requestUrl = observabilityRequestUrl(request);
+    if (!requestUrl) {
+      writeJsonResponse(response, 400, {
+        error: 'invalid_collector_smoke_request_target',
+      });
+      return;
+    }
     if (request.method !== 'GET' || requestUrl.pathname !== metricsPath) {
       writeJsonResponse(response, 404, {
         error: 'collector_smoke_metrics_endpoint_not_found',

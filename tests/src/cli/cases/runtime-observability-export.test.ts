@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { connect } from 'node:net';
 import { pathToFileURL } from 'node:url';
 
 import { parseJsonText } from '../../../../src/kernel/json-file.ts';
@@ -7,6 +8,20 @@ import {
   startObservabilityMetricsEndpoint,
 } from '../../../../src/modules/runway/observability-export.ts';
 import { assert, createFamilyContractsFixtureRoot, createRuntimeWorkspaceFixture, fs, installRuntimePackageFixture, loadFrameworkContracts, os, path, repoRoot, runCli, runCliRaw, test } from '../helpers.ts';
+
+async function rawHttpRequest(port: number, requestTarget: string, host: string) {
+  return await new Promise<string>((resolve, reject) => {
+    const socket = connect(port, '127.0.0.1');
+    const chunks: string[] = [];
+    socket.setEncoding('utf8');
+    socket.once('connect', () => {
+      socket.end(`GET ${requestTarget} HTTP/1.1\r\nHost: ${host}\r\nConnection: close\r\n\r\n`);
+    });
+    socket.on('data', (chunk: string) => chunks.push(chunk));
+    socket.once('end', () => resolve(chunks.join('')));
+    socket.once('error', reject);
+  });
+}
 
 test('runtime observability export aggregates provider, stage, gate, memory, and SLO receipt counters read-only', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-observability-export-state-'));
@@ -479,6 +494,36 @@ test('runtime observability metrics endpoint serves the OpenMetrics export over 
   }
 });
 
+test('runtime observability metrics endpoint isolates malformed Host and request targets to 400 responses', async () => {
+  const handle = await startObservabilityMetricsEndpoint({
+    contracts: loadFrameworkContracts(repoRoot),
+    host: '127.0.0.1',
+    port: 0,
+    runtimeSnapshotProvider: async () => ({ runtime_tray_snapshot: {} }),
+  });
+
+  try {
+    const malformedHost = await rawHttpRequest(handle.readback.endpoint.port, '/metrics', '[');
+    assert.match(malformedHost, /^HTTP\/1\.1 400 Bad Request\r\n/);
+    assert.match(malformedHost, /invalid_metrics_request_target/);
+
+    const malformedTarget = await rawHttpRequest(
+      handle.readback.endpoint.port,
+      'http://[',
+      '127.0.0.1',
+    );
+    assert.match(malformedTarget, /^HTTP\/1\.1 400 Bad Request\r\n/);
+    assert.match(malformedTarget, /invalid_metrics_request_target/);
+
+    const valid = await rawHttpRequest(handle.readback.endpoint.port, '/metrics', '127.0.0.1');
+    assert.match(valid, /^HTTP\/1\.1 200 OK\r\n/);
+    assert.match(valid, /# TYPE opl_provider_ready gauge/);
+  } finally {
+    handle.close();
+    await handle.closed;
+  }
+});
+
 test('runtime observability collector smoke observes fake Collector debug output', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-fake-otelcol-'));
   const fakeCollector = path.join(tempRoot, 'otelcol-fake');
@@ -559,6 +604,7 @@ test('runtime observability collector smoke local endpoint is deterministic and 
     fakeCollectorModule,
     [
       "import { readFileSync } from 'node:fs';",
+      "import { connect } from 'node:net';",
       `import { parseJsonText } from ${JSON.stringify(jsonFileModule)};`,
       "if (process.argv[2] !== '--config') process.exit(2);",
       "const config = parseJsonText(readFileSync(process.argv[3], 'utf8'));",
@@ -566,6 +612,17 @@ test('runtime observability collector smoke local endpoint is deterministic and 
       "const target = scrape.static_configs[0].targets[0];",
       "const scheme = scrape.scheme || 'http';",
       "const metricsPath = scrape.metrics_path || '/metrics';",
+      "const [host, port] = target.split(':');",
+      'const malformedResponse = await new Promise((resolve, reject) => {',
+      '  const socket = connect(Number(port), host);',
+      "  let response = '';",
+      "  socket.setEncoding('utf8');",
+      "  socket.once('connect', () => socket.end(`GET ${metricsPath} HTTP/1.1\\r\\nHost: [\\r\\nConnection: close\\r\\n\\r\\n`));",
+      "  socket.on('data', (chunk) => { response += chunk; });",
+      "  socket.once('end', () => resolve(response));",
+      "  socket.once('error', reject);",
+      '});',
+      "if (!malformedResponse.startsWith('HTTP/1.1 400 Bad Request')) process.exit(7);",
       "fetch(`${scheme}://${target}${metricsPath}`)",
       "  .then(async (response) => ({ status: response.status, body: await response.text() }))",
       "  .then(({ status, body }) => {",
