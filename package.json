@@ -109,6 +109,7 @@
     "source:modules:public-imports": "node ./scripts/source-module-public-imports.mjs"
   },
   "dependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@playwright/mcp": "0.0.79",
     "@temporalio/activity": "1.20.3",
@@ -122,7 +123,6 @@
     "typescript": "^5.8.3"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.1",
     "@temporalio/testing": "1.20.3",
     "@types/node": "^24.5.2"
   },
