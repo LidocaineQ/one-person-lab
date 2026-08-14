@@ -50,38 +50,38 @@ export type CordisAgentExecutorCompositionSnapshot = {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    oplAgentExecutorAdapter: CordisAgentExecutorAdapter;
-    oplAgentExecutor: CordisAgentExecutorService;
+    'opl.runway.executor.adapter': CordisAgentExecutorAdapter;
+    'opl.runway.executor': CordisAgentExecutorService;
   }
 
   interface Events {
-    'opl/agent-executor/request': (request: AgentExecutionRequest) => void;
-    'opl/agent-executor/result': (receipt: AgentExecutionReceipt) => void | Promise<void>;
+    'opl/runway/executor/requested': (request: AgentExecutionRequest) => void;
+    'opl/runway/executor/completed': (receipt: AgentExecutionReceipt) => void | Promise<void>;
   }
 }
 
 export const cordisAgentExecutorAdapterPlugin = {
   name: 'opl-cordis-agent-executor-adapter',
-  provide: 'oplAgentExecutorAdapter',
+  provide: 'opl.runway.executor.adapter',
   apply(ctx: Context, config: { adapter: CordisAgentExecutorAdapter }) {
-    ctx.provide('oplAgentExecutorAdapter', config.adapter);
+    ctx.provide('opl.runway.executor.adapter', config.adapter);
   },
 };
 
 export const cordisAgentExecutorServicePlugin = {
   name: 'opl-cordis-agent-executor-service',
-  inject: ['oplAgentExecutorAdapter'],
-  provide: 'oplAgentExecutor',
+  inject: ['opl.runway.executor.adapter'],
+  provide: 'opl.runway.executor',
   apply(ctx: Context) {
     const service: CordisAgentExecutorService = {
       async execute(request) {
-        ctx.emit('opl/agent-executor/request', request);
-        const receipt = ctx.oplAgentExecutorAdapter.execute(request);
-        await ctx.parallel('opl/agent-executor/result', receipt);
+        ctx.emit('opl/runway/executor/requested', request);
+        const receipt = ctx['opl.runway.executor.adapter'].execute(request);
+        await ctx.parallel('opl/runway/executor/completed', receipt);
         return receipt;
       },
     };
-    ctx.provide('oplAgentExecutor', service);
+    ctx.provide('opl.runway.executor', service);
   },
 };
 
@@ -89,10 +89,10 @@ export const cordisAgentExecutorObserverPlugin = {
   name: 'opl-cordis-agent-executor-observer',
   apply(ctx: Context, observer: CordisAgentExecutorObserver) {
     if (observer.onRequest) {
-      ctx.on('opl/agent-executor/request', observer.onRequest);
+      ctx.on('opl/runway/executor/requested', observer.onRequest);
     }
     if (observer.onResult) {
-      ctx.on('opl/agent-executor/result', observer.onResult);
+      ctx.on('opl/runway/executor/completed', observer.onResult);
     }
   },
 };
@@ -118,7 +118,7 @@ export function buildCordisAgentExecutorCompositionSnapshot(
       {
         id: 'opl-cordis-agent-executor-adapter',
         required: true,
-        provides: Object.freeze(['oplAgentExecutorAdapter']),
+        provides: Object.freeze(['opl.runway.executor.adapter']),
         injects: Object.freeze([]),
         scope: 'composition' as const,
         trust: 'first_party_privileged' as const,
@@ -126,8 +126,8 @@ export function buildCordisAgentExecutorCompositionSnapshot(
       {
         id: 'opl-cordis-agent-executor-service',
         required: true,
-        provides: Object.freeze(['oplAgentExecutor']),
-        injects: Object.freeze(['oplAgentExecutorAdapter']),
+        provides: Object.freeze(['opl.runway.executor']),
+        injects: Object.freeze(['opl.runway.executor.adapter']),
         scope: 'composition' as const,
         trust: 'first_party_privileged' as const,
       },
@@ -160,7 +160,7 @@ export async function createCordisAgentExecutorComposition(options: {
     ctx,
     adapterFiber,
     executorFiber,
-    executor: ctx.oplAgentExecutor,
+    executor: ctx['opl.runway.executor'],
     snapshot: buildCordisAgentExecutorCompositionSnapshot(adapter.id),
     async dispose() {
       await executorFiber.dispose();

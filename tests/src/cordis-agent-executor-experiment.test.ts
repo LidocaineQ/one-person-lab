@@ -107,7 +107,7 @@ test('Cordis required inject keeps the executor service pending when its adapter
   const ctx = new Context();
   const pendingFiber = ctx.plugin(cordisAgentExecutorServicePlugin);
   assert.equal(pendingFiber.state, CORDIS_FIBER_STATE.PENDING);
-  assert.equal(ctx.get('oplAgentExecutor'), undefined);
+  assert.equal(ctx.get('opl.runway.executor'), undefined);
   await pendingFiber.dispose();
   await ctx.fiber.dispose();
 });
@@ -148,6 +148,6 @@ test('Cordis compositions isolate service and event state, while optional observ
     await first.dispose();
     await second.dispose();
   }
-  assert.equal(first.ctx.get('oplAgentExecutor'), undefined);
-  assert.equal(second.ctx.get('oplAgentExecutor'), undefined);
+  assert.equal(first.ctx.get('opl.runway.executor'), undefined);
+  assert.equal(second.ctx.get('opl.runway.executor'), undefined);
 });
