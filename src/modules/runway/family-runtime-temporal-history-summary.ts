@@ -4,6 +4,7 @@ import {
   type JsonRecord,
 } from '../../kernel/json-record.ts';
 import { runtimeHardStopClassForReason } from '../../kernel/progress-hard-stop-policy.ts';
+import { workspaceTransportDisplayUrl } from './workspace-transport-url.ts';
 
 function recordOrNull(value: unknown): JsonRecord | null {
   const payload = record(value);
@@ -52,7 +53,9 @@ function sandboxExecutionHistorySummary(value: unknown) {
       : null,
     workspace_transport: {
       transport_kind: typeof workspaceTransport.transport_kind === 'string' ? workspaceTransport.transport_kind : null,
-      repo_url: typeof workspaceTransport.repo_url === 'string' ? workspaceTransport.repo_url : null,
+      repo_url: typeof workspaceTransport.repo_url === 'string'
+        ? workspaceTransportDisplayUrl(workspaceTransport.repo_url)
+        : null,
       checkout_ref: typeof workspaceTransport.checkout_ref === 'string' ? workspaceTransport.checkout_ref : null,
       clone_exit_code: typeof workspaceTransport.clone_exit_code === 'number' ? workspaceTransport.clone_exit_code : null,
       checkout_exit_code: typeof workspaceTransport.checkout_exit_code === 'number' ? workspaceTransport.checkout_exit_code : null,

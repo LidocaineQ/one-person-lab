@@ -11,6 +11,7 @@ import { stringValue as optionalString } from '../../kernel/json-record.ts';
 import { isRecord, normalizeTimeoutMs, type JsonRecord } from './family-runtime-codex-stage-runner-parts/shared.ts';
 import type { RunnerEventSummary } from './family-runtime-codex-stage-runner-parts/input-prompt.ts';
 import { sandboxAttemptSkillRuntime } from './family-runtime-attempt-skill-projection.ts';
+import { workspaceTransportDisplayUrl } from './workspace-transport-url.ts';
 
 type LocalSandboxProviderKind = 'local_devcontainer' | 'local_docker';
 
@@ -574,7 +575,7 @@ export async function runCodexInLocalSandbox(input: {
         sandbox_workspace_root: workspaceRoot,
         workspace_transport: {
           transport_kind: 'git_clone',
-          repo_url: repoUrl,
+          repo_url: workspaceTransportDisplayUrl(repoUrl),
           checkout_ref: checkoutRef,
           clone_exit_code: clone.exitCode,
           checkout_exit_code: checkout?.exitCode ?? null,

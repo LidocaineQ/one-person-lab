@@ -12,6 +12,7 @@ import { inspectExternalSandboxProviderAdapterEnv } from './external-sandbox-pro
 import type { RunnerEventSummary } from './family-runtime-codex-stage-runner-parts/input-prompt.ts';
 import { agentPackageSkillProjectionFiles } from '../../kernel/agent-package-skill-projection.ts';
 import { sandboxAttemptSkillRuntime } from './family-runtime-attempt-skill-projection.ts';
+import { workspaceTransportDisplayUrl } from './workspace-transport-url.ts';
 
 type E2bCommandResult = {
   exitCode: number;
@@ -466,7 +467,7 @@ export async function runCodexInE2bSandbox(input: {
       sandbox_workspace_root: workspaceRoot,
       workspace_transport: {
         transport_kind: 'git_clone',
-        repo_url: repoUrl,
+        repo_url: workspaceTransportDisplayUrl(repoUrl),
         checkout_ref: checkoutRef,
         clone_exit_code: clone.exitCode,
         checkout_exit_code: checkout?.exitCode ?? null,

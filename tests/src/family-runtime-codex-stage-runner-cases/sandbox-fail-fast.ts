@@ -15,6 +15,7 @@ import {
   runCodexInLocalSandbox,
   setLocalSandboxCommandRunnerForTest,
 } from '../../../src/modules/runway/local-codex-stage-sandbox.ts';
+import { codexActivityEventForTemporalHistory } from '../../../src/modules/runway/family-runtime-temporal-history-summary.ts';
 
 type ExpectedFailure = {
   phase: string;
@@ -248,4 +249,94 @@ test('local and E2B sandbox preparation failures never execute Codex', async (t)
     makeTreeWritable(fixtureRoot);
     fs.rmSync(fixtureRoot, { recursive: true, force: true });
   }
+});
+
+test('sandbox clone credentials stay in transport and out of durable evidence', async () => {
+  const rawRepoUrl = [
+    'https://fixture-user:fixture-password@example.test/private.git',
+    '?ref=main&access_token=query-secret',
+  ].join('');
+  const displayRepoUrl = 'https://example.test/private.git?ref=main';
+  const attempt = {
+    stage_attempt_id: 'sat-sandbox-credential-redaction',
+    stage_id: 'fixture-stage',
+    workspace_locator: { git_remote_url: rawRepoUrl },
+  };
+
+  const localCalls: string[][] = [];
+  setLocalSandboxCommandRunnerForTest(async (args) => {
+    localCalls.push(args);
+    return { exitCode: 0, stdout: '', stderr: '' };
+  });
+  try {
+    const local = await runCodexInLocalSandbox({
+      attempt,
+      args: ['exec', '--json', 'fixture prompt'],
+      env: {
+        OPL_LOCAL_SANDBOX_IMAGE: 'fixture-image:latest',
+        OPL_LOCAL_SANDBOX_WORKSPACE_ROOT: '/workspace/fixture',
+      },
+      providerKind: 'local_docker',
+      timeoutMs: 10_000,
+    });
+    assert.ok(localCalls.some((args) => args[2] === 'git' && args[3] === 'clone' && args[4] === rawRepoUrl));
+    assert.equal(local.summary.workspace_transport.repo_url, displayRepoUrl);
+    assert.doesNotMatch(JSON.stringify(local.summary), /fixture-password|query-secret/);
+  } finally {
+    setLocalSandboxCommandRunnerForTest(null);
+  }
+
+  const e2bCommands: string[] = [];
+  const sandbox = {
+    sandboxId: 'sandbox-credential-redaction',
+    sandboxDomain: 'sandbox-credential-redaction.example.test',
+    commands: {
+      async run(command: string) {
+        e2bCommands.push(command);
+        return { exitCode: 0, stdout: '', stderr: '' };
+      },
+    },
+    files: { async write() { return {}; } },
+  };
+  setE2bSandboxFactoryForTest({
+    async create() { return sandbox; },
+    async connect() { return sandbox; },
+  });
+  try {
+    const e2b = await runCodexInE2bSandbox({
+      attempt,
+      args: ['exec', '--json', 'fixture prompt'],
+      env: {
+        OPL_FAMILY_RUNTIME_PROVIDER: 'external_sandbox',
+        OPL_EXTERNAL_SANDBOX_SUBSTRATE: 'e2b',
+        OPL_EXTERNAL_SANDBOX_ENDPOINT: 'https://sandbox.example.test',
+        OPL_EXTERNAL_SANDBOX_CREDENTIAL_REF: 'secret-ref:provider-secret',
+        OPL_EXTERNAL_SANDBOX_PROVIDER_RECEIPT_REF: 'receipt-ref:sandbox-credential-redaction',
+        OPL_E2B_WORKSPACE_ROOT: '/home/user/fixture',
+      },
+      timeoutMs: 10_000,
+    });
+    assert.ok(e2bCommands.some((command) => command.includes(`git clone '${rawRepoUrl}'`)));
+    assert.equal(e2b.summary.workspace_transport.repo_url, displayRepoUrl);
+    assert.doesNotMatch(JSON.stringify(e2b.summary), /fixture-password|query-secret/);
+  } finally {
+    setE2bSandboxFactoryForTest(null);
+  }
+
+  const temporalHistory = codexActivityEventForTemporalHistory({
+    process_output_summary: {
+      sandbox_execution: {
+        execution_substrate: 'local_sandbox',
+        workspace_transport: {
+          transport_kind: 'git_clone',
+          repo_url: rawRepoUrl,
+        },
+      },
+    },
+  });
+  assert.equal(
+    temporalHistory.process_output_summary?.sandbox_execution?.workspace_transport.repo_url,
+    displayRepoUrl,
+  );
+  assert.doesNotMatch(JSON.stringify(temporalHistory), /fixture-password|query-secret/);
 });
