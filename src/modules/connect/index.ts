@@ -47,6 +47,25 @@ export type {
   OplConnectionStatus,
   UpdateOplConnectionInput,
 } from './connection-registry.ts';
+export {
+  buildCordisConnectCompositionSnapshot,
+  CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_PLUGIN_API_VERSION,
+  CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_PLUGIN_DESCRIPTOR,
+  CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_PLUGIN_ID,
+  CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_SERVICE,
+  CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_SOURCE_COMMIT,
+  CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_SOURCE_REF,
+  cordisConnectDescriptorDiscoveryPlugin,
+  createCordisConnectComposition,
+  discoverInstalledPackageDescriptorsViaCordis,
+} from './cordis-connect-services.ts';
+export type {
+  CordisConnectDescriptorDiscovery,
+  CordisConnectDescriptorDiscoveryInput,
+  CordisConnectDescriptorDiscoveryObservation,
+  CordisConnectDescriptorDiscoveryPluginConfig,
+  CordisConnectDescriptorDiscoveryService,
+} from './cordis-connect-services.ts';
 export { assertCredentialHandleOnlyPayload } from './connection-registry-parts/credential-handle.ts';
 export {
   completeOplGatewaySetup,

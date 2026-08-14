@@ -165,7 +165,9 @@ test('generic broker reads a dynamically installed descriptor contribution witho
       input: { cursor: 'before-now' },
       confirmed: false,
     }, {
-      discover: () => new Map([[fixture.manifest.package_id, fixture.descriptor]]),
+      descriptorDiscovery: {
+        discover: () => new Map([[fixture.manifest.package_id, fixture.descriptor]]),
+      },
     }) as any;
     assert.equal(output.opl_app_contribution.package_id, fixture.manifest.package_id);
     assert.equal(output.opl_app_contribution.response.result.owner_echo.cursor, 'before-now');
@@ -180,6 +182,13 @@ test('generic broker reads a dynamically installed descriptor contribution witho
 
 test('generic broker rejects undeclared refs and confirmation-gates owner actions before invocation', () => {
   const fixture = writeContributionFixture();
+  let discoveries = 0;
+  const descriptorDiscovery = {
+    discover() {
+      discoveries += 1;
+      return new Map([[fixture.manifest.package_id, fixture.descriptor]]);
+    },
+  };
   try {
     assert.throws(
       () => runAppContribution({
@@ -188,7 +197,9 @@ test('generic broker rejects undeclared refs and confirmation-gates owner action
         operation: 'read',
         input: {},
         confirmed: false,
-      }, { discover: () => new Map([[fixture.manifest.package_id, fixture.descriptor]]) }),
+      }, {
+        descriptorDiscovery,
+      }),
       /not declared/,
     );
     assert.throws(
@@ -198,7 +209,9 @@ test('generic broker rejects undeclared refs and confirmation-gates owner action
         operation: 'execute',
         input: { value: 'new' },
         confirmed: false,
-      }, { discover: () => new Map([[fixture.manifest.package_id, fixture.descriptor]]) }),
+      }, {
+        descriptorDiscovery,
+      }),
       /requires explicit --confirm/,
     );
     const executed = runAppContribution({
@@ -207,7 +220,10 @@ test('generic broker rejects undeclared refs and confirmation-gates owner action
       operation: 'execute',
       input: { value: 'new' },
       confirmed: true,
-    }, { discover: () => new Map([[fixture.manifest.package_id, fixture.descriptor]]) }) as any;
+    }, {
+      descriptorDiscovery,
+    }) as any;
+    assert.equal(discoveries, 3);
     assert.equal(executed.opl_app_contribution.confirmation_required, true);
     assert.equal(executed.opl_app_contribution.response.result.owner_echo.value, 'new');
   } finally {

@@ -8,6 +8,7 @@ import { FrameworkContractError } from '../../../../src/kernel/contract-validati
 import {
   assertAgentPackageSkillProjection,
   materializeAgentPackageWorkspaceSkillProjection,
+  refreshInstalledAgentPackageWorkspaceSkills,
   syncAgentPackageSkillProjectionToWorkspace,
 } from '../../../../src/modules/connect/agent-package-registry-parts/skill-projection.ts';
 import { hostAttemptSkillRuntime } from '../../../../src/modules/runway/family-runtime-attempt-skill-projection.ts';
@@ -65,6 +66,28 @@ function removeFixture(root: string) {
   makeWritable(root);
   fs.rmSync(root, { recursive: true, force: true });
 }
+
+test('installed Skill refresh consumes the Connect descriptor discovery service', () => {
+  let discoveries = 0;
+  const result = refreshInstalledAgentPackageWorkspaceSkills({
+    packageId: 'future-agent',
+    packageStatus: {
+      installed_package_count: 1,
+      launch_allowed: true,
+    },
+    descriptorDiscovery: {
+      discover() {
+        discoveries += 1;
+        return new Map();
+      },
+    },
+  });
+
+  assert.equal(discoveries, 1);
+  assert.equal(result.status, 'not_installed');
+  assert.equal(result.reason, 'package_not_installed');
+  assert.equal(result.writes_performed, false);
+});
 
 test('all five standard Agents project their complete professional Skill closure without primary Skills', () => {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-standard-agent-skill-closure-'));

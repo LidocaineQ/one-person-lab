@@ -23,8 +23,11 @@ import {
   resolveOplStatePaths,
 } from '../../../kernel/runtime-state-paths.ts';
 import { materializeStandardAgentCapabilityMap } from '../../pack/index.ts';
+import {
+  discoverInstalledPackageDescriptorsViaCordis,
+  type CordisConnectDescriptorDiscoveryService,
+} from '../cordis-connect-services.ts';
 import { inspectOplModule } from '../system-installation/modules.ts';
-import { discoverInstalledPackageDescriptors } from './installed-codex-plugin-directory.ts';
 import { sha256Text } from './shared.ts';
 import type {
   AgentPackageSkillProjection,
@@ -683,6 +686,7 @@ export function refreshInstalledAgentPackageWorkspaceSkills(input: {
   packageStatus?: any;
   targetWorkspace?: string | null;
   dryRun?: boolean;
+  descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
 }): AgentPackageWorkspaceSkillRefresh {
   const packageId = input.packageId.trim();
   const targetWorkspace = stringValue(input.targetWorkspace);
@@ -697,7 +701,8 @@ export function refreshInstalledAgentPackageWorkspaceSkills(input: {
       targetWorkspace,
     );
   }
-  const descriptors = discoverInstalledPackageDescriptors();
+  const descriptors = (input.descriptorDiscovery?.discover
+    ?? discoverInstalledPackageDescriptorsViaCordis)();
   const root = descriptors.get(packageId);
   if (!root || root.manifest.package_role !== 'standard_agent') {
     return notInstalledRefresh(packageId, targetWorkspace);
