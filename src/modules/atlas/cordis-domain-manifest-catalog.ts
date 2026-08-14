@@ -53,10 +53,7 @@ export const cordisAtlasCatalogPlugin = {
     const buildStandardAgentCatalog = config.buildStandardAgentCatalog
       ?? buildStandardAgentDomainManifestCatalog;
     const load: CordisAtlasCatalogLoader = (contracts, options = {}) => {
-      const result = buildCatalog(contracts, {
-        ...options,
-        writeProjectionCache: false,
-      });
+      const result = buildCatalog(contracts, options);
       ctx.emit('opl/atlas/catalog/observed', result.domain_manifests);
       return result.domain_manifests;
     };

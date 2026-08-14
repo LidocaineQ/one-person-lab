@@ -54,7 +54,7 @@ test('Atlas catalog has no mount effect, runs only on service calls, and dispose
   const fiber = await ctx.plugin(cordisAtlasCatalogPlugin, {
     buildCatalog: ((contracts: unknown, options: Record<string, unknown>) => {
       catalogCalls += 1;
-      assert.equal(options.writeProjectionCache, false);
+      assert.equal(options.manifestCommandTimeoutMs, 5_000);
       return {
         version: 'g2',
         contracts_context: {},
