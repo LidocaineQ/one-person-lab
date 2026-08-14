@@ -12,7 +12,7 @@ export const CORDIS_CHARTER_CONTRACTS_SERVICE = 'opl.charter.contracts';
 export const CORDIS_CHARTER_POLICY_SOURCE_REF =
   'src/modules/charter/cordis-charter-policy.ts';
 export const CORDIS_CHARTER_POLICY_SOURCE_COMMIT =
-  '84f914171bbc1424c372b34131b4c0298120660e';
+  '2410433106197e16e59697599ed95e95cdb0de4b';
 
 export type CordisCharterPolicyService = {
   load(input?: string | FrameworkContractsLoadOptions): FrameworkContracts;

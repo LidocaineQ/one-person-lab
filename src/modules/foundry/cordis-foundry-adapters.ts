@@ -18,7 +18,7 @@ export const CORDIS_FOUNDRY_PLUGIN_API_VERSION = '1.0.0';
 export const CORDIS_FOUNDRY_ADAPTERS_SOURCE_REF =
   'src/modules/foundry/cordis-foundry-adapters.ts';
 export const CORDIS_FOUNDRY_ADAPTERS_SOURCE_COMMIT =
-  '84f914171bbc1424c372b34131b4c0298120660e';
+  '2410433106197e16e59697599ed95e95cdb0de4b';
 
 export type CordisFoundryProviderManifestService = {
   normalize(parsed: unknown, manifestRef?: string): FoundryProviderManifest;
