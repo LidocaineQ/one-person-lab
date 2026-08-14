@@ -1,7 +1,7 @@
 import { canonicalJsonText } from '../../kernel/canonical-json.ts';
 import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
 import type { StandardAgentStageQualityRuntimeBinding } from '../pack/index.ts';
-import { resolveStandardAgentStageQualityRuntimeBinding } from '../pack/index.ts';
+import type { resolveStandardAgentStageQualityRuntimeBinding } from '../pack/index.ts';
 import {
   resolveStandardAgentStageReviewLane,
   stageAttemptExecutorPolicyWithReviewLane,
@@ -29,6 +29,7 @@ import { requireTemporalStageRunWorkflowInputLaunchable } from './family-runtime
 import { stableId } from './family-runtime-store.ts';
 import { preflightDomainWorkspaceCheckoutCurrentness } from './family-runtime-checkout-currentness.ts';
 import { preflightFamilyRuntimeDomainLifecycleAdmission } from './family-runtime-domain-lifecycle-admission.ts';
+import { createCordisPackStagecraftComposition } from './cordis-agent-executor-experiment.ts';
 
 type PackageReadinessResult = Awaited<ReturnType<typeof ensureFamilyRuntimePackageLaunchReady>>;
 
@@ -335,8 +336,12 @@ export async function materializeStageRunRoute(
     stageId: targetStageId,
     stageRunInvocationId: invocation.stage_run_invocation_id,
   });
+  const cordis = dependencies.resolveStageBinding
+    ? null
+    : await createCordisPackStagecraftComposition();
   const resolveStageBinding = dependencies.resolveStageBinding
-    ?? resolveStandardAgentStageQualityRuntimeBinding;
+    ?? cordis!.stageBinding.resolve.bind(cordis!.stageBinding);
+  try {
   const parentReviewLane = parentStageRunReviewLane(parentStageRun);
   const findPersistedTarget = async () => {
     const candidate = await dependencies.findTargetStageRun?.(targetStageRunId) ?? null;
@@ -486,4 +491,7 @@ export async function materializeStageRunRoute(
     durableLaunch = await dependencies.launchTargetStageRun(concurrentTarget.target);
   }
   return launchReceipt(targetStageRun, durableLaunch);
+  } finally {
+    await cordis?.dispose();
+  }
 }

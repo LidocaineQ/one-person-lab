@@ -6,6 +6,15 @@ export const OPL_PACK_SOURCE_MODULE = {
 } as const;
 
 export * from './cordis-composition-contract.ts';
+export {
+  CORDIS_PACK_STAGE_BINDING_PLUGIN_API_VERSION,
+  CORDIS_PACK_STAGE_BINDING_PLUGIN_ID,
+  CORDIS_PACK_STAGE_BINDING_SERVICE,
+  CORDIS_PACK_STAGE_BINDING_SOURCE_COMMIT,
+  CORDIS_PACK_STAGE_BINDING_SOURCE_REF,
+  cordisPackStageBindingPlugin,
+} from './cordis-pack-stage-binding-plugin.ts';
+export type { CordisPackStageBindingService } from './cordis-pack-stage-binding-plugin.ts';
 
 // Public cross-module surface generated from existing module consumers.
 export {

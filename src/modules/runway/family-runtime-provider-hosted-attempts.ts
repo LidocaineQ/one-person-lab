@@ -1,7 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 import { loadFrameworkContracts } from '../charter/index.ts';
-import { buildFamilyStageContextObservation } from '../stagecraft/index.ts';
 import type { FamilyRuntimeTaskRow } from './family-runtime-store.ts';
 import { insertEvent, stableId } from './family-runtime-store.ts';
 import {
@@ -43,6 +42,7 @@ import {
   packageRuntimeSourceCheckoutPath,
 } from './family-runtime-package-readiness.ts';
 import { preflightFamilyRuntimeDomainLifecycleAdmission } from './family-runtime-domain-lifecycle-admission.ts';
+import { createCordisPackStagecraftComposition } from './cordis-agent-executor-experiment.ts';
 export {
   DEFAULT_EXECUTOR_DISPATCH_TASK_KIND,
   DEFAULT_EXECUTOR_TRANSPORT_ONLY_CHECKPOINT_SUPERSEDED_REASON,
@@ -781,39 +781,41 @@ export async function ensureProviderHostedStageAttempt(
         ...(domainPackRoot ? { domain_pack_root: domainPackRoot } : {}),
         ...(nativePackageClosure ? { native_package_closure: nativePackageClosure } : {}),
       };
-  const stageContextObservation = attachCapabilityRegistryStageContext(
-    buildFamilyStageContextObservation(loadFrameworkContracts(), {
+  const cordis = await createCordisPackStagecraftComposition();
+  try {
+    const stageContextObservation = attachCapabilityRegistryStageContext(
+      cordis.stageContext.observe(loadFrameworkContracts(), {
       domainId: row.domain_id,
       stageId,
       actionId: domainRouteActionRef(row.task_kind, payload) ?? undefined,
-    }),
-    capabilityRegistryStageContextInputFromPayload(payload, {
-      domainId: row.domain_id,
-      stageId,
-      taskId: row.task_id,
-    }),
-  );
-  const checkoutCurrentnessPreflight = providerHostedCheckoutCurrentnessPreflight(
-    row,
-    useBoundWorkspaceLocator,
-  );
-  const checkoutBoundStageContextObservation = attachCheckoutCurrentnessToStageContext(
-    stageContextObservation,
-    checkoutCurrentnessPreflight,
-  );
-  const domainLifecycleAdmission = preflightFamilyRuntimeDomainLifecycleAdmission({
+      }),
+      capabilityRegistryStageContextInputFromPayload(payload, {
+        domainId: row.domain_id,
+        stageId,
+        taskId: row.task_id,
+      }),
+    );
+    const checkoutCurrentnessPreflight = providerHostedCheckoutCurrentnessPreflight(
+      row,
+      useBoundWorkspaceLocator,
+    );
+    const checkoutBoundStageContextObservation = attachCheckoutCurrentnessToStageContext(
+      stageContextObservation,
+      checkoutCurrentnessPreflight,
+    );
+    const domainLifecycleAdmission = preflightFamilyRuntimeDomainLifecycleAdmission({
     domainId: row.domain_id,
     stageId,
     actionId: domainRouteActionRef(row.task_kind, payload),
     domainPackRoot: domainPackRoot || null,
     workspaceLocator: useBoundWorkspaceLocator,
     taskPayload: payload,
-  });
-  const stageLaunchContextObservation = {
-    ...checkoutBoundStageContextObservation,
-    domain_lifecycle_admission: domainLifecycleAdmission,
-  };
-  const result = createStageAttempt(db, {
+    });
+    const stageLaunchContextObservation = {
+      ...checkoutBoundStageContextObservation,
+      domain_lifecycle_admission: domainLifecycleAdmission,
+    };
+    const result = createStageAttempt(db, {
     domainId: row.domain_id,
     stageId,
     providerKind,
@@ -826,8 +828,8 @@ export async function ensureProviderHostedStageAttempt(
       ? defaultExecutorStageCheckpointRefs(payload)
       : undefined,
     launchContextObservation: stageLaunchContextObservation,
-  });
-  insertEvent(db, {
+    });
+    insertEvent(db, {
     taskId: row.task_id,
     domainId: row.domain_id,
     eventType: result.idempotent_noop
@@ -845,6 +847,9 @@ export async function ensureProviderHostedStageAttempt(
         : null,
       stage_context_observation: stageLaunchContextObservation,
     },
-  });
-  return result.attempt;
+    });
+    return result.attempt;
+  } finally {
+    await cordis.dispose();
+  }
 }

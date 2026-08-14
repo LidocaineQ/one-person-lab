@@ -5,6 +5,22 @@ export const OPL_STAGECRAFT_SOURCE_MODULE = {
   physicalRoot: 'src/modules/stagecraft',
 } as const;
 
+export {
+  CORDIS_ATLAS_CATALOG_SERVICE,
+  CORDIS_STAGECRAFT_CONTEXT_PLUGIN_API_VERSION,
+  CORDIS_STAGECRAFT_CONTEXT_PLUGIN_ID,
+  CORDIS_STAGECRAFT_CONTEXT_SERVICE,
+  CORDIS_STAGECRAFT_CONTEXT_SOURCE_COMMIT,
+  CORDIS_STAGECRAFT_CONTEXT_SOURCE_REF,
+  cordisStagecraftContextPlugin,
+} from './cordis-stagecraft-context-plugin.ts';
+export type {
+  CordisAtlasCatalogService,
+  CordisStagecraftContextPluginConfig,
+  CordisStagecraftContextService,
+} from './cordis-stagecraft-context-plugin.ts';
+export type { FamilyStageContextObservation } from './family-stage-control-plane.ts';
+
 // Public cross-module surface generated from existing module consumers.
 export { buildEvidenceGroundedStagecraftProfilePolicyReadback } from './evidence-grounded-decision-agent-profile.ts';
 export { buildStageAttemptCloseoutRefsOnlyContract, buildStageAttemptLaunchEnvelope, cognitiveKernelBoundary } from './cognitive-kernel-boundary.ts';

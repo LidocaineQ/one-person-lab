@@ -15,6 +15,7 @@ import {
   resolveFamilyRuntimeProviderKind,
 } from './family-runtime-providers.ts';
 import { buildStageLaunchInvocationProjection } from './family-runtime-launch-invocation.ts';
+import { buildFamilyStageContextObservation } from '../stagecraft/index.ts';
 import type { FamilyRuntimeProviderKind } from './family-runtime-types.ts';
 import { runTemporalServiceCommand } from './family-runtime-temporal-service-command.ts';
 import { runTemporalSchedulerCadenceCommand } from './family-runtime-scheduler.ts';
@@ -55,7 +56,6 @@ import {
 } from './family-runtime-managed-provider-projection.ts';
 import { queryTemporalStageAttemptReadModel } from './family-runtime-temporal-query.ts';
 import { reconcileFamilyRuntimeLifecycleRefs, runFamilyRuntimeLifecycleApply } from './family-runtime-lifecycle-index.ts';
-import { buildFamilyStageContextObservation } from '../stagecraft/index.ts';
 import {
   buildDomainManifestCatalog,
 } from '../atlas/index.ts';
@@ -72,7 +72,7 @@ import {
   ensureFamilyRuntimePackageLaunchReady,
   packageRuntimeSourceCheckoutPath,
 } from './family-runtime-package-readiness.ts';
-import { resolveStandardAgentStageQualityRuntimeBinding } from '../pack/index.ts';
+import type { resolveStandardAgentStageQualityRuntimeBinding } from '../pack/index.ts';
 import {
   resolveStandardAgentStageReviewLane,
   stageAttemptExecutorPolicyWithReviewLane,
@@ -95,6 +95,7 @@ import { materializeReviewerInputSnapshot } from './family-runtime-reviewer-inpu
 import { persistReviewEvidenceArtifactCandidate } from './family-runtime-review-evidence-artifact.ts';
 import { preflightFamilyRuntimeDomainLifecycleAdmission } from './family-runtime-domain-lifecycle-admission.ts';
 import { requireRuntimeExecutionScopeMutationAllowed } from './family-runtime-execution-scope-persistence.ts';
+import { createCordisPackStagecraftComposition } from './cordis-agent-executor-experiment.ts';
 
 function parsedRuntimeRecord(value: unknown) {
   if (typeof value !== 'string' || !value.trim()) return null;
@@ -425,6 +426,14 @@ export async function runFamilyRuntime(
   }
 
   const { db } = openQueueDb();
+  let cordisPackStagecraft: Awaited<ReturnType<typeof createCordisPackStagecraftComposition>> | null = null;
+  const getCordisPackStagecraft = async () => {
+    cordisPackStagecraft ??= await createCordisPackStagecraftComposition({
+      loadDomainManifests: (contracts, manifestOptions) =>
+        buildDomainManifestCatalog(contracts, manifestOptions).domain_manifests,
+    });
+    return cordisPackStagecraft;
+  };
   try {
     if (parsed.mode === 'stage_run_query') {
       const stage_run_query = options.stageRunRuntime?.queryWorkflow
@@ -756,9 +765,12 @@ export async function runFamilyRuntime(
           ? explicitDomainPackRoot || managedDomainPackRoot
           : managedDomainPackRoot || explicitDomainPackRoot)
         || null;
+      const cordis = domainPackRoot && !existingStageRunLaunch
+        ? await getCordisPackStagecraft()
+        : null;
       const stageQualityBinding = !existingStageRunLaunch && domainPackRoot
         ? (options.stageRunRuntime?.resolveStageBinding
-          ?? resolveStandardAgentStageQualityRuntimeBinding)(domainPackRoot, parsed.input.stageId)
+          ?? cordis!.stageBinding.resolve.bind(cordis!.stageBinding))(domainPackRoot, parsed.input.stageId)
         : null;
       if (!existingStageRunLaunch && requestedReviewLane) {
         resolveStandardAgentStageReviewLane(stageQualityBinding?.review_lane_binding, requestedReviewLane);
@@ -799,14 +811,23 @@ export async function runFamilyRuntime(
       const projectedIdempotencyKey = parsed.input.newAttempt
         ? stableId('idem', [baseIdempotencyKey, 'new_attempt_requested'])
         : baseIdempotencyKey;
-      const defaultStageContextObservation = buildFamilyStageContextObservation(loadFrameworkContracts(), {
+      const defaultStageContextObservation = cordis
+        ? cordis.stageContext.observe(loadFrameworkContracts(), {
         domainId: parsed.input.domainId,
         stageId: parsed.input.stageId,
         actionId: parsed.input.actionId,
       }, {
         loadDomainManifests: (contracts, options) =>
           buildDomainManifestCatalog(contracts, options).domain_manifests,
-      });
+      })
+        : buildFamilyStageContextObservation(loadFrameworkContracts(), {
+            domainId: parsed.input.domainId,
+            stageId: parsed.input.stageId,
+            actionId: parsed.input.actionId,
+          }, {
+            loadDomainManifests: (contracts, options) =>
+              buildDomainManifestCatalog(contracts, options).domain_manifests,
+          });
       const checkoutCurrentnessPreflight = preflightDomainWorkspaceCheckoutCurrentness({
         domainId: parsed.input.domainId,
         workspaceLocator: parsed.input.workspaceLocator,
@@ -1388,6 +1409,10 @@ export async function runFamilyRuntime(
     }
     throw new Error(`Unhandled family runtime mode: ${(parsed as { mode: string }).mode}`);
   } finally {
+    const activeComposition = cordisPackStagecraft as Awaited<
+      ReturnType<typeof createCordisPackStagecraftComposition>
+    > | null;
+    if (activeComposition) await activeComposition.dispose();
     db.close();
   }
 }

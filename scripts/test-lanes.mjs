@@ -51,6 +51,7 @@ const fastTestFiles = [
   'tests/src/domain-runtime-surfaces.test.ts',
   'tests/src/cordis-surface-map.test.ts',
   'tests/src/cordis-agent-executor-experiment.test.ts',
+  'tests/src/cordis-pack-stagecraft-runtime.test.ts',
   'tests/src/cordis-composition-contract.test.ts',
   'tests/src/cordis-composition-inspect.test.ts',
   'tests/src/domain-task-codex-stdin.test.ts',

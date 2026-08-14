@@ -83,7 +83,7 @@ import {
   materializeOplRevisionTransport,
   revisionTransportContext,
 } from './family-runtime-revision-intake.ts';
-import { resolveStandardAgentStageQualityRuntimeBinding } from '../pack/index.ts';
+import type { resolveStandardAgentStageQualityRuntimeBinding } from '../pack/index.ts';
 import { launchRegisteredStageRun } from './family-runtime-stage-run-launch.ts';
 import {
   findStageRunLaunch,
@@ -106,6 +106,7 @@ import {
   ensureFamilyRuntimePackageLaunchReady,
   packageRuntimeSourceCheckoutPath,
 } from './family-runtime-package-readiness.ts';
+import { createCordisPackStagecraftComposition } from './cordis-agent-executor-experiment.ts';
 
 function closeoutPacketFromRunnerReceipt(receipt: Record<string, unknown>) {
   if (isRecord(receipt.closeout_packet)) {
@@ -1371,10 +1372,18 @@ export async function stageQualityAttemptMaterializeActivity(
         ? { native_package_closure: packageReadiness.native_package_closure }
         : {}),
     };
-    const executionStageBinding = (
-      options.resolveStageBinding
-      ?? resolveStandardAgentStageQualityRuntimeBinding
-    )(executionDomainPackRoot, stageRun.stage_id);
+    const cordis = options.resolveStageBinding
+      ? null
+      : await createCordisPackStagecraftComposition();
+    let executionStageBinding;
+    try {
+      executionStageBinding = (
+        options.resolveStageBinding
+        ?? cordis!.stageBinding.resolve.bind(cordis!.stageBinding)
+      )(executionDomainPackRoot, stageRun.stage_id);
+    } finally {
+      await cordis?.dispose();
+    }
     if (!executionStageBinding?.enabled) {
       throw new FrameworkContractError(
         'contract_shape_invalid',

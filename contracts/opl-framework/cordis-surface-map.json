@@ -3,7 +3,7 @@
   "scope": "opl_framework_cordis_candidate_surface_map",
   "owner": "OPL Framework",
   "state": "p1_candidate_inventory",
-  "machine_boundary": "This is an evidence-backed inventory of candidate in-process Cordis services, injections, events, scopes, and trust lanes. It is not a plugin registry, installed-package surface, composition snapshot, production runtime dependency declaration, caller cutover, adoption claim, or lifecycle implementation.",
+  "machine_boundary": "This remains the ten-module Cordis surface inventory. Pack and Stagecraft now have real composition-scoped plugins consumed by Runway; the map still does not own installed/currentness, durable workflow history, domain truth, Foundry activation, or App product truth.",
   "evidence_refs": [
     "contracts/opl-framework/source-module-map.json",
     "contracts/opl-framework/module-dependency-policy.json",
@@ -257,7 +257,7 @@
         "attempt"
       ],
       "trust_lane": "trusted_first_party_candidate",
-      "candidate_rationale": "Stage binding and generated ABI resolution are existing Pack services with multiple Runway callers and explicit contract inputs.",
+      "candidate_rationale": "Stage binding now runs through the real opl.pack.stage-binding Cordis service while the existing compiler remains the only implementation and Pack authority remains unchanged.",
       "surface_evidence": [
         {
           "symbol": "resolveStandardAgentStageQualityRuntimeBinding",
@@ -327,7 +327,7 @@
         "attempt"
       ],
       "trust_lane": "trusted_first_party_candidate",
-      "candidate_rationale": "Stage context observation is an existing public service used by both local and hosted Runway attempt paths and can be frozen at attempt scope.",
+      "candidate_rationale": "Stage context observation now runs through the real opl.stagecraft.context Cordis service in local and hosted Runway paths; optional Atlas catalog injection remains fail-open declaration debt.",
       "surface_evidence": [
         {
           "symbol": "buildFamilyStageContextObservation",
