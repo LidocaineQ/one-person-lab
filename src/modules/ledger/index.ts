@@ -5,6 +5,21 @@ export const OPL_LEDGER_SOURCE_MODULE = {
   physicalRoot: 'src/modules/ledger',
 } as const;
 
+export {
+  CORDIS_OWNER_DELTA_OBSERVER_PLUGIN_API_VERSION,
+  CORDIS_OWNER_DELTA_OBSERVER_PLUGIN_ID,
+  CORDIS_OWNER_DELTA_OBSERVER_SERVICE,
+  CORDIS_OWNER_DELTA_OBSERVER_SOURCE_COMMIT,
+  CORDIS_OWNER_DELTA_OBSERVER_SOURCE_REF,
+  cordisOwnerDeltaObserverPlugin,
+  createCordisOwnerDeltaObserverComposition,
+} from './cordis-owner-delta-observer.ts';
+export type {
+  CordisOwnerDeltaObservationInput,
+  CordisOwnerDeltaObserverService,
+  CordisOwnerDeltaTopline,
+} from './cordis-owner-delta-observer.ts';
+
 export { buildWorkItemControlResolver, findWorkItemControl, readWorkItemControlLedger, setWorkItemControlState, setWorkItemVisibilityState, workItemControlKey, WORK_ITEM_USER_LIFECYCLE_STATES, WORK_ITEM_VISIBILITY_STATES } from './work-item-control-ledger.ts';
 export type { SetWorkItemControlStateInput, SetWorkItemVisibilityStateInput, WorkItemControlEntry, WorkItemControlIdentity, WorkItemControlLedger, WorkItemControlProjectionRecord, WorkItemUserLifecycleState, WorkItemVisibilityState } from './work-item-control-ledger.ts';
 
@@ -15,7 +30,15 @@ export { buildSubstrateProvenanceSurface } from './substrate-provenance-surface.
 export type { SubstrateProvenanceSurfaceInput } from './substrate-provenance-surface.ts';
 export { buildCurrentOwnerDeltaCacheRefreshRequiredReadModel, buildCurrentOwnerDeltaReadModel, buildDefaultNextActionFromCurrentOwnerDelta } from './current-owner-delta-projection.ts';
 export { readCurrentOwnerDeltaReadModelProjectionCache, writeCurrentOwnerDeltaReadModelProjectionCache } from './current-owner-delta-read-model-cache.ts';
-export { buildCurrentOwnerDeltaTopline } from './current-owner-delta-topline.ts';
+import { createCordisOwnerDeltaObserverComposition } from './cordis-owner-delta-observer.ts';
+import type { buildCurrentOwnerDeltaTopline as BuildCurrentOwnerDeltaTopline } from './current-owner-delta-topline.ts';
+const cordisOwnerDeltaObserverComposition = await createCordisOwnerDeltaObserverComposition();
+
+export function buildCurrentOwnerDeltaTopline(
+  input: Parameters<typeof BuildCurrentOwnerDeltaTopline>[0],
+) {
+  return cordisOwnerDeltaObserverComposition.observer.observe(input);
+}
 export { buildDomainDispatchEvidenceIdentityGuidance, domainDispatchEvidenceIdentityGuidanceFromRoute } from './domain-dispatch-evidence-identity-guidance.ts';
 export { assertDomainDispatchEvidencePayloadReady, preflightDomainDispatchEvidencePayload } from './domain-dispatch-evidence-payload-preflight.ts';
 export { domainDispatchEvidencePayloadRefs } from './domain-dispatch-evidence-payload-refs.ts';
