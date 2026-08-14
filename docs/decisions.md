@@ -20,9 +20,9 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 - 首个真实实验固定选择 `Agent Executor` seam。P1 十模块 surface map 与 P2 隔离 composition 已使用真实 `@deepseek-ai/cordis@4.0.1` 落地；默认生产入口、Temporal durable substrate、Package lifecycle 和 Ledger authority 在 P6 前保持不变。完整阶段、owner、写集、验证和回退门见 [`docs/active/cordis-adoption-plan.md`](./active/cordis-adoption-plan.md)。
 - plugin 可以独立版本、分支和发布，但组合依赖显式 descriptor/compatibility contract，不建立中央 SemVer resolver；缺依赖、API 不兼容、trust 或 scope 冲突必须产生可诊断失败。生产 attempt 在启动时冻结 composition snapshot，禁止运行中热换。
 - Cordis 不是安全沙箱。不可信 plugin 不得因拥有 plugin 身份而进入 privileged root；需要隔离时使用现有 sandbox/provider 或独立进程。Cordis event 是进程内 transport，durable/replay/evidence 事实仍归 Temporal/Ledger/owner receipt。
-- P0-P6 路线图、收益、代价和 go/no-go 已冻结。当前已证明的收益只包括 seam 可见性、executor 可替换、依赖注入、typed event、scope teardown 与 composition isolation；可观测性、独立版本组合、十模块迁移和 Harness 自进化 substrate 必须分别通过 P3-P6 才能声明。
+- P0-P6 路线图、收益、代价和 go/no-go 已冻结。当前已证明的收益包括 seam 可见性、executor 可替换、依赖注入、typed event、scope teardown、composition isolation 与 P3 组合可观测性；独立版本组合、十模块迁移和 Harness 自进化 substrate 必须分别通过 P4-P6 才能声明。
 
-本决策只新增目标 runtime composition 方向，不改写既有 Package successor-first、Temporal production substrate、FoundryRun authority、Ledger refs-only 或 domain/App owner 决策。当前状态为 `roadmap_complete / p1_p2_experiment_landed / p3_active_not_landed`；exact devDependency、隔离实验与未吸收的 inspect 实施不能写成已采用、已 Cordis-native、已插件化、已默认运行、已兼容 DSH 或已发布。
+本决策只新增目标 runtime composition 方向，不改写既有 Package successor-first、Temporal production substrate、FoundryRun authority、Ledger refs-only 或 domain/App owner 决策。当前状态为 `roadmap_complete / p1_p2_p3_landed / p4_not_started`；exact devDependency、隔离实验与只读 inspect 不能写成已采用、已 Cordis-native、已插件化、已默认运行、已兼容 DSH 或已发布。
 
 ## 2026-08-06
 

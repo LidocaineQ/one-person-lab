@@ -7,7 +7,7 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 
 ## 顶层分层
 
-`OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。当前产品认知分成 `OPL Framework`、`One Person Lab App` 和 `Foundry Agents` 三层：Framework 负责开发与运行框架，App 负责普通用户工作台，Foundry Agents 负责领域智能体与交付权威。长期进程内组合目标采用 DSH 体系的正式 `@deepseek-ai/cordis`；P0-P6 路线图已完成，P1 surface map 与 P2 隔离 executor experiment 已落地，P3 composition inspect 正在实施但尚未吸收，不表示已经接入默认路径。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
+`OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。当前产品认知分成 `OPL Framework`、`One Person Lab App` 和 `Foundry Agents` 三层：Framework 负责开发与运行框架，App 负责普通用户工作台，Foundry Agents 负责领域智能体与交付权威。长期进程内组合目标采用 DSH 体系的正式 `@deepseek-ai/cordis`；P0-P6 路线图已完成，P1 surface map、P2 隔离 executor experiment 与 P3 deterministic composition inspect 已落地，但仍未接入默认路径。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
 
 ### Codex executable carrier 边界
 
@@ -526,7 +526,7 @@ Stage attempt 的终态只允许收敛到三类：`success` 表示 required outp
 - provider execution：Temporal `StageAttemptWorkflow`、Codex / domain sidecar activity、human gate / user instruction / resume signal、stage attempt query、CLI `attempt start|query|signal`、worker lifecycle status 和 fail-closed readiness 已落地为 source / CLI / contract / projection surface。2026-05-14 本机 managed Temporal service / worker proof 只作为历史 provider proof provenance；当前 `full_online_ready`、`durable_online_ready`、SLO、worker lifecycle 或 production-residency 读法必须 fresh-read runtime / readiness owner surface，不能从本文继承。
 - typed receipt / workbench：Codex stage activity 已有 dry-run / live-dry-run / `codex_cli` runner repo/test harness、typed closeout claim-evidence 捕获、raw/partial/no-output diagnostic progress、consumed refs / memory refs / writeback receipt refs / rejected writes / route impact / next owner 投影；`opl runtime snapshot` 已输出只读 `stage_attempt_workbench`。typed closeout 只提高 lineage 与 owner/quality/ready claim 证据质量，不是 stage completion 或 transition gate。
 
-Cordis adoption 当前仍是默认运行结构缺口：DSH scoped `@deepseek-ai/cordis@4.0.1` 已作为 exact devDependency 安装，P1 surface map 与 P2 隔离 Agent Executor composition 已落地；P3 deterministic read-only inspect 正在实施但尚未吸收，且没有任何默认 caller 切换到 Cordis。P3 inspect、P4 plugin/package version contract、P5 分批迁移和 P6 默认切换的具体门槛见 [`Cordis Adoption Plan`](./active/cordis-adoption-plan.md)。当前实验不改变 Temporal durable path、Package installed truth 或 domain/App authority。
+Cordis adoption 当前仍是默认运行结构缺口：DSH scoped `@deepseek-ai/cordis@4.0.1` 已作为 exact devDependency 安装，P1 surface map、P2 隔离 Agent Executor composition 与 P3 deterministic read-only inspect 已落地，但没有任何默认 caller 切换到 Cordis。P3 inspect 已提供 plugin/fiber state、service ownership、inject、event mode、disposer 与 diagnostics 的只读回读；P4 plugin/package version contract、P5 分批迁移和 P6 默认切换的具体门槛见 [`Cordis Adoption Plan`](./active/cordis-adoption-plan.md)。当前实验不改变 Temporal durable path、Package installed truth 或 domain/App authority。
 
 当前尚未闭合的是完整生产级 long domain owner chain：
 
