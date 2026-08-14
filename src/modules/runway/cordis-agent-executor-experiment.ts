@@ -1,5 +1,11 @@
 import { Context } from '@deepseek-ai/cordis';
 
+import {
+  buildCordisCompositionSnapshot,
+  buildCordisPluginDescriptor,
+  type CordisCompositionSnapshot,
+  type CordisPluginDescriptor,
+} from '../pack/index.ts';
 import type {
   AgentExecutionReceipt,
   AgentExecutionRequest,
@@ -9,6 +15,13 @@ import { runAgentExecutor } from './agent-executor.ts';
 export const CORDIS_AGENT_EXECUTOR_EXPERIMENT_VERSION = 'cordis-agent-executor-experiment.v1';
 export const CORDIS_FRAMEWORK_PACKAGE = '@deepseek-ai/cordis';
 export const CORDIS_FRAMEWORK_VERSION = '4.0.1';
+export const CORDIS_FRAMEWORK_INTEGRITY =
+  'sha512-YBdskTU2Po1kru3GgcUWUbkTsPMA9LkSQDAY8rBkFJeajdgcQad3QPJZE26JyK99Xb6HaASvoXg2DSUTeN/0Nw==';
+export const CORDIS_AGENT_EXECUTOR_PLUGIN_API_VERSION = '1.0.0';
+export const CORDIS_AGENT_EXECUTOR_SOURCE_REF =
+  'src/modules/runway/cordis-agent-executor-experiment.ts';
+export const CORDIS_AGENT_EXECUTOR_SOURCE_COMMIT =
+  '3a0191a7fd1b77f0f76a677a1735c85ac3029888';
 // Cordis 4.0.1 exposes fiber.state, but its const enum is erased from the ESM runtime.
 export const CORDIS_FIBER_STATE = {
   PENDING: 0,
@@ -29,24 +42,7 @@ export type CordisAgentExecutorObserver = {
   onResult?: (receipt: AgentExecutionReceipt) => void | Promise<void>;
 };
 
-export type CordisAgentExecutorCompositionSnapshot = {
-  readonly version: typeof CORDIS_AGENT_EXECUTOR_EXPERIMENT_VERSION;
-  readonly framework: {
-    readonly package: typeof CORDIS_FRAMEWORK_PACKAGE;
-    readonly version: typeof CORDIS_FRAMEWORK_VERSION;
-  };
-  readonly binding: {
-    readonly executor_adapter_id: string;
-  };
-  readonly plugins: ReadonlyArray<{
-    readonly id: string;
-    readonly required: boolean;
-    readonly provides: readonly string[];
-    readonly injects: readonly string[];
-    readonly scope: 'composition';
-    readonly trust: 'first_party_privileged';
-  }>;
-};
+export type CordisAgentExecutorCompositionSnapshot = CordisCompositionSnapshot;
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -97,6 +93,101 @@ export const cordisAgentExecutorObserverPlugin = {
   },
 };
 
+const forbiddenAuthorities = Object.freeze([
+  'package_installed_truth',
+  'package_currentness',
+  'native_carrier_lifecycle',
+  'temporal_workflow_history',
+  'temporal_retry_replay',
+  'workspace_file_bytes',
+  'workspace_binding_registry',
+  'ledger_evidence_persistence',
+  'ledger_receipt_authority',
+  'foundry_agent_version',
+  'foundry_promotion_activation',
+  'domain_truth',
+  'domain_quality_verdict',
+  'app_product_truth',
+  'credential_material',
+  'security_sandbox',
+]);
+
+function descriptor(input: {
+  pluginId: string;
+  required: boolean;
+  provides?: readonly string[];
+  requiredInjects?: readonly string[];
+  events?: CordisPluginDescriptor['events'];
+}): CordisPluginDescriptor {
+  return buildCordisPluginDescriptor({
+    plugin_id: input.pluginId,
+    plugin_api_version: CORDIS_AGENT_EXECUTOR_PLUGIN_API_VERSION,
+    source_ref: CORDIS_AGENT_EXECUTOR_SOURCE_REF,
+    source_commit: CORDIS_AGENT_EXECUTOR_SOURCE_COMMIT,
+    package_ref: null,
+    required: input.required,
+    provides: input.provides ?? [],
+    injects: {
+      required: (input.requiredInjects ?? []).map((serviceId) => ({
+        service_id: serviceId,
+        plugin_api_versions: [CORDIS_AGENT_EXECUTOR_PLUGIN_API_VERSION],
+      })),
+      optional: [],
+    },
+    events: input.events ?? [],
+    scope: 'composition',
+    trust: 'first_party_privileged',
+    disposer: { required: true, boundary: 'plugin_fiber' },
+    authority_boundary: { forbidden_authorities: forbiddenAuthorities },
+  });
+}
+
+export const CORDIS_AGENT_EXECUTOR_PLUGIN_DESCRIPTORS: readonly CordisPluginDescriptor[] = Object.freeze([
+  descriptor({
+    pluginId: 'opl-cordis-agent-executor-adapter',
+    required: true,
+    provides: ['opl.runway.executor.adapter'],
+  }),
+  descriptor({
+    pluginId: 'opl-cordis-agent-executor-service',
+    required: true,
+    provides: ['opl.runway.executor'],
+    requiredInjects: ['opl.runway.executor.adapter'],
+    events: [
+      {
+        name: 'opl/runway/executor/requested',
+        mode: 'emit',
+        role: 'publish',
+        payload_schema_ref: null,
+      },
+      {
+        name: 'opl/runway/executor/completed',
+        mode: 'parallel',
+        role: 'publish',
+        payload_schema_ref: null,
+      },
+    ],
+  }),
+  descriptor({
+    pluginId: 'opl-cordis-agent-executor-observer',
+    required: false,
+    events: [
+      {
+        name: 'opl/runway/executor/requested',
+        mode: 'observe',
+        role: 'observe',
+        payload_schema_ref: null,
+      },
+      {
+        name: 'opl/runway/executor/completed',
+        mode: 'observe',
+        role: 'observe',
+        payload_schema_ref: null,
+      },
+    ],
+  }),
+]);
+
 const defaultAdapter: CordisAgentExecutorAdapter = {
   id: 'opl-existing-agent-executor',
   execute: runAgentExecutor,
@@ -105,41 +196,18 @@ const defaultAdapter: CordisAgentExecutorAdapter = {
 export function buildCordisAgentExecutorCompositionSnapshot(
   executorAdapterId = defaultAdapter.id,
 ): CordisAgentExecutorCompositionSnapshot {
-  return Object.freeze({
-    version: CORDIS_AGENT_EXECUTOR_EXPERIMENT_VERSION,
-    framework: Object.freeze({
+  return buildCordisCompositionSnapshot({
+    framework: {
       package: CORDIS_FRAMEWORK_PACKAGE,
       version: CORDIS_FRAMEWORK_VERSION,
-    }),
-    binding: Object.freeze({
+      integrity: CORDIS_FRAMEWORK_INTEGRITY,
+    },
+    binding: {
       executor_adapter_id: executorAdapterId,
-    }),
-    plugins: Object.freeze([
-      {
-        id: 'opl-cordis-agent-executor-adapter',
-        required: true,
-        provides: Object.freeze(['opl.runway.executor.adapter']),
-        injects: Object.freeze([]),
-        scope: 'composition' as const,
-        trust: 'first_party_privileged' as const,
-      },
-      {
-        id: 'opl-cordis-agent-executor-service',
-        required: true,
-        provides: Object.freeze(['opl.runway.executor']),
-        injects: Object.freeze(['opl.runway.executor.adapter']),
-        scope: 'composition' as const,
-        trust: 'first_party_privileged' as const,
-      },
-      {
-        id: 'opl-cordis-agent-executor-observer',
-        required: false,
-        provides: Object.freeze([]),
-        injects: Object.freeze([]),
-        scope: 'composition' as const,
-        trust: 'first_party_privileged' as const,
-      },
-    ].map((plugin) => Object.freeze(plugin))),
+      executor_route: 'opl.runway.executor',
+    },
+    foundry_evidence_ref: null,
+    plugins: CORDIS_AGENT_EXECUTOR_PLUGIN_DESCRIPTORS,
   });
 }
 

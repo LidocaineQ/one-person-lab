@@ -1,10 +1,11 @@
 import type { Context, Fiber, Plugin } from '@deepseek-ai/cordis';
+import type { CordisPluginDescriptor } from '../pack/index.ts';
 
 export const CORDIS_COMPOSITION_INSPECT_VERSION = 'cordis-composition-inspect.v1';
 export const CORDIS_COMPOSITION_INSPECT_SCHEMA_REF =
   'contracts/opl-framework/cordis-composition-inspect.schema.json';
 
-type CordisCompositionSnapshotPlugin = {
+type LegacyCordisCompositionSnapshotPlugin = {
   readonly id: string;
   readonly required: boolean;
   readonly provides: readonly string[];
@@ -13,11 +14,15 @@ type CordisCompositionSnapshotPlugin = {
   readonly trust: string;
 };
 
+type CordisCompositionSnapshotPlugin = CordisPluginDescriptor | LegacyCordisCompositionSnapshotPlugin;
+
 export type CordisCompositionSnapshotLike = {
-  readonly version: string;
+  readonly version?: string;
+  readonly snapshot_version?: string;
   readonly framework: {
     readonly package: string;
     readonly version: string;
+    readonly integrity?: string;
   };
   readonly binding: Readonly<Record<string, unknown>>;
   readonly plugins: readonly CordisCompositionSnapshotPlugin[];
@@ -32,6 +37,8 @@ export type CordisCompositionPluginEvent = {
 export type CordisCompositionPluginMetadata = {
   readonly id: string;
   readonly source_ref: string;
+  readonly source_commit?: string;
+  readonly plugin_api_version?: string;
   readonly version?: string;
   readonly events?: readonly CordisCompositionPluginEvent[];
 };
@@ -114,11 +121,15 @@ export const CORDIS_AGENT_EXECUTOR_INSPECT_METADATA: readonly CordisCompositionP
   {
     id: 'opl-cordis-agent-executor-adapter',
     source_ref: 'src/modules/runway/cordis-agent-executor-experiment.ts',
+    source_commit: '3a0191a7fd1b77f0f76a677a1735c85ac3029888',
+    plugin_api_version: '1.0.0',
     events: Object.freeze([]),
   },
   {
     id: 'opl-cordis-agent-executor-service',
     source_ref: 'src/modules/runway/cordis-agent-executor-experiment.ts',
+    source_commit: '3a0191a7fd1b77f0f76a677a1735c85ac3029888',
+    plugin_api_version: '1.0.0',
     events: Object.freeze([
       Object.freeze({
         name: 'opl/runway/executor/requested',
@@ -135,6 +146,8 @@ export const CORDIS_AGENT_EXECUTOR_INSPECT_METADATA: readonly CordisCompositionP
   {
     id: 'opl-cordis-agent-executor-observer',
     source_ref: 'src/modules/runway/cordis-agent-executor-experiment.ts',
+    source_commit: '3a0191a7fd1b77f0f76a677a1735c85ac3029888',
+    plugin_api_version: '1.0.0',
     events: Object.freeze([
       Object.freeze({
         name: 'opl/runway/executor/requested',
@@ -201,13 +214,46 @@ function runtimeId(runtime: Plugin.Runtime, index: number): string {
   return `unknown-plugin-${index + 1}`;
 }
 
+function descriptorProjection(plugin: CordisCompositionSnapshotPlugin): {
+  id: string;
+  required: boolean;
+  provides: readonly string[];
+  injects: readonly string[];
+  scope: string;
+  trust: string;
+  plugin_api_version?: string;
+  source_ref?: string;
+  events?: readonly CordisCompositionPluginEvent[];
+} {
+  if ('plugin_id' in plugin) {
+    return {
+      id: plugin.plugin_id,
+      required: plugin.required,
+      provides: plugin.provides,
+      injects: [
+        ...plugin.injects.required.map((entry) => entry.service_id),
+        ...plugin.injects.optional.map((entry) => entry.service_id),
+      ],
+      scope: plugin.scope,
+      trust: plugin.trust,
+      plugin_api_version: plugin.plugin_api_version,
+      source_ref: plugin.source_ref,
+      events: plugin.events.map((event) => ({
+        name: event.name,
+        mode: event.mode,
+        role: event.role,
+      })),
+    };
+  }
+  return plugin;
+}
+
 function inspectPlugin(
   context: Context,
   id: string,
   fibers: readonly Fiber[],
-  descriptor: CordisCompositionSnapshotPlugin | undefined,
+  descriptor: ReturnType<typeof descriptorProjection> | undefined,
   metadata: CordisCompositionPluginMetadata | undefined,
-  compositionVersion: string,
 ): CordisPluginInspection {
   const states = [...new Set(fibers.map(stateOf))];
   const state = states.length === 0
@@ -218,9 +264,9 @@ function inspectPlugin(
   const allDisposed = fibers.length > 0 && fibers.every((fiber) => fiber.uid === null || stateOf(fiber) === 'disposed');
   const inspection: CordisPluginInspection = {
     id,
-    version: metadata?.version ?? (descriptor ? compositionVersion : null),
-    source_ref: metadata?.source_ref ?? null,
-    metadata_status: metadata ? 'complete' : 'unknown',
+    version: descriptor?.plugin_api_version ?? metadata?.plugin_api_version ?? metadata?.version ?? null,
+    source_ref: descriptor?.source_ref ?? metadata?.source_ref ?? null,
+    metadata_status: descriptor?.plugin_api_version || metadata ? 'complete' : 'unknown',
     required: descriptor?.required ?? null,
     provides: descriptor?.provides
       ? [...descriptor.provides].sort(compareStrings)
@@ -231,8 +277,8 @@ function inspectPlugin(
     state,
     scope: descriptor?.scope ?? 'unknown',
     trust: descriptor?.trust ?? 'unknown',
-    events: metadata?.events
-      ? [...metadata.events]
+    events: descriptor?.events ?? metadata?.events
+      ? [...(descriptor?.events ?? metadata?.events ?? [])]
         .sort((left, right) => compareStrings(
           `${left.name}:${left.mode}:${left.role}`,
           `${right.name}:${right.mode}:${right.role}`,
@@ -247,7 +293,9 @@ function inspectPlugin(
         : fibers.some((fiber) => fiber.uid !== null)
           ? 'registered_at_observation'
           : 'unknown',
-    diagnostic_refs: metadata ? [metadata.source_ref] : [],
+    diagnostic_refs: descriptor?.source_ref
+      ? [descriptor.source_ref]
+      : metadata ? [metadata.source_ref] : [],
   };
   return inspection;
 }
@@ -269,7 +317,11 @@ export function buildCordisCompositionInspect(input: {
   metadata?: readonly CordisCompositionPluginMetadata[];
 }): CordisCompositionInspect {
   const metadataById = new Map((input.metadata ?? []).map((entry) => [entry.id, entry]));
-  const descriptorById = new Map(input.snapshot.plugins.map((entry) => [entry.id, entry]));
+  const descriptorById = new Map(input.snapshot.plugins.map((entry) => {
+    const projection = descriptorProjection(entry);
+    return [projection.id, projection] as const;
+  }));
+  const snapshotVersion = input.snapshot.snapshot_version ?? input.snapshot.version ?? 'unknown';
   const runtimeEntries = [...input.context.registry.values()]
     .map((runtime, index) => ({ runtime, id: runtimeId(runtime, index) }))
     .sort((left, right) => compareStrings(left.id, right.id));
@@ -286,7 +338,6 @@ export function buildCordisCompositionInspect(input: {
       fibersById.get(id) ?? [],
       descriptorById.get(id),
       metadataById.get(id),
-      input.snapshot.version,
     ));
 
   const diagnostics = plugins.flatMap((plugin) => {
@@ -323,7 +374,7 @@ export function buildCordisCompositionInspect(input: {
       teardown_status: 'caller_managed',
     },
     composition: {
-      snapshot_version: input.snapshot.version,
+    snapshot_version: snapshotVersion,
       framework: {
         package: input.snapshot.framework.package,
         version: input.snapshot.framework.version,

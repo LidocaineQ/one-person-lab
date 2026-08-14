@@ -5,6 +5,8 @@ export const OPL_PACK_SOURCE_MODULE = {
   physicalRoot: 'src/modules/pack',
 } as const;
 
+export * from './cordis-composition-contract.ts';
+
 // Public cross-module surface generated from existing module consumers.
 export {
   buildEvidenceGroundedDecisionAgentProfileReadback,

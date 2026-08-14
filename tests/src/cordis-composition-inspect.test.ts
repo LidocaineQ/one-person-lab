@@ -69,6 +69,7 @@ test('Cordis composition inspect schema and CLI output are deterministic and rea
   assert.deepEqual(pluginIds, [...pluginIds].sort((left, right) => left.localeCompare(right)));
   const service = first.plugins.find((plugin: { id: string }) => plugin.id === 'opl-cordis-agent-executor-service');
   assert.equal(service.state, 'active');
+  assert.equal(service.version, '1.0.0');
   assert.deepEqual(service.injects, ['opl.runway.executor.adapter']);
   assert.deepEqual(service.events.map((event: { name: string; mode: string }) => `${event.name}:${event.mode}`), [
     'opl/runway/executor/completed:parallel',
