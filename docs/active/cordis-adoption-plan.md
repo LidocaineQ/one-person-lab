@@ -2,7 +2,7 @@
 
 Owner: `OPL Framework`
 Purpose: `cordis_adoption_support_plan`
-State: `active / p1_p2_experiment_landed_p3_not_started`
+State: `roadmap_complete / implementation_p1_p2_landed_p3_not_started`
 Updated: `2026-08-14`
 SSOT role: 本文是详细支撑计划；当前 active gap、优先级和下一棒仍只归 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md)。
 Machine boundary: 本文只证明 Cordis 已作为 exact devDependency 进入隔离实验，并已运行 P2 focused fixture；不证明默认或 production 路径已切换、已 Cordis-native、已发布或已完成 DSH 兼容。Package currentness、Temporal、Foundry、Ledger、domain 和 App 的事实必须分别回到对应 owner surface。
@@ -11,7 +11,7 @@ Machine boundary: 本文只证明 Cordis 已作为 exact devDependency 进入隔
 
 OPL 采用 DeepSeek Harness（DSH）所使用的正式 `@deepseek-ai/cordis` 作为长期目标的进程内组合框架。目标是最终使用 Cordis 本身，不再另造 `Cordis-like` 内核、平行 event bus、平行 service registry 或平行 plugin lifecycle。
 
-这是一项已经进入实验验证的架构方向，不是默认运行状态。P1 surface map 与 P2 `Agent Executor` 隔离实验已经落地，P3 尚未开始；当前 OPL 默认生产链仍按既有手写 runtime 运行。首个实验选择 `Agent Executor` seam，因为 Codex、Claude Code、Hermes 和 Antigravity 已经有多个显式 adapter，且该 seam 已在不改变 Temporal durable truth 的情况下证明真实 Cordis 组合、依赖注入、事件、scope isolation 和 teardown。
+这是一项已经完成 P0-P6 路线图、并进入实验验证的架构方向，不是默认运行状态。P1 surface map 与 P2 `Agent Executor` 隔离实验已经落地，P3 尚未开始；当前 OPL 默认生产链仍按既有手写 runtime 运行。首个实验选择 `Agent Executor` seam，因为 Codex、Claude Code、Hermes 和 Antigravity 已经有多个显式 adapter，且该 seam 已在不改变 Temporal durable truth 的情况下证明真实 Cordis 组合、依赖注入、事件、scope isolation 和 teardown。
 
 Cordis 的职责只限于同一进程内的：
 
@@ -174,6 +174,8 @@ Cordis 只负责箭头中 `context -> plugin -> in-process service/event` 的部
 | 项目 | 内容 |
 | --- | --- |
 | Owner | `OPL Atlas` + `OPL Console`；`Ledger` 只提供 refs-only observation。 |
+| 状态 | `not_started`；P2 已提供最小 composition snapshot，P3 只读 inspect 尚未准入。 |
+| 依赖 | P2 focused readback、P1 surface map、现有 Console/Atlas read-only projection owner。 |
 | 写集 | 只读 `opl cordis inspect --json`（或等价现有 inspect surface）、composition projection、schema/test；不新增 registry writer。 |
 | 输入 | P2 实际 context、plugin descriptor、composition snapshot、scope/trust/event metadata。 |
 | 产物 | 可回读 plugin id/version/source、provides/injects、state、scope、trust lane、event names/modes、disposer status 和 diagnostic refs。 |
@@ -186,6 +188,8 @@ Cordis 只负责箭头中 `context -> plugin -> in-process service/event` 的部
 | 项目 | 内容 |
 | --- | --- |
 | Owner | `OPL Pack`（descriptor/ABI）+ `OPL Connect`（carrier）+ `OPL Foundry Kernel`（candidate/version evidence）。 |
+| 状态 | `not_started`；必须先通过 P3，且只冻结真实出现的 plugin contract，不为未来模块预建 schema。 |
+| 依赖 | P3 inspect 的实际字段、P2 snapshot identity、Package descriptor 与 Foundry AgentVersion owner contract。 |
 | 写集 | `contracts/opl-framework/cordis-plugin-descriptor.schema.json`、`cordis-composition-snapshot.schema.json`、compatibility validator、fixture matrix；不创建中央 resolver/installed lock。 |
 | 输入 | P2/P3 真实 plugin、Package descriptor、Foundry AgentVersion、executor binding、现有 release/receipt contracts。 |
 | 产物 | 独立 plugin API version、provides/injects contract、required/optional/trust/scope policy、Package-to-plugin projection、exact composition snapshot 和 incompatible diagnostic shape。 |
@@ -194,6 +198,8 @@ Cordis 只负责箭头中 `context -> plugin -> in-process service/event` 的部
 | 回退 | 回到上一份 descriptor/compatibility contract，删除未被真实 caller 使用的新字段。 |
 
 ### P5：按依赖图分批迁移十模块
+
+状态：`not_started`。只有 P4 contract 通过，并且某一模块存在真实 caller、可回退 successor 和明确 owner acceptance 时，才为该模块开启迁移批次；没有收益证据的模块保持现状。
 
 迁移采用 successor-first：先在 Cordis composition 中证明一个模块的真实 vertical path，再切 production caller，最后以 structural caller=0、affected outcome 和 build/readback 为门批量退役旧手写路径。建议顺序如下，实际顺序以 P1 graph 为准：
 
@@ -211,6 +217,7 @@ Cordis 只负责箭头中 `context -> plugin -> in-process service/event` 的部
 | 项目 | 内容 |
 | --- | --- |
 | Owner | Framework Integrator；App、Package owner、Foundry、Temporal、Ledger 和 domain owner 共同验收各自边界。 |
+| 状态 | `not_started`；P1-P5 全部通过前不得进入默认路径切换。 |
 | 前置 | P1-P5 gates 全部通过；默认入口已有 Cordis composition snapshot；生产/开发 profile 明确；没有 active caller 仍指向被替代的通用内核。 |
 | 切换 | 先切 `OPL Base`/headless 的受控 profile，再切 App/托管入口；每个 attempt 启动时冻结 snapshot；不在运行中热换。 |
 | 验证 | clean install/managed readback、Codex-default session、Temporal restart/replay、Workspace/receipt refs、App projection、executor failure/teardown、source-module strict gates 和跨模块 focused/aggregate tests。 |
@@ -221,7 +228,43 @@ Cordis 只负责箭头中 `context -> plugin -> in-process service/event` 的部
 
 每次 DSH/Cordis 发布或 DSH `master` 结构变更触发一次轻量审计：读取 DSH source commit、scoped package manifest、API/export diff、peer dependency、license、Node/pnpm 约束和 P2/P3 compatibility suite。只有 suite 与 owner review 通过才更新 lock；上游未验证的 breaking change 保持在实验分支，不阻断当前 production path。
 
-## 6. 统一验收矩阵
+### 执行依赖图与并发边界
+
+| 路径 | 依赖 | 可并行范围 | 集成规则 |
+| --- | --- | --- | --- |
+| `P0 -> P1 -> P2 -> P3 -> P4` | 严格串行；后阶段只能消费前阶段已回读的 source/contract/snapshot。 | 每阶段内部的 caller inventory、fixture、只读审计和测试准备可以并行。 | 共享 `main`、SSOT、依赖安装和 canonical push 由一个 Integrator 串行吸收。 |
+| `P5` 模块批次 | 先通过 P4；每一批还要满足自身 dependency edge、真实 caller、successor 和 owner acceptance。 | 依赖边不相交的模块批次可以并行开发；`Atlas/Console`、`Pack/Stagecraft`、`Connect`、`Workspace/Ledger`、`Foundry/Charter` 不得因“十模块”名义强行同时迁移。 | 各 owner 在独立 worktree checkpoint；caller switch、旧路径退役和 canonical readback 逐批串行。 |
+| `P6` 默认切换 | 依赖全部 P5 批次、跨 owner readback 和回退演练。 | 只能并行准备 Base/App/owner acceptance，不能并行写默认入口。 | 先 Base/headless，再 App/托管入口；每次只切一个受控 profile。 |
+| DSH 上游跟踪 | 与 P1-P6 正常开发平行，但不改变当前 production path。 | source/API/license/compatibility audit 可独立执行。 | 未通过 suite 的上游版本只留实验分支，不更新 production lock。 |
+
+## 6. 预期收益、代价与 go/no-go
+
+Cordis 的收益不是“代码看起来像插件”，而是把已经存在的替换点、依赖关系和生命周期变成可验证的进程内组合边界。每项收益都必须由真实 caller、readback 或 affected outcome 支付；无法支付的模块不迁移。
+
+| 阶段 | 预期收益 | 可验证证据 | 主要代价/风险 |
+| --- | --- | --- | --- |
+| P1 | 找到真正值得插件化的 seam，避免十模块整齐但无收益的拆分。 | 每个候选都有真实 export/caller、provides/injects、scope/trust 和 forbidden authority；无 caller 的候选留在现状。 | 盘点成本；surface map 可能被误用成 registry。 |
+| P2 | 用正式 DSH Cordis 验证“替换 executor 不改 durable/receipt owner”，并获得可复用的依赖注入、事件和 teardown 基线。 | fixture request/receipt、required pending、optional observer、`emit`/`parallel`、composition isolation、disposer readback 全部通过。 | 引入上游版本漂移和 Cordis 学习成本；因此只进 dev/experimental graph。 |
+| P3 | operator 能回答“当前进程实际加载了什么”，缩短组合错误和资源泄漏诊断时间。 | deterministic inspect JSON 与实际 snapshot/bytes 一致；无 writer、无 ready/domain 字段。 | 形成第二 truth 的风险；只读 projection 且不落 installed/current。 |
+| P4 | 让 plugin API、版本、trust、scope 和组合输入可独立演进，为分支/版本自由组合提供边界。 | 显式 snapshot 可重放；缺 provider、API mismatch、trust/scope conflict 均 typed fail。 | 组合矩阵膨胀；不建中央 resolver，只测试被声明的组合。 |
+| P5 | 模块可独立优化、替换和补齐，旧手写启动顺序按批次退役，降低跨模块改动半径。 | 每批 successor vertical path、caller switch、affected outcome、structural caller=0 和回退点闭合。 | 迁移期 caller/生命周期风险；禁止永久 dual-write/fallback。 |
+| P6 | 默认运行获得稳定的组合边界、可观测性和可回退 profile，为 Harness 自进化提供可评估的 composition substrate。 | clean install、默认入口、Temporal restart/replay、owner readback、App projection 和上一 immutable build 回退全部通过。 | 最大 blast radius；任何一个 owner boundary 未闭合都不切默认。 |
+
+### 收益优先级
+
+1. **强收益（当前已证明）**：P1 的 seam 可见性；P2 的 executor 替换、依赖注入、typed event、scope teardown 与 composition isolation。
+2. **值得推进**：P3 的 inspect 可观测性；P4 的显式 plugin contract 与可重放 snapshot。
+3. **条件收益**：P5/P6 的独立模块版本/分支组合、自由组合和自进化 substrate。只有生产 caller 切换与 owner readback 闭合后才成立，不能从 P2 demo 推导。
+
+### Go/no-go 规则
+
+- **Go P3**：P2 的 snapshot、实际 bytes、teardown 和 owner boundary 均可回读；P3 只读写集已冻结。
+- **Go P4**：P3 inspect 不产生第二 truth，且至少有两个真实 plugin contract 字段消费者；否则继续收敛 P3。
+- **Go P5 单模块批次**：该模块有真实 caller、successor 纵向链路、affected outcome 和 canonical revert；否则不迁移。
+- **Go P6**：全部 production caller 已切换、旧路径 structural caller=0、Temporal/Package/Ledger/Foundry/domain/App owner 独立回读 green；否则保持旧默认路径。
+- **No-go 任一阶段**：需要新增第二 registry、installed lock、durable event log、Cordis sandbox、永久 fallback，或把 optional plugin/inspect 结果升级为 domain/ready authority。
+
+## 7. 统一验收矩阵
 
 以下是从实验到默认切换必须逐项有证据的门槛：
 
@@ -236,23 +279,23 @@ Cordis 只负责箭头中 `context -> plugin -> in-process service/event` 的部
 | Authority | domain/Foundry/Ledger/App owner readback unchanged and independently authoritative | `cordis inspect`、contract pass、focused test、generated surface。 |
 | Retirement | production caller 切换、structural caller=0、affected outcome/build/readback pass | 零引用扫描、候选分支、docs 或测试通过。 |
 
-## 7. 变更控制与回退
+## 8. 变更控制与回退
 
-- P2 之前不得把 Cordis 依赖写入默认 production dependency graph。
+- P2 之前不得把 Cordis 依赖写入默认 production dependency graph；P2 之后也只能留在 dev/experimental graph，直到 P6 完成。
 - 每个 phase 使用独立 branch/worktree 和 lifecycle receipt；共享文档、`main`、安装和默认切换由单一 Integrator 串行吸收。
 - 任何 composition 变更都先生成新的 immutable snapshot；不原地修改运行中的 attempt，也不重写历史 snapshot。
 - 回退只使用 canonical Git revert、上一份 immutable artifact 或重启到上一 composition；不新建 Cordis 私有 rollback state machine。
 - 实验失败只关闭当前 composition/profile；不得删除仍有 caller 的手写路径，不得以“未来会迁移”授权物理删除。
 
-## 8. 下一棒
+## 9. 下一棒
 
-P0-P2 已完成当前阶段：P1 surface map 和 P2 隔离 executor experiment 已串行吸收，P2 仅在 dev/experimental dependency graph 使用 `@deepseek-ai/cordis@4.0.1`。当前下一棒是基于 fresh caller 与实验 readback 决定 P3 composition inspect 的最小写集和验收面；P3 尚未开始，也不提前迁移十模块、Temporal、Package lifecycle 或 App。实际 active 优先级、owner、write set 和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准，本计划只作为支撑细节被引用。
+P0-P6 路线图已完整冻结，P1 surface map 和 P2 隔离 executor experiment 已串行吸收，P2 仅在 dev/experimental dependency graph 使用 `@deepseek-ai/cordis@4.0.1`。当前下一棒不再是补规划，而是对 P3 composition inspect 做 fresh implementation admission：确认 P2 snapshot/readback 仍 current，冻结实际文件级写集并实现只读 inspect。P3 尚未开始，也不提前迁移十模块、Temporal、Package lifecycle 或 App。实际 active 优先级、owner、write set 和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准，本计划只作为支撑细节被引用。
 
-## 9. 禁止声明
+## 10. 禁止声明
 
 在 P6 完成并有 owner-authoritative readback 前，不得声明 OPL 已采用 Cordis、已 Cordis-native、已插件化、已支持自由组合、已拥有独立模块版本/分支组合、已兼容 DSH 生态或已达到 Harness 自进化能力。P1/P2 只证明候选 surface 与隔离 executor composition；它们不表示 Cordis 默认运行、Package 发布、Temporal/Foundry/Ledger/domain/App readiness 或生产发布完成。
 
-## 10. 本仓验证入口
+## 11. 本仓验证入口
 
 Docs-only：
 

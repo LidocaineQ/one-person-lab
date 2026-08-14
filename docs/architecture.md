@@ -7,7 +7,7 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 
 ## 顶层分层
 
-`OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。当前产品认知分成 `OPL Framework`、`One Person Lab App` 和 `Foundry Agents` 三层：Framework 负责开发与运行框架，App 负责普通用户工作台，Foundry Agents 负责领域智能体与交付权威。长期进程内组合目标采用 DSH 体系的正式 `@deepseek-ai/cordis`；P1 surface map 与 P2 隔离 executor experiment 已落地，P3 尚未开始，不表示已经接入默认路径。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
+`OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。当前产品认知分成 `OPL Framework`、`One Person Lab App` 和 `Foundry Agents` 三层：Framework 负责开发与运行框架，App 负责普通用户工作台，Foundry Agents 负责领域智能体与交付权威。长期进程内组合目标采用 DSH 体系的正式 `@deepseek-ai/cordis`；P0-P6 路线图已完成，P1 surface map 与 P2 隔离 executor experiment 已落地，P3 尚未开始，不表示已经接入默认路径。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
 
 ### Codex executable carrier 边界
 
