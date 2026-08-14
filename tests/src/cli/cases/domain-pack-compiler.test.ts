@@ -16,6 +16,7 @@ import {
 } from './domain-pack-compiler-fixtures.ts';
 import { createAdmittedStagePackFixture } from './workspace-domain-test-helper.ts';
 import { FORBIDDEN_DOMAIN_GENERIC_OWNER_ROLES } from '../../../../src/modules/pack/standard-domain-agent-scaffold-constants.ts';
+import { createCordisBaseHeadlessComposition } from '../../../../src/entrypoints/cordis/composition-profiles.ts';
 
 function buildDelayedManifestCommand(payload: Record<string, unknown>, delayMs: number) {
   return `${process.execPath} -e ${
@@ -274,7 +275,7 @@ test('repo-local pack compiler blocks missing implementation profile and Standar
   }
 });
 
-test('standard Agent pack compiler uses its owner checkout without changing descriptor manifest timeout', () => {
+test('standard Agent pack compiler uses its owner checkout without changing descriptor manifest timeout', async () => {
   const { fixtureContractsRoot } = createFamilyContractsFixtureRoot();
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-pack-compiler-timeout-state-'));
   const env: Record<string, string> = {
@@ -308,14 +309,21 @@ test('standard Agent pack compiler uses its owner checkout without changing desc
 
     const previousContractsDir = process.env.OPL_CONTRACTS_DIR;
     const previousStateDir = process.env.OPL_STATE_DIR;
+    let cordisComposition: Awaited<ReturnType<typeof createCordisBaseHeadlessComposition>> | undefined;
     let descriptors;
     try {
       process.env.OPL_CONTRACTS_DIR = fixtureContractsRoot;
       process.env.OPL_STATE_DIR = stateRoot;
-      descriptors = buildFamilyAgentDescriptorList(loadFrameworkContracts(), {
+      const contracts = loadFrameworkContracts();
+      cordisComposition = await createCordisBaseHeadlessComposition();
+      descriptors = buildFamilyAgentDescriptorList(contracts, {
+        domainManifests: cordisComposition.services.atlas(contracts, {
+          manifestCommandTimeoutMs: 100,
+        }),
         manifestCommandTimeoutMs: 100,
       });
     } finally {
+      await cordisComposition?.dispose();
       if (previousContractsDir === undefined) {
         delete process.env.OPL_CONTRACTS_DIR;
       } else {

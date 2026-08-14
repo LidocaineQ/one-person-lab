@@ -14,6 +14,19 @@ test('framework readiness exposes command-scoped help', () => {
   assert.match(scoped.help.usage, /framework readiness --family-defaults/);
 });
 
+test('framework readiness compact consumes Atlas-owned family repo inputs', () => {
+  const readback = runCli([
+    'framework',
+    'readiness',
+    '--family-defaults',
+    '--detail',
+    'compact',
+  ]).framework_readiness_compact;
+
+  assert.equal(readback.surface_kind, 'opl_framework_readiness_compact_readback');
+  assert.equal(readback.authority_boundary.can_claim_production_ready, false);
+});
+
 test('framework operating maturity exposes command-scoped help', () => {
   const scoped = runCli(['help', 'framework', 'operating-maturity']);
   assert.equal(scoped.help.command, 'framework operating-maturity');

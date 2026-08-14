@@ -389,7 +389,9 @@ export async function runFamilyRuntime(
   const parsed = parseFamilyRuntimeCommand(args);
   const paths = familyRuntimePaths();
   let loadedDomainManifests: ReturnType<typeof buildDomainManifestCatalog>['domain_manifests'] | null = null;
-  const domainManifests = () => {
+  const domainManifests = (
+    manifestOptions: Parameters<typeof buildDomainManifestCatalog>[1] = {},
+  ) => {
     loadedDomainManifests ??= (options.loadDomainManifests
       ?? ((contracts, manifestOptions) =>
         buildDomainManifestCatalog(contracts, manifestOptions).domain_manifests))(
@@ -399,12 +401,15 @@ export async function runFamilyRuntime(
         manifestCommandTimeoutPolicy: 'fixed',
         materializeFamilyTransitions: false,
         useProjectionCacheOnFailure: true,
+        ...manifestOptions,
       },
     );
     return loadedDomainManifests;
   };
-  const managedProviderProjection = () => readManagedProviderProjectionSummary({
-    domainManifests: domainManifests(),
+  const managedProviderProjection = (
+    manifestOptions: Parameters<typeof buildDomainManifestCatalog>[1] = {},
+  ) => readManagedProviderProjectionSummary({
+    domainManifests: domainManifests(manifestOptions),
   });
 
   // Worker lifecycle commands must remain operable while the runtime ledger is
@@ -476,10 +481,20 @@ export async function runFamilyRuntime(
       return { version: 'g2', family_runtime_stage_run_query: stage_run_query };
     }
     if (parsed.mode === 'status') {
-      return await buildFamilyRuntimeStatusPayload(db, paths, resolveFamilyRuntimeProviderKind(parsed.providerKind));
+      return await buildFamilyRuntimeStatusPayload(
+        db,
+        paths,
+        resolveFamilyRuntimeProviderKind(parsed.providerKind),
+        { managedProviderProjection: managedProviderProjection({ writeProjectionCache: false }) },
+      );
     }
     if (parsed.mode === 'doctor') {
-      const status = (await buildFamilyRuntimeStatusPayload(db, paths, resolveFamilyRuntimeProviderKind(parsed.providerKind))).family_runtime;
+      const status = (await buildFamilyRuntimeStatusPayload(
+        db,
+        paths,
+        resolveFamilyRuntimeProviderKind(parsed.providerKind),
+        { managedProviderProjection: managedProviderProjection({ writeProjectionCache: false }) },
+      )).family_runtime;
       return {
         version: 'g2',
         family_runtime_doctor: {

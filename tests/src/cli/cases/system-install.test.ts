@@ -1,6 +1,7 @@
 import { assert, contractsDir, createCodexConfigFixture, fs, loadFrameworkContracts, os, path, runCli, runCliFailure, test } from '../helpers.ts';
 import { buildInternalCommandSpecs } from '../../../../src/entrypoints/cli/cases/private-command-specs.ts';
 import { buildPublicCommandSpecs } from '../../../../src/entrypoints/cli/cases/public-command-specs.ts';
+import { createCordisBaseHeadlessComposition } from '../../../../src/entrypoints/cordis/composition-profiles.ts';
 import { parseTurnkeyInstallArgs } from '../../../../src/entrypoints/cli/modules/support.ts';
 import { OPL_GATEWAY_BASE_URL, readBundledCodexDefaultProfile } from '../../../../src/kernel/local-codex-defaults.ts';
 import { listDefaultOplDomainModuleSpecs } from '../../../../src/modules/connect/system-installation/modules.ts';
@@ -56,31 +57,37 @@ function assertBundledCodexModel(bootstrap: any, config: string) {
   );
 }
 
-test('public command specs expose the one-shot install command', () => {
+test('public command specs expose the one-shot install command', async () => {
   const contracts = loadFrameworkContracts({ contractsDir });
-  const internalSpecs = buildInternalCommandSpecs(
-    {
-      helpRequested: false,
-      jsonOutput: true,
-      textOutput: false,
-      command: null,
-      args: [],
-      loadOptions: { contractsDir },
-    },
-    () => contracts,
-  );
-  const publicSpecs = buildPublicCommandSpecs(internalSpecs, () => contracts);
+  const composition = await createCordisBaseHeadlessComposition();
+  try {
+    const internalSpecs = buildInternalCommandSpecs(
+      {
+        helpRequested: false,
+        jsonOutput: true,
+        textOutput: false,
+        command: null,
+        args: [],
+        loadOptions: { contractsDir },
+      },
+      () => contracts,
+      composition,
+    );
+    const publicSpecs = buildPublicCommandSpecs(internalSpecs, () => contracts, composition);
 
-  assert.equal(typeof publicSpecs.install.handler, 'function');
-  assert.deepEqual(parseTurnkeyInstallArgs([], publicSpecs.install), { headless: true });
-  assert.deepEqual(parseTurnkeyInstallArgs(['--with-app'], publicSpecs.install), {
-    headless: false,
-    withApp: true,
-  });
-  assert.throws(
-    () => parseTurnkeyInstallArgs(['--headless', '--with-app'], publicSpecs.install),
-    /--headless and --with-app are mutually exclusive\./,
-  );
+    assert.equal(typeof publicSpecs.install.handler, 'function');
+    assert.deepEqual(parseTurnkeyInstallArgs([], publicSpecs.install), { headless: true });
+    assert.deepEqual(parseTurnkeyInstallArgs(['--with-app'], publicSpecs.install), {
+      headless: false,
+      withApp: true,
+    });
+    assert.throws(
+      () => parseTurnkeyInstallArgs(['--headless', '--with-app'], publicSpecs.install),
+      /--headless and --with-app are mutually exclusive\./,
+    );
+  } finally {
+    await composition.dispose();
+  }
 });
 
 test('install rejects the retired --skip-modules alias', () => {

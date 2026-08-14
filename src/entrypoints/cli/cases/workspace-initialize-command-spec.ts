@@ -2,6 +2,7 @@ import {
   buildWorkspaceInitializeInterfaces,
   ensureWorkspace,
   initializeWorkspace,
+  type WorkspaceSkillProjectionRefresher,
 } from '../../../modules/workspace/workspace-initializer.ts';
 import {
   adoptWorkspace,
@@ -44,6 +45,9 @@ import type { CommandSpec } from '../modules/support.ts';
 
 export function buildWorkspaceInitializeCommandSpecs(
   getContracts: () => FrameworkContracts,
+  services: {
+    refreshWorkspaceSkills: WorkspaceSkillProjectionRefresher;
+  },
 ): Record<string, CommandSpec> {
   const agentUsage = getContracts().agentWorkspaceNorm.supported_agents.join('|');
   const specs: Record<string, CommandSpec> = {
@@ -72,6 +76,7 @@ export function buildWorkspaceInitializeCommandSpecs(
           bind: parsed.bind,
           dryRun: parsed.dryRun,
           force: parsed.force,
+          refreshWorkspaceSkills: services.refreshWorkspaceSkills,
         });
       },
     },
@@ -99,6 +104,7 @@ export function buildWorkspaceInitializeCommandSpecs(
           bind: parsed.bind,
           dryRun: parsed.dryRun,
           force: parsed.force,
+          refreshWorkspaceSkills: services.refreshWorkspaceSkills,
         });
       },
     },
@@ -171,6 +177,7 @@ export function buildWorkspaceInitializeCommandSpecs(
           mode: parsed.mode,
           dryRun: parsed.dryRun,
           apply: parsed.apply,
+          refreshWorkspaceSkills: services.refreshWorkspaceSkills,
         });
       },
     },

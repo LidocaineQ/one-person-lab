@@ -1,6 +1,7 @@
 import { FrameworkContractError, PassThrough, assert, buildManifestCommand, buildProjectProgressBrief, cliPath, contractsDir, createCodexConfigFixture, createContractsFixtureRoot, createFakeCodexFixture, createFakeLaunchctlFixture, createFakeOpenFixture, createFakeShellCommandFixture, createFamilyContractsFixtureRoot, createFamilyLocatorResolverFixture, createGitModuleRemoteFixture, createMasWorkspaceFixture, explainDomainBoundary, familyManifestFixtureDir, fs, loadFamilyManifestFixtures, loadFrameworkContracts, once, os, path, readJsonFixture, readJsonLine, repoRoot, resolveRequestSurface, runCli, runCliAsync, runCliFailure, runCliFailureInCwd, runCliInCwd, runCliRaw, runCliViaEntryPathInCwd, shellSingleQuote, spawn, startCliServer, startFakeOplApiServer, stopCliPipeChild, stopCliServer, stopHttpServer, test, validateFrameworkContracts, writeJsonLine, assertContractsContext, assertNoContractsProvenance, assertMagActionGraph, assertMasActionGraph, assertRedcubeActionGraph } from '../helpers.ts';
 import { buildInternalCommandSpecs } from '../../../../src/entrypoints/cli/cases/private-command-specs.ts';
 import { buildPublicCommandSpecs } from '../../../../src/entrypoints/cli/cases/public-command-specs.ts';
+import { createCordisBaseHeadlessComposition } from '../../../../src/entrypoints/cordis/composition-profiles.ts';
 import {
   familyStageDiagnosticLensCommands,
   familyStageDerivedLensByCommand,
@@ -22,6 +23,39 @@ const workspaceParserSpec = {
   usage: 'opl workspace test',
   examples: ['opl workspace test'],
 };
+
+async function withCordisCommandSpecs<T>(
+  contracts: ReturnType<typeof loadFrameworkContracts>,
+  run: (
+    internalSpecs: ReturnType<typeof buildInternalCommandSpecs>,
+    publicSpecs: ReturnType<typeof buildPublicCommandSpecs>,
+  ) => T | Promise<T>,
+) {
+  const composition = await createCordisBaseHeadlessComposition();
+  try {
+    const parsedInput = {
+      helpRequested: false,
+      jsonOutput: true,
+      textOutput: false,
+      command: null,
+      args: [],
+      loadOptions: { contractsDir },
+    };
+    const internalSpecs = buildInternalCommandSpecs(
+      parsedInput,
+      () => contracts,
+      composition,
+    );
+    const publicSpecs = buildPublicCommandSpecs(
+      internalSpecs,
+      () => contracts,
+      composition,
+    );
+    return await run(internalSpecs, publicSpecs);
+  } finally {
+    await composition.dispose();
+  }
+}
 
 test('workspace parsers preserve aliases, field mappings, and inline option values', () => {
   assert.deepEqual(parseWorkspaceInitializeArgs([
@@ -145,49 +179,37 @@ test('workspace parsers retain dry-run and apply precedence and mutual exclusion
   }
 });
 
-test('public and internal command specs no longer carry removed UI adapter command ids', () => {
+test('public and internal command specs no longer carry removed UI adapter command ids', async () => {
   const contracts = loadFrameworkContracts({ contractsDir });
-  const internalSpecs = buildInternalCommandSpecs(
-    {
-      helpRequested: false,
-      jsonOutput: true,
-      textOutput: false,
-      command: null,
-      args: [],
-      loadOptions: { contractsDir },
-    },
-    () => contracts,
-  );
-
-  assert.equal(
-    Object.keys(internalSpecs).some((key) => key.includes('product entry')),
-    false,
-  );
-
-  const publicSpecs = buildPublicCommandSpecs(internalSpecs, () => contracts);
-  assert.equal(
-    Object.keys(publicSpecs).some((key) => key.includes('product entry')),
-    false,
-  );
-  assert.equal(typeof publicSpecs.system.handler, 'function');
-  assert.equal(typeof publicSpecs['system docker-webui doctor'].handler, 'function');
-  assert.equal(publicSpecs['web bundle'], undefined);
-  assert.equal(publicSpecs['web package'], undefined);
-  assert.equal(publicSpecs['module install'], undefined);
-  assert.equal(typeof publicSpecs['connect install'].handler, 'function');
-  assert.equal(typeof publicSpecs['connect sync-skills'].handler, 'function');
-  assert.equal(typeof publicSpecs['connect packages manifest'].handler, 'function');
-  assert.equal(publicSpecs['connect reconcile-modules'], undefined);
-  assert.equal(publicSpecs['system reconcile-modules'], undefined);
-  assert.equal(typeof publicSpecs['connect scientific search'].handler, 'function');
-  assert.equal(typeof publicSpecs['update status'].handler, 'function');
-  assert.equal(typeof publicSpecs['update plan'].handler, 'function');
-  assert.equal(typeof publicSpecs['update apply'].handler, 'function');
-  assert.equal(typeof publicSpecs['foundry status'].handler, 'function');
-  assert.equal(typeof publicSpecs['foundry rollback'].handler, 'function');
-  assert.equal(publicSpecs['agents foundry status'], undefined);
-  assert.equal(typeof publicSpecs['engine install'].handler, 'function');
-  assert.equal(publicSpecs['service install'], undefined);
+  await withCordisCommandSpecs(contracts, (internalSpecs, publicSpecs) => {
+    assert.equal(
+      Object.keys(internalSpecs).some((key) => key.includes('product entry')),
+      false,
+    );
+    assert.equal(
+      Object.keys(publicSpecs).some((key) => key.includes('product entry')),
+      false,
+    );
+    assert.equal(typeof publicSpecs.system.handler, 'function');
+    assert.equal(typeof publicSpecs['system docker-webui doctor'].handler, 'function');
+    assert.equal(publicSpecs['web bundle'], undefined);
+    assert.equal(publicSpecs['web package'], undefined);
+    assert.equal(publicSpecs['module install'], undefined);
+    assert.equal(typeof publicSpecs['connect install'].handler, 'function');
+    assert.equal(typeof publicSpecs['connect sync-skills'].handler, 'function');
+    assert.equal(typeof publicSpecs['connect packages manifest'].handler, 'function');
+    assert.equal(publicSpecs['connect reconcile-modules'], undefined);
+    assert.equal(publicSpecs['system reconcile-modules'], undefined);
+    assert.equal(typeof publicSpecs['connect scientific search'].handler, 'function');
+    assert.equal(typeof publicSpecs['update status'].handler, 'function');
+    assert.equal(typeof publicSpecs['update plan'].handler, 'function');
+    assert.equal(typeof publicSpecs['update apply'].handler, 'function');
+    assert.equal(typeof publicSpecs['foundry status'].handler, 'function');
+    assert.equal(typeof publicSpecs['foundry rollback'].handler, 'function');
+    assert.equal(publicSpecs['agents foundry status'], undefined);
+    assert.equal(typeof publicSpecs['engine install'].handler, 'function');
+    assert.equal(publicSpecs['service install'], undefined);
+  });
 });
 
 test('current readiness projection is derived from current OPL surfaces', () => {
@@ -527,103 +549,66 @@ test('default help surface recommends stages readiness and hides diagnostic stag
   }
 });
 
-test('public stage diagnostic commands require centralized derived-lens registry declarations', () => {
+test('public stage diagnostic commands require centralized derived-lens registry declarations', async () => {
   const contracts = loadFrameworkContracts({ contractsDir });
-  const publicSpecs = buildPublicCommandSpecs(
-    buildInternalCommandSpecs(
-      {
-        helpRequested: false,
-        jsonOutput: true,
-        textOutput: false,
-        command: null,
-        args: [],
-        loadOptions: { contractsDir },
-      },
-      () => contracts,
-    ),
-    () => contracts,
-  );
-  const registeredDerivedLensCommands = new Set(familyStageDiagnosticLensCommands());
-  const supportDiagnosticCommands = new Set<string>();
-  const unregisteredDiagnosticCommands: string[] = [];
+  await withCordisCommandSpecs(contracts, (_internalSpecs, publicSpecs) => {
+    const registeredDerivedLensCommands = new Set(familyStageDiagnosticLensCommands());
+    const supportDiagnosticCommands = new Set<string>();
+    const unregisteredDiagnosticCommands: string[] = [];
 
-  for (const [command, spec] of Object.entries(publicSpecs)) {
-    if (
-      command.startsWith('stages ')
-      && spec.help_surface === 'diagnostic_drilldown'
-    ) {
-      if (registeredDerivedLensCommands.has(command)) {
-        assert.equal(familyStageDerivedLensByCommand(command)?.role, 'diagnostic_drilldown');
-      } else if (!supportDiagnosticCommands.has(command)) {
-        unregisteredDiagnosticCommands.push(command);
+    for (const [command, spec] of Object.entries(publicSpecs)) {
+      if (
+        command.startsWith('stages ')
+        && spec.help_surface === 'diagnostic_drilldown'
+      ) {
+        if (registeredDerivedLensCommands.has(command)) {
+          assert.equal(familyStageDerivedLensByCommand(command)?.role, 'diagnostic_drilldown');
+        } else if (!supportDiagnosticCommands.has(command)) {
+          unregisteredDiagnosticCommands.push(command);
+        }
       }
     }
-  }
 
-  assert.deepEqual(
-    unregisteredDiagnosticCommands,
-    [],
-    'Public stage diagnostic commands must be registered derived lenses or explicit support diagnostics.',
-  );
+    assert.deepEqual(
+      unregisteredDiagnosticCommands,
+      [],
+      'Public stage diagnostic commands must be registered derived lenses or explicit support diagnostics.',
+    );
 
-  for (const command of familyStageDiagnosticLensCommands()) {
-    assert.equal(publicSpecs[command]?.help_surface, 'diagnostic_drilldown');
-  }
+    for (const command of familyStageDiagnosticLensCommands()) {
+      assert.equal(publicSpecs[command]?.help_surface, 'diagnostic_drilldown');
+    }
+  });
 });
 
-test('public stage commands keep readiness as the only default operator surface', () => {
+test('public stage commands keep readiness as the only default operator surface', async () => {
   const contracts = loadFrameworkContracts({ contractsDir });
-  const publicSpecs = buildPublicCommandSpecs(
-    buildInternalCommandSpecs(
-      {
-        helpRequested: false,
-        jsonOutput: true,
-        textOutput: false,
-        command: null,
-        args: [],
-        loadOptions: { contractsDir },
-      },
-      () => contracts,
-    ),
-    () => contracts,
-  );
-  const defaultStageCommands = Object.entries(publicSpecs)
-    .filter(([command, spec]) => command.startsWith('stages ') && spec.help_surface !== 'diagnostic_drilldown')
-    .map(([command]) => command);
+  await withCordisCommandSpecs(contracts, (_internalSpecs, publicSpecs) => {
+    const defaultStageCommands = Object.entries(publicSpecs)
+      .filter(([command, spec]) => command.startsWith('stages ') && spec.help_surface !== 'diagnostic_drilldown')
+      .map(([command]) => command);
 
-  assert.deepEqual(defaultStageCommands, [
-    'stages list',
-    'stages inspect',
-    'stages readiness',
-  ]);
+    assert.deepEqual(defaultStageCommands, [
+      'stages list',
+      'stages inspect',
+      'stages readiness',
+    ]);
+  });
 });
 
-test('public specs do not reintroduce budget and validity lenses as default stage entries', () => {
+test('public specs do not reintroduce budget and validity lenses as default stage entries', async () => {
   const contracts = loadFrameworkContracts({ contractsDir });
-  const publicSpecs = buildPublicCommandSpecs(
-    buildInternalCommandSpecs(
-      {
-        helpRequested: false,
-        jsonOutput: true,
-        textOutput: false,
-        command: null,
-        args: [],
-        loadOptions: { contractsDir },
-      },
-      () => contracts,
-    ),
-    () => contracts,
-  );
-
-  for (const command of [
-    'stages capacity-budget',
-    'stages domain-validity',
-    'stages guarantee',
-    'stages property',
-    'stages isolation',
-  ]) {
-    assert.equal(publicSpecs[command], undefined, `${command} must not be a public default entrypoint`);
-  }
+  await withCordisCommandSpecs(contracts, (_internalSpecs, publicSpecs) => {
+    for (const command of [
+      'stages capacity-budget',
+      'stages domain-validity',
+      'stages guarantee',
+      'stages property',
+      'stages isolation',
+    ]) {
+      assert.equal(publicSpecs[command], undefined, `${command} must not be a public default entrypoint`);
+    }
+  });
 });
 
 test('removed UI adapter command surfaces are not retained as compatibility aliases', () => {

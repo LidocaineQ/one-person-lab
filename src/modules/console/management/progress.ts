@@ -1,6 +1,6 @@
 import { buildWorkspaceCatalog } from '../../workspace/index.ts';
 import type { FrameworkContracts } from '../../../kernel/types.ts';
-import { buildDomainManifestCatalog } from '../../atlas/index.ts';
+import type { CordisAtlasCatalogService } from '../../atlas/index.ts';
 
 import {
   buildConfiguredHumanGates,
@@ -24,11 +24,11 @@ import { buildRuntimeStatus } from './workspace-runtime.ts';
 
 export async function buildProjectProgressBrief(
   contracts: FrameworkContracts,
-  options: DashboardOptions = {},
+  options: DashboardOptions & { atlas: CordisAtlasCatalogService },
 ) {
   const workspacePath = normalizeWorkspacePath(options.workspacePath);
   const workspaceCatalog = buildWorkspaceCatalog(contracts).workspace_catalog;
-  const domainManifests = buildDomainManifestCatalog(contracts).domain_manifests;
+  const domainManifests = options.atlas(contracts);
   const readiness = buildCurrentReadinessProjection(domainManifests.projects, workspaceCatalog);
   const runtimeStatus = (await buildRuntimeStatus({
     sessionsLimit: options.sessionsLimit,

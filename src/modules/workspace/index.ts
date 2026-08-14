@@ -18,7 +18,11 @@ export {
   materializeFindings,
   validateWorkspace,
 } from './workspace-diagnostics.ts';
-export { ensureWorkspace, initializeWorkspace } from './workspace-initializer.ts';
+export {
+  ensureWorkspace,
+  initializeWorkspace,
+  type WorkspaceSkillProjectionRefresher,
+} from './workspace-initializer.ts';
 export { archiveWorkspaceProject, deleteWorkspaceProject, exportWorkspaceMap, inspectWorkspace, updateWorkspaceProjectLifecycle, upgradeWorkspace, workspaceFleetReport, workspaceHealth, workspaceInventory, workspaceReport } from './workspace-lifecycle.ts';
 export { ingestWorkspaceSourceMaterial } from './workspace-source-material.ts';
 export {

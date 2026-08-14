@@ -200,6 +200,10 @@ test('workspace upgrade restores repairable project unit protocol refs without m
 test('workspace doctor repairs MAS alias drift and blocks invalid stage lifecycle drift', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-workspace-project-drift-state-'));
   const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-workspace-project-drift-root-'));
+  const cliEnv = {
+    OPL_STATE_DIR: stateRoot,
+    OPL_MODULES_ROOT: path.join(stateRoot, 'modules'),
+  };
 
   try {
     runCli([
@@ -213,9 +217,7 @@ test('workspace doctor repairs MAS alias drift and blocks invalid stage lifecycl
       'dm-cvd',
       '--project-id',
       'DM002',
-    ], {
-      OPL_STATE_DIR: stateRoot,
-    });
+    ], cliEnv);
 
     const workspacePath = path.join(workspaceRoot, 'dm-cvd');
     const workspaceIndexPath = path.join(workspacePath, 'workspace_index.json');
@@ -225,9 +227,7 @@ test('workspace doctor repairs MAS alias drift and blocks invalid stage lifecycl
     workspaceIndex.projects[0].canonical_semantics.domain_alias_is_canonical = true;
     fs.writeFileSync(workspaceIndexPath, `${JSON.stringify(workspaceIndex, null, 2)}\n`);
 
-    const aliasDrift = runCli(['workspace', 'doctor', '--workspace', workspacePath], {
-      OPL_STATE_DIR: stateRoot,
-    });
+    const aliasDrift = runCli(['workspace', 'doctor', '--workspace', workspacePath], cliEnv);
     assert.equal(aliasDrift.workspace_doctor.status, 'repairable');
     assert.deepEqual(aliasDrift.workspace_doctor.blockers, []);
     assert.equal(
@@ -237,9 +237,7 @@ test('workspace doctor repairs MAS alias drift and blocks invalid stage lifecycl
       true,
     );
 
-    const restored = runCli(['workspace', 'upgrade', '--workspace', workspacePath, '--apply'], {
-      OPL_STATE_DIR: stateRoot,
-    });
+    const restored = runCli(['workspace', 'upgrade', '--workspace', workspacePath, '--apply'], cliEnv);
     assert.equal(restored.workspace_upgrade.status, 'applied');
     const currentPointerPath = path.join(
       workspacePath,
@@ -257,9 +255,7 @@ test('workspace doctor repairs MAS alias drift and blocks invalid stage lifecycl
     currentPointer.authority_boundary.pointer_can_write_stage_run_current_pointer = true;
     fs.writeFileSync(currentPointerPath, `${JSON.stringify(currentPointer, null, 2)}\n`);
 
-    const stageDrift = runCli(['workspace', 'doctor', '--workspace', workspacePath], {
-      OPL_STATE_DIR: stateRoot,
-    });
+    const stageDrift = runCli(['workspace', 'doctor', '--workspace', workspacePath], cliEnv);
     assert.equal(stageDrift.workspace_doctor.status, 'blocked');
     assert.equal(
       stageDrift.workspace_doctor.blockers.some((entry: { code: string }) => (

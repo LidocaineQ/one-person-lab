@@ -13,6 +13,7 @@ import {
   runCli,
   test,
 } from '../helpers.ts';
+import { createCordisBaseHeadlessComposition } from '../../../../src/entrypoints/cordis/composition-profiles.ts';
 
 test('project progress consumes the domain-owned operator projection without interpreting paper artifacts', async () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-project-progress-'));
@@ -85,15 +86,21 @@ test('project progress consumes the domain-owned operator projection without int
     const previousStateDir = process.env.OPL_STATE_DIR;
     const previousContractsDir = process.env.OPL_CONTRACTS_DIR;
     let brief;
+    const composition = await createCordisBaseHeadlessComposition();
     try {
       process.argv[1] = cliPath;
       process.env.OPL_STATE_DIR = stateRoot;
       process.env.OPL_CONTRACTS_DIR = fixtureContractsRoot;
       brief = await buildProjectProgressBrief(
         loadFrameworkContracts({ contractsDir: fixtureContractsRoot }),
-        { workspacePath: workspace.fixtureRoot, sessionsLimit: 1 },
+        {
+          workspacePath: workspace.fixtureRoot,
+          sessionsLimit: 1,
+          atlas: composition.services.atlas,
+        },
       );
     } finally {
+      await composition.dispose();
       process.argv[1] = previousArgv;
       previousStateDir === undefined
         ? delete process.env.OPL_STATE_DIR

@@ -3,15 +3,19 @@ import {
   runStandardAgentAction,
   runStandardAgentQualificationProvisioning,
 } from '../../../../modules/runway/standard-agent-action-runtime.ts';
+import { resolveStandardAgentManagedCheckout } from '../../../../modules/runway/standard-agent-managed-checkout.ts';
+import type { WorkspaceSkillProjectionRefresher } from '../../../../modules/workspace/index.ts';
 import type { CommandSpec } from '../../modules/support.ts';
 import { parseAgentsRunArgs } from './agents-run.ts';
 
 type PrivateAgentCommandSpecsOptions = {
   getCommandSpecs: () => Record<string, CommandSpec>;
+  refreshWorkspaceSkills: WorkspaceSkillProjectionRefresher;
 };
 
 export function buildPrivateAgentCommandSpecs({
   getCommandSpecs,
+  refreshWorkspaceSkills,
 }: PrivateAgentCommandSpecsOptions): Record<string, CommandSpec> {
   return {
     'agents run': {
@@ -23,9 +27,17 @@ export function buildPrivateAgentCommandSpecs({
       ],
       handler: (args) => {
         const input = parseAgentsRunArgs(args, getCommandSpecs()['agents run']);
+        const dependencies = {
+          resolveManagedCheckout: (
+            checkoutInput: Parameters<typeof resolveStandardAgentManagedCheckout>[0],
+          ) => resolveStandardAgentManagedCheckout({
+            ...checkoutInput,
+            refreshWorkspaceSkills,
+          }),
+        };
         return input.actionId === QUALIFICATION_PROVISIONING_ACTION_ID
-          ? runStandardAgentQualificationProvisioning(input)
-          : runStandardAgentAction(input);
+          ? runStandardAgentQualificationProvisioning(input, dependencies)
+          : runStandardAgentAction(input, dependencies);
       },
     },
   };

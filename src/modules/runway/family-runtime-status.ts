@@ -21,12 +21,16 @@ export async function buildFamilyRuntimeStatusPayload(
   db: DatabaseSync,
   paths = familyRuntimePaths(),
   requestedProvider = resolveFamilyRuntimeProviderKind(),
+  options: {
+    managedProviderProjection?: ReturnType<typeof readManagedProviderProjectionSummary>;
+  } = {},
 ) {
   const { selectedProvider, providerRuntime, provider } = await inspectSelectedFamilyRuntimeProvidersWithLifecycle({
     requestedProvider,
     paths,
     options: {
-      managedProviderProjection: readManagedProviderProjectionSummary(),
+      managedProviderProjection:
+        options.managedProviderProjection ?? readManagedProviderProjectionSummary(),
     },
   });
   const fullOnlineReady = selectedProvider === 'temporal' && provider.ready;

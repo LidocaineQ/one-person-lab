@@ -246,9 +246,10 @@ test('managed checkout resolver rejects a non-installed configured carrier even 
   }
 });
 
-test('managed checkout resolver ensures a missing workspace without materializing local policy or Skills', async () => {
+test('managed checkout resolver ensures a missing workspace through the composed Skill refresher', async () => {
   const { root, workspaceRoot, checkoutRoot } = fixture();
   const previousStateDir = process.env.OPL_STATE_DIR;
+  const refreshedPackages: string[] = [];
   try {
     fs.rmSync(workspaceRoot, { recursive: true, force: true });
     process.env.OPL_STATE_DIR = path.join(root, 'opl-state');
@@ -257,6 +258,10 @@ test('managed checkout resolver ensures a missing workspace without materializin
       domainId: 'mas',
       workspaceRoot,
       packageReadiness: packageReadiness(status(checkoutRoot)),
+      refreshWorkspaceSkills: (input) => {
+        refreshedPackages.push(input.packageId);
+        return { status: 'not_installed' };
+      },
     });
 
     assert.equal(result.workspace_root, fs.realpathSync(workspaceRoot));
@@ -264,6 +269,8 @@ test('managed checkout resolver ensures a missing workspace without materializin
     assert.equal(result.workspace_initialization.workspace_path, path.resolve(workspaceRoot));
     assert.equal(fs.existsSync(path.join(workspaceRoot, 'workspace.yaml')), true);
     assert.equal(fs.existsSync(path.join(workspaceRoot, 'workspace_index.json')), true);
+    assert.deepEqual(refreshedPackages, ['mas']);
+    assert.equal(result.workspace_initialization.workspace_skill_projection.status, 'not_installed');
     assert.equal(fs.existsSync(path.join(workspaceRoot, 'AGENTS.md')), false);
     assert.equal(fs.existsSync(path.join(workspaceRoot, 'skills')), false);
     assert.equal(fs.existsSync(path.join(workspaceRoot, '.agents', 'skills')), false);

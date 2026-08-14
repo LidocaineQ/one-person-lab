@@ -163,6 +163,12 @@ test('GitHub verification workflow runs daily or manually without per-change dup
 
 test('GitHub verification workflow runs build and JavaScript test gates', () => {
   assertFilePatterns('.github/workflows/verify.yml', verifyWorkflowBuildAndJsLanePatterns);
+  const workflow = read('.github/workflows/verify.yml');
+  assert.equal(
+    [...workflow.matchAll(/uses: actions\/checkout@/g)].length,
+    [...workflow.matchAll(/fetch-depth: 0/g)].length,
+    'Every Verify checkout must retain history for source identity and ancestry gates.',
+  );
 });
 
 test('GitHub verification workflow runs native and local structure gates', () => {

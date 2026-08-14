@@ -30,6 +30,7 @@ import {
   reconcileManagedComputerUse,
   type ManagedComputerUseActionId,
   type CordisConnectDescriptorDiscoveryService,
+  refreshInstalledAgentPackageWorkspaceSkills,
 } from '../../connect/index.ts';
 import { runOplSystemAction } from '../../connect/index.ts';
 import { writeOplWorkspaceRootSurface } from '../../connect/index.ts';
@@ -173,6 +174,15 @@ async function executeDirectAppAction(
     familyRuntime: typeof runFamilyRuntime;
   },
 ) {
+  const refreshWorkspaceSkills = (
+    input: Omit<
+      Parameters<typeof refreshInstalledAgentPackageWorkspaceSkills>[0],
+      'descriptorDiscovery'
+    >,
+  ) => refreshInstalledAgentPackageWorkspaceSkills({
+    ...input,
+    descriptorDiscovery: services.descriptorDiscovery,
+  });
   const connectionAction = await executeConnectionAppAction(options);
   if (connectionAction) return connectionAction;
 
@@ -524,7 +534,7 @@ async function executeDirectAppAction(
           actionId: 'workspace_health',
           payload: { workspace_path: workspacePath },
           dryRun: false,
-        })?.result,
+        }, { refreshWorkspaceSkills })?.result,
     };
   }
 
@@ -764,7 +774,9 @@ async function executeDirectAppAction(
     };
   }
 
-  const workspaceAction = executeWorkspaceAppAction(contracts, options);
+  const workspaceAction = executeWorkspaceAppAction(contracts, options, {
+    refreshWorkspaceSkills,
+  });
   if (workspaceAction) {
     return workspaceAction;
   }

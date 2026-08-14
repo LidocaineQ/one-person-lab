@@ -265,7 +265,7 @@ export function buildPublicCommandSpecs(
   const loadAgentDescriptorsForPackCompiler = () =>
     buildFamilyAgentDescriptorList(getContracts(), {
       domainManifests: withStandardDomainAgentSkeletonInspection(
-        loadStandardAgentDomainManifests({
+        loadDomainManifests({
           manifestCommandTimeoutMs: 120_000,
           manifestCommandTimeoutPolicy: 'fixed',
         }),
@@ -678,6 +678,7 @@ export function buildPublicCommandSpecs(
       ],
       group: 'domain',
       handler: (args) => runFamilyAgentLegacyCleanupApply(getContracts(), args, {
+        domainManifests: loadDomainManifests(),
         providerPort: familyAgentProviderPort,
         lifecyclePort: familyAgentLifecyclePort,
       }),

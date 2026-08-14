@@ -69,9 +69,17 @@ export type WorkspaceInitializeOptions = {
   dryRun?: boolean;
   force?: boolean;
   packageReadiness?: AgentPackageReadinessPort;
+  refreshWorkspaceSkills: WorkspaceSkillProjectionRefresher;
 };
 
 export type WorkspaceEnsureOptions = WorkspaceInitializeOptions;
+
+export type WorkspaceSkillProjectionRefresher = (input: {
+  packageId: string;
+  packageStatus?: any;
+  targetWorkspace?: string | null;
+  dryRun?: boolean;
+}) => Record<string, unknown>;
 
 function normalizeRequiredSegment(value: string, field: string) {
   const trimmed = value.trim();
@@ -154,6 +162,7 @@ function refreshWorkspaceProfessionalSkills(input: {
   workspacePath: string;
   dryRun: boolean;
   packageReadiness?: AgentPackageReadinessPort;
+  refreshWorkspaceSkills: WorkspaceSkillProjectionRefresher;
 }) {
   const port = input.packageReadiness ?? requireAgentPackageReadinessPort();
   const packageStatus = port.readStatus({
@@ -161,12 +170,12 @@ function refreshWorkspaceProfessionalSkills(input: {
     scope: 'workspace',
     targetWorkspace: input.workspacePath,
   }).opl_agent_package_status;
-  return port.refreshWorkspaceSkills?.({
+  return input.refreshWorkspaceSkills({
     packageId: input.packageId,
     packageStatus,
     targetWorkspace: input.workspacePath,
     dryRun: input.dryRun,
-  }) ?? null;
+  });
 }
 
 function assertWritableMetadataPath(filePath: string, force: boolean | undefined) {
@@ -652,6 +661,7 @@ export function initializeWorkspace(
     workspacePath,
     dryRun: options.dryRun === true,
     packageReadiness: options.packageReadiness,
+    refreshWorkspaceSkills: options.refreshWorkspaceSkills,
   });
 
   return {
@@ -836,6 +846,7 @@ export function ensureWorkspace(
       workspacePath: activeWorkspacePath,
       dryRun: options.dryRun === true,
       packageReadiness: options.packageReadiness,
+      refreshWorkspaceSkills: options.refreshWorkspaceSkills,
     });
     return {
       version: 'g2',

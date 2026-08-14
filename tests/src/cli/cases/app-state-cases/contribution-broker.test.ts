@@ -14,6 +14,7 @@ import {
   runAppContribution,
 } from '../../../../../src/modules/console/app-contribution-broker.ts';
 import type { InstalledPackageDescriptor } from '../../../../../src/modules/connect/agent-package-registry-parts/installed-codex-plugin-directory.ts';
+import { FrameworkContractError } from '../../../../../src/kernel/contract-validation.ts';
 import { formatJsonPayload } from '../../../../../src/kernel/json-file.ts';
 import { createFakeCodexFixture } from '../../helpers-parts/fixtures.ts';
 
@@ -178,6 +179,20 @@ test('generic broker reads a dynamically installed descriptor contribution witho
     fs.rmSync(fixture.root, { recursive: true, force: true });
     fs.rmSync(stateDir, { recursive: true, force: true });
   }
+});
+
+test('generic broker requires an explicitly composed Connect discovery service', () => {
+  assert.throws(
+    () => runAppContribution({
+      packageId: 'future-contribution-package',
+      ref: 'future.data.v1#current',
+      operation: 'read',
+      input: {},
+      confirmed: false,
+    }),
+    (error: unknown) => error instanceof FrameworkContractError
+      && error.details?.failure_code === 'cordis_connect_descriptor_discovery_service_required',
+  );
 });
 
 test('generic broker rejects undeclared refs and confirmation-gates owner actions before invocation', () => {

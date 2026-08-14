@@ -18,6 +18,12 @@ export type LaunchDomainEntryOptions = {
     resolve(projectId: string, explicitWorkspacePath?: string): WorkspaceLocator;
   };
   atlas?: CordisAtlasCatalogService;
+  refreshWorkspaceSkills: (input: {
+    packageId: string;
+    packageStatus?: any;
+    targetWorkspace?: string | null;
+    dryRun?: boolean;
+  }) => Record<string, unknown>;
   strategy?: DomainLaunchStrategy;
   dryRun?: boolean;
 };
@@ -166,18 +172,17 @@ export async function launchDomainEntry(
     ?? resolveStandardAgent(domain.project);
   const workspaceSkillProjection = standardAgent
     ? (() => {
-        const port = requireAgentPackageReadinessPort();
-        const packageStatus = port.readStatus({
+        const packageStatus = requireAgentPackageReadinessPort().readStatus({
           packageId: standardAgent.agent_id,
           scope: 'workspace',
           targetWorkspace: workspaceLocator.absolute_path,
         }).opl_agent_package_status;
-        return port.refreshWorkspaceSkills?.({
+        return options.refreshWorkspaceSkills({
           packageId: standardAgent.agent_id,
           packageStatus,
           targetWorkspace: workspaceLocator.absolute_path,
           dryRun: options.dryRun === true,
-        }) ?? null;
+        });
       })()
     : null;
   if (workspaceSkillProjection

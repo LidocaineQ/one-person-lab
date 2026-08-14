@@ -12,6 +12,7 @@ import { syncOplCompanionSkills } from '../../../modules/connect/install-compani
 import { readFamilySkillPacks, syncFamilySkillPacks } from '../../../modules/connect/opl-skills.ts';
 import {
   canonicalAgentPackageId,
+  refreshInstalledAgentPackageWorkspaceSkills,
   runOplAgentPackageStatus,
 } from '../../../modules/connect/index.ts';
 import { buildSessionLedger } from '../../../modules/runway/session-ledger.ts';
@@ -83,6 +84,15 @@ export function buildInternalCommandSpecs(
   cordis?: CordisCliComposition,
 ): Record<string, CommandSpec> {
   const composition = requireCordisComposition(cordis);
+  const refreshWorkspaceSkills = (
+    input: Omit<
+      Parameters<typeof refreshInstalledAgentPackageWorkspaceSkills>[0],
+      'descriptorDiscovery'
+    >,
+  ) => refreshInstalledAgentPackageWorkspaceSkills({
+    ...input,
+    descriptorDiscovery: composition.services.descriptorDiscovery,
+  });
   const runtimeSnapshotProvider: typeof buildRuntimeTraySnapshot = (contracts, options = {}) =>
     buildRuntimeTraySnapshot(contracts, {
       ...options,
@@ -266,8 +276,9 @@ export function buildInternalCommandSpecs(
       getContracts,
       familyRuntime: composition.services.familyRuntime,
       runtimeSnapshotProvider,
+      atlas: composition.services.atlas,
     }),
-    ...buildPrivateAgentCommandSpecs({ getCommandSpecs }),
+    ...buildPrivateAgentCommandSpecs({ getCommandSpecs, refreshWorkspaceSkills }),
     'status dashboard': {
       usage: 'opl status dashboard [--path <workspace_path>] [--sessions-limit <n>]',
       summary: 'Aggregate the current OPL product-runtime view across projects, workspace, and runtime.',
@@ -421,6 +432,7 @@ export function buildInternalCommandSpecs(
           workspacePath: parsed.workspacePath,
           workspaceLocator: composition.services.workspaceLocator,
           atlas: composition.services.atlas,
+          refreshWorkspaceSkills,
           strategy: parsed.strategy,
           dryRun: parsed.dryRun,
         });
@@ -580,7 +592,7 @@ resume: {
         return buildOplWorkspaceRootSurface();
       },
     },
-    ...buildWorkspaceInitializeCommandSpecs(getContracts),
+    ...buildWorkspaceInitializeCommandSpecs(getContracts, { refreshWorkspaceSkills }),
     'workspace-bind': {
       usage:
         'opl workspace bind --project <project_id> --path <workspace_path> [--label <label>] [--entry-command <command>] [--manifest-command <command>] [--entry-url <url>] [--workspace-root <dir>] [--profile <file>] [--input <file>]',

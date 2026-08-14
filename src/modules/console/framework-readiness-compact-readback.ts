@@ -3,6 +3,8 @@ import type { CordisOwnerDeltaObserverService } from '../ledger/index.ts';
 import {
   buildStandardAgentDomainManifestCatalog,
   buildDomainManifestCatalog,
+  defaultStandardDomainAgentRepoInputs,
+  DEFAULT_STANDARD_DOMAIN_AGENT_REPOS,
 } from '../atlas/index.ts';
 import { buildDomainPackCompilerList } from '../pack/index.ts';
 import {
@@ -118,9 +120,11 @@ async function buildFrameworkReadinessCompactCoreModel(
   const generatedDefaultEntrySourceOfWork =
     record(record(agentReadiness).generated_default_entry_source_of_work);
   const { domainManifests, standardAgentDomainManifests } = options;
-  const packCompiler = record(
-    buildDomainPackCompilerList(contracts, { familyDefaults: true }).domain_pack_compiler,
-  );
+  const packCompiler = record(buildDomainPackCompilerList(contracts, {
+    familyDefaults: true,
+    familyRepoInputs: defaultStandardDomainAgentRepoInputs(),
+    defaultRepoDirectories: DEFAULT_STANDARD_DOMAIN_AGENT_REPOS.map((repo) => repo.directory),
+  }).domain_pack_compiler);
   const familyStages = record(buildFamilyStagesList(
     contracts,
     { domainManifests: standardAgentDomainManifests },

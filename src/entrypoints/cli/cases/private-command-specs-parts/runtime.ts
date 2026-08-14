@@ -1,6 +1,7 @@
 import { FrameworkContractError } from '../../../../modules/charter/contracts.ts';
 import { buildRuntimeTraySnapshot } from '../../../../modules/console/runtime-tray-snapshot.ts';
 import { buildRuntimeStatus, buildWorkspaceStatus } from '../../../../modules/console/management/workspace-runtime.ts';
+import type { CordisAtlasCatalogService } from '../../../../modules/atlas/index.ts';
 import { buildMemoryArtifactLifecycleReadback } from '../../../../modules/ledger/memory-artifact-lifecycle-readback.ts';
 import {
   applyProviderClosureEvidence,
@@ -63,6 +64,7 @@ type PrivateRuntimeCommandSpecsOptions = {
   getContracts: () => FrameworkContracts;
   familyRuntime: typeof runFamilyRuntime;
   runtimeSnapshotProvider: typeof buildRuntimeTraySnapshot;
+  atlas: CordisAtlasCatalogService;
 };
 
 export function buildPrivateRuntimeCommandSpecs({
@@ -70,6 +72,7 @@ export function buildPrivateRuntimeCommandSpecs({
   getContracts,
   familyRuntime,
   runtimeSnapshotProvider,
+  atlas,
 }: PrivateRuntimeCommandSpecsOptions): Record<string, CommandSpec> {
   return {
     'status workspace': {
@@ -350,6 +353,7 @@ export function buildPrivateRuntimeCommandSpecs({
           contracts,
           cleanupArgs,
           {
+            domainManifests: atlas(contracts),
             providerPort: {
               readProviderContinuousProof,
               providerClosureEvidence,

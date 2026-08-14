@@ -17,6 +17,7 @@ import {
   workspaceReport,
 } from '../workspace/index.ts';
 import { ensureWorkspace, initializeWorkspace } from '../workspace/index.ts';
+import type { WorkspaceSkillProjectionRefresher } from '../workspace/index.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
 
 type JsonRecord = Record<string, unknown>;
@@ -109,6 +110,9 @@ function workspaceProjectLifecyclePayload(payload: JsonRecord, actionId: string)
 export function executeWorkspaceAppAction(
   contracts: FrameworkContracts,
   options: WorkspaceAppActionOptions,
+  services: {
+    refreshWorkspaceSkills: WorkspaceSkillProjectionRefresher;
+  },
 ) {
   if (options.actionId === 'workspace_initialize') {
     return {
@@ -116,6 +120,7 @@ export function executeWorkspaceAppAction(
       result: initializeWorkspace(contracts, {
         ...workspaceInitializePayload(options.payload, options.actionId),
         dryRun: options.dryRun,
+        refreshWorkspaceSkills: services.refreshWorkspaceSkills,
       }),
     };
   }
@@ -126,6 +131,7 @@ export function executeWorkspaceAppAction(
       result: ensureWorkspace(contracts, {
         ...workspaceInitializePayload(options.payload, options.actionId),
         dryRun: options.dryRun,
+        refreshWorkspaceSkills: services.refreshWorkspaceSkills,
       }),
     };
   }
@@ -154,6 +160,7 @@ export function executeWorkspaceAppAction(
       result: adoptWorkspace(contracts, {
         ...workspaceInitializePayload(options.payload, options.actionId),
         dryRun: true,
+        refreshWorkspaceSkills: services.refreshWorkspaceSkills,
       }),
     };
   }
@@ -165,6 +172,7 @@ export function executeWorkspaceAppAction(
         ...workspaceInitializePayload(options.payload, options.actionId),
         apply: options.dryRun !== true,
         dryRun: options.dryRun === true,
+        refreshWorkspaceSkills: services.refreshWorkspaceSkills,
       }),
     };
   }

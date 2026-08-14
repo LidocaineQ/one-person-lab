@@ -4,7 +4,10 @@ import path from 'node:path';
 import { FrameworkContractError } from '../../../kernel/contract-validation.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import type { FrameworkContracts } from '../../../kernel/types.ts';
-import { initializeWorkspace } from '../workspace-initializer.ts';
+import {
+  initializeWorkspace,
+  type WorkspaceSkillProjectionRefresher,
+} from '../workspace-initializer.ts';
 import { normalizeWorkspaceProjectEntry } from '../workspace-artifacts.ts';
 import {
   buildCanonicalTopology,
@@ -37,6 +40,7 @@ export type WorkspaceAdoptOptions = {
   mode?: WorkspaceModeInput;
   dryRun?: boolean;
   apply?: boolean;
+  refreshWorkspaceSkills: WorkspaceSkillProjectionRefresher;
 };
 
 function normalizeRequiredSegment(value: string, field: string) {
@@ -186,6 +190,7 @@ export function adoptWorkspace(
       mode: options.mode,
       bind: false,
       force: false,
+      refreshWorkspaceSkills: options.refreshWorkspaceSkills,
     });
     return {
       version: 'g2',

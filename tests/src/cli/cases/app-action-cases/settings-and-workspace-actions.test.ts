@@ -102,6 +102,10 @@ test('app action execute owns settings, release channel, workspace root, and pro
     assert.equal(workspaceInitialize.delegated_surface, 'opl workspace init');
     assert.equal(workspaceInitialize.result.workspace_initialization.dry_run, true);
     assert.equal(workspaceInitialize.result.workspace_initialization.agent.agent_id, 'rca');
+    assert.equal(
+      workspaceInitialize.result.workspace_initialization.workspace_skill_projection.status,
+      'not_installed',
+    );
     assert.equal(workspaceInitialize.result.workspace_initialization.interface_projection.mcp.tool_name, 'opl_workspace_ensure');
     assert.equal(workspaceInitialize.result.workspace_initialization.interface_projection.mcp.descriptor_only, true);
     assert.equal(workspaceInitialize.result.workspace_initialization.workspace_norm.norm_id, 'opl.agent_workspace_norm.v1');
@@ -155,6 +159,10 @@ test('app action execute owns settings, release channel, workspace root, and pro
 
     assert.equal(magEnsure.delegated_surface, 'opl workspace ensure');
     assert.equal(magEnsure.result.workspace_initialization.action, 'ensure');
+    assert.equal(
+      magEnsure.result.workspace_initialization.workspace_skill_projection.status,
+      'not_installed',
+    );
     assert.equal(magEnsure.result.workspace_initialization.ensure_status, 'reused_active_binding');
     assert.equal(magEnsure.result.workspace_initialization.binding.project_id, 'medautogrant');
     assert.equal(

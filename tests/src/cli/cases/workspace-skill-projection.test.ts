@@ -89,6 +89,20 @@ test('installed Skill refresh consumes the Connect descriptor discovery service'
   assert.equal(result.writes_performed, false);
 });
 
+test('installed Skill refresh rejects an implicit descriptor discovery path', () => {
+  assert.throws(
+    () => refreshInstalledAgentPackageWorkspaceSkills({
+      packageId: 'future-agent',
+      packageStatus: {
+        installed_package_count: 1,
+        launch_allowed: true,
+      },
+    }),
+    (error: unknown) => error instanceof FrameworkContractError
+      && error.details?.failure_code === 'cordis_connect_descriptor_discovery_service_required',
+  );
+});
+
 test('all five standard Agents project their complete professional Skill closure without primary Skills', () => {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-standard-agent-skill-closure-'));
   const stateRoot = path.join(fixtureRoot, 'state');

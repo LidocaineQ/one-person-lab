@@ -11,6 +11,7 @@ import {
 } from '../helpers.ts';
 import { loadFrameworkContracts } from '../../../../src/modules/charter/contracts.ts';
 import { buildRuntimeTraySnapshot } from '../../../../src/modules/console/runtime-tray-snapshot.ts';
+import { createCordisBaseHeadlessComposition } from '../../../../src/entrypoints/cordis/composition-profiles.ts';
 
 test('runtime tray summary can use a non-authoritative manifest projection cache when live manifest is slow', async () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-drilldown-cache-state-'));
@@ -53,9 +54,18 @@ test('runtime tray summary can use a non-authoritative manifest projection cache
     process.env.OPL_STATE_DIR = stateRoot;
     process.env.OPL_CONTRACTS_DIR = fixtureContractsRoot;
     process.env.OPL_TEST_FORCE_MANIFEST_FAILURE = '1';
+    let cordisComposition: Awaited<ReturnType<typeof createCordisBaseHeadlessComposition>> | undefined;
     try {
-      const snapshot = await buildRuntimeTraySnapshot(loadFrameworkContracts(), {
+      const contracts = loadFrameworkContracts();
+      cordisComposition = await createCordisBaseHeadlessComposition();
+      const snapshot = await buildRuntimeTraySnapshot(contracts, {
         appOperatorDrilldownDetailLevel: 'full',
+        domainManifests: cordisComposition.services.atlas(contracts, {
+          manifestCommandTimeoutMs: 5_000,
+          manifestCommandTimeoutPolicy: 'fixed',
+          useProjectionCacheOnFailure: true,
+        }),
+        ownerDeltaObserver: cordisComposition.services.ownerDeltaObserver,
       });
       const tray = snapshot.runtime_tray_snapshot;
       assert.equal(tray.domain_manifest_projection_cache.summary.cache_used_count, 1);
@@ -69,6 +79,7 @@ test('runtime tray summary can use a non-authoritative manifest projection cache
         true,
       );
     } finally {
+      await cordisComposition?.dispose();
       if (previousStateDir === undefined) {
         delete process.env.OPL_STATE_DIR;
       } else {

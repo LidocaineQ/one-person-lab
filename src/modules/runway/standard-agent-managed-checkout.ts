@@ -10,7 +10,10 @@ import {
   STANDARD_AGENT_SERIES_MEMBERSHIP,
 } from '../../kernel/standard-agent-registry.ts';
 import { loadFrameworkContracts } from '../charter/index.ts';
-import { ensureWorkspace } from '../workspace/index.ts';
+import {
+  ensureWorkspace,
+  type WorkspaceSkillProjectionRefresher,
+} from '../workspace/index.ts';
 import { packageLaunchHardStopReason } from './family-runtime-package-readiness.ts';
 
 type AgentPackageReadinessPort = ReturnType<typeof requireAgentPackageReadinessPort>;
@@ -324,6 +327,7 @@ export async function resolveStandardAgentManagedCheckout(input: {
   workspaceRoot: string;
   useBoundaryId?: string;
   packageReadiness?: AgentPackageReadinessPort;
+  refreshWorkspaceSkills?: WorkspaceSkillProjectionRefresher;
   workspaceEnsurer?: (input: {
     agentId: string;
     workspacePath: string;
@@ -354,6 +358,13 @@ export async function resolveStandardAgentManagedCheckout(input: {
         agentId: agent.agent_id,
         workspacePath: requestedWorkspaceRoot,
         packageReadiness,
+        refreshWorkspaceSkills: input.refreshWorkspaceSkills ?? (() => {
+          throw new FrameworkContractError(
+            'contract_shape_invalid',
+            'Managed Standard Agent workspace requires the composed Connect Skill refresher.',
+            { failure_code: 'cordis_connect_workspace_skill_refresher_required' },
+          );
+        }),
       });
   const workspaceRoot = fs.realpathSync.native(workspaceEnsure.workspace_initialization.workspace_path);
 
