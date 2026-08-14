@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://one-person-lab.dev/contracts/opl-framework/package-host-integration.schema.json",
+  "title": "OPL Package Host Integration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "surface_kind",
+    "integration_kind",
+    "standalone_policy",
+    "integration_points",
+    "composition_policy",
+    "authority_boundary"
+  ],
+  "properties": {
+    "surface_kind": { "const": "opl_package_host_integration.v1" },
+    "integration_kind": {
+      "enum": [
+        "standard_agent_runtime",
+        "capability_provider",
+        "host_client",
+        "workflow_profile_source"
+      ]
+    },
+    "standalone_policy": {
+      "enum": ["forbidden", "allowed", "descriptor_only"]
+    },
+    "integration_points": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/integrationPoint" }
+    },
+    "composition_policy": { "$ref": "#/$defs/compositionPolicy" },
+    "authority_boundary": { "$ref": "#/$defs/authorityBoundary" }
+  },
+  "$defs": {
+    "stringList": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "capabilityRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["service_id", "api_versions", "scope"],
+      "properties": {
+        "service_id": { "type": "string", "minLength": 1 },
+        "api_versions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+          }
+        },
+        "scope": {
+          "enum": ["process", "composition", "session", "attempt", "request"]
+        }
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "optional"],
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/capabilityRequirement" }
+        },
+        "optional": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/capabilityRequirement" }
+        }
+      }
+    },
+    "failurePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required_missing", "optional_missing"],
+      "properties": {
+        "required_missing": { "const": "reject_launch" },
+        "optional_missing": { "const": "diagnostic_only" }
+      }
+    },
+    "integrationPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "integration_id",
+        "trigger",
+        "allowed_profiles",
+        "requirements",
+        "failure_policy"
+      ],
+      "properties": {
+        "integration_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9._-]*$"
+        },
+        "trigger": {
+          "enum": [
+            "handler_ref",
+            "stage_binding",
+            "foundry_binding",
+            "app_contribution",
+            "profile_materialization",
+            "descriptor_discovery"
+          ]
+        },
+        "allowed_profiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "enum": ["base-headless", "app-full", "foundry-dev"] },
+          "uniqueItems": true
+        },
+        "requirements": { "$ref": "#/$defs/requirements" },
+        "failure_policy": { "$ref": "#/$defs/failurePolicy" }
+      }
+    },
+    "compositionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["freeze", "hot_swap", "teardown_owner"],
+      "properties": {
+        "freeze": {
+          "enum": ["composition_start", "invocation_start", "attempt_start"]
+        },
+        "hot_swap": { "const": false },
+        "teardown_owner": { "enum": ["opl_host", "package"] }
+      }
+    },
+    "authorityBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["forbidden_authorities"],
+      "properties": {
+        "forbidden_authorities": { "$ref": "#/$defs/stringList" }
+      }
+    }
+  }
+}

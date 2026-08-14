@@ -6,6 +6,16 @@ export const OPL_PACK_SOURCE_MODULE = {
 } as const;
 
 export * from './cordis-composition-contract.ts';
+export * from './package-host-integration.ts';
+export {
+  CORDIS_PACKAGE_HOST_PLUGIN_API_VERSION,
+  CORDIS_PACKAGE_HOST_PLUGIN_ID,
+  CORDIS_PACKAGE_HOST_SERVICE,
+  CORDIS_PACKAGE_HOST_SOURCE_COMMIT,
+  CORDIS_PACKAGE_HOST_SOURCE_REF,
+  cordisPackageHostPlugin,
+} from './cordis-package-host-plugin.ts';
+export type { CordisPackageHostService } from './cordis-package-host-plugin.ts';
 export {
   CORDIS_PACK_STAGE_BINDING_PLUGIN_API_VERSION,
   CORDIS_PACK_STAGE_BINDING_PLUGIN_ID,

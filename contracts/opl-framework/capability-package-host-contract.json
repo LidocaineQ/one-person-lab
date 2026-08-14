@@ -1,0 +1,82 @@
+{
+  "surface_kind": "opl_package_host_integration.v1",
+  "integration_kind": "capability_provider",
+  "standalone_policy": "allowed",
+  "integration_points": [
+    {
+      "integration_id": "capability-package.descriptor-discovery",
+      "trigger": "descriptor_discovery",
+      "allowed_profiles": ["base-headless", "app-full"],
+      "requirements": {
+        "required": [
+          {
+            "service_id": "opl.connect.descriptor-discovery",
+            "api_versions": ["1.0.0"],
+            "scope": "composition"
+          }
+        ],
+        "optional": [
+          {
+            "service_id": "opl.atlas.catalog",
+            "api_versions": ["1.0.0"],
+            "scope": "composition"
+          }
+        ]
+      },
+      "failure_policy": {
+        "required_missing": "reject_launch",
+        "optional_missing": "diagnostic_only"
+      }
+    },
+    {
+      "integration_id": "capability-package.app-contribution",
+      "trigger": "app_contribution",
+      "allowed_profiles": ["app-full"],
+      "requirements": {
+        "required": [
+          {
+            "service_id": "opl.connect.descriptor-discovery",
+            "api_versions": ["1.0.0"],
+            "scope": "composition"
+          }
+        ],
+        "optional": [
+          {
+            "service_id": "opl.console.readiness",
+            "api_versions": ["1.0.0"],
+            "scope": "composition"
+          }
+        ]
+      },
+      "failure_policy": {
+        "required_missing": "reject_launch",
+        "optional_missing": "diagnostic_only"
+      }
+    }
+  ],
+  "composition_policy": {
+    "freeze": "composition_start",
+    "hot_swap": false,
+    "teardown_owner": "opl_host"
+  },
+  "authority_boundary": {
+    "forbidden_authorities": [
+      "package_installed_truth",
+      "package_currentness",
+      "native_carrier_lifecycle",
+      "temporal_workflow_history",
+      "temporal_retry_replay",
+      "workspace_file_bytes",
+      "workspace_binding_registry",
+      "ledger_evidence_persistence",
+      "ledger_receipt_authority",
+      "foundry_agent_version",
+      "foundry_promotion_activation",
+      "domain_truth",
+      "domain_quality_verdict",
+      "app_product_truth",
+      "credential_material",
+      "security_sandbox"
+    ]
+  }
+}
