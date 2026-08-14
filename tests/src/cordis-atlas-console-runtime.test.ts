@@ -44,7 +44,11 @@ test('Atlas and Console descriptors are Pack-contract-backed and compose determi
   assert.equal(snapshot.binding.executor_route, CORDIS_CONSOLE_READINESS_SERVICE);
   assert.deepEqual(
     snapshot.plugins.map((plugin) => plugin.plugin_id),
-    ['opl-atlas-catalog', 'opl-console-readiness-projection'],
+    [
+      'opl-atlas-catalog',
+      'opl-console-readiness-projection',
+      'opl-ledger-owner-delta-observer',
+    ],
   );
 });
 

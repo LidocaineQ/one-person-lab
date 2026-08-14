@@ -62,22 +62,18 @@ test('Cordis composition inspect schema and CLI output are deterministic and rea
   assert.equal(first.authority_boundary.domain_truth, false);
   assert.equal(first.authority_boundary.readiness_truth, false);
   assert.equal(first.side_effects.external_writes, false);
+  assert.equal(first.observation.scope, 'active_default_profile');
   assert.equal(first.observation.teardown_status, 'disposed_after_observation');
-  assert.equal(first.composition.default_caller_activated, false);
+  assert.equal(first.composition.default_caller_activated, true);
+  assert.equal(first.composition.binding.executor_route, 'opl.profile.base-headless');
 
   const pluginIds = first.plugins.map((plugin: { id: string }) => plugin.id);
   assert.deepEqual(pluginIds, [...pluginIds].sort((left, right) => left.localeCompare(right)));
-  const service = first.plugins.find((plugin: { id: string }) => plugin.id === 'opl-cordis-agent-executor-service');
-  assert.equal(service.state, 'active');
-  assert.equal(service.version, '1.0.0');
-  assert.deepEqual(service.injects, ['opl.runway.executor.adapter']);
-  assert.deepEqual(service.events.map((event: { name: string; mode: string }) => `${event.name}:${event.mode}`), [
-    'opl/runway/executor/completed:parallel',
-    'opl/runway/executor/requested:emit',
-  ]);
-  const observer = first.plugins.find((plugin: { id: string }) => plugin.id === 'opl-cordis-agent-executor-observer');
-  assert.equal(observer.state, 'not_loaded');
-  assert.equal(first.diagnostics.some((entry: { code: string }) => entry.code === 'optional_plugin_not_loaded'), true);
+  const charter = first.plugins.find((plugin: { id: string }) => plugin.id === 'opl-charter-policy');
+  assert.equal(charter.state, 'active');
+  assert.equal(charter.version, '1.0.0');
+  assert.deepEqual(charter.provides, ['opl.charter.contracts']);
+  assert.equal(first.diagnostics.some((entry: { code: string }) => entry.code === 'required_plugin_not_loaded'), false);
 
   const emptyRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-cordis-inspect-read-only-'));
   try {

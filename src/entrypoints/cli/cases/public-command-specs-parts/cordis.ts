@@ -2,35 +2,47 @@ import {
   buildCordisCompositionInspect,
   CORDIS_AGENT_EXECUTOR_INSPECT_METADATA,
   markCordisCompositionInspectDisposed,
-  createCordisFrameworkReadinessComposition,
 } from '../../../../modules/console/index.ts';
-import { createCordisAgentExecutorRequest } from '../../../../modules/runway/cordis-agent-executor-experiment.ts';
+import { buildRuntimeTraySnapshot } from '../../../../modules/console/runtime-tray-snapshot.ts';
 import type { RuntimeTraySnapshotProvider } from '../../../../modules/runway/index.ts';
 import type { FrameworkContracts } from '../../../../kernel/types.ts';
+import {
+  createCordisAppFullComposition,
+  type CordisBaseHeadlessComposition,
+} from '../../../cordis/composition-profiles.ts';
 import { parseRegisteredCommandOptions } from '../../modules/support.ts';
 import type { CommandSpec } from '../../modules/support.ts';
 
-export function buildCordisCommandSpecs(): Record<string, CommandSpec> {
+export type { CordisBaseHeadlessComposition } from '../../../cordis/composition-profiles.ts';
+
+function requireCordisComposition(
+  composition: CordisBaseHeadlessComposition | undefined,
+): CordisBaseHeadlessComposition {
+  if (!composition) {
+    throw new Error('CLI command requires an explicit Cordis base-headless composition.');
+  }
+  return composition;
+}
+
+export function buildCordisCommandSpecs(
+  cordis?: CordisBaseHeadlessComposition,
+): Record<string, CommandSpec> {
   const specs: Record<string, CommandSpec> = {
     'cordis inspect': {
       usage: 'opl cordis inspect',
-      summary: 'Read the isolated Cordis composition, plugin lifecycle, service bindings, event modes, and teardown diagnostics without changing installed or domain truth.',
+      summary: 'Read the active Cordis composition, plugin lifecycle, service bindings, event modes, and teardown diagnostics without changing installed or domain truth.',
       examples: ['opl cordis inspect --json'],
       group: 'framework',
       handler: async (args) => {
         parseRegisteredCommandOptions('cordis inspect', args, specs['cordis inspect']);
-        const composition = await createCordisAgentExecutorRequest();
-        let inspect;
-        try {
-          inspect = buildCordisCompositionInspect({
-            context: composition.ctx,
-            snapshot: composition.snapshot,
-            metadata: CORDIS_AGENT_EXECUTOR_INSPECT_METADATA,
-          });
-        } finally {
-          await composition.dispose();
-        }
-        return markCordisCompositionInspectDisposed(inspect);
+        const composition = requireCordisComposition(cordis);
+        return markCordisCompositionInspectDisposed(buildCordisCompositionInspect({
+          context: composition.ctx,
+          snapshot: composition.snapshot,
+          metadata: CORDIS_AGENT_EXECUTOR_INSPECT_METADATA,
+          observationScope: 'active_default_profile',
+          defaultCallerActivated: true,
+        }));
       },
     },
   };
@@ -40,15 +52,13 @@ export function buildCordisCommandSpecs(): Record<string, CommandSpec> {
 export async function runCordisFrameworkReadiness(
   contracts: FrameworkContracts,
   detail: 'full' | 'compact',
-  runtimeSnapshotProvider: RuntimeTraySnapshotProvider,
+  runtimeSnapshotProvider: RuntimeTraySnapshotProvider = buildRuntimeTraySnapshot,
 ) {
-  const composition = await createCordisFrameworkReadinessComposition({
-    runtimeSnapshotProvider,
-  });
+  const composition = await createCordisAppFullComposition({ runtimeSnapshotProvider });
   try {
     return detail === 'compact'
-      ? await composition.readiness.compact(contracts, { familyDefaults: true })
-      : await composition.readiness.full(contracts, { familyDefaults: true });
+      ? await composition.services.frameworkReadiness.compact(contracts, { familyDefaults: true })
+      : await composition.services.frameworkReadiness.full(contracts, { familyDefaults: true });
   } finally {
     await composition.dispose();
   }

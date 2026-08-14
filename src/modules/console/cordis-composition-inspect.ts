@@ -95,7 +95,7 @@ export type CordisCompositionInspect = {
     installed_truth_mutated: false;
   };
   observation: {
-    scope: 'isolated_experiment_command';
+    scope: 'isolated_experiment_command' | 'active_default_profile';
     state: 'active_context_observation';
     teardown_status: 'caller_managed' | 'disposed_after_observation';
   };
@@ -106,7 +106,7 @@ export type CordisCompositionInspect = {
       version: string;
     };
     binding: Record<string, unknown>;
-    default_caller_activated: false;
+    default_caller_activated: boolean;
     plugin_runtime_count: number;
   };
   plugins: CordisPluginInspection[];
@@ -315,6 +315,8 @@ export function buildCordisCompositionInspect(input: {
   context: Context;
   snapshot: CordisCompositionSnapshotLike;
   metadata?: readonly CordisCompositionPluginMetadata[];
+  observationScope?: CordisCompositionInspect['observation']['scope'];
+  defaultCallerActivated?: boolean;
 }): CordisCompositionInspect {
   const metadataById = new Map((input.metadata ?? []).map((entry) => [entry.id, entry]));
   const descriptorById = new Map(input.snapshot.plugins.map((entry) => {
@@ -369,7 +371,7 @@ export function buildCordisCompositionInspect(input: {
       installed_truth_mutated: false,
     },
     observation: {
-      scope: 'isolated_experiment_command',
+      scope: input.observationScope ?? 'isolated_experiment_command',
       state: 'active_context_observation',
       teardown_status: 'caller_managed',
     },
@@ -380,7 +382,7 @@ export function buildCordisCompositionInspect(input: {
         version: input.snapshot.framework.version,
       },
       binding: stableRecord(input.snapshot.binding),
-      default_caller_activated: false,
+      default_caller_activated: input.defaultCallerActivated ?? false,
       plugin_runtime_count: runtimeEntries.length,
     },
     plugins,

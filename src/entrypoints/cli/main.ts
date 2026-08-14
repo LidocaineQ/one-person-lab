@@ -1,5 +1,4 @@
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
-import type { FrameworkContracts } from '../../kernel/types.ts';
 import {
   buildCommandHelp,
   buildRootHelp,
@@ -15,6 +14,7 @@ import { buildUsageError } from './modules/cli-errors.ts';
 import { printJson, type CliOutputStream } from './modules/cli-output.ts';
 import { buildInternalCommandSpecs } from './cases/private-command-specs.ts';
 import { buildPublicCommandSpecs } from './cases/public-command-specs.ts';
+import { createCordisBaseHeadlessComposition } from '../cordis/composition-profiles.ts';
 
 async function runCodexPassthroughHandled(args: string[]) {
   const runtimeHelpers = await import('./modules/runtime-helpers.ts');
@@ -121,19 +121,22 @@ export type CliMainOptions = {
 export async function main(options: CliMainOptions = {}) {
   const stdout = options.stdout ?? process.stdout;
   const parsedInput = parseCliInput(options.argv ?? process.argv.slice(2));
-  const shouldPrintHumanHelp = parsedInput.textOutput
-    || ((options.stdoutIsTTY ?? process.stdout.isTTY) && !parsedInput.jsonOutput);
-  let contractsPromise: Promise<FrameworkContracts> | undefined;
-  const loadContracts = async () => {
-    contractsPromise ??= import('../../modules/charter/contracts.ts')
-      .then(({ loadFrameworkContracts }) => loadFrameworkContracts(parsedInput.loadOptions));
-    return contractsPromise;
-  };
-
-  const contracts = await loadContracts();
-  const internalCommandSpecs = buildInternalCommandSpecs(parsedInput, () => contracts);
-  const publicCommandSpecs = buildPublicCommandSpecs(internalCommandSpecs, () => contracts);
-  const inputTokens = parsedInput.command ? [parsedInput.command, ...parsedInput.args] : [];
+  const composition = await createCordisBaseHeadlessComposition();
+  try {
+    const shouldPrintHumanHelp = parsedInput.textOutput
+      || ((options.stdoutIsTTY ?? process.stdout.isTTY) && !parsedInput.jsonOutput);
+    const contracts = composition.services.charter.load(parsedInput.loadOptions);
+    const internalCommandSpecs = buildInternalCommandSpecs(
+      parsedInput,
+      () => contracts,
+      composition,
+    );
+    const publicCommandSpecs = buildPublicCommandSpecs(
+      internalCommandSpecs,
+      () => contracts,
+      composition,
+    );
+    const inputTokens = parsedInput.command ? [parsedInput.command, ...parsedInput.args] : [];
 
   if (inputTokens.length === 0) {
     if (parsedInput.helpRequested) {
@@ -253,7 +256,10 @@ export async function main(options: CliMainOptions = {}) {
     return;
   }
 
-  printJson(result, stdout);
+    printJson(result, stdout);
+  } finally {
+    await composition.dispose();
+  }
 }
 
 export type CliMainErrorOptions = {

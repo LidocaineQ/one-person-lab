@@ -54,7 +54,7 @@
       "additionalProperties": false,
       "required": ["scope", "state", "teardown_status"],
       "properties": {
-        "scope": { "const": "isolated_experiment_command" },
+        "scope": { "enum": ["isolated_experiment_command", "active_default_profile"] },
         "state": { "const": "active_context_observation" },
         "teardown_status": { "enum": ["caller_managed", "disposed_after_observation"] }
       }
@@ -75,7 +75,7 @@
           }
         },
         "binding": { "type": "object" },
-        "default_caller_activated": { "const": false },
+        "default_caller_activated": { "type": "boolean" },
         "plugin_runtime_count": { "type": "integer", "minimum": 0 }
       }
     },

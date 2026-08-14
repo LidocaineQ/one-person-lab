@@ -11,8 +11,8 @@ import {
   buildPrivatePlatformResidueOwnerDecisionLedgerCommand,
   buildAgentReadinessSummary,
 } from '../../../modules/console/index.ts';
-import { buildSourceStructureOperatorReadback } from '../../../modules/charter/source-structure-operator-readback.ts';
 import { buildRuntimeTraySnapshot } from '../../../modules/console/runtime-tray-snapshot.ts';
+import { buildSourceStructureOperatorReadback } from '../../../modules/charter/source-structure-operator-readback.ts';
 import { runOplEngineAction } from '../../../modules/connect/system-installation/engine-actions.ts';
 import { runOplTurnkeyInstall } from '../../../modules/connect/system-installation/turnkey.ts';
 import {
@@ -89,12 +89,14 @@ import { buildWorkspaceCommandSpecs } from './public-command-specs-parts/workspa
 import {
   buildCordisCommandSpecs,
   runCordisFrameworkReadiness,
+  type CordisBaseHeadlessComposition,
 } from './public-command-specs-parts/cordis.ts';
 import { buildPublicAppCommandSpecs } from './app-public-command-specs.ts';
 
 export function buildPublicCommandSpecs(
   commandSpecs: Record<string, CommandSpec>,
   getContracts: () => FrameworkContracts,
+  cordis?: CordisBaseHeadlessComposition,
 ): Record<string, CommandSpec> {
   const standardAgentPackCompilerInputs = () => ({
     familyRepoInputs: defaultStandardDomainAgentRepoInputs(),
@@ -304,7 +306,7 @@ export function buildPublicCommandSpecs(
     ...packagesCommandSpecs,
     ...updateCommandSpecs,
     ...okfCommandSpecs,
-    ...buildCordisCommandSpecs(),
+    ...buildCordisCommandSpecs(cordis),
     'framework locate': {
       usage: 'opl framework locate',
       summary: 'Locate the OPL Framework runtime dependency for an OPL-compatible agent.',
@@ -358,7 +360,9 @@ export function buildPublicCommandSpecs(
         const output = await buildFrameworkOperatingMaturityReadout(
           getContracts(),
           { familyDefaults: true },
-          { runtimeSnapshotProvider: buildRuntimeTraySnapshot },
+          {
+            runtimeSnapshotProvider: buildRuntimeTraySnapshot,
+          },
         );
         if (detail === 'compact') {
           return buildFrameworkOperatingMaturityCompactReadback(output.framework_operating_maturity);

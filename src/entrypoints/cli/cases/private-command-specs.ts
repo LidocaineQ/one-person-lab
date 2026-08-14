@@ -26,13 +26,24 @@ import { assertNoArgs, buildCommandHelp, buildRootHelp, buildUsageError, parseCo
 import type { CommandSpec, ParsedCliInput } from '../modules/support.ts';
 import type { CordisBaseHeadlessComposition } from '../../cordis/composition-profiles.ts';
 
+function requireCordisComposition(
+  cordis: CordisBaseHeadlessComposition | undefined,
+): CordisBaseHeadlessComposition {
+  if (!cordis) {
+    throw new Error('CLI command requires an explicit Cordis base-headless composition.');
+  }
+  return cordis;
+}
+
 async function ensureDomainPackageLaunchReady(
   projectId: string,
   workspacePath?: string,
   workspaceLocatorService?: CordisBaseHeadlessComposition['services']['workspaceLocator'],
 ) {
-  const workspaceLocator = workspaceLocatorService?.resolve(projectId, workspacePath);
-  if (!workspaceLocator) throw new Error('Cordis Workspace locator service is required for domain launch.');
+  if (!workspaceLocatorService) {
+    throw new Error('Cordis Workspace locator service is required for domain launch.');
+  }
+  const workspaceLocator = workspaceLocatorService.resolve(projectId, workspacePath);
   if (!workspaceLocator.binding) return;
   const packageId = canonicalAgentPackageId(projectId);
   if (!packageId) return;
@@ -67,7 +78,7 @@ async function ensureDomainPackageLaunchReady(
 export function buildInternalCommandSpecs(
   parsedInput: ParsedCliInput,
   getContracts: () => FrameworkContracts,
-  cordis: CordisBaseHeadlessComposition,
+  cordis?: CordisBaseHeadlessComposition,
 ): Record<string, CommandSpec> {
   const getCommandSpecs = () => commandSpecs;
   const commandSpecs: Record<string, CommandSpec> = {
@@ -369,15 +380,16 @@ export function buildInternalCommandSpecs(
           );
         }
 
+        const composition = requireCordisComposition(cordis);
         await ensureDomainPackageLaunchReady(
           parsed.projectId,
           parsed.workspacePath,
-          cordis.services.workspaceLocator,
+          composition.services.workspaceLocator,
         );
         return launchDomainEntry(getContracts(), {
           projectId: parsed.projectId,
           workspacePath: parsed.workspacePath,
-          workspaceLocator: cordis.services.workspaceLocator,
+          workspaceLocator: composition.services.workspaceLocator,
           strategy: parsed.strategy,
           dryRun: parsed.dryRun,
         });
@@ -584,7 +596,7 @@ resume: {
           );
         }
 
-        const locator = cordis.services.workspaceLocator.resolve(
+        const locator = requireCordisComposition(cordis).services.workspaceLocator.resolve(
           parsed.projectId,
           parsed.workspacePath,
         );
@@ -716,12 +728,14 @@ resume: {
         'opl contract handoff-envelope "Prepare a defense-ready slide deck for a thesis committee." --preferred-family ppt_deck',
         'opl contract handoff-envelope "Prepare a defense-ready slide deck for a thesis committee." --preferred-family ppt_deck --workspace-path /Users/gaofeng/workspace/redcube-ai',
       ],
-      handler: (args) =>
-        buildProductEntryHandoffEnvelope(
+      handler: (args) => {
+        const composition = requireCordisComposition(cordis);
+        return buildProductEntryHandoffEnvelope(
           parseProductEntryArgs(args, commandSpecs['contract handoff-envelope']),
           getContracts(),
-          cordis.services.workspaceLocator,
-        ),
+          composition.services.workspaceLocator,
+        );
+      },
     },
   };
 
