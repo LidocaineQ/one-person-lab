@@ -400,6 +400,39 @@ function realDirectory(candidate: string | null) {
   }
 }
 
+function invalidWorkspaceProjectionPath(workspaceRoot: string, candidate: string): never {
+  throw new FrameworkContractError(
+    'contract_shape_invalid',
+    'Workspace Skill projection refuses symbolic links or paths outside the Workspace.',
+    {
+      target_workspace: workspaceRoot,
+      projection_path: candidate,
+      failure_code: 'agent_package_workspace_skill_projection_path_invalid',
+    },
+  );
+}
+
+function assertWorkspaceProjectionPath(workspaceRoot: string, candidate: string) {
+  const resolved = path.resolve(candidate);
+  if (resolved === workspaceRoot || !resolved.startsWith(`${workspaceRoot}${path.sep}`)) {
+    invalidWorkspaceProjectionPath(workspaceRoot, candidate);
+  }
+  let current = resolved;
+  while (current !== workspaceRoot) {
+    try {
+      const stat = fs.lstatSync(current);
+      if (stat.isSymbolicLink()) invalidWorkspaceProjectionPath(workspaceRoot, candidate);
+      const real = fs.realpathSync(current);
+      if (real !== workspaceRoot && !real.startsWith(`${workspaceRoot}${path.sep}`)) {
+        invalidWorkspaceProjectionPath(workspaceRoot, candidate);
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    current = path.dirname(current);
+  }
+}
+
 function ancestors(candidate: string) {
   const values: string[] = [];
   let current = path.resolve(candidate);
@@ -514,6 +547,10 @@ export function syncAgentPackageSkillProjectionToWorkspace(
   const skillsRoot = path.join(codexRoot, 'skills');
   const ownersRoot = path.join(codexRoot, 'opl-agent-package-skill-owners');
   const manifestsRoot = path.join(codexRoot, 'opl-agent-package-skill-projections');
+  const transactionsRoot = path.join(codexRoot, '.opl-skill-projection-transactions');
+  for (const managedRoot of [codexRoot, skillsRoot, ownersRoot, manifestsRoot, transactionsRoot]) {
+    assertWorkspaceProjectionPath(workspaceRoot, managedRoot);
+  }
   const manifestPath = path.join(manifestsRoot, `${projection.root_package_id}.json`);
   const previous = readJsonRecord(manifestPath);
   const previousSkillIds = previous?.surface_kind === WORKSPACE_MANIFEST_KIND
@@ -576,7 +613,6 @@ export function syncAgentPackageSkillProjectionToWorkspace(
   fs.mkdirSync(skillsRoot, { recursive: true });
   fs.mkdirSync(ownersRoot, { recursive: true });
   fs.mkdirSync(manifestsRoot, { recursive: true });
-  const transactionsRoot = path.join(codexRoot, '.opl-skill-projection-transactions');
   fs.mkdirSync(transactionsRoot, { recursive: true });
   const transactionRoot = fs.mkdtempSync(path.join(transactionsRoot, `${projection.root_package_id}-`));
   const stageRoot = path.join(transactionRoot, 'stage');

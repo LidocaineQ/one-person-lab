@@ -225,3 +225,81 @@ test('Workspace projection refuses to overwrite an unmanaged Skill directory', (
     removeFixture(fixtureRoot);
   }
 });
+
+test('Workspace projection refuses a .codex symlink before writing outside the Workspace', () => {
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-skill-workspace-symlink-'));
+  const stateRoot = path.join(fixtureRoot, 'state');
+  const agentRoot = path.join(fixtureRoot, 'oma');
+  const workspaceRoot = path.join(fixtureRoot, 'workspace');
+  const outsideCodex = path.join(fixtureRoot, 'outside-codex');
+  const skillId = 'oma-method';
+  const sentinelPath = path.join(outsideCodex, 'sentinel.txt');
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = stateRoot;
+
+  try {
+    rootFixture(agentRoot, [skillId]);
+    fs.mkdirSync(workspaceRoot, { recursive: true });
+    fs.mkdirSync(outsideCodex, { recursive: true });
+    fs.writeFileSync(sentinelPath, 'must remain untouched\n');
+    fs.symlinkSync(outsideCodex, path.join(workspaceRoot, '.codex'), 'dir');
+    const projection = materializeAgentPackageWorkspaceSkillProjection({
+      rootPackageId: 'oma',
+      rootSkillIds: ['oma'],
+      rootSourceRoot: agentRoot,
+      rootSourceRef: 'oma:installed-descriptor',
+    }).projection!;
+
+    assert.throws(
+      () => syncAgentPackageSkillProjectionToWorkspace(projection, workspaceRoot),
+      (error: unknown) => error instanceof FrameworkContractError
+        && error.details?.failure_code === 'agent_package_workspace_skill_projection_path_invalid',
+    );
+    assert.equal(fs.readFileSync(sentinelPath, 'utf8'), 'must remain untouched\n');
+    assert.equal(fs.existsSync(path.join(outsideCodex, 'skills')), false);
+    assert.equal(fs.lstatSync(path.join(workspaceRoot, '.codex')).isSymbolicLink(), true);
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    removeFixture(fixtureRoot);
+  }
+});
+
+test('Workspace projection accepts an existing physical .codex directory', () => {
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-skill-workspace-physical-codex-'));
+  const stateRoot = path.join(fixtureRoot, 'state');
+  const agentRoot = path.join(fixtureRoot, 'mag');
+  const workspaceRoot = path.join(fixtureRoot, 'workspace');
+  const skillId = 'mag-method';
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = stateRoot;
+
+  try {
+    rootFixture(agentRoot, [skillId]);
+    fs.mkdirSync(path.join(workspaceRoot, '.codex'), { recursive: true });
+    fs.writeFileSync(path.join(workspaceRoot, '.codex', 'config.toml'), 'model = "gpt-5"\n');
+    const projection = materializeAgentPackageWorkspaceSkillProjection({
+      rootPackageId: 'mag',
+      rootSkillIds: ['mag'],
+      rootSourceRoot: agentRoot,
+      rootSourceRef: 'mag:installed-descriptor',
+    }).projection!;
+
+    assert.equal(
+      syncAgentPackageSkillProjectionToWorkspace(projection, workspaceRoot).status,
+      'materialized',
+    );
+    assert.equal(
+      fs.readFileSync(path.join(workspaceRoot, '.codex', 'skills', skillId, 'SKILL.md'), 'utf8'),
+      `# ${skillId}\n`,
+    );
+    assert.equal(
+      fs.readFileSync(path.join(workspaceRoot, '.codex', 'config.toml'), 'utf8'),
+      'model = "gpt-5"\n',
+    );
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    removeFixture(fixtureRoot);
+  }
+});
