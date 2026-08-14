@@ -30,7 +30,7 @@
       "rule_id": "denial-of-service.malformed-host",
       "severity": "low",
       "disposition": "local_compatibility_fix",
-      "status": "active_implementation",
+      "status": "implemented_verified",
       "owner_surface": "runway_observability_http_request_boundary",
       "failure_scope": "request",
       "preserved_behavior": "metrics_listener_and_valid_get_requests_continue"
@@ -39,7 +39,7 @@
       "rule_id": "sensitive-data.git-url-in-evidence",
       "severity": "low",
       "disposition": "local_compatibility_fix",
-      "status": "active_implementation",
+      "status": "implemented_verified",
       "owner_surface": "runway_workspace_transport_evidence_projection",
       "failure_scope": "evidence_field",
       "preserved_behavior": "raw_transport_url_remains_available_to_git_clone_only"
@@ -48,7 +48,7 @@
       "rule_id": "resource-exhaustion.unbounded-provider-body",
       "severity": "low",
       "disposition": "local_compatibility_fix",
-      "status": "active_implementation",
+      "status": "implemented_verified",
       "owner_surface": "connect_http_response_consumption",
       "failure_scope": "provider_request",
       "preserved_behavior": "other_providers_and_the_parent_operation_continue"
@@ -57,7 +57,7 @@
       "rule_id": "path-traversal.workspace-symlink-projection",
       "severity": "low",
       "disposition": "local_compatibility_fix",
-      "status": "active_implementation",
+      "status": "implemented_verified",
       "owner_surface": "agent_package_workspace_skill_projection",
       "failure_scope": "workspace_projection",
       "preserved_behavior": "ordinary_workspace_and_unrelated_workspace_capabilities_continue"

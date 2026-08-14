@@ -36,7 +36,7 @@ North-star 参考仍归 [OPL 与 Foundry Agents 理想目标态](../references/r
 | --- | --- | --- |
 | 非 live 功能 / 结构基线 | `opl_package_platform_composition_phase_2_controlled_breaking_cutover_in_progress` | 既有 Package platform-first composition 仍是独立 active migration slice；本仓 owner 边界见 [`opl-package-platform-composition-migration.md`](./opl-package-platform-composition-migration.md)，跨仓唯一实施计划归 App SSOT。Phase 2 已获用户批准，当前按 successor-only 纵向链路、production caller 切换、affected OUT / carrier 验收与 owner-gated bulk deletion 顺序执行。 |
 | Cordis 进程内组合 | `planned_ssot_frozen_experiment_not_started` | 用户已确定正式 `@deepseek-ai/cordis` 为目标组合框架；当前只完成决策、架构和计划，尚未安装、尚未创建实验 composition、尚未切换默认 caller。首个 seam 是 Agent Executor，详细门槛见 [`cordis-adoption-plan.md`](./cordis-adoption-plan.md)。 |
-| Bounded security hardening | `first_local_compatibility_batch_in_progress` | Codex Security scan `03a5506e-0f1b-4ddd-ba53-b33a0c8e6a83` 的处置由 [`security-hardening-worklist.json`](../../contracts/opl-framework/security-hardening-worklist.json) 持有。安全 lane 默认在真实受损边界内局部拒绝，在边界外 fail open，不把 finding 清零当成交付指标。 |
+| Bounded security hardening | `first_local_compatibility_batch_implemented_verified` | Codex Security scan `03a5506e-0f1b-4ddd-ba53-b33a0c8e6a83` 的处置由 [`security-hardening-worklist.json`](../../contracts/opl-framework/security-hardening-worklist.json) 持有。首批四项局部兼容修复已实现并通过回归；安全 lane 默认在真实受损边界内局部拒绝，在边界外 fail open，不把 finding 清零当成交付指标。 |
 | Ponytail 低风险简化 | `low_risk_slice_landed_owner_gated_tail_remains` | OPL Framework 已删除已证明无生产 caller 的 pass-through facade 文件，同时通过 canonical kernel 保留既有 public symbols；并清理孤儿 runtime helpers、专属测试/脚本和无引用图片。对外 contracts、Package/payload 历史、release cohorts 与仍可能被外部消费的 schema 保持 owner-gated，不把仓内零引用当作物理删除授权。Fallow 动态入口只登记真实运行期拼接加载的模块；扫描配置校准不扩大删除授权。下一轮只从 fresh caller/consumer evidence 选择新的最小 cleanup slice。 |
 | Active Truth 治理 | `single_owner_guard_active` | 本文是唯一 active truth owner，只保留当前 gap、完成口径与下一轮 baton，不保存 dated proof 或 closeout 流水。 |
 | Live / release / production / owner evidence | `deferred_to_evidence_owners` | 继续由 App release、provider long-soak、Brand L5、domain owner receipt、typed blocker 与 human gate 等 owner surface 单独证明。 |
@@ -102,7 +102,7 @@ composition inspect 或 compatibility bridge 写成迁移完成。
 | --- | --- | --- | --- |
 | Cordis runtime composition adoption | `planned_ssot_frozen_experiment_not_started` | OPL Charter + Framework Integrator；P2 由 Runway/Connect 负责 | 只采用 DSH scoped `@deepseek-ai/cordis`；先做 P1 surface map，再做隔离 Agent Executor 实验，后续按 P3 inspect、P4 version contract、P5 分批迁移、P6 默认切换推进。当前不安装、不切默认 caller、不新增第二 registry/lifecycle。 |
 | Package platform-first composition | `phase_2_controlled_breaking_cutover_in_progress` | OPL Framework + OPL App | Phase 1 的 SSOT、旧 resolver/lock/payload/receipt/Durable 扩张禁令与 no-resurrection 边界已冻结；Phase 2 按 M1 successor-only public actions、M2 App/Shell caller switch、M3 affected OUT / real-carrier acceptance、M4 owner-gated legacy bulk deletion 与同 outcome 复验推进。 |
-| Bounded security hardening | `first_local_compatibility_batch_in_progress` | OPL Framework | 10 条 finding 的当前 disposition 归 `security-hardening-worklist.json`；首批只收紧 Host 请求、durable Git URL evidence、Provider body consumption 与 Workspace Skill projection。单一危险输入不得阻断无关 Provider、Workspace、Carrier、Attempt 或已安装 generation。 |
+| Bounded security hardening | `first_local_compatibility_batch_implemented_verified` | OPL Framework | 10 条 finding 的当前 disposition 归 `security-hardening-worklist.json`；首批已验证修复只收紧 Host 请求、durable Git URL evidence、Provider body consumption 与 Workspace Skill projection。单一危险输入不得阻断无关 Provider、Workspace、Carrier、Attempt 或已安装 generation。 |
 | 文档 SSOT / active gap 污染 | `active_governance_guard` | OPL + OPL Flow `$opl-doc` Skill | 理想态定义保留在 support/reference；active gap 文档只保留当前 gap、完成口径和下一轮 baton；已完成过程进 history。 |
 | Live / release / production / owner evidence | `deferred_evidence_lane` | 对应 evidence owner | 单独走 live evidence 维护入口，不混入本文 active gap。 |
 | 不可逆 cleanup / physical delete | `owner_decision_gated` | 对应 repo owner | 只有 owner decision、no-active-caller、replacement owner、no-forbidden-write 和 tombstone/provenance 齐备时才开 lane。 |
@@ -124,7 +124,7 @@ composition inspect 或 compatibility bridge 写成迁移完成。
 contracts，再冻结唯一 owner、exact write set、composition snapshot、affected outcome 与
 回退门禁。P2 前不得把 Cordis 依赖写入默认 production graph；P5/P6 前不得切换默认 caller。
 Package platform composition 仍按其独立 M1-M4 baton 推进，不能被 Cordis docs 或实验替代。
-安全 hardening 先完成四项局部兼容修复并回读 canonical `main`；其余 finding 只按
+安全 hardening 的四项局部兼容修复已实现并通过回归，完成态仍须回读 canonical `main`；其余 finding 只按
 `security-hardening-worklist.json` 的 canary、evidence 或 owner route 推进，不为清零 finding
 建立全局 gate、第二控制面或无证据的冷启动。
 不得把计划、docs、inspect、测试、候选 branch 或未吸收 composition 写成完成，也不得把本

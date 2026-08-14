@@ -289,7 +289,7 @@ test('policy contract sentinels keep audit, progress, and physical-delete author
   assert.equal(securityHardening.default_policy.posture, 'fail_open_outside_the_violated_boundary');
   assert.equal(securityHardening.default_policy.advisory_or_unproven_risk_can_block_ordinary_runtime, false);
   assert.equal(securityHardening.findings.length, 10);
-  assert.equal(securityHardening.findings.filter((finding: { status: string }) => finding.status === 'active_implementation').length, 4);
+  assert.equal(securityHardening.findings.filter((finding: { status: string }) => finding.status === 'implemented_verified').length, 4);
   for (const [claim, allowed] of Object.entries(securityHardening.authority_boundary)) {
     assert.equal(allowed, false, `security hardening worklist must not claim ${claim}`);
   }
