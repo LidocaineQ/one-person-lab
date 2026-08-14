@@ -63,9 +63,9 @@ type FrameworkReadinessInput = {
 
 type FrameworkReadinessOptions = {
   runtimeSnapshotProvider?: RuntimeTraySnapshotProvider;
+  domainManifests: ReturnType<typeof buildDomainManifestCatalog>['domain_manifests'];
+  standardAgentDomainManifests: ReturnType<typeof buildStandardAgentDomainManifestCatalog>['domain_manifests'];
 };
-
-const FRAMEWORK_READINESS_MANIFEST_COMMAND_TIMEOUT_MS = 5_000;
 
 function stageReadinessSummary(readiness: JsonRecord) {
   return record(readiness.summary);
@@ -168,7 +168,7 @@ function buildStageReadinessDiagnostic(
 export async function buildFrameworkReadinessSummary(
   contracts: FrameworkContracts,
   input: FrameworkReadinessInput,
-  options: FrameworkReadinessOptions = {},
+  options: FrameworkReadinessOptions,
 ) {
   const runtimeSnapshotProvider = requireRuntimeTraySnapshotProvider(
     options.runtimeSnapshotProvider,
@@ -179,15 +179,7 @@ export async function buildFrameworkReadinessSummary(
   const agentReadiness = agentReadinessDiagnostic.readiness;
   const generatedDefaultEntrySourceOfWork =
     record(record(agentReadiness).generated_default_entry_source_of_work);
-  const domainManifests = buildDomainManifestCatalog(contracts, {
-        manifestCommandTimeoutMs: FRAMEWORK_READINESS_MANIFEST_COMMAND_TIMEOUT_MS,
-        manifestCommandTimeoutPolicy: 'fixed',
-        materializeFamilyTransitions: false,
-        useProjectionCacheOnFailure: true,
-      }).domain_manifests;
-  const standardAgentDomainManifests = buildStandardAgentDomainManifestCatalog(contracts, {
-    legacyDomainManifests: domainManifests,
-  }).domain_manifests;
+  const { domainManifests, standardAgentDomainManifests } = options;
   const packCompiler = record(buildDomainPackCompilerList(contracts, {
     familyDefaults: true,
     familyRepoInputs: defaultStandardDomainAgentRepoInputs(),

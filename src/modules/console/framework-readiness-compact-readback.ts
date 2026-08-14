@@ -1,8 +1,8 @@
 import { buildAgentReadinessSummary } from './agent-readiness.ts';
 import { buildCurrentOwnerDeltaTopline } from '../ledger/index.ts';
 import {
-  buildDomainManifestCatalog,
   buildStandardAgentDomainManifestCatalog,
+  buildDomainManifestCatalog,
 } from '../atlas/index.ts';
 import { buildDomainPackCompilerList } from '../pack/index.ts';
 import {
@@ -48,9 +48,9 @@ type FrameworkReadinessCoreModel = {
 
 type FrameworkReadinessCompactOptions = {
   runtimeSnapshotProvider?: RuntimeTraySnapshotProvider;
+  domainManifests: ReturnType<typeof buildDomainManifestCatalog>['domain_manifests'];
+  standardAgentDomainManifests: ReturnType<typeof buildStandardAgentDomainManifestCatalog>['domain_manifests'];
 };
-
-const FRAMEWORK_READINESS_MANIFEST_COMMAND_TIMEOUT_MS = 5_000;
 
 const COMPACT_READBACK_AUTHORITY_BOUNDARY = {
   refs_only: true,
@@ -105,7 +105,7 @@ function buildAgentReadinessDiagnostic() {
 async function buildFrameworkReadinessCompactCoreModel(
   contracts: FrameworkContracts,
   input: FrameworkReadinessCompactInput,
-  options: FrameworkReadinessCompactOptions = {},
+  options: FrameworkReadinessCompactOptions,
 ): Promise<FrameworkReadinessCoreModel> {
   const runtimeSnapshotProvider = requireRuntimeTraySnapshotProvider(
     options.runtimeSnapshotProvider,
@@ -116,15 +116,7 @@ async function buildFrameworkReadinessCompactCoreModel(
   const agentReadiness = agentReadinessDiagnostic.readiness;
   const generatedDefaultEntrySourceOfWork =
     record(record(agentReadiness).generated_default_entry_source_of_work);
-  const domainManifests = buildDomainManifestCatalog(contracts, {
-        manifestCommandTimeoutMs: FRAMEWORK_READINESS_MANIFEST_COMMAND_TIMEOUT_MS,
-        manifestCommandTimeoutPolicy: 'fixed',
-        materializeFamilyTransitions: false,
-        useProjectionCacheOnFailure: true,
-      }).domain_manifests;
-  const standardAgentDomainManifests = buildStandardAgentDomainManifestCatalog(contracts, {
-    legacyDomainManifests: domainManifests,
-  }).domain_manifests;
+  const { domainManifests, standardAgentDomainManifests } = options;
   const packCompiler = record(
     buildDomainPackCompilerList(contracts, { familyDefaults: true }).domain_pack_compiler,
   );
@@ -477,7 +469,7 @@ function buildFrameworkReadinessCompactReadbackFromCore(
 export async function buildFrameworkReadinessCompactReadback(
   contracts: FrameworkContracts,
   input: FrameworkReadinessCompactInput,
-  options: FrameworkReadinessCompactOptions = {},
+  options: FrameworkReadinessCompactOptions,
 ) {
   return buildFrameworkReadinessCompactReadbackFromCore(
     await buildFrameworkReadinessCompactCoreModel(contracts, input, options),

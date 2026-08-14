@@ -2,8 +2,11 @@ import {
   buildCordisCompositionInspect,
   CORDIS_AGENT_EXECUTOR_INSPECT_METADATA,
   markCordisCompositionInspectDisposed,
+  createCordisFrameworkReadinessComposition,
 } from '../../../../modules/console/index.ts';
 import { createCordisAgentExecutorComposition } from '../../../../modules/runway/cordis-agent-executor-experiment.ts';
+import type { RuntimeTraySnapshotProvider } from '../../../../modules/runway/index.ts';
+import type { FrameworkContracts } from '../../../../kernel/types.ts';
 import { parseRegisteredCommandOptions } from '../../modules/support.ts';
 import type { CommandSpec } from '../../modules/support.ts';
 
@@ -32,4 +35,21 @@ export function buildCordisCommandSpecs(): Record<string, CommandSpec> {
     },
   };
   return specs;
+}
+
+export async function runCordisFrameworkReadiness(
+  contracts: FrameworkContracts,
+  detail: 'full' | 'compact',
+  runtimeSnapshotProvider: RuntimeTraySnapshotProvider,
+) {
+  const composition = await createCordisFrameworkReadinessComposition({
+    runtimeSnapshotProvider,
+  });
+  try {
+    return detail === 'compact'
+      ? await composition.readiness.compact(contracts, { familyDefaults: true })
+      : await composition.readiness.full(contracts, { familyDefaults: true });
+  } finally {
+    await composition.dispose();
+  }
 }

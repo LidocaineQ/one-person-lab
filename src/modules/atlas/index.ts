@@ -5,6 +5,19 @@ export const OPL_ATLAS_SOURCE_MODULE = {
   physicalRoot: 'src/modules/atlas',
 } as const;
 
+export {
+  CORDIS_ATLAS_CATALOG_PLUGIN_API_VERSION,
+  CORDIS_ATLAS_CATALOG_PLUGIN_DESCRIPTOR,
+  CORDIS_ATLAS_CATALOG_PLUGIN_ID,
+  CORDIS_ATLAS_CATALOG_SERVICE,
+  cordisAtlasCatalogPlugin,
+} from './cordis-domain-manifest-catalog.ts';
+export type {
+  CordisAtlasCatalogPluginConfig,
+  CordisAtlasCatalogService,
+  CordisDomainManifestCatalogOptions,
+} from './cordis-domain-manifest-catalog.ts';
+
 // Public cross-module surface generated from existing module consumers.
 export { buildDomainManifestCatalog } from './domain-manifest/catalog-builder.ts';
 export type { DomainManifestCatalog } from './domain-manifest/catalog-builder.ts';

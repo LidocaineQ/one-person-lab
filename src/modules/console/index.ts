@@ -18,6 +18,22 @@ export type {
   CordisCompositionPluginMetadata,
   CordisCompositionSnapshotLike,
 } from './cordis-composition-inspect.ts';
+export {
+  buildCordisFrameworkReadinessCompositionSnapshot,
+  CORDIS_ATLAS_CONSOLE_PLUGIN_DESCRIPTORS,
+  CORDIS_CONSOLE_READINESS_PLUGIN_API_VERSION,
+  CORDIS_CONSOLE_READINESS_PLUGIN_DESCRIPTOR,
+  CORDIS_CONSOLE_READINESS_PLUGIN_ID,
+  CORDIS_CONSOLE_READINESS_SERVICE,
+  CORDIS_CONSOLE_REQUIRED_ATLAS_API_VERSION,
+  cordisFrameworkReadinessPlugin,
+  createCordisFrameworkReadinessComposition,
+} from './cordis-framework-readiness.ts';
+export type {
+  CordisFrameworkReadinessInput,
+  CordisFrameworkReadinessPluginConfig,
+  CordisFrameworkReadinessService,
+} from './cordis-framework-readiness.ts';
 
 export { buildEvidenceGroundedDecisionAgentProfileConsoleDrilldown } from './evidence-grounded-profile-drilldown.ts';
 export type { EvidenceGroundedDecisionAgentProfileDrilldownInput } from './evidence-grounded-profile-drilldown.ts';

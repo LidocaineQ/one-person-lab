@@ -1,0 +1,53 @@
+{
+  "descriptor_version": "cordis-plugin-descriptor.v1",
+  "id": "opl-console-readiness-projection",
+  "plugin_id": "opl-console-readiness-projection",
+  "plugin_ref": "cordis:plugin:opl-console-readiness-projection@1.0.0",
+  "plugin_api_version": "1.0.0",
+  "source_ref": "src/modules/console/cordis-framework-readiness.ts",
+  "source_commit": "c55ef36ab6abe71aaf27e2cd8515943fb6308fbf",
+  "source_identity": "git:c55ef36ab6abe71aaf27e2cd8515943fb6308fbf:src/modules/console/cordis-framework-readiness.ts",
+  "package_ref": null,
+  "required": true,
+  "provides": [
+    "opl.console.framework-readiness"
+  ],
+  "injects": {
+    "required": [
+      {
+        "service_id": "opl.atlas.catalog",
+        "plugin_api_versions": [
+          "1.0.0"
+        ]
+      }
+    ],
+    "optional": []
+  },
+  "events": [
+    {
+      "name": "opl/console/framework-readiness/projected",
+      "mode": "emit",
+      "role": "publish",
+      "payload_schema_ref": null
+    }
+  ],
+  "scope": "composition",
+  "trust": "first_party_privileged",
+  "disposer": {
+    "required": true,
+    "boundary": "plugin_fiber"
+  },
+  "authority_boundary": {
+    "forbidden_authorities": [
+      "app_product_truth",
+      "domain_quality_verdict",
+      "domain_truth",
+      "ledger_evidence_persistence",
+      "ledger_receipt_authority",
+      "package_currentness",
+      "package_installed_truth",
+      "workspace_binding_registry",
+      "workspace_file_bytes"
+    ]
+  }
+}
