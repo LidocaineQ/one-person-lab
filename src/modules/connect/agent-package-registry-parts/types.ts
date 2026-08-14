@@ -118,6 +118,22 @@ export type AgentPackageAppContributionViewType =
   | 'artifact_view'
   | 'activity_log';
 
+export type AgentPackageAppContributionUiSlot =
+  | 'composer.palette'
+  | 'runtime.detail'
+  | 'settings.section';
+
+export type AgentPackageAppContributionUiPlacement = {
+  contribution_id: string;
+  slot: AgentPackageAppContributionUiSlot;
+  contribution_kind: 'view' | 'command_group';
+  trust_tier: 'declarative' | 'trusted_first_party_renderer';
+  scope: 'root' | 'work_item';
+  sort_order: number;
+  view_id?: string;
+  command_ids?: string[];
+};
+
 export type AgentPackageAppContributions = {
   schema_version: 'opl-app-contributions.v1';
   navigation: Array<{
@@ -148,6 +164,7 @@ export type AgentPackageAppContributions = {
     data_ref: string;
     tone?: 'neutral' | 'info' | 'success' | 'warning' | 'critical';
   }>;
+  ui?: AgentPackageAppContributionUiPlacement[];
 };
 
 export type AgentPackageHomeShortcutRoute = {

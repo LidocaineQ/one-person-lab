@@ -694,6 +694,19 @@ const relayAppContributions = {
   }],
 } as const;
 
+const relayUiContributions = {
+  ...relayAppContributions,
+  ui: [{
+    contribution_id: 'relay.inbox-runtime',
+    slot: 'runtime.detail',
+    contribution_kind: 'view',
+    trust_tier: 'declarative',
+    scope: 'work_item',
+    sort_order: 10,
+    view_id: 'relay.inbox',
+  }],
+} as const;
+
 const HOME_PRESENTATION_CROSS_FIXTURE_SHA256 = 'b9986890f5af0d0004caad41b8bfd244e2fab7a7aa43ed98c9d5a7644221d8bf';
 const homePresentationCrossFixture = `{
   "package_id": "future.agent-lab",
@@ -767,15 +780,25 @@ test('owner descriptor contributions normalize and project through an installed 
       agentId: 'third-party-contribution',
       pluginId: 'third-party-contribution',
     }),
-    app_contributions: relayAppContributions,
+    app_contributions: relayUiContributions,
   };
   try {
+    const appContributionsSchemaRef = 'contracts/opl-framework/app-contributions.schema.json';
+    const appContributionsSchema = parseJsonText(fs.readFileSync(
+      path.join(repoRoot, appContributionsSchemaRef),
+      'utf8',
+    )) as Parameters<typeof validateJsonSchemaPayload>[0]['schema'];
+    assert.equal(validateJsonSchemaPayload({
+      schemaId: 'opl.app_contributions.ui.v1',
+      schema: appContributionsSchema,
+      sourceRef: appContributionsSchemaRef,
+    }, relayUiContributions).ok, true, appContributionsSchemaRef);
     const agentSchemaManifest = {
       ...(parseJsonText(fs.readFileSync(
         path.join(repoRoot, 'contracts/opl-framework/packages/mas.json'),
         'utf8',
       )) as Record<string, unknown>),
-      app_contributions: relayAppContributions,
+      app_contributions: relayUiContributions,
     };
     const schemaCases = [
       {
@@ -791,7 +814,7 @@ test('owner descriptor contributions normalize and project through an installed 
             path.join(repoRoot, 'contracts/opl-framework/packages/mas-scholar-skills.json'),
             'utf8',
           )) as Record<string, unknown>),
-          app_contributions: relayAppContributions,
+          app_contributions: relayUiContributions,
         },
       },
       {
@@ -802,7 +825,7 @@ test('owner descriptor contributions normalize and project through an installed 
             path.join(repoRoot, 'contracts/opl-framework/packages/opl-flow.json'),
             'utf8',
           )) as Record<string, unknown>),
-          app_contributions: relayAppContributions,
+          app_contributions: relayUiContributions,
         },
       },
     ];
@@ -819,6 +842,13 @@ test('owner descriptor contributions normalize and project through an installed 
     }
     assert.deepEqual(
       normalizePackageManifest(manifest, 'file:///tmp/contribution-package.json').app_contributions,
+      relayUiContributions,
+    );
+    assert.deepEqual(
+      normalizePackageManifest({
+        ...manifest,
+        app_contributions: relayAppContributions,
+      }, 'file:///tmp/legacy-contribution-package.json').app_contributions,
       relayAppContributions,
     );
     for (const [payload, message] of [
@@ -872,7 +902,7 @@ test('owner descriptor contributions normalize and project through an installed 
       detail: 'fast',
       installedCodexPluginDescriptors: discovered,
     }).entries.find((candidate) => candidate.package_id === 'third.party.contribution');
-    assert.deepEqual(entry?.app_contributions, relayAppContributions);
+    assert.deepEqual(entry?.app_contributions, relayUiContributions);
     assert.equal(entry?.source_explanation.kind, 'installed_codex_plugin_descriptor');
   } finally {
     fs.rmSync(sourceRoot, { recursive: true, force: true });

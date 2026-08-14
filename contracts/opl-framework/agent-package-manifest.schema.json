@@ -941,6 +941,10 @@
         {
           "required": ["badges"],
           "properties": { "badges": { "minItems": 1 } }
+        },
+        {
+          "required": ["ui"],
+          "properties": { "ui": { "minItems": 1 } }
         }
       ],
       "properties": {
@@ -1031,6 +1035,11 @@
             },
             "additionalProperties": false
           }
+        },
+        "ui": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/app_contribution_ui_placement" }
         }
       },
       "additionalProperties": false
@@ -1055,6 +1064,39 @@
           "maxLength": 2000
         }
       },
+      "additionalProperties": false
+    },
+    "app_contribution_ui_placement": {
+      "type": "object",
+      "required": ["contribution_id", "slot", "contribution_kind", "trust_tier", "scope"],
+      "properties": {
+        "contribution_id": { "$ref": "#/$defs/app_contribution_id" },
+        "slot": { "enum": ["composer.palette", "runtime.detail", "settings.section"] },
+        "contribution_kind": { "enum": ["view", "command_group"] },
+        "trust_tier": { "enum": ["declarative", "trusted_first_party_renderer"] },
+        "scope": { "enum": ["root", "work_item"] },
+        "sort_order": { "type": "integer", "minimum": -10000, "maximum": 10000 },
+        "view_id": { "$ref": "#/$defs/app_contribution_id" },
+        "command_ids": {
+          "type": "array",
+          "maxItems": 100,
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/app_contribution_id" }
+        }
+      },
+      "oneOf": [
+        {
+          "properties": { "contribution_kind": { "const": "view" } },
+          "required": ["view_id"],
+          "not": { "required": ["command_ids"] }
+        },
+        {
+          "properties": { "contribution_kind": { "const": "command_group" } },
+          "required": ["command_ids"],
+          "not": { "required": ["view_id"] }
+        }
+      ],
       "additionalProperties": false
     }
   },

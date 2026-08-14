@@ -16,6 +16,7 @@ import {
 } from './shared.ts';
 import type {
   AgentPackageAppContributions,
+  AgentPackageAppContributionUiSlot,
   AgentPackageAppContributionViewType,
   AgentPackageCapabilityDependency,
   AgentPackageCapabilityProvider,
@@ -57,6 +58,17 @@ const APP_CONTRIBUTION_BADGE_TONES = new Set([
   'warning',
   'critical',
 ] as const);
+const APP_CONTRIBUTION_UI_SLOTS = new Set<AgentPackageAppContributionUiSlot>([
+  'composer.palette',
+  'runtime.detail',
+  'settings.section',
+]);
+const APP_CONTRIBUTION_UI_KINDS = new Set(['view', 'command_group'] as const);
+const APP_CONTRIBUTION_UI_TRUST_TIERS = new Set([
+  'declarative',
+  'trusted_first_party_renderer',
+] as const);
+const APP_CONTRIBUTION_UI_SCOPES = new Set(['root', 'work_item'] as const);
 const APP_CONTRIBUTION_MAX_ITEMS = 100;
 
 function appContributionInvalid(
@@ -206,7 +218,7 @@ export function normalizeAppContributions(
   }
   assertContributionKeys(
     value,
-    ['schema_version', 'navigation', 'views', 'commands', 'badges'],
+    ['schema_version', 'navigation', 'views', 'commands', 'badges', 'ui'],
     'app_contributions',
     manifestUrl,
   );
@@ -361,6 +373,99 @@ export function normalizeAppContributions(
     };
   });
 
+  const ui = contributionRecords(
+    value.ui,
+    'app_contributions.ui',
+    manifestUrl,
+  ).map((entry, index) => {
+    const field = `app_contributions.ui[${index}]`;
+    assertContributionKeys(
+      entry,
+      [
+        'contribution_id',
+        'slot',
+        'contribution_kind',
+        'trust_tier',
+        'scope',
+        'sort_order',
+        'view_id',
+        'command_ids',
+      ],
+      field,
+      manifestUrl,
+    );
+    const slot = stringValue(entry.slot);
+    const contributionKind = stringValue(entry.contribution_kind);
+    const trustTier = stringValue(entry.trust_tier);
+    const scope = stringValue(entry.scope);
+    if (!slot || !APP_CONTRIBUTION_UI_SLOTS.has(slot as AgentPackageAppContributionUiSlot)) {
+      appContributionInvalid('App UI contribution slot is unsupported.', manifestUrl, {
+        field: `${field}.slot`,
+        slot: entry.slot,
+      });
+    }
+    if (!contributionKind || !APP_CONTRIBUTION_UI_KINDS.has(contributionKind as 'view' | 'command_group')) {
+      appContributionInvalid('App UI contribution kind is unsupported.', manifestUrl, {
+        field: `${field}.contribution_kind`,
+        contribution_kind: entry.contribution_kind,
+      });
+    }
+    if (!trustTier || !APP_CONTRIBUTION_UI_TRUST_TIERS.has(
+      trustTier as 'declarative' | 'trusted_first_party_renderer',
+    )) {
+      appContributionInvalid('App UI contribution trust tier is unsupported.', manifestUrl, {
+        field: `${field}.trust_tier`,
+        trust_tier: entry.trust_tier,
+      });
+    }
+    if (!scope || !APP_CONTRIBUTION_UI_SCOPES.has(scope as 'root' | 'work_item')) {
+      appContributionInvalid('App UI contribution scope is unsupported.', manifestUrl, {
+        field: `${field}.scope`,
+        scope: entry.scope,
+      });
+    }
+    const viewId = entry.view_id === undefined
+      ? null
+      : normalizeContributionId(entry.view_id, `${field}.view_id`, manifestUrl);
+    const commandIds = contributionIdList(entry.command_ids, `${field}.command_ids`, manifestUrl);
+    if (
+      (contributionKind === 'view' && (viewId === null || commandIds.length > 0))
+      || (contributionKind === 'command_group' && (viewId !== null || commandIds.length === 0))
+    ) {
+      appContributionInvalid(
+        'App UI view placements require only view_id; command_group placements require only command_ids.',
+        manifestUrl,
+        { field },
+      );
+    }
+    if (
+      entry.sort_order !== undefined
+      && (
+        !Number.isInteger(entry.sort_order)
+        || Number(entry.sort_order) < -10000
+        || Number(entry.sort_order) > 10000
+      )
+    ) {
+      appContributionInvalid('App UI contribution sort_order must be a bounded integer.', manifestUrl, {
+        field: `${field}.sort_order`,
+      });
+    }
+    return {
+      contribution_id: normalizeContributionId(
+        entry.contribution_id,
+        `${field}.contribution_id`,
+        manifestUrl,
+      ),
+      slot: slot as AgentPackageAppContributionUiSlot,
+      contribution_kind: contributionKind as 'view' | 'command_group',
+      trust_tier: trustTier as 'declarative' | 'trusted_first_party_renderer',
+      scope: scope as 'root' | 'work_item',
+      sort_order: entry.sort_order === undefined ? 0 : Number(entry.sort_order),
+      ...(viewId === null ? {} : { view_id: viewId }),
+      ...(commandIds.length === 0 ? {} : { command_ids: commandIds }),
+    };
+  });
+
   assertUniqueContributionIds(
     navigation.map((entry) => entry.navigation_id),
     'app_contributions.navigation.navigation_id',
@@ -381,6 +486,11 @@ export function normalizeAppContributions(
     'app_contributions.badges.badge_id',
     manifestUrl,
   );
+  assertUniqueContributionIds(
+    ui.map((entry) => entry.contribution_id),
+    'app_contributions.ui.contribution_id',
+    manifestUrl,
+  );
 
   const viewIds = new Set(views.map((entry) => entry.view_id));
   const commandIds = new Set(commands.map((entry) => entry.command_id));
@@ -394,18 +504,29 @@ export function normalizeAppContributions(
   const missingBadgeIds = views
     .flatMap((entry) => entry.badge_ids)
     .filter((badgeId) => !badgeIds.has(badgeId));
+  const missingUiViewIds = ui
+    .map((entry) => entry.view_id)
+    .filter((viewId): viewId is string => typeof viewId === 'string')
+    .filter((viewId) => !viewIds.has(viewId));
+  const missingUiCommandIds = ui
+    .flatMap((entry) => entry.command_ids ?? [])
+    .filter((commandId) => !commandIds.has(commandId));
   if (
     missingNavigationViewIds.length > 0
     || missingCommandIds.length > 0
     || missingBadgeIds.length > 0
+    || missingUiViewIds.length > 0
+    || missingUiCommandIds.length > 0
   ) {
     appContributionInvalid('App contribution references must resolve inside the contribution.', manifestUrl, {
       missing_view_ids: uniqueStrings(missingNavigationViewIds),
       missing_command_ids: uniqueStrings(missingCommandIds),
       missing_badge_ids: uniqueStrings(missingBadgeIds),
+      missing_ui_view_ids: uniqueStrings(missingUiViewIds),
+      missing_ui_command_ids: uniqueStrings(missingUiCommandIds),
     });
   }
-  if (navigation.length + views.length + commands.length + badges.length === 0) {
+  if (navigation.length + views.length + commands.length + badges.length + ui.length === 0) {
     appContributionInvalid('app_contributions must expose at least one contribution.', manifestUrl);
   }
 
@@ -415,6 +536,7 @@ export function normalizeAppContributions(
     views,
     commands,
     badges,
+    ...(ui.length === 0 ? {} : { ui }),
   };
 }
 

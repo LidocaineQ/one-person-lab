@@ -52,6 +52,7 @@ import {
 } from './app-state-agent-packages.ts';
 import type { CordisConnectDescriptorDiscoveryService } from '../connect/index.ts';
 import type { CordisOwnerDeltaObserverService } from '../ledger/index.ts';
+import { buildAppUiContributionsProjection } from './app-state-ui-contributions.ts';
 
 function nowIso() {
   return new Date().toISOString();
@@ -974,6 +975,7 @@ export async function buildOplAppState(input: {
       authority_boundary: agentPackagesReadback.authority_boundary,
     },
   };
+  const uiContributions = buildAppUiContributionsProjection(agentPackageStatuses);
   const uiDefaults = buildUiDefaults();
   const workItemProjectionV2 = buildAppRuntimeWorkItemProjection({
     profile,
@@ -1113,6 +1115,7 @@ export async function buildOplAppState(input: {
       developer_mode: developerMode,
       runtime_source_carriers: runtimeSourceCarriersState,
       agent_packages: agentPackagesProjection,
+      ui_contributions: uiContributions,
       managed_companions: [managedBrowserAutomation, managedComputerUse],
       opl_agent_packages: profile === 'fast'
         ? compactFastLegacyAgentPackageDirectory(agentPackagesReadback)

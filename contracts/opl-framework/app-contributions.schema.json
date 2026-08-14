@@ -22,6 +22,10 @@
     {
       "required": ["badges"],
       "properties": {"badges": {"minItems": 1}}
+    },
+    {
+      "required": ["ui"],
+      "properties": {"ui": {"minItems": 1}}
     }
   ],
   "properties": {
@@ -53,6 +57,13 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/badge"
+      },
+      "maxItems": 100
+    },
+    "ui": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ui_placement"
       },
       "maxItems": 100
     }
@@ -207,6 +218,41 @@
           ]
         }
       },
+      "additionalProperties": false
+    },
+    "ui_placement": {
+      "type": "object",
+      "required": [
+        "contribution_id",
+        "slot",
+        "contribution_kind",
+        "trust_tier",
+        "scope"
+      ],
+      "properties": {
+        "contribution_id": { "$ref": "#/$defs/id" },
+        "slot": {
+          "enum": ["composer.palette", "runtime.detail", "settings.section"]
+        },
+        "contribution_kind": { "enum": ["view", "command_group"] },
+        "trust_tier": { "enum": ["declarative", "trusted_first_party_renderer"] },
+        "scope": { "enum": ["root", "work_item"] },
+        "sort_order": { "type": "integer", "minimum": -10000, "maximum": 10000 },
+        "view_id": { "$ref": "#/$defs/id" },
+        "command_ids": { "$ref": "#/$defs/id_list" }
+      },
+      "oneOf": [
+        {
+          "properties": { "contribution_kind": { "const": "view" } },
+          "required": ["view_id"],
+          "not": { "required": ["command_ids"] }
+        },
+        {
+          "properties": { "contribution_kind": { "const": "command_group" } },
+          "required": ["command_ids"],
+          "not": { "required": ["view_id"] }
+        }
+      ],
       "additionalProperties": false
     }
   }
