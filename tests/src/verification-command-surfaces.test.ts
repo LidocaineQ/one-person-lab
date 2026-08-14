@@ -273,8 +273,25 @@ test('policy contract sentinels keep audit, progress, and physical-delete author
   );
   assert.equal(guardrailTier.folding_policy.raw_trace_can_create_default_action, false);
   assert.equal(guardrailTier.folding_policy.warning_can_become_launch_blocker_without_tier_change, false);
+  assert.equal(guardrailTier.security_failure_containment.default_posture, 'fail_open_outside_the_violated_boundary');
+  assert.equal(guardrailTier.security_failure_containment.ordinary_healthy_path_must_remain_available, true);
+  assert.equal(guardrailTier.security_failure_containment.hardening_admission.permits_second_resolver_lock_lkg_or_signature_registry, false);
+  assert.equal(guardrailTier.security_failure_containment.hardening_admission.permits_mandatory_cold_start_without_trust_domain_evidence, false);
   for (const [claim, allowed] of Object.entries(guardrailTier.authority_boundary)) {
     assert.equal(allowed, false, `guardrail policy must not claim ${claim}`);
+  }
+
+  const securityHardening = readJson<Record<string, any>>(
+    'contracts/opl-framework/security-hardening-worklist.json',
+  );
+  assert.equal(securityHardening.contract_kind, 'opl_security_hardening_worklist.v1');
+  assert.equal(securityHardening.source_scan.finding_count, 10);
+  assert.equal(securityHardening.default_policy.posture, 'fail_open_outside_the_violated_boundary');
+  assert.equal(securityHardening.default_policy.advisory_or_unproven_risk_can_block_ordinary_runtime, false);
+  assert.equal(securityHardening.findings.length, 10);
+  assert.equal(securityHardening.findings.filter((finding: { status: string }) => finding.status === 'active_implementation').length, 4);
+  for (const [claim, allowed] of Object.entries(securityHardening.authority_boundary)) {
+    assert.equal(allowed, false, `security hardening worklist must not claim ${claim}`);
   }
 
   const progressTruth = readJson<Record<string, any>>(

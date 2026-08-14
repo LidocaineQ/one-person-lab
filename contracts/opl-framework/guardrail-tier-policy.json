@@ -75,6 +75,25 @@
     "raw_trace_can_create_default_action": false,
     "warning_can_become_launch_blocker_without_tier_change": false
   },
+  "security_failure_containment": {
+    "default_posture": "fail_open_outside_the_violated_boundary",
+    "ordinary_healthy_path_must_remain_available": true,
+    "local_rejection_scopes": ["request", "provider", "workspace_projection", "carrier", "stage_attempt"],
+    "containment_rules": [
+      "malformed_or_unsafe_input_may_reject_only_the_current_operation",
+      "one_provider_failure_must_not_fail_other_independent_providers",
+      "update_authenticity_failure_must_preserve_the_current_installed_generation",
+      "workspace_projection_rejection_must_not_disable_unrelated_workspace_capabilities",
+      "sandbox_or_carrier_isolation_must_not_create_a_framework_global_kill_switch"
+    ],
+    "hardening_admission": {
+      "requires_current_caller_and_boundary_evidence": true,
+      "requires_positive_compatibility_coverage": true,
+      "requires_hot_path_baseline_before_enforcement": true,
+      "permits_second_resolver_lock_lkg_or_signature_registry": false,
+      "permits_mandatory_cold_start_without_trust_domain_evidence": false
+    }
+  },
   "authority_boundary": {
     "guardrail_policy_can_write_domain_truth": false,
     "guardrail_policy_can_sign_owner_answer": false,

@@ -1,0 +1,133 @@
+{
+  "contract_kind": "opl_security_hardening_worklist.v1",
+  "owner": "one-person-lab",
+  "state": "active_contract",
+  "purpose": "Track current Codex Security finding disposition and owner route without turning scanner output into a runtime gate or a second Package control plane.",
+  "source_scan": {
+    "scan_id": "03a5506e-0f1b-4ddd-ba53-b33a0c8e6a83",
+    "status": "completed",
+    "coverage": "partial",
+    "finding_count": 10,
+    "severity_counts": {
+      "medium": 2,
+      "low": 8
+    },
+    "source_revision": "0bde6d32e326321cf9e18f23713521454a40db53",
+    "current_source_must_be_revalidated_before_mutation": true,
+    "scanner_result_is_execution_authority": false
+  },
+  "default_policy": {
+    "posture": "fail_open_outside_the_violated_boundary",
+    "unsafe_input_is_locally_rejected": true,
+    "independent_providers_continue_after_one_provider_fails": true,
+    "failed_update_preserves_current_installed_generation": true,
+    "advisory_or_unproven_risk_can_block_ordinary_runtime": false,
+    "new_parallel_resolver_lock_lkg_or_signature_registry_allowed": false,
+    "finding_can_close_without_current_source_and_regression_readback": false
+  },
+  "findings": [
+    {
+      "rule_id": "denial-of-service.malformed-host",
+      "severity": "low",
+      "disposition": "local_compatibility_fix",
+      "status": "active_implementation",
+      "owner_surface": "runway_observability_http_request_boundary",
+      "failure_scope": "request",
+      "preserved_behavior": "metrics_listener_and_valid_get_requests_continue"
+    },
+    {
+      "rule_id": "sensitive-data.git-url-in-evidence",
+      "severity": "low",
+      "disposition": "local_compatibility_fix",
+      "status": "active_implementation",
+      "owner_surface": "runway_workspace_transport_evidence_projection",
+      "failure_scope": "evidence_field",
+      "preserved_behavior": "raw_transport_url_remains_available_to_git_clone_only"
+    },
+    {
+      "rule_id": "resource-exhaustion.unbounded-provider-body",
+      "severity": "low",
+      "disposition": "local_compatibility_fix",
+      "status": "active_implementation",
+      "owner_surface": "connect_http_response_consumption",
+      "failure_scope": "provider_request",
+      "preserved_behavior": "other_providers_and_the_parent_operation_continue"
+    },
+    {
+      "rule_id": "path-traversal.workspace-symlink-projection",
+      "severity": "low",
+      "disposition": "local_compatibility_fix",
+      "status": "active_implementation",
+      "owner_surface": "agent_package_workspace_skill_projection",
+      "failure_scope": "workspace_projection",
+      "preserved_behavior": "ordinary_workspace_and_unrelated_workspace_capabilities_continue"
+    },
+    {
+      "rule_id": "ssrf.provider-redirect",
+      "severity": "medium",
+      "disposition": "canary_after_current_caller_revalidation",
+      "status": "planned",
+      "owner_surface": "connect_provider_redirect_policy",
+      "failure_scope": "provider_request",
+      "preserved_behavior": "legitimate_https_doi_and_publisher_redirects_continue"
+    },
+    {
+      "rule_id": "sandbox-escape.python-host-read",
+      "severity": "medium",
+      "disposition": "canary_after_runtime_dependency_inventory",
+      "status": "planned",
+      "owner_surface": "standard_agent_python_handler_launcher",
+      "failure_scope": "handler_attempt",
+      "preserved_behavior": "declared_interpreter_library_and_workspace_reads_continue"
+    },
+    {
+      "rule_id": "race-condition.workspace-cas-ancestor",
+      "severity": "low",
+      "disposition": "observe_then_revalidate_non_cooperating_writer",
+      "status": "evidence_required",
+      "owner_surface": "domain_artifact_cas_materialization",
+      "failure_scope": "cas_transaction",
+      "preserved_behavior": "ordinary_cooperative_cas_keeps_its_current_fast_path"
+    },
+    {
+      "rule_id": "isolation.e2b-cross-attempt-reuse",
+      "severity": "low",
+      "disposition": "observe_then_bind_reuse_to_trust_domain_if_reachable",
+      "status": "evidence_required",
+      "owner_surface": "external_sandbox_provider",
+      "failure_scope": "stage_attempt",
+      "preserved_behavior": "same_trust_domain_reuse_is_not_forced_to_cold_start"
+    },
+    {
+      "rule_id": "supply-chain.carrier-content-identity",
+      "severity": "low",
+      "disposition": "route_to_native_carrier_and_publication_owner",
+      "status": "owner_evidence_required",
+      "owner_surface": "native_carrier_currentness",
+      "failure_scope": "carrier",
+      "preserved_behavior": "framework_does_not_create_a_second_carrier_resolver_or_lock"
+    },
+    {
+      "rule_id": "supply-chain.mutable-channel-self-authorization",
+      "severity": "low",
+      "disposition": "route_to_release_publication_owner",
+      "status": "owner_evidence_required",
+      "owner_surface": "managed_update_release_authority",
+      "failure_scope": "update_operation",
+      "preserved_behavior": "missing_or_invalid_new_signature_skips_update_and_keeps_current_generation"
+    }
+  ],
+  "completion_policy": {
+    "implemented_status_requires_focused_regression": true,
+    "closed_status_requires_current_source_revalidation": true,
+    "closed_status_requires_canonical_main_and_wire_readback": true,
+    "planned_or_evidence_required_is_not_fixed": true,
+    "scanner_finding_count_is_not_a_delivery_metric": true
+  },
+  "authority_boundary": {
+    "worklist_can_block_runtime": false,
+    "worklist_can_authorize_package_lifecycle": false,
+    "worklist_can_replace_native_carrier_or_release_owner": false,
+    "worklist_can_close_a_finding_without_verification": false
+  }
+}
