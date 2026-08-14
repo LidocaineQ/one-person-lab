@@ -5,7 +5,6 @@ import { spawnSync } from 'node:child_process';
 import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
 import { parseJsonText } from '../../kernel/json-file.ts';
 import {
-  discoverInstalledPackageDescriptorsViaCordis,
   type CordisConnectDescriptorDiscoveryService,
   type InstalledPackageDescriptor,
 } from '../connect/index.ts';
@@ -66,6 +65,18 @@ function usageError(message: string, details?: JsonRecord): never {
 
 function contractError(message: string, details?: JsonRecord): never {
   throw new FrameworkContractError('contract_shape_invalid', message, details);
+}
+
+function requireDescriptorDiscovery(
+  descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>,
+) {
+  if (!descriptorDiscovery) {
+    return contractError(
+      'App contribution requires the Cordis Connect descriptor discovery service.',
+      { failure_code: 'cordis_connect_descriptor_discovery_service_required' },
+    );
+  }
+  return descriptorDiscovery.discover;
 }
 
 function requireJsonObject(value: string, option: string): JsonRecord {
@@ -318,8 +329,7 @@ export function runAppContribution(
     descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
   } = {},
 ) {
-  const discover = options.descriptorDiscovery?.discover
-    ?? discoverInstalledPackageDescriptorsViaCordis;
+  const discover = requireDescriptorDiscovery(options.descriptorDiscovery);
   const resolved = resolveContribution(request, discover);
   const response = invokeContribution(resolved, request);
   return {
@@ -336,8 +346,7 @@ export function preflightAppContribution(
     descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
   } = {},
 ) {
-  const discover = options.descriptorDiscovery?.discover
-    ?? discoverInstalledPackageDescriptorsViaCordis;
+  const discover = requireDescriptorDiscovery(options.descriptorDiscovery);
   const resolved = resolveContribution(request, discover);
   return {
     opl_app_contribution_preflight: {
@@ -354,8 +363,7 @@ export function hasExecutableAppContribution(
   } = {},
 ): boolean {
   try {
-    const discover = options.descriptorDiscovery?.discover
-      ?? discoverInstalledPackageDescriptorsViaCordis;
+    const discover = requireDescriptorDiscovery(options.descriptorDiscovery);
     return [...discover().values()].some((descriptor) => {
       if (
         !descriptor.enabled

@@ -6,10 +6,12 @@ import {
 import type { ProductEntryCliInput } from './product-entry-parts/types.ts';
 import { explainDomainBoundary, selectDomainAgentEntry } from '../atlas/index.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
+import type { CordisWorkspaceLocatorService } from './cordis-workspace-ledger.ts';
 
 export function buildProductEntryHandoffEnvelope(
   input: ProductEntryCliInput,
   contracts: FrameworkContracts,
+  workspaceLocator: CordisWorkspaceLocatorService,
 ) {
   const selectionInput = buildDomainAgentSelectionInput(input);
   const stageSelection = selectDomainAgentEntry(selectionInput, contracts);
@@ -24,6 +26,7 @@ export function buildProductEntryHandoffEnvelope(
       input,
       stageSelection,
       boundary,
+      workspaceLocator,
     ),
   };
 }

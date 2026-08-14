@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./cordis-profiles": "./dist/entrypoints/cordis/composition-profiles.js",
     "./foundry-protocol": "./dist/modules/foundry/protocol.js",
     "./foundry-protocol-fixture-conformance": "./dist/modules/foundry/protocol-fixture-conformance.js",
     "./foundry-control": "./dist/modules/foundry/control.js",

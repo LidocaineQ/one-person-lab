@@ -1,13 +1,9 @@
-import {
-  defaultCordisWorkspaceLedgerComposition,
-  type CordisOwnerDeltaObserverService,
-} from '../cordis-workspace-ledger.ts';
+import type { CordisOwnerDeltaObserverService } from '../../ledger/index.ts';
 import { record, type JsonRecord } from '../../../kernel/json-record.ts';
 
 export function buildAppOperatorOwnerDeltaTopline(input: {
   attentionFirstPayload: JsonRecord;
-}, ownerDeltaObserver: CordisOwnerDeltaObserverService =
-  defaultCordisWorkspaceLedgerComposition.ownerDeltaObserver) {
+}, ownerDeltaObserver: CordisOwnerDeltaObserverService) {
   const readModel = record(input.attentionFirstPayload.current_owner_delta_read_model);
   const topline = ownerDeltaObserver.observe({
     currentOwnerDeltaReadModel: readModel,

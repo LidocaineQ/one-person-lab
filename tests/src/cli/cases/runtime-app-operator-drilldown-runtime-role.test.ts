@@ -8,6 +8,9 @@ import {
 import {
   buildAppOperatorDrilldown,
 } from '../../../../src/modules/console/runtime-tray-app-operator-drilldown.ts';
+import { buildCurrentOwnerDeltaTopline } from '../../../../src/modules/ledger/current-owner-delta-topline.ts';
+
+const ownerDeltaObserver = { observe: buildCurrentOwnerDeltaTopline };
 
 function emptyDrilldown(detailLevel?: 'summary' | 'full') {
   return buildAppOperatorDrilldown({
@@ -16,6 +19,7 @@ function emptyDrilldown(detailLevel?: 'summary' | 'full') {
     domainProjectionIngestion: {},
     domainManifestProjects: [],
     detailLevel,
+    ownerDeltaObserver,
   }) as any;
 }
 

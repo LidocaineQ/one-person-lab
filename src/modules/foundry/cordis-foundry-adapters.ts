@@ -143,7 +143,9 @@ function foundryDescriptor(input: {
     injects: { required: [], optional: [] },
     events: input.events,
     scope: input.scope,
-    trust: 'first_party_privileged',
+    trust: input.scope === 'attempt'
+      ? 'first_party_restricted'
+      : 'first_party_privileged',
     disposer: { required: true, boundary: 'plugin_fiber' },
     authority_boundary: {
       forbidden_authorities: foundryForbiddenAuthorities,

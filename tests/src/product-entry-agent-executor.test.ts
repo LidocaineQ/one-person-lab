@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { createFakeCodexFixture } from './cli/helpers.ts';
 import type { AgentExecutionReceipt } from '../../src/modules/runway/agent-executor.ts';
+import { createCordisAgentExecutorRequest } from '../../src/modules/runway/cordis-agent-executor-experiment.ts';
 import { runProductEntryExec } from '../../src/modules/console/product-entry.ts';
 
 function makeExecutable(name: string, body: string) {
@@ -26,7 +27,7 @@ function requireCloseoutRefs(receipt: AgentExecutionReceipt) {
   return closeoutRefs;
 }
 
-test('Product Entry exec defaults to codex_cli through the OPL agent executor receipt', () => {
+test('Product Entry exec defaults to codex_cli through the OPL agent executor receipt', async () => {
   const { fixtureRoot, codexPath } = createFakeCodexFixture(`
 if [ "$1" = "exec" ]; then
   printf '{"type":"thread.started","thread_id":"thread-product-entry-exec"}\\n'
@@ -37,12 +38,13 @@ echo "unexpected fake codex args: $*" >&2
 exit 64
 `);
   const previousCodexBin = process.env.OPL_CODEX_BIN;
+  const composition = await createCordisAgentExecutorRequest();
   try {
     process.env.OPL_CODEX_BIN = codexPath;
-    const output = runProductEntryExec({
+    const output = await runProductEntryExec({
       dryRun: false,
       prompt: 'Run a product-entry exec task.',
-    });
+    }, composition.executor);
 
     assert.equal(output.product_entry.executor_backend, 'codex_cli');
     const receipt = requireAgentExecutionReceipt(output.product_entry.agent_execution_receipt);
@@ -51,6 +53,7 @@ exit 64
     assert.equal(output.product_entry.codex.response, 'Product entry exec complete');
     assert.equal(output.product_entry.codex.exit_code, 0);
   } finally {
+    await composition.dispose();
     if (previousCodexBin === undefined) {
       delete process.env.OPL_CODEX_BIN;
     } else {
@@ -60,21 +63,22 @@ exit 64
   }
 });
 
-test('Product Entry exec can explicitly select a non-default OPL executor', () => {
+test('Product Entry exec can explicitly select a non-default OPL executor', async () => {
   const fake = makeExecutable(
     'claude',
     '#!/bin/sh\nprintf \'{"surface_kind":"stage_attempt_closeout_packet","closeout_refs":["receipt:product-entry-claude"]}\\n\'\n',
   );
   const previousClaudeBin = process.env.OPL_CLAUDE_CODE_BIN;
   const previousPath = process.env.PATH;
+  const composition = await createCordisAgentExecutorRequest();
   try {
     process.env.OPL_CLAUDE_CODE_BIN = fake.file;
     process.env.PATH = '';
-    const output = runProductEntryExec({
+    const output = await runProductEntryExec({
       dryRun: false,
       prompt: 'Run through Claude Code.',
       executorKind: 'claude_code',
-    });
+    }, composition.executor);
 
     assert.equal(output.product_entry.executor_backend, 'claude_code');
     const receipt = requireAgentExecutionReceipt(output.product_entry.agent_execution_receipt);
@@ -82,6 +86,7 @@ test('Product Entry exec can explicitly select a non-default OPL executor', () =
     assert.equal(requireCloseoutRefs(receipt)[0], 'receipt:product-entry-claude');
     assert.equal(receipt.proof?.fallback_allowed, false);
   } finally {
+    await composition.dispose();
     if (previousClaudeBin === undefined) {
       delete process.env.OPL_CLAUDE_CODE_BIN;
     } else {
@@ -96,7 +101,7 @@ test('Product Entry exec can explicitly select a non-default OPL executor', () =
   }
 });
 
-test('Product Entry exec can explicitly select hermes_agent through its receipt gate', () => {
+test('Product Entry exec can explicitly select hermes_agent through its receipt gate', async () => {
   const fake = makeExecutable(
     'hermes-agent',
     [
@@ -107,14 +112,15 @@ test('Product Entry exec can explicitly select hermes_agent through its receipt 
   );
   const previousHermesBin = process.env.OPL_HERMES_AGENT_EXECUTOR_BIN;
   const previousCodexBin = process.env.OPL_CODEX_BIN;
+  const composition = await createCordisAgentExecutorRequest();
   try {
     process.env.OPL_HERMES_AGENT_EXECUTOR_BIN = fake.file;
     delete process.env.OPL_CODEX_BIN;
-    const output = runProductEntryExec({
+    const output = await runProductEntryExec({
       dryRun: false,
       prompt: 'Run through Hermes-Agent.',
       executorKind: 'hermes_agent',
-    });
+    }, composition.executor);
 
     assert.equal(output.product_entry.executor_backend, 'hermes_agent');
     const receipt = requireAgentExecutionReceipt(output.product_entry.agent_execution_receipt);
@@ -124,6 +130,7 @@ test('Product Entry exec can explicitly select hermes_agent through its receipt 
     assert.equal(receipt.proof?.full_agent_loop_proved, true);
     assert.equal(receipt.proof?.tool_call_count, 1);
   } finally {
+    await composition.dispose();
     if (previousHermesBin === undefined) {
       delete process.env.OPL_HERMES_AGENT_EXECUTOR_BIN;
     } else {

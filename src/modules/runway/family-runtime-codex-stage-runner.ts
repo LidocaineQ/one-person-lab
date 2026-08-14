@@ -9,10 +9,14 @@ import {
 } from './codex.ts';
 import {
   AGENT_EXECUTOR_KINDS,
-  runAgentExecutor,
+  type AgentExecutionReceipt,
   type AgentExecutorKind,
   type StageAttemptExecutorPolicy,
 } from './agent-executor.ts';
+import {
+  createCordisAgentExecutorRequest,
+  type CordisAgentExecutorService,
+} from './cordis-agent-executor-experiment.ts';
 import {
   DEFAULT_CODEX_PROTOCOL_CLOSEOUT_RESUME_TIMEOUT_MS,
   DEFAULT_CODEX_STAGE_RUNNER_COMMAND_NO_PROGRESS_TIMEOUT_MS,
@@ -939,7 +943,10 @@ async function runCodexStageRunner(input: CodexStageRunnerInput): Promise<CodexS
   }
 }
 
-export async function runAgentStageRunner(input: CodexStageRunnerInput) {
+export async function runAgentStageRunner(
+  input: CodexStageRunnerInput,
+  options: { agentExecutor?: CordisAgentExecutorService } = {},
+) {
   const executorKind = normalizeAgentExecutorStageMode(input.runnerMode)
     ?? normalizeAgentExecutorStageMode(optionalString(input.attempt.executor_kind))
     ?? executorKindFromAttemptPolicy(input.attempt);
@@ -950,19 +957,27 @@ export async function runAgentStageRunner(input: CodexStageRunnerInput) {
     });
   }
   const stageAttemptExecutorPolicy = executorPolicyFromAttempt(input.attempt);
-  const receipt = runAgentExecutor({
-    executor_kind: executorKind,
-    stage_attempt_executor_policy: stageAttemptExecutorPolicy,
-    mode: 'stage_activity',
-    prompt: runnerPromptForExecution(input, input.attempt),
-    cwd: workspaceRootFromAttempt(input.attempt),
-    timeout_ms: input.timeoutMs,
-    context_refs: [
-      ...(input.stagePacketRef ? [input.stagePacketRef] : []),
-      ...checkpointRefsFromAttempt(input.attempt),
-    ],
-    env: input.env,
-  });
+  const ownedComposition = options.agentExecutor
+    ? null
+    : await createCordisAgentExecutorRequest();
+  let receipt: AgentExecutionReceipt;
+  try {
+    receipt = await (options.agentExecutor ?? ownedComposition!.executor).execute({
+      executor_kind: executorKind,
+      stage_attempt_executor_policy: stageAttemptExecutorPolicy,
+      mode: 'stage_activity',
+      prompt: runnerPromptForExecution(input, input.attempt),
+      cwd: workspaceRootFromAttempt(input.attempt),
+      timeout_ms: input.timeoutMs,
+      context_refs: [
+        ...(input.stagePacketRef ? [input.stagePacketRef] : []),
+        ...checkpointRefsFromAttempt(input.attempt),
+      ],
+      env: input.env,
+    });
+  } finally {
+    await ownedComposition?.dispose();
+  }
   return buildAgentStageRunnerReceipt({
     attempt: input.attempt,
     stagePacketRef: input.stagePacketRef,

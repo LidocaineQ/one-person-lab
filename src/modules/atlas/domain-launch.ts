@@ -4,15 +4,18 @@ import { findDomainOrThrow } from '../charter/index.ts';
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
 import { requireAgentPackageReadinessPort } from '../../kernel/agent-package-readiness-port.ts';
 import { resolveStandardAgent } from '../../kernel/standard-agent-registry.ts';
-import { requireWorkspaceBindingPort } from '../../kernel/workspace-binding-port.ts';
 import { buildDomainManifestCatalog } from './domain-manifest/catalog-builder.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
+import type { WorkspaceLocator } from '../../kernel/workspace-binding-port.ts';
 
 export type DomainLaunchStrategy = 'auto' | 'open_url' | 'spawn_command';
 
 export type LaunchDomainEntryOptions = {
   projectId: string;
   workspacePath?: string;
+  workspaceLocator: {
+    resolve(projectId: string, explicitWorkspacePath?: string): WorkspaceLocator;
+  };
   strategy?: DomainLaunchStrategy;
   dryRun?: boolean;
 };
@@ -133,7 +136,7 @@ export async function launchDomainEntry(
   }
 
   const domain = findDomainOrThrow(contracts, options.projectId);
-  const workspaceLocator = requireWorkspaceBindingPort().resolveWorkspaceLocator(
+  const workspaceLocator = options.workspaceLocator.resolve(
     options.projectId,
     options.workspacePath,
   );

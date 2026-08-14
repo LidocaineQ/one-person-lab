@@ -153,7 +153,7 @@ function descriptor(input: {
       optional: [],
     },
     events: input.events ?? [],
-    scope: 'composition',
+    scope: 'request',
     trust: 'first_party_privileged',
     disposer: { required: true, boundary: 'plugin_fiber' },
     authority_boundary: { forbidden_authorities: forbiddenAuthorities },
@@ -229,7 +229,7 @@ export function buildCordisAgentExecutorCompositionSnapshot(
   });
 }
 
-export async function createCordisAgentExecutorComposition(options: {
+export async function createCordisAgentExecutorRequest(options: {
   adapter?: CordisAgentExecutorAdapter;
 } = {}) {
   const ctx = new Context();
@@ -361,7 +361,7 @@ export function buildCordisPackStagecraftCompositionSnapshot(): CordisPackStagec
   });
 }
 
-export async function createCordisPackStagecraftComposition(
+export async function createCordisStageRouteComposition(
   options: CordisStagecraftContextPluginConfig = {},
 ) {
   const ctx = new Context();

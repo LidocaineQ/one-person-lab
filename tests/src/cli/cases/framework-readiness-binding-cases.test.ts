@@ -14,6 +14,7 @@ import {
   buildStandardAgentDomainManifestCatalog,
 } from '../../../../src/modules/atlas/index.ts';
 import { createFamilyWorkspaceFixture } from './runtime-app-operator-drilldown-helpers.ts';
+import { createCordisOwnerDeltaObserverComposition } from '../../../../src/modules/ledger/cordis-owner-delta-observer.ts';
 
 function restoreEnvVar(name: string, previousValue: string | undefined): void {
   if (previousValue === undefined) {
@@ -68,12 +69,15 @@ test('framework readiness treats stale domain workspace bindings as registry att
     process.env.OPL_FAMILY_WORKSPACE_ROOT = workspaceRoot;
     process.env.OPL_META_AGENT_REPO_DIR = omaRepoDir;
     process.env.CODEX_HOME = codexHome;
+    let observerComposition: Awaited<ReturnType<typeof createCordisOwnerDeltaObserverComposition>> | undefined;
     try {
       const contracts = loadFrameworkContracts();
+      observerComposition = await createCordisOwnerDeltaObserverComposition();
       const readiness = (await buildFrameworkReadinessSummary(contracts, {
         familyDefaults: true,
       }, {
         runtimeSnapshotProvider: buildRuntimeTraySnapshot,
+        ownerDeltaObserver: observerComposition.observer,
         ...readinessCatalogs(contracts),
       })).framework_readiness;
       assert.equal(readiness.summary.domain_manifest_stale_binding_count, 1);
@@ -117,6 +121,7 @@ test('framework readiness treats stale domain workspace bindings as registry att
         false,
       );
     } finally {
+      await observerComposition?.dispose();
       restoreEnvVar('OPL_STATE_DIR', previousStateDir);
       restoreEnvVar('OPL_FAMILY_WORKSPACE_ROOT', previousFamilyWorkspaceRoot);
       restoreEnvVar('OPL_META_AGENT_REPO_DIR', previousOmaRepoDir);
@@ -158,12 +163,15 @@ test('framework readiness treats missing manifest commands as config attention, 
     process.env.OPL_FAMILY_WORKSPACE_ROOT = workspaceRoot;
     process.env.OPL_META_AGENT_REPO_DIR = omaRepoDir;
     process.env.CODEX_HOME = codexHome;
+    let observerComposition: Awaited<ReturnType<typeof createCordisOwnerDeltaObserverComposition>> | undefined;
     try {
       const contracts = loadFrameworkContracts();
+      observerComposition = await createCordisOwnerDeltaObserverComposition();
       const readiness = (await buildFrameworkReadinessSummary(contracts, {
         familyDefaults: true,
       }, {
         runtimeSnapshotProvider: buildRuntimeTraySnapshot,
+        ownerDeltaObserver: observerComposition.observer,
         ...readinessCatalogs(contracts),
       })).framework_readiness;
       assert.equal(readiness.summary.domain_manifest_not_configured_count, 1);
@@ -207,6 +215,7 @@ test('framework readiness treats missing manifest commands as config attention, 
         false,
       );
     } finally {
+      await observerComposition?.dispose();
       restoreEnvVar('OPL_STATE_DIR', previousStateDir);
       restoreEnvVar('OPL_FAMILY_WORKSPACE_ROOT', previousFamilyWorkspaceRoot);
       restoreEnvVar('OPL_META_AGENT_REPO_DIR', previousOmaRepoDir);

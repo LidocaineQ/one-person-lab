@@ -1,10 +1,7 @@
 import { findDomainOrThrow } from '../charter/index.ts';
 import { buildDomainManifestCatalog } from '../atlas/index.ts';
 import { buildDomainEntryParity, buildRecommendedEntrySurfaces } from '../atlas/index.ts';
-import {
-  defaultCordisWorkspaceLedgerComposition,
-  type CordisWorkspaceLocatorService,
-} from './cordis-workspace-ledger.ts';
+import type { CordisWorkspaceLocatorService } from './cordis-workspace-ledger.ts';
 import { buildOplRuntimeEndpoints } from '../../kernel/opl-runtime-endpoints.ts';
 import type { BoundaryExplanation, FrameworkContracts, ResolutionResult } from '../../kernel/types.ts';
 
@@ -34,7 +31,7 @@ type BuildProductEntryHandoffBundleOptions = {
   boundary: BoundaryExplanation;
   sessionId?: string | null;
   basePath?: string;
-  workspaceLocator?: CordisWorkspaceLocatorService;
+  workspaceLocator: CordisWorkspaceLocatorService;
 };
 
 function resolveSelectedDomainId(stageSelection: ResolutionResult) {
@@ -51,8 +48,7 @@ export function buildProductEntryHandoffBundleView(
 ): ProductEntryHandoffBundleResult {
   const targetDomainId = resolveSelectedDomainId(options.stageSelection);
   const domain = targetDomainId ? findDomainOrThrow(contracts, targetDomainId) : null;
-  const workspaceLocatorService = options.workspaceLocator
-    ?? defaultCordisWorkspaceLedgerComposition.workspaceLocator;
+  const workspaceLocatorService = options.workspaceLocator;
   const workspaceLocator = targetDomainId
     ? workspaceLocatorService.resolve(targetDomainId, options.workspacePath)
     : {

@@ -8,6 +8,9 @@ import {
 import {
   buildAppOperatorDrilldown,
 } from '../../../../src/modules/console/runtime-tray-app-operator-drilldown.ts';
+import { buildCurrentOwnerDeltaTopline } from '../../../../src/modules/ledger/current-owner-delta-topline.ts';
+
+const ownerDeltaObserver = { observe: buildCurrentOwnerDeltaTopline };
 
 test('runtime App drilldown retains the canonical workbench shell', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-drilldown-workbench-shell-'));
@@ -20,6 +23,7 @@ test('runtime App drilldown retains the canonical workbench shell', () => {
       domainProjectionIngestion: {},
       domainManifestProjects: [],
       detailLevel: 'full',
+      ownerDeltaObserver,
     });
 
     assert.equal(projection.detail_level, 'full');

@@ -19,6 +19,12 @@
         "plugin_api_versions": [
           "1.0.0"
         ]
+      },
+      {
+        "service_id": "opl.ledger.owner-delta-observer",
+        "plugin_api_versions": [
+          "1.0.0"
+        ]
       }
     ],
     "optional": []
@@ -31,8 +37,8 @@
       "payload_schema_ref": null
     }
   ],
-  "scope": "composition",
-  "trust": "first_party_privileged",
+  "scope": "session",
+  "trust": "first_party_restricted",
   "disposer": {
     "required": true,
     "boundary": "plugin_fiber"

@@ -1,4 +1,5 @@
 import type { DomainManifestCatalogEntry } from '../atlas/index.ts';
+import type { CordisOwnerDeltaObserverService } from '../ledger/index.ts';
 import {
   buildDomainEvidenceRequestRefs,
 } from './runtime-tray-domain-evidence-requests.ts';
@@ -122,6 +123,7 @@ export function buildAppOperatorDrilldown(input: {
   currentWorkUnitProjections?: JsonRecord[];
   currentControlReadbacks?: JsonRecord[];
   detailLevel?: AppOperatorDrilldownDetailLevel;
+  ownerDeltaObserver: CordisOwnerDeltaObserverService;
 }) {
   const attempts = recordList(input.stageAttemptWorkbench.attempts);
   const evidenceAttempts = recordList(input.stageAttemptWorkbench.evidence_attempts);
@@ -638,7 +640,7 @@ export function buildAppOperatorDrilldown(input: {
       'does_not_authorize_quality_readiness_or_export_verdict',
       'does_not_directly_execute_domain_actions',
     ],
-  }, input.detailLevel ?? 'summary');
+  }, input.detailLevel ?? 'summary', input.ownerDeltaObserver);
 }
 
 export type { AppOperatorDrilldownDetailLevel };

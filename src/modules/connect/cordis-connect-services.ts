@@ -131,8 +131,8 @@ export const CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_PLUGIN_DESCRIPTOR: CordisPlugin
       role: 'publish',
       payload_schema_ref: null,
     }],
-    scope: 'composition',
-    trust: 'first_party_privileged',
+    scope: 'process',
+    trust: 'first_party_restricted',
     disposer: { required: true, boundary: 'plugin_fiber' },
     authority_boundary: { forbidden_authorities: forbiddenAuthorities },
   });
@@ -176,12 +176,4 @@ export async function createCordisConnectComposition(
       await ctx.fiber.dispose();
     },
   };
-}
-
-const defaultCordisConnectComposition = await createCordisConnectComposition();
-
-export function discoverInstalledPackageDescriptorsViaCordis(
-  input: CordisConnectDescriptorDiscoveryInput = {},
-) {
-  return defaultCordisConnectComposition.descriptorDiscovery.discover(input);
 }

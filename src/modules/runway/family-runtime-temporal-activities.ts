@@ -105,7 +105,7 @@ import {
   ensureFamilyRuntimePackageLaunchReady,
   packageRuntimeSourceCheckoutPath,
 } from './family-runtime-package-readiness.ts';
-import { createCordisPackStagecraftComposition } from './cordis-agent-executor-experiment.ts';
+import { createCordisStageRouteComposition } from './cordis-agent-executor-experiment.ts';
 import {
   createCordisRunwayAttemptComposition,
 } from './cordis-runway-attempt.ts';
@@ -1387,7 +1387,7 @@ export async function stageQualityAttemptMaterializeActivity(
     };
     const cordis = options.resolveStageBinding
       ? null
-      : await createCordisPackStagecraftComposition();
+      : await createCordisStageRouteComposition();
     let executionStageBinding;
     try {
       executionStageBinding = (

@@ -60,7 +60,10 @@ import {
   worklistCounts,
 } from './family-runtime-evidence-worklist-parts/worklist-ledgers.ts';
 import { writeCurrentOwnerDeltaReadModelProjectionCache } from '../ledger/index.ts';
-import { buildCurrentOwnerDeltaTopline } from '../ledger/index.ts';
+import {
+  createCordisOwnerDeltaObserverComposition,
+  type CordisOwnerDeltaObserverService,
+} from '../ledger/index.ts';
 
 type EvidenceWorklistInput = {
   familyDefaults: boolean;
@@ -69,6 +72,7 @@ type EvidenceWorklistInput = {
   detailLevel?: 'summary' | 'full';
   runtimeSnapshot?: RuntimeTraySnapshotEnvelope;
   runtimeSnapshotProvider?: RuntimeTraySnapshotProvider;
+  ownerDeltaObserver?: CordisOwnerDeltaObserverService;
   stageReadiness?: JsonRecord;
   stageReplayMissingReceiptExtraReceipts?: StageReplayMissingReceiptReceipt[];
   domainManifests?: DomainManifestCatalog;
@@ -76,9 +80,9 @@ type EvidenceWorklistInput = {
   defaultCallerReadinessReportBuilder?: (args: string[]) => JsonRecord;
 };
 
-export async function runFamilyRuntimeEvidenceWorklist(
+async function runFamilyRuntimeEvidenceWorklistWithObserver(
   contracts: FrameworkContracts,
-  input: EvidenceWorklistInput,
+  input: EvidenceWorklistInput & { ownerDeltaObserver: CordisOwnerDeltaObserverService },
 ) {
   const domainManifests = domainManifestsForWorklist(contracts, input);
   const stageReadiness = stageReadinessForWorklist(contracts, input, domainManifests);
@@ -247,7 +251,7 @@ export async function runFamilyRuntimeEvidenceWorklist(
     domainDispatchEvidenceWorkorderSummary,
     stageReplayMissingReceiptWorkorderSummary,
   });
-  const ownerDeltaTopline = buildCurrentOwnerDeltaTopline({ currentOwnerDeltaReadModel });
+  const ownerDeltaTopline = input.ownerDeltaObserver.observe({ currentOwnerDeltaReadModel });
   writeCurrentOwnerDeltaReadModelProjectionCache({
     readModel: currentOwnerDeltaReadModel,
     sourceSurface: 'family_runtime_evidence_worklist',
@@ -356,4 +360,21 @@ export async function runFamilyRuntimeEvidenceWorklist(
       full_detail_command: 'opl family-runtime evidence-worklist --family-defaults --provider temporal --executor-kind codex_cli --detail full --json',
     },
   };
+}
+
+export async function runFamilyRuntimeEvidenceWorklist(
+  contracts: FrameworkContracts,
+  input: EvidenceWorklistInput,
+) {
+  const ownedComposition = input.ownerDeltaObserver
+    ? null
+    : await createCordisOwnerDeltaObserverComposition();
+  try {
+    return await runFamilyRuntimeEvidenceWorklistWithObserver(contracts, {
+      ...input,
+      ownerDeltaObserver: input.ownerDeltaObserver ?? ownedComposition!.observer,
+    });
+  } finally {
+    await ownedComposition?.dispose();
+  }
 }

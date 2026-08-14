@@ -23,10 +23,7 @@ import {
   resolveOplStatePaths,
 } from '../../../kernel/runtime-state-paths.ts';
 import { materializeStandardAgentCapabilityMap } from '../../pack/index.ts';
-import {
-  discoverInstalledPackageDescriptorsViaCordis,
-  type CordisConnectDescriptorDiscoveryService,
-} from '../cordis-connect-services.ts';
+import type { CordisConnectDescriptorDiscoveryService } from '../cordis-connect-services.ts';
 import { inspectOplModule } from '../system-installation/modules.ts';
 import { sha256Text } from './shared.ts';
 import type {
@@ -701,8 +698,14 @@ export function refreshInstalledAgentPackageWorkspaceSkills(input: {
       targetWorkspace,
     );
   }
-  const descriptors = (input.descriptorDiscovery?.discover
-    ?? discoverInstalledPackageDescriptorsViaCordis)();
+  if (!input.descriptorDiscovery) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Workspace Skill projection requires the Cordis Connect descriptor discovery service.',
+      { failure_code: 'cordis_connect_descriptor_discovery_service_required' },
+    );
+  }
+  const descriptors = input.descriptorDiscovery.discover();
   const root = descriptors.get(packageId);
   if (!root || root.manifest.package_role !== 'standard_agent') {
     return notInstalledRefresh(packageId, targetWorkspace);

@@ -1,5 +1,8 @@
 import { assert, createFamilyContractsFixtureRoot, fs, os, path, runCli, test } from '../helpers.ts';
 import { applyAppOperatorDrilldownDetail } from '../../../../src/modules/console/runtime-tray-app-operator-drilldown-parts/detail-view.ts';
+import { buildCurrentOwnerDeltaTopline } from '../../../../src/modules/ledger/current-owner-delta-topline.ts';
+
+const ownerDeltaObserver = { observe: buildCurrentOwnerDeltaTopline };
 
 function selectionProjectionFixture<T extends Record<string, unknown>>(input: T) {
   return {
@@ -79,7 +82,7 @@ test('runtime App projection chooses actionable provider routes and ignores guar
     },
     app_execution_bridge: { safe_action_routes: [] },
     authority_boundary: { can_write_domain_truth: false, can_claim_production_ready: false },
-  }), 'summary');
+  }), 'summary', ownerDeltaObserver);
   assert.ok(installProjection.attention_first_payload.next_safe_action);
   assert.equal(installProjection.attention_first_payload.next_safe_action.action_id, 'provider-scheduler:temporal:install');
 
@@ -96,7 +99,7 @@ test('runtime App projection chooses actionable provider routes and ignores guar
     },
     app_execution_bridge: { safe_action_routes: [] },
     authority_boundary: { can_write_domain_truth: false, can_claim_production_ready: false },
-  }), 'summary');
+  }), 'summary', ownerDeltaObserver);
   assert.equal(guardedProjection.attention_first_payload.next_safe_action, null);
 });
 
@@ -137,7 +140,7 @@ test('runtime App projection keeps owner payload work ahead of provider maintena
     },
     app_execution_bridge: { safe_action_routes: [domainDispatchRecordRoute] },
     authority_boundary: { can_write_domain_truth: false, can_claim_production_ready: false },
-  }), 'full');
+  }), 'full', ownerDeltaObserver);
 
   assert.ok(projection.attention_first_payload.next_safe_action);
   assert.equal(projection.attention_first_payload.next_safe_action.action_id, 'domain_dispatch:medautoscience:attempt-2:record');
@@ -170,7 +173,7 @@ test('runtime App projection keeps legacy cleanup and diagnostic routes out of d
         }],
       },
       authority_boundary: { can_write_domain_truth: false, can_claim_production_ready: false },
-    }), 'summary');
+    }), 'summary', ownerDeltaObserver);
 
     assert.equal(projection.attention_first_payload.next_safe_action, null);
     assert.equal(projection.attention_first_payload.additional_safe_action_count, 0);

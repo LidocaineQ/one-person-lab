@@ -29,7 +29,7 @@ import { requireTemporalStageRunWorkflowInputLaunchable } from './family-runtime
 import { stableId } from './family-runtime-store.ts';
 import { preflightDomainWorkspaceCheckoutCurrentness } from './family-runtime-checkout-currentness.ts';
 import { preflightFamilyRuntimeDomainLifecycleAdmission } from './family-runtime-domain-lifecycle-admission.ts';
-import { createCordisPackStagecraftComposition } from './cordis-agent-executor-experiment.ts';
+import { createCordisStageRouteComposition } from './cordis-agent-executor-experiment.ts';
 
 type PackageReadinessResult = Awaited<ReturnType<typeof ensureFamilyRuntimePackageLaunchReady>>;
 
@@ -338,7 +338,7 @@ export async function materializeStageRunRoute(
   });
   const cordis = dependencies.resolveStageBinding
     ? null
-    : await createCordisPackStagecraftComposition();
+    : await createCordisStageRouteComposition();
   const resolveStageBinding = dependencies.resolveStageBinding
     ?? cordis!.stageBinding.resolve.bind(cordis!.stageBinding);
   try {

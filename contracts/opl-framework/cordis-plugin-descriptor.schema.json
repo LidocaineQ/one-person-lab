@@ -72,7 +72,7 @@
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/event" }
     },
-    "scope": { "enum": ["composition", "attempt", "request"] },
+    "scope": { "enum": ["process", "composition", "session", "attempt", "request"] },
     "trust": { "enum": ["first_party_privileged", "first_party_restricted", "third_party_untrusted"] },
     "disposer": {
       "type": "object",

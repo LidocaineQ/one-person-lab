@@ -40,7 +40,7 @@ import {
 } from './framework-readiness-source-commands.ts';
 import { domainBlockedTypedBlockerAttention } from './framework-readiness-typed-blocker-attention.ts';
 import { buildOwnerDeltaHandoffSummaryFromFrameworkReadiness, OWNER_DELTA_HANDOFF_TAXONOMY, ownerDeltaHandoffFrameworkReadinessSection } from './framework-readiness-owner-delta-handoff-summary.ts';
-import { buildCurrentOwnerDeltaTopline } from '../ledger/index.ts';
+import type { CordisOwnerDeltaObserverService } from '../ledger/index.ts';
 import {
   booleanValue,
   countValue,
@@ -63,6 +63,7 @@ type FrameworkReadinessInput = {
 
 type FrameworkReadinessOptions = {
   runtimeSnapshotProvider?: RuntimeTraySnapshotProvider;
+  ownerDeltaObserver: CordisOwnerDeltaObserverService;
   domainManifests: ReturnType<typeof buildDomainManifestCatalog>['domain_manifests'];
   standardAgentDomainManifests: ReturnType<typeof buildStandardAgentDomainManifestCatalog>['domain_manifests'];
 };
@@ -215,6 +216,7 @@ export async function buildFrameworkReadinessSummary(
       executorKind: 'codex_cli',
       runtimeSnapshot,
       stageReadiness: familyStageReadiness,
+      ownerDeltaObserver: options.ownerDeltaObserver,
     })).family_runtime_evidence_worklist,
   );
 
@@ -464,7 +466,7 @@ export async function buildFrameworkReadinessSummary(
     providerSloCadenceWindowStatus: appSummary.provider_slo_cadence_window_status,
     providerSloCapabilityStatus: appSummary.provider_slo_capability_status,
   });
-  const ownerDeltaTopline = buildCurrentOwnerDeltaTopline({
+  const ownerDeltaTopline = options.ownerDeltaObserver.observe({
     currentOwnerDeltaReadModel: attentionFirstPayload.current_owner_delta_read_model,
   });
   const summary = {

@@ -11,7 +11,7 @@ import {
   cordisAgentExecutorObserverPlugin,
   cordisAgentExecutorServicePlugin,
   CORDIS_FIBER_STATE,
-  createCordisAgentExecutorComposition,
+  createCordisAgentExecutorRequest,
   type CordisAgentExecutorAdapter,
 } from '../../src/modules/runway/cordis-agent-executor-experiment.ts';
 import {
@@ -28,15 +28,15 @@ function fixtureAdapter(id: string): CordisAgentExecutorAdapter {
   };
 }
 
-test('Cordis remains exact and isolated in the experimental dependency graph', () => {
+test('Cordis remains exact in the production dependency graph without optional loader plugins', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package-lock.json'), 'utf8'));
   const lockedCordis = packageLock.packages['node_modules/@deepseek-ai/cordis'];
 
-  assert.equal(packageJson.dependencies?.['@deepseek-ai/cordis'], undefined);
-  assert.equal(packageJson.devDependencies?.['@deepseek-ai/cordis'], '4.0.1');
+  assert.equal(packageJson.dependencies?.['@deepseek-ai/cordis'], '4.0.1');
+  assert.equal(packageJson.devDependencies?.['@deepseek-ai/cordis'], undefined);
   assert.equal(lockedCordis.version, '4.0.1');
-  assert.equal(lockedCordis.dev, true);
+  assert.equal(lockedCordis.dev, undefined);
   assert.match(lockedCordis.integrity, /^sha512-/);
   assert.equal(packageLock.packages['node_modules/@deepseek-ai/cordis-plugin-loader'], undefined);
   assert.equal(packageLock.packages['node_modules/@deepseek-ai/cordis-plugin-include'], undefined);
@@ -55,9 +55,9 @@ exit 64
   const results: string[] = [];
   const previousCodexBin = process.env.OPL_CODEX_BIN;
   process.env.OPL_CODEX_BIN = codexPath;
-  let composition: Awaited<ReturnType<typeof createCordisAgentExecutorComposition>> | undefined;
+  let composition: Awaited<ReturnType<typeof createCordisAgentExecutorRequest>> | undefined;
   try {
-    composition = await createCordisAgentExecutorComposition({
+    composition = await createCordisAgentExecutorRequest({
       adapter: fixtureAdapter('fixture-codex'),
     });
     const observerFiber = await composition.ctx.plugin(cordisAgentExecutorObserverPlugin, {
@@ -135,8 +135,8 @@ test('Cordis compositions isolate service and event state, while optional observ
       proof: null,
     }),
   });
-  const first = await createCordisAgentExecutorComposition({ adapter: adapter('first') });
-  const second = await createCordisAgentExecutorComposition({ adapter: adapter('second') });
+  const first = await createCordisAgentExecutorRequest({ adapter: adapter('first') });
+  const second = await createCordisAgentExecutorRequest({ adapter: adapter('second') });
   try {
     assert.notEqual(first.ctx, second.ctx);
     assert.notEqual(first.executor, second.executor);

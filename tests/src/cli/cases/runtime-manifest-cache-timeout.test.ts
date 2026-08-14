@@ -17,6 +17,7 @@ import {
 import { buildManyStageManifest } from './runtime-app-operator-drilldown-summary-fixtures.ts';
 import { createFamilyWorkspaceFixture } from './runtime-app-operator-drilldown-helpers.ts';
 import { createAdmittedStagePackFixture } from './workspace-domain-test-helper.ts';
+import { createCordisOwnerDeltaObserverComposition } from '../../../../src/modules/ledger/cordis-owner-delta-observer.ts';
 
 test('framework readiness keeps domain manifest live refresh bounded and uses projection cache on slow manifests', async () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-readiness-cache-state-'));
@@ -69,8 +70,10 @@ test('framework readiness keeps domain manifest live refresh bounded and uses pr
     process.env.OPL_CONTRACTS_DIR = fixtureContractsRoot;
     process.env.OPL_FAMILY_WORKSPACE_ROOT = workspaceRoot;
     process.env.OPL_META_AGENT_REPO_DIR = omaRepoDir;
+    let observerComposition: Awaited<ReturnType<typeof createCordisOwnerDeltaObserverComposition>> | undefined;
     try {
       const contracts = loadFrameworkContracts();
+      observerComposition = await createCordisOwnerDeltaObserverComposition();
       const domainManifests = buildDomainManifestCatalog(contracts, {
         manifestCommandTimeoutMs: 5_000,
         manifestCommandTimeoutPolicy: 'fixed',
@@ -84,6 +87,7 @@ test('framework readiness keeps domain manifest live refresh bounded and uses pr
         familyDefaults: true,
       }, {
         runtimeSnapshotProvider: buildRuntimeTraySnapshot,
+        ownerDeltaObserver: observerComposition.observer,
         domainManifests,
         standardAgentDomainManifests,
       })).framework_readiness;
@@ -96,6 +100,7 @@ test('framework readiness keeps domain manifest live refresh bounded and uses pr
         2,
       );
     } finally {
+      await observerComposition?.dispose();
       restoreEnvVar('OPL_STATE_DIR', previousStateDir);
       restoreEnvVar('OPL_CONTRACTS_DIR', previousContractsDir);
       restoreEnvVar('OPL_FAMILY_WORKSPACE_ROOT', previousFamilyWorkspaceRoot);

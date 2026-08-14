@@ -40,7 +40,7 @@ export class CordisCompositionContractError extends Error {
   }
 }
 
-export type CordisPluginScope = 'composition' | 'attempt' | 'request';
+export type CordisPluginScope = 'process' | 'composition' | 'session' | 'attempt' | 'request';
 export type CordisPluginTrust =
   | 'first_party_privileged'
   | 'first_party_restricted'
@@ -270,7 +270,9 @@ export function assertCordisPluginDescriptor(payload: unknown): asserts payload 
 const scopeRank: Readonly<Record<CordisPluginScope, number>> = {
   request: 0,
   attempt: 1,
-  composition: 2,
+  session: 2,
+  composition: 3,
+  process: 4,
 };
 const trustRank: Readonly<Record<CordisPluginTrust, number>> = {
   third_party_untrusted: 0,

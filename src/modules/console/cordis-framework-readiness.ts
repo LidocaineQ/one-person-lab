@@ -19,6 +19,12 @@ import {
   type CordisPluginDescriptorInput,
 } from '../pack/index.ts';
 import type { RuntimeTraySnapshotProvider } from '../runway/index.ts';
+import {
+  CORDIS_OWNER_DELTA_OBSERVER_PLUGIN_DESCRIPTOR,
+  CORDIS_OWNER_DELTA_OBSERVER_SERVICE,
+  cordisOwnerDeltaObserverPlugin,
+  type CordisOwnerDeltaObserverService,
+} from '../ledger/index.ts';
 import { buildFrameworkReadinessCompactReadback } from './framework-readiness-compact-readback.ts';
 import { buildFrameworkReadinessSummary } from './framework-readiness.ts';
 
@@ -68,10 +74,13 @@ declare module '@deepseek-ai/cordis' {
 
 export const cordisFrameworkReadinessPlugin = {
   name: CORDIS_CONSOLE_READINESS_PLUGIN_ID,
-  inject: [CORDIS_ATLAS_CATALOG_SERVICE],
+  inject: [CORDIS_ATLAS_CATALOG_SERVICE, CORDIS_OWNER_DELTA_OBSERVER_SERVICE],
   provide: CORDIS_CONSOLE_READINESS_SERVICE,
   apply(ctx: Context, config: CordisFrameworkReadinessPluginConfig) {
     const atlas = ctx.get(CORDIS_ATLAS_CATALOG_SERVICE) as unknown as CordisAtlasCatalogService;
+    const ownerDeltaObserver = ctx.get(
+      CORDIS_OWNER_DELTA_OBSERVER_SERVICE,
+    ) as unknown as CordisOwnerDeltaObserverService;
     const catalogs = (contracts: FrameworkContracts) => {
       const domainManifests = atlas(contracts, {
         manifestCommandTimeoutMs: 5_000,
@@ -88,6 +97,7 @@ export const cordisFrameworkReadinessPlugin = {
       async full(contracts, input) {
         const output = await buildFrameworkReadinessSummary(contracts, input, {
           runtimeSnapshotProvider: config.runtimeSnapshotProvider,
+          ownerDeltaObserver,
           ...catalogs(contracts),
         });
         ctx.emit('opl/console/framework-readiness/projected', 'full', output);
@@ -96,6 +106,7 @@ export const cordisFrameworkReadinessPlugin = {
       async compact(contracts, input) {
         const output = await buildFrameworkReadinessCompactReadback(contracts, input, {
           runtimeSnapshotProvider: config.runtimeSnapshotProvider,
+          ownerDeltaObserver,
           ...catalogs(contracts),
         });
         ctx.emit('opl/console/framework-readiness/projected', 'compact', output);
@@ -109,6 +120,7 @@ export const cordisFrameworkReadinessPlugin = {
 export const CORDIS_ATLAS_CONSOLE_PLUGIN_DESCRIPTORS: readonly CordisPluginDescriptor[] =
   Object.freeze([
     CORDIS_ATLAS_CATALOG_PLUGIN_DESCRIPTOR,
+    CORDIS_OWNER_DELTA_OBSERVER_PLUGIN_DESCRIPTOR,
     CORDIS_CONSOLE_READINESS_PLUGIN_DESCRIPTOR,
   ]);
 
@@ -134,9 +146,12 @@ export async function createCordisFrameworkReadinessComposition(options: {
   runtimeSnapshotProvider: RuntimeTraySnapshotProvider;
   atlas?: CordisAtlasCatalogPluginConfig;
   mountAtlas?: boolean;
+  mountLedger?: boolean;
 }) {
-  if (options.mountAtlas === false) {
+  if (options.mountAtlas === false || options.mountLedger === false) {
     buildCordisFrameworkReadinessCompositionSnapshot([
+      ...(options.mountAtlas === false ? [] : [CORDIS_ATLAS_CATALOG_PLUGIN_DESCRIPTOR]),
+      ...(options.mountLedger === false ? [] : [CORDIS_OWNER_DELTA_OBSERVER_PLUGIN_DESCRIPTOR]),
       CORDIS_CONSOLE_READINESS_PLUGIN_DESCRIPTOR,
     ]);
   }
@@ -144,6 +159,9 @@ export async function createCordisFrameworkReadinessComposition(options: {
   const atlasFiber = options.mountAtlas === false
     ? null
     : await ctx.plugin(cordisAtlasCatalogPlugin, options.atlas ?? {});
+  const ledgerFiber = options.mountLedger === false
+    ? null
+    : await ctx.plugin(cordisOwnerDeltaObserverPlugin);
   let readinessFiber: Awaited<ReturnType<Context['plugin']>> | null = null;
   try {
     readinessFiber = await ctx.plugin(cordisFrameworkReadinessPlugin, {
@@ -168,12 +186,14 @@ export async function createCordisFrameworkReadinessComposition(options: {
       snapshot: buildCordisFrameworkReadinessCompositionSnapshot(),
       async dispose() {
         await readinessFiber?.dispose();
+        await ledgerFiber?.dispose();
         await atlasFiber?.dispose();
         await ctx.fiber.dispose();
       },
     };
   } catch (error) {
     await readinessFiber?.dispose();
+    await ledgerFiber?.dispose();
     await atlasFiber?.dispose();
     await ctx.fiber.dispose();
     throw error;

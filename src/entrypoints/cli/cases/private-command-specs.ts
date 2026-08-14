@@ -2,7 +2,8 @@ import { FrameworkContractError, findDomainOrThrow, findSurfaceOrThrow, findWork
 import { buildOplWorkspaceRootSurface, writeOplWorkspaceRootSurface } from '../../../modules/connect/system-installation/workspace-root.ts';
 import { buildProductEntryHandoffEnvelope } from '../../../modules/console/product-entry-handoff-envelope.ts';
 import { buildProductEntryDoctor } from '../../../modules/console/product-entry-runtime.ts';
-import { runAgentExecutor, runAgentExecutorDoctor, runAgentExecutorRequestFile } from '../../../modules/runway/agent-executor.ts';
+import { runAgentExecutorDoctor, runAgentExecutorRequestFile } from '../../../modules/runway/agent-executor.ts';
+import { createCordisAgentExecutorRequest } from '../../../modules/runway/cordis-agent-executor-experiment.ts';
 import { packageLaunchHardStopReason } from '../../../modules/runway/family-runtime-package-readiness.ts';
 import { launchDomainEntry } from '../../../modules/atlas/domain-launch.ts';
 import { buildDomainManifestCatalog } from '../../../modules/atlas/domain-manifest/catalog-builder.ts';
@@ -16,19 +17,22 @@ import {
 } from '../../../modules/connect/index.ts';
 import { buildSessionLedger } from '../../../modules/runway/session-ledger.ts';
 import { explainDomainBoundary, selectDomainAgentEntry } from '../../../modules/atlas/resolver.ts';
-import { activateWorkspaceBinding, archiveWorkspaceBinding, bindWorkspace, buildWorkspaceCatalog, pruneWorkspaceRegistry, resolveWorkspaceLocator } from '../../../modules/workspace/workspace-registry.ts';
+import { activateWorkspaceBinding, archiveWorkspaceBinding, bindWorkspace, buildWorkspaceCatalog, pruneWorkspaceRegistry } from '../../../modules/workspace/workspace-registry.ts';
 import type { FrameworkContracts } from '../../../kernel/types.ts';
 import { buildWorkspaceInitializeCommandSpecs } from './workspace-initialize-command-spec.ts';
 import { buildPrivateAgentCommandSpecs } from './private-command-specs-parts/agents.ts';
 import { buildPrivateRuntimeCommandSpecs } from './private-command-specs-parts/runtime.ts';
 import { assertNoArgs, buildCommandHelp, buildRootHelp, buildUsageError, parseCommandOptions, parseExecutorExecArgs, parseExecutorOption, parseExecutorRequestPath, parseKeyValueArgs, parseLaunchDomainArgs, parseProductEntryArgs, parseRegisteredCommandOptions, parseSessionLedgerArgs, parseSessionRuntimeArgs, parseSkillPackArgs, parseStartArgs, parseWorkspaceRegistryArgs, parseWorkspaceRootArgs, runCodexPassthroughHandled, withContractsContext } from '../modules/support.ts';
 import type { CommandSpec, ParsedCliInput } from '../modules/support.ts';
+import type { CordisBaseHeadlessComposition } from '../../cordis/composition-profiles.ts';
 
 async function ensureDomainPackageLaunchReady(
   projectId: string,
   workspacePath?: string,
+  workspaceLocatorService?: CordisBaseHeadlessComposition['services']['workspaceLocator'],
 ) {
-  const workspaceLocator = resolveWorkspaceLocator(projectId, workspacePath);
+  const workspaceLocator = workspaceLocatorService?.resolve(projectId, workspacePath);
+  if (!workspaceLocator) throw new Error('Cordis Workspace locator service is required for domain launch.');
   if (!workspaceLocator.binding) return;
   const packageId = canonicalAgentPackageId(projectId);
   if (!packageId) return;
@@ -63,6 +67,7 @@ async function ensureDomainPackageLaunchReady(
 export function buildInternalCommandSpecs(
   parsedInput: ParsedCliInput,
   getContracts: () => FrameworkContracts,
+  cordis: CordisBaseHeadlessComposition,
 ): Record<string, CommandSpec> {
   const getCommandSpecs = () => commandSpecs;
   const commandSpecs: Record<string, CommandSpec> = {
@@ -70,7 +75,7 @@ export function buildInternalCommandSpecs(
       usage: 'opl help [command]',
       summary: 'Show the top-level command surface or command-scoped runnable examples.',
       examples: ['opl help', 'opl help get-domain'],
-      handler: (args) => {
+      handler: async (args) => {
         const [helpTarget, ...extraArgs] = args;
         if (extraArgs.length > 0) {
           throw buildUsageError(
@@ -116,7 +121,7 @@ export function buildInternalCommandSpecs(
       usage: 'opl get-workstream <workstream_id>',
       summary: 'Show the full registered meaning for one workstream.',
       examples: ['opl get-workstream research_ops', 'opl get-workstream presentation_ops'],
-      handler: (args) => {
+      handler: async (args) => {
         const [workstreamId] = args;
         if (!workstreamId) {
           throw buildUsageError('get-workstream requires a workstream id.', commandSpecs['get-workstream'], {
@@ -364,10 +369,15 @@ export function buildInternalCommandSpecs(
           );
         }
 
-        await ensureDomainPackageLaunchReady(parsed.projectId, parsed.workspacePath);
+        await ensureDomainPackageLaunchReady(
+          parsed.projectId,
+          parsed.workspacePath,
+          cordis.services.workspaceLocator,
+        );
         return launchDomainEntry(getContracts(), {
           projectId: parsed.projectId,
           workspacePath: parsed.workspacePath,
+          workspaceLocator: cordis.services.workspaceLocator,
           strategy: parsed.strategy,
           dryRun: parsed.dryRun,
         });
@@ -421,23 +431,28 @@ export function buildInternalCommandSpecs(
         'opl exec --executor antigravity_cli --model gemini-3.5-flash --reasoning-effort high "Build an RCA HTML route candidate."',
         'opl exec --model gpt-5.4 "Summarize current workspace status."',
       ],
-      handler: (args) => {
+      handler: async (args) => {
         const parsed = parseExecutorExecArgs(args, commandSpecs.exec);
         if (!parsed.executorKind && !process.env.OPL_EXECUTOR_KIND?.trim()) {
           return runCodexPassthroughHandled(['exec', ...args]);
         }
-        return {
-          version: 'g2',
-          agent_execution_receipt: runAgentExecutor({
-            executor_kind: parsed.executorKind,
-            prompt: parsed.prompt,
-            cwd: parsed.cwd,
-            model: parsed.model,
-            provider: parsed.provider,
-            reasoning_effort: parsed.reasoningEffort,
-            json: true,
-          }),
-        };
+        const composition = await createCordisAgentExecutorRequest();
+        try {
+          return {
+            version: 'g2',
+            agent_execution_receipt: await composition.executor.execute({
+              executor_kind: parsed.executorKind,
+              prompt: parsed.prompt,
+              cwd: parsed.cwd,
+              model: parsed.model,
+              provider: parsed.provider,
+              reasoning_effort: parsed.reasoningEffort,
+              json: true,
+            }),
+          };
+        } finally {
+          await composition.dispose();
+        }
       },
     },
     'executor doctor': {
@@ -569,7 +584,10 @@ resume: {
           );
         }
 
-        const locator = resolveWorkspaceLocator(parsed.projectId, parsed.workspacePath);
+        const locator = cordis.services.workspaceLocator.resolve(
+          parsed.projectId,
+          parsed.workspacePath,
+        );
         const packageId = canonicalAgentPackageId(parsed.projectId);
         if (locator.binding && locator.binding.status !== 'archived' && packageId) {
           const packageStatus = runOplAgentPackageStatus({
@@ -702,6 +720,7 @@ resume: {
         buildProductEntryHandoffEnvelope(
           parseProductEntryArgs(args, commandSpecs['contract handoff-envelope']),
           getContracts(),
+          cordis.services.workspaceLocator,
         ),
     },
   };

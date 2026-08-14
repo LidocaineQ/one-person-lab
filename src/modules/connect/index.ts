@@ -57,7 +57,6 @@ export {
   CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_SOURCE_REF,
   cordisConnectDescriptorDiscoveryPlugin,
   createCordisConnectComposition,
-  discoverInstalledPackageDescriptorsViaCordis,
 } from './cordis-connect-services.ts';
 export type {
   CordisConnectDescriptorDiscovery,

@@ -1,4 +1,5 @@
 import type { JsonRecord } from '../runtime-tray-snapshot-types.ts';
+import type { CordisOwnerDeltaObserverService } from '../../ledger/index.ts';
 import {
   buildDomainDispatchEvidenceWorkorderPacket,
   compactDomainDispatchEvidenceWorkorderAttentionItems,
@@ -694,6 +695,7 @@ type AppOperatorDrilldownDetailResult<T extends JsonRecord> = T & {
 export function applyAppOperatorDrilldownDetail<T extends JsonRecord>(
   operatorProjection: T,
   detailLevel: AppOperatorDrilldownDetailLevel,
+  ownerDeltaObserver: CordisOwnerDeltaObserverService,
 ): AppOperatorDrilldownDetailResult<T> {
   if (detailLevel === 'full') {
     const attentionFirstPayload = {
@@ -714,7 +716,7 @@ export function applyAppOperatorDrilldownDetail<T extends JsonRecord>(
       evidence_envelope: markFullRefsObject(record(fullDrilldown.evidence_envelope), 'envelopes'),
       domain_dispatch_evidence: markFullRefsObject(record(fullDrilldown.domain_dispatch_evidence), 'attempts'),
       stage_production_evidence: markFullRefsObject(record(fullDrilldown.stage_production_evidence), 'stages'),
-      ...buildAppOperatorOwnerDeltaTopline({ attentionFirstPayload }),
+      ...buildAppOperatorOwnerDeltaTopline({ attentionFirstPayload }, ownerDeltaObserver),
       attention_first_payload: attentionFirstPayload,
     } as AppOperatorDrilldownDetailResult<T>;
   }
@@ -725,7 +727,7 @@ export function applyAppOperatorDrilldownDetail<T extends JsonRecord>(
     detail_level: 'summary',
     projection_detail_policy: 'attention_first_default_full_refs_via_explicit_drilldown',
     full_detail_args: ['--detail', 'full'],
-    ...buildAppOperatorOwnerDeltaTopline({ attentionFirstPayload }),
+    ...buildAppOperatorOwnerDeltaTopline({ attentionFirstPayload }, ownerDeltaObserver),
     attention_first_payload: attentionFirstPayload,
   } as AppOperatorDrilldownDetailResult<T>;
 }

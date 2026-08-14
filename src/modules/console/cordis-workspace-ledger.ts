@@ -105,6 +105,3 @@ export async function createCordisWorkspaceLedgerComposition(options: {
     throw error;
   }
 }
-
-export const defaultCordisWorkspaceLedgerComposition =
-  await createCordisWorkspaceLedgerComposition();

@@ -1,5 +1,5 @@
 import { buildAgentReadinessSummary } from './agent-readiness.ts';
-import { buildCurrentOwnerDeltaTopline } from '../ledger/index.ts';
+import type { CordisOwnerDeltaObserverService } from '../ledger/index.ts';
 import {
   buildStandardAgentDomainManifestCatalog,
   buildDomainManifestCatalog,
@@ -48,6 +48,7 @@ type FrameworkReadinessCoreModel = {
 
 type FrameworkReadinessCompactOptions = {
   runtimeSnapshotProvider?: RuntimeTraySnapshotProvider;
+  ownerDeltaObserver: CordisOwnerDeltaObserverService;
   domainManifests: ReturnType<typeof buildDomainManifestCatalog>['domain_manifests'];
   standardAgentDomainManifests: ReturnType<typeof buildStandardAgentDomainManifestCatalog>['domain_manifests'];
 };
@@ -253,7 +254,7 @@ async function buildFrameworkReadinessCompactCoreModel(
     semanticAttentionGateCount: numberValue(semanticSummary.attention_required_gate_count),
     hardBlockerCount,
   });
-  const ownerDeltaTopline = buildCurrentOwnerDeltaTopline({
+  const ownerDeltaTopline = options.ownerDeltaObserver.observe({
     currentOwnerDeltaReadModel:
       record(appOperatorDrilldown.attention_first_payload).current_owner_delta_read_model,
   });

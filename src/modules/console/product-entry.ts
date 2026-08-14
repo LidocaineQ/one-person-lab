@@ -5,7 +5,7 @@ import {
   parseCodexExecOutput,
   runCodexCommand,
 } from '../runway/index.ts';
-import { runAgentExecutor } from '../runway/index.ts';
+import type { CordisAgentExecutorService } from '../runway/index.ts';
 import { isInteractiveShell } from '../../kernel/terminal.ts';
 import type { ProductEntryExecInput } from './product-entry-parts/types.ts';
 import {
@@ -29,7 +29,10 @@ export {
   runProductEntryResume,
 } from './product-entry-runtime.ts';
 
-export function runProductEntryExec(input: ProductEntryExecInput) {
+export async function runProductEntryExec(
+  input: ProductEntryExecInput,
+  agentExecutor: CordisAgentExecutorService,
+) {
   const json = input.json ?? true;
   const codexArgs = buildCodexExecArgs(input.prompt, {
     cwd: input.workspacePath,
@@ -62,7 +65,7 @@ export function runProductEntryExec(input: ProductEntryExecInput) {
     };
   }
 
-  const receipt = runAgentExecutor({
+  const receipt = await agentExecutor.execute({
     executor_kind: input.executorKind,
     mode: 'structured_call',
     prompt: input.prompt,

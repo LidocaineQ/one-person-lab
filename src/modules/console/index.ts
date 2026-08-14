@@ -49,7 +49,6 @@ export {
   CORDIS_WORKSPACE_LEDGER_PLUGIN_DESCRIPTORS,
   buildCordisWorkspaceLedgerCompositionSnapshot,
   createCordisWorkspaceLedgerComposition,
-  defaultCordisWorkspaceLedgerComposition,
 } from './cordis-workspace-ledger.ts';
 export * from './framework-readiness-typed-blocker-attention.ts';
 export * from './framework-readiness.ts';

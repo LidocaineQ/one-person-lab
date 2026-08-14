@@ -62,7 +62,7 @@ export const CORDIS_CHARTER_POLICY_PLUGIN_DESCRIPTOR = Object.freeze({
     role: 'publish',
     payload_schema_ref: null,
   }],
-  scope: 'composition',
+  scope: 'process',
   trust: 'first_party_privileged',
   disposer: { required: true, boundary: 'plugin_fiber' },
   authority_boundary: {

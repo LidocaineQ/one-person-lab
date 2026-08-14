@@ -12,7 +12,7 @@ export const CORDIS_OWNER_DELTA_OBSERVER_SERVICE = 'opl.ledger.owner-delta-obser
 export const CORDIS_OWNER_DELTA_OBSERVER_SOURCE_REF =
   'src/modules/ledger/cordis-owner-delta-observer.ts';
 export const CORDIS_OWNER_DELTA_OBSERVER_SOURCE_COMMIT =
-  '1499a9234c0de28b76d2ef2905572e4e6faba276';
+  '2e3b6d682b71ece649485bc26dc9aa49ad5ba24b';
 
 const ledgerAuthorityBoundary = Object.freeze([
   'app_product_truth',
@@ -77,8 +77,8 @@ export const CORDIS_OWNER_DELTA_OBSERVER_PLUGIN_DESCRIPTOR: CordisPluginDescript
       role: 'publish',
       payload_schema_ref: null,
     }],
-    scope: 'composition',
-    trust: 'first_party_privileged',
+    scope: 'session',
+    trust: 'first_party_restricted',
     disposer: { required: true, boundary: 'plugin_fiber' },
     authority_boundary: { forbidden_authorities: ledgerAuthorityBoundary },
   });

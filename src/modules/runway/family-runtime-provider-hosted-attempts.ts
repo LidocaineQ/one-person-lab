@@ -42,7 +42,7 @@ import {
   packageRuntimeSourceCheckoutPath,
 } from './family-runtime-package-readiness.ts';
 import { preflightFamilyRuntimeDomainLifecycleAdmission } from './family-runtime-domain-lifecycle-admission.ts';
-import { createCordisPackStagecraftComposition } from './cordis-agent-executor-experiment.ts';
+import { createCordisStageRouteComposition } from './cordis-agent-executor-experiment.ts';
 export {
   DEFAULT_EXECUTOR_DISPATCH_TASK_KIND,
   DEFAULT_EXECUTOR_TRANSPORT_ONLY_CHECKPOINT_SUPERSEDED_REASON,
@@ -781,7 +781,7 @@ export async function ensureProviderHostedStageAttempt(
         ...(domainPackRoot ? { domain_pack_root: domainPackRoot } : {}),
         ...(nativePackageClosure ? { native_package_closure: nativePackageClosure } : {}),
       };
-  const cordis = await createCordisPackStagecraftComposition();
+  const cordis = await createCordisStageRouteComposition();
   try {
     const stageContextObservation = attachCapabilityRegistryStageContext(
       cordis.stageContext.observe(loadFrameworkContracts(), {

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
-import { runAgentExecutor } from './agent-executor.ts';
+import type { CordisAgentExecutorService } from './cordis-agent-executor-experiment.ts';
 import type { AgentExecutionRequest, AgentExecutionReceipt } from './agent-executor.ts';
 import {
   buildCodexExecArgs,
@@ -289,12 +289,13 @@ export async function dispatchDomainAction(
   return handler(options);
 }
 
-export function executeDomainTask(input: {
+export async function executeDomainTask(input: {
   identity: DomainRunIdentity;
   execution: AgentExecutionRequest;
+  agentExecutor: CordisAgentExecutorService;
   events_file?: string;
   now?: () => Date;
-}): { run: ReturnType<typeof createDomainRunRecord>; execution: AgentExecutionReceipt } {
+}): Promise<{ run: ReturnType<typeof createDomainRunRecord>; execution: AgentExecutionReceipt }> {
   const run = createDomainRunRecord(input.identity, { status: 'running', now: input.now });
   if (input.events_file) {
     appendDomainRunEvent({
@@ -304,7 +305,7 @@ export function executeDomainTask(input: {
       now: input.now,
     });
   }
-  const execution = runAgentExecutor(input.execution);
+  const execution = await input.agentExecutor.execute(input.execution);
   if (input.events_file) {
     appendDomainRunEvent({
       events_file: input.events_file,

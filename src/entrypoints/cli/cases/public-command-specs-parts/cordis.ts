@@ -4,7 +4,7 @@ import {
   markCordisCompositionInspectDisposed,
   createCordisFrameworkReadinessComposition,
 } from '../../../../modules/console/index.ts';
-import { createCordisAgentExecutorComposition } from '../../../../modules/runway/cordis-agent-executor-experiment.ts';
+import { createCordisAgentExecutorRequest } from '../../../../modules/runway/cordis-agent-executor-experiment.ts';
 import type { RuntimeTraySnapshotProvider } from '../../../../modules/runway/index.ts';
 import type { FrameworkContracts } from '../../../../kernel/types.ts';
 import { parseRegisteredCommandOptions } from '../../modules/support.ts';
@@ -19,7 +19,7 @@ export function buildCordisCommandSpecs(): Record<string, CommandSpec> {
       group: 'framework',
       handler: async (args) => {
         parseRegisteredCommandOptions('cordis inspect', args, specs['cordis inspect']);
-        const composition = await createCordisAgentExecutorComposition();
+        const composition = await createCordisAgentExecutorRequest();
         let inspect;
         try {
           inspect = buildCordisCompositionInspect({

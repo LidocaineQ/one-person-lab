@@ -17,7 +17,7 @@ export const CORDIS_WORKSPACE_LOCATOR_SERVICE = 'opl.workspace.locator';
 export const CORDIS_WORKSPACE_LOCATOR_SOURCE_REF =
   'src/modules/workspace/cordis-workspace-locator.ts';
 export const CORDIS_WORKSPACE_LOCATOR_SOURCE_COMMIT =
-  '1499a9234c0de28b76d2ef2905572e4e6faba276';
+  '2e3b6d682b71ece649485bc26dc9aa49ad5ba24b';
 
 const workspaceAuthorityBoundary = Object.freeze([
   'app_product_truth',
@@ -86,8 +86,8 @@ export const CORDIS_WORKSPACE_LOCATOR_PLUGIN_DESCRIPTOR: CordisPluginDescriptor 
       role: 'publish',
       payload_schema_ref: null,
     }],
-    scope: 'composition',
-    trust: 'first_party_privileged',
+    scope: 'session',
+    trust: 'first_party_restricted',
     disposer: { required: true, boundary: 'plugin_fiber' },
     authority_boundary: { forbidden_authorities: workspaceAuthorityBoundary },
   });

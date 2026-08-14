@@ -11,6 +11,9 @@ import {
 import {
   buildAppOperatorDrilldown,
 } from '../../../../src/modules/console/runtime-tray-app-operator-drilldown.ts';
+import { buildCurrentOwnerDeltaTopline } from '../../../../src/modules/ledger/current-owner-delta-topline.ts';
+
+const ownerDeltaObserver = { observe: buildCurrentOwnerDeltaTopline };
 
 function useTempState(t: { after: (fn: () => void) => void }, prefix: string) {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -45,6 +48,7 @@ test('runtime App exposes generic route support as refs-only runtime-manager pro
     domainProjectionIngestion: {},
     domainManifestProjects: [],
     detailLevel: 'full',
+    ownerDeltaObserver,
   });
 
   assert.equal(
@@ -112,6 +116,7 @@ test('runtime App exposes route-as-transition refs in one operator projection', 
     },
     domainManifestProjects: [],
     detailLevel: 'full',
+    ownerDeltaObserver,
   });
   const routeTransition = projection.route_transition_drilldown;
 

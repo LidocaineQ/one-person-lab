@@ -10,9 +10,23 @@ import { buildProductEntrySessionPrompt } from '../../src/modules/console/produc
 import {
   buildProductEntryDoctor,
 } from '../../src/modules/console/product-entry-runtime.ts';
+import type { CordisWorkspaceLocatorService } from '../../src/modules/workspace/cordis-workspace-locator.ts';
 
 const contractsDir = path.join(process.cwd(), 'contracts', 'opl-framework');
 const repoRoot = process.cwd();
+const workspaceLocator: CordisWorkspaceLocatorService = {
+  resolve(projectId, explicitWorkspacePath) {
+    return {
+      project_id: projectId,
+      requested_path: explicitWorkspacePath ?? null,
+      absolute_path: explicitWorkspacePath ?? null,
+      source: explicitWorkspacePath ? 'explicit_path' : 'none',
+      binding: null,
+    };
+  },
+  active: () => null,
+  list: () => [],
+};
 
 function createFakeBinaryFixture(binaryName: string, body: string) {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), `opl-${binaryName}-fixture-`));
@@ -117,6 +131,7 @@ test('product-entry handoff envelope leaf builds the current family handoff payl
           skills: [],
         },
         loadFrameworkContracts(contractsDir),
+        workspaceLocator,
       ),
     );
 

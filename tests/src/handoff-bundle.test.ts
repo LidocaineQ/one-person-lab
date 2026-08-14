@@ -5,9 +5,23 @@ import path from 'node:path';
 import { loadFrameworkContracts } from '../../src/modules/charter/contracts.ts';
 import { buildProductEntryHandoffBundleView } from '../../src/modules/console/product-entry-handoff-bundle.ts';
 import type { BoundaryExplanation, ResolutionResult } from '../../src/kernel/types.ts';
+import type { CordisWorkspaceLocatorService } from '../../src/modules/workspace/cordis-workspace-locator.ts';
 
 const contractsDir = path.join(process.cwd(), 'contracts', 'opl-framework');
 const repoRoot = process.cwd();
+const workspaceLocator: CordisWorkspaceLocatorService = {
+  resolve(projectId, explicitWorkspacePath) {
+    return {
+      project_id: projectId,
+      requested_path: explicitWorkspacePath ?? null,
+      absolute_path: explicitWorkspacePath ?? null,
+      source: explicitWorkspacePath ? 'explicit_path' : 'none',
+      binding: null,
+    };
+  },
+  active: () => null,
+  list: () => [],
+};
 const domainManifestStatuses = new Set([
   'not_bound',
   'workspace_missing',
@@ -89,6 +103,7 @@ test('buildProductEntryHandoffBundleView freezes OPL-owned product-entry transfe
     boundary: selectedRedcubeBoundary(),
     sessionId: 'session-product-entry-redcube',
     basePath: repoRoot,
+    workspaceLocator,
   }).handoff_bundle as SelectedHandoffBundle;
 
   assert.equal(bundle.surface_id, 'opl_family_handoff_bundle');
@@ -163,6 +178,7 @@ test('buildProductEntryHandoffBundleView keeps unknown-domain transfer locator-o
       reason: 'The request needs clarification before OPL can hand it to a domain.',
       rejected_domains: [],
     },
+    workspaceLocator,
   }).handoff_bundle as LocatorOnlyHandoffBundle;
 
   assert.equal(bundle.target_domain_id, null);

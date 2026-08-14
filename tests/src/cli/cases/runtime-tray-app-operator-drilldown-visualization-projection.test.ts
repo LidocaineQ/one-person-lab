@@ -8,6 +8,9 @@ import {
 import {
   buildAppOperatorDrilldown,
 } from '../../../../src/modules/console/runtime-tray-app-operator-drilldown.ts';
+import { buildCurrentOwnerDeltaTopline } from '../../../../src/modules/ledger/current-owner-delta-topline.ts';
+
+const ownerDeltaObserver = { observe: buildCurrentOwnerDeltaTopline };
 
 test('runtime tray App drilldown retains progress, action, evidence, and readiness surfaces', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-tray-app-drilldown-surfaces-'));
@@ -27,6 +30,7 @@ test('runtime tray App drilldown retains progress, action, evidence, and readine
       domainProjectionIngestion: {},
       domainManifestProjects: [],
       detailLevel: 'full',
+      ownerDeltaObserver,
     });
 
     assert.deepEqual(

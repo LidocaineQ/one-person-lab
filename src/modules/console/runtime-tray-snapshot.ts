@@ -14,6 +14,10 @@ import {
 import type { DomainManifestCatalog } from '../atlas/index.ts';
 import type { DomainManifestCatalogEntry, NormalizedDomainManifest, NormalizedSurfaceRef } from '../atlas/index.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
+import {
+  createCordisOwnerDeltaObserverComposition,
+  type CordisOwnerDeltaObserverService,
+} from '../ledger/index.ts';
 import { actionContext, actionCountsForItems, noActionContext, runningActionContext } from './runtime-tray-action.ts';
 import {
   humanizeStatusLabel,
@@ -547,8 +551,15 @@ export async function buildRuntimeTraySnapshot(
     appOperatorDrilldownDetailLevel?: AppOperatorDrilldownDetailLevel;
     providerKind?: ReturnType<typeof resolveFamilyRuntimeProviderKind>;
     domainManifests?: DomainManifestCatalog;
+    ownerDeltaObserver?: CordisOwnerDeltaObserverService;
   } = {},
 ) {
+  const ownedOwnerDeltaComposition = options.ownerDeltaObserver
+    ? null
+    : await createCordisOwnerDeltaObserverComposition();
+  const ownerDeltaObserver = options.ownerDeltaObserver
+    ?? ownedOwnerDeltaComposition!.observer;
+  try {
   const providerKind = resolveFamilyRuntimeProviderKind(options.providerKind);
   const familyProviderPaths = familyRuntimePaths();
   const domainManifests = options.domainManifests ?? buildDomainManifestCatalog(contracts, {
@@ -582,6 +593,7 @@ export async function buildRuntimeTraySnapshot(
     currentWorkUnitProjections: effectiveCurrentWorkUnitProjections,
     currentControlReadbacks: [],
     detailLevel: options.appOperatorDrilldownDetailLevel,
+    ownerDeltaObserver,
   });
   const domainItems = domainManifests.projects
     .map((entry) =>
@@ -740,4 +752,7 @@ export async function buildRuntimeTraySnapshot(
       ],
     },
   };
+  } finally {
+    await ownedOwnerDeltaComposition?.dispose();
+  }
 }

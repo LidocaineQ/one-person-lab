@@ -69,6 +69,20 @@ export type { MemoryTraceProjection } from './stage-attempt-projections/memory-l
 // Public cross-module surface generated from existing module consumers.
 export { runAgentExecutor } from './agent-executor.ts';
 export {
+  CORDIS_AGENT_EXECUTOR_PLUGIN_DESCRIPTORS,
+  CORDIS_PACK_STAGECRAFT_PLUGIN_DESCRIPTORS,
+  cordisAgentExecutorAdapterPlugin,
+  cordisAgentExecutorObserverPlugin,
+  cordisAgentExecutorServicePlugin,
+  buildCordisAgentExecutorCompositionSnapshot,
+  buildCordisPackStagecraftCompositionSnapshot,
+} from './cordis-agent-executor-experiment.ts';
+export type {
+  CordisAgentExecutorAdapter,
+  CordisAgentExecutorObserver,
+  CordisAgentExecutorService,
+} from './cordis-agent-executor-experiment.ts';
+export {
   CORDIS_RUNWAY_ATTEMPT_PLUGIN_API_VERSION,
   CORDIS_RUNWAY_ATTEMPT_PLUGIN_ID,
   CORDIS_RUNWAY_ATTEMPT_SERVICE,
