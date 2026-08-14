@@ -289,7 +289,7 @@ Cordis 的收益不是“代码看起来像插件”，而是把已经存在的�
 
 ## 9. 下一棒
 
-P0-P6 路线图已完整冻结，P1 surface map 和 P2 隔离 executor experiment 已串行吸收，P2 仅在 dev/experimental dependency graph 使用 `@deepseek-ai/cordis@4.0.1`。P3 composition inspect 已完成 fresh implementation admission并进入独立实施；当前下一棒是基于 P2 实际 snapshot 完成 deterministic 只读 projection、CLI/schema/focused test，随后由 Framework Integrator 在 fresh `main` 上串行吸收和回读。P3 未落地前不提前迁移十模块、Temporal、Package lifecycle 或 App。实际 active 优先级、owner、write set 和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准，本计划只作为支撑细节被引用。
+P0-P6 路线图已完整冻结，P1 surface map 和 P2 隔离 executor experiment 已串行吸收，P2 仅在 dev/experimental dependency graph 使用 `@deepseek-ai/cordis@4.0.1`。P3 composition inspect 已完成 fresh admission，进入独立实施；当前下一棒是基于 P2 实际 snapshot 完成 deterministic 只读 projection、CLI/schema/focused test，随后由 Framework Integrator 在 fresh `main` 上串行吸收和回读。P3 未落地前不提前迁移十模块、Temporal、Package lifecycle 或 App。实际 active 优先级、owner、write set 和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准，本计划只作为支撑细节被引用。
 
 ## 10. 禁止声明
 
