@@ -1,5 +1,6 @@
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
+import type { CordisOwnerDeltaObserverService } from '../ledger/index.ts';
 import type { DomainManifestCatalog } from './family-runtime-evidence-worklist-parts/stage-readiness-input.ts';
 import type { FamilyRuntimeProviderKind } from './family-runtime-types.ts';
 
@@ -11,6 +12,7 @@ export type RuntimeTraySnapshotProviderOptions = {
   appOperatorDrilldownDetailLevel?: 'summary' | 'full';
   providerKind?: FamilyRuntimeProviderKind;
   domainManifests?: DomainManifestCatalog;
+  ownerDeltaObserver?: CordisOwnerDeltaObserverService;
 };
 
 export type RuntimeTraySnapshotProvider = (

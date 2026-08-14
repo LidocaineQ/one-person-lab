@@ -1,5 +1,6 @@
 import type { FrameworkContracts } from '../../../kernel/types.ts';
 import type { CordisConnectDescriptorDiscoveryService } from '../../../modules/connect/index.ts';
+import type { runFamilyRuntime } from '../../../modules/runway/index.ts';
 import {
   parseRegisteredCommandOptions,
   type CommandSpec,
@@ -8,7 +9,14 @@ import {
 export function buildPublicAppCommandSpecs(
   getContracts: () => FrameworkContracts,
   descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>,
+  familyRuntime?: typeof runFamilyRuntime,
 ): Record<string, CommandSpec> {
+  const requireAppCordisServices = () => {
+    if (!descriptorDiscovery || !familyRuntime) {
+      throw new Error('App commands require an explicit Cordis app-full composition.');
+    }
+    return { descriptorDiscovery, familyRuntime };
+  };
   const commandSpecs: Record<string, CommandSpec> = {
     'app state': {
       usage: 'opl app state [--profile runtime|fast|full]',
@@ -46,7 +54,7 @@ export function buildPublicAppCommandSpecs(
         const { runOplAppActionExecute } = await import(
           '../../../modules/console/app-state-parts/action-execute.ts'
         );
-        return runOplAppActionExecute(getContracts(), options, { descriptorDiscovery });
+        return runOplAppActionExecute(getContracts(), options, requireAppCordisServices());
       },
     },
     'app contribution read': {

@@ -23,9 +23,11 @@ import { buildBrandOperatingModelCommandSpecs } from './brand-operating-model.ts
 import { buildBrandPackCommandSpecs } from './brand-pack.ts';
 import { buildBrandRunwayCommandSpecs } from './brand-runway.ts';
 import { buildLedgerBundleCommandSpecs } from './ledger-bundle.ts';
+import type { runFamilyRuntime } from '../../../../modules/runway/family-runtime.ts';
 
 export function buildBrandCommandSpecs(
   getContracts: () => FrameworkContracts,
+  familyRuntime: typeof runFamilyRuntime,
 ): Record<string, CommandSpec> {
   const brandModuleSurfaceSpecs = {
     ...buildBrandModuleSurfaceSpecs(getContracts, 'charter', 'brand-charter'),
@@ -55,7 +57,7 @@ export function buildBrandCommandSpecs(
   );
 
   const brandCommandSpecs: Record<string, CommandSpec> = {
-    ...buildBrandRunwayCommandSpecs(),
+    ...buildBrandRunwayCommandSpecs(familyRuntime),
     'brand-modules list': {
       usage: 'opl brand-modules list',
       summary: 'List the OPL brand modules and their Workspace-level structural baseline refs.',

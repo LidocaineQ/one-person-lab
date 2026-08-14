@@ -76,6 +76,8 @@ export {
   cordisAgentExecutorServicePlugin,
   buildCordisAgentExecutorCompositionSnapshot,
   buildCordisPackStagecraftCompositionSnapshot,
+  createCordisAgentExecutorRequest,
+  createCordisStageRouteComposition,
 } from './cordis-agent-executor-experiment.ts';
 export type {
   CordisAgentExecutorAdapter,
@@ -90,6 +92,7 @@ export {
   cordisRunwayAttemptAdapterPlugin,
   cordisRunwayAttemptObserverPlugin,
   cordisRunwayAttemptServicePlugin,
+  buildCordisRunwayAttemptCompositionSnapshot,
   createCordisRunwayAttemptComposition,
 } from './cordis-runway-attempt.ts';
 export { appendDomainRunEvent, createDomainRunRecord, dispatchDomainAction, executeDomainTask, readDomainRunEvents, runDomainCodexPrompt } from './domain-task-runtime.ts';

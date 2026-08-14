@@ -8,6 +8,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { buildBrandCommandSpecs } from '../../../src/entrypoints/cli/cases/public-command-specs-parts/brand.ts';
 import { parseJsonText } from '../../../src/kernel/json-file.ts';
 import { loadFrameworkContracts } from '../../../src/modules/charter/contracts.ts';
+import { runFamilyRuntime } from '../../../src/modules/runway/family-runtime.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
@@ -264,7 +265,10 @@ test('surface budget compiler policy mirrors the canonical review', () => {
 
 test('brand operating-model projection exposes multi-plane surfaces as read models only', async () => {
   const contracts = loadFrameworkContracts({ searchFrom: repoRoot, source: 'api' });
-  const spec = buildBrandCommandSpecs(() => contracts)['brand-modules operating-model-projections'];
+  const spec = buildBrandCommandSpecs(
+    () => contracts,
+    runFamilyRuntime,
+  )['brand-modules operating-model-projections'];
 
   assert.ok(spec);
   assert.equal(spec.group, 'brand');

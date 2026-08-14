@@ -172,6 +172,21 @@ export function codexActivityEventForTemporalHistory(codexResult: JsonRecord) {
     executor_kind: typeof codexResult.executor_kind === 'string' ? codexResult.executor_kind : null,
     checkpoint_refs: asStringList(codexResult.checkpoint_refs),
     stage_packet_ref: typeof codexResult.stage_packet_ref === 'string' ? codexResult.stage_packet_ref : null,
+    ...(record(codexResult.cordis_composition_snapshot_ref)
+      ? {
+          cordis_composition_snapshot_ref: {
+            snapshot_id: typeof record(codexResult.cordis_composition_snapshot_ref).snapshot_id === 'string'
+              ? record(codexResult.cordis_composition_snapshot_ref).snapshot_id
+              : null,
+            snapshot_digest: typeof record(codexResult.cordis_composition_snapshot_ref).snapshot_digest === 'string'
+              ? record(codexResult.cordis_composition_snapshot_ref).snapshot_digest
+              : null,
+            executor_route: typeof record(codexResult.cordis_composition_snapshot_ref).executor_route === 'string'
+              ? record(codexResult.cordis_composition_snapshot_ref).executor_route
+              : null,
+          },
+        }
+      : {}),
     runner_status: {
       runner_kind: typeof runnerStatus.runner_kind === 'string' ? runnerStatus.runner_kind : null,
       runner_mode: typeof runnerStatus.runner_mode === 'string' ? runnerStatus.runner_mode : null,

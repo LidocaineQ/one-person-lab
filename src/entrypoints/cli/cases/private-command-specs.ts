@@ -3,7 +3,6 @@ import { buildOplWorkspaceRootSurface, writeOplWorkspaceRootSurface } from '../.
 import { buildProductEntryHandoffEnvelope } from '../../../modules/console/product-entry-handoff-envelope.ts';
 import { buildProductEntryDoctor } from '../../../modules/console/product-entry-runtime.ts';
 import { runAgentExecutorDoctor, runAgentExecutorRequestFile } from '../../../modules/runway/agent-executor.ts';
-import { createCordisAgentExecutorRequest } from '../../../modules/runway/cordis-agent-executor-experiment.ts';
 import { packageLaunchHardStopReason } from '../../../modules/runway/family-runtime-package-readiness.ts';
 import { launchDomainEntry } from '../../../modules/atlas/domain-launch.ts';
 import { buildDomainManifestCatalog } from '../../../modules/atlas/domain-manifest/catalog-builder.ts';
@@ -246,7 +245,11 @@ export function buildInternalCommandSpecs(
       examples: ['opl projects'],
       handler: () => buildProjectsOverview(getContracts()),
     },
-    ...buildPrivateRuntimeCommandSpecs({ getCommandSpecs, getContracts }),
+    ...buildPrivateRuntimeCommandSpecs({
+      getCommandSpecs,
+      getContracts,
+      familyRuntime: requireCordisComposition(cordis).services.familyRuntime,
+    }),
     ...buildPrivateAgentCommandSpecs({ getCommandSpecs }),
     'status dashboard': {
       usage: 'opl status dashboard [--path <workspace_path>] [--sessions-limit <n>]',
@@ -448,7 +451,9 @@ export function buildInternalCommandSpecs(
         if (!parsed.executorKind && !process.env.OPL_EXECUTOR_KIND?.trim()) {
           return runCodexPassthroughHandled(['exec', ...args]);
         }
-        const composition = await createCordisAgentExecutorRequest();
+        const composition = await requireCordisComposition(
+          cordis,
+        ).services.childFactories.createAgentExecutorRequest();
         try {
           return {
             version: 'g2',

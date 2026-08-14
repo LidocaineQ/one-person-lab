@@ -992,6 +992,11 @@ export async function codexStageActivity(
       executor_kind: input.executor_kind,
       checkpoint_refs: input.checkpoint_refs ?? [],
       stage_packet_ref: input.stage_packet_ref ?? null,
+      cordis_composition_snapshot_ref: {
+        snapshot_id: attemptComposition.snapshot.snapshot_id,
+        snapshot_digest: attemptComposition.snapshot.snapshot_digest,
+        executor_route: attemptComposition.snapshot.binding.executor_route,
+      },
       ...runnerReceipt,
       coordination_observation: coordinationObservation,
       authority_boundary: {

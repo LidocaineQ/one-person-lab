@@ -53,12 +53,23 @@ import {
   type CordisPluginDescriptor,
 } from '../../modules/pack/index.ts';
 import {
+  buildCordisAgentExecutorCompositionSnapshot,
   CORDIS_FRAMEWORK_INTEGRITY,
   CORDIS_FRAMEWORK_PACKAGE,
   CORDIS_FRAMEWORK_VERSION,
+  createCordisAgentExecutorRequest,
 } from '../../modules/runway/cordis-agent-executor-experiment.ts';
+import {
+  buildCordisRunwayAttemptCompositionSnapshot,
+  createCordisRunwayAttemptComposition,
+} from '../../modules/runway/cordis-runway-attempt.ts';
 import type { RuntimeTraySnapshotProvider } from '../../modules/runway/index.ts';
-import { CORDIS_PACK_STAGECRAFT_PLUGIN_DESCRIPTORS } from '../../modules/runway/index.ts';
+import {
+  CORDIS_PACK_STAGECRAFT_PLUGIN_DESCRIPTORS,
+  buildCordisPackStagecraftCompositionSnapshot,
+  createCordisStageRouteComposition,
+  runFamilyRuntime,
+} from '../../modules/runway/index.ts';
 import {
   CORDIS_STAGECRAFT_CONTEXT_SERVICE,
   cordisStagecraftContextPlugin,
@@ -87,6 +98,12 @@ export type CordisBaseHeadlessServices = {
   stageContext: CordisStagecraftContextService;
   ownerDeltaObserver: CordisOwnerDeltaObserverService;
   descriptorDiscovery: CordisConnectDescriptorDiscoveryService;
+  familyRuntime: typeof runFamilyRuntime;
+  childFactories: {
+    createAgentExecutorRequest: typeof createCordisAgentExecutorRequest;
+    createRunwayAttemptComposition: typeof createCordisRunwayAttemptComposition;
+    createStageRouteComposition: typeof createCordisStageRouteComposition;
+  };
 };
 
 export type CordisBaseHeadlessComposition = {
@@ -134,6 +151,11 @@ function profileSnapshot(
   profileId: CordisCompositionProfileId,
   plugins: readonly CordisPluginDescriptor[],
 ) {
+  const childSnapshots = {
+    agent_executor_request: buildCordisAgentExecutorCompositionSnapshot(),
+    runway_attempt: buildCordisRunwayAttemptCompositionSnapshot(),
+    pack_stagecraft_route: buildCordisPackStagecraftCompositionSnapshot(),
+  };
   return buildCordisCompositionSnapshot({
     framework: {
       package: CORDIS_FRAMEWORK_PACKAGE,
@@ -143,6 +165,12 @@ function profileSnapshot(
     binding: {
       executor_adapter_id: `opl-cordis-profile:${profileId}`,
       executor_route: `opl.profile.${profileId}`,
+      child_composition_snapshot_refs: Object.fromEntries(
+        Object.entries(childSnapshots).map(([id, snapshot]) => [id, {
+          snapshot_id: snapshot.snapshot_id,
+          snapshot_digest: snapshot.snapshot_digest,
+        }]),
+      ),
     },
     foundry_evidence_ref: null,
     plugins,
@@ -178,6 +206,14 @@ export async function createCordisBaseHeadlessComposition(options: {
     fibers.push(await ctx.plugin(cordisStagecraftContextPlugin));
     fibers.push(await ctx.plugin(cordisPackStageBindingPlugin));
     fibers.push(await ctx.plugin(cordisOwnerDeltaObserverPlugin));
+    const stageBinding = requiredService<CordisPackStageBindingService>(
+      ctx,
+      CORDIS_PACK_STAGE_BINDING_SERVICE,
+    );
+    const stageContext = requiredService<CordisStagecraftContextService>(
+      ctx,
+      CORDIS_STAGECRAFT_CONTEXT_SERVICE,
+    );
     return {
       profileId: CORDIS_DEFAULT_PROFILE_ID,
       ctx,
@@ -185,10 +221,25 @@ export async function createCordisBaseHeadlessComposition(options: {
         charter: requiredService(ctx, CORDIS_CHARTER_CONTRACTS_SERVICE),
         atlas: requiredService(ctx, CORDIS_ATLAS_CATALOG_SERVICE),
         workspaceLocator,
-        stageBinding: requiredService(ctx, CORDIS_PACK_STAGE_BINDING_SERVICE),
-        stageContext: requiredService(ctx, CORDIS_STAGECRAFT_CONTEXT_SERVICE),
+        stageBinding,
+        stageContext,
         ownerDeltaObserver: requiredService(ctx, CORDIS_OWNER_DELTA_OBSERVER_SERVICE),
         descriptorDiscovery: requiredService(ctx, CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_SERVICE),
+        familyRuntime: (args, runtimeOptions = {}) => runFamilyRuntime(args, {
+          ...runtimeOptions,
+          stageRunRuntime: {
+            ...runtimeOptions.stageRunRuntime,
+            stageBindingService: stageBinding,
+            stageContextService: stageContext,
+            resolveStageBinding: runtimeOptions.stageRunRuntime?.resolveStageBinding
+              ?? stageBinding.resolve.bind(stageBinding),
+          },
+        }),
+        childFactories: {
+          createAgentExecutorRequest: createCordisAgentExecutorRequest,
+          createRunwayAttemptComposition: createCordisRunwayAttemptComposition,
+          createStageRouteComposition: createCordisStageRouteComposition,
+        },
       },
       snapshot: profileSnapshot(CORDIS_DEFAULT_PROFILE_ID, CORDIS_BASE_HEADLESS_PLUGIN_DESCRIPTORS),
       async dispose() {
@@ -211,8 +262,13 @@ export async function createCordisAppFullComposition(options: {
   const base = await createCordisBaseHeadlessComposition(options);
   let readinessFiber: CordisFiber | null = null;
   try {
+    const runtimeSnapshotProvider: RuntimeTraySnapshotProvider = (contracts, snapshotOptions) =>
+      options.runtimeSnapshotProvider(contracts, {
+        ...snapshotOptions,
+        ownerDeltaObserver: base.services.ownerDeltaObserver,
+      });
     readinessFiber = await base.ctx.plugin(cordisFrameworkReadinessPlugin, {
-      runtimeSnapshotProvider: options.runtimeSnapshotProvider,
+      runtimeSnapshotProvider,
     });
     return {
       profileId: 'app-full',

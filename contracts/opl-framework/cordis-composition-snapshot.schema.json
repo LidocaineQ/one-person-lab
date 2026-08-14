@@ -26,7 +26,19 @@
       "required": ["executor_adapter_id", "executor_route"],
       "properties": {
         "executor_adapter_id": { "type": "string", "minLength": 1 },
-        "executor_route": { "type": "string", "minLength": 1 }
+        "executor_route": { "type": "string", "minLength": 1 },
+        "child_composition_snapshot_refs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["snapshot_id", "snapshot_digest"],
+            "properties": {
+              "snapshot_id": { "type": "string", "pattern": "^cordis:snapshot:sha256:[a-f0-9]{64}$" },
+              "snapshot_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+            }
+          }
+        }
       }
     },
     "foundry_evidence_ref": { "type": ["string", "null"] },

@@ -61,11 +61,13 @@ import type { CommandSpec } from '../../modules/support.ts';
 type PrivateRuntimeCommandSpecsOptions = {
   getCommandSpecs: () => Record<string, CommandSpec>;
   getContracts: () => FrameworkContracts;
+  familyRuntime: typeof runFamilyRuntime;
 };
 
 export function buildPrivateRuntimeCommandSpecs({
   getCommandSpecs,
   getContracts,
+  familyRuntime,
 }: PrivateRuntimeCommandSpecsOptions): Record<string, CommandSpec> {
   return {
     'status workspace': {
@@ -367,7 +369,7 @@ export function buildPrivateRuntimeCommandSpecs({
         'opl runtime lifecycle apply --mode verify --domain medautogrant',
       ],
       handler: async (args) => {
-        const output = await runFamilyRuntime(['lifecycle', 'apply', ...args]);
+        const output = await familyRuntime(['lifecycle', 'apply', ...args]);
         if (!('family_runtime_lifecycle_apply' in output)) {
           throw new FrameworkContractError(
             'contract_shape_invalid',
@@ -392,7 +394,7 @@ export function buildPrivateRuntimeCommandSpecs({
         'opl runtime lifecycle reconcile --domain medautogrant --expected-restore-proof-ref restore-proof:mag-package',
       ],
       handler: async (args) => {
-        const output = await runFamilyRuntime(['lifecycle', 'reconcile', ...args]);
+        const output = await familyRuntime(['lifecycle', 'reconcile', ...args]);
         if (!('family_runtime_lifecycle_reconcile' in output)) {
           throw new FrameworkContractError(
             'contract_shape_invalid',
@@ -690,7 +692,7 @@ export function buildPrivateRuntimeCommandSpecs({
         'opl family-runtime evidence-worklist --family-defaults --provider temporal --executor-kind codex_cli --json',
         'opl family-runtime evidence-worklist --family-defaults --provider temporal --executor-kind codex_cli --detail full --json',
       ],
-      handler: (args) => runFamilyRuntime(args, {
+      handler: (args) => familyRuntime(args, {
         runtimeSnapshotProvider: buildRuntimeTraySnapshot,
       }),
     },
@@ -709,7 +711,7 @@ export function buildPrivateRuntimeCommandSpecs({
         'opl stage-artifact workbench --domain redcube_ai --program p1 --topic t1 --deliverable d1',
       ],
       handler: async (args) => {
-        const output = await runFamilyRuntime(['stage-artifact', ...args]);
+        const output = await familyRuntime(['stage-artifact', ...args]);
         if (!('stage_artifact_runtime' in output)) {
           throw new FrameworkContractError(
             'contract_shape_invalid',

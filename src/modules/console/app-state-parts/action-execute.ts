@@ -33,7 +33,7 @@ import {
 } from '../../connect/index.ts';
 import { runOplSystemAction } from '../../connect/index.ts';
 import { writeOplWorkspaceRootSurface } from '../../connect/index.ts';
-import { runFamilyRuntime } from '../../runway/index.ts';
+import type { runFamilyRuntime } from '../../runway/index.ts';
 import { runOplEngineAction } from '../../connect/index.ts';
 import { MANAGED_UPDATE_OWNER_ACTIONS, managedUpdateCommand } from '../../connect/index.ts';
 import { executeWorkspaceAppAction } from '../app-state-workspace-actions.ts';
@@ -168,7 +168,10 @@ async function withTemporaryEnv<T>(updates: Record<string, string | null>, run: 
 async function executeDirectAppAction(
   contracts: FrameworkContracts,
   options: AppActionExecuteOptions,
-  descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>,
+  services: {
+    descriptorDiscovery: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
+    familyRuntime: typeof runFamilyRuntime;
+  },
 ) {
   const connectionAction = await executeConnectionAppAction(options);
   if (connectionAction) return connectionAction;
@@ -217,8 +220,8 @@ async function executeDirectAppAction(
     return {
       delegatedSurface: 'opl app contribution execute',
       result: options.dryRun
-        ? preflightAppContribution(request, { descriptorDiscovery })
-        : runAppContribution(request, { descriptorDiscovery }),
+        ? preflightAppContribution(request, { descriptorDiscovery: services.descriptorDiscovery })
+        : runAppContribution(request, { descriptorDiscovery: services.descriptorDiscovery }),
     };
   }
 
@@ -261,7 +264,7 @@ async function executeDirectAppAction(
             reason,
             status: 'dry_run',
           }
-        : await runFamilyRuntime(args),
+        : await services.familyRuntime(args),
     };
   }
 
@@ -618,7 +621,7 @@ async function executeDirectAppAction(
       result: await runOplAgentPackageActivate({
         ...activation,
         dryRun: options.dryRun,
-      }, { descriptorDiscovery }),
+      }, { descriptorDiscovery: services.descriptorDiscovery }),
     };
   }
 
@@ -806,7 +809,7 @@ async function executeDirectAppAction(
               status: 'dry_run',
             },
           }
-        : await runFamilyRuntime(['scheduler', 'status', '--provider', 'temporal']),
+        : await services.familyRuntime(['scheduler', 'status', '--provider', 'temporal']),
     };
   }
 
@@ -821,7 +824,7 @@ async function executeDirectAppAction(
               status: 'dry_run',
             },
           }
-        : await runFamilyRuntime(['service', 'status', '--provider', 'temporal']),
+        : await services.familyRuntime(['service', 'status', '--provider', 'temporal']),
     };
   }
 
@@ -838,7 +841,7 @@ async function executeDirectAppAction(
               command_preview: ['opl', 'family-runtime', ...args],
             },
           }
-        : await runFamilyRuntime(args),
+        : await services.familyRuntime(args),
     };
   }
 
@@ -860,7 +863,7 @@ async function executeDirectAppAction(
               command_preview: ['opl', 'family-runtime', ...args],
             },
           }
-        : await runFamilyRuntime(args),
+        : await services.familyRuntime(args),
     };
   }
 
@@ -870,7 +873,7 @@ async function executeDirectAppAction(
       delegatedSurface: 'opl family-runtime service stop --provider temporal',
       result: options.dryRun
         ? dryRunFamilyRuntimeResult('service', args)
-        : await runFamilyRuntime(args),
+        : await services.familyRuntime(args),
     };
   }
 
@@ -878,7 +881,7 @@ async function executeDirectAppAction(
     const args = ['scheduler', 'install', '--provider', 'temporal'];
     return {
       delegatedSurface: 'opl family-runtime scheduler install --provider temporal',
-      result: options.dryRun ? dryRunFamilyRuntimeResult('scheduler_cadence', args) : await runFamilyRuntime(args),
+      result: options.dryRun ? dryRunFamilyRuntimeResult('scheduler_cadence', args) : await services.familyRuntime(args),
     };
   }
 
@@ -886,7 +889,7 @@ async function executeDirectAppAction(
     const args = ['scheduler', 'trigger', '--provider', 'temporal'];
     return {
       delegatedSurface: 'opl family-runtime scheduler trigger --provider temporal',
-      result: options.dryRun ? dryRunFamilyRuntimeResult('scheduler_cadence', args) : await runFamilyRuntime(args),
+      result: options.dryRun ? dryRunFamilyRuntimeResult('scheduler_cadence', args) : await services.familyRuntime(args),
     };
   }
 
@@ -901,7 +904,7 @@ async function executeDirectAppAction(
               status: 'dry_run',
             },
           }
-        : await runFamilyRuntime(['worker', 'status', '--provider', 'temporal']),
+        : await services.familyRuntime(['worker', 'status', '--provider', 'temporal']),
     };
   }
 
@@ -909,7 +912,7 @@ async function executeDirectAppAction(
     const args = ['worker', 'start', '--provider', 'temporal'];
     return {
       delegatedSurface: 'opl family-runtime worker start --provider temporal',
-      result: options.dryRun ? dryRunFamilyRuntimeResult('worker', args) : await runFamilyRuntime(args),
+      result: options.dryRun ? dryRunFamilyRuntimeResult('worker', args) : await services.familyRuntime(args),
     };
   }
 
@@ -919,7 +922,7 @@ async function executeDirectAppAction(
       delegatedSurface: 'opl family-runtime repair --provider temporal',
       result: options.dryRun
         ? dryRunFamilyRuntimeResult('provider_repair', args)
-        : await runFamilyRuntime(args),
+        : await services.familyRuntime(args),
     };
   }
 
@@ -927,7 +930,7 @@ async function executeDirectAppAction(
     const args = ['worker', 'stop', '--provider', 'temporal'];
     return {
       delegatedSurface: 'opl family-runtime worker stop --provider temporal',
-      result: options.dryRun ? dryRunFamilyRuntimeResult('worker', args) : await runFamilyRuntime(args),
+      result: options.dryRun ? dryRunFamilyRuntimeResult('worker', args) : await services.familyRuntime(args),
     };
   }
 
@@ -938,13 +941,14 @@ export async function runOplAppActionExecute(
   contracts: FrameworkContracts,
   options: AppActionExecuteOptions,
   services: {
-    descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
-  } = {},
+    descriptorDiscovery: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
+    familyRuntime: typeof runFamilyRuntime;
+  },
 ) {
   const direct = await executeDirectAppAction(
     contracts,
     options,
-    services.descriptorDiscovery,
+    services,
   );
   if (direct) {
     return {

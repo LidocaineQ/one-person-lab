@@ -200,7 +200,12 @@ export function buildPublicCommandSpecs(
   );
   const systemCommandSpecs = buildPublicSystemCommandSpecs(getContracts);
   const runtimeCommandSpecs = buildPublicRuntimeCommandSpecs(commandSpecs);
-  const brandCommandSpecs = buildBrandCommandSpecs(getContracts);
+  const brandCommandSpecs = buildBrandCommandSpecs(
+    getContracts,
+    cordis?.services.familyRuntime ?? (() => {
+      throw new Error('CLI command requires an explicit Cordis base-headless composition.');
+    }),
+  );
   const connectCommandSpecs = buildConnectCommandSpecs(commandSpecs, systemCommandSpecs);
   const foundryCommandSpecs = buildFoundryCommandSpecs();
   const okfCommandSpecs = buildOkfCommandSpecs();
@@ -217,6 +222,7 @@ export function buildPublicCommandSpecs(
   const appCommandSpecs = buildPublicAppCommandSpecs(
     getContracts,
     cordis?.services.descriptorDiscovery,
+    cordis?.services.familyRuntime,
   );
   const familyAgentProviderPort = {
     readProviderContinuousProof,

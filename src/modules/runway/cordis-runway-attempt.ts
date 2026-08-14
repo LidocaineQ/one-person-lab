@@ -184,7 +184,9 @@ export const CORDIS_RUNWAY_ATTEMPT_PLUGIN_DESCRIPTORS: readonly CordisPluginDesc
   }),
 ]);
 
-function buildSnapshot(adapterId: string): CordisRunwayAttemptCompositionSnapshot {
+export function buildCordisRunwayAttemptCompositionSnapshot(
+  adapterId = defaultAdapter.id,
+): CordisRunwayAttemptCompositionSnapshot {
   return buildCordisCompositionSnapshot({
     framework: {
       package: CORDIS_FRAMEWORK_PACKAGE,
@@ -224,7 +226,7 @@ export async function createCordisRunwayAttemptComposition(options: {
     executorFiber,
     attemptRef: options.attemptRef,
     executor: ctx[CORDIS_RUNWAY_ATTEMPT_SERVICE],
-    snapshot: buildSnapshot(adapter.id),
+    snapshot: buildCordisRunwayAttemptCompositionSnapshot(adapter.id),
   async dispose() {
       await executorFiber.dispose();
       await adapterFiber.dispose();

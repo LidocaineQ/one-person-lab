@@ -23,6 +23,7 @@ import {
   runCli,
   runCliReadOnlyInCwd,
 } from './cli/helpers.ts';
+import { createCordisBaseHeadlessComposition } from '../../src/entrypoints/cordis/composition-profiles.ts';
 
 function readJson(relativePath: string): Record<string, unknown> {
   return parseJsonText(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')) as Record<string, unknown>;
@@ -66,6 +67,19 @@ test('Cordis composition inspect schema and CLI output are deterministic and rea
   assert.equal(first.observation.teardown_status, 'disposed_after_observation');
   assert.equal(first.composition.default_caller_activated, true);
   assert.equal(first.composition.binding.executor_route, 'opl.profile.base-headless');
+  const childRefs = first.composition.binding.child_composition_snapshot_refs as Record<string, {
+    snapshot_id: string;
+    snapshot_digest: string;
+  }>;
+  assert.deepEqual(Object.keys(childRefs), [
+    'agent_executor_request',
+    'pack_stagecraft_route',
+    'runway_attempt',
+  ]);
+  for (const childRef of Object.values(childRefs)) {
+    assert.match(childRef.snapshot_id, /^cordis:snapshot:sha256:[a-f0-9]{64}$/);
+    assert.match(childRef.snapshot_digest, /^sha256:[a-f0-9]{64}$/);
+  }
 
   const pluginIds = first.plugins.map((plugin: { id: string }) => plugin.id);
   assert.deepEqual(pluginIds, [...pluginIds].sort((left, right) => left.localeCompare(right)));
@@ -134,5 +148,29 @@ test('Cordis composition inspect reports missing required providers without writ
   } finally {
     await pendingFiber.dispose();
     await context.fiber.dispose();
+  }
+});
+
+test('base-headless profile owns child composition factories and explicit runway services', async () => {
+  const composition = await createCordisBaseHeadlessComposition();
+  try {
+    assert.equal(typeof composition.services.familyRuntime, 'function');
+    assert.equal(typeof composition.services.childFactories.createAgentExecutorRequest, 'function');
+    assert.equal(typeof composition.services.childFactories.createRunwayAttemptComposition, 'function');
+    assert.equal(typeof composition.services.childFactories.createStageRouteComposition, 'function');
+    const child = await composition.services.childFactories.createAgentExecutorRequest({
+      adapter: {
+        id: 'profile-child-fixture',
+        execute: () => ({}) as never,
+      },
+    });
+    try {
+      assert.equal(child.snapshot.binding.executor_adapter_id, 'profile-child-fixture');
+      assert.equal(typeof child.executor.execute, 'function');
+    } finally {
+      await child.dispose();
+    }
+  } finally {
+    await composition.dispose();
   }
 });

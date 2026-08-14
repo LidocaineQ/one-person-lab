@@ -118,6 +118,10 @@ export type CordisCompositionSnapshot = {
   readonly binding: {
     readonly executor_adapter_id: string;
     readonly executor_route: string;
+    readonly child_composition_snapshot_refs?: Readonly<Record<string, {
+      readonly snapshot_id: string;
+      readonly snapshot_digest: string;
+    }>>;
   };
   readonly foundry_evidence_ref?: string | null;
   readonly plugins: readonly CordisPluginDescriptor[];

@@ -152,6 +152,16 @@ test('codexStageActivity uses an attempt-scoped Cordis composition without chang
     assert.equal(result.activity_kind, 'codex_stage_activity');
     assert.equal(result.runner_status?.runner_mode, 'dry_run');
     assert.equal(result.cordis_attempt_composition, undefined);
+    assert.deepEqual(
+      result.cordis_composition_snapshot_ref,
+      {
+        snapshot_id: (activityComposition as Awaited<ReturnType<typeof createCordisRunwayAttemptComposition>> | null)
+          ?.snapshot.snapshot_id,
+        snapshot_digest: (activityComposition as Awaited<ReturnType<typeof createCordisRunwayAttemptComposition>> | null)
+          ?.snapshot.snapshot_digest,
+        executor_route: 'opl.runway.attempt.executor',
+      },
+    );
     assert.equal(
       (activityComposition as Awaited<ReturnType<typeof createCordisRunwayAttemptComposition>> | null)
         ?.attemptRef,

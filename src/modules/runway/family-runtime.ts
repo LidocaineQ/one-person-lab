@@ -71,7 +71,11 @@ import {
   ensureFamilyRuntimePackageLaunchReady,
   packageRuntimeSourceCheckoutPath,
 } from './family-runtime-package-readiness.ts';
-import type { resolveStandardAgentStageQualityRuntimeBinding } from '../pack/index.ts';
+import type {
+  CordisPackStageBindingService,
+  resolveStandardAgentStageQualityRuntimeBinding,
+} from '../pack/index.ts';
+import type { CordisStagecraftContextService } from '../stagecraft/index.ts';
 import {
   resolveStandardAgentStageReviewLane,
   stageAttemptExecutorPolicyWithReviewLane,
@@ -354,6 +358,8 @@ export async function runFamilyRuntime(
     stageRunRuntime?: {
       ensurePackageLaunchReady?: typeof ensureFamilyRuntimePackageLaunchReady;
       resolveStageBinding?: typeof resolveStandardAgentStageQualityRuntimeBinding;
+      stageBindingService?: CordisPackStageBindingService;
+      stageContextService?: CordisStagecraftContextService;
       startWorkflow?: (
         input: Parameters<typeof launchRegisteredStageRun>[0]['stageRunInput'],
         context: { paths: ReturnType<typeof familyRuntimePaths> },
@@ -427,6 +433,11 @@ export async function runFamilyRuntime(
   const { db } = openQueueDb();
   let cordisPackStagecraft: Awaited<ReturnType<typeof createCordisStageRouteComposition>> | null = null;
   const getCordisPackStagecraft = async () => {
+    const stageBinding = options.stageRunRuntime?.stageBindingService;
+    const stageContext = options.stageRunRuntime?.stageContextService;
+    if (stageBinding && stageContext) {
+      return { stageBinding, stageContext };
+    }
     cordisPackStagecraft ??= await createCordisStageRouteComposition({
       loadDomainManifests: (contracts, manifestOptions) =>
         buildDomainManifestCatalog(contracts, manifestOptions).domain_manifests,

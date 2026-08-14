@@ -45,7 +45,9 @@ async function buildRunwayControlLoopProjection(
   }
 }
 
-export function buildBrandRunwayCommandSpecs(): Record<string, CommandSpec> {
+export function buildBrandRunwayCommandSpecs(
+  familyRuntime: typeof runFamilyRuntime,
+): Record<string, CommandSpec> {
   const specs: Record<string, CommandSpec> = {
     'runway control-loop status': {
       usage: 'opl runway control-loop status',
@@ -54,7 +56,7 @@ export function buildBrandRunwayCommandSpecs(): Record<string, CommandSpec> {
       group: 'brand-runway',
       handler: (args) => {
         assertNoArgs(args, specs['runway control-loop status']);
-        return runFamilyRuntime(['control-loop', 'status', '--provider', 'temporal']);
+        return familyRuntime(['control-loop', 'status', '--provider', 'temporal']);
       },
     },
     'runway readiness': {
