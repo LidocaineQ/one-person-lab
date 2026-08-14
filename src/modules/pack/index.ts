@@ -9,6 +9,7 @@ export * from './cordis-composition-contract.ts';
 export * from './package-host-integration.ts';
 export {
   CORDIS_PACKAGE_HOST_PLUGIN_API_VERSION,
+  CORDIS_PACKAGE_HOST_PLUGIN_DESCRIPTOR,
   CORDIS_PACKAGE_HOST_PLUGIN_ID,
   CORDIS_PACKAGE_HOST_SERVICE,
   CORDIS_PACKAGE_HOST_SOURCE_COMMIT,

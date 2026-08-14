@@ -1,5 +1,7 @@
 import { Context } from '@deepseek-ai/cordis';
 
+import descriptorPayload from '../../../contracts/opl-framework/cordis-plugins/opl-package-host.json' with { type: 'json' };
+
 import {
   buildPackageHostContext,
   resolvePackageHostIntegration,
@@ -8,13 +10,21 @@ import {
   type PackageHostManifest,
   type PackageHostProfileId,
 } from './package-host-integration.ts';
-import type { CordisCompositionSnapshot } from './cordis-composition-contract.ts';
+import {
+  buildCordisPluginDescriptor,
+  type CordisCompositionSnapshot,
+  type CordisPluginDescriptor,
+  type CordisPluginDescriptorInput,
+} from './cordis-composition-contract.ts';
 
 export const CORDIS_PACKAGE_HOST_PLUGIN_ID = 'opl-package-host';
 export const CORDIS_PACKAGE_HOST_PLUGIN_API_VERSION = '1.0.0';
 export const CORDIS_PACKAGE_HOST_SERVICE = 'opl.pack.package-host';
 export const CORDIS_PACKAGE_HOST_SOURCE_REF = 'src/modules/pack/cordis-package-host-plugin.ts';
-export const CORDIS_PACKAGE_HOST_SOURCE_COMMIT = '2a95a791485385996d2c8ea23b2fc72459e29184';
+export const CORDIS_PACKAGE_HOST_SOURCE_COMMIT = 'fda76eca3f7fca01f0ff44e6d7075b9d214e9a67';
+
+export const CORDIS_PACKAGE_HOST_PLUGIN_DESCRIPTOR: CordisPluginDescriptor =
+  buildCordisPluginDescriptor(descriptorPayload as unknown as CordisPluginDescriptorInput);
 
 export type CordisPackageHostService = Readonly<{
   profile_id: PackageHostProfileId;

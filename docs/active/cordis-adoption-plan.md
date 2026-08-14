@@ -11,7 +11,7 @@ Machine boundary: 用户已明确授权把长期终态推进到 Cordis 全面迁
 
 OPL 采用 DeepSeek Harness（DSH）所使用的正式 `@deepseek-ai/cordis` 作为长期目标的进程内组合框架。目标是最终使用 Cordis 本身，不再另造 `Cordis-like` 内核、平行 event bus、平行 service registry 或平行 plugin lifecycle。
 
-这是一项已完成 P0-P6 默认 Framework cutover 的架构迁移，不再以迁移成本作为 go/no-go。P1 surface map、P2 `Agent Executor` 隔离实验、P3 只读 composition inspect、P4 组合合同、P5 vertical seams、P5-R 四层重基线和 P6 `base-headless` profile/default caller 已落地。当前 OPL CLI/Runtime 默认链由 Cordis composition 创建并在 finally 中销毁；首个实验选择 `Agent Executor` seam，因为 Codex、Claude Code、Hermes 和 Antigravity 已经有多个显式 adapter，且该 seam 在不改变 Temporal durable truth 的情况下证明了依赖注入、事件、scope isolation 和 teardown。
+这是一项已完成 P0-P6 默认 Framework cutover 的架构迁移，不再以迁移成本作为 go/no-go。P1 surface map、P2 `Agent Executor` 隔离实验、P3 只读 composition inspect、P4 组合合同、P5 vertical seams、P5-R 四层重基线和 P6 `base-headless` profile/default caller 已落地。当前 OPL CLI/Runtime 默认链由 Cordis composition 创建并在 finally 中销毁；三个 curated profile 进一步统一装载 `opl-package-host`，让标准 Agent、能力 Package 和 workflow profile 消费相同的 host context ABI，而无需在各 owner 仓复制 Framework plugin 清单。首个实验选择 `Agent Executor` seam，因为 Codex、Claude Code、Hermes 和 Antigravity 已经有多个显式 adapter，且该 seam 在不改变 Temporal durable truth 的情况下证明了依赖注入、事件、scope isolation 和 teardown。
 
 全面 Cordis 化不等于把当前十个品牌模块机械翻译成十个 plugin。当前十模块先作为源码归属、产品语言和能力盘点入口；最终数量与边界必须由真实 authority、caller、生命周期、trust、故障隔离和发布节奏重新决定。
 
@@ -131,6 +131,21 @@ P5-R 不从“必须保留十模块”或“每个模块必须有 plugin”出�
 | 版本组合 | 启动时校验 plugin API/required service compatibility | Package 发布/currentness、Foundry version/promotion 和 source commit 由各 owner 决定。 |
 | 失败隔离 | required plugin 失败停止该 composition；optional plugin 形成 diagnostic/degraded state | 不得把 optional 缺失升级成 domain verdict；不可逆动作仍由 owner gate 控制。 |
 | reload/HMR | 仅 dev/实验 scope，可撤销重挂载 | production attempt composition 冻结，不能热换 prompt、executor、receipt 或 durable workflow。 |
+
+### 3.6 Package Host 兼容 ABI
+
+Framework curated profile 统一提供 `opl.pack.package-host`。Package 只提交现有 manifest identity，
+Framework 按 manifest kind 选择默认 host contract：标准 Agent 使用 `standard_agent_runtime`，
+capability Package 使用 `capability_provider`，workflow profile 使用
+`workflow_profile_source`。当前覆盖 MAS/MAG/RCA/OMA/BookForge、MAS Scholar Skills、OPL Persona、
+OPL Relay 和 OPL Flow；未来同 kind Package 自动复用同一规则，不建立固定 Package registry。
+
+每次 resolve 生成 immutable host context，绑定最终 profile、root/child composition snapshot、
+provider API version、scope 与 disposer。required provider 缺失返回 blocked，optional provider 缺失
+只返回 degraded；Package standalone policy 保持 allowed。该 context 只证明本次托管装配兼容，
+不证明 installed/current、domain quality、owner receipt、durable workflow、Foundry activation 或
+App product readiness。机器真相归 `package-host-integration.schema.json`、
+`package-host-context.schema.json`、三份默认 host contract、Cordis descriptor/profile snapshot 与源码。
 
 ## 4. 不变量与运行规则
 

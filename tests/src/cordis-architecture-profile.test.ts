@@ -104,6 +104,11 @@ test('profile runtime snapshots match their root and child composition allowlist
         (entry: JsonObject) => entry.profile_id === composition.profileId,
       );
       assert.ok(profile, composition.profileId);
+      assert.equal(
+        composition.services.packageHost.profile_id,
+        composition.profileId,
+        `${composition.profileId}: package host profile identity`,
+      );
       const allowed = new Map<string, boolean>(
         profile.plugin_allowlist.map((entry: JsonObject) => [entry.plugin_id, entry.required]),
       );
