@@ -6,18 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import AjvModule from 'ajv';
-
-type AjvConstructor = new (options?: {
-  allErrors?: boolean;
-  strict?: boolean;
-}) => {
-  compile(schema: unknown): {
-    (value: unknown): boolean;
-    errors?: unknown;
-  };
-};
-const Ajv = AjvModule as unknown as AjvConstructor;
+import { Ajv2020 } from 'ajv/dist/2020.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const scriptPath = path.join(repoRoot, 'scripts/source-package-boundary.mjs');
@@ -121,7 +110,7 @@ test('package topology contract validates and matches all independent workspaces
     path.join(repoRoot, 'contracts/opl-framework/package-topology.schema.json'),
     'utf8',
   ));
-  const validate = new Ajv({ allErrors: true, strict: false }).compile(schema);
+  const validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
   assert.equal(validate(topology), true, JSON.stringify(validate.errors));
 
   const result = runBoundary();
