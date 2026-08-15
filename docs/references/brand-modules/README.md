@@ -16,14 +16,14 @@ Machine boundary: 本文是人读目标态参考。机器真相继续归核心�
 
 本文不冻结当前完成度、receipt id、worklist 计数、branch、worktree 或 release 证据。当前事实继续回到 `docs/status.md`、`docs/active/current-state-vs-ideal-gap.md` 和 fresh CLI/read-model。
 
-当前品牌系统冻结基线归 `contracts/opl-framework/brand-system-profile.json`。其中历史字段仍保留 Framework / App / Foundry 的责任视角；对外生态认知已由 2026-08-15 决策统一为 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`。该 contract 只约束当前品牌系统语言和 pattern，不声明十模块是最终 authority/Package/plugin/profile 拓扑，也不声明 L5、domain ready、quality verdict、artifact authority、App release ready 或 production ready。
+当前品牌系统冻结基线归 `contracts/opl-framework/brand-system-profile.json`。其中历史字段仍保留 Framework / App / Foundry 的责任视角；对外生态认知统一为 `OPL Base + OPL App + OPL Packages + OPL Cloud`。该 contract 只约束当前品牌系统语言和 pattern，不声明十模块是最终 authority/Package/plugin/profile 拓扑，也不声明 L5、domain ready、quality verdict、artifact authority、App release ready 或 production ready。
 
 Cordis 全面迁移已冻结一条更高优先级的目标态约束：`品牌模块/认知地图 != authority owner != Package 发布单元 != Cordis plugin 运行单元`。P5-R 已依据真实 caller、authority、lifecycle、scope、trust、故障隔离和发布节奏形成四层目标图；下表继续作为文档与源码导航基线，不代表一模块一 plugin，也不授权目录对称化 churn。
 
 ### 产品层、权威层与运行层
 
 品牌名是认知地图，不是仓库清单。当前生态对外仍只暴露 `OPL Base`、`OPL App`、
-`OPL Packages` 和可选 `OPL Cloud`；内部按以下关系理解：
+`OPL Packages` 和 `OPL Cloud`；内部按以下关系理解：
 
 ```text
 OPL Framework = 唯一 Cordis Host / runtime authority
@@ -105,7 +105,7 @@ OPL Charter
 
 Agent Tool Arsenal / Capability Invocation OS 不新增品牌模块。它以 `OPL Pack` 为 ABI owner；合同是生成/校验材料，Agent ordinary path 只消费 Pack 派生的 execution view、operational card 和 result envelope。`Atlas`、`Stagecraft`、`Console`、`Connect` 分别消费 catalog、use-policy、current-owner projection / ordinary execution view 和 descriptor/export 边界；`Runway` / `Ledger` 只承运执行与 refs evidence。
 
-`OPL Fabric` 属于长期、条件启用的 Cloud / Product 层资源底座语义，不新增 Framework 第 11 个源码模块，也不成为当前 App desktop + Docker/WebUI 的必要 gate。只有真实 account、storage、isolation、backend 与 owner policy 齐备时，Fabric 才可由当前十模块组合形成用户可见能力：`Connect` 负责连接、分发和可调用 surface，`Runway` 负责 durable execution / queue / retry-dead-letter，`Pack` 负责 ABI、descriptor 和 generated surface，`Workspace` 负责可检查物理落点，`Ledger` 负责 refs-only evidence / receipt / lineage。`Console` 把这些能力组织成治理、投影、current owner、next action 和 drilldown 页面。
+`OPL Fabric` 属于正在落地的 Cloud 产品资源底座语义，不新增 Framework 第 11 个源码模块。`Fabric` 由 `Connect`、`Runway`、`Pack`、`Workspace` 和 `Ledger` 协作承接：`Connect` 负责连接、分发和可调用 surface，`Runway` 负责 durable execution / queue / retry-dead-letter，`Pack` 负责 ABI、descriptor 和 generated surface，`Workspace` 负责可检查物理落点，`Ledger` 负责 refs-only evidence / receipt / lineage；`Console` 把这些能力组织成治理、投影、current owner、next action 和 drilldown 页面。具体产品能力以各自的 account、storage、isolation、backend、owner policy 与运行证据为准。
 
 ## 当前完成度对照
 

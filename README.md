@@ -97,7 +97,7 @@ Users only need four stable product concepts:
 | **OPL Base** | The runtime foundation that makes long work runnable, recoverable, and auditable. | `one-person-lab` implements OPL Framework, the single Cordis Host. |
 | **OPL App** | The local workbench for choosing work, watching progress, opening files, and acting on blockers. | `one-person-lab-app` owns the product, GUI ABI, selected Shell, and release. |
 | **OPL Packages** | Installable Agents, Skills, Tools, Plugins, and Workflows that add professional capability. | Each Package owner owns identity and publication; Framework discovers and projects installed capabilities. |
-| **OPL Cloud** *(optional)* | Online Workspace, account governance, hosted resources, collaboration, and Agent services. | `one-person-lab-cloud` owns Cloud products and services. |
+| **OPL Cloud** | Online Workspace, account governance, hosted resources, collaboration, and Agent services. | `one-person-lab-cloud` owns Cloud products and services; the product is in active implementation and delivery. |
 
 Foundry Agents such as MAS, MAG, RCA, OMA, and Book Forge are professional
 authority domains delivered through OPL Packages. They keep their own quality,
@@ -107,8 +107,8 @@ Framework plugins by definition.
 Users do not need to understand the repository split. For developers:
 `one-person-lab` maintains Base/Framework, `one-person-lab-app` maintains the App
 product and release experience, Package repositories maintain installable
-capabilities, and `one-person-lab-cloud` optionally extends the same work model
-online.
+capabilities, and `one-person-lab-cloud` delivers the online workspaces,
+governance, hosted resources, collaboration, and Agent services of OPL Cloud.
 
 For the complete repository split, see the [OPL family repository map](./docs/public/repo-map.md).
 

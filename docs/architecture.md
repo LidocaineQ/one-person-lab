@@ -7,7 +7,7 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 
 ## 顶层分层
 
-`OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。对外产品认知固定为 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`：Base 提供运行基础，App 提供本地工作台，Packages 提供可安装专业能力，Cloud 按需提供在线治理与托管。Foundry Agents 是通过 Packages 交付并保留领域权威的专业能力家族，不是第五个产品层。OPL 已完成向 DSH 正式 `@deepseek-ai/cordis` 的 Framework Host 全面迁移：`base-headless` 是默认 composition，P1-P6、真实默认 caller、snapshot/digest、child fiber teardown 与显式 Atlas/Workspace/Connect/Runway services 均已落地。Host 派生 Client Cordis、双 GUI 统一 ABI、capability-domain 重基线和 Package/source topology 是当前后续 cutover；它们不改变 Cordis 只负责进程内 composition 的边界。Package/native carrier、Temporal durable history/retry/replay、Workspace bytes/binding、Ledger receipts/evidence、Foundry activation、domain truth 与 App product/GUI ABI 仍归各自 owner。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
+`OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。对外产品认知固定为 `OPL Base + OPL App + OPL Packages + OPL Cloud`：Base 提供运行基础，App 提供本地工作台，Packages 提供可安装专业能力，Cloud 提供在线治理、托管资源与协作服务。Foundry Agents 是通过 Packages 交付并保留领域权威的专业能力家族，不是第五个产品层。OPL 已完成向 DSH 正式 `@deepseek-ai/cordis` 的 Framework Host 全面迁移：`base-headless` 是默认 composition，P1-P6、真实默认 caller、snapshot/digest、child fiber teardown 与显式 Atlas/Workspace/Connect/Runway services 均已落地。Host 派生 Client Cordis、双 GUI 统一 ABI、capability-domain 重基线和 Package/source topology 是当前后续 cutover；它们不改变 Cordis 只负责进程内 composition 的边界。Package/native carrier、Temporal durable history/retry/replay、Workspace bytes/binding、Ledger receipts/evidence、Foundry activation、domain truth 与 App product/GUI ABI 仍归各自 owner。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
 
 ### Codex executable carrier 边界
 
@@ -29,7 +29,7 @@ history 的 owner 不变。
 
 ### OPL 生态与 GUI 的统一心智模型
 
-对外只需要认识四个产品层：`OPL Base`、`OPL App`、`OPL Packages` 和可选的
+对外只需要认识四个产品层：`OPL Base`、`OPL App`、`OPL Packages` 和
 `OPL Cloud`。它们分别类似 R 的运行环境、RStudio、R packages，以及在线治理与资源
 层。内部实现不把这四层混成一个仓库或一个进程：
 
@@ -207,9 +207,9 @@ OPL Framework 允许使用 sandbox provider，但框架职责归 OPL：stage att
 
 ## 品牌模块架构
 
-OPL 的四层产品认知说明“用户维护什么”，当前十个品牌模块说明 Framework 内部能力如何高内聚、低耦合地演进。品牌模块不是新的 runtime，也不是第二 truth source；它们把已经存在的 contracts、source、CLI/App 产品行为、read model、runtime ledger、provider receipt 和 docs support 归入当前稳定 owner boundary。当前必要工作面是 App desktop + Docker/WebUI；条件启用的 Cloud 产品可以用这些模块命名用户可见能力，但 Framework 代码目前仍按模块 owner 物理落在 `src/modules/<module_id>/`。这套十模块是当前源码和认知基线，不是 Cordis 终局 plugin 拓扑，也不与 OPL Packages 一对一对应。
+OPL 的四层产品认知说明“用户使用什么”，品牌模块和能力域说明 Framework、App 与 Cloud 如何围绕稳定责任协作。品牌名是产品和架构的共同语言；对应的源码目录、Package 与 Cordis plugin 按真实 owner、生命周期和发布节奏组织，并通过明确的 contracts 与 projection 连接。OPL Cloud 是正在落地的产品面，Framework、App 与 Cloud 分别持有自己的实现和 authority，不把云端能力降级为条件成立后才出现的包装。
 
-产品语义和源码组织的对齐规则是：`OPL Cloud`、在线 `OPL Workspace`、Console 页面和 Gateway/API 体验属于长期、条件启用的用户可见产品包装，只有真实 account、storage、isolation、backend 与 owner policy 齐备时才出现；`src/modules/<module_id>/` 属于 Framework 物理 owner。条件产品可以组合多个模块，但不能把产品名反向写成源码模块 owner，也不能成为当前 App desktop + Docker/WebUI 的 release/runtime 硬门。`OPL Fabric` 是 Cloud / Product 层的通用资源底座语义，不新增当前十模块之外的第 11 个源码模块；它的实现由 `Connect` 的连接与分发、`Runway` 的 durable execution、`Pack` 的 ABI / descriptor、`Workspace` 的物理落点和 `Ledger` 的 refs-only evidence 协作承接。`OPL Connect` 是 Fabric 上可独立调用的连接能力，`OPL Console` 负责治理、投影和管理集成。
+产品语义和源码组织的对齐规则是：`OPL Cloud`、在线 `OPL Workspace`、Console 页面和 Gateway/API 体验属于 OPL 正在落地的云端产品面；具体能力是否可用，以各自真实 account、storage、isolation、backend、owner policy 和运行证据为准。`src/modules/<module_id>/` 属于 Framework 物理 owner，App 与 Cloud 分别维护自己的产品实现。云端产品可以组合多个模块，但不能把产品名反向写成源码模块 owner，也不能成为当前 App desktop + Docker/WebUI 的 release/runtime 硬门。`OPL Fabric` 是 Cloud / Product 层的通用资源底座语义，不新增当前十模块之外的第 11 个源码模块；它的实现由 `Connect` 的连接与分发、`Runway` 的 durable execution、`Pack` 的 ABI / descriptor、`Workspace` 的物理落点和 `Ledger` 的 refs-only evidence 协作承接。`OPL Connect` 是 Fabric 上可独立调用的连接能力，`OPL Console` 负责治理、投影和管理集成。
 
 代码层当前仍以 `src/modules/` 作为物理组织。`src/modules/<module_id>/` 是当前十个 Framework 模块的真实物理边界，每个模块通过自己的 `index.ts` 暴露 public index；少量高频、低依赖、容易触发初始化循环的公共 API 可以放在 `src/modules/<module_id>/public/**/*.ts` 薄入口。`src/modules/index.ts` 只导出模块身份常量和命名空间聚合，避免不同模块的同名 API 混在同一个大 barrel 里。`contracts/opl-framework/source-module-map.json` 是归属校验面，不是第二套目录规划。`entrypoints/` 和 `kernel/` 属于非品牌技术层：前者承接 CLI / product / adapter 启动面，后者承接共享 runtime primitive；二者必须挂靠并服务当前 owner，不获得独立 brand owner。新代码默认进入当前 owning module；跨模块调用只走 owning module public index 或薄 public entry；root-level `src/*.ts` 不再接受新扩展。Cordis-native 重基线完成后，某一模块可以贡献多个 plugin、多个模块可以合并为一个运行时 contribution，或某个模块仅保留 authority surface；这些变化必须经 P5-R 的真实 caller/owner/lifecycle 证据和 source-to-target mapping 冻结后再改目录。维护者的 canonical 源码边界读法见 [OPL Framework 源码模块边界](./references/source-module-boundary.md)。
 
@@ -609,6 +609,6 @@ Cordis adoption 已完成默认 Framework composition cutover：DSH scoped `@dee
 ## 文档组织原则
 
 - AI / 维护者优先读取核心五件套。
-- 对外公开面继续按 `OPL Base + OPL App + OPL Packages + optional OPL Cloud` 四层生态组织；Foundry Agents 作为 Packages 中的专业 authority family 说明。
+- 对外公开面继续按 `OPL Base + OPL App + OPL Packages + OPL Cloud` 四层生态组织；Foundry Agents 作为 Packages 中的专业 authority family 说明。
 - 机器合同、公开叙事、参考材料、历史记录分层维护。
 - 历史 `frontdoor` 时代的公开语义只保留在参考与历史层，不再进入当前主线。

@@ -10,13 +10,13 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 ### 决策：OPL 生态保持四层产品认知，App 固定为一个 authority、两个可替换 Shell
 
 原因：Cordis 全面迁移和 DSH GUI 调研证明，产品认知、authority、Package、plugin 与
-renderer 必须分开。用户仍应只理解 Base、App、Packages 和按需 Cloud；内部则由
+renderer 必须分开。用户应理解 Base、App、Packages 和 Cloud 四个产品对象；内部则由
 Framework 唯一 Host、App 产品主仓与可替换 Shell 协作，不能把两个 GUI 仓解释成两套
 App，也不能把 Framework/Cloud 中同名 Console 解释成同一 authority。
 
 影响：
 
-- 对外产品模型固定为 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`。
+- 对外产品模型固定为 `OPL Base + OPL App + OPL Packages + OPL Cloud`；Cloud 已进入产品落地与持续交付阶段。
 - `one-person-lab` 是唯一 Cordis Host；`one-person-lab-app` 是 App 产品、Client profile、
   GUI contribution ABI、active shell、版本组合和发布 authority。
 - `opl-aion-shell` 是当前 Stable AionUI implementation carrier；`opl-studio` 是 DSH-derived
@@ -669,15 +669,15 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 - `docs/policies/standard-agent-ai-first-principles.md` 与 `contracts/opl-framework/standard-agent-principles.json` 是该原则包的人读入口和机器边界；domain 仓通过 `contracts/standard-agent-principles-adoption.json`、`agent/principles/opl-standard-agent-principles.md` 和 `agent/principles/domain-specialization.md` 声明采用与领域映射。
 - 该原则包只关闭文档/合同定位缺口，不声明 standard-agent complete、domain ready、target-agent ready、Brand L5、App release ready 或 production ready；docs/read-model/test 绿只能作为结构证据输入。
 
-### 决策：OPL Cloud 是条件产品语义，消费 Framework 模块但不重划物理源码 owner
+### 决策：OPL Cloud 是正在落地的产品层，消费 Framework 模块但不重划物理源码 owner
 
 原因：物理模块化后，Framework 已经有 `src/modules/<module_id>/`、`entrypoints/` 和 `kernel/` 三层源码组织；同时产品叙事里又出现 `OPL Cloud`、在线 `OPL Workspace`、Console、Gateway / API 和 Fabric 等用户可见或资源底座语义。如果把这些产品名反向写成源码模块 owner，会让维护者误以为 Cloud / Workspace 产品、Console 页面、Connect connector 和 Ledger evidence 是同一层事实，进而制造第二 source of truth。
 
 影响：
 
-- 当前必要用户工作面是 App desktop + Docker/WebUI；`OPL Cloud`、online / managed Workspace / Gateway 是长期、条件启用的产品包装，只有真实 account、storage、isolation、backend 与 owner policy 齐备时才出现，不是当前 runtime/App release gate，也不是当前十个 Framework 品牌模块之外的第 11 个源码模块。
+- `OPL Cloud` 是正在建设和持续交付的产品层，在线 Workspace、Gateway、Fabric、Console、Ledger 等能力按各自的 account、storage、isolation、backend、owner policy 和运行证据逐步进入产品面；这些能力的证据边界不改变 Cloud 的产品身份。
 - `src/modules/<module_id>/` 是 Framework 源码 owner；`src/entrypoints/` 只承接 CLI / product / adapter 启动面，`src/kernel/` 只承接 brand-neutral shared runtime primitive。二者都不拥有独立品牌模块或产品语义。
-- 条件启用的在线 `OPL Workspace` 产品体验可以消费多个 Framework 模块；Framework `workspace` 模块只持有 workspace protocol、Project Unit、Stage Artifact Unit 和文件生命周期投影，不持有 Cloud product truth、artifact body、quality verdict 或 owner receipt。
+- 在线 `OPL Workspace` 产品体验可以消费多个 Framework 模块；Framework `workspace` 模块只持有 workspace protocol、Project Unit、Stage Artifact Unit 和文件生命周期投影，不持有 Cloud product truth、artifact body、quality verdict 或 owner receipt。
 - `OPL Connect` 是 Fabric 上可独立调用的连接 / 分发能力，不是 Console 私有后端；`OPL Console` 负责治理、投影、action catalog 和 operator 管理集成；`OPL Ledger` 只保存 refs-only evidence、receipt/blocker refs、lineage 和 provenance。
 - `contracts/opl-framework/source-module-map.json` 只记录源码归属 metadata 和物理入口；更新 owner note 不改变 runtime truth、domain truth、owner receipt、typed blocker、release verdict 或 production readiness。
 
@@ -1667,7 +1667,7 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 - 开发和运行保持集成在 OPL Framework 内；当前不拆 repo，也不把每个 domain agent 改成内嵌一份 OPL runtime。
 - agent 的推荐发布形态是 OPL-compatible package / repo：声明 framework/version/contract 要求、stage descriptor、skill、quality gate、artifact locator、projection 和 authority refs，由 OPL Framework 安装、发现、托管、唤醒和投影。
 - Full 首次安装包可以把 App、OPL Framework、OPL Meta Agent、MAS/MAG/RCA、provider payload、`officecli` 与推荐 skills 打在一起；这只是分发形态，不改变 single framework runtime truth，也不改变 MAS/MAG/RCA 的领域权威。
-- 本段保留为历史决策 provenance。当前 README、project/status/architecture、App 文案和 onboarding 统一使用 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`；Foundry Agents 作为 Packages 中保留专业 authority 的家族说明。
+- 本段保留为历史决策 provenance。当前 README、project/status/architecture、App 文案和 onboarding 统一使用 `OPL Base + OPL App + OPL Packages + OPL Cloud`；Foundry Agents 作为 Packages 中保留专业责任的家族说明。
 
 ## 2026-05-10
 
