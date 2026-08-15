@@ -149,7 +149,7 @@ test('every profile and child descriptor source identity resolves to reachable G
   try {
     const descriptors = [
       ...compositions.flatMap((composition) => composition.snapshot.plugins),
-      ...buildCordisAgentExecutorCompositionSnapshot().plugins,
+      ...buildCordisAgentExecutorCompositionSnapshot('opl-existing-agent-executor').plugins,
       ...buildCordisRunwayAttemptCompositionSnapshot().plugins,
       ...buildCordisPackStagecraftCompositionSnapshot().plugins,
       ...buildCordisReleaseOperationCompositionSnapshot().plugins,

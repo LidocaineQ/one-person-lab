@@ -2,18 +2,18 @@
 
 Owner: `OPL Framework`
 Purpose: `cordis_adoption_support_plan`
-State: `landed/default / p1_p2_p3_p4_p5_p5r_p6_complete / base_headless_default`
-Updated: `2026-08-14`
+State: `host_landed/default / p1_p2_p3_p4_p5_p5r_p6_complete / family_client_package_cutover_active`
+Updated: `2026-08-15`
 SSOT role: 本文是详细支撑计划；当前 active gap、优先级和下一棒仍只归 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md)。
-Machine boundary: 用户已明确授权把长期终态推进到 Cordis 全面迁移；本文的阶段状态只由 canonical source、contracts、tests 和 owner-authoritative readback 证明。P1-P6 已完成默认 Framework composition cutover；App/AionUI GUI ABI、Package currentness、Temporal、Foundry、Ledger、domain 和 live production facts 仍分别回到对应 owner surface。
+Machine boundary: 用户已明确授权把长期终态推进到 Cordis 全面迁移；本文的阶段状态只由 canonical source、contracts、tests 和 owner-authoritative readback 证明。P1-P6 已完成默认 Framework Host composition cutover；family capability-domain rebaseline、Host 派生 Client Cordis、AionUI/DSH 双 GUI 统一 ABI 与 Package/source topology cutover 是当前 active work。Package currentness、Temporal、Foundry、Ledger、domain、App/Cloud product truth 和 live production facts仍分别回到对应 owner surface。
 
 ## 1. 结论
 
 OPL 采用 DeepSeek Harness（DSH）所使用的正式 `@deepseek-ai/cordis` 作为长期目标的进程内组合框架。目标是最终使用 Cordis 本身，不再另造 `Cordis-like` 内核、平行 event bus、平行 service registry 或平行 plugin lifecycle。
 
-这是一项已完成 P0-P6 默认 Framework cutover 的架构迁移，不再以迁移成本作为 go/no-go。P1 surface map、P2 `Agent Executor` 隔离实验、P3 只读 composition inspect、P4 组合合同、P5 vertical seams、P5-R 四层重基线和 P6 `base-headless` profile/default caller 已落地。当前 OPL CLI/Runtime 默认链由 Cordis composition 创建并在 finally 中销毁；三个 curated profile 进一步统一装载 `opl-package-host`，让标准 Agent、能力 Package 和 workflow profile 消费相同的 host context ABI，而无需在各 owner 仓复制 Framework plugin 清单。首个实验选择 `Agent Executor` seam，因为 Codex、Claude Code、Hermes 和 Antigravity 已经有多个显式 adapter，且该 seam 在不改变 Temporal durable truth 的情况下证明了依赖注入、事件、scope isolation 和 teardown。
+这是一项已完成 P0-P6 默认 Framework Host cutover、并继续推进 family/package/client 物理对齐的架构迁移，不再以迁移成本作为 go/no-go。P1 surface map、P2 `Agent Executor` 隔离实验、P3 只读 composition inspect、P4 组合合同、P5 vertical seams、P5-R 五层重基线和 P6 `base-headless` profile/default caller 已落地。当前 OPL CLI/Runtime 默认链由 Cordis composition 创建并在 finally 中销毁；三个 curated Host profile 统一装载 `opl-package-host`，让标准 Agent、能力 Package 和 workflow profile 消费相同的 host context ABI。下一阶段将相同原则扩展为 Host 投影的 Client Cordis graph，并把源码与发布单元从旧品牌桶迁到真实 authority/lifecycle 边界。
 
-全面 Cordis 化不等于把当前十个品牌模块机械翻译成十个 plugin。当前十模块先作为源码归属、产品语言和能力盘点入口；最终数量与边界必须由真实 authority、caller、生命周期、trust、故障隔离和发布节奏重新决定。
+全面 Cordis 化不等于把当前十个品牌模块机械翻译成十个 plugin。原十品牌已重基线为跨 Framework/App/Cloud 的 family capability domains；源码归属回到 authority surface，安装/发布回到 Package，运行期组合回到 Host/Client Cordis contribution。最终数量与边界必须由真实 authority、caller、生命周期、trust、故障隔离和发布节奏决定。
 
 Cordis 的职责只限于同一进程内的：
 
@@ -22,7 +22,7 @@ Cordis 的职责只限于同一进程内的：
 - reversible effect、disposer、mount/unmount、开发期 reload；
 - 由一组明确的 plugin 组成当前 process/session/attempt composition。
 
-Cordis 不取代 OPL 已经冻结的权威边界：Package 安装与 currentness、Temporal durable orchestration、Workspace 文件与绑定、Ledger evidence/receipt、Foundry version/promotion/activation、domain truth/quality verdict、App product truth 和 executor 的真实进程能力仍由各自 owner 持有。
+Cordis 不取代 OPL 已经冻结的权威边界：Package 安装与 currentness、Temporal durable orchestration、Workspace 文件与绑定、Ledger evidence/receipt、Foundry version/promotion/activation、domain truth/quality verdict、App/Cloud product truth 和 executor 的真实进程能力仍由各自 owner 持有。Framework 是唯一 Host composition authority；App renderer 可以运行 Host 派生的 Client Cordis，但 Client 不拥有 discovery、installation、currentness 或 product truth。
 
 ## 2. 上游基线与来源策略
 
@@ -45,23 +45,25 @@ Source/version policy:
 
 ## 3. 目标架构
 
-### 3.1 五种身份必须分开
+### 3.1 六种身份必须分开
 
 | 身份 | 代表什么 | owner | 不代表什么 |
 | --- | --- | --- | --- |
-| Brand module | 当前源码 owner、产品语言与认知地图 | OPL Framework 模块 owner | 不是进程实例、安装单元或版本 resolver；当前十模块也不是不可修改的终局拓扑。 |
+| Family capability domain | 跨 Framework/App/Cloud 的品牌语言与认知地图 | OPL family 品牌 owner | 不是源码目录、进程实例、安装单元或版本 resolver；原十品牌也不是固定终局拓扑。 |
+| Authority surface | 对事实、策略、权限或产品结果负责的 canonical owner 面 | Framework / App / Cloud / domain owner | 不因 Package 或 plugin 装载而转移。 |
 | Package | 安装、发布、分发和 carrier 生命周期单元 | Package owner / native carrier | 不是 Cordis service registry，也不是 executor route。 |
-| Cordis plugin | 进程内 service、event、effect 和 lifecycle 贡献 | 所属模块或 Package owner | 不是独立安装单元，不签 domain truth，不提供安全沙箱。 |
+| Cordis contribution | Host 或 Host 派生 Client Context 中的 service、slot、event、effect 和 lifecycle 贡献 | 所属 authority/Package owner | 不是独立安装单元，不签 product/domain truth，不提供安全沙箱。 |
 | Composition snapshot | 某个 process/session/attempt 选中的不可变 plugin 组合 | Pack/Runway 组合输入 owner | 不是 installed lock、全局 currentness 或第二 registry。 |
 | Executor route | 实际可调用的 Codex/Claude/Hermes/Antigravity 进程适配 | Runway/executor adapter owner | 不是 Package identity，也不改变 Temporal durability。 |
 
-因此，模块可以发布多个 plugin，多个 Package 可以贡献同一受控 plugin surface，某个纯合同或纯领域 owner 也可以不强行变成 plugin。一个现有模块也可以在重基线后拆分、合并或降级为纯 authority surface。是否拆成 plugin 必须由真实的进程内替换、依赖、scope、trust、故障隔离或 teardown 需求支付成本。
+因此，一个 capability domain 可以横跨多个 authority surface、Package 和 Host/Client contributions，多个 domain 也可以合并到同一受控 contribution；纯合同或纯领域 owner 不必强行变成 plugin。是否拆 contribution 必须由真实的进程内替换、依赖、scope、trust、故障隔离或 teardown 需求支付成本；是否拆 Package还必须有独立安装、发布、升级或回退节奏。
 
 ### 3.2 目标组合链路
 
 ```text
-stable authority domains
-  -> independently releasable Packages
+family capability domains
+  -> repo/product-specific authority surfaces
+    -> independently releasable Packages where justified
      -> fine-grained Cordis plugin contributions
         -> curated composition profile
            -> trusted root + session/attempt child context
@@ -69,11 +71,19 @@ stable authority domains
                  -> Temporal / Workspace / Ledger / Foundry / domain owner
 ```
 
-Cordis 只负责箭头中 `profile -> context -> plugin -> in-process service/event/effect` 的部分。`Temporal / Workspace / Ledger / Foundry / domain owner` 的 durable 或语义权威不能被 Context 内存对象替代。
+Cordis 只负责箭头中 `profile -> context -> contribution -> in-process service/event/effect/slot` 的部分。`Temporal / Workspace / Ledger / Foundry / domain / App / Cloud owner` 的 durable、语义或产品权威不能被 Context 内存对象替代。
 
-### 3.3 当前十模块的候选贡献
+### 3.2.1 Host 与 Client Cordis
 
-下表是 P1/P5 的迁移盘点输入，不是最终 plugin registry 或最终组织图。P5-R 可以按真实证据保留、拆分、合并或把某一模块降级为纯 authority/read-model surface；任何调整都必须保留现有 public caller 的可达 successor 和明确迁移路径。
+Framework 是唯一 Host composition authority：它选择 curated product/runtime profile、冻结 exact Host graph，并向 App 投影 allowlisted client graph。App renderer 可以从这份投影创建 Client Cordis Context；Client graph 必须携带 contribution id、API version、source identity、required host services、typed slots/actions 和 transport contract，不能从浏览器自行扫描、下载或安装 plugin。
+
+DeepSeek Harness GUI 的可迁移结构是 `Host Cordis -> allowlisted client graph -> Client Cordis -> typed React slots -> typed RPC/events`，而不是“Node Cordis 直接渲染 React”。OPL 的 AionUI 主线与 DSH GUI 候选必须共享同一 Host projection、Client Contribution ABI、App product profile 和 slot/action semantics；二者只在 renderer/package carrier 和视觉实现上不同。`OPL App` 仍持有 GUI product truth、page/action policy、active-shell validation 和 release gate，不能被降级为一个普通 plugin。
+
+Client 明确禁止：独立 plugin discovery/install、第二 Package registry/currentness、第二 App product profile、Host release-operation service、domain/quality/release verdict writer。Host/Client RPC 和 event 只是 typed transport；durable action receipt、App state 与 user-visible currentness仍回原 owner。
+
+### 3.3 原十品牌域的候选贡献
+
+下表是 P1/P5 的迁移盘点输入，不是最终 plugin registry、Package 清单或源码组织图。品牌名现在代表 family capability domain；物理 cutover 可以按真实证据保留、拆分、合并或把某一面降级为纯 authority/read-model surface，且必须保留现有 public caller 的可达 successor 和明确迁移路径。
 
 | 模块 | 候选 Cordis 贡献 | 必须继续留在模块/外部 owner 的权威 |
 | --- | --- | --- |
@@ -84,7 +94,7 @@ Cordis 只负责箭头中 `profile -> context -> plugin -> in-process service/ev
 | `OPL Stagecraft` | stage context、prompt/skill/tool-affordance policy service | stage 语义、Codex route judgment、domain quality policy。 |
 | `OPL Runway` | executor/attempt transport service、request/result events | Temporal workflow history、retry、signal、worker durability。 |
 | `OPL Ledger` | refs-only evidence observer、receipt emission adapter | evidence/receipt persistence、lineage 和不可变审计事实。 |
-| `OPL Console` | read-only inspect/projection service | App GUI/product truth、用户 action authority。 |
+| `OPL Console` | Framework read-only inspect/read-model；Host 派生 Client view/slot contribution | Cloud control-plane product、App GUI/page/action authority。 |
 | `OPL Foundry Kernel` | design/eval/activation adapter、candidate events | AgentVersion、qualification、canary、activation CAS、rollback authority。 |
 | `OPL Connect` | carrier/provider/plugin loader adapter、source discovery events | native carrier installed truth、Package currentness、credential boundary。 |
 
@@ -92,16 +102,17 @@ Cordis 只负责箭头中 `profile -> context -> plugin -> in-process service/ev
 
 ### 3.4 Cordis-native 架构重基线
 
-P5-R 不从“必须保留十模块”或“每个模块必须有 plugin”出发，而从以下四层重新建模：
+P5-R 不从“必须保留十模块”或“每个模块必须有 plugin”出发，而从以下五层重新建模：
 
 | 层 | 决定问题 | 划分依据 |
 | --- | --- | --- |
-| Authority domain | 哪个 owner 对事实、策略、状态或产品结果负责 | 独立事实权威、产品责任、权限和不可伪造边界。 |
+| Family capability domain | OPL family 用什么稳定语言理解能力 | 跨 Framework/App/Cloud 的用户心智与产品责任地图；不决定物理单元。 |
+| Authority surface | 哪个 repo/product owner 对事实、策略、状态或产品结果负责 | 独立事实权威、产品责任、权限和不可伪造边界。 |
 | Package | 哪些能力独立安装、发布、升级和回退 | 独立 carrier、版本节奏、分发与 currentness owner。 |
 | Cordis plugin | 哪些进程内能力需要独立注入、替换、观察或 teardown | 独立 lifecycle、scope、trust、故障隔离、provider 变化和真实 caller。 |
 | Composition profile | 某类运行场景实际加载哪些受控贡献 | 用户任务、宿主、权限和资源边界；只提供少量 curated profile，不暴露任意组合矩阵。 |
 
-当前只保留三个受控 profile：`base-headless`（默认 headless/process）、`app-full`（App/session）和 `foundry-dev`（Foundry/attempt）。`research`、`grant`、`visual` 等领域 profile 只有在出现独立真实 caller、owner 和验证证据后才能新增；profile 是受控 composition input，不是 Package registry、用户偏好真相或新的产品层。
+Host 当前只保留三个受控 profile：`base-headless`（默认 headless/process）、`app-full`（App/session）和 `foundry-dev`（Foundry/attempt）。`app-full` 还必须投影一个与 Host snapshot 绑定的 allowlisted client graph，供 AionUI/DSH renderer 创建 Client Cordis。`research`、`grant`、`visual` 等领域 profile 只有在出现独立真实 caller、owner 和验证证据后才能新增；profile 是受控 composition input，不是 Package registry、用户偏好真相或新的产品层。
 
 当前十模块的 P5-R disposition 如下；它们仍是 source/authority 导航，不是固定 plugin 数量：
 
@@ -114,11 +125,11 @@ P5-R 不从“必须保留十模块”或“每个模块必须有 plugin”出�
 | `Stagecraft` | stage context/capability policy plugin 与 domain semantic judgment 分离。 |
 | `Runway` | executor/attempt transport Cordis 化；Temporal history、retry、replay 和 durability 保持外部 authority。 |
 | `Ledger` | observer/telemetry/projection plugin 与 evidence/receipt persistence owner 分离。 |
-| `Console` | 定位为 read-model/profile inspect 和产品 projection，不成为 runtime authority。 |
+| `Console` | Framework 收缩为 read-model/profile inspect；App 持有本地产品工作面，Cloud 持有托管 control-plane 产品；可分别贡献 Host/Client projection，但不互相接管 authority。 |
 | `Foundry Kernel` | evaluation/policy adapter Cordis 化；AgentVersion、promotion、activation CAS 保持 Foundry authority。 |
 | `Connect` | 按 carrier discovery/action、provider、source discovery 等不同 lifecycle/trust seam 拆分。 |
 
-判断规则：独立 authority 或产品责任保留独立 owner；独立 lifecycle/scope/trust/failure domain 拆 plugin；独立发布/安装节奏拆 Package；没有独立 caller、责任或替换价值的 surface 合并或删除。当前目录和品牌名在新结构冻结前继续作为兼容和归属基线，不提前制造目录 churn。
+判断规则：family capability domain 只稳定认知语言；独立 authority 或产品责任保留独立 owner；独立 lifecycle/scope/trust/failure domain 拆 plugin；独立发布/安装节奏且具有高替换价值才拆 Package；没有独立 caller、责任或替换价值的 surface 合并或删除。目标结构已冻结，`src/modules/**` 仍是迁移期 compatibility source；物理重排必须 successor-first，不以目录改名冒充完成。
 
 ### 3.5 Authority mapping
 
@@ -147,6 +158,33 @@ provider API version、scope 与 disposer。required provider 缺失返回 block
 App product readiness。机器真相归 `package-host-integration.schema.json`、
 `package-host-context.schema.json`、三份默认 host contract、Cordis descriptor/profile snapshot 与源码。
 
+### 3.7 Family source topology cutover
+
+目标物理拓扑按责任而不是品牌命名：
+
+```text
+src/authority/     Framework-owned contracts and authority adapters
+src/adapters/      carrier/provider/executor/domain boundary adapters
+src/read-models/   inspect, projection and operator/product read models
+src/host/          Host Cordis, Client projection, profiles and contributions
+src/entrypoints/   CLI/App/Cloud wiring only
+```
+
+`src/modules/<brand>/` 在迁移期间是 compatibility source 和认知导航，不是最终 owner。迁移顺序固定为 successor-first：先为一个真实 caller 建立新路径和 public export，证明 no-forbidden-write、affected outcome、typecheck/build 与 readback 等价，再切 caller；只有 structural caller=0、旧入口不再写入且 owner 认可后，才删除或 tombstone 原目录。迁移收益是改动半径按 authority/lifecycle 收敛、路径能直接表达责任、Host/Client graph 可独立诊断，以及新 capability 不必继续扩张中央品牌桶。目录移动、零引用扫描、docs 或 focused test 单独都不足以证明物理迁移完成。
+
+### 3.8 Package topology cutover
+
+Package topology 遵循“高替换价值优先、按真实发布节奏拆分”：
+
+| 优先候选 | 独立拆分理由 | 当前状态 |
+| --- | --- | --- |
+| Runway executor | executor/provider 变化频繁、可独立回退，不能拖动 Temporal authority | active candidate |
+| Foundry evaluation | 评测策略和候选替换节奏独立于 activation CAS | active candidate |
+| Connect discovery | carrier/provider/source discovery 生命周期和 trust 独立 | active candidate |
+| `opl-package-host` | 多 kind Package 共用的 host ABI，适合独立兼容矩阵 | active candidate |
+
+其他 plugin contribution 先保持在 Framework/App 的受控 workspace/package projection 中，直到有独立 owner、安装方式、版本节奏、consumer 与回退证据。不得为“十三个 plugin”或“十个品牌”机械创建独立仓库；Package version、plugin API version、source version 和 composition snapshot version 仍分别回各自 owner。
+
 ## 4. 不变量与运行规则
 
 ### 4.1 Scope
@@ -174,7 +212,7 @@ App product readiness。机器真相归 `package-host-integration.schema.json`�
 
 ### 4.4 No second truth / no second lifecycle
 
-禁止新增或恢复以下平行面：OPL 自有 plugin marketplace、全局 plugin registry、Cordis 专用 installed lock、Cordis payload cache、Cordis rollback state machine、第二个 durable event log、Package currentness cache、App 私有 plugin truth、或由 Cordis 直接签发 domain/quality/ready verdict。原有同类手写代码只有在 successor 真实可用、caller 已切换、affected outcome 通过且结构 caller=0 后才批量退役。
+禁止新增或恢复以下平行面：OPL 自有 plugin marketplace、全局 plugin registry、Cordis 专用 installed lock、Cordis payload cache、Cordis rollback state machine、第二个 durable event log、Package currentness cache、App 独立发现/安装的私有 plugin truth、或由 Cordis 直接签发 domain/product/quality/ready verdict。原有同类手写代码只有在 successor 真实可用、caller 已切换、affected outcome 通过且结构 caller=0 后才批量退役。
 
 ## 5. 分阶段落地计划
 
@@ -266,9 +304,9 @@ App product readiness。机器真相归 `package-host-integration.schema.json`�
 | 项目 | 内容 |
 | --- | --- |
 | Owner | Framework 架构 owner；Charter 维护 authority vocabulary；Pack/Connect 维护 Package/plugin/profile 证据；各模块 owner 提供真实 caller 和生命周期证据。 |
-| 状态 | `landed`；四层目标图、profile allowlist、owner boundary 和 caller mapping 已冻结并由 source/contract/test/readback 支撑。 |
+| 状态 | `landed`；capability domain / authority surface / Package / contribution / profile 五层目标图、profile allowlist、owner boundary 和 caller mapping 已冻结并由 source/contract/test/readback 支撑。 |
 | 输入 | P1 surface map、P2/P3/P4 实际 composition/readback、P5-A successor 及各候选批次的真实 caller、scope、trust、effect/disposer、发布和测试证据。 |
-| 产物 | 四层目标图（authority domain / Package / Cordis plugin / composition profile）、现有十模块的保留/拆分/合并/降级矩阵、迁移期 source-to-target mapping、profile allowlist、每批 caller switch 顺序与删除门。 |
+| 产物 | 五层目标图（family capability domain / authority surface / Package / Cordis contribution / composition profile）、原十品牌域的保留/拆分/合并/降级矩阵、迁移期 source-to-target mapping、profile allowlist、每批 caller switch 顺序与删除门。 |
 | 完成门 | 每个 production caller 有唯一目标 owner；每个 plugin 有真实 lifecycle/替换/隔离收益；每个 Package 有独立安装/发布理由；profile 数量受控且可回读；无第二 registry/lifecycle；未被目标结构承接的旧路径保留为明确 migration residue。 |
 | 回退 | 重基线只改文档、contract 输入和 composition planning；已通过的 successor 可回到上一 immutable composition，不在运行中保留永久兼容分支。 |
 
@@ -279,12 +317,34 @@ P5-R 的结果可以让一个品牌模块贡献多个 plugin、多个品牌模�
 | 项目 | 内容 |
 | --- | --- |
 | Owner | Framework Integrator；App、Package owner、Foundry、Temporal、Ledger 和 domain owner 共同验收各自边界。 |
-| 状态 | `landed/default`；`base-headless` 已是非 App CLI/Runtime 默认 composition，`app-full` 由 `opl app ...` 入口选择，`foundry-dev` 由 Foundry provider/action caller 选择；post-cutover caller reconciliation 已消除 Workspace Skill refresh、Atlas catalog、managed-provider projection 和 command-test composition 的隐式 fallback；App/AionUI GUI ABI 保持 App owner 边界。 |
+| 状态 | `landed/default`；`base-headless` 已是非 App CLI/Runtime 默认 composition，`app-full` 由 `opl app ...` 入口选择，`foundry-dev` 由 Foundry provider/action caller 选择；post-cutover caller reconciliation 已消除 Workspace Skill refresh、Atlas catalog、managed-provider projection 和 command-test composition 的隐式 fallback；App product/GUI authority 保持 App owner边界，Host 派生 Client Cordis 属于后续 P7。 |
 | 前置 | P1-P5 与 P5-R gates 全部通过；默认入口已有 Cordis composition snapshot；生产/开发 profile 明确；没有 active caller 仍指向被替代的通用内核。 |
 | 切换 | 先切 `OPL Base`/headless 的受控 profile，再切 App/托管入口；Foundry 与 Runway 使用 attempt child composition；每个 attempt 启动时冻结 snapshot；不在运行中热换。 |
 | 验证 | clean install/managed readback、Codex-default session、Temporal restart/replay、Workspace/receipt refs、App projection、executor failure/teardown、source-module strict gates、完整 Git history ancestry gate 和跨模块 focused/aggregate tests。 |
 | 完成门 | 默认进程确实由 Cordis 组合；每个真实 caller 显式消费其 profile service；默认 pack compiler、managed checkout 和 family-defaults 等不同 source mode 不混用；inspect/readback 与实际 bytes 一致；Package/Temporal/Foundry/Ledger/domain/App owner 仍能独立回读；没有第二 registry/lifecycle；回退可由上一 immutable build/restart 完成。 |
 | 回退 | canonical Git revert 或上一 immutable artifact；停止新 composition profile，不在运行时保留永久兼容分支。 |
+
+### P7：Host-derived Client Cordis 与双 GUI 统一 ABI
+
+| 项目 | 内容 |
+| --- | --- |
+| Owner | Framework Host projection owner + One Person Lab App product owner；AionUI 与 DSH GUI candidate 只拥有各自 renderer/carrier 实现。 |
+| 状态 | `active_contract_and_implementation_cutover`；顶层 SSOT 已冻结，App/AionUI/DSH GUI 的 canonical source/contracts/tests 与 owner readback 决定具体 landed 状态。 |
+| 输入 | DSH 固定 source commit 的 Host/Client graph、ui-slots、dual entry、typed RPC/event 证据；Framework `app-full` snapshot；App product profile、action refs 与 GUI contribution contracts。 |
+| 产物 | Host allowlisted client graph projection；Client Contribution descriptor；typed slot/action/RPC/event ABI；AionUI 与 DSH renderer 的同 profile consumption；Client no-discovery/no-install/no-currentness guard。 |
+| 完成门 | 两个 GUI 从相同 Host snapshot/client graph 与 App product profile 创建 Client Cordis；同 contribution id/version/source 在两端可回读；无第二 registry/currentness/action truth；active-shell 与 candidate tests 分别通过。 |
+| 回退 | App 选择上一可用 renderer/profile；Host 保持同一 canonical truth，不维护两个 Client ABI 或双写产品状态。 |
+
+### P8：Capability-domain source 与 Package topology cutover
+
+| 项目 | 内容 |
+| --- | --- |
+| Owner | Framework Integrator 统筹物理重排；各 authority/Package owner确认自己的发布与 currentness边界。 |
+| 状态 | `active_successor_first_cutover`；目标目录和高替换价值 Package 候选已冻结，物理迁移必须逐 slice 由 canonical caller/readback证明。 |
+| 输入 | P5/P6 真实 caller、P7 Host/Client ABI、authority map、发布节奏、Package host compatibility matrix 和旧 `src/modules/**` dependency graph。 |
+| 产物 | `authority/adapters/read-models/host/entrypoints` 物理源码拓扑；Runway executor、Foundry evaluation、Connect discovery、`opl-package-host` 的独立 Package候选；旧品牌桶 caller-zero/tombstone；更新后的 contracts/tests/docs。 |
+| 完成门 | 每个迁移 slice successor 可达、caller 已切、affected outcome/typecheck/build green、public exports 和 Host/Client snapshot等价；独立 Package有真实 consumer/版本/currentness/readback；旧路径 caller=0且无永久 fallback。 |
+| 回退 | 在删除门前保留薄 compatibility export；失败时 canonical revert到上一 immutable source/package/profile，不引入第二 registry或双写。 |
 
 ### 持续项：DSH 上游跟踪
 
@@ -296,8 +356,10 @@ P5-R 的结果可以让一个品牌模块贡献多个 plugin、多个品牌模�
 | --- | --- | --- | --- |
 | `P0 -> P1 -> P2 -> P3 -> P4` | 严格串行；后阶段只能消费前阶段已回读的 source/contract/snapshot。 | 每阶段内部的 caller inventory、fixture、只读审计和测试准备可以并行。 | 共享 `main`、SSOT、依赖安装和 canonical push 由一个 Integrator 串行吸收。 |
 | `P5` seam 批次 | 先通过 P4；每一批还要满足自身 dependency edge、真实 caller、successor 和 owner acceptance。 | 依赖边不相交的 successor 可并行开发；不得因“十模块”名义强行做一对一 plugin 化。 | 各 owner 在独立 worktree checkpoint；caller switch、旧路径退役和 canonical readback 逐批串行。 |
-| `P5-R` 架构重基线 | 消费 P1-P5 的真实运行证据；P5-A 可并行，P5-B..F 大范围 caller switch 与 P6 依赖冻结结果。 | authority/caller 盘点、Package/plugin/profile 候选和 source mapping 可并行准备。 | 单一架构 owner 冻结四层目标图；冲突按 fresh caller/owner evidence 解决。 |
+| `P5-R` 架构重基线 | 消费 P1-P5 的真实运行证据；P5-A 可并行，P5-B..F 大范围 caller switch 与 P6 依赖冻结结果。 | capability-domain/authority/caller 盘点、Package/plugin/profile 候选和 source mapping 可并行准备。 | 单一架构 owner 冻结五层目标图；冲突按 fresh caller/owner evidence 解决。 |
 | `P6` 默认切换 | 依赖全部 P5 批次、P5-R、跨 owner readback 和回退演练。 | 只能并行准备 Base/App/owner acceptance，不能并行写默认入口。 | 先 Base/headless，再 App/托管入口；每次只切一个受控 profile。 |
+| `P7` Client Cordis | 依赖 P6 `app-full` Host snapshot 与 App-owned product/contribution contracts。 | AionUI 与 DSH renderer 可并行实现，但必须共享同一个 Client ABI/profile，不能各自定义 truth。 | Host projection 与 App product SSOT 单 owner吸收；两个 renderer 分别回读。 |
+| `P8` source/Package topology | 依赖 P5/P6 caller evidence；涉及 GUI contribution 时还依赖 P7 ABI。 | 不重叠 authority/adapter/read-model/host slice 和 Package候选可并行准备。 | 每个 slice fresh-main successor-first；caller switch与旧路径删除串行，Package publication仍需 owner gate。 |
 | DSH 上游跟踪 | 与 P1-P6 正常开发平行，但不改变当前 production path。 | source/API/license/compatibility audit 可独立执行。 | 未通过 suite 的上游版本只留实验分支，不更新 production lock。 |
 
 ## 6. 预期收益、代价与 go/no-go
@@ -311,8 +373,10 @@ Cordis 的收益不是“代码看起来像插件”，而是把已经存在的�
 | P3 | operator 能回答“当前进程实际加载了什么”，缩短组合错误和资源泄漏诊断时间。 | deterministic inspect JSON 与实际 snapshot/bytes 一致；无 writer、无 ready/domain 字段。 | 形成第二 truth 的风险；只读 projection 且不落 installed/current。 |
 | P4 | 让 plugin API、版本、trust、scope 和组合输入可独立演进，为分支/版本自由组合提供边界。 | 显式 snapshot 可重放；缺 provider、API mismatch、trust/scope conflict 均 typed fail。 | 组合矩阵膨胀；不建中央 resolver，只测试被声明的组合。 |
 | P5 | 有真实价值的进程内能力可独立优化、替换和补齐，旧手写启动顺序按批次退役，降低跨 owner 改动半径。 | 每批 successor vertical path、caller switch、affected outcome、structural caller=0 和回退点闭合。 | 迁移期 caller/生命周期风险；禁止永久 dual-write/fallback。 |
-| P5-R | 用真实依赖、authority、生命周期和发布证据替代“十模块即终局”的先验，降低长期认知成本和无效边界。 | 四层目标图、十模块 disposition、profile allowlist、source-to-target mapping 和 caller migration gate 被统一接受。 | 会触发目录/合同/owner 调整；在目标冻结前保持现有 public source boundary。 |
+| P5-R | 用真实依赖、authority、生命周期和发布证据替代“十模块即终局”的先验，降低长期认知成本和无效边界。 | capability domain/authority/Package/contribution/profile 五层目标图、原十域 disposition、profile allowlist、source-to-target mapping 和 caller migration gate 被统一接受。 | 会触发目录/合同/owner 调整；物理 cutover 前保持现有 public source compatibility。 |
 | P6 | 默认运行获得稳定的组合边界、可观测性和可回退 profile，为 Harness 自进化提供可评估的 composition substrate；App 与 Foundry 不再只是文档 profile，而是各自真实入口的受控组合。 | clean install、默认入口、三 profile snapshot/child refs、Temporal restart/replay、owner readback、App projection 和上一 immutable build 回退全部通过。 | 最大 blast radius；任何一个 owner boundary 未闭合都不切默认。 |
+| P7 | 两套 GUI 共享一套 Host-derived Client graph 和 typed contribution ABI，renderer 替换不复制产品状态、action 或 plugin truth。 | AionUI 与 DSH candidate 对同一 graph/profile/slot/action identity 回读一致，Client no-discovery/no-install guard成立。 | Host/Client版本漂移或 renderer私建 registry；由 Host allowlist和 App product gate约束。 |
+| P8 | 源码路径直接表达 authority/lifecycle，且高替换单元可独立发布、验证与回退，降低跨品牌桶改动和整仓发布成本。 | successor caller switch、旧路径 caller=0、Package consumer/currentness/version readback 和跨 profile验证闭合。 | 物理 churn与发布矩阵膨胀；只拆有真实节奏的单元，不机械拆包。 |
 
 ### 全面完成后的明确收益
 
@@ -320,20 +384,23 @@ Cordis 的收益不是“代码看起来像插件”，而是把已经存在的�
 | --- | --- | --- |
 | 更低的开发认知成本 | 开发者只需理解当前 profile、目标 service contract 和 owner，不再记忆全局手写启动顺序与隐式 singleton。 | 默认入口从 curated profile 构建，inspect 能解释实际 composition，旧 wiring caller=0。 |
 | 更小的改动半径 | provider、observer、executor 或 policy 变化收敛到一个 plugin/service seam，调用者不再了解内部装配。 | 真实 caller 全部经过 service interface，affected tests 和 outcome 不再跨无关模块修改。 |
-| 独立演进与精确回退 | Package、plugin API、源码版本和 composition snapshot 分离，可单独发布、验证和组合。 | exact descriptor/snapshot 可重放，兼容失败 typed，回退到上一 immutable composition 已演练。 |
+| 独立演进与精确回退 | 高替换价值 Package、plugin API、源码版本和 composition snapshot 分离，可单独发布、验证和组合。 | exact descriptor/snapshot 可重放，独立 Package 有真实 consumer/currentness，兼容失败 typed，回退到上一 immutable composition 已演练。 |
 | 更低的运维与诊断成本 | 依赖、scope、fiber、event、effect/disposer 和 teardown 都可观察，资源泄漏和启动失败能定位到具体贡献。 | production inspect 与实际 bytes 一致，required/optional failure 和 teardown diagnostic 可回读。 |
 | 更可靠的故障隔离 | session/attempt child context 限制状态和 effect 生命周期，单一 plugin 失败不会污染无关 composition。 | 隔离、失败、取消和 teardown 测试覆盖默认 profile，durable truth 保持在原 owner。 |
-| 按需补能力而不扩写全局内核 | 新能力以 Package + plugin contribution 加入受控 profile，不需要修改中央 switch、registry 或启动序列。 | 新贡献通过公开 descriptor/profile 路径接入，核心无固定 Package/Agent/plugin 清单。 |
+| 按需补能力而不扩写全局内核 | 新能力以 authority surface + Host/Client contribution加入受控 profile；只有需要独立发布时才拆 Package。 | 新贡献通过公开 descriptor/profile 路径接入，核心无固定 Package/Agent/plugin 清单，普通用户不面对组合矩阵。 |
+| 双 GUI 一致且可替换 | AionUI 与 DSH renderer 共用 Client ABI、product profile和 Host graph，避免两套状态、动作与插件模型。 | 两个 renderer对同一 App/Host input得到一致 contribution/action identity，差异只在视觉与 carrier。 |
+| 品牌认知与物理实现解耦 | capability domain稳定用户/管理语言，源码路径按 authority/lifecycle组织，避免 Console等跨仓品牌被弱 Framework目录绑架。 | authority map、source topology、caller和 owner readback一致，旧品牌桶不再承载实现 authority。 |
 | Harness 自进化的可执行底座 | Foundry 可以在相同输入和评测计划下替换候选 plugin/composition，比较 evidence 后再走独立 activation authority。 | 候选 composition 可冻结、复现、评估和回退；Cordis 本身不越权写 promotion/activation。 |
 | 跟随 DSH/Cordis 生态 | 通用 DI、event、effect 和 lifecycle 能力由上游演进，OPL 聚焦 domain、authority、Package 与产品差异。 | 旧自研通用组合内核退役，上游升级由兼容矩阵验证且无长期双内核。 |
 
-完整收益只在 caller 切换、默认 profile 切换、旧通用 wiring 退役和 owner readback 闭合后成立。只有源码中出现 Cordis plugin、focused tests 通过或 P3 inspect 可读，仍属于迁移证据，不是收益终态。
+Framework Host 的组合收益已在 P1-P6 获得；family/client/package 的完整收益只在 P7/P8 caller切换、双 GUI 同 ABI、旧品牌桶/通用 wiring退役、独立 Package真实发布节奏和 owner readback闭合后成立。只有源码中出现 Cordis plugin、workspace package、focused tests通过或 inspect可读，仍属于迁移证据，不是整体终态。
 
 ### 收益优先级
 
 1. **强收益（当前已证明）**：P1 的 seam 可见性；P2 的 executor 替换、依赖注入、typed event、scope teardown 与 composition isolation。
 2. **值得推进**：P3 的 inspect 可观测性；P4 的显式 plugin contract 与可重放 snapshot。
-3. **目标收益（已落地）**：P5/P5-R/P6 已提供独立 plugin/service seam、显式 profile、较小改动半径、可诊断 teardown、snapshot/digest 回放和 Harness 自进化 substrate。CLI、App action、Workspace adopt/ensure、managed Agent checkout 与 Runtime caller 已切换到对应 profile service；Package/native carrier、Temporal、Ledger、Foundry、domain 与 App owner readback 仍保持独立，不能由 Cordis inspect 代替。
+3. **Host 目标收益（已落地）**：P5/P5-R/P6 已提供独立 plugin/service seam、显式 profile、较小改动半径、可诊断 teardown、snapshot/digest 回放和 Harness 自进化 substrate。CLI、App action、Workspace adopt/ensure、managed Agent checkout 与 Runtime caller 已切换到对应 Host profile service。
+4. **Family/Product 收益（active）**：P7/P8 将双 GUI 统一到 Host-derived Client ABI，并把品牌域、authority、源码和高替换 Package物理对齐。未完成前不能把 Framework Host落地外推为 Client Cordis、Package独立发布或旧品牌桶清零。
 
 ### Go/no-go 规则
 
@@ -341,7 +408,9 @@ Cordis 的收益不是“代码看起来像插件”，而是把已经存在的�
 - **Go P4**：P3 inspect 不产生第二 truth，且至少有两个真实 plugin contract 字段消费者；否则继续收敛 P3。
 - **Go P5 seam 批次**：该 seam 有真实 caller、successor 纵向链路、affected outcome、canonical revert 和必要 owner acceptance；这些是正确性/权限门，不以实现成本否决迁移。
 - **P5 vertical caller switch 已落地**：P5-R 已为各 seam 冻结目标 authority、Package、plugin、profile 和 source mapping；后续变更继续按真实 caller/owner evidence，不按旧十模块先验扩大切换。
-- **P6 已落地**：P5-R 已冻结目标结构，Framework 默认 caller 已切换、旧 WorkspaceBindingPort structural caller=0、Temporal/Package/Ledger/Foundry/domain/App owner boundary 未被 Cordis 越权；App/AionUI GUI ABI 由 App owner单独验收。
+- **P6 已落地**：P5-R 已冻结目标结构，Framework 默认 caller 已切换、旧 WorkspaceBindingPort structural caller=0、Temporal/Package/Ledger/Foundry/domain/App owner boundary 未被 Cordis 越权；Host-derived Client Cordis 与 AionUI/DSH GUI统一 ABI进入 P7，由 App owner单独验收。
+- **Go P7**：`app-full` Host snapshot与 App product/contribution contract可读；AionUI/DSH renderer同意共享同一 Client ABI/profile；Client无独立 discovery/install/currentness。
+- **Go P8 slice**：每个 source/Package slice有真实 successor、caller、affected outcome、public export/consumer、版本/currentness或明确不拆包理由，以及 canonical revert。
 - **No-go 任一阶段**：需要新增第二 registry、installed lock、durable event log、Cordis sandbox、永久 fallback，或把 optional plugin/inspect 结果升级为 domain/ready authority。
 
 ## 7. 统一验收矩阵
@@ -356,6 +425,8 @@ Cordis 的收益不是“代码看起来像插件”，而是把已经存在的�
 | Executor | 真实 Codex fixture 通过既有 request/receipt boundary，失败不污染 durable truth | mock provider、provider completion、CLI help。 |
 | Durability | Temporal history/retry/replay 仍由 Temporal，attempt snapshot 可重放 | Cordis event log、内存对象、Console projection。 |
 | Package | native carrier fresh installed/callable readback 未被改变 | plugin loaded、descriptor、cache、App metadata。 |
+| Client Cordis | Host-projected allowlist、Client Contribution ABI、slot/action/RPC/event identity与两个 renderer消费一致 | React组件存在、单 renderer demo、浏览器自建 plugin registry。 |
+| Source topology | successor caller已切、public export/affected outcome等价、旧路径 structural caller=0 | 目录移动、零引用扫描、compatibility barrel或docs。 |
 | Authority | domain/Foundry/Ledger/App owner readback unchanged and independently authoritative | `cordis inspect`、contract pass、focused test、generated surface。 |
 | Retirement | production caller 切换、structural caller=0、affected outcome/build/readback pass | 零引用扫描、候选分支、docs 或测试通过。 |
 
@@ -369,11 +440,11 @@ Cordis 的收益不是“代码看起来像插件”，而是把已经存在的�
 
 ## 9. 下一棒
 
-P0-P6 路线图已完成：P1 surface map、P2 隔离 executor experiment、P3 composition inspect、P4 plugin/package version contract、P5 vertical seams、P5-R 四层重基线和 P6 `base-headless` 默认切换已串行吸收。后续 baton 只包括 DSH/Cordis 上游兼容维护、真实 owner live evidence 与 App/AionUI owner 自有 GUI ABI 验收；实际 active 优先级、owner、write set 和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准。
+P0-P6 的 Framework Host 路线图已完成：P1 surface map、P2 隔离 executor experiment、P3 composition inspect、P4 plugin/package version contract、P5 vertical seams、P5-R 重基线和 P6 `base-headless` 默认切换已串行吸收。当前 baton 是 P7 Host-derived Client Cordis/双 GUI统一 ABI，以及 P8 capability-domain source +高替换价值 Package topology cutover；同时保持 DSH/Cordis上游兼容维护与真实 owner live evidence分账。实际 active优先级、owner、write set和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准。
 
 ## 10. 禁止声明
 
-P1-P6 的 Framework 默认切换已足以声明 OPL 采用正式 Cordis，并具备按 plugin/service seam 与 profile 组合的运行 substrate；但不能据此声明 Package 发布、Temporal/Foundry/Ledger/domain/App readiness、DSH 上游兼容闭合或 Harness 自进化的 live/production 结果。当前十模块仍不是 Cordis 终局 plugin 拓扑；它们只是 authority/source 导航，最终组合由真实 caller 和 owner contract 决定。
+P1-P6 的 Framework Host 默认切换已足以声明 OPL 采用正式 Cordis，并具备按 plugin/service seam 与 profile 组合的运行 substrate；但不能据此声明 Client Cordis/双 GUI统一 ABI、独立 Package发布、`src/modules/**`物理退役、Temporal/Foundry/Ledger/domain/App/Cloud readiness、DSH上游兼容闭合或 Harness自进化的 live/production结果。原十品牌是 family capability domains与迁移导航，不是 Cordis终局 plugin拓扑；最终组合由真实 caller、authority owner和 product contract决定。
 
 ## 11. 本仓验证入口
 

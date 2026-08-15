@@ -60,6 +60,7 @@ const fastTestFiles = [
   'tests/src/cordis-connect-services.test.ts',
   'tests/src/cordis-release-operation.test.ts',
   'tests/src/package-host-integration.test.ts',
+  'tests/src/package-topology.test.ts',
   'tests/src/cordis-charter-foundry.test.ts',
   'tests/src/cordis-atlas-console-runtime.test.ts',
   'tests/src/domain-task-codex-stdin.test.ts',
@@ -667,7 +668,8 @@ function spawnStep(commandName, args, context, options = {}) {
 }
 
 function nodeTestArgs(step) {
-  const args = step.stripTypes ? ['--experimental-strip-types'] : [];
+  const args = ['--conditions=opl-source'];
+  if (step.stripTypes) args.push('--experimental-strip-types');
   args.push('--test', ...step.files);
   return args;
 }

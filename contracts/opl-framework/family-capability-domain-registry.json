@@ -1,0 +1,117 @@
+{
+  "$schema": "https://one-person-lab.dev/contracts/opl-framework/family-capability-domain-registry.schema.json",
+  "version": "family-capability-domain-registry.v1",
+  "domains": [
+    {
+      "domain_id": "policy",
+      "brand_name": "OPL Charter",
+      "authority_surfaces": ["one-person-lab/contracts", "one-person-lab-app/product-profile", "one-person-lab-cloud/policy"],
+      "package_units": ["root-authority"],
+      "contributions": [
+        { "contribution_id": "framework-policy", "host": "framework-host", "owner": "opl-framework", "independent_release": false, "slot_or_service": "opl.charter.policy" }
+      ]
+    },
+    {
+      "domain_id": "catalog-discovery",
+      "brand_name": "OPL Atlas",
+      "authority_surfaces": ["package-owner-descriptors", "domain-repo-manifests", "app-catalog-projection"],
+      "package_units": ["root-authority", "connect-discovery"],
+      "contributions": [
+        { "contribution_id": "framework-catalog-read", "host": "framework-host", "owner": "opl-framework", "independent_release": false, "slot_or_service": "opl.atlas.catalog" },
+        { "contribution_id": "client-agent-catalog", "host": "app-client", "owner": "opl-app", "independent_release": false, "slot_or_service": "agent.catalog" }
+      ]
+    },
+    {
+      "domain_id": "workspace",
+      "brand_name": "OPL Workspace",
+      "authority_surfaces": ["framework-workspace-registry", "workspace-file-carrier", "opl-cloud-workspace-service"],
+      "package_units": ["root-authority"],
+      "contributions": [
+        { "contribution_id": "workspace-binding", "host": "framework-host", "owner": "opl-framework", "independent_release": false, "slot_or_service": "opl.workspace.locator" },
+        { "contribution_id": "workspace-client-view", "host": "app-client", "owner": "opl-app", "independent_release": false, "slot_or_service": "workspace.sidebar" },
+        { "contribution_id": "workspace-cloud-service", "host": "cloud-service", "owner": "opl-cloud", "independent_release": false, "slot_or_service": null }
+      ]
+    },
+    {
+      "domain_id": "package-platform",
+      "brand_name": "OPL Pack",
+      "authority_surfaces": ["package-descriptor", "package-abi", "native-carrier-currentness"],
+      "package_units": ["package-host"],
+      "contributions": [
+        { "contribution_id": "package-host", "host": "framework-host", "owner": "opl-framework", "independent_release": true, "slot_or_service": "opl.pack.package-host" }
+      ]
+    },
+    {
+      "domain_id": "stage-policy",
+      "brand_name": "OPL Stagecraft",
+      "authority_surfaces": ["stage-contracts", "domain-quality-owner", "stage-run-projection"],
+      "package_units": ["root-authority"],
+      "contributions": [
+        { "contribution_id": "stage-context", "host": "framework-host", "owner": "opl-framework", "independent_release": false, "slot_or_service": "opl.stagecraft.context" }
+      ]
+    },
+    {
+      "domain_id": "execution",
+      "brand_name": "OPL Runway",
+      "authority_surfaces": ["temporal-history", "attempt-ledger", "executor-route"],
+      "package_units": ["runway-executor"],
+      "contributions": [
+        { "contribution_id": "executor-transport", "host": "framework-host", "owner": "opl-framework", "independent_release": true, "slot_or_service": "opl.runway.executor" }
+      ]
+    },
+    {
+      "domain_id": "evidence",
+      "brand_name": "OPL Ledger",
+      "authority_surfaces": ["ledger-receipts", "evidence-lineage", "refs-only-observation"],
+      "package_units": ["root-authority"],
+      "contributions": [
+        { "contribution_id": "owner-delta-observer", "host": "framework-host", "owner": "opl-framework", "independent_release": false, "slot_or_service": "opl.ledger.owner-delta-observer" }
+      ]
+    },
+    {
+      "domain_id": "experience",
+      "brand_name": "OPL Console",
+      "authority_surfaces": ["opl-cloud-console", "opl-app-product-profile", "framework-readiness-projection"],
+      "package_units": ["root-authority", "app-client"],
+      "contributions": [
+        { "contribution_id": "framework-read-model", "host": "framework-host", "owner": "opl-framework", "independent_release": false, "slot_or_service": "opl.console.read-model" },
+        { "contribution_id": "app-shell-client", "host": "app-client", "owner": "opl-app", "independent_release": false, "slot_or_service": "layout.root" },
+        { "contribution_id": "cloud-console", "host": "cloud-service", "owner": "opl-cloud", "independent_release": false, "slot_or_service": null }
+      ]
+    },
+    {
+      "domain_id": "evolution",
+      "brand_name": "OPL Foundry",
+      "authority_surfaces": ["agent-version", "evaluation-verdict", "activation-cas"],
+      "package_units": ["foundry-evaluation"],
+      "contributions": [
+        { "contribution_id": "evaluation-adapter", "host": "framework-host", "owner": "opl-framework", "independent_release": true, "slot_or_service": "opl.foundry.evaluation" }
+      ]
+    },
+    {
+      "domain_id": "integration",
+      "brand_name": "OPL Connect",
+      "authority_surfaces": ["native-carrier", "provider-credentials", "source-discovery", "release-operation"],
+      "package_units": ["connect-discovery"],
+      "contributions": [
+        { "contribution_id": "descriptor-discovery", "host": "framework-host", "owner": "opl-framework", "independent_release": true, "slot_or_service": "opl.connect.descriptor-discovery" },
+        { "contribution_id": "client-connection", "host": "app-client", "owner": "opl-app", "independent_release": false, "slot_or_service": "connection.remote" }
+      ]
+    },
+    {
+      "domain_id": "cloud-resource",
+      "brand_name": "OPL Fabric",
+      "authority_surfaces": ["one-person-lab-cloud/services/fabric", "provider-operation-store", "resource-readback"],
+      "package_units": ["cloud-service"],
+      "contributions": [
+        { "contribution_id": "fabric-provider", "host": "cloud-service", "owner": "opl-cloud", "independent_release": false, "slot_or_service": null }
+      ]
+    }
+  ],
+  "rules": {
+    "brand_not_source_owner": true,
+    "package_not_plugin": true,
+    "host_client_graph": "host_projected_allowlisted_client_graph",
+    "profiles": ["base-headless", "app-full", "research", "grant", "visual", "foundry-dev"]
+  }
+}

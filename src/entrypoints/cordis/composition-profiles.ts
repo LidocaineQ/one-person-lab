@@ -18,6 +18,7 @@ import {
   CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_PLUGIN_DESCRIPTOR,
   CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_SERVICE,
   cordisConnectDescriptorDiscoveryPlugin,
+  discoverInstalledPackageDescriptors,
   type CordisConnectDescriptorDiscoveryPluginConfig,
   type CordisConnectDescriptorDiscoveryService,
   buildCordisReleaseOperationCompositionSnapshot,
@@ -190,7 +191,9 @@ function profileSnapshot(
   )[] = ['agent_executor_request', 'runway_attempt', 'pack_stagecraft_route'],
 ) {
   const childSnapshots = {
-    agent_executor_request: buildCordisAgentExecutorCompositionSnapshot(),
+    agent_executor_request: buildCordisAgentExecutorCompositionSnapshot(
+      'opl-existing-agent-executor',
+    ),
     runway_attempt: buildCordisRunwayAttemptCompositionSnapshot(),
     pack_stagecraft_route: buildCordisPackStagecraftCompositionSnapshot(),
     release_operation: buildCordisReleaseOperationCompositionSnapshot(),
@@ -238,7 +241,9 @@ async function createCordisBaseComposition(
   try {
     fibers.push(await ctx.plugin(cordisCharterPolicyPlugin));
     fibers.push(await ctx.plugin(cordisWorkspaceLocatorPlugin));
-    fibers.push(await ctx.plugin(cordisConnectDescriptorDiscoveryPlugin, options.connect ?? {}));
+    fibers.push(await ctx.plugin(cordisConnectDescriptorDiscoveryPlugin, {
+      discover: options.connect?.discover ?? discoverInstalledPackageDescriptors,
+    }));
     const workspaceLocator = requiredService<CordisWorkspaceLocatorService>(
       ctx,
       CORDIS_WORKSPACE_LOCATOR_SERVICE,

@@ -19,6 +19,7 @@ import {
   CORDIS_FOUNDRY_PROVIDER_MANIFEST_SERVICE,
   cordisFoundryEvaluationAdapterPlugin,
   cordisFoundryProviderManifestPlugin,
+  type CordisFoundryProviderManifestService,
   type EvaluationExecutor,
 } from '../../src/modules/foundry/index.ts';
 import {
@@ -37,7 +38,14 @@ test('Charter and Foundry publish P4-compatible plugin descriptors without takin
   for (const descriptor of descriptors) {
     assertCordisPluginDescriptor(descriptor);
     assert.equal(validateCordisPluginDescriptor(descriptor).ok, true);
-    assert.equal(descriptor.package_ref, null);
+  }
+  assert.equal(CORDIS_CHARTER_POLICY_PLUGIN_DESCRIPTOR.package_ref, null);
+  for (const descriptor of CORDIS_FOUNDRY_PLUGIN_DESCRIPTORS) {
+    assert.deepEqual(descriptor.package_ref, {
+      package_id: '@one-person-lab/foundry-evaluation',
+      package_version: '0.1.0',
+      package_ref: 'npm:@one-person-lab/foundry-evaluation@0.1.0',
+    });
   }
   assert.equal(CORDIS_CHARTER_POLICY_PLUGIN_DESCRIPTOR.required, true);
   assert.equal(CORDIS_FOUNDRY_PROVIDER_MANIFEST_PLUGIN_DESCRIPTOR.required, true);
@@ -86,7 +94,9 @@ test('Cordis Foundry manifest service delegates normalization and contained read
   const ctx = new Context();
   const fiber = await ctx.plugin(cordisFoundryProviderManifestPlugin);
   try {
-    const service = ctx.get(CORDIS_FOUNDRY_PROVIDER_MANIFEST_SERVICE);
+    const service = ctx.get(
+      CORDIS_FOUNDRY_PROVIDER_MANIFEST_SERVICE,
+    ) as CordisFoundryProviderManifestService | undefined;
     assert.ok(service);
     const parsed = JSON.parse(fs.readFileSync(
       path.join(repoRoot, providerManifestRef),

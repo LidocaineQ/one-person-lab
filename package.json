@@ -3,6 +3,9 @@
   "version": "0.3.5",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "exports": {
     "./cordis-profiles": "./dist/entrypoints/cordis/composition-profiles.js",
     "./foundry-protocol": "./dist/modules/foundry/protocol.js",
@@ -55,8 +58,9 @@
     "scripts/compile-opl-flow-capability-projections.mjs"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc --noEmit",
+    "build": "npm run build:packages && tsc -p tsconfig.build.json",
+    "build:packages": "npm run build --workspaces --if-present",
+    "typecheck": "tsc --noEmit && npm run typecheck --workspaces --if-present",
     "prepare": "npm run build",
     "native:build": "cargo build --workspace",
     "native:cache": "node ./scripts/native-helper-cache.mjs",
@@ -109,7 +113,8 @@
     "fresh-install:smoke": "node ./scripts/fresh-install-smoke.mjs",
     "new-machine:codex-bootstrap:docker-smoke": "node ./scripts/new-machine-codex-bootstrap-docker-smoke.mjs",
     "source:modules": "node ./scripts/source-module-boundary.mjs",
-    "source:modules:public-imports": "node ./scripts/source-module-public-imports.mjs"
+    "source:modules:public-imports": "node ./scripts/source-module-public-imports.mjs",
+    "source:packages": "node ./scripts/source-package-boundary.mjs"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.1",

@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://one-person-lab.dev/contracts/opl-framework/family-capability-domain-registry.schema.json",
+  "title": "OPL family capability-domain registry",
+  "type": "object",
+  "required": ["version", "domains", "rules"],
+  "properties": {
+    "version": { "const": "family-capability-domain-registry.v1" },
+    "domains": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["domain_id", "brand_name", "authority_surfaces", "package_units", "contributions"],
+        "properties": {
+          "domain_id": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+          "brand_name": { "type": "string", "minLength": 1 },
+          "authority_surfaces": { "type": "array", "items": { "type": "string" } },
+          "package_units": { "type": "array", "items": { "type": "string" } },
+          "contributions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["contribution_id", "host", "owner", "independent_release"],
+              "properties": {
+                "contribution_id": { "type": "string" },
+                "host": { "enum": ["framework-host", "app-client", "cloud-service", "domain-repo"] },
+                "owner": { "type": "string" },
+                "independent_release": { "type": "boolean" },
+                "slot_or_service": { "type": ["string", "null"] }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "rules": {
+      "type": "object",
+      "required": ["brand_not_source_owner", "package_not_plugin", "host_client_graph", "profiles"],
+      "properties": {
+        "brand_not_source_owner": { "const": true },
+        "package_not_plugin": { "const": true },
+        "host_client_graph": { "const": "host_projected_allowlisted_client_graph" },
+        "profiles": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

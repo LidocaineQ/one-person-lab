@@ -2,23 +2,23 @@
 
 Owner: `One Person Lab`
 Purpose: `brand_module_ideal_state_index`
-State: `support_reference / cordis_rebaseline_landed`
+State: `support_reference / family_capability_rebaseline_frozen / physical_cutover_active`
 Machine boundary: 本文是人读目标态参考。机器真相继续归核心五件套、contracts、source、CLI/API 行为、runtime ledger、provider receipt、domain-owned manifests、App release/user-path evidence 和真实 workspace evidence。
 
 ## 读法
 
-本文把 OPL 理想态拆成一组品牌化模块。它回答四个问题：
+本文把 OPL 理想态拆成一组跨产品 family capability domains。它回答四个问题：
 
 - 顶层设计应该分成哪些高内聚、低耦合的部分。
 - 每个部分的品牌名、设计理念、核心对象和边界是什么。
 - 这些模块如何服务维护、使用、持续开发和后续重构。
-- 当前 Framework 十大模块如何对齐 App / Cloud 产品语义，以及它们在 Cordis-native 重基线前如何维持 `src/modules/<module_id>/` 的现有物理组织。
+- 原 Framework 十品牌如何跨 Framework/App/Cloud 分配 authority、Package 和 Host/Client Cordis contributions，以及旧 `src/modules/<module_id>/` 如何 successor-first 迁到责任导向的物理组织。
 
 本文不冻结当前完成度、receipt id、worklist 计数、branch、worktree 或 release 证据。当前事实继续回到 `docs/status.md`、`docs/active/current-state-vs-ideal-gap.md` 和 fresh CLI/read-model。
 
 当前品牌系统冻结基线归 `contracts/opl-framework/brand-system-profile.json`。它把三层产品认知、品牌模块 product grammar、Foundry Agent 命名、App 状态语言、design-token/icon/card/status pattern，以及 receipt/blocker 文案规则落成机器可读 contract；该 contract 只约束当前品牌系统语言和 pattern，不声明十模块是最终 authority/Package/plugin/profile 拓扑，也不声明 L5、domain ready、quality verdict、artifact authority、App release ready 或 production ready。
 
-Cordis 全面迁移已冻结一条更高优先级的目标态约束：`品牌模块/认知地图 != authority owner != Package 发布单元 != Cordis plugin 运行单元`。P5-R 已依据真实 caller、authority、lifecycle、scope、trust、故障隔离和发布节奏形成四层目标图；下表继续作为文档与源码导航基线，不代表一模块一 plugin，也不授权目录对称化 churn。
+Cordis 全面迁移已冻结一条更高优先级的目标态约束：`family capability domain != authority surface != Package 发布单元 != Cordis contribution != composition profile`。P5-R 已依据真实 caller、authority、lifecycle、scope、trust、故障隔离和发布节奏形成五层目标图；下表是跨仓品牌/认知导航，不代表一 domain 一目录、一 Package或一 plugin。
 
 ## 外部经验吸收
 
@@ -31,26 +31,27 @@ OPL 借鉴的是成熟工程的分层原则；Cordis 是已授权采用的进程
 - Dagster software-defined assets：把产物、lineage、materialization 和观测状态作为一等资产。
 - OpenAPI / MCP：外部调用面从机器可读描述派生，prose 不做接口真相。
 - ADR：关键架构决策要留下原因、取舍和 supersession 关系。
-- DeepSeek Harness / Cordis：用 Context、service injection、typed event、effect/disposer 和 scope teardown 组合进程内贡献；Package、Temporal、Workspace、Ledger、Foundry、domain 与 App authority 继续分离。
+- DeepSeek Harness / Cordis Host：用 Context、service injection、typed event、effect/disposer 和 scope teardown 组合 Host 进程内贡献；Package、Temporal、Workspace、Ledger、Foundry、domain 与 App/Cloud authority继续分离。
+- DeepSeek Harness GUI：Host选择并投影 allowlisted client graph，Browser从投影创建 Client Cordis，GUI通过 typed slots、RPC和 events组合；不是“Node Cordis直接渲染React”，也不授权 Client独立发现、安装或拥有 currentness/product truth。
 
-## 当前十个品牌模块（重基线输入）
+## 十个 family capability domains（稳定认知地图）
 
-| 模块 | 品牌一句话 | 默认 owner |
+| Domain | 品牌一句话 | Authority 分布 |
 | --- | --- | --- |
-| [OPL Charter](./charter.md) | 顶层宪章、命名、边界、ADR/RFC 和品牌组合治理。 | OPL Framework |
-| [OPL Atlas](./atlas.md) | Agent、capability、tool-card、surface、owner、dependency 和 lifecycle catalog。 | OPL Framework |
+| [OPL Charter](./charter.md) | 顶层宪章、命名、边界、ADR/RFC 和品牌组合治理。 | OPL family policy owner；Framework承载合同。 |
+| [OPL Atlas](./atlas.md) | Agent、capability、tool-card、surface、owner、dependency 和 lifecycle catalog。 | Framework catalog/discovery；App/Cloud消费产品投影。 |
 | [OPL Workspace](./workspace.md) | 用户项目空间、共享素材、stage outputs、handoff 和可检查文件结构。 | OPL Framework + domain workspace owner |
 | [OPL Pack](./pack.md) | Declarative Domain Pack、Capability Invocation ABI、authority ABI、execution view、operational card、result envelope、pack compiler、generated/hosted surfaces 和 standard authority functions。 | OPL Framework + Foundry Agent owners |
 | [OPL Stagecraft](./stagecraft.md) | Stage 设计、认知计算、capability use policy、tool affordance、quality gate 和 handoff。 | OPL Framework + Foundry Agent |
 | [OPL Runway](./runway.md) | Durable execution、stage-attempt request/projection、lease、retry/dead-letter、wakeup 和 human gate。 | OPL Framework |
 | [OPL Ledger](./ledger.md) | Evidence、receipt、typed blocker、artifact lineage、restore/provenance 和 refs-only ledger。 | OPL Framework + domain authority owner |
-| [OPL Console](./console.md) | App/operator 工作台，消费 execution view、operational card、result envelope、current owner、invocation plan、next action、阻塞、产物和 drilldown。 | One Person Lab App |
+| [OPL Console](./console.md) | 托管/本地 control plane与 operator工作面，消费 current owner、next action、阻塞、产物和 drilldown。 | Cloud持有托管 Console产品；App持有本地 product/page/action；Framework只持有 read-model/projection。 |
 | [OPL Foundry Kernel](./foundry-kernel.md) | 消费 OMA 的 blueprint / eval / evolution semantics，负责候选物化、评测、`EvidenceBundle`、版本、canary、activation 和 rollback。 | OPL Framework |
 | [OPL Connect](./connect.md) | CLI、MCP、OpenAI/AI SDK tools、execution view / operational card / ToolResultEnvelope descriptor、Skill/plugin、release/install 分发。 | OPL Framework + App release owner |
 
-## 模块关系
+## Domain 关系
 
-下图只是文档导航顺序，不是启动顺序、依赖图或 Cordis composition：
+下图只是品牌文档导航顺序，不是启动顺序、依赖图、源码 topology、Package graph或 Cordis composition：
 
 ```text
 OPL Charter
@@ -80,7 +81,17 @@ OPL Charter
 
 Agent Tool Arsenal / Capability Invocation OS 不新增品牌模块。它以 `OPL Pack` 为 ABI owner；合同是生成/校验材料，Agent ordinary path 只消费 Pack 派生的 execution view、operational card 和 result envelope。`Atlas`、`Stagecraft`、`Console`、`Connect` 分别消费 catalog、use-policy、current-owner projection / ordinary execution view 和 descriptor/export 边界；`Runway` / `Ledger` 只承运执行与 refs evidence。
 
-`OPL Fabric` 属于长期、条件启用的 Cloud / Product 层资源底座语义，不新增 Framework 第 11 个源码模块，也不成为当前 App desktop + Docker/WebUI 的必要 gate。只有真实 account、storage、isolation、backend 与 owner policy 齐备时，Fabric 才可由当前十模块组合形成用户可见能力：`Connect` 负责连接、分发和可调用 surface，`Runway` 负责 durable execution / queue / retry-dead-letter，`Pack` 负责 ABI、descriptor 和 generated surface，`Workspace` 负责可检查物理落点，`Ledger` 负责 refs-only evidence / receipt / lineage。`Console` 把这些能力组织成治理、投影、current owner、next action 和 drilldown 页面。
+`OPL Fabric` 属于长期、条件启用的 Cloud / Product 层资源底座语义，不新增 Framework 第 11 个源码模块，也不成为当前 App desktop + Docker/WebUI 的必要 gate。只有真实 account、storage、isolation、backend 与 owner policy 齐备时，Fabric 才可由多个 family capability domains与 Cloud authority surface组合形成用户可见能力；它不要求 Framework制造同名目录或 plugin。Cloud Console组织托管治理与 drilldown，App Console组织本地产品工作面，Framework只提供所需 projection。
+
+## Host / Client 与产品 authority
+
+Framework 是唯一 Host composition authority：Host 根据 `base-headless`、`app-full`、`foundry-dev` 等受控 profile 选择并冻结 Host graph，再把带 version/source identity 的 allowlisted client graph 投影给 App。App renderer可以创建 Host 派生的 Client Cordis Context；AionUI主线与 DSH GUI候选必须共享：
+
+- 同一 Host-projected client graph 和 composition snapshot；
+- 同一 Client Contribution descriptor、typed slot/action ABI 与 App product profile；
+- 同一 RPC/event transport 与 no-second-registry/no-independent-install guard。
+
+Client 只能消费 projection，不能独立发现/安装 plugin、拥有 Package currentness、签发 release-operation、改写 App/Cloud/domain truth或把 renderer fallback当成 ready。`OPL App` 是产品 owner，不是普通 Cordis plugin；AionUI/DSH只是可替换 renderer/carrier。Console同样按 authority分层：Cloud control-plane、App本地产品工作面、Framework readiness/operator projection。
 
 ## 当前完成度对照
 
@@ -91,14 +102,15 @@ Agent Tool Arsenal / Capability Invocation OS 不新增品牌模块。它以 `OP
 ```text
 contracts/opl-framework/brand-system-profile.json
 contracts/opl-framework/source-module-map.json
-src/modules/
+src/modules/（迁移期 compatibility source）
+src/authority/、src/adapters/、src/read-models/、src/host/（目标责任拓扑）
 opl contract validate --json
 node --experimental-strip-types --test tests/src/cli/cases/brand-modules.test.ts
 ```
 
 ## 代码组织对齐
 
-OPL Framework 的当前物理代码组织以 `src/modules/` 作为品牌模块入口。源码边界、public entrypoint 规则、完成度口径和后续依赖治理读法见 [OPL Framework 源码模块边界](../source-module-boundary.md)。每个当前顶层品牌模块都有对应目录：
+OPL Framework 的历史物理代码组织以 `src/modules/` 作为品牌导航入口，但这不是最终 topology。目标按责任拆为 `src/authority/**`、`src/adapters/**`、`src/read-models/**`、`src/host/**` 和薄 `src/entrypoints/**`；源码边界、public entrypoint 规则、完成度口径和后续依赖治理读法见 [OPL Framework 源码模块边界](../source-module-boundary.md)。下列目录仍是迁移期间的 compatibility source，不代表十个 plugin：
 
 ```text
 src/modules/charter
@@ -113,6 +125,10 @@ src/modules/foundry
 src/modules/connect
 ```
 
-App / Cloud 产品语义可以把这些模块组合成面向用户的能力、页面、任务入口或托管产品面；Framework 实现目前仍以这十个目录为源码 owner。`contracts/opl-framework/source-module-map.json` 负责归属校验和历史 root 文件 readback，不替代模块目录，也不是 Cordis registry。`entrypoints/` 和 `kernel/` 是非品牌技术层：`entrypoints/` 负责 CLI / App / Cloud / adapter 启动连接，`kernel/` 负责共享 runtime primitive；它们不拥有品牌模块，不直接接管产品语义。新代码进入当前 owning module，跨模块从 owning module `index.ts` public exports 或 `public/**` 薄入口走；需要总入口时使用 `src/modules/index.ts` 的模块身份常量或命名空间聚合，避免把不同模块的同名 API 压成一个无边界 barrel。后续目录或 registry 调整继续受 P5-R 冻结的 owner、Package、plugin、profile 和 source-to-target mapping 约束。
+App / Cloud 产品语义可以跨多个 domain/authority/Package 组合面向用户；Framework实现不再以十个目录作为终局 owner。`contracts/opl-framework/source-module-map.json` 在迁移期负责归属校验和历史 root readback，不替代目标 topology，也不是 Cordis registry。新代码按 authority/adapter/read-model/host责任进入 successor；旧 `src/modules/**` 只保留必要 compatibility export。必须先切真实 caller、验证 affected outcome 和 public exports，再以 structural caller=0退役旧路径；不以目录移动、零引用扫描或文档 alone声明完成。
 
-源码边界的默认门已经切到 public interface：模块内代码保持在同一 owning module 内聚，优先使用相对 import；跨模块使用 owning module public index 或 `public/**` 薄入口。薄入口用于高频、低依赖、容易被多个模块消费的稳定 API，避免大 index eager-load 造成初始化循环。跨模块内部文件 import 不再作为迁移债存在，`npm run source:modules -- --strict-imports` 默认按 strict policy 失败。若一个内部符号确实需要被其他模块消费，先把它加入目标模块 `index.ts` 或 `public/**` 薄入口，再迁移调用方。当前完成口径是“物理归位 + public entrypoint 硬门 + deep import 清零”；public-level 依赖热点和 cycle 收薄作为后续依赖方向治理处理。
+源码边界的默认门仍是 public interface，但入口从品牌 index逐步迁往 authority/adapter/read-model/host package exports。跨模块 deep import、forbidden dependency和 cycle必须保持为零；旧 `src/modules/**` index只能作为薄 compatibility export，不能获得新实现或成为永久双入口。当前物理 cutover完成口径是“successor可达 + 真实caller已切 + affected outcome/readback等价 + 旧caller=0 + 删除/保留决策已由 owner确认”，不是“十个目录都存在”或“目录已移动”。
+
+## Package 发布边界
+
+品牌域不预先决定 Package 数量。只在有独立安装/发布/升级节奏、真实 consumer、currentness/readback 和回退价值时拆出 Package；第一批优先评估 Runway executor、Foundry evaluation、Connect discovery 与 `opl-package-host`。其余 contribution 先作为 Framework/App controlled workspace/package projection，避免为所有 plugin机械拆仓。Package identity、plugin API/source identity、composition snapshot 和 App product profile 分开回读。
