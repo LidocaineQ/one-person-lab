@@ -8,6 +8,7 @@ import {
   test,
 } from '../../helpers.ts';
 import { runFamilyRuntime } from '../../../../../src/adapters/execution/family-runtime.ts';
+import { createCordisBaseHeadlessComposition } from '../../../../../src/host/composition-profiles.ts';
 
 function packageLaunchRuntime() {
   let useBoundarySequence = 0;
@@ -74,8 +75,12 @@ test('family-runtime Temporal start treats a missing stage packet as nonblocking
     temporalNamespace: testEnv.namespace ?? 'default',
     allowUnindexedVisibility: true,
   });
+  const host = await createCordisBaseHeadlessComposition();
   try {
-    const runtime = packageLaunchRuntime();
+    const runtime = {
+      ...packageLaunchRuntime(),
+      createStageRouteComposition: host.services.childFactories.createStageRouteComposition,
+    };
     const created = await runFamilyRuntime([
       'attempt',
       'create',
@@ -137,6 +142,7 @@ test('family-runtime Temporal start treats a missing stage packet as nonblocking
       startedBinding,
     );
   } finally {
+    await host.dispose();
     await testEnv.teardown();
     restoreEnv();
     fs.rmSync(stateRoot, { recursive: true, force: true });
@@ -146,6 +152,7 @@ test('family-runtime Temporal start treats a missing stage packet as nonblocking
 test('family-runtime Temporal query keeps the local public envelope when provider is unavailable', async () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-temporal-query-missing-'));
   const restoreEnv = setRuntimeEnv({ stateRoot, temporalAddress: '' });
+  const host = await createCordisBaseHeadlessComposition();
   try {
     const created = await runFamilyRuntime([
       'attempt',
@@ -158,7 +165,10 @@ test('family-runtime Temporal query keeps the local public envelope when provide
       'temporal',
       '--workspace-locator',
       '{"workspace_root":"/tmp/redcube-runtime"}',
-    ], packageLaunchRuntime()) as Record<string, any>;
+    ], {
+      ...packageLaunchRuntime(),
+      createStageRouteComposition: host.services.childFactories.createStageRouteComposition,
+    }) as Record<string, any>;
     const attemptId = created.family_runtime_stage_attempt.attempt.stage_attempt_id;
     const output = (await runFamilyRuntime([
       'attempt', 'query', attemptId,
@@ -172,6 +182,7 @@ test('family-runtime Temporal query keeps the local public envelope when provide
       'local_stage_attempt_ledger_projection_only',
     );
   } finally {
+    await host.dispose();
     restoreEnv();
     fs.rmSync(stateRoot, { recursive: true, force: true });
   }

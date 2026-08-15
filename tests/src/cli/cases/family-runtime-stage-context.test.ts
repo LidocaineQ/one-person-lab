@@ -12,6 +12,7 @@ import {
 } from '../../../../src/authority/stages/index.ts';
 import { createAdmittedStagePackFixture } from './workspace-domain-test-helper.ts';
 import { runFamilyRuntime } from '../../../../src/adapters/execution/family-runtime.ts';
+import { createCordisBaseHeadlessComposition } from '../../../../src/host/composition-profiles.ts';
 
 const isolatedFamilyWorkspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-launch-family-'));
 const previousFamilyWorkspaceRoot = process.env.OPL_FAMILY_WORKSPACE_ROOT;
@@ -284,6 +285,7 @@ test('family-runtime rejects review-lane identity options when quality runtime i
       lane_fallback: false as const,
     },
   } as any;
+  const host = await createCordisBaseHeadlessComposition();
   try {
     await assert.rejects(
       () => runFamilyRuntime([
@@ -306,6 +308,7 @@ test('family-runtime rejects review-lane identity options when quality runtime i
           }) as never,
           resolveStageBinding: () => disabledBinding,
         },
+        createStageRouteComposition: host.services.childFactories.createStageRouteComposition,
       }),
       (error: unknown) => (
         error instanceof FrameworkContractError
@@ -313,6 +316,7 @@ test('family-runtime rejects review-lane identity options when quality runtime i
       ),
     );
   } finally {
+    await host.dispose();
     if (previousStateRoot === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateRoot;
     if (previousFamilyRoot === undefined) delete process.env.OPL_FAMILY_WORKSPACE_ROOT;

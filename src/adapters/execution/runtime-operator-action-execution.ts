@@ -50,6 +50,7 @@ type RuntimeActionExecuteOptions = {
 
 type RuntimeOperatorActionExecuteDependencies = {
   runtimeSnapshotProvider?: RuntimeTraySnapshotProvider;
+  familyRuntime?: typeof runFamilyRuntime;
   runFamilyAgentLegacyCleanupApply?: (contracts: FrameworkContracts, args: string[]) => JsonRecord;
 };
 
@@ -231,6 +232,15 @@ function requireLegacyCleanupApply(dependencies: RuntimeOperatorActionExecuteDep
     });
   }
   return dependencies.runFamilyAgentLegacyCleanupApply;
+}
+
+function requireFamilyRuntime(dependencies: RuntimeOperatorActionExecuteDependencies) {
+  if (!dependencies.familyRuntime) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Runtime action execution requires the Host-projected family runtime service.', {
+      required_dependency: 'familyRuntime',
+    });
+  }
+  return dependencies.familyRuntime;
 }
 
 function stageAttemptCreateArgs(route: JsonRecord, commandOrSurfaceRef: string) {
@@ -636,8 +646,8 @@ async function executeRoute(
         : legacyCleanupAction
             ? requireLegacyCleanupApply(dependencies)(contracts, runtimeArgs.slice(3))
             : providerWorkerRepair
-              ? runProviderWorkerRepair(providerWorkerRepair, runFamilyRuntime)
-            : await runFamilyRuntime(runtimeArgs, {
+              ? runProviderWorkerRepair(providerWorkerRepair, requireFamilyRuntime(dependencies))
+            : await requireFamilyRuntime(dependencies)(runtimeArgs, {
                 runtimeSnapshotProvider: dependencies.runtimeSnapshotProvider,
               }),
     };
@@ -673,7 +683,7 @@ async function executeRoute(
       executed_runtime_command: `opl family-runtime ${runtimeArgs.join(' ')}`,
       result: options.dryRun
         ? null
-        : await runFamilyRuntime(runtimeArgs, {
+        : await requireFamilyRuntime(dependencies)(runtimeArgs, {
             runtimeSnapshotProvider: dependencies.runtimeSnapshotProvider,
           }),
     };

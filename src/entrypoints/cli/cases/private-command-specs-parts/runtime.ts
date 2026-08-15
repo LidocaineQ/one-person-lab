@@ -349,6 +349,7 @@ export function buildPrivateRuntimeCommandSpecs({
       ],
       handler: (args) => runRuntimeOperatorActionExecute(getContracts(), args, {
         runtimeSnapshotProvider,
+        familyRuntime,
         runFamilyAgentLegacyCleanupApply: (contracts, cleanupArgs) => runFamilyAgentLegacyCleanupApply(
           contracts,
           cleanupArgs,

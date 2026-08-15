@@ -1008,6 +1008,7 @@ export async function runOplAppActionExecute(
       ...(options.dryRun ? ['--dry-run'] : []),
     ], {
       runtimeSnapshotProvider: buildRuntimeTraySnapshot,
+      familyRuntime: services.familyRuntime,
     });
   } catch (error) {
     if (!options.dryRun) {

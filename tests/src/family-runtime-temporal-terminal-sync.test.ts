@@ -20,6 +20,7 @@ import * as activities from '../../src/adapters/execution/family-runtime-tempora
 import { codexStageRunnerCostSummaryFrom } from '../../src/adapters/execution/family-runtime-codex-session-usage.ts';
 import { openQueueDb } from '../../src/adapters/execution/family-runtime-store.ts';
 import { StageAttemptWorkflow } from '../../src/adapters/execution/family-runtime-temporal-workflows.ts';
+import { buildCordisTemporalActivities } from '../../src/host/temporal-activity-projection.ts';
 import {
   blockedTemporalObservation,
   canceledTemporalObservation,
@@ -240,7 +241,10 @@ test('Temporal activity terminal sync preserves refs-only domain output through 
       namespace: testEnv.namespace,
       taskQueue,
       workflowsPath: path.join(repoRoot, 'src', 'adapters', 'execution', 'family-runtime-temporal-workflows.ts'),
-      activities,
+      activities: {
+        ...activities,
+        ...buildCordisTemporalActivities(),
+      },
     });
     const temporalQuery = await worker.runUntil(async () => {
       const handle = await testEnv.client.workflow.start(StageAttemptWorkflow, {
