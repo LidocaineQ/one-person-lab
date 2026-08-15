@@ -235,15 +235,16 @@ App，选择自己的项目目录和“科研”入口，用普通语言说明�
 <p><strong>在正确的时刻让人判断。</strong>
 如果分析已经形成可消费的增量，但某张图仍需重画，工作可以带着清楚标注的质量债继续；如果要声称结果达到投稿标准，则必须回到
 MAS 的质量门和负责人确认。App 准确区分“有进展”与“已就绪”。</p>
-<p><strong>按需改变工作位置。</strong>
+<p><strong>延展工作位置。</strong>
 当本机资源不足时，她可以批准使用服务器或云端资源；需要合作者参与时，可以在浏览器或
 Workspace
 中继续。项目仍以相同方式呈现任务、产物、审阅和下一步，而资源、账号和组织策略留在对应管理面。</p>
 <p><strong>把下一轮接住。</strong>
 一周后回来，她直接看到当前稿件、最近一次审阅、未关闭的问题和可以继续的动作。产品为专业判断准备材料、上下文和清楚的交接点，最终学术判断仍由她作出。</p>
 <p>这个场景也适用于基金、演示和书稿：专业内容不同，可信工作的结构相同。</p>
-<h2 id="只维护三个软件对象">只维护三个软件对象</h2>
-<p>用户只需认识三个软件对象，就能完成日常安装、更新和修复：</p>
+<h2 id="四层产品一套连续体验">四层产品，一套连续体验</h2>
+<p>OPL
+把运行基础、用户工作台、专业能力和在线服务组织成四层产品。用户看到的是一套连续体验，每一层都由明确的产品负责：</p>
 <table>
 <colgroup>
 <col style="width: 50%" />
@@ -266,48 +267,44 @@ Workspace
 </tr>
 <tr class="odd">
 <td>OPL Packages</td>
-<td>可安装和管理的专业
-Agent、能力与工作流，决定“能完成哪类专业工作”</td>
+<td>可安装和管理的专业智能体、能力与工作流，决定“能完成哪类专业工作”</td>
+</tr>
+<tr class="even">
+<td>OPL Cloud</td>
+<td>在线工作空间、资源连接、协作与服务治理，让工作可以跨越本机继续推进</td>
 </tr>
 </tbody>
 </table>
-<p>具体执行工具、工作流配置、辅助工具和底层集成都归入这三个对象。用户数据与产物拥有独立的存储、保留和清理边界，软件更新对象始终保持为三类。</p>
-<p>这个模型让维护动作更容易理解：App、Base 和 Packages
-各自独立安装、更新、修复和卸载；界面汇总它们的真实状态，不要求用户理解多套版本与恢复机制。</p>
-<h2 id="一个产品两个可替换的界面实现">一个产品，两个可替换的界面实现</h2>
-<p>OPL App 只有一个产品定义和一个发布负责人，但可以有多个 GUI
-实现。当前的 <code>opl-aion-shell</code> 是 Stable AionUI
-Shell；<code>opl-studio</code> 是基于 DeepSeek Harness GUI
-思路的原生候选 Shell。它们不是两套 App，而是同一个 App
-产品合同的两种载体：</p>
-<pre class="text"><code>OPL Packages -&gt; runtime capabilities + App schema 允许的 declarative GUI descriptors
-OPL Framework Host
-  -&gt; allowlisted state/action/RPC/event 与 GUI projection
-    -&gt; App-owned Client profile / GUI ABI
-    -&gt; AionUI Shell 或 DSH-derived Studio Shell
-      -&gt; 同一组产品状态、动作和贡献投影</code></pre>
-<p>因此，导航、页面身份、状态名称、命令含义、onboarding、Package
-管理和发布准入由 <code>one-person-lab-app</code> 统一；两个 Shell
-可以使用不同的 renderer、组件库、上游来源和 构建方式。它们都通过同一套
-Framework state/action、runtime bridge 和 GUI contribution schema
-工作，也都不能自行发现/安装 plugin、获得
-release-operation，或建立第二套产品 authority、Package
-registry/currentness、任务与线程历史。当前双 GUI consumer contract 已
-明确，Framework Host 的真实 Client graph producer/projection 与跨 GUI
-conformance 仍在后续 实现和验证中；设计完成不等于运行链已经完成。</p>
-<p>一次发布会明确冻结 App product version、Framework
-compatibility、Shell identity/version、 GUI ABI、Client composition
-snapshot 和 contribution versions。Studio 的候选功能或源码
-完成并不等于它已经取代 AionUI；只有 App 的 active-shell
-合同、安装/安全/更新和 release
-证据全部切换后，用户才会看到新的默认载体。</p>
+<p>具体执行工具、工作流配置、辅助工具和底层集成都归入这四层产品。用户数据与产物拥有独立的存储、保留和清理边界；软件与在线服务各自按照适合的交付方式持续更新。</p>
+<p>这个模型让产品边界更容易理解：Base 负责运行，App
+负责工作体验，Packages 负责专业能力，Cloud
+负责在线工作与治理。界面汇总它们的真实状态，不要求用户理解多套运行器、状态来源与恢复机制。</p>
+<h2 id="一个产品两种界面实现">一个产品，两种界面实现</h2>
+<p>OPL App 由一份产品定义和一位发布负责人统筹，也支持多个界面实现。当前
+AionUI 主线界面 承载稳定产品体验；借鉴 DeepSeek Harness
+的候选界面探索新的交互与插件机制。两者都是同一 App 产品合同的载体：</p>
+<pre class="text"><code>OPL Packages -&gt; 专业能力与受控界面描述
+OPL Framework Host -&gt; 经过准入的状态、动作与界面能力
+OPL App Client Cordis -&gt; 产品页面、动作与界面贡献
+  -&gt; AionUI 主线界面
+  -&gt; DeepSeek Harness 候选界面</code></pre>
+<p>导航、页面身份、状态名称、命令含义、首次使用引导、能力包管理和发布准入都由
+One Person Lab App
+统一。两个界面可以采用不同的渲染技术、组件库、上游来源和构建方式，
+同时共享 Framework
+提供的状态、动作和界面贡献。当前双界面消费合同已经明确，真实运行投影
+与跨界面一致性仍在持续实现和验证。</p>
+<p>一次发布会明确记录 App 版本、Framework
+兼容范围、所选界面版本、界面能力版本和组合快照。 AionUI
+当前承载主线发布；候选界面会在安装、安全、更新和发布证据完整后，按照 App
+的正式 产品决策进入默认发布。</p>
 <h2 id="清楚的分工带来可信的产品">清楚的分工带来可信的产品</h2>
 <p>OPL App 通过清楚分工建立专业性：</p>
 <pre class="text"><code>OPL 产品体验
   = OPL Base：阶段运行、恢复、证据与交接
   + OPL Packages：专业能力、领域判断、审阅与交付
   + OPL App：入口、交互、状态与下一步
-  + OPL Cloud（可选）：在线 Workspace、托管资源与组织治理</code></pre>
+  + OPL Cloud：在线 Workspace、托管资源与组织治理</code></pre>
 <p>App 负责入口、交互、状态翻译和下一步；Framework
 负责运行事实；MAS、MAG、RCA、OBF 或 OMA
 负责领域质量判断；云端管理面负责账号、资源和组织策略。App
@@ -319,9 +316,10 @@ snapshot 和 contribution versions。Studio 的候选功能或源码
 Agent 和人类负责人判断。</p>
 <h2 id="结语">结语</h2>
 <p>OPL App
-希望让一个人拥有类似专业团队的工作界面，并让复杂系统保持易于维护。</p>
-<p>它让用户从真实目的开始，让成果带着来路，让状态指向下一步，让设置围绕用户决策组织；它允许工作从本机走向浏览器和云端，同时清楚区分设计目标与发布事实；它把能力放进可扩展
-Packages，让日常维护只保留 Base、App 和 Packages 三个对象。</p>
+希望让一个人拥有类似专业团队的工作界面，并让复杂系统保持易于理解和持续维护。</p>
+<p>它让用户从真实目的开始，让成果带着来路，让状态指向下一步，让设置围绕用户决策组织；它让工作从本机自然延伸到浏览器和
+Cloud，同时清楚区分设计目标与发布事实；它把专业能力放进可扩展
+Packages，让 Base、App、Packages 和 Cloud 各自承担清楚而互补的责任。</p>
 <p>产品通过把复杂性放在正确的位置而变得好用。用户看到目标、成果和决定，专业
 Agent 保留判断权，运行系统保留事实，诊断细节在需要时出现。这就是 OPL App
 的设计选择，也是它值得被信任的原因。</p>
