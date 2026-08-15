@@ -32,7 +32,7 @@ export const CORDIS_RELEASE_OPERATION_SERVICE = 'opl.connect.release-operation';
 export const CORDIS_RELEASE_OPERATION_SOURCE_REF =
   'src/modules/connect/cordis-release-operation.ts';
 export const CORDIS_RELEASE_OPERATION_SOURCE_COMMIT =
-  '45d8ffba80b06bf1633f1953de054fb1dfe6d614';
+  '188078b8e0462b058850e70a1dc67ca0ec52c546';
 
 export type CordisReleaseOperationService = {
   freeze: typeof freezeReleaseBundle;
