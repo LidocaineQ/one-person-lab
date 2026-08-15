@@ -1656,7 +1656,7 @@
     },
     {
       "module_id": "foundry",
-      "brand_name": "OPL Foundry Kernel",
+      "brand_name": "OPL Foundry",
       "current_level": "L4_structural_baseline",
       "l5_completion_status": "evidence_required",
       "l5_can_be_claimed": false,

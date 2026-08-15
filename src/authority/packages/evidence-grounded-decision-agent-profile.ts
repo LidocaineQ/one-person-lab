@@ -131,7 +131,7 @@ const MODULE_SURFACE_READBACK_REFS = [
   },
   {
     module_id: 'foundry',
-    brand_module: 'OPL Foundry Kernel',
+    brand_module: 'OPL Foundry',
     source_module_ref: 'src/authority/evolution/evaluation-runtime.ts',
     exported_builder: 'FrozenPlanEvaluationRuntime',
     readback_scope: 'frozen_plan_independent_evaluation_without_self_verdict',

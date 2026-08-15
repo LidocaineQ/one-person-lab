@@ -1625,7 +1625,7 @@
     },
     {
       "module_id": "foundry",
-      "brand_name": "OPL Foundry Kernel",
+      "brand_name": "OPL Foundry",
       "command_prefix": "foundry",
       "surface_kind_prefix": "opl_foundry_kernel",
       "state": "L4_module_surface_baseline",

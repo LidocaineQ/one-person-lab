@@ -1,10 +1,12 @@
 {
-  "version": "brand-modules.v1",
-  "scope": "opl_brand_module_registry",
-  "owner": "One Person Lab",
-  "purpose": "Canonical registry for the OPL brand modules and their Workspace-level structural baseline gates.",
-  "state": "active_contract",
-  "machine_boundary": "This registry is a machine-readable structural completion contract for OPL brand modules. It does not store domain truth, artifact or memory bodies, quality verdicts, owner receipts, typed blockers, production readiness, or App release truth.",
+  "version": "brand-modules.v2",
+  "scope": "opl_framework_brand_surface_projection",
+  "owner": "OPL Framework",
+  "purpose": "Framework CLI and L4/L5 surface projection of the family capability brand portfolio; this is not a second family brand registry.",
+  "state": "active_projection_contract",
+  "machine_boundary": "This registry contains only the family brands with an OPL Framework CLI or structural surface. The complete brand portfolio and display order are owned by family-capability-domain-registry.json. This projection does not store domain truth, artifact or memory bodies, quality verdicts, owner receipts, typed blockers, production readiness, or App release truth.",
+  "portfolio_ref": "contracts/opl-framework/family-capability-domain-registry.json",
+  "projection_kind": "framework_cli_l4_l5_surfaces",
   "baseline_module_id": "workspace",
   "maturity_model": [
     {
@@ -32,6 +34,7 @@
   "modules": [
     {
       "module_id": "charter",
+      "portfolio_domain_id": "policy",
       "brand_name": "OPL Charter",
       "owner": "OPL Framework",
       "purpose": "Top-level constitution for OPL language, product taxonomy, authority boundaries, ADR/RFC lifecycle, and brand portfolio governance.",
@@ -111,6 +114,7 @@
     },
     {
       "module_id": "atlas",
+      "portfolio_domain_id": "catalog-discovery",
       "brand_name": "OPL Atlas",
       "owner": "OPL Framework",
       "purpose": "Catalog for agents, domain capability registry entries, agent tool cards, domain descriptors, public surfaces, owners, dependencies, and lifecycle states.",
@@ -199,6 +203,7 @@
     },
     {
       "module_id": "workspace",
+      "portfolio_domain_id": "workspace",
       "brand_name": "OPL Workspace",
       "owner": "OPL Framework + domain workspace owner",
       "purpose": "Project and file-management substrate for user materials, shared resources, stage outputs, handoff, and inspectable workspace structure.",
@@ -288,6 +293,7 @@
     },
     {
       "module_id": "pack",
+      "portfolio_domain_id": "package-platform",
       "brand_name": "OPL Pack",
       "owner": "OPL Framework + Foundry Agent owners",
       "purpose": "Declarative Domain Pack, domain capability registry ABI, Agent Tool Arsenal / Capability Invocation ABI, authority ABI, pack compiler, generated and hosted surfaces, and standard authority function boundaries for OPL-compatible agents.",
@@ -383,6 +389,7 @@
     },
     {
       "module_id": "stagecraft",
+      "portfolio_domain_id": "stage-policy",
       "brand_name": "OPL Stagecraft",
       "owner": "OPL Framework + Foundry Agent",
       "purpose": "Stage design, cognitive computation, capability use policy, tool affordance / invocation policy, quality gate shape, owner handoff, and StageRun kernel contract.",
@@ -473,6 +480,7 @@
     },
     {
       "module_id": "runway",
+      "portfolio_domain_id": "execution",
       "brand_name": "OPL Runway",
       "owner": "OPL Framework",
       "purpose": "Control-loop runtime module for runtime intent admission, provider-backed execution readiness, progress reconciliation, handoff gates, and recovery repair across OPL stage attempts.",
@@ -592,6 +600,7 @@
     },
     {
       "module_id": "ledger",
+      "portfolio_domain_id": "evidence",
       "brand_name": "OPL Ledger",
       "owner": "OPL Framework + domain authority owner",
       "purpose": "Refs-only evidence, receipt, typed blocker, artifact lineage, restore/provenance, and read-model ledger.",
@@ -683,6 +692,7 @@
     },
     {
       "module_id": "console",
+      "portfolio_domain_id": "experience",
       "brand_name": "OPL Console",
       "owner": "One Person Lab App",
       "purpose": "App/operator cockpit for current_owner_delta default read root, invocation-plan projection, current owner, next action, blockers, workspace actions, evidence drilldown, and user-facing inspection.",
@@ -774,7 +784,8 @@
     },
     {
       "module_id": "foundry",
-      "brand_name": "OPL Foundry Kernel",
+      "portfolio_domain_id": "evolution",
+      "brand_name": "OPL Foundry",
       "owner": "OPL Framework",
       "purpose": "Internal producer-neutral FoundryRun protocol, deterministic Agent Pack assembly, independent evaluation, immutable versions, canary, activation CAS, and rollback.",
       "state": "active_structural_baseline",
@@ -861,6 +872,7 @@
     },
     {
       "module_id": "connect",
+      "portfolio_domain_id": "integration",
       "brand_name": "OPL Connect",
       "owner": "OPL Framework + App release owner",
       "purpose": "Generated and distributed interfaces for CLI, MCP, ToolResultEnvelope descriptors, OpenAI tools, AI SDK tools, Skills/plugins, module install, release, and drift detection.",

@@ -1,6 +1,6 @@
 export const OPL_FOUNDRY_SOURCE_MODULE = {
   moduleId: 'foundry',
-  brandName: 'OPL Foundry Kernel',
+  brandName: 'OPL Foundry',
   contractRef: 'contracts/opl-framework/source-module-map.json#modules.foundry',
   physicalRoot: 'src/authority/evolution',
 } as const;

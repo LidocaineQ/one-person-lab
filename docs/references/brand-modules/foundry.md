@@ -1,4 +1,4 @@
-# OPL Foundry Kernel
+# OPL Foundry
 
 Owner: `One Person Lab`
 Purpose: `brand_module_design`
@@ -7,7 +7,7 @@ Machine boundary: 本文是人读目标态参考。机器真相归 `contracts/op
 
 ## 定位
 
-`OPL Foundry Kernel` 是 Framework 内部的 Agent 工程生命周期内核，不是独立产品 Actor。普通用户通过 OMA 的 `engineer-agent` 提交目标；Kernel 调用 OMA 产出设计语义，并独立完成物化、评测、版本、canary、激活和回滚。
+`OPL Foundry` 是 Agent 工程与持续进化的品牌能力；其当前 Framework 实现角色是 Foundry Kernel，不是独立产品 Actor。普通用户通过 OMA 的 `engineer-agent` 提交目标；Kernel 调用 OMA 产出设计语义，并独立完成物化、评测、版本、canary、激活和回滚。
 
 一句话：OMA 决定“Agent 应该是什么”，Foundry Kernel 负责“如何把该设计可靠地变成可评测、可版本化、可回滚的运行事实”。
 

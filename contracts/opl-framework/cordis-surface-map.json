@@ -590,7 +590,7 @@
     },
     {
       "module_id": "foundry",
-      "brand_name": "OPL Foundry Kernel",
+      "brand_name": "OPL Foundry",
       "module_owner": "OPL Foundry Kernel and target Owners",
       "public_entrypoint": "src/authority/evolution/index.ts",
       "candidate_plugin_id": "opl.foundry.candidate",

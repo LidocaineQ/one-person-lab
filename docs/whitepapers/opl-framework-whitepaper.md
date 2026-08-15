@@ -47,41 +47,36 @@ Framework 是 Base 的核心实现和唯一 Cordis Host；Packages 提供可独�
 App 提供本地工作台；Cloud 提供在线治理、托管资源与协作服务。Cordis 在 Base 内部组织能力，
 让四层产品使用同一套清楚的工作语言。
 
-Framework 当前以一组 Cordis 能力单元承载这些责任。它们共同组成运行底座，也为后续独立演进、
-能力包发布和受控组合提供清晰的落点。
+OPL 不再用历史“十大模块”解释不断变化的实现，也不把 13 个源码单元或 Cordis plugin 名称直接暴露给用户。家族品牌组合只保留真实、可辨认的产品责任，并按一项工作从准备到运营的四段旅程展示。当前组合有 11 个品牌，数量不是承诺；真实责任发生合并、拆分或新增时，品牌组合随之调整。
 
-| 领域 | 能力单元 | 对读者的核心承诺 |
-| --- | --- | --- |
-| 规则与认知 | **OPL Charter** | 让共同规则与权限边界保持明确，能力升级不改变系统承诺 |
-| 规则与认知 | **OPL Atlas** | 让可用智能体、能力包与专业能力可以被动态发现和理解 |
-| 规则与认知 | **OPL Workspace** | 让每项工作始终回到正确的材料、文件与工作位置 |
-| 能力与阶段 | **OPL Stage Pack** | 把阶段所需的专业能力组织成可以安装、版本化和复用的单元 |
-| 能力与阶段 | **OPL Package Host** | 让不同能力包通过统一兼容边界进入 Framework，共享同一套运行底座 |
-| 能力与阶段 | **OPL Stagecraft** | 为一次专业阶段准备清楚的目标、上下文和边界，同时保留 AI 的开放判断 |
-| 执行与恢复 | **OPL Runway Bridge** | 把阶段意图可靠地交给实际运行环境，并隔离底层执行差异 |
-| 执行与恢复 | **OPL Runway Executor** | 让一次尝试真正启动、持续运行、恢复并形成可交接结果 |
-| 证据与操作 | **OPL Ledger** | 保存可追溯的事件与证据引用，让进展、故障和决定可以复查 |
-| 证据与操作 | **OPL Console** | 把复杂运行事实转化为用户和操作者能够采取行动的清楚视图 |
-| 演进与评估 | **OPL Foundry Provider** | 让候选能力以明确来源和身份进入演进过程 |
-| 演进与评估 | **OPL Foundry Evaluation** | 用独立证据比较候选方案，避免“能运行”被误当成“更优秀” |
-| 生态与交付 | **OPL Connect Discovery** | 让外部能力和扩展按统一方式被发现和接入 |
-| 生态与交付 | **OPL Connect Release** | 让经过确认的能力进入可追踪的交付过程，并保留版本与来源关系 |
+| 旅程 | 品牌 | 对用户的承诺 | 命名判断 |
+| --- | --- | --- | --- |
+| Foundation | **OPL Charter** | 定规则、守边界 | 保留：短、独特，准确表达宪章 |
+| Foundation | **OPL Workspace** | 让每项工作有正确位置 | 保留：虽通用，但最容易理解且已有跨端认知 |
+| Build | **OPL Atlas** | 找到所有可用能力 | 保留：发现隐喻鲜明，与 Connect 分工不同 |
+| Build | **OPL Pack** | 把能力变成可描述、可安装单元 | 保留：简短，直接对应 Package 与 ABI |
+| Build | **OPL Stagecraft** | 设计专业工作的阶段与上下文 | 保留：辨识度高，又不冒充领域判断 |
+| Run | **OPL Runway** | 让工作启动、持续、恢复和收口 | 保留：执行隐喻清楚 |
+| Run | **OPL Ledger** | 留下可追溯的证据与事件 | 保留：天然表达可核验记录 |
+| Run | **OPL Connect** | 接通外部来源、carrier 与生态 | 保留：动作性强，不与 Atlas 合并 |
+| Operate | **OPL Console** | 看清状态并采取行动 | 保留：已有 App、Cloud 与 Framework 的真实分层 surface |
+| Operate | **OPL Foundry** | 用证据锻造更好的 Agent | 简化：品牌去掉 `Kernel`，Kernel 只表示内部实现角色 |
+| Operate | **OPL Fabric** | 供给并治理托管资源 | 保留：已有独立 Cloud 资源 authority 与生命周期 |
 
-这些能力单元让运行组合有清楚的结构，也让每个品牌模块都能沿着自己的责任持续成长。模块之间
-通过明确的能力关系协作，具体的安装、发布与组合方式随真实的使用场景和发布节奏演进。
+这不是两套真相。家族 capability registry 是唯一品牌目录；Framework 的十项 registry 只是其中具有 CLI、L4 或 L5 surface 的投影，所以 Cloud-owned Fabric 不会伪装成 Framework module。每个品牌都指向当前真实 authority、source topology、Package 和 Cordis contribution；默认随责任边界同步调整，只有跨产品或独立生命周期的现实边界才保持非一对一关系。
 
 ## 四种身份，分别回答四个问题
 
-为了让管理、开发和发布使用同一套语言，OPL 让每个模块都拥有清楚、可追踪的身份：
+为了让管理、开发和发布使用同一份地图，OPL 把同一能力的四种身份分别记录：
 
 | 身份 | 回答的问题 |
 | --- | --- |
-| 品牌模块 / 能力域 | 读者如何理解一项稳定的产品责任？ |
+| 品牌 / 能力域 | 读者如何理解一项稳定的产品责任？ |
 | 责任方 | 谁对事实、质量、权限、状态或发布作出决定？ |
 | OPL Package | 哪些能力可以独立安装、发布、升级和分发？ |
 | Cordis 能力单元 | 哪段运行能力需要独立挂载、注入、观察和退出？ |
 
-因此，一个 Package 可以承载一组相互关联的能力，一个品牌模块也可以在不同产品面提供贡献；
+因此，一个 Package 可以承载一组相互关联的能力，一个品牌也可以在不同产品面提供贡献；
 组合快照则为每次运行记录实际采用的能力和来源，让版本、责任与回退对象保持清楚。
 
 独立 Package、版本线和仓库会优先服务于具有独立发布节奏与替换价值的 Runway Executor、Foundry
@@ -108,11 +103,11 @@ One Person Lab App 以客户端 Cordis 组织窗口、导航、任务视图、�
 
 ## 两种界面实现，一份产品承诺
 
-One Person Lab App 当前同时推进两条界面路线：基于 AionUI 的主线版本，以及借鉴 DeepSeek Harness 的候选版本。它们可以采用不同的渲染技术、交互实验和演进速度，并始终共享一份产品事实。
+One Person Lab App 当前同时推进两种 renderer/carrier：基于 AionUI 的主线版本，以及 DSH-derived Studio 候选。它们是同一个 App、同一个 Host-derived Client Cordis 架构的不同实现，不是两套产品或两个控制面。
 
-两条路线遵循同一顶层设计：Framework 提供经过准入的能力，App 客户端 Cordis 组织界面能力，产品合同定义用户应当看见的任务、能力包、状态、动作和责任边界。AionUI 主线与候选界面共享同一套能力接口和产品配置，各自在界面技术、组件与视觉体验上演进。
+两条路线遵循同一顶层设计：Framework 提供 Host-projected、allowlisted client graph，App 客户端 Cordis 组织界面能力，产品合同定义用户应当看见的任务、能力包、状态、动作和责任边界。AionUI 与 Studio 必须共享同一 product profile、typed slots/actions、RPC/events 和 state semantics；Client 不能自行发现或安装 plugin，也不能维护第二份 Package currentness、action 或 release truth。
 
-AionUI 主线继续承载稳定产品体验，候选界面则可以更快吸收新的交互与插件机制。成熟能力通过共同产品合同进入，两条路线的进步可以彼此复用。
+AionUI 已通过 App compatibility admission，继续承载当前 active 产品体验；Studio 也已在 canonical candidate caller 上完成同一 profile、Client Cordis、typed slot/action、state readback 和跨 GUI conformance，但没有替换 active shell。未来切换仍是 App owner 的显式 adapter selection 与重新准入，不是未经验证的任意热切换，也不因为候选验证通过而自动获得 release-ready 身份。
 
 ## 自进化：围绕模块持续改进
 
@@ -146,11 +141,11 @@ Harness 的长期价值，在于让系统能够观察自身、提出改进并在
 
 OPL Framework 的专业性不来自模块数量，而来自一组持续兑现的工程承诺。
 
-- **概念与实现一致。** 品牌、源码、能力包和 Cordis 运行身份沿同一模块语言关联，责任方与版本边界清楚可查。
+- **概念与实现一致。** 唯一品牌组合把 capability domain 与真实 authority、源码、能力包和 Cordis contribution 显式关联，而不伪造一对一关系。
 - **组合可以被看见。** 每次运行都能解释实际装载的能力及其来源。
 - **升级可以被比较。** 候选模块先获得独立证据，再进入受控组合。
 - **故障可以被隔离。** 模块生命周期和责任边界让问题停留在合理范围，并保留清楚的回退对象。
-- **界面演进保持产品连续。** AionUI 主线与 DeepSeek Harness 候选共享同一能力投影和 App 产品合同。
+- **界面演进保持产品连续。** AionUI 主线与 DSH-derived Studio 候选共享同一能力投影、App 产品合同和准入门。
 - **责任始终归属明确。** Framework 负责组合与运行，领域质量、文件、发布和最终决定归对应责任方。
 
 这套设计让 OPL 可以同时获得两种通常难以兼得的能力：内部持续变化，外部长期稳定。

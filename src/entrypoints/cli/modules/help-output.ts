@@ -55,7 +55,7 @@ const COMMAND_GROUP_SUMMARIES: Record<string, string> = {
   'brand-runway': '读取 OPL Runway 的 runtime provider、stage-attempt projection、attempt、lease 和验收 surface。',
   'brand-ledger': '读取 OPL Ledger 的 evidence、receipt、lineage、state-index 和验收 surface。',
   'brand-console': '读取 OPL Console 的 App/operator read-model、safe action 和验收 surface。',
-  'brand-foundry': '读取 OPL Foundry Kernel 的协议、FoundryRun、版本、激活和回滚 surface。',
+  'brand-foundry': '读取 OPL Foundry 的协议、FoundryRun、版本、激活和回滚 surface。',
   'brand-connect': '读取 OPL Connect 的 descriptor、package/install、skill sync 和验收 surface。',
   'capability-pack': '通用 capability-pack descriptor、安装、锁定与 provenance 入口。',
   framework: '定位和解释 OPL Framework 自身的运行依赖环境。',

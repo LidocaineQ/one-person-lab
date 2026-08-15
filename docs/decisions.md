@@ -7,26 +7,26 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 
 ## 2026-08-15
 
-### 决策：OPL 保持四层产品认知，十大品牌升级为跨 Family capability domains
+### 决策：OPL 保持四层产品认知，品牌收敛为动态 Family capability portfolio
 
-原因：Framework P1-P6 已证明 Cordis Host 的 service injection、typed event、scope teardown、composition snapshot 与受控 profile 能降低真实 caller 的 wiring 成本。DeepSeek Harness GUI 的进一步调研也证明 GUI 不需要被排除在 Cordis 外：Host 可以决定并投影 allowlisted client graph，浏览器再创建 Host 派生的 Client Cordis context，通过 typed slots、RPC 和 events 组合 UI。继续把原十个品牌同时当作 Framework bounded context、源码目录、Package 和 plugin，会重新制造一对一耦合，也无法正确表达 Console 等横跨 Framework/App/Cloud 的产品能力。
+原因：Framework P1-P6 已证明 Cordis Host 的 service injection、typed event、scope teardown、composition snapshot 与受控 profile 能降低真实 caller 的 wiring 成本。Family capability-domain 与 source/package topology cutover 进一步证明，固定“十大”会在真实 owner 变化后留下平行解释：Cloud 已有独立 Fabric authority，而 Framework 十项 CLI/L4/L5 surface 只是家族能力的一部分。品牌应直接呈现真实 capability portfolio，由同一机器 registry 关联 authority、Package 与 Cordis contribution，不再维护历史数量或第二套 taxonomy。
 
 影响：
 
 - 对外产品模型固定为 `OPL Base + OPL App + OPL Packages + OPL Cloud`；Cloud 已进入产品落地与持续交付阶段，Foundry Agents 是 Packages 中保留领域 authority 的专业能力家族，不是第五个产品层。
 - 顶层链路固定为 `family capability domain -> repo/product-specific authority surface -> versioned Package/artifact -> host-specific contribution -> curated product/profile composition`。品牌域、authority owner、Package 发布单元和 Cordis plugin 运行单元彼此正交。
-- 原 `Charter/Atlas/Workspace/Pack/Stagecraft/Runway/Ledger/Console/Foundry/Connect` 继续作为 OPL family 的稳定品牌语言和认知地图，但不再被解释为十个 Framework 源码 owner、十个 Package 或十个 plugin。它们可以跨 Framework/App/Cloud 分布，一个域可贡献多个 plugin，纯 authority 域也可以没有常驻 plugin。
+- `family-capability-domain-registry.json` 是唯一家族品牌组合 SSOT。当前组合按 Foundation / Build / Run / Operate 展示 `Charter/Workspace/Atlas/Pack/Stagecraft/Runway/Ledger/Connect/Console/Foundry/Fabric` 11 个品牌；数量不冻结，只有真实 owner/caller 合并、拆分或新增时才调整。`brand-module-registry.json` 只投影其中具有 Framework CLI / L4 / L5 surface 的十项，不构成第二品牌目录。
 - Framework 是唯一 Host composition authority。它选择 curated profile、冻结 Host graph，并将 allowlisted、带 version/source identity 的 client graph 投影给 App。Client Cordis 不得独立发现或安装插件、维护第二 registry/currentness、获得 release-operation service，或签发 App/domain/Cloud verdict。
 - `OPL App` 继续持有产品 truth、product profile、page/action policy、active-shell validation 与 release gate；App 不是一个可被任意替换的普通 plugin。App renderer 可以运行 Host 派生的 Client Cordis。AionUI 主线和 DSH GUI 候选必须消费同一 client contribution descriptor、typed slot/action ABI、Host projection 和 App product profile，差异仅限 renderer、carrier 与视觉实现。
 - `OPL Console` 采用分层 authority：Cloud 持有托管 Console/control-plane 产品，App 持有本地 GUI 产品策略和用户 action，Framework 只持有 readiness/operator/action projection、inspect 与 read model。品牌认知可以跨产品复用，authority 不共享。
 - Framework 源码已从 `src/modules/<brand>/` 品牌桶 successor-first 迁到按责任命名的 `src/authority/**`、`src/adapters/**`、`src/read-models/**`、`src/host/**` 与薄 `src/entrypoints/**`：新路径、真实 caller、affected outcome/public exports 和 structural caller=0 均由机器边界验证，旧目录已 retired/absent。后续变更继续遵守同一 successor-first 规则；文档或目录移动本身不证明完成。
-- 独立版本、分支和发布能力通过 Package topology 实现，但只拆有真实替换价值和独立发布节奏的单元。第一批优先评估 Runway executor、Foundry evaluation、Connect discovery 与 `opl-package-host`；不把现有 plugin 或十品牌机械拆仓，也不把 monorepo workspace package 自动写成已独立发布。
+- 独立版本、分支和发布能力通过 Package topology 实现，但只拆有真实替换价值和独立发布节奏的单元。第一批优先评估 Runway executor、Foundry evaluation、Connect discovery 与 `opl-package-host`；不按 plugin 或品牌数量机械拆仓，也不把 monorepo workspace package 自动写成已独立发布。
 - 受控 profile 隐藏内部组合矩阵，普通用户不面对任意 plugin 组合。Host/Client graph、Package/currentness、App product profile、Cloud product truth 和 domain authority 分别由对应 owner 回读，任何一层都不能从另一层推导 ready。
 - `one-person-lab` 是唯一 Cordis Host；`one-person-lab-app` 是 App 产品、Client profile、GUI contribution ABI、active shell、版本组合和发布 authority。
 - `opl-aion-shell` 是当前 Stable AionUI implementation carrier；`opl-studio` 是 DSH-derived foreground candidate carrier。旧名 `opl-native-workbench` 只按历史 provenance 读取。两个 Shell 统一产品语义、Framework state/action/runtime bridge、Client Cordis 组合协议、GUI contribution schema、设计/可访问性语义和发布证据类别；renderer、组件树、carrier、upstream intake、缓存、构建链、Git 历史和实现测试保持独立。
 - 一次 OPL App 发布冻结 App product version、Framework compatibility、selected Shell identity/version、GUI ABI version、Client composition snapshot 和 contribution versions。只有 App `app-shell-adapter` 合同可切换 active shell；Studio 的源码或功能完成不自动取代 AionUI。
 
-当前状态：Framework Host Cordis P1-P6、family capability-domain registry、13 个 source units / 6 个 target roots、`src/modules/**` 退役和五个 workspace Package 候选已经进入当前源码。Host/Client 合同与双 GUI 顶层 ABI 已对齐；AionUI/Studio 的 release/runtime 准入、跨 GUI E2E 和独立 Package publication 仍须由各自 owner 的 canonical readback 证明，不得由源码 topology 推导完成。
+当前状态：Framework Host Cordis P1-P6、动态 family capability portfolio、Framework surface projection、13 个 source units / 6 个 target roots、`src/modules/**` 退役和五个 workspace Package 候选已经进入当前源码。Host/Client 合同与双 GUI 顶层 ABI 已对齐；AionUI/Studio 的 release/runtime 准入、跨 GUI E2E 和独立 Package publication 仍须由各自 owner 的 canonical readback 证明，不得由源码 topology 推导完成。
 
 ## 2026-08-14
 
@@ -45,7 +45,7 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 - plugin 可以独立版本、分支和发布，但组合依赖显式 descriptor/compatibility contract，不建立中央 SemVer resolver；缺依赖、API 不兼容、trust 或 scope 冲突必须产生可诊断失败。生产 attempt 在启动时冻结 composition snapshot，禁止运行中热换。
 - Framework 提供统一的 `opl-package-host` 兼容服务，而不是要求每个 Package 重复声明 Framework 内部 Cordis plugin 清单。`opl_agent_package_manifest.v1` 默认映射为 standard-agent runtime，`opl_capability_package_manifest.v2` 默认映射为 capability provider，`opl_workflow_profile_package_manifest.v1` 默认映射为 workflow-profile source；MAS/MAG/RCA/OMA/BookForge、MAS Scholar Skills/OPL Persona/OPL Relay 与 OPL Flow 因而共享同一 host context ABI。它们仍允许 standalone；托管启动时 required provider 缺失才阻断，optional provider 缺失只降级诊断。
 - Package host context 必须绑定最终 composition profile、root/child snapshot digest、provider API/scope 和 disposer；`app-full`、`foundry-dev` 不得继承错误的 `base-headless` identity。该 context 是一次托管调用的不可变装配输入，不是 Package installed/currentness、domain quality、owner receipt、Temporal history、Foundry activation 或 App product truth。
-- P5-R 已执行 `Cordis-native architecture re-baseline`；其四层运行图已由 2026-08-15决策扩展为 family capability domain、authority surface、Package、Host/Client Cordis contribution和 curated composition profile五层。原十品牌只作为跨仓认知地图与迁移导航；物理边界依据 authority、caller、lifecycle、scope、trust、故障隔离、发布节奏和替换价值，而不是目录对称或命名偏好。
+- P5-R 已执行 `Cordis-native architecture re-baseline`；其四层运行图已由 2026-08-15 决策扩展为 family capability domain、authority surface、Package、Host/Client Cordis contribution 和 curated composition profile 五层。品牌组合由唯一 registry 随真实 authority/caller 演进；物理边界依据 authority、caller、lifecycle、scope、trust、故障隔离、发布节奏和替换价值，而不是目录对称、历史数量或命名偏好。
 - Cordis 不是安全沙箱。不可信 plugin 不得因拥有 plugin 身份而进入 privileged root；需要隔离时使用现有 sandbox/provider 或独立进程。Cordis event 是进程内 transport，durable/replay/evidence 事实仍归 Temporal/Ledger/owner receipt。
 - P0-P6 路线图已完成。已证明的收益包括 seam 可见性、executor/provider/observer 可替换、依赖注入、typed event、scope teardown、composition isolation、受控 profile、snapshot/digest 回放、较小改动半径、较低 wiring 维护负担和 Harness 自进化 substrate；live/production 自进化结果仍须由真实 owner evidence 单独证明。
 

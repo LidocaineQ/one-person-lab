@@ -43,7 +43,8 @@ Stage 内质量循环的 canonical machine surface 是 `contracts/opl-framework/
 - `contracts/opl-framework/*.json`：当前 stage-led OPL framework、App consumer surface、Foundry package/domain-agent catalog、runtime 与 supporting-surface contract
 - `contracts/opl-framework/connect-reference-provider-profile.schema.json` 与 `connect-scientific-search-provider-profile.schema.json`：package-owned reference/search provider profile 的通用 envelope；Framework 只校验 installed package binding、handler refs、sandbox 与 no-authority flags，不持有 provider 名单、endpoint、协议或解析器
 - `contracts/opl-framework/external-skill-source-metadata.schema.json`：external Skill source owner 提供的 metadata 合同；要求 source identity、ontology 与实际 Skill 全覆盖闭合，Framework 不内置 source/alias/category/risk ontology
-- `contracts/opl-framework/brand-module-registry.json`：当前 OPL 品牌模块的机器注册表；`opl brand-modules list|inspect|maturity|validate|interfaces --json` 从这里派生，作为聚合目录与成熟度总览。
+- `contracts/opl-framework/family-capability-domain-registry.json`：当前 OPL family 品牌能力组合的唯一机器 SSOT，持有展示分组、命名判断及 authority/Package/Cordis contribution 关系。
+- `contracts/opl-framework/brand-module-registry.json`：上述组合的 Framework CLI / L4 / L5 surface projection；`opl brand-modules list|inspect|maturity|validate|interfaces --json` 从这里派生，不是第二份家族品牌目录。
 - `contracts/opl-framework/public-whitepaper-registry.json`：OPL 家族、OPL Framework、App、Cloud、MAS 五份公开白皮书的 pointer-only release-set registry；它允许同一仓拥有多份独立 Profile，并记录 owner repo、Profile 与统一品牌站点公开 URL。正文来源由各 Profile 持有，监听路径由各仓 workflow 持有；registry 不接管正文，也不声明任何 ready。
 - `contracts/opl-framework/public-whitepaper-profile.schema.json`：公开白皮书 Profile 的统一输入 schema；只固定 owner、source/output、版式页数和公开 URL，不把章节或措辞变成机器接口。
 - `contracts/opl-framework/brand-cli-governance.json`：品牌模块 command surface 与 domain-agent internal module spine 治理；它约束 `opl agents modules * --json` 和 Workspace validate/doctor/interfaces 的碰撞边界。
