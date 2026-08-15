@@ -46,9 +46,12 @@ jobs:
       - name: Stage bundle and visual evidence
         run: |
           mkdir -p artifact/whitepapers artifact/evidence
-          find source/docs/site/latest/whitepapers -maxdepth 1 -type f \
-            \( -name '*.html' -o -name '*.pdf' -o -name '*.json' \) \
-            -exec cp {} artifact/whitepapers/ \;
+          cp "source/docs/site/latest/whitepapers/${{ inputs.output_name }}.html" artifact/whitepapers/
+          cp "source/docs/site/latest/whitepapers/${{ inputs.output_name }}.pdf" artifact/whitepapers/
+          cp "source/docs/site/latest/whitepapers/${{ inputs.output_name }}.verification.json" artifact/whitepapers/
+          if [ -f source/docs/site/latest/whitepapers/index.html ]; then
+            cp source/docs/site/latest/whitepapers/index.html artifact/whitepapers/
+          fi
           cp -R "source/tmp/pdfs/${{ inputs.output_name }}/rendered" artifact/evidence/rendered-pages
 
       - name: Upload approved-byte candidate
@@ -93,7 +96,7 @@ jobs:
       - name: Update only the whitepaper publication surface
         run: |
           mkdir -p site/latest/whitepapers
-          rsync -a --delete artifact/whitepapers/ site/latest/whitepapers/
+          rsync -a artifact/whitepapers/ site/latest/whitepapers/
           touch site/.nojekyll
           git -C site config user.name github-actions[bot]
           git -C site config user.email 41898282+github-actions[bot]@users.noreply.github.com

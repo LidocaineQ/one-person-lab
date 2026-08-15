@@ -16,6 +16,7 @@ import { FrameworkContractError } from '../../src/kernel/contract-validation.ts'
 import { runOplAgentPackageStatus } from '../../src/adapters/integration/agent-package-registry.ts';
 import { createWorkItemExecutionScopeSnapshot } from '../../src/authority/workspace/index.ts';
 import { runFamilyRuntime } from '../../src/adapters/execution/family-runtime.ts';
+import { createCordisBaseHeadlessComposition } from '../../src/host/composition-profiles.ts';
 import { resolveStageRunAttemptExecutorContent } from '../../src/adapters/execution/family-runtime-stage-run-attempt-content.ts';
 import {
   stageQualityAttemptMaterializeActivity,
@@ -355,9 +356,18 @@ Close findings using the latest package.
       package_use_binding: activeUseBinding,
     }) as never,
   };
+  const host = await createCordisBaseHeadlessComposition();
+  const runtimeOptions = {
+    stageRunRuntime,
+    createStageRouteComposition: host.services.childFactories.createStageRouteComposition,
+  };
 
   const activities = {
-    stageQualityAttemptMaterializeActivity,
+    stageQualityAttemptMaterializeActivity: (
+      input: Parameters<typeof stageQualityAttemptMaterializeActivity>[0],
+    ) => stageQualityAttemptMaterializeActivity(input, {
+      createStageRouteComposition: host.services.childFactories.createStageRouteComposition,
+    }),
     stageQualityAttemptSyncActivity,
     stageQualityCycleProjectActivity,
     stageQualityReviewReceiptActivity,
@@ -487,14 +497,14 @@ Close findings using the latest package.
         await assert.rejects(
           () => runFamilyRuntime(baseArgs.map((value) => (
             value === 'medical' ? 'reference' : value
-          )), { stageRunRuntime }),
+          )), runtimeOptions),
           (error: unknown) => (
             error instanceof FrameworkContractError
             && error.details?.failure_code === 'stage_review_lane_binding_invalid'
           ),
         );
         const executeNewStageRun = async (args: string[]) => {
-          const cli = await runFamilyRuntime(args, { stageRunRuntime });
+          const cli = await runFamilyRuntime(args, runtimeOptions);
           const launch = cli.family_runtime_stage_run as any;
           const handle = client.workflow.getHandle(
             launch.stage_run_input.workflow_id,
@@ -503,7 +513,7 @@ Close findings using the latest package.
           return { cli, state: await handle.result() };
         };
         const first = await executeNewStageRun(baseArgs);
-        const replay = await runFamilyRuntime(baseArgs, { stageRunRuntime });
+        const replay = await runFamilyRuntime(baseArgs, runtimeOptions);
         const explicitNew = await executeNewStageRun([...baseArgs, '--new-stage-run']);
         const compatibilityAlias = await executeNewStageRun([...baseArgs, '--new-attempt']);
         return { first, replay, explicitNew, compatibilityAlias };
@@ -691,6 +701,7 @@ Close findings using the latest package.
       readStatus: runOplAgentPackageStatus,
     });
     restoreEnv(previousEnv);
+    await host.dispose();
     await testEnv.teardown();
     for (const target of [stateRoot, workspaceRoot, familyWorkspaceRoot, packRoot]) {
       fs.rmSync(target, { recursive: true, force: true });
@@ -725,6 +736,7 @@ test('fixed review lane is projected into StageRun identity and derived on repla
     '--source-fingerprint',
     `sha256:${'a'.repeat(64)}`,
   ];
+  const host = await createCordisBaseHeadlessComposition();
   try {
     const runtime = {
       ensurePackageLaunchReady: async () => ({
@@ -736,13 +748,17 @@ test('fixed review lane is projected into StageRun identity and derived on repla
         package_use_binding: useBinding,
       }) as never,
     };
-    const first = await runFamilyRuntime(args, { stageRunRuntime: runtime });
+    const runtimeOptions = {
+      stageRunRuntime: runtime,
+      createStageRouteComposition: host.services.childFactories.createStageRouteComposition,
+    };
+    const first = await runFamilyRuntime(args, runtimeOptions);
     const firstLaunch = first.family_runtime_stage_run as any;
     assert.equal(
       firstLaunch.stage_run_input.stage_attempt_executor_policy.review_lane_binding,
       'statistical',
     );
-    const replay = await runFamilyRuntime(args, { stageRunRuntime: runtime });
+    const replay = await runFamilyRuntime(args, runtimeOptions);
     const replayLaunch = replay.family_runtime_stage_run as any;
     assert.equal(replayLaunch.durable_launch.start_status, 'existing');
     assert.equal(
@@ -750,13 +766,14 @@ test('fixed review lane is projected into StageRun identity and derived on repla
       firstLaunch.stage_run_input.stage_run_id,
     );
     await assert.rejects(
-      () => runFamilyRuntime([...args, '--review-lane', 'medical'], { stageRunRuntime: runtime }),
+      () => runFamilyRuntime([...args, '--review-lane', 'medical'], runtimeOptions),
       (error: unknown) => (
         error instanceof FrameworkContractError
         && error.details?.failure_code === 'stage_review_lane_binding_fixed_mismatch'
       ),
     );
   } finally {
+    await host.dispose();
     restoreEnv(previousEnv);
     for (const target of [stateRoot, familyWorkspaceRoot, workspaceRoot, packRoot]) {
       fs.rmSync(target, { recursive: true, force: true });

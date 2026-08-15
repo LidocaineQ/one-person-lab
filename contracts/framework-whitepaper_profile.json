@@ -1,0 +1,12 @@
+{
+  "sourceMarkdown": "docs/whitepapers/opl-framework-whitepaper.md",
+  "outputName": "opl-framework-whitepaper",
+  "status": "whitepaper_artifact_verified",
+  "owner": "OPL Framework",
+  "coverLine": "Cordis Host / Capability Domains / App Client Cordis / Governed Evolution",
+  "headerTitle": "OPL Framework Whitepaper",
+  "minPdfPages": 6,
+  "maxPdfPages": 12,
+  "publicHtmlUrl": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-framework-whitepaper.html",
+  "publicPdfUrl": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-framework-whitepaper.pdf"
+}

@@ -20,8 +20,8 @@ test('CLI modularization keeps stable entry files while extracting modules and c
 });
 
 test('family-runtime command parser keeps a thin public entrypoint and semantic parser parts', () => {
-  const entryPath = path.join(repoRoot, 'src', 'modules', 'runway', 'family-runtime-command.ts');
-  const partsRoot = path.join(repoRoot, 'src', 'modules', 'runway', 'family-runtime-command-parts');
+  const entryPath = path.join(repoRoot, 'src', 'adapters', 'execution', 'family-runtime-command.ts');
+  const partsRoot = path.join(repoRoot, 'src', 'adapters', 'execution', 'family-runtime-command-parts');
   const entryLines = fs.readFileSync(entryPath, 'utf8').trimEnd().split('\n').length;
   const expectedParserParts = [
     'attempt.ts',
@@ -50,9 +50,9 @@ test('family-runtime command parser keeps a thin public entrypoint and semantic 
 });
 
 test('standard domain-agent conformance keeps physical morphology in scoped modules', () => {
-  const entryPath = path.join(repoRoot, 'src', 'modules', 'workspace', 'standard-domain-agent-conformance.ts');
-  const morphologyPath = path.join(repoRoot, 'src', 'modules', 'workspace', 'standard-domain-agent-conformance-physical-morphology.ts');
-  const utilsPath = path.join(repoRoot, 'src', 'modules', 'pack', 'standard-domain-agent-conformance-utils.ts');
+  const entryPath = path.join(repoRoot, 'src', 'authority', 'workspace', 'standard-domain-agent-conformance.ts');
+  const morphologyPath = path.join(repoRoot, 'src', 'authority', 'workspace', 'standard-domain-agent-conformance-physical-morphology.ts');
+  const utilsPath = path.join(repoRoot, 'src', 'authority', 'packages', 'standard-domain-agent-conformance-utils.ts');
   const entrySource = fs.readFileSync(entryPath, 'utf8');
   const morphologySource = fs.readFileSync(morphologyPath, 'utf8');
   const entryLines = entrySource.trimEnd().split('\n').length;

@@ -58,6 +58,7 @@ import { normalizeStageQualityCyclePolicy } from '../../src/authority/stages/sta
 import type { StandardAgentStageQualityRuntimeBinding } from '../../src/authority/packages/index.ts';
 import type { StandardAgentHandlerSandboxReceipt } from
   '../../src/adapters/execution/standard-agent-handler-sandbox.ts';
+import { createCordisBaseHeadlessComposition } from '../../src/host/composition-profiles.ts';
 
 function temporaryRoot(prefix: string) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -1487,6 +1488,7 @@ test('direct family-runtime create --start gates before attempt reserve and repl
   const workspaceRoot = path.join(fixtureRoot, 'workspace');
   const stateRoot = path.join(fixtureRoot, 'state');
   const previousStateRoot = process.env.OPL_STATE_DIR;
+  const host = await createCordisBaseHeadlessComposition();
   try {
     fs.mkdirSync(checkoutRoot, { recursive: true });
     fs.mkdirSync(workspaceRoot, { recursive: true });
@@ -1513,7 +1515,10 @@ test('direct family-runtime create --start gates before attempt reserve and repl
     };
 
     await assert.rejects(
-      runFamilyRuntime(args, { stageRunRuntime: runtime }),
+      runFamilyRuntime(args, {
+        stageRunRuntime: runtime,
+        createStageRouteComposition: host.services.childFactories.createStageRouteComposition,
+      }),
       /lifecycle is inactive/i,
     );
     const beforeRecovery = await runFamilyRuntime(['attempt', 'list']);
@@ -1530,7 +1535,10 @@ test('direct family-runtime create --start gates before attempt reserve and repl
       journal: true,
     });
     await assert.rejects(
-      runFamilyRuntime(args, { stageRunRuntime: runtime }),
+      runFamilyRuntime(args, {
+        stageRunRuntime: runtime,
+        createStageRouteComposition: host.services.childFactories.createStageRouteComposition,
+      }),
       /sync-pending/i,
     );
     const whileCasPending = await runFamilyRuntime(['attempt', 'list']);
@@ -1542,8 +1550,14 @@ test('direct family-runtime create --start gates before attempt reserve and repl
       transitionId: 'direct-settled',
       journal: false,
     });
-    const launched = await runFamilyRuntime(args, { stageRunRuntime: runtime });
-    const replayed = await runFamilyRuntime(args, { stageRunRuntime: runtime });
+    const launched = await runFamilyRuntime(args, {
+      stageRunRuntime: runtime,
+      createStageRouteComposition: host.services.childFactories.createStageRouteComposition,
+    });
+    const replayed = await runFamilyRuntime(args, {
+      stageRunRuntime: runtime,
+      createStageRouteComposition: host.services.childFactories.createStageRouteComposition,
+    });
     const launchedAttempt = (launched.family_runtime_stage_attempt as any).attempt;
     const replayedSurface = replayed.family_runtime_stage_attempt as any;
     assert.equal(launchedAttempt.status, 'blocked');
@@ -1559,6 +1573,7 @@ test('direct family-runtime create --start gates before attempt reserve and repl
       'admitted_by_canonical_active_lifecycle',
     );
   } finally {
+    await host.dispose();
     if (previousStateRoot === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateRoot;
     fs.rmSync(fixtureRoot, { recursive: true, force: true });
@@ -1570,6 +1585,7 @@ test('legacy observation-only plan without action or pack stays typed not-declar
   const workspaceRoot = path.join(fixtureRoot, 'workspace');
   const stateRoot = path.join(fixtureRoot, 'state');
   const previousStateRoot = process.env.OPL_STATE_DIR;
+  const host = await createCordisBaseHeadlessComposition();
   try {
     fs.mkdirSync(workspaceRoot, { recursive: true });
     process.env.OPL_STATE_DIR = stateRoot;
@@ -1581,6 +1597,7 @@ test('legacy observation-only plan without action or pack stays typed not-declar
       }),
       '--source-fingerprint', `sha256:${'6'.repeat(64)}`,
     ], {
+      createStageRouteComposition: host.services.childFactories.createStageRouteComposition,
       stageRunRuntime: {
         ensurePackageLaunchReady: async () => null,
         resolveStageBinding: () => null,
@@ -1594,6 +1611,7 @@ test('legacy observation-only plan without action or pack stays typed not-declar
     );
     assert.equal((planned.family_runtime_stage_attempt as any).temporal_start, null);
   } finally {
+    await host.dispose();
     if (previousStateRoot === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateRoot;
     fs.rmSync(fixtureRoot, { recursive: true, force: true });
@@ -1749,6 +1767,7 @@ test('provider-hosted launch preserves currentness observation and gates before 
   const workspaceRoot = path.join(fixtureRoot, 'workspace');
   const stateRoot = path.join(fixtureRoot, 'state');
   const previousStateRoot = process.env.OPL_STATE_DIR;
+  const host = await createCordisBaseHeadlessComposition();
   const db = new DatabaseSync(':memory:');
   createFamilyRuntimeQueueTables(db);
   try {
@@ -1785,6 +1804,7 @@ test('provider-hosted launch preserves currentness observation and gates before 
       workspace_root: workspaceRoot,
     };
     const options = {
+      createStageRouteComposition: host.services.childFactories.createStageRouteComposition,
       ensurePackageLaunchReady: async () => ({
         runtime_source_readiness: { checkout_path: checkoutRoot },
         ...nativeCarrierReadiness(checkoutRoot),
@@ -1831,6 +1851,7 @@ test('provider-hosted launch preserves currentness observation and gates before 
     );
     assert.equal(launchEvent?.observation.status, 'declaration_debt');
   } finally {
+    await host.dispose();
     if (previousStateRoot === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateRoot;
     db.close();

@@ -132,7 +132,7 @@ OPL 的品牌感应从产品行为里长出来：用户每次看到的词、状�
 
 | 层 | 用户看见什么 | 机器锚点 | 品牌失败信号 |
 | --- | --- | --- | --- |
-| `product_layer` | `OPL Framework -> One Person Lab App -> Foundry Agents`。 | core docs + brand system profile。 | 用户被迫理解 repo split、provider、executor selector。 |
+| `product_layer` | `OPL Base + OPL App + OPL Packages + optional OPL Cloud`；Foundry Agents 是 Packages 中的专业 authority family。 | core docs + brand system profile。 | 用户被迫理解 repo split、provider、executor selector，或把 Package/plugin/品牌模块混为一层。 |
 | `foundry_line` | Research / Grant / Presentation / Agent Foundry 等专业线。 | domain descriptor + product pack。 | MAS/MAG/RCA 像脚本集合而不是专业智能体。 |
 | `module_language` | Charter / Atlas / Workspace / Pack / Stagecraft / Runway / Ledger / Console / Foundry Kernel / Connect。 | brand module registry + L5 evidence contract。 | 模块名只出现在 docs，不影响 App/CLI/contract/ownership。 |
 | `status_language` | Continue、Review、Waiting for owner、Typed blocker、Ready to deliver、Needs human decision。 | current owner delta + owner answer shape。 | 用 provider completed、ledger verified、worklist count 当用户状态。 |
@@ -269,7 +269,7 @@ App 理想形态是 `Codex App wrapper + Foundry Agent cockpit`：
 - Settings：App profile、access、agents/capabilities、local environment、appearance、advanced、about/update，不暴露 ordinary backend/provider selector。
 - Release：cohort-bound evidence，不外推到 family production ready。
 
-优化方向：App 普通路径只展示 `purpose -> task -> current_owner_delta -> owner action`。Shell candidate、AionUI upstream detail、provider trace、release proof、full drilldown 都下沉为 diagnostics / release / developer detail。GUI 路线按 App owner policy 固定为 AionUI 主线、`opl-native-workbench` foreground alternative、Hermes Desktop / `hermes-codex` retained explicit reference candidate、AGUI / `agui-codex` archived technical proof；除非用户明确要求 AGUI，AGUI 不再进入默认优化、验证、polish、release 或 adoption 路线。后续按本文推进功能面缺口时，任何来自 AGUI proof 的 UI、WebUI、adapter 或 smoke 待办都只能作为历史 replay 输入读取，不能转化为 OPL App 的默认开发 lane。
+优化方向：App 普通路径只展示 `purpose -> task -> current_owner_delta -> owner action`。Shell candidate、AionUI upstream detail、provider trace、release proof、full drilldown 都下沉为 diagnostics / release / developer detail。GUI 路线按 App owner policy 固定为 `opl-aion-shell` AionUI 主线、`opl-studio` DSH-derived foreground alternative、Hermes Desktop / `hermes-codex` retained explicit reference candidate、AGUI / `agui-codex` archived technical proof；除非用户明确要求 AGUI，AGUI 不再进入默认优化、验证、polish、release 或 adoption 路线。后续按本文推进功能面缺口时，任何来自 AGUI proof 的 UI、WebUI、adapter 或 smoke 待办都只能作为历史 replay 输入读取，不能转化为 OPL App 的默认开发 lane。
 
 ### 3. MAS / MAG / RCA / OMA
 
@@ -313,7 +313,7 @@ OPL 对 MAS 的进一步优化重点不是再补 MAS 私有推进器，而是让
 
 `opl-aion-shell`、`opl-agui-codex-shell` 和已退休的 `opl-doc` tombstone 不进入 Foundry Agent core truth set。
 
-- Shell：AionUI shell 是当前 App GUI 主线，只实现 App contract；`opl-native-workbench` 是 foreground alternative；Hermes Desktop 是 retained explicit reference candidate；AGUI shell 只保留为 archived technical proof / explicit replay provenance，不做默认更新或完善。上游 AionUI detail 是 implementation material。
+- Shell：`opl-aion-shell` 是当前 App GUI 主线，只实现 App contract；`opl-studio` 是 DSH-derived foreground alternative；Hermes Desktop 是 retained explicit reference candidate；AGUI shell 只保留为 archived technical proof / explicit replay provenance，不做默认更新或完善。上游 AionUI/DSH detail 是 implementation material，产品 authority 与版本组合仍由 `one-person-lab-app` 持有。
 - OPL Doc：standalone repo 只保留 provenance；当前 workflow steward 是 OPL Flow bundled `$opl-doc` Skill。它不提供 doctor CLI 或 profile sync writer，Skill/文档检查通过也不是 truth clean。
 
 ## Redesign Support Index

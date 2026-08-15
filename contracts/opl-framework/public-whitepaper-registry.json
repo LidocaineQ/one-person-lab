@@ -3,7 +3,7 @@
   "owner": "OPL Charter + OPL Connect",
   "purpose": "public_whitepaper_release_set_registry",
   "state": "active",
-  "machine_boundary": "Pointer-only registry for the four public whitepaper owners, build profiles, and public URLs. Each repository profile owns its source pointer, and each repository workflow owns its watch paths. This registry does not claim product, runtime, domain, publication, or production readiness.",
+  "machine_boundary": "Pointer-only registry for the public whitepaper owners, build profiles, and public URLs. A repository may own more than one independently built whitepaper. Each profile owns its source pointer, and each repository workflow owns its watch paths. This registry does not claim product, runtime, domain, publication, or production readiness.",
   "renderer": {
     "owner_repo": "gaofeng21cn/one-person-lab",
     "entrypoint": "scripts/run-domain-whitepaper.ts",
@@ -11,9 +11,16 @@
     "verification_schema": "opl_whitepaper_artifact_verification.v2",
     "profile_schema": "contracts/opl-framework/public-whitepaper-profile.schema.json"
   },
+  "publication": {
+    "owner_repo": "gaofeng21cn/one-person-lab",
+    "canonical_base_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/",
+    "mode": "atomic_family_bundle",
+    "source_model": "distributed_owner_prose_central_brand_publication",
+    "compatibility_policy": "Owner repositories may retain their existing publication URLs, but registry URLs are canonical for family brand presentation."
+  },
   "whitepapers": [
     {
-      "id": "opl-framework",
+      "id": "opl-family",
       "display_name": "One Person Lab",
       "repo_slug": "gaofeng21cn/one-person-lab",
       "repo_env": "OPL_FRAMEWORK_REPO",
@@ -23,14 +30,24 @@
       "public_pdf_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-whitepaper.pdf"
     },
     {
+      "id": "opl-framework",
+      "display_name": "OPL Framework",
+      "repo_slug": "gaofeng21cn/one-person-lab",
+      "repo_env": "OPL_FRAMEWORK_REPO",
+      "default_repo_dir": "one-person-lab",
+      "profile": "contracts/framework-whitepaper_profile.json",
+      "public_html_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-framework-whitepaper.html",
+      "public_pdf_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-framework-whitepaper.pdf"
+    },
+    {
       "id": "opl-app",
       "display_name": "One Person Lab App",
       "repo_slug": "gaofeng21cn/one-person-lab-app",
       "repo_env": "OPL_APP_REPO",
       "default_repo_dir": "one-person-lab-app",
       "profile": "contracts/whitepaper_profile.json",
-      "public_html_url": "https://gaofeng21cn.github.io/one-person-lab-app/latest/whitepapers/opl-app-whitepaper.html",
-      "public_pdf_url": "https://gaofeng21cn.github.io/one-person-lab-app/latest/whitepapers/opl-app-whitepaper.pdf"
+      "public_html_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-app-whitepaper.html",
+      "public_pdf_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-app-whitepaper.pdf"
     },
     {
       "id": "opl-cloud",
@@ -39,8 +56,8 @@
       "repo_env": "OPL_CLOUD_REPO",
       "default_repo_dir": "one-person-lab-cloud",
       "profile": "contracts/whitepaper_profile.json",
-      "public_html_url": "https://gaofeng21cn.github.io/one-person-lab-cloud/latest/whitepapers/opl-cloud-whitepaper.html",
-      "public_pdf_url": "https://gaofeng21cn.github.io/one-person-lab-cloud/latest/whitepapers/opl-cloud-whitepaper.pdf"
+      "public_html_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-cloud-whitepaper.html",
+      "public_pdf_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-cloud-whitepaper.pdf"
     },
     {
       "id": "mas",
@@ -49,8 +66,8 @@
       "repo_env": "MAS_REPO",
       "default_repo_dir": "med-autoscience",
       "profile": "contracts/whitepaper_profile.json",
-      "public_html_url": "https://gaofeng21cn.github.io/med-autoscience/latest/whitepapers/mas-whitepaper.html",
-      "public_pdf_url": "https://gaofeng21cn.github.io/med-autoscience/latest/whitepapers/mas-whitepaper.pdf"
+      "public_html_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/mas-whitepaper.html",
+      "public_pdf_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/mas-whitepaper.pdf"
     }
   ]
 }

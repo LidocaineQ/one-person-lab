@@ -16,9 +16,34 @@ Machine boundary: 本文是人读目标态参考。机器真相继续归核心�
 
 本文不冻结当前完成度、receipt id、worklist 计数、branch、worktree 或 release 证据。当前事实继续回到 `docs/status.md`、`docs/active/current-state-vs-ideal-gap.md` 和 fresh CLI/read-model。
 
-当前品牌系统冻结基线归 `contracts/opl-framework/brand-system-profile.json`。它把三层产品认知、品牌模块 product grammar、Foundry Agent 命名、App 状态语言、design-token/icon/card/status pattern，以及 receipt/blocker 文案规则落成机器可读 contract；该 contract 只约束当前品牌系统语言和 pattern，不声明十模块是最终 authority/Package/plugin/profile 拓扑，也不声明 L5、domain ready、quality verdict、artifact authority、App release ready 或 production ready。
+当前品牌系统冻结基线归 `contracts/opl-framework/brand-system-profile.json`。其中历史字段仍保留 Framework / App / Foundry 的责任视角；对外生态认知已由 2026-08-15 决策统一为 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`。该 contract 只约束当前品牌系统语言和 pattern，不声明十模块是最终 authority/Package/plugin/profile 拓扑，也不声明 L5、domain ready、quality verdict、artifact authority、App release ready 或 production ready。
 
 Cordis 全面迁移已冻结一条更高优先级的目标态约束：`family capability domain != authority surface != Package 发布单元 != Cordis contribution != composition profile`。P5-R 已依据真实 caller、authority、lifecycle、scope、trust、故障隔离和发布节奏形成五层目标图；下表是跨仓品牌/认知导航，不代表一 domain 一目录、一 Package或一 plugin。
+
+### 产品层、权威层与运行层
+
+品牌名是认知地图，不是仓库清单。当前生态对外仍只暴露 `OPL Base`、`OPL App`、
+`OPL Packages` 和可选 `OPL Cloud`；内部按以下关系理解：
+
+```text
+OPL Framework = 唯一 Cordis Host / runtime authority
+OPL Packages = 各 owner 独立发布的安装与能力单元；可贡献零个或多个 runtime/GUI contributions
+one-person-lab-app = App 产品、Client profile、GUI ABI、发布 authority
+opl-aion-shell = 当前 Stable AionUI Shell implementation carrier
+opl-studio = DSH-derived 下一代候选 Shell implementation carrier
+OPL Cloud = Console / Control Plane / Fabric / Ledger / Workspace 产品实现
+```
+
+GUI 是 Host/Client 双运行面：Framework 先冻结 Host composition，再通过 App-owned
+contribution projection 供 Shell 创建 Client Cordis、挂载 typed slots/routes/actions。
+AionUI 可用薄 bridge 承接，Studio 可原生采用 DSH 形态；二者都不能建立第二个 OPL
+Host、Package registry、thread/history 或产品 release authority。
+
+因此，十大品牌模块继续作为认知与源码导航，不强行一对一变成十个 Package 或十个
+plugin；后续按 authority、独立 lifecycle、scope/trust、故障隔离和真实发布节奏决定
+拆分/合并。Console 品牌跨产品复用时，Framework 的 Console 贡献只负责 read-model /
+inspect projection，Cloud 的 OPL Console 负责账号、治理、额度、批准和 Cloud 服务，
+两者不共享 authority。
 
 ## 外部经验吸收
 
@@ -103,7 +128,7 @@ Client 只能消费 projection，不能独立发现/安装 plugin、拥有 Packa
 contracts/opl-framework/brand-system-profile.json
 contracts/opl-framework/source-module-map.json
 contracts/opl-framework/package-topology.json
-src/authority/、src/adapters/、src/read-models/、src/host/、src/entrypoints/、src/kernel/（当前责任拓扑 candidate）
+src/authority/、src/adapters/、src/read-models/、src/host/、src/entrypoints/、src/kernel/（当前责任拓扑）
 src/modules/（retired / must be absent；仅历史 provenance 或 negative fixture）
 opl contract validate --json
 node --experimental-strip-types --test tests/src/cli/cases/brand-modules.test.ts
@@ -111,7 +136,7 @@ node --experimental-strip-types --test tests/src/cli/cases/brand-modules.test.ts
 
 ## 代码组织对齐
 
-OPL Framework 的历史物理代码组织曾以 `src/modules/` 作为品牌导航入口；当前 task branch 已按责任重排为 13 个 source units / 6 个 target roots，`src/modules/**` 已退休并要求 absent。源码边界、public entrypoint 规则、完成度口径和后续依赖治理读法见 [OPL Framework 源码模块边界](../source-module-boundary.md)。下列只是品牌域与常见责任单元的导航映射，不代表十个 source owners、Package 或 plugin：
+OPL Framework 的历史物理代码组织曾以 `src/modules/` 作为品牌导航入口；当前源码已按责任重排为 13 个 source units / 6 个 target roots，`src/modules/**` 已退休并要求 absent。源码边界、public entrypoint 规则、完成度口径和后续依赖治理读法见 [OPL Framework 源码模块边界](../source-module-boundary.md)。下列只是品牌域与常见责任单元的导航映射，不代表十个 source owners、Package 或 plugin：
 
 ```text
 src/authority/contracts
@@ -126,9 +151,9 @@ src/authority/evolution
 src/adapters/integration
 ```
 
-App / Cloud 产品语义可以跨多个 domain/authority/Package 组合面向用户；Framework实现不再以十个目录作为终局 owner。`source-module-map.v3` 管理 13 个 source units 与 retired root，`package-topology.v2` 管理 Package/source/plugin 关联；二者都不是 Cordis registry。当前候选分支已切真实 caller并删除旧 root，但仍需 canonical/main 吸收与 fresh owner readback；不以目录移动、零引用扫描或 docs alone声明 release/production完成。
+App / Cloud 产品语义可以跨多个 domain/authority/Package 组合面向用户；Framework实现不再以十个目录作为终局 owner。`source-module-map.v3` 管理 13 个 source units 与 retired root，`package-topology.v2` 管理 Package/source/plugin 关联；二者都不是 Cordis registry。真实 caller 已切换且旧 root 已删除；不以目录移动、零引用扫描或 docs alone 声明独立发布、runtime 或 production 完成。
 
-源码边界的默认门仍是 public interface，但入口归 authority/adapter/read-model/host source-unit exports、薄 entrypoints 与 brand-neutral kernel。source-unit 恰好一次归属、deep import、forbidden dependency、cycle 和 legacy-root absence必须保持通过；不得恢复 `src/modules/**` compatibility export或永久双入口。当前分支满足物理 cutover的结构门，canonical/main吸收与 owner readback仍是集成完成条件。
+源码边界的默认门仍是 public interface，但入口归 authority/adapter/read-model/host source-unit exports、薄 entrypoints 与 brand-neutral kernel。source-unit 恰好一次归属、deep import、forbidden dependency、cycle 和 legacy-root absence必须保持通过；不得恢复 `src/modules/**` compatibility export或永久双入口。当前源码满足物理 cutover 的结构门；独立 Package publication、runtime、release 和 production 仍须对应 owner readback。
 
 ## Package 发布边界
 

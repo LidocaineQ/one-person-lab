@@ -154,6 +154,21 @@ test('domain whitepaper runner binds verification to profile bytes', (t) => {
   assertBoundFile(domainRepo, secondVerification, 'source_profile');
 });
 
+test('domain whitepaper runner can bind a distributed source to canonical family URLs', (t) => {
+  const { domainRepo, binDir } = makeDomainRepo(t);
+  const publicHtmlUrl = 'https://brand.example/whitepapers/domain-whitepaper.html';
+  const publicPdfUrl = 'https://brand.example/whitepapers/domain-whitepaper.pdf';
+  const result = runRunner([
+    '--repo-root', domainRepo,
+    '--profile', 'contracts/whitepaper_profile.json',
+    '--public-html-url', publicHtmlUrl,
+    '--public-pdf-url', publicPdfUrl,
+  ], { PATH: `${binDir}:${process.env.PATH ?? ''}` });
+  assert.equal(result.status, 0, result.stderr);
+  const verification = JSON.parse(result.stdout) as { public_urls: { html: string; pdf: string } };
+  assert.deepEqual(verification.public_urls, { html: publicHtmlUrl, pdf: publicPdfUrl });
+});
+
 test('domain whitepaper runner rejects malformed profile JSON before rendering', (t) => {
   const { domainRepo } = makeDomainRepo(t);
   fs.writeFileSync(path.join(domainRepo, 'contracts', 'whitepaper_profile.json'), '{invalid json\n');

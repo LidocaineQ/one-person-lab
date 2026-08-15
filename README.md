@@ -88,19 +88,27 @@ With this design, OPL keeps attention on real progress: whether the next version
 
 Workflow tools are strongest when the task is deterministic: call a few tools, fill a few fields, and produce a fixed output. High-value knowledge work behaves more like a professional team moving a project forward: someone prepares material, someone creates, someone reviews, someone revises, and someone closes out delivery. OPL organizes those roles and stages so AI keeps producing inspectable, editable, deliverable work.
 
-## Product Layers
+## OPL Ecosystem
 
-One Person Lab has three user-visible layers:
+Users only need four stable product concepts:
 
-| Layer | Audience | Role |
+| Product | User understanding | Internal authority |
 | --- | --- | --- |
-| **OPL Framework** | Developers, technical operators, product integration | Runs long tasks, records progress and evidence, supports recovery/retry, and keeps human intervention visible. |
-| **One Person Lab App** | End users | Desktop workbench for choosing tasks, watching progress, opening files, handling blockers, and receiving updates. |
-| **Foundry Agents** | Specialized work | MAS, MAG, RCA, Book Forge, and later agents provide professional capabilities and deliverables for medical research, grant writing, visual delivery, book writing, and more. |
+| **OPL Base** | The runtime foundation that makes long work runnable, recoverable, and auditable. | `one-person-lab` implements OPL Framework, the single Cordis Host. |
+| **OPL App** | The local workbench for choosing work, watching progress, opening files, and acting on blockers. | `one-person-lab-app` owns the product, GUI ABI, selected Shell, and release. |
+| **OPL Packages** | Installable Agents, Skills, Tools, Plugins, and Workflows that add professional capability. | Each Package owner owns identity and publication; Framework discovers and projects installed capabilities. |
+| **OPL Cloud** *(optional)* | Online Workspace, account governance, hosted resources, collaboration, and Agent services. | `one-person-lab-cloud` owns Cloud products and services. |
 
-The chain is straightforward: host specialized agents with OPL Framework, then package the framework and agents into a desktop product users can run directly.
+Foundry Agents such as MAS, MAG, RCA, OMA, and Book Forge are professional
+authority domains delivered through OPL Packages. They keep their own quality,
+artifact, and delivery decisions; they are not a fifth product layer and are not
+Framework plugins by definition.
 
-Users do not need to understand the repository split to use the product. For developers: `one-person-lab` maintains the framework and CLI, `one-person-lab-app` maintains the desktop product and release experience, and MAS, MAG, RCA, Book Forge, and other repositories maintain their professional capabilities, standards, and deliverables.
+Users do not need to understand the repository split. For developers:
+`one-person-lab` maintains Base/Framework, `one-person-lab-app` maintains the App
+product and release experience, Package repositories maintain installable
+capabilities, and `one-person-lab-cloud` optionally extends the same work model
+online.
 
 For the complete repository split, see the [OPL family repository map](./docs/public/repo-map.md).
 

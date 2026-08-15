@@ -29,6 +29,7 @@ import {
 } from '../../src/adapters/execution/family-runtime-source-truth-refs.ts';
 import { runStandardAgentHandlerSandbox } from '../../src/adapters/execution/standard-agent-handler-sandbox.ts';
 import { normalizeStageQualityCyclePolicy } from '../../src/authority/stages/stage-quality-cycle.ts';
+import { createCordisBaseHeadlessComposition } from '../../src/host/composition-profiles.ts';
 
 function root(prefix: string) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -1787,6 +1788,7 @@ test('Hosted Stage action replays one durable registry launch and starts a later
   let stageRuntimeCreateCalls = 0;
   let currentBindingResolutions = 0;
   let pinnedBindingResolutions = 0;
+  const host = await createCordisBaseHeadlessComposition();
   try {
     process.env.OPL_STATE_DIR = stateRoot;
     writeContracts(checkoutRoot, [action({
@@ -1803,6 +1805,7 @@ test('Hosted Stage action replays one durable registry launch and starts a later
     const runStageRuntime: typeof runFamilyRuntime = async (args) => {
       if (args[0] === 'attempt' && args[1] === 'create') stageRuntimeCreateCalls += 1;
       return await runFamilyRuntime(args, {
+        createStageRouteComposition: host.services.childFactories.createStageRouteComposition,
         stageRunRuntime: {
           ensurePackageLaunchReady: async () => ({
             launch_allowed: true,
@@ -1899,6 +1902,7 @@ test('Hosted Stage action replays one durable registry launch and starts a later
     assert.equal(currentBindingResolutions, 2);
     assert.equal(pinnedBindingResolutions, 0);
   } finally {
+    await host.dispose();
     if (previousStateRoot === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateRoot;
     fs.rmSync(checkoutRoot, { recursive: true, force: true });

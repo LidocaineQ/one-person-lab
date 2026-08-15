@@ -7,12 +7,13 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 
 ## 2026-08-15
 
-### 决策：十大品牌升级为跨 OPL Family 的 capability domains，并实施 Host/Client Cordis 与 Package topology cutover
+### 决策：OPL 保持四层产品认知，十大品牌升级为跨 Family capability domains
 
 原因：Framework P1-P6 已证明 Cordis Host 的 service injection、typed event、scope teardown、composition snapshot 与受控 profile 能降低真实 caller 的 wiring 成本。DeepSeek Harness GUI 的进一步调研也证明 GUI 不需要被排除在 Cordis 外：Host 可以决定并投影 allowlisted client graph，浏览器再创建 Host 派生的 Client Cordis context，通过 typed slots、RPC 和 events 组合 UI。继续把原十个品牌同时当作 Framework bounded context、源码目录、Package 和 plugin，会重新制造一对一耦合，也无法正确表达 Console 等横跨 Framework/App/Cloud 的产品能力。
 
 影响：
 
+- 对外产品模型固定为 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`；Foundry Agents 是 Packages 中保留领域 authority 的专业能力家族，不是第五个产品层。
 - 顶层链路固定为 `family capability domain -> repo/product-specific authority surface -> versioned Package/artifact -> host-specific contribution -> curated product/profile composition`。品牌域、authority owner、Package 发布单元和 Cordis plugin 运行单元彼此正交。
 - 原 `Charter/Atlas/Workspace/Pack/Stagecraft/Runway/Ledger/Console/Foundry/Connect` 继续作为 OPL family 的稳定品牌语言和认知地图，但不再被解释为十个 Framework 源码 owner、十个 Package 或十个 plugin。它们可以跨 Framework/App/Cloud 分布，一个域可贡献多个 plugin，纯 authority 域也可以没有常驻 plugin。
 - Framework 是唯一 Host composition authority。它选择 curated profile、冻结 Host graph，并将 allowlisted、带 version/source identity 的 client graph 投影给 App。Client Cordis 不得独立发现或安装插件、维护第二 registry/currentness、获得 release-operation service，或签发 App/domain/Cloud verdict。
@@ -21,8 +22,11 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 - Framework 源码物理目标从 `src/modules/<brand>/` 品牌桶迁到按责任命名的 `src/authority/**`、`src/adapters/**`、`src/read-models/**`、`src/host/**` 与薄 `src/entrypoints/**`。迁移必须 successor-first：建立新路径、切真实 caller、验证 affected outcome/public exports，再以 structural caller=0 删除旧目录；文档或目录移动不证明完成。
 - 独立版本、分支和发布能力通过 Package topology 实现，但只拆有真实替换价值和独立发布节奏的单元。第一批优先评估 Runway executor、Foundry evaluation、Connect discovery 与 `opl-package-host`；不把现有 plugin 或十品牌机械拆仓，也不把 monorepo workspace package 自动写成已独立发布。
 - 受控 profile 隐藏内部组合矩阵，普通用户不面对任意 plugin 组合。Host/Client graph、Package/currentness、App product profile、Cloud product truth 和 domain authority 分别由对应 owner 回读，任何一层都不能从另一层推导 ready。
+- `one-person-lab` 是唯一 Cordis Host；`one-person-lab-app` 是 App 产品、Client profile、GUI contribution ABI、active shell、版本组合和发布 authority。
+- `opl-aion-shell` 是当前 Stable AionUI implementation carrier；`opl-studio` 是 DSH-derived foreground candidate carrier。两个 Shell 统一产品语义、Framework state/action/runtime bridge、Client Cordis 组合协议、GUI contribution schema、设计/可访问性语义和发布证据类别；renderer、组件树、carrier、upstream intake、缓存、构建链、Git 历史和实现测试保持独立。
+- 一次 OPL App 发布冻结 App product version、Framework compatibility、selected Shell identity/version、GUI ABI version、Client composition snapshot 和 contribution versions。只有 App `app-shell-adapter` 合同可切换 active shell；Studio 的源码或功能完成不自动取代 AionUI。
 
-当前状态：Framework Host Cordis P1-P6 已 landed；本决策的 SSOT/白皮书对齐与 capability-domain/package topology 物理 cutover 正在执行。Host 派生 Client Cordis、双 GUI ABI、独立 Package publication 和旧 `src/modules/**` caller-zero 必须分别由 canonical source/contracts/tests 与 owner readback 证明，当前不得声明全部完成。
+当前状态：Framework Host Cordis P1-P6、family capability-domain registry、13 个 source units / 6 个 target roots、`src/modules/**` 退役和五个 workspace Package 候选已经进入当前源码。Host/Client 合同与双 GUI 顶层 ABI 已对齐；AionUI/Studio 的 release/runtime 准入、跨 GUI E2E 和独立 Package publication 仍须由各自 owner 的 canonical readback 证明，不得由源码 topology 推导完成。
 
 ## 2026-08-14
 
@@ -1641,7 +1645,7 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 
 ## 2026-05-12
 
-### 决策：产品认知固定为 OPL Framework、One Person Lab App 与 Foundry Agents 三层
+### 已被 2026-08-15 决策取代：Framework、App 与 Foundry Agents 三层认知
 
 原因：OPL 已经从入口聚合和工作台投影演进为完整的 stage-led 智能体框架。如果继续把框架开发、运行托管、普通用户 App 和 MAS/MAG/RCA 这类领域产品都用同一个不分层的 `OPL` 叙事表达，开发者用户和纯使用者都会难以判断自己应该进入哪一层。更清晰的产品结构是：OPL Framework 负责开发与运行框架；One Person Lab App 负责普通用户使用体验；Foundry Agents 负责医学研究、基金、汇报等领域交付。
 
@@ -1653,7 +1657,7 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 - 开发和运行保持集成在 OPL Framework 内；当前不拆 repo，也不把每个 domain agent 改成内嵌一份 OPL runtime。
 - agent 的推荐发布形态是 OPL-compatible package / repo：声明 framework/version/contract 要求、stage descriptor、skill、quality gate、artifact locator、projection 和 authority refs，由 OPL Framework 安装、发现、托管、唤醒和投影。
 - Full 首次安装包可以把 App、OPL Framework、OPL Meta Agent、MAS/MAG/RCA、provider payload、`officecli` 与推荐 skills 打在一起；这只是分发形态，不改变 single framework runtime truth，也不改变 MAS/MAG/RCA 的领域权威。
-- 后续 README、project/status/architecture、contracts 说明、App 文案和 onboarding 文档应优先使用这组三层主语，避免把 App 写成 Framework 本体，或把 Foundry Agents 写成 OPL 内部模块。
+- 本段保留为历史决策 provenance。当前 README、project/status/architecture、App 文案和 onboarding 统一使用 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`；Foundry Agents 作为 Packages 中保留专业 authority 的家族说明。
 
 ## 2026-05-10
 

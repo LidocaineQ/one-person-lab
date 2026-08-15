@@ -11,13 +11,13 @@ Currentness policy：本文冻结 GUI shell / App / OPL runtime owner boundary�
 
 ## 结论
 
-当前 GUI 主线是 `one-person-lab-app` 通过 `shells/aionui` 消费的 OPL-branded AionUI shell；所有主线 AionUI upstream 适配、品牌替换、界面裁剪、Electron 打包和 shell overlay，都应发生在 `opl-aion-shell`。`opl-native-workbench` 是 App-owned foreground alternative GUI candidate；Hermes Desktop / `hermes-codex` 是 retained explicit reference candidate；AG-UI/CopilotKit / `agui-codex` 只作为 archived technical proof 与显式 replay surface 保留，不进入日常实现、默认验证或抛光路线。标准 DMG、Full 版 DMG、updater metadata、GitHub Release、GUI smoke、用户教程和 GUI runtime bridge 产品合同由 clean `one-person-lab-app` 产品仓独占。Framework 仓只保留 App 可消费机器接口、App release discovery consumer surface，以及作为 Full 版 DMG 内 runtime/CLI/contracts payload source。
+当前 GUI 主线是 `one-person-lab-app` 通过 `shells/aionui` 消费的 OPL-branded AionUI shell；所有主线 AionUI upstream 适配、品牌替换、界面裁剪、Electron 打包和 shell overlay，都应发生在 `opl-aion-shell`。`opl-studio` 是 App-owned DSH-derived foreground alternative GUI candidate；Hermes Desktop / `hermes-codex` 是 retained explicit reference candidate；AG-UI/CopilotKit / `agui-codex` 只作为 archived technical proof 与显式 replay surface 保留，不进入日常实现、默认验证或抛光路线。标准 DMG、Full 版 DMG、updater metadata、GitHub Release、GUI smoke、用户教程和 GUI runtime bridge 产品合同由 clean `one-person-lab-app` 产品仓独占。Framework 仓只保留 App 可消费机器接口、App release discovery consumer surface，以及作为 Full 版 DMG 内 runtime/CLI/contracts payload source。
 
 `one-person-lab` 主仓不 fork GUI codebase。它持有 OPL 的运行时真相、安装与环境管理能力、模块与 skill 同步、机器可读合同、release version、Packages 坐标，以及 App / WebUI 共同消费的 CLI-backed 产品表面。
 
 运行状态页遵循三层边界：`one-person-lab` 持有 `opl app state/action`、`opl runtime app-operator-drilldown` 和 refs-only action / drilldown 协议；`one-person-lab-app` 持有 GUI product truth、GUI runtime bridge 抽象、页面合同、release 包装和 active shell validation；`opl-aion-shell` 是当前 `aionui` implementation carrier，负责 renderer/bridge 实现。普通 GUI 页面状态默认读取 `opl app state --profile fast --json`，显式 full-state 诊断或 release evidence 才读取 `opl app state --profile full --json`，用户触发的完整 runtime / operator 展开才读取 `opl runtime app-operator-drilldown --detail full --json`。Shell 可以实现页面、发起 CLI 调用和渲染状态，但不能成为 runtime truth、domain truth、artifact body、memory body 或 quality/export verdict 的 owner。
 
-因此，未来切换到其他 GUI 的目标不是重写 OPL，而是替换当前 GUI adapter。当前允许持续推进的 foreground alternative 按 App candidate registry 读取为 `opl-native-workbench`；Hermes Desktop 只保留为 explicit reference replay；其他候选需要 App owner 明确重新打开 candidate policy。只要新 GUI 消费同一组 OPL CLI / machine-readable surfaces，切换成本应主要集中在 UI adapter、打包和发布链路，不应扩散到 MAS/MAG/RCA 或 OPL runtime；MDS 只保留为 MAS 显式声明的可选 companion。
+因此，未来切换到其他 GUI 的目标不是重写 OPL，而是替换当前 GUI adapter。当前允许持续推进的 foreground alternative 按 App candidate registry 读取为 `opl-studio`；Hermes Desktop 只保留为 explicit reference replay；其他候选需要 App owner 明确重新打开 candidate policy。只要新 GUI 消费同一组 OPL CLI / machine-readable surfaces，切换成本应主要集中在 UI adapter、打包和发布链路，不应扩散到 MAS/MAG/RCA 或 OPL runtime；MDS 只保留为 MAS 显式声明的可选 companion。
 
 App 仓库拆分 closeout 已归档到 [One Person Lab App 仓库拆分 Closeout](../../history/process/plans/2026-05-15-one-person-lab-app-repo-split-closeout.md)。当前维护规则是避免把 AionUI 历史合入 App 默认分支：`one-person-lab-app/shells/aionui` 必须是外部 checkout，history-preserving upstream intake、shell-local `AGENTS.md` 和 OPL overlay 退役审计留在 `opl-aion-shell`。
 
@@ -37,7 +37,7 @@ App 仓库拆分 closeout 已归档到 [One Person Lab App 仓库拆分 Closeout
 
 - 持有 App 产品入口、release 包装、用户可见文档、active shell contract、runtime bridge contract 和 active-shell validation。
 - 通过 `contracts/app-runtime-bridge.json`、active shell contract 和 shell candidate registry 固化 GUI runtime bridge 与候选策略：OPL 是协议 owner，App 是 UI/bridge/product contract owner，当前 shell 是 replaceable implementation carrier。
-- 固定 GUI 路线：AionUI 是主线，`opl-native-workbench` 是 foreground alternative，Hermes Desktop 是 retained explicit reference candidate，AGUI/CopilotKit 是 archived technical proof。AGUI 只在用户明确要求时 replay，不进入日常实现、默认验证、功能抛光或 release/adoption claim。
+- 固定 GUI 路线：AionUI 是主线，`opl-studio` 是 DSH-derived foreground alternative，Hermes Desktop 是 retained explicit reference candidate，AGUI/CopilotKit 是 archived technical proof。AGUI 只在用户明确要求时 replay，不进入日常实现、默认验证、功能抛光或 release/adoption claim。
 - 可替换 active shell 或升级 GUI，但必须保持运行状态页只消费 OPL CLI / machine-readable projection，不直接读取 domain repo、runtime state file、artifact body 或 memory body。
 - 验证 active shell 能实现合同，但不接管 OPL runtime truth、provider implementation、domain truth 或 action route authority。
 
@@ -87,7 +87,7 @@ GUI fork 更新不是机械 rebase。标准 intake 目标是“吸收 upstream +
 6. 替换 `opl install` 的 GUI release asset 选择逻辑，让它下载新 GUI 的预编译包。
 7. 跑相同的 packaged runtime validation、App 启动 smoke 和 Docker/WebUI smoke。
 
-对 AionUI 2.0 这类大版本，推荐在 App 仓 `shells/aionui-next/` 这类主线升级路径中并行适配。对非 AionUI 的新 GUI，当前 foreground alternative 按 App candidate registry 读取为 `opl-native-workbench`；Hermes Desktop 只保留为 explicit reference replay；其他 GUI 只有在 App owner 明确重新打开 candidate policy 后才能进入 `shells/<new-gui>/`。只有 typecheck、测试、packaged runtime validation、页面状态测试和真实启动 smoke 通过后，才更新 App 顶层 active shell contract。
+对 AionUI 2.0 这类大版本，推荐在 App 仓 `shells/aionui-next/` 这类主线升级路径中并行适配。对非 AionUI 的新 GUI，当前 foreground alternative 按 App candidate registry 读取为 `opl-studio`；Hermes Desktop 只保留为 explicit reference replay；其他 GUI 只有在 App owner 明确重新打开 candidate policy 后才能进入 `shells/<new-gui>/`。只有 typecheck、测试、packaged runtime validation、页面状态测试和真实启动 smoke 通过后，才更新 App 顶层 active shell contract。
 
 切换会变困难的情况是：新 GUI 不愿意消费 OPL CLI-backed surface，反而要求 OPL 改成它自己的内部数据模型、长期驻留服务或专用 API。那会把 GUI 选择反向污染 OPL runtime 边界，应避免。
 

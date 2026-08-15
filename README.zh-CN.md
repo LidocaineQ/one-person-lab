@@ -88,19 +88,24 @@ One Person Lab 的优势在于，它既让用户看得见“现在做到哪一�
 
 普通工作流工具适合确定性任务，例如调用几个工具、填几个字段、生成一个固定输出。高价值知识工作更像一个专业团队在持续推进项目：有人准备材料，有人创作，有人审阅，有人修订，有人收口交付。OPL 把这些角色和阶段组织起来，让 AI 持续形成可检查、可修改、可交付的成果。
 
-## 产品关系
+## OPL 生态
 
-One Person Lab 同时包含框架、桌面工作台和专业 Agent 三层：
+用户只需理解四个稳定的产品概念：
 
-| 层级 | 面向对象 | 作用 |
+| 产品 | 用户理解 | 内部权威 |
 | --- | --- | --- |
-| **OPL Framework** | 开发者、技术操作者、产品集成 | 负责长任务运行、进度记录、证据追踪、恢复重试和人工介入。 |
-| **One Person Lab App** | 终端用户 | 桌面工作台。用户从这里选择任务、查看进度、打开文件、处理阻塞和获取更新。 |
-| **Foundry Agents** | 专业工作场景 | MAS、MAG、RCA、Book Forge 等专业 Agent 分别提供医学研究、基金写作、视觉交付、书籍写作等专业能力和交付物。 |
+| **OPL Base** | 让长期工作可以运行、恢复和审计的基础。 | `one-person-lab` 实现 OPL Framework，也是唯一 Cordis Host。 |
+| **OPL App** | 选择工作、查看进度、打开文件和处理阻塞的本地工作台。 | `one-person-lab-app` 持有产品、GUI ABI、Shell 选择和发布。 |
+| **OPL Packages** | 可安装的 Agent、Skill、Tool、Plugin 和 Workflow，为系统增加专业能力。 | 每个 Package owner 持有身份和发布；Framework 发现并投影已安装能力。 |
+| **OPL Cloud**（可选） | 在线 Workspace、账号治理、托管资源、协作与 Agent 服务。 | `one-person-lab-cloud` 持有 Cloud 产品与服务。 |
 
-这三层形成一条清晰链路：用 OPL Framework 托管专业 Agent，再把框架和 Agent 打包成普通用户可直接使用的桌面产品。
+MAS、MAG、RCA、OMA、Book Forge 等 Foundry Agents 是通过 OPL Packages 交付的专业
+authority domain。它们继续持有自己的质量、产物与交付判断；它们不是第五个产品层，
+也不因为被 Framework 托管就天然等于 Cordis plugin。
 
-如果只是使用产品，不需要理解这些仓库分工。对开发者来说：`one-person-lab` 维护框架和命令行，`one-person-lab-app` 维护桌面产品和发布体验，MAS、MAG、RCA、Book Forge 等仓库维护各自专业领域的能力、判断标准和交付物。
+如果只是使用产品，不需要理解仓库分工。对开发者来说：`one-person-lab` 维护
+Base/Framework，`one-person-lab-app` 维护 App 产品与发布体验，各 Package 仓维护可安装
+能力，`one-person-lab-cloud` 按需把同一工作模型扩展到线上。
 
 完整仓库分工见 [OPL 系列仓库地图](./docs/public/repo-map.md)。
 
