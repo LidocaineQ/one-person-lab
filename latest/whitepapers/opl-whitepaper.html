@@ -125,7 +125,7 @@ font-size: 1.9rem;
 </blockquote>
 <!-- Owner: `One Person Lab`; Purpose: `public_whitepaper_body_source`; State: `active_public_source`; Machine boundary: Human-readable whitepaper body source. Public latest outputs live under `docs/site/latest/whitepapers/`; verification JSON comes from `npm run docs:latest`; runtime, release, domain, production, owner-receipt, and current product truth stay in their owning contracts, source, CLI/API/read-model, runtime ledgers, receipts, and evidence surfaces. -->
 <p>发布日期：2026-07-13</p>
-<p>最近修订：2026-08-12</p>
+<p>最近修订：2026-08-15</p>
 <p>适用对象：希望理解 One Person Lab
 为什么这样设计，以及这种设计怎样让复杂知识工作更好用、更可信的用户、合作者、早期采用者和技术决策者。</p>
 <p>核心判断：One Person Lab 让 AI
@@ -178,19 +178,25 @@ C”。复杂知识工作却经常需要反复理解、比较、推翻、重写�
 可以自由决定如何完成工作，最终结论始终由明确的责任方给出。</p>
 <p>因此，OPL
 的基本协作单元是一次有目标、有产物、有审阅、有去向的专业工作尝试。</p>
-<h2 id="三层产品一个体验清楚分工">三层产品：一个体验，清楚分工</h2>
+<h2 id="四层生态一个体验清楚分工">四层生态：一个体验，清楚分工</h2>
 <p>One Person Lab
-对用户呈现为一个连续产品，对内保持三层分工，分别为可靠运行、易用界面和专业判断指定清楚的责任方。</p>
-<p><strong>OPL Framework</strong>
-是运行底座。它负责显式启动、阶段推进、长期运行、恢复、工作空间、证据与交接，让复杂任务可以被启动、暂停、继续和收口。具体执行工具可以变化，工作本身的阶段、成果与责任关系保持稳定。</p>
-<p><strong>One Person Lab App</strong>
-是用户工作面，让用户选择任务、查看进度、打开文件、处理卡点和接收更新。<strong>OPL
-Cloud</strong>
-把同一条工作线扩展到在线工作空间、托管资源、组织管理和协作场景。两者都沿用
-Framework 的运行事实和领域 Agent
-的专业结论，不另造一套相互冲突的状态。</p>
-<p><strong>Foundry Agents</strong>
-是专业能力层。不同领域需要不同材料理解、工作方法、质量标准和交付权威。OPL
+对用户呈现为一个连续产品，对内用四个稳定对象降低安装、使用和维护成本。</p>
+<p><strong>OPL Base</strong> 是运行底座，由 OPL Framework
+实现。它负责显式启动、阶段推进、长期运行、恢复、工作空间、证据与交接，让复杂任务可以被启动、暂停、继续和收口。</p>
+<p><strong>OPL App</strong>
+是本地工作面，让用户选择任务、查看进度、打开文件、处理卡点和接收更新。它可以更换
+GUI Shell，但产品定义和工作语言只有一份。</p>
+<p><strong>OPL Packages</strong>
+是可安装能力层。Agent、Skill、Tool、Plugin 和 Workflow 都通过 Package
+进入生态；Package 可以按真实发布节奏独立安装、版本化和发布，Base
+负责发现和运行，App 负责呈现，Package owner
+继续负责自己的能力与专业边界。</p>
+<p><strong>OPL Cloud</strong>
+是按需启用的在线产品层，把同一条工作线扩展到在线
+Workspace、账号治理、托管资源、组织协作和 Agent 服务。它不替代 Base、App
+或 Packages。</p>
+<p>Foundry Agents 是 OPL Packages 中的专业 authority
+family。不同领域需要不同材料理解、工作方法、质量标准和交付权威。OPL
 当前的五个标准 Foundry Agents 是：</p>
 <ul>
 <li><a href="https://github.com/gaofeng21cn/med-autoscience">Med Auto
@@ -209,10 +215,10 @@ Forge（OBF）</a>：面向书籍与长篇手稿的策划、写作、审阅与�
 的标准运行与工作面，但专业判断与最终责任仍然归属清楚。OMA 负责理解新
 Agent
 应解决的问题、形成设计并提出演进建议；独立评估负责检验这些建议，目标领域的负责人决定是否采用。</p>
-<p>三层之间有一条简单原则：Framework
-负责“工作怎样可靠推进”，App（以及条件启用的
-Cloud）负责“用户怎样看见并操作”，Foundry Agent
-负责“这个专业领域什么算好、什么可以交付”。</p>
+<p>四层之间有一条简单原则：Base 负责“工作怎样可靠推进”，Packages
+提供“系统能完成什么专业工作”，App 负责“用户怎样看见并操作”，Cloud
+按需增加在线治理与托管；Foundry Agent 等 Package owner
+继续决定“这个专业领域什么算好、什么可以交付”。</p>
 <h2 id="三类机制用户为什么会觉得它好用">三类机制：用户为什么会觉得它好用</h2>
 <p>OPL
 内部有运行、工作空间、能力目录、证据、控制台和连接等多个模块。用户只需理解这些能力最终形成的三类可感知机制。</p>
@@ -323,6 +329,15 @@ Forge、工作流与能力包。</li>
 <p>用户只需维护 Base、App 和 Packages。Base 管共同底座，App
 管桌面体验，Packages
 管专业能力；领域事实和质量判断仍留在对应专业责任方。这样的运维设计让“专业能力很多”与“日常维护简单”可以同时成立。</p>
+<p>需要在线 Workspace、账号治理、远端资源或协作时，再接入可选的
+<strong>OPL Cloud</strong>。 Cloud 扩展工作位置和治理能力，不替代
+Base、App 或 Packages，也不要求用户学习另一套 Agent 运行模型。</p>
+<p>App
+自身也保持一个产品、多个可替换界面实现。<code>one-person-lab-app</code>
+统一定义产品行为、 GUI 合同和发布组合；当前 AionUI Shell 与 DSH-derived
+Studio 候选 Shell 都消费同一 Framework Host
+投影。这样，界面可以演进或替换，用户的任务、Package、状态、动作和
+专业判断 authority 不随 renderer 迁移。</p>
 <h2 id="为什么用户可以相信-opl">为什么用户可以相信 OPL</h2>
 <p>信任来自系统持续回答几个关键问题：要交付什么，推进到哪里，当前成果在哪里，依据是什么，谁负责下一步，什么判断仍在等待授权。</p>
 <p>OPL 用克制建立这种信任：</p>
@@ -360,8 +375,8 @@ Lab</a></li>
 Person Lab App</a></li>
 <li><a href="https://github.com/gaofeng21cn/one-person-lab-cloud">OPL
 Cloud</a></li>
-<li><a href="https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-whitepaper.html">OPL
-Framework 白皮书在线版</a></li>
+<li><a href="https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-framework-whitepaper.html">OPL
+Framework 白皮书</a></li>
 </ul>
 </body>
 </html>

@@ -1,0 +1,119 @@
+{
+  "schema_version": "opl_whitepaper_artifact_verification.v2",
+  "status": "whitepaper_artifact_verified",
+  "generated_at": "2026-08-15T05:05:38.867Z",
+  "publication_date": "2026-07-13",
+  "claim_boundary": {
+    "artifact_render_verified": true,
+    "published_verified": false,
+    "product_ready": false,
+    "runtime_ready": false,
+    "domain_ready": false
+  },
+  "source_git": {
+    "commit": "10da91b9cd3f08eeb53857bfe7e33cb2b0de100a",
+    "branch": "main",
+    "tracked_dirty": false
+  },
+  "source_profile": "contracts/whitepaper_profile.json",
+  "source_profile_sha256": "878c176c5df957096eff4f4451eca54a24fd03b4d24d324ccfb35fe122924605",
+  "source_profile_size": 578,
+  "source_markdown": "docs/whitepapers/opl-app-whitepaper.md",
+  "source_markdown_sha256": "1e6ce3cd050985a693175879cdf8c14aaa09086821847a0226b39068849c5e61",
+  "source_markdown_size": 12777,
+  "generated_markdown": "docs/site/latest/whitepapers/opl-app-whitepaper.md",
+  "generated_markdown_sha256": "1e6ce3cd050985a693175879cdf8c14aaa09086821847a0226b39068849c5e61",
+  "generated_markdown_size": 12777,
+  "generated_html": "docs/site/latest/whitepapers/opl-app-whitepaper.html",
+  "generated_html_sha256": "c6a657dc5e7abae79d5cdbcb02bd3d6cbdc14787e13de7fc6adade01c3c32f8b",
+  "generated_html_size": 2643606,
+  "generated_pdf": "docs/site/latest/whitepapers/opl-app-whitepaper.pdf",
+  "generated_pdf_sha256": "1a6d840d12d706e956fabcea7b688f7bfd930e89d5281408b4eb8431261c5a65",
+  "generated_pdf_size": 1840519,
+  "temp_markdown": "tmp/pdfs/opl-app-whitepaper/opl-app-whitepaper.pandoc.md",
+  "rendered_dir": "tmp/pdfs/opl-app-whitepaper/rendered",
+  "rendered_pages": 6,
+  "rendered_page_hashes": [
+    {
+      "page": "page-1.png",
+      "sha256": "d6d2f93957f50e89c0086daf3a11d686717da2d179d646cd90283a591828ff65",
+      "size": 72667
+    },
+    {
+      "page": "page-2.png",
+      "sha256": "2e8ca73b04acd8b57423f5669aa7725c64fa3da39df4f62d7ca9044028b19d4e",
+      "size": 71248
+    },
+    {
+      "page": "page-3.png",
+      "sha256": "9795ee96d925c26c7df04092660635bb66b2d4e48c8606997ae16ca3f6b23dff",
+      "size": 752655
+    },
+    {
+      "page": "page-4.png",
+      "sha256": "bc4f61bdd3fb2465bba92cb5826f5b5791d0fad1020a071b5333f5cfda2ca888",
+      "size": 390784
+    },
+    {
+      "page": "page-5.png",
+      "sha256": "6cc31557baf8e702fd9ce97cb3489ef3a68bfb3ed31c93fd3d98701003f252d6",
+      "size": 404148
+    },
+    {
+      "page": "page-6.png",
+      "sha256": "d9e86bb0a1fa6418f4b9ce5bf60af39416f819657e347e58811ebf71e5fb3dce",
+      "size": 386341
+    }
+  ],
+  "pdf_pages": 6,
+  "pdf_page_size_pts": {
+    "width": 612,
+    "height": 792
+  },
+  "page_policy": {
+    "min": 5,
+    "max": 8
+  },
+  "style_profile": "opl-whitepaper-pandoc-xelatex-v2",
+  "renderer": {
+    "repo_commit": "2b22403bf0e93c629f7e23731df9c7ea175566c5",
+    "builder": {
+      "path": "scripts/opl-whitepaper-builder.ts",
+      "sha256": "1b9f93e4678d9f74a370d7ca6baf29dbca0636382c6fa443f60f0e6589b514aa",
+      "size": 17276
+    },
+    "style": {
+      "path": "scripts/whitepaper-style.css",
+      "sha256": "2019446149baf356d6a8ed2184c70d15275a85e8b4e8964a5360f1822ae32d9f",
+      "size": 1776
+    }
+  },
+  "public_urls": {
+    "html": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-app-whitepaper.html",
+    "pdf": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-app-whitepaper.pdf"
+  },
+  "additional_public_artifacts": [],
+  "tools": {
+    "pandoc": {
+      "path": "/usr/bin/pandoc",
+      "version": "pandoc 3.1.3"
+    },
+    "xelatex": {
+      "path": "/usr/bin/xelatex",
+      "version": "XeTeX 3.141592653-2.6-0.999995 (TeX Live 2023/Debian)"
+    },
+    "pdfinfo": {
+      "path": "/usr/bin/pdfinfo",
+      "version": "pdfinfo version 24.02.0"
+    },
+    "pdftoppm": {
+      "path": "/usr/bin/pdftoppm",
+      "version": "pdftoppm version 24.02.0"
+    },
+    "pdftotext": {
+      "path": "/usr/bin/pdftotext",
+      "version": "pdftotext version 24.02.0"
+    }
+  },
+  "references": []
+}
