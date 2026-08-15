@@ -281,19 +281,24 @@ Workspace
 负责在线工作与治理。界面汇总它们的真实状态，不要求用户理解多套运行器、状态来源与恢复机制。</p>
 <h2 id="一个产品两种界面实现">一个产品，两种界面实现</h2>
 <p>OPL App 由一份产品定义和一位发布负责人统筹，也支持多个界面实现。当前
-AionUI 主线界面 承载稳定产品体验；借鉴 DeepSeek Harness
-的候选界面探索新的交互与插件机制。两者都是同一 App 产品合同的载体：</p>
+AionUI 主线界面 承载稳定产品体验；借鉴 DeepSeek Harness 的 Studio
+候选界面探索新的交互与载体实现。两者都是同一 App 产品合同的载体：</p>
 <pre class="text"><code>OPL Packages -&gt; 专业能力与受控界面描述
-OPL Framework Host -&gt; 经过准入的状态、动作与界面能力
+OPL Framework Host -&gt; 动态、经过准入的状态、动作与界面能力投影
+OPL App profile / allowlist -&gt; Client Contribution ABI 与产品状态语义
 OPL App Client Cordis -&gt; 产品页面、动作与界面贡献
   -&gt; AionUI 主线界面
   -&gt; DeepSeek Harness 候选界面</code></pre>
 <p>导航、页面身份、状态名称、命令含义、首次使用引导、能力包管理和发布准入都由
 One Person Lab App
 统一。两个界面可以采用不同的渲染技术、组件库、上游来源和构建方式，
-同时共享 Framework
-提供的状态、动作和界面贡献。当前双界面消费合同已经明确，真实运行投影
-与跨界面一致性仍在持续实现和验证。</p>
+同时共享 Framework 提供的 Host-derived graph、App allowlist、typed
+slots/actions、RPC/events 和状态语义。App
+不维护固定品牌能力名单，而是显示并准入 Framework 的动态投影。所有 Shell
+命令都要先通过 App-owned compatibility/admission；这证明显式 adapter
+可选择，不承诺无验证 热切换。AionUI
+的真实消费链由主线源码和测试证明，Studio
+仍需完成独立候选与发布准入。</p>
 <p>一次发布会明确记录 App 版本、Framework
 兼容范围、所选界面版本、界面能力版本和组合快照。 AionUI
 当前承载主线发布；候选界面会在安装、安全、更新和发布证据完整后，按照 App
