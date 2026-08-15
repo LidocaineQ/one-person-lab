@@ -11,7 +11,7 @@ import {
   CORDIS_FRAMEWORK_INTEGRITY,
   CORDIS_FRAMEWORK_PACKAGE,
   CORDIS_FRAMEWORK_VERSION,
-} from '../runway/cordis-agent-executor-experiment.ts';
+} from '../runway/public/cordis-framework-runtime.ts';
 import {
   admitReleaseBundleOperation,
   buildReleaseBundle,
