@@ -21,7 +21,7 @@ export const CORDIS_PACKAGE_HOST_PLUGIN_ID = 'opl-package-host';
 export const CORDIS_PACKAGE_HOST_PLUGIN_API_VERSION = '1.0.0';
 export const CORDIS_PACKAGE_HOST_SERVICE = 'opl.pack.package-host';
 export const CORDIS_PACKAGE_HOST_SOURCE_REF = 'packages/package-host/src/plugin.ts';
-export const CORDIS_PACKAGE_HOST_SOURCE_COMMIT = '97510b268300b1996f308e7a4110205cd703b95e';
+export const CORDIS_PACKAGE_HOST_SOURCE_COMMIT = '832aa00a85eb722dc8748587ffe648b3c6afd808';
 
 export const CORDIS_PACKAGE_HOST_PLUGIN_DESCRIPTOR: CordisPluginDescriptor =
   buildCordisPluginDescriptor(descriptorPayload as unknown as CordisPluginDescriptorInput);

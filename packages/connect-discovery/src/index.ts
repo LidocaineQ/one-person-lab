@@ -20,7 +20,7 @@ export const CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_SERVICE =
 export const CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_SOURCE_REF =
   'packages/connect-discovery/src/index.ts';
 export const CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_SOURCE_COMMIT =
-  '97510b268300b1996f308e7a4110205cd703b95e';
+  '832aa00a85eb722dc8748587ffe648b3c6afd808';
 
 export type CordisConnectDescriptorDiscoveryInput = Readonly<{
   packageId?: string;

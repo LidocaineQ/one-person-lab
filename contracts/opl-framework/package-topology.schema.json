@@ -5,6 +5,7 @@
   "type": "object",
   "required": ["version", "root_package", "packages", "legacy_paths"],
   "properties": {
+    "$schema": { "type": "string", "minLength": 1 },
     "version": { "const": "package-topology.v1" },
     "root_package": { "const": "opl-framework" },
     "packages": {

@@ -5,8 +5,8 @@
   "plugin_ref": "cordis:plugin:opl-package-host@1.0.0",
   "plugin_api_version": "1.0.0",
   "source_ref": "packages/package-host/src/plugin.ts",
-  "source_commit": "97510b268300b1996f308e7a4110205cd703b95e",
-  "source_identity": "git:97510b268300b1996f308e7a4110205cd703b95e:packages/package-host/src/plugin.ts",
+  "source_commit": "832aa00a85eb722dc8748587ffe648b3c6afd808",
+  "source_identity": "git:832aa00a85eb722dc8748587ffe648b3c6afd808:packages/package-host/src/plugin.ts",
   "package_ref": {
     "package_id": "@one-person-lab/package-host",
     "package_version": "0.1.0",

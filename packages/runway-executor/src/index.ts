@@ -16,7 +16,7 @@ export const CORDIS_AGENT_EXECUTOR_PLUGIN_API_VERSION = '1.0.0';
 export const CORDIS_AGENT_EXECUTOR_SOURCE_REF =
   'packages/runway-executor/src/index.ts';
 export const CORDIS_AGENT_EXECUTOR_SOURCE_COMMIT =
-  '97510b268300b1996f308e7a4110205cd703b95e';
+  '832aa00a85eb722dc8748587ffe648b3c6afd808';
 
 export type BaseAgentExecutionRequest = Readonly<{
   prompt: string;
