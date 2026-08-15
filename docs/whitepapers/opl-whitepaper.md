@@ -67,7 +67,7 @@ One Person Lab 对用户呈现为一个连续产品，对内用四个稳定对�
 
 **OPL App** 是本地工作面，让用户选择任务、查看进度、打开文件、处理卡点和接收更新。它可以更换 GUI Shell，但产品定义和工作语言只有一份。
 
-**OPL Packages** 是可安装能力层。Agent、Skill、Tool、Plugin 和 Workflow 都通过 Package 进入生态；每个 Package 独立发布，Base 负责发现和运行，App 负责呈现，Package owner 继续负责自己的能力与专业边界。
+**OPL Packages** 是可安装能力层。Agent、Skill、Tool、Plugin 和 Workflow 都通过 Package 进入生态；Package 可以按真实发布节奏独立安装、版本化和发布，Base 负责发现和运行，App 负责呈现，Package owner 继续负责自己的能力与专业边界。
 
 **OPL Cloud** 是按需启用的在线产品层，把同一条工作线扩展到在线 Workspace、账号治理、托管资源、组织协作和 Agent 服务。它不替代 Base、App 或 Packages。
 

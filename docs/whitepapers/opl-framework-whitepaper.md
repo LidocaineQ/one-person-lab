@@ -20,7 +20,7 @@
 
 OPL Framework 要解决的不是“如何再造一个更大的智能体”，而是“如何让专业智能体的每一部分都能持续变好，而整个系统仍然可信”。
 
-因此，Framework 把运行底座理解为一个可组合的能力系统。规则、发现、工作空间、阶段、执行、证据、呈现、评估和连接不再是一个黑箱中的内部步骤，而是有名字、有责任、有生命周期的独立模块。它们共同服务一条专业工作线，却不互相吞并事实和判断权。
+因此，Framework 把运行底座理解为一个可组合的能力系统。规则、发现、工作空间、阶段、执行、证据、呈现、评估和连接不再是一个黑箱中的内部步骤，而是由 capability domain、authority、Package 和 Cordis contribution 共同表达的责任面。它们共同服务一条专业工作线，却不互相吞并事实和判断权。
 
 ## 为什么选择 Cordis
 
@@ -43,12 +43,13 @@ Cordis 提供的是组合秩序，而不是专业裁决。它不会替代领域 
 ## 四层生态中的可组合底座
 
 用户面对的是 `OPL Base`、`OPL App`、`OPL Packages` 和按需使用的 `OPL Cloud`。
-Framework 是 Base 的核心实现和唯一 Cordis Host；Packages 是独立安装与发布的专业能力；
+Framework 是 Base 的核心实现和唯一 Cordis Host；Packages 是可独立安装与发布的专业能力；
 App 是本地工作台；Cloud 负责在线治理与托管。Cordis 是 Base 内部的组合机制，不是第五个
 产品层。
 
-Framework 当前显式识别十四类 Cordis contribution。它们说明运行时有哪些可替换责任，
-但不等于十四个外部产品、十四个 Package、十四个仓库或一套必须永久保持不变的品牌目录。
+Framework 当前可以装载多类 Cordis contribution。它们说明运行时有哪些可替换责任，
+但不等于固定数量的外部产品、Package、仓库或品牌目录；真实数量由 caller、生命周期和
+替换价值决定。
 
 | 领域 | 当前 contribution | 对读者的核心承诺 |
 | --- | --- | --- |
@@ -67,9 +68,9 @@ Framework 当前显式识别十四类 Cordis contribution。它们说明运行�
 | 生态与交付 | **OPL Connect Discovery** | 让外部能力和贡献按统一方式被发现，而不是继续扩张中央注册表 |
 | 生态与交付 | **OPL Connect Release** | 让经过确认的能力进入可追踪的交付过程，并保留版本与来源关系 |
 
-这十四个 contribution 是当前运行组合的可检查入口。对外品牌和源码导航可以把相近责任
-组织成更少的认知域；一个认知域也可以贡献多个 contribution。数量只跟随真实责任和 caller，
-不成为架构目标。
+这些 contribution 是当前运行组合的可检查入口。对外品牌和源码导航把相近责任组织成
+capability domains；一个认知域可以贡献多个 contribution，也可以只保留 authority surface。
+数量只跟随真实责任和 caller，不成为架构目标。
 
 ## 四种身份，分别回答四个问题
 
@@ -77,7 +78,7 @@ Framework 当前显式识别十四类 Cordis contribution。它们说明运行�
 
 | 身份 | 回答的问题 |
 | --- | --- |
-| 品牌模块 / 认知域 | 人怎样理解责任、在源码和文档中从哪里进入？ |
+| 品牌模块 / capability domain | 人怎样理解跨 Framework、App 与 Cloud 的稳定责任？ |
 | authority owner | 谁可以决定事实、质量、权限、状态或发布？ |
 | OPL Package | 哪些能力可以独立安装、发布、升级和分发？ |
 | Cordis plugin contribution | 哪段进程内能力需要独立挂载、注入、隔离和卸载？ |
@@ -86,26 +87,28 @@ Framework 当前显式识别十四类 Cordis contribution。它们说明运行�
 一个品牌模块可以跨多个 Package 与 plugin；纯 authority domain 也可以没有常驻 plugin。
 composition snapshot 只冻结一次运行选择，不能替代 Package currentness 或 owner authority。
 
-独立 Package、独立版本线和独立仓库会优先落到真正具有独立发布节奏和替换价值的 Runway
-Executor、Foundry Evaluation、Connect Discovery 与 Package Host 等单元。其他稳定贡献可以
-继续共处一仓，通过独立 API/version/source identity 和组合快照获得可追踪性。是否继续拆分，
-由真实 caller、故障隔离和发布证据决定，而不是为了保持目录或数字对称。
+独立 Package、独立版本线和独立仓库优先落到真正具有独立发布节奏和替换价值的 Runway
+Executor、Foundry Evaluation、Connect Discovery、Package Host 与 Cordis ABI 等单元。Framework
+先在同一 monorepo 建立独立 workspace、API/version/source identity 和组合快照，以最小管理成本
+证明边界；只有 Package owner 的真实发布与 channel readback 完成后，才称为独立发布。其他稳定
+贡献可以继续共处一仓。是否继续拆分，由真实 caller、故障隔离和发布证据决定，而不是为了保持
+目录或数字对称。
 
 ## 自由组合，不把复杂度交给用户
 
-可组合不等于让用户面对十四个开关和难以验证的组合矩阵。OPL Framework 在内部保留贡献组合自由，在外部提供少量经过验证的组合形态。
+可组合不等于让用户面对任意插件开关和难以验证的组合矩阵。OPL Framework 在内部保留贡献组合自由，在外部提供少量经过验证的组合形态。
 
-无界面的基础运行、完整桌面工作台、研究工作、基金工作、视觉交付和 Foundry 开发，需要的能力组合并不相同。Framework 用受控 Profile 表达这些差异：每个 Profile 说明自己需要哪些模块，冻结一次实际组合，并接受完整验证。
+无界面的基础运行、完整桌面工作台、研究工作、基金工作、视觉交付和 Foundry 开发，需要的能力组合并不相同。Framework 用受控 Profile 表达这些差异：每个 Profile 说明自己需要哪些受控 contribution，冻结一次实际组合，并接受完整验证。
 
-用户选择的是“我要完成什么工作”，而不是“我要装载哪十四个插件”。模块化降低开发与运维成本，Profile 降低用户认知成本。两者结合，系统内部可以快速演进，产品表面仍然保持稳定、清楚和可预测。
+用户选择的是“我要完成什么工作”，而不是“我要装载哪些插件”。capability-domain 认知降低维护成本，Profile 降低用户认知成本。两者结合，系统内部可以快速演进，产品表面仍然保持稳定、清楚和可预测。
 
 ## Framework Host 与 App Client：同一架构，两种职责
 
-OPL Framework 是唯一的 Cordis Host。它决定哪些模块能够进入一个组合，管理它们的生命周期，并投影出经过允许的能力和状态。
+OPL Framework 是唯一的 Cordis Host。它依据受控 profile 决定哪些 runtime contribution 能够进入一个组合，管理它们的生命周期，并投影出经过 App 准入的能力和状态。
 
-One Person Lab App 不是另一套平行运行时。它可以理解为 **OPL Framework 加上一组面向用户体验的 GUI 贡献**：窗口、导航、任务视图、文件工作面、进度呈现和操作入口都可以按相同的模块化原则装载，但它们消费的是 Host 明确投影的能力，不能自行发现特权插件，也不能接管 Package、运行事实或专业判断的权威。
+One Person Lab App 不是另一套平行 Host。它是 App 产品 authority 加上一组面向用户体验的受控 GUI contributions：窗口、导航、任务视图、文件工作面、进度呈现和操作入口可以由 Host 投影的 graph 派生到 Client Cordis 中，但它们不能自行发现特权插件，也不能接管 Package、运行事实或专业判断的权威。
 
-因此，App 侧可以拥有自己的 Client Cordis，用来组织界面贡献和客户端生命周期；Framework Host 仍然是组合权威。Host 与 Client 使用一致的插件思想，却承担不同责任：Host 决定能力真实存在并允许被消费，Client 决定这些能力怎样成为连贯的用户体验。
+因此，App 侧可以拥有由 Host graph 派生的 Client Cordis，用来组织界面贡献和客户端生命周期；Framework Host 仍然是组合权威，App 仍然是产品准入、页面结构和发布 authority。Host 与 Client 使用一致的插件思想，却承担不同责任：Host 决定能力真实存在并允许被消费，Client 决定这些能力怎样成为连贯的用户体验。
 
 这一区分让 GUI 插件化不会演变成第二个 Framework，也让后端模块化不会把界面锁死在某一种实现上。
 
@@ -113,7 +116,7 @@ One Person Lab App 不是另一套平行运行时。它可以理解为 **OPL Fra
 
 One Person Lab App 当前同时推进两条 GUI 路线：基于 AionUI 的主线版本，以及基于 DeepSeek Harness GUI 的候选版本。它们可以拥有不同的渲染技术、交互实验和演进速度，但不能拥有两套产品事实。
 
-两条路线都遵循同一顶层设计：Framework Host 投影允许的 App 能力，App Client Cordis 组织 GUI 贡献，产品合同定义用户应当看见的任务、Package、状态、动作和责任边界。界面实现可以替换，用户的工作线和系统的事实不能随渲染器迁移。
+两条路线都遵循同一顶层设计：Framework Host 投影 allowlisted graph，App Client Cordis 组织 GUI 贡献，产品合同定义用户应当看见的任务、Package、状态、动作和责任边界。AionUI 主线与 DSH-derived candidate 共享这份 ABI、typed slots/actions、RPC/events 和 product profile；只有 renderer、carrier 和视觉实现可以不同。
 
 这使双 GUI 不再意味着双倍架构成本。AionUI 主线可以继续承载稳定产品体验，DSH-derived 候选可以更快学习新的交互与插件机制；任何成熟能力都必须通过共同产品合同进入，而不是在某个 Shell 内形成新的事实来源。
 
@@ -121,7 +124,7 @@ One Person Lab App 当前同时推进两条 GUI 路线：基于 AionUI 的主线
 
 Harness 的长期价值，不只是把工具接给模型，而是让系统能够观察自身、提出改进并在证据约束下采用更好的实现。
 
-当执行、发现、观测、评估和连接都是独立模块时，Foundry 可以围绕一个清楚对象工作：冻结当前版本，生成候选，执行针对性测试，在真实 Profile 中比较效果，再由正确的责任方决定是否激活。成功的改进只替换相应模块；失败的候选不会污染整个运行底座。
+当执行、发现、观测、评估和连接都是独立 contribution 或 Package 时，Foundry 可以围绕一个清楚对象工作：冻结当前版本，生成候选，执行针对性测试，在真实 Profile 中比较效果，再由正确的责任方决定是否激活。成功的改进只替换相应贡献；失败的候选不会污染整个运行底座。
 
 这比“让 Agent 修改自己的全部代码”更可控，也比永远依赖人工整体发布更有演进效率。模块身份提供实验单位，组合快照提供复现边界，Ledger 提供证据，Foundry Evaluation 提供独立比较，最终采用权仍然属于明确的 owner。
 
@@ -149,7 +152,7 @@ OPL Framework 不把所有责任都吸收到插件系统中。可组合层负责
 
 OPL Framework 的专业性不来自模块数量，而来自一组持续兑现的工程承诺。
 
-- **概念与实现一致。** 品牌模块不是宣传标签，而是源码、Package、插件和版本身份的共同边界。
+- **概念与实现一致。** 品牌模块是 capability-domain 认知地图；authority、Package、插件和版本身份分别由各自真实边界表达。
 - **组合可以被看见。** 每次运行都能解释实际装载的能力及其来源，而不是依赖隐式全局状态。
 - **升级可以被比较。** 候选模块先获得独立证据，再进入受控组合，不以“已经接入”代替“已经更好”。
 - **故障可以被隔离。** 模块生命周期和责任边界让问题停留在合理范围，并保留清楚的回退对象。

@@ -7,7 +7,7 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 
 ## 顶层分层
 
-`OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。对外产品认知固定为 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`：Base 提供运行基础，App 提供本地工作台，Packages 提供可安装专业能力，Cloud 按需提供在线治理与托管。Foundry Agents 是通过 Packages 交付并保留领域权威的专业能力家族，不是第五个产品层。OPL 已完成向 DSH 正式 `@deepseek-ai/cordis` 的 Framework 全面迁移：`base-headless` 是默认 composition，P1-P6、真实默认 caller、snapshot/digest、child fiber teardown 与显式 Atlas/Workspace/Connect/Runway services 均已落地。Cordis 只负责进程内 composition；Package/native carrier、Temporal durable history/retry/replay、Workspace bytes/binding、Ledger receipts/evidence、Foundry activation、domain truth 与 App GUI ABI 仍归各自 owner。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
+`OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。对外产品认知固定为 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`：Base 提供运行基础，App 提供本地工作台，Packages 提供可安装专业能力，Cloud 按需提供在线治理与托管。Foundry Agents 是通过 Packages 交付并保留领域权威的专业能力家族，不是第五个产品层。OPL 已完成向 DSH 正式 `@deepseek-ai/cordis` 的 Framework Host 全面迁移：`base-headless` 是默认 composition，P1-P6、真实默认 caller、snapshot/digest、child fiber teardown 与显式 Atlas/Workspace/Connect/Runway services 均已落地。Host 派生 Client Cordis、双 GUI 统一 ABI、capability-domain 重基线和 Package/source topology 是当前后续 cutover；它们不改变 Cordis 只负责进程内 composition 的边界。Package/native carrier、Temporal durable history/retry/replay、Workspace bytes/binding、Ledger receipts/evidence、Foundry activation、domain truth 与 App product/GUI ABI 仍归各自 owner。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
 
 ### Codex executable carrier 边界
 
@@ -98,12 +98,13 @@ release manifest/checksum/attestation、Temporal Worker Versioning 和 domain ar
 
 ### Target：DSH Cordis 进程内组合层
 
-OPL 的 Cordis 目标层只处理进程内组合：Context、service、`inject` 依赖、typed event、`effect()` disposer 和 scope teardown。它把十个品牌模块的可替换运行贡献组合到一个 process/session/attempt context 中，但不重新定义模块 owner，也不把内存中的 service 变成 durable truth。
+OPL 的 Cordis 目标层只处理进程内组合：Context、service、`inject` 依赖、typed event、`effect()` disposer 和 scope teardown。Host 把 capability domains 的可替换运行贡献组合到 process/session/attempt context 中；需要 GUI 时，再投影受 App allowlist 约束的 client graph，由 renderer 创建 Client Cordis。Cordis 不重新定义 authority owner，也不把内存中的 service 变成 durable truth。
 
 ```text
-Brand module source owner -> Package/carrier projection -> Cordis plugin contribution
-                                                     -> process/session/attempt composition
-Executor route <------------------------------------+
+Capability domain -> authority/source unit -> Package/carrier projection
+                                       -> Cordis Host plugin contribution
+                                       -> Host-projected Client contribution
+Executor route <------------------------+
 Temporal / Workspace / Ledger / Foundry / domain owner remain authoritative
 ```
 
@@ -111,13 +112,13 @@ Temporal / Workspace / Ledger / Foundry / domain owner remain authoritative
 
 | 身份 | OPL 语义 | Cordis 是否拥有 |
 | --- | --- | --- |
-| Brand module | 源码 owner / bounded context | 只消费其公开 plugin contribution，不改变 owner。 |
+| Capability domain / brand module | 跨产品认知地图，不必拥有单一源码目录 | 只消费其公开 contribution，不改变 authority owner。 |
 | Package | 安装、发布、分发和 carrier 生命周期单元 | 不拥有；plugin 只是 Package 的进程内 projection。 |
 | Cordis plugin | service、event、effect 和 lifecycle 贡献 | 负责进程内挂载和卸载。 |
 | Composition snapshot | 一次执行选中的 exact plugin/source/package 输入 | 只作为不可变 execution input，不是 installed lock 或 currentness。 |
 | Executor route | Codex/Claude/Hermes/Antigravity 的实际可调用能力 | 通过 plugin 暴露 route，不改变 executor 或 Temporal authority。 |
 
-十个品牌模块的 Cordis 贡献如下；P1 已用真实 caller 和依赖图完成 surface 确认，P5 将按依赖批次实现和切换：
+十个品牌 capability domains 的代表性 Cordis 贡献如下；P1 已用真实 caller 和依赖图完成 surface 确认，P5/P6 已按依赖批次实现并切换 Framework Host caller。该表不是 plugin registry 或物理目录清单：
 
 | 模块 | Cordis 候选贡献 | 继续保留的权威 |
 | --- | --- | --- |
@@ -132,9 +133,9 @@ Temporal / Workspace / Ledger / Foundry / domain owner remain authoritative
 | `Foundry Kernel` | design/eval/activation adapter | AgentVersion、qualification、canary、activation CAS。 |
 | `Connect` | carrier/provider/plugin loader adapter | native installed truth、Package currentness、credential。 |
 
-Cordis plugin 可独立版本、分支和发布；组合只通过显式 `provides/injects`、API compatibility、scope 和 trust contract 校验，不建立中央版本 resolver。required plugin 缺失或不兼容时，composition fail closed；optional plugin 只能形成诊断/降级，不得写 domain verdict。生产 attempt 在启动时冻结 composition snapshot，运行中不得 hot swap；HMR/reload 仅限 dev/experimental scope。Cordis 不是安全沙箱，不可信 plugin 必须由现有 sandbox/provider 或独立进程隔离。
+Cordis plugin API、源码版本、Package 版本与 composition snapshot 分别标识；开发分支只承载候选，不是生产组合机制。只有真实 Package publication 与 owner channel readback 完成后，才称为独立发布。组合通过显式 `provides/injects`、API compatibility、scope 和 trust contract 校验，不建立中央版本 resolver。required plugin 缺失或不兼容时，composition fail closed；optional plugin 只能形成诊断/降级，不得写 domain verdict。生产 attempt 在启动时冻结 composition snapshot，运行中不得 hot swap；HMR/reload 仅限 dev/experimental scope。Cordis 不是安全沙箱，不可信 plugin 必须由现有 sandbox/provider 或独立进程隔离。
 
-Cordis adoption 的详细阶段、owner、写集、验证、完成门和回退见 [`docs/active/cordis-adoption-plan.md`](./active/cordis-adoption-plan.md)。当前 P1-P6 已进入 canonical main，默认 Framework 路径已切换并完成 legacy WorkspaceBindingPort caller-zero；App/AionUI GUI ABI 与各 owner 的 live/production readiness 仍由对应 owner fresh readback。迁移成本不再是否决条件；既有 Package lifecycle、Temporal、Foundry、Ledger 与 domain/App owner 边界继续有效。
+Cordis adoption 的详细阶段、owner、写集、验证、完成门和回退见 [`docs/active/cordis-adoption-plan.md`](./active/cordis-adoption-plan.md)。当前 P1-P6 已进入 canonical main，默认 Framework Host 路径已切换并完成 legacy WorkspaceBindingPort caller-zero；Host 派生 Client Cordis、双 GUI 统一 ABI、capability-domain 与 Package/source topology 仍须分别由 Framework/App owner 的 canonical source 和验证证明。迁移成本不再是否决条件；既有 Package lifecycle、Temporal、Foundry、Ledger 与 domain/App owner 边界继续有效。
 
 ### Legacy Package Manager compatibility inventory
 
