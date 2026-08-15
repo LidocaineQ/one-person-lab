@@ -5,7 +5,7 @@ Purpose: `opl_framework_contract_support_index`
 State: `active_support`
 Machine boundary: This document is a human-readable support index for OPL Framework contracts. Machine truth remains in JSON contract files, source, tests, CLI/read-model output, runtime ledgers, and provider/domain receipts.
 
-This directory preserves the active `OPL Framework` runtime and family control-plane contract corpus. `One Person Lab App` and Foundry Agents may consume these contracts, but this directory does not define a second runtime truth for the App or any domain agent.
+This directory preserves the active `OPL Framework` runtime and family control-plane contract corpus. `One Person Lab App` and installed OPL Packages may consume these contracts, but this directory does not define a second runtime truth for the App or any Package/domain owner. Foundry Agents are a professional Package family, not a separate product layer.
 
 ## Release event and consumer boundary
 
@@ -41,7 +41,7 @@ finish. They are not the long-term target and must not gain new consumers. See
 It is repo-tracked because the current framework needs stable machine-readable inputs for:
 
 - stage-led task selection
-- product-layer ownership for `OPL Framework`, `One Person Lab App`, and `Foundry Agents`
+- ecosystem ownership for `OPL Base`, `OPL App`, `OPL Packages`, and optional `OPL Cloud`
 - admitted domain-agent / Foundry package catalog projection
 - provider-backed runtime attempts
 - passive AI-route context transport and currentness readback without a transition table runner or matrix evaluator
@@ -68,11 +68,11 @@ It is repo-tracked because the current framework needs stable machine-readable i
 - App runtime state/action CLI boundary for GUI implementations
 - optional native-helper lifecycle checks
 
-The current product model is `OPL Framework -> One Person Lab App / CLI -> Foundry Agents`. `one-person-lab` owns the framework/runtime/CLI/contracts layer, `one-person-lab-app` owns GUI product truth and release validation, `opl-aion-shell` is the current shell implementation carrier, and MAS/MAG/RCA own their domain app/runtime authority. The execution chain remains `Codex CLI first-class executor + explicit OPL activation + configured family runtime provider + family skill sync/discovery`.
+The current ecosystem model is `OPL Base + OPL App + OPL Packages + optional OPL Cloud`. `one-person-lab` implements Base and owns the single Framework Cordis Host; `one-person-lab-app` owns one App product, its GUI ABI, Client profile, release composition, and active-shell decision; `opl-aion-shell` is the current Stable Shell and `opl-studio` is the DSH-derived candidate Shell. Packages remain independently installable, versioned, and releasable capability products; MAS/MAG/RCA retain domain authority as members of the Foundry Agent Package family. Cloud is an optional online product layer, not a second Cordis Host. Brand/cognitive domains, authority owners, Package release units, and Cordis plugin contributions are intentionally separate structures. The execution chain remains `Codex CLI first-class executor + explicit OPL activation + configured family runtime provider + installed Package discovery`.
 
 ## Current Truth Lives Elsewhere
 
-Start here for the active `OPL Framework / App / Foundry Agents` model:
+Start here for the active `OPL Base / App / Packages / optional Cloud` ecosystem model:
 
 - `README*`
 - `docs/project.md`
