@@ -2,47 +2,41 @@
 
 <!-- Owner: `One Person Lab`; Purpose: `public_whitepaper_family_catalog_source`; State: `active_public_source`; Machine boundary: Human-readable catalog source. Published bytes and currentness remain with each repository's approved publication bundle and exact-byte public readback receipt. -->
 
-One Person Lab 白皮书系列面向用户、合作者和技术决策者，解释产品为什么这样设计，以及这些设计如何让复杂知识工作更容易推进、复查和交付。
+One Person Lab 白皮书面向用户、合作者和技术决策者，呈现 OPL 对专业人工智能的核心判断：专业人工智能的价值，在于长期、可复查地推进真实工作，并把每次生成转化为可以继续的成果。五篇白皮书从总体愿景、运行底座、产品体验、云端能力和医学研究实践展开，共同描绘一套能够持续形成成果、接受审阅、保留证据并明确责任的专业工作方式。
 
 ## One Person Lab
 
-复杂知识工作为什么需要阶段、工作空间、独立审阅、可恢复运行和清楚的权威边界。
+从“一次回答”走向“持续完成”，让一个人也能获得专业团队级的推进、审阅和交付能力。
 
 - [在线阅读](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-whitepaper.html)
 - [PDF](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-whitepaper.pdf)
 
-## OPL Base / OPL Framework
+## OPL Framework
 
-OPL Base 是用户获得的本地运行基础；OPL Framework 是它的技术实现和唯一 Cordis Host。白皮书解释长期运行的 AI 专业工作为什么需要可组合能力、受控 composition profile、清楚的 authority 边界和可验证的自进化。
+以 Cordis 组织可组合、可检查、可持续演进的专业能力，让 OPL Base 在长期运行中依然保持清楚的责任、版本和恢复路径。
 
 - [在线阅读](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-framework-whitepaper.html)
 - [PDF](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-framework-whitepaper.pdf)
 
 ## One Person Lab App
 
-为什么用户先看到工作目的、产物和下一步，而不是运行时、后端和诊断细节。App 只有一个产品 authority；当前 Stable `opl-aion-shell` 与 DSH-derived 候选 `opl-studio` 通过同一 GUI ABI 和 Client profile 实现可替换 Shell。
+把目标、材料、进度、成果、审阅和下一步组织成一张连续工作台。AionUI 主线界面与借鉴 DeepSeek Harness 的候选界面共享同一份产品设计与产品承诺。
 
 - [在线阅读](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-app-whitepaper.html)
 - [PDF](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-app-whitepaper.pdf)
 
-## OPL Packages
-
-Packages 是与 Base、App 并列的可安装能力产品，可独立版本化、发布和组合；它不等于 Cordis plugin。一个 Package 可以贡献多个 plugin，一个品牌/认知域也不必对应一个 Package。Foundry Agents 是保留领域 authority 的专业 Package 家族；下方 Med Auto Science 是当前公开白皮书中的一个实例。
-
 ## OPL Cloud
 
-本地工作怎样在资源受控、责任清楚、证据可复查的前提下延伸到云端和团队环境。
-
-这是长期、条件启用的可选产品层；只有真实 account、storage、isolation、backend 与 owner policy 齐备时才进入产品面。Cloud 不是第二 Cordis Host，也不是 GUI plugin，不是当前 App desktop + Docker/WebUI、runtime、release 或 production-ready 要求。
+OPL Cloud 是 OPL 正在建设并持续交付的云端产品层。它把同一项专业工作延伸到在线工作空间、私有数据、远端资源、团队协作和智能体服务，让权限、成本、证据与责任在云端依然清楚可见。
 
 - [在线阅读](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-cloud-whitepaper.html)
 - [PDF](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-cloud-whitepaper.pdf)
 
 ## Med Auto Science
 
-医学研究怎样从一次 AI 对话变成由问题、证据、分析、稿件和独立审阅组成的连续研究线。
+以医学研究验证 OPL 的领域实践：让问题、证据、分析、写作、独立审阅与研究责任组成一条连续、可复查的科研工作线。
 
 - [在线阅读](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/mas-whitepaper.html)
 - [PDF](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/mas-whitepaper.pdf)
 
-白皮书解释设计理念，不替代安装说明、功能清单、运行状态、领域质量结论或生产发布证明。正文仍由各产品仓维护，统一品牌站点由 OPL Framework 聚合发布；各产品仓原有 URL 保留为兼容入口。
+五篇白皮书共同构成 One Person Lab 的品牌叙事：总体愿景确立方向，Framework 构建运行底座，App 与 Cloud 延展本机和云端的连续体验，Med Auto Science 在真实专业领域中检验这套方法。它们共同指向一个长期目标：让一个人也能获得专业团队级的人工智能工作能力，让每一份成果都能继续、复查和交接。
