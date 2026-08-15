@@ -63,25 +63,25 @@ OPL 把这种阶段内的开放式专家工作称为**认知计算**：AI 在一
 
 One Person Lab 对用户呈现为一个连续产品，对内用四个稳定对象降低安装、使用和维护成本。
 
-**OPL Base** 是运行底座，由 OPL Framework 作为唯一 Cordis Host 实现。它负责显式启动、阶段推进、长期运行、恢复、工作空间、证据与交接，让复杂任务可以被启动、暂停、继续和收口。具体执行工具与能力实现可以变化，工作本身的阶段、成果与责任关系保持稳定。
+**OPL Base** 是运行底座，由 OPL Framework 作为唯一 Cordis Host 实现。它负责启动、阶段推进、长期运行、恢复、工作空间、证据与交接，让复杂任务可以被启动、暂停、继续和收口。具体执行工具与能力实现可以变化，工作本身的阶段、成果与责任关系保持稳定。
 
 **OPL App** 是本地工作面和产品体验负责人，让用户选择任务、查看进度、打开文件、处理卡点和接收更新。它可以更换 GUI Shell，但产品定义和工作语言只有一份；当前 AionUI 主线与 DeepSeek Harness GUI 候选共享同一套 Host 派生能力、操作和状态来源，差异只在呈现与载体。
 
-**OPL Packages** 是可安装能力层。Agent、Skill、Tool、Plugin 和 Workflow 都通过 Package 进入生态；Package 可以按真实发布节奏独立安装、版本化和发布，Base 负责发现和运行，App 负责呈现，Package owner 继续负责自己的能力与专业边界。
+**OPL Packages** 是可安装能力层。智能体、技能、工具、插件和工作流都通过能力包进入生态；每个能力包可以按真实节奏独立安装、版本化和发布，Base 负责发现和运行，App 负责呈现，能力提供者继续负责自己的专业边界。
 
-**OPL Cloud** 是按需启用的在线产品层，把同一条工作线扩展到在线 Workspace、账号治理、托管资源、组织协作和 Agent 服务。它不替代 Base、App 或 Packages。
+**OPL Cloud** 是 One Person Lab 正在建设和持续交付的云端产品，把同一条工作线延伸到在线工作空间、账号治理、托管资源、组织协作和智能体服务。它与 Base、App、Packages 共同构成完整而连续的四层产品体系。
 
-Foundry Agents 是 OPL Packages 中的专业 authority family。不同领域需要不同材料理解、工作方法、质量标准和交付权威。OPL 当前的五个标准 Foundry Agents 是：
+Foundry Agents 是 OPL Packages 中的专业智能体家族。不同领域需要不同的材料理解、工作方法、质量标准和交付责任。OPL 当前的五个标准专业智能体是：
 
 - [Med Auto Science（MAS）](https://github.com/gaofeng21cn/med-autoscience)：医学研究与论文交付；
 - [Med Auto Grant（MAG）](https://github.com/gaofeng21cn/med-autogrant)：基金方向、申请书、模拟评审与修订；
-- [RedCube AI（RCA）](https://github.com/gaofeng21cn/redcube-ai)：**Visual Deliverable Foundry**，负责演示文稿、报告、叙事、渲染、审阅与导出；
+- [RedCube AI（RCA）](https://github.com/gaofeng21cn/redcube-ai)：负责演示文稿、报告、叙事、渲染、审阅与导出；
 - [OPL Meta Agent（OMA）](https://github.com/gaofeng21cn/opl-meta-agent)：理解新建、接管和改进目标，形成智能体蓝图、评测规格和基于证据的演进建议；
 - [OPL Book Forge（OBF）](https://github.com/gaofeng21cn/opl-bookforge)：面向书籍与长篇手稿的策划、写作、审阅与交付。
 
 五者统一使用 OPL 的标准运行与工作面，但专业判断与最终责任仍然归属清楚。OMA 负责理解新 Agent 应解决的问题、形成设计并提出演进建议；独立评估负责检验这些建议，目标领域的负责人决定是否采用。
 
-四层之间有一条简单原则：Base 负责“工作怎样可靠推进”，Packages 提供“系统能完成什么专业工作”，App 负责“用户怎样看见并操作”，Cloud 按需增加在线治理与托管；Foundry Agent 等 Package owner 继续决定“这个专业领域什么算好、什么可以交付”。
+四层之间有一条简单原则：Base 负责“工作怎样可靠推进”，Packages 提供“系统能完成什么专业工作”，App 负责“用户怎样看见并操作”，Cloud 负责在线治理、托管资源与协作服务；专业智能体及其负责人继续决定“这个领域什么算好、什么可以交付”。
 
 ## 可替换的能力与一致的产品体验
 
@@ -169,24 +169,20 @@ Framework 说明运行是否发生、文件和证据在哪里；App 说明用户
 
 启动安全、权限、不可逆动作和必要人工确认必须严格保护；普通提示、诊断、评分和改进建议保持轻量并服务当前工作。系统守住大边界，AI 才能在阶段内充分工作。
 
-## 简单维护：用户只需要认识三个对象
+## 简单维护：四个产品对象，一套连续体验
 
-强大的系统把内部复杂性留在内部。OPL 把安装、更新和修复收敛为三个用户对象：
+强大的系统把内部复杂性留在内部。用户只需认识 OPL 的四个稳定产品对象：
 
-- **OPL Base**：Framework、执行环境、在线运行底座和通用能力；
-- **OPL App**：可选的桌面工作台与产品体验；AionUI 主线和 DSH GUI候选共享同一产品能力与状态来源；
-- **OPL Packages**：MAS、MAG、RCA、OMA、OPL Book Forge、工作流与能力包。
+- **OPL Base**：Framework、执行环境和通用运行能力；
+- **OPL App**：桌面工作台与产品体验；AionUI 主线和 DSH GUI 候选共享同一产品能力与状态来源；
+- **OPL Packages**：MAS、MAG、RCA、OMA、OPL Book Forge、工作流与能力包；
+- **OPL Cloud**：在线工作空间、账号治理、托管资源、协作与智能体服务。
 
-用户只需维护 Base、App 和 Packages。Base 管共同底座与组合主机，App 管桌面体验，Packages 管真正需要独立安装和升级的专业能力；领域事实和质量判断仍留在对应专业责任方。内部可以独立演进和组合，用户不需要管理插件矩阵。这样的运维设计让“专业能力很多”与“日常维护简单”可以同时成立。
+Base 管共同底座，App 管本地体验，Packages 管专业能力，Cloud 管在线服务。前三类以本地软件方式安装和更新，Cloud 通过在线产品持续交付；四者采用各自合适的交付方式，共同维持一致的任务、成果、证据和责任语言。内部能力可以独立演进和组合，但用户不需要管理插件矩阵。
 
-需要在线 Workspace、账号治理、远端资源或协作时，再接入可选的 **OPL Cloud**。
-Cloud 扩展工作位置和治理能力，不替代 Base、App 或 Packages，也不要求用户学习另一套
-Agent 运行模型。
+OPL Cloud 扩展工作位置、资源与治理能力，让用户从本机进入在线工作空间、远端资源或团队协作时，继续沿用同一套专业工作模型。
 
-App 自身也保持一个产品、多个可替换界面实现。`one-person-lab-app` 统一定义产品行为、
-GUI 合同和发布组合；当前 AionUI Shell 与 DSH-derived Studio 候选 Shell 都消费同一
-Framework Host 投影。这样，界面可以演进或替换，用户的任务、Package、状态、动作和
-专业判断 authority 不随 renderer 迁移。
+App 自身也保持一个产品、多个可替换界面实现。One Person Lab App 统一定义产品行为、界面合同和发布组合；当前 AionUI 主线界面与借鉴 DeepSeek Harness 的候选界面都使用 Framework 提供的同一组产品能力。界面可以持续演进，用户的任务、能力包、状态、动作和专业判断始终保持连续。
 
 ## 为什么用户可以相信 OPL
 

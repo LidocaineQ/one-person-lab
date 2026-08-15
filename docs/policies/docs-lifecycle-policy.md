@@ -18,8 +18,8 @@ owner 职责的仓库采用同一套 strict canonical docs 目录：
 
 实际发现的其他产品、App、GUI candidate、workflow profile、docs tooling、agent、分发或
 capability-pack 仓库纳入同一治理巡检，但只按各自 repo-native 职责维护轻量 truth，不反向
-扩大 framework/domain taxonomy。Cloud 只持有长期、条件启用的产品包装与白皮书 truth，
-不把 Hosted Workspace 写成当前必要产品面；其他仓库也只有在出现长期 public、product、
+扩大 framework/domain taxonomy。Cloud 持有正在落地的产品包装与白皮书 truth，
+并按真实证据逐步形成 Hosted Workspace 等产品面；其他仓库也只有在出现长期 public、product、
 runtime、delivery、source、policies、specs 或 history 职责时，才新增对应目录索引。
 
 ## 文档基本原则

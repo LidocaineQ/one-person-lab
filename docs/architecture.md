@@ -7,7 +7,7 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 
 ## 顶层分层
 
-`OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。对外产品认知固定为 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`：Base 提供运行基础，App 提供本地工作台，Packages 提供可安装专业能力，Cloud 按需提供在线治理与托管。Foundry Agents 是通过 Packages 交付并保留领域权威的专业能力家族，不是第五个产品层。OPL 已完成向 DSH 正式 `@deepseek-ai/cordis` 的 Framework Host 全面迁移：`base-headless` 是默认 composition，P1-P6、真实默认 caller、snapshot/digest、child fiber teardown 与显式 services 均已落地。Family capability-domain rebaseline 与 Package/source topology cutover 已把品牌认知、authority owner、Package 发布单元、Cordis contribution 和源码单元解耦；五个 workspace Package 仍是 source-extracted candidates，不等于已经独立发布。Cordis 只负责进程内 composition；Package/native carrier、Temporal durable history/retry/replay、Workspace bytes/binding、Ledger receipts/evidence、Foundry activation、domain truth 与 App/Cloud product truth 仍归各自 owner。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
+`OPL` 的目标不是只做入口聚合或工作台投影，而是完整的 stage-led family agent runtime framework。对外产品认知固定为 `OPL Base + OPL App + OPL Packages + OPL Cloud`：Base 提供运行基础，App 提供本地工作台，Packages 提供可安装专业能力，Cloud 提供在线治理、托管资源与协作服务。Foundry Agents 是通过 Packages 交付并保留领域权威的专业能力家族，不是第五个产品层。OPL 已完成向 DSH 正式 `@deepseek-ai/cordis` 的 Framework Host 全面迁移：`base-headless` 是默认 composition，P1-P6、真实默认 caller、snapshot/digest、child fiber teardown 与显式 services 均已落地。Family capability-domain rebaseline 与 Package/source topology cutover 已把品牌认知、authority owner、Package 发布单元、Cordis contribution 和源码单元解耦；五个 workspace Package 仍是 source-extracted candidates，不等于已经独立发布。Cordis 只负责进程内 composition；Package/native carrier、Temporal durable history/retry/replay、Workspace bytes/binding、Ledger receipts/evidence、Foundry activation、domain truth 与 App/Cloud product truth 仍归各自 owner。阶段内最小执行单位是 Agent executor；`Codex CLI` 是当前第一公民 executor。
 
 ### 2026-08-15：Family capability domain 与 Host/Client Cordis SSOT
 
@@ -46,7 +46,7 @@ history 的 owner 不变。
 
 ### OPL 生态与 GUI 的统一心智模型
 
-对外只需要认识四个产品层：`OPL Base`、`OPL App`、`OPL Packages` 和可选的
+对外只需要认识四个产品层：`OPL Base`、`OPL App`、`OPL Packages` 和
 `OPL Cloud`。它们分别类似 R 的运行环境、RStudio、R packages，以及在线治理与资源
 层。内部实现不把这四层混成一个仓库或一个进程：
 
@@ -229,7 +229,7 @@ OPL Framework 允许使用 sandbox provider，但框架职责归 OPL：stage att
 
 OPL 的四层产品认知说明“用户维护什么”，family capability domains 说明整条 Framework/App/Cloud 产品族“具备什么能力、由谁负责”。品牌域不是新的 runtime，也不是第二 truth source；它们把 contracts、source、CLI/App/Cloud 产品行为、read model、runtime ledger、provider receipt 和 docs support 放进同一认知地图，但不再充当 Framework 源码目录或 Package/plugin 数量的先验。原十个名字保留为跨仓品牌语言和迁移索引，不再定义十个固定 Framework owner bucket。
 
-产品语义和源码组织不再强制对称。`OPL Cloud`、在线 `OPL Workspace`、Console 页面和 Gateway/API 体验由 Cloud 产品 owner 持有；App 的本地 Workspace/Console 体验由 App 产品 owner 持有；Framework 只持有相应 runtime、adapter、projection 和 read-model surface。`OPL Fabric` 是 Cloud 资源能力域，不为了品牌对称性制造 Framework 第 11 个目录或 plugin。`OPL Console` 也不再归一个弱 Framework 目录整体拥有：Cloud 持有 control-plane 产品，App 持有本地 page/action policy，Framework 只输出 readiness/operator/action projection。
+产品语义和源码组织不再强制对称。`OPL Cloud`、在线 `OPL Workspace`、Console 页面和 Gateway/API 体验由 Cloud 产品 owner 持有；App 的本地 Workspace/Console 体验由 App 产品 owner 持有；Framework 只持有相应 runtime、adapter、projection 和 read-model surface。`OPL Fabric` 是 Cloud / Product 层的通用资源底座语义，由 `Connect`、`Runway`、`Pack`、`Workspace` 和 `Ledger` 协作承接，不为了品牌对称性制造 Framework 第 11 个目录或 plugin。`OPL Console` 也不再归一个 Framework 目录整体拥有：Cloud 持有 control-plane 产品，App 持有本地 page/action policy，Framework 只输出 readiness/operator/action projection。具体 Cloud 能力是否可用，以真实 account、storage、isolation、backend、owner policy 和运行证据为准。
 
 代码层已从 `src/modules/<brand>/` 品牌桶重排为 13 个 responsibility source units，落在 `src/authority/**`、`src/adapters/**`、`src/read-models/**`、`src/host/**`、`src/entrypoints/**` 和 `src/kernel/**` 六个 target roots。`src/modules/**` 已是 retired/must-be-absent legacy root；successor、真实 caller 切换和结构门禁已经完成。机器状态以 `contracts/opl-framework/source-module-map.json`、`contracts/opl-framework/package-topology.json`、source/package boundary scripts、tests 和 caller readback 为准；该源码 cutover 不等于 release、production、App 或 Cloud 完成。
 
@@ -629,6 +629,6 @@ Cordis adoption 已完成默认 Framework Host composition cutover：DSH scoped 
 ## 文档组织原则
 
 - AI / 维护者优先读取核心五件套。
-- 对外公开面继续按 `OPL Base + OPL App + OPL Packages + optional OPL Cloud` 四层生态组织；Foundry Agents 作为 Packages 中的专业 authority family 说明。
+- 对外公开面继续按 `OPL Base + OPL App + OPL Packages + OPL Cloud` 四层生态组织；Foundry Agents 作为 Packages 中的专业 authority family 说明。
 - 机器合同、公开叙事、参考材料、历史记录分层维护。
 - 历史 `frontdoor` 时代的公开语义只保留在参考与历史层，不再进入当前主线。

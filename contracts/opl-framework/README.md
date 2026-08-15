@@ -41,7 +41,7 @@ finish. They are not the long-term target and must not gain new consumers. See
 It is repo-tracked because the current framework needs stable machine-readable inputs for:
 
 - stage-led task selection
-- ecosystem ownership for `OPL Base`, `OPL App`, `OPL Packages`, and optional `OPL Cloud`
+- ecosystem ownership for `OPL Base`, `OPL App`, `OPL Packages`, and the OPL Cloud product in active implementation
 - admitted domain-agent / Foundry package catalog projection
 - provider-backed runtime attempts
 - passive AI-route context transport and currentness readback without a transition table runner or matrix evaluator
@@ -68,11 +68,11 @@ It is repo-tracked because the current framework needs stable machine-readable i
 - App runtime state/action CLI boundary for GUI implementations
 - optional native-helper lifecycle checks
 
-The current ecosystem model is `OPL Base + OPL App + OPL Packages + optional OPL Cloud`. `one-person-lab` implements Base and owns the single Framework Cordis Host; `one-person-lab-app` owns one App product, its GUI ABI, Client profile, release composition, and active-shell decision; `opl-aion-shell` is the current Stable Shell and `opl-studio` is the DSH-derived candidate Shell. Packages remain independently installable, versioned, and releasable capability products; MAS/MAG/RCA retain domain authority as members of the Foundry Agent Package family. Cloud is an optional online product layer, not a second Cordis Host. Brand/cognitive domains, authority owners, Package release units, and Cordis plugin contributions are intentionally separate structures. The execution chain remains `Codex CLI first-class executor + explicit OPL activation + configured family runtime provider + installed Package discovery`.
+The current ecosystem model is `OPL Base + OPL App + OPL Packages + OPL Cloud`. `one-person-lab` implements Base and owns the single Framework Cordis Host; `one-person-lab-app` owns one App product, its GUI ABI, Client profile, release composition, and active-shell decision; `opl-aion-shell` is the current Stable Shell and `opl-studio` is the DSH-derived candidate Shell. Packages remain independently installable, versioned, and releasable capability products; MAS/MAG/RCA retain domain authority as members of the Foundry Agent Package family. Cloud is the online product layer under active implementation, not a second Cordis Host. Brand/cognitive domains, authority owners, Package release units, and Cordis plugin contributions are intentionally separate structures. The execution chain remains `Codex CLI first-class executor + explicit OPL activation + configured family runtime provider + installed Package discovery`.
 
 ## Current Truth Lives Elsewhere
 
-Start here for the active `OPL Base / App / Packages / optional Cloud` ecosystem model:
+Start here for the active `OPL Base / App / Packages / Cloud` ecosystem model:
 
 - `README*`
 - `docs/project.md`

@@ -71,7 +71,7 @@ One Person Lab 对外应保持四层产品认知：
 | `OPL Base` | 让智能体可创建、可运行、可恢复、可审计的基座。 | OPL Framework、唯一 Cordis Host、runtime 与 shared contracts。 |
 | `OPL App` | 人用工作台：选任务、看进度、处理阻塞、取交付物。 | App 产品与发布 authority，不持有 runtime、Package 或 domain truth。 |
 | `OPL Packages` | 可安装的专业 Agent、能力与工作流。 | Package owner 持有 identity/publication；Foundry Agents 继续持有领域 truth、quality/export verdict、artifact/memory authority。 |
-| `OPL Cloud`（可选） | 在线 Workspace、账号治理、托管资源、协作和 Agent 服务。 | Cloud 产品/服务 authority，不成为第二 Framework Host。 |
+| `OPL Cloud` | 在线 Workspace、账号治理、托管资源、协作和 Agent 服务。 | Cloud 产品/服务 authority，不成为第二 Framework Host。 |
 
 当前品牌模块应作为 OPL Framework 的 bounded contexts，而不是另一个产品层级：
 

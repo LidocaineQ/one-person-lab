@@ -14,7 +14,7 @@ Currentness policy: 本文不冻结 Charter L4 状态、命令通过状态、App
 
 ## 设计理念
 
-- 先固定产品层级，再设计实现：`OPL Base + OPL App + OPL Packages + optional OPL Cloud`；Foundry Agents 是 Packages 中保留独立专业 authority 的家族。
+- 先固定产品层级，再设计实现：`OPL Base + OPL App + OPL Packages + OPL Cloud`；Foundry Agents 是 Packages 中保留独立专业 authority 的家族。
 - 先固定 owner boundary，再设计接口：Framework、App、Foundry Agent、domain repo、executor、provider 各自只持有自己的 authority。
 - 先设理想态，再用现状找差距：历史实现只能作为迁移输入，不能定义长期结构。
 - 决策要可追溯：重要设计进入 ADR/RFC，不靠聊天记忆或散落 docs。
@@ -26,7 +26,7 @@ Currentness policy: 本文不冻结 Charter L4 状态、命令通过状态、App
 
 | 对象 | 作用 |
 | --- | --- |
-| `product_taxonomy` | 固定 Base、App、Packages、可选 Cloud 的产品层级，并把 Foundry Agents、品牌模块与 Cordis plugin 保持为正交分类。 |
+| `product_taxonomy` | 固定 Base、App、Packages、Cloud 的产品层级，并把 Foundry Agents、品牌模块与 Cordis plugin 保持为正交分类。 |
 | `authority_matrix` | 固定 runtime、domain truth、artifact authority、quality verdict、release truth 的 owner。 |
 | `brand_module_registry` | 固定当前品牌模块及其 owner、scope、interfaces、forbidden claims。 |
 | `term_lifecycle` | 管理 active / deprecated / retired / provenance 术语。 |

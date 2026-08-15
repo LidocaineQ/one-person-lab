@@ -13,17 +13,17 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 
 影响：
 
-- 对外产品模型固定为 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`；Foundry Agents 是 Packages 中保留领域 authority 的专业能力家族，不是第五个产品层。
+- 对外产品模型固定为 `OPL Base + OPL App + OPL Packages + OPL Cloud`；Cloud 已进入产品落地与持续交付阶段，Foundry Agents 是 Packages 中保留领域 authority 的专业能力家族，不是第五个产品层。
 - 顶层链路固定为 `family capability domain -> repo/product-specific authority surface -> versioned Package/artifact -> host-specific contribution -> curated product/profile composition`。品牌域、authority owner、Package 发布单元和 Cordis plugin 运行单元彼此正交。
 - 原 `Charter/Atlas/Workspace/Pack/Stagecraft/Runway/Ledger/Console/Foundry/Connect` 继续作为 OPL family 的稳定品牌语言和认知地图，但不再被解释为十个 Framework 源码 owner、十个 Package 或十个 plugin。它们可以跨 Framework/App/Cloud 分布，一个域可贡献多个 plugin，纯 authority 域也可以没有常驻 plugin。
 - Framework 是唯一 Host composition authority。它选择 curated profile、冻结 Host graph，并将 allowlisted、带 version/source identity 的 client graph 投影给 App。Client Cordis 不得独立发现或安装插件、维护第二 registry/currentness、获得 release-operation service，或签发 App/domain/Cloud verdict。
 - `OPL App` 继续持有产品 truth、product profile、page/action policy、active-shell validation 与 release gate；App 不是一个可被任意替换的普通 plugin。App renderer 可以运行 Host 派生的 Client Cordis。AionUI 主线和 DSH GUI 候选必须消费同一 client contribution descriptor、typed slot/action ABI、Host projection 和 App product profile，差异仅限 renderer、carrier 与视觉实现。
-- `OPL Console` 采用分层 authority：Cloud 持有托管 Console/control-plane 产品，App 持有本地 GUI 产品策略和用户 action，Framework 只持有 readiness/operator/action projection、inspect 与 read model。Framework 的 `console` 目录不能继续代表整个 Console 品牌。
-- Framework 源码物理目标从 `src/modules/<brand>/` 品牌桶迁到按责任命名的 `src/authority/**`、`src/adapters/**`、`src/read-models/**`、`src/host/**` 与薄 `src/entrypoints/**`。迁移必须 successor-first：建立新路径、切真实 caller、验证 affected outcome/public exports，再以 structural caller=0 删除旧目录；文档或目录移动不证明完成。
+- `OPL Console` 采用分层 authority：Cloud 持有托管 Console/control-plane 产品，App 持有本地 GUI 产品策略和用户 action，Framework 只持有 readiness/operator/action projection、inspect 与 read model。品牌认知可以跨产品复用，authority 不共享。
+- Framework 源码已从 `src/modules/<brand>/` 品牌桶 successor-first 迁到按责任命名的 `src/authority/**`、`src/adapters/**`、`src/read-models/**`、`src/host/**` 与薄 `src/entrypoints/**`：新路径、真实 caller、affected outcome/public exports 和 structural caller=0 均由机器边界验证，旧目录已 retired/absent。后续变更继续遵守同一 successor-first 规则；文档或目录移动本身不证明完成。
 - 独立版本、分支和发布能力通过 Package topology 实现，但只拆有真实替换价值和独立发布节奏的单元。第一批优先评估 Runway executor、Foundry evaluation、Connect discovery 与 `opl-package-host`；不把现有 plugin 或十品牌机械拆仓，也不把 monorepo workspace package 自动写成已独立发布。
 - 受控 profile 隐藏内部组合矩阵，普通用户不面对任意 plugin 组合。Host/Client graph、Package/currentness、App product profile、Cloud product truth 和 domain authority 分别由对应 owner 回读，任何一层都不能从另一层推导 ready。
 - `one-person-lab` 是唯一 Cordis Host；`one-person-lab-app` 是 App 产品、Client profile、GUI contribution ABI、active shell、版本组合和发布 authority。
-- `opl-aion-shell` 是当前 Stable AionUI implementation carrier；`opl-studio` 是 DSH-derived foreground candidate carrier。两个 Shell 统一产品语义、Framework state/action/runtime bridge、Client Cordis 组合协议、GUI contribution schema、设计/可访问性语义和发布证据类别；renderer、组件树、carrier、upstream intake、缓存、构建链、Git 历史和实现测试保持独立。
+- `opl-aion-shell` 是当前 Stable AionUI implementation carrier；`opl-studio` 是 DSH-derived foreground candidate carrier。旧名 `opl-native-workbench` 只按历史 provenance 读取。两个 Shell 统一产品语义、Framework state/action/runtime bridge、Client Cordis 组合协议、GUI contribution schema、设计/可访问性语义和发布证据类别；renderer、组件树、carrier、upstream intake、缓存、构建链、Git 历史和实现测试保持独立。
 - 一次 OPL App 发布冻结 App product version、Framework compatibility、selected Shell identity/version、GUI ABI version、Client composition snapshot 和 contribution versions。只有 App `app-shell-adapter` 合同可切换 active shell；Studio 的源码或功能完成不自动取代 AionUI。
 
 当前状态：Framework Host Cordis P1-P6、family capability-domain registry、13 个 source units / 6 个 target roots、`src/modules/**` 退役和五个 workspace Package 候选已经进入当前源码。Host/Client 合同与双 GUI 顶层 ABI 已对齐；AionUI/Studio 的 release/runtime 准入、跨 GUI E2E 和独立 Package publication 仍须由各自 owner 的 canonical readback 证明，不得由源码 topology 推导完成。
@@ -37,7 +37,7 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 影响：
 
 - 长期目标固定为使用正式 `@deepseek-ai/cordis`，而不是 OPL 自研 `Cordis-like` 内核。不得新增通用 OPL plugin registry、平行 service locator、平行 event bus、平行 effect/lifecycle 或长期兼容内核。
-- P4-P6 已实施到有真实收益的 Host进程内 seam，默认 Base/headless与 Framework-hosted composition已切换；Host-derived Client Cordis与 AionUI/DSH双 GUI统一 ABI进入 2026-08-15后续 cutover，仍由 App owner验收。迁移成本不再作为 go/no-go；只有安全、权限、数据完整性、不可伪造性和原 owner authority是硬边界。
+- P4-P6 已实施到有真实收益的 Host 进程内 seam，默认 Base/headless 与 Framework-hosted composition 已切换；Host-derived Client Cordis 与 AionUI/DSH 双 GUI 的顶层合同和 ABI 已对齐。仍开放的是各 GUI 的 release/runtime 准入、跨 GUI E2E 和高替换价值 Package 的独立 publication，必须由对应 owner 的 canonical readback 证明。迁移成本不再作为 go/no-go；只有安全、权限、数据完整性、不可伪造性和原 owner authority 是硬边界。
 - DSH 是首要参考架构和首要兼容目标。当前公开观察为 DSH 根版本 `0.1.0-rc.5`、`master` 提交 `47f943859bef60e4160492346772ded9b24f765a`，其 `vendor/cordis` 发布为 `@deepseek-ai/cordis@4.0.1`；独立上游包 `cordis@4.0.0-rc.8` 只作参考。实验和发布必须锁定 DSH source commit、scoped package exact version、lockfile integrity 与运行时版本，不得使用 `latest` 或未锁定 upstream 包。
 - Brand module、Package、Cordis plugin、composition snapshot 与 executor route 是正交身份；其中“品牌模块继续是 Framework 源码 owner”的旧解释已被 2026-08-15 决策 supersede。品牌现在是跨 OPL Family 的 capability domain/认知地图，真实源码和产品责任回到 authority surface；其余 Package、plugin、snapshot 与 executor route 边界继续有效。
 - Cordis 只负责进程内 Context、service 依赖注入、typed event、可撤销 effect 和 scope teardown。Package installed truth/currentness、Temporal durable workflow、Workspace 文件与绑定、Ledger evidence/receipt、Foundry version/promotion/activation、domain truth/quality verdict 和 App product truth 不迁入 Cordis。
@@ -659,15 +659,15 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 - `docs/policies/standard-agent-ai-first-principles.md` 与 `contracts/opl-framework/standard-agent-principles.json` 是该原则包的人读入口和机器边界；domain 仓通过 `contracts/standard-agent-principles-adoption.json`、`agent/principles/opl-standard-agent-principles.md` 和 `agent/principles/domain-specialization.md` 声明采用与领域映射。
 - 该原则包只关闭文档/合同定位缺口，不声明 standard-agent complete、domain ready、target-agent ready、Brand L5、App release ready 或 production ready；docs/read-model/test 绿只能作为结构证据输入。
 
-### 决策：OPL Cloud 是条件产品语义，消费 Framework 模块但不重划物理源码 owner
+### 决策：OPL Cloud 是正在落地的产品层，消费 Framework 模块但不重划物理源码 owner
 
-原因：物理模块化后，Framework 已经有 `src/modules/<module_id>/`、`entrypoints/` 和 `kernel/` 三层源码组织；同时产品叙事里又出现 `OPL Cloud`、在线 `OPL Workspace`、Console、Gateway / API 和 Fabric 等用户可见或资源底座语义。如果把这些产品名反向写成源码模块 owner，会让维护者误以为 Cloud / Workspace 产品、Console 页面、Connect connector 和 Ledger evidence 是同一层事实，进而制造第二 source of truth。
+历史背景（已被 2026-08-15 capability-domain/source-topology 决策 supersede）：当时 Framework 仍以 `src/modules/<module_id>/`、`entrypoints/` 和 `kernel/` 三层组织源码，同时产品叙事里出现 `OPL Cloud`、在线 `OPL Workspace`、Console、Gateway / API 和 Fabric 等用户可见或资源底座语义。该决策首先禁止把产品名反向写成源码模块 owner；当前实现已经进一步退役 `src/modules/**`，并按 authority、adapter、read model、Host、entrypoint 与 kernel 责任重排。
 
 影响：
 
-- 当前必要用户工作面是 App desktop + Docker/WebUI；`OPL Cloud`、online / managed Workspace / Gateway 是长期、条件启用的产品包装，只有真实 account、storage、isolation、backend 与 owner policy 齐备时才出现，不是当前 runtime/App release gate，也不是当前十个 Framework 品牌模块之外的第 11 个源码模块。
-- `src/modules/<module_id>/` 是 Framework 源码 owner；`src/entrypoints/` 只承接 CLI / product / adapter 启动面，`src/kernel/` 只承接 brand-neutral shared runtime primitive。二者都不拥有独立品牌模块或产品语义。
-- 条件启用的在线 `OPL Workspace` 产品体验可以消费多个 Framework 模块；Framework `workspace` 模块只持有 workspace protocol、Project Unit、Stage Artifact Unit 和文件生命周期投影，不持有 Cloud product truth、artifact body、quality verdict 或 owner receipt。
+- `OPL Cloud` 是正在建设和持续交付的产品层，在线 Workspace、Gateway、Fabric、Console、Ledger 等能力按各自的 account、storage、isolation、backend、owner policy 和运行证据逐步进入产品面；这些能力的证据边界不改变 Cloud 的产品身份。
+- 在该历史阶段，`src/modules/<module_id>/` 曾是 Framework 源码 owner；当前它只作 provenance 读取，真实 owner 已迁到 `src/authority/**`、`src/adapters/**`、`src/read-models/**`、`src/host/**`、`src/entrypoints/**` 和 `src/kernel/**` 的责任单元，`src/modules/**` 必须 absent。
+- 在线 `OPL Workspace` 产品体验可以消费多个 Framework 模块；Framework `workspace` 模块只持有 workspace protocol、Project Unit、Stage Artifact Unit 和文件生命周期投影，不持有 Cloud product truth、artifact body、quality verdict 或 owner receipt。
 - `OPL Connect` 是 Fabric 上可独立调用的连接 / 分发能力，不是 Console 私有后端；`OPL Console` 负责治理、投影、action catalog 和 operator 管理集成；`OPL Ledger` 只保存 refs-only evidence、receipt/blocker refs、lineage 和 provenance。
 - `contracts/opl-framework/source-module-map.json` 只记录源码归属 metadata 和物理入口；更新 owner note 不改变 runtime truth、domain truth、owner receipt、typed blocker、release verdict 或 production readiness。
 
@@ -1657,7 +1657,7 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 - 开发和运行保持集成在 OPL Framework 内；当前不拆 repo，也不把每个 domain agent 改成内嵌一份 OPL runtime。
 - agent 的推荐发布形态是 OPL-compatible package / repo：声明 framework/version/contract 要求、stage descriptor、skill、quality gate、artifact locator、projection 和 authority refs，由 OPL Framework 安装、发现、托管、唤醒和投影。
 - Full 首次安装包可以把 App、OPL Framework、OPL Meta Agent、MAS/MAG/RCA、provider payload、`officecli` 与推荐 skills 打在一起；这只是分发形态，不改变 single framework runtime truth，也不改变 MAS/MAG/RCA 的领域权威。
-- 本段保留为历史决策 provenance。当前 README、project/status/architecture、App 文案和 onboarding 统一使用 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`；Foundry Agents 作为 Packages 中保留专业 authority 的家族说明。
+- 本段保留为历史决策 provenance。当前 README、project/status/architecture、App 文案和 onboarding 统一使用 `OPL Base + OPL App + OPL Packages + OPL Cloud`；Foundry Agents 作为 Packages 中保留专业责任的家族说明。
 
 ## 2026-05-10
 

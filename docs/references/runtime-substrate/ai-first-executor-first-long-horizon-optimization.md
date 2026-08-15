@@ -59,7 +59,7 @@ OPL 的长期目标继续固定为 `AI-first / executor-first / Codex-first`：O
 
 ### 稳定判据
 
-- OPL 对外四层读法固定为：`OPL Base` 提供 Framework/runtime，`OPL App` 是本地工作台，`OPL Packages` 承载可安装能力，`OPL Cloud` 按需提供在线产品；Foundry Agents 是 Packages 中保留 domain truth、quality verdict、artifact authority、memory body 与 owner receipt 的专业家族。
+- OPL 对外四层读法固定为：`OPL Base` 提供 Framework/runtime，`OPL App` 是本地工作台，`OPL Packages` 承载可安装能力，`OPL Cloud` 是持续交付在线治理、托管资源与协作服务的正式第四产品层；用户可按项目需要使用具体 Cloud 能力，但 Cloud 产品身份不是 optional。Foundry Agents 是 Packages 中保留 domain truth、quality verdict、artifact authority、memory body 与 owner receipt 的专业家族。
 - `Codex CLI` 是默认且第一公民 executor；`hermes_agent`、`claude_code`、`antigravity_cli` 等非默认 executor 只能以显式 adapter/backend 接入，并以 binding ref、receipt、audit 和 fail-closed 证明连接，不承诺行为、工具语义、质量或 resume 等价。
 - Temporal-backed provider 是 production online durable substrate；`local_sqlite` 只允许作为 retired-provider negative guard 和 SQLite projection/index 旧名语境。
 - 核心 docs、contracts 与 CLI/read model 必须持续防止 `provider proof / readiness / generated surface / cleanup ledger = domain ready` 的误读。

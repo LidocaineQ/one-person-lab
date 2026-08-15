@@ -97,7 +97,7 @@ One Person Lab 的优势在于，它既让用户看得见“现在做到哪一�
 | **OPL Base** | 让长期工作可以运行、恢复和审计的基础。 | `one-person-lab` 实现 OPL Framework，也是唯一 Cordis Host。 |
 | **OPL App** | 选择工作、查看进度、打开文件和处理阻塞的本地工作台。 | `one-person-lab-app` 持有产品、GUI ABI、Shell 选择和发布。 |
 | **OPL Packages** | 可安装的 Agent、Skill、Tool、Plugin 和 Workflow，为系统增加专业能力。 | 每个 Package owner 持有身份和发布；Framework 发现并投影已安装能力。 |
-| **OPL Cloud**（可选） | 在线 Workspace、账号治理、托管资源、协作与 Agent 服务。 | `one-person-lab-cloud` 持有 Cloud 产品与服务。 |
+| **OPL Cloud** | 在线 Workspace、账号治理、托管资源、协作与 Agent 服务。 | `one-person-lab-cloud` 持有 Cloud 产品与服务。 |
 
 MAS、MAG、RCA、OMA、Book Forge 等 Foundry Agents 是通过 OPL Packages 交付的专业
 authority domain。它们继续持有自己的质量、产物与交付判断；它们不是第五个产品层，
@@ -105,7 +105,7 @@ authority domain。它们继续持有自己的质量、产物与交付判断；�
 
 如果只是使用产品，不需要理解仓库分工。对开发者来说：`one-person-lab` 维护
 Base/Framework，`one-person-lab-app` 维护 App 产品与发布体验，各 Package 仓维护可安装
-能力，`one-person-lab-cloud` 按需把同一工作模型扩展到线上。
+能力，`one-person-lab-cloud` 负责正在落地的云端产品；用户可以按项目需要使用相应的在线能力。
 
 完整仓库分工见 [OPL 系列仓库地图](./docs/public/repo-map.md)。
 

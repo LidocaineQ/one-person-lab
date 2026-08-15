@@ -18,7 +18,7 @@ src/entrypoints/**
 src/kernel/**
 ```
 
-`src/modules/**` 是已退休的 legacy root，合同状态为 `retired`/`must_be_absent`，当前 task branch 不存在该目录；历史路径只能在 provenance 或 negative fixture 中出现。13 个 source units 的精确归属、public entrypoints、capability refs 和 package refs 由 `source-module-map.v3` 维护。`OPL Cloud`、在线 Workspace、Console 页面、Gateway/API 和 `OPL Fabric` 仍是长期、条件启用的产品层或 Cloud 层语义，可以组合多个 authority/read-model/adapter 形成用户可见能力，但不作为 Framework 第 11 个源码模块，也不成为当前 App desktop + Docker/WebUI 的必要 gate。
+`src/modules/**` 是已退休的 legacy root，合同状态为 `retired`/`must_be_absent`，当前 task branch 不存在该目录；历史路径只能在 provenance 或 negative fixture 中出现。13 个 source units 的精确归属、public entrypoints、capability refs 和 package refs 由 `source-module-map.v3` 维护。`OPL Cloud`、在线 Workspace、Console 页面、Gateway/API 和 `OPL Fabric` 是正式产品层或 Cloud 层语义，可以组合多个 authority/read-model/adapter 形成用户可见能力，但不作为 Framework 第 11 个源码模块。具体可用性以真实 account、storage、isolation、backend、owner policy 与运行证据为准。
 
 ## 机器入口
 

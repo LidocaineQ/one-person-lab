@@ -7,7 +7,7 @@ Machine boundary: 本文是核心人读真相面。机器真相继续归 contrac
 
 ## 项目是什么
 
-对外公开时，`One Person Lab` (`OPL`) 固定为四个清晰产品层：`OPL Base`、`OPL App`、`OPL Packages` 和可选的 `OPL Cloud`。其中 Base 由 OPL Framework 实现，是面向高价值知识工作的完整智能体开发与运行基础；App 是本地工作台；Packages 提供可安装的专业能力；Cloud 按需提供在线治理与托管。Foundry Agents 作为 Packages 中的专业 authority family 保留领域判断与交付权威，不再与四个产品层并列。Framework 给先进 AI executor 搭台：大型任务按接近人类专家实施的 stage 推进，stage 内最小执行单位是 Agent executor，当前默认且第一公民 executor 是 `Codex CLI`。
+对外公开时，`One Person Lab` (`OPL`) 固定为四个清晰产品层：`OPL Base`、`OPL App`、`OPL Packages` 和 `OPL Cloud`。其中 Base 由 OPL Framework 实现，是面向高价值知识工作的完整智能体开发与运行基础；App 是本地工作台；Packages 提供可安装的专业能力；Cloud 提供在线治理与托管。用户可以按项目需要使用具体云端能力，Cloud 产品本身正在持续落地。Foundry Agents 作为 Packages 中的专业 authority family 保留领域判断与交付权威，不再与四个产品层并列。Framework 给先进 AI executor 搭台：大型任务按接近人类专家实施的 stage 推进，stage 内最小执行单位是 Agent executor，当前默认且第一公民 executor 是 `Codex CLI`。
 OPL 当前读法固定为 `AI-first / executor-first / Codex-first`。智能体进步主要来自 `Codex CLI` 等 AI executor 能力升级，以及 domain stage pack、prompt、skill、knowledge、rubric 与 quality gate 的改进。OPL 不限制 AI executor 的内部规划、创作、评审、路线判断或修订策略，也不把开放式专家工作写成固定脚本；它只守 owner boundary、权限、安全、审计、receipt、typed blocker、恢复、route-back 和 projection 这些可验证下限。
 这组读法由 [硬约束](./invariants.md) 中的 OPL 内部 8 项原则冻结。provider proof、descriptor ready、generated surface ready、cleanup proof 或 tail ledger 只能作为证据和阻塞定位，不能替代 domain-owned quality / artifact / production verdict，也不能写成 OPL/domain/artifact/production ready。
 OPL Framework 可以使用外部运行时 provider，但框架边界由本仓持有：`Codex-default session runtime`、显式 `domain-agent activation` 层、provider-backed family runtime control plane，以及 One Person Lab App / 其他 shell 背后的 shared projection/contract 层。
@@ -33,7 +33,7 @@ One Person Lab App 继续放在独立的界面仓中维护，作为普通用户�
 
 ## 品牌模块目标
 
-`OPL Framework` 的品牌语言继续使用 `OPL Charter`、`OPL Atlas`、`OPL Workspace`、`OPL Pack`、`OPL Stagecraft`、`OPL Runway`、`OPL Ledger`、`OPL Console`、`OPL Foundry Kernel` 和 `OPL Connect`，但它们现在是跨 Framework/App/Cloud 的 family capability domains，不再同时承担固定源码目录、Package 发布单元或 Cordis plugin 数量。真实责任回到 authority surface：Framework Host/runtime、App product/profile、Cloud control-plane 和 domain truth分别由对应仓/产品持有。当前用户工作面是 App desktop + Docker/WebUI；`OPL Cloud`、在线/managed Workspace 和 Gateway 是长期、条件启用的用户可见产品包装，只有真实 account、storage、isolation、backend 与 owner policy 齐备时才出现。它们不是第 11 个 Framework 源码模块。
+`OPL Framework` 的品牌语言继续使用 `OPL Charter`、`OPL Atlas`、`OPL Workspace`、`OPL Pack`、`OPL Stagecraft`、`OPL Runway`、`OPL Ledger`、`OPL Console`、`OPL Foundry Kernel` 和 `OPL Connect`，但它们现在是跨 Framework/App/Cloud 的 family capability domains，不再同时承担固定源码目录、Package 发布单元或 Cordis plugin 数量。真实责任回到 authority surface：Framework Host/runtime、App product/profile、Cloud control-plane 和 domain truth 分别由对应仓/产品持有。Cloud 是正式第四产品层；其具体在线 Workspace、Console、Gateway 和 Fabric 能力以真实 account、storage、isolation、backend、owner policy 与运行证据为准。它们可以组合多个 capability domains，但不是 Framework 第 11 个源码单元。
 
 品牌模块目标态的详细设计留在 [OPL 品牌模块理想态](./references/brand-modules/README.md)。核心文档只承载当前项目意识：新增 capability、CLI/App surface、contract、read model、release/install path 或 docs support 时，必须能归到某个品牌模块，并保持 domain truth、artifact authority、quality verdict、owner receipt、typed blocker 和 App release truth 的原 owner 不变。模块数量不是冻结约束；新的 bounded context 只有在 owner、purpose、machine boundary、authority false flags 和 L4/L5 口径清楚时才进入 taxonomy。
 
@@ -49,7 +49,7 @@ One Person Lab App 继续放在独立的界面仓中维护，作为普通用户�
 
 ## 当前产品层级
 
-`OPL` 当前对外使用四层结构组织产品认知：Base、App、Packages 和可选 Cloud。在线 Workspace、Console/Gateway 和托管运行体验只在真实 account、storage、isolation、backend 与 owner policy 齐备时启用；Cloud 不持有 Framework Host、App release、Package currentness 或 domain verdict。
+`OPL` 当前对外使用四层结构组织产品认知：Base、App、Packages 和 Cloud。在线 Workspace、Console/Gateway 和托管运行体验的具体可用性以真实 account、storage、isolation、backend 与 owner policy 证据为准；Cloud 不持有 Framework Host、App release、Package currentness 或 domain verdict。
 
 安装、管理和更新也只使用三层用户对象：`OPL Base` 是可独立使用的 Framework runtime，`OPL App` 是可替换 GUI/部署载体，`OPL Package` 是可自由组合的安装单元。Skill、Tool、Plugin、MCP、workflow 和 entrypoint 是 Package 可发现 capability，不是平行生命周期。Package identity、carrier 与 executor route相互独立；Base只提供薄 native-carrier adapter与 fresh installed聚合，Framework不自建跨包 resolver、lock或固定 registry，共享 manifest只服务 Full/offline/integration/QA快照。源码已建立五个高替换价值 workspace/source-extracted Package candidates（`@one-person-lab/cordis-abi`、`@one-person-lab/package-host`、`@one-person-lab/connect-discovery`、`@one-person-lab/runway-executor`、`@one-person-lab/foundry-evaluation`）；它们不等于独立发布或独立仓库完成。只有真实发布节奏、consumer/currentness和回退证据齐备才独立发布，不机械拆十品牌或全部 plugin。现有 `opl packages`仍是独立 Package platform migration surface，详见 [`OPL Package 平台组合迁移计划`](./active/opl-package-platform-composition-migration.md)。
 
@@ -59,7 +59,7 @@ One Person Lab App 继续放在独立的界面仓中维护，作为普通用户�
    普通用户使用的本地工作台产品。它消费 Framework 与 Package projection，持有 GUI product truth、Client profile/ABI、page-state policy、release gate、updater metadata、用户文档和 active-shell validation，不复制 runtime、Package currentness 或 domain truth。
 3. `OPL Packages`
    可独立安装与发布的 Agent、Skill、Tool、Plugin 和 Workflow。MAS/MAG/RCA/Book Forge/OMA 等 Foundry Agents 通过 Package 进入生态，同时保留 domain truth、quality verdict、artifact authority、owner receipt 和 direct entry；一个 Package 可以贡献多个或零个 Cordis plugin。
-4. `OPL Cloud`（可选）
+4. `OPL Cloud`
    在线 Workspace、Console、Control Plane、Fabric、Ledger 与 Serve 产品。它复用 Base/App/Packages 的合同和引用，但持有独立的账号、资源、服务与发布 authority，不成为第二 Framework Host。
 
 其中 `OPL Runtime Manager` 位于默认运行时层与显式激活层之间。它是产品级管理/投影层，不是新的 domain runtime kernel：具体 executor 由 OPL / domain route 显式选择，当前第一公民 executor 是 `Codex CLI`；Temporal-backed provider 的目标职责是 durable workflow、activity retry/timeout、signal/query、history 与恢复，SQLite sidecar 只承担可重建 projection/readback index。

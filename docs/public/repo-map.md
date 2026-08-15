@@ -9,7 +9,7 @@ Machine boundary: 本文是公开导航，不是运行时、发布、安装或�
 
 ## 一句话总览
 
-对外生态固定为 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`。`one-person-lab` 实现 Base/Framework；`one-person-lab-app` 是 App 产品 authority；`opl-aion-shell` 是当前 Stable GUI shell；`opl-studio` 是 DSH-derived 候选 Shell；MAS/MAG/RCA/BookForge/OMA 等仓库发布专业 Packages 并保留领域 authority；Cloud/Flow/Homebrew/Health 分别承载云产品族、工作流 Package、分发 tap 和医疗行业规划文档。
+对外生态固定为 `OPL Base + OPL App + OPL Packages + OPL Cloud`。`one-person-lab` 实现 Base/Framework；`one-person-lab-app` 是 App 产品 authority；`opl-aion-shell` 是当前 Stable GUI shell；`opl-studio` 是 DSH-derived 候选 Shell；MAS/MAG/RCA/BookForge/OMA 等仓库发布专业 Packages 并保留领域 authority；Cloud/Flow/Homebrew/Health 分别承载云产品族、工作流 Package、分发 tap 和医疗行业规划文档。
 
 ## 仓库角色
 
@@ -24,7 +24,7 @@ Machine boundary: 本文是公开导航，不是运行时、发布、安装或�
 | [`redcube-ai`](https://github.com/gaofeng21cn/redcube-ai) | Presentation Foundry agent package | 视觉交付、汇报/答辩/讲课材料、layout/review/export verdict | 通用 runtime、非视觉领域 verdict、App shell |
 | [`opl-bookforge`](https://github.com/gaofeng21cn/opl-bookforge) | Book Foundry agent package | 书籍写作、章节架构、书稿质量、导出/出版交接边界 | 通用 runtime、publication acceptance、App release |
 | [`opl-meta-agent`](https://github.com/gaofeng21cn/opl-meta-agent) | OMA semantic provider | 目标理解、AgentBlueprint / EvalSpec、证据诊断和 EvolutionProposal | FoundryRun/评测/版本/激活、目标 agent 的领域 truth |
-| [`one-person-lab-cloud`](https://github.com/gaofeng21cn/one-person-lab-cloud) | OPL Cloud conditional product family | 长期、条件启用的 Gateway、Workspace、Console、Fabric、Ledger 云产品与平台边界；只有 account、storage、isolation、backend 与 owner policy 齐备时进入产品面 | 替代 OPL Framework、持有本地 App/domain truth，或成为当前 App desktop + Docker/WebUI 的必要 gate |
+| [`one-person-lab-cloud`](https://github.com/gaofeng21cn/one-person-lab-cloud) | OPL Cloud product family | 正在落地的 Gateway、Workspace、Console、Fabric、Ledger 云产品与平台边界；具体能力以 account、storage、isolation、backend 与 owner policy 证据为准 | 替代 OPL Framework、持有本地 App/domain truth，或成为当前 App desktop + Docker/WebUI 的必要 gate |
 | [`opl-flow`](https://github.com/gaofeng21cn/opl-flow) | Workflow/profile distribution | Codex/OPL 工作方式、repo profile、AGENTS/TASTE 模板和本机协作规范分发 | runtime/package/domain truth |
 | [`homebrew-one-person-lab`](https://github.com/gaofeng21cn/homebrew-one-person-lab) | Homebrew distribution tap | One Person Lab App 的下游安装分发入口 | App release authority、二进制产物真相 |
 | [`opl-health-platform`](https://github.com/gaofeng21cn/opl-health-platform) | Health industry planning docs | 医疗行业平台定位、医院部署、专病模板、医疗能力包规划 | Cloud/App/Framework 的通用实现、运行状态或账单资源调度 |

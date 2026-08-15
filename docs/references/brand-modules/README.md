@@ -16,14 +16,14 @@ Machine boundary: 本文是人读目标态参考。机器真相继续归核心�
 
 本文不冻结当前完成度、receipt id、worklist 计数、branch、worktree 或 release 证据。当前事实继续回到 `docs/status.md`、`docs/active/current-state-vs-ideal-gap.md` 和 fresh CLI/read-model。
 
-当前品牌系统冻结基线归 `contracts/opl-framework/brand-system-profile.json`。其中历史字段仍保留 Framework / App / Foundry 的责任视角；对外生态认知已由 2026-08-15 决策统一为 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`。该 contract 只约束当前品牌系统语言和 pattern，不声明十模块是最终 authority/Package/plugin/profile 拓扑，也不声明 L5、domain ready、quality verdict、artifact authority、App release ready 或 production ready。
+当前品牌系统冻结基线归 `contracts/opl-framework/brand-system-profile.json`。其中历史字段仍保留 Framework / App / Foundry 的责任视角；对外生态认知统一为 `OPL Base + OPL App + OPL Packages + OPL Cloud`。该 contract 只约束当前品牌系统语言和 pattern，不声明十模块是最终 authority/Package/plugin/profile 拓扑，也不声明 L5、domain ready、quality verdict、artifact authority、App release ready 或 production ready。
 
 Cordis 全面迁移已冻结一条更高优先级的目标态约束：`family capability domain != authority surface != Package 发布单元 != Cordis contribution != composition profile`。P5-R 已依据真实 caller、authority、lifecycle、scope、trust、故障隔离和发布节奏形成五层目标图；下表是跨仓品牌/认知导航，不代表一 domain 一目录、一 Package或一 plugin。
 
 ### 产品层、权威层与运行层
 
 品牌名是认知地图，不是仓库清单。当前生态对外仍只暴露 `OPL Base`、`OPL App`、
-`OPL Packages` 和可选 `OPL Cloud`；内部按以下关系理解：
+`OPL Packages` 和 `OPL Cloud`；内部按以下关系理解：
 
 ```text
 OPL Framework = 唯一 Cordis Host / runtime authority
@@ -106,7 +106,7 @@ OPL Charter
 
 Agent Tool Arsenal / Capability Invocation OS 不新增品牌模块。它以 `OPL Pack` 为 ABI owner；合同是生成/校验材料，Agent ordinary path 只消费 Pack 派生的 execution view、operational card 和 result envelope。`Atlas`、`Stagecraft`、`Console`、`Connect` 分别消费 catalog、use-policy、current-owner projection / ordinary execution view 和 descriptor/export 边界；`Runway` / `Ledger` 只承运执行与 refs evidence。
 
-`OPL Fabric` 属于长期、条件启用的 Cloud / Product 层资源底座语义，不新增 Framework 第 11 个源码模块，也不成为当前 App desktop + Docker/WebUI 的必要 gate。只有真实 account、storage、isolation、backend 与 owner policy 齐备时，Fabric 才可由多个 family capability domains与 Cloud authority surface组合形成用户可见能力；它不要求 Framework制造同名目录或 plugin。Cloud Console组织托管治理与 drilldown，App Console组织本地产品工作面，Framework只提供所需 projection。
+`OPL Fabric` 属于正在落地的 Cloud / Product 层资源底座语义，不新增 Framework 第 11 个源码单元。它由 `Connect`、`Runway`、`Pack`、`Workspace` 和 `Ledger` 协作承接，并由 Cloud authority surface 组合成用户可见能力；具体可用性以真实 account、storage、isolation、backend、owner policy 与运行证据为准。Cloud Console 组织托管治理与 drilldown，App Console 组织本地产品工作面，Framework 只提供所需 projection。
 
 ## Host / Client 与产品 authority
 
@@ -116,7 +116,7 @@ Framework 是唯一 Host composition authority：Host 根据 `base-headless`、`
 - 同一 Client Contribution descriptor、typed slot/action ABI 与 App product profile；
 - 同一 RPC/event transport 与 no-second-registry/no-independent-install guard。
 
-Client 只能消费 projection，不能独立发现/安装 plugin、拥有 Package currentness、签发 release-operation、改写 App/Cloud/domain truth或把 renderer fallback当成 ready。`OPL App` 是产品 owner，不是普通 Cordis plugin；AionUI/DSH只是可替换 renderer/carrier。Console同样按 authority分层：Cloud control-plane、App本地产品工作面、Framework readiness/operator projection。
+Client 只能消费 projection，不能独立发现/安装 plugin、拥有 Package currentness、签发 release-operation、改写 App/Cloud/domain truth 或把 renderer fallback 当成 ready。`OPL App` 是产品 owner，不是普通 Cordis plugin；AionUI/DSH 只是可替换 renderer/carrier。Console 同样按 authority 分层：Cloud control-plane、App 本地产品工作面、Framework readiness/operator projection。
 
 ## 当前完成度对照
 
