@@ -58,7 +58,7 @@ import {
   workerClose,
   waitForBarrierCount,
 } from './shared.ts';
-import { prevalidatedSourceTruthFingerprint } from '../../../src/modules/runway/family-runtime-source-truth-refs.ts';
+import { prevalidatedSourceTruthFingerprint } from '../../../src/adapters/execution/family-runtime-source-truth-refs.ts';
 test('work-item content bindings reject local root escape and cross-study receipts', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-run-work-item-content-'));
   const previousStateRoot = process.env.OPL_STATE_DIR;

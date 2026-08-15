@@ -7,12 +7,12 @@ import test from 'node:test';
 import { pathToFileURL } from 'node:url';
 
 import { FrameworkContractError } from '../../../src/kernel/contract-validation.ts';
-import { normalizeTypedStageCloseoutPacket } from '../../../src/modules/runway/family-runtime-codex-stage-runner-parts/closeout-normalization.ts';
+import { normalizeTypedStageCloseoutPacket } from '../../../src/adapters/execution/family-runtime-codex-stage-runner-parts/closeout-normalization.ts';
 import {
   hydrateReferencedStageAttemptCloseout,
   resolveProtocolCloseoutResumePacket,
-} from '../../../src/modules/runway/family-runtime-codex-stage-runner-parts/referenced-closeout-hydration.ts';
-import { compactCloseoutPacketForTemporalResult } from '../../../src/modules/runway/family-runtime-temporal-activities.ts';
+} from '../../../src/adapters/execution/family-runtime-codex-stage-runner-parts/referenced-closeout-hydration.ts';
+import { compactCloseoutPacketForTemporalResult } from '../../../src/adapters/execution/family-runtime-temporal-activities.ts';
 import { createFakeCodexFixture } from '../cli/helpers.ts';
 import { runPublicCodexStageRunner } from '../family-runtime-codex-stage-runner-helpers.ts';
 

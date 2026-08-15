@@ -2,7 +2,7 @@ import { assert, fs, os, parseJsonText, path, repoRoot, runCli, test } from '../
 import {
   buildOplDeveloperModeProjection,
   resolveOplDeveloperModeFrameworkCheckout,
-} from '../../../../src/modules/connect/developer-mode.ts';
+} from '../../../../src/adapters/integration/developer-mode.ts';
 
 const developerModePermissionsFixture = JSON.stringify({
   user: { login: 'gaofeng21cn' },

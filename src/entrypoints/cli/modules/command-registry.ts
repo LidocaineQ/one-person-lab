@@ -3,7 +3,7 @@ import { parseArgs, type ParseArgsOptionsConfig } from 'node:util';
 import {
   FrameworkContractError,
   validateCliCommandRegistryEntry,
-} from '../../../modules/charter/index.ts';
+} from '../../../authority/contracts/index.ts';
 import { buildUsageError } from './runtime-helpers.ts';
 import type { CommandRegistryMetadata, CommandSpec } from './types.ts';
 

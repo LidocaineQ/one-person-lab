@@ -14,8 +14,8 @@ import {
   writeCapabilityProvider as writeRawCapabilityProvider,
   writeMasConsumer as writeRawMasConsumer,
 } from './capability-fixtures.ts';
-import { validateCapabilityProvider } from '../../../../../src/modules/connect/agent-package-registry-parts/dependency-closure.ts';
-import { normalizePackageManifest } from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
+import { validateCapabilityProvider } from '../../../../../src/adapters/integration/agent-package-registry-parts/dependency-closure.ts';
+import { normalizePackageManifest } from '../../../../../src/adapters/integration/agent-package-registry-parts/manifest-normalizers.ts';
 
 const FIXTURE_PROVIDER_PACKAGE_ID = 'fixture.mas-scholar-skills';
 const MAG_CONSUMER_PROFILE_ID = 'mag-medical-grant.v1';

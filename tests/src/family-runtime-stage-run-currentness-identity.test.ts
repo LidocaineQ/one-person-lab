@@ -6,7 +6,7 @@ import {
   missingStageRunCurrentnessIdentityFields,
   sameStageRunCurrentnessIdentity,
   sameStageRunRouteCurrentnessIdentity,
-} from '../../src/modules/runway/family-runtime-stage-run-currentness-identity.ts';
+} from '../../src/adapters/execution/family-runtime-stage-run-currentness-identity.ts';
 
 const packetRef = 'packet:artifact-owner-current', routeIdentity = 'route::artifact-owner-current';
 const attemptIdentity = 'attempt::artifact-owner-current';

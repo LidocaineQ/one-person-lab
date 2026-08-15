@@ -8,7 +8,7 @@ import {
   buildPackBundleManifest,
   buildPackBundleValidation,
   writePackBundleAggregate,
-} from '../../src/modules/pack/pack-bundle.ts';
+} from '../../src/authority/packages/pack-bundle.ts';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 
 function writeSource(root: string) {

@@ -11,7 +11,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
 const mapRef = 'contracts/opl-framework/cordis-surface-map.json';
 const schemaRef = 'contracts/opl-framework/cordis-surface-map.schema.json';
-const sourceModuleMapRef = 'contracts/opl-framework/source-module-map.json';
 
 type JsonObject = Record<string, unknown>;
 
@@ -61,10 +60,7 @@ test('Cordis surface map is valid against its machine contract', () => {
   );
 });
 
-test('Cordis surface map covers the canonical ten physical module entrypoints', () => {
-  const sourceMap = readJson(sourceModuleMapRef) as {
-    modules: Array<{ module_id: string; brand_name: string; public_entrypoint: string }>;
-  };
+test('Cordis surface map preserves the ten brand-domain candidates independently of source topology', () => {
   const map = mapPayload() as {
     modules: Array<{
       module_id: string;
@@ -76,15 +72,15 @@ test('Cordis surface map covers the canonical ten physical module entrypoints', 
     }>;
   };
 
-  const expectedIds = sourceMap.modules.map((module) => module.module_id);
+  const expectedIds = ['charter', 'atlas', 'workspace', 'pack', 'stagecraft', 'runway', 'ledger', 'console', 'foundry', 'connect'];
   const actualIds = map.modules.map((module) => module.module_id);
   assert.deepEqual(actualIds, expectedIds);
 
-  for (const sourceModule of sourceMap.modules) {
+  for (const sourceModule of map.modules) {
     const candidate = map.modules.find((module) => module.module_id === sourceModule.module_id);
     assert.ok(candidate, `missing Cordis candidate for ${sourceModule.module_id}`);
-    assert.equal(candidate.brand_name, sourceModule.brand_name);
-    assert.equal(candidate.public_entrypoint, sourceModule.public_entrypoint);
+    assert.equal(typeof candidate.brand_name, 'string');
+    assert.equal(typeof candidate.public_entrypoint, 'string');
     assert.match(candidate.candidate_plugin_id, /^opl\.[a-z][a-z0-9-]*\.candidate$/);
     assert.equal(candidate.lifecycle_state, 'not_implemented');
     assert.notEqual(candidate.candidate_disposition, 'adopted');

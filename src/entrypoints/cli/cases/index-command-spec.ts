@@ -1,4 +1,4 @@
-import { runFamilyRuntimeStateIndex, type FamilyRuntimeStateIndexAction } from '../../../modules/runway/family-runtime-state-index.ts';
+import { runFamilyRuntimeStateIndex, type FamilyRuntimeStateIndexAction } from '../../../adapters/execution/family-runtime-state-index.ts';
 import { buildUsageError } from '../modules/support.ts';
 import type { CommandSpec } from '../modules/support.ts';
 

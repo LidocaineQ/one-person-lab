@@ -4,13 +4,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { appendDomainRunEvent, createDomainRunRecord, dispatchDomainAction, readDomainRunEvents } from '../../src/modules/runway/domain-task-runtime.ts';
-import { resolveDomainPythonCommand } from '../../src/modules/runway/domain-helper-runtime.ts';
-import { buildDirectoryArtifactIndex, buildDomainArtifactIndex, readDomainArtifact, writeDomainArtifact } from '../../src/modules/stagecraft/domain-artifact-runtime.ts';
+import { appendDomainRunEvent, createDomainRunRecord, dispatchDomainAction, readDomainRunEvents } from '../../src/adapters/execution/domain-task-runtime.ts';
+import { resolveDomainPythonCommand } from '../../src/adapters/execution/domain-helper-runtime.ts';
+import { buildDirectoryArtifactIndex, buildDomainArtifactIndex, readDomainArtifact, writeDomainArtifact } from '../../src/authority/stages/domain-artifact-runtime.ts';
 import {
   ensureDomainWorkspaceGitBoundary,
   materializeDomainSources,
-} from '../../src/modules/workspace/domain-source-runtime.ts';
+} from '../../src/authority/workspace/domain-source-runtime.ts';
 
 const identity = {
   domain_id: 'rca',

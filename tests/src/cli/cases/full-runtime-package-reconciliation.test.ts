@@ -9,14 +9,14 @@ import {
   readBundledFullRuntimePackageCatalog,
   type BundledFullRuntimeCatalogEntry,
   type BundledFullRuntimePackageCatalog,
-} from '../../../../src/modules/connect/agent-package-registry-parts/bundled-full-runtime-catalog.ts';
-import type { InstalledCarrierEntry } from '../../../../src/modules/connect/agent-package-registry-parts/installed-codex-plugin-directory.ts';
-import type { AgentPackageManifest } from '../../../../src/modules/connect/agent-package-registry-parts/types.ts';
+} from '../../../../src/adapters/integration/agent-package-registry-parts/bundled-full-runtime-catalog.ts';
+import type { InstalledCarrierEntry } from '../../../../src/adapters/integration/agent-package-registry-parts/installed-codex-plugin-directory.ts';
+import type { AgentPackageManifest } from '../../../../src/adapters/integration/agent-package-registry-parts/types.ts';
 import {
   materializeLocalCodexPluginMarketplaceRoute,
   resolveCanonicalOplFamilyMarketplaceId,
-} from '../../../../src/modules/connect/system-installation/codex-plugin-registry.ts';
-import { reconcileBundledFullRuntimePackagesIfAvailable } from '../../../../src/modules/connect/system-installation/full-runtime-package-reconciliation.ts';
+} from '../../../../src/adapters/integration/system-installation/codex-plugin-registry.ts';
+import { reconcileBundledFullRuntimePackagesIfAvailable } from '../../../../src/adapters/integration/system-installation/full-runtime-package-reconciliation.ts';
 
 function manifestProjection(entry: BundledFullRuntimeCatalogEntry) {
   const manifest = parseJsonText(entry.manifestJson) as Record<string, any>;

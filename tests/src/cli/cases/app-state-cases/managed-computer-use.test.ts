@@ -9,8 +9,8 @@ import {
   inspectManagedComputerUse,
   readManagedComputerUseLock,
   reconcileManagedComputerUse,
-} from '../../../../../src/modules/connect/managed-computer-use.ts';
-import { runManagedComputerUseStartupMaintenance } from '../../../../../src/modules/connect/system-installation/startup-maintenance.ts';
+} from '../../../../../src/adapters/integration/managed-computer-use.ts';
+import { runManagedComputerUseStartupMaintenance } from '../../../../../src/adapters/integration/system-installation/startup-maintenance.ts';
 
 const REQUIRED_TOOLS = [
   'list_apps',

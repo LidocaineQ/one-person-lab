@@ -8,8 +8,8 @@ import {
   readCodexUserInstructions,
   restoreCodexUserInstructionsFromOplFlowDefault,
   writeCodexUserInstructions,
-} from '../../src/modules/console/codex-personalization.ts';
-import { readOplFlowDefaultUserInstructions } from '../../src/modules/connect/index.ts';
+} from '../../src/read-models/operator/codex-personalization.ts';
+import { readOplFlowDefaultUserInstructions } from '../../src/adapters/integration/index.ts';
 import { createFakeCodexPluginManagerFixture, runCli } from './cli/helpers.ts';
 import { writeManagedRuntimeSourceFixture } from './cli/cases/packages-cases/managed-runtime-source-fixture.ts';
 import { agentPackageManifest, formatJsonPayload } from './cli/cases/packages-cases/helpers.ts';

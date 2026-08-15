@@ -7,7 +7,7 @@ import test from 'node:test';
 import {
   createAcpStdioBridgeState,
   handleAcpStdioRequest,
-} from '../../src/modules/connect/opl-acp-stdio.ts';
+} from '../../src/adapters/integration/opl-acp-stdio.ts';
 
 type SessionCreateResult = {
   surface_id: string;

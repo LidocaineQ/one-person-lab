@@ -5,7 +5,7 @@ import {
   recordMemoryArtifactLifecycleEvidenceReceipts,
   verifyMemoryArtifactLifecycleEvidenceReceipt,
   type MemoryArtifactLifecycleEvidenceReceiptInput,
-} from '../../../modules/ledger/memory-artifact-lifecycle-evidence-ledger.ts';
+} from '../../../authority/evidence/memory-artifact-lifecycle-evidence-ledger.ts';
 import {
   readJsonObject,
   readOptionalString,

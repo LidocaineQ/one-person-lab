@@ -4,7 +4,7 @@ import {
   retargetReadyRepo,
   writeJson,
 } from './agents-conformance-fixtures.ts';
-import { buildFunctionalPrivatizationAudit } from '../../../../src/modules/pack/functional-privatization-audit.ts';
+import { buildFunctionalPrivatizationAudit } from '../../../../src/authority/packages/functional-privatization-audit.ts';
 
 test('generated interfaces expose a family-defaults source for readiness drilldown', () => {
   const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-canonical-family-'));

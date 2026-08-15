@@ -9,12 +9,12 @@ import {
   buildBrandModuleMaturity,
   buildBrandModulesList,
   buildBrandModuleValidation,
-} from '../../../../modules/charter/brand-modules.ts';
+} from '../../../../authority/contracts/brand-modules.ts';
 import {
   buildBrandModuleL5Interfaces,
   buildBrandModuleL5Status,
   buildBrandModuleL5Validation,
-} from '../../../../modules/charter/brand-module-l5-evidence.ts';
+} from '../../../../authority/contracts/brand-module-l5-evidence.ts';
 import type { FrameworkContracts } from '../../../../kernel/types.ts';
 import { assertNoArgs } from '../../modules/support.ts';
 import type { CommandSpec } from '../../modules/support.ts';
@@ -23,7 +23,7 @@ import { buildBrandOperatingModelCommandSpecs } from './brand-operating-model.ts
 import { buildBrandPackCommandSpecs } from './brand-pack.ts';
 import { buildBrandRunwayCommandSpecs } from './brand-runway.ts';
 import { buildLedgerBundleCommandSpecs } from './ledger-bundle.ts';
-import type { runFamilyRuntime } from '../../../../modules/runway/family-runtime.ts';
+import type { runFamilyRuntime } from '../../../../adapters/execution/family-runtime.ts';
 
 export function buildBrandCommandSpecs(
   getContracts: () => FrameworkContracts,

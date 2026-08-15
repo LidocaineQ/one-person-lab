@@ -128,7 +128,7 @@ OPL base/support Skill 的职责是把运维层模块的边界翻译成 AI 可�
 | `opl packages install|update opl-flow` | 作为公共 façade，把所选 root 与缺失 required identity 委托给配置的 carrier，并返回 fresh installed/callable readback。 | carrier 的实际 mutation 和 currentness。 |
 | `src/install-companions.ts` | 迁移期兼容 adapter；目标由配置的 native carrier 安装 descriptor 选择的 skill/tool。 | owner descriptor、carrier readback 与 App Official Profile。 |
 | `src/install-companions-parts/tools.ts` | 检测或安装 `officecli` 与 `mineru-open-api` binary，并要求对应 skill payload + binary 同时可用才算相关 companion ready。 | `officecli --version`、`mineru-open-api version`、本机 PATH、`OPL_FULL_RUNTIME_HOME/bin`、remote install 输出。 |
-| `src/modules/connect/opl-skills.ts` | 迁移期 Codex projection primitive；目标从动态 installed Package descriptor 读取 primary skill/capability，不拥有 Package lifecycle。 | carrier installed/callable 状态、primary skill source、generated plugin cache path、sync count。 |
+| `src/adapters/integration/opl-skills.ts` | 迁移期 Codex projection primitive；目标从动态 installed Package descriptor 读取 primary skill/capability，不拥有 Package lifecycle。 | carrier installed/callable 状态、primary skill source、generated plugin cache path、sync count。 |
 | `src/system-installation/codex-plugin-registry.ts` | Codex carrier adapter，负责 plugin/config/cache 的 native projection 和旧 surface cleanup；目标必须消费动态 owner descriptor，不能固化 Agent id allowlist。 | 用户 config 当前内容、marketplace path、Plugin Manager readback 和实际 cleanup 数量。 |
 | `opl system initialize` | 投影 `recommended_skills`、GUI shell、runtime/tool readiness 等初始化读面。 | 当前 recommended skill status、tool readiness、App first-run result。 |
 

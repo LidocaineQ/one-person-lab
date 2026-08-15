@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-import { compileStandardAgentStageManifest } from '../../src/modules/pack/index.ts';
+import { compileStandardAgentStageManifest } from '../../src/authority/packages/index.ts';
 import { loadFamilyManifestFixtures } from './cli/helpers.ts';
 import { createAdmittedStagePackFixture } from './cli/cases/workspace-domain-test-helper.ts';
 

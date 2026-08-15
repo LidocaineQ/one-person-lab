@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parseJsonText } from '../../src/kernel/json-file.ts';
-import { OPL_HOSTED_FOUNDRY_SEMANTIC_PROVIDER_PROFILE_ID } from '../../src/modules/pack/index.ts';
+import { OPL_HOSTED_FOUNDRY_SEMANTIC_PROVIDER_PROFILE_ID } from '../../src/authority/packages/index.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 

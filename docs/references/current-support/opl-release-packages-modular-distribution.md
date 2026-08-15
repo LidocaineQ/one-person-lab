@@ -251,7 +251,7 @@ ready、production ready 或用户文档：
 | 入口 | 读取内容 |
 | --- | --- |
 | `contracts/` 与 Framework package manifests | owner、canonical id、SemVer、ABI、依赖、source policy |
-| `opl connect packages manifest` / `src/modules/connect/package-distribution.ts` | 当前 registry/index、channel、carrier 和 consumption projection |
+| `opl connect packages manifest` / `src/adapters/integration/package-distribution.ts` | 当前 registry/index、channel、carrier 和 consumption projection |
 | `opl packages ... --json` | installed lock、status、dependency closure、receipt、current/LKG |
 | Package build/release scripts and workflows | candidate/stable admission、digest、checksum、rollback 和 retention |
 | App release contracts/workflows/evidence | Desktop、Docker/WebUI、Full carrier、updater、签名和发布终态 |

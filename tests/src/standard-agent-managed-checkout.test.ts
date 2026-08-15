@@ -6,7 +6,7 @@ import test from 'node:test';
 
 import {
   resolveStandardAgentManagedCheckout as resolveStandardAgentManagedCheckoutProduction,
-} from '../../src/modules/runway/standard-agent-managed-checkout.ts';
+} from '../../src/adapters/execution/standard-agent-managed-checkout.ts';
 
 const TREE_SHA256 = 'a'.repeat(64);
 

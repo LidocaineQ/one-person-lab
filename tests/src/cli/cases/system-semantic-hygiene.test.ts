@@ -93,7 +93,7 @@ test('system semantic hygiene exposes machine gates without production or domain
   assert.equal(parserGate.status, 'guarded');
   assert.equal(
     parserGate.source_evidence?.some((evidence) =>
-      evidence.ref === 'src/modules/runway/family-runtime-command-parts/registry.ts'
+      evidence.ref === 'src/adapters/execution/family-runtime-command-parts/registry.ts'
     ),
     true,
   );
@@ -347,7 +347,7 @@ test('system semantic hygiene exposes machine gates without production or domain
   );
   assert.equal(
     domainCarrierGate.source_evidence?.some((evidence) =>
-      evidence.ref === 'src/modules/stagecraft/family-transition-visual-ingestion.ts'
+      evidence.ref === 'src/authority/stages/family-transition-visual-ingestion.ts'
     ),
     true,
   );

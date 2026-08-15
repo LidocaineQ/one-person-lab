@@ -58,7 +58,7 @@ callability 错误 fail closed，但不能以跨包 version/ABI/lock closure 阻
 当前 owner-channel source selection 已进入 Framework 主线，但 ordinary App Package
 projection 仍从 installed lock 和旧 status读取 ABI/digest、dependency closure、
 materialization、receipt/rollback与 LKG。Phase 2 的第一个 producer migration固定为
-`src/modules/console/app-state-agent-packages.ts` 及其
+`src/read-models/operator/app-state-agent-packages.ts` 及其
 `package-status-projection.test.ts`，先把该投影收敛为 fresh
 presence/callability/status/actions；`app-state.ts`不预先纳入写集。
 

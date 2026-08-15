@@ -8,9 +8,9 @@ import test from 'node:test';
 import {
   normalizeDomainOwnerAnswerProjectionProfile,
 } from '../../src/kernel/domain-owner-answer-projection-profile.ts';
-import { buildProgressDeltaReceipt } from '../../src/modules/ledger/progress-delta-receipt.ts';
-import * as checkoutCurrentness from '../../src/modules/runway/family-runtime-checkout-currentness.ts';
-import * as stageNativeOwnerAnswer from '../../src/modules/runway/family-runtime-stage-native-owner-answer.ts';
+import { buildProgressDeltaReceipt } from '../../src/authority/evidence/progress-delta-receipt.ts';
+import * as checkoutCurrentness from '../../src/adapters/execution/family-runtime-checkout-currentness.ts';
+import * as stageNativeOwnerAnswer from '../../src/adapters/execution/family-runtime-stage-native-owner-answer.ts';
 
 test('stage-native progress-or-owner-answer guard consumes a generic domain profile', () => {
   const profile = normalizeDomainOwnerAnswerProjectionProfile({

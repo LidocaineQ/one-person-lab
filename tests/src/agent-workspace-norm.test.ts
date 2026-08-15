@@ -9,15 +9,15 @@ import {
   STANDARD_AGENT_SERIES_MEMBERSHIP,
 } from '../../src/kernel/standard-agent-registry.ts';
 import { assertStandardAgentDescriptorIdentity } from '../../src/kernel/standard-agent-interface.ts';
-import { validateAgentWorkspaceNorm } from '../../src/modules/charter/contract-validators/agent-workspace-norm-contract.ts';
-import { readStandardAgentDescriptorForDomain } from '../../src/modules/connect/index.ts';
+import { validateAgentWorkspaceNorm } from '../../src/authority/contracts/contract-validators/agent-workspace-norm-contract.ts';
+import { readStandardAgentDescriptorForDomain } from '../../src/adapters/integration/index.ts';
 import {
   buildAgentWorkspaceNormChecks,
   buildAgentWorkspaceNormProjection,
-} from '../../src/modules/workspace/agent-workspace-norm.ts';
-import { listWorkspaceAgentProfiles } from '../../src/modules/workspace/workspace-agent-defaults.ts';
-import { findWorkspaceAgentProfile } from '../../src/modules/workspace/workspace-agent-defaults.ts';
-import { profileFromTopologyContract } from '../../src/modules/workspace/workspace-topology.ts';
+} from '../../src/authority/workspace/agent-workspace-norm.ts';
+import { listWorkspaceAgentProfiles } from '../../src/authority/workspace/workspace-agent-defaults.ts';
+import { findWorkspaceAgentProfile } from '../../src/authority/workspace/workspace-agent-defaults.ts';
+import { profileFromTopologyContract } from '../../src/authority/workspace/workspace-topology.ts';
 import { repoRoot } from './cli/helpers.ts';
 
 const contractPath = path.join(repoRoot, 'contracts/opl-framework/agent-workspace-norm-contract.json');

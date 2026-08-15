@@ -1,13 +1,13 @@
 import { assert, test } from '../helpers.ts';
 import { FrameworkContractError } from '../../../../src/kernel/contract-validation.ts';
-import { parseRegisteredFamilyRuntimeCommand } from '../../../../src/modules/runway/family-runtime-command-parts/registry.ts';
-import { parseSchedulerLifecycleArgs } from '../../../../src/modules/runway/family-runtime-command-parts/scheduler.ts';
-import { buildTemporalSchedulerTickWorkflowArgs } from '../../../../src/modules/runway/family-runtime-temporal-provider-parts/scheduler-cadence.ts';
+import { parseRegisteredFamilyRuntimeCommand } from '../../../../src/adapters/execution/family-runtime-command-parts/registry.ts';
+import { parseSchedulerLifecycleArgs } from '../../../../src/adapters/execution/family-runtime-command-parts/scheduler.ts';
+import { buildTemporalSchedulerTickWorkflowArgs } from '../../../../src/adapters/execution/family-runtime-temporal-provider-parts/scheduler-cadence.ts';
 import {
   FAMILY_RUNTIME_DOMAIN_IDS,
   resolveFamilyRuntimeDomainId,
   runtimeDomainProfileFor,
-} from '../../../../src/modules/runway/family-runtime-types.ts';
+} from '../../../../src/adapters/execution/family-runtime-types.ts';
 
 function assertUsageError(error: unknown, message: RegExp, option: string) {
   assert.equal(error instanceof FrameworkContractError, true);

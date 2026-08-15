@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildEvidenceGroundedRunwayProfilePolicyReadback } from '../../src/modules/runway/index.ts';
-import { buildEvidenceGroundedStagecraftProfilePolicyReadback } from '../../src/modules/stagecraft/index.ts';
+import { buildEvidenceGroundedRunwayProfilePolicyReadback } from '../../src/adapters/execution/index.ts';
+import { buildEvidenceGroundedStagecraftProfilePolicyReadback } from '../../src/authority/stages/index.ts';
 
 const requiredModeClasses = [
   'evidence_lookup',

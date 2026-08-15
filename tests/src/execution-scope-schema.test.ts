@@ -6,7 +6,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { assertRepoJsonSchemaPayload } from '../../src/kernel/repo-json-schema.ts';
-import { createWorkItemExecutionScopeSnapshot } from '../../src/modules/workspace/execution-scope.ts';
+import { createWorkItemExecutionScopeSnapshot } from '../../src/authority/workspace/execution-scope.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const schemaRef = 'contracts/opl-framework/execution-scope-snapshot.schema.json';

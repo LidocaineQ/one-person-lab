@@ -5,12 +5,12 @@ import {
   createStageAttempt,
   inspectStageAttempt,
   syncStageAttemptFromTemporalTerminalObservation,
-} from '../../../src/modules/runway/family-runtime-stage-attempts.ts';
-import { getStageAttemptRow } from '../../../src/modules/runway/family-runtime-stage-attempt-ledger.ts';
+} from '../../../src/adapters/execution/family-runtime-stage-attempts.ts';
+import { getStageAttemptRow } from '../../../src/adapters/execution/family-runtime-stage-attempt-ledger.ts';
 import {
   blockLinkedDefaultExecutorTask,
   markLinkedDefaultExecutorTaskCompleted,
-} from '../../../src/modules/runway/family-runtime-linked-task-sync.ts';
+} from '../../../src/adapters/execution/family-runtime-linked-task-sync.ts';
 import {
   blockedTemporalObservation,
   createMasDefaultExecutorAttempt,

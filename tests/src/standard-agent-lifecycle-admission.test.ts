@@ -15,49 +15,49 @@ import {
   inspectStandardAgentActionRunBinding,
   inspectStandardAgentActionRunCompletion,
   inspectStandardAgentActionRunPlan,
-} from '../../src/modules/runway/standard-agent-action-run-state.ts';
+} from '../../src/adapters/execution/standard-agent-action-run-state.ts';
 import {
   runStandardAgentAction,
   runStandardAgentQualificationProvisioning,
-} from '../../src/modules/runway/standard-agent-action-runtime.ts';
+} from '../../src/adapters/execution/standard-agent-action-runtime.ts';
 import { runStandardAgentHandlerSandbox } from
-  '../../src/modules/runway/standard-agent-handler-sandbox.ts';
-import { runFamilyRuntime } from '../../src/modules/runway/family-runtime.ts';
+  '../../src/adapters/execution/standard-agent-handler-sandbox.ts';
+import { runFamilyRuntime } from '../../src/adapters/execution/family-runtime.ts';
 import {
   applyDomainArtifactCasMaterialization,
   observeDomainArtifactCasMaterialization,
 } from
-  '../../src/modules/runway/domain-artifact-cas-materialization.ts';
+  '../../src/adapters/execution/domain-artifact-cas-materialization.ts';
 import {
   preflightStandardAgentDomainLifecycleAdmission,
   prepareStandardAgentLifecycleReactivation,
   standardAgentLifecycleAdmissionContract,
   standardAgentLifecycleReactivationHandlerRunId,
 } from
-  '../../src/modules/runway/standard-agent-domain-lifecycle-admission.ts';
+  '../../src/adapters/execution/standard-agent-domain-lifecycle-admission.ts';
 import { preflightFamilyRuntimeDomainLifecycleAdmission } from
-  '../../src/modules/runway/family-runtime-domain-lifecycle-admission.ts';
+  '../../src/adapters/execution/family-runtime-domain-lifecycle-admission.ts';
 import { ensureProviderHostedStageAttempt } from
-  '../../src/modules/runway/family-runtime-provider-hosted-attempts.ts';
+  '../../src/adapters/execution/family-runtime-provider-hosted-attempts.ts';
 import { launchRegisteredStageRun } from
-  '../../src/modules/runway/family-runtime-stage-run-launch.ts';
+  '../../src/adapters/execution/family-runtime-stage-run-launch.ts';
 import { createStageRunLaunchTable } from
-  '../../src/modules/runway/family-runtime-stage-run-launch-registry.ts';
+  '../../src/adapters/execution/family-runtime-stage-run-launch-registry.ts';
 import { createFamilyRuntimeQueueTables, type FamilyRuntimeTaskRow } from
-  '../../src/modules/runway/family-runtime-store.ts';
+  '../../src/adapters/execution/family-runtime-store.ts';
 import { buildPackBoundTemporalStageRunInput } from
-  '../../src/modules/runway/family-runtime-pack-bound-stage-run.ts';
+  '../../src/adapters/execution/family-runtime-pack-bound-stage-run.ts';
 import { materializeStageRunRoute } from
-  '../../src/modules/runway/family-runtime-stage-run-route-launch.ts';
+  '../../src/adapters/execution/family-runtime-stage-run-route-launch.ts';
 import {
   buildRouteStageRunInvocation,
   stageAttemptExecutionContentBindingSha256,
   stageRunSpecSha256,
-} from '../../src/modules/runway/family-runtime-stage-run-identity.ts';
-import { normalizeStageQualityCyclePolicy } from '../../src/modules/stagecraft/stage-quality-cycle.ts';
-import type { StandardAgentStageQualityRuntimeBinding } from '../../src/modules/pack/index.ts';
+} from '../../src/adapters/execution/family-runtime-stage-run-identity.ts';
+import { normalizeStageQualityCyclePolicy } from '../../src/authority/stages/stage-quality-cycle.ts';
+import type { StandardAgentStageQualityRuntimeBinding } from '../../src/authority/packages/index.ts';
 import type { StandardAgentHandlerSandboxReceipt } from
-  '../../src/modules/runway/standard-agent-handler-sandbox.ts';
+  '../../src/adapters/execution/standard-agent-handler-sandbox.ts';
 
 function temporaryRoot(prefix: string) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));

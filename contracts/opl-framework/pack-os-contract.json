@@ -5,7 +5,7 @@
   "purpose": "Generic Pack OS lifecycle contract for capability-pack descriptor intake, registry install, content-addressed cache, refs-only distribution, lock projection, artifact lifecycle refs, and review receipt transport.",
   "state": "active_l4_structural_baseline",
   "machine_boundary": "This contract covers OPL-owned pack descriptor transport, registry install records, content-addressed cache records for present local resources, refs-only distribution manifests, resolver/lock projection, content hash refs, artifact locator refs, lifecycle state refs, and reviewer receipt refs. It does not authorize domain truth, artifact body mutation, owner receipt signing, quality verdicts, publication readiness, grant readiness, visual export readiness, App release readiness, or production maturity.",
-  "source_module": "src/modules/pack/pack-os.ts",
+  "source_module": "src/authority/packages/pack-os.ts",
   "cli_surfaces": {
     "inspect": "opl pack os inspect --descriptor <path>",
     "install": "opl pack os install --descriptor <path> --registry <path> [--cache-root <dir>]",

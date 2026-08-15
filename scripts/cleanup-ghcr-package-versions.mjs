@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { buildOplPackageManifest } from '../src/modules/connect/package-distribution.ts';
+import { buildOplPackageManifest } from '../src/adapters/integration/package-distribution.ts';
 import { parseJsonText } from './script-json-boundary.mjs';
 
 function parseCliOptions(argv) {

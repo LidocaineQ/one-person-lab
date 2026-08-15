@@ -4,14 +4,14 @@ import { assert, buildManifestCommand, createFamilyContractsFixtureRoot, fs, loa
 import {
   buildFamilyAgentInspect,
   buildFamilyAgentsList,
-} from '../../../../src/modules/workspace/family-domain-agent-skeleton.ts';
+} from '../../../../src/authority/workspace/family-domain-agent-skeleton.ts';
 import {
   applyProviderClosureEvidence,
   providerClosureEvidence,
   providerResidencyGapStatus,
   readProviderContinuousProof,
-} from '../../../../src/modules/runway/index.ts';
-import type { ProviderContinuousProof } from '../../../../src/modules/runway/index.ts';
+} from '../../../../src/adapters/execution/index.ts';
+import type { ProviderContinuousProof } from '../../../../src/adapters/execution/index.ts';
 import { createAdmittedStagePackFixture } from './workspace-domain-test-helper.ts';
 
 type JsonRecord = Record<string, unknown>;

@@ -1,11 +1,11 @@
 import { DatabaseSync } from 'node:sqlite';
 
-import { buildAppStateRuntimeActivityItems } from '../../../../../src/modules/console/app-state-runtime-activity.ts';
-import { buildTaskRunProjectionV2 } from '../../../../../src/modules/console/app-state-task-run-projection.ts';
-import { readWorkItemStageAttempts } from '../../../../../src/modules/console/work-item-projection/execution.ts';
-import { createStageAttemptTable } from '../../../../../src/modules/runway/family-runtime-stage-attempt-ledger.ts';
-import { createStageAttempt } from '../../../../../src/modules/runway/family-runtime-stage-attempts.ts';
-import { createWorkItemExecutionScopeSnapshot } from '../../../../../src/modules/workspace/execution-scope.ts';
+import { buildAppStateRuntimeActivityItems } from '../../../../../src/read-models/operator/app-state-runtime-activity.ts';
+import { buildTaskRunProjectionV2 } from '../../../../../src/read-models/operator/app-state-task-run-projection.ts';
+import { readWorkItemStageAttempts } from '../../../../../src/read-models/operator/work-item-projection/execution.ts';
+import { createStageAttemptTable } from '../../../../../src/adapters/execution/family-runtime-stage-attempt-ledger.ts';
+import { createStageAttempt } from '../../../../../src/adapters/execution/family-runtime-stage-attempts.ts';
+import { createWorkItemExecutionScopeSnapshot } from '../../../../../src/authority/workspace/execution-scope.ts';
 import { assert, createFakeCodexFixture, fs, os, path, runCli, runCliFailure, test } from '../../helpers.ts';
 import { assertCurrentOwnerDeltaProjection } from '../owner-payload-workorder-assertions.ts';
 import { writeCurrentOwnerDeltaProjectionCacheFixture } from './fixtures.ts';

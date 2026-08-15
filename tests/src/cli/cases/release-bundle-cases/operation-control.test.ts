@@ -420,7 +420,7 @@ test('Bundle state transitions use one cross-process lock and public mutations c
     const bundleDigest = fixture.frozen.release_bundle_freeze.bundle_digest;
     const paths = releaseBundleStorePaths(bundleDigest, fixture.storeRoot);
     const storeModuleUrl = pathToFileURL(
-      path.join(repoRoot, 'src/modules/connect/release-bundle/store.ts'),
+      path.join(repoRoot, 'src/adapters/integration/release-bundle/store.ts'),
     ).href;
     const buildReceipt = writeBuildReceipt({
       root: fixture.root,

@@ -3,12 +3,12 @@ import {
   ensureWorkspace,
   initializeWorkspace,
   type WorkspaceSkillProjectionRefresher,
-} from '../../../modules/workspace/workspace-initializer.ts';
+} from '../../../authority/workspace/workspace-initializer.ts';
 import {
   adoptWorkspace,
   doctorWorkspace,
   validateWorkspace,
-} from '../../../modules/workspace/workspace-diagnostics.ts';
+} from '../../../authority/workspace/workspace-diagnostics.ts';
 import {
   archiveWorkspaceProject,
   deleteWorkspaceProject,
@@ -20,15 +20,15 @@ import {
   workspaceHealth,
   workspaceInventory,
   workspaceReport,
-} from '../../../modules/workspace/workspace-lifecycle.ts';
-import { materializeWorkspaceArtifactLifecycle } from '../../../modules/workspace/workspace-artifact-lifecycle.ts';
-import { ingestWorkspaceSourceMaterial } from '../../../modules/workspace/workspace-source-material.ts';
+} from '../../../authority/workspace/workspace-lifecycle.ts';
+import { materializeWorkspaceArtifactLifecycle } from '../../../authority/workspace/workspace-artifact-lifecycle.ts';
+import { ingestWorkspaceSourceMaterial } from '../../../authority/workspace/workspace-source-material.ts';
 import {
   assertRepoSourceByproductsClean,
   fixRepoSourceByproducts,
-} from '../../../modules/workspace/repo-source-byproduct-guard.ts';
-import { buildBrandModuleSurfaceInspect } from '../../../modules/charter/brand-module-surfaces.ts';
-import { buildHostedWorkItemReadback } from '../../../modules/console/work-item-hosted-readback.ts';
+} from '../../../authority/workspace/repo-source-byproduct-guard.ts';
+import { buildBrandModuleSurfaceInspect } from '../../../authority/contracts/brand-module-surfaces.ts';
+import { buildHostedWorkItemReadback } from '../../../read-models/operator/work-item-hosted-readback.ts';
 import type { FrameworkContracts } from '../../../kernel/types.ts';
 import {
   assertNoArgs,

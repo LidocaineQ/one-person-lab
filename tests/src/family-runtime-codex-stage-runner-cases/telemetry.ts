@@ -8,20 +8,20 @@ import test from 'node:test';
 import {
   codexStageRunnerCostSummaryFrom,
   extractCodexSessionUsageRef,
-} from '../../../src/modules/runway/family-runtime-codex-session-usage.ts';
+} from '../../../src/adapters/execution/family-runtime-codex-session-usage.ts';
 import {
   executorUsageObservationFromCostSummary,
   persistStageAttemptUsageObservation,
-} from '../../../src/modules/runway/family-runtime-stage-attempt-usage-observation.ts';
+} from '../../../src/adapters/execution/family-runtime-stage-attempt-usage-observation.ts';
 import {
   buildStageAttemptUsageProjection,
   summarizeStageAttemptUsageProjections,
-} from '../../../src/modules/runway/family-runtime-stage-attempt-usage.ts';
-import { createStageAttemptTable } from '../../../src/modules/runway/family-runtime-stage-attempt-ledger.ts';
-import { createStageAttempt } from '../../../src/modules/runway/family-runtime-stage-attempts-parts/create.ts';
-import { inspectStageAttempt } from '../../../src/modules/runway/family-runtime-stage-attempts-parts/inspect.ts';
-import { recordStageAttemptActivityHeartbeat } from '../../../src/modules/runway/family-runtime-stage-attempts-parts/signals-heartbeat.ts';
-import { MAX_STAGE_ATTEMPT_ACTIVITY_EVENTS } from '../../../src/modules/runway/family-runtime-stage-attempts-parts/shared.ts';
+} from '../../../src/adapters/execution/family-runtime-stage-attempt-usage.ts';
+import { createStageAttemptTable } from '../../../src/adapters/execution/family-runtime-stage-attempt-ledger.ts';
+import { createStageAttempt } from '../../../src/adapters/execution/family-runtime-stage-attempts-parts/create.ts';
+import { inspectStageAttempt } from '../../../src/adapters/execution/family-runtime-stage-attempts-parts/inspect.ts';
+import { recordStageAttemptActivityHeartbeat } from '../../../src/adapters/execution/family-runtime-stage-attempts-parts/signals-heartbeat.ts';
+import { MAX_STAGE_ATTEMPT_ACTIVITY_EVENTS } from '../../../src/adapters/execution/family-runtime-stage-attempts-parts/shared.ts';
 import { createFakeCodexFixture } from '../cli/helpers.ts';
 import { runPublicCodexStageRunner } from '../family-runtime-codex-stage-runner-helpers.ts';
 

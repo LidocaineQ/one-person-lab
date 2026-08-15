@@ -17,7 +17,7 @@ import {
   buildFamilyOrchestrationTemplate,
   resolveActiveRunId,
   resolveProgramId,
-} from '../../src/modules/runway/family-orchestration.ts';
+} from '../../src/adapters/execution/family-orchestration.ts';
 import { registerFamilyOrchestrationSchemaBoundaryTests } from './family-orchestration-cases/schema-boundaries.ts';
 
 type Json = Record<string, unknown>;

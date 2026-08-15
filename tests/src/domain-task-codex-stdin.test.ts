@@ -6,7 +6,7 @@ import {
   buildCodexExecArgs,
   runDomainCodexPrompt,
   runCodexCommandStreaming,
-} from '../../src/modules/runway/domain-task-runtime.ts';
+} from '../../src/adapters/execution/domain-task-runtime.ts';
 
 test('Codex exec can carry large prompts over stdin instead of argv', () => {
   const prompt = 'x'.repeat(1024 * 1024);

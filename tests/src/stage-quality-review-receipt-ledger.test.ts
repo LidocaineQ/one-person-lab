@@ -7,36 +7,36 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
-import { FrameworkContractError } from '../../src/modules/charter/contracts.ts';
-import { buildStageReviewContextManifest } from '../../src/modules/stagecraft/index.ts';
+import { FrameworkContractError } from '../../src/authority/contracts/contracts.ts';
+import { buildStageReviewContextManifest } from '../../src/authority/stages/index.ts';
 import {
   buildStageQualityContextManifestRef,
   buildStageReviewInputSnapshotContext,
-} from '../../src/modules/runway/family-runtime-stage-quality-context-manifest.ts';
+} from '../../src/adapters/execution/family-runtime-stage-quality-context-manifest.ts';
 import {
   materializeReviewerInputSnapshot,
   resolveReviewerInputSnapshotMaterialization,
-} from '../../src/modules/runway/family-runtime-reviewer-input-snapshot.ts';
+} from '../../src/adapters/execution/family-runtime-reviewer-input-snapshot.ts';
 import {
   createStageAttempt,
   createStageAttemptTable,
   materializePersistedStageReviewReceipt,
-} from '../../src/modules/runway/family-runtime-stage-attempts.ts';
-import { openQueueDb } from '../../src/modules/runway/family-runtime-store.ts';
-import { stageQualityReviewReceiptActivity } from '../../src/modules/runway/family-runtime-temporal-activities.ts';
+} from '../../src/adapters/execution/family-runtime-stage-attempts.ts';
+import { openQueueDb } from '../../src/adapters/execution/family-runtime-store.ts';
+import { stageQualityReviewReceiptActivity } from '../../src/adapters/execution/family-runtime-temporal-activities.ts';
 import {
   stageAttemptExecutionContentBindingSha256,
   stageRunSpecSha256,
-} from '../../src/modules/runway/family-runtime-stage-run-identity.ts';
+} from '../../src/adapters/execution/family-runtime-stage-run-identity.ts';
 import {
   persistReviewEvidenceArtifactCandidate,
-} from '../../src/modules/runway/family-runtime-review-evidence-artifact.ts';
-import { createWorkItemExecutionScopeSnapshot } from '../../src/modules/workspace/index.ts';
-import { createStageRunLaunchTable } from '../../src/modules/runway/family-runtime-stage-run-launch-registry.ts';
+} from '../../src/adapters/execution/family-runtime-review-evidence-artifact.ts';
+import { createWorkItemExecutionScopeSnapshot } from '../../src/authority/workspace/index.ts';
+import { createStageRunLaunchTable } from '../../src/adapters/execution/family-runtime-stage-run-launch-registry.ts';
 import {
   normalizeRuntimeExecutionScopeWrite,
   persistRuntimeExecutionScope,
-} from '../../src/modules/runway/family-runtime-execution-scope-persistence.ts';
+} from '../../src/adapters/execution/family-runtime-execution-scope-persistence.ts';
 
 const rubricRefs = ['rubric:quality'];
 const artifactRefs = ['artifact:document-v1'];

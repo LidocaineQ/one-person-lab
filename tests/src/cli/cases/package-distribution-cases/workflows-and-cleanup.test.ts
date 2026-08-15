@@ -20,7 +20,7 @@ import {
   nextReleaseSetGeneration,
   parseReleaseSetGeneration,
 } from '../../../../../scripts/release-set-generation.mjs';
-import { getOplPackageSpecs } from '../../../../../src/modules/connect/package-distribution.ts';
+import { getOplPackageSpecs } from '../../../../../src/adapters/integration/package-distribution.ts';
 
 test('framework packages workflow is release-gated and manually repairable without WebUI publishing', () => {
   const workflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/packages.yml'), 'utf8');

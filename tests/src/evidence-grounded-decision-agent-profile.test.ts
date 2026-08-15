@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   buildEvidenceGroundedDecisionAgentProfileReadback,
   EVIDENCE_GROUNDED_DECISION_AGENT_PROFILE_CONTRACT_REF,
-} from '../../src/modules/pack/index.ts';
+} from '../../src/authority/packages/index.ts';
 
 const requiredObjects = [
   'WorkItem',

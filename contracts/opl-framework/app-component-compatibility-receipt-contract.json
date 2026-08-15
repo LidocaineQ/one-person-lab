@@ -34,22 +34,22 @@
       {
         "capability_id": "opl_app_state_projection",
         "schema_version": "1.0.0",
-        "source_ref": "src/modules/console/app-state.ts"
+        "source_ref": "src/read-models/operator/app-state.ts"
       },
       {
         "capability_id": "opl_app_action_execution",
         "schema_version": "1.0.0",
-        "source_ref": "src/modules/console/app-state-parts/action-execute.ts"
+        "source_ref": "src/read-models/operator/app-state-parts/action-execute.ts"
       },
       {
         "capability_id": "opl_dynamic_package_directory",
         "schema_version": "1.0.0",
-        "source_ref": "src/modules/connect/agent-package-registry-parts/directory.ts"
+        "source_ref": "src/adapters/integration/agent-package-registry-parts/directory.ts"
       },
       {
         "capability_id": "opl_component_compatibility_receipt",
         "schema_version": "1.0.0",
-        "source_ref": "src/modules/console/app-compatibility-receipt.ts"
+        "source_ref": "src/read-models/operator/app-compatibility-receipt.ts"
       }
     ],
     "external_component_policy": "Requirements for components without a Framework-owner observation fail closed as unsatisfied; callers cannot inject observations into the producer."

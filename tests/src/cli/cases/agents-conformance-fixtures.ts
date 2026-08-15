@@ -2,7 +2,7 @@ import { fs, os, parseJsonText, path, runCli } from '../helpers.ts';
 import {
   buildStandardDomainAgentScaffold,
   compileStandardAgentStageManifest,
-} from '../../../../src/modules/pack/index.ts';
+} from '../../../../src/authority/packages/index.ts';
 
 const OPL_DOMAIN_READONLY_AUTHORITY = {
   opl_can_write_domain_truth: false,

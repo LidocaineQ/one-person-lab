@@ -9,7 +9,7 @@ import {
 import { FrameworkContractError } from '../../../../../src/kernel/contract-validation.ts';
 import { parseJsonText } from '../../../../../src/kernel/json-file.ts';
 import { validateJsonSchemaPayload } from '../../../../../src/kernel/schema-registry.ts';
-import { buildAppAgentPackageStatuses } from '../../../../../src/modules/console/app-state.ts';
+import { buildAppAgentPackageStatuses } from '../../../../../src/read-models/operator/app-state.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../..');
 const launchStateSchemaRef = 'contracts/opl-framework/agent-package-launch-state.schema.json';

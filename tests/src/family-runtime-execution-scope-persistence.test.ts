@@ -8,11 +8,11 @@ import {
   executionScopeFromRow,
   normalizeRuntimeExecutionScopeWrite,
   persistRuntimeExecutionScope,
-} from '../../src/modules/runway/family-runtime-execution-scope-persistence.ts';
+} from '../../src/adapters/execution/family-runtime-execution-scope-persistence.ts';
 import {
   createWorkItemExecutionScopeSnapshot,
   type WorkItemExecutionScopeSnapshot,
-} from '../../src/modules/workspace/execution-scope.ts';
+} from '../../src/authority/workspace/execution-scope.ts';
 
 function executionScope(domainWorkItemId = 'study-001') {
   const canonicalWorkItemRoot = `/tmp/opl-scope-persistence-project/studies/${domainWorkItemId}`;

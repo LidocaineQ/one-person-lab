@@ -5,7 +5,7 @@ import {
   recordProviderLongSoakEvidenceReceipts,
   verifyProviderLongSoakEvidenceReceipt,
   type ProviderLongSoakEvidenceReceiptInput,
-} from '../../../modules/ledger/provider-long-soak-evidence-ledger.ts';
+} from '../../../authority/evidence/provider-long-soak-evidence-ledger.ts';
 import {
   readJsonObject,
   readOptionalString,

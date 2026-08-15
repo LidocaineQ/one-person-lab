@@ -8,17 +8,17 @@ import type {
   TemporalStageAttemptWorkflowInput,
   TemporalStageQualityAttemptMaterializationInput,
   TemporalStageRunWorkflowInput,
-} from '../../src/modules/runway/family-runtime-temporal.ts';
-import { StageRunWorkflow } from '../../src/modules/runway/family-runtime-temporal-workflows.ts';
-import { STAGE_RUN_ATTEMPT_CONTENT_BINDING_VERSION } from '../../src/modules/runway/family-runtime-stage-quality-attempt-boundary.ts';
+} from '../../src/adapters/execution/family-runtime-temporal.ts';
+import { StageRunWorkflow } from '../../src/adapters/execution/family-runtime-temporal-workflows.ts';
+import { STAGE_RUN_ATTEMPT_CONTENT_BINDING_VERSION } from '../../src/adapters/execution/family-runtime-stage-quality-attempt-boundary.ts';
 import {
   stageAttemptExecutionContentBindingSha256,
   stageRunSpecSha256,
-} from '../../src/modules/runway/family-runtime-stage-run-identity.ts';
+} from '../../src/adapters/execution/family-runtime-stage-run-identity.ts';
 import {
   normalizeStageQualityCyclePolicy,
   type StageQualityOutcome,
-} from '../../src/modules/stagecraft/stage-quality-cycle.ts';
+} from '../../src/authority/stages/stage-quality-cycle.ts';
 import { createTemporalTestWorkflowEnvironment } from './temporal-test-environment.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '../..');
@@ -544,7 +544,7 @@ async function runController(input: {
       connection: testEnv.nativeConnection,
       namespace: testEnv.namespace,
       taskQueue,
-      workflowsPath: path.join(repoRoot, 'src/modules/runway/family-runtime-temporal-workflows.ts'),
+      workflowsPath: path.join(repoRoot, 'src/adapters/execution/family-runtime-temporal-workflows.ts'),
       activities,
     });
     const state = await worker.runUntil(async () => {

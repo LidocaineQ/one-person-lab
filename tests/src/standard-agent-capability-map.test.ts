@@ -7,12 +7,12 @@ import test from 'node:test';
 import { assertRepoJsonSchemaPayload } from '../../src/kernel/repo-json-schema.ts';
 import {
   materializeStandardAgentCapabilityMap,
-} from '../../src/modules/pack/standard-agent-capability-map.ts';
+} from '../../src/authority/packages/standard-agent-capability-map.ts';
 import {
   buildProfileCapabilityPlan as buildProfileCapabilityPlanWithDependencies,
   buildProfileCapabilityPlanInputProjection,
-} from '../../src/modules/pack/profile-capability-plan.ts';
-import { buildCapabilityRegistryReadout } from '../../src/modules/connect/index.ts';
+} from '../../src/authority/packages/profile-capability-plan.ts';
+import { buildCapabilityRegistryReadout } from '../../src/adapters/integration/index.ts';
 
 const buildProfileCapabilityPlan = (
   input: Parameters<typeof buildProfileCapabilityPlanWithDependencies>[0],

@@ -23,9 +23,9 @@ import {
   normalizeManifest,
   normalizePackageManifest,
   normalizeRegistryDocument,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
-import { defaultHomeShortcutPreferences } from '../../../../../src/modules/connect/agent-package-registry-parts/home-shortcuts.ts';
-import { assertManifestMatchesRegistrySelection } from '../../../../../src/modules/connect/agent-package-registry-parts/selection.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry-parts/manifest-normalizers.ts';
+import { defaultHomeShortcutPreferences } from '../../../../../src/adapters/integration/agent-package-registry-parts/home-shortcuts.ts';
+import { assertManifestMatchesRegistrySelection } from '../../../../../src/adapters/integration/agent-package-registry-parts/selection.ts';
 import { writeManagedRuntimeSourceFixture } from './managed-runtime-source-fixture.ts';
 
 const FIXTURE_RCA_PACKAGE_ID = 'fixture.rca';

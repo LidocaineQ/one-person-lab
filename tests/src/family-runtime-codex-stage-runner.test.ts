@@ -14,8 +14,8 @@ import { createFakeCodexFixture } from './cli/helpers.ts';
 import { runPublicCodexStageRunner } from './family-runtime-codex-stage-runner-helpers.ts';
 import {
   buildCodexStageActivityInput,
-} from '../../src/modules/runway/family-runtime-codex-stage-runner.ts';
-import { FrameworkContractError } from '../../src/modules/charter/contracts.ts';
+} from '../../src/adapters/execution/family-runtime-codex-stage-runner.ts';
+import { FrameworkContractError } from '../../src/authority/contracts/contracts.ts';
 
 test('Codex stage activity binds stage packet from checkpoint refs before provider execution', () => {
   const activity = buildCodexStageActivityInput({

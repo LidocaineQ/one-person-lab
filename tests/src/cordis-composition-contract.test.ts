@@ -15,12 +15,12 @@ import {
   validateCordisPluginDescriptor,
   type CordisPluginDescriptor,
   type CordisPluginDescriptorInput,
-} from '../../src/modules/pack/cordis-composition-contract.ts';
+} from '../../src/host/plugins/cordis-composition-contract.ts';
 import {
   buildCordisAgentExecutorCompositionSnapshot,
   CORDIS_AGENT_EXECUTOR_PLUGIN_DESCRIPTORS,
   CORDIS_FRAMEWORK_INTEGRITY,
-} from '../../src/modules/runway/cordis-agent-executor-experiment.ts';
+} from '../../src/host/plugins/cordis-agent-executor-experiment.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..');
 

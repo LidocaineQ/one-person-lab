@@ -102,33 +102,34 @@ Client 只能消费 projection，不能独立发现/安装 plugin、拥有 Packa
 ```text
 contracts/opl-framework/brand-system-profile.json
 contracts/opl-framework/source-module-map.json
-src/modules/（迁移期 compatibility source）
-src/authority/、src/adapters/、src/read-models/、src/host/（目标责任拓扑）
+contracts/opl-framework/package-topology.json
+src/authority/、src/adapters/、src/read-models/、src/host/、src/entrypoints/、src/kernel/（当前责任拓扑 candidate）
+src/modules/（retired / must be absent；仅历史 provenance 或 negative fixture）
 opl contract validate --json
 node --experimental-strip-types --test tests/src/cli/cases/brand-modules.test.ts
 ```
 
 ## 代码组织对齐
 
-OPL Framework 的历史物理代码组织以 `src/modules/` 作为品牌导航入口，但这不是最终 topology。目标按责任拆为 `src/authority/**`、`src/adapters/**`、`src/read-models/**`、`src/host/**` 和薄 `src/entrypoints/**`；源码边界、public entrypoint 规则、完成度口径和后续依赖治理读法见 [OPL Framework 源码模块边界](../source-module-boundary.md)。下列目录仍是迁移期间的 compatibility source，不代表十个 plugin：
+OPL Framework 的历史物理代码组织曾以 `src/modules/` 作为品牌导航入口；当前 task branch 已按责任重排为 13 个 source units / 6 个 target roots，`src/modules/**` 已退休并要求 absent。源码边界、public entrypoint 规则、完成度口径和后续依赖治理读法见 [OPL Framework 源码模块边界](../source-module-boundary.md)。下列只是品牌域与常见责任单元的导航映射，不代表十个 source owners、Package 或 plugin：
 
 ```text
-src/modules/charter
-src/modules/atlas
-src/modules/workspace
-src/modules/pack
-src/modules/stagecraft
-src/modules/runway
-src/modules/ledger
-src/modules/console
-src/modules/foundry
-src/modules/connect
+src/authority/contracts
+src/read-models/catalog
+src/authority/workspace
+src/authority/packages
+src/authority/stages
+src/adapters/execution
+src/authority/evidence
+src/read-models/operator
+src/authority/evolution
+src/adapters/integration
 ```
 
-App / Cloud 产品语义可以跨多个 domain/authority/Package 组合面向用户；Framework实现不再以十个目录作为终局 owner。`contracts/opl-framework/source-module-map.json` 在迁移期负责归属校验和历史 root readback，不替代目标 topology，也不是 Cordis registry。新代码按 authority/adapter/read-model/host责任进入 successor；旧 `src/modules/**` 只保留必要 compatibility export。必须先切真实 caller、验证 affected outcome 和 public exports，再以 structural caller=0退役旧路径；不以目录移动、零引用扫描或文档 alone声明完成。
+App / Cloud 产品语义可以跨多个 domain/authority/Package 组合面向用户；Framework实现不再以十个目录作为终局 owner。`source-module-map.v3` 管理 13 个 source units 与 retired root，`package-topology.v2` 管理 Package/source/plugin 关联；二者都不是 Cordis registry。当前候选分支已切真实 caller并删除旧 root，但仍需 canonical/main 吸收与 fresh owner readback；不以目录移动、零引用扫描或 docs alone声明 release/production完成。
 
-源码边界的默认门仍是 public interface，但入口从品牌 index逐步迁往 authority/adapter/read-model/host package exports。跨模块 deep import、forbidden dependency和 cycle必须保持为零；旧 `src/modules/**` index只能作为薄 compatibility export，不能获得新实现或成为永久双入口。当前物理 cutover完成口径是“successor可达 + 真实caller已切 + affected outcome/readback等价 + 旧caller=0 + 删除/保留决策已由 owner确认”，不是“十个目录都存在”或“目录已移动”。
+源码边界的默认门仍是 public interface，但入口归 authority/adapter/read-model/host source-unit exports、薄 entrypoints 与 brand-neutral kernel。source-unit 恰好一次归属、deep import、forbidden dependency、cycle 和 legacy-root absence必须保持通过；不得恢复 `src/modules/**` compatibility export或永久双入口。当前分支满足物理 cutover的结构门，canonical/main吸收与 owner readback仍是集成完成条件。
 
 ## Package 发布边界
 
-品牌域不预先决定 Package 数量。只在有独立安装/发布/升级节奏、真实 consumer、currentness/readback 和回退价值时拆出 Package；第一批优先评估 Runway executor、Foundry evaluation、Connect discovery 与 `opl-package-host`。其余 contribution 先作为 Framework/App controlled workspace/package projection，避免为所有 plugin机械拆仓。Package identity、plugin API/source identity、composition snapshot 和 App product profile 分开回读。
+品牌域不预先决定 Package 数量。当前已建立五个独立 workspace Package：`@one-person-lab/cordis-abi`、`@one-person-lab/package-host`、`@one-person-lab/connect-discovery`、`@one-person-lab/runway-executor` 和 `@one-person-lab/foundry-evaluation`。它们只是 source-extracted/candidate packages，尚未证明独立发布、安装、currentness、回退或独立仓库完成。正式拆分仍要求独立安装/发布/升级节奏、真实 consumer、currentness/readback 和回退价值；Package identity、plugin API/source identity、composition snapshot 和 App product profile 分开回读。

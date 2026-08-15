@@ -9,18 +9,18 @@ import {
   fromPayloadsAtIndex,
 } from '@temporalio/common/lib/converter/payload-converter.js';
 
-import * as activities from '../../../src/modules/runway/family-runtime-temporal-activities.ts';
-import { signalTemporalStageAttemptWorkflow } from '../../../src/modules/runway/family-runtime-temporal-provider.ts';
+import * as activities from '../../../src/adapters/execution/family-runtime-temporal-activities.ts';
+import { signalTemporalStageAttemptWorkflow } from '../../../src/adapters/execution/family-runtime-temporal-provider.ts';
 import {
   type TemporalStageAttemptWorkflowInput,
   type TemporalStageAttemptWorkflowState,
-} from '../../../src/modules/runway/family-runtime-temporal.ts';
+} from '../../../src/adapters/execution/family-runtime-temporal.ts';
 import {
   stageAttemptQuery,
   StageAttemptWorkflow,
   stageAttemptOperatorUpdate,
   resumeSignal,
-} from '../../../src/modules/runway/family-runtime-temporal-workflows.ts';
+} from '../../../src/adapters/execution/family-runtime-temporal-workflows.ts';
 import { createTemporalTestWorkflowEnvironment } from '../temporal-test-environment.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -146,7 +146,7 @@ test('Temporal StageAttemptWorkflow acks operator actions through Updates', asyn
       connection: testEnv.nativeConnection,
       namespace: testEnv.namespace,
       taskQueue,
-      workflowsPath: path.join(repoRoot, 'src', 'modules', 'runway', 'family-runtime-temporal-workflows.ts'),
+      workflowsPath: path.join(repoRoot, 'src', 'adapters', 'execution', 'family-runtime-temporal-workflows.ts'),
       activities: workflowSemanticActivities(),
     });
     const result = await worker.runUntil(async () => {
@@ -192,7 +192,7 @@ test('Temporal StageAttemptWorkflow rejects invalid operator Updates before muta
       connection: testEnv.nativeConnection,
       namespace: testEnv.namespace,
       taskQueue,
-      workflowsPath: path.join(repoRoot, 'src', 'modules', 'runway', 'family-runtime-temporal-workflows.ts'),
+      workflowsPath: path.join(repoRoot, 'src', 'adapters', 'execution', 'family-runtime-temporal-workflows.ts'),
       activities: workflowSemanticActivities(),
     });
     const result = await worker.runUntil(async () => {
@@ -231,7 +231,7 @@ test('new quality Attempt without content binding version fails before executor 
       connection: testEnv.nativeConnection,
       namespace: testEnv.namespace,
       taskQueue,
-      workflowsPath: path.join(repoRoot, 'src', 'modules', 'runway', 'family-runtime-temporal-workflows.ts'),
+      workflowsPath: path.join(repoRoot, 'src', 'adapters', 'execution', 'family-runtime-temporal-workflows.ts'),
       activities: {
         ...activities,
         codexStageActivity: async () => {
@@ -281,7 +281,7 @@ test('quality Attempt rejects generic resume through public API, Update, and dir
       connection: testEnv.nativeConnection,
       namespace: testEnv.namespace,
       taskQueue,
-      workflowsPath: path.join(repoRoot, 'src', 'modules', 'runway', 'family-runtime-temporal-workflows.ts'),
+      workflowsPath: path.join(repoRoot, 'src', 'adapters', 'execution', 'family-runtime-temporal-workflows.ts'),
       activities: {
         ...activities,
         codexStageActivity: async (attempt: TemporalStageAttemptWorkflowInput) => {

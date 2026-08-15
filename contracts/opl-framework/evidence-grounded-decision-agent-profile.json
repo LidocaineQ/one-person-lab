@@ -119,9 +119,9 @@
       "source_freshness_policy_ref"
     ],
     "source_readback_refs": [
-      "src/modules/pack/evidence-grounded-decision-agent-profile.ts",
-      "src/modules/atlas/evidence-grounded-profile-catalog.ts",
-      "src/modules/foundry/agent-profile-spine.ts",
+      "src/authority/packages/evidence-grounded-decision-agent-profile.ts",
+      "src/read-models/catalog/evidence-grounded-profile-catalog.ts",
+      "src/authority/evolution/agent-profile-spine.ts",
       "opl profiles inspect evidence_grounded_decision_agent_profile.v1 --json",
       "opl foundry evidence-profile inspect --json"
     ]
@@ -456,7 +456,7 @@
   "readback_contract": {
     "surface_kind": "opl_evidence_grounded_decision_agent_profile_source_readback_contract",
     "version": "evidence-grounded-decision-agent-profile-source-readback.v1",
-    "source_module_ref": "src/modules/pack/evidence-grounded-decision-agent-profile.ts",
+    "source_module_ref": "src/authority/packages/evidence-grounded-decision-agent-profile.ts",
     "contract_ref": "contracts/opl-framework/evidence-grounded-decision-agent-profile.json",
     "exported_builder": "buildEvidenceGroundedDecisionAgentProfileReadback",
     "module_surface_readback_available": true,

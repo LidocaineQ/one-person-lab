@@ -12,17 +12,17 @@ import {
   readReviewerInputSnapshotManifest,
   resolveReviewerInputSnapshotMaterialization,
   type ReviewerInputSnapshotMaterializationRequest,
-} from '../../src/modules/runway/family-runtime-reviewer-input-snapshot.ts';
+} from '../../src/adapters/execution/family-runtime-reviewer-input-snapshot.ts';
 import {
   persistReviewEvidenceArtifactCandidate,
   readReviewEvidenceArtifactReceipt,
-} from '../../src/modules/runway/family-runtime-review-evidence-artifact.ts';
+} from '../../src/adapters/execution/family-runtime-review-evidence-artifact.ts';
 import {
   materializeOplRevisionTransport,
   readOplRevisionIntake,
   revisionTransportContext,
-} from '../../src/modules/runway/family-runtime-revision-intake.ts';
-import type { StageReviewReceipt } from '../../src/modules/stagecraft/public/stage-quality-cycle.ts';
+} from '../../src/adapters/execution/family-runtime-revision-intake.ts';
+import type { StageReviewReceipt } from '../../src/authority/stages/public/stage-quality-cycle.ts';
 
 function sha256(value: string | Buffer) {
   return `sha256:${crypto.createHash('sha256').update(value).digest('hex')}`;

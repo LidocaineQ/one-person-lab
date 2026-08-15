@@ -7,11 +7,11 @@ import {
   runCli,
   test,
 } from '../helpers.ts';
-import { buildFrameworkReadinessSummary } from '../../../../src/modules/console/framework-readiness.ts';
-import { buildRuntimeTraySnapshot } from '../../../../src/modules/console/runtime-tray-snapshot.ts';
+import { buildFrameworkReadinessSummary } from '../../../../src/read-models/operator/framework-readiness.ts';
+import { buildRuntimeTraySnapshot } from '../../../../src/read-models/operator/runtime-tray-snapshot.ts';
 import { createFamilyWorkspaceFixture } from './runtime-app-operator-drilldown-helpers.ts';
-import { createCordisOwnerDeltaObserverComposition } from '../../../../src/modules/ledger/cordis-owner-delta-observer.ts';
-import { createCordisBaseHeadlessComposition } from '../../../../src/entrypoints/cordis/composition-profiles.ts';
+import { createCordisOwnerDeltaObserverComposition } from '../../../../src/host/plugins/cordis-owner-delta-observer.ts';
+import { createCordisBaseHeadlessComposition } from '../../../../src/host/composition-profiles.ts';
 
 function restoreEnvVar(name: string, previousValue: string | undefined): void {
   if (previousValue === undefined) {

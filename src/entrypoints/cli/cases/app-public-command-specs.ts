@@ -1,7 +1,7 @@
 import type { FrameworkContracts } from '../../../kernel/types.ts';
-import type { CordisConnectDescriptorDiscoveryService } from '../../../modules/connect/index.ts';
-import type { CordisOwnerDeltaObserverService } from '../../../modules/ledger/index.ts';
-import type { runFamilyRuntime } from '../../../modules/runway/index.ts';
+import type { CordisConnectDescriptorDiscoveryService } from '../../../adapters/integration/index.ts';
+import type { CordisOwnerDeltaObserverService } from '../../../authority/evidence/index.ts';
+import type { runFamilyRuntime } from '../../../adapters/execution/index.ts';
 import {
   parseRegisteredCommandOptions,
   type CommandSpec,
@@ -30,13 +30,13 @@ export function buildPublicAppCommandSpecs(
       ],
       group: 'app',
       handler: async (args) => {
-        const { parseAppStateArgs } = await import('../../../modules/console/app-state-profile.ts');
+        const { parseAppStateArgs } = await import('../../../read-models/operator/app-state-profile.ts');
         const input = parseAppStateArgs(args);
         if (input.profile === 'runtime') {
-          const { buildOplRuntimeAppState } = await import('../../../modules/console/app-runtime-state.ts');
+          const { buildOplRuntimeAppState } = await import('../../../read-models/operator/app-runtime-state.ts');
           return buildOplRuntimeAppState();
         }
-        const { buildOplAppState } = await import('../../../modules/console/app-state.ts');
+        const { buildOplAppState } = await import('../../../read-models/operator/app-state.ts');
         return buildOplAppState({
           profile: input.profile,
           descriptorDiscovery,
@@ -54,11 +54,11 @@ export function buildPublicAppCommandSpecs(
       group: 'app',
       handler: async (args) => {
         const { parseAppActionExecuteArgs } = await import(
-          '../../../modules/console/app-state-parts/action-execute-parser.ts'
+          '../../../read-models/operator/app-state-parts/action-execute-parser.ts'
         );
         const options = parseAppActionExecuteArgs(args);
         const { runOplAppActionExecute } = await import(
-          '../../../modules/console/app-state-parts/action-execute.ts'
+          '../../../read-models/operator/app-state-parts/action-execute.ts'
         );
         return runOplAppActionExecute(getContracts(), options, requireAppCordisServices());
       },
@@ -72,7 +72,7 @@ export function buildPublicAppCommandSpecs(
       group: 'app',
       handler: async (args) => {
         const { parseAppContributionArgs, runAppContribution } = await import(
-          '../../../modules/console/app-contribution-broker.ts'
+          '../../../read-models/operator/app-contribution-broker.ts'
         );
         return runAppContribution(parseAppContributionArgs(args, 'read'), { descriptorDiscovery });
       },
@@ -86,7 +86,7 @@ export function buildPublicAppCommandSpecs(
       group: 'app',
       handler: async (args) => {
         const { parseAppContributionArgs, runAppContribution } = await import(
-          '../../../modules/console/app-contribution-broker.ts'
+          '../../../read-models/operator/app-contribution-broker.ts'
         );
         return runAppContribution(parseAppContributionArgs(args, 'execute'), { descriptorDiscovery });
       },
@@ -101,7 +101,7 @@ export function buildPublicAppCommandSpecs(
       group: 'app',
       handler: async (args) => {
         const { buildDomainDetailViewReadback, parseAppViewReadArgs } = await import(
-          '../../../modules/console/domain-detail-view.ts'
+          '../../../read-models/operator/domain-detail-view.ts'
         );
         return buildDomainDetailViewReadback(parseAppViewReadArgs(args));
       },
@@ -119,7 +119,7 @@ export function buildPublicAppCommandSpecs(
         const spec = commandSpecs['app compatibility receipt'];
         const options = parseRegisteredCommandOptions('app compatibility receipt', args, spec);
         const { writeAppComponentCompatibilityReceipt } = await import(
-          '../../../modules/console/app-compatibility-receipt.ts'
+          '../../../read-models/operator/app-compatibility-receipt.ts'
         );
         return {
           version: 'g2',

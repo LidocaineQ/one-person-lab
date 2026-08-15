@@ -1,7 +1,7 @@
 import {
   summarizeStageCandidatePortfolio,
   validateStageCandidatePortfolio,
-} from '../../../modules/console/index.ts';
+} from '../../../read-models/operator/index.ts';
 import {
   assertSinglePayloadSource,
   buildUsageError,

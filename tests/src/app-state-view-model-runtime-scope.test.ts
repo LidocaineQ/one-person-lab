@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildCurrentOwnerDeltaTopline } from '../../src/modules/ledger/current-owner-delta-topline.ts';
-import { buildOplAppOperatorViewModel } from '../../src/modules/console/app-state-view-model.ts';
+import { buildCurrentOwnerDeltaTopline } from '../../src/authority/evidence/current-owner-delta-topline.ts';
+import { buildOplAppOperatorViewModel } from '../../src/read-models/operator/app-state-view-model.ts';
 
 const ownerDeltaObserver = { observe: buildCurrentOwnerDeltaTopline };
 

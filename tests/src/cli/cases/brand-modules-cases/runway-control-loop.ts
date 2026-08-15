@@ -1,7 +1,7 @@
 import { assert, fs, os, path, runCli, test } from '../../helpers.ts';
-import { buildRunwayRecoveryRepairProjection } from '../../../../../src/modules/runway/family-runtime-control-loop.ts';
-import { parseRegisteredFamilyRuntimeCommand } from '../../../../../src/modules/runway/family-runtime-command-parts/registry.ts';
-import { buildTemporalFirstRuntimeContract } from '../../../../../src/modules/runway/family-runtime-temporal.ts';
+import { buildRunwayRecoveryRepairProjection } from '../../../../../src/adapters/execution/family-runtime-control-loop.ts';
+import { parseRegisteredFamilyRuntimeCommand } from '../../../../../src/adapters/execution/family-runtime-command-parts/registry.ts';
+import { buildTemporalFirstRuntimeContract } from '../../../../../src/adapters/execution/family-runtime-temporal.ts';
 
 test('Runway control-loop surfaces stay refs-only and route through family-runtime', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runway-control-loop-slim-'));

@@ -2,11 +2,11 @@ import {
   runPackBundleCheckCommand,
   runPackBundleManifestCommand,
   runPackBundleWriteCommand,
-} from '../../../../modules/pack/pack-bundle.ts';
-import { runPackNativeHelperProbeCommand } from '../../../../modules/pack/native-helper-probe.ts';
-import { materializeArtifactProjectionRequestFile } from '../../../../modules/pack/artifact-projection-materialization.ts';
-import { provisionSubmissionResource } from '../../../../modules/pack/submission-resource-provisioning.ts';
-import { runPackNativeHelperExecutionCommand } from '../../../../modules/runway/index.ts';
+} from '../../../../authority/packages/pack-bundle.ts';
+import { runPackNativeHelperProbeCommand } from '../../../../authority/packages/native-helper-probe.ts';
+import { materializeArtifactProjectionRequestFile } from '../../../../authority/packages/artifact-projection-materialization.ts';
+import { provisionSubmissionResource } from '../../../../authority/packages/submission-resource-provisioning.ts';
+import { runPackNativeHelperExecutionCommand } from '../../../../adapters/execution/index.ts';
 import {
   runGenericPackCheckCommand,
   runGenericPackGalleryCommand,
@@ -19,7 +19,7 @@ import {
   runPackOsLockCommand,
   runPackOsRegistryCommand,
   runPackOsValidateCommand,
-} from '../../../../modules/pack/pack-os.ts';
+} from '../../../../authority/packages/pack-os.ts';
 import {
   assertNoArgs,
   buildCommandHelp,

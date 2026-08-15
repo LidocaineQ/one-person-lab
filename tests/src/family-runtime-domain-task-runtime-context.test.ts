@@ -4,13 +4,13 @@ import test from 'node:test';
 
 import {
   buildOplDomainTaskRuntimeContext,
-} from '../../src/modules/runway/family-runtime-domain-task-runtime-context.ts';
+} from '../../src/adapters/execution/family-runtime-domain-task-runtime-context.ts';
 import {
   createFamilyRuntimeQueueTables,
   inspectTask,
-} from '../../src/modules/runway/family-runtime-store.ts';
-import { createStageAttempt } from '../../src/modules/runway/family-runtime-stage-attempts.ts';
-import { queryStageAttempt } from '../../src/modules/runway/family-runtime-stage-attempt-query.ts';
+} from '../../src/adapters/execution/family-runtime-store.ts';
+import { createStageAttempt } from '../../src/adapters/execution/family-runtime-stage-attempts.ts';
+import { queryStageAttempt } from '../../src/adapters/execution/family-runtime-stage-attempt-query.ts';
 
 const identity = {
   surface_kind: 'opl_stage_run_currentness_identity',

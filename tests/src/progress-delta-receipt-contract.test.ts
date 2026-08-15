@@ -9,8 +9,8 @@ import {
   buildProgressDeltaReceipt,
   PROGRESS_DELTA_RECEIPT_DELTA_CLASSES,
   validateProgressDeltaReceipt,
-} from '../../src/modules/ledger/progress-delta-receipt.ts';
-import { FrameworkContractError } from '../../src/modules/charter/index.ts';
+} from '../../src/authority/evidence/progress-delta-receipt.ts';
+import { FrameworkContractError } from '../../src/authority/contracts/index.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');

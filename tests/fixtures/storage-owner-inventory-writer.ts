@@ -4,7 +4,7 @@ import { parseJsonText } from '../../src/kernel/json-file.ts';
 import {
   writeStorageOwnerInventoryProjection,
   type StorageOwnerProjection,
-} from '../../src/modules/connect/storage-owner-inventory-snapshot.ts';
+} from '../../src/adapters/integration/storage-owner-inventory-snapshot.ts';
 
 const [section, projectionJson, readyFile, startFile] = process.argv.slice(2);
 if (

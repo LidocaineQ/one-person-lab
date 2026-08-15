@@ -13,7 +13,7 @@ import {
   executionScopeEnvironment,
   requireWorkItemExecutionScopeSnapshot,
   resolveWorkItemIdentity,
-} from '../../src/modules/workspace/execution-scope.ts';
+} from '../../src/authority/workspace/execution-scope.ts';
 
 test('work-item identity resolves equal aliases once and rejects conflicting aliases', () => {
   assert.deepEqual(

@@ -17,16 +17,16 @@ import {
   test,
 } from './helpers.ts';
 import { createFakeCodexPluginManagerFixture } from '../../helpers.ts';
-import { configuredCarrierReadbackIncludesTarget } from '../../../../../src/modules/connect/agent-package-registry.ts';
-import { resolveFirstPartyPackageCatalog } from '../../../../../src/modules/connect/agent-package-first-party.ts';
-import { refreshFirstPartyPackageCatalogSnapshot } from '../../../../../src/modules/connect/agent-package-registry-parts/first-party-release-catalog.ts';
-import { normalizeManifest } from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
-import { assertFirstPartyPackageUpdateSelection } from '../../../../../src/modules/connect/agent-package-registry-parts/update-reconciliation.ts';
+import { configuredCarrierReadbackIncludesTarget } from '../../../../../src/adapters/integration/agent-package-registry.ts';
+import { resolveFirstPartyPackageCatalog } from '../../../../../src/adapters/integration/agent-package-first-party.ts';
+import { refreshFirstPartyPackageCatalogSnapshot } from '../../../../../src/adapters/integration/agent-package-registry-parts/first-party-release-catalog.ts';
+import { normalizeManifest } from '../../../../../src/adapters/integration/agent-package-registry-parts/manifest-normalizers.ts';
+import { assertFirstPartyPackageUpdateSelection } from '../../../../../src/adapters/integration/agent-package-registry-parts/update-reconciliation.ts';
 import {
   normalizeOplReleaseChannelTag,
   resolveOplReleaseManifestRef,
-} from '../../../../../src/modules/connect/system-installation/release-channel.ts';
-import { computePackageChannelTreeSha256 } from '../../../../../src/modules/connect/system-installation/module-package-channel.ts';
+} from '../../../../../src/adapters/integration/system-installation/release-channel.ts';
+import { computePackageChannelTreeSha256 } from '../../../../../src/adapters/integration/system-installation/module-package-channel.ts';
 import {
   commitDeveloperCheckout,
   updateDeveloperCapabilityCheckoutClosure,

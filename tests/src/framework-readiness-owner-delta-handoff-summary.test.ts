@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import {
   buildOwnerDeltaHandoffSummary,
-} from '../../src/modules/console/framework-readiness-owner-delta-handoff-summary.ts';
+} from '../../src/read-models/operator/framework-readiness-owner-delta-handoff-summary.ts';
 
 type JsonRecord = Record<string, unknown>;
 

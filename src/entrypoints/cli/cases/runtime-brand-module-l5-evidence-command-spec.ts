@@ -3,7 +3,7 @@ import {
   recordBrandModuleL5EvidenceReceipt,
   verifyBrandModuleL5EvidenceReceipt,
   type BrandModuleL5EvidenceReceiptInput,
-} from '../../../modules/charter/brand-module-l5-evidence-ledger.ts';
+} from '../../../authority/contracts/brand-module-l5-evidence-ledger.ts';
 import type {
   BrandModuleId,
   BrandModuleL5EvidenceClassId,

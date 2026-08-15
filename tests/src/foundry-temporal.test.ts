@@ -11,42 +11,42 @@ import {
   InMemoryFoundryObjectStore,
   InMemoryOwnerGate,
   InMemoryVersionRegistry,
-} from '../../src/modules/foundry/in-memory-adapters.ts';
+} from '../../src/authority/evolution/in-memory-adapters.ts';
 import {
   FoundryKernel,
   FoundryTransientActivityError,
-} from '../../src/modules/foundry/kernel.ts';
-import { foundryFrozenEvaluationPlanDigest } from '../../src/modules/foundry/evaluation-runtime.ts';
+} from '../../src/authority/evolution/kernel.ts';
+import { foundryFrozenEvaluationPlanDigest } from '../../src/authority/evolution/evaluation-runtime.ts';
 import {
   FOUNDRY_PROTOCOL_VERSION,
   foundryContentDigest,
   type AgentBlueprint,
   type DesignRequest,
   type EvidenceBundle,
-} from '../../src/modules/foundry/protocol.ts';
+} from '../../src/authority/evolution/protocol.ts';
 import type {
   DesignerPort,
   EvaluationExecutor,
   FoundryEventStore,
   MaterializedCandidate,
-} from '../../src/modules/foundry/ports.ts';
-import * as registeredActivities from '../../src/modules/runway/family-runtime-temporal-activities.ts';
-import { buildFoundryTemporalActivities } from '../../src/modules/runway/foundry-temporal-activities.ts';
+} from '../../src/authority/evolution/ports.ts';
+import * as registeredActivities from '../../src/adapters/execution/family-runtime-temporal-activities.ts';
+import { buildFoundryTemporalActivities } from '../../src/adapters/execution/foundry-temporal-activities.ts';
 import {
   cancelTemporalFoundryRun,
   foundryTemporalWorkflowId,
   queryTemporalFoundryRunWorkflow,
   startTemporalFoundryRunWorkflow,
   submitTemporalFoundryOwnerDecision,
-} from '../../src/modules/runway/foundry-temporal-control.ts';
+} from '../../src/adapters/execution/foundry-temporal-control.ts';
 import type {
   FoundryRunWorkflowInput,
   FoundryRunWorkflowState,
-} from '../../src/modules/runway/foundry-temporal.ts';
+} from '../../src/adapters/execution/foundry-temporal.ts';
 import { createTemporalTestWorkflowEnvironment } from './temporal-test-environment.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const workflowsPath = path.join(repoRoot, 'src/modules/runway/family-runtime-temporal-workflows.ts');
+const workflowsPath = path.join(repoRoot, 'src/adapters/execution/family-runtime-temporal-workflows.ts');
 const ownerGate = new InMemoryOwnerGate(() => '2026-07-16T00:00:00.000Z');
 
 function authorizeTemporalMutation(input: {

@@ -1,11 +1,11 @@
 import './domain-pack-compiler-generated-interfaces-cases/active-caller-cutover-cases.ts';
 import { assert, buildManifestCommand, createFamilyContractsFixtureRoot, fs, loadFamilyManifestFixtures, os, parseJsonText, path, repoRoot, runCli, runCliFailure, test } from '../helpers.ts';
 import { buildReadyAgentRepo, retargetReadyRepo, writeJson } from './agents-conformance-fixtures.ts';
-import { buildGeneratedInterfaceBundle } from '../../../../src/modules/pack/domain-pack-compiler/generated-interface-read-model.ts';
+import { buildGeneratedInterfaceBundle } from '../../../../src/authority/packages/domain-pack-compiler/generated-interface-read-model.ts';
 import {
   buildRepoContractDescriptor,
   repoContractDescriptorForPackCompiler,
-} from '../../../../src/modules/pack/domain-pack-compiler/repo-contract-descriptor.ts';
+} from '../../../../src/authority/packages/domain-pack-compiler/repo-contract-descriptor.ts';
 import {
   bindFamilyManifests,
   bindFamilyContractModulePaths,

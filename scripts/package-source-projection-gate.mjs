@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
   getOplPackageSpecs,
   normalizeDistributionVersion,
-} from '../src/modules/connect/package-distribution.ts';
+} from '../src/adapters/integration/package-distribution.ts';
 import { parseJsonText, readJsonFile } from './script-json-boundary.mjs';
 
 export const TEST_ONLY_PACKAGE_RELEASE_GATE = 'test_owner_sha_release_gate';

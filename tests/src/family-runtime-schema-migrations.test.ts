@@ -10,8 +10,8 @@ import { Worker } from 'node:worker_threads';
 import {
   createFamilyRuntimeQueueTables,
   QUEUE_SCHEMA_VERSION,
-} from '../../src/modules/runway/family-runtime-store.ts';
-import { openFamilyRuntimeSqlite } from '../../src/modules/runway/family-runtime-sqlite.ts';
+} from '../../src/adapters/execution/family-runtime-store.ts';
+import { openFamilyRuntimeSqlite } from '../../src/adapters/execution/family-runtime-sqlite.ts';
 
 function createLegacyQueue(pathToDb: string) {
   const db = new DatabaseSync(pathToDb);
@@ -116,8 +116,8 @@ function createLegacyQueue(pathToDb: string) {
 }
 
 function migrationWorker(dbPath: string) {
-  const storeUrl = pathToFileURL(path.resolve('src/modules/runway/family-runtime-store.ts')).href;
-  const sqliteUrl = pathToFileURL(path.resolve('src/modules/runway/family-runtime-sqlite.ts')).href;
+  const storeUrl = pathToFileURL(path.resolve('src/adapters/execution/family-runtime-store.ts')).href;
+  const sqliteUrl = pathToFileURL(path.resolve('src/adapters/execution/family-runtime-sqlite.ts')).href;
   const source = [
     "import { parentPort, workerData } from 'node:worker_threads';",
     `import { createFamilyRuntimeQueueTables } from ${JSON.stringify(storeUrl)};`,

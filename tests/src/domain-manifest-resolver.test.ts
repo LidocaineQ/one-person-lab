@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import type { WorkspaceBinding } from '../../src/modules/workspace/workspace-registry.ts';
-import { resolveBindingManifest } from '../../src/modules/atlas/domain-manifest/resolver.ts';
+import type { WorkspaceBinding } from '../../src/authority/workspace/workspace-registry.ts';
+import { resolveBindingManifest } from '../../src/read-models/catalog/domain-manifest/resolver.ts';
 import { loadFamilyManifestFixtures } from './cli/helpers.ts';
 import {
   buildReadyAgentRepo,

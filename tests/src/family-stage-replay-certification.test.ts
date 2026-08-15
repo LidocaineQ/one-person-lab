@@ -5,18 +5,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parseJsonText } from '../../src/kernel/json-file.ts';
-import { buildFamilyStageConformanceReview } from '../../src/modules/stagecraft/family-stage-conformance.ts';
+import { buildFamilyStageConformanceReview } from '../../src/authority/stages/family-stage-conformance.ts';
 import type { FamilyActionCatalog } from '../../src/kernel/family-action-catalog-contract.ts';
-import type { FamilyStageContract, FamilyStageControlPlane } from '../../src/modules/stagecraft/family-stage-control-plane-contract.ts';
-import { buildFamilyStageProofBundle } from '../../src/modules/stagecraft/family-stage-proof-bundle.ts';
+import type { FamilyStageContract, FamilyStageControlPlane } from '../../src/authority/stages/family-stage-control-plane-contract.ts';
+import { buildFamilyStageProofBundle } from '../../src/authority/stages/family-stage-proof-bundle.ts';
 import {
   buildFamilyStageReplayCertification,
   buildFamilyStageReplayEvidenceFromControlPlane,
-} from '../../src/modules/stagecraft/family-stage-replay-certification.ts';
+} from '../../src/authority/stages/family-stage-replay-certification.ts';
 import {
   STANDARD_PROGRESS_DELTA_POLICY,
   STANDARD_TYPED_BLOCKER_LINEAGE_POLICY,
-} from '../../src/modules/pack/standard-domain-agent-scaffold-constants.ts';
+} from '../../src/authority/packages/standard-domain-agent-scaffold-constants.ts';
 
 type JsonRecord = Record<string, unknown>;
 

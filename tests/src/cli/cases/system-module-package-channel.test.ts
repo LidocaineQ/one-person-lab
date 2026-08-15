@@ -16,7 +16,7 @@ import {
   computePackageChannelTreeSha256,
   materializeOplPackageSourceArchive,
   rollbackManagedModulePackageChannel,
-} from '../../../../src/modules/connect/system-installation/module-package-channel.ts';
+} from '../../../../src/adapters/integration/system-installation/module-package-channel.ts';
 
 const PACKAGE_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.source.v1+gzip';
 const PACKAGE_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.manifest.v1+json';

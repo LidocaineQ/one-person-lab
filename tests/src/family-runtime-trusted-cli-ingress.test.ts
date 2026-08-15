@@ -5,8 +5,8 @@ import test from 'node:test';
 import { FrameworkContractError } from '../../src/kernel/contract-validation.ts';
 import {
   bindTrustedCliFamilyRuntimeIngressIdentity,
-} from '../../src/modules/runway/family-runtime-execution-scope.ts';
-import { createWorkItemExecutionScopeSnapshot } from '../../src/modules/workspace/execution-scope.ts';
+} from '../../src/adapters/execution/family-runtime-execution-scope.ts';
+import { createWorkItemExecutionScopeSnapshot } from '../../src/authority/workspace/execution-scope.ts';
 
 function scope(workItemId = 'study-001') {
   fs.mkdirSync(`/tmp/trusted-cli-test/studies/${workItemId}`, { recursive: true });

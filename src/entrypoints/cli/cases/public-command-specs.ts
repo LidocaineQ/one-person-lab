@@ -1,43 +1,43 @@
-import { FrameworkContractError, findDomainOrThrow, findSurfaceOrThrow, findWorkstreamOrThrow } from '../../../modules/charter/contracts.ts';
+import { FrameworkContractError, findDomainOrThrow, findSurfaceOrThrow, findWorkstreamOrThrow } from '../../../authority/contracts/contracts.ts';
 import {
   resolveStandardAgent,
   STANDARD_AGENT_SERIES_MEMBERSHIP,
-} from '../../../modules/charter/index.ts';
-import { buildOplFrameworkLocator } from '../../../modules/connect/opl-framework-locator.ts';
-import { resolveStandardAgentContractCheckout } from '../../../modules/connect/index.ts';
+} from '../../../authority/contracts/index.ts';
+import { buildOplFrameworkLocator } from '../../../adapters/integration/opl-framework-locator.ts';
+import { resolveStandardAgentContractCheckout } from '../../../adapters/integration/index.ts';
 import {
   buildFrameworkOperatingMaturityCompactReadback,
   buildFrameworkOperatingMaturityReadout,
   buildPrivatePlatformResidueOwnerDecisionLedgerCommand,
   buildAgentReadinessSummary,
-} from '../../../modules/console/index.ts';
-import { buildRuntimeTraySnapshot } from '../../../modules/console/runtime-tray-snapshot.ts';
-import { buildSourceStructureOperatorReadback } from '../../../modules/charter/source-structure-operator-readback.ts';
-import { runOplEngineAction } from '../../../modules/connect/system-installation/engine-actions.ts';
-import { runOplTurnkeyInstall } from '../../../modules/connect/system-installation/turnkey.ts';
+} from '../../../read-models/operator/index.ts';
+import { buildRuntimeTraySnapshot } from '../../../read-models/operator/runtime-tray-snapshot.ts';
+import { buildSourceStructureOperatorReadback } from '../../../authority/contracts/source-structure-operator-readback.ts';
+import { runOplEngineAction } from '../../../adapters/integration/system-installation/engine-actions.ts';
+import { runOplTurnkeyInstall } from '../../../adapters/integration/system-installation/turnkey.ts';
 import {
   buildFamilyActionExport,
   buildFamilyActionInspect,
   buildFamilyActionsList,
-} from '../../../modules/console/family-action-catalog.ts';
+} from '../../../read-models/operator/family-action-catalog.ts';
 import {
   buildFamilyAgentDescriptorInspect,
   buildFamilyAgentDescriptorList,
-} from '../../../modules/atlas/family-domain-agent-descriptor.ts';
+} from '../../../read-models/catalog/family-domain-agent-descriptor.ts';
 import {
   defaultStandardDomainAgentRepoInputs,
   DEFAULT_STANDARD_DOMAIN_AGENT_REPOS,
-} from '../../../modules/atlas/index.ts';
+} from '../../../read-models/catalog/index.ts';
 import type {
   CordisAtlasCatalogService,
   CordisDomainManifestCatalogOptions,
-} from '../../../modules/atlas/index.ts';
+} from '../../../read-models/catalog/index.ts';
 import {
   buildGeneratedAgentInterfaces,
   buildDomainPackCompilerInspect,
   buildDomainPackCompilerList,
   parsePackCompilerArgs,
-} from '../../../modules/pack/domain-pack-compiler.ts';
+} from '../../../authority/packages/domain-pack-compiler.ts';
 import {
   buildAgentDefaultCallerReadinessReport,
   buildAgentPlatformSurfaceOwnershipReport,
@@ -48,27 +48,27 @@ import {
   buildFamilyAgentsList,
   runFamilyAgentLegacyCleanupApply,
   withStandardDomainAgentSkeletonInspection,
-} from '../../../modules/workspace/index.ts';
+} from '../../../authority/workspace/index.ts';
 import { agentsEvidenceApplySpec } from './agent-evidence-command-spec.ts';
 import {
   buildFamilyDomainMemoryInspect,
   buildFamilyDomainMemoryList,
   buildFamilyDomainMemoryMigrationPlan,
-} from '../../../modules/atlas/family-domain-memory.ts';
+} from '../../../read-models/catalog/family-domain-memory.ts';
 import {
   buildGenericSubstrateProjectionInspect,
   buildGenericSubstrateProjectionList,
   buildGenericSubstrateWorkbench,
-} from '../../../modules/runway/generic-substrate-projection.ts';
-import { readFamilyDomainMemoryRuntimeReceiptEvidenceByDomain } from '../../../modules/runway/index.ts';
+} from '../../../adapters/execution/generic-substrate-projection.ts';
+import { readFamilyDomainMemoryRuntimeReceiptEvidenceByDomain } from '../../../adapters/execution/index.ts';
 import {
   applyProviderClosureEvidence,
   providerClosureEvidence,
   providerResidencyGapStatus,
   readProviderContinuousProof,
   runFamilyRuntimeLifecycleApply,
-} from '../../../modules/runway/index.ts';
-import { runProductEntryResume } from '../../../modules/console/product-entry-runtime.ts';
+} from '../../../adapters/execution/index.ts';
+import { runProductEntryResume } from '../../../read-models/operator/product-entry-runtime.ts';
 import type { FrameworkContracts } from '../../../kernel/types.ts';
 import { buildPublicSystemCommandSpecs } from './system-public-command-specs.ts';
 import { buildPublicRuntimeCommandSpecs } from './runtime-public-command-specs.ts';
@@ -484,7 +484,7 @@ export function buildPublicCommandSpecs(
       ],
       group: 'quality',
       handler: async (args) => {
-        const { buildQualityDetails, parseQualityDetailsArgs, renderQualityDetailsMarkdown } = await import('../../../modules/stagecraft/quality-details/index.ts');
+        const { buildQualityDetails, parseQualityDetailsArgs, renderQualityDetailsMarkdown } = await import('../../../authority/stages/quality-details/index.ts');
         const parsed = parseQualityDetailsArgs(args);
         if (!parsed.ok) {
           throw buildUsageError(parsed.message, publicCommandSpecs['quality details'], parsed.details);

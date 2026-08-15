@@ -26,7 +26,7 @@ function record(value: unknown): JsonRecord {
 
 async function loadHelper() {
   try {
-    return await import('../../src/modules/ledger/stage-run-evidence-pack.ts');
+    return await import('../../src/authority/evidence/stage-run-evidence-pack.ts');
   } catch (error) {
     assert.fail(error instanceof Error ? error.message : 'stage run evidence pack helper module should load');
   }

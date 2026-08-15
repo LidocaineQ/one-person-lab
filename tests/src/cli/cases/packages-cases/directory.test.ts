@@ -18,27 +18,27 @@ import { createFakeCodexFixture } from '../../helpers.ts';
 import {
   buildAgentPackageDirectory,
   normalizePackageCatalogDocument,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/directory.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry-parts/directory.ts';
 import {
   discoverInstalledCodexPluginDescriptors,
   discoverInstalledPackageDescriptors,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/installed-codex-plugin-directory.ts';
-import { getOplPackageSpecs } from '../../../../../src/modules/connect/package-distribution.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry-parts/installed-codex-plugin-directory.ts';
+import { getOplPackageSpecs } from '../../../../../src/adapters/integration/package-distribution.ts';
 import {
   normalizePackageManifest,
   normalizeRegistryDocument,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
-import { fetchAndValidateRegistry } from '../../../../../src/modules/connect/agent-package-registry-parts/selection.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry-parts/manifest-normalizers.ts';
+import { fetchAndValidateRegistry } from '../../../../../src/adapters/integration/agent-package-registry-parts/selection.ts';
 import {
   defaultHomeShortcutPreferences,
   mergedHomeShortcutPreferences,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/home-shortcuts.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry-parts/home-shortcuts.ts';
 import { validateJsonSchemaPayload } from '../../../../../src/kernel/schema-registry.ts';
 import {
   listOplAgentPackages,
   runOplAgentPackageStatus,
-} from '../../../../../src/modules/connect/agent-package-registry.ts';
-import { buildAppAgentPackageStatuses } from '../../../../../src/modules/console/app-state.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry.ts';
+import { buildAppAgentPackageStatuses } from '../../../../../src/read-models/operator/app-state.ts';
 
 const CANONICAL_PACKAGE_ROLES = new Set([
   'standard_agent',

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-import { buildSubstrateProvenanceSurface } from '../../src/modules/ledger/substrate-provenance-surface.ts';
+import { buildSubstrateProvenanceSurface } from '../../src/authority/evidence/substrate-provenance-surface.ts';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 
 const HASH_ZERO = '0'.repeat(64);

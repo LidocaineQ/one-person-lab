@@ -10,8 +10,8 @@ import { parseJsonText } from '../../src/kernel/json-file.ts';
 import {
   evaluateStageRunProgress,
   rebuildStageRunReadModel,
-} from '../../src/modules/stagecraft/stage-run-kernel.ts';
-import { compileStandardAgentStageManifest } from '../../src/modules/pack/index.ts';
+} from '../../src/authority/stages/stage-run-kernel.ts';
+import { compileStandardAgentStageManifest } from '../../src/authority/packages/index.ts';
 
 const expectedStageIds = [
   'call_and_candidate_intake',

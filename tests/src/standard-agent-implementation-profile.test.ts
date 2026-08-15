@@ -11,16 +11,16 @@ import {
   validateStandardAgentImplementationProfileDeclaration,
   validateStandardAgentImplementationProfile,
   validateStandardAgentImplementationProfileRefs,
-} from '../../src/modules/pack/standard-agent-implementation-profile.ts';
+} from '../../src/authority/packages/standard-agent-implementation-profile.ts';
 import {
   OPL_HOSTED_FOUNDRY_SEMANTIC_PROVIDER_PROFILE_ID,
   STANDARD_DOMAIN_AGENT_REPO_LOCAL_RUNTIME_PROFILE_ID,
-} from '../../src/modules/pack/standard-agent-execution-profile.ts';
+} from '../../src/authority/packages/standard-agent-execution-profile.ts';
 import {
   STANDARD_AGENT_PACK_ABI,
   STANDARD_AGENT_PACK_ABI_DECLARATION,
   resolveStandardAgentPackAbi,
-} from '../../src/modules/pack/standard-agent-pack-abi.ts';
+} from '../../src/authority/packages/standard-agent-pack-abi.ts';
 import { validateJsonSchemaPayload } from '../../src/kernel/schema-registry.ts';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 

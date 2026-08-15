@@ -5,7 +5,7 @@ import {
   assertQualityAttemptTerminalRouteSelection,
   evaluateStageQualityAttemptRoute,
   sanitizeStageQualityAttemptRouteImpact,
-} from '../../src/modules/stagecraft/stage-quality-route-selection.ts';
+} from '../../src/authority/stages/stage-quality-route-selection.ts';
 
 function attempt(input: {
   role: 'producer' | 'reviewer' | 'repairer' | 're_reviewer';

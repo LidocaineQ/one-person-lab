@@ -12,10 +12,10 @@ import {
   STANDARD_AGENT_IMPLEMENTATION_PROFILE_DECLARATION,
   STANDARD_AGENT_PACK_ABI_DECLARATION,
   resolveStandardAgentExecutionProfile,
-} from '../../../../../src/modules/pack/index.ts';
+} from '../../../../../src/authority/packages/index.ts';
 import {
   discoverSourceClosureEntrypoints,
-} from '../../../../../src/modules/workspace/standard-agent-source-closure-parts/entrypoints.ts';
+} from '../../../../../src/authority/workspace/standard-agent-source-closure-parts/entrypoints.ts';
 import {
   buildReadyAgentRepo,
   writeJson,

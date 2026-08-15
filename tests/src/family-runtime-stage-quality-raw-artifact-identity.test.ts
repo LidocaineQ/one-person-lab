@@ -7,9 +7,9 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { FrameworkContractError } from '../../src/kernel/contract-validation.ts';
-import { verifyStageQualityCloseoutArtifactIdentity } from '../../src/modules/runway/family-runtime-codex-stage-runner-parts/artifact-identity-verification.ts';
-import type { TypedStageCloseoutPacket } from '../../src/modules/runway/family-runtime-codex-stage-runner-parts/closeout-normalization.ts';
-import { persistRawStageOutput } from '../../src/modules/runway/family-runtime-codex-stage-runner-parts/stage-closeout-capture.ts';
+import { verifyStageQualityCloseoutArtifactIdentity } from '../../src/adapters/execution/family-runtime-codex-stage-runner-parts/artifact-identity-verification.ts';
+import type { TypedStageCloseoutPacket } from '../../src/adapters/execution/family-runtime-codex-stage-runner-parts/closeout-normalization.ts';
+import { persistRawStageOutput } from '../../src/adapters/execution/family-runtime-codex-stage-runner-parts/stage-closeout-capture.ts';
 import { runWithWorkItemFileBoundaryInterlock } from './work-item-file-boundary-test-support.ts';
 
 type RawArtifact = NonNullable<ReturnType<typeof persistRawStageOutput>>;

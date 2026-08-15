@@ -1,5 +1,5 @@
 import { buildManifestCommand, fs, loadFamilyManifestFixtures, path, writeMasCleanRunnerFixture } from '../../helpers.ts';
-import { buildCurrentOwnerDeltaReadModel } from '../../../../../src/modules/ledger/current-owner-delta-projection.ts';
+import { buildCurrentOwnerDeltaReadModel } from '../../../../../src/authority/evidence/current-owner-delta-projection.ts';
 
 export function bindMasWorkspaceForAppState(input: {
   stateDir: string;

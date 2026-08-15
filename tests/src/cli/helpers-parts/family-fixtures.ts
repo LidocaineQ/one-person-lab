@@ -10,11 +10,11 @@ import {
   resolveStandardAgent,
   STANDARD_AGENT_SERIES_MEMBERSHIP,
 } from '../../../../src/kernel/standard-agent-registry.ts';
-import { canonicalAgentPackageId } from '../../../../src/modules/connect/agent-package-identity.ts';
+import { canonicalAgentPackageId } from '../../../../src/adapters/integration/agent-package-identity.ts';
 import {
   createFamilyRuntimeQueueTables,
   DEFAULT_MAX_ATTEMPTS,
-} from '../../../../src/modules/runway/family-runtime-store.ts';
+} from '../../../../src/adapters/execution/family-runtime-store.ts';
 
 import { repoRoot } from './constants.ts';
 import { createContractsFixtureRoot, readJsonFixture, shellSingleQuote } from './fixtures.ts';

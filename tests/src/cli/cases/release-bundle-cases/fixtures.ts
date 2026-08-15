@@ -26,11 +26,11 @@ import {
   verifyReleaseBundle as verifyReleaseBundleAuthority,
   type ReleaseBundle,
   type ReleaseBundleOperationInvocation,
-} from '../../../../../src/modules/connect/release-bundle/index.ts';
+} from '../../../../../src/adapters/integration/release-bundle/index.ts';
 import {
   releaseBundleStorePaths,
   withReleaseBundleStateLock,
-} from '../../../../../src/modules/connect/release-bundle/store.ts';
+} from '../../../../../src/adapters/integration/release-bundle/store.ts';
 
 const standardOperation = {
   releaseOperation: 'standard' as const,

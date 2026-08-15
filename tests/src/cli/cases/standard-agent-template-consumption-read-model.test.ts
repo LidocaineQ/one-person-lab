@@ -1,7 +1,7 @@
 import { assert, test } from '../helpers.ts';
 import {
   buildStandardDomainAgentTemplateConsumptionReadModel,
-} from '../../../../src/modules/pack/standard-domain-agent-scaffold.ts';
+} from '../../../../src/authority/packages/standard-domain-agent-scaffold.ts';
 
 test('standard agent template consumption read model exposes replayable evidence contract', () => {
   const readModel = buildStandardDomainAgentTemplateConsumptionReadModel();

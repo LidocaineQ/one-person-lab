@@ -3,7 +3,7 @@ import {
   recordDomainOwnerPayloadSummaryReceipts,
   verifyDomainOwnerPayloadSummaryReceipt,
   type DomainOwnerPayloadSummaryReceiptInput,
-} from '../../../modules/ledger/domain-owner-payload-summary-ledger.ts';
+} from '../../../authority/evidence/domain-owner-payload-summary-ledger.ts';
 import {
   readJsonObject,
   readOptionalString,

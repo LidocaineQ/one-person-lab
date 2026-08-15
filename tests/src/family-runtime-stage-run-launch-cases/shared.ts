@@ -8,12 +8,12 @@ import test from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
 
-import type { StandardAgentStageQualityRuntimeBinding } from '../../../src/modules/pack/index.ts';
-import { createWorkItemExecutionScopeSnapshot } from '../../../src/modules/workspace/index.ts';
-import { parseFamilyRuntimeCommand } from '../../../src/modules/runway/family-runtime-command.ts';
-import { runFamilyRuntime } from '../../../src/modules/runway/family-runtime.ts';
-import { buildPackBoundTemporalStageRunInput } from '../../../src/modules/runway/family-runtime-pack-bound-stage-run.ts';
-import { resolveStageRunAttemptExecutorContent } from '../../../src/modules/runway/family-runtime-stage-run-attempt-content.ts';
+import type { StandardAgentStageQualityRuntimeBinding } from '../../../src/authority/packages/index.ts';
+import { createWorkItemExecutionScopeSnapshot } from '../../../src/authority/workspace/index.ts';
+import { parseFamilyRuntimeCommand } from '../../../src/adapters/execution/family-runtime-command.ts';
+import { runFamilyRuntime } from '../../../src/adapters/execution/family-runtime.ts';
+import { buildPackBoundTemporalStageRunInput } from '../../../src/adapters/execution/family-runtime-pack-bound-stage-run.ts';
+import { resolveStageRunAttemptExecutorContent } from '../../../src/adapters/execution/family-runtime-stage-run-attempt-content.ts';
 import {
   buildCliStageRunInvocationId,
   buildHostedActionStageRunInvocationId,
@@ -22,9 +22,9 @@ import {
   stageAttemptExecutionContentBindingSha256,
   stageRunSpecSha256,
   revalidateStageRunImmutableSpecContent,
-} from '../../../src/modules/runway/family-runtime-stage-run-identity.ts';
-import { launchRegisteredStageRun } from '../../../src/modules/runway/family-runtime-stage-run-launch.ts';
-import { materializeStageRunRoute } from '../../../src/modules/runway/family-runtime-stage-run-route-launch.ts';
+} from '../../../src/adapters/execution/family-runtime-stage-run-identity.ts';
+import { launchRegisteredStageRun } from '../../../src/adapters/execution/family-runtime-stage-run-launch.ts';
+import { materializeStageRunRoute } from '../../../src/adapters/execution/family-runtime-stage-run-route-launch.ts';
 import {
   claimStageRunStart,
   findStageRunLaunch,
@@ -33,12 +33,12 @@ import {
   recordStageRunStartFailure,
   recordStageRunTemporalStart,
   registerStageRunLaunch,
-} from '../../../src/modules/runway/family-runtime-stage-run-launch-registry.ts';
-import { requireTemporalStageRunWorkflowInputLaunchable } from '../../../src/modules/runway/family-runtime-temporal.ts';
-import { stageQualityAttemptMaterializeActivity } from '../../../src/modules/runway/family-runtime-temporal-activities.ts';
-import { createStageAttempt } from '../../../src/modules/runway/family-runtime-stage-attempts.ts';
-import { createFamilyRuntimeQueueTables, openQueueDb } from '../../../src/modules/runway/family-runtime-store.ts';
-import { normalizeStageQualityCyclePolicy } from '../../../src/modules/stagecraft/stage-quality-cycle.ts';
+} from '../../../src/adapters/execution/family-runtime-stage-run-launch-registry.ts';
+import { requireTemporalStageRunWorkflowInputLaunchable } from '../../../src/adapters/execution/family-runtime-temporal.ts';
+import { stageQualityAttemptMaterializeActivity } from '../../../src/adapters/execution/family-runtime-temporal-activities.ts';
+import { createStageAttempt } from '../../../src/adapters/execution/family-runtime-stage-attempts.ts';
+import { createFamilyRuntimeQueueTables, openQueueDb } from '../../../src/adapters/execution/family-runtime-store.ts';
+import { normalizeStageQualityCyclePolicy } from '../../../src/authority/stages/stage-quality-cycle.ts';
 import { runWithWorkItemFileBoundaryInterlock } from '../work-item-file-boundary-test-support.ts';
 
 const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-run-launch-fixture-'));
@@ -348,7 +348,7 @@ function workerClaim(input: {
   claimToken: string;
 }) {
   const registryModuleUrl = pathToFileURL(path.resolve(
-    'src/modules/runway/family-runtime-stage-run-launch-registry.ts',
+    'src/adapters/execution/family-runtime-stage-run-launch-registry.ts',
   )).href;
   const source = [
     "import { parentPort, workerData } from 'node:worker_threads';",
@@ -403,7 +403,7 @@ function workerClose(input: {
   terminalStatus: string;
 }) {
   const registryModuleUrl = pathToFileURL(path.resolve(
-    'src/modules/runway/family-runtime-stage-run-launch-registry.ts',
+    'src/adapters/execution/family-runtime-stage-run-launch-registry.ts',
   )).href;
   const source = [
     "import { parentPort, workerData } from 'node:worker_threads';",

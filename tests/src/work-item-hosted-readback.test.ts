@@ -8,8 +8,8 @@ import test from 'node:test';
 import { FrameworkContractError } from '../../src/kernel/contract-validation.ts';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 import { validateJsonSchemaPayload } from '../../src/kernel/schema-registry.ts';
-import { buildHostedWorkItemReadback } from '../../src/modules/console/work-item-hosted-readback.ts';
-import type { WorkItemProjectionV2 } from '../../src/modules/console/work-item-projection/types.ts';
+import { buildHostedWorkItemReadback } from '../../src/read-models/operator/work-item-hosted-readback.ts';
+import type { WorkItemProjectionV2 } from '../../src/read-models/operator/work-item-projection/types.ts';
 
 function writeJson(filePath: string, value: unknown) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });

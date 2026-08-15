@@ -2,7 +2,7 @@ import { createPersistentFoundryControl } from '../../modules/foundry-control.ts
 import {
   cancelTemporalFoundryRun,
   submitTemporalFoundryOwnerDecision,
-} from '../../../../modules/runway/foundry-temporal-control.ts';
+} from '../../../../adapters/execution/foundry-temporal-control.ts';
 import { buildUsageError, parseCommandOptions } from '../../modules/support.ts';
 import type { CommandSpec } from '../../modules/support.ts';
 

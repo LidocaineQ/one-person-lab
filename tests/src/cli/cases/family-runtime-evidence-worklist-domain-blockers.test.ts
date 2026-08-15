@@ -11,14 +11,14 @@ import {
 } from '../helpers.ts';
 import {
   buildProductionTailNextActionLedger,
-} from '../../../../src/modules/ledger/production-evidence-tail-ledger.ts';
-import { runFamilyRuntimeEvidenceWorklist } from '../../../../src/modules/runway/family-runtime-evidence-worklist.ts';
-import { buildRuntimeTraySnapshot } from '../../../../src/modules/console/runtime-tray-snapshot.ts';
-import { openQueueDb } from '../../../../src/modules/runway/family-runtime-store.ts';
+} from '../../../../src/authority/evidence/production-evidence-tail-ledger.ts';
+import { runFamilyRuntimeEvidenceWorklist } from '../../../../src/adapters/execution/family-runtime-evidence-worklist.ts';
+import { buildRuntimeTraySnapshot } from '../../../../src/read-models/operator/runtime-tray-snapshot.ts';
+import { openQueueDb } from '../../../../src/adapters/execution/family-runtime-store.ts';
 import {
   createStageAttempt,
   ingestStageAttemptCloseout,
-} from '../../../../src/modules/runway/family-runtime-stage-attempts.ts';
+} from '../../../../src/adapters/execution/family-runtime-stage-attempts.ts';
 
 function completedTemporalObservationWithTypedBlocker(input: {
   stageAttemptId: string;

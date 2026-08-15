@@ -1,4 +1,4 @@
-import { buildOplPackageManifest } from '../../../../modules/connect/package-distribution.ts';
+import { buildOplPackageManifest } from '../../../../adapters/integration/package-distribution.ts';
 import {
   completeOplGatewaySetup,
   disconnectOplGatewayAccount,
@@ -7,32 +7,32 @@ import {
   refreshOplGatewayAccount,
   repairOplGatewayAccount,
   useOplGatewayForModelAccess,
-} from '../../../../modules/connect/opl-gateway-account.ts';
+} from '../../../../adapters/integration/opl-gateway-account.ts';
 import {
   runOplConnectExternalSkillsInspect,
   runOplConnectExternalSkillsList,
   runOplConnectExternalSkillsSearch,
   runOplConnectExternalSkillsSourceAdd,
   runOplConnectExternalSkillsSync,
-} from '../../../../modules/connect/opl-connect-external-skills.ts';
+} from '../../../../adapters/integration/opl-connect-external-skills.ts';
 import {
   runOplConnectFoundationSkillsInspect,
   runOplConnectFoundationSkillsSync,
   type FoundationSkillsSyncInput,
-} from '../../../../modules/connect/opl-foundation-skills.ts';
+} from '../../../../adapters/integration/opl-foundation-skills.ts';
 import {
   scientificConnectorProviderIds,
   runOplConnectScientificSearch,
   type ScientificConnectorProviderId,
-} from '../../../../modules/connect/opl-connect-scientific.ts';
+} from '../../../../adapters/integration/opl-connect-scientific.ts';
 import {
   normalizeReferenceVerificationProviders,
   referenceVerificationProviderIds,
   runOplConnectReferenceVerification,
   type ReferenceVerificationInput,
-} from '../../../../modules/connect/opl-connect-reference-verification.ts';
-import { FrameworkContractError } from '../../../../modules/charter/contracts.ts';
-import { buildOplModules, runOplModuleAction, runOplModuleExec } from '../../../../modules/connect/system-installation/modules.ts';
+} from '../../../../adapters/integration/opl-connect-reference-verification.ts';
+import { FrameworkContractError } from '../../../../authority/contracts/contracts.ts';
+import { buildOplModules, runOplModuleAction, runOplModuleExec } from '../../../../adapters/integration/system-installation/modules.ts';
 import {
   buildPublicModuleActionPayload,
   buildPublicModuleExecPayload,

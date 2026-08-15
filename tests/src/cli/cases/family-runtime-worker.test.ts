@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import net from 'node:net';
 import { Worker } from '@temporalio/worker';
 
-import { buildTemporalStageAttemptWorkerOptionsForTest } from '../../../../src/modules/runway/family-runtime-temporal-provider.ts';
+import { buildTemporalStageAttemptWorkerOptionsForTest } from '../../../../src/adapters/execution/family-runtime-temporal-provider.ts';
 import { createTemporalTestWorkflowEnvironment } from '../../temporal-test-environment.ts';
 
 import {

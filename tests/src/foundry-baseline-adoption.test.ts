@@ -13,9 +13,9 @@ import {
   type BaselineAdoptionFailureCode,
   type BaselineAdoptionPreflightDependencies,
   type BaselineAdoptionPreflightReceipt,
-} from '../../src/modules/foundry/baseline-adoption.ts';
-import { InMemoryOwnerGate } from '../../src/modules/foundry/in-memory-adapters.ts';
-import { FoundryKernel } from '../../src/modules/foundry/kernel.ts';
+} from '../../src/authority/evolution/baseline-adoption.ts';
+import { InMemoryOwnerGate } from '../../src/authority/evolution/in-memory-adapters.ts';
+import { FoundryKernel } from '../../src/authority/evolution/kernel.ts';
 import type {
   ActivationPointer,
   AgentVersion,
@@ -26,12 +26,12 @@ import type {
   FoundryObjectStore,
   MaterializedCandidate,
   VersionRegistry,
-} from '../../src/modules/foundry/ports.ts';
+} from '../../src/authority/evolution/ports.ts';
 import {
   validateDesignRequest,
   type DesignRequest,
-} from '../../src/modules/foundry/protocol.ts';
-import { startTemporalFoundryRunWorkflow } from '../../src/modules/runway/foundry-temporal-control.ts';
+} from '../../src/authority/evolution/protocol.ts';
+import { startTemporalFoundryRunWorkflow } from '../../src/adapters/execution/foundry-temporal-control.ts';
 
 const fixtureRoot = path.join(process.cwd(), 'tests/fixtures/foundry-baseline-adoption');
 const fixedNow = '2026-07-22T00:00:00.000Z';

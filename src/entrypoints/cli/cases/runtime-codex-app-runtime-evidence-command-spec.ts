@@ -3,12 +3,12 @@ import {
   recordCodexAppRuntimeEvidenceReceipts,
   verifyCodexAppRuntimeEvidenceReceipt,
   type CodexAppRuntimeEvidenceReceiptInput,
-} from '../../../modules/runway/codex-app-runtime-evidence-ledger.ts';
+} from '../../../adapters/execution/codex-app-runtime-evidence-ledger.ts';
 import {
   finishCodexAppRuntimeLongSoakObservation,
   recordCodexAppRuntimeLongSoakObservationEvent,
   startCodexAppRuntimeLongSoakObservation,
-} from '../../../modules/runway/codex-app-runtime-long-soak-observation.ts';
+} from '../../../adapters/execution/codex-app-runtime-long-soak-observation.ts';
 import {
   readJsonObject,
   readOptionalString,

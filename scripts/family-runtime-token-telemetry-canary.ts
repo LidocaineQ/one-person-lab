@@ -7,15 +7,15 @@ import {
   buildCodexExecArgs,
   parseCodexExecOutput,
   runCodexCommandStreaming,
-} from '../src/modules/runway/codex.ts';
-import { codexStageRunnerCostSummaryFrom } from '../src/modules/runway/family-runtime-codex-session-usage.ts';
-import { openQueueDb } from '../src/modules/runway/family-runtime-store.ts';
+} from '../src/adapters/execution/codex.ts';
+import { codexStageRunnerCostSummaryFrom } from '../src/adapters/execution/family-runtime-codex-session-usage.ts';
+import { openQueueDb } from '../src/adapters/execution/family-runtime-store.ts';
 import {
   createStageAttempt,
   inspectStageAttempt,
   persistStageAttemptUsageObservation,
   recordStageAttemptActivityHeartbeat,
-} from '../src/modules/runway/family-runtime-stage-attempts.ts';
+} from '../src/adapters/execution/family-runtime-stage-attempts.ts';
 
 const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-token-telemetry-canary-state-'));
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-token-telemetry-canary-workspace-'));

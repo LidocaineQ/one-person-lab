@@ -1,5 +1,5 @@
 import { assert, test } from '../../helpers.ts';
-import { buildAppUiContributionsProjection } from '../../../../../src/modules/console/app-state-ui-contributions.ts';
+import { buildAppUiContributionsProjection } from '../../../../../src/read-models/operator/app-state-ui-contributions.ts';
 
 function packageStatus(input: {
   installed?: boolean;

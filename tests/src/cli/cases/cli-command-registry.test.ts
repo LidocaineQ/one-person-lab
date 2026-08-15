@@ -1,5 +1,5 @@
 import { assert, fs, os, parseJsonText, path, repoRoot, runCli, runCliFailure, test } from '../helpers.ts';
-import { FrameworkContractError } from '../../../../src/modules/charter/contracts.ts';
+import { FrameworkContractError } from '../../../../src/authority/contracts/contracts.ts';
 import type { CommandSpec } from '../../../../src/entrypoints/cli/modules/support.ts';
 import {
   parseLaunchDomainArgs,

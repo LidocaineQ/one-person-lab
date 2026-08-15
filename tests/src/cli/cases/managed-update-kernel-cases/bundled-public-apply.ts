@@ -20,7 +20,7 @@ import {
 } from '../system-install-fixtures.ts';
 import {
   reconcileBundledFullRuntimePackagesIfAvailable,
-} from '../../../../../src/modules/connect/system-installation/full-runtime-package-reconciliation.ts';
+} from '../../../../../src/adapters/integration/system-installation/full-runtime-package-reconciliation.ts';
 import {
   MANAGED_BUNDLED_PACKAGE_FIXTURES,
   managedBundledStateFingerprint,

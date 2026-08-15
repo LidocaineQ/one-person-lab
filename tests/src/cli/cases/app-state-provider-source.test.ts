@@ -4,8 +4,8 @@ import { pathToFileURL } from 'node:url';
 
 import { assert, buildManifestCommand, fs, loadFamilyManifestFixtures, os, path, repoRoot, runCli, test } from '../helpers.ts';
 import { runGitFixtureCommand } from '../helpers-parts/family-fixtures.ts';
-import { resolveTemporalWorkerTaskQueue } from '../../../../src/modules/runway/family-runtime-temporal-provider-parts/worker-task-queue.ts';
-import { currentWorkerSourceVersion } from '../../../../src/modules/runway/family-runtime-temporal-provider-parts/worker-state.ts';
+import { resolveTemporalWorkerTaskQueue } from '../../../../src/adapters/execution/family-runtime-temporal-provider-parts/worker-task-queue.ts';
+import { currentWorkerSourceVersion } from '../../../../src/adapters/execution/family-runtime-temporal-provider-parts/worker-state.ts';
 
 function buildMasManifestWithManagedTemporalProjection(managedTemporal: Record<string, unknown>) {
   const fixtures = loadFamilyManifestFixtures();
@@ -56,7 +56,7 @@ test('app state fast fails closed on stale worker source without live manifest r
     }, null, 2)}\n`);
     const currentSourceVersion = currentWorkerSourceVersion(pathToFileURL(path.join(
       repoRoot,
-      'src/modules/runway/family-runtime-temporal-provider.ts',
+      'src/adapters/execution/family-runtime-temporal-provider.ts',
     )).href);
     const workerState = {
       provider_kind: 'temporal',

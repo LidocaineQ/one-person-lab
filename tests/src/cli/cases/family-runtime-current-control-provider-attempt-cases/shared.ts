@@ -1,11 +1,11 @@
 import { DatabaseSync } from 'node:sqlite';
 
 import { assert, fs, os, parseJsonText as parseJsonPayloadText, path, runCli, shellSingleQuote, test } from '../../helpers.ts';
-import { ensureProviderHostedStageAttempt } from '../../../../../src/modules/runway/family-runtime-provider-hosted-attempts.ts';
+import { ensureProviderHostedStageAttempt } from '../../../../../src/adapters/execution/family-runtime-provider-hosted-attempts.ts';
 import {
   createFamilyRuntimeQueueTables,
   type FamilyRuntimeTaskRow,
-} from '../../../../../src/modules/runway/family-runtime-store.ts';
+} from '../../../../../src/adapters/execution/family-runtime-store.ts';
 
 export function familyRuntimeEnv(stateRoot: string, extra: Record<string, string> = {}) {
   return {

@@ -15,9 +15,9 @@ import {
   type AgentVersion,
   type DesignRequest,
   type MaterializedCandidate,
-} from '../../src/modules/foundry/index.ts';
-import { foundryEvaluationOperationIdentity } from '../../src/modules/foundry/operation-result.ts';
-import { ProcessFoundryEvaluationExecutor } from '../../src/modules/runway/foundry-process-evaluator.ts';
+} from '../../src/authority/evolution/index.ts';
+import { foundryEvaluationOperationIdentity } from '../../src/authority/evolution/operation-result.ts';
+import { ProcessFoundryEvaluationExecutor } from '../../src/adapters/execution/foundry-process-evaluator.ts';
 
 const request: DesignRequest = {
   surface_kind: 'opl_foundry_design_request',

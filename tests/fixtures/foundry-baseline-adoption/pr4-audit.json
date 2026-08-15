@@ -12,7 +12,7 @@
   "sorted_lf_write_set_sha256": "sha256:32a59b579f01a51f51c5e2694db014a6474b620ca179133fcab97c07047d826b",
   "write_set": [
     "contracts/opl-framework/hosted-work-item-readback-contract.json",
-    "src/modules/console/work-item-projection/execution.ts",
+    "src/read-models/operator/work-item-projection/execution.ts",
     "tests/src/work-item-hosted-readback.test.ts",
     "tests/src/work-item-projection-v2.test.ts"
   ],

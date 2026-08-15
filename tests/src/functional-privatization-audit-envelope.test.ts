@@ -7,15 +7,15 @@ import { fileURLToPath } from 'node:url';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 import {
   buildFunctionalPrivatizationAudit,
-} from '../../src/modules/pack/functional-privatization-audit.ts';
+} from '../../src/authority/packages/functional-privatization-audit.ts';
 import {
   FUNCTIONAL_PRIVATIZATION_AUDIT_ENVELOPE_CONTRACT,
-} from '../../src/modules/pack/functional-privatization-envelope.ts';
+} from '../../src/authority/packages/functional-privatization-envelope.ts';
 import {
   resolveFunctionalPrivatizationAuditContract,
   STANDARD_FUNCTIONAL_PRIVATIZATION_AUDIT_DEFAULTS_PROFILE,
   STANDARD_FUNCTIONAL_PRIVATIZATION_CLASSIFICATION_POLICY,
-} from '../../src/modules/pack/standard-agent-proof-contract-defaults.ts';
+} from '../../src/authority/packages/standard-agent-proof-contract-defaults.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');

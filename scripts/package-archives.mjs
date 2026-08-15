@@ -18,7 +18,7 @@ import {
   normalizeDistributionVersion,
   sha256File,
   writeOplPackageManifest,
-} from '../src/modules/connect/package-distribution.ts';
+} from '../src/adapters/integration/package-distribution.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 

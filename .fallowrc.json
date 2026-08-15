@@ -3,30 +3,30 @@
   "entry": [
     "bin/opl",
     "src/entrypoints/cli.ts",
-    "src/modules/foundry/protocol.ts",
-    "src/modules/foundry/control.ts",
-    "src/modules/connect/capability-registry-resolver.ts",
-    "src/modules/console/family-action-catalog.ts",
-    "src/modules/atlas/family-domain-agent-descriptor.ts",
-    "src/modules/pack/domain-pack-compiler.ts",
-    "src/modules/runway/family-runtime-lifecycle-index.ts",
-    "src/modules/runway/generic-substrate-projection.ts",
-    "src/modules/stagecraft/quality-gate-runtime.ts",
-    "src/modules/atlas/family-domain-catalog.ts",
-    "src/modules/atlas/family-entry-contracts.ts",
-    "src/modules/runway/family-orchestration.ts",
-    "src/modules/runway/managed-runtime-contract.ts",
-    "src/modules/console/product-entry-companions.ts",
+    "src/authority/evolution/protocol.ts",
+    "src/authority/evolution/control.ts",
+    "src/adapters/integration/capability-registry-resolver.ts",
+    "src/read-models/operator/family-action-catalog.ts",
+    "src/read-models/catalog/family-domain-agent-descriptor.ts",
+    "src/authority/packages/domain-pack-compiler.ts",
+    "src/adapters/execution/family-runtime-lifecycle-index.ts",
+    "src/adapters/execution/generic-substrate-projection.ts",
+    "src/authority/stages/quality-gate-runtime.ts",
+    "src/read-models/catalog/family-domain-catalog.ts",
+    "src/read-models/catalog/family-entry-contracts.ts",
+    "src/adapters/execution/family-orchestration.ts",
+    "src/adapters/execution/managed-runtime-contract.ts",
+    "src/read-models/operator/product-entry-companions.ts",
     "scripts/*.mjs",
     "src/entrypoints/cli/main.ts",
-    "src/modules/console/aionui-acp-shell.ts",
-    "src/modules/runway/native-helper-doctor.ts",
-    "src/modules/runway/opl-session-runtime.ts",
-    "src/modules/console/product-entry.ts",
-    "src/modules/console/management/progress.ts",
+    "src/read-models/operator/aionui-acp-shell.ts",
+    "src/adapters/execution/native-helper-doctor.ts",
+    "src/adapters/execution/opl-session-runtime.ts",
+    "src/read-models/operator/product-entry.ts",
+    "src/read-models/operator/management/progress.ts",
     ".github/actions/quality-details/emit-quality-details.mjs",
     "src/modules/index.ts",
-    "src/modules/console/index.ts"
+    "src/read-models/operator/index.ts"
   ],
   "ignoreDependencies": [
     "node:sqlite"
@@ -42,6 +42,6 @@
     ]
   },
   "dynamicallyLoaded": [
-    "src/modules/runway/family-runtime-temporal-residency-proof.ts"
+    "src/adapters/execution/family-runtime-temporal-residency-proof.ts"
   ]
 }

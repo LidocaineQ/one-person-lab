@@ -8,15 +8,15 @@ import test from "node:test";
 import {
   createTemporalStageActivitySessionObserver,
   type TemporalStageActivitySessionTerminalState,
-} from "../../src/modules/console/work-item-execution-session-observer.ts";
+} from "../../src/read-models/operator/work-item-execution-session-observer.ts";
 import {
   joinSessionActivityToWorkItems,
   readWorkItemExecutionSessionBindings,
-} from "../../src/modules/console/work-item-projection/session-activity.ts";
-import type { WorkItemProjectionItem } from "../../src/modules/console/work-item-projection/types.ts";
+} from "../../src/read-models/operator/work-item-projection/session-activity.ts";
+import type { WorkItemProjectionItem } from "../../src/read-models/operator/work-item-projection/types.ts";
 import {
   temporalStageActivitySessionObserverFactoryRegistered,
-} from "../../src/modules/runway/public/temporal-stage-activity-session-observer-port.ts";
+} from "../../src/adapters/execution/public/temporal-stage-activity-session-observer-port.ts";
 
 const STARTED_AT = Date.parse("2026-07-22T08:00:00.000Z");
 

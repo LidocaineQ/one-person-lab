@@ -6,7 +6,7 @@ import { parseJsonText } from '../../../../src/kernel/json-file.ts';
 import {
   runObservabilityCollectorSmoke,
   startObservabilityMetricsEndpoint,
-} from '../../../../src/modules/runway/observability-export.ts';
+} from '../../../../src/adapters/execution/observability-export.ts';
 import { assert, createFamilyContractsFixtureRoot, createRuntimeWorkspaceFixture, fs, installRuntimePackageFixture, loadFrameworkContracts, os, path, repoRoot, runCli, runCliRaw, test } from '../helpers.ts';
 
 async function rawHttpRequest(port: number, requestTarget: string, host: string) {

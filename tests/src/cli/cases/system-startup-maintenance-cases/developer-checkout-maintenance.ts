@@ -1,6 +1,6 @@
 import { assert, fs, os, path, runCli, test } from '../../helpers.ts';
 import { runGitFixtureCommand } from '../../helpers-parts/family-fixtures.ts';
-import { runModuleStartupMaintenance } from '../../../../../src/modules/connect/system-installation/startup-maintenance.ts';
+import { runModuleStartupMaintenance } from '../../../../../src/adapters/integration/system-installation/startup-maintenance.ts';
 import {
   createCurrentCodexFixture,
   createStartupDomainModuleRemotes,

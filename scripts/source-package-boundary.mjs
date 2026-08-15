@@ -32,6 +32,39 @@ const rootManifest = readJson(path.join(repoRoot, 'package.json'), 'root package
 const topology = readJson(contractPath, 'package topology contract');
 const entries = Array.isArray(topology.packages) ? topology.packages : [];
 if (!Array.isArray(topology.packages)) failures.push('packages: topology must declare a package array');
+if (topology.version !== 'package-topology.v2') failures.push('version: package topology must be package-topology.v2');
+
+const sourceTopologyRef = requiredString(topology.source_topology_ref, 'source_topology_ref');
+const sourceTopologyPath = path.resolve(repoRoot, sourceTopologyRef);
+const sourceTopology = readJson(sourceTopologyPath, 'source topology contract');
+const sourceUnitIds = new Set(
+  Array.isArray(sourceTopology.source_units)
+    ? sourceTopology.source_units.map((entry) => entry?.unit_id).filter((value) => typeof value === 'string')
+    : [],
+);
+const capabilityRegistryRef = requiredString(
+  sourceTopology.capability_domain_registry_ref,
+  'source_topology.capability_domain_registry_ref',
+);
+const capabilityRegistry = readJson(path.resolve(repoRoot, capabilityRegistryRef), 'capability-domain registry');
+const capabilityDomainIds = new Set(
+  Array.isArray(capabilityRegistry.domains)
+    ? capabilityRegistry.domains.map((entry) => entry?.domain_id).filter((value) => typeof value === 'string')
+    : [],
+);
+const legacyPaths = topology.legacy_paths;
+if (!legacyPaths || typeof legacyPaths !== 'object' || Array.isArray(legacyPaths)) {
+  failures.push('legacy_paths: topology must declare retired paths');
+} else {
+  if (legacyPaths.state !== 'retired') failures.push('legacy_paths.state: must be retired');
+  if (legacyPaths.must_be_absent !== true) failures.push('legacy_paths.must_be_absent: must be true');
+  for (const legacyPath of Array.isArray(legacyPaths.paths) ? legacyPaths.paths : []) {
+    if (fs.existsSync(path.resolve(repoRoot, legacyPath))) failures.push(`${legacyPath}: retired Package source path must be absent`);
+  }
+}
+for (const targetSourceRoot of Array.isArray(topology.target_source_roots) ? topology.target_source_roots : []) {
+  if (!fs.existsSync(path.resolve(repoRoot, targetSourceRoot))) failures.push(`${targetSourceRoot}: target Package source root is missing`);
+}
 
 const contractPaths = entries.map((entry, index) => requiredString(entry?.path, `packages.${index}.path`));
 const contractIds = entries.map((entry, index) => requiredString(entry?.package_id, `packages.${index}.package_id`));
@@ -98,6 +131,15 @@ for (const [index, entry] of entries.entries()) {
   for (const violation of imports.filter((entry) => entry.failure !== null)) failPackage(violation.failure);
 
   const packageKind = requiredString(entry.package_kind, `packages.${index}.package_kind`);
+  const entryCapabilityDomains = requiredStringArray(entry.capability_domain_ids, `packages.${index}.capability_domain_ids`);
+  const entrySourceUnits = requiredStringArray(entry.source_unit_refs, `packages.${index}.source_unit_refs`);
+  const entryPluginIds = requiredStringArray(entry.plugin_ids, `packages.${index}.plugin_ids`);
+  for (const domainId of entryCapabilityDomains) {
+    if (!capabilityDomainIds.has(domainId)) failPackage(`unknown capability_domain_id ${domainId}`);
+  }
+  for (const sourceUnitId of entrySourceUnits) {
+    if (!sourceUnitIds.has(sourceUnitId)) failPackage(`unknown source_unit_ref ${sourceUnitId}`);
+  }
   const descriptorSources = Array.isArray(entry.plugin_descriptor_sources)
     ? entry.plugin_descriptor_sources.map((value, sourceIndex) =>
       requiredString(value, `packages.${index}.plugin_descriptor_sources.${sourceIndex}`))
@@ -107,6 +149,9 @@ for (const [index, entry] of entries.entries()) {
   }
   if (packageKind === 'cordis_contribution' && descriptorSources.length === 0) {
     failPackage('Cordis contribution Package must declare a plugin descriptor source');
+  }
+  if (packageKind === 'cordis_contribution' && entryPluginIds.length === 0) {
+    failPackage('Cordis contribution Package must declare plugin_ids');
   }
   if (packageKind === 'shared_abi' && descriptorSources.length !== 0) {
     failPackage('shared ABI Package cannot declare runtime plugin descriptor sources');
@@ -153,6 +198,9 @@ for (const [index, entry] of entries.entries()) {
     export_count: exportEntries.length,
     source_file_count: sourceFiles.length,
     descriptor_count: descriptorCount,
+    capability_domain_ids: entryCapabilityDomains,
+    source_unit_refs: entrySourceUnits,
+    plugin_ids: entryPluginIds,
     failures: packageFailures,
   };
   packageResults.push(result);
@@ -226,6 +274,18 @@ function requiredString(value, label) {
   if (typeof value === 'string' && value.trim() !== '') return value;
   failures.push(`${label}: must be a non-empty string`);
   return `<invalid:${label}>`;
+}
+
+function requiredStringArray(value, label) {
+  if (!Array.isArray(value)) {
+    failures.push(`${label}: must be an array`);
+    return [];
+  }
+  return value.flatMap((entry, index) => {
+    if (typeof entry === 'string' && entry.trim()) return [entry.trim()];
+    failures.push(`${label}.${index}: must be a non-empty string`);
+    return [];
+  });
 }
 
 function recordDuplicates(values, label) {

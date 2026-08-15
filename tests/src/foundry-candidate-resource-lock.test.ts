@@ -9,16 +9,16 @@ import {
   FOUNDRY_PROTOCOL_VERSION,
   foundryContentDigest,
   type AgentBlueprint,
-} from '../../src/modules/foundry/index.ts';
+} from '../../src/authority/evolution/index.ts';
 import {
   ContentAddressedCandidateCompiler,
   FileFoundryContentStore,
   LedgerVersionRegistry,
-} from '../../src/modules/ledger/foundry-persistent-adapters.ts';
+} from '../../src/authority/evidence/foundry-persistent-adapters.ts';
 import {
   compileStandardAgentStageManifest,
   resolveStandardAgentStageQualityRuntimeBinding,
-} from '../../src/modules/pack/standard-agent-stage-manifest.ts';
+} from '../../src/authority/packages/standard-agent-stage-manifest.ts';
 
 type StoredResource = ReturnType<FileFoundryContentStore['put']>;
 type ResourceSet = Record<'prompt' | 'skill' | 'knowledge' | 'helper' | 'model' | 'tool' | 'schema', StoredResource>;

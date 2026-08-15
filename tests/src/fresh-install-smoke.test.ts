@@ -10,7 +10,7 @@ import { parseJsonText } from '../../src/kernel/json-file.ts';
 import {
   buildReleaseState,
   readInstalledFrameworkSourceIdentity,
-} from '../../src/modules/console/app-state-release.ts';
+} from '../../src/read-models/operator/app-state-release.ts';
 import { renderCodexConfigFixture } from '../../scripts/fresh-install-codex-config-fixture.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');

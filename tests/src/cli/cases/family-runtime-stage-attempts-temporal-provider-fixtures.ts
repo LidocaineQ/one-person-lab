@@ -1,6 +1,6 @@
 import type {
   TemporalStageAttemptWorkflowInput,
-} from '../../../../src/modules/runway/family-runtime-temporal.ts';
+} from '../../../../src/adapters/execution/family-runtime-temporal.ts';
 
 export type TemporalStageAttemptCreateOutput = {
   family_runtime_stage_attempt: {

@@ -4,7 +4,7 @@ import {
   artifactProjectionTreeSha256,
   materializeArtifactProjection,
   type ArtifactProjectionMaterializationRequest,
-} from '../../../../src/modules/pack/artifact-projection-materialization.ts';
+} from '../../../../src/authority/packages/artifact-projection-materialization.ts';
 import {
   assert,
   fs,

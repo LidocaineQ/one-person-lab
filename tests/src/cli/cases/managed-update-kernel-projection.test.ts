@@ -12,11 +12,11 @@ import {
 } from '../helpers.ts';
 import os from 'node:os';
 import { formatJsonPayload } from '../../../../src/kernel/json-file.ts';
-import { loadFrameworkContracts } from '../../../../src/modules/charter/contracts.ts';
-import { buildManagedUpdateKernelProjection } from '../../../../src/modules/connect/managed-update-kernel.ts';
-import { selectedManagedUpdateComponentIds } from '../../../../src/modules/connect/managed-update-owner-boundary.ts';
-import { getOplPackageSpecs } from '../../../../src/modules/connect/package-distribution.ts';
-import { loadDeveloperCheckoutPackageSource } from '../../../../src/modules/connect/agent-package-registry-parts/developer-checkout-package-source.ts';
+import { loadFrameworkContracts } from '../../../../src/authority/contracts/contracts.ts';
+import { buildManagedUpdateKernelProjection } from '../../../../src/adapters/integration/managed-update-kernel.ts';
+import { selectedManagedUpdateComponentIds } from '../../../../src/adapters/integration/managed-update-owner-boundary.ts';
+import { getOplPackageSpecs } from '../../../../src/adapters/integration/package-distribution.ts';
+import { loadDeveloperCheckoutPackageSource } from '../../../../src/adapters/integration/agent-package-registry-parts/developer-checkout-package-source.ts';
 import { writePackageCatalog } from './packages-cases/capability-fixtures.ts';
 import { agentPackageManifest } from './packages-cases/helpers.ts';
 

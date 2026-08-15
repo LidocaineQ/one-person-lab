@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { loadFrameworkContracts } from '../../../src/modules/charter/contracts.ts';
-import { validateTargetOperatingArchitecture } from '../../../src/modules/charter/target-operating-architecture-contract.ts';
+import { loadFrameworkContracts } from '../../../src/authority/contracts/contracts.ts';
+import { validateTargetOperatingArchitecture } from '../../../src/authority/contracts/target-operating-architecture-contract.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..', '..');

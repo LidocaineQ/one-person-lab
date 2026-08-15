@@ -1,5 +1,5 @@
 import { assert, fs, os, path, runCli, runCliFailure, test } from '../helpers.ts';
-import { listManagedInstallUpdateReceipts } from '../../../../src/modules/connect/managed-install-update-ledger.ts';
+import { listManagedInstallUpdateReceipts } from '../../../../src/adapters/integration/managed-install-update-ledger.ts';
 import {
   createCurrentCodexFixture,
   createStartupDomainModuleRemotes,

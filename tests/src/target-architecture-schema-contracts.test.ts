@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 import { validateJsonSchemaPayload } from '../../src/kernel/schema-registry.ts';
-import { resolveCapabilityForCurrentDelta } from '../../src/modules/connect/capability-registry-resolver.ts';
-import { buildCurrentOwnerDeltaReadModel } from '../../src/modules/ledger/current-owner-delta-projection.ts';
+import { resolveCapabilityForCurrentDelta } from '../../src/adapters/integration/capability-registry-resolver.ts';
+import { buildCurrentOwnerDeltaReadModel } from '../../src/authority/evidence/current-owner-delta-projection.ts';
 
 import './target-architecture-schema-contracts-cases/target-operating-architecture.ts';
 

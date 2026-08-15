@@ -12,7 +12,7 @@ import { parseJsonText } from '../../src/kernel/json-file.ts';
 import {
   verifyAppComponentCompatibilityReceipt,
   writeAppComponentCompatibilityReceipt,
-} from '../../src/modules/console/app-compatibility-receipt.ts';
+} from '../../src/read-models/operator/app-compatibility-receipt.ts';
 import { runCli } from './cli/helpers.ts';
 
 type JsonRecord = Record<string, any>;

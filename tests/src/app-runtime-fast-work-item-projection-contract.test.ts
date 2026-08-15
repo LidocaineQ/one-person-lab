@@ -4,12 +4,12 @@ import test from 'node:test';
 
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 import { buildPublicAppCommandSpecs } from '../../src/entrypoints/cli/cases/app-public-command-specs.ts';
-import { buildAppRuntimeWorkItemProjection } from '../../src/modules/console/app-runtime-work-item-projection.ts';
-import { APP_RUNTIME_STATE_PROFILE_V1_CAPABILITY_ID } from '../../src/modules/console/app-runtime-state.ts';
+import { buildAppRuntimeWorkItemProjection } from '../../src/read-models/operator/app-runtime-work-item-projection.ts';
+import { APP_RUNTIME_STATE_PROFILE_V1_CAPABILITY_ID } from '../../src/read-models/operator/app-runtime-state.ts';
 import {
   APP_TYPED_DOMAIN_VIEWS_V3_CAPABILITY_ID,
   validateAppRuntimeFastWorkItemProjectionContract,
-} from '../../src/modules/charter/contract-validators/app-runtime-fast-work-item-projection-contract.ts';
+} from '../../src/authority/contracts/contract-validators/app-runtime-fast-work-item-projection-contract.ts';
 
 const CONTRACT_REF = 'contracts/opl-framework/app-runtime-fast-work-item-projection-contract.json';
 

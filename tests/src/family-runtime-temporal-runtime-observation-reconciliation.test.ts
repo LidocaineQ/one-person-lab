@@ -10,23 +10,23 @@ import {
   createStageAttemptTable,
   inspectStageAttempt,
   listStageAttemptCloseouts,
-} from '../../src/modules/runway/family-runtime-stage-attempts.ts';
-import { runTemporalProviderSloTick } from '../../src/modules/runway/family-runtime-provider-slo-executor.ts';
-import { runTemporalProviderCadenceReadback } from '../../src/modules/runway/family-runtime-scheduler.ts';
+} from '../../src/adapters/execution/family-runtime-stage-attempts.ts';
+import { runTemporalProviderSloTick } from '../../src/adapters/execution/family-runtime-provider-slo-executor.ts';
+import { runTemporalProviderCadenceReadback } from '../../src/adapters/execution/family-runtime-scheduler.ts';
 import {
   createFamilyRuntimeQueueTables,
   familyRuntimePaths,
   insertEvent,
   listEvents,
-} from '../../src/modules/runway/family-runtime-store.ts';
-import { syncStageAttemptFromTemporalUnavailableObservation } from '../../src/modules/runway/family-runtime-temporal-observation-sync.ts';
+} from '../../src/adapters/execution/family-runtime-store.ts';
+import { syncStageAttemptFromTemporalUnavailableObservation } from '../../src/adapters/execution/family-runtime-temporal-observation-sync.ts';
 import {
   DEFAULT_TEMPORAL_STAGE_ATTEMPT_RUNTIME_OBSERVATION_TTL_MS,
   readFreshTemporalStageAttemptRuntimeObservation,
   reconcileTemporalStageAttemptRuntimeObservations,
-} from '../../src/modules/runway/family-runtime-temporal-runtime-observation-reconciliation.ts';
+} from '../../src/adapters/execution/family-runtime-temporal-runtime-observation-reconciliation.ts';
 import { temporalWorkerStatus } from './cli/cases/family-runtime-provider-slo-fixtures.ts';
-import { persistRawStageOutput } from '../../src/modules/runway/family-runtime-codex-stage-runner-parts/stage-closeout-capture.ts';
+import { persistRawStageOutput } from '../../src/adapters/execution/family-runtime-codex-stage-runner-parts/stage-closeout-capture.ts';
 
 function withDb(fn: (db: DatabaseSync) => Promise<void> | void) {
   const db = new DatabaseSync(':memory:');

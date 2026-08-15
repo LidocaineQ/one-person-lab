@@ -10,7 +10,7 @@ import {
   discoverFamilyRepoInputs,
   hasStandardDomainAgentSurface,
 } from '../../src/kernel/standard-domain-agent-family-repos.ts';
-import { resolveFamilyWorkspaceRootFromRepoRoot } from '../../src/modules/connect/opl-skills.ts';
+import { resolveFamilyWorkspaceRootFromRepoRoot } from '../../src/adapters/integration/opl-skills.ts';
 import {
   binPath,
   createFakeCodexFixture,

@@ -7,9 +7,10 @@ import path from 'node:path';
 import { createFakeCodexFixture } from './cli/helpers.ts';
 import {
   runAgentStageRunner,
-} from '../../src/modules/runway/family-runtime-codex-stage-runner.ts';
-import type { AgentExecutionReceipt } from '../../src/modules/runway/agent-executor.ts';
-import { FrameworkContractError } from '../../src/modules/charter/contracts.ts';
+} from '../../src/adapters/execution/family-runtime-codex-stage-runner.ts';
+import type { AgentExecutionReceipt } from '../../src/adapters/execution/agent-executor.ts';
+import { FrameworkContractError } from '../../src/authority/contracts/contracts.ts';
+import { createCordisAgentExecutorRequest } from '../../src/host/plugins/cordis-agent-executor-experiment.ts';
 
 type AgentStageRunnerReceipt = {
   runner_status: {
@@ -57,7 +58,7 @@ test('agent stage runner records a selected non-default executor receipt without
         OPL_CLAUDE_CODE_BIN: claudePath,
         PATH: '',
       },
-    });
+    }, { createAgentExecutorRequest: createCordisAgentExecutorRequest });
 
     const agentReceipt = requireAgentStageRunnerReceipt(receipt);
     assert.equal(agentReceipt.runner_status.executor_kind, 'claude_code');
@@ -150,7 +151,7 @@ test('agent stage runner applies stage-level executor policy for Antigravity HTM
         OPL_ANTIGRAVITY_CLI_BIN: antigravityPath,
         PATH: '',
       },
-    });
+    }, { createAgentExecutorRequest: createCordisAgentExecutorRequest });
 
     const agentReceipt = requireAgentStageRunnerReceipt(receipt);
     assert.equal(agentReceipt.runner_status.executor_kind, 'antigravity_cli');
@@ -192,7 +193,7 @@ test('agent stage runner blocks non-default stage policy without executor bindin
           OPL_ANTIGRAVITY_CLI_BIN: antigravityPath,
           PATH: '',
         },
-      }),
+      }, { createAgentExecutorRequest: createCordisAgentExecutorRequest }),
       (error) => error instanceof FrameworkContractError
         && error.code === 'contract_shape_invalid'
         && error.details?.executor_kind === 'antigravity_cli'

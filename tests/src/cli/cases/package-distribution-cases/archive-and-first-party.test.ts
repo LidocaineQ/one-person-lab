@@ -18,8 +18,8 @@ import {
   normalizeCapabilityPackageManifest,
   normalizePackageManifest,
   normalizeWorkflowProfilePackageManifest,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts';
-import { getOplPackageSpecs } from '../../../../../src/modules/connect/package-distribution.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry-parts/manifest-normalizers.ts';
+import { getOplPackageSpecs } from '../../../../../src/adapters/integration/package-distribution.ts';
 
 const publishedDistributionPayload = {
   payload_kind: 'ghcr_oci_opl_package',

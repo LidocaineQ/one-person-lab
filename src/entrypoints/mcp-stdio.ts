@@ -17,7 +17,7 @@ import {
   describeOplConnectMcpTool,
   executeOplConnectMcpTool,
   searchOplConnectMcpTools,
-} from '../modules/connect/opl-connect-mcp-tools.ts';
+} from '../adapters/integration/opl-connect-mcp-tools.ts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

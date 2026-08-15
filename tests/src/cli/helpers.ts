@@ -7,10 +7,10 @@ export { default as os } from 'node:os';
 export { default as path } from 'node:path';
 export { PassThrough } from 'node:stream';
 
-export { FrameworkContractError, loadFrameworkContracts, validateFrameworkContracts } from '../../../src/modules/charter/contracts.ts';
+export { FrameworkContractError, loadFrameworkContracts, validateFrameworkContracts } from '../../../src/authority/contracts/contracts.ts';
 export { parseJsonText } from '../../../src/kernel/json-file.ts';
-export { buildProjectProgressBrief } from '../../../src/modules/console/management/progress.ts';
-export { explainDomainBoundary, selectDomainAgentEntry, resolveRequestSurface } from '../../../src/modules/atlas/resolver.ts';
+export { buildProjectProgressBrief } from '../../../src/read-models/operator/management/progress.ts';
+export { explainDomainBoundary, selectDomainAgentEntry, resolveRequestSurface } from '../../../src/read-models/catalog/resolver.ts';
 
 export { cliPath, contractsDir, familyManifestFixtureDir, repoRoot } from './helpers-parts/constants.ts';
 export { runCli, runCliAsync, runCliFailure, runCliFailureInCwd, runCliInCwd, runCliRaw, runCliRawInCwd, runCliReadOnly, runCliReadOnlyFailure, runCliReadOnlyFailureInCwd, runCliReadOnlyInCwd, runCliViaEntryPathInCwd } from './helpers-parts/runner.ts';

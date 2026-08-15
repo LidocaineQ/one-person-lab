@@ -1,4 +1,4 @@
-import { buildRepoGeneratedInterfaceBundle } from '../../../../src/modules/pack/index.ts';
+import { buildRepoGeneratedInterfaceBundle } from '../../../../src/authority/packages/index.ts';
 import { assert, fs, runCli, test } from '../helpers.ts';
 import { buildReadyAgentRepo, retargetReadyRepo } from './agents-conformance-fixtures.ts';
 

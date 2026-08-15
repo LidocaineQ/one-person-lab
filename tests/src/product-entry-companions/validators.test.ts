@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
   validateFamilyProductEntrySurface,
   validateFamilyProductEntryManifest,
-} from '../../../src/modules/console/product-entry-companions.ts';
+} from '../../../src/read-models/operator/product-entry-companions.ts';
 import { parseJsonText } from '../../../src/kernel/json-file.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');

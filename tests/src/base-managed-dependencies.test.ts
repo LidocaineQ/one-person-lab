@@ -6,29 +6,29 @@ import path from 'node:path';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
 
-import { inspectBaseManagedDependencies } from '../../src/modules/connect/base-managed-dependencies.ts';
-import { activatePendingCodexRuntimeGeneration } from '../../src/modules/connect/system-installation/engine-helpers.ts';
+import { inspectBaseManagedDependencies } from '../../src/adapters/integration/base-managed-dependencies.ts';
+import { activatePendingCodexRuntimeGeneration } from '../../src/adapters/integration/system-installation/engine-helpers.ts';
 import {
   activatePendingOplFrameworkRuntime,
   runOplFrameworkSelfRollback,
   runOplFrameworkSelfUpdate,
-} from '../../src/modules/connect/system-installation/framework-self-update.ts';
-import { syncOplCompanionSkills } from '../../src/modules/connect/install-companions.ts';
+} from '../../src/adapters/integration/system-installation/framework-self-update.ts';
+import { syncOplCompanionSkills } from '../../src/adapters/integration/install-companions.ts';
 import {
   reconcileManagedCompanionTools,
   resolveOfficeCliTool,
-} from '../../src/modules/connect/install-companions-parts/tools.ts';
+} from '../../src/adapters/integration/install-companions-parts/tools.ts';
 import {
   inspectExternalCodexInstallation,
   inspectExternalTemporalInstallation,
   runExternalOwnerDelegatedUpdate,
-} from '../../src/modules/connect/external-dependency-currentness.ts';
-import { buildRuntimeSubstrateComponent } from '../../src/modules/connect/managed-update-kernel-parts/runtime-substrate.ts';
+} from '../../src/adapters/integration/external-dependency-currentness.ts';
+import { buildRuntimeSubstrateComponent } from '../../src/adapters/integration/managed-update-kernel-parts/runtime-substrate.ts';
 import {
   readTemporalStableCohort,
   TEMPORAL_SDK_PACKAGE_NAMES,
   validateTemporalStableCohort,
-} from '../../src/modules/connect/temporal-stable-cohort.ts';
+} from '../../src/adapters/integration/temporal-stable-cohort.ts';
 import { agentPackageManifest, formatJsonPayload } from './cli/cases/packages-cases/helpers.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '../..');

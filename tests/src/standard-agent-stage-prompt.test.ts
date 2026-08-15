@@ -7,7 +7,7 @@ import path from 'node:path';
 
 import {
   readStandardAgentQualityRolePromptFile,
-} from '../../src/modules/pack/standard-agent-stage-prompt.ts';
+} from '../../src/authority/packages/standard-agent-stage-prompt.ts';
 
 function promptFixture(t: test.TestContext, content: string) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-role-prompt-'));

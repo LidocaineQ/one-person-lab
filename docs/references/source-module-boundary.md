@@ -3,37 +3,34 @@
 Owner: `One Person Lab`
 Purpose: `source_module_boundary_reference`
 State: `support_reference`
-Machine boundary: 本文是维护者人读说明。机器真相继续归 `contracts/opl-framework/source-module-map.json`、`contracts/opl-framework/module-dependency-policy.json`、`scripts/source-module-boundary.mjs`、source、tests 和 fresh CLI/readback。
+Machine boundary: 本文是维护者人读说明。机器真相继续归 `contracts/opl-framework/source-module-map.json`、`contracts/opl-framework/package-topology.json`、`scripts/source-module-boundary.mjs`、`scripts/source-package-boundary.mjs`、source、tests 和 fresh CLI/readback。
 
 ## 结论
 
-OPL Framework 当前源码边界是十个物理模块：
+OPL Framework 当前源码边界是 13 个 responsibility source units，落在 6 个 target roots；品牌域只提供跨 Framework/App/Cloud 的认知地图，不是物理 source owner：
 
 ```text
-src/modules/charter
-src/modules/atlas
-src/modules/workspace
-src/modules/pack
-src/modules/stagecraft
-src/modules/runway
-src/modules/ledger
-src/modules/console
-src/modules/foundry
-src/modules/connect
+src/authority/**
+src/adapters/**
+src/read-models/**
+src/host/**
+src/entrypoints/**
+src/kernel/**
 ```
 
-`src/modules/<module_id>/` 是 Framework 源码 owner。`OPL Cloud`、在线 Workspace、Console 页面、Gateway/API 和 `OPL Fabric` 是长期、条件启用的产品层或 Cloud 层语义，可以在真实 account、storage、isolation、backend 与 owner policy 齐备后组合多个 Framework 模块形成用户可见能力；它们不作为第 11 个源码模块，也不成为当前 App desktop + Docker/WebUI 的必要 gate。`OPL Fabric` 的通用资源底座能力由 `Connect`、`Runway`、`Pack`、`Workspace` 和 `Ledger` 协作承接。
+`src/modules/**` 是已退休的 legacy root，合同状态为 `retired`/`must_be_absent`，当前 task branch 不存在该目录；历史路径只能在 provenance 或 negative fixture 中出现。13 个 source units 的精确归属、public entrypoints、capability refs 和 package refs 由 `source-module-map.v3` 维护。`OPL Cloud`、在线 Workspace、Console 页面、Gateway/API 和 `OPL Fabric` 仍是长期、条件启用的产品层或 Cloud 层语义，可以组合多个 authority/read-model/adapter 形成用户可见能力，但不作为 Framework 第 11 个源码模块，也不成为当前 App desktop + Docker/WebUI 的必要 gate。
 
 ## 机器入口
 
 | 入口 | 职责 |
 | --- | --- |
-| `contracts/opl-framework/source-module-map.json` | 固定十个模块、物理根、public entrypoint、shared kernel 和 source layout。 |
-| `contracts/opl-framework/module-dependency-policy.json` | 固定跨模块 import 规则、thin public entry 规则和 forbidden dependency。 |
-| `scripts/source-module-boundary.mjs` | 检查模块目录、entrypoint、root-level `src/*.ts`、deep cross-module import 和 forbidden dependency。 |
-| `npm run source:modules` | 默认按 policy 严格检查 deep import、forbidden dependency 和 dependency cycle；显式 `--strict-imports --strict-cycles` 仍用于清楚表达维护门。 |
+| `contracts/opl-framework/source-module-map.json` | 固定 13 个 source units、6 个 target roots、public entrypoints、shared kernel、capability refs 和 retired legacy root。 |
+| `contracts/opl-framework/package-topology.json` | 固定 source unit、capability domain、Package 和 Cordis contribution 的关联及 retired path。 |
+| `scripts/source-module-boundary.mjs` | 检查 target roots、source-unit 恰好一次归属、root-level `src/*.ts`、deep import、forbidden dependency、cycle 和 legacy-root absence。 |
+| `scripts/source-package-boundary.mjs` | 检查 topology v2 的 Package/source/plugin refs、target roots 和 retired path absence。 |
+| `npm run source:modules` | 兼容入口；当前 strict source boundary 以 `node scripts/source-module-boundary.mjs --strict-imports --strict-cycles --format json` 为准。 |
 
-当 fresh `source:modules -- --strict-imports --strict-cycles` 输出 `status=ok`、十个 module entrypoint 全部存在、root-level `src/*.ts` 为 0、`deep_import_violations.count=0`、`forbidden_dependency_violations.count=0`、`dependency_cycles.count=0` 时，可以声明“源码模块结构边界已落地”。该声明覆盖源码组织、public import gate 和模块依赖环硬门，不覆盖 runtime、release、domain readiness、Brand L5 或 production readiness。
+当 fresh strict source/package boundary 输出 `status=ok`、13 个 source units 恰好一次归属、6 个 target roots 存在、legacy root absent、root-level `src/*.ts` 为 0、deep/forbidden/cycle 均为 0 时，可以在对应 candidate ref 上声明“源码 topology boundary 已验证”。该声明覆盖源码组织、public import gate、Package topology 和依赖环硬门，不覆盖 canonical/main 吸收、runtime、release、domain readiness、Brand L5 或 production readiness。
 
 ## 完成度审计面
 
@@ -41,23 +38,25 @@ src/modules/connect
 
 | 审计项 | 当前状态 | Fresh evidence | 缺口或下一步 |
 | --- | --- | --- | --- |
-| 十模块物理归位 | `done` | `module_entrypoints.expected_count=10`，且 missing / mismatched / unexpected module roots 为空。 | 新增模块必须先改 `source-module-map.json` 和本 policy。 |
+| source-unit 物理归位 | `candidate_verified` | `source_unit_count=13`，target roots=6，所有扫描文件恰好一次归属，legacy root absent。 | canonical/main 吸收与 fresh owner readback 尚未由本文件授权。 |
 | target source layout | `done` | `src/entrypoints/cli.ts` 存在，root-level `src/*.ts` 为 0。 | root-level `src/*.ts` 不再作为新 owner 接口。 |
 | deep cross-module import | `done` | `npm run source:modules -- --strict-imports --strict-cycles` 下 `deep_import_violations.count=0`。 | 只能证明跨模块 import 路由合法，不能证明 public API 已经最小。 |
-| 第一批 forbidden dependency | `done` | `forbidden_dependency_violations.count=0`。 | 当前只覆盖 `module-dependency-policy.json` 已列出的方向约束。 |
+| forbidden dependency | `done` | `forbidden_dependency_violations.count=0`。 | 当前只覆盖 source topology policy 已列出的方向约束。 |
 | dependency cycle | `done` | `npm run source:modules -- --strict-imports --strict-cycles` 下 `dependency_cycles.count=0`。 | 只能证明当前 public-entry graph 无依赖环，不能证明每个 public API 已经最小。 |
 | public entrypoint 收薄 | `partial` | `index.ts` / `public/**` 作为合法 public surface 被脚本识别。 | 多个模块 `index.ts` 仍是 broad re-export；下一步是按热点拆 thin public entry 或收窄 re-export。 |
 | 下一批 forbidden candidates | `partial` | `module-dependency-policy.json` 的 `next_forbidden_dependency_candidates` 记录候选方向。 | 先用 `pair_counts` 和人工 owner 判断确认迁移路径，再升级为 enforced `forbidden_dependencies`。 |
 
 ## Public Interface 规则
 
-模块 public interface 由三类入口组成：
+当前 source-unit public interface 由责任单元的显式 entrypoint 组成：
 
 | 入口 | 用途 |
 | --- | --- |
-| `src/modules/<module_id>/index.ts` | 模块默认 public index。 |
-| `src/modules/<module_id>/public/**/*.ts` | 高频、低依赖、容易触发初始化循环的 thin public entry。 |
-| `src/modules/index.ts` | 模块身份常量和命名空间聚合，不做无边界大 barrel。 |
+| `src/authority/<unit>/index.ts` | authority unit 的 public contract/authority entry。 |
+| `src/adapters/<unit>/index.ts` | adapter/provider/executor integration entry。 |
+| `src/read-models/<unit>/index.ts` | catalog/operator projection entry。 |
+| `src/host/composition-profiles.ts` 与 `src/host/plugins/*.ts` | Host composition 与 Cordis contribution entry。 |
+| `src/entrypoints/cli.ts` / `src/kernel/*.ts` | 薄启动接线与 brand-neutral shared primitive，不是品牌目录。 |
 
 同模块内部保持高聚合，优先使用相对 import 连接该 owner 下的 parts / cases / helpers。跨模块调用只进入目标模块的 public index 或 thin public entry。需要让内部符号被其他模块消费时，先把该符号提升到目标模块 public entry，再迁移调用方。
 
@@ -88,9 +87,9 @@ Console / Runway / Ledger / Connect / Foundry Kernel 的边界可按一句话记
 
 ## 完成度口径
 
-当前源码模块化可以专业表述为：
+当前 source topology 可以专业表述为：
 
-> 已完成 Framework 十模块的物理归位、public entrypoint 硬门、deep cross-module import 清零和 strict dependency cycle 清零。
+> 当前 task branch 已完成 13 个 responsibility source units / 6 个 target roots 的物理归位，legacy `src/modules/**` retired/absent，public entrypoint、deep import、forbidden dependency 与 strict cycle 硬门验证通过；canonical/main 吸收和发布/生产状态仍回对应 owner readback。
 
 这个口径由 `source-module-map.json`、`module-dependency-policy.json` 和 fresh `npm run source:modules -- --strict-imports --strict-cycles` 共同支撑。它说明源码 owner、public entrypoint、strict import gate 和 dependency-cycle gate 已经进入可执行维护状态。
 
@@ -133,8 +132,8 @@ Console / Runway / Ledger / Connect / Foundry Kernel 的边界可按一句话记
 
 ## 维护流程
 
-1. 新源码进入 owning `src/modules/<module_id>/`。
-2. 同模块内部使用相对 import，保持 owner 内聚。
-3. 跨模块消费先提升目标 public API，再从目标 public index 或 `public/**` thin entry 调用。
-4. 新增源码模块时同步更新 `source-module-map.json`、`module-dependency-policy.json`、品牌模块 docs 和 contract support index。
-5. 提交前运行 `npm run source:modules -- --strict-imports --strict-cycles`；文档-only 变更至少运行 `git diff --check` 和关键术语落点检查。
+1. 新源码进入对应 source unit 的 `authority/`、`adapters/`、`read-models/`、`host/`、`entrypoints/` 或 `kernel/` target root。
+2. 同一 source unit 内使用相对 import，保持 owner 内聚；跨 unit 只走显式 public entry 或 Host injection。
+3. 新增 source unit、Package 或 contribution 时同步更新 `source-module-map.json`、`package-topology.json`、相关 schema、品牌导航文档和 contract support index。
+4. 不得恢复 `src/modules/**`、兼容 barrel、第二 registry 或隐式 global wiring；legacy path 只能作 provenance/negative fixture。
+5. 提交前运行 `node scripts/source-module-boundary.mjs --strict-imports --strict-cycles --format json`、`node scripts/source-package-boundary.mjs --format json`；文档-only 变更至少运行 `git diff --check`。

@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { parseJsonText } from '../../src/kernel/json-file.ts';
-import { SETTINGS_CONTROL_CENTER_ACTIONS } from '../../src/modules/console/app-state-settings-control-center.ts';
+import { SETTINGS_CONTROL_CENTER_ACTIONS } from '../../src/read-models/operator/app-state-settings-control-center.ts';
 import './verification-command-surfaces-cases/surface-budget-policy.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

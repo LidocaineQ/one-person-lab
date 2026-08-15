@@ -9,13 +9,13 @@ import { repoRoot } from '../helpers.ts';
 import { FrameworkContractError } from '../../../../src/kernel/contract-validation.ts';
 import {
   readBundledFullRuntimePackageCatalog,
-} from '../../../../src/modules/connect/agent-package-registry-parts/bundled-full-runtime-catalog.ts';
+} from '../../../../src/adapters/integration/agent-package-registry-parts/bundled-full-runtime-catalog.ts';
 import {
   assertReleaseBundleFreezeInputs,
-} from '../../../../src/modules/connect/release-bundle/contracts.ts';
+} from '../../../../src/adapters/integration/release-bundle/contracts.ts';
 import type {
   ReleaseBundleFreezeRequest,
-} from '../../../../src/modules/connect/release-bundle/types.ts';
+} from '../../../../src/adapters/integration/release-bundle/types.ts';
 
 const generation = '26.7.21';
 const catalogRef = 'contracts/opl-framework/bundled-full-runtime-package-catalog.json';

@@ -2,12 +2,12 @@ import { spawn } from 'node:child_process';
 import net from 'node:net';
 
 import { assert, fs, os, parseJsonText, path, repoRoot, runCli, test } from '../helpers.ts';
-import { resolveTemporalWorkerTaskQueue } from '../../../../src/modules/runway/family-runtime-temporal-provider-parts/worker-task-queue.ts';
+import { resolveTemporalWorkerTaskQueue } from '../../../../src/adapters/execution/family-runtime-temporal-provider-parts/worker-task-queue.ts';
 import {
   FAMILY_RUNTIME_DOMAIN_IDS,
   runtimeDomainOwnerProfiles,
   runtimeManagerDomainProfiles,
-} from '../../../../src/modules/runway/family-runtime-types.ts';
+} from '../../../../src/adapters/execution/family-runtime-types.ts';
 import { writeNativeHelperFixtureScripts } from './native-helper-fixtures.ts';
 
 test('runtime manager reports OPL control plane over provider-backed family runtime', () => {

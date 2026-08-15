@@ -6,23 +6,23 @@ import { fileURLToPath } from 'node:url';
 import type { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
 
-import * as activities from '../../../src/modules/runway/family-runtime-temporal-activities.ts';
-import type { TemporalStageAttemptWorkflowInput } from '../../../src/modules/runway/family-runtime-temporal.ts';
+import * as activities from '../../../src/adapters/execution/family-runtime-temporal-activities.ts';
+import type { TemporalStageAttemptWorkflowInput } from '../../../src/adapters/execution/family-runtime-temporal.ts';
 import {
   humanGateSignal,
   resumeSignal,
   stageAttemptQuery,
   StageAttemptWorkflow,
   userInstructionSignal,
-} from '../../../src/modules/runway/family-runtime-temporal-workflows.ts';
-import { taskRetryBudgetProjection } from '../../../src/modules/runway/family-runtime-queue-projection-boundary.ts';
+} from '../../../src/adapters/execution/family-runtime-temporal-workflows.ts';
+import { taskRetryBudgetProjection } from '../../../src/adapters/execution/family-runtime-queue-projection-boundary.ts';
 import { createTemporalTestWorkflowEnvironment } from '../temporal-test-environment.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const moduleExtension = path.extname(fileURLToPath(import.meta.url)) === '.ts' ? '.ts' : '.js';
 const workflowsPath = path.join(
   __dirname,
-  '../../../src/modules/runway',
+  '../../../src/adapters/execution',
   `family-runtime-temporal-workflows${moduleExtension}`,
 );
 

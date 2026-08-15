@@ -1,8 +1,8 @@
-import { FrameworkContractError } from '../../../../modules/charter/contracts.ts';
-import { buildRuntimeTraySnapshot } from '../../../../modules/console/runtime-tray-snapshot.ts';
-import { buildRuntimeStatus, buildWorkspaceStatus } from '../../../../modules/console/management/workspace-runtime.ts';
-import type { CordisAtlasCatalogService } from '../../../../modules/atlas/index.ts';
-import { buildMemoryArtifactLifecycleReadback } from '../../../../modules/ledger/memory-artifact-lifecycle-readback.ts';
+import { FrameworkContractError } from '../../../../authority/contracts/contracts.ts';
+import { buildRuntimeTraySnapshot } from '../../../../read-models/operator/runtime-tray-snapshot.ts';
+import { buildRuntimeStatus, buildWorkspaceStatus } from '../../../../read-models/operator/management/workspace-runtime.ts';
+import type { CordisAtlasCatalogService } from '../../../../read-models/catalog/index.ts';
+import { buildMemoryArtifactLifecycleReadback } from '../../../../authority/evidence/memory-artifact-lifecycle-readback.ts';
 import {
   applyProviderClosureEvidence,
   buildRuntimeManager,
@@ -11,18 +11,18 @@ import {
   readProviderContinuousProof,
   runFamilyRuntimeLifecycleApply,
   runRuntimeManagerAction,
-} from '../../../../modules/runway/index.ts';
-import { runRuntimeOperatorActionExecute } from '../../../../modules/runway/runtime-operator-action-execution.ts';
+} from '../../../../adapters/execution/index.ts';
+import { runRuntimeOperatorActionExecute } from '../../../../adapters/execution/runtime-operator-action-execution.ts';
 import {
   buildObservabilityExport,
   renderObservabilityOpenMetrics,
   runObservabilityCollectorSmoke,
   serveObservabilityMetricsEndpoint,
-} from '../../../../modules/runway/observability-export.ts';
-import { buildNativeIndexSummary } from '../../../../modules/runway/native-index-summary.ts';
-import { runFamilyRuntime } from '../../../../modules/runway/family-runtime.ts';
-import { buildStandardDomainAgentScaffold } from '../../../../modules/pack/index.ts';
-import { runFamilyAgentLegacyCleanupApply } from '../../../../modules/workspace/index.ts';
+} from '../../../../adapters/execution/observability-export.ts';
+import { buildNativeIndexSummary } from '../../../../adapters/execution/native-index-summary.ts';
+import { runFamilyRuntime } from '../../../../adapters/execution/family-runtime.ts';
+import { buildStandardDomainAgentScaffold } from '../../../../authority/packages/index.ts';
+import { runFamilyAgentLegacyCleanupApply } from '../../../../authority/workspace/index.ts';
 import type { FrameworkContracts } from '../../../../kernel/types.ts';
 import { buildRuntimeAppReleaseEvidenceCommandSpecs } from '../runtime-app-release-evidence-command-spec.ts';
 import {

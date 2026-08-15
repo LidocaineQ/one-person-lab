@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 
 import { assert, fs, os, path, runCli, runCliFailure, test } from '../helpers.ts';
-import { buildPackNativeHelperProbeReceipt } from '../../../../src/modules/pack/native-helper-probe.ts';
+import { buildPackNativeHelperProbeReceipt } from '../../../../src/authority/packages/native-helper-probe.ts';
 
 const FALSE_AUTHORITY = {
   can_write_domain_truth: false,

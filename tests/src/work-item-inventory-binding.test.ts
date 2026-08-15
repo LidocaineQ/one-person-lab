@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 import type { StandardAgentInventoryProjection } from '../../src/kernel/standard-agent-interface.ts';
-import { resolveWorkItemInventoryBinding } from '../../src/modules/workspace/work-item-inventory-binding.ts';
+import { resolveWorkItemInventoryBinding } from '../../src/authority/workspace/work-item-inventory-binding.ts';
 
 const declaration: StandardAgentInventoryProjection = {
   source_kind: 'workspace_relative_json',

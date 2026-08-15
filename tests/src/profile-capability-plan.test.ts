@@ -11,9 +11,9 @@ import { parseJsonText, readJsonPayloadFile } from '../../src/kernel/json-file.t
 import {
   buildProfileCapabilityPlan as buildProfileCapabilityPlanWithDependencies,
   buildProfileCapabilityPlanInputProjection,
-} from '../../src/modules/pack/profile-capability-plan.ts';
-import { buildCapabilityRegistryReadout } from '../../src/modules/connect/index.ts';
-import { buildStandardDomainAgentScaffold } from '../../src/modules/pack/standard-domain-agent-scaffold.ts';
+} from '../../src/authority/packages/profile-capability-plan.ts';
+import { buildCapabilityRegistryReadout } from '../../src/adapters/integration/index.ts';
+import { buildStandardDomainAgentScaffold } from '../../src/authority/packages/standard-domain-agent-scaffold.ts';
 
 const buildProfileCapabilityPlan = (
   input: Parameters<typeof buildProfileCapabilityPlanWithDependencies>[0],

@@ -7,20 +7,20 @@ import test from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { FrameworkContractError } from '../../src/kernel/contract-validation.ts';
-import type { StandardAgentStageQualityRuntimeBinding } from '../../src/modules/pack/index.ts';
-import { createWorkItemExecutionScopeSnapshot } from '../../src/modules/workspace/execution-scope.ts';
-import { buildPackBoundTemporalStageRunInput } from '../../src/modules/runway/family-runtime-pack-bound-stage-run.ts';
-import { stageQualityAttemptMaterializeActivity } from '../../src/modules/runway/family-runtime-temporal-activities.ts';
-import { createStageAttempt } from '../../src/modules/runway/family-runtime-stage-attempts.ts';
-import { registerStageRunLaunch } from '../../src/modules/runway/family-runtime-stage-run-launch-registry.ts';
-import { openQueueDb } from '../../src/modules/runway/family-runtime-store.ts';
-import { normalizeStageQualityCyclePolicy } from '../../src/modules/stagecraft/stage-quality-cycle.ts';
+import type { StandardAgentStageQualityRuntimeBinding } from '../../src/authority/packages/index.ts';
+import { createWorkItemExecutionScopeSnapshot } from '../../src/authority/workspace/execution-scope.ts';
+import { buildPackBoundTemporalStageRunInput } from '../../src/adapters/execution/family-runtime-pack-bound-stage-run.ts';
+import { stageQualityAttemptMaterializeActivity } from '../../src/adapters/execution/family-runtime-temporal-activities.ts';
+import { createStageAttempt } from '../../src/adapters/execution/family-runtime-stage-attempts.ts';
+import { registerStageRunLaunch } from '../../src/adapters/execution/family-runtime-stage-run-launch-registry.ts';
+import { openQueueDb } from '../../src/adapters/execution/family-runtime-store.ts';
+import { normalizeStageQualityCyclePolicy } from '../../src/authority/stages/stage-quality-cycle.ts';
 import {
   verifyStageQualityArtifactIdentityAtAttemptBoundary,
   verifyStageQualityCloseoutArtifactIdentity,
-} from '../../src/modules/runway/family-runtime-codex-stage-runner-parts/artifact-identity-verification.ts';
-import type { TypedStageCloseoutPacket } from '../../src/modules/runway/family-runtime-codex-stage-runner-parts/closeout-normalization.ts';
-import { persistRawStageOutput } from '../../src/modules/runway/family-runtime-codex-stage-runner-parts/stage-closeout-capture.ts';
+} from '../../src/adapters/execution/family-runtime-codex-stage-runner-parts/artifact-identity-verification.ts';
+import type { TypedStageCloseoutPacket } from '../../src/adapters/execution/family-runtime-codex-stage-runner-parts/closeout-normalization.ts';
+import { persistRawStageOutput } from '../../src/adapters/execution/family-runtime-codex-stage-runner-parts/stage-closeout-capture.ts';
 import { runWithWorkItemFileBoundaryInterlock } from './work-item-file-boundary-test-support.ts';
 
 function sha256(value: Buffer | string) {

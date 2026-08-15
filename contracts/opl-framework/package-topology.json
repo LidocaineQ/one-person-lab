@@ -1,17 +1,107 @@
 {
   "$schema": "https://one-person-lab.dev/contracts/opl-framework/package-topology.schema.json",
-  "version": "package-topology.v1",
+  "version": "package-topology.v2",
   "root_package": "opl-framework",
   "packages": [
-    { "package_id": "@one-person-lab/cordis-abi", "path": "packages/cordis-abi", "package_kind": "shared_abi", "version_policy": "independent", "authority_owner": "opl-framework/cordis-abi", "contributions": ["plugin-descriptor", "composition-snapshot", "host-derived-client-graph"], "plugin_descriptor_sources": [] },
-    { "package_id": "@one-person-lab/package-host", "path": "packages/package-host", "package_kind": "cordis_contribution", "version_policy": "independent", "authority_owner": "opl-framework/package-platform", "contributions": ["package-host-plugin", "package-host-context"], "plugin_descriptor_sources": ["contracts/opl-package-host.json"] },
-    { "package_id": "@one-person-lab/connect-discovery", "path": "packages/connect-discovery", "package_kind": "cordis_contribution", "version_policy": "independent", "authority_owner": "opl-framework/integration", "contributions": ["descriptor-discovery-plugin"], "plugin_descriptor_sources": ["src/index.ts"] },
-    { "package_id": "@one-person-lab/runway-executor", "path": "packages/runway-executor", "package_kind": "cordis_contribution", "version_policy": "independent", "authority_owner": "opl-framework/execution", "contributions": ["executor-adapter", "executor-service", "executor-observer"], "plugin_descriptor_sources": ["src/index.ts"] },
-    { "package_id": "@one-person-lab/foundry-evaluation", "path": "packages/foundry-evaluation", "package_kind": "cordis_contribution", "version_policy": "independent", "authority_owner": "opl-framework/evolution", "contributions": ["provider-manifest", "evaluation-adapter"], "plugin_descriptor_sources": ["src/index.ts"] }
+    {
+      "package_id": "@one-person-lab/cordis-abi",
+      "path": "packages/cordis-abi",
+      "package_kind": "shared_abi",
+      "version_policy": "independent",
+      "authority_owner": "opl-framework/cordis-abi",
+      "capability_domain_ids": [],
+      "source_unit_refs": ["framework.host", "framework.kernel"],
+      "plugin_ids": [],
+      "contributions": [
+        "plugin-descriptor",
+        "composition-snapshot",
+        "host-derived-client-graph"
+      ],
+      "plugin_descriptor_sources": []
+    },
+    {
+      "package_id": "@one-person-lab/package-host",
+      "path": "packages/package-host",
+      "package_kind": "cordis_contribution",
+      "version_policy": "independent",
+      "authority_owner": "opl-framework/package-platform",
+      "capability_domain_ids": ["package-platform"],
+      "source_unit_refs": ["framework.authority.packages", "framework.host"],
+      "plugin_ids": ["opl-cordis-package-host"],
+      "contributions": [
+        "package-host-plugin",
+        "package-host-context"
+      ],
+      "plugin_descriptor_sources": [
+        "contracts/opl-package-host.json"
+      ]
+    },
+    {
+      "package_id": "@one-person-lab/connect-discovery",
+      "path": "packages/connect-discovery",
+      "package_kind": "cordis_contribution",
+      "version_policy": "independent",
+      "authority_owner": "opl-framework/integration",
+      "capability_domain_ids": ["catalog-discovery", "integration"],
+      "source_unit_refs": ["framework.adapters.integration", "framework.read-models.catalog", "framework.host"],
+      "plugin_ids": ["opl-cordis-connect-descriptor-discovery"],
+      "contributions": [
+        "descriptor-discovery-plugin"
+      ],
+      "plugin_descriptor_sources": [
+        "src/index.ts"
+      ]
+    },
+    {
+      "package_id": "@one-person-lab/runway-executor",
+      "path": "packages/runway-executor",
+      "package_kind": "cordis_contribution",
+      "version_policy": "independent",
+      "authority_owner": "opl-framework/execution",
+      "capability_domain_ids": ["execution"],
+      "source_unit_refs": ["framework.adapters.execution", "framework.host"],
+      "plugin_ids": ["opl-cordis-agent-executor-adapter", "opl-cordis-agent-executor-service", "opl-cordis-agent-executor-observer"],
+      "contributions": [
+        "executor-adapter",
+        "executor-service",
+        "executor-observer"
+      ],
+      "plugin_descriptor_sources": [
+        "src/index.ts"
+      ]
+    },
+    {
+      "package_id": "@one-person-lab/foundry-evaluation",
+      "path": "packages/foundry-evaluation",
+      "package_kind": "cordis_contribution",
+      "version_policy": "independent",
+      "authority_owner": "opl-framework/evolution",
+      "capability_domain_ids": ["evolution"],
+      "source_unit_refs": ["framework.authority.evolution", "framework.adapters.execution", "framework.host"],
+      "plugin_ids": ["opl-cordis-foundry-provider-manifest", "opl-cordis-foundry-evaluation-adapter"],
+      "contributions": [
+        "provider-manifest",
+        "evaluation-adapter"
+      ],
+      "plugin_descriptor_sources": [
+        "src/index.ts"
+      ]
+    }
   ],
   "legacy_paths": {
-    "physical_root": "src/modules",
+    "paths": [
+      "src/modules"
+    ],
+    "state": "retired",
+    "must_be_absent": true,
     "caller_zero_required": true,
     "retirement_gate": "successor caller switched + focused/aggregate verification + source/package/contract readback"
-  }
+  },
+  "source_topology_ref": "contracts/opl-framework/source-module-map.json",
+  "target_source_roots": [
+    "src/authority",
+    "src/adapters",
+    "src/read-models",
+    "src/host"
+  ]
 }

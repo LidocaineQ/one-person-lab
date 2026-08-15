@@ -15,7 +15,7 @@
     "contracts/opl-framework/workflow-profile-host-contract.json",
     "contracts/opl-framework/target-operating-architecture-contract.json",
     "contracts/opl-framework/agent-package-manifest.schema.json",
-    "src/modules/index.ts"
+    "contracts/opl-framework/source-module-map.json"
   ],
   "architecture_layers": [
     {
@@ -77,49 +77,63 @@
       {
         "authority_id": "package_currentness",
         "owner": "OPL Package/native carrier",
-        "owner_surface_refs": ["contracts/opl-framework/agent-package-manifest.schema.json"],
+        "owner_surface_refs": [
+          "contracts/opl-framework/agent-package-manifest.schema.json"
+        ],
         "cordis_role": "Consume a validated Package contribution without resolving installed state.",
         "cordis_can_write": false
       },
       {
         "authority_id": "temporal_durability",
         "owner": "OPL Runway/Temporal",
-        "owner_surface_refs": ["src/modules/runway/family-runtime-temporal.ts"],
+        "owner_surface_refs": [
+          "src/adapters/execution/family-runtime-temporal.ts"
+        ],
         "cordis_role": "Emit in-process attempt events while Temporal retains history, retry, signal, and replay.",
         "cordis_can_write": false
       },
       {
         "authority_id": "workspace_files_and_registry",
         "owner": "OPL Workspace",
-        "owner_surface_refs": ["src/modules/workspace/workspace-registry.ts"],
+        "owner_surface_refs": [
+          "src/authority/workspace/workspace-registry.ts"
+        ],
         "cordis_role": "Use locator or binding refs; never replace workspace bytes or registry lifecycle.",
         "cordis_can_write": false
       },
       {
         "authority_id": "ledger_evidence_and_receipts",
         "owner": "OPL Ledger",
-        "owner_surface_refs": ["src/modules/ledger/index.ts"],
+        "owner_surface_refs": [
+          "src/authority/evidence/index.ts"
+        ],
         "cordis_role": "Provide refs-only observers or projection adapters; never persist evidence or sign receipts.",
         "cordis_can_write": false
       },
       {
         "authority_id": "foundry_versions_and_activation",
         "owner": "OPL Foundry Kernel",
-        "owner_surface_refs": ["src/modules/foundry/control.ts"],
+        "owner_surface_refs": [
+          "src/authority/evolution/control.ts"
+        ],
         "cordis_role": "Expose provider and evaluation adapters; never create versions, promote, activate, or rollback.",
         "cordis_can_write": false
       },
       {
         "authority_id": "domain_truth_and_quality",
         "owner": "Domain repository owner",
-        "owner_surface_refs": ["contracts/opl-framework/standard-domain-agent-skeleton-contract.json"],
+        "owner_surface_refs": [
+          "contracts/opl-framework/standard-domain-agent-skeleton-contract.json"
+        ],
         "cordis_role": "Carry typed domain refs and route events without judging domain truth or quality.",
         "cordis_can_write": false
       },
       {
         "authority_id": "app_product_truth",
         "owner": "One Person Lab App",
-        "owner_surface_refs": ["contracts/opl-framework/app-component-compatibility-receipt-contract.json"],
+        "owner_surface_refs": [
+          "contracts/opl-framework/app-component-compatibility-receipt-contract.json"
+        ],
         "cordis_role": "Expose framework read/action projections to the App; never define GUI product truth.",
         "cordis_can_write": false
       }
@@ -129,7 +143,7 @@
     {
       "source_module_id": "charter",
       "source_brand_name": "OPL Charter",
-      "source_entrypoint": "src/modules/charter/index.ts",
+      "source_entrypoint": "src/authority/contracts/index.ts",
       "authority_domain_id": "framework_contract_language",
       "authority_owner": "OPL Charter",
       "module_disposition": "retain",
@@ -139,21 +153,37 @@
           "plugin_id": "opl-charter-policy",
           "disposition": "retain",
           "implementation_state": "landed",
-          "source_refs": ["src/modules/charter/cordis-charter-policy.ts"],
-          "caller_refs": ["src/modules/runway/family-runtime.ts", "src/modules/connect/opl-acp-stdio.ts"],
+          "source_refs": [
+            "src/host/plugins/cordis-charter-policy.ts"
+          ],
+          "caller_refs": [
+            "src/adapters/execution/family-runtime.ts",
+            "src/adapters/integration/opl-acp-stdio.ts"
+          ],
           "scope": "process",
           "trust": "first_party_privileged",
           "authority_role": "Read-only contract and policy service; contract bytes remain Charter-owned.",
-          "forbidden_authorities": ["domain_truth", "package_currentness", "app_product_truth"],
-          "allowed_profiles": ["base-headless", "app-full", "foundry-dev"]
+          "forbidden_authorities": [
+            "domain_truth",
+            "package_currentness",
+            "app_product_truth"
+          ],
+          "allowed_profiles": [
+            "base-headless",
+            "app-full",
+            "foundry-dev"
+          ]
         }
       ],
-      "authority_continues_refs": ["src/modules/charter/contracts.ts", "contracts/opl-framework/brand-module-registry.json"]
+      "authority_continues_refs": [
+        "src/authority/contracts/contracts.ts",
+        "contracts/opl-framework/brand-module-registry.json"
+      ]
     },
     {
       "source_module_id": "atlas",
       "source_brand_name": "OPL Atlas",
-      "source_entrypoint": "src/modules/atlas/index.ts",
+      "source_entrypoint": "src/read-models/catalog/index.ts",
       "authority_domain_id": "capability_and_agent_catalog",
       "authority_owner": "OPL Atlas",
       "module_disposition": "split",
@@ -163,21 +193,37 @@
           "plugin_id": "opl-atlas-catalog",
           "disposition": "split",
           "implementation_state": "landed",
-          "source_refs": ["src/modules/atlas/cordis-domain-manifest-catalog.ts"],
-          "caller_refs": ["src/modules/console/framework-readiness.ts", "src/modules/console/product-entry-handoff-bundle.ts"],
+          "source_refs": [
+            "src/host/plugins/cordis-domain-manifest-catalog.ts"
+          ],
+          "caller_refs": [
+            "src/read-models/operator/framework-readiness.ts",
+            "src/read-models/operator/product-entry-handoff-bundle.ts"
+          ],
           "scope": "composition",
           "trust": "first_party_privileged",
           "authority_role": "Read-only catalog and discovery service with typed observation events.",
-          "forbidden_authorities": ["package_currentness", "domain_truth", "app_product_truth"],
-          "allowed_profiles": ["base-headless", "app-full", "foundry-dev"]
+          "forbidden_authorities": [
+            "package_currentness",
+            "domain_truth",
+            "app_product_truth"
+          ],
+          "allowed_profiles": [
+            "base-headless",
+            "app-full",
+            "foundry-dev"
+          ]
         }
       ],
-      "authority_continues_refs": ["src/modules/atlas/domain-manifest/catalog-builder.ts", "contracts/opl-framework/brand-module-registry.json"]
+      "authority_continues_refs": [
+        "src/read-models/catalog/domain-manifest/catalog-builder.ts",
+        "contracts/opl-framework/brand-module-registry.json"
+      ]
     },
     {
       "source_module_id": "workspace",
       "source_brand_name": "OPL Workspace",
-      "source_entrypoint": "src/modules/workspace/index.ts",
+      "source_entrypoint": "src/authority/workspace/index.ts",
       "authority_domain_id": "workspace_topology_and_files",
       "authority_owner": "OPL Workspace",
       "module_disposition": "split",
@@ -187,21 +233,36 @@
           "plugin_id": "opl-workspace-locator",
           "disposition": "split",
           "implementation_state": "landed",
-          "source_refs": ["src/modules/workspace/workspace-registry.ts"],
-          "caller_refs": ["src/modules/console/product-entry-handoff-bundle.ts", "src/modules/atlas/domain-launch.ts"],
+          "source_refs": [
+            "src/authority/workspace/workspace-registry.ts"
+          ],
+          "caller_refs": [
+            "src/read-models/operator/product-entry-handoff-bundle.ts",
+            "src/read-models/catalog/domain-launch.ts"
+          ],
           "scope": "session",
           "trust": "first_party_restricted",
           "authority_role": "Locator and binding adapter; workspace registry and file bytes remain external owner truth.",
-          "forbidden_authorities": ["workspace_file_bytes", "workspace_binding_registry", "workspace_restore_delete_authority"],
-          "allowed_profiles": ["base-headless", "app-full"]
+          "forbidden_authorities": [
+            "workspace_file_bytes",
+            "workspace_binding_registry",
+            "workspace_restore_delete_authority"
+          ],
+          "allowed_profiles": [
+            "base-headless",
+            "app-full"
+          ]
         }
       ],
-      "authority_continues_refs": ["src/modules/workspace/workspace-registry.ts", "contracts/opl-framework/workspace-index.schema.json"]
+      "authority_continues_refs": [
+        "src/authority/workspace/workspace-registry.ts",
+        "contracts/opl-framework/workspace-index.schema.json"
+      ]
     },
     {
       "source_module_id": "pack",
       "source_brand_name": "OPL Pack",
-      "source_entrypoint": "src/modules/pack/index.ts",
+      "source_entrypoint": "src/authority/packages/index.ts",
       "authority_domain_id": "package_and_stage_binding_contracts",
       "authority_owner": "OPL Pack",
       "module_disposition": "split",
@@ -211,34 +272,70 @@
           "plugin_id": "opl-pack-stage-binding",
           "disposition": "split",
           "implementation_state": "landed",
-          "source_refs": ["src/modules/pack/cordis-pack-stage-binding-plugin.ts"],
-          "caller_refs": ["src/modules/runway/family-runtime.ts", "src/modules/runway/family-runtime-temporal-activities.ts"],
+          "source_refs": [
+            "src/host/plugins/cordis-pack-stage-binding-plugin.ts"
+          ],
+          "caller_refs": [
+            "src/adapters/execution/family-runtime.ts",
+            "src/adapters/execution/family-runtime-temporal-activities.ts"
+          ],
           "scope": "composition",
           "trust": "first_party_privileged",
           "authority_role": "Stage binding compiler service; Package descriptors and currentness stay Pack/carrier-owned.",
-          "forbidden_authorities": ["package_currentness", "native_carrier_lifecycle", "domain_quality_verdict"],
-          "allowed_profiles": ["base-headless", "app-full", "foundry-dev"]
+          "forbidden_authorities": [
+            "package_currentness",
+            "native_carrier_lifecycle",
+            "domain_quality_verdict"
+          ],
+          "allowed_profiles": [
+            "base-headless",
+            "app-full",
+            "foundry-dev"
+          ]
         },
         {
           "contribution_id": "package-host",
           "plugin_id": "opl-package-host",
           "disposition": "split",
           "implementation_state": "landed",
-          "source_refs": ["src/modules/pack/cordis-package-host-plugin.ts", "src/modules/pack/package-host-integration.ts"],
-          "caller_refs": ["src/entrypoints/cordis/composition-profiles.ts"],
+          "source_refs": [
+            "src/host/plugins/cordis-package-host-plugin.ts",
+            "src/authority/packages/package-host-integration.ts"
+          ],
+          "caller_refs": [
+            "src/host/composition-profiles.ts"
+          ],
           "scope": "composition",
           "trust": "first_party_privileged",
           "authority_role": "Maps validated Package manifest kinds to host capability requirements and emits immutable host contexts; Package identity, currentness, domain authority, and durable lifecycle remain with their existing owners.",
-          "forbidden_authorities": ["package_installed_truth", "package_currentness", "native_carrier_lifecycle", "temporal_workflow_history", "workspace_file_bytes", "ledger_receipt_authority", "foundry_promotion_activation", "domain_truth", "domain_quality_verdict", "app_product_truth"],
-          "allowed_profiles": ["base-headless", "app-full", "foundry-dev"]
+          "forbidden_authorities": [
+            "package_installed_truth",
+            "package_currentness",
+            "native_carrier_lifecycle",
+            "temporal_workflow_history",
+            "workspace_file_bytes",
+            "ledger_receipt_authority",
+            "foundry_promotion_activation",
+            "domain_truth",
+            "domain_quality_verdict",
+            "app_product_truth"
+          ],
+          "allowed_profiles": [
+            "base-headless",
+            "app-full",
+            "foundry-dev"
+          ]
         }
       ],
-      "authority_continues_refs": ["src/modules/pack/standard-agent-stage-manifest.ts", "contracts/opl-framework/agent-package-manifest.schema.json"]
+      "authority_continues_refs": [
+        "src/authority/packages/standard-agent-stage-manifest.ts",
+        "contracts/opl-framework/agent-package-manifest.schema.json"
+      ]
     },
     {
       "source_module_id": "stagecraft",
       "source_brand_name": "OPL Stagecraft",
-      "source_entrypoint": "src/modules/stagecraft/index.ts",
+      "source_entrypoint": "src/authority/stages/index.ts",
       "authority_domain_id": "stage_context_and_policy",
       "authority_owner": "OPL Stagecraft",
       "module_disposition": "split",
@@ -248,21 +345,37 @@
           "plugin_id": "opl-stagecraft-context",
           "disposition": "split",
           "implementation_state": "landed",
-          "source_refs": ["src/modules/stagecraft/cordis-stagecraft-context-plugin.ts"],
-          "caller_refs": ["src/modules/runway/family-runtime.ts", "src/modules/runway/family-runtime-provider-hosted-attempts.ts"],
+          "source_refs": [
+            "src/host/plugins/cordis-stagecraft-context-plugin.ts"
+          ],
+          "caller_refs": [
+            "src/adapters/execution/family-runtime.ts",
+            "src/adapters/execution/family-runtime-provider-hosted-attempts.ts"
+          ],
           "scope": "composition",
           "trust": "first_party_privileged",
           "authority_role": "Typed stage context and policy observation; domain semantic judgment remains owner-owned.",
-          "forbidden_authorities": ["temporal_workflow_history", "domain_truth", "domain_quality_verdict"],
-          "allowed_profiles": ["base-headless", "app-full", "foundry-dev"]
+          "forbidden_authorities": [
+            "temporal_workflow_history",
+            "domain_truth",
+            "domain_quality_verdict"
+          ],
+          "allowed_profiles": [
+            "base-headless",
+            "app-full",
+            "foundry-dev"
+          ]
         }
       ],
-      "authority_continues_refs": ["src/modules/stagecraft/family-stage-control-plane.ts", "contracts/opl-framework/stage-run-kernel-contract.json"]
+      "authority_continues_refs": [
+        "src/authority/stages/family-stage-control-plane.ts",
+        "contracts/opl-framework/stage-run-kernel-contract.json"
+      ]
     },
     {
       "source_module_id": "runway",
       "source_brand_name": "OPL Runway",
-      "source_entrypoint": "src/modules/runway/index.ts",
+      "source_entrypoint": "src/adapters/execution/index.ts",
       "authority_domain_id": "executor_and_attempt_transport",
       "authority_owner": "OPL Runway/Temporal",
       "module_disposition": "split",
@@ -272,34 +385,64 @@
           "plugin_id": "opl-cordis-runway-attempt-adapter",
           "disposition": "split",
           "implementation_state": "landed",
-          "source_refs": ["src/modules/runway/cordis-runway-attempt.ts"],
-          "caller_refs": ["src/modules/runway/family-runtime-temporal-activities.ts"],
+          "source_refs": [
+            "src/host/plugins/cordis-runway-attempt.ts"
+          ],
+          "caller_refs": [
+            "src/adapters/execution/family-runtime-temporal-activities.ts"
+          ],
           "scope": "attempt",
           "trust": "first_party_privileged",
           "authority_role": "Adapter boundary for the existing stage runner; it does not own durable execution.",
-          "forbidden_authorities": ["temporal_workflow_history", "temporal_retry_replay", "ledger_receipt_authority"],
-          "allowed_profiles": ["base-headless", "app-full", "foundry-dev"]
+          "forbidden_authorities": [
+            "temporal_workflow_history",
+            "temporal_retry_replay",
+            "ledger_receipt_authority"
+          ],
+          "allowed_profiles": [
+            "base-headless",
+            "app-full",
+            "foundry-dev"
+          ]
         },
         {
           "contribution_id": "runway-attempt-executor",
           "plugin_id": "opl-cordis-runway-attempt-executor",
           "disposition": "split",
           "implementation_state": "landed",
-          "source_refs": ["src/modules/runway/cordis-runway-attempt.ts"],
-          "caller_refs": ["src/modules/runway/family-runtime-temporal-activities.ts", "src/modules/runway/family-runtime-stage-run-route-launch.ts"],
+          "source_refs": [
+            "src/host/plugins/cordis-runway-attempt.ts"
+          ],
+          "caller_refs": [
+            "src/adapters/execution/family-runtime-temporal-activities.ts",
+            "src/adapters/execution/family-runtime-stage-run-route-launch.ts"
+          ],
           "scope": "attempt",
           "trust": "first_party_privileged",
           "authority_role": "Attempt-scoped request/result transport with disposer and typed events.",
-          "forbidden_authorities": ["temporal_workflow_history", "temporal_retry_replay", "domain_truth", "domain_quality_verdict"],
-          "allowed_profiles": ["base-headless", "app-full", "foundry-dev"]
+          "forbidden_authorities": [
+            "temporal_workflow_history",
+            "temporal_retry_replay",
+            "domain_truth",
+            "domain_quality_verdict"
+          ],
+          "allowed_profiles": [
+            "base-headless",
+            "app-full",
+            "foundry-dev"
+          ]
         }
       ],
-      "authority_continues_refs": ["src/modules/runway/family-runtime-temporal.ts", "src/modules/runway/family-runtime-temporal-activities.ts", "contracts/opl-framework/family-runtime-attempt-contract.json"]
+      "authority_continues_refs": [
+        "src/adapters/execution/family-runtime-temporal.ts",
+        "src/adapters/execution/family-runtime-temporal-activities.ts",
+        "contracts/opl-framework/family-runtime-attempt-contract.json"
+      ]
     },
     {
       "source_module_id": "ledger",
       "source_brand_name": "OPL Ledger",
-      "source_entrypoint": "src/modules/ledger/index.ts",
+      "source_entrypoint": "src/authority/evidence/index.ts",
       "authority_domain_id": "refs_only_evidence_and_owner_delta",
       "authority_owner": "OPL Ledger",
       "module_disposition": "split",
@@ -309,21 +452,36 @@
           "plugin_id": "opl-ledger-owner-delta-observer",
           "disposition": "split",
           "implementation_state": "landed",
-          "source_refs": ["src/modules/ledger/current-owner-delta-topline.ts"],
-          "caller_refs": ["src/modules/console/framework-readiness.ts", "src/modules/runway/family-runtime-evidence-worklist.ts"],
+          "source_refs": [
+            "src/authority/evidence/current-owner-delta-topline.ts"
+          ],
+          "caller_refs": [
+            "src/read-models/operator/framework-readiness.ts",
+            "src/adapters/execution/family-runtime-evidence-worklist.ts"
+          ],
           "scope": "session",
           "trust": "first_party_restricted",
           "authority_role": "Refs-only observation and projection adapter; evidence persistence and receipts stay Ledger-owned.",
-          "forbidden_authorities": ["ledger_evidence_persistence", "ledger_receipt_authority", "domain_truth"],
-          "allowed_profiles": ["base-headless", "app-full"]
+          "forbidden_authorities": [
+            "ledger_evidence_persistence",
+            "ledger_receipt_authority",
+            "domain_truth"
+          ],
+          "allowed_profiles": [
+            "base-headless",
+            "app-full"
+          ]
         }
       ],
-      "authority_continues_refs": ["src/modules/ledger/index.ts", "contracts/opl-framework/evidence-ledger-event.schema.json"]
+      "authority_continues_refs": [
+        "src/authority/evidence/index.ts",
+        "contracts/opl-framework/evidence-ledger-event.schema.json"
+      ]
     },
     {
       "source_module_id": "console",
       "source_brand_name": "OPL Console",
-      "source_entrypoint": "src/modules/console/index.ts",
+      "source_entrypoint": "src/read-models/operator/index.ts",
       "authority_domain_id": "framework_read_model_and_operator_projection",
       "authority_owner": "OPL Console/App boundary",
       "module_disposition": "demote",
@@ -333,21 +491,35 @@
           "plugin_id": "opl-console-readiness-projection",
           "disposition": "demote",
           "implementation_state": "landed",
-          "source_refs": ["src/modules/console/cordis-framework-readiness.ts"],
-          "caller_refs": ["src/entrypoints/cli/cases/public-command-specs-parts/cordis.ts", "src/modules/console/framework-readiness.ts"],
+          "source_refs": [
+            "src/host/plugins/cordis-framework-readiness.ts"
+          ],
+          "caller_refs": [
+            "src/entrypoints/cli/cases/public-command-specs-parts/cordis.ts",
+            "src/read-models/operator/framework-readiness.ts"
+          ],
           "scope": "session",
           "trust": "first_party_restricted",
           "authority_role": "Read-only Framework projection; App GUI and product truth remain App-owned.",
-          "forbidden_authorities": ["app_product_truth", "domain_quality_verdict", "domain_truth"],
-          "allowed_profiles": ["app-full"]
+          "forbidden_authorities": [
+            "app_product_truth",
+            "domain_quality_verdict",
+            "domain_truth"
+          ],
+          "allowed_profiles": [
+            "app-full"
+          ]
         }
       ],
-      "authority_continues_refs": ["src/modules/console/framework-readiness.ts", "contracts/opl-framework/app-component-compatibility-receipt-contract.json"]
+      "authority_continues_refs": [
+        "src/read-models/operator/framework-readiness.ts",
+        "contracts/opl-framework/app-component-compatibility-receipt-contract.json"
+      ]
     },
     {
       "source_module_id": "foundry",
       "source_brand_name": "OPL Foundry Kernel",
-      "source_entrypoint": "src/modules/foundry/index.ts",
+      "source_entrypoint": "src/authority/evolution/index.ts",
       "authority_domain_id": "agent_evaluation_and_activation_control",
       "authority_owner": "OPL Foundry Kernel",
       "module_disposition": "split",
@@ -357,34 +529,58 @@
           "plugin_id": "opl-foundry-provider-manifest",
           "disposition": "split",
           "implementation_state": "landed",
-          "source_refs": ["src/modules/foundry/cordis-foundry-adapters.ts"],
-          "caller_refs": ["src/modules/runway/foundry-production-runtime.ts", "src/modules/runway/standard-agent-action-runtime.ts"],
+          "source_refs": [
+            "src/host/plugins/cordis-foundry-adapters.ts"
+          ],
+          "caller_refs": [
+            "src/adapters/execution/foundry-production-runtime.ts",
+            "src/adapters/execution/standard-agent-action-runtime.ts"
+          ],
           "scope": "composition",
           "trust": "first_party_privileged",
           "authority_role": "Provider manifest normalization adapter; AgentVersion and activation remain Foundry-owned.",
-          "forbidden_authorities": ["foundry_agent_version", "foundry_promotion_activation", "domain_truth"],
-          "allowed_profiles": ["foundry-dev"]
+          "forbidden_authorities": [
+            "foundry_agent_version",
+            "foundry_promotion_activation",
+            "domain_truth"
+          ],
+          "allowed_profiles": [
+            "foundry-dev"
+          ]
         },
         {
           "contribution_id": "foundry-evaluation-adapter",
           "plugin_id": "opl-foundry-evaluation-adapter",
           "disposition": "split",
           "implementation_state": "landed",
-          "source_refs": ["src/modules/foundry/cordis-foundry-adapters.ts"],
-          "caller_refs": ["src/entrypoints/cordis/composition-profiles.ts"],
+          "source_refs": [
+            "src/host/plugins/cordis-foundry-adapters.ts"
+          ],
+          "caller_refs": [
+            "src/host/composition-profiles.ts"
+          ],
           "scope": "attempt",
           "trust": "first_party_restricted",
           "authority_role": "Evaluation input/output adapter; it cannot rank, promote, activate, or sign domain receipts.",
-          "forbidden_authorities": ["foundry_agent_version", "foundry_promotion_activation", "domain_quality_verdict"],
-          "allowed_profiles": ["foundry-dev"]
+          "forbidden_authorities": [
+            "foundry_agent_version",
+            "foundry_promotion_activation",
+            "domain_quality_verdict"
+          ],
+          "allowed_profiles": [
+            "foundry-dev"
+          ]
         }
       ],
-      "authority_continues_refs": ["src/modules/foundry/control.ts", "contracts/opl-framework/foundry-agent-series-contract.json"]
+      "authority_continues_refs": [
+        "src/authority/evolution/control.ts",
+        "contracts/opl-framework/foundry-agent-series-contract.json"
+      ]
     },
     {
       "source_module_id": "connect",
       "source_brand_name": "OPL Connect",
-      "source_entrypoint": "src/modules/connect/index.ts",
+      "source_entrypoint": "src/adapters/integration/index.ts",
       "authority_domain_id": "carrier_and_descriptor_discovery",
       "authority_owner": "OPL Connect/native carrier",
       "module_disposition": "merge",
@@ -394,29 +590,62 @@
           "plugin_id": "opl-connect-descriptor-discovery",
           "disposition": "merge",
           "implementation_state": "landed",
-          "source_refs": ["src/modules/connect/cordis-connect-services.ts"],
-          "caller_refs": ["src/modules/console/app-contribution-broker.ts", "src/modules/connect/agent-package-registry-parts/skill-projection.ts"],
+          "source_refs": [
+            "src/host/plugins/cordis-connect-services.ts"
+          ],
+          "caller_refs": [
+            "src/read-models/operator/app-contribution-broker.ts",
+            "src/adapters/integration/agent-package-registry-parts/skill-projection.ts"
+          ],
           "scope": "process",
           "trust": "first_party_restricted",
           "authority_role": "Merge only the current descriptor-discovery read seam; installed truth, credentials, and carrier mutation stay native-owner controlled.",
-          "forbidden_authorities": ["package_installed_truth", "package_currentness", "native_carrier_lifecycle", "credential_material", "security_sandbox"],
-          "allowed_profiles": ["base-headless", "app-full"]
+          "forbidden_authorities": [
+            "package_installed_truth",
+            "package_currentness",
+            "native_carrier_lifecycle",
+            "credential_material",
+            "security_sandbox"
+          ],
+          "allowed_profiles": [
+            "base-headless",
+            "app-full"
+          ]
         },
         {
           "contribution_id": "connect-release-operation",
           "plugin_id": "opl-connect-release-operation",
           "disposition": "merge",
           "implementation_state": "landed",
-          "source_refs": ["src/modules/connect/cordis-release-operation.ts"],
-          "caller_refs": ["src/entrypoints/cordis/composition-profiles.ts", "src/entrypoints/cli/cases/public-command-specs-parts/release.ts"],
+          "source_refs": [
+            "src/host/plugins/cordis-release-operation.ts"
+          ],
+          "caller_refs": [
+            "src/host/composition-profiles.ts",
+            "src/entrypoints/cli/cases/public-command-specs-parts/release.ts"
+          ],
           "scope": "request",
           "trust": "first_party_privileged",
           "authority_role": "Expose the existing Release Bundle operations through a request-scoped service; App release policy, durable Bundle state, credentials, workflow orchestration, and public authorization remain with their current owners.",
-          "forbidden_authorities": ["app_product_truth", "app_release_policy", "public_release_authorization", "github_actions_orchestration", "release_environment_permissions", "credential_material", "security_sandbox", "parallel_release_event_log"],
-          "allowed_profiles": ["base-headless"]
+          "forbidden_authorities": [
+            "app_product_truth",
+            "app_release_policy",
+            "public_release_authorization",
+            "github_actions_orchestration",
+            "release_environment_permissions",
+            "credential_material",
+            "security_sandbox",
+            "parallel_release_event_log"
+          ],
+          "allowed_profiles": [
+            "base-headless"
+          ]
         }
       ],
-      "authority_continues_refs": ["src/modules/connect/index.ts", "contracts/opl-framework/agent-plugin-manifest-1.0.0.schema.json"]
+      "authority_continues_refs": [
+        "src/adapters/integration/index.ts",
+        "contracts/opl-framework/agent-plugin-manifest-1.0.0.schema.json"
+      ]
     }
   ],
   "profiles": [
@@ -425,75 +654,228 @@
       "status": "landed/default",
       "host": "headless",
       "default_candidate": true,
-      "caller_refs": ["src/modules/runway/family-runtime.ts", "src/modules/runway/family-runtime-temporal-activities.ts"],
-      "plugin_allowlist": [
-        { "plugin_id": "opl-charter-policy", "required": true, "reason": "Process contract/policy dependency." },
-        { "plugin_id": "opl-atlas-catalog", "required": true, "reason": "Typed discovery for domain and capability selection." },
-        { "plugin_id": "opl-workspace-locator", "required": true, "reason": "Default CLI and runtime projections use the explicit profile-bound locator service." },
-        { "plugin_id": "opl-pack-stage-binding", "required": true, "reason": "Stage binding is needed by the headless stage route." },
-        { "plugin_id": "opl-stagecraft-context", "required": true, "reason": "Stage context and policy observation are composition dependencies." },
-        { "plugin_id": "opl-package-host", "required": true, "reason": "Standard agents, capability packages, and workflow profiles need a profile-bound host compatibility service." },
-        { "plugin_id": "opl-ledger-owner-delta-observer", "required": true, "reason": "Default CLI and runtime projections use the profile-bound refs-only observer." },
-        { "plugin_id": "opl-connect-descriptor-discovery", "required": true, "reason": "Default CLI package and contribution surfaces use profile-bound discovery." }
+      "caller_refs": [
+        "src/adapters/execution/family-runtime.ts",
+        "src/adapters/execution/family-runtime-temporal-activities.ts"
       ],
-      "child_composition_allowlist": ["agent_executor_request", "runway_attempt", "pack_stagecraft_route", "release_operation"],
+      "plugin_allowlist": [
+        {
+          "plugin_id": "opl-charter-policy",
+          "required": true,
+          "reason": "Process contract/policy dependency."
+        },
+        {
+          "plugin_id": "opl-atlas-catalog",
+          "required": true,
+          "reason": "Typed discovery for domain and capability selection."
+        },
+        {
+          "plugin_id": "opl-workspace-locator",
+          "required": true,
+          "reason": "Default CLI and runtime projections use the explicit profile-bound locator service."
+        },
+        {
+          "plugin_id": "opl-pack-stage-binding",
+          "required": true,
+          "reason": "Stage binding is needed by the headless stage route."
+        },
+        {
+          "plugin_id": "opl-stagecraft-context",
+          "required": true,
+          "reason": "Stage context and policy observation are composition dependencies."
+        },
+        {
+          "plugin_id": "opl-package-host",
+          "required": true,
+          "reason": "Standard agents, capability packages, and workflow profiles need a profile-bound host compatibility service."
+        },
+        {
+          "plugin_id": "opl-ledger-owner-delta-observer",
+          "required": true,
+          "reason": "Default CLI and runtime projections use the profile-bound refs-only observer."
+        },
+        {
+          "plugin_id": "opl-connect-descriptor-discovery",
+          "required": true,
+          "reason": "Default CLI package and contribution surfaces use profile-bound discovery."
+        }
+      ],
+      "child_composition_allowlist": [
+        "agent_executor_request",
+        "runway_attempt",
+        "pack_stagecraft_route",
+        "release_operation"
+      ],
       "composition_scope": "process",
-      "runtime_constraints": ["Attempt composition is frozen before execution.", "Temporal remains the durable workflow and retry/replay owner.", "No third-party plugin enters the privileged root."],
-      "authority_boundary": { "can_write_domain_truth": false, "can_write_package_currentness": false, "can_write_durable_history": false, "can_write_app_product_truth": false }
+      "runtime_constraints": [
+        "Attempt composition is frozen before execution.",
+        "Temporal remains the durable workflow and retry/replay owner.",
+        "No third-party plugin enters the privileged root."
+      ],
+      "authority_boundary": {
+        "can_write_domain_truth": false,
+        "can_write_package_currentness": false,
+        "can_write_durable_history": false,
+        "can_write_app_product_truth": false
+      }
     },
     {
       "profile_id": "app-full",
       "status": "landed/available",
       "host": "app",
       "default_candidate": false,
-      "caller_refs": ["src/entrypoints/cli/main.ts", "src/entrypoints/cli/cases/app-public-command-specs.ts"],
-      "plugin_allowlist": [
-        { "plugin_id": "opl-charter-policy", "required": true, "reason": "Framework contract/policy dependency." },
-        { "plugin_id": "opl-atlas-catalog", "required": true, "reason": "App readiness and discovery projection dependency." },
-        { "plugin_id": "opl-workspace-locator", "required": true, "reason": "App commands and workspace-scoped projections use the profile-bound locator." },
-        { "plugin_id": "opl-pack-stage-binding", "required": true, "reason": "App-hosted stage route uses the same Pack binding contract." },
-        { "plugin_id": "opl-stagecraft-context", "required": true, "reason": "App preview and hosted route share typed stage context." },
-        { "plugin_id": "opl-package-host", "required": true, "reason": "App-hosted Packages need the same profile-bound compatibility context without duplicating a Package runtime." },
-        { "plugin_id": "opl-ledger-owner-delta-observer", "required": true, "reason": "App readiness uses refs-only owner-delta observation." },
-        { "plugin_id": "opl-console-readiness-projection", "required": true, "reason": "Framework read-only projection consumed by the App boundary." },
-        { "plugin_id": "opl-connect-descriptor-discovery", "required": true, "reason": "App contribution and package projections use profile-bound discovery." }
+      "caller_refs": [
+        "src/entrypoints/cli/main.ts",
+        "src/entrypoints/cli/cases/app-public-command-specs.ts"
       ],
-      "child_composition_allowlist": ["agent_executor_request", "runway_attempt", "pack_stagecraft_route"],
+      "plugin_allowlist": [
+        {
+          "plugin_id": "opl-charter-policy",
+          "required": true,
+          "reason": "Framework contract/policy dependency."
+        },
+        {
+          "plugin_id": "opl-atlas-catalog",
+          "required": true,
+          "reason": "App readiness and discovery projection dependency."
+        },
+        {
+          "plugin_id": "opl-workspace-locator",
+          "required": true,
+          "reason": "App commands and workspace-scoped projections use the profile-bound locator."
+        },
+        {
+          "plugin_id": "opl-pack-stage-binding",
+          "required": true,
+          "reason": "App-hosted stage route uses the same Pack binding contract."
+        },
+        {
+          "plugin_id": "opl-stagecraft-context",
+          "required": true,
+          "reason": "App preview and hosted route share typed stage context."
+        },
+        {
+          "plugin_id": "opl-package-host",
+          "required": true,
+          "reason": "App-hosted Packages need the same profile-bound compatibility context without duplicating a Package runtime."
+        },
+        {
+          "plugin_id": "opl-ledger-owner-delta-observer",
+          "required": true,
+          "reason": "App readiness uses refs-only owner-delta observation."
+        },
+        {
+          "plugin_id": "opl-console-readiness-projection",
+          "required": true,
+          "reason": "Framework read-only projection consumed by the App boundary."
+        },
+        {
+          "plugin_id": "opl-connect-descriptor-discovery",
+          "required": true,
+          "reason": "App contribution and package projections use profile-bound discovery."
+        }
+      ],
+      "child_composition_allowlist": [
+        "agent_executor_request",
+        "runway_attempt",
+        "pack_stagecraft_route"
+      ],
       "composition_scope": "session",
-      "runtime_constraints": ["App product truth and GUI actions remain App-owned.", "Projection output cannot claim domain, quality, package, or production readiness.", "Attempt execution uses an attempt child context and explicit executor route."],
-      "authority_boundary": { "can_write_domain_truth": false, "can_write_package_currentness": false, "can_write_durable_history": false, "can_write_app_product_truth": false }
+      "runtime_constraints": [
+        "App product truth and GUI actions remain App-owned.",
+        "Projection output cannot claim domain, quality, package, or production readiness.",
+        "Attempt execution uses an attempt child context and explicit executor route."
+      ],
+      "authority_boundary": {
+        "can_write_domain_truth": false,
+        "can_write_package_currentness": false,
+        "can_write_durable_history": false,
+        "can_write_app_product_truth": false
+      }
     },
     {
       "profile_id": "foundry-dev",
       "status": "landed/available",
       "host": "foundry_dev",
       "default_candidate": false,
-      "caller_refs": ["src/modules/runway/foundry-production-runtime.ts", "src/modules/runway/standard-agent-action-runtime.ts"],
-      "plugin_allowlist": [
-        { "plugin_id": "opl-charter-policy", "required": true, "reason": "Foundry composition needs framework contract policy." },
-        { "plugin_id": "opl-atlas-catalog", "required": true, "reason": "Candidate capability and agent discovery." },
-        { "plugin_id": "opl-pack-stage-binding", "required": true, "reason": "Candidate stages use the Pack binding ABI." },
-        { "plugin_id": "opl-stagecraft-context", "required": true, "reason": "Candidate stage context and policy observation." },
-        { "plugin_id": "opl-package-host", "required": true, "reason": "Foundry candidate bindings need a frozen host compatibility context before evaluation." },
-        { "plugin_id": "opl-foundry-provider-manifest", "required": true, "reason": "Provider manifest normalization seam has a real Foundry caller." },
-        { "plugin_id": "opl-foundry-evaluation-adapter", "required": false, "reason": "Optional evaluation adapter for candidate experiments." }
+      "caller_refs": [
+        "src/adapters/execution/foundry-production-runtime.ts",
+        "src/adapters/execution/standard-agent-action-runtime.ts"
       ],
-      "child_composition_allowlist": ["runway_attempt"],
+      "plugin_allowlist": [
+        {
+          "plugin_id": "opl-charter-policy",
+          "required": true,
+          "reason": "Foundry composition needs framework contract policy."
+        },
+        {
+          "plugin_id": "opl-atlas-catalog",
+          "required": true,
+          "reason": "Candidate capability and agent discovery."
+        },
+        {
+          "plugin_id": "opl-pack-stage-binding",
+          "required": true,
+          "reason": "Candidate stages use the Pack binding ABI."
+        },
+        {
+          "plugin_id": "opl-stagecraft-context",
+          "required": true,
+          "reason": "Candidate stage context and policy observation."
+        },
+        {
+          "plugin_id": "opl-package-host",
+          "required": true,
+          "reason": "Foundry candidate bindings need a frozen host compatibility context before evaluation."
+        },
+        {
+          "plugin_id": "opl-foundry-provider-manifest",
+          "required": true,
+          "reason": "Provider manifest normalization seam has a real Foundry caller."
+        },
+        {
+          "plugin_id": "opl-foundry-evaluation-adapter",
+          "required": false,
+          "reason": "Optional evaluation adapter for candidate experiments."
+        }
+      ],
+      "child_composition_allowlist": [
+        "runway_attempt"
+      ],
       "composition_scope": "attempt",
-      "runtime_constraints": ["Foundry activation, promotion, rollback, and AgentVersion remain Foundry-owned.", "Candidate composition is immutable for an attempt and must be evaluated before activation.", "Cordis is not a sandbox for untrusted candidate code."],
-      "authority_boundary": { "can_write_domain_truth": false, "can_write_package_currentness": false, "can_write_durable_history": false, "can_write_app_product_truth": false }
+      "runtime_constraints": [
+        "Foundry activation, promotion, rollback, and AgentVersion remain Foundry-owned.",
+        "Candidate composition is immutable for an attempt and must be evaluated before activation.",
+        "Cordis is not a sandbox for untrusted candidate code."
+      ],
+      "authority_boundary": {
+        "can_write_domain_truth": false,
+        "can_write_package_currentness": false,
+        "can_write_durable_history": false,
+        "can_write_app_product_truth": false
+      }
     }
   ],
   "cutover": {
     "current_default_profile": "base-headless",
     "p5": {
       "status": "landed",
-      "required_outputs": ["successor plugin seams", "real caller evidence", "owner boundary readback", "composition snapshot and teardown evidence"],
+      "required_outputs": [
+        "successor plugin seams",
+        "real caller evidence",
+        "owner boundary readback",
+        "composition snapshot and teardown evidence"
+      ],
       "default_path_changed": true
     },
     "p6": {
       "status": "landed",
-      "required_outputs": ["base-headless default switch", "App/hosted entry switch", "legacy wiring caller-zero", "full owner-authoritative readback"],
+      "required_outputs": [
+        "base-headless default switch",
+        "App/hosted entry switch",
+        "legacy wiring caller-zero",
+        "full owner-authoritative readback"
+      ],
       "default_path_changed": true,
       "profile_route": "opl.profile.base-headless",
       "child_composition_snapshot_refs": [
@@ -505,16 +887,33 @@
     },
     "legacy_caller_zero_gate": {
       "required": true,
-      "evidence": ["structural caller analysis", "affected outcome tests", "teardown/disposer verification", "snapshot/replay verification", "fresh main and wire readback"],
+      "evidence": [
+        "structural caller analysis",
+        "affected outcome tests",
+        "teardown/disposer verification",
+        "snapshot/replay verification",
+        "fresh main and wire readback"
+      ],
       "owner_readback_required": true
     },
     "default_switch_gate": {
       "required": true,
-      "evidence": ["base-headless composition is frozen", "headless caller uses the profile", "Temporal restart/replay remains green", "Package installed/currentness remains native-owner green", "previous immutable build is a tested revert path"],
+      "evidence": [
+        "base-headless composition is frozen",
+        "headless caller uses the profile",
+        "Temporal restart/replay remains green",
+        "Package installed/currentness remains native-owner green",
+        "previous immutable build is a tested revert path"
+      ],
       "owner_readback_required": true
     },
     "retirement_rule": {
-      "required_evidence": ["successor real vertical path", "all production callers switched", "structural caller-zero", "affected build/test/readback green"],
+      "required_evidence": [
+        "successor real vertical path",
+        "all production callers switched",
+        "structural caller-zero",
+        "affected build/test/readback green"
+      ],
       "permanent_dual_write_forbidden": true,
       "automatic_legacy_fallback_forbidden": true
     }

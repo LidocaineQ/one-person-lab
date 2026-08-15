@@ -5,8 +5,8 @@ import { formatJsonPayload, fs, path } from './helpers.ts';
 import {
   CANONICAL_PACKAGE_CONTENT_LOCK,
   packageContentLockDigest,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/payload-content-lock.ts';
-import { resolveOplDomainModuleSpec } from '../../../../../src/modules/connect/system-installation/modules.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry-parts/payload-content-lock.ts';
+import { resolveOplDomainModuleSpec } from '../../../../../src/adapters/integration/system-installation/modules.ts';
 
 const PACKAGE_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.source.v1+gzip';
 const PACKAGE_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.manifest.v1+json';

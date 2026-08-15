@@ -10,36 +10,37 @@ import './family-runtime-temporal-provider-cases/scheduler-and-readiness.ts';
 import './family-runtime-temporal-provider-cases/codex-activity-history.ts';
 import './family-runtime-temporal-provider-cases/legacy-workflow-replay.ts';
 import { Worker } from '@temporalio/worker';
+import { buildCordisTemporalActivities } from '../../src/host/temporal-activity-projection.ts';
 
-import * as activities from '../../src/modules/runway/family-runtime-temporal-activities.ts';
+import * as activities from '../../src/adapters/execution/family-runtime-temporal-activities.ts';
 import {
   buildTemporalStageAttemptWorkflowContract,
   type TemporalStageAttemptWorkflowInput,
-} from '../../src/modules/runway/family-runtime-temporal.ts';
+} from '../../src/adapters/execution/family-runtime-temporal.ts';
 import {
   DEFAULT_CODEX_STAGE_RUNNER_NO_OUTPUT_TIMEOUT_MS,
   DEFAULT_CODEX_STAGE_RUNNER_TIMEOUT_MS,
-} from '../../src/modules/runway/family-runtime-temporal-constants.ts';
+} from '../../src/adapters/execution/family-runtime-temporal-constants.ts';
 import {
   humanGateSignal,
   StageAttemptWorkflow,
   userInstructionSignal,
-} from '../../src/modules/runway/family-runtime-temporal-workflows.ts';
+} from '../../src/adapters/execution/family-runtime-temporal-workflows.ts';
 import {
   buildDetachedTemporalWorkerProcessArgs,
   buildTemporalStageAttemptReplayGateForTest,
-} from '../../src/modules/runway/family-runtime-temporal-provider.ts';
+} from '../../src/adapters/execution/family-runtime-temporal-provider.ts';
 import {
   buildTemporalProviderWorkerProcessArgs,
-} from '../../src/modules/runway/family-runtime-provider-worker-launcher.ts';
+} from '../../src/adapters/execution/family-runtime-provider-worker-launcher.ts';
 import {
   buildTemporalStageAttemptMemo,
   buildTemporalStageAttemptSearchAttributes,
   buildTemporalStageAttemptVisibilityReadiness,
   buildTemporalStageRunSearchAttributes,
   TEMPORAL_KEYWORD_SEARCH_ATTRIBUTE_LIMIT,
-} from '../../src/modules/runway/family-runtime-temporal-visibility.ts';
-import type { TemporalStageRunWorkflowInput } from '../../src/modules/runway/family-runtime-temporal-stage-run.ts';
+} from '../../src/adapters/execution/family-runtime-temporal-visibility.ts';
+import type { TemporalStageRunWorkflowInput } from '../../src/adapters/execution/family-runtime-temporal-stage-run.ts';
 import { createTemporalTestWorkflowEnvironment } from './temporal-test-environment.ts';
 import {
   createPersistedTemporalStageAttemptInput,
@@ -66,7 +67,7 @@ function workflowInput(): TemporalStageAttemptWorkflowInput {
 }
 
 test('detached Temporal worker processes preload the Console composition bootstrap', () => {
-  const providerPath = path.join(repoRoot, 'src', 'modules', 'runway', 'family-runtime-temporal-provider.ts');
+  const providerPath = path.join(repoRoot, 'src', 'adapters', 'execution', 'family-runtime-temporal-provider.ts');
   const bootstrapPath = path.join(repoRoot, 'src', 'entrypoints', 'temporal-worker-bootstrap.ts');
   const directArgs = buildDetachedTemporalWorkerProcessArgs(providerPath);
   const launcherArgs = buildTemporalProviderWorkerProcessArgs(providerPath, bootstrapPath);
@@ -81,8 +82,8 @@ test('detached Temporal worker processes preload the Console composition bootstr
   const portUrl = pathToFileURL(path.join(
     repoRoot,
     'src',
-    'modules',
-    'runway',
+    'adapters',
+    'execution',
     'public',
     'temporal-stage-activity-session-observer-port.ts',
   )).href;
@@ -248,7 +249,7 @@ test('Temporal StageAttemptWorkflow retries short idempotent activities without 
       connection: testEnv.nativeConnection,
       namespace: testEnv.namespace,
       taskQueue,
-      workflowsPath: path.join(repoRoot, 'src', 'modules', 'runway', 'family-runtime-temporal-workflows.ts'),
+      workflowsPath: path.join(repoRoot, 'src', 'adapters', 'execution', 'family-runtime-temporal-workflows.ts'),
       activities: {
         ...activities,
         codexStageActivity: async (input: TemporalStageAttemptWorkflowInput) => {
@@ -315,8 +316,11 @@ test('Temporal StageAttemptWorkflow carries a no-output diagnostic forward when 
       connection: testEnv.nativeConnection,
       namespace: testEnv.namespace,
       taskQueue,
-      workflowsPath: path.join(repoRoot, 'src', 'modules', 'runway', 'family-runtime-temporal-workflows.ts'),
-      activities,
+      workflowsPath: path.join(repoRoot, 'src', 'adapters', 'execution', 'family-runtime-temporal-workflows.ts'),
+      activities: {
+        ...activities,
+        ...buildCordisTemporalActivities(),
+      },
     });
     const result = await worker.runUntil(async () => {
       const handle = await testEnv.client.workflow.start(StageAttemptWorkflow, {
@@ -354,7 +358,7 @@ test('Temporal StageAttemptWorkflow carries Codex runner protocol diagnostics as
       connection: testEnv.nativeConnection,
       namespace: testEnv.namespace,
       taskQueue,
-      workflowsPath: path.join(repoRoot, 'src', 'modules', 'runway', 'family-runtime-temporal-workflows.ts'),
+      workflowsPath: path.join(repoRoot, 'src', 'adapters', 'execution', 'family-runtime-temporal-workflows.ts'),
       activities: {
         ...activities,
         codexStageActivity: async (input: TemporalStageAttemptWorkflowInput) => ({
@@ -416,7 +420,7 @@ test('Temporal StageAttemptWorkflow rejects Codex activity closeout for a differ
       connection: testEnv.nativeConnection,
       namespace: testEnv.namespace,
       taskQueue,
-      workflowsPath: path.join(repoRoot, 'src', 'modules', 'runway', 'family-runtime-temporal-workflows.ts'),
+      workflowsPath: path.join(repoRoot, 'src', 'adapters', 'execution', 'family-runtime-temporal-workflows.ts'),
       activities: {
         ...activities,
         codexStageActivity: async (input: TemporalStageAttemptWorkflowInput) => ({
@@ -466,7 +470,7 @@ test('Temporal replay gate accepts production workflow history', async () => {
   try {
     const worker = await Worker.create({
       connection: testEnv.nativeConnection, namespace: testEnv.namespace, taskQueue,
-      workflowsPath: path.join(repoRoot, 'src', 'modules', 'runway', 'family-runtime-temporal-workflows.ts'),
+      workflowsPath: path.join(repoRoot, 'src', 'adapters', 'execution', 'family-runtime-temporal-workflows.ts'),
       activities: {
         ...activities,
         codexStageActivity: async (input: TemporalStageAttemptWorkflowInput) => ({

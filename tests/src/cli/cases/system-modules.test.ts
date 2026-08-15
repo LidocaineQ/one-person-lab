@@ -14,10 +14,10 @@ import {
 } from '../helpers.ts';
 import { runGitFixtureCommand } from '../helpers-parts/family-fixtures.ts';
 import { writeFakeOmaGeneratedSurfacePack } from '../../cli-codex-default-shell-helpers.ts';
-import { parseGitStatusPorcelainV2 } from '../../../../src/modules/connect/system-installation/module-git.ts';
-import { DOMAIN_MODULE_SPECS } from '../../../../src/modules/connect/system-installation/module-specs.ts';
-import { getOplPackageSpecs } from '../../../../src/modules/connect/package-distribution.ts';
-import { loadDeveloperCheckoutPackageSource } from '../../../../src/modules/connect/agent-package-registry-parts/developer-checkout-package-source.ts';
+import { parseGitStatusPorcelainV2 } from '../../../../src/adapters/integration/system-installation/module-git.ts';
+import { DOMAIN_MODULE_SPECS } from '../../../../src/adapters/integration/system-installation/module-specs.ts';
+import { getOplPackageSpecs } from '../../../../src/adapters/integration/package-distribution.ts';
+import { loadDeveloperCheckoutPackageSource } from '../../../../src/adapters/integration/agent-package-registry-parts/developer-checkout-package-source.ts';
 import './system-modules-cases/mds-skill-boundary.ts';
 
 const REQUIRED_FILES_PROBE_PROGRAM = 'const fs=require("node:fs");for(const p of process.argv.slice(1)){if(!fs.statSync(p).isFile())process.exit(1)}';

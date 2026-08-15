@@ -10,8 +10,8 @@ import {
   materializeAgentPackageWorkspaceSkillProjection,
   refreshInstalledAgentPackageWorkspaceSkills,
   syncAgentPackageSkillProjectionToWorkspace,
-} from '../../../../src/modules/connect/agent-package-registry-parts/skill-projection.ts';
-import { hostAttemptSkillRuntime } from '../../../../src/modules/runway/family-runtime-attempt-skill-projection.ts';
+} from '../../../../src/adapters/integration/agent-package-registry-parts/skill-projection.ts';
+import { hostAttemptSkillRuntime } from '../../../../src/adapters/execution/family-runtime-attempt-skill-projection.ts';
 
 function writeProfessionalSkill(root: string, skillId: string, body = `# ${skillId}\n`) {
   const skillRoot = path.join(root, 'agent', 'professional_skills', skillId);

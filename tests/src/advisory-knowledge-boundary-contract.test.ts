@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 import {
   buildAdvisoryKnowledgeOperatorProjection,
-} from '../../src/modules/charter/advisory-knowledge-boundary.ts';
+} from '../../src/authority/contracts/advisory-knowledge-boundary.ts';
 
 type JsonRecord = Record<string, unknown>;
 

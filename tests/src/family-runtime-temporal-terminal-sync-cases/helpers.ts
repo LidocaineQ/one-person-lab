@@ -6,8 +6,8 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   createStageAttempt,
   createStageAttemptTable,
-} from '../../../src/modules/runway/family-runtime-stage-attempts.ts';
-import { createFamilyRuntimeQueueTables } from '../../../src/modules/runway/family-runtime-store.ts';
+} from '../../../src/adapters/execution/family-runtime-stage-attempts.ts';
+import { createFamilyRuntimeQueueTables } from '../../../src/adapters/execution/family-runtime-store.ts';
 
 function materializeMasOwnerAnswerProfile(familyRoot: string) {
   const contractsRoot = path.join(familyRoot, 'med-autoscience', 'contracts');

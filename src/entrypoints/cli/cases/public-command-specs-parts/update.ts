@@ -1,6 +1,6 @@
-import { buildManagedUpdateKernelProjection } from '../../../../modules/connect/managed-update-kernel.ts';
-import type { ManagedUpdateOperation } from '../../../../modules/connect/managed-update-owner-boundary.ts';
-import { runManagedUpdateKernelOperation } from '../../../../modules/connect/managed-update-kernel-runner.ts';
+import { buildManagedUpdateKernelProjection } from '../../../../adapters/integration/managed-update-kernel.ts';
+import type { ManagedUpdateOperation } from '../../../../adapters/integration/managed-update-owner-boundary.ts';
+import { runManagedUpdateKernelOperation } from '../../../../adapters/integration/managed-update-kernel-runner.ts';
 import type { FrameworkContracts } from '../../../../kernel/types.ts';
 import { parseRegisteredCommandOptions } from '../../modules/support.ts';
 import type { CommandSpec } from '../../modules/support.ts';

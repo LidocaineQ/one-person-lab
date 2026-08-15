@@ -6,10 +6,10 @@ import {
   deriveWorkItemScopeId,
   requireLegacyWorkItemExecutionScopeSnapshot,
   type LegacyWorkItemExecutionScopeSnapshot,
-} from '../../src/modules/workspace/execution-scope.ts';
-import { createStageAttemptTable } from '../../src/modules/runway/family-runtime-stage-attempts.ts';
-import { createStageRunLaunchTable } from '../../src/modules/runway/family-runtime-stage-run-launch-registry.ts';
-import { createFamilyRuntimeQueueTables } from '../../src/modules/runway/family-runtime-store.ts';
+} from '../../src/authority/workspace/execution-scope.ts';
+import { createStageAttemptTable } from '../../src/adapters/execution/family-runtime-stage-attempts.ts';
+import { createStageRunLaunchTable } from '../../src/adapters/execution/family-runtime-stage-run-launch-registry.ts';
+import { createFamilyRuntimeQueueTables } from '../../src/adapters/execution/family-runtime-store.ts';
 
 type LegacyScopeOverrides = Partial<Omit<LegacyWorkItemExecutionScopeSnapshot, 'surface_kind' | 'version' | 'scope_kind' | 'scope_digest'>>;
 

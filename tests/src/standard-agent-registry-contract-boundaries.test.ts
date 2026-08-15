@@ -12,19 +12,19 @@ import {
   STANDARD_AGENT_REGISTRY,
   STANDARD_AGENT_SERIES_MEMBERSHIP,
 } from '../../src/kernel/standard-agent-registry.ts';
-import { OFFICIAL_KNOWLEDGE_DELIVERABLE_QUALITY_PROFILE } from '../../src/modules/pack/standard-agent-stage-manifest.ts';
+import { OFFICIAL_KNOWLEDGE_DELIVERABLE_QUALITY_PROFILE } from '../../src/authority/packages/standard-agent-stage-manifest.ts';
 import {
   CANONICAL_OPL_PACKAGE_IDS,
   canonicalAgentPackageId,
-} from '../../src/modules/connect/agent-package-identity.ts';
-import { listFirstPartyAgentPackageManifests } from '../../src/modules/connect/agent-package-manifests.ts';
-import { getOplPackageSpecs } from '../../src/modules/connect/package-distribution.ts';
-import { resolveOplDomainModuleSpec } from '../../src/modules/connect/system-installation/modules.ts';
-import { buildDomainModuleSpecs } from '../../src/modules/connect/system-installation/module-specs.ts';
+} from '../../src/adapters/integration/agent-package-identity.ts';
+import { listFirstPartyAgentPackageManifests } from '../../src/adapters/integration/agent-package-manifests.ts';
+import { getOplPackageSpecs } from '../../src/adapters/integration/package-distribution.ts';
+import { resolveOplDomainModuleSpec } from '../../src/adapters/integration/system-installation/modules.ts';
+import { buildDomainModuleSpecs } from '../../src/adapters/integration/system-installation/module-specs.ts';
 import {
   buildCodexFamilyPluginSpecs,
   listCodexFamilyPluginPackIds,
-} from '../../src/modules/connect/system-installation/codex-plugin-registry.ts';
+} from '../../src/adapters/integration/system-installation/codex-plugin-registry.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '../..');
 

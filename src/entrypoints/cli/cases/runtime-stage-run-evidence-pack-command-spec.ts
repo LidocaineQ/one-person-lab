@@ -1,7 +1,7 @@
 import {
   summarizeStageRunEvidencePack,
   validateStageRunEvidencePack,
-} from '../../../modules/ledger/stage-run-evidence-pack.ts';
+} from '../../../authority/evidence/stage-run-evidence-pack.ts';
 import {
   assertSinglePayloadSource,
   buildUsageError,

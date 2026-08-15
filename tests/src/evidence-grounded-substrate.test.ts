@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildEvidenceGroundedConnectSubstrate } from '../../src/modules/connect/index.ts';
-import { buildEvidenceGroundedLedgerSubstrate } from '../../src/modules/ledger/index.ts';
-import { buildEvidenceGroundedWorkspaceSubstrate } from '../../src/modules/workspace/index.ts';
+import { buildEvidenceGroundedConnectSubstrate } from '../../src/adapters/integration/index.ts';
+import { buildEvidenceGroundedLedgerSubstrate } from '../../src/authority/evidence/index.ts';
+import { buildEvidenceGroundedWorkspaceSubstrate } from '../../src/authority/workspace/index.ts';
 
 function hasKey(value: unknown, key: string): boolean {
   if (!value || typeof value !== 'object') {

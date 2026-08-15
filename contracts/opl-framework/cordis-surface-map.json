@@ -7,8 +7,7 @@
   "evidence_refs": [
     "contracts/opl-framework/source-module-map.json",
     "contracts/opl-framework/module-dependency-policy.json",
-    "contracts/opl-framework/brand-module-surfaces.json",
-    "src/modules/index.ts"
+    "contracts/opl-framework/brand-module-surfaces.json"
   ],
   "phase_state": {
     "cordis_adopted": true,
@@ -54,7 +53,7 @@
       "module_id": "charter",
       "brand_name": "OPL Charter",
       "module_owner": "OPL Framework",
-      "public_entrypoint": "src/modules/charter/index.ts",
+      "public_entrypoint": "src/authority/contracts/index.ts",
       "candidate_plugin_id": "opl.charter.candidate",
       "candidate_disposition": "future_candidate_unapproved",
       "candidate_requirement": "required",
@@ -67,10 +66,10 @@
       "surface_evidence": [
         {
           "symbol": "loadFrameworkContracts",
-          "declaration_ref": "src/modules/charter/contracts.ts",
-          "public_entrypoint_ref": "src/modules/charter/index.ts",
+          "declaration_ref": "src/authority/contracts/contracts.ts",
+          "public_entrypoint_ref": "src/authority/contracts/index.ts",
           "caller_refs": [
-            "src/modules/charter/cordis-charter-policy.ts"
+            "src/host/plugins/cordis-charter-policy.ts"
           ]
         }
       ],
@@ -87,7 +86,7 @@
           "event_id": "opl/charter/contracts/loaded",
           "mode": "emit",
           "payload_owner": "OPL Charter",
-          "payload_ref": "src/modules/charter/contracts.ts",
+          "payload_ref": "src/authority/contracts/contracts.ts",
           "durability": "in_process_only",
           "candidate_only": true
         }
@@ -113,7 +112,7 @@
       "module_id": "atlas",
       "brand_name": "OPL Atlas",
       "module_owner": "OPL Atlas",
-      "public_entrypoint": "src/modules/atlas/index.ts",
+      "public_entrypoint": "src/read-models/catalog/index.ts",
       "candidate_plugin_id": "opl.atlas.candidate",
       "candidate_disposition": "future_candidate_unapproved",
       "candidate_requirement": "optional",
@@ -127,10 +126,10 @@
       "surface_evidence": [
         {
           "symbol": "buildDomainManifestCatalog",
-          "declaration_ref": "src/modules/atlas/domain-manifest/catalog-builder.ts",
-          "public_entrypoint_ref": "src/modules/atlas/index.ts",
+          "declaration_ref": "src/read-models/catalog/domain-manifest/catalog-builder.ts",
+          "public_entrypoint_ref": "src/read-models/catalog/index.ts",
           "caller_refs": [
-            "src/modules/atlas/cordis-domain-manifest-catalog.ts"
+            "src/host/plugins/cordis-domain-manifest-catalog.ts"
           ]
         }
       ],
@@ -146,8 +145,8 @@
           "service_id": "opl.charter.contracts",
           "requirement": "required",
           "evidence_refs": [
-            "src/modules/atlas/domain-launch.ts",
-            "src/modules/atlas/resolver.ts"
+            "src/read-models/catalog/domain-launch.ts",
+            "src/read-models/catalog/resolver.ts"
           ]
         }
       ],
@@ -156,7 +155,7 @@
           "event_id": "opl/atlas/catalog/observed",
           "mode": "emit",
           "payload_owner": "OPL Atlas",
-          "payload_ref": "src/modules/atlas/domain-manifest/types.ts",
+          "payload_ref": "src/read-models/catalog/domain-manifest/types.ts",
           "durability": "in_process_only",
           "candidate_only": true
         }
@@ -167,7 +166,7 @@
           "owner": "OPL Atlas and the referenced Package or domain owner",
           "evidence_refs": [
             "contracts/opl-framework/brand-module-surfaces.json",
-            "src/modules/atlas/domain-manifest/catalog-builder.ts"
+            "src/read-models/catalog/domain-manifest/catalog-builder.ts"
           ]
         }
       ],
@@ -182,7 +181,7 @@
       "module_id": "workspace",
       "brand_name": "OPL Workspace",
       "module_owner": "OPL Workspace",
-      "public_entrypoint": "src/modules/workspace/index.ts",
+      "public_entrypoint": "src/authority/workspace/index.ts",
       "candidate_plugin_id": "opl.workspace.candidate",
       "candidate_disposition": "future_candidate_unapproved",
       "candidate_requirement": "optional",
@@ -196,10 +195,10 @@
       "surface_evidence": [
         {
           "symbol": "resolveWorkspaceLocator",
-          "declaration_ref": "src/modules/workspace/workspace-registry.ts",
-          "public_entrypoint_ref": "src/modules/workspace/index.ts",
+          "declaration_ref": "src/authority/workspace/workspace-registry.ts",
+          "public_entrypoint_ref": "src/authority/workspace/index.ts",
           "caller_refs": [
-        "src/modules/workspace/cordis-workspace-locator.ts"
+            "src/host/plugins/cordis-workspace-locator.ts"
           ]
         }
       ],
@@ -216,7 +215,7 @@
           "event_id": "opl/workspace/locator/resolved",
           "mode": "emit",
           "payload_owner": "OPL Workspace",
-          "payload_ref": "src/modules/workspace/workspace-registry.ts",
+          "payload_ref": "src/authority/workspace/workspace-registry.ts",
           "durability": "in_process_only",
           "candidate_only": true
         }
@@ -226,8 +225,8 @@
           "authority_id": "workspace_registry_bytes_and_restore_semantics",
           "owner": "OPL Workspace and the workspace or domain owner",
           "evidence_refs": [
-            "src/modules/workspace/workspace-registry.ts",
-            "src/modules/workspace/workspace-lifecycle.ts"
+            "src/authority/workspace/workspace-registry.ts",
+            "src/authority/workspace/workspace-lifecycle.ts"
           ]
         }
       ],
@@ -242,7 +241,7 @@
       "module_id": "pack",
       "brand_name": "OPL Pack",
       "module_owner": "OPL Pack and Package owners",
-      "public_entrypoint": "src/modules/pack/index.ts",
+      "public_entrypoint": "src/authority/packages/index.ts",
       "candidate_plugin_id": "opl.pack.candidate",
       "candidate_disposition": "future_candidate_unapproved",
       "candidate_requirement": "required",
@@ -257,10 +256,10 @@
       "surface_evidence": [
         {
           "symbol": "resolveStandardAgentStageQualityRuntimeBinding",
-          "declaration_ref": "src/modules/pack/standard-agent-stage-manifest.ts",
-          "public_entrypoint_ref": "src/modules/pack/index.ts",
+          "declaration_ref": "src/authority/packages/standard-agent-stage-manifest.ts",
+          "public_entrypoint_ref": "src/authority/packages/index.ts",
           "caller_refs": [
-            "src/modules/pack/cordis-pack-stage-binding-plugin.ts"
+            "src/host/plugins/cordis-pack-stage-binding-plugin.ts"
           ]
         }
       ],
@@ -276,7 +275,7 @@
           "service_id": "opl.stagecraft.context",
           "requirement": "required",
           "evidence_refs": [
-            "src/modules/pack/standard-agent-stage-manifest.ts"
+            "src/authority/packages/standard-agent-stage-manifest.ts"
           ]
         }
       ],
@@ -285,7 +284,7 @@
           "event_id": "opl/pack/stage-binding/resolved",
           "mode": "emit",
           "payload_owner": "OPL Pack",
-          "payload_ref": "src/modules/pack/standard-agent-stage-manifest.ts",
+          "payload_ref": "src/authority/packages/standard-agent-stage-manifest.ts",
           "durability": "in_process_only",
           "candidate_only": true
         }
@@ -311,7 +310,7 @@
       "module_id": "stagecraft",
       "brand_name": "OPL Stagecraft",
       "module_owner": "OPL Stagecraft and domain authority owners",
-      "public_entrypoint": "src/modules/stagecraft/index.ts",
+      "public_entrypoint": "src/authority/stages/index.ts",
       "candidate_plugin_id": "opl.stagecraft.candidate",
       "candidate_disposition": "future_candidate_unapproved",
       "candidate_requirement": "required",
@@ -325,10 +324,10 @@
       "surface_evidence": [
         {
           "symbol": "buildFamilyStageContextObservation",
-          "declaration_ref": "src/modules/stagecraft/family-stage-control-plane.ts",
-          "public_entrypoint_ref": "src/modules/stagecraft/index.ts",
+          "declaration_ref": "src/authority/stages/family-stage-control-plane.ts",
+          "public_entrypoint_ref": "src/authority/stages/index.ts",
           "caller_refs": [
-            "src/modules/stagecraft/cordis-stagecraft-context-plugin.ts"
+            "src/host/plugins/cordis-stagecraft-context-plugin.ts"
           ]
         }
       ],
@@ -345,7 +344,7 @@
           "event_id": "opl/stagecraft/context/observed",
           "mode": "emit",
           "payload_owner": "OPL Stagecraft",
-          "payload_ref": "src/modules/stagecraft/family-stage-control-plane.ts",
+          "payload_ref": "src/authority/stages/family-stage-control-plane.ts",
           "durability": "in_process_only",
           "candidate_only": true
         }
@@ -356,7 +355,7 @@
           "owner": "OPL Stagecraft, the Codex attempt, and the domain authority owner",
           "evidence_refs": [
             "contracts/opl-framework/stage-run-kernel-contract.json",
-            "src/modules/stagecraft/family-stage-control-plane.ts"
+            "src/authority/stages/family-stage-control-plane.ts"
           ]
         }
       ],
@@ -371,7 +370,7 @@
       "module_id": "runway",
       "brand_name": "OPL Runway",
       "module_owner": "OPL Runway and Temporal",
-      "public_entrypoint": "src/modules/runway/index.ts",
+      "public_entrypoint": "src/adapters/execution/index.ts",
       "candidate_plugin_id": "opl.runway.candidate",
       "candidate_disposition": "p2_primary_experiment",
       "candidate_requirement": "required",
@@ -386,10 +385,10 @@
       "surface_evidence": [
         {
           "symbol": "runAgentExecutor",
-          "declaration_ref": "src/modules/runway/agent-executor.ts",
-          "public_entrypoint_ref": "src/modules/runway/index.ts",
+          "declaration_ref": "src/adapters/execution/agent-executor.ts",
+          "public_entrypoint_ref": "src/adapters/execution/index.ts",
           "caller_refs": [
-            "src/modules/runway/cordis-agent-executor-experiment.ts"
+            "src/host/plugins/cordis-agent-executor-experiment.ts"
           ]
         }
       ],
@@ -406,7 +405,7 @@
           "event_id": "opl/runway/executor/requested",
           "mode": "emit",
           "payload_owner": "OPL Runway",
-          "payload_ref": "src/modules/runway/agent-executor.ts",
+          "payload_ref": "src/adapters/execution/agent-executor.ts",
           "durability": "in_process_only",
           "candidate_only": true
         },
@@ -414,7 +413,7 @@
           "event_id": "opl/runway/executor/completed",
           "mode": "parallel",
           "payload_owner": "OPL Runway",
-          "payload_ref": "src/modules/runway/agent-executor.ts",
+          "payload_ref": "src/adapters/execution/agent-executor.ts",
           "durability": "in_process_only",
           "candidate_only": true
         }
@@ -425,8 +424,8 @@
           "owner": "Temporal, OPL Runway, and the existing receipt owner",
           "evidence_refs": [
             "contracts/opl-framework/family-runtime-attempt-contract.json",
-            "src/modules/runway/family-runtime-temporal.ts",
-            "src/modules/runway/agent-executor.ts"
+            "src/adapters/execution/family-runtime-temporal.ts",
+            "src/adapters/execution/agent-executor.ts"
           ]
         }
       ],
@@ -442,7 +441,7 @@
       "module_id": "ledger",
       "brand_name": "OPL Ledger",
       "module_owner": "OPL Ledger and domain authority owners",
-      "public_entrypoint": "src/modules/ledger/index.ts",
+      "public_entrypoint": "src/authority/evidence/index.ts",
       "candidate_plugin_id": "opl.ledger.candidate",
       "candidate_disposition": "future_candidate_unapproved",
       "candidate_requirement": "optional",
@@ -456,10 +455,10 @@
       "surface_evidence": [
         {
           "symbol": "buildCurrentOwnerDeltaTopline",
-          "declaration_ref": "src/modules/ledger/current-owner-delta-topline.ts",
-          "public_entrypoint_ref": "src/modules/ledger/index.ts",
+          "declaration_ref": "src/authority/evidence/current-owner-delta-topline.ts",
+          "public_entrypoint_ref": "src/authority/evidence/index.ts",
           "caller_refs": [
-        "src/modules/ledger/cordis-owner-delta-observer.ts"
+            "src/host/plugins/cordis-owner-delta-observer.ts"
           ]
         }
       ],
@@ -475,7 +474,7 @@
           "service_id": "opl.stagecraft.context",
           "requirement": "optional",
           "evidence_refs": [
-            "src/modules/ledger/current-owner-delta-topline.ts"
+            "src/authority/evidence/current-owner-delta-topline.ts"
           ]
         }
       ],
@@ -484,7 +483,7 @@
           "event_id": "opl/ledger/owner-delta/observed",
           "mode": "parallel",
           "payload_owner": "OPL Ledger",
-          "payload_ref": "src/modules/ledger/current-owner-delta-topline.ts",
+          "payload_ref": "src/authority/evidence/current-owner-delta-topline.ts",
           "durability": "in_process_only",
           "candidate_only": true
         }
@@ -495,7 +494,7 @@
           "owner": "OPL Ledger and the relevant domain or receipt owner",
           "evidence_refs": [
             "contracts/opl-framework/evidence-ledger-event.schema.json",
-            "src/modules/ledger/index.ts"
+            "src/authority/evidence/index.ts"
           ]
         }
       ],
@@ -510,7 +509,7 @@
       "module_id": "console",
       "brand_name": "OPL Console",
       "module_owner": "One Person Lab App",
-      "public_entrypoint": "src/modules/console/index.ts",
+      "public_entrypoint": "src/read-models/operator/index.ts",
       "candidate_plugin_id": "opl.console.candidate",
       "candidate_disposition": "future_candidate_unapproved",
       "candidate_requirement": "optional",
@@ -524,10 +523,10 @@
       "surface_evidence": [
         {
           "symbol": "buildFrameworkReadinessSummary",
-          "declaration_ref": "src/modules/console/framework-readiness.ts",
-          "public_entrypoint_ref": "src/modules/console/index.ts",
+          "declaration_ref": "src/read-models/operator/framework-readiness.ts",
+          "public_entrypoint_ref": "src/read-models/operator/index.ts",
           "caller_refs": [
-            "src/modules/console/cordis-framework-readiness.ts"
+            "src/host/plugins/cordis-framework-readiness.ts"
           ]
         }
       ],
@@ -543,21 +542,21 @@
           "service_id": "opl.atlas.catalog",
           "requirement": "required",
           "evidence_refs": [
-            "src/modules/console/framework-readiness.ts"
+            "src/read-models/operator/framework-readiness.ts"
           ]
         },
         {
           "service_id": "opl.runway.executor",
           "requirement": "optional",
           "evidence_refs": [
-            "src/modules/console/product-entry.ts"
+            "src/read-models/operator/product-entry.ts"
           ]
         },
         {
           "service_id": "opl.ledger.owner-delta-observer",
           "requirement": "required",
           "evidence_refs": [
-            "src/modules/console/framework-readiness.ts"
+            "src/read-models/operator/framework-readiness.ts"
           ]
         }
       ],
@@ -566,7 +565,7 @@
           "event_id": "opl/console/readiness/projected",
           "mode": "emit",
           "payload_owner": "OPL Console",
-          "payload_ref": "src/modules/console/framework-readiness.ts",
+          "payload_ref": "src/read-models/operator/framework-readiness.ts",
           "durability": "in_process_only",
           "candidate_only": true
         }
@@ -593,7 +592,7 @@
       "module_id": "foundry",
       "brand_name": "OPL Foundry Kernel",
       "module_owner": "OPL Foundry Kernel and target Owners",
-      "public_entrypoint": "src/modules/foundry/index.ts",
+      "public_entrypoint": "src/authority/evolution/index.ts",
       "candidate_plugin_id": "opl.foundry.candidate",
       "candidate_disposition": "future_candidate_unapproved",
       "candidate_requirement": "optional",
@@ -607,10 +606,10 @@
       "surface_evidence": [
         {
           "symbol": "normalizeFoundryProviderManifest",
-          "declaration_ref": "src/modules/foundry/designer-adapter.ts",
-          "public_entrypoint_ref": "src/modules/foundry/index.ts",
+          "declaration_ref": "src/authority/evolution/designer-adapter.ts",
+          "public_entrypoint_ref": "src/authority/evolution/index.ts",
           "caller_refs": [
-            "src/modules/foundry/cordis-foundry-adapters.ts"
+            "src/host/plugins/cordis-foundry-adapters.ts"
           ]
         }
       ],
@@ -627,7 +626,7 @@
           "event_id": "opl/foundry/provider-manifest/normalized",
           "mode": "emit",
           "payload_owner": "OPL Foundry Kernel",
-          "payload_ref": "src/modules/foundry/designer-adapter.ts",
+          "payload_ref": "src/authority/evolution/designer-adapter.ts",
           "durability": "in_process_only",
           "candidate_only": true
         }
@@ -638,7 +637,7 @@
           "owner": "OPL Foundry Kernel and the target Owner",
           "evidence_refs": [
             "contracts/opl-framework/foundry-agent-series-contract.json",
-            "src/modules/foundry/ports.ts"
+            "src/authority/evolution/ports.ts"
           ]
         }
       ],
@@ -654,7 +653,7 @@
       "module_id": "connect",
       "brand_name": "OPL Connect",
       "module_owner": "OPL Connect and native carrier owners",
-      "public_entrypoint": "src/modules/connect/index.ts",
+      "public_entrypoint": "src/adapters/integration/index.ts",
       "candidate_plugin_id": "opl.connect.candidate",
       "candidate_disposition": "p2_supporting_experiment",
       "candidate_requirement": "optional",
@@ -669,10 +668,10 @@
       "surface_evidence": [
         {
           "symbol": "discoverInstalledPackageDescriptors",
-          "declaration_ref": "src/modules/connect/agent-package-registry-parts/installed-codex-plugin-directory.ts",
-          "public_entrypoint_ref": "src/modules/connect/index.ts",
+          "declaration_ref": "src/adapters/integration/agent-package-registry-parts/installed-codex-plugin-directory.ts",
+          "public_entrypoint_ref": "src/adapters/integration/index.ts",
           "caller_refs": [
-            "src/modules/connect/cordis-connect-services.ts"
+            "src/host/plugins/cordis-connect-services.ts"
           ]
         }
       ],
@@ -689,7 +688,7 @@
           "event_id": "opl/connect/descriptors/discovered",
           "mode": "emit",
           "payload_owner": "OPL Connect",
-          "payload_ref": "src/modules/connect/agent-package-registry-parts/installed-codex-plugin-directory.ts",
+          "payload_ref": "src/adapters/integration/agent-package-registry-parts/installed-codex-plugin-directory.ts",
           "durability": "in_process_only",
           "candidate_only": true
         }
@@ -700,7 +699,7 @@
           "owner": "OPL Connect, Package owners, and native carrier owners",
           "evidence_refs": [
             "contracts/opl-framework/agent-package-manifest.schema.json",
-            "src/modules/connect/agent-package-registry-parts/installed-codex-plugin-directory.ts"
+            "src/adapters/integration/agent-package-registry-parts/installed-codex-plugin-directory.ts"
           ]
         }
       ],

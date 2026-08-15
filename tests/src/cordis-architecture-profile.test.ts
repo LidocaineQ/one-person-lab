@@ -10,18 +10,17 @@ import {
   createCordisAppFullComposition,
   createCordisBaseHeadlessComposition,
   createCordisFoundryDevComposition,
-} from '../../src/entrypoints/cordis/composition-profiles.ts';
+} from '../../src/host/composition-profiles.ts';
 import {
   buildCordisAgentExecutorCompositionSnapshot,
   buildCordisPackStagecraftCompositionSnapshot,
-} from '../../src/modules/runway/cordis-agent-executor-experiment.ts';
-import { buildCordisRunwayAttemptCompositionSnapshot } from '../../src/modules/runway/cordis-runway-attempt.ts';
-import { buildCordisReleaseOperationCompositionSnapshot } from '../../src/modules/connect/cordis-release-operation.ts';
+} from '../../src/host/plugins/cordis-agent-executor-experiment.ts';
+import { buildCordisRunwayAttemptCompositionSnapshot } from '../../src/host/plugins/cordis-runway-attempt.ts';
+import { buildCordisReleaseOperationCompositionSnapshot } from '../../src/host/plugins/cordis-release-operation.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..');
 const contractRef = 'contracts/opl-framework/cordis-architecture-profile.json';
 const schemaRef = 'contracts/opl-framework/cordis-architecture-profile.schema.json';
-const sourceModuleMapRef = 'contracts/opl-framework/source-module-map.json';
 
 type JsonObject = Record<string, any>;
 
@@ -50,14 +49,13 @@ test('Cordis architecture profile is valid against its machine contract', () => 
 
 test('Cordis architecture profile freezes the four-layer model and ten-module mapping', () => {
   const profile = readJson(contractRef);
-  const sourceMap = readJson(sourceModuleMapRef);
   assert.deepEqual(
     profile.architecture_layers.map((layer: JsonObject) => layer.layer_id),
     ['authority_domain', 'package', 'cordis_plugin_contribution', 'curated_composition_profile'],
   );
   assert.deepEqual(
     profile.source_to_target_mapping.map((entry: JsonObject) => entry.source_module_id),
-    sourceMap.modules.map((entry: JsonObject) => entry.module_id),
+    ['charter', 'atlas', 'workspace', 'pack', 'stagecraft', 'runway', 'ledger', 'console', 'foundry', 'connect'],
   );
   const dispositions = new Set(profile.source_to_target_mapping.map((entry: JsonObject) => entry.module_disposition));
   for (const disposition of ['retain', 'split', 'merge', 'demote']) assert.equal(dispositions.has(disposition), true);

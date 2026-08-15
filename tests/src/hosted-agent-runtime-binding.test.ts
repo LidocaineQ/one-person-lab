@@ -12,13 +12,13 @@ import {
   type AgentVersion,
   type MaterializedCandidate,
   type VersionRegistry,
-} from '../../src/modules/foundry/index.ts';
-import type { ActivationRuntimeBindingVerification } from '../../src/modules/foundry/ports.ts';
-import { foundryStoragePaths, LedgerVersionRegistry } from '../../src/modules/ledger/index.ts';
-import { HostedFoundryActivationRuntime } from '../../src/modules/runway/foundry-activation-runtime.ts';
-import { DefaultHostedAgentRuntimeBindingResolver } from '../../src/modules/runway/hosted-agent-runtime-binding.ts';
-import { runStandardAgentAction } from '../../src/modules/runway/standard-agent-action-runtime.ts';
-import { runStandardAgentHandlerSandbox } from '../../src/modules/runway/standard-agent-handler-sandbox.ts';
+} from '../../src/authority/evolution/index.ts';
+import type { ActivationRuntimeBindingVerification } from '../../src/authority/evolution/ports.ts';
+import { foundryStoragePaths, LedgerVersionRegistry } from '../../src/authority/evidence/index.ts';
+import { HostedFoundryActivationRuntime } from '../../src/adapters/execution/foundry-activation-runtime.ts';
+import { DefaultHostedAgentRuntimeBindingResolver } from '../../src/adapters/execution/hosted-agent-runtime-binding.ts';
+import { runStandardAgentAction } from '../../src/adapters/execution/standard-agent-action-runtime.ts';
+import { runStandardAgentHandlerSandbox } from '../../src/adapters/execution/standard-agent-handler-sandbox.ts';
 
 function root(prefix: string) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));

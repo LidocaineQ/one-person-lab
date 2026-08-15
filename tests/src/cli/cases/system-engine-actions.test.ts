@@ -12,7 +12,7 @@ import {
   shellSingleQuote,
   test,
 } from '../helpers.ts';
-import { resolveEngineActionSpec } from '../../../../src/modules/connect/system-installation/engine-helpers.ts';
+import { resolveEngineActionSpec } from '../../../../src/adapters/integration/system-installation/engine-helpers.ts';
 import { parseOplEngineArgs } from '../../../../src/entrypoints/cli/modules/support.ts';
 
 function parseRuntimeCodexUpdateReceipt(stdout: string) {

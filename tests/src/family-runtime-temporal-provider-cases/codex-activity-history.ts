@@ -9,8 +9,9 @@ import {
 } from '@temporalio/common/lib/converter/payload-converter.js';
 import { Worker } from '@temporalio/worker';
 
-import * as activities from '../../../src/modules/runway/family-runtime-temporal-activities.ts';
-import { StageAttemptWorkflow } from '../../../src/modules/runway/family-runtime-temporal-workflows.ts';
+import * as activities from '../../../src/adapters/execution/family-runtime-temporal-activities.ts';
+import { StageAttemptWorkflow } from '../../../src/adapters/execution/family-runtime-temporal-workflows.ts';
+import { buildCordisTemporalActivities } from '../../../src/host/temporal-activity-projection.ts';
 import { createTemporalTestWorkflowEnvironment } from '../temporal-test-environment.ts';
 import { createPersistedTemporalStageAttemptInput } from './persisted-attempt.ts';
 
@@ -34,8 +35,11 @@ test('Temporal history stores refs-only Codex activity results', async () => {
       connection: testEnv.nativeConnection,
       namespace: testEnv.namespace,
       taskQueue,
-      workflowsPath: path.join(repoRoot, 'src', 'modules', 'runway', 'family-runtime-temporal-workflows.ts'),
-      activities,
+      workflowsPath: path.join(repoRoot, 'src', 'adapters', 'execution', 'family-runtime-temporal-workflows.ts'),
+      activities: {
+        ...activities,
+        ...buildCordisTemporalActivities(),
+      },
     });
     const input = createPersistedTemporalStageAttemptInput({
       fixtureId: 'history',

@@ -13,19 +13,21 @@ import {
   readWorkflowProfileHostContract,
   resolvePackageHostIntegration,
   type PackageHostManifest,
-} from '../../src/modules/pack/package-host-integration.ts';
+} from '../../src/authority/packages/package-host-integration.ts';
 import {
   buildCordisCompositionSnapshot,
+} from '../../src/authority/packages/index.ts';
+import {
   cordisPackageHostPlugin,
   CORDIS_PACKAGE_HOST_SERVICE,
-} from '../../src/modules/pack/index.ts';
-import { CORDIS_BASE_HEADLESS_PLUGIN_DESCRIPTORS } from '../../src/entrypoints/cordis/composition-profiles.ts';
+} from '../../src/host/plugins/cordis-package-host-plugin.ts';
+import { CORDIS_BASE_HEADLESS_PLUGIN_DESCRIPTORS } from '../../src/host/composition-profiles.ts';
 import {
   CORDIS_FRAMEWORK_INTEGRITY,
   CORDIS_FRAMEWORK_PACKAGE,
   CORDIS_FRAMEWORK_VERSION,
-} from '../../src/modules/runway/cordis-agent-executor-experiment.ts';
-import { buildCordisRunwayAttemptCompositionSnapshot } from '../../src/modules/runway/cordis-runway-attempt.ts';
+} from '../../src/host/plugins/cordis-agent-executor-experiment.ts';
+import { buildCordisRunwayAttemptCompositionSnapshot } from '../../src/host/plugins/cordis-runway-attempt.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..');
 

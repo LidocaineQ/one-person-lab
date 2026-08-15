@@ -10,6 +10,37 @@ export type BrandModuleId =
   | 'foundry'
   | 'connect';
 
+/** Stable family capability-domain ids. These are product/authority labels, not source directories. */
+export type CapabilityDomainId =
+  | 'policy'
+  | 'catalog-discovery'
+  | 'workspace'
+  | 'package-platform'
+  | 'stage-policy'
+  | 'execution'
+  | 'evidence'
+  | 'experience'
+  | 'evolution'
+  | 'integration'
+  | 'cloud-resource';
+
+export type SourceUnitId =
+  | 'framework.authority.contracts'
+  | 'framework.authority.workspace'
+  | 'framework.authority.packages'
+  | 'framework.authority.stages'
+  | 'framework.authority.evidence'
+  | 'framework.authority.evolution'
+  | 'framework.adapters.execution'
+  | 'framework.adapters.integration'
+  | 'framework.read-models.catalog'
+  | 'framework.read-models.operator'
+  | 'framework.host'
+  | 'framework.entrypoints'
+  | 'framework.kernel';
+
+export type SourceLayerId = 'authority' | 'adapters' | 'read-models' | 'host' | 'entrypoints' | 'kernel';
+
 export type BrandModuleMaturityLevel = 'L4_structural_baseline';
 
 export type BrandModuleL5TargetLevel = 'L5_production_operating_maturity';
@@ -180,20 +211,34 @@ export interface BrandModuleRegistryContract {
   modules: BrandModuleRegistryEntry[];
 }
 
-export interface SourceModuleMapEntry {
-  module_id: BrandModuleId;
-  brand_name: string;
+export interface SourceTargetRoot {
+  root_id: string;
+  path: string;
+  layer_id: SourceLayerId;
+  source_globs: string[];
+}
+
+export interface SourceLegacyRoot {
+  path: string;
+  state: 'retired';
+  must_be_absent: true;
+  caller_zero_required: true;
+}
+
+export interface SourceUnit {
+  unit_id: SourceUnitId;
+  layer_id: SourceLayerId;
+  responsibility_kind: string;
   physical_root: string;
-  public_entrypoint: string;
-  primary_source_globs: string[];
-  shared_source_globs: string[];
-  owner_note: string;
+  public_entrypoints: string[];
+  source_globs: string[];
+  capability_domain_ids: CapabilityDomainId[];
+  package_ids: string[];
 }
 
 export interface SourceModuleMapSharedKernelEntry {
   path: string;
-  primary_module_id: BrandModuleId;
-  consumer_module_ids: BrandModuleId[];
+  primary_source_unit_id: SourceUnitId;
   role: string;
 }
 
@@ -205,10 +250,20 @@ export interface SourceModuleMapContract {
   state: string;
   machine_boundary: string;
   source_root: string;
-  physical_module_root: string;
   alignment_rules: string[];
-  modules: SourceModuleMapEntry[];
   shared_kernel: SourceModuleMapSharedKernelEntry[];
+  capability_domain_registry_ref: string;
+  target_roots: SourceTargetRoot[];
+  legacy_roots: SourceLegacyRoot[];
+  source_units: SourceUnit[];
+  physical_layout: {
+    version: string;
+    stage: 'target' | 'transition';
+    target_cli_entrypoint: string;
+    target_activation_path: string;
+    legacy_roots: string[];
+    root_ts_policy: Record<string, unknown>;
+  };
 }
 
 export interface BrandCliPlatformCommandSurface {

@@ -2,6 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveDefaultFamilyWorkspaceRoot } from './family-workspace-root.ts';
+import {
+  STANDARD_AGENT_REGISTRY,
+  STANDARD_AGENT_SERIES_MEMBERSHIP,
+} from './standard-agent-registry.ts';
 
 export interface StandardDomainAgentRepoInput {
   requested_agent_id: string | null;
@@ -12,6 +16,18 @@ export type FamilyRepoDefault = {
   requested_agent_id: string;
   directory: string;
 };
+
+export const DEFAULT_FAMILY_REPOS = STANDARD_AGENT_REGISTRY.map((entry) => ({
+  requested_agent_id: entry.agent_id,
+  directory: entry.project,
+}));
+
+export const DEFAULT_STANDARD_DOMAIN_AGENT_REPOS = STANDARD_AGENT_REGISTRY
+  .filter((entry) => entry.series_membership === STANDARD_AGENT_SERIES_MEMBERSHIP)
+  .map((entry) => ({
+    requested_agent_id: entry.agent_id,
+    directory: entry.project,
+  }));
 
 const SOURCE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const OPL_REPO_ROOT = path.resolve(SOURCE_DIR, '../..');
@@ -72,4 +88,15 @@ export function discoverFamilyRepoInputs(
     }
   }
   return repos;
+}
+
+export function defaultFamilyRepoInputs() {
+  return discoverFamilyRepoInputs(DEFAULT_FAMILY_REPOS, hasDefaultFamilyConformanceSurface);
+}
+
+export function defaultStandardDomainAgentRepoInputs() {
+  return discoverFamilyRepoInputs(
+    DEFAULT_STANDARD_DOMAIN_AGENT_REPOS,
+    hasStandardDomainAgentSurface,
+  );
 }

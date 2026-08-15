@@ -4,7 +4,7 @@ Owner: OPL Connect
 Purpose: `external_specialist_skill_registry_support`
 State: active connector surface
 Machine boundary: 机器真相以 `opl connect external-skills *` CLI、
-`src/modules/connect/opl-connect-external-skills.ts` 和 focused CLI tests 为准。
+`src/adapters/integration/opl-connect-external-skills.ts` 和 focused CLI tests 为准。
 本文只做人读操作说明。
 
 OPL Connect 负责把经过批准的外部专业 Skill / Agent Skills source 登记成

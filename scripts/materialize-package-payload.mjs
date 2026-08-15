@@ -9,7 +9,7 @@ import { parseArgs } from 'node:util';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 
 import { parseJsonText } from './script-json-boundary.mjs';
-import { materializeArchiveBackedPackagePayload } from '../src/modules/connect/package-distribution.ts';
+import { materializeArchiveBackedPackagePayload } from '../src/adapters/integration/package-distribution.ts';
 
 const FRAMEWORK_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PAYLOAD_SCHEMA_REF = 'contracts/opl-framework/package-payload-manifest-v2.schema.json';

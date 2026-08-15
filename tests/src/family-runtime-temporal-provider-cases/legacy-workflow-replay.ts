@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import temporalProto from '@temporalio/proto';
 
-import { buildTemporalStageAttemptReplayGateForTest } from '../../../src/modules/runway/family-runtime-temporal-provider.ts';
+import { buildTemporalStageAttemptReplayGateForTest } from '../../../src/adapters/execution/family-runtime-temporal-provider.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..', '..');
 const legacySourceCommit = '86cc08825a06cd9345a8fe8cc70524693fb54318';

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parseJsonText } from '../../src/kernel/json-file.ts';
-import { STANDARD_AGENT_PACK_ABI } from '../../src/modules/pack/public/standard-agent-pack-abi.ts';
+import { STANDARD_AGENT_PACK_ABI } from '../../src/authority/packages/public/standard-agent-pack-abi.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(__dirname, '..', '..');

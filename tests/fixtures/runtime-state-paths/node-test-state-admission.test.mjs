@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
 
-import { openQueueDb } from '../../../src/modules/runway/family-runtime-store.ts';
+import { openQueueDb } from '../../../src/adapters/execution/family-runtime-store.ts';
 
 test('Node test state admission probe', () => {
   assert.ok(process.env.NODE_TEST_CONTEXT, 'probe must execute in a real Node test context');

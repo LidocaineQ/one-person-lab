@@ -11,7 +11,7 @@ import {
   readWorkItemControlLedger,
   setWorkItemControlState,
   setWorkItemVisibilityState,
-} from '../../src/modules/ledger/work-item-control-ledger.ts';
+} from '../../src/authority/evidence/work-item-control-ledger.ts';
 
 function withStateRoot(prefix: string, run: (root: string) => void) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));

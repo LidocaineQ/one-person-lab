@@ -9,15 +9,15 @@ import {
   compileFlowCapabilityBuildLock,
   compileFlowCapabilityStrategy,
   compileFlowCapabilityStrategyFromSourceRoot,
-} from '../../src/modules/connect/agent-package-registry-parts/flow-capability-compiler.ts';
+} from '../../src/adapters/integration/agent-package-registry-parts/flow-capability-compiler.ts';
 import {
   buildOplRecommendedSkills,
   syncOplCompanionSkills,
-} from '../../src/modules/connect/install-companions.ts';
+} from '../../src/adapters/integration/install-companions.ts';
 import type {
   AgentPackageFlowCapabilityBundle,
   AgentPackageManagedPolicyDependency,
-} from '../../src/modules/connect/agent-package-registry-parts/types.ts';
+} from '../../src/adapters/integration/agent-package-registry-parts/types.ts';
 
 function dependency(input: Partial<AgentPackageManagedPolicyDependency> & Pick<AgentPackageManagedPolicyDependency, 'id' | 'kind'>) {
   return {

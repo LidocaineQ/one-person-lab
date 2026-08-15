@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { ActivationTransaction, AgentVersion } from '../../src/modules/foundry/ports.ts';
-import { HostedFoundryActivationRuntime } from '../../src/modules/runway/foundry-activation-runtime.ts';
-import type { HostedAgentRuntimeBindingResolver } from '../../src/modules/runway/hosted-agent-runtime-binding.ts';
+import type { ActivationTransaction, AgentVersion } from '../../src/authority/evolution/ports.ts';
+import { HostedFoundryActivationRuntime } from '../../src/adapters/execution/foundry-activation-runtime.ts';
+import type { HostedAgentRuntimeBindingResolver } from '../../src/adapters/execution/hosted-agent-runtime-binding.ts';
 
 const version: AgentVersion = {
   surface_kind: 'opl_foundry_agent_version',

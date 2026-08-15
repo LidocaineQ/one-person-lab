@@ -5,16 +5,16 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { FrameworkContractError } from '../../../src/kernel/contract-validation.ts';
-import { materializeAgentScaffold } from '../../../src/modules/pack/agent-scaffold-materialization.ts';
-import { buildAgentProfileConformance } from '../../../src/modules/pack/agent-profile-spine.ts';
+import { materializeAgentScaffold } from '../../../src/authority/packages/agent-scaffold-materialization.ts';
+import { buildAgentProfileConformance } from '../../../src/authority/packages/agent-profile-spine.ts';
 import {
   STANDARD_AGENT_IMPLEMENTATION_PROFILE,
-} from '../../../src/modules/pack/standard-agent-implementation-profile.ts';
+} from '../../../src/authority/packages/standard-agent-implementation-profile.ts';
 import {
   STANDARD_AGENT_PACK_ABI,
   STANDARD_AGENT_PACK_ABI_DECLARATION,
-} from '../../../src/modules/pack/standard-agent-pack-abi.ts';
-import { buildStandardDomainAgentScaffold } from '../../../src/modules/pack/standard-domain-agent-scaffold.ts';
+} from '../../../src/authority/packages/standard-agent-pack-abi.ts';
+import { buildStandardDomainAgentScaffold } from '../../../src/authority/packages/standard-domain-agent-scaffold.ts';
 import {
   makeConformantAgentFixture,
   makeSourceDerivedAgentFixture,

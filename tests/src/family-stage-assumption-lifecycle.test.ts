@@ -4,14 +4,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { buildFamilyStageConformanceReview } from '../../src/modules/stagecraft/family-stage-conformance.ts';
-import { buildFamilyStageAssumptionLifecycleProjection } from '../../src/modules/stagecraft/family-stage-assumption-lifecycle.ts';
-import { normalizeFamilyStageControlPlane } from '../../src/modules/stagecraft/family-stage-control-plane-contract.ts';
-import type { FamilyStageContract, FamilyStageControlPlane } from '../../src/modules/stagecraft/family-stage-control-plane-contract.ts';
+import { buildFamilyStageConformanceReview } from '../../src/authority/stages/family-stage-conformance.ts';
+import { buildFamilyStageAssumptionLifecycleProjection } from '../../src/authority/stages/family-stage-assumption-lifecycle.ts';
+import { normalizeFamilyStageControlPlane } from '../../src/authority/stages/family-stage-control-plane-contract.ts';
+import type { FamilyStageContract, FamilyStageControlPlane } from '../../src/authority/stages/family-stage-control-plane-contract.ts';
 import {
   STANDARD_PROGRESS_DELTA_POLICY,
   STANDARD_TYPED_BLOCKER_LINEAGE_POLICY,
-} from '../../src/modules/pack/standard-domain-agent-scaffold-constants.ts';
+} from '../../src/authority/packages/standard-domain-agent-scaffold-constants.ts';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 
 type JsonRecord = Record<string, unknown>;

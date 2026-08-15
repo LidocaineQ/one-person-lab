@@ -4,12 +4,12 @@ import {
   recordAppReleaseUserPathEvidenceReceipts,
   verifyAppReleaseUserPathEvidenceReceipt,
   type AppReleaseUserPathEvidenceReceiptInput,
-} from '../../../modules/ledger/app-release-user-path-evidence-ledger.ts';
+} from '../../../authority/evidence/app-release-user-path-evidence-ledger.ts';
 import {
   finishAppReleaseLongOperatorObservation,
   recordAppReleaseLongOperatorObservationEvent,
   startAppReleaseLongOperatorObservation,
-} from '../../../modules/console/app-release-long-operator-observation.ts';
+} from '../../../read-models/operator/app-release-long-operator-observation.ts';
 import {
   assertNoArgs,
   assertSinglePayloadSource,

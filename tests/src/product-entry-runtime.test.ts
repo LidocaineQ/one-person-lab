@@ -4,13 +4,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { loadFrameworkContracts, validateFrameworkContracts } from '../../src/modules/charter/contracts.ts';
-import { buildProductEntryHandoffEnvelope } from '../../src/modules/console/product-entry-handoff-envelope.ts';
-import { buildProductEntrySessionPrompt } from '../../src/modules/console/product-entry-parts/builders.ts';
+import { loadFrameworkContracts, validateFrameworkContracts } from '../../src/authority/contracts/contracts.ts';
+import { buildProductEntryHandoffEnvelope } from '../../src/read-models/operator/product-entry-handoff-envelope.ts';
+import { buildProductEntrySessionPrompt } from '../../src/read-models/operator/product-entry-parts/builders.ts';
 import {
   buildProductEntryDoctor,
-} from '../../src/modules/console/product-entry-runtime.ts';
-import type { CordisWorkspaceLocatorService } from '../../src/modules/workspace/cordis-workspace-locator.ts';
+} from '../../src/read-models/operator/product-entry-runtime.ts';
+import type { CordisWorkspaceLocatorService } from '../../src/host/plugins/cordis-workspace-locator.ts';
 
 const contractsDir = path.join(process.cwd(), 'contracts', 'opl-framework');
 const repoRoot = process.cwd();

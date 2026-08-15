@@ -249,7 +249,7 @@ function isAllowedManagedUpdateOwnerBoundaryLine(relativePath, line) {
   if (line.includes('managed-update-owner-boundary.ts')) {
     return true;
   }
-  if (relativePath !== 'src/modules/connect/managed-update-owner-boundary.ts') {
+  if (relativePath !== 'src/adapters/integration/managed-update-owner-boundary.ts') {
     return false;
   }
   return [

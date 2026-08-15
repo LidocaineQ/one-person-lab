@@ -4,12 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { readFamilySkillPacks } from '../../src/modules/connect/opl-skills.ts';
-import { normalizeDomainSelection } from '../../src/modules/connect/opl-skills-parts/registry.ts';
+import { readFamilySkillPacks } from '../../src/adapters/integration/opl-skills.ts';
+import { normalizeDomainSelection } from '../../src/adapters/integration/opl-skills-parts/registry.ts';
 import { resolveFamilyWorkspaceRootFromRepoRoot } from '../../src/kernel/family-workspace-root.ts';
 import { resolveStandardAgent } from '../../src/kernel/standard-agent-registry.ts';
-import { registerOplFamilyCodexPlugins } from '../../src/modules/connect/system-installation/codex-plugin-registry.ts';
-import type { OplModuleId } from '../../src/modules/connect/system-installation/shared.ts';
+import { registerOplFamilyCodexPlugins } from '../../src/adapters/integration/system-installation/codex-plugin-registry.ts';
+import type { OplModuleId } from '../../src/adapters/integration/system-installation/shared.ts';
 
 const allowedFoundrySeriesFields = [
   'brand_cli',

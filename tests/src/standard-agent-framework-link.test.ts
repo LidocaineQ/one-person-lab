@@ -6,8 +6,8 @@ import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
 import { FrameworkContractError } from '../../src/kernel/contract-validation.ts';
-import { materializeStandardAgentFrameworkLink } from '../../src/modules/connect/standard-agent-framework-link.ts';
-import { runManagedModuleWorkflow } from '../../src/modules/connect/system-installation/module-action-workflow.ts';
+import { materializeStandardAgentFrameworkLink } from '../../src/adapters/integration/standard-agent-framework-link.ts';
+import { runManagedModuleWorkflow } from '../../src/adapters/integration/system-installation/module-action-workflow.ts';
 import { runCli, runCliAsync, runCliFailure } from './cli/helpers.ts';
 
 function withAgent(run: (agentRoot: string) => void) {

@@ -9,7 +9,7 @@ import {
   runCliFailure,
   test,
 } from '../helpers.ts';
-import { provisionSubmissionResource } from '../../../../src/modules/pack/submission-resource-provisioning.ts';
+import { provisionSubmissionResource } from '../../../../src/authority/packages/submission-resource-provisioning.ts';
 
 const PACKAGE_RESOURCE_ID = 'frontiers_harvard_csl';
 const HOST_RESOURCE_ID = 'frontiers_word_manuscript_template';

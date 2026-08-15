@@ -7,7 +7,7 @@ Machine boundary: 本文是人读 reference 支撑材料。机器 truth 继续�
 
 ## 当前读法
 
-本文只定义 `hermes_agent` 作为显式非默认 executor adapter/backend 时的评估规则，不冻结某天的本机安装状态、binary 可用性、proof 结果、模型配置、reasoning effort 或 family conformance 计数。当前机器真相按 `contracts/opl-framework/family-executor-adapter-defaults.json`、`src/modules/runway/agent-executor.ts`、`src/modules/runway/foundry-provider-stage-run.ts`、stage attempt launch gate / executor binding tests、agent-executor tests、`opl executor doctor --executor <kind> --json`、`opl agents conformance --family-defaults --json` 和 `opl framework readiness --family-defaults --json` 读取。
+本文只定义 `hermes_agent` 作为显式非默认 executor adapter/backend 时的评估规则，不冻结某天的本机安装状态、binary 可用性、proof 结果、模型配置、reasoning effort 或 family conformance 计数。当前机器真相按 `contracts/opl-framework/family-executor-adapter-defaults.json`、`src/adapters/execution/agent-executor.ts`、`src/adapters/execution/foundry-provider-stage-run.ts`、stage attempt launch gate / executor binding tests、agent-executor tests、`opl executor doctor --executor <kind> --json`、`opl agents conformance --family-defaults --json` 和 `opl framework readiness --family-defaults --json` 读取。
 
 当前口径是：`hermes_agent` 是 OPL family canonical executor backend 之一，但只作为显式非默认 adapter/backend 使用。它和 `claude_code`、`antigravity_cli` 一样只承诺接口连接、生命周期、receipt、audit 与 fail-closed；不承诺行为、质量、工具语义或 resume 与 `Codex CLI` 等价。本文的评估规则用于守住这个非等价边界；其他非默认 adapter 也受同一 receipt/audit 非等价边界约束。旧 Hermes provider / Gateway / readiness / compatibility surface 已退出 active/default path，不属于本文要保留的执行器接口。
 

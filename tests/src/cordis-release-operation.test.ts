@@ -6,12 +6,12 @@ import test from 'node:test';
 import {
   createCordisAppFullComposition,
   createCordisBaseHeadlessComposition,
-} from '../../src/entrypoints/cordis/composition-profiles.ts';
+} from '../../src/host/composition-profiles.ts';
 import {
   CORDIS_RELEASE_OPERATION_SERVICE,
   createCordisReleaseOperationComposition,
   type CordisReleaseOperationService,
-} from '../../src/modules/connect/cordis-release-operation.ts';
+} from '../../src/host/plugins/cordis-release-operation.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..');
 

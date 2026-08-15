@@ -2,11 +2,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { buildAgentProfileCatalog } from '../../../src/modules/pack/agent-profile-spine.ts';
+import { buildAgentProfileCatalog } from '../../../src/authority/packages/agent-profile-spine.ts';
 import {
   buildReferenceBuildDigestTargets,
   materializeReferenceBuildFileDigest,
-} from '../../../src/modules/pack/reference-build-proof.ts';
+} from '../../../src/authority/packages/reference-build-proof.ts';
 
 export function writeJson(filePath: string, payload: unknown) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });

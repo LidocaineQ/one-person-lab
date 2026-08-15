@@ -13,15 +13,15 @@ import {
   buildStandardAgentRepoContractReadout,
   compileStandardAgentStageManifest,
   resolveStandardAgentStageQualityRuntimeBinding,
-} from '../../src/modules/pack/index.ts';
+} from '../../src/authority/packages/index.ts';
 import { FrameworkContractError } from '../../src/kernel/contract-validation.ts';
-import { normalizeFamilyStageControlPlane } from '../../src/modules/stagecraft/family-stage-control-plane-contract.ts';
+import { normalizeFamilyStageControlPlane } from '../../src/authority/stages/family-stage-control-plane-contract.ts';
 import { buildReadyAgentRepo, retargetReadyRepo } from './cli/cases/agents-conformance-fixtures.ts';
 import {
   HOSTED_FOUNDRY_GENERATED_SURFACE_HANDOFF_DEFAULTS_PROFILE,
   resolveGeneratedSurfaceHandoffContract,
   STANDARD_GENERATED_SURFACE_HANDOFF_DEFAULTS_PROFILE,
-} from '../../src/modules/pack/standard-agent-proof-contract-defaults.ts';
+} from '../../src/authority/packages/standard-agent-proof-contract-defaults.ts';
 
 type JsonRecord = Record<string, any>;
 

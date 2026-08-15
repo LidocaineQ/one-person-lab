@@ -3,10 +3,10 @@
   "$id": "https://one-person-lab.dev/contracts/opl-framework/package-topology.schema.json",
   "title": "OPL Framework package topology",
   "type": "object",
-  "required": ["version", "root_package", "packages", "legacy_paths"],
+  "required": ["version", "root_package", "packages", "legacy_paths", "source_topology_ref", "target_source_roots"],
   "properties": {
     "$schema": { "type": "string", "minLength": 1 },
-    "version": { "const": "package-topology.v1" },
+    "version": { "const": "package-topology.v2" },
     "root_package": { "const": "opl-framework" },
     "packages": {
       "type": "array",
@@ -21,6 +21,9 @@
           "version_policy": { "enum": ["root_locked", "independent" ] },
           "authority_owner": { "type": "string", "minLength": 1 },
           "contributions": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1, "uniqueItems": true },
+          "capability_domain_ids": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" }, "uniqueItems": true },
+          "source_unit_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+          "plugin_ids": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
           "plugin_descriptor_sources": {
             "type": "array",
             "items": { "type": "string", "pattern": "^(src|contracts)/[a-zA-Z0-9._/-]+\\.(ts|json)$" },
@@ -39,14 +42,18 @@
     },
     "legacy_paths": {
       "type": "object",
-      "required": ["physical_root", "caller_zero_required"],
+      "required": ["paths", "state", "must_be_absent", "caller_zero_required"],
       "properties": {
-        "physical_root": { "const": "src/modules" },
+        "paths": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1, "uniqueItems": true },
+        "state": { "const": "retired" },
+        "must_be_absent": { "const": true },
         "caller_zero_required": { "const": true },
         "retirement_gate": { "type": "string" }
       },
       "additionalProperties": false
-    }
+    },
+    "source_topology_ref": { "type": "string", "const": "contracts/opl-framework/source-module-map.json" },
+    "target_source_roots": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1, "uniqueItems": true }
   },
   "additionalProperties": false
 }

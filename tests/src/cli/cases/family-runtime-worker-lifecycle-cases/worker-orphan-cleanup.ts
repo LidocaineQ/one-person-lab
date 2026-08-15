@@ -13,18 +13,18 @@ import {
   runTemporalWorkerForeground,
   startTemporalWorkerLifecycle,
   stopTemporalWorkerLifecycle,
-} from '../../../../../src/modules/runway/family-runtime-temporal-provider.ts';
+} from '../../../../../src/adapters/execution/family-runtime-temporal-provider.ts';
 import {
   currentWorkerSourceVersion,
-} from '../../../../../src/modules/runway/family-runtime-temporal-provider-parts/worker-state.ts';
+} from '../../../../../src/adapters/execution/family-runtime-temporal-provider-parts/worker-state.ts';
 import {
   stopOrphanTemporalForegroundWorkers,
   temporalForegroundWorkerModulePathFromCommand,
-} from '../../../../../src/modules/runway/family-runtime-temporal-provider-parts/worker-process.ts';
+} from '../../../../../src/adapters/execution/family-runtime-temporal-provider-parts/worker-process.ts';
 import { createTemporalTestWorkflowEnvironment } from '../../../temporal-test-environment.ts';
 
 test('Temporal worker module path parser preserves unquoted macOS paths with spaces', () => {
-  const modulePath = '/Users/test/Library/Application Support/OPL/framework/one-person-lab/src/modules/runway/family-runtime-temporal-provider.ts';
+  const modulePath = '/Users/test/Library/Application Support/OPL/framework/one-person-lab/src/adapters/execution/family-runtime-temporal-provider.ts';
   const command = `/usr/local/bin/node --experimental-strip-types ${modulePath} --temporal-worker-foreground --family-runtime-root /Users/test/Library/Application Support/OPL/state/family-runtime`;
 
   assert.equal(temporalForegroundWorkerModulePathFromCommand(command), modulePath);
@@ -59,7 +59,7 @@ test('Temporal worker lifecycle adopts the live managed worker namespace without
     delete process.env.OPL_TEMPORAL_NAMESPACE;
     process.env.OPL_TEMPORAL_TASK_QUEUE = 'opl-stage-attempts';
     const providerModuleUrl = new URL(
-      '../../../../../src/modules/runway/family-runtime-temporal-provider.ts',
+      '../../../../../src/adapters/execution/family-runtime-temporal-provider.ts',
       import.meta.url,
     ).href;
     const sourceVersion = currentWorkerSourceVersion(providerModuleUrl);

@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 
 import { assert, fs, os, path, runCli, test } from '../helpers.ts';
-import { createFamilyRuntimeQueueTables } from '../../../../src/modules/runway/family-runtime-store.ts';
+import { createFamilyRuntimeQueueTables } from '../../../../src/adapters/execution/family-runtime-store.ts';
 
 function familyRuntimeEnv(stateRoot: string, extra: Record<string, string> = {}) {
   return {

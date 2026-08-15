@@ -8,7 +8,7 @@ import {
   runCliFailure,
   test,
 } from '../helpers.ts';
-import { runCodexConfigHygiene } from '../../../../src/modules/connect/system-installation/codex-config-hygiene.ts';
+import { runCodexConfigHygiene } from '../../../../src/adapters/integration/system-installation/codex-config-hygiene.ts';
 
 test('system codex-config-hygiene reconciles only stale temp and global MAS tables with exact rollback', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-codex-config-hygiene-'));

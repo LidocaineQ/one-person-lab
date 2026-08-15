@@ -5,7 +5,7 @@ import {
   type CandidateCompiler,
   type DesignerPort,
   type EvaluationExecutor,
-} from '../../../modules/foundry/index.ts';
+} from '../../../authority/evolution/index.ts';
 import {
   ContentAddressedCandidateCompiler,
   FileFoundryObjectStore,
@@ -13,12 +13,12 @@ import {
   LedgerFoundryEventStore,
   LedgerFoundryOperationResultJournal,
   LedgerVersionRegistry,
-} from '../../../modules/ledger/index.ts';
+} from '../../../authority/evidence/index.ts';
 import {
   DefaultHostedAgentRuntimeBindingResolver,
   HostedFoundryActivationRuntime,
-} from '../../../modules/runway/index.ts';
-import { configuredFoundryOwnerGate } from '../../../modules/runway/foundry-owner-gate.ts';
+} from '../../../adapters/execution/index.ts';
+import { configuredFoundryOwnerGate } from '../../../adapters/execution/foundry-owner-gate.ts';
 
 function deferred(operation: string): never {
   throw new FrameworkContractError(

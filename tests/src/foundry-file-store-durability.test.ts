@@ -12,11 +12,11 @@ import {
   FileFoundryContentStore,
   LedgerFoundryEventStore,
   foundryStoragePaths,
-} from '../../src/modules/ledger/foundry-persistent-adapters.ts';
+} from '../../src/authority/evidence/foundry-persistent-adapters.ts';
 import {
   buildFoundryEvent,
   verifyFoundryEventChain,
-} from '../../src/modules/foundry/state-machine.ts';
+} from '../../src/authority/evolution/state-machine.ts';
 
 const worker = path.resolve('tests/fixtures/foundry-crash-worker.ts');
 const requestDigest = `sha256:${crypto.createHash('sha256').update('durability-request').digest('hex')}`;

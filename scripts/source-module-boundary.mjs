@@ -24,43 +24,30 @@ const failures = [];
 const contract = readJson(contractPath);
 const layout = readPhysicalLayout(contract);
 const rootTsPolicy = readRootTsPolicy(layout);
-const modules = readModules(contract);
-const dependencyPolicy = readModuleDependencyPolicy(readOptionalJson(policyPath), modules, layout);
-const moduleIds = modules.map((moduleEntry) => moduleEntry.moduleId);
-const moduleIdSet = new Set(moduleIds);
+const sourceUnits = readSourceUnits(contract);
+const targetRoots = readTargetRoots(contract);
+const legacyRoots = readLegacyRoots(contract);
+const dependencyPolicy = readModuleDependencyPolicy(readOptionalJson(policyPath), sourceUnits);
 const expectedModuleEntrypoints = [];
 const missingModuleEntrypoints = [];
-const mismatchedModuleEntrypoints = [];
-const unexpectedModuleRoots = listModuleRootDirectories(contract.physical_module_root ?? 'src/modules')
-  .filter((moduleId) => !moduleIdSet.has(moduleId));
 
-for (const moduleEntry of modules) {
-  const expectedEntrypoint = layout.moduleEntrypointPattern.replace('<module_id>', moduleEntry.moduleId);
-  expectedModuleEntrypoints.push(expectedEntrypoint);
-  if (moduleEntry.publicEntrypoint !== expectedEntrypoint) {
-    mismatchedModuleEntrypoints.push({
-      module_id: moduleEntry.moduleId,
-      expected: expectedEntrypoint,
-      actual: moduleEntry.publicEntrypoint,
-    });
-  }
-  if (!existsRelative(expectedEntrypoint)) {
-    missingModuleEntrypoints.push(expectedEntrypoint);
+for (const unit of sourceUnits) {
+  const matchingSourceFiles = listUnitSourceFiles(unit.physical_root);
+  if (matchingSourceFiles.length === 0) failures.push(`${unit.unit_id}: source unit matched zero TypeScript files`);
+  for (const expectedEntrypoint of unit.public_entrypoints.filter((entry) => !entry.includes('*'))) {
+    expectedModuleEntrypoints.push(expectedEntrypoint);
+    if (!existsRelative(expectedEntrypoint)) missingModuleEntrypoints.push(expectedEntrypoint);
   }
 }
 
-if (mismatchedModuleEntrypoints.length > 0) {
-  failures.push(...mismatchedModuleEntrypoints.map((entry) =>
-    `${entry.module_id}: public_entrypoint must be ${entry.expected}, got ${entry.actual}`
-  ));
-}
 if (missingModuleEntrypoints.length > 0) {
-  failures.push(...missingModuleEntrypoints.map((entrypoint) => `${entrypoint}: module entrypoint is missing`));
+  failures.push(...missingModuleEntrypoints.map((entrypoint) => `${entrypoint}: source-unit entrypoint is missing`));
 }
-if (unexpectedModuleRoots.length > 0) {
-  failures.push(...unexpectedModuleRoots.map((moduleId) =>
-    `${contract.physical_module_root ?? 'src/modules'}/${moduleId}: unexpected source module directory; update source-module-map and module-dependency-policy before adding another module`
-  ));
+for (const root of targetRoots) {
+  if (!existsRelative(root.path)) failures.push(`${root.path}: target source root is missing`);
+}
+for (const legacy of legacyRoots) {
+  if (legacy.must_be_absent && existsRelative(legacy.path)) failures.push(`${legacy.path}: retired source root must be absent`);
 }
 
 const targetCliExists = existsRelative(layout.targetCliEntrypoint);
@@ -101,7 +88,7 @@ if (targetMode && retiredExceptionViolations.length > 0) {
   ));
 }
 
-const crossModuleImports = inspectCrossModuleImports(contract, modules, layout, dependencyPolicy);
+const crossModuleImports = inspectCrossUnitImports(sourceUnits, targetRoots, dependencyPolicy);
 if (crossModuleImports.deep_import_violations.enforced && crossModuleImports.deep_import_violations.count > 0) {
   failures.push(`cross_module_imports: ${crossModuleImports.deep_import_violations.count} deep cross-module import(s) violate public entrypoint rule`);
 }
@@ -127,8 +114,8 @@ const summary = {
   module_entrypoints: {
     expected_count: expectedModuleEntrypoints.length,
     missing: missingModuleEntrypoints,
-    mismatched: mismatchedModuleEntrypoints,
-    unexpected_module_roots: unexpectedModuleRoots,
+    mismatched: [],
+    unexpected_module_roots: [],
   },
   cli_entrypoint: {
     target: layout.targetCliEntrypoint,
@@ -144,6 +131,9 @@ const summary = {
     unclassified_transition_files: targetMode || failures.length > 0 ? unclassifiedRootTsFiles : [],
     retired_exception_violations: retiredExceptionViolations,
   },
+  source_units: sourceUnits,
+  target_roots: targetRoots,
+  legacy_roots: legacyRoots,
   cross_module_imports: crossModuleImports,
   failures,
 };
@@ -240,9 +230,13 @@ function readPhysicalLayout(contractValue) {
       rootTsPolicy: {},
     };
   }
-  const moduleEntrypointPattern = readString(value.module_entrypoint_pattern, 'physical_layout.module_entrypoint_pattern');
+  const moduleEntrypointPattern = typeof value.module_entrypoint_pattern === 'string'
+    ? normalizeRelativePath(value.module_entrypoint_pattern)
+    : '<declared-per-source-unit>';
   const targetCliEntrypoint = readString(value.target_cli_entrypoint, 'physical_layout.target_cli_entrypoint');
-  const legacyCliEntrypoint = readString(value.legacy_cli_entrypoint, 'physical_layout.legacy_cli_entrypoint');
+  const legacyCliEntrypoint = typeof value.legacy_cli_entrypoint === 'string'
+    ? normalizeRelativePath(value.legacy_cli_entrypoint)
+    : 'src/cli.ts';
   return {
     stage: readString(value.stage, 'physical_layout.stage'),
     moduleEntrypointPattern,
@@ -294,42 +288,74 @@ function readRootTsPolicy(layoutValue) {
   };
 }
 
-function readModules(contractValue) {
-  if (!Array.isArray(contractValue.modules)) {
-    failures.push('modules: source module map must contain a modules array');
+function readSourceUnits(contractValue) {
+  if (!Array.isArray(contractValue.source_units)) {
+    failures.push('source_units: source topology must contain a source_units array');
     return [];
   }
   const seen = new Set();
-  return contractValue.modules.flatMap((entry, index) => {
+  return contractValue.source_units.flatMap((entry, index) => {
     if (!isJsonObject(entry)) {
-      failures.push(`modules.${index}: entry must be an object`);
+      failures.push(`source_units.${index}: entry must be an object`);
       return [];
     }
-    const moduleId = readString(entry.module_id, `modules.${index}.module_id`);
-    if (seen.has(moduleId)) {
-      failures.push(`${moduleId}: duplicate source module id`);
-    }
-    seen.add(moduleId);
+    const unitId = readString(entry.unit_id, `source_units.${index}.unit_id`);
+    if (seen.has(unitId)) failures.push(`${unitId}: duplicate source unit id`);
+    seen.add(unitId);
     return [{
-      moduleId,
-      publicEntrypoint: readString(entry.public_entrypoint, `modules.${index}.public_entrypoint`),
+      unit_id: unitId,
+      layer_id: readString(entry.layer_id, `source_units.${index}.layer_id`),
+      physical_root: readString(entry.physical_root, `source_units.${index}.physical_root`),
+      public_entrypoints: readStringArray(entry.public_entrypoints, `source_units.${index}.public_entrypoints`),
+      source_globs: readStringArray(entry.source_globs, `source_units.${index}.source_globs`),
     }];
   });
 }
 
-function readModuleDependencyPolicy(policyValue, modulesValue, layoutValue) {
-  const knownModuleIds = modulesValue.map((moduleEntry) => moduleEntry.moduleId);
-  const knownModuleIdSet = new Set(knownModuleIds);
+function readTargetRoots(contractValue) {
+  if (!Array.isArray(contractValue.target_roots)) {
+    failures.push('target_roots: source topology must contain a target_roots array');
+    return [];
+  }
+  return contractValue.target_roots.flatMap((entry, index) => {
+    if (!isJsonObject(entry)) {
+      failures.push(`target_roots.${index}: entry must be an object`);
+      return [];
+    }
+    return [{
+      root_id: readString(entry.root_id, `target_roots.${index}.root_id`),
+      path: readString(entry.path, `target_roots.${index}.path`),
+      layer_id: readString(entry.layer_id, `target_roots.${index}.layer_id`),
+    }];
+  });
+}
+
+function readLegacyRoots(contractValue) {
+  if (!Array.isArray(contractValue.legacy_roots)) return [];
+  return contractValue.legacy_roots.flatMap((entry, index) => {
+    if (!isJsonObject(entry)) {
+      failures.push(`legacy_roots.${index}: entry must be an object`);
+      return [];
+    }
+    return [{
+      path: readString(entry.path, `legacy_roots.${index}.path`),
+      state: readString(entry.state, `legacy_roots.${index}.state`),
+      must_be_absent: entry.must_be_absent === true,
+      caller_zero_required: entry.caller_zero_required === true,
+    }];
+  });
+}
+
+function readModuleDependencyPolicy(policyValue, sourceUnitsValue) {
+  const knownUnitIds = sourceUnitsValue.map((unit) => unit.unit_id);
+  const knownUnitIdSet = new Set(knownUnitIds);
   const defaultPolicy = {
     path: fs.existsSync(policyPath) ? relativeFromRoot(policyPath) : null,
-    module_ids: knownModuleIds,
-    aggregate_entrypoint: 'src/modules/index.ts',
+    source_unit_ids: knownUnitIds,
     public_entrypoint_rule: {
-      module_entrypoint_pattern: layoutValue.moduleEntrypointPattern,
-      thin_public_entry_pattern: 'src/modules/<module_id>/public/**/*.ts',
-      cross_module_imports: 'public_entrypoint_or_thin_public_entry',
+      cross_module_imports: 'public_entrypoint_or_host_plugin_leaf',
     },
-    source_scan_scope: 'all_module_ts_files',
+    source_scan_scope: 'all_target_source_units',
     deep_import_failure_mode: args.strictImports ? 'strict' : 'advisory',
     dependency_cycle_failure_mode: args.strictCycles ? 'strict' : 'advisory',
     forbiddenPairs: new Map(),
@@ -338,18 +364,35 @@ function readModuleDependencyPolicy(policyValue, modulesValue, layoutValue) {
     return defaultPolicy;
   }
 
+  if (policyValue.version === 'module-dependency-policy.v2') {
+    const dependencyPolicy = isJsonObject(policyValue.dependency_policy)
+      ? policyValue.dependency_policy
+      : {};
+    const layerDependencies = new Map();
+    for (const entry of Array.isArray(dependencyPolicy.layer_dependencies)
+      ? dependencyPolicy.layer_dependencies
+      : []) {
+      if (!isJsonObject(entry)) continue;
+      const fromLayer = readString(entry.from_layer_id, 'module_dependency_policy.layer_dependencies.from_layer_id');
+      layerDependencies.set(fromLayer, new Set(readStringArray(
+        entry.to_layer_ids,
+        `module_dependency_policy.layer_dependencies.${fromLayer}.to_layer_ids`,
+      )));
+    }
+    return {
+      ...defaultPolicy,
+      path: relativeFromRoot(policyPath),
+      source_scan_scope: 'all_target_source_units',
+      deep_import_failure_mode: 'strict',
+      dependency_cycle_failure_mode: 'strict',
+      layerDependencies,
+      forbiddenPairs: readForbiddenPairs(dependencyPolicy.forbidden_dependencies, knownUnitIdSet),
+    };
+  }
+
   const publicEntrypointRule = isJsonObject(policyValue.public_entrypoint_rule) ? policyValue.public_entrypoint_rule : {};
   if (!isJsonObject(policyValue.public_entrypoint_rule)) {
     failures.push('module_dependency_policy.public_entrypoint_rule: expected object');
-  }
-  const policyEntrypointPattern = readString(
-    publicEntrypointRule.module_entrypoint_pattern,
-    'module_dependency_policy.public_entrypoint_rule.module_entrypoint_pattern',
-  );
-  if (policyEntrypointPattern && policyEntrypointPattern !== layoutValue.moduleEntrypointPattern) {
-    failures.push(
-      `module_dependency_policy.public_entrypoint_rule.module_entrypoint_pattern: expected ${layoutValue.moduleEntrypointPattern}, got ${policyEntrypointPattern}`,
-    );
   }
 
   const dependencyPolicy = isJsonObject(policyValue.dependency_policy) ? policyValue.dependency_policy : {};
@@ -372,22 +415,19 @@ function readModuleDependencyPolicy(policyValue, modulesValue, layoutValue) {
   if (!isJsonObject(policyValue.module_dependency_cycles)) {
     failures.push('module_dependency_policy.module_dependency_cycles: expected object');
   }
+  const layerDependencies = new Map();
+  for (const entry of Array.isArray(dependencyPolicy.layer_dependencies) ? dependencyPolicy.layer_dependencies : []) {
+    if (!isJsonObject(entry)) continue;
+    const fromLayer = readString(entry.from_layer_id, 'module_dependency_policy.layer_dependencies.from_layer_id');
+    layerDependencies.set(fromLayer, new Set(readStringArray(entry.to_layer_ids, `module_dependency_policy.layer_dependencies.${fromLayer}.to_layer_ids`)));
+  }
 
   return {
     path: relativeFromRoot(policyPath),
-    module_ids: knownModuleIds,
-    aggregate_entrypoint: readString(
-      publicEntrypointRule.aggregate_entrypoint,
-      'module_dependency_policy.public_entrypoint_rule.aggregate_entrypoint',
-    ),
+    source_unit_ids: knownUnitIds,
     public_entrypoint_rule: {
-      module_entrypoint_pattern: policyEntrypointPattern,
-      thin_public_entry_pattern: readString(
-        publicEntrypointRule.thin_public_entry_pattern,
-        'module_dependency_policy.public_entrypoint_rule.thin_public_entry_pattern',
-      ),
       cross_module_imports: readString(
-        publicEntrypointRule.cross_module_imports,
+        publicEntrypointRule.cross_module_imports ?? publicEntrypointRule.cross_unit_imports ?? 'public_entrypoint_or_host_plugin_leaf',
         'module_dependency_policy.public_entrypoint_rule.cross_module_imports',
       ),
     },
@@ -407,11 +447,12 @@ function readModuleDependencyPolicy(policyValue, modulesValue, layoutValue) {
         dependencyCyclePolicy.failure_mode,
         'module_dependency_policy.module_dependency_cycles.failure_mode',
       ),
-    forbiddenPairs: readForbiddenPairs(dependencyPolicy.forbidden_dependencies, knownModuleIdSet),
+    forbiddenPairs: readForbiddenPairs(dependencyPolicy.forbidden_dependencies, knownUnitIdSet),
+    layerDependencies,
   };
 }
 
-function readForbiddenPairs(value, knownModuleIdSet) {
+function readForbiddenPairs(value, knownUnitIdSet) {
   const forbidden = new Map();
   if (!Array.isArray(value)) {
     failures.push('module_dependency_policy.dependency_policy.forbidden_dependencies: expected array');
@@ -422,19 +463,19 @@ function readForbiddenPairs(value, knownModuleIdSet) {
       failures.push(`module_dependency_policy.dependency_policy.forbidden_dependencies.${index}: expected object`);
       continue;
     }
-    const fromModuleId = readString(entry.from_module_id, `module_dependency_policy.dependency_policy.forbidden_dependencies.${index}.from_module_id`);
-    const toModuleId = readString(entry.to_module_id, `module_dependency_policy.dependency_policy.forbidden_dependencies.${index}.to_module_id`);
-    if (!knownModuleIdSet.has(fromModuleId)) {
-      failures.push(`module_dependency_policy.dependency_policy.forbidden_dependencies.${index}.from_module_id: unknown ${fromModuleId}`);
+    const fromUnitId = readString(entry.from_unit_id ?? entry.from_module_id, `module_dependency_policy.dependency_policy.forbidden_dependencies.${index}.from_unit_id`);
+    const toUnitId = readString(entry.to_unit_id ?? entry.to_module_id, `module_dependency_policy.dependency_policy.forbidden_dependencies.${index}.to_unit_id`);
+    if (!knownUnitIdSet.has(fromUnitId)) {
+      failures.push(`module_dependency_policy.dependency_policy.forbidden_dependencies.${index}.from_unit_id: unknown ${fromUnitId}`);
       continue;
     }
-    if (!knownModuleIdSet.has(toModuleId)) {
-      failures.push(`module_dependency_policy.dependency_policy.forbidden_dependencies.${index}.to_module_id: unknown ${toModuleId}`);
+    if (!knownUnitIdSet.has(toUnitId)) {
+      failures.push(`module_dependency_policy.dependency_policy.forbidden_dependencies.${index}.to_unit_id: unknown ${toUnitId}`);
       continue;
     }
-    forbidden.set(`${fromModuleId}->${toModuleId}`, {
-      from_module_id: fromModuleId,
-      to_module_id: toModuleId,
+    forbidden.set(`${fromUnitId}->${toUnitId}`, {
+      from_module_id: fromUnitId,
+      to_module_id: toUnitId,
       reason: typeof entry.reason === 'string' ? entry.reason : '',
     });
   }
@@ -449,84 +490,75 @@ function readFailureMode(value, field) {
   return 'advisory';
 }
 
-function inspectCrossModuleImports(contractValue, modulesValue, layoutValue, policyValue) {
-  const physicalModuleRoot = contractValue.physical_module_root ?? 'src/modules';
-  const moduleIdSet = new Set(modulesValue.map((moduleEntry) => moduleEntry.moduleId));
-  const moduleEntrypoints = new Map(modulesValue.map((moduleEntry) => [
-    moduleEntry.moduleId,
-    layoutValue.moduleEntrypointPattern.replace('<module_id>', moduleEntry.moduleId),
-  ]));
+function inspectCrossUnitImports(units, roots, policyValue) {
+  if (units.length === 0) {
+    failures.push('source_units: no responsibility units were declared');
+  }
   const pairCounts = new Map();
   const deepImportExamples = [];
   const forbiddenImports = new Map();
+  const sourceFiles = [...new Set(units.flatMap((unit) => listUnitSourceFiles(unit.physical_root)))].sort();
+  const targetSourceFiles = [...new Set(roots.flatMap((root) => listUnitSourceFiles(root.path)))].sort();
+  for (const file of targetSourceFiles) {
+    const owners = units.filter((unit) => file === unit.physical_root || file.startsWith(`${unit.physical_root}/`));
+    if (owners.length !== 1) failures.push(`${file}: target source file must belong to exactly one source unit (found ${owners.length})`);
+  }
 
-  const moduleSourceFiles = listModuleSourceFiles(physicalModuleRoot, moduleIdSet);
-  for (const file of moduleSourceFiles) {
-    const fromModuleId = moduleIdFromPath(file, physicalModuleRoot);
-    if (!fromModuleId) {
-      continue;
-    }
+  for (const file of sourceFiles) {
+    const fromUnit = sourceUnitFromPath(file, units);
+    if (!fromUnit) continue;
     const text = fs.readFileSync(path.join(targetRoot, ...file.split('/')), 'utf8');
     for (const importRef of readImportSpecifiers(text)) {
       const resolved = resolveRelativeImport(file, importRef.specifier);
-      if (!resolved) {
-        continue;
-      }
-      const toModuleId = moduleIdFromPath(resolved, physicalModuleRoot);
-      if (!toModuleId || toModuleId === fromModuleId) {
-        continue;
-      }
-      const pairKey = `${fromModuleId}->${toModuleId}`;
+      if (!resolved) continue;
+      const toUnit = sourceUnitFromPath(resolved, units);
+      if (!toUnit || toUnit.unit_id === fromUnit.unit_id) continue;
+
+      const pairKey = `${fromUnit.unit_id}->${toUnit.unit_id}`;
       pairCounts.set(pairKey, (pairCounts.get(pairKey) ?? 0) + 1);
       const importEntry = {
-        from_module_id: fromModuleId,
-        to_module_id: toModuleId,
+        from_module_id: fromUnit.unit_id,
+        to_module_id: toUnit.unit_id,
+        from_layer_id: fromUnit.layer_id,
+        to_layer_id: toUnit.layer_id,
         importing_file: file,
-        imported_specifier: importRef.specifier,
+        import_specifier: importRef.specifier,
         resolved_path: resolved,
-        expected_public_entrypoint: moduleEntrypoints.get(toModuleId),
-        allowed_public_surface_patterns: [
-          moduleEntrypoints.get(toModuleId),
-          dependencyPolicy.public_entrypoint_rule.thin_public_entry_pattern.replace('<module_id>', toModuleId),
-        ],
       };
-      if (!isPublicModuleEntrypoint(resolved, toModuleId, physicalModuleRoot)) {
-        deepImportExamples.push(importEntry);
-      }
-      if (policyValue.forbiddenPairs.has(pairKey)) {
-        addImportViolation(forbiddenImports, pairKey, importEntry);
-      }
+      if (policyValue.forbiddenPairs.has(pairKey)) addImportViolation(forbiddenImports, pairKey, importEntry);
+      if (!isPublicSourceUnitEntrypoint(resolved, toUnit, fromUnit)) deepImportExamples.push(importEntry);
     }
   }
 
-  const sortedPairCounts = [...pairCounts.entries()]
-    .map(([pair, count]) => {
-      const [fromModuleId, toModuleId] = pair.split('->');
-      return { from_module_id: fromModuleId, to_module_id: toModuleId, count };
-    })
-    .sort(compareModulePairEntries);
-  const forbiddenItems = summarizeImportViolations(forbiddenImports);
-  const dependencyCycles = findDependencyCycles(sortedPairCounts);
+  if (sourceFiles.length === 0) failures.push('source_units: target source scan matched zero TypeScript files');
+  const pairCountEntries = [...pairCounts.entries()].map(([pair, count]) => {
+    const [fromModuleId, toModuleId] = pair.split('->');
+    return { from_module_id: fromModuleId, to_module_id: toModuleId, count };
+  }).sort(compareModulePairEntries);
+  const dependencyCycles = findDependencyCycles(pairCountEntries);
+
   return {
     policy: {
-      module_count: policyValue.module_ids.length,
+      module_count: units.length,
+      source_unit_count: units.length,
+      source_unit_ids: units.map((unit) => unit.unit_id),
       source_scan_scope: policyValue.source_scan_scope,
-      public_entrypoint_rule: policyValue.public_entrypoint_rule.cross_module_imports,
+      source_files_scanned: sourceFiles.length,
       deep_import_failure_mode: policyValue.deep_import_failure_mode,
       strict_imports_requested: args.strictImports,
       dependency_cycle_failure_mode: policyValue.dependency_cycle_failure_mode,
       strict_cycles_requested: args.strictCycles,
     },
-    pair_counts: sortedPairCounts,
+    pair_counts: pairCountEntries,
     deep_import_violations: {
       count: deepImportExamples.length,
       failure_mode: policyValue.deep_import_failure_mode,
       enforced: policyValue.deep_import_failure_mode === 'strict',
-      examples: deepImportExamples.slice(0, 25),
+      examples: deepImportExamples.slice(0, 100),
     },
     forbidden_dependency_violations: {
-      count: forbiddenItems.reduce((sum, entry) => sum + entry.count, 0),
-      items: forbiddenItems,
+      count: [...forbiddenImports.values()].reduce((sum, entries) => sum + entries.length, 0),
+      items: summarizeImportViolations(forbiddenImports),
     },
     dependency_cycles: {
       count: dependencyCycles.length,
@@ -534,8 +566,30 @@ function inspectCrossModuleImports(contractValue, modulesValue, layoutValue, pol
       enforced: policyValue.dependency_cycle_failure_mode === 'strict',
       components: dependencyCycles,
     },
-    source_files_scanned: moduleSourceFiles.length,
+    target_source_files_scanned: targetSourceFiles.length,
   };
+}
+
+function sourceUnitFromPath(relativePath, units) {
+  return [...units]
+    .sort((left, right) => right.physical_root.length - left.physical_root.length)
+    .find((unit) => relativePath === unit.physical_root || relativePath.startsWith(`${unit.physical_root}/`)) ?? null;
+}
+
+function isPublicSourceUnitEntrypoint(relativePath, unit, fromUnit) {
+  if (fromUnit.layer_id === 'entrypoints' || unit.layer_id === 'kernel') return true;
+  if (relativePath.startsWith(`${unit.physical_root}/public/`)) return true;
+  return unit.public_entrypoints.some((entry) => pathMatchesSimpleGlob(relativePath, entry));
+}
+
+function pathMatchesSimpleGlob(relativePath, pattern) {
+  if (!pattern.includes('*')) return relativePath === pattern || relativePath === pattern.replace(/\.ts$/, '');
+  const expression = new RegExp(`^${pattern.split('*').map(escapeRegExp).join('[^/]*')}$`);
+  return expression.test(relativePath) || expression.test(`${relativePath}.ts`);
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function readImportSpecifiers(text) {
@@ -554,21 +608,6 @@ function resolveRelativeImport(importingFile, specifier) {
   }
   return normalizeRelativePath(path.normalize(path.join(path.dirname(importingFile), specifier)))
     .replace(/\.(ts|tsx|js|jsx|mjs|cjs)$/, '');
-}
-
-function moduleIdFromPath(relativePath, physicalModuleRoot) {
-  const modulePrefix = `${physicalModuleRoot}/`;
-  if (!relativePath.startsWith(modulePrefix)) {
-    return null;
-  }
-  const rest = relativePath.slice(modulePrefix.length);
-  const [moduleId] = rest.split('/');
-  return moduleId || null;
-}
-
-function isPublicModuleEntrypoint(relativePath, moduleId, physicalModuleRoot) {
-  const rest = relativePath.slice(`${physicalModuleRoot}/${moduleId}`.length).replace(/^\//, '');
-  return rest === '' || rest === 'index' || rest === 'index.ts' || rest.startsWith('public/');
 }
 
 function addImportViolation(violations, pairKey, importEntry) {
@@ -724,28 +763,12 @@ function listTopLevelTsFiles(sourceRoot) {
     .sort();
 }
 
-function listModuleRootDirectories(physicalModuleRoot) {
-  const moduleRoot = path.join(targetRoot, ...physicalModuleRoot.split('/'));
-  if (!fs.existsSync(moduleRoot)) {
-    failures.push(`${physicalModuleRoot}: physical module root is missing`);
-    return [];
-  }
-  return fs.readdirSync(moduleRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort();
-}
-
-function listModuleSourceFiles(physicalModuleRoot, moduleIdSet) {
+function listUnitSourceFiles(physicalRoot) {
+  const directory = path.join(targetRoot, ...physicalRoot.split('/'));
+  if (!fs.existsSync(directory)) return [];
   const files = [];
-  for (const moduleId of moduleIdSet) {
-    const moduleRoot = path.join(targetRoot, ...physicalModuleRoot.split('/'), moduleId);
-    if (!fs.existsSync(moduleRoot)) {
-      continue;
-    }
-    collectTsFiles(moduleRoot, `${physicalModuleRoot}/${moduleId}`, files);
-  }
-  return files.sort();
+  collectTsFiles(directory, physicalRoot, files);
+  return files;
 }
 
 function collectTsFiles(directory, relativeDirectory, files) {

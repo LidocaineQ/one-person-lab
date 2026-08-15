@@ -10,17 +10,17 @@ import {
   buildFamilyStageReplayCertificationInspect,
   buildFamilyStageRuntimeBudgetInspect,
   buildFamilyStagesList,
-} from '../../../../modules/stagecraft/family-stage-control-plane.ts';
+} from '../../../../authority/stages/family-stage-control-plane.ts';
 import {
-} from '../../../../modules/atlas/index.ts';
+} from '../../../../read-models/catalog/index.ts';
 import type {
   CordisAtlasCatalogService,
   CordisDomainManifestCatalogOptions,
-} from '../../../../modules/atlas/index.ts';
+} from '../../../../read-models/catalog/index.ts';
 import {
   familyStageDiagnosticLensCommands,
   requireFamilyStageDerivedLens,
-} from '../../../../modules/stagecraft/family-stage-derived-lenses.ts';
+} from '../../../../authority/stages/family-stage-derived-lenses.ts';
 import type { FrameworkContracts } from '../../../../kernel/types.ts';
 import { assertNoArgs, parseRegisteredCommandOptions } from '../../modules/support.ts';
 import type { CommandSpec } from '../../modules/support.ts';

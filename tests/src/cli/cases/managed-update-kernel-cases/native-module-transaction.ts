@@ -13,7 +13,7 @@ import {
   test,
 } from '../../helpers.ts';
 import { writeFakeBookForgeGeneratedSurfacePack } from '../../../cli-codex-default-shell-helpers.ts';
-import { computePackageChannelTreeSha256 } from '../../../../../src/modules/connect/system-installation/module-package-channel.ts';
+import { computePackageChannelTreeSha256 } from '../../../../../src/adapters/integration/system-installation/module-package-channel.ts';
 
 const PACKAGE_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.source.v1+gzip';
 const PACKAGE_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.manifest.v1+json';

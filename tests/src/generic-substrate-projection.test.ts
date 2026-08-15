@@ -17,7 +17,7 @@ import {
 import {
   buildWorkspaceArtifactLocatorProjection,
   buildWorkspaceReceiptInventory,
-} from '../../src/modules/runway/generic-substrate-projection.ts';
+} from '../../src/adapters/execution/generic-substrate-projection.ts';
 
 type JsonRecord = Record<string, unknown>;
 

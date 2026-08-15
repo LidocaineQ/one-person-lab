@@ -17,7 +17,7 @@ import { buildPublicCommandSpecs } from './cases/public-command-specs.ts';
 import {
   createCordisAppFullComposition,
   createCordisBaseHeadlessComposition,
-} from '../cordis/composition-profiles.ts';
+} from '../../host/composition-profiles.ts';
 
 async function runCodexPassthroughHandled(args: string[]) {
   const runtimeHelpers = await import('./modules/runtime-helpers.ts');
@@ -128,7 +128,7 @@ export async function main(options: CliMainOptions = {}) {
     ? await createCordisAppFullComposition({
         runtimeSnapshotProvider: async (contracts, snapshotOptions) => {
           const { buildRuntimeTraySnapshot } = await import(
-            '../../modules/console/runtime-tray-snapshot.ts'
+            '../../read-models/operator/runtime-tray-snapshot.ts'
           );
           return buildRuntimeTraySnapshot(contracts, snapshotOptions);
         },

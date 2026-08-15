@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   normalizeManagedPackageCatalog,
   selectManagedCatalogPackageVersion,
-} from '../../src/modules/connect/agent-package-registry-parts/capability-reconciliation.ts';
+} from '../../src/adapters/integration/agent-package-registry-parts/capability-reconciliation.ts';
 
 function digest(character: string) {
   return `sha256:${character.repeat(64)}`;

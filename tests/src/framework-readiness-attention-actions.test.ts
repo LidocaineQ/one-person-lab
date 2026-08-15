@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import {
   frameworkAttentionNextSafeActions,
-} from '../../src/modules/console/framework-readiness-attention-actions.ts';
+} from '../../src/read-models/operator/framework-readiness-attention-actions.ts';
 
 type JsonRecord = Record<string, unknown>;
 

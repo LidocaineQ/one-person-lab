@@ -5,21 +5,21 @@ import path from 'node:path';
 import test from 'node:test';
 import temporalProto from '@temporalio/proto';
 
-import { readTemporalStableCohort } from '../../src/modules/connect/temporal-stable-cohort.ts';
-import { buildTemporalStageAttemptReplayGateForTest } from '../../src/modules/runway/family-runtime-temporal-provider.ts';
+import { readTemporalStableCohort } from '../../src/adapters/integration/temporal-stable-cohort.ts';
+import { buildTemporalStageAttemptReplayGateForTest } from '../../src/adapters/execution/family-runtime-temporal-provider.ts';
 import {
   syncTemporalProductionProbeAttemptProjection,
   temporalProductionProbeInput,
   temporalProductionTypedCloseoutPacket,
   temporalProductionWorkerRestartPlan,
-} from '../../src/modules/runway/family-runtime-temporal-provider-parts/production-proof.ts';
+} from '../../src/adapters/execution/family-runtime-temporal-provider-parts/production-proof.ts';
 import {
   createStageAttempt,
   recordStageAttemptActivityHeartbeat,
-} from '../../src/modules/runway/family-runtime-stage-attempts.ts';
+} from '../../src/adapters/execution/family-runtime-stage-attempts.ts';
 import type {
   TemporalStageAttemptWorkflowState,
-} from '../../src/modules/runway/family-runtime-temporal.ts';
+} from '../../src/adapters/execution/family-runtime-temporal.ts';
 import {
   completedTemporalObservation,
   withStageAttemptDb,

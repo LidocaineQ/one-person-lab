@@ -10,10 +10,10 @@ import {
   buildDomainDetailViewReadback,
   parseAppViewReadArgs,
   resolveCanonicalDomainDetailViewTarget,
-} from '../../src/modules/console/domain-detail-view.ts';
-import { projectDomainDetailViewLocators } from '../../src/modules/console/domain-detail-view-locator.ts';
-import { readProjectInventory } from '../../src/modules/console/work-item-projection/inventory.ts';
-import type { WorkItemProjectionV2 } from '../../src/modules/console/work-item-projection/types.ts';
+} from '../../src/read-models/operator/domain-detail-view.ts';
+import { projectDomainDetailViewLocators } from '../../src/read-models/operator/domain-detail-view-locator.ts';
+import { readProjectInventory } from '../../src/read-models/operator/work-item-projection/inventory.ts';
+import type { WorkItemProjectionV2 } from '../../src/read-models/operator/work-item-projection/types.ts';
 
 const ITEM_ID = 'mas:workspace:project:study-001';
 const STUDY_ID = 'study-001';

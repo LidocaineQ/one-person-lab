@@ -4,7 +4,7 @@ import {
   inspectArtifactProvenanceBundle,
   recordArtifactProvenanceBundle,
   validateArtifactProvenanceBundle,
-} from '../../../../modules/ledger/index.ts';
+} from '../../../../authority/evidence/index.ts';
 import { buildUsageError, parseCommandOptions } from '../../modules/support.ts';
 import type { CommandSpec } from '../../modules/support.ts';
 

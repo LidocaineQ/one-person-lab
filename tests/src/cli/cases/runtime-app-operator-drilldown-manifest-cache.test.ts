@@ -9,9 +9,9 @@ import {
   runCli,
   test,
 } from '../helpers.ts';
-import { loadFrameworkContracts } from '../../../../src/modules/charter/contracts.ts';
-import { buildRuntimeTraySnapshot } from '../../../../src/modules/console/runtime-tray-snapshot.ts';
-import { createCordisBaseHeadlessComposition } from '../../../../src/entrypoints/cordis/composition-profiles.ts';
+import { loadFrameworkContracts } from '../../../../src/authority/contracts/contracts.ts';
+import { buildRuntimeTraySnapshot } from '../../../../src/read-models/operator/runtime-tray-snapshot.ts';
+import { createCordisBaseHeadlessComposition } from '../../../../src/host/composition-profiles.ts';
 
 test('runtime tray summary can use a non-authoritative manifest projection cache when live manifest is slow', async () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-drilldown-cache-state-'));

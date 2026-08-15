@@ -20,7 +20,7 @@ import {
   type MaterializedCandidate,
   type OwnerGateAction,
   type OwnerGateDecision,
-} from '../../src/modules/foundry/index.ts';
+} from '../../src/authority/evolution/index.ts';
 import {
   ContentAddressedCandidateCompiler,
   FileFoundryContentStore,
@@ -28,12 +28,12 @@ import {
   LedgerFoundryEventStore,
   LedgerFoundryOperationResultJournal,
   LedgerVersionRegistry,
-} from '../../src/modules/ledger/index.ts';
+} from '../../src/authority/evidence/index.ts';
 import {
   DefaultHostedAgentRuntimeBindingResolver,
   HostedFoundryActivationRuntime,
   runStandardAgentAction,
-} from '../../src/modules/runway/index.ts';
+} from '../../src/adapters/execution/index.ts';
 
 type StoredContent = ReturnType<FileFoundryContentStore['put']>;
 

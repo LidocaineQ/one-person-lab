@@ -10,7 +10,7 @@ import {
   readManagedRuntimeThreeLayerContract,
   readBundledManagedRuntimeThreeLayerContract,
   validateManagedRuntimeContract,
-} from '../../src/modules/runway/managed-runtime-contract.ts';
+} from '../../src/adapters/execution/managed-runtime-contract.ts';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 
 type Json = Record<string, unknown>;

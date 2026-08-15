@@ -7,28 +7,28 @@ import test from 'node:test';
 
 import { canonicalJsonBytes } from '../../src/kernel/canonical-json.ts';
 import { resolveStandardAgent } from '../../src/kernel/standard-agent-registry.ts';
-import type { StandardAgentStageQualityRuntimeBinding } from '../../src/modules/pack/index.ts';
-import { runFamilyRuntime } from '../../src/modules/runway/family-runtime.ts';
-import { resolveStandardAgentManagedCheckout } from '../../src/modules/runway/standard-agent-managed-checkout.ts';
+import type { StandardAgentStageQualityRuntimeBinding } from '../../src/authority/packages/index.ts';
+import { runFamilyRuntime } from '../../src/adapters/execution/family-runtime.ts';
+import { resolveStandardAgentManagedCheckout } from '../../src/adapters/execution/standard-agent-managed-checkout.ts';
 import type {
   HostedAgentRuntimeBindingResolver,
   HostedAgentRuntimeBindingProvenance,
   HostedAgentRuntimeBindingSnapshot,
-} from '../../src/modules/runway/hosted-agent-runtime-binding.ts';
+} from '../../src/adapters/execution/hosted-agent-runtime-binding.ts';
 import {
   inspectStandardAgentActionRunBinding,
   inspectStandardAgentActionRunCompletion,
   inspectStandardAgentActionRunPlan,
   reserveStandardAgentActionRunBinding,
-} from '../../src/modules/runway/standard-agent-action-run-state.ts';
-import { runStandardAgentAction } from '../../src/modules/runway/standard-agent-action-runtime.ts';
+} from '../../src/adapters/execution/standard-agent-action-run-state.ts';
+import { runStandardAgentAction } from '../../src/adapters/execution/standard-agent-action-runtime.ts';
 import {
   prevalidatedSourceTruthFingerprint,
   readPrevalidatedSourceTruthRefs,
   requirePrevalidatedSourceTruthFingerprint,
-} from '../../src/modules/runway/family-runtime-source-truth-refs.ts';
-import { runStandardAgentHandlerSandbox } from '../../src/modules/runway/standard-agent-handler-sandbox.ts';
-import { normalizeStageQualityCyclePolicy } from '../../src/modules/stagecraft/stage-quality-cycle.ts';
+} from '../../src/adapters/execution/family-runtime-source-truth-refs.ts';
+import { runStandardAgentHandlerSandbox } from '../../src/adapters/execution/standard-agent-handler-sandbox.ts';
+import { normalizeStageQualityCyclePolicy } from '../../src/authority/stages/stage-quality-cycle.ts';
 
 function root(prefix: string) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));

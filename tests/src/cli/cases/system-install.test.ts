@@ -1,10 +1,10 @@
 import { assert, contractsDir, createCodexConfigFixture, fs, loadFrameworkContracts, os, path, runCli, runCliFailure, test } from '../helpers.ts';
 import { buildInternalCommandSpecs } from '../../../../src/entrypoints/cli/cases/private-command-specs.ts';
 import { buildPublicCommandSpecs } from '../../../../src/entrypoints/cli/cases/public-command-specs.ts';
-import { createCordisBaseHeadlessComposition } from '../../../../src/entrypoints/cordis/composition-profiles.ts';
+import { createCordisBaseHeadlessComposition } from '../../../../src/host/composition-profiles.ts';
 import { parseTurnkeyInstallArgs } from '../../../../src/entrypoints/cli/modules/support.ts';
 import { OPL_GATEWAY_BASE_URL, readBundledCodexDefaultProfile } from '../../../../src/kernel/local-codex-defaults.ts';
-import { listDefaultOplDomainModuleSpecs } from '../../../../src/modules/connect/system-installation/modules.ts';
+import { listDefaultOplDomainModuleSpecs } from '../../../../src/adapters/integration/system-installation/modules.ts';
 import { createFakeCompanionInstallEnv } from './system-install-fixtures.ts';
 
 function disableRemoteCompanionInstall() {

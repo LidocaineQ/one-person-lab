@@ -82,7 +82,7 @@ export const descriptor = buildCordisPluginDescriptor({
 });
 `);
   writeJson(path.join(root, 'contracts/opl-framework/package-topology.json'), {
-    version: 'package-topology.v1',
+    version: 'package-topology.v2',
     root_package: 'opl-framework',
     packages: options.includeTopologyEntry === false ? [] : [{
       package_id: packageId,
@@ -90,13 +90,28 @@ export const descriptor = buildCordisPluginDescriptor({
       package_kind: 'cordis_contribution',
       version_policy: 'independent',
       authority_owner: 'opl-framework/test',
+      capability_domain_ids: ['test'],
+      source_unit_refs: ['framework.test'],
+      plugin_ids: ['test-plugin'],
       contributions: ['test-plugin'],
       plugin_descriptor_sources: ['src/index.ts'],
     }],
     legacy_paths: {
-      physical_root: 'src/modules',
+      paths: ['src/modules'],
+      state: 'retired',
+      must_be_absent: true,
       caller_zero_required: true,
     },
+    source_topology_ref: 'contracts/opl-framework/source-module-map.json',
+    target_source_roots: ['src'],
+  });
+  writeJson(path.join(root, 'contracts/opl-framework/source-module-map.json'), {
+    version: 'source-module-map.v3',
+    capability_domain_registry_ref: 'contracts/opl-framework/family-capability-domain-registry.json',
+    source_units: [{ unit_id: 'framework.test', physical_root: 'src', layer_id: 'kernel' }],
+  });
+  writeJson(path.join(root, 'contracts/opl-framework/family-capability-domain-registry.json'), {
+    domains: [{ domain_id: 'test' }],
   });
   return root;
 }

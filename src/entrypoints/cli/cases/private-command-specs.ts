@@ -1,23 +1,23 @@
-import { FrameworkContractError, findDomainOrThrow, findSurfaceOrThrow, findWorkstreamOrThrow, validateFrameworkContracts } from '../../../modules/charter/contracts.ts';
-import { buildOplWorkspaceRootSurface, writeOplWorkspaceRootSurface } from '../../../modules/connect/system-installation/workspace-root.ts';
-import { buildProductEntryHandoffEnvelope } from '../../../modules/console/product-entry-handoff-envelope.ts';
-import { buildProductEntryDoctor } from '../../../modules/console/product-entry-runtime.ts';
-import { buildRuntimeTraySnapshot } from '../../../modules/console/runtime-tray-snapshot.ts';
-import { runAgentExecutorDoctor, runAgentExecutorRequestFile } from '../../../modules/runway/agent-executor.ts';
-import { packageLaunchHardStopReason } from '../../../modules/runway/family-runtime-package-readiness.ts';
-import { launchDomainEntry } from '../../../modules/atlas/domain-launch.ts';
-import { buildOplDashboard, buildOplStart, buildProjectsOverview } from '../../../modules/console/management/runtime-dashboard.ts';
-import { runAcpStdioBridge } from '../../../modules/connect/opl-acp-stdio.ts';
-import { syncOplCompanionSkills } from '../../../modules/connect/install-companions.ts';
-import { readFamilySkillPacks, syncFamilySkillPacks } from '../../../modules/connect/opl-skills.ts';
+import { FrameworkContractError, findDomainOrThrow, findSurfaceOrThrow, findWorkstreamOrThrow, validateFrameworkContracts } from '../../../authority/contracts/contracts.ts';
+import { buildOplWorkspaceRootSurface, writeOplWorkspaceRootSurface } from '../../../adapters/integration/system-installation/workspace-root.ts';
+import { buildProductEntryHandoffEnvelope } from '../../../read-models/operator/product-entry-handoff-envelope.ts';
+import { buildProductEntryDoctor } from '../../../read-models/operator/product-entry-runtime.ts';
+import { buildRuntimeTraySnapshot } from '../../../read-models/operator/runtime-tray-snapshot.ts';
+import { runAgentExecutorDoctor, runAgentExecutorRequestFile } from '../../../adapters/execution/agent-executor.ts';
+import { packageLaunchHardStopReason } from '../../../adapters/execution/family-runtime-package-readiness.ts';
+import { launchDomainEntry } from '../../../read-models/catalog/domain-launch.ts';
+import { buildOplDashboard, buildOplStart, buildProjectsOverview } from '../../../read-models/operator/management/runtime-dashboard.ts';
+import { runAcpStdioBridge } from '../../../adapters/integration/opl-acp-stdio.ts';
+import { syncOplCompanionSkills } from '../../../adapters/integration/install-companions.ts';
+import { readFamilySkillPacks, syncFamilySkillPacks } from '../../../adapters/integration/opl-skills.ts';
 import {
   canonicalAgentPackageId,
   refreshInstalledAgentPackageWorkspaceSkills,
   runOplAgentPackageStatus,
-} from '../../../modules/connect/index.ts';
-import { buildSessionLedger } from '../../../modules/runway/session-ledger.ts';
-import { explainDomainBoundary, selectDomainAgentEntry } from '../../../modules/atlas/resolver.ts';
-import { activateWorkspaceBinding, archiveWorkspaceBinding, bindWorkspace, buildWorkspaceCatalog, pruneWorkspaceRegistry } from '../../../modules/workspace/workspace-registry.ts';
+} from '../../../adapters/integration/index.ts';
+import { buildSessionLedger } from '../../../adapters/execution/session-ledger.ts';
+import { explainDomainBoundary, selectDomainAgentEntry } from '../../../read-models/catalog/resolver.ts';
+import { activateWorkspaceBinding, archiveWorkspaceBinding, bindWorkspace, buildWorkspaceCatalog, pruneWorkspaceRegistry } from '../../../authority/workspace/workspace-registry.ts';
 import type { FrameworkContracts } from '../../../kernel/types.ts';
 import { buildWorkspaceInitializeCommandSpecs } from './workspace-initialize-command-spec.ts';
 import { buildPrivateAgentCommandSpecs } from './private-command-specs-parts/agents.ts';
@@ -27,7 +27,7 @@ import type { CommandSpec, ParsedCliInput } from '../modules/support.ts';
 import type {
   CordisBaseHeadlessComposition,
   CordisCliComposition,
-} from '../../cordis/composition-profiles.ts';
+} from '../../../host/composition-profiles.ts';
 
 function requireCordisComposition(
   cordis: CordisCliComposition | undefined,

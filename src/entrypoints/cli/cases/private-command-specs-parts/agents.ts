@@ -2,9 +2,9 @@ import {
   QUALIFICATION_PROVISIONING_ACTION_ID,
   runStandardAgentAction,
   runStandardAgentQualificationProvisioning,
-} from '../../../../modules/runway/standard-agent-action-runtime.ts';
-import { resolveStandardAgentManagedCheckout } from '../../../../modules/runway/standard-agent-managed-checkout.ts';
-import type { WorkspaceSkillProjectionRefresher } from '../../../../modules/workspace/index.ts';
+} from '../../../../adapters/execution/standard-agent-action-runtime.ts';
+import { resolveStandardAgentManagedCheckout } from '../../../../adapters/execution/standard-agent-managed-checkout.ts';
+import type { WorkspaceSkillProjectionRefresher } from '../../../../authority/workspace/index.ts';
 import type { CommandSpec } from '../../modules/support.ts';
 import { parseAgentsRunArgs } from './agents-run.ts';
 

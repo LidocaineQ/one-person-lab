@@ -11,14 +11,14 @@ import {
   buildTemporalSchedulerTickWorkflowArgs,
   inspectTemporalSchedulerCadenceReadiness,
   isTemporalSchedulerRunningActionLive,
-} from '../../../src/modules/runway/family-runtime-temporal-provider-parts/scheduler-cadence.ts';
-import { runTemporalSchedulerCadenceCommand } from '../../../src/modules/runway/family-runtime-scheduler.ts';
+} from '../../../src/adapters/execution/family-runtime-temporal-provider-parts/scheduler-cadence.ts';
+import { runTemporalSchedulerCadenceCommand } from '../../../src/adapters/execution/family-runtime-scheduler.ts';
 import {
   createFamilyRuntimeQueueTables,
   familyRuntimePaths,
-} from '../../../src/modules/runway/family-runtime-store.ts';
-import { loadFrameworkContracts } from '../../../src/modules/charter/index.ts';
-import { bindWorkspace } from '../../../src/modules/workspace/workspace-registry.ts';
+} from '../../../src/adapters/execution/family-runtime-store.ts';
+import { loadFrameworkContracts } from '../../../src/authority/contracts/index.ts';
+import { bindWorkspace } from '../../../src/authority/workspace/workspace-registry.ts';
 
 test('Temporal scheduler status does not resolve unrelated Standard Agent domain profiles', async () => {
   const db = new DatabaseSync(':memory:');

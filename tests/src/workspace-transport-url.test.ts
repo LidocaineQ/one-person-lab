@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { workspaceTransportDisplayUrl } from '../../src/modules/runway/workspace-transport-url.ts';
+import { workspaceTransportDisplayUrl } from '../../src/adapters/execution/workspace-transport-url.ts';
 
 test('workspace transport display URL removes credentials but retains ordinary query context', () => {
   assert.equal(

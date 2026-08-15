@@ -9,8 +9,8 @@ import {
   validateOwnerGateVerification,
   type OwnerAuthorityReceiptStatement,
   type OwnerGateVerificationContext,
-} from '../../src/modules/foundry/index.ts';
-import { ProcessFoundryOwnerGate } from '../../src/modules/runway/foundry-owner-gate.ts';
+} from '../../src/authority/evolution/index.ts';
+import { ProcessFoundryOwnerGate } from '../../src/adapters/execution/foundry-owner-gate.ts';
 
 const fixedNow = '2026-07-16T00:00:00.000Z';
 const authorityPolicyRef = 'opl://foundry/authority-policies/fixture-agent';

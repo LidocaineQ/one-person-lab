@@ -26,14 +26,14 @@ import {
   createMemoizedCodexPluginListRunner,
   runConfiguredCodexPluginCarrier,
   type CodexPluginCommandRunner,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/configured-codex-plugin-carrier.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry-parts/configured-codex-plugin-carrier.ts';
 import {
   descriptorDependencyReadiness,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/dependency-closure.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry-parts/dependency-closure.ts';
 import {
   discoverInstalledPackageDescriptors,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/installed-codex-plugin-directory.ts';
-import { createOplAgentPackageStatusReader } from '../../../../../src/modules/connect/agent-package-registry.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry-parts/installed-codex-plugin-directory.ts';
+import { createOplAgentPackageStatusReader } from '../../../../../src/adapters/integration/agent-package-registry.ts';
 
 const packageId = 'third.party.research';
 const pluginSelector = 'third-party-research@fixture-carrier';

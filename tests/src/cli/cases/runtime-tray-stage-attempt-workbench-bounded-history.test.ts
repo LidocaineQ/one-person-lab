@@ -1,8 +1,8 @@
 import { DatabaseSync } from 'node:sqlite';
 
-import { buildStageAttemptWorkbench } from '../../../../src/modules/console/runtime-tray-stage-attempt-workbench.ts';
-import { openQueueDb } from '../../../../src/modules/runway/family-runtime-store.ts';
-import { createStageAttempt } from '../../../../src/modules/runway/family-runtime-stage-attempts.ts';
+import { buildStageAttemptWorkbench } from '../../../../src/read-models/operator/runtime-tray-stage-attempt-workbench.ts';
+import { openQueueDb } from '../../../../src/adapters/execution/family-runtime-store.ts';
+import { createStageAttempt } from '../../../../src/adapters/execution/family-runtime-stage-attempts.ts';
 import { assert, fs, os, path, test } from '../helpers.ts';
 
 type BoundedHistoryWorkbench = {

@@ -6,20 +6,20 @@ import { fileURLToPath } from 'node:url';
 
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 import type { FamilyActionCatalog } from '../../src/kernel/family-action-catalog-contract.ts';
-import type { FamilyStageContract, FamilyStageControlPlane } from '../../src/modules/stagecraft/family-stage-control-plane-contract.ts';
-import { buildFamilyStageProofBundle } from '../../src/modules/stagecraft/family-stage-proof-bundle.ts';
+import type { FamilyStageContract, FamilyStageControlPlane } from '../../src/authority/stages/family-stage-control-plane-contract.ts';
+import { buildFamilyStageProofBundle } from '../../src/authority/stages/family-stage-proof-bundle.ts';
 import {
   buildFamilyStagePackRegistryEntry,
   buildFamilyStagePackRegistryProjection,
-} from '../../src/modules/stagecraft/family-stage-pack-registry.ts';
-import { buildFamilyStageAssumptionLifecycleProjection } from '../../src/modules/stagecraft/family-stage-assumption-lifecycle.ts';
-import { buildFamilyStageCohortLoopProjection } from '../../src/modules/stagecraft/family-stage-cohort-loop.ts';
-import { buildFamilyStageReplayCertification } from '../../src/modules/stagecraft/family-stage-replay-certification.ts';
-import { buildFamilyStagePackSourceSpecProjection } from '../../src/modules/stagecraft/family-stage-source-spec.ts';
+} from '../../src/authority/stages/family-stage-pack-registry.ts';
+import { buildFamilyStageAssumptionLifecycleProjection } from '../../src/authority/stages/family-stage-assumption-lifecycle.ts';
+import { buildFamilyStageCohortLoopProjection } from '../../src/authority/stages/family-stage-cohort-loop.ts';
+import { buildFamilyStageReplayCertification } from '../../src/authority/stages/family-stage-replay-certification.ts';
+import { buildFamilyStagePackSourceSpecProjection } from '../../src/authority/stages/family-stage-source-spec.ts';
 import {
   STANDARD_PROGRESS_DELTA_POLICY,
   STANDARD_TYPED_BLOCKER_LINEAGE_POLICY,
-} from '../../src/modules/pack/standard-domain-agent-scaffold-constants.ts';
+} from '../../src/authority/packages/standard-domain-agent-scaffold-constants.ts';
 
 type JsonRecord = Record<string, unknown>;
 

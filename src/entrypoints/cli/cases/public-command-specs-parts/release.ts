@@ -1,8 +1,8 @@
 import type {
   ReleaseBundleStableOperation,
   ReleaseBundleTrackName,
-} from '../../../../modules/connect/release-bundle/index.ts';
-import type { CordisReleaseOperationService } from '../../../../modules/connect/cordis-release-operation.ts';
+} from '../../../../adapters/integration/release-bundle/index.ts';
+import type { CordisReleaseOperationService } from '../../../../host/plugins/cordis-release-operation.ts';
 import {
   parseRegisteredCommandOptions,
   type CommandSpec,

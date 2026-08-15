@@ -7,7 +7,7 @@ import test from 'node:test';
 import {
   readOplFlowManagedDependencies,
   readOplFlowManagedDependencyIds,
-} from '../../src/modules/connect/agent-package-registry.ts';
+} from '../../src/adapters/integration/agent-package-registry.ts';
 import { agentPackageManifest, formatJsonPayload } from './cli/cases/packages-cases/helpers.ts';
 
 function writeFakePluginList(root: string, sourceRoot: string) {

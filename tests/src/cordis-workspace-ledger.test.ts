@@ -7,22 +7,22 @@ import test from 'node:test';
 import {
   CORDIS_WORKSPACE_LOCATOR_SERVICE,
   createCordisWorkspaceLocatorComposition,
-} from '../../src/modules/workspace/cordis-workspace-locator.ts';
+} from '../../src/host/plugins/cordis-workspace-locator.ts';
 import {
   CORDIS_OWNER_DELTA_OBSERVER_SERVICE,
   createCordisOwnerDeltaObserverComposition,
-} from '../../src/modules/ledger/cordis-owner-delta-observer.ts';
-import { buildCurrentOwnerDeltaTopline as buildDirectTopline } from '../../src/modules/ledger/current-owner-delta-topline.ts';
-import { buildAppOperatorOwnerDeltaTopline } from '../../src/modules/console/runtime-tray-app-operator-drilldown-parts/owner-delta-topline.ts';
-import { buildProductEntryHandoffBundleView } from '../../src/modules/console/product-entry-handoff-bundle.ts';
+} from '../../src/host/plugins/cordis-owner-delta-observer.ts';
+import { buildCurrentOwnerDeltaTopline as buildDirectTopline } from '../../src/authority/evidence/current-owner-delta-topline.ts';
+import { buildAppOperatorOwnerDeltaTopline } from '../../src/read-models/operator/runtime-tray-app-operator-drilldown-parts/owner-delta-topline.ts';
+import { buildProductEntryHandoffBundleView } from '../../src/read-models/operator/product-entry-handoff-bundle.ts';
 import {
   buildCordisWorkspaceLedgerCompositionSnapshot,
   createCordisWorkspaceLedgerComposition,
-} from '../../src/modules/console/cordis-workspace-ledger.ts';
-import { CordisCompositionContractError, validateCordisCompositionSnapshot } from '../../src/modules/pack/index.ts';
-import { loadFrameworkContracts } from '../../src/modules/charter/contracts.ts';
+} from '../../src/host/plugins/cordis-workspace-ledger.ts';
+import { CordisCompositionContractError, validateCordisCompositionSnapshot } from '../../src/authority/packages/index.ts';
+import { loadFrameworkContracts } from '../../src/authority/contracts/contracts.ts';
 import type { BoundaryExplanation, ResolutionResult } from '../../src/kernel/types.ts';
-import { resolveWorkspaceLocator as resolveCordisWorkspaceLocator } from '../../src/modules/workspace/index.ts';
+import { resolveWorkspaceLocator as resolveCordisWorkspaceLocator } from '../../src/authority/workspace/index.ts';
 
 test('Cordis Workspace locator delegates to the registry and tears down cleanly', async (t) => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-cordis-workspace-'));

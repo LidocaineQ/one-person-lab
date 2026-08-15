@@ -8,7 +8,7 @@ import {
   type CapabilityRegistryCatalog,
   type CurrentOwnerDeltaCapabilityBinding,
   resolveCapabilityForCurrentDelta,
-} from '../../src/modules/connect/capability-registry-resolver.ts';
+} from '../../src/adapters/integration/capability-registry-resolver.ts';
 
 const currentOwnerDelta: CurrentOwnerDeltaCapabilityBinding = {
   surface_kind: 'opl_current_owner_delta',

@@ -5,11 +5,11 @@ import {
   buildScientificConnectorProviderRegistryReadback,
   runOplConnectScientificSearch,
   scientificConnectorProviderIds,
-} from '../../../../src/modules/connect/opl-connect-scientific.ts';
+} from '../../../../src/adapters/integration/opl-connect-scientific.ts';
 import {
   normalizeReferenceVerificationProviders,
   referenceVerificationProviderIds,
-} from '../../../../src/modules/connect/opl-connect-reference-verification.ts';
+} from '../../../../src/adapters/integration/opl-connect-reference-verification.ts';
 
 type ScientificSearchOutput = {
   opl_connect_scientific: {

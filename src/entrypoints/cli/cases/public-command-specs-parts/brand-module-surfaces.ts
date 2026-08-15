@@ -1,11 +1,11 @@
 import {
   buildBrandModuleL5ModuleStatus,
-} from '../../../../modules/charter/brand-module-l5-evidence.ts';
+} from '../../../../authority/contracts/brand-module-l5-evidence.ts';
 import {
   buildBrandModuleObjectView,
   buildBrandModuleSurfaceCommand,
   listBrandModuleObjectViewCommands,
-} from '../../../../modules/charter/brand-module-surfaces.ts';
+} from '../../../../authority/contracts/brand-module-surfaces.ts';
 import type { BrandModuleId, FrameworkContracts } from '../../../../kernel/types.ts';
 import { assertNoArgs } from '../../modules/support.ts';
 import type { CommandSpec } from '../../modules/support.ts';

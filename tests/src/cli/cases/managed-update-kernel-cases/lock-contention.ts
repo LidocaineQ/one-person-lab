@@ -8,7 +8,7 @@ import {
   test,
 } from '../../helpers.ts';
 import { FrameworkContractError } from '../../../../../src/kernel/contract-validation.ts';
-import { acquireManagedUpdateLock } from '../../../../../src/modules/connect/managed-update-lock.ts';
+import { acquireManagedUpdateLock } from '../../../../../src/adapters/integration/managed-update-lock.ts';
 
 test('packages update reports lock contention without running a parallel writer', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-update-lock-'));
@@ -179,7 +179,7 @@ test('concurrent reclaim has one lock winner', async () => {
   fs.writeFileSync(
     scriptFile,
     [
-      `import { acquireManagedUpdateLock } from ${JSON.stringify(path.join(process.cwd(), 'src/modules/connect/managed-update-lock.ts'))};`,
+      `import { acquireManagedUpdateLock } from ${JSON.stringify(path.join(process.cwd(), 'src/adapters/integration/managed-update-lock.ts'))};`,
       'const lock = acquireManagedUpdateLock({ operation: "apply" });',
       'process.stdout.write("acquired\\n");',
       'setTimeout(() => lock.release(), 300);',

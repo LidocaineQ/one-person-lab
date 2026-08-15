@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {
   buildGeneratedProductEntryManifestCompanions,
   buildGeneratedProductEntrySessionSurface,
-} from '../../src/modules/console/product-entry-companions.ts';
+} from '../../src/read-models/operator/product-entry-companions.ts';
 
 const entryDescriptor = {
   direct: {

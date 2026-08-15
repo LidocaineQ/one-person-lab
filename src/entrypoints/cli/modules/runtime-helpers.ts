@@ -1,4 +1,4 @@
-import { runCodexPassthrough } from '../../../modules/runway/codex.ts';
+import { runCodexPassthrough } from '../../../adapters/execution/codex.ts';
 export { buildUsageError } from './cli-errors.ts';
 export { printJson } from './cli-output.ts';
 

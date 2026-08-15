@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildCurrentOwnerDeltaTopline } from '../../src/modules/ledger/current-owner-delta-topline.ts';
+import { buildCurrentOwnerDeltaTopline } from '../../src/authority/evidence/current-owner-delta-topline.ts';
 
 function readModel(overrides: Record<string, unknown> = {}) {
   return {

@@ -3,7 +3,7 @@ import {
   recordStandardAgentTemplateConsumptionReceipts,
   verifyStandardAgentTemplateConsumptionReceipt,
   type StandardAgentTemplateConsumptionReceiptInput,
-} from '../../../modules/ledger/standard-agent-template-consumption-ledger.ts';
+} from '../../../authority/evidence/standard-agent-template-consumption-ledger.ts';
 import {
   readJsonObject,
   readOptionalString,

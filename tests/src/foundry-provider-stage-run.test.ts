@@ -14,17 +14,17 @@ import {
   type AgentBlueprint,
   type FoundryProviderManifest,
   type FoundryActivityIdentity,
-} from '../../src/modules/foundry/index.ts';
+} from '../../src/authority/evolution/index.ts';
 import {
   ContentAddressedCandidateCompiler,
   FileFoundryContentStore,
-} from '../../src/modules/ledger/index.ts';
+} from '../../src/authority/evidence/index.ts';
 import {
   FileFoundryProviderArtifactReader,
   OplFoundryProviderStageRunGateway,
   StageRunFoundryProviderInvoker,
   type FoundryProviderStageRunGateway,
-} from '../../src/modules/runway/foundry-provider-stage-run.ts';
+} from '../../src/adapters/execution/foundry-provider-stage-run.ts';
 
 const provider: FoundryProviderManifest = {
   surface_kind: 'opl_foundry_provider',

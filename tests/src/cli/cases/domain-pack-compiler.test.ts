@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 
 import { assert, buildManifestCommand, createFamilyContractsFixtureRoot, fs, loadFamilyManifestFixtures, loadFrameworkContracts, os, path, runCli, runCliInCwd, shellSingleQuote, test } from '../helpers.ts';
-import { buildFamilyAgentDescriptorList } from '../../../../src/modules/atlas/family-domain-agent-descriptor.ts';
+import { buildFamilyAgentDescriptorList } from '../../../../src/read-models/catalog/family-domain-agent-descriptor.ts';
 import {
   assertReadyPackCompilerSummary,
   PACK_COMPILER_GENERATED_SURFACE_COUNT_PER_DOMAIN,
@@ -15,8 +15,8 @@ import {
   writeManifestContractOverrides,
 } from './domain-pack-compiler-fixtures.ts';
 import { createAdmittedStagePackFixture } from './workspace-domain-test-helper.ts';
-import { FORBIDDEN_DOMAIN_GENERIC_OWNER_ROLES } from '../../../../src/modules/pack/standard-domain-agent-scaffold-constants.ts';
-import { createCordisBaseHeadlessComposition } from '../../../../src/entrypoints/cordis/composition-profiles.ts';
+import { FORBIDDEN_DOMAIN_GENERIC_OWNER_ROLES } from '../../../../src/authority/packages/standard-domain-agent-scaffold-constants.ts';
+import { createCordisBaseHeadlessComposition } from '../../../../src/host/composition-profiles.ts';
 
 function buildDelayedManifestCommand(payload: Record<string, unknown>, delayMs: number) {
   return `${process.execPath} -e ${

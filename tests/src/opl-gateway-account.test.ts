@@ -7,11 +7,11 @@ import test from 'node:test';
 
 import { FrameworkContractError } from '../../src/kernel/contract-validation.ts';
 import { readLocalCodexAccessState } from '../../src/kernel/local-codex-defaults.ts';
-import { bindGatewayKeyToCodex, restoreCodexBinding } from '../../src/modules/connect/opl-gateway-account-parts/codex-binding.ts';
-import { inspectGatewayPublicSettings, loginGateway } from '../../src/modules/connect/opl-gateway-account-parts/client.ts';
-import { buildGatewayInstallation, normalizeGatewayDeviceSlug } from '../../src/modules/connect/opl-gateway-account-parts/identity.ts';
-import { reconcileGatewayManagedKey } from '../../src/modules/connect/opl-gateway-account-parts/key-reconcile.ts';
-import { readOrCreateGatewayInstallation } from '../../src/modules/connect/opl-gateway-account-parts/private-store.ts';
+import { bindGatewayKeyToCodex, restoreCodexBinding } from '../../src/adapters/integration/opl-gateway-account-parts/codex-binding.ts';
+import { inspectGatewayPublicSettings, loginGateway } from '../../src/adapters/integration/opl-gateway-account-parts/client.ts';
+import { buildGatewayInstallation, normalizeGatewayDeviceSlug } from '../../src/adapters/integration/opl-gateway-account-parts/identity.ts';
+import { reconcileGatewayManagedKey } from '../../src/adapters/integration/opl-gateway-account-parts/key-reconcile.ts';
+import { readOrCreateGatewayInstallation } from '../../src/adapters/integration/opl-gateway-account-parts/private-store.ts';
 import {
   disconnectOplGatewayAccount,
   loginOplGatewayAccount,
@@ -19,7 +19,7 @@ import {
   refreshOplGatewayAccount,
   selectOplGatewayManagedGroup,
   useOplGatewayForModelAccess,
-} from '../../src/modules/connect/opl-gateway-account.ts';
+} from '../../src/adapters/integration/opl-gateway-account.ts';
 
 function json(response: http.ServerResponse, value: unknown, status = 200) {
   response.writeHead(status, { 'content-type': 'application/json' });

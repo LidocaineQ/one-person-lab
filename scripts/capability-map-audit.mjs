@@ -7,8 +7,8 @@ import {
   readJsonFile,
   stringList,
 } from './script-json-boundary.mjs';
-import { materializeStandardAgentCapabilityMap } from '../src/modules/pack/standard-agent-capability-map.ts';
-import { listRepoProfessionalSkillRefs } from '../src/modules/pack/standard-agent-capability-inventory.ts';
+import { materializeStandardAgentCapabilityMap } from '../src/authority/packages/standard-agent-capability-map.ts';
+import { listRepoProfessionalSkillRefs } from '../src/authority/packages/standard-agent-capability-inventory.ts';
 
 const LOCAL_REF_PREFIXES = ['external_repo:', 'opl-framework:', 'human_doc:', 'runtime:', 'policy:', 'contract:'];
 

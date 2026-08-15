@@ -11,7 +11,7 @@ import {
   runCli,
   test,
 } from '../helpers.ts';
-import { listStageAttemptsWithMonitoringProjection } from '../../../../src/modules/runway/family-runtime-stage-attempt-monitoring.ts';
+import { listStageAttemptsWithMonitoringProjection } from '../../../../src/adapters/execution/family-runtime-stage-attempt-monitoring.ts';
 
 test('family-runtime compact timeline exposes filtered public currentness', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-attempt-monitoring-'));

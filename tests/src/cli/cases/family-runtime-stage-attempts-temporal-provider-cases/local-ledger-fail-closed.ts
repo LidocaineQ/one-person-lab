@@ -7,7 +7,7 @@ import {
   path,
   test,
 } from '../../helpers.ts';
-import { runFamilyRuntime } from '../../../../../src/modules/runway/family-runtime.ts';
+import { runFamilyRuntime } from '../../../../../src/adapters/execution/family-runtime.ts';
 
 function packageLaunchRuntime() {
   let useBoundarySequence = 0;

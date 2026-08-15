@@ -9,8 +9,8 @@ import {
   evaluateStageRunProgress,
   rebuildStageRunReadModel,
   stageRunEvent,
-} from '../../src/modules/stagecraft/stage-run-kernel.ts';
-import { buildAppStageRunCockpit } from '../../src/modules/stagecraft/stage-run-cockpit.ts';
+} from '../../src/authority/stages/stage-run-kernel.ts';
+import { buildAppStageRunCockpit } from '../../src/authority/stages/stage-run-cockpit.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 

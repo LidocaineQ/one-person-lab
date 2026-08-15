@@ -3,7 +3,7 @@ import {
   recordDeveloperModeCloseoutReceipts,
   verifyDeveloperModeCloseoutReceipt,
   type DeveloperModeCloseoutReceiptInput,
-} from '../../../modules/ledger/index.ts';
+} from '../../../authority/evidence/index.ts';
 import {
   readJsonObject,
   readOptionalString,

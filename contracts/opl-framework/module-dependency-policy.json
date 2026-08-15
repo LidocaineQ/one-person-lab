@@ -1,142 +1,115 @@
 {
-  "version": "module-dependency-policy.v1",
+  "version": "module-dependency-policy.v2",
   "scope": "opl_framework_module_dependency_policy",
   "owner": "OPL Framework",
-  "purpose": "Machine-readable dependency policy for the ten OPL Framework source modules under src/modules.",
+  "purpose": "Machine-readable dependency policy for responsibility units under the OPL Framework source topology.",
   "state": "active_contract",
   "machine_boundary": "This contract governs physical source-module imports only. It does not define runtime truth, domain truth, owner receipts, typed blockers, release readiness, product packaging, or a new Framework module.",
   "source_module_map": "contracts/opl-framework/source-module-map.json",
   "module_set_policy": {
-    "physical_module_root": "src/modules",
-    "extra_physical_module_roots": "strict",
-    "new_module_requires_source_module_map_update": true
+    "target_source_roots": [
+      "src/authority",
+      "src/adapters",
+      "src/read-models",
+      "src/host",
+      "src/entrypoints",
+      "src/kernel"
+    ],
+    "legacy_source_roots": [
+      "src/modules"
+    ],
+    "legacy_absence_required": true,
+    "new_unit_requires_source_map_update": true
   },
   "public_entrypoint_rule": {
-    "module_entrypoint_pattern": "src/modules/<module_id>/index.ts",
-    "thin_public_entry_pattern": "src/modules/<module_id>/public/**/*.ts",
-    "aggregate_entrypoint": "src/modules/index.ts",
-    "cross_module_imports": "public_entrypoint_or_thin_public_entry",
-    "same_module_deep_imports": "allowed"
+    "cross_unit_imports": "public_entrypoint_or_host_plugin_leaf",
+    "same_unit_deep_imports": "allowed",
+    "host_plugin_leaf_pattern": "src/host/plugins/*.ts"
   },
   "source_scan_scope": {
-    "checker_scope": "all_module_ts_files",
-    "included": "src/modules/<module_id>/**/*.ts",
-    "excluded": "none"
-  },
-  "deep_cross_module_imports": {
-    "failure_mode": "strict",
-    "strict_flag": "--strict-imports",
-    "reason": "Cross-module imports must use the target module public index or a thin public entry under public/**. The previous transition baseline has been migrated, so new internal cross-module imports fail the default source module boundary check."
-  },
-  "module_dependency_cycles": {
-    "failure_mode": "strict",
-    "strict_flag": "--strict-cycles",
-    "detection": "directed_scc_from_cross_module_import_pair_graph",
-    "reason": "The current Framework source module graph is acyclic. New public-entry-level strongly connected components fail the default source module boundary check."
+    "checker_scope": "all_target_source_units",
+    "included": [
+      "src/authority/**/*.ts",
+      "src/adapters/**/*.ts",
+      "src/read-models/**/*.ts",
+      "src/host/**/*.ts",
+      "src/entrypoints/**/*.ts",
+      "src/kernel/**/*.ts"
+    ],
+    "excluded": [
+      "node_modules",
+      "dist"
+    ]
   },
   "completion_audit_policy": {
-    "done_evidence_fields": [
-      "module_entrypoints.expected_count=10 with no missing, mismatched, or unexpected module roots",
-      "root_ts.top_level_count=0 and target CLI entrypoint exists",
-      "cross_module_imports.deep_import_violations.count=0 under --strict-imports",
-      "cross_module_imports.forbidden_dependency_violations.count=0 for configured forbidden_dependencies",
-      "cross_module_imports.dependency_cycles.count=0 under --strict-cycles"
+    "target_roots_required": [
+      "src/authority",
+      "src/adapters",
+      "src/read-models",
+      "src/host",
+      "src/entrypoints",
+      "src/kernel"
     ],
-    "partial_gaps": [
-      "module public index files are still broad public re-export surfaces; strict imports prove import route legality, not minimal API shape",
-      "next_forbidden_dependency_candidates are advisory until each pair has a migration path and zero accepted callers"
-    ]
+    "legacy_roots_absent": [
+      "src/modules"
+    ],
+    "deep_imports_zero": true,
+    "dependency_cycles_zero": true
   },
   "dependency_policy": {
-    "forbidden_dependencies": [
+    "layer_dependencies": [
       {
-        "from_module_id": "charter",
-        "to_module_id": "console",
-        "reason": "Charter is the framework naming and contract owner; it must not depend on operator projection surfaces."
+        "from_layer_id": "kernel",
+        "to_layer_ids": [
+          "kernel"
+        ]
       },
       {
-        "from_module_id": "charter",
-        "to_module_id": "foundry",
-        "reason": "Charter must not depend on agent-improvement surfaces."
+        "from_layer_id": "authority",
+        "to_layer_ids": [
+          "kernel",
+          "authority"
+        ]
       },
       {
-        "from_module_id": "charter",
-        "to_module_id": "connect",
-        "reason": "Charter must not depend on distribution or connector surfaces."
+        "from_layer_id": "adapters",
+        "to_layer_ids": [
+          "kernel",
+          "authority",
+          "adapters"
+        ]
       },
       {
-        "from_module_id": "ledger",
-        "to_module_id": "runway",
-        "reason": "Ledger is the refs-only evidence owner; it must not depend on execution, queue, worker, or recovery surfaces."
+        "from_layer_id": "read-models",
+        "to_layer_ids": [
+          "kernel",
+          "authority",
+          "adapters",
+          "read-models"
+        ]
       },
       {
-        "from_module_id": "stagecraft",
-        "to_module_id": "runway",
-        "reason": "Stagecraft designs stage policy and work orders; Runway consumes them for execution rather than becoming a Stagecraft prerequisite."
+        "from_layer_id": "host",
+        "to_layer_ids": [
+          "kernel",
+          "authority",
+          "adapters",
+          "read-models",
+          "host"
+        ]
       },
       {
-        "from_module_id": "workspace",
-        "to_module_id": "console",
-        "reason": "Workspace owns protocol and file lifecycle projection; Console consumes workspace projections for operator surfaces."
-      },
-      {
-        "from_module_id": "foundry",
-        "to_module_id": "console",
-        "reason": "Foundry Kernel owns producer-neutral FoundryRun orchestration; Console-owned readiness and operator projections must not become a Foundry prerequisite."
-      },
-      {
-        "from_module_id": "atlas",
-        "to_module_id": "connect",
-        "reason": "Atlas owns catalogs and resolution projections; installed Package descriptor and checkout discovery enter through the kernel-owned readiness port rather than Connect implementation imports."
-      },
-      {
-        "from_module_id": "atlas",
-        "to_module_id": "workspace",
-        "reason": "Atlas consumes Workspace binding data through the kernel-owned binding port; Workspace remains the registry implementation owner."
-      },
-      {
-        "from_module_id": "runway",
-        "to_module_id": "connect",
-        "reason": "Runway owns execution and consumes Package readiness contracts through kernel-owned ports; Connect remains the installation and discovery implementation owner."
-      },
-      {
-        "from_module_id": "workspace",
-        "to_module_id": "connect",
-        "reason": "Workspace consumes Package descriptor and framework-import contracts through kernel-owned ports and primitives rather than Connect implementation imports."
+        "from_layer_id": "entrypoints",
+        "to_layer_ids": [
+          "kernel",
+          "host",
+          "authority",
+          "adapters",
+          "read-models"
+        ]
       }
     ],
-    "next_forbidden_dependency_candidates": [
-      {
-        "from_module_id": "runway",
-        "to_module_id": "console",
-        "reason": "Runway owns durable execution and runtime state; Console should consume Runway projections rather than becoming a runtime prerequisite.",
-        "promotion_gate": "Split runtime tray/operator projection inputs before enforcing this direction."
-      },
-      {
-        "from_module_id": "stagecraft",
-        "to_module_id": "console",
-        "reason": "Stagecraft owns stage policy and handoff design; Console should project stage readiness rather than feed Stagecraft behavior.",
-        "promotion_gate": "Move any operator narration or drilldown shape behind Stagecraft-owned public output or Console-owned consumer code."
-      },
-      {
-        "from_module_id": "connect",
-        "to_module_id": "console",
-        "reason": "Connect owns directly callable connector and distribution surfaces; it must not require Console implementation to expose connector capability.",
-        "promotion_gate": "Keep connector descriptors and install/sync surfaces callable through Connect public entries without Console imports."
-      },
-      {
-        "from_module_id": "ledger",
-        "to_module_id": "connect",
-        "reason": "Ledger owns refs-only evidence and lineage; connector lookup or distribution behavior should not be a Ledger prerequisite.",
-        "promotion_gate": "Confirm evidence records store refs only and route connector/provider work through Connect callers."
-      },
-      {
-        "from_module_id": "pack",
-        "to_module_id": "console",
-        "reason": "Pack owns declarative ABI and generated surfaces; operator presentation should consume Pack outputs rather than shape Pack internals.",
-        "promotion_gate": "Extract any operator-only rendering or narration into Console consumers before enforcing this pair."
-      }
-    ]
+    "forbidden_dependencies": []
   },
   "authority_boundary": {
     "does_not_create_eleventh_module": true,

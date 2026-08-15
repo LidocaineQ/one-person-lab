@@ -4,7 +4,7 @@ import { fs, parseJsonText, path } from '../../helpers.ts';
 import {
   CANONICAL_PACKAGE_CONTENT_LOCK,
   packageContentLockDigest,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/payload-content-lock.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry-parts/payload-content-lock.ts';
 
 function readJsonFile(filePath: string) {
   return parseJsonText(fs.readFileSync(filePath, 'utf8'));

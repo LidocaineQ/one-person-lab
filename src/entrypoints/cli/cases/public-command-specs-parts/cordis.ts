@@ -2,18 +2,18 @@ import {
   buildCordisCompositionInspect,
   CORDIS_AGENT_EXECUTOR_INSPECT_METADATA,
   markCordisCompositionInspectDisposed,
-} from '../../../../modules/console/index.ts';
-import { buildRuntimeTraySnapshot } from '../../../../modules/console/runtime-tray-snapshot.ts';
-import type { RuntimeTraySnapshotProvider } from '../../../../modules/runway/index.ts';
+} from '../../../../host/plugins/cordis-composition-inspect.ts';
+import { buildRuntimeTraySnapshot } from '../../../../read-models/operator/runtime-tray-snapshot.ts';
+import type { RuntimeTraySnapshotProvider } from '../../../../adapters/execution/index.ts';
 import type { FrameworkContracts } from '../../../../kernel/types.ts';
 import {
   createCordisAppFullComposition,
   type CordisCliComposition,
-} from '../../../cordis/composition-profiles.ts';
+} from '../../../../host/composition-profiles.ts';
 import { parseRegisteredCommandOptions } from '../../modules/support.ts';
 import type { CommandSpec } from '../../modules/support.ts';
 
-export type { CordisCliComposition } from '../../../cordis/composition-profiles.ts';
+export type { CordisCliComposition } from '../../../../host/composition-profiles.ts';
 
 function requireCordisComposition(
   composition: CordisCliComposition | undefined,

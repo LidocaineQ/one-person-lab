@@ -12,7 +12,7 @@ import {
   setDefaultOplConnection,
   testOplConnection,
   updateOplConnection,
-} from '../../src/modules/connect/connection-registry.ts';
+} from '../../src/adapters/integration/connection-registry.ts';
 
 function withStateDir(run: (stateDir: string) => void | Promise<void>) {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-connection-registry-'));

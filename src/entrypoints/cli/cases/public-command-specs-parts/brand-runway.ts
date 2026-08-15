@@ -4,11 +4,11 @@ import {
   buildRunwayReconcileProjection,
   buildRunwayRecoveryRepairProjection,
   buildFamilyRuntimeControlLoopStatus,
-} from '../../../../modules/runway/family-runtime-control-loop.ts';
+} from '../../../../adapters/execution/family-runtime-control-loop.ts';
 import {
   openQueueDb,
-} from '../../../../modules/runway/family-runtime-store.ts';
-import { runFamilyRuntime } from '../../../../modules/runway/family-runtime.ts';
+} from '../../../../adapters/execution/family-runtime-store.ts';
+import { runFamilyRuntime } from '../../../../adapters/execution/family-runtime.ts';
 import { assertNoArgs } from '../../modules/support.ts';
 import type { CommandSpec } from '../../modules/support.ts';
 

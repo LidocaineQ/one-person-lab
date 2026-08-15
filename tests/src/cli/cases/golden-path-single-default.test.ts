@@ -1,5 +1,5 @@
 import { assert, fs, parseJsonText, path, runCli, test } from '../helpers.ts';
-import { compileStandardAgentStageManifest } from '../../../../src/modules/pack/index.ts';
+import { compileStandardAgentStageManifest } from '../../../../src/authority/packages/index.ts';
 import {
   buildReadyAgentRepo,
   writeJson,

@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { runStandardAgentHandlerSandbox } from '../../src/modules/runway/standard-agent-handler-sandbox.ts';
+import { runStandardAgentHandlerSandbox } from '../../src/adapters/execution/standard-agent-handler-sandbox.ts';
 
 function fixtureRoot() {
   return fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'opl-standard-agent-handler-')));

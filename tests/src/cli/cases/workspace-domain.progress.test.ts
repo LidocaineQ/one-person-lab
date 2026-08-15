@@ -13,7 +13,7 @@ import {
   runCli,
   test,
 } from '../helpers.ts';
-import { createCordisBaseHeadlessComposition } from '../../../../src/entrypoints/cordis/composition-profiles.ts';
+import { createCordisBaseHeadlessComposition } from '../../../../src/host/composition-profiles.ts';
 
 test('project progress consumes the domain-owned operator projection without interpreting paper artifacts', async () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-project-progress-'));

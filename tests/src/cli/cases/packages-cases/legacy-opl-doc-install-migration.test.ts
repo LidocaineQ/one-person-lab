@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { migrateLegacyOplDocInstall } from '../../../../../src/modules/connect/agent-package-registry-parts/legacy-opl-doc-install-migration.ts';
+import { migrateLegacyOplDocInstall } from '../../../../../src/adapters/integration/agent-package-registry-parts/legacy-opl-doc-install-migration.ts';
 
 
 function fixture() {

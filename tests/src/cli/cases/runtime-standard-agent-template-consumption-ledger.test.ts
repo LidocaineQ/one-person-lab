@@ -6,8 +6,8 @@ import {
   runCli,
 } from '../helpers.ts';
 import test from 'node:test';
-import { buildStandardDomainAgentScaffoldConsumptionEvidence } from '../../../../src/modules/console/standard-domain-agent-template-consumption.ts';
-import { buildStandardDomainAgentTemplateConsumptionReadModel } from '../../../../src/modules/pack/standard-domain-agent-scaffold.ts';
+import { buildStandardDomainAgentScaffoldConsumptionEvidence } from '../../../../src/read-models/operator/standard-domain-agent-template-consumption.ts';
+import { buildStandardDomainAgentTemplateConsumptionReadModel } from '../../../../src/authority/packages/standard-domain-agent-scaffold.ts';
 
 test('runtime standard agent template consumption CLI records and verifies refs-only replay evidence', () => {
   const stateRoot = fs.mkdtempSync(path.join(

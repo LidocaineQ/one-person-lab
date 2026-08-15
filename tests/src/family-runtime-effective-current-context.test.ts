@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import {
   buildFamilyStallLineage,
-} from '../../src/modules/runway/family-runtime-effective-current-context.ts';
+} from '../../src/adapters/execution/family-runtime-effective-current-context.ts';
 
 test('family stall lineage does not treat platform repair or typed blockers as deliverable progress', () => {
   const lineage = buildFamilyStallLineage([

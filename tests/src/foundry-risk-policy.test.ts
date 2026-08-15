@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { AgentBlueprint } from '../../src/modules/foundry/index.ts';
+import type { AgentBlueprint } from '../../src/authority/evolution/index.ts';
 import {
   assertEvaluationPolicyNonWeakening,
   recomputeBlueprintRisk,
-} from '../../src/modules/foundry/risk-policy.ts';
+} from '../../src/authority/evolution/risk-policy.ts';
 
 function blueprint(): AgentBlueprint {
   const inputSchemaRef = `opl-content://sha256/${'3'.repeat(64)}`;

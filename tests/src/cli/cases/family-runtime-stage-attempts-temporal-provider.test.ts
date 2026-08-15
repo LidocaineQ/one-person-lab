@@ -1,5 +1,5 @@
 import { assert, fs, installRuntimePackageFixture, os, path, runCli, test } from '../helpers.ts';
-import { buildTemporalStageAttemptWorkflowInput } from '../../../../src/modules/runway/family-runtime-temporal.ts';
+import { buildTemporalStageAttemptWorkflowInput } from '../../../../src/adapters/execution/family-runtime-temporal.ts';
 import type {
   TemporalStageAttemptCreateOutput,
 } from './family-runtime-stage-attempts-temporal-provider-fixtures.ts';

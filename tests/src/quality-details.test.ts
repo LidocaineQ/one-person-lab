@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 
 import { cliPath, repoRoot, runCli, runCliInCwd, runCliRaw, runCliRawInCwd } from './cli/helpers.ts';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
-import { listRepoFiles } from '../../src/modules/stagecraft/quality-details/filesystem.ts';
+import { listRepoFiles } from '../../src/authority/stages/quality-details/filesystem.ts';
 
 test('quality details non-git fallback includes dot paths and ignores directories and symlinks', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-quality-details-files-'));

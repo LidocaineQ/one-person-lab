@@ -13,18 +13,18 @@ import { Worker } from '@temporalio/worker';
 
 import { registerAgentPackageReadinessPort } from '../../src/kernel/agent-package-readiness-port.ts';
 import { FrameworkContractError } from '../../src/kernel/contract-validation.ts';
-import { runOplAgentPackageStatus } from '../../src/modules/connect/agent-package-registry.ts';
-import { createWorkItemExecutionScopeSnapshot } from '../../src/modules/workspace/index.ts';
-import { runFamilyRuntime } from '../../src/modules/runway/family-runtime.ts';
-import { resolveStageRunAttemptExecutorContent } from '../../src/modules/runway/family-runtime-stage-run-attempt-content.ts';
+import { runOplAgentPackageStatus } from '../../src/adapters/integration/agent-package-registry.ts';
+import { createWorkItemExecutionScopeSnapshot } from '../../src/authority/workspace/index.ts';
+import { runFamilyRuntime } from '../../src/adapters/execution/family-runtime.ts';
+import { resolveStageRunAttemptExecutorContent } from '../../src/adapters/execution/family-runtime-stage-run-attempt-content.ts';
 import {
   stageQualityAttemptMaterializeActivity,
   stageQualityAttemptSyncActivity,
   stageQualityCycleProjectActivity,
   stageQualityReviewReceiptActivity,
-} from '../../src/modules/runway/family-runtime-temporal-activities.ts';
-import { verifyStageQualityCloseoutArtifactIdentity } from '../../src/modules/runway/family-runtime-codex-stage-runner-parts/artifact-identity-verification.ts';
-import type { TemporalStageAttemptWorkflowInput } from '../../src/modules/runway/family-runtime-temporal.ts';
+} from '../../src/adapters/execution/family-runtime-temporal-activities.ts';
+import { verifyStageQualityCloseoutArtifactIdentity } from '../../src/adapters/execution/family-runtime-codex-stage-runner-parts/artifact-identity-verification.ts';
+import type { TemporalStageAttemptWorkflowInput } from '../../src/adapters/execution/family-runtime-temporal.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '../..');
 
@@ -450,7 +450,7 @@ Close findings using the latest package.
       connection: testEnv.nativeConnection,
       namespace,
       taskQueue,
-      workflowsPath: path.join(repoRoot, 'src/modules/runway/family-runtime-temporal-workflows.ts'),
+      workflowsPath: path.join(repoRoot, 'src/adapters/execution/family-runtime-temporal-workflows.ts'),
       activities,
     });
     const execution = await worker.runUntil(async () => {

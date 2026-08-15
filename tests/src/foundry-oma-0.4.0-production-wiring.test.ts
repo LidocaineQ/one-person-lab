@@ -11,12 +11,12 @@ import { assertRepoJsonSchemaPayload } from '../../src/kernel/repo-json-schema.t
 import {
   ManifestFoundryDesignerAdapter,
   readFoundryProviderManifest,
-} from '../../src/modules/foundry/designer-adapter.ts';
+} from '../../src/authority/evolution/designer-adapter.ts';
 import {
   assertBlueprintSatisfiesDesignRequest,
   assertEvaluationEvidenceFacts,
   foundryFrozenEvaluationPlanDigest,
-} from '../../src/modules/foundry/evaluation-runtime.ts';
+} from '../../src/authority/evolution/evaluation-runtime.ts';
 import {
   FOUNDRY_PROTOCOL_VERSION,
   foundryContentDigest,
@@ -28,14 +28,14 @@ import {
   type DesignRequest,
   type EvidenceBundle,
   type EvolutionProposal,
-} from '../../src/modules/foundry/protocol.ts';
-import type { FoundryActivityIdentity } from '../../src/modules/foundry/ports.ts';
-import { ContentAddressedCandidateCompiler } from '../../src/modules/ledger/foundry-persistent-adapters.ts';
+} from '../../src/authority/evolution/protocol.ts';
+import type { FoundryActivityIdentity } from '../../src/authority/evolution/ports.ts';
+import { ContentAddressedCandidateCompiler } from '../../src/authority/evidence/foundry-persistent-adapters.ts';
 import {
   StageRunFoundryProviderInvoker,
   type FoundryProviderStageRunGateway,
-} from '../../src/modules/runway/foundry-provider-stage-run.ts';
-import { createProductionFoundryKernel } from '../../src/modules/runway/foundry-production-runtime.ts';
+} from '../../src/adapters/execution/foundry-provider-stage-run.ts';
+import { createProductionFoundryKernel } from '../../src/adapters/execution/foundry-production-runtime.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const fixtureRoot = path.join(repoRoot, 'tests/fixtures/oma-0.4.0');

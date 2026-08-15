@@ -11,9 +11,9 @@
     "canonical_registry_ref": "contracts/opl-framework/packages/*.json#/standard_agent_descriptor_projection",
     "membership_value": "standard_domain_agent",
     "derived_projection_surfaces": [
-      "src/modules/atlas/family-domain-agent-descriptor.ts",
-      "src/modules/connect/opl-skills.ts",
-      "src/modules/foundry/standard-domain-agent-conformance-foundry-agent-os.ts",
+      "src/read-models/catalog/family-domain-agent-descriptor.ts",
+      "src/adapters/integration/opl-skills.ts",
+      "src/authority/evolution/standard-domain-agent-conformance-foundry-agent-os.ts",
       "contracts/opl-framework/target-operating-architecture-contract.json"
     ],
     "public_agent_identity_must_derive_from_registry": true,

@@ -10,8 +10,8 @@ import { projectFamilyAction } from '../../src/kernel/family-action-catalog-proj
 import {
   buildFamilyActionStageRouteParity,
   normalizeFamilyStageControlPlane,
-} from '../../src/modules/stagecraft/index.ts';
-import { buildGeneratedDirectParityProof } from '../../src/modules/pack/domain-pack-compiler/generated-interface-parity.ts';
+} from '../../src/authority/stages/index.ts';
+import { buildGeneratedDirectParityProof } from '../../src/authority/packages/domain-pack-compiler/generated-interface-parity.ts';
 
 const validRoute = {
   entry_stage_ref: 'intake',

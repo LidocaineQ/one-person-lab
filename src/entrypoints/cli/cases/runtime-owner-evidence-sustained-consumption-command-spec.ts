@@ -3,7 +3,7 @@ import {
   recordOwnerEvidenceSustainedConsumptionReceipts,
   verifyOwnerEvidenceSustainedConsumptionReceipt,
   type OwnerEvidenceSustainedConsumptionReceiptInput,
-} from '../../../modules/ledger/owner-evidence-sustained-consumption-ledger.ts';
+} from '../../../authority/evidence/owner-evidence-sustained-consumption-ledger.ts';
 import {
   readJsonObject,
   readOptionalString,

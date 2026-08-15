@@ -4,13 +4,13 @@ import { assert, fs, os, path, test } from '../helpers.ts';
 import {
   createFamilyRuntimeQueueTables,
   familyRuntimePaths,
-} from '../../../../src/modules/runway/family-runtime-store.ts';
+} from '../../../../src/adapters/execution/family-runtime-store.ts';
 import {
   createStageAttempt,
-} from '../../../../src/modules/runway/family-runtime-stage-attempts.ts';
+} from '../../../../src/adapters/execution/family-runtime-stage-attempts.ts';
 import {
   maybeRepairTemporalWorkerForProviderSlo,
-} from '../../../../src/modules/runway/family-runtime-provider-slo-executor.ts';
+} from '../../../../src/adapters/execution/family-runtime-provider-slo-executor.ts';
 import {
   temporalWorkerStatus,
 } from './family-runtime-provider-slo-fixtures.ts';

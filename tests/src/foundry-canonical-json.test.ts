@@ -6,8 +6,8 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { canonicalJsonBytes, canonicalJsonText } from '../../src/kernel/canonical-json.ts';
-import { foundryContentDigest } from '../../src/modules/foundry/index.ts';
-import { FileFoundryObjectStore, foundryStoragePaths } from '../../src/modules/ledger/index.ts';
+import { foundryContentDigest } from '../../src/authority/evolution/index.ts';
+import { FileFoundryObjectStore, foundryStoragePaths } from '../../src/authority/evidence/index.ts';
 
 test('canonical JSON follows the RFC 8785 serialization example', () => {
   assert.equal(canonicalJsonText({

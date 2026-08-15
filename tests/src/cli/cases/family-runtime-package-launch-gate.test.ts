@@ -19,7 +19,7 @@ import { createFakeCodexPluginManagerFixture } from '../helpers-parts/fixtures.t
 import {
   packageLaunchHardStopReason,
   packageRuntimeSourceCheckoutPath,
-} from '../../../../src/modules/runway/family-runtime-package-readiness.ts';
+} from '../../../../src/adapters/execution/family-runtime-package-readiness.ts';
 
 function createArgs(workspace: string) {
   return [

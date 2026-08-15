@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-import { FrameworkContractError } from '../../../src/modules/charter/contracts.ts';
+import { FrameworkContractError } from '../../../src/authority/contracts/contracts.ts';
 import {
   buildStageReviewContextManifest,
   classifyCodexSessionContinuation,
@@ -19,9 +19,9 @@ import {
   STAGE_QUALITY_OUTCOMES,
   validateInitialStageQualityReviewOutcome,
   validateIndependentStageReviewReceipt,
-} from '../../../src/modules/stagecraft/stage-quality-cycle.ts';
+} from '../../../src/authority/stages/stage-quality-cycle.ts';
 
-import { buildFamilyStageConformanceReview } from '../../../src/modules/stagecraft/family-stage-conformance.ts';
+import { buildFamilyStageConformanceReview } from '../../../src/authority/stages/family-stage-conformance.ts';
 import {
   bindStageAttemptExecutionSession,
   createStageAttempt,
@@ -30,37 +30,37 @@ import {
   materializePersistedStageReviewReceipt,
   syncStageAttemptFromTemporalTerminalObservation,
   validatePersistedStageReviewIsolation,
-} from '../../../src/modules/runway/family-runtime-stage-attempts.ts';
-import { buildCodexStageActivityInput } from '../../../src/modules/runway/family-runtime-codex-stage-runner.ts';
+} from '../../../src/adapters/execution/family-runtime-stage-attempts.ts';
+import { buildCodexStageActivityInput } from '../../../src/adapters/execution/family-runtime-codex-stage-runner.ts';
 import {
   requireTemporalStageRunWorkflowInputLaunchable,
   type TemporalStageRunWorkflowState,
-} from '../../../src/modules/runway/family-runtime-temporal.ts';
+} from '../../../src/adapters/execution/family-runtime-temporal.ts';
 import {
   createStageQualityCycle,
   projectTemporalStageRunQualityCycle,
-} from '../../../src/modules/runway/family-runtime-stage-quality-cycle.ts';
-import { requireStageQualityAttemptBoundary } from '../../../src/modules/runway/family-runtime-stage-quality-attempt-boundary.ts';
+} from '../../../src/adapters/execution/family-runtime-stage-quality-cycle.ts';
+import { requireStageQualityAttemptBoundary } from '../../../src/adapters/execution/family-runtime-stage-quality-attempt-boundary.ts';
 import {
   buildPackBoundTemporalStageRunInput,
-} from '../../../src/modules/runway/family-runtime-pack-bound-stage-run.ts';
-import type { StandardAgentStageQualityRuntimeBinding } from '../../../src/modules/pack/index.ts';
+} from '../../../src/adapters/execution/family-runtime-pack-bound-stage-run.ts';
+import type { StandardAgentStageQualityRuntimeBinding } from '../../../src/authority/packages/index.ts';
 import {
   buildStageQualityContextManifestRef,
   buildStageReviewInputSnapshotContext,
-} from '../../../src/modules/runway/family-runtime-stage-quality-context-manifest.ts';
-import { resolveReviewerInputSnapshotMaterialization } from '../../../src/modules/runway/family-runtime-reviewer-input-snapshot.ts';
-import { OFFICIAL_KNOWLEDGE_DELIVERABLE_QUALITY_PROFILE } from '../../../src/modules/pack/standard-agent-stage-manifest.ts';
+} from '../../../src/adapters/execution/family-runtime-stage-quality-context-manifest.ts';
+import { resolveReviewerInputSnapshotMaterialization } from '../../../src/adapters/execution/family-runtime-reviewer-input-snapshot.ts';
+import { OFFICIAL_KNOWLEDGE_DELIVERABLE_QUALITY_PROFILE } from '../../../src/authority/packages/standard-agent-stage-manifest.ts';
 import {
   STANDARD_AGENT_REGISTRY,
 } from '../../../src/kernel/standard-agent-registry.ts';
-import { createWorkItemExecutionScopeSnapshot } from '../../../src/modules/workspace/index.ts';
-import { createStageRunLaunchTable } from '../../../src/modules/runway/family-runtime-stage-run-launch-registry.ts';
-import { buildStageRouteDecisionIdentity } from '../../../src/modules/runway/family-runtime-stage-run-identity.ts';
+import { createWorkItemExecutionScopeSnapshot } from '../../../src/authority/workspace/index.ts';
+import { createStageRunLaunchTable } from '../../../src/adapters/execution/family-runtime-stage-run-launch-registry.ts';
+import { buildStageRouteDecisionIdentity } from '../../../src/adapters/execution/family-runtime-stage-run-identity.ts';
 import {
   normalizeRuntimeExecutionScopeWrite,
   persistRuntimeExecutionScope,
-} from '../../../src/modules/runway/family-runtime-execution-scope-persistence.ts';
+} from '../../../src/adapters/execution/family-runtime-execution-scope-persistence.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '../../..');
 

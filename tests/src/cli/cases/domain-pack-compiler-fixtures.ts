@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import {
   FORBIDDEN_DOMAIN_GENERIC_OWNER_ROLES,
   STANDARD_AGENT_PACK_ABI,
-} from '../../../../src/modules/pack/standard-domain-agent-scaffold-constants.ts';
+} from '../../../../src/authority/packages/standard-domain-agent-scaffold-constants.ts';
 import { buildReadyAgentRepo } from './agents-conformance-fixtures.ts';
 
 export type JsonRecord = Record<string, unknown>;

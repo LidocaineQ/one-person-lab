@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import {
   buildStagecraftDomainProfileRegistryReadback,
-} from '../../src/modules/stagecraft/index.ts';
+} from '../../src/authority/stages/index.ts';
 import {
   normalizeDomainOwnerAnswerProjectionProfile,
 } from '../../src/kernel/domain-owner-answer-projection-profile.ts';

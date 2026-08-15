@@ -12,18 +12,18 @@ import { validateJsonSchemaPayload } from '../../src/kernel/schema-registry.ts';
 import {
   buildCordisCompositionInspect,
   CORDIS_AGENT_EXECUTOR_INSPECT_METADATA,
-} from '../../src/modules/console/cordis-composition-inspect.ts';
+} from '../../src/host/plugins/cordis-composition-inspect.ts';
 import {
   buildCordisAgentExecutorCompositionSnapshot,
   cordisAgentExecutorServicePlugin,
-} from '../../src/modules/runway/cordis-agent-executor-experiment.ts';
+} from '../../src/host/plugins/cordis-agent-executor-experiment.ts';
 import {
   contractsDir,
   repoRoot,
   runCli,
   runCliReadOnlyInCwd,
 } from './cli/helpers.ts';
-import { createCordisBaseHeadlessComposition } from '../../src/entrypoints/cordis/composition-profiles.ts';
+import { createCordisBaseHeadlessComposition } from '../../src/host/composition-profiles.ts';
 
 function readJson(relativePath: string): Record<string, unknown> {
   return parseJsonText(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')) as Record<string, unknown>;

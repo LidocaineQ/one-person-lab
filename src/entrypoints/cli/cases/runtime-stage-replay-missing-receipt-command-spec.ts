@@ -3,7 +3,7 @@ import {
   recordStageReplayMissingReceiptReceipts,
   verifyStageReplayMissingReceiptReceipt,
   type StageReplayMissingReceiptInput,
-} from '../../../modules/stagecraft/stage-replay-missing-receipt-ledger.ts';
+} from '../../../authority/stages/stage-replay-missing-receipt-ledger.ts';
 import {
   readJsonObject,
   readOptionalString,

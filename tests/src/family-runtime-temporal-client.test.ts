@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { resolveTemporalClientNamespace } from '../../src/modules/runway/family-runtime-temporal-client.ts';
+import { resolveTemporalClientNamespace } from '../../src/adapters/execution/family-runtime-temporal-client.ts';
 
 test('Temporal readback uses the managed worker namespace when the CLI env omits it', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-temporal-client-namespace-'));

@@ -9,20 +9,20 @@ import {
 } from './helpers.ts';
 import {
   resolveBundledFullRuntimeManifestPhysicalSource,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/physical-surface.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry-parts/physical-surface.ts';
 import type {
   BundledFullRuntimeCatalogEntry,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/bundled-full-runtime-catalog.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry-parts/bundled-full-runtime-catalog.ts';
 import {
   admitPackagePayloadManifest,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/payload-manifest.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry-parts/payload-manifest.ts';
 import {
   CANONICAL_PACKAGE_CONTENT_LOCK,
   packageContentLockDigest,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/payload-content-lock.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry-parts/payload-content-lock.ts';
 import type {
   AgentPackageManifest,
-} from '../../../../../src/modules/connect/agent-package-registry-parts/types.ts';
+} from '../../../../../src/adapters/integration/agent-package-registry-parts/types.ts';
 
 const packageId = 'example-agent';
 const pluginId = 'example-plugin';

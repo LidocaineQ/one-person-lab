@@ -5,12 +5,12 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { buildFoundryOperatorProjection } from '../../src/modules/console/foundry-operator-projection.ts';
-import { buildFoundryEvent } from '../../src/modules/foundry/state-machine.ts';
+import { buildFoundryOperatorProjection } from '../../src/read-models/operator/foundry-operator-projection.ts';
+import { buildFoundryEvent } from '../../src/authority/evolution/state-machine.ts';
 import {
   foundryStoragePaths,
   LedgerFoundryEventStore,
-} from '../../src/modules/ledger/foundry-persistent-adapters.ts';
+} from '../../src/authority/evidence/foundry-persistent-adapters.ts';
 
 const requestDigest = `sha256:${crypto.createHash('sha256').update('operator-projection-request').digest('hex')}`;
 

@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   buildAttemptStageCandidatePortfolio,
   buildWorkbenchStageCandidatePortfolio,
-} from '../../../../src/modules/runway/stage-attempt-projections/stage-candidate-portfolio.ts';
+} from '../../../../src/adapters/execution/stage-attempt-projections/stage-candidate-portfolio.ts';
 
 test('stage candidate portfolio projects canonical refs without domain body authority', () => {
   const projection = buildAttemptStageCandidatePortfolio({

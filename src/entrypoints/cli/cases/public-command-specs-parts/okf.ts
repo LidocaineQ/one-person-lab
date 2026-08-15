@@ -9,8 +9,8 @@ import {
   inspectOkfNativeFrontmatter,
   validateOkfContextBundle,
   writeOkfContextBundleProjection,
-} from '../../../../modules/pack/okf-context-bundle.ts';
-import type { OkfDomainPackCompilerInput } from '../../../../modules/pack/okf-context-bundle.ts';
+} from '../../../../authority/packages/okf-context-bundle.ts';
+import type { OkfDomainPackCompilerInput } from '../../../../authority/packages/okf-context-bundle.ts';
 import { buildUsageError, parseCommandOptions } from '../../modules/support.ts';
 import type { CommandSpec } from '../../modules/support.ts';
 

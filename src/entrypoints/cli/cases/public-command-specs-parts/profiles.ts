@@ -6,8 +6,8 @@ import {
   buildProfileCapabilityPlan,
   PROFILE_PATTERN_PACKET_OPTIONS,
   PROFILE_REFERENCE_SOURCE_OPTIONS,
-} from '../../../../modules/pack/index.ts';
-import { buildCapabilityRegistryReadout } from '../../../../modules/connect/index.ts';
+} from '../../../../authority/packages/index.ts';
+import { buildCapabilityRegistryReadout } from '../../../../adapters/integration/index.ts';
 import {
   parseRegisteredCommandOptions,
   type CommandSpec,

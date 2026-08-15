@@ -1,8 +1,8 @@
 import { DatabaseSync } from 'node:sqlite';
 
-import { buildOplRuntimeAppState } from '../../../../../src/modules/console/app-runtime-state.ts';
-import { buildAppRuntimeWorkItemProjection } from '../../../../../src/modules/console/app-runtime-work-item-projection.ts';
-import { createStageAttemptTable } from '../../../../../src/modules/runway/family-runtime-stage-attempt-ledger.ts';
+import { buildOplRuntimeAppState } from '../../../../../src/read-models/operator/app-runtime-state.ts';
+import { buildAppRuntimeWorkItemProjection } from '../../../../../src/read-models/operator/app-runtime-work-item-projection.ts';
+import { createStageAttemptTable } from '../../../../../src/adapters/execution/family-runtime-stage-attempt-ledger.ts';
 import { assert, fs, os, path, runCli, test } from '../../helpers.ts';
 
 function runtimeDescriptor(packageId: string, input: { aliases?: string[] } = {}) {

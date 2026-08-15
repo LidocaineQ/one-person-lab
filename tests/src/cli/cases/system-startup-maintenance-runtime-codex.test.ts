@@ -1,7 +1,7 @@
 import { assert, fs, os, path, runCli, shellSingleQuote, test } from '../helpers.ts';
 import { runGitFixtureCommand } from '../helpers-parts/family-fixtures.ts';
 import { withCliTimeout } from './system-startup-maintenance-cases/shared.ts';
-import { rollbackCodexRuntimeGeneration } from '../../../../src/modules/connect/system-installation/engine-helpers.ts';
+import { rollbackCodexRuntimeGeneration } from '../../../../src/adapters/integration/system-installation/engine-helpers.ts';
 
 function writeFakeNpmRuntimeInstaller(fakeNpm: string, logPath: string) {
   fs.writeFileSync(

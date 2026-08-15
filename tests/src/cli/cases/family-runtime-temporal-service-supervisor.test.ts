@@ -2,13 +2,13 @@ import { DatabaseSync } from 'node:sqlite';
 import net from 'node:net';
 
 import { assert, fs, os, path, test } from '../helpers.ts';
-import { parseRegisteredFamilyRuntimeCommand } from '../../../../src/modules/runway/family-runtime-command-parts/registry.ts';
-import { compactFastProviderState } from '../../../../src/modules/console/app-state.ts';
-import { createFamilyRuntimeQueueTables } from '../../../../src/modules/runway/family-runtime-store.ts';
+import { parseRegisteredFamilyRuntimeCommand } from '../../../../src/adapters/execution/family-runtime-command-parts/registry.ts';
+import { compactFastProviderState } from '../../../../src/read-models/operator/app-state.ts';
+import { createFamilyRuntimeQueueTables } from '../../../../src/adapters/execution/family-runtime-store.ts';
 import {
   buildTemporalServiceSupervisorPlist,
   runTemporalServiceSupervisorCommand,
-} from '../../../../src/modules/runway/family-runtime-temporal-service-supervisor.ts';
+} from '../../../../src/adapters/execution/family-runtime-temporal-service-supervisor.ts';
 import {
   temporalServiceSupervisorLaunchctlTimeoutMs,
   temporalServiceSupervisorConfigPath,
@@ -16,11 +16,11 @@ import {
   TEMPORAL_SERVICE_SUPERVISOR_KICKSTART_TIMEOUT_MS,
   TEMPORAL_SERVICE_SUPERVISOR_LAUNCHCTL_TIMEOUT_MS,
   type TemporalServiceSupervisorLaunchctlResult,
-} from '../../../../src/modules/runway/family-runtime-temporal-service-supervisor-state.ts';
-import type { TemporalServiceLauncher } from '../../../../src/modules/runway/family-runtime-temporal-service.ts';
-import { inspectTemporalServiceLifecycle } from '../../../../src/modules/runway/family-runtime-temporal-service.ts';
-import { restartTemporalServiceLifecycle } from '../../../../src/modules/runway/family-runtime-temporal-service-command.ts';
-import { inspectTemporalWorkerLifecycleFast } from '../../../../src/modules/runway/family-runtime-temporal-provider-parts/worker-lifecycle-fast.ts';
+} from '../../../../src/adapters/execution/family-runtime-temporal-service-supervisor-state.ts';
+import type { TemporalServiceLauncher } from '../../../../src/adapters/execution/family-runtime-temporal-service.ts';
+import { inspectTemporalServiceLifecycle } from '../../../../src/adapters/execution/family-runtime-temporal-service.ts';
+import { restartTemporalServiceLifecycle } from '../../../../src/adapters/execution/family-runtime-temporal-service-command.ts';
+import { inspectTemporalWorkerLifecycleFast } from '../../../../src/adapters/execution/family-runtime-temporal-provider-parts/worker-lifecycle-fast.ts';
 
 function createFixture() {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-temporal-supervisor-'));

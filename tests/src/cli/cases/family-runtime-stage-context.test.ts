@@ -9,9 +9,9 @@ import { FrameworkContractError } from '../../../../src/kernel/contract-validati
 import {
   buildFamilyStageConformanceReview,
   normalizeFamilyStageControlPlane,
-} from '../../../../src/modules/stagecraft/index.ts';
+} from '../../../../src/authority/stages/index.ts';
 import { createAdmittedStagePackFixture } from './workspace-domain-test-helper.ts';
-import { runFamilyRuntime } from '../../../../src/modules/runway/family-runtime.ts';
+import { runFamilyRuntime } from '../../../../src/adapters/execution/family-runtime.ts';
 
 const isolatedFamilyWorkspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-launch-family-'));
 const previousFamilyWorkspaceRoot = process.env.OPL_FAMILY_WORKSPACE_ROOT;

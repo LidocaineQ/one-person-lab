@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { assert, test } from '../helpers.ts';
 import {
   reconcileTemporalRuntimeStartupMaintenance,
-} from '../../../../src/modules/runway/family-runtime-temporal-startup-maintenance.ts';
+} from '../../../../src/adapters/execution/family-runtime-temporal-startup-maintenance.ts';
 
 function serviceLifecycle(input: {
   ready: boolean;

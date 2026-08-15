@@ -1,0 +1,387 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+
+import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
+import { parseJsonText } from '../../kernel/json-file.ts';
+import {
+  type CordisConnectDescriptorDiscoveryService,
+  type InstalledPackageDescriptor,
+} from '../../adapters/integration/index.ts';
+
+const REQUEST_SCHEMA = 'opl-package-app-contribution-request.v1';
+const RESPONSE_SCHEMA = 'opl-package-app-contribution-response.v1';
+const ABI_SCHEMA = 'opl-package-app-contribution-cli.v1';
+const REF_PATTERN = /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:#[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?)?$/;
+const PACKAGE_ID_PATTERN = /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/;
+const BARE_COMMAND_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._+-]*$/;
+const INVOCATION_TIMEOUT_MS = 10_000;
+const INVOCATION_MAX_BUFFER = 1024 * 1024;
+
+type JsonRecord = Record<string, unknown>;
+export type AppContributionOperation = 'read' | 'execute';
+
+export type AppContributionRequest = {
+  packageId: string;
+  ref: string;
+  operation: AppContributionOperation;
+  input: JsonRecord;
+  confirmed: boolean;
+};
+
+type ContributionAbi = {
+  argv: string[];
+};
+
+type ResolvedContribution = {
+  descriptor: InstalledPackageDescriptor;
+  abi: ContributionAbi;
+  confirmationRequired: boolean;
+};
+
+function contributionReadback(resolved: ResolvedContribution, request: AppContributionRequest) {
+  return {
+    surface_kind: 'opl_app_package_contribution.v1',
+    package_id: resolved.descriptor.manifest.package_id,
+    ref: request.ref,
+    operation: request.operation,
+    confirmation_required: resolved.confirmationRequired,
+    carrier_readback: {
+      kind: resolved.descriptor.carrier_readback.kind,
+      identity: resolved.descriptor.carrier_readback.identity,
+      lifecycle_authority: resolved.descriptor.carrier_readback.lifecycle_authority,
+    },
+    readiness: {
+      installed: resolved.descriptor.readiness.installed,
+      physical_status: resolved.descriptor.readiness.physical_status,
+      callability: resolved.descriptor.readiness.callability,
+    },
+  };
+}
+
+function usageError(message: string, details?: JsonRecord): never {
+  throw new FrameworkContractError('cli_usage_error', message, details);
+}
+
+function contractError(message: string, details?: JsonRecord): never {
+  throw new FrameworkContractError('contract_shape_invalid', message, details);
+}
+
+function requireDescriptorDiscovery(
+  descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>,
+) {
+  if (!descriptorDiscovery) {
+    return contractError(
+      'App contribution requires the Cordis Connect descriptor discovery service.',
+      { failure_code: 'cordis_connect_descriptor_discovery_service_required' },
+    );
+  }
+  return descriptorDiscovery.discover;
+}
+
+function requireJsonObject(value: string, option: string): JsonRecord {
+  const parsed = parseJsonText(value);
+  if (!isRecord(parsed)) {
+    usageError(`${option} must be a JSON object.`, { option });
+  }
+  return parsed;
+}
+
+function parseStringOption(
+  args: string[],
+  index: number,
+  option: string,
+) {
+  const value = args[index + 1];
+  if (!value || value.startsWith('--')) {
+    usageError(`${option} requires a value.`, { option });
+  }
+  return value;
+}
+
+export function parseAppContributionArgs(
+  args: string[],
+  operation: AppContributionOperation,
+): AppContributionRequest {
+  let packageId = '';
+  let ref = '';
+  let input: JsonRecord = {};
+  let inputSet = false;
+  let confirmed = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const token = args[index];
+    if (token === '--package-id') {
+      packageId = parseStringOption(args, index, token);
+      index += 1;
+      continue;
+    }
+    if (token === '--ref') {
+      ref = parseStringOption(args, index, token);
+      index += 1;
+      continue;
+    }
+    if (token === '--input') {
+      if (inputSet) usageError('Use only one contribution input source.', { option: token });
+      input = requireJsonObject(parseStringOption(args, index, token), token);
+      inputSet = true;
+      index += 1;
+      continue;
+    }
+    if (token === '--input-stdin') {
+      if (inputSet) usageError('Use only one contribution input source.', { option: token });
+      input = requireJsonObject(fs.readFileSync(0, 'utf8'), token);
+      inputSet = true;
+      continue;
+    }
+    if (token === '--confirm' && operation === 'execute') {
+      confirmed = true;
+      continue;
+    }
+    usageError(`Unknown app contribution ${operation} option: ${token}.`, {
+      option: token,
+      usage: contributionUsage(operation),
+    });
+  }
+
+  if (!PACKAGE_ID_PATTERN.test(packageId)) {
+    usageError('app contribution requires a valid --package-id.', { required: ['--package-id'] });
+  }
+  if (!REF_PATTERN.test(ref)) {
+    usageError('app contribution requires a valid --ref.', { required: ['--ref'] });
+  }
+  return { packageId, ref, operation, input, confirmed };
+}
+
+export function contributionUsage(operation: AppContributionOperation) {
+  return operation === 'read'
+    ? 'opl app contribution read --package-id <package_id> --ref <data_ref> [--input <json>|--input-stdin]'
+    : 'opl app contribution execute --package-id <package_id> --ref <action_ref> [--input <json>|--input-stdin] [--confirm]';
+}
+
+function contributionAbi(descriptor: InstalledPackageDescriptor): ContributionAbi {
+  const raw = descriptor.manifest.codex_surface.app_contribution_abi;
+  if (!isRecord(raw)) {
+    return contractError('Installed Package does not declare an app contribution ABI.', {
+      package_id: descriptor.manifest.package_id,
+      failure_code: 'agent_package_app_contribution_abi_missing',
+    });
+  }
+  const argv = Array.isArray(raw.argv) && raw.argv.every(
+    (entry) => typeof entry === 'string' && entry.length > 0 && !entry.includes('\0'),
+  ) ? raw.argv : null;
+  if (
+    raw.schema_version !== ABI_SCHEMA
+    || raw.transport !== 'stdin_json_stdout_json'
+    || raw.request_schema !== REQUEST_SCHEMA
+    || raw.response_schema !== RESPONSE_SCHEMA
+    || !argv
+  ) {
+    return contractError('Installed Package app contribution ABI is invalid.', {
+      package_id: descriptor.manifest.package_id,
+      failure_code: 'agent_package_app_contribution_abi_invalid',
+    });
+  }
+  return { argv };
+}
+
+function resolveContribution(input: AppContributionRequest, discover: () => Map<string, InstalledPackageDescriptor>) {
+  const descriptor = discover().get(input.packageId);
+  if (!descriptor) {
+    return contractError('App contribution Package is not installed through a discoverable carrier.', {
+      package_id: input.packageId,
+      failure_code: 'agent_package_app_contribution_package_unavailable',
+    });
+  }
+  if (
+    !descriptor.enabled
+    || !descriptor.readiness.installed
+    || descriptor.readiness.physical_status !== 'available'
+    || descriptor.readiness.callability !== 'callable'
+  ) {
+    return contractError('Installed Package carrier is not callable for its app contribution.', {
+      package_id: input.packageId,
+      carrier_identity: descriptor.carrier_readback.identity,
+      failure_code: 'agent_package_app_contribution_carrier_unavailable',
+    });
+  }
+  const contributions = descriptor.manifest.app_contributions;
+  if (!contributions) {
+    return contractError('Installed Package does not declare app contributions.', {
+      package_id: input.packageId,
+      failure_code: 'agent_package_app_contribution_missing',
+    });
+  }
+  const matchingCommands = input.operation === 'read'
+    ? []
+    : contributions.commands.filter((entry) => entry.action_ref === input.ref);
+  const confirmationRequired = matchingCommands.some((entry) => entry.confirmation_required);
+  const declared = input.operation === 'read'
+    ? contributions.views.some((entry) => entry.data_ref === input.ref)
+      || contributions.badges.some((entry) => entry.data_ref === input.ref)
+    : matchingCommands.length > 0;
+  if (!declared) {
+    return contractError('Contribution ref is not declared for the requested Package operation.', {
+      package_id: input.packageId,
+      ref: input.ref,
+      operation: input.operation,
+      failure_code: 'agent_package_app_contribution_ref_not_declared',
+    });
+  }
+  if (confirmationRequired === true && !input.confirmed) {
+    return usageError('This Package contribution requires explicit --confirm before execution.', {
+      package_id: input.packageId,
+      ref: input.ref,
+      required: ['--confirm'],
+      failure_code: 'agent_package_app_contribution_confirmation_required',
+    });
+  }
+  return {
+    descriptor,
+    abi: contributionAbi(descriptor),
+    confirmationRequired: confirmationRequired === true,
+  } satisfies ResolvedContribution;
+}
+
+function executableArgv(resolved: ResolvedContribution) {
+  const [command, ...args] = resolved.abi.argv;
+  if (!command) {
+    return contractError('Installed Package app contribution ABI has no command.', {
+      package_id: resolved.descriptor.manifest.package_id,
+      failure_code: 'agent_package_app_contribution_abi_invalid',
+    });
+  }
+  if (command.startsWith('./')) {
+    const root = path.resolve(resolved.descriptor.sourcePath);
+    const executable = path.resolve(root, command);
+    if (!executable.startsWith(`${root}${path.sep}`) || !fs.existsSync(executable)) {
+      return contractError('Relative app contribution command must exist inside the installed carrier source root.', {
+        package_id: resolved.descriptor.manifest.package_id,
+        failure_code: 'agent_package_app_contribution_command_unavailable',
+      });
+    }
+    return { command: executable, args };
+  }
+  if (!BARE_COMMAND_PATTERN.test(command)) {
+    return contractError('App contribution command must be a package-relative executable or bare program name.', {
+      package_id: resolved.descriptor.manifest.package_id,
+      failure_code: 'agent_package_app_contribution_command_invalid',
+    });
+  }
+  return { command, args };
+}
+
+function invokeContribution(resolved: ResolvedContribution, request: AppContributionRequest) {
+  const executable = executableArgv(resolved);
+  const result = spawnSync(executable.command, executable.args, {
+    cwd: resolved.descriptor.sourcePath,
+    encoding: 'utf8',
+    input: JSON.stringify({
+      schema_version: REQUEST_SCHEMA,
+      operation: request.operation,
+      ref: request.ref,
+      input: request.input,
+    }),
+    timeout: INVOCATION_TIMEOUT_MS,
+    maxBuffer: INVOCATION_MAX_BUFFER,
+    env: process.env,
+  });
+  if (result.error || result.status !== 0) {
+    return contractError('Package-owned app contribution command failed.', {
+      package_id: resolved.descriptor.manifest.package_id,
+      ref: request.ref,
+      operation: request.operation,
+      exit_status: result.status,
+      error: result.error?.message ?? null,
+      stderr_present: Boolean(result.stderr?.trim()),
+      failure_code: 'agent_package_app_contribution_command_failed',
+    });
+  }
+  let response: unknown;
+  try {
+    response = parseJsonText(result.stdout ?? '');
+  } catch {
+    return contractError('Package-owned app contribution command did not return JSON.', {
+      package_id: resolved.descriptor.manifest.package_id,
+      failure_code: 'agent_package_app_contribution_response_invalid',
+    });
+  }
+  if (
+    !isRecord(response)
+    || response.schema_version !== RESPONSE_SCHEMA
+    || response.ok !== true
+    || response.ref !== request.ref
+    || response.operation !== request.operation
+  ) {
+    return contractError('Package-owned app contribution response does not match the requested descriptor ref.', {
+      package_id: resolved.descriptor.manifest.package_id,
+      ref: request.ref,
+      operation: request.operation,
+      failure_code: 'agent_package_app_contribution_response_invalid',
+    });
+  }
+  return response;
+}
+
+export function runAppContribution(
+  request: AppContributionRequest,
+  options: {
+    descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
+  } = {},
+) {
+  const discover = requireDescriptorDiscovery(options.descriptorDiscovery);
+  const resolved = resolveContribution(request, discover);
+  const response = invokeContribution(resolved, request);
+  return {
+    opl_app_contribution: {
+      ...contributionReadback(resolved, request),
+      response,
+    },
+  };
+}
+
+export function preflightAppContribution(
+  request: AppContributionRequest,
+  options: {
+    descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
+  } = {},
+) {
+  const discover = requireDescriptorDiscovery(options.descriptorDiscovery);
+  const resolved = resolveContribution(request, discover);
+  return {
+    opl_app_contribution_preflight: {
+      ...contributionReadback(resolved, request),
+      execution_status: 'dry_run',
+      package_command_invoked: false,
+    },
+  };
+}
+
+export function hasExecutableAppContribution(
+  options: {
+    descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
+  } = {},
+): boolean {
+  try {
+    const discover = requireDescriptorDiscovery(options.descriptorDiscovery);
+    return [...discover().values()].some((descriptor) => {
+      if (
+        !descriptor.enabled
+        || !descriptor.readiness.installed
+        || descriptor.readiness.physical_status !== 'available'
+        || descriptor.readiness.callability !== 'callable'
+        || !descriptor.manifest.app_contributions?.commands.length
+      ) {
+        return false;
+      }
+      try {
+        contributionAbi(descriptor);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  } catch {
+    return false;
+  }
+}

@@ -16,7 +16,7 @@ import {
   assertReferenceDesignPatternPacket,
   referenceDesignPatternPacketSchemaEntry,
   validateReferenceDesignPatternPacket,
-} from '../../src/modules/workspace/reference-design-pattern-packet.ts';
+} from '../../src/authority/workspace/reference-design-pattern-packet.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');

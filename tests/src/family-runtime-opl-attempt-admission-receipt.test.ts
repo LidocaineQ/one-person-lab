@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import * as admissionReceipt from '../../src/modules/runway/family-runtime-opl-attempt-admission-receipt.ts';
+import * as admissionReceipt from '../../src/adapters/execution/family-runtime-opl-attempt-admission-receipt.ts';
 
 test('owner-answer observation uses generic domain reasons', () => {
   const observe = (admissionReceipt as Record<string, unknown>)

@@ -10,7 +10,7 @@ import {
   CORDIS_CHARTER_CONTRACTS_SERVICE,
   CORDIS_CHARTER_POLICY_PLUGIN_DESCRIPTOR,
   cordisCharterPolicyPlugin,
-} from '../../src/modules/charter/index.ts';
+} from '../../src/host/plugins/cordis-charter-policy.ts';
 import {
   CORDIS_FOUNDRY_EVALUATION_ADAPTER_PLUGIN_DESCRIPTOR,
   CORDIS_FOUNDRY_EVALUATION_SERVICE,
@@ -20,12 +20,12 @@ import {
   cordisFoundryEvaluationAdapterPlugin,
   cordisFoundryProviderManifestPlugin,
   type CordisFoundryProviderManifestService,
-  type EvaluationExecutor,
-} from '../../src/modules/foundry/index.ts';
+} from '../../src/host/plugins/cordis-foundry-adapters.ts';
+import type { EvaluationExecutor } from '../../src/authority/evolution/index.ts';
 import {
   assertCordisPluginDescriptor,
   validateCordisPluginDescriptor,
-} from '../../src/modules/pack/index.ts';
+} from '../../src/authority/packages/index.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const providerManifestRef = 'tests/fixtures/oma-0.4.0/foundry_provider.json';

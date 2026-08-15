@@ -8,7 +8,7 @@ import {
 } from '../helpers.ts';
 import {
   runAgentStageRunner,
-} from '../../../../src/modules/runway/family-runtime-codex-stage-runner.ts';
+} from '../../../../src/adapters/execution/family-runtime-codex-stage-runner.ts';
 
 function restoreEnv(key: string, previous: string | undefined) {
   if (previous === undefined) delete process.env[key];

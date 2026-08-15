@@ -15,30 +15,30 @@ import {
   type StandardAgentDescriptorInterface,
 } from '../../../src/kernel/standard-agent-interface.ts';
 import { validateJsonSchemaPayload } from '../../../src/kernel/schema-registry.ts';
-import { buildAgentCatalog } from '../../../src/modules/console/work-item-projection/catalog.ts';
+import { buildAgentCatalog } from '../../../src/read-models/operator/work-item-projection/catalog.ts';
 import {
   joinAttemptsToWorkItems,
   readWorkItemStageAttemptsFromDb,
-} from '../../../src/modules/console/work-item-projection/execution.ts';
-import { buildAppRuntimeWorkItemProjection } from '../../../src/modules/console/app-runtime-work-item-projection.ts';
-import { readStageIndexPresentation } from '../../../src/modules/console/work-item-projection/inventory-presentation.ts';
-import { readWorkItemStageAttempts } from '../../../src/modules/console/work-item-projection/execution.ts';
-import { projectRuntimeActivityItems } from '../../../src/modules/console/work-item-projection/runtime-activity-projection.ts';
-import { buildWorkItemProjectionV2 } from '../../../src/modules/console/work-item-projection/projection.ts';
-import { projectWorkItemPrimaryState } from '../../../src/modules/console/work-item-projection/primary-state.ts';
-import { buildStageAttemptRuntimeCurrentness } from '../../../src/modules/runway/family-runtime-stage-attempt-runtime-currentness.ts';
-import { createStageAttemptTable } from '../../../src/modules/runway/family-runtime-stage-attempt-ledger.ts';
+} from '../../../src/read-models/operator/work-item-projection/execution.ts';
+import { buildAppRuntimeWorkItemProjection } from '../../../src/read-models/operator/app-runtime-work-item-projection.ts';
+import { readStageIndexPresentation } from '../../../src/read-models/operator/work-item-projection/inventory-presentation.ts';
+import { readWorkItemStageAttempts } from '../../../src/read-models/operator/work-item-projection/execution.ts';
+import { projectRuntimeActivityItems } from '../../../src/read-models/operator/work-item-projection/runtime-activity-projection.ts';
+import { buildWorkItemProjectionV2 } from '../../../src/read-models/operator/work-item-projection/projection.ts';
+import { projectWorkItemPrimaryState } from '../../../src/read-models/operator/work-item-projection/primary-state.ts';
+import { buildStageAttemptRuntimeCurrentness } from '../../../src/adapters/execution/family-runtime-stage-attempt-runtime-currentness.ts';
+import { createStageAttemptTable } from '../../../src/adapters/execution/family-runtime-stage-attempt-ledger.ts';
 import {
   normalizeRuntimeExecutionScopeWrite,
   persistRuntimeExecutionScope,
-} from '../../../src/modules/runway/family-runtime-execution-scope-persistence.ts';
-import { createStageRunLaunchTable } from '../../../src/modules/runway/family-runtime-stage-run-launch-registry.ts';
+} from '../../../src/adapters/execution/family-runtime-execution-scope-persistence.ts';
+import { createStageRunLaunchTable } from '../../../src/adapters/execution/family-runtime-stage-run-launch-registry.ts';
 import {
   setWorkItemControlState,
   setWorkItemVisibilityState,
-} from '../../../src/modules/ledger/work-item-control-ledger.ts';
-import type { WorkspaceBinding } from '../../../src/modules/workspace/workspace-registry.ts';
-import { createWorkItemExecutionScopeSnapshot } from '../../../src/modules/workspace/public/standard-agent-action-runtime.ts';
+} from '../../../src/authority/evidence/work-item-control-ledger.ts';
+import type { WorkspaceBinding } from '../../../src/authority/workspace/workspace-registry.ts';
+import { createWorkItemExecutionScopeSnapshot } from '../../../src/authority/workspace/public/standard-agent-action-runtime.ts';
 
 const MAS_STUDIES = {
   Diabetes: [

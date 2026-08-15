@@ -5,17 +5,17 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { FrameworkContractError } from '../../../src/kernel/contract-validation.ts';
-import { sha256Text } from '../../../src/modules/connect/agent-package-registry-parts/shared.ts';
-import type { AgentPackageSkillProjection } from '../../../src/modules/connect/agent-package-registry-parts/types.ts';
+import { sha256Text } from '../../../src/adapters/integration/agent-package-registry-parts/shared.ts';
+import type { AgentPackageSkillProjection } from '../../../src/adapters/integration/agent-package-registry-parts/types.ts';
 import {
   runCodexInE2bSandbox,
   setE2bSandboxFactoryForTest,
-} from '../../../src/modules/runway/e2b-codex-stage-execution.ts';
+} from '../../../src/adapters/execution/e2b-codex-stage-execution.ts';
 import {
   runCodexInLocalSandbox,
   setLocalSandboxCommandRunnerForTest,
-} from '../../../src/modules/runway/local-codex-stage-sandbox.ts';
-import { codexActivityEventForTemporalHistory } from '../../../src/modules/runway/family-runtime-temporal-history-summary.ts';
+} from '../../../src/adapters/execution/local-codex-stage-sandbox.ts';
+import { codexActivityEventForTemporalHistory } from '../../../src/adapters/execution/family-runtime-temporal-history-summary.ts';
 
 type ExpectedFailure = {
   phase: string;

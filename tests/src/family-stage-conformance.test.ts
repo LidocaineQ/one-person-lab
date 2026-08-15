@@ -6,13 +6,13 @@ import { fileURLToPath } from 'node:url';
 
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 
-import { buildFamilyStageConformanceReview } from '../../src/modules/stagecraft/family-stage-conformance.ts';
+import { buildFamilyStageConformanceReview } from '../../src/authority/stages/family-stage-conformance.ts';
 import type { FamilyActionCatalog } from '../../src/kernel/family-action-catalog-contract.ts';
 import {
   normalizeFamilyStageControlPlane,
   type FamilyStageContract,
   type FamilyStageControlPlane,
-} from '../../src/modules/stagecraft/family-stage-control-plane-contract.ts';
+} from '../../src/authority/stages/family-stage-control-plane-contract.ts';
 
 type JsonRecord = Record<string, unknown>;
 

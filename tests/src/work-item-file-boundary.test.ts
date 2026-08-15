@@ -8,7 +8,7 @@ import {
   captureWorkItemRootIdentity,
   readStableWorkItemFile,
   WorkItemFileBoundaryError,
-} from '../../src/modules/workspace/work-item-file-boundary.ts';
+} from '../../src/authority/workspace/work-item-file-boundary.ts';
 import { runWithWorkItemFileBoundaryInterlock } from './work-item-file-boundary-test-support.ts';
 
 function fixture() {

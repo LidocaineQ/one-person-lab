@@ -1,8 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 
-import { buildStageAttemptWorkbench } from '../../../../src/modules/console/runtime-tray-stage-attempt-workbench.ts';
-import { buildFamilyRuntimeControlledApplyContract } from '../../../../src/modules/runway/index.ts';
+import { buildStageAttemptWorkbench } from '../../../../src/read-models/operator/runtime-tray-stage-attempt-workbench.ts';
+import { buildFamilyRuntimeControlledApplyContract } from '../../../../src/adapters/execution/index.ts';
 import { assert, createFamilyContractsFixtureRoot, createRuntimeWorkspaceFixture, fs, installRuntimePackageFixture, os, path, repoRoot, runCli, test } from '../helpers.ts';
 
 test('controlled apply projects one generic return contract across domains', () => {

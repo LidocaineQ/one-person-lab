@@ -11,7 +11,7 @@ import {
   buildOkfMemoryLocatorConcept,
   validateOkfContextBundle,
   writeOkfContextBundleProjection,
-} from '../../src/modules/pack/okf-context-bundle.ts';
+} from '../../src/authority/packages/okf-context-bundle.ts';
 
 type JsonRecord = Record<string, unknown>;
 

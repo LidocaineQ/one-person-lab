@@ -1,225 +1,121 @@
 {
-  "version": "source-module-map.v2",
+  "version": "source-module-map.v3",
   "scope": "opl_framework_source_module_map",
   "owner": "OPL Framework",
-  "purpose": "Canonical source-organization map that aligns the OPL Framework codebase with the ten brand modules and the final physical source layout.",
+  "purpose": "Canonical source responsibility topology. Brand modules remain cross-repository capability-domain metadata and do not define physical source roots.",
   "state": "active_contract",
-  "machine_boundary": "This contract maps OPL Framework source ownership and physical module entrypoints. Product labels such as OPL Cloud, One Person Lab App, online OPL Workspace, OPL Console, or OPL Gateway can consume these modules, but they do not redefine source ownership or move runtime truth, domain truth, artifact bodies, owner receipts, typed blockers, or production readiness into brand modules.",
+  "machine_boundary": "This contract maps Framework source units, target roots, and retired roots. It does not make a brand label, Package, or Cordis contribution a physical source owner.",
   "source_root": "src",
-  "physical_module_root": "src/modules",
+  "physical_module_root": null,
+  "capability_domain_registry_ref": "contracts/opl-framework/family-capability-domain-registry.json",
   "alignment_rules": [
-    "Each brand module has a matching physical owner directory under src/modules/<module_id>/.",
-    "The executable CLI entrypoint is src/entrypoints/cli.ts.",
-    "Root-level src/*.ts files are not accepted source owners after physical module refactor.",
-    "New module-owned source starts under the owning src/modules/<module_id>/ directory.",
-    "src/entrypoints contains CLI and other non-brand executable entrypoints; it does not own brand semantics.",
-    "src/kernel contains shared technical types and helpers; every kernel surface must stay brand-neutral.",
-    "Product packaging, App/Cloud pages, and online workspace language must not redefine module source ownership.",
-    "OPL Connect may expose directly callable connectors and distribution surfaces without routing through OPL Console; OPL Console projects, governs, and integrates management views.",
-    "Cross-module implementation imports should prefer public module entrypoints when the imported surface is part of another module contract."
-  ],
-  "modules": [
-    {
-      "module_id": "charter",
-      "brand_name": "OPL Charter",
-      "physical_root": "src/modules/charter",
-      "public_entrypoint": "src/modules/charter/index.ts",
-      "primary_source_globs": [
-        "src/modules/charter/**"
-      ],
-      "shared_source_globs": [
-        "src/kernel/types.ts",
-        "src/kernel/types-parts/**",
-        "src/kernel/contract-validation.ts"
-      ],
-      "owner_note": "Charter owns framework contracts, brand grammar, module registry validation, and shared type barrels."
-    },
-    {
-      "module_id": "atlas",
-      "brand_name": "OPL Atlas",
-      "physical_root": "src/modules/atlas",
-      "public_entrypoint": "src/modules/atlas/index.ts",
-      "primary_source_globs": [
-        "src/modules/atlas/**"
-      ],
-      "shared_source_globs": [],
-      "owner_note": "Atlas owns discoverability, descriptors, catalogs, domain selection, and public metadata graphs."
-    },
-    {
-      "module_id": "workspace",
-      "brand_name": "OPL Workspace",
-      "physical_root": "src/modules/workspace",
-      "public_entrypoint": "src/modules/workspace/index.ts",
-      "primary_source_globs": [
-        "src/modules/workspace/**"
-      ],
-      "shared_source_globs": [],
-      "owner_note": "Workspace owns the Framework workspace protocol, project topology, inspectable workspace structure, user files, shared materials, and workspace validation; it is not the online OPL Workspace product authority."
-    },
-    {
-      "module_id": "pack",
-      "brand_name": "OPL Pack",
-      "physical_root": "src/modules/pack",
-      "public_entrypoint": "src/modules/pack/index.ts",
-      "primary_source_globs": [
-        "src/modules/pack/**"
-      ],
-      "shared_source_globs": [],
-      "owner_note": "Pack owns declarative domain packs, capability invocation ABI, generated surfaces, pack compiler, and skill/package contracts."
-    },
-    {
-      "module_id": "stagecraft",
-      "brand_name": "OPL Stagecraft",
-      "physical_root": "src/modules/stagecraft",
-      "public_entrypoint": "src/modules/stagecraft/index.ts",
-      "primary_source_globs": [
-        "src/modules/stagecraft/**"
-      ],
-      "shared_source_globs": [],
-      "owner_note": "Stagecraft owns stage design, cognitive computation, stage policy, quality gates, and handoff semantics."
-    },
-    {
-      "module_id": "runway",
-      "brand_name": "OPL Runway",
-      "physical_root": "src/modules/runway",
-      "public_entrypoint": "src/modules/runway/index.ts",
-      "primary_source_globs": [
-        "src/modules/runway/**"
-      ],
-      "shared_source_globs": [
-        "src/kernel/terminal.ts",
-        "src/kernel/managed-runtime-contract.ts",
-        "src/kernel/local-codex-defaults.ts",
-        "src/kernel/local-codex-defaults-parts/**"
-      ],
-      "owner_note": "Runway owns durable execution, queues, provider lifecycle, worker/service substrate, runtime state, and operational recovery."
-    },
-    {
-      "module_id": "ledger",
-      "brand_name": "OPL Ledger",
-      "physical_root": "src/modules/ledger",
-      "public_entrypoint": "src/modules/ledger/index.ts",
-      "primary_source_globs": [
-        "src/modules/ledger/**"
-      ],
-      "shared_source_globs": [],
-      "owner_note": "Ledger owns refs-only evidence records, receipt/blocker references, provenance, lineage, restore references, and audit trails; it does not own artifact bodies or domain verdicts."
-    },
-    {
-      "module_id": "console",
-      "brand_name": "OPL Console",
-      "physical_root": "src/modules/console",
-      "public_entrypoint": "src/modules/console/index.ts",
-      "primary_source_globs": [
-        "src/modules/console/**"
-      ],
-      "shared_source_globs": [],
-      "owner_note": "Console owns App/operator projections, action catalog, status narration, drilldown, and human-facing management surfaces; it is not a private backend for Connect or a domain authority owner."
-    },
-    {
-      "module_id": "foundry",
-      "brand_name": "OPL Foundry Kernel",
-      "physical_root": "src/modules/foundry",
-      "public_entrypoint": "src/modules/foundry/index.ts",
-      "primary_source_globs": [
-        "src/modules/foundry/**"
-      ],
-      "shared_source_globs": [],
-      "owner_note": "Foundry is an internal, producer-neutral Kernel for FoundryRun state, semantic protocol validation, deterministic candidate assembly, evaluation coordination, immutable versions, activation CAS, and rollback; it is not a standalone product Actor or domain authority owner."
-    },
-    {
-      "module_id": "connect",
-      "brand_name": "OPL Connect",
-      "physical_root": "src/modules/connect",
-      "public_entrypoint": "src/modules/connect/index.ts",
-      "primary_source_globs": [
-        "src/modules/connect/**"
-      ],
-      "shared_source_globs": [
-        "src/kernel/local-codex-defaults.ts",
-        "src/kernel/local-codex-defaults-parts/**"
-      ],
-      "owner_note": "Connect owns directly callable external descriptors, adapters, source connectors, install/update distribution, plugin/skill sync, and connector surfaces; it is not limited to Console-mediated calls and does not own semantic/domain verdicts."
-    }
+    "Brand modules are capability-domain labels; they are not physical source roots, Packages, or Cordis plugin counts.",
+    "Framework source is organized by responsibility units under authority, adapters, read-models, host, entrypoints, and kernel.",
+    "Cross-unit imports use the target unit public entrypoint or an explicit host plugin leaf.",
+    "src/modules is retired and must be absent; no compatibility barrel remains.",
+    "Entrypoints wire public surfaces; kernel remains brand-neutral."
   ],
   "shared_kernel": [
-    {
-      "path": "src/entrypoints/cli.ts",
-      "primary_module_id": "charter",
-      "consumer_module_ids": [
-        "charter",
-        "atlas",
-        "workspace",
-        "pack",
-        "stagecraft",
-        "runway",
-        "ledger",
-        "console",
-        "foundry",
-        "connect"
-      ],
-      "role": "CLI dispatcher for all module command families."
-    },
-    {
-      "path": "src/kernel/types.ts",
-      "primary_module_id": "charter",
-      "consumer_module_ids": [
-        "charter",
-        "atlas",
-        "workspace",
-        "pack",
-        "stagecraft",
-        "runway",
-        "ledger",
-        "console",
-        "foundry",
-        "connect"
-      ],
-      "role": "Shared public type barrel."
-    },
-    {
-      "path": "src/kernel/managed-runtime-contract.ts",
-      "primary_module_id": "runway",
-      "consumer_module_ids": [
-        "atlas",
-        "runway"
-      ],
-      "role": "Brand-neutral managed runtime contract normalization shared without making Atlas depend on Runway internals."
-    },
-    {
-      "path": "src/kernel/local-codex-defaults.ts",
-      "primary_module_id": "connect",
-      "consumer_module_ids": [
-        "connect",
-        "runway"
-      ],
-      "role": "Brand-neutral local Codex defaults reader shared without making Runway depend on Connect internals."
-    }
-  ],
-  "auxiliary_source_roots": [
-    "src/entrypoints",
-    "src/kernel"
-  ],
-  "auxiliary_entrypoints": [
-    {
-      "path": "src/entrypoints/cli.ts",
-      "owner": "entrypoints",
-      "purpose": "OPL CLI executable entrypoint"
-    }
+    { "path": "src/entrypoints/cli.ts", "role": "CLI dispatcher for all command families.", "primary_source_unit_id": "framework.kernel" },
+    { "path": "src/kernel/types.ts", "role": "Shared public type barrel.", "primary_source_unit_id": "framework.kernel" },
+    { "path": "src/kernel/managed-runtime-contract.ts", "role": "Brand-neutral managed runtime contract normalization.", "primary_source_unit_id": "framework.kernel" },
+    { "path": "src/kernel/local-codex-defaults.ts", "role": "Brand-neutral local Codex defaults reader.", "primary_source_unit_id": "framework.kernel" }
   ],
   "physical_layout": {
-    "version": "source-module-physical-layout.v1",
+    "version": "source-topology-physical-layout.v2",
     "stage": "target",
-    "module_entrypoint_pattern": "src/modules/<module_id>/index.ts",
-    "entrypoints_root": "src/entrypoints",
-    "kernel_root": "src/kernel",
     "target_cli_entrypoint": "src/entrypoints/cli.ts",
     "target_activation_path": "src/entrypoints/cli.ts",
+    "legacy_roots": ["src/modules"],
     "root_ts_policy": {
       "target_top_level_ts_count": 0,
       "allowed_transition_exception_kinds": [],
       "allowed_transition_exceptions": []
+    }
+  },
+  "target_roots": [
+    { "root_id": "authority", "path": "src/authority", "layer_id": "authority", "source_globs": ["src/authority/**/*.ts"] },
+    { "root_id": "adapters", "path": "src/adapters", "layer_id": "adapters", "source_globs": ["src/adapters/**/*.ts"] },
+    { "root_id": "read_models", "path": "src/read-models", "layer_id": "read-models", "source_globs": ["src/read-models/**/*.ts"] },
+    { "root_id": "host", "path": "src/host", "layer_id": "host", "source_globs": ["src/host/**/*.ts"] },
+    { "root_id": "entrypoints", "path": "src/entrypoints", "layer_id": "entrypoints", "source_globs": ["src/entrypoints/**/*.ts"] },
+    { "root_id": "kernel", "path": "src/kernel", "layer_id": "kernel", "source_globs": ["src/kernel/**/*.ts"] }
+  ],
+  "legacy_roots": [
+    { "path": "src/modules", "state": "retired", "must_be_absent": true, "caller_zero_required": true }
+  ],
+  "source_units": [
+    {
+      "unit_id": "framework.authority.contracts", "layer_id": "authority", "responsibility_kind": "contracts",
+      "physical_root": "src/authority/contracts", "public_entrypoints": ["src/authority/contracts/index.ts"],
+      "source_globs": ["src/authority/contracts/**/*.ts"], "capability_domain_ids": ["policy"], "package_ids": ["opl-framework"]
     },
-    "legacy_cli_entrypoint": "src/cli.ts"
-  }
+    {
+      "unit_id": "framework.authority.workspace", "layer_id": "authority", "responsibility_kind": "workspace",
+      "physical_root": "src/authority/workspace", "public_entrypoints": ["src/authority/workspace/index.ts"],
+      "source_globs": ["src/authority/workspace/**/*.ts"], "capability_domain_ids": ["workspace"], "package_ids": ["opl-framework"]
+    },
+    {
+      "unit_id": "framework.authority.packages", "layer_id": "authority", "responsibility_kind": "packages",
+      "physical_root": "src/authority/packages", "public_entrypoints": ["src/authority/packages/index.ts"],
+      "source_globs": ["src/authority/packages/**/*.ts"], "capability_domain_ids": ["package-platform"],
+      "package_ids": ["opl-framework", "@one-person-lab/package-host"]
+    },
+    {
+      "unit_id": "framework.authority.stages", "layer_id": "authority", "responsibility_kind": "stages",
+      "physical_root": "src/authority/stages", "public_entrypoints": ["src/authority/stages/index.ts"],
+      "source_globs": ["src/authority/stages/**/*.ts"], "capability_domain_ids": ["stage-policy"], "package_ids": ["opl-framework"]
+    },
+    {
+      "unit_id": "framework.authority.evidence", "layer_id": "authority", "responsibility_kind": "evidence",
+      "physical_root": "src/authority/evidence", "public_entrypoints": ["src/authority/evidence/index.ts"],
+      "source_globs": ["src/authority/evidence/**/*.ts"], "capability_domain_ids": ["evidence"], "package_ids": ["opl-framework"]
+    },
+    {
+      "unit_id": "framework.authority.evolution", "layer_id": "authority", "responsibility_kind": "evolution",
+      "physical_root": "src/authority/evolution", "public_entrypoints": ["src/authority/evolution/index.ts"],
+      "source_globs": ["src/authority/evolution/**/*.ts"], "capability_domain_ids": ["evolution"],
+      "package_ids": ["opl-framework", "@one-person-lab/foundry-evaluation"]
+    },
+    {
+      "unit_id": "framework.adapters.execution", "layer_id": "adapters", "responsibility_kind": "execution",
+      "physical_root": "src/adapters/execution", "public_entrypoints": ["src/adapters/execution/index.ts"],
+      "source_globs": ["src/adapters/execution/**/*.ts"], "capability_domain_ids": ["execution"],
+      "package_ids": ["opl-framework", "@one-person-lab/runway-executor"]
+    },
+    {
+      "unit_id": "framework.adapters.integration", "layer_id": "adapters", "responsibility_kind": "integration",
+      "physical_root": "src/adapters/integration", "public_entrypoints": ["src/adapters/integration/index.ts"],
+      "source_globs": ["src/adapters/integration/**/*.ts"], "capability_domain_ids": ["integration"],
+      "package_ids": ["opl-framework", "@one-person-lab/connect-discovery"]
+    },
+    {
+      "unit_id": "framework.read-models.catalog", "layer_id": "read-models", "responsibility_kind": "catalog",
+      "physical_root": "src/read-models/catalog", "public_entrypoints": ["src/read-models/catalog/index.ts"],
+      "source_globs": ["src/read-models/catalog/**/*.ts"], "capability_domain_ids": ["catalog-discovery"],
+      "package_ids": ["opl-framework", "@one-person-lab/connect-discovery"]
+    },
+    {
+      "unit_id": "framework.read-models.operator", "layer_id": "read-models", "responsibility_kind": "operator",
+      "physical_root": "src/read-models/operator", "public_entrypoints": ["src/read-models/operator/index.ts"],
+      "source_globs": ["src/read-models/operator/**/*.ts"], "capability_domain_ids": ["experience"], "package_ids": ["opl-framework"]
+    },
+    {
+      "unit_id": "framework.host", "layer_id": "host", "responsibility_kind": "composition",
+      "physical_root": "src/host", "public_entrypoints": ["src/host/composition-profiles.ts", "src/host/plugins/*.ts"],
+      "source_globs": ["src/host/**/*.ts"], "capability_domain_ids": [],
+      "package_ids": ["opl-framework", "@one-person-lab/cordis-abi"]
+    },
+    {
+      "unit_id": "framework.entrypoints", "layer_id": "entrypoints", "responsibility_kind": "entrypoints",
+      "physical_root": "src/entrypoints", "public_entrypoints": ["src/entrypoints/cli.ts"],
+      "source_globs": ["src/entrypoints/**/*.ts"], "capability_domain_ids": [], "package_ids": ["opl-framework"]
+    },
+    {
+      "unit_id": "framework.kernel", "layer_id": "kernel", "responsibility_kind": "kernel",
+      "physical_root": "src/kernel", "public_entrypoints": ["src/kernel/*.ts"],
+      "source_globs": ["src/kernel/**/*.ts"], "capability_domain_ids": [],
+      "package_ids": ["opl-framework", "@one-person-lab/cordis-abi"]
+    }
+  ]
 }

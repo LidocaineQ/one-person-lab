@@ -12,7 +12,7 @@ import {
   applyDomainArtifactCasMaterialization,
   domainArtifactCasMaterializationInProgress,
   observeDomainArtifactCasMaterialization,
-} from '../../src/modules/runway/domain-artifact-cas-materialization.ts';
+} from '../../src/adapters/execution/domain-artifact-cas-materialization.ts';
 
 function temporaryRoot(prefix: string) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -387,7 +387,7 @@ test('domain artifact CAS resumes after process death between target backup and 
       relativePath: 'control/mid-rename.json', before, after,
     })], { requestId: 'mid-rename-process-death' });
     const moduleRef = new URL(
-      '../../src/modules/runway/domain-artifact-cas-materialization.ts',
+      '../../src/adapters/execution/domain-artifact-cas-materialization.ts',
       import.meta.url,
     ).href;
     const child = spawnSync(process.execPath, [

@@ -9,7 +9,7 @@
     "qualification_obligations_ref": "opl-content://sha256/f228aa4617d3761723f0af7b0d8c29e0ba3981daa5600fe6220f63a39b463e42",
     "design_request_candidate_sha256": "sha256:34400f71d18a9fb57c987a9a4829aa009b48c71d60c0f24bbffc4aca0de2fb58",
     "preflight_receipt_sha256": "sha256:f6e4cfba4eaeb2d3c84d874445dfe651e8815501fde5ce0f19649e310eb196a6",
-    "pr4_audit_sha256": "sha256:b09455d69400edc2daeb0b0bb9558cb51cb47e86600087d30194103f7ac5eb50"
+    "pr4_audit_sha256": "sha256:9579d6ff4a470dbec541001728cb90f875375f3cff028ba831b31bb34f058698"
   },
   "expected_semantic_candidate": {
     "single_mas_v2_initial_draft_gate": [

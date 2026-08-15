@@ -8,12 +8,12 @@ import test from 'node:test';
 import {
   DEFAULT_WORKSPACE_DIAGNOSTIC_POLICY,
   materializeFindings,
-} from '../../src/modules/workspace/index.ts';
+} from '../../src/authority/workspace/index.ts';
 import {
   assertRepoSourceByproductsClean,
   fixRepoSourceByproducts,
   inspectRepoSourceByproducts,
-} from '../../src/modules/workspace/repo-source-byproduct-guard.ts';
+} from '../../src/authority/workspace/repo-source-byproduct-guard.ts';
 import { runCli } from './cli/helpers.ts';
 
 test('workspace diagnostics keep hard blockers fail-closed when policy lists overlap', () => {

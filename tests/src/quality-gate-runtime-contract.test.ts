@@ -9,8 +9,8 @@ import {
   buildQualityGateRuntimeBinding,
   QUALITY_GATE_RUNTIME_ALLOWED_RECEIPT_KINDS,
   validateQualityGateRuntimeBinding,
-} from '../../src/modules/stagecraft/quality-gate-runtime.ts';
-import { evaluateStageRunProgress } from '../../src/modules/stagecraft/stage-run-kernel.ts';
+} from '../../src/authority/stages/quality-gate-runtime.ts';
+import { evaluateStageRunProgress } from '../../src/authority/stages/stage-run-kernel.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 

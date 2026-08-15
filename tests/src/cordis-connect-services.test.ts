@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import * as connect from '../../src/modules/connect/index.ts';
+import * as connect from '../../src/host/plugins/cordis-connect-services.ts';
 import {
   buildCordisConnectCompositionSnapshot,
   CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_PLUGIN_DESCRIPTOR,
   CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_SERVICE,
   createCordisConnectComposition,
-} from '../../src/modules/connect/index.ts';
+} from '../../src/host/plugins/cordis-connect-services.ts';
 
 test('Connect does not expose an import-time default discovery composition', () => {
   assert.equal('discoverInstalledPackageDescriptorsViaCordis' in connect, false);

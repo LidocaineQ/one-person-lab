@@ -10,9 +10,9 @@ import { parseJsonText } from '../../src/kernel/json-file.ts';
 import {
   createFamilyRuntimeQueueTables,
   insertEvent,
-} from '../../src/modules/runway/family-runtime-store.ts';
-import { pruneRuntimeQueueHistory } from '../../src/modules/runway/family-runtime-queue-retention.ts';
-import { createStageAttempt } from '../../src/modules/runway/family-runtime-stage-attempts.ts';
+} from '../../src/adapters/execution/family-runtime-store.ts';
+import { pruneRuntimeQueueHistory } from '../../src/adapters/execution/family-runtime-queue-retention.ts';
+import { createStageAttempt } from '../../src/adapters/execution/family-runtime-stage-attempts.ts';
 
 function withTempState<T>(fn: (root: string) => T) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-state-index-'));

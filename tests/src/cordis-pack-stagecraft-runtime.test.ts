@@ -6,14 +6,14 @@ import { Context } from '@deepseek-ai/cordis';
 import {
   buildCordisPackStagecraftCompositionSnapshot,
   createCordisStageRouteComposition,
-} from '../../src/modules/runway/cordis-agent-executor-experiment.ts';
+} from '../../src/host/plugins/cordis-agent-executor-experiment.ts';
 import {
   CORDIS_PACK_STAGE_BINDING_SERVICE,
-} from '../../src/modules/pack/index.ts';
+} from '../../src/host/plugins/cordis-pack-stage-binding-plugin.ts';
 import {
   CORDIS_STAGECRAFT_CONTEXT_SERVICE,
   cordisStagecraftContextPlugin,
-} from '../../src/modules/stagecraft/index.ts';
+} from '../../src/host/plugins/cordis-stagecraft-context-plugin.ts';
 
 test('Pack and Stagecraft services compose with deterministic snapshot and disposal', async () => {
   const composition = await createCordisStageRouteComposition();

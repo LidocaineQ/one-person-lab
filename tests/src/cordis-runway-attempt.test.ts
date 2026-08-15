@@ -8,17 +8,17 @@ import { MockActivityEnvironment } from '@temporalio/testing';
 
 import {
   CORDIS_FIBER_STATE,
-} from '../../src/modules/runway/cordis-agent-executor-experiment.ts';
+} from '../../src/host/plugins/cordis-agent-executor-experiment.ts';
 import {
   cordisRunwayAttemptObserverPlugin,
   createCordisRunwayAttemptComposition,
   type CordisRunwayAttemptAdapter,
-} from '../../src/modules/runway/cordis-runway-attempt.ts';
+} from '../../src/host/plugins/cordis-runway-attempt.ts';
 import {
   runAgentStageRunner,
   type CodexStageRunnerInput,
-} from '../../src/modules/runway/family-runtime-codex-stage-runner.ts';
-import { codexStageActivity } from '../../src/modules/runway/family-runtime-temporal-activities.ts';
+} from '../../src/adapters/execution/family-runtime-codex-stage-runner.ts';
+import { codexStageActivity } from '../../src/adapters/execution/family-runtime-temporal-activities.ts';
 import { createPersistedTemporalStageAttemptInput } from './family-runtime-temporal-provider-cases/persisted-attempt.ts';
 
 test('Runway attempt Cordis service consumes the adapter and fully disposes its scope', async () => {

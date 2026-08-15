@@ -6,11 +6,11 @@ import { readBundledCodexDefaultProfile } from '../../../../src/kernel/local-cod
 import {
   CANONICAL_PACKAGE_CONTENT_LOCK,
   packageContentLockDigest,
-} from '../../../../src/modules/connect/agent-package-registry-parts/payload-content-lock.ts';
+} from '../../../../src/adapters/integration/agent-package-registry-parts/payload-content-lock.ts';
 import {
   readBundledFullRuntimePackageCatalog,
-} from '../../../../src/modules/connect/agent-package-registry-parts/bundled-full-runtime-catalog.ts';
-import { computePackageChannelTreeSha256 } from '../../../../src/modules/connect/system-installation/module-package-channel.ts';
+} from '../../../../src/adapters/integration/agent-package-registry-parts/bundled-full-runtime-catalog.ts';
+import { computePackageChannelTreeSha256 } from '../../../../src/adapters/integration/system-installation/module-package-channel.ts';
 import {
   runCliWithStdin,
 } from './system-install-fixtures.ts';

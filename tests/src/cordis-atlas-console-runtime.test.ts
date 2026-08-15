@@ -5,25 +5,25 @@ import test from 'node:test';
 
 import { Context } from '@deepseek-ai/cordis';
 
-import { loadFrameworkContracts } from '../../src/modules/charter/contracts.ts';
+import { loadFrameworkContracts } from '../../src/authority/contracts/contracts.ts';
 import {
   CORDIS_ATLAS_CATALOG_PLUGIN_DESCRIPTOR,
   CORDIS_ATLAS_CATALOG_SERVICE,
   cordisAtlasCatalogPlugin,
-} from '../../src/modules/atlas/index.ts';
+} from '../../src/host/plugins/cordis-domain-manifest-catalog.ts';
 import {
   buildCordisCompositionSnapshot,
   buildCordisPluginDescriptor,
   CordisCompositionContractError,
-} from '../../src/modules/pack/index.ts';
+} from '../../src/authority/packages/index.ts';
 import {
   buildCordisFrameworkReadinessCompositionSnapshot,
   CORDIS_CONSOLE_READINESS_PLUGIN_DESCRIPTOR,
   CORDIS_CONSOLE_READINESS_SERVICE,
   cordisFrameworkReadinessPlugin,
   createCordisFrameworkReadinessComposition,
-} from '../../src/modules/console/index.ts';
-import { buildRuntimeTraySnapshot } from '../../src/modules/console/runtime-tray-snapshot.ts';
+} from '../../src/host/plugins/cordis-framework-readiness.ts';
+import { buildRuntimeTraySnapshot } from '../../src/read-models/operator/runtime-tray-snapshot.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..');
 
@@ -147,11 +147,11 @@ test('framework readiness CLI source routes full and compact through the Cordis 
   assert.doesNotMatch(source, /buildFrameworkReadinessCompactReadback\(/);
   const fullSource = fs.readFileSync(path.join(
     repoRoot,
-    'src/modules/console/framework-readiness.ts',
+    'src/read-models/operator/framework-readiness.ts',
   ), 'utf8');
   const compactSource = fs.readFileSync(path.join(
     repoRoot,
-    'src/modules/console/framework-readiness-compact-readback.ts',
+    'src/read-models/operator/framework-readiness-compact-readback.ts',
   ), 'utf8');
   assert.doesNotMatch(fullSource, /buildDomainManifestCatalog\(/);
   assert.doesNotMatch(compactSource, /buildDomainManifestCatalog\(/);

@@ -10,7 +10,7 @@ import {
   test,
 } from '../../helpers.ts';
 import { formatJsonPayload } from '../../../../../src/kernel/json-file.ts';
-import { repairManagedPolicyDependenciesFromDescriptor } from '../../../../../src/modules/connect/agent-package-registry-parts/managed-policy-surface.ts';
+import { repairManagedPolicyDependenciesFromDescriptor } from '../../../../../src/adapters/integration/agent-package-registry-parts/managed-policy-surface.ts';
 
 function withEnvironment<T>(values: Record<string, string | undefined>, run: () => T): T {
   const previous = new Map(Object.keys(values).map((key) => [key, process.env[key]]));

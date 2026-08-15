@@ -19,11 +19,11 @@ import {
   type AgentPackagePackageActionInput,
   type AgentPackageRepairInput,
   type CordisConnectDescriptorDiscoveryService,
-} from '../../../../modules/connect/index.ts';
+} from '../../../../adapters/integration/index.ts';
 import { FrameworkContractError } from '../../../../kernel/contract-validation.ts';
 import type { FrameworkContracts } from '../../../../kernel/types.ts';
 import { STANDARD_AGENT_REGISTRY } from '../../../../kernel/standard-agent-registry.ts';
-import type { CordisWorkspaceLocatorService } from '../../../../modules/workspace/index.ts';
+import type { CordisWorkspaceLocatorService } from '../../../../authority/workspace/index.ts';
 import { readOptionalString } from '../../modules/json-boundary.ts';
 import {
   buildUsageError,

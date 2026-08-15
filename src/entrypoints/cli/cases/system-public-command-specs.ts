@@ -1,11 +1,11 @@
 import { bootstrapLocalCodexDefaults, readBundledCodexDefaultProfile } from '../../../kernel/local-codex-defaults.ts';
-import { buildOplFrameworkSemanticHygieneAudit } from '../../../modules/console/index.ts';
-import { buildOplSystemDependencyDoctor } from '../../../modules/connect/system-installation/dependency-doctor.ts';
-import { buildOplDockerWebuiDoctor } from '../../../modules/connect/system-installation/docker-webui-doctor.ts';
-import { buildOplEnvironment } from '../../../modules/connect/system-installation/environment.ts';
-import { buildOplInitialize } from '../../../modules/connect/system-installation/initialize.ts';
-import { runCodexConfigHygiene } from '../../../modules/connect/system-installation/codex-config-hygiene.ts';
-import { runOplSystemAction } from '../../../modules/connect/system-installation/system-actions.ts';
+import { buildOplFrameworkSemanticHygieneAudit } from '../../../read-models/operator/index.ts';
+import { buildOplSystemDependencyDoctor } from '../../../adapters/integration/system-installation/dependency-doctor.ts';
+import { buildOplDockerWebuiDoctor } from '../../../adapters/integration/system-installation/docker-webui-doctor.ts';
+import { buildOplEnvironment } from '../../../adapters/integration/system-installation/environment.ts';
+import { buildOplInitialize } from '../../../adapters/integration/system-installation/initialize.ts';
+import { runCodexConfigHygiene } from '../../../adapters/integration/system-installation/codex-config-hygiene.ts';
+import { runOplSystemAction } from '../../../adapters/integration/system-installation/system-actions.ts';
 import type { FrameworkContracts } from '../../../kernel/types.ts';
 import {
   buildPublicSystemActionPayload,

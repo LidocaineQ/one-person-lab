@@ -21,13 +21,13 @@ import {
   providerWorkerSupervisorEnvironmentProjection,
   providerWorkerSupervisorEnvironmentVariables,
   redactProviderWorkerSupervisorLaunchctl,
-} from '../../../../src/modules/runway/family-runtime-provider-worker-supervisor.ts';
+} from '../../../../src/adapters/execution/family-runtime-provider-worker-supervisor.ts';
 import {
   nextTemporalDependencyBackoffMs,
   parseResidentSetBytes,
   parseProviderWorkerLauncherRoot,
   rotateBoundedLog,
-} from '../../../../src/modules/runway/family-runtime-provider-worker-launcher.ts';
+} from '../../../../src/adapters/execution/family-runtime-provider-worker-launcher.ts';
 
 function runtimePaths(root: string) {
   return {

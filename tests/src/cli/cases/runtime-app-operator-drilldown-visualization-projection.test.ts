@@ -7,8 +7,8 @@ import {
 } from '../helpers.ts';
 import {
   buildAppOperatorDrilldown,
-} from '../../../../src/modules/console/runtime-tray-app-operator-drilldown.ts';
-import { buildCurrentOwnerDeltaTopline } from '../../../../src/modules/ledger/current-owner-delta-topline.ts';
+} from '../../../../src/read-models/operator/runtime-tray-app-operator-drilldown.ts';
+import { buildCurrentOwnerDeltaTopline } from '../../../../src/authority/evidence/current-owner-delta-topline.ts';
 
 const ownerDeltaObserver = { observe: buildCurrentOwnerDeltaTopline };
 

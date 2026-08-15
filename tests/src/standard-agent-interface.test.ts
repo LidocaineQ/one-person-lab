@@ -23,7 +23,7 @@ import {
   resolveStandardAgentContractCheckout,
   standardAgentProgressDeltaKeySet,
   standardAgentProgressDeltaKeys,
-} from '../../src/modules/connect/standard-agent-interface-discovery.ts';
+} from '../../src/adapters/integration/standard-agent-interface-discovery.ts';
 
 function fixture() {
   return {

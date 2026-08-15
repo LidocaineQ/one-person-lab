@@ -7,8 +7,8 @@ import {
   buildObservabilitySemanticConventionExportSeed,
   buildObservabilitySemanticConventionReadback,
   renderObservabilitySemanticConventionOpenMetrics,
-} from '../../src/modules/ledger/observability-semantic-conventions.ts';
-import { buildEvidenceEnvelopeProjection } from '../../src/modules/ledger/evidence-envelope.ts';
+} from '../../src/authority/evidence/observability-semantic-conventions.ts';
+import { buildEvidenceEnvelopeProjection } from '../../src/authority/evidence/evidence-envelope.ts';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 
 const expectedFields = [

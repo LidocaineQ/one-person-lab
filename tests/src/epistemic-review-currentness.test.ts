@@ -10,12 +10,12 @@ import { listStandardDomainAgentIds } from '../../src/kernel/standard-agent-regi
 import {
   evaluateEpistemicReviewCurrentness,
   normalizeEpistemicReviewScope,
-} from '../../src/modules/stagecraft/review-evidence-currentness.ts';
+} from '../../src/authority/stages/review-evidence-currentness.ts';
 import {
   aggregateStageQualityScopeTokenUsage,
   evaluateStageQualityScopeBudget,
   normalizeStageQualityScopeBudget,
-} from '../../src/modules/stagecraft/stage-quality-scope-budget.ts';
+} from '../../src/authority/stages/stage-quality-scope-budget.ts';
 
 const authorityBoundary = {
   hash_is_locator_or_stale_hint_only: true,

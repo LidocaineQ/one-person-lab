@@ -3,7 +3,7 @@
 Owner: `One Person Lab`
 Purpose: `brand_module_design`
 State: `support_reference`
-Machine boundary: 本文是人读目标态参考。机器真相归 `contracts/opl-framework/foundry-*.schema.json`、`src/modules/foundry/`、`src/modules/runway/foundry-*`、`src/modules/ledger/foundry-*` 和 fresh CLI/read-model 输出。
+Machine boundary: 本文是人读目标态参考。机器真相归 `contracts/opl-framework/foundry-*.schema.json`、`src/authority/evolution/`、`src/adapters/execution/foundry-*`、`src/authority/evidence/foundry-*` 和 fresh CLI/read-model 输出。
 
 ## 定位
 

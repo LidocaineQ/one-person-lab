@@ -10,8 +10,8 @@ import {
   inspectManagedBrowserAutomation,
   readManagedBrowserAutomationLock,
   reconcileManagedBrowserAutomation,
-} from '../../../../../src/modules/connect/managed-browser-automation.ts';
-import { runManagedBrowserAutomationStartupMaintenance } from '../../../../../src/modules/connect/system-installation/startup-maintenance.ts';
+} from '../../../../../src/adapters/integration/managed-browser-automation.ts';
+import { runManagedBrowserAutomationStartupMaintenance } from '../../../../../src/adapters/integration/system-installation/startup-maintenance.ts';
 import { runCli } from '../../helpers.ts';
 
 const require = createRequire(import.meta.url);

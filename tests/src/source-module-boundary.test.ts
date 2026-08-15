@@ -29,8 +29,8 @@ type DependencyPolicyFixtureInput = {
   deepImportFailureMode?: 'advisory' | 'strict';
   dependencyCycleFailureMode?: 'advisory' | 'strict';
   forbiddenDependencies?: Array<{
-    from_module_id: string;
-    to_module_id: string;
+    from_unit_id: string;
+    to_unit_id: string;
     reason: string;
   }>;
 };
@@ -92,6 +92,16 @@ type BoundaryRunResult = {
 
 function contractFor(input: ContractFixtureInput = {}) {
   const moduleIds = input.moduleIds ?? defaultModuleIds;
+  const units = moduleIds.map((moduleId) => ({
+    unit_id: moduleId === 'charter' ? 'framework.authority.contracts' : 'framework.read-models.catalog',
+    layer_id: moduleId === 'charter' ? 'authority' : 'read-models',
+    responsibility_kind: moduleId,
+    physical_root: moduleId === 'charter' ? 'src/authority/contracts' : 'src/read-models/catalog',
+    public_entrypoints: [moduleId === 'charter' ? 'src/authority/contracts/index.ts' : 'src/read-models/catalog/index.ts'],
+    source_globs: [moduleId === 'charter' ? 'src/authority/contracts/**/*.ts' : 'src/read-models/catalog/**/*.ts'],
+    capability_domain_ids: moduleId === 'charter' ? ['policy'] : ['catalog-discovery'],
+    package_ids: ['opl-framework'],
+  }));
   return {
     version: 'source-module-map.test',
     scope: 'opl_framework_source_module_map',
@@ -100,45 +110,29 @@ function contractFor(input: ContractFixtureInput = {}) {
     state: 'active_contract',
     machine_boundary: 'test fixture',
     source_root: 'src',
-    physical_module_root: 'src/modules',
+    physical_module_root: null,
+    capability_domain_registry_ref: 'contracts/opl-framework/family-capability-domain-registry.json',
+    alignment_rules: ['test'],
+    target_roots: [
+      { root_id: 'authority', path: 'src/authority', layer_id: 'authority', source_globs: ['src/authority/**/*.ts'] },
+      { root_id: 'read_models', path: 'src/read-models', layer_id: 'read-models', source_globs: ['src/read-models/**/*.ts'] },
+    ],
+    legacy_roots: [],
+    source_units: units,
     physical_layout: {
-      version: 'source-module-physical-layout.v1',
+      version: 'source-topology-physical-layout.v2',
       stage: input.stage ?? 'transition',
-      module_entrypoint_pattern: 'src/modules/<module_id>/index.ts',
-      entrypoints_root: 'src/entrypoints',
       target_cli_entrypoint: 'src/entrypoints/cli.ts',
-      legacy_cli_entrypoint: 'src/cli.ts',
       target_activation_path: 'src/entrypoints/cli.ts',
       root_ts_policy: {
         target_top_level_ts_count: 0,
-        transition_failure_mode: 'enforce_target_when_target_cli_exists',
         allowed_transition_exception_kinds: ['entrypoint', 'kernel'],
         allowed_transition_exceptions: input.allowedTransitionExceptions ?? [
-          {
-            path: 'src/cli.ts',
-            kind: 'entrypoint',
-            target_path: 'src/entrypoints/cli.ts',
-            retire_when: 'target_cli_entrypoint_exists',
-          },
-          {
-            path: 'src/types.ts',
-            kind: 'kernel',
-            target_path: 'src/modules/charter/index.ts',
-            retire_when: 'module imports no longer need the root public type barrel',
-          },
+          { path: 'src/cli.ts', kind: 'entrypoint', target_path: 'src/entrypoints/cli.ts', retire_when: 'target_cli_entrypoint_exists' },
+          { path: 'src/types.ts', kind: 'kernel', target_path: 'src/kernel/types.ts', retire_when: 'module imports no longer need the root public type barrel' },
         ],
       },
     },
-    alignment_rules: ['test'],
-    modules: moduleIds.map((moduleId) => ({
-      module_id: moduleId,
-      brand_name: moduleId,
-      physical_root: `src/modules/${moduleId}`,
-      public_entrypoint: `src/modules/${moduleId}/index.ts`,
-      primary_source_globs: [`src/${moduleId}-*`],
-      shared_source_globs: [],
-      owner_note: `${moduleId} owner`,
-    })),
     shared_kernel: [],
   };
 }
@@ -153,20 +147,17 @@ function policyFor(input: DependencyPolicyFixtureInput = {}) {
     machine_boundary: 'test fixture',
     source_module_map: 'contracts/opl-framework/source-module-map.json',
     module_set_policy: {
-      physical_module_root: 'src/modules',
       extra_physical_module_roots: 'strict',
       new_module_requires_source_module_map_update: true,
     },
     public_entrypoint_rule: {
-      module_entrypoint_pattern: 'src/modules/<module_id>/index.ts',
-      thin_public_entry_pattern: 'src/modules/<module_id>/public/**/*.ts',
-      aggregate_entrypoint: 'src/modules/index.ts',
-      cross_module_imports: 'public_entrypoint_or_thin_public_entry',
+      cross_module_imports: 'public_entrypoint_or_host_plugin_leaf',
+      host_plugin_leaf_pattern: 'src/host/plugins/*.ts',
       same_module_deep_imports: 'allowed',
     },
     source_scan_scope: {
-      checker_scope: 'all_module_ts_files',
-      included: 'src/modules/<module_id>/**/*.ts',
+      checker_scope: 'all_target_source_units',
+      included: 'src/**/*.ts',
       excluded: 'none',
     },
     deep_cross_module_imports: {
@@ -179,6 +170,10 @@ function policyFor(input: DependencyPolicyFixtureInput = {}) {
       detection: 'directed_scc_from_cross_module_import_pair_graph',
     },
     dependency_policy: {
+      layer_dependencies: [
+        { from_layer_id: 'authority', to_layer_ids: ['kernel', 'authority'] },
+        { from_layer_id: 'read-models', to_layer_ids: ['kernel', 'read-models'] },
+      ],
       forbidden_dependencies: input.forbiddenDependencies ?? [],
     },
   };
@@ -226,8 +221,8 @@ test('source module boundary reports current repo cross-module import summary', 
 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(summary.module_dependency_policy, 'contracts/opl-framework/module-dependency-policy.json');
-  assert.equal(summary.cross_module_imports.policy.module_count, 10);
-  assert.equal(summary.cross_module_imports.policy.source_scan_scope, 'all_module_ts_files');
+  assert.equal(summary.cross_module_imports.policy.module_count, 13);
+  assert.equal(summary.cross_module_imports.policy.source_scan_scope, 'all_target_source_units');
   assert.equal(summary.cross_module_imports.policy.deep_import_failure_mode, 'strict');
   assert.equal(summary.cross_module_imports.policy.strict_imports_requested, false);
   assert.equal(summary.cross_module_imports.policy.dependency_cycle_failure_mode, 'strict');
@@ -260,8 +255,8 @@ test('source module boundary supports help and explicit json format', () => {
 
 test('source module boundary accepts current transition roots before target CLI lands', () => {
   const fixture = writeFixture([
-    'src/modules/charter/index.ts',
-    'src/modules/atlas/index.ts',
+    'src/authority/contracts/index.ts',
+    'src/read-models/catalog/index.ts',
     'src/cli.ts',
     'src/legacy-root.ts',
   ]);
@@ -282,8 +277,8 @@ test('source module boundary accepts current transition roots before target CLI 
 
 test('source module boundary rejects unclassified root TypeScript files in target mode', () => {
   const fixture = writeFixture([
-    'src/modules/charter/index.ts',
-    'src/modules/atlas/index.ts',
+    'src/authority/contracts/index.ts',
+    'src/read-models/catalog/index.ts',
     'src/entrypoints/cli.ts',
     'src/legacy-root.ts',
   ]);
@@ -302,8 +297,8 @@ test('source module boundary rejects unclassified root TypeScript files in targe
 
 test('source module boundary allows explicit kernel root exceptions in target mode', () => {
   const fixture = writeFixture([
-    'src/modules/charter/index.ts',
-    'src/modules/atlas/index.ts',
+    'src/authority/contracts/index.ts',
+    'src/read-models/catalog/index.ts',
     'src/entrypoints/cli.ts',
     'src/types.ts',
   ]);
@@ -323,18 +318,18 @@ test('source module boundary allows explicit kernel root exceptions in target mo
 
 test('source module boundary reports deep cross-module imports as advisory by default', () => {
   const fixture = writeFixture([
-    'src/modules/charter/index.ts',
-    'src/modules/charter/feature.ts',
-    'src/modules/atlas/index.ts',
-    'src/modules/atlas/detail.ts',
+    'src/authority/contracts/index.ts',
+    'src/authority/contracts/feature.ts',
+    'src/read-models/catalog/index.ts',
+    'src/read-models/catalog/detail.ts',
     'src/cli.ts',
   ]);
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'charter', 'feature.ts'),
-    "import { atlasDetail } from '../atlas/detail.ts';\nexport const charterFeature = atlasDetail;\n",
+    path.join(fixture.root, 'src', 'authority', 'contracts', 'feature.ts'),
+    "import { atlasDetail } from '../../read-models/catalog/detail.ts';\nexport const charterFeature = atlasDetail;\n",
   );
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'atlas', 'detail.ts'),
+    path.join(fixture.root, 'src', 'read-models', 'catalog', 'detail.ts'),
     "export const atlasDetail = 'atlas';\n",
   );
 
@@ -344,7 +339,7 @@ test('source module boundary reports deep cross-module imports as advisory by de
 
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(summary.cross_module_imports.pair_counts, [
-      { from_module_id: 'charter', to_module_id: 'atlas', count: 1 },
+      { from_module_id: 'framework.authority.contracts', to_module_id: 'framework.read-models.catalog', count: 1 },
     ]);
     assert.equal(summary.cross_module_imports.deep_import_violations.count, 1);
     assert.equal(summary.cross_module_imports.deep_import_violations.failure_mode, 'advisory');
@@ -356,18 +351,18 @@ test('source module boundary reports deep cross-module imports as advisory by de
 
 test('source module boundary fails deep cross-module imports in strict mode', () => {
   const fixture = writeFixture([
-    'src/modules/charter/index.ts',
-    'src/modules/charter/feature.ts',
-    'src/modules/atlas/index.ts',
-    'src/modules/atlas/detail.ts',
+    'src/authority/contracts/index.ts',
+    'src/authority/contracts/feature.ts',
+    'src/read-models/catalog/index.ts',
+    'src/read-models/catalog/detail.ts',
     'src/cli.ts',
   ]);
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'charter', 'feature.ts'),
-    "import { atlasDetail } from '../atlas/detail.ts';\nexport const charterFeature = atlasDetail;\n",
+    path.join(fixture.root, 'src', 'authority', 'contracts', 'feature.ts'),
+    "import { atlasDetail } from '../../read-models/catalog/detail.ts';\nexport const charterFeature = atlasDetail;\n",
   );
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'atlas', 'detail.ts'),
+    path.join(fixture.root, 'src', 'read-models', 'catalog', 'detail.ts'),
     "export const atlasDetail = 'atlas';\n",
   );
 
@@ -386,23 +381,23 @@ test('source module boundary fails deep cross-module imports in strict mode', ()
 
 test('source module boundary accepts thin public entries in strict mode', () => {
   const fixture = writeFixture([
-    'src/modules/charter/index.ts',
-    'src/modules/charter/feature.ts',
-    'src/modules/atlas/index.ts',
-    'src/modules/atlas/public/detail.ts',
-    'src/modules/atlas/detail.ts',
+    'src/authority/contracts/index.ts',
+    'src/authority/contracts/feature.ts',
+    'src/read-models/catalog/index.ts',
+    'src/read-models/catalog/public/detail.ts',
+    'src/read-models/catalog/detail.ts',
     'src/cli.ts',
   ]);
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'charter', 'feature.ts'),
-    "import { atlasDetail } from '../atlas/public/detail.ts';\nexport const charterFeature = atlasDetail;\n",
+    path.join(fixture.root, 'src', 'authority', 'contracts', 'feature.ts'),
+    "import { atlasDetail } from '../../read-models/catalog/public/detail.ts';\nexport const charterFeature = atlasDetail;\n",
   );
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'atlas', 'public', 'detail.ts'),
+    path.join(fixture.root, 'src', 'read-models', 'catalog', 'public', 'detail.ts'),
     "export { atlasDetail } from '../detail.ts';\n",
   );
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'atlas', 'detail.ts'),
+    path.join(fixture.root, 'src', 'read-models', 'catalog', 'detail.ts'),
     "export const atlasDetail = 'atlas';\n",
   );
 
@@ -412,7 +407,7 @@ test('source module boundary accepts thin public entries in strict mode', () => 
 
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(summary.cross_module_imports.pair_counts, [
-      { from_module_id: 'charter', to_module_id: 'atlas', count: 1 },
+      { from_module_id: 'framework.authority.contracts', to_module_id: 'framework.read-models.catalog', count: 1 },
     ]);
     assert.equal(summary.cross_module_imports.deep_import_violations.count, 0);
   } finally {
@@ -425,24 +420,24 @@ test('source module boundary fails forbidden module dependency pairs', () => {
   const policy = policyFor({
     forbiddenDependencies: [
       {
-        from_module_id: 'charter',
-        to_module_id: 'atlas',
+        from_unit_id: 'framework.authority.contracts',
+        to_unit_id: 'framework.read-models.catalog',
         reason: 'fixture forbidden pair',
       },
     ],
   });
   const fixture = writeFixture([
-    'src/modules/charter/index.ts',
-    'src/modules/charter/feature.ts',
-    'src/modules/atlas/index.ts',
+    'src/authority/contracts/index.ts',
+    'src/authority/contracts/feature.ts',
+    'src/read-models/catalog/index.ts',
     'src/cli.ts',
   ], contract, policy);
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'charter', 'feature.ts'),
-    "import { atlasValue } from '../atlas/index.ts';\nexport const charterFeature = atlasValue;\n",
+    path.join(fixture.root, 'src', 'authority', 'contracts', 'feature.ts'),
+    "import { atlasValue } from '../../read-models/catalog/index.ts';\nexport const charterFeature = atlasValue;\n",
   );
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'atlas', 'index.ts'),
+    path.join(fixture.root, 'src', 'read-models', 'catalog', 'index.ts'),
     "export const atlasValue = 'atlas';\n",
   );
 
@@ -453,7 +448,7 @@ test('source module boundary fails forbidden module dependency pairs', () => {
     assert.equal(result.status, 1);
     assert.equal(summary.cross_module_imports.deep_import_violations.count, 0);
     assert.equal(summary.cross_module_imports.forbidden_dependency_violations.count, 1);
-    assert.equal(summary.failures.some((failure) => failure.includes('charter->atlas')), true);
+    assert.equal(summary.failures.some((failure) => failure.includes('framework.authority.contracts->framework.read-models.catalog')), true);
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
   }
@@ -461,26 +456,26 @@ test('source module boundary fails forbidden module dependency pairs', () => {
 
 test('source module boundary reports dependency cycles as advisory by default', () => {
   const fixture = writeFixture([
-    'src/modules/charter/index.ts',
-    'src/modules/charter/feature.ts',
-    'src/modules/atlas/index.ts',
-    'src/modules/atlas/feature.ts',
+    'src/authority/contracts/index.ts',
+    'src/authority/contracts/feature.ts',
+    'src/read-models/catalog/index.ts',
+    'src/read-models/catalog/feature.ts',
     'src/cli.ts',
   ]);
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'charter', 'feature.ts'),
-    "import { atlasValue } from '../atlas/index.ts';\nexport const charterFeature = atlasValue;\n",
+    path.join(fixture.root, 'src', 'authority', 'contracts', 'feature.ts'),
+    "import { atlasValue } from '../../read-models/catalog/index.ts';\nexport const charterFeature = atlasValue;\n",
   );
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'atlas', 'feature.ts'),
-    "import { charterValue } from '../charter/index.ts';\nexport const atlasFeature = charterValue;\n",
+    path.join(fixture.root, 'src', 'read-models', 'catalog', 'feature.ts'),
+    "import { charterValue } from '../../authority/contracts/index.ts';\nexport const atlasFeature = charterValue;\n",
   );
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'charter', 'index.ts'),
+    path.join(fixture.root, 'src', 'authority', 'contracts', 'index.ts'),
     "export const charterValue = 'charter';\nexport { charterFeature } from './feature.ts';\n",
   );
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'atlas', 'index.ts'),
+    path.join(fixture.root, 'src', 'read-models', 'catalog', 'index.ts'),
     "export const atlasValue = 'atlas';\nexport { atlasFeature } from './feature.ts';\n",
   );
 
@@ -492,7 +487,7 @@ test('source module boundary reports dependency cycles as advisory by default', 
     assert.equal(summary.cross_module_imports.dependency_cycles.count, 1);
     assert.equal(summary.cross_module_imports.dependency_cycles.failure_mode, 'advisory');
     assert.equal(summary.cross_module_imports.dependency_cycles.enforced, false);
-    assert.deepEqual(summary.cross_module_imports.dependency_cycles.components[0].module_ids, ['atlas', 'charter']);
+    assert.deepEqual(summary.cross_module_imports.dependency_cycles.components[0].module_ids, ['framework.authority.contracts', 'framework.read-models.catalog']);
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
   }
@@ -500,26 +495,26 @@ test('source module boundary reports dependency cycles as advisory by default', 
 
 test('source module boundary fails dependency cycles in strict mode', () => {
   const fixture = writeFixture([
-    'src/modules/charter/index.ts',
-    'src/modules/charter/feature.ts',
-    'src/modules/atlas/index.ts',
-    'src/modules/atlas/feature.ts',
+    'src/authority/contracts/index.ts',
+    'src/authority/contracts/feature.ts',
+    'src/read-models/catalog/index.ts',
+    'src/read-models/catalog/feature.ts',
     'src/cli.ts',
   ]);
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'charter', 'feature.ts'),
-    "import { atlasValue } from '../atlas/index.ts';\nexport const charterFeature = atlasValue;\n",
+    path.join(fixture.root, 'src', 'authority', 'contracts', 'feature.ts'),
+    "import { atlasValue } from '../../read-models/catalog/index.ts';\nexport const charterFeature = atlasValue;\n",
   );
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'atlas', 'feature.ts'),
-    "import { charterValue } from '../charter/index.ts';\nexport const atlasFeature = charterValue;\n",
+    path.join(fixture.root, 'src', 'read-models', 'catalog', 'feature.ts'),
+    "import { charterValue } from '../../authority/contracts/index.ts';\nexport const atlasFeature = charterValue;\n",
   );
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'charter', 'index.ts'),
+    path.join(fixture.root, 'src', 'authority', 'contracts', 'index.ts'),
     "export const charterValue = 'charter';\nexport { charterFeature } from './feature.ts';\n",
   );
   fs.writeFileSync(
-    path.join(fixture.root, 'src', 'modules', 'atlas', 'index.ts'),
+    path.join(fixture.root, 'src', 'read-models', 'catalog', 'index.ts'),
     "export const atlasValue = 'atlas';\nexport { atlasFeature } from './feature.ts';\n",
   );
 
@@ -538,7 +533,7 @@ test('source module boundary fails dependency cycles in strict mode', () => {
 
 test('source module boundary requires every module index entrypoint', () => {
   const fixture = writeFixture([
-    'src/modules/charter/index.ts',
+    'src/authority/contracts/index.ts',
     'src/cli.ts',
   ]);
 
@@ -547,7 +542,7 @@ test('source module boundary requires every module index entrypoint', () => {
     const summary = parseSummary(result);
 
     assert.equal(result.status, 1);
-    assert.deepEqual(summary.module_entrypoints.missing, ['src/modules/atlas/index.ts']);
+    assert.deepEqual(summary.module_entrypoints.missing, ['src/read-models/catalog/index.ts']);
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
   }
@@ -555,8 +550,8 @@ test('source module boundary requires every module index entrypoint', () => {
 
 test('source module boundary retires src/cli.ts once target CLI entrypoint exists', () => {
   const fixture = writeFixture([
-    'src/modules/charter/index.ts',
-    'src/modules/atlas/index.ts',
+    'src/authority/contracts/index.ts',
+    'src/read-models/catalog/index.ts',
     'src/entrypoints/cli.ts',
     'src/cli.ts',
   ]);

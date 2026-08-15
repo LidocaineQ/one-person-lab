@@ -14,23 +14,23 @@ import {
   InMemoryFoundryObjectStore,
   InMemoryOwnerGate,
   InMemoryVersionRegistry,
-} from '../../../src/modules/foundry/in-memory-adapters.ts';
+} from '../../../src/authority/evolution/in-memory-adapters.ts';
 import {
   ContentAddressedCandidateCompiler,
   FileFoundryContentStore,
   FileFoundryObjectStore,
   LedgerFoundryEventStore,
   LedgerVersionRegistry,
-} from '../../../src/modules/ledger/foundry-persistent-adapters.ts';
+} from '../../../src/authority/evidence/foundry-persistent-adapters.ts';
 import {
   FunctionFoundryDesignerAdapter,
   ManifestFoundryDesignerAdapter,
   readFoundryProviderManifest,
-} from '../../../src/modules/foundry/designer-adapter.ts';
+} from '../../../src/authority/evolution/designer-adapter.ts';
 import {
   FoundryKernel,
   FoundryTransientActivityError,
-} from '../../../src/modules/foundry/kernel.ts';
+} from '../../../src/authority/evolution/kernel.ts';
 import {
   assertBlueprintSatisfiesDesignRequest,
   assertEvaluationEvidenceFacts,
@@ -41,7 +41,7 @@ import {
   recomputeEvaluationQualification,
   type EvaluationCaseExecutor,
   type IndependentEvaluationReviewer,
-} from '../../../src/modules/foundry/evaluation-runtime.ts';
+} from '../../../src/authority/evolution/evaluation-runtime.ts';
 import type {
   ActivationRuntime,
   CandidateCompiler,
@@ -52,7 +52,7 @@ import type {
   OwnerGateAction,
   OwnerGateDecision,
   VersionRegistry,
-} from '../../../src/modules/foundry/ports.ts';
+} from '../../../src/authority/evolution/ports.ts';
 import {
   FOUNDRY_PROTOCOL_VERSION,
   assertFoundryProtocolPurity,
@@ -65,13 +65,13 @@ import {
   type DesignRequest,
   type EvidenceBundle,
   type EvolutionProposal,
-} from '../../../src/modules/foundry/protocol.ts';
-import { validateFoundryProtocolFixtureSet } from '../../../src/modules/foundry/protocol-fixture-conformance.ts';
-import { verifyFoundryEventChain } from '../../../src/modules/foundry/state-machine.ts';
-import { ProcessFoundryEvaluationExecutor } from '../../../src/modules/runway/foundry-process-evaluator.ts';
-import { createProductionFoundryKernel } from '../../../src/modules/runway/foundry-production-runtime.ts';
-import type { resolveStandardAgentManagedCheckout } from '../../../src/modules/runway/standard-agent-managed-checkout.ts';
-import { compileStandardAgentStageManifest } from '../../../src/modules/pack/standard-agent-stage-manifest.ts';
+} from '../../../src/authority/evolution/protocol.ts';
+import { validateFoundryProtocolFixtureSet } from '../../../src/authority/evolution/protocol-fixture-conformance.ts';
+import { verifyFoundryEventChain } from '../../../src/authority/evolution/state-machine.ts';
+import { ProcessFoundryEvaluationExecutor } from '../../../src/adapters/execution/foundry-process-evaluator.ts';
+import { createProductionFoundryKernel } from '../../../src/adapters/execution/foundry-production-runtime.ts';
+import type { resolveStandardAgentManagedCheckout } from '../../../src/adapters/execution/standard-agent-managed-checkout.ts';
+import { compileStandardAgentStageManifest } from '../../../src/authority/packages/standard-agent-stage-manifest.ts';
 
 const ownerGate = new InMemoryOwnerGate(() => '2026-07-16T00:00:00.000Z');
 ownerGate.registerAuthorityPolicy({

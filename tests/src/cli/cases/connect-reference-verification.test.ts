@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
-import { runOplConnectReferenceVerification } from '../../../../src/modules/connect/opl-connect-reference-verification.ts';
+import { runOplConnectReferenceVerification } from '../../../../src/adapters/integration/opl-connect-reference-verification.ts';
 import { assert, fs, os, path, runCliAsync, test } from '../helpers.ts';
 
 test('reference providers materialize PubMed and PMC receipts without domain authority', async () => {

@@ -7,8 +7,8 @@ import { isDeepStrictEqual } from 'node:util';
 
 import { buildBrandCommandSpecs } from '../../../src/entrypoints/cli/cases/public-command-specs-parts/brand.ts';
 import { parseJsonText } from '../../../src/kernel/json-file.ts';
-import { loadFrameworkContracts } from '../../../src/modules/charter/contracts.ts';
-import { runFamilyRuntime } from '../../../src/modules/runway/family-runtime.ts';
+import { loadFrameworkContracts } from '../../../src/authority/contracts/contracts.ts';
+import { runFamilyRuntime } from '../../../src/adapters/execution/family-runtime.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..', '..');

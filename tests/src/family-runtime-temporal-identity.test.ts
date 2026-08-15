@@ -2,22 +2,22 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
 
-import { createWorkItemExecutionScopeSnapshot } from '../../src/modules/workspace/execution-scope.ts';
-import { requireFamilyRuntimeExecutionScope } from '../../src/modules/runway/family-runtime-execution-scope.ts';
+import { createWorkItemExecutionScopeSnapshot } from '../../src/authority/workspace/execution-scope.ts';
+import { requireFamilyRuntimeExecutionScope } from '../../src/adapters/execution/family-runtime-execution-scope.ts';
 import {
   assertTemporalStageAttemptQueryIdentity,
   assertTemporalWorkflowMemoIdentity,
-} from '../../src/modules/runway/family-runtime-temporal-identity.ts';
+} from '../../src/adapters/execution/family-runtime-temporal-identity.ts';
 import {
   buildTemporalStageAttemptMemo,
   buildTemporalStageAttemptSearchAttributes,
-} from '../../src/modules/runway/family-runtime-temporal-visibility.ts';
-import { codexStageAttemptEnv } from '../../src/modules/runway/family-runtime-codex-stage-runner-parts/provider-env.ts';
+} from '../../src/adapters/execution/family-runtime-temporal-visibility.ts';
+import { codexStageAttemptEnv } from '../../src/adapters/execution/family-runtime-codex-stage-runner-parts/provider-env.ts';
 import {
   normalizeTypedStageCloseoutPacket,
   validateCloseoutPacketForAttempt,
-} from '../../src/modules/runway/family-runtime-codex-stage-runner-parts/closeout-normalization.ts';
-import type { TemporalStageAttemptWorkflowInput } from '../../src/modules/runway/family-runtime-temporal.ts';
+} from '../../src/adapters/execution/family-runtime-codex-stage-runner-parts/closeout-normalization.ts';
+import type { TemporalStageAttemptWorkflowInput } from '../../src/adapters/execution/family-runtime-temporal.ts';
 
 function scope(workItemId = 'study-001') {
   fs.mkdirSync(`/tmp/dm-runtime-test/studies/${workItemId}`, { recursive: true });

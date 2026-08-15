@@ -87,17 +87,17 @@ test('active OPL machine surfaces do not declare compatibility aliases as live',
 
 test('retired Package lock and Skill projection writers stay absent', () => {
   const retiredPaths = [
-    'src/modules/connect/agent-package-registry-parts/installed-plugin-source.ts',
-    'src/modules/connect/agent-package-registry-parts/currentness.ts',
-    'src/modules/connect/agent-package-registry-parts/package-role.ts',
+    'src/adapters/integration/agent-package-registry-parts/installed-plugin-source.ts',
+    'src/adapters/integration/agent-package-registry-parts/currentness.ts',
+    'src/adapters/integration/agent-package-registry-parts/package-role.ts',
   ];
   for (const relativePath of retiredPaths) {
     assert.equal(fs.existsSync(path.join(repoRoot, relativePath)), false, relativePath);
   }
 
   const productionRoots = [
-    path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts'),
-    path.join(repoRoot, 'src/modules/runway'),
+    path.join(repoRoot, 'src/adapters/integration/agent-package-registry-parts'),
+    path.join(repoRoot, 'src/adapters/execution'),
   ];
   const productionText = productionRoots.flatMap((root) => {
     if (!fs.existsSync(root)) return [];
@@ -125,11 +125,11 @@ test('retired Package lock and Skill projection writers stay absent', () => {
 
 test('ordinary owner-channel catalog paths do not emit Release Set selection state', () => {
   const capabilityReconciliation = fs.readFileSync(
-    path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/capability-reconciliation.ts'),
+    path.join(repoRoot, 'src/adapters/integration/agent-package-registry-parts/capability-reconciliation.ts'),
     'utf8',
   );
   const firstPartyCatalog = fs.readFileSync(
-    path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/first-party-release-catalog.ts'),
+    path.join(repoRoot, 'src/adapters/integration/agent-package-registry-parts/first-party-release-catalog.ts'),
     'utf8',
   );
   assert.doesNotMatch(capabilityReconciliation, /function releaseSetPackageCatalog\b/);
@@ -256,7 +256,7 @@ test('core executor surfaces keep hermes_agent in the canonical explicit non-def
 
 test('retired evaluation actor stays absent and Foundry exports remain kernel-only', () => {
   const retiredPaths = [
-    'src/modules/foundry-lab',
+    'src/authority/evolution-lab',
     'contracts/opl-framework/agent-lab-contract.json',
     'contracts/opl-framework/agent-lab-failure-token-registry.json',
   ];
@@ -264,7 +264,7 @@ test('retired evaluation actor stays absent and Foundry exports remain kernel-on
     assert.equal(fs.existsSync(path.join(repoRoot, relativePath)), false, relativePath);
   }
 
-  const foundryIndex = fs.readFileSync(path.join(repoRoot, 'src/modules/foundry/index.ts'), 'utf8');
+  const foundryIndex = fs.readFileSync(path.join(repoRoot, 'src/authority/evolution/index.ts'), 'utf8');
   for (const forbiddenExport of [
     'persistent-adapters',
     'operator-control',
@@ -278,8 +278,8 @@ test('retired evaluation actor stays absent and Foundry exports remain kernel-on
   const packageJson = parseJsonText(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8')) as {
     exports?: Record<string, string>;
   };
-  assert.equal(packageJson.exports?.['./foundry-protocol'], './dist/modules/foundry/protocol.js');
-  assert.equal(packageJson.exports?.['./foundry-control'], './dist/modules/foundry/control.js');
+  assert.equal(packageJson.exports?.['./foundry-protocol'], './dist/authority/evolution/protocol.js');
+  assert.equal(packageJson.exports?.['./foundry-control'], './dist/authority/evolution/control.js');
   assert.equal(Object.keys(packageJson.exports ?? {}).some((key) => key.includes('lab')), false);
 
   const cliMain = fs.readFileSync(path.join(repoRoot, 'src/entrypoints/cli/main.ts'), 'utf8');
@@ -297,20 +297,20 @@ test('retired evaluation actor stays absent and Foundry exports remain kernel-on
   const fallowConfig = parseJsonText(fs.readFileSync(path.join(repoRoot, '.fallowrc.json'), 'utf8')) as {
     entry?: string[];
   };
-  assert.ok(fallowConfig.entry?.includes('src/modules/foundry/protocol.ts'));
-  assert.ok(fallowConfig.entry?.includes('src/modules/foundry/control.ts'));
+  assert.ok(fallowConfig.entry?.includes('src/authority/evolution/protocol.ts'));
+  assert.ok(fallowConfig.entry?.includes('src/authority/evolution/control.ts'));
   assert.equal(fallowConfig.entry?.some((entry) => entry.includes('foundry-lab') || entry.includes('agent-lab')), false);
 });
 
 test('retired Package lifecycle lock construction stays absent', () => {
   for (const retiredPackageWriterPath of [
-    'src/modules/connect/agent-package-registry-parts/lifecycle-lock.ts',
-    'src/modules/connect/agent-package-registry-parts/persisted-path-safety.ts',
+    'src/adapters/integration/agent-package-registry-parts/lifecycle-lock.ts',
+    'src/adapters/integration/agent-package-registry-parts/persisted-path-safety.ts',
   ]) {
     assert.equal(fs.existsSync(path.join(repoRoot, retiredPackageWriterPath)), false);
   }
   const physicalSurface = fs.readFileSync(
-    path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/physical-surface.ts'),
+    path.join(repoRoot, 'src/adapters/integration/agent-package-registry-parts/physical-surface.ts'),
     'utf8',
   );
   assert.doesNotMatch(physicalSurface, /\brematerializePhysicalCodexSurfaceFromLock\b/);
@@ -364,7 +364,7 @@ test('retired Package lifecycle lock construction stays absent', () => {
     );
   }
   const developerRuntimeSource = fs.readFileSync(
-    path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/developer-checkout-runtime-source.ts'),
+    path.join(repoRoot, 'src/adapters/integration/agent-package-registry-parts/developer-checkout-runtime-source.ts'),
     'utf8',
   );
   for (const retiredDeveloperRuntimeSymbol of [
@@ -379,7 +379,7 @@ test('retired Package lifecycle lock construction stays absent', () => {
     );
   }
   const packageTypes = fs.readFileSync(
-    path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/types.ts'),
+    path.join(repoRoot, 'src/adapters/integration/agent-package-registry-parts/types.ts'),
     'utf8',
   );
   for (const retiredLockType of [
@@ -400,7 +400,7 @@ test('retired Package lifecycle lock construction stays absent', () => {
     assert.doesNotMatch(packageTypes, new RegExp(`\\b${retiredReadinessType}\\b`), retiredReadinessType);
   }
   const manifestNormalizers = fs.readFileSync(
-    path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/manifest-normalizers.ts'),
+    path.join(repoRoot, 'src/adapters/integration/agent-package-registry-parts/manifest-normalizers.ts'),
     'utf8',
   );
   for (const retiredLegacySourceProjection of [
@@ -420,7 +420,7 @@ test('retired Package lifecycle lock construction stays absent', () => {
     assert.doesNotMatch(packageTypes, new RegExp(`\\b${retiredPolicyWriterType}\\b`), retiredPolicyWriterType);
   }
   const managedPolicySurface = fs.readFileSync(
-    path.join(repoRoot, 'src/modules/connect/agent-package-registry-parts/managed-policy-surface.ts'),
+    path.join(repoRoot, 'src/adapters/integration/agent-package-registry-parts/managed-policy-surface.ts'),
     'utf8',
   );
   assert.doesNotMatch(managedPolicySurface, /\bmanagedPolicyCurrentness\b/);
@@ -437,10 +437,10 @@ test('retired Package lifecycle lock construction stays absent', () => {
     );
   }
   for (const [relativePath, retiredHelper] of [
-    ['src/modules/connect/agent-package-registry-parts/capability-reconciliation.ts', 'catalogPayloadManifestJson'],
-    ['src/modules/connect/agent-package-registry-parts/shared.ts', 'normalizeSourceKind'],
-    ['src/modules/connect/agent-package-registry-parts/bundled-full-runtime-catalog.ts', 'resolveBundledFullRuntimePackageClosureRoots'],
-    ['src/modules/connect/agent-package-registry-parts/dependency-closure.ts', 'verifyManifestContentLock'],
+    ['src/adapters/integration/agent-package-registry-parts/capability-reconciliation.ts', 'catalogPayloadManifestJson'],
+    ['src/adapters/integration/agent-package-registry-parts/shared.ts', 'normalizeSourceKind'],
+    ['src/adapters/integration/agent-package-registry-parts/bundled-full-runtime-catalog.ts', 'resolveBundledFullRuntimePackageClosureRoots'],
+    ['src/adapters/integration/agent-package-registry-parts/dependency-closure.ts', 'verifyManifestContentLock'],
   ] as const) {
     const source = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
     assert.doesNotMatch(source, new RegExp(`\\b${retiredHelper}\\b`), retiredHelper);
@@ -473,20 +473,20 @@ test('retired internal write and fallback helper exports do not return', () => {
       ],
     ],
     [
-      'src/modules/ledger/current-owner-delta-projection.ts',
+      'src/authority/evidence/current-owner-delta-projection.ts',
       [
         /\bbuildIdleCurrentOwnerDeltaReadModel\b/,
         /\bno_opl_operator_actionable_delta_required\b[\s\S]{0,240}\btyped_blocker_ref\b/,
       ],
     ],
     [
-      'src/modules/ledger/current-owner-delta-read-model-cache.ts',
+      'src/authority/evidence/current-owner-delta-read-model-cache.ts',
       [
         /\bexport\s+function\s+buildCurrentOwnerDeltaReadModelCachePayload\b/,
       ],
     ],
     [
-      'src/modules/runway/family-runtime-temporal-client.ts',
+      'src/adapters/execution/family-runtime-temporal-client.ts',
       [
         /\bexport\s+const\s+DEFAULT_TEMPORAL_CLIENT_CONNECT_TIMEOUT_MS\b/,
         /\bexport\s+const\s+DEFAULT_TEMPORAL_CLIENT_RPC_TIMEOUT_MS\b/,

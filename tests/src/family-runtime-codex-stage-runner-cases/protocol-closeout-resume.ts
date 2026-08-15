@@ -6,8 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { createWorkItemExecutionScopeSnapshot } from '../../../src/modules/workspace/execution-scope.ts';
-import { preflightDomainWorkspaceCheckoutCurrentness } from '../../../src/modules/runway/family-runtime-checkout-currentness.ts';
+import { createWorkItemExecutionScopeSnapshot } from '../../../src/authority/workspace/execution-scope.ts';
+import { preflightDomainWorkspaceCheckoutCurrentness } from '../../../src/adapters/execution/family-runtime-checkout-currentness.ts';
 import { createFakeCodexFixture } from '../cli/helpers.ts';
 import { runPublicCodexStageRunner } from '../family-runtime-codex-stage-runner-helpers.ts';
 

@@ -1,15 +1,15 @@
 import { FrameworkContractError, PassThrough, assert, buildManifestCommand, buildProjectProgressBrief, cliPath, contractsDir, createCodexConfigFixture, createContractsFixtureRoot, createFakeCodexFixture, createFakeLaunchctlFixture, createFakeOpenFixture, createFakeShellCommandFixture, createFamilyContractsFixtureRoot, createFamilyLocatorResolverFixture, createGitModuleRemoteFixture, createMasWorkspaceFixture, explainDomainBoundary, familyManifestFixtureDir, fs, loadFamilyManifestFixtures, loadFrameworkContracts, once, os, path, readJsonFixture, readJsonLine, repoRoot, resolveRequestSurface, runCli, runCliAsync, runCliFailure, runCliFailureInCwd, runCliInCwd, runCliRaw, runCliViaEntryPathInCwd, shellSingleQuote, spawn, startCliServer, startFakeOplApiServer, stopCliPipeChild, stopCliServer, stopHttpServer, test, validateFrameworkContracts, writeJsonLine, assertContractsContext, assertNoContractsProvenance, assertMagActionGraph, assertMasActionGraph, assertRedcubeActionGraph } from '../helpers.ts';
 import { buildInternalCommandSpecs } from '../../../../src/entrypoints/cli/cases/private-command-specs.ts';
 import { buildPublicCommandSpecs } from '../../../../src/entrypoints/cli/cases/public-command-specs.ts';
-import { createCordisBaseHeadlessComposition } from '../../../../src/entrypoints/cordis/composition-profiles.ts';
+import { createCordisBaseHeadlessComposition } from '../../../../src/host/composition-profiles.ts';
 import {
   familyStageDiagnosticLensCommands,
   familyStageDerivedLensByCommand,
-} from '../../../../src/modules/stagecraft/family-stage-derived-lenses.ts';
-import { buildDomainManifestCatalog } from '../../../../src/modules/atlas/domain-manifest/catalog-builder.ts';
-import { buildCurrentDashboardSurfaceRefs, buildCurrentReadinessProjection } from '../../../../src/modules/console/management/readiness.ts';
-import { buildOplDashboard } from '../../../../src/modules/console/management/runtime-dashboard.ts';
-import { buildWorkspaceCatalog } from '../../../../src/modules/workspace/workspace-registry.ts';
+} from '../../../../src/authority/stages/family-stage-derived-lenses.ts';
+import { buildDomainManifestCatalog } from '../../../../src/read-models/catalog/domain-manifest/catalog-builder.ts';
+import { buildCurrentDashboardSurfaceRefs, buildCurrentReadinessProjection } from '../../../../src/read-models/operator/management/readiness.ts';
+import { buildOplDashboard } from '../../../../src/read-models/operator/management/runtime-dashboard.ts';
+import { buildWorkspaceCatalog } from '../../../../src/authority/workspace/workspace-registry.ts';
 import {
   parseWorkspaceAdoptArgs,
   parseWorkspaceArtifactLifecycleArgs,

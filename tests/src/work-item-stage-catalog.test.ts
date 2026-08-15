@@ -10,8 +10,8 @@ import {
   type StandardAgentDescriptorInterface,
   type StandardAgentStageCatalogDeclaration,
 } from '../../src/kernel/standard-agent-interface.ts';
-import { readProjectInventory } from '../../src/modules/console/work-item-projection/inventory.ts';
-import type { ProjectCatalogEntry } from '../../src/modules/console/work-item-projection/types.ts';
+import { readProjectInventory } from '../../src/read-models/operator/work-item-projection/inventory.ts';
+import type { ProjectCatalogEntry } from '../../src/read-models/operator/work-item-projection/types.ts';
 
 const CATALOG_DECLARATION = {
   source_kind: 'agent_repo_relative_json',

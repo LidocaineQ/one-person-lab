@@ -1,4 +1,4 @@
-import { buildSettingsControlCenter } from '../../../../../src/modules/console/app-state-settings-control-center.ts';
+import { buildSettingsControlCenter } from '../../../../../src/read-models/operator/app-state-settings-control-center.ts';
 import { assert, createFakeCodexFixture, fs, os, path, repoRoot, runCli, test } from '../../helpers.ts';
 
 const ORDINARY_SETTINGS_SECTIONS = [

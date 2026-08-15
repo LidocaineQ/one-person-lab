@@ -4,13 +4,13 @@ import {
   buildAgentPackageStoreStorageInventory,
   buildWebuiDataVolumeStorageInventory,
   scanStoragePath,
-} from '../../../../../src/modules/connect/storage-owner-inventory.ts';
+} from '../../../../../src/adapters/integration/storage-owner-inventory.ts';
 import {
   compactStorageOwnerProjection,
   readStorageOwnerInventorySnapshot,
   STORAGE_OWNER_INVENTORY_MAX_SNAPSHOT_BYTES,
   STORAGE_OWNER_INVENTORY_TTL_MS,
-} from '../../../../../src/modules/connect/storage-owner-inventory-snapshot.ts';
+} from '../../../../../src/adapters/integration/storage-owner-inventory-snapshot.ts';
 import { resolveOplStatePaths } from '../../../../../src/kernel/runtime-state-paths.ts';
 import { assert, fs, os, path, spawn, test } from '../../helpers.ts';
 

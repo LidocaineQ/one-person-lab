@@ -2,14 +2,14 @@ import { assert, fs, os, parseJsonText, path, runCli, test } from '../helpers.ts
 import {
   buildStandardDomainAgentScaffold,
   validateStandardDomainAgentScaffold,
-} from '../../../../src/modules/pack/standard-domain-agent-scaffold.ts';
+} from '../../../../src/authority/packages/standard-domain-agent-scaffold.ts';
 import {
   PRIVATE_FUNCTIONAL_SURFACE_ADMISSION_POLICY,
-} from '../../../../src/modules/pack/standard-domain-agent-scaffold-constants.ts';
+} from '../../../../src/authority/packages/standard-domain-agent-scaffold-constants.ts';
 import {
   STANDARD_FUNCTIONAL_PRIVATIZATION_AUDIT_DEFAULTS_PROFILE,
-} from '../../../../src/modules/pack/standard-agent-proof-contract-defaults.ts';
-import { materializeStandardAgentFrameworkLink } from '../../../../src/modules/connect/standard-agent-framework-link.ts';
+} from '../../../../src/authority/packages/standard-agent-proof-contract-defaults.ts';
+import { materializeStandardAgentFrameworkLink } from '../../../../src/adapters/integration/standard-agent-framework-link.ts';
 
 function readJson(filePath: string) {
   return parseJsonText(fs.readFileSync(filePath, 'utf8')) as Record<string, any>;

@@ -9,14 +9,14 @@ import test from 'node:test';
 import {
   commitStandardAgentActionOutput,
   prepareStandardAgentActionRunRequest,
-} from '../../src/modules/workspace/standard-agent-action-output.ts';
+} from '../../src/authority/workspace/standard-agent-action-output.ts';
 import {
   buildStandardAgentActionRunLedgerEvent,
-} from '../../src/modules/ledger/standard-agent-action-run-ledger.ts';
+} from '../../src/authority/evidence/standard-agent-action-run-ledger.ts';
 import {
   createFamilyRuntimeQueueTables,
-} from '../../src/modules/runway/family-runtime-store.ts';
-import { recordStandardAgentActionRunEvent } from '../../src/modules/runway/standard-agent-action-run-recorder.ts';
+} from '../../src/adapters/execution/family-runtime-store.ts';
+import { recordStandardAgentActionRunEvent } from '../../src/adapters/execution/standard-agent-action-run-recorder.ts';
 
 function sha256(bytes: Uint8Array) {
   return crypto.createHash('sha256').update(bytes).digest('hex');

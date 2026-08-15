@@ -20,8 +20,8 @@ import {
   type RuntimeEnvironmentPrepareInput,
   type RuntimeEnvironmentTargetInput,
   type RuntimeEnvironmentVerifyInput,
-} from '../../../modules/runway/runtime-environment-substrate.ts';
-import { buildOplModules } from '../../../modules/connect/index.ts';
+} from '../../../adapters/execution/runtime-environment-substrate.ts';
+import { buildOplModules } from '../../../adapters/integration/index.ts';
 import {
   assertNoArgs,
   buildUsageError,

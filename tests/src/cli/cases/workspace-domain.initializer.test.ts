@@ -17,7 +17,7 @@ import {
 } from '../../../../src/kernel/standard-agent-registry.ts';
 import { readStandardAgentDescriptorInterface } from '../../../../src/kernel/standard-agent-interface.ts';
 import { validateJsonSchemaPayload } from '../../../../src/kernel/schema-registry.ts';
-import { resolveWorkItemInventoryBinding } from '../../../../src/modules/workspace/work-item-inventory-binding.ts';
+import { resolveWorkItemInventoryBinding } from '../../../../src/authority/workspace/work-item-inventory-binding.ts';
 import {
   writeCapabilityCatalog,
   writeCapabilityProvider,

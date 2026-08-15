@@ -12,8 +12,8 @@ import { resolveStandardAgent } from '../../src/kernel/standard-agent-registry.t
 import {
   runStandardAgentAction,
   runStandardAgentQualificationProvisioning,
-} from '../../src/modules/runway/standard-agent-action-runtime.ts';
-import { runStandardAgentHandlerSandbox } from '../../src/modules/runway/standard-agent-handler-sandbox.ts';
+} from '../../src/adapters/execution/standard-agent-action-runtime.ts';
+import { runStandardAgentHandlerSandbox } from '../../src/adapters/execution/standard-agent-handler-sandbox.ts';
 
 const checkout = process.env.OPL_MAS_ROUNDTRIP_CHECKOUT;
 const sourceWorkspace = process.env.OPL_MAS_ROUNDTRIP_WORKSPACE;

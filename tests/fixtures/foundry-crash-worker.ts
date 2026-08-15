@@ -5,8 +5,8 @@ import path from 'node:path';
 import {
   FileFoundryContentStore,
   LedgerFoundryEventStore,
-} from '../../src/modules/ledger/foundry-persistent-adapters.ts';
-import { buildFoundryEvent } from '../../src/modules/foundry/state-machine.ts';
+} from '../../src/authority/evidence/foundry-persistent-adapters.ts';
+import { buildFoundryEvent } from '../../src/authority/evolution/state-machine.ts';
 
 const [mode, root, runId = 'run:durability', targetAgentId = 'durability-agent', targetDomainId = 'durability_domain'] =
   process.argv.slice(2);

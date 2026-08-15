@@ -70,7 +70,7 @@
     "kimi_cu_failure_blocks_provider": false
   },
   "authority_boundary": {
-    "codex_mcp_registry_writer": "src/modules/connect/system-installation/codex-plugin-registry.ts#registerOplManagedMcpServer",
+    "codex_mcp_registry_writer": "src/adapters/integration/system-installation/codex-plugin-registry.ts#registerOplManagedMcpServer",
     "second_registry_or_catalog_allowed": false,
     "second_session_store_or_agent_loop_allowed": false,
     "global_npm_mutation_allowed": false,

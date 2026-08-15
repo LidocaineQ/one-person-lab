@@ -12,14 +12,14 @@ import {
   LedgerFoundryOperationResultJournal,
   LedgerVersionRegistry,
   foundryStoragePaths,
-} from '../../src/modules/ledger/foundry-persistent-adapters.ts';
-import { foundryEvaluationOperationIdentity } from '../../src/modules/foundry/operation-result.ts';
+} from '../../src/authority/evidence/foundry-persistent-adapters.ts';
+import { foundryEvaluationOperationIdentity } from '../../src/authority/evolution/operation-result.ts';
 import {
   FOUNDRY_PROTOCOL_VERSION,
   foundryContentDigest,
   type AgentBlueprint,
-} from '../../src/modules/foundry/protocol.ts';
-import { buildFoundryEvent } from '../../src/modules/foundry/state-machine.ts';
+} from '../../src/authority/evolution/protocol.ts';
+import { buildFoundryEvent } from '../../src/authority/evolution/state-machine.ts';
 import type {
   ActivationPointer,
   ActivationRuntimeBindingVerification,
@@ -27,7 +27,7 @@ import type {
   AgentVersion,
   MaterializedCandidate,
   QualificationRecord,
-} from '../../src/modules/foundry/ports.ts';
+} from '../../src/authority/evolution/ports.ts';
 
 const TARGET_AGENT_ID = 'persistent-fixture-agent';
 const TARGET_DOMAIN_ID = 'persistent_fixture_domain';

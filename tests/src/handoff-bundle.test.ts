@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 
-import { loadFrameworkContracts } from '../../src/modules/charter/contracts.ts';
-import { buildProductEntryHandoffBundleView } from '../../src/modules/console/product-entry-handoff-bundle.ts';
+import { loadFrameworkContracts } from '../../src/authority/contracts/contracts.ts';
+import { buildProductEntryHandoffBundleView } from '../../src/read-models/operator/product-entry-handoff-bundle.ts';
 import type { BoundaryExplanation, ResolutionResult } from '../../src/kernel/types.ts';
-import type { CordisWorkspaceLocatorService } from '../../src/modules/workspace/cordis-workspace-locator.ts';
+import type { CordisWorkspaceLocatorService } from '../../src/host/plugins/cordis-workspace-locator.ts';
 
 const contractsDir = path.join(process.cwd(), 'contracts', 'opl-framework');
 const repoRoot = process.cwd();

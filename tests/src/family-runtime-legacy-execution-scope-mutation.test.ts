@@ -5,51 +5,51 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-import { FrameworkContractError } from '../../src/modules/charter/contracts.ts';
+import { FrameworkContractError } from '../../src/authority/contracts/contracts.ts';
 import {
   executionScopeColumnsFromRow,
   requireRuntimeExecutionScopeMutationAllowed,
-} from '../../src/modules/runway/family-runtime-execution-scope-persistence.ts';
+} from '../../src/adapters/execution/family-runtime-execution-scope-persistence.ts';
 import {
   createStageAttempt,
   createStageAttemptTable,
   inspectStageAttempt,
-} from '../../src/modules/runway/family-runtime-stage-attempts.ts';
+} from '../../src/adapters/execution/family-runtime-stage-attempts.ts';
 import {
   getStageAttemptRow,
   type StageAttemptRow,
-} from '../../src/modules/runway/family-runtime-stage-attempt-ledger.ts';
+} from '../../src/adapters/execution/family-runtime-stage-attempt-ledger.ts';
 import {
   persistStageAttemptLaunchBinding,
   recordTemporalStartOnAttempt,
-} from '../../src/modules/runway/family-runtime-parts/stage-attempt-launch.ts';
-import { persistStageAttemptUsageObservation } from '../../src/modules/runway/family-runtime-stage-attempt-usage-observation.ts';
-import { runStageAttemptFixtureActivity } from '../../src/modules/runway/family-runtime-stage-attempts-parts/fixture-activity.ts';
-import { updateStageAttemptsForTask } from '../../src/modules/runway/family-runtime-stage-attempts-parts/task-sync-summary.ts';
+} from '../../src/adapters/execution/family-runtime-parts/stage-attempt-launch.ts';
+import { persistStageAttemptUsageObservation } from '../../src/adapters/execution/family-runtime-stage-attempt-usage-observation.ts';
+import { runStageAttemptFixtureActivity } from '../../src/adapters/execution/family-runtime-stage-attempts-parts/fixture-activity.ts';
+import { updateStageAttemptsForTask } from '../../src/adapters/execution/family-runtime-stage-attempts-parts/task-sync-summary.ts';
 import {
   createStageQualityCycle,
   markStageQualityCycleCurrentAttempt,
   projectTemporalStageRunQualityCycle,
-} from '../../src/modules/runway/family-runtime-stage-quality-cycle.ts';
+} from '../../src/adapters/execution/family-runtime-stage-quality-cycle.ts';
 import {
   reconcileTemporalStageAttemptRuntimeObservations,
-} from '../../src/modules/runway/family-runtime-temporal-runtime-observation-reconciliation.ts';
+} from '../../src/adapters/execution/family-runtime-temporal-runtime-observation-reconciliation.ts';
 import {
   blockLinkedDefaultExecutorTask,
   markLinkedDefaultExecutorTaskCompleted,
-} from '../../src/modules/runway/family-runtime-linked-task-sync.ts';
-import { markStageAttemptCancelRequested } from '../../src/modules/runway/family-runtime-stage-attempt-control.ts';
+} from '../../src/adapters/execution/family-runtime-linked-task-sync.ts';
+import { markStageAttemptCancelRequested } from '../../src/adapters/execution/family-runtime-stage-attempt-control.ts';
 import {
   reconcileDomainRouteTerminalTaskForAttempt,
   reconcileDomainRouteTerminalTasks,
-} from '../../src/modules/runway/family-runtime-domain-route-terminal-sync.ts';
-import { runFamilyRuntime } from '../../src/modules/runway/family-runtime.ts';
+} from '../../src/adapters/execution/family-runtime-domain-route-terminal-sync.ts';
+import { runFamilyRuntime } from '../../src/adapters/execution/family-runtime.ts';
 import {
   createFamilyRuntimeQueueTables,
   openQueueDb,
   type FamilyRuntimeTaskRow,
-} from '../../src/modules/runway/family-runtime-store.ts';
-import type { TemporalStageRunWorkflowState } from '../../src/modules/runway/family-runtime-temporal.ts';
+} from '../../src/adapters/execution/family-runtime-store.ts';
+import type { TemporalStageRunWorkflowState } from '../../src/adapters/execution/family-runtime-temporal.ts';
 import {
   installLegacyV1RuntimeFixture,
   rawTableRows,

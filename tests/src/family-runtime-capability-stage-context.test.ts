@@ -10,8 +10,8 @@ import {
   buildCapabilityRegistryReadout,
   type CapabilityRegistryCatalog,
   type CurrentOwnerDeltaCapabilityBinding,
-} from '../../src/modules/connect/capability-registry-resolver.ts';
-import { runOplAgentPackageInstall } from '../../src/modules/connect/agent-package-registry.ts';
+} from '../../src/adapters/integration/capability-registry-resolver.ts';
+import { runOplAgentPackageInstall } from '../../src/adapters/integration/agent-package-registry.ts';
 import { sha256Fixture } from './cli/cases/packages-cases/helpers.ts';
 import { writeManagedRuntimeSourceFixture } from './cli/cases/packages-cases/managed-runtime-source-fixture.ts';
 import { createFakeCodexPluginManagerFixture } from './cli/helpers-parts/fixtures.ts';
@@ -20,18 +20,18 @@ import {
   DEFAULT_EXECUTOR_DISPATCH_TASK_KIND,
   ensureProviderHostedStageAttempt,
   findBlockingLiveDefaultExecutorWorkUnitAttempt,
-} from '../../src/modules/runway/family-runtime-provider-hosted-attempts.ts';
-import { createStageAttempt, createStageAttemptTable } from '../../src/modules/runway/family-runtime-stage-attempts.ts';
-import { persistStageAttemptLaunchBinding } from '../../src/modules/runway/family-runtime-parts/stage-attempt-launch.ts';
+} from '../../src/adapters/execution/family-runtime-provider-hosted-attempts.ts';
+import { createStageAttempt, createStageAttemptTable } from '../../src/adapters/execution/family-runtime-stage-attempts.ts';
+import { persistStageAttemptLaunchBinding } from '../../src/adapters/execution/family-runtime-parts/stage-attempt-launch.ts';
 import {
   buildCapabilityRegistryStageContextReceipt,
   capabilityRegistryStageContextInputFromPayload,
-} from '../../src/modules/runway/family-runtime-stage-context-observation.ts';
+} from '../../src/adapters/execution/family-runtime-stage-context-observation.ts';
 import {
   createFamilyRuntimeQueueTables,
   type FamilyRuntimeTaskRow,
-} from '../../src/modules/runway/family-runtime-store.ts';
-import { resolveFamilyRuntimeProviderKind } from '../../src/modules/runway/family-runtime-providers.ts';
+} from '../../src/adapters/execution/family-runtime-store.ts';
+import { resolveFamilyRuntimeProviderKind } from '../../src/adapters/execution/family-runtime-providers.ts';
 
 const emptyRegistry: CapabilityRegistryCatalog = {
   registry_id: 'opl.capability_registry.runtime-gate-test',

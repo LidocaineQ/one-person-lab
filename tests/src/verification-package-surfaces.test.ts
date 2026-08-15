@@ -100,7 +100,7 @@ test('native helper prebuild script handles platform executable names', () => {
   const prebuildScript = read('scripts/native-helper-prebuild.mjs');
   const cacheScript = read('scripts/native-helper-cache.mjs');
   const smokeScript = read('scripts/native-helper-family-smoke.mjs');
-  const runtime = read('src/modules/runway/native-helper-runtime.ts');
+  const runtime = read('src/adapters/execution/native-helper-runtime.ts');
 
   assert.match(prebuildScript, /targetTriple\.startsWith\('win32-'\)/);
   assert.match(prebuildScript, /--force-local/);
@@ -114,10 +114,10 @@ test('native helper prebuild script handles platform executable names', () => {
 test('package.json exports the unified domain-agent descriptor read model', () => {
   assert.equal(
     packageJson.exports?.['./family-domain-agent-descriptor'],
-    './dist/modules/atlas/family-domain-agent-descriptor.js',
+    './dist/read-models/catalog/family-domain-agent-descriptor.js',
   );
   assert.equal(
-    fs.existsSync(path.join(repoRoot, 'src/modules/atlas/family-domain-agent-descriptor.ts')),
+    fs.existsSync(path.join(repoRoot, 'src/read-models/catalog/family-domain-agent-descriptor.ts')),
     true,
   );
 });
@@ -128,7 +128,7 @@ test('package.json does not export the retired transition harness control plane'
     undefined,
   );
   assert.equal(
-    fs.existsSync(path.join(repoRoot, 'src/modules/runway/functional-agent-runtime-harness.ts')),
+    fs.existsSync(path.join(repoRoot, 'src/adapters/execution/functional-agent-runtime-harness.ts')),
     false,
   );
   assert.equal(packageJson.exports?.['./family-transition-runner'], undefined);
@@ -203,9 +203,9 @@ test('framework repository does not own App release or Full DMG publishing entry
 });
 
 test('framework release discovery consumes App repo assets without publishing them', async () => {
-  const release = await import('../../src/modules/connect/opl-release.ts');
-  const installCompanions = await import('../../src/modules/connect/install-companions.ts');
-  const marker = await import('../../src/modules/connect/packaged-module-marker.ts');
+  const release = await import('../../src/adapters/integration/opl-release.ts');
+  const installCompanions = await import('../../src/adapters/integration/install-companions.ts');
+  const marker = await import('../../src/adapters/integration/packaged-module-marker.ts');
 
   assert.equal(release.getOplReleaseRepo(), 'gaofeng21cn/one-person-lab-app');
   assert.equal(

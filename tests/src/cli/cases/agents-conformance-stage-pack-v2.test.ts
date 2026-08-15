@@ -2,7 +2,7 @@ import { assert, fs, os, parseJsonText, path, runCli, test } from '../helpers.ts
 import {
   STANDARD_AGENT_PACK_ABI,
   buildStandardDomainAgentScaffold,
-} from '../../../../src/modules/pack/index.ts';
+} from '../../../../src/authority/packages/index.ts';
 
 function writeJson(filePath: string, payload: unknown) {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');

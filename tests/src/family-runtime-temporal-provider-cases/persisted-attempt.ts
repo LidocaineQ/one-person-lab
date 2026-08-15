@@ -1,11 +1,11 @@
 import {
   createStageAttempt,
-} from '../../../src/modules/runway/family-runtime-stage-attempts.ts';
-import { openQueueDb } from '../../../src/modules/runway/family-runtime-store.ts';
+} from '../../../src/adapters/execution/family-runtime-stage-attempts.ts';
+import { openQueueDb } from '../../../src/adapters/execution/family-runtime-store.ts';
 import {
   buildTemporalStageAttemptWorkflowInput,
   type TemporalStageAttemptWorkflowInput,
-} from '../../../src/modules/runway/family-runtime-temporal.ts';
+} from '../../../src/adapters/execution/family-runtime-temporal.ts';
 
 export function createPersistedTemporalStageAttemptInput(input: {
   fixtureId: string;

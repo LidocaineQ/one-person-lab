@@ -3,8 +3,8 @@ import test from 'node:test';
 
 import {
   stageIdForProviderHostedTask,
-} from '../../src/modules/runway/family-runtime-provider-hosted-attempts.ts';
-import type { FamilyRuntimeTaskRow } from '../../src/modules/runway/family-runtime-store.ts';
+} from '../../src/adapters/execution/family-runtime-provider-hosted-attempts.ts';
+import type { FamilyRuntimeTaskRow } from '../../src/adapters/execution/family-runtime-store.ts';
 
 function task(domainId: string, taskKind: string) {
   return {

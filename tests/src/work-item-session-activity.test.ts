@@ -13,8 +13,8 @@ import {
   readWorkItemExecutionSessionBindings,
   resolveWorkItemExecutionSessionObservationTarget,
   type WorkItemExecutionSessionBinding,
-} from "../../src/modules/console/work-item-projection/session-activity.ts";
-import type { WorkItemProjectionItem } from "../../src/modules/console/work-item-projection/types.ts";
+} from "../../src/read-models/operator/work-item-projection/session-activity.ts";
+import type { WorkItemProjectionItem } from "../../src/read-models/operator/work-item-projection/types.ts";
 
 const NOW = Date.parse("2026-07-21T08:00:00.000Z");
 const SESSION_REF = "codex://threads/019f7eb5-74ef-7541-931a-5773a44da87c";
@@ -118,7 +118,7 @@ function observation(input: {
 
 function observeInChildProcess(input: { stateDir: string; ref: string; onReady: () => void }) {
   const moduleUrl = new URL(
-    "../../src/modules/console/work-item-projection/session-activity.ts",
+    "../../src/read-models/operator/work-item-projection/session-activity.ts",
     import.meta.url,
   ).href;
   const currentItem = item();

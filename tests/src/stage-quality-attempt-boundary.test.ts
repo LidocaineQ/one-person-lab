@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { requireStageQualityAttemptBoundary } from '../../src/modules/runway/family-runtime-stage-quality-attempt-boundary.ts';
+import { requireStageQualityAttemptBoundary } from '../../src/adapters/execution/family-runtime-stage-quality-attempt-boundary.ts';
 
 const base = {
   stage_run_id: 'stage-run:artifact-creation',

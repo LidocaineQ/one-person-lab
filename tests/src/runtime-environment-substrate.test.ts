@@ -10,11 +10,11 @@ import {
   buildRuntimeEnvironmentBuildReadback,
   buildRuntimeEnvironmentPrepareReadback,
   buildRuntimeEnvironmentRunContextReadback,
-} from '../../src/modules/runway/runtime-environment-substrate.ts';
-import { installRPackagesIntoManagedLibrary } from '../../src/modules/runway/runtime-environment-substrate-parts/package-profile.ts';
+} from '../../src/adapters/execution/runtime-environment-substrate.ts';
+import { installRPackagesIntoManagedLibrary } from '../../src/adapters/execution/runtime-environment-substrate-parts/package-profile.ts';
 import {
   inspectExternalSandboxProviderAdapterEnv,
-} from '../../src/modules/runway/external-sandbox-provider-adapter.ts';
+} from '../../src/adapters/execution/external-sandbox-provider-adapter.ts';
 
 type Json = Record<string, unknown>;
 
@@ -51,7 +51,7 @@ function readJson(relativePath: string): Json {
 
 test('runtime environment substrate keeps shared helpers split behind a thin facade', () => {
   const facade = fs.readFileSync(
-    path.join(repoRoot, 'src/modules/runway/runtime-environment-substrate-parts/shared.ts'),
+    path.join(repoRoot, 'src/adapters/execution/runtime-environment-substrate-parts/shared.ts'),
     'utf8',
   );
   const partFiles = [
@@ -71,7 +71,7 @@ test('runtime environment substrate keeps shared helpers split behind a thin fac
 
   for (const fileName of partFiles) {
     const source = fs.readFileSync(
-      path.join(repoRoot, 'src/modules/runway/runtime-environment-substrate-parts', fileName),
+      path.join(repoRoot, 'src/adapters/execution/runtime-environment-substrate-parts', fileName),
       'utf8',
     );
     assert.ok(

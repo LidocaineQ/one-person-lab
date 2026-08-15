@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 
-import { FrameworkContractError } from '../../src/modules/charter/contracts.ts';
-import { normalizeTypedStageCloseoutPacket } from '../../src/modules/runway/family-runtime-codex-stage-runner.ts';
+import { FrameworkContractError } from '../../src/authority/contracts/contracts.ts';
+import { normalizeTypedStageCloseoutPacket } from '../../src/adapters/execution/family-runtime-codex-stage-runner.ts';
 import {
   createStageAttempt,
   createStageAttemptTable,
@@ -15,13 +15,13 @@ import {
   queryStageAttempt,
   recordStageAttemptActivityHeartbeat,
   signalStageAttempt,
-} from '../../src/modules/runway/family-runtime-stage-attempts.ts';
-import { setStageAttemptArchived } from '../../src/modules/runway/family-runtime-stage-attempt-ledger.ts';
-import { buildTemporalStageAttemptWorkflowInput } from '../../src/modules/runway/family-runtime-temporal.ts';
+} from '../../src/adapters/execution/family-runtime-stage-attempts.ts';
+import { setStageAttemptArchived } from '../../src/adapters/execution/family-runtime-stage-attempt-ledger.ts';
+import { buildTemporalStageAttemptWorkflowInput } from '../../src/adapters/execution/family-runtime-temporal.ts';
 import {
   MAX_STAGE_ATTEMPT_ACTIVITY_EVENT_BYTES,
   MAX_STAGE_ATTEMPT_PERSISTED_JSON_BYTES,
-} from '../../src/modules/runway/family-runtime-stage-attempts-parts/shared.ts';
+} from '../../src/adapters/execution/family-runtime-stage-attempts-parts/shared.ts';
 
 function withAttempt(fn: (db: DatabaseSync, attemptId: string) => void) {
   const db = new DatabaseSync(':memory:');

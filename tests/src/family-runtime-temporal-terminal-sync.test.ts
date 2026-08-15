@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { Worker } from '@temporalio/worker';
 
-import { FrameworkContractError } from '../../src/modules/charter/contracts.ts';
+import { FrameworkContractError } from '../../src/authority/contracts/contracts.ts';
 import './family-runtime-temporal-terminal-sync-cases/attempt-precedence.ts';
 import {
   createStageAttempt,
@@ -15,11 +15,11 @@ import {
   inspectStageAttempt,
   queryStageAttempt,
   syncStageAttemptFromTemporalTerminalObservation,
-} from '../../src/modules/runway/family-runtime-stage-attempts.ts';
-import * as activities from '../../src/modules/runway/family-runtime-temporal-activities.ts';
-import { codexStageRunnerCostSummaryFrom } from '../../src/modules/runway/family-runtime-codex-session-usage.ts';
-import { openQueueDb } from '../../src/modules/runway/family-runtime-store.ts';
-import { StageAttemptWorkflow } from '../../src/modules/runway/family-runtime-temporal-workflows.ts';
+} from '../../src/adapters/execution/family-runtime-stage-attempts.ts';
+import * as activities from '../../src/adapters/execution/family-runtime-temporal-activities.ts';
+import { codexStageRunnerCostSummaryFrom } from '../../src/adapters/execution/family-runtime-codex-session-usage.ts';
+import { openQueueDb } from '../../src/adapters/execution/family-runtime-store.ts';
+import { StageAttemptWorkflow } from '../../src/adapters/execution/family-runtime-temporal-workflows.ts';
 import {
   blockedTemporalObservation,
   canceledTemporalObservation,
@@ -239,7 +239,7 @@ test('Temporal activity terminal sync preserves refs-only domain output through 
       connection: testEnv.nativeConnection,
       namespace: testEnv.namespace,
       taskQueue,
-      workflowsPath: path.join(repoRoot, 'src', 'modules', 'runway', 'family-runtime-temporal-workflows.ts'),
+      workflowsPath: path.join(repoRoot, 'src', 'adapters', 'execution', 'family-runtime-temporal-workflows.ts'),
       activities,
     });
     const temporalQuery = await worker.runUntil(async () => {

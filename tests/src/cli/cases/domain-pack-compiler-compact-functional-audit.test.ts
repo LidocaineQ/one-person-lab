@@ -1,10 +1,10 @@
 import { assert, fs, os, path, runCli, test } from '../helpers.ts';
-import { buildRepoContractDescriptor } from '../../../../src/modules/pack/domain-pack-compiler/repo-contract-descriptor.ts';
+import { buildRepoContractDescriptor } from '../../../../src/authority/packages/domain-pack-compiler/repo-contract-descriptor.ts';
 import {
   FORBIDDEN_DOMAIN_GENERIC_OWNER_ROLES,
   PRIVATE_FUNCTIONAL_SURFACE_ADMISSION_POLICY_REF,
-} from '../../../../src/modules/pack/standard-domain-agent-scaffold-constants.ts';
-import { validateStandardDomainAgentScaffold } from '../../../../src/modules/pack/standard-domain-agent-scaffold-validation.ts';
+} from '../../../../src/authority/packages/standard-domain-agent-scaffold-constants.ts';
+import { validateStandardDomainAgentScaffold } from '../../../../src/authority/packages/standard-domain-agent-scaffold-validation.ts';
 import { buildReadyAgentRepo, writeJson } from './agents-conformance-fixtures.ts';
 
 function writeCompactAudit(repoDir: string, codePaths: string[]) {

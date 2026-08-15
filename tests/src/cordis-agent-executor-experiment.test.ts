@@ -13,11 +13,11 @@ import {
   CORDIS_FIBER_STATE,
   createCordisAgentExecutorRequest,
   type CordisAgentExecutorAdapter,
-} from '../../src/modules/runway/cordis-agent-executor-experiment.ts';
+} from '../../src/host/plugins/cordis-agent-executor-experiment.ts';
 import {
   runAgentExecutor,
   type AgentExecutionRequest,
-} from '../../src/modules/runway/agent-executor.ts';
+} from '../../src/adapters/execution/agent-executor.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 

@@ -1,7 +1,7 @@
 import {
   parseExternalEvidenceApplyArgs,
   runExternalEvidenceApply,
-} from '../../../modules/ledger/external-evidence-ledger.ts';
+} from '../../../authority/evidence/external-evidence-ledger.ts';
 import type { CommandSpec } from '../modules/support.ts';
 
 export const agentsEvidenceApplySpec: CommandSpec = {

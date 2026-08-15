@@ -6,8 +6,8 @@ import { createCurrentCodexFixture, currentCodexEnvironment, withCliTimeout } fr
 import {
   fetchFrameworkArtifactFromChannel,
   readFrameworkChannelEntry,
-} from '../../../../../src/modules/connect/system-installation/framework-self-update-parts/channel-artifact.ts';
-import { readOplFrameworkRuntimeUpdateStatus } from '../../../../../src/modules/connect/system-installation/framework-self-update.ts';
+} from '../../../../../src/adapters/integration/system-installation/framework-self-update-parts/channel-artifact.ts';
+import { readOplFrameworkRuntimeUpdateStatus } from '../../../../../src/adapters/integration/system-installation/framework-self-update.ts';
 
 function writeMinimalFrameworkRoot(root: string, marker: string) {
   fs.mkdirSync(path.join(root, 'src'), { recursive: true });

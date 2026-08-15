@@ -4,8 +4,8 @@ import test from 'node:test';
 import {
   assertDomainDispatchEvidencePayloadReady,
   preflightDomainDispatchEvidencePayload,
-} from '../../src/modules/ledger/domain-dispatch-evidence-payload-preflight.ts';
-import { FrameworkContractError } from '../../src/modules/charter/contracts.ts';
+} from '../../src/authority/evidence/domain-dispatch-evidence-payload-preflight.ts';
+import { FrameworkContractError } from '../../src/authority/contracts/contracts.ts';
 
 test('readable artifact ref records progress without owner receipt or typed blocker', () => {
   const preflight = assertDomainDispatchEvidencePayloadReady({}, {

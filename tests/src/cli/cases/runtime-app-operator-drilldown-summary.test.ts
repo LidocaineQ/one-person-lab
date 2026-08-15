@@ -14,18 +14,18 @@ import './wrapper-aware-read-model.test.ts';
 import {
   buildCurrentOwnerDeltaReadModel,
   writeCurrentOwnerDeltaReadModelProjectionCache,
-} from '../../../../src/modules/ledger/index.ts';
+} from '../../../../src/authority/evidence/index.ts';
 import {
   normalizeRuntimeExecutionScopeWrite,
   persistRuntimeExecutionScope,
-} from '../../../../src/modules/runway/family-runtime-execution-scope-persistence.ts';
-import { createStageRunLaunchTable } from '../../../../src/modules/runway/family-runtime-stage-run-launch-registry.ts';
-import { openQueueDb } from '../../../../src/modules/runway/family-runtime-store.ts';
-import { createStageAttempt, runStageAttemptFixtureActivity } from '../../../../src/modules/runway/family-runtime-stage-attempts.ts';
+} from '../../../../src/adapters/execution/family-runtime-execution-scope-persistence.ts';
+import { createStageRunLaunchTable } from '../../../../src/adapters/execution/family-runtime-stage-run-launch-registry.ts';
+import { openQueueDb } from '../../../../src/adapters/execution/family-runtime-store.ts';
+import { createStageAttempt, runStageAttemptFixtureActivity } from '../../../../src/adapters/execution/family-runtime-stage-attempts.ts';
 import {
   createWorkItemExecutionScopeSnapshot,
   listWorkspaceBindings,
-} from '../../../../src/modules/workspace/index.ts';
+} from '../../../../src/authority/workspace/index.ts';
 import { createWorkspaceDescriptorFamilyFixture } from './workspace-domain-test-helper.ts';
 
 const SUMMARY_COMMAND = ['runtime', 'app-operator-drilldown'];

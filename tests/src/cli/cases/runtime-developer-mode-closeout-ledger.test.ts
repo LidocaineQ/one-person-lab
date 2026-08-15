@@ -6,7 +6,7 @@ import {
   runCli,
   test,
 } from '../helpers.ts';
-import { buildDeveloperModeRepairRouteReadModel } from '../../../../src/modules/console/developer-mode-repair-route.ts';
+import { buildDeveloperModeRepairRouteReadModel } from '../../../../src/read-models/operator/developer-mode-repair-route.ts';
 
 const completePayload = {
   target_repo_id: 'med-autoscience',
