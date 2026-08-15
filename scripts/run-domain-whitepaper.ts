@@ -8,7 +8,7 @@ import { buildOplWhitepaper } from './opl-whitepaper-builder.ts';
 type WhitepaperProfile = Omit<Parameters<typeof buildOplWhitepaper>[0], 'repoRoot'>;
 
 const usage = [
-  'Usage: node scripts/run-domain-whitepaper.ts --repo-root <path> --profile <path>',
+  'Usage: node scripts/run-domain-whitepaper.ts --repo-root <path> --profile <path> [--public-html-url <url> --public-pdf-url <url>]',
   '',
   'Build one domain-owned whitepaper with the shared OPL renderer.',
 ].join('\n');
@@ -61,13 +61,11 @@ function parseArgs(argv: string[]) {
     process.stdout.write(`${usage}\n`);
     return null;
   }
-  if (argv.length !== 4) fail(usage);
-
   const values = new Map<string, string>();
   for (let index = 0; index < argv.length; index += 2) {
     const flag = argv[index];
     const value = argv[index + 1];
-    if ((flag !== '--repo-root' && flag !== '--profile') || !value || values.has(flag)) {
+    if (!['--repo-root', '--profile', '--public-html-url', '--public-pdf-url'].includes(flag) || !value || values.has(flag)) {
       fail(usage);
     }
     values.set(flag, value);
@@ -75,7 +73,10 @@ function parseArgs(argv: string[]) {
   const repoRoot = values.get('--repo-root');
   const profile = values.get('--profile');
   if (!repoRoot || !profile) fail(usage);
-  return { repoRoot, profile };
+  const publicHtmlUrl = values.get('--public-html-url');
+  const publicPdfUrl = values.get('--public-pdf-url');
+  if ((publicHtmlUrl && !publicPdfUrl) || (!publicHtmlUrl && publicPdfUrl)) fail(usage);
+  return { repoRoot, profile, publicHtmlUrl, publicPdfUrl };
 }
 
 function profilePath(repoRoot: string, profileArg: string) {
@@ -148,6 +149,9 @@ function main() {
     ...readProfile(repoRoot, resolvedProfile),
     repoRoot,
     sourceProfile: path.relative(repoRoot, resolvedProfile),
+    ...(input.publicHtmlUrl && input.publicPdfUrl
+      ? { publicHtmlUrl: publicUrl({ 'public-html-url': input.publicHtmlUrl }, 'public-html-url'), publicPdfUrl: publicUrl({ 'public-pdf-url': input.publicPdfUrl }, 'public-pdf-url') }
+      : {}),
   });
 }
 

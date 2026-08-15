@@ -11,16 +11,19 @@ readback receipt, not from this directory or a successful render alone.
 Each whitepaper owns its prose and build profile. A repository may own more than
 one whitepaper; OPL Framework currently owns both the OPL family narrative and
 its independent architecture whitepaper. OPL Framework also owns the only
-renderer and family release-set registry:
+renderer, family release-set registry, and canonical branded publication bundle:
 
 - `scripts/run-domain-whitepaper.ts`
 - `scripts/opl-whitepaper-builder.ts`
 - `scripts/whitepaper-style.css`
 - `contracts/opl-framework/public-whitepaper-registry.json`
+- `scripts/stage-family-whitepaper-artifact.ts`
 
 `npm run docs:whitepapers:family` builds the OPL family, OPL Framework, OPL App,
-OPL Cloud, and MAS whitepapers through those profiles. It does not copy renderer
-source into domain repos.
+OPL Cloud, and MAS whitepapers through those profiles and binds their public
+verification URLs to the One Person Lab branded site. It does not copy renderer
+source into domain repos. `whitepaper.yml` publishes this five-document bundle;
+the product repositories retain their own source and compatibility workflows.
 `npm run docs:whitepapers:family:release` additionally requires every selected
 repo to be clean `main == origin/main`.
 

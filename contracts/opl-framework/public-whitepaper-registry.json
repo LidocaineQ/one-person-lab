@@ -39,8 +39,8 @@
       "repo_env": "OPL_APP_REPO",
       "default_repo_dir": "one-person-lab-app",
       "profile": "contracts/whitepaper_profile.json",
-      "public_html_url": "https://gaofeng21cn.github.io/one-person-lab-app/latest/whitepapers/opl-app-whitepaper.html",
-      "public_pdf_url": "https://gaofeng21cn.github.io/one-person-lab-app/latest/whitepapers/opl-app-whitepaper.pdf"
+      "public_html_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-app-whitepaper.html",
+      "public_pdf_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-app-whitepaper.pdf"
     },
     {
       "id": "opl-cloud",
@@ -49,8 +49,8 @@
       "repo_env": "OPL_CLOUD_REPO",
       "default_repo_dir": "one-person-lab-cloud",
       "profile": "contracts/whitepaper_profile.json",
-      "public_html_url": "https://gaofeng21cn.github.io/one-person-lab-cloud/latest/whitepapers/opl-cloud-whitepaper.html",
-      "public_pdf_url": "https://gaofeng21cn.github.io/one-person-lab-cloud/latest/whitepapers/opl-cloud-whitepaper.pdf"
+      "public_html_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-cloud-whitepaper.html",
+      "public_pdf_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-cloud-whitepaper.pdf"
     },
     {
       "id": "mas",
@@ -59,8 +59,8 @@
       "repo_env": "MAS_REPO",
       "default_repo_dir": "med-autoscience",
       "profile": "contracts/whitepaper_profile.json",
-      "public_html_url": "https://gaofeng21cn.github.io/med-autoscience/latest/whitepapers/mas-whitepaper.html",
-      "public_pdf_url": "https://gaofeng21cn.github.io/med-autoscience/latest/whitepapers/mas-whitepaper.pdf"
+      "public_html_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/mas-whitepaper.html",
+      "public_pdf_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/mas-whitepaper.pdf"
     }
   ]
 }

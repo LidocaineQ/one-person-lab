@@ -19,5 +19,11 @@ test('family whitepaper registry exposes separate family and Framework documents
   assert.equal(output.whitepapers[0]?.profile, 'contracts/whitepaper_profile.json');
   assert.equal(output.whitepapers[1]?.profile, 'contracts/framework-whitepaper_profile.json');
   assert.equal(output.whitepapers[0]?.repo_root, output.whitepapers[1]?.repo_root);
+  assert.ok(output.whitepapers.every(({ public_html_url }) =>
+    typeof public_html_url === 'string'
+    && public_html_url.startsWith('https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/')));
+  assert.ok(output.whitepapers.every(({ public_pdf_url }) =>
+    typeof public_pdf_url === 'string'
+    && public_pdf_url.startsWith('https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/')));
   assert.ok(output.whitepapers.every((entry) => !('source' in entry) && !('watch_paths' in entry)));
 });

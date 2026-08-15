@@ -6,19 +6,22 @@ import test from 'node:test';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-test('whitepaper publication deploys the approved artifact and closes with exact-byte readback', () => {
+test('whitepaper publication deploys one complete family artifact and closes with five-document readback', () => {
   const reusable = fs.readFileSync(path.join(repoRoot, '.github', 'workflows', 'reusable-whitepaper.yml'), 'utf8');
   const entry = fs.readFileSync(path.join(repoRoot, '.github', 'workflows', 'whitepaper.yml'), 'utf8');
   assert.match(entry, /- assets\/branding\/\*\*/);
-  assert.match(entry, /profile: contracts\/whitepaper_profile\.json/);
-  assert.match(entry, /profile: contracts\/framework-whitepaper_profile\.json/);
-  assert.match(reusable, /environment: whitepaper-production/);
-  assert.match(reusable, /actions\/download-artifact@/);
-  assert.match(reusable, /verify-whitepaper-publication\.ts/);
-  assert.match(reusable, /git -C site push origin gh-pages/);
-  assert.match(reusable, /if \[ -f source\/docs\/site\/latest\/whitepapers\/index\.html \]/);
-  assert.doesNotMatch(reusable, /rsync -a --delete artifact\/whitepapers/);
-  assert.doesNotMatch(reusable, /checkout --orphan|push .*--force/);
+  assert.match(entry, /repository: gaofeng21cn\/one-person-lab-app/);
+  assert.match(entry, /repository: gaofeng21cn\/one-person-lab-cloud/);
+  assert.match(entry, /repository: gaofeng21cn\/med-autoscience/);
+  assert.match(entry, /npm run docs:whitepapers:family/);
+  assert.match(entry, /stage-family-whitepaper-artifact\.ts/);
+  assert.match(entry, /environment: whitepaper-production/);
+  assert.match(entry, /needs: build-family/);
+  assert.match(entry, /rsync -a --delete artifact\/whitepapers\/ site\/latest\/whitepapers\//);
+  assert.match(entry, /verify-family-whitepaper-publication\.ts/);
+  assert.match(entry, /git -C site push origin gh-pages/);
+  assert.doesNotMatch(entry, /checkout --orphan|push .*--force/);
+  assert.match(reusable, /Reusable Whitepaper Build And Publish/);
 });
 
 test('local publish entry requests the governed workflow instead of mutating gh-pages', () => {

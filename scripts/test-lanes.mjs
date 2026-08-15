@@ -71,6 +71,7 @@ const fastTestFiles = [
   'tests/src/domain-agent-admission-gates.test.ts',
   'tests/src/codex-personalization.test.ts',
   'tests/src/domain-whitepaper-runner.test.ts',
+  'tests/src/family-whitepaper-artifact.test.ts',
   'tests/src/family-whitepaper-registry.test.ts',
   'tests/src/whitepaper-publication-readback.test.ts',
   'tests/src/whitepaper-workflow-contract.test.ts',

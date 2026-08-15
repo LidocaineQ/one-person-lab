@@ -26,18 +26,119 @@ permissions:
   contents: write
 
 jobs:
-  family-whitepaper:
-    uses: ./.github/workflows/reusable-whitepaper.yml
-    with:
-      profile: contracts/whitepaper_profile.json
-      output_name: opl-whitepaper
-      publish: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
-    secrets: inherit
+  build-family:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout OPL Framework and family publication owner
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: one-person-lab
+          fetch-depth: 0
 
-  framework-whitepaper:
-    uses: ./.github/workflows/reusable-whitepaper.yml
-    with:
-      profile: contracts/framework-whitepaper_profile.json
-      output_name: opl-framework-whitepaper
-      publish: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
-    secrets: inherit
+      - name: Checkout App whitepaper source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: gaofeng21cn/one-person-lab-app
+          ref: main
+          path: one-person-lab-app
+
+      - name: Checkout Cloud whitepaper source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: gaofeng21cn/one-person-lab-cloud
+          ref: main
+          path: one-person-lab-cloud
+
+      - name: Checkout MAS whitepaper source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: gaofeng21cn/med-autoscience
+          ref: main
+          path: med-autoscience
+
+      - name: Install document render dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc texlive-xetex texlive-lang-chinese fonts-noto-cjk poppler-utils
+
+      - name: Build the complete branded whitepaper set
+        working-directory: one-person-lab
+        run: npm run docs:whitepapers:family
+
+      - name: Stage one immutable family artifact
+        run: |
+          node --experimental-strip-types one-person-lab/scripts/stage-family-whitepaper-artifact.ts \
+            --manifest one-person-lab/tmp/pdfs/opl-family-whitepaper-build.json \
+            --output artifact
+
+      - name: Upload branded whitepaper candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: opl-family-whitepapers-${{ github.sha }}
+          path: artifact
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-family:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    needs: build-family
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    environment: whitepaper-production
+    concurrency:
+      group: whitepaper-family-publish-gaofeng21cn-one-person-lab
+      cancel-in-progress: false
+    steps:
+      - name: Checkout current branded site with history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: gh-pages
+          fetch-depth: 0
+          path: site
+
+      - name: Checkout the publication toolchain
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: toolchain
+
+      - name: Download the exact family artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: opl-family-whitepapers-${{ github.sha }}
+          path: artifact
+
+      - name: Publish the complete branded collection atomically
+        run: |
+          mkdir -p site/latest/whitepapers
+          rsync -a --delete artifact/whitepapers/ site/latest/whitepapers/
+          touch site/.nojekyll
+          git -C site config user.name github-actions[bot]
+          git -C site config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C site add .nojekyll latest/whitepapers
+          if git -C site diff --cached --quiet; then
+            echo "No publication byte changes."
+          else
+            git -C site commit -m "docs: publish OPL family whitepapers from ${{ github.sha }}"
+            git -C site push origin gh-pages
+          fi
+
+      - name: Read back all five public documents
+        run: |
+          node --experimental-strip-types toolchain/scripts/verify-family-whitepaper-publication.ts \
+            --artifact-dir artifact/whitepapers \
+            --output family-publication-receipt.json \
+            --attempts 6 \
+            --interval-ms 10000
+
+      - name: Upload family publication receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: opl-family-whitepaper-publication-receipt-${{ github.sha }}
+          path: |
+            family-publication-receipt.json
+            whitepaper-publication-receipts
+          if-no-files-found: error
+          retention-days: 90

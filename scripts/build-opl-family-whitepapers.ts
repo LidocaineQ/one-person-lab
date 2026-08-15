@@ -114,6 +114,8 @@ function main() {
       runnerPath,
       '--repo-root', entry.repo_root,
       '--profile', entry.profile,
+      '--public-html-url', entry.public_html_url,
+      '--public-pdf-url', entry.public_pdf_url,
     ], frameworkRepo);
     return {
       id: entry.id,
