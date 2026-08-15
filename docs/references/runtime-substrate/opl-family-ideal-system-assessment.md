@@ -64,13 +64,14 @@ OPL 应吸收成熟工程原则，不引入外部系统作为第二 runtime trut
 
 ## 理想产品与品牌结构
 
-One Person Lab 对外应保持三层产品认知：
+One Person Lab 对外应保持四层产品认知：
 
 | 层 | 用户理解 | 维护者理解 |
 | --- | --- | --- |
-| `OPL Framework` | 让智能体可创建、可运行、可恢复、可审计的基座。 | Agent platform、runtime、contracts、pack compiler、generated surfaces、Ledger/Runway/Console。 |
-| `One Person Lab App` | 人用工作台：选任务、看进度、处理阻塞、取交付物。 | Cockpit，不持有 runtime truth、domain truth、quality verdict 或 release 之外的领域权威。 |
-| `Foundry Agents` | 可直接完成医学论文、基金、视觉交付和 agent 构建的领域智能体。 | Domain pack + authority functions；持有领域 truth、quality/export verdict、artifact/memory authority。 |
+| `OPL Base` | 让智能体可创建、可运行、可恢复、可审计的基座。 | OPL Framework、唯一 Cordis Host、runtime 与 shared contracts。 |
+| `OPL App` | 人用工作台：选任务、看进度、处理阻塞、取交付物。 | App 产品与发布 authority，不持有 runtime、Package 或 domain truth。 |
+| `OPL Packages` | 可安装的专业 Agent、能力与工作流。 | Package owner 持有 identity/publication；Foundry Agents 继续持有领域 truth、quality/export verdict、artifact/memory authority。 |
+| `OPL Cloud`（可选） | 在线 Workspace、账号治理、托管资源、协作和 Agent 服务。 | Cloud 产品/服务 authority，不成为第二 Framework Host。 |
 
 当前品牌模块应作为 OPL Framework 的 bounded contexts，而不是另一个产品层级：
 

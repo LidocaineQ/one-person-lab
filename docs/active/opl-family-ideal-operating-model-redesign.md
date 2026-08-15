@@ -132,7 +132,7 @@ OPL 的品牌感应从产品行为里长出来：用户每次看到的词、状�
 
 | 层 | 用户看见什么 | 机器锚点 | 品牌失败信号 |
 | --- | --- | --- | --- |
-| `product_layer` | `OPL Framework -> One Person Lab App -> Foundry Agents`。 | core docs + brand system profile。 | 用户被迫理解 repo split、provider、executor selector。 |
+| `product_layer` | `OPL Base + OPL App + OPL Packages + optional OPL Cloud`；Foundry Agents 是 Packages 中的专业 authority family。 | core docs + brand system profile。 | 用户被迫理解 repo split、provider、executor selector，或把 Package/plugin/品牌模块混为一层。 |
 | `foundry_line` | Research / Grant / Presentation / Agent Foundry 等专业线。 | domain descriptor + product pack。 | MAS/MAG/RCA 像脚本集合而不是专业智能体。 |
 | `module_language` | Charter / Atlas / Workspace / Pack / Stagecraft / Runway / Ledger / Console / Foundry Kernel / Connect。 | brand module registry + L5 evidence contract。 | 模块名只出现在 docs，不影响 App/CLI/contract/ownership。 |
 | `status_language` | Continue、Review、Waiting for owner、Typed blocker、Ready to deliver、Needs human decision。 | current owner delta + owner answer shape。 | 用 provider completed、ledger verified、worklist count 当用户状态。 |

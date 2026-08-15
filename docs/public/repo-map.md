@@ -9,7 +9,7 @@ Machine boundary: 本文是公开导航，不是运行时、发布、安装或�
 
 ## 一句话总览
 
-`one-person-lab` 是 Framework；`one-person-lab-app` 是普通用户 App 产品 authority；`opl-aion-shell` 是当前 Stable GUI shell；`opl-studio` 是 DSH-derived 开发备选 Shell；MAS/MAG/RCA/BookForge/OMA 是可替换的专业 agent package；Cloud/Flow/Homebrew/Health 分别承载云产品族、工作流 profile、分发 tap 和医疗行业规划文档。
+对外生态固定为 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`。`one-person-lab` 实现 Base/Framework；`one-person-lab-app` 是 App 产品 authority；`opl-aion-shell` 是当前 Stable GUI shell；`opl-studio` 是 DSH-derived 候选 Shell；MAS/MAG/RCA/BookForge/OMA 等仓库发布专业 Packages 并保留领域 authority；Cloud/Flow/Homebrew/Health 分别承载云产品族、工作流 Package、分发 tap 和医疗行业规划文档。
 
 ## 仓库角色
 

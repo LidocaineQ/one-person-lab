@@ -35,7 +35,7 @@ Currentness policy: 本文不冻结模块完成度、L5 evidence 数量、owner 
 
 - `contracts/opl-framework/brand-module-registry.json` 与 `opl brand-modules ...` 是当前品牌模块目录和成熟度总览。
 - `contracts/opl-framework/brand-module-surfaces.json` 与 `opl <module> status|inspect|interfaces|validate|doctor --json` 是每个模块自身的 L4 executable surface。
-- `contracts/opl-framework/brand-system-profile.json` 是跨品牌模块的品牌系统冻结基线，负责三层产品认知、品牌模块 product grammar、Foundry Agent 命名、App 状态语言、design-token/icon/card/status pattern、receipt/blocker 文案规则和 false-authority boundary。
+- `contracts/opl-framework/brand-system-profile.json` 是跨品牌模块的品牌系统冻结基线；其中 Framework/App/Foundry 字段表达责任视角，对外产品认知以 `OPL Base + OPL App + OPL Packages + optional OPL Cloud` 为准。它同时约束品牌模块 product grammar、Foundry Agent 命名、App 状态语言、design-token/icon/card/status pattern、receipt/blocker 文案规则和 false-authority boundary。
 
 因此，当前不再以 `brand-modules inspect` 作为模块完成的唯一依据；每个模块都必须能通过自己的 `validate` / `doctor` 输出验收。
 

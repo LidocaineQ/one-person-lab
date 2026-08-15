@@ -186,13 +186,14 @@ MAS domain-progress refs 是 current-control / StageRun 的 domain progress 与 
 
 ## 当前公开角色
 
-`OPL` 当前公开认知固定为三层：`OPL Framework -> One Person Lab App -> Foundry Agents`。
+`OPL` 当前公开认知固定为四个产品层：`OPL Base + OPL App + OPL Packages + optional OPL Cloud`。
 
 | 层 | 当前职责 | 不拥有 |
 | --- | --- | --- |
-| `OPL Framework` | Codex-default activation、Temporal-backed provider、Fast Local Env 默认环境路径、后置 Local Docker / Devcontainer 与 Remote Sandbox provider binding、stage-attempt request/projection、stage attempt、receipt/projection、shared contracts/indexes、Foundry Kernel、generated/hosted surface、safe action shell 和跨仓治理。普通环境入口是 `opl env doctor|prepare|run`，advanced/operator 入口是 `opl runtime env ...`。 | domain truth、memory/artifact body、quality/export verdict、owner receipt authority、App release verdict、底层 agent VM/container sandbox implementation、E2B 默认依赖。 |
-| `One Person Lab App` | 面向人的工作台，消费 framework/provider 状态和 domain-owned projection，展示任务、阶段、阻塞、source/artifact/memory refs、SLO、repair、workorder 和 owner-aware action。 | OPL runtime/provider implementation、domain truth、artifact authority、quality/export verdict、长跑任务外围驱动。 |
-| `Foundry Agents` | MAS/MAG/RCA/OMA/OBF 及后续 domain agent，持有 domain pack、stage semantics、quality/export verdict、artifact authority、memory body / accept-reject decision、owner receipt、typed blocker 和 direct/generated skill path。 | Framework runtime、generic local queue/attempt loop、App release truth、跨 domain shared primitive。 |
+| `OPL Base` | 由 OPL Framework 实现的 Cordis Host、Codex-default activation、Temporal-backed provider、环境、stage attempt、恢复、证据和 shared contracts。 | domain truth、Package publication、App release、Cloud account/service authority。 |
+| `OPL App` | 面向人的本地工作台，持有产品、GUI ABI、Shell 选择和发布，消费 Framework 与 Package projection。 | Framework runtime、Package currentness、domain verdict、Cloud service authority。 |
+| `OPL Packages` | 可安装的 Agent、Skill、Tool、Plugin 与 Workflow；MAS/MAG/RCA/OMA/OBF 等 Foundry Agents 在此交付，同时保留各自 domain truth、quality/artifact/receipt authority。 | Framework Host、App release、通用 carrier currentness、其他 Package 的专业判断。 |
+| `OPL Cloud`（可选） | Console、Control Plane、Fabric、Ledger、Workspace 与 Serve 在线产品。 | 本地 Base/App/Package authority、第二 Cordis Host、领域质量判断。 |
 
 普通用户 App 形态按 `Codex App wrapper` 读取：固定 `Codex CLI` executor，内置 MAS/MAG/RCA/OMA task entry。AionUI 原生多 backend、多 Agent 选择、非默认 executor adapter 和 shell implementation 细节只能进入显式 developer/operator diagnostic，不是普通用户 product truth。`one-person-lab-app` 是 GUI product truth、active-shell contract、validator 和 release/user-path evidence owner；当前 GUI 主线是通过 `shells/aionui` 消费 `opl-aion-shell` 的 OPL-branded AionUI shell。`opl-studio` 是 App-owned DSH-derived foreground alternative GUI candidate；Hermes Desktop / `hermes-codex` 是 retained explicit reference candidate；`opl-agui-codex-shell` / `agui-codex` 只作为 AG-UI/CopilotKit archived technical proof 与显式 replay surface 保留，除非用户明确要求 AGUI，不再更新、完善或进入默认验证。这也是后续 GUI 工作分派规则：普通 GUI 缺口先落到 AionUI 主线，替代路线按 App registry 推进 Studio，Hermes 只做显式 reference replay，AGUI 历史文件、`candidate` 命名或 replay manifest 不能被读成默认待办。
 

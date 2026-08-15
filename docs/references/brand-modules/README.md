@@ -16,7 +16,7 @@ Machine boundary: 本文是人读目标态参考。机器真相继续归核心�
 
 本文不冻结当前完成度、receipt id、worklist 计数、branch、worktree 或 release 证据。当前事实继续回到 `docs/status.md`、`docs/active/current-state-vs-ideal-gap.md` 和 fresh CLI/read-model。
 
-当前品牌系统冻结基线归 `contracts/opl-framework/brand-system-profile.json`。它把三层产品认知、品牌模块 product grammar、Foundry Agent 命名、App 状态语言、design-token/icon/card/status pattern，以及 receipt/blocker 文案规则落成机器可读 contract；该 contract 只约束当前品牌系统语言和 pattern，不声明十模块是最终 authority/Package/plugin/profile 拓扑，也不声明 L5、domain ready、quality verdict、artifact authority、App release ready 或 production ready。
+当前品牌系统冻结基线归 `contracts/opl-framework/brand-system-profile.json`。其中历史字段仍保留 Framework / App / Foundry 的责任视角；对外生态认知已由 2026-08-15 决策统一为 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`。该 contract 只约束当前品牌系统语言和 pattern，不声明十模块是最终 authority/Package/plugin/profile 拓扑，也不声明 L5、domain ready、quality verdict、artifact authority、App release ready 或 production ready。
 
 Cordis 全面迁移已冻结一条更高优先级的目标态约束：`品牌模块/认知地图 != authority owner != Package 发布单元 != Cordis plugin 运行单元`。P5-R 已依据真实 caller、authority、lifecycle、scope、trust、故障隔离和发布节奏形成四层目标图；下表继续作为文档与源码导航基线，不代表一模块一 plugin，也不授权目录对称化 churn。
 
@@ -27,6 +27,7 @@ Cordis 全面迁移已冻结一条更高优先级的目标态约束：`品牌模
 
 ```text
 OPL Framework = 唯一 Cordis Host / runtime authority
+OPL Packages = 各 owner 独立发布的安装与能力单元；可贡献零个或多个 runtime/GUI contributions
 one-person-lab-app = App 产品、Client profile、GUI ABI、发布 authority
 opl-aion-shell = 当前 Stable AionUI Shell implementation carrier
 opl-studio = DSH-derived 下一代候选 Shell implementation carrier

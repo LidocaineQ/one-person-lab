@@ -5,7 +5,7 @@ Purpose: `specs_shared_runtime_contract`
 State: `active_spec_support`
 Machine boundary: 本文是人读 spec 支撑材料。机器可读行为继续归 contracts、schema、source、CLI/API 行为、runtime ledger、生成产物和 semantic human_doc ids。
 
-> 当前状态说明：本文作为 stage-led、以 Agent executor 为最小执行单位的 OPL Framework 共享边界参考保留。公开产品分层、运行主线、admitted Foundry Agents、MDS 读法和下层 domain 执行词汇均以核心五件套、active gap plan、`docs/active/current-development-lines.md` 与 fresh CLI/read-model 为准。当前长期读法仍是 `OPL Framework -> One Person Lab App -> Foundry Agents`，默认运行主线仍是 `Codex-default executor -> explicit OPL activation -> Temporal-backed provider stage runtime -> selected Foundry Agent entry`；历史日期校准和具体 counters 归 `docs/history/**`，不得从本文冻结。
+> 当前状态说明：本文作为 stage-led、以 Agent executor 为最小执行单位的 OPL Framework 共享边界参考保留。公开产品分层、运行主线、admitted Foundry Agents、MDS 读法和下层 domain 执行词汇均以核心五件套、active gap plan、`docs/active/current-development-lines.md` 与 fresh CLI/read-model 为准。当前长期生态读法是 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`，Foundry Agents 是 Packages 中的专业 authority family；默认运行主线仍是 `Codex-default executor -> explicit OPL activation -> Temporal-backed provider stage runtime -> selected Foundry Agent entry`。历史日期校准和具体 counters 归 `docs/history/**`，不得从本文冻结。
 
 ## 目的
 
@@ -144,7 +144,7 @@ persistence / lifecycle / owner-route surface 属于控制面 contract。它们�
 - `MCP` 与其他 protocol surface 保持为 supporting 或 domain-owned 层
 - `Shared Runtime Contract` 是当前共享边界下的参考合同，不是默认产品入口
 - runtime-oriented 的 family orchestration companion schemas 已经落在 `contracts/family-orchestration/`，先冻结共享 `event envelope + checkpoint lineage + product-entry runtime continuity discovery + persistence / lifecycle / owner-route discovery` 语义，而不是把它们误写成某个统一 runtime owner
-- 当前公开产品分层是 `OPL Framework -> One Person Lab App -> Foundry Agents`；当前 Foundry Agents 为 `MAS`、`MAG`、`RCA`，`OPL Meta Agent` 是 Agent Foundry / new-agent builder/tester module，不持有 MAS/MAG/RCA 的 domain truth；`MDS` 只保留为 MAS 声明的可选 companion diagnostic、intake 与 parity oracle 引用
+- 当前公开产品分层是 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`；当前 Foundry Agents 为 `MAS`、`MAG`、`RCA`，作为 Packages 中的专业家族保留领域 authority；`OPL Meta Agent` 是 Agent Foundry / new-agent builder/tester module，不持有 MAS/MAG/RCA 的 domain truth；`MDS` 只保留为 MAS 声明的可选 companion diagnostic、intake 与 parity oracle 引用
 - Hermes provider/readiness/compat 角色限定为历史 provenance、诊断语料或负向 guard；`hermes_agent` executor adapter 仅可显式选择，并必须独立 receipt / audit / fail-closed；它不提供默认长期在线 substrate、provider readiness path、默认 executor 或兼容 fallback
 
 ## 实现边界

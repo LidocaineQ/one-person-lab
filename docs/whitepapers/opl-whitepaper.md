@@ -59,15 +59,19 @@ OPL 把这种阶段内的开放式专家工作称为**认知计算**：AI 在一
 
 因此，OPL 的基本协作单元是一次有目标、有产物、有审阅、有去向的专业工作尝试。
 
-## 三层产品：一个体验，清楚分工
+## 四层生态：一个体验，清楚分工
 
-One Person Lab 对用户呈现为一个连续产品，对内保持三层分工，分别为可靠运行、易用界面和专业判断指定清楚的责任方。
+One Person Lab 对用户呈现为一个连续产品，对内用四个稳定对象降低安装、使用和维护成本。
 
-**OPL Framework** 是运行底座。它负责显式启动、阶段推进、长期运行、恢复、工作空间、证据与交接，让复杂任务可以被启动、暂停、继续和收口。具体执行工具可以变化，工作本身的阶段、成果与责任关系保持稳定。
+**OPL Base** 是运行底座，由 OPL Framework 实现。它负责显式启动、阶段推进、长期运行、恢复、工作空间、证据与交接，让复杂任务可以被启动、暂停、继续和收口。
 
-**One Person Lab App** 是用户工作面，让用户选择任务、查看进度、打开文件、处理卡点和接收更新。**OPL Cloud** 把同一条工作线扩展到在线工作空间、托管资源、组织管理和协作场景。两者都沿用 Framework 的运行事实和领域 Agent 的专业结论，不另造一套相互冲突的状态。
+**OPL App** 是本地工作面，让用户选择任务、查看进度、打开文件、处理卡点和接收更新。它可以更换 GUI Shell，但产品定义和工作语言只有一份。
 
-**Foundry Agents** 是专业能力层。不同领域需要不同材料理解、工作方法、质量标准和交付权威。OPL 当前的五个标准 Foundry Agents 是：
+**OPL Packages** 是可安装能力层。Agent、Skill、Tool、Plugin 和 Workflow 都通过 Package 进入生态；每个 Package 独立发布，Base 负责发现和运行，App 负责呈现，Package owner 继续负责自己的能力与专业边界。
+
+**OPL Cloud** 是按需启用的在线产品层，把同一条工作线扩展到在线 Workspace、账号治理、托管资源、组织协作和 Agent 服务。它不替代 Base、App 或 Packages。
+
+Foundry Agents 是 OPL Packages 中的专业 authority family。不同领域需要不同材料理解、工作方法、质量标准和交付权威。OPL 当前的五个标准 Foundry Agents 是：
 
 - [Med Auto Science（MAS）](https://github.com/gaofeng21cn/med-autoscience)：医学研究与论文交付；
 - [Med Auto Grant（MAG）](https://github.com/gaofeng21cn/med-autogrant)：基金方向、申请书、模拟评审与修订；
@@ -77,7 +81,7 @@ One Person Lab 对用户呈现为一个连续产品，对内保持三层分工�
 
 五者统一使用 OPL 的标准运行与工作面，但专业判断与最终责任仍然归属清楚。OMA 负责理解新 Agent 应解决的问题、形成设计并提出演进建议；独立评估负责检验这些建议，目标领域的负责人决定是否采用。
 
-三层之间有一条简单原则：Framework 负责“工作怎样可靠推进”，App（以及条件启用的 Cloud）负责“用户怎样看见并操作”，Foundry Agent 负责“这个专业领域什么算好、什么可以交付”。
+四层之间有一条简单原则：Base 负责“工作怎样可靠推进”，Packages 提供“系统能完成什么专业工作”，App 负责“用户怎样看见并操作”，Cloud 按需增加在线治理与托管；Foundry Agent 等 Package owner 继续决定“这个专业领域什么算好、什么可以交付”。
 
 ## 三类机制：用户为什么会觉得它好用
 

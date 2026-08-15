@@ -1655,7 +1655,7 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 
 ## 2026-05-12
 
-### 决策：产品认知固定为 OPL Framework、One Person Lab App 与 Foundry Agents 三层
+### 已被 2026-08-15 决策取代：Framework、App 与 Foundry Agents 三层认知
 
 原因：OPL 已经从入口聚合和工作台投影演进为完整的 stage-led 智能体框架。如果继续把框架开发、运行托管、普通用户 App 和 MAS/MAG/RCA 这类领域产品都用同一个不分层的 `OPL` 叙事表达，开发者用户和纯使用者都会难以判断自己应该进入哪一层。更清晰的产品结构是：OPL Framework 负责开发与运行框架；One Person Lab App 负责普通用户使用体验；Foundry Agents 负责医学研究、基金、汇报等领域交付。
 
@@ -1667,7 +1667,7 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 - 开发和运行保持集成在 OPL Framework 内；当前不拆 repo，也不把每个 domain agent 改成内嵌一份 OPL runtime。
 - agent 的推荐发布形态是 OPL-compatible package / repo：声明 framework/version/contract 要求、stage descriptor、skill、quality gate、artifact locator、projection 和 authority refs，由 OPL Framework 安装、发现、托管、唤醒和投影。
 - Full 首次安装包可以把 App、OPL Framework、OPL Meta Agent、MAS/MAG/RCA、provider payload、`officecli` 与推荐 skills 打在一起；这只是分发形态，不改变 single framework runtime truth，也不改变 MAS/MAG/RCA 的领域权威。
-- 后续 README、project/status/architecture、contracts 说明、App 文案和 onboarding 文档应优先使用这组三层主语，避免把 App 写成 Framework 本体，或把 Foundry Agents 写成 OPL 内部模块。
+- 本段保留为历史决策 provenance。当前 README、project/status/architecture、App 文案和 onboarding 统一使用 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`；Foundry Agents 作为 Packages 中保留专业 authority 的家族说明。
 
 ## 2026-05-10
 
