@@ -1,4 +1,4 @@
-name: Reusable Whitepaper Build And Publish
+name: Reusable Whitepaper Build
 
 on:
   workflow_call:
@@ -61,65 +61,3 @@ jobs:
           path: artifact
           if-no-files-found: error
           retention-days: 30
-
-  publish:
-    if: inputs.publish
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    environment: whitepaper-production
-    concurrency:
-      group: whitepaper-publish-${{ github.repository }}
-      cancel-in-progress: false
-    steps:
-      - name: Checkout current published site with history
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: gh-pages
-          fetch-depth: 0
-          path: site
-
-      - name: Checkout the canonical OPL whitepaper toolchain
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: gaofeng21cn/one-person-lab
-          ref: main
-          path: toolchain
-
-      - name: Download the exact build artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: whitepaper-${{ inputs.output_name }}-${{ github.sha }}
-          path: artifact
-
-      - name: Update only the whitepaper publication surface
-        run: |
-          mkdir -p site/latest/whitepapers
-          rsync -a artifact/whitepapers/ site/latest/whitepapers/
-          touch site/.nojekyll
-          git -C site config user.name github-actions[bot]
-          git -C site config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git -C site add .nojekyll latest/whitepapers
-          if git -C site diff --cached --quiet; then
-            echo "No publication byte changes."
-          else
-            git -C site commit -m "docs: publish ${{ inputs.output_name }} from ${{ github.sha }}"
-            git -C site push origin gh-pages
-          fi
-
-      - name: Read back exact public bytes
-        run: |
-          node --experimental-strip-types toolchain/scripts/verify-whitepaper-publication.ts \
-            --verification "artifact/whitepapers/${{ inputs.output_name }}.verification.json" \
-            --output "publication-receipt.json" \
-            --attempts 6 \
-            --interval-ms 10000
-
-      - name: Upload publication receipt
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: whitepaper-publication-receipt-${{ inputs.output_name }}-${{ github.sha }}
-          path: publication-receipt.json
-          if-no-files-found: error
-          retention-days: 90

@@ -22,7 +22,9 @@ test('whitepaper publication deploys one complete family artifact and closes wit
   assert.match(entry, /verify-family-whitepaper-publication\.ts/);
   assert.match(entry, /git -C site push origin gh-pages/);
   assert.doesNotMatch(entry, /checkout --orphan|push .*--force/);
-  assert.match(reusable, /Reusable Whitepaper Build And Publish/);
+  assert.match(reusable, /Reusable Whitepaper Build/);
+  assert.doesNotMatch(reusable, /\n  publish:\n/);
+  assert.doesNotMatch(reusable, /environment: whitepaper-production/);
 });
 
 test('local publish entry requests the governed workflow instead of mutating gh-pages', () => {
