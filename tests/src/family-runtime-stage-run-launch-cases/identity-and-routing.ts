@@ -58,6 +58,7 @@ import {
   workerClose,
   waitForBarrierCount,
 } from './shared.ts';
+import { createCordisBaseHeadlessComposition } from '../../../src/host/composition-profiles.ts';
 test('StageRun identity ignores currentness observations but binds immutable package bytes', () => {
   const firstLocator = workspaceLocator();
   const refreshedLocator = {
@@ -382,7 +383,9 @@ test('registered StageRun replay does not refresh package readiness or resolve a
     'sri_registered_readiness_replay',
     '--start',
   ];
+  const host = await createCordisBaseHeadlessComposition();
   const runtime = {
+    createStageRouteComposition: host.services.childFactories.createStageRouteComposition,
     stageRunRuntime: {
       ensurePackageLaunchReady: (async () => {
         readinessCalls += 1;
@@ -427,6 +430,7 @@ test('registered StageRun replay does not refresh package readiness or resolve a
       first.family_runtime_stage_run.stage_run_input,
     );
   } finally {
+    await host.dispose();
     if (previousStateRoot === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateRoot;
     fs.rmSync(stateRoot, { recursive: true, force: true });
@@ -438,6 +442,7 @@ test('workspace-bound launch ignores an unresolved legacy row with no workspace 
   const candidateWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-run-current-workspace-'));
   const previousStateRoot = process.env.OPL_STATE_DIR;
   process.env.OPL_STATE_DIR = stateRoot;
+  const host = await createCordisBaseHeadlessComposition();
   try {
     const { db } = openQueueDb();
     const legacyAttempt = createStageAttempt(db, {
@@ -469,6 +474,7 @@ test('workspace-bound launch ignores an unresolved legacy row with no workspace 
       '--source-fingerprint',
       sha256('current-workspace-launch'),
     ], {
+      createStageRouteComposition: host.services.childFactories.createStageRouteComposition,
       stageRunRuntime: {
         ensurePackageLaunchReady: (async () => ({
           launch_allowed: true,
@@ -504,6 +510,7 @@ test('workspace-bound launch ignores an unresolved legacy row with no workspace 
     assert.equal(legacyReadback.identity_state, 'identity_unresolved');
     assert.deepEqual(JSON.parse(String(legacyReadback.workspace_locator_json)), {});
   } finally {
+    await host.dispose();
     if (previousStateRoot === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateRoot;
     fs.rmSync(stateRoot, { recursive: true, force: true });
