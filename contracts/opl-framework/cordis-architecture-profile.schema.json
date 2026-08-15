@@ -223,7 +223,7 @@
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "enum": ["agent_executor_request", "runway_attempt", "pack_stagecraft_route"]
+            "enum": ["agent_executor_request", "runway_attempt", "pack_stagecraft_route", "release_operation"]
           }
         },
         "composition_scope": { "enum": ["process", "session", "attempt"] },

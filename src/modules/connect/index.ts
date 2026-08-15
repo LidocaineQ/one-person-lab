@@ -76,6 +76,24 @@ export type {
   CordisConnectDescriptorDiscoveryPluginConfig,
   CordisConnectDescriptorDiscoveryService,
 } from './cordis-connect-services.ts';
+export {
+  buildCordisReleaseOperationCompositionSnapshot,
+  CORDIS_RELEASE_OPERATION_PLUGIN_API_VERSION,
+  CORDIS_RELEASE_OPERATION_PLUGIN_DESCRIPTOR,
+  CORDIS_RELEASE_OPERATION_PLUGIN_ID,
+  CORDIS_RELEASE_OPERATION_SERVICE,
+  CORDIS_RELEASE_OPERATION_SOURCE_COMMIT,
+  CORDIS_RELEASE_OPERATION_SOURCE_REF,
+  cordisReleaseOperationPlugin,
+  createCordisReleaseOperationComposition,
+  defaultCordisReleaseOperationService,
+} from './cordis-release-operation.ts';
+export type {
+  CordisReleaseOperationCompositionOptions,
+  CordisReleaseOperationCompositionSnapshot,
+  CordisReleaseOperationPluginConfig,
+  CordisReleaseOperationService,
+} from './cordis-release-operation.ts';
 export { assertCredentialHandleOnlyPayload } from './connection-registry-parts/credential-handle.ts';
 export {
   completeOplGatewaySetup,

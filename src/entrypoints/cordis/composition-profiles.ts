@@ -20,6 +20,9 @@ import {
   cordisConnectDescriptorDiscoveryPlugin,
   type CordisConnectDescriptorDiscoveryPluginConfig,
   type CordisConnectDescriptorDiscoveryService,
+  buildCordisReleaseOperationCompositionSnapshot,
+  createCordisReleaseOperationComposition,
+  type CordisReleaseOperationPluginConfig,
 } from '../../modules/connect/index.ts';
 import {
   CORDIS_CONSOLE_READINESS_PLUGIN_DESCRIPTOR,
@@ -93,6 +96,9 @@ export type CordisCompositionProfileId =
   | 'foundry-dev';
 
 type CordisFiber = Awaited<ReturnType<Context['plugin']>>;
+type CordisReleaseOperationFactory = (
+  options?: CordisReleaseOperationPluginConfig,
+) => ReturnType<typeof createCordisReleaseOperationComposition>;
 
 export type CordisBaseHeadlessServices = {
   charter: CordisCharterPolicyService;
@@ -108,7 +114,16 @@ export type CordisBaseHeadlessServices = {
     createAgentExecutorRequest: typeof createCordisAgentExecutorRequest;
     createRunwayAttemptComposition: typeof createCordisRunwayAttemptComposition;
     createStageRouteComposition: typeof createCordisStageRouteComposition;
+    createReleaseOperationComposition: CordisReleaseOperationFactory;
   };
+};
+
+type CordisAppFullServices = Omit<CordisBaseHeadlessServices, 'childFactories'> & {
+  childFactories: Omit<
+    CordisBaseHeadlessServices['childFactories'],
+    'createReleaseOperationComposition'
+  >;
+  frameworkReadiness: CordisFrameworkReadinessService;
 };
 
 type CordisFoundryDevServices = Pick<
@@ -131,11 +146,12 @@ export type CordisBaseHeadlessComposition = {
   dispose(): Promise<void>;
 };
 
-export type CordisAppFullComposition = Omit<CordisBaseHeadlessComposition, 'profileId' | 'dispose'> & {
+export type CordisAppFullComposition = Omit<
+  CordisBaseHeadlessComposition,
+  'profileId' | 'services' | 'dispose'
+> & {
   profileId: 'app-full';
-  services: CordisBaseHeadlessServices & {
-    frameworkReadiness: CordisFrameworkReadinessService;
-  };
+  services: CordisAppFullServices;
   dispose(): Promise<void>;
 };
 
@@ -170,13 +186,14 @@ function profileSnapshot(
   profileId: CordisCompositionProfileId,
   plugins: readonly CordisPluginDescriptor[],
   childCompositionIds: readonly (
-    'agent_executor_request' | 'runway_attempt' | 'pack_stagecraft_route'
+    'agent_executor_request' | 'runway_attempt' | 'pack_stagecraft_route' | 'release_operation'
   )[] = ['agent_executor_request', 'runway_attempt', 'pack_stagecraft_route'],
 ) {
   const childSnapshots = {
     agent_executor_request: buildCordisAgentExecutorCompositionSnapshot(),
     runway_attempt: buildCordisRunwayAttemptCompositionSnapshot(),
     pack_stagecraft_route: buildCordisPackStagecraftCompositionSnapshot(),
+    release_operation: buildCordisReleaseOperationCompositionSnapshot(),
   };
   return buildCordisCompositionSnapshot({
     framework: {
@@ -273,9 +290,20 @@ async function createCordisBaseComposition(
           createAgentExecutorRequest: createCordisAgentExecutorRequest,
           createRunwayAttemptComposition: createCordisRunwayAttemptComposition,
           createStageRouteComposition: createCordisStageRouteComposition,
+          createReleaseOperationComposition: (releaseOptions = {}) =>
+            createCordisReleaseOperationComposition({
+              ...releaseOptions,
+              parentContext: ctx,
+            }),
         },
       },
-      snapshot: profileSnapshot(profileId, CORDIS_BASE_HEADLESS_PLUGIN_DESCRIPTORS),
+      snapshot: profileSnapshot(
+        profileId,
+        CORDIS_BASE_HEADLESS_PLUGIN_DESCRIPTORS,
+        profileId === CORDIS_DEFAULT_PROFILE_ID
+          ? ['agent_executor_request', 'runway_attempt', 'pack_stagecraft_route', 'release_operation']
+          : ['agent_executor_request', 'runway_attempt', 'pack_stagecraft_route'],
+      ),
       async dispose() {
         await disposeFibers(fibers);
         await ctx.fiber.dispose();
@@ -314,17 +342,22 @@ export async function createCordisAppFullComposition(options: {
     readinessFiber = await base.ctx.plugin(cordisFrameworkReadinessPlugin, {
       runtimeSnapshotProvider,
     });
+    const {
+      createReleaseOperationComposition: _releaseOperation,
+      ...appChildFactories
+    } = base.services.childFactories;
     return {
       profileId: 'app-full',
       ctx: base.ctx,
       services: {
         ...base.services,
+        childFactories: appChildFactories,
         frameworkReadiness: requiredService(base.ctx, CORDIS_CONSOLE_READINESS_SERVICE),
       },
       snapshot: profileSnapshot('app-full', [
         ...CORDIS_BASE_HEADLESS_PLUGIN_DESCRIPTORS,
         CORDIS_CONSOLE_READINESS_PLUGIN_DESCRIPTOR,
-      ]),
+      ], ['agent_executor_request', 'runway_attempt', 'pack_stagecraft_route']),
       async dispose() {
         await readinessFiber?.dispose();
         await base.dispose();

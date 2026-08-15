@@ -58,6 +58,7 @@ const fastTestFiles = [
   'tests/src/cordis-runway-attempt.test.ts',
   'tests/src/cordis-workspace-ledger.test.ts',
   'tests/src/cordis-connect-services.test.ts',
+  'tests/src/cordis-release-operation.test.ts',
   'tests/src/package-host-integration.test.ts',
   'tests/src/cordis-charter-foundry.test.ts',
   'tests/src/cordis-atlas-console-runtime.test.ts',

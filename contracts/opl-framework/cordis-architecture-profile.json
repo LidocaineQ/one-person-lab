@@ -65,6 +65,11 @@
       "domain_truth",
       "domain_quality_verdict",
       "app_product_truth",
+      "app_release_policy",
+      "public_release_authorization",
+      "github_actions_orchestration",
+      "release_environment_permissions",
+      "parallel_release_event_log",
       "credential_material",
       "security_sandbox"
     ],
@@ -396,6 +401,19 @@
           "authority_role": "Merge only the current descriptor-discovery read seam; installed truth, credentials, and carrier mutation stay native-owner controlled.",
           "forbidden_authorities": ["package_installed_truth", "package_currentness", "native_carrier_lifecycle", "credential_material", "security_sandbox"],
           "allowed_profiles": ["base-headless", "app-full"]
+        },
+        {
+          "contribution_id": "connect-release-operation",
+          "plugin_id": "opl-connect-release-operation",
+          "disposition": "merge",
+          "implementation_state": "landed",
+          "source_refs": ["src/modules/connect/cordis-release-operation.ts"],
+          "caller_refs": ["src/entrypoints/cordis/composition-profiles.ts", "src/entrypoints/cli/cases/public-command-specs-parts/release.ts"],
+          "scope": "request",
+          "trust": "first_party_privileged",
+          "authority_role": "Expose the existing Release Bundle operations through a request-scoped service; App release policy, durable Bundle state, credentials, workflow orchestration, and public authorization remain with their current owners.",
+          "forbidden_authorities": ["app_product_truth", "app_release_policy", "public_release_authorization", "github_actions_orchestration", "release_environment_permissions", "credential_material", "security_sandbox", "parallel_release_event_log"],
+          "allowed_profiles": ["base-headless"]
         }
       ],
       "authority_continues_refs": ["src/modules/connect/index.ts", "contracts/opl-framework/agent-plugin-manifest-1.0.0.schema.json"]
@@ -418,7 +436,7 @@
         { "plugin_id": "opl-ledger-owner-delta-observer", "required": true, "reason": "Default CLI and runtime projections use the profile-bound refs-only observer." },
         { "plugin_id": "opl-connect-descriptor-discovery", "required": true, "reason": "Default CLI package and contribution surfaces use profile-bound discovery." }
       ],
-      "child_composition_allowlist": ["agent_executor_request", "runway_attempt", "pack_stagecraft_route"],
+      "child_composition_allowlist": ["agent_executor_request", "runway_attempt", "pack_stagecraft_route", "release_operation"],
       "composition_scope": "process",
       "runtime_constraints": ["Attempt composition is frozen before execution.", "Temporal remains the durable workflow and retry/replay owner.", "No third-party plugin enters the privileged root."],
       "authority_boundary": { "can_write_domain_truth": false, "can_write_package_currentness": false, "can_write_durable_history": false, "can_write_app_product_truth": false }
@@ -481,7 +499,8 @@
       "child_composition_snapshot_refs": [
         "agent_executor_request",
         "runway_attempt",
-        "pack_stagecraft_route"
+        "pack_stagecraft_route",
+        "release_operation"
       ]
     },
     "legacy_caller_zero_gate": {

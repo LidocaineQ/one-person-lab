@@ -218,7 +218,14 @@ export function buildPublicCommandSpecs(
     cordis?.services.workspaceLocator,
   );
   const profileCommandSpecs = buildProfileCommandSpecs();
-  const releaseCommandSpecs = buildReleaseCommandSpecs((command) => publicCommandSpecs[command]);
+  const createReleaseOperationComposition =
+    cordis?.profileId === 'base-headless'
+      ? cordis.services.childFactories.createReleaseOperationComposition
+      : undefined;
+  const releaseCommandSpecs = buildReleaseCommandSpecs(
+    (command) => publicCommandSpecs[command],
+    createReleaseOperationComposition,
+  );
   const atlasService = cordis?.services.atlas;
   const requireAtlasService = (): CordisAtlasCatalogService => {
     if (!atlasService) {

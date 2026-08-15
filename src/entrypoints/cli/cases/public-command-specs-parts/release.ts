@@ -1,18 +1,8 @@
-import {
-  admitReleaseBundleOperation,
-  buildReleaseBundle,
-  buildReleaseBundleConsumerEnvelope,
-  exportReleaseBundleCheckpoint,
-  freezeReleaseBundle,
-  importReleaseBundleCheckpoint,
-  publishReleaseBundle,
-  readReleaseBundleEvents,
-  readReleaseBundleStatus,
-  reconcileReleaseBundle,
-  verifyReleaseBundle,
-  type ReleaseBundleStableOperation,
-  type ReleaseBundleTrackName,
+import type {
+  ReleaseBundleStableOperation,
+  ReleaseBundleTrackName,
 } from '../../../../modules/connect/release-bundle/index.ts';
+import type { CordisReleaseOperationService } from '../../../../modules/connect/cordis-release-operation.ts';
 import {
   parseRegisteredCommandOptions,
   type CommandSpec,
@@ -47,9 +37,24 @@ function operationInvocation(values: Record<string, unknown>) {
 
 export function buildReleaseCommandSpecs(
   resolveSpec: (command: string) => CommandSpec,
+  createReleaseOperationComposition?: () => Promise<{
+    service: CordisReleaseOperationService;
+    dispose(): Promise<void>;
+  }>,
 ): Record<string, CommandSpec> {
   const parse = (command: string, args: string[]) =>
     parseRegisteredCommandOptions(command, args, resolveSpec(command));
+  const execute = async <T>(operation: (service: CordisReleaseOperationService) => T) => {
+    if (!createReleaseOperationComposition) {
+      throw new Error('Release commands require the base-headless Cordis release-operation child composition.');
+    }
+    const composition = await createReleaseOperationComposition();
+    try {
+      return operation(composition.service);
+    } finally {
+      await composition.dispose();
+    }
+  };
 
   return {
     'release freeze': {
@@ -59,11 +64,11 @@ export function buildReleaseCommandSpecs(
       group: 'release',
       handler: (args) => {
         const values = parse('release freeze', args);
-        return freezeReleaseBundle({
+        return execute((service) => service.freeze({
           requestPath: String(values.request),
           sourceRoot: stringOption(values, 'source-root'),
           storeRoot: stringOption(values, 'store'),
-        });
+        }));
       },
     },
     'release build': {
@@ -75,12 +80,12 @@ export function buildReleaseCommandSpecs(
       group: 'release',
       handler: (args) => {
         const values = parse('release build', args);
-        return buildReleaseBundle({
+        return execute((service) => service.build({
           ...operationInvocation(values),
           bundleDigest: String(values.bundle),
           executorReceiptPath: String(values['executor-receipt']),
           storeRoot: stringOption(values, 'store'),
-        });
+        }));
       },
     },
     'release operation admit': {
@@ -92,11 +97,11 @@ export function buildReleaseCommandSpecs(
       group: 'release',
       handler: (args) => {
         const values = parse('release operation admit', args);
-        return admitReleaseBundleOperation({
+        return execute((service) => service.admit({
           ...operationInvocation(values),
           bundleDigest: String(values.bundle),
           storeRoot: stringOption(values, 'store'),
-        });
+        }));
       },
     },
     'release checkpoint export': {
@@ -108,11 +113,11 @@ export function buildReleaseCommandSpecs(
       group: 'release',
       handler: (args) => {
         const values = parse('release checkpoint export', args);
-        return exportReleaseBundleCheckpoint({
+        return execute((service) => service.checkpointExport({
           bundleDigest: String(values.bundle),
           outputDirectory: String(values.output),
           storeRoot: stringOption(values, 'store'),
-        });
+        }));
       },
     },
     'release checkpoint import': {
@@ -124,10 +129,10 @@ export function buildReleaseCommandSpecs(
       group: 'release',
       handler: (args) => {
         const values = parse('release checkpoint import', args);
-        return importReleaseBundleCheckpoint({
+        return execute((service) => service.checkpointImport({
           checkpointPath: String(values.checkpoint),
           storeRoot: stringOption(values, 'store'),
-        });
+        }));
       },
     },
     'release verify': {
@@ -139,13 +144,13 @@ export function buildReleaseCommandSpecs(
       group: 'release',
       handler: (args) => {
         const values = parse('release verify', args);
-        return verifyReleaseBundle({
+        return execute((service) => service.verify({
           ...operationInvocation(values),
           bundleDigest: String(values.bundle),
           qualificationReceiptPath: String(values['qualification-receipt']),
           track: stringOption(values, 'track') as ReleaseBundleTrackName | undefined,
           storeRoot: stringOption(values, 'store'),
-        });
+        }));
       },
     },
     'release publish': {
@@ -157,12 +162,12 @@ export function buildReleaseCommandSpecs(
       group: 'release',
       handler: (args) => {
         const values = parse('release publish', args);
-        return publishReleaseBundle({
+        return execute((service) => service.publish({
           ...operationInvocation(values),
           bundleDigest: String(values.bundle),
           executorReceiptPath: String(values['executor-receipt']),
           storeRoot: stringOption(values, 'store'),
-        });
+        }));
       },
     },
     'release reconcile': {
@@ -174,12 +179,12 @@ export function buildReleaseCommandSpecs(
       group: 'release',
       handler: (args) => {
         const values = parse('release reconcile', args);
-        return reconcileReleaseBundle({
+        return execute((service) => service.reconcile({
           ...operationInvocation(values),
           bundleDigest: String(values.bundle),
           executorReceiptPath: String(values['executor-receipt']),
           storeRoot: stringOption(values, 'store'),
-        });
+        }));
       },
     },
     'release status': {
@@ -189,10 +194,10 @@ export function buildReleaseCommandSpecs(
       group: 'release',
       handler: (args) => {
         const values = parse('release status', args);
-        return readReleaseBundleStatus({
+        return execute((service) => service.status({
           bundleDigest: String(values.bundle),
           storeRoot: stringOption(values, 'store'),
-        });
+        }));
       },
     },
     'release events': {
@@ -205,11 +210,11 @@ export function buildReleaseCommandSpecs(
       group: 'release',
       handler: (args) => {
         const values = parse('release events', args);
-        return readReleaseBundleEvents({
+        return execute((service) => service.events({
           bundleDigest: String(values.bundle),
           afterEventId: stringOption(values, 'after-event'),
           storeRoot: stringOption(values, 'store'),
-        });
+        }));
       },
     },
     'release consumer envelope': {
@@ -222,12 +227,12 @@ export function buildReleaseCommandSpecs(
       group: 'release',
       handler: (args) => {
         const values = parse('release consumer envelope', args);
-        return buildReleaseBundleConsumerEnvelope({
+        return execute((service) => service.consumerEnvelope({
           bundleDigest: String(values.bundle),
           track: requiredString(values, 'track') as 'standard' | 'full',
           sourceCheckpointRunId: stringOption(values, 'source-checkpoint-run-id'),
           storeRoot: stringOption(values, 'store'),
-        });
+        }));
       },
     },
   };

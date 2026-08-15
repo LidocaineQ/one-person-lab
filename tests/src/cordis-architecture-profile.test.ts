@@ -16,6 +16,7 @@ import {
   buildCordisPackStagecraftCompositionSnapshot,
 } from '../../src/modules/runway/cordis-agent-executor-experiment.ts';
 import { buildCordisRunwayAttemptCompositionSnapshot } from '../../src/modules/runway/cordis-runway-attempt.ts';
+import { buildCordisReleaseOperationCompositionSnapshot } from '../../src/modules/connect/cordis-release-operation.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..');
 const contractRef = 'contracts/opl-framework/cordis-architecture-profile.json';
@@ -151,6 +152,7 @@ test('every profile and child descriptor source identity resolves to reachable G
       ...buildCordisAgentExecutorCompositionSnapshot().plugins,
       ...buildCordisRunwayAttemptCompositionSnapshot().plugins,
       ...buildCordisPackStagecraftCompositionSnapshot().plugins,
+      ...buildCordisReleaseOperationCompositionSnapshot().plugins,
     ];
     for (const descriptor of descriptors) {
       assert.doesNotThrow(() => execFileSync(

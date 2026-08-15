@@ -74,6 +74,7 @@ test('Cordis composition inspect schema and CLI output are deterministic and rea
   assert.deepEqual(Object.keys(childRefs), [
     'agent_executor_request',
     'pack_stagecraft_route',
+    'release_operation',
     'runway_attempt',
   ]);
   for (const childRef of Object.values(childRefs)) {
@@ -158,6 +159,7 @@ test('base-headless profile owns child composition factories and explicit runway
     assert.equal(typeof composition.services.childFactories.createAgentExecutorRequest, 'function');
     assert.equal(typeof composition.services.childFactories.createRunwayAttemptComposition, 'function');
     assert.equal(typeof composition.services.childFactories.createStageRouteComposition, 'function');
+    assert.equal(typeof composition.services.childFactories.createReleaseOperationComposition, 'function');
     const child = await composition.services.childFactories.createAgentExecutorRequest({
       adapter: {
         id: 'profile-child-fixture',
