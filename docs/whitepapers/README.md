@@ -24,6 +24,8 @@ OPL Cloud, and MAS whitepapers through those profiles and binds their public
 verification URLs to the One Person Lab branded site. It does not copy renderer
 source into domain repos. `whitepaper.yml` publishes this five-document bundle;
 the product repositories retain their own source and compatibility workflows.
+Framework changes and a weekly aggregation run rebuild the candidate; public
+publication remains an explicit, environment-gated workflow dispatch.
 `npm run docs:whitepapers:family:release` additionally requires every selected
 repo to be clean `main == origin/main`.
 

@@ -5,9 +5,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 type BuildManifest = {
+  schema_version: string;
+  mode: string;
+  generated_at: string;
+  renderer_commit: string;
   builds: Array<{
     id: string;
+    repo_slug: string;
     repo_root: string;
+    git_commit: string;
     verification: {
       generated_html: string;
       generated_pdf: string;
@@ -59,7 +65,23 @@ function main() {
   const firstBuild = manifest.builds.find(({ id }) => id === 'opl-family') ?? manifest.builds[0];
   const catalog = path.join(firstBuild.repo_root, 'docs', 'site', 'latest', 'whitepapers', 'index.html');
   if (fs.existsSync(catalog)) copy(catalog, path.join(whitepaperDir, 'index.html'));
-  fs.copyFileSync(args.manifest, path.join(whitepaperDir, 'opl-family-whitepaper-build.json'));
+  const publicManifest = {
+    schema_version: manifest.schema_version,
+    mode: manifest.mode,
+    generated_at: manifest.generated_at,
+    renderer_commit: manifest.renderer_commit,
+    builds: manifest.builds.map(({ id, repo_slug, git_commit, verification }) => ({
+      id,
+      repo_slug,
+      git_commit,
+      verification: `${path.basename(verification.generated_html, '.html')}.verification.json`,
+    })),
+  };
+  fs.writeFileSync(
+    path.join(whitepaperDir, 'opl-family-whitepaper-build.json'),
+    `${JSON.stringify(publicManifest, null, 2)}\n`,
+    'utf8',
+  );
 }
 
 try {

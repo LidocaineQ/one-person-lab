@@ -21,6 +21,11 @@ type Registry = {
   renderer: {
     owner_repo: string;
   };
+  publication: {
+    owner_repo: string;
+    canonical_base_url: string;
+    mode: string;
+  };
   whitepapers: WhitepaperEntry[];
 };
 
@@ -51,11 +56,21 @@ function canonicalWorkspaceRoot() {
 
 function readRegistry(): Registry {
   const parsed = JSON.parse(fs.readFileSync(registryPath, 'utf8')) as Registry;
-  if (parsed.schema_version !== 1 || !parsed.renderer?.owner_repo || !Array.isArray(parsed.whitepapers) || parsed.whitepapers.length === 0) {
+  if (parsed.schema_version !== 1
+    || !parsed.renderer?.owner_repo
+    || parsed.publication?.owner_repo !== parsed.renderer.owner_repo
+    || parsed.publication?.mode !== 'atomic_family_bundle'
+    || !Array.isArray(parsed.whitepapers)
+    || parsed.whitepapers.length === 0) {
     fail('Public whitepaper registry must declare schema v1 renderer ownership and at least one entry.');
   }
   const ids = new Set(parsed.whitepapers.map(({ id }) => id));
   if (ids.size !== parsed.whitepapers.length) fail('Public whitepaper registry ids must be unique.');
+  if (!parsed.whitepapers.every(({ public_html_url, public_pdf_url }) =>
+    public_html_url.startsWith(parsed.publication.canonical_base_url)
+    && public_pdf_url.startsWith(parsed.publication.canonical_base_url))) {
+    fail('Public whitepaper registry URLs must use the canonical family publication base URL.');
+  }
   return parsed;
 }
 

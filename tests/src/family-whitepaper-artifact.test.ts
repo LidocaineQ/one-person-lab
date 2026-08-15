@@ -23,9 +23,15 @@ test('family artifact stager preserves document names and one catalog', () => {
   fs.writeFileSync(path.join(rendered, 'page-1.png'), 'png');
   const manifest = path.join(root, 'manifest.json');
   fs.writeFileSync(manifest, JSON.stringify({
+    schema_version: 'opl_family_whitepaper_build.v1',
+    mode: 'preview',
+    generated_at: '2026-08-15T00:00:00.000Z',
+    renderer_commit: 'renderer-sha',
     builds: [{
       id: 'opl-family',
+      repo_slug: 'gaofeng21cn/one-person-lab',
       repo_root: source,
+      git_commit: 'source-sha',
       verification: {
         generated_html: 'docs/site/latest/whitepapers/opl-whitepaper.html',
         generated_pdf: 'docs/site/latest/whitepapers/opl-whitepaper.pdf',
@@ -42,5 +48,8 @@ test('family artifact stager preserves document names and one catalog', () => {
   assert.equal(fs.readFileSync(path.join(output, 'whitepapers', 'opl-whitepaper.html'), 'utf8'), '<html>family</html>');
   assert.equal(fs.readFileSync(path.join(output, 'whitepapers', 'index.html'), 'utf8'), '<html>catalog</html>');
   assert.ok(fs.existsSync(path.join(output, 'whitepapers', 'opl-family-whitepaper-build.json')));
+  const publicManifest = JSON.parse(fs.readFileSync(path.join(output, 'whitepapers', 'opl-family-whitepaper-build.json'), 'utf8'));
+  assert.equal(publicManifest.builds[0].git_commit, 'source-sha');
+  assert.equal('repo_root' in publicManifest.builds[0], false);
   assert.ok(fs.existsSync(path.join(output, 'evidence', 'opl-family', 'rendered-pages', 'page-1.png')));
 });

@@ -45,22 +45,18 @@ function sha256(filePath: string) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const manifestPath = path.join(args.artifactDir, 'opl-family-whitepaper-build.json');
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as { builds?: Array<{ id: string }> };
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
+    builds?: Array<{ id: string; verification: string }>;
+  };
   if (!Array.isArray(manifest.builds) || manifest.builds.length === 0) fail('Family artifact requires a build manifest.');
   const receiptDir = path.join(path.dirname(args.output), 'whitepaper-publication-receipts');
   fs.mkdirSync(receiptDir, { recursive: true });
-  const receipts = await Promise.all(manifest.builds.map(async ({ id }) => {
-    const verificationFiles = fs.readdirSync(args.artifactDir).filter((name) => name.endsWith('.verification.json'));
-    const verificationFile = verificationFiles.find((name) => {
-      const verification = JSON.parse(fs.readFileSync(path.join(args.artifactDir, name), 'utf8')) as { source_markdown?: string };
-      return id === 'opl-family'
-        ? verification.source_markdown?.endsWith('/opl-whitepaper.md')
-        : id === 'opl-framework'
-          ? verification.source_markdown?.endsWith('/opl-framework-whitepaper.md')
-          : verification.source_markdown?.includes(`/${id}-whitepaper.md`);
-    });
-    if (!verificationFile) fail(`Missing verification for ${id}.`);
-    const verificationPath = path.join(args.artifactDir, verificationFile);
+  const receipts = await Promise.all(manifest.builds.map(async ({ id, verification }) => {
+    if (path.basename(verification) !== verification || !verification.endsWith('.verification.json')) {
+      fail(`Invalid verification path for ${id}.`);
+    }
+    const verificationPath = path.join(args.artifactDir, verification);
+    if (!fs.existsSync(verificationPath)) fail(`Missing verification for ${id}: ${verification}`);
     const receiptPath = path.join(receiptDir, `${id}.json`);
     try {
       return await verifyPublication(verificationPath, receiptPath, {

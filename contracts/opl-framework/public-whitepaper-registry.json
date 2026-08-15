@@ -11,6 +11,13 @@
     "verification_schema": "opl_whitepaper_artifact_verification.v2",
     "profile_schema": "contracts/opl-framework/public-whitepaper-profile.schema.json"
   },
+  "publication": {
+    "owner_repo": "gaofeng21cn/one-person-lab",
+    "canonical_base_url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/",
+    "mode": "atomic_family_bundle",
+    "source_model": "distributed_owner_prose_central_brand_publication",
+    "compatibility_policy": "Owner repositories may retain their existing publication URLs, but registry URLs are canonical for family brand presentation."
+  },
   "whitepapers": [
     {
       "id": "opl-family",
