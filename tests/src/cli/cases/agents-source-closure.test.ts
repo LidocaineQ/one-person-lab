@@ -115,8 +115,8 @@ function runGit(repoDir: string, args: string[]) {
   assert.equal(result.status, 0, result.stderr);
 }
 
-test('workspace source does not depend on runway implementation', () => {
-  const workspaceRoot = path.join(repoRoot, 'src', 'modules', 'workspace');
+test('workspace authority does not depend on execution adapter implementation', () => {
+  const workspaceRoot = path.join(repoRoot, 'src', 'authority', 'workspace');
   const pending = [workspaceRoot];
   const violations: string[] = [];
   while (pending.length > 0) {
@@ -130,7 +130,7 @@ test('workspace source does not depend on runway implementation', () => {
         pending.push(entryPath);
       } else if (entry.isFile() && entry.name.endsWith('.ts')) {
         const source = fs.readFileSync(entryPath, 'utf8');
-        if (/['"]\.\.\/runway(?:\/|['"])/u.test(source)) {
+        if (/['"][^'"]*\/adapters\/execution(?:\/|['"])/u.test(source)) {
           violations.push(path.relative(repoRoot, entryPath));
         }
       }

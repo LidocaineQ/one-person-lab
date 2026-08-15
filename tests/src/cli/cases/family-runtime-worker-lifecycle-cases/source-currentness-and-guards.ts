@@ -70,16 +70,16 @@ test('Temporal worker source version ignores documentation-only git HEAD drift',
 test('Temporal worker source version covers the executable source dependency closure', () => {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-worker-source-dependency-closure-'));
   const srcRoot = path.join(repoRoot, 'src');
-  const modulePath = path.join(srcRoot, 'modules', 'runway', 'family-runtime-temporal-provider.ts');
+  const modulePath = path.join(srcRoot, 'adapters', 'execution', 'family-runtime-temporal-provider.ts');
   const runwayHelperPath = path.join(
     srcRoot,
-    'modules',
-    'runway',
+    'adapters',
+    'execution',
     'family-runtime-temporal-provider-parts',
     'worker-state.ts',
   );
-  const stagecraftPath = path.join(srcRoot, 'modules', 'stagecraft', 'stage-quality-scope-budget.ts');
-  const packPath = path.join(srcRoot, 'modules', 'pack', 'index.ts');
+  const stagecraftPath = path.join(srcRoot, 'authority', 'stages', 'stage-quality-scope-budget.ts');
+  const packPath = path.join(srcRoot, 'authority', 'packages', 'index.ts');
   const kernelPath = path.join(srcRoot, 'kernel', 'contract-validation.ts');
   const docsPath = path.join(repoRoot, 'docs', 'status.md');
   const previousSourceVersion = process.env.OPL_TEMPORAL_WORKER_SOURCE_VERSION;
@@ -195,8 +195,8 @@ test('Temporal worker mutation guard blocks developer checkout against default s
   const modulePath = path.join(
     devRoot,
     'src',
-    'modules',
-    'runway',
+    'adapters',
+    'execution',
     'family-runtime-temporal-provider.ts',
   );
   const previousHome = process.env.HOME;

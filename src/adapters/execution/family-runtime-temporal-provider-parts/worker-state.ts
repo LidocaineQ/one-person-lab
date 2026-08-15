@@ -73,14 +73,11 @@ function runtimeSourceRootFromModulePath(modulePath: string) {
   const moduleDir = path.dirname(modulePath);
   let currentDir = moduleDir;
   while (true) {
-    if (
-      path.basename(currentDir) === 'runway'
-      && path.basename(path.dirname(currentDir)) === 'modules'
-    ) {
-      const executionRoot = path.dirname(path.dirname(currentDir));
-      if (path.basename(executionRoot) === 'src' || path.basename(executionRoot) === 'dist') {
-        return executionRoot;
-      }
+    // The worker source closure follows the physical source root after the
+    // capability-domain cutover; keep the old module bucket as an implicit
+    // fixture shape only by accepting either src/ or dist/ directly.
+    if (path.basename(currentDir) === 'src' || path.basename(currentDir) === 'dist') {
+      return currentDir;
     }
     const parentDir = path.dirname(currentDir);
     if (parentDir === currentDir) {

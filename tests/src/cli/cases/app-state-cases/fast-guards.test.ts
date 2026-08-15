@@ -80,14 +80,14 @@ test('app state fast hot path avoids barrel imports and keeps full drilldown laz
 
   for (const fileName of hotPathFiles) {
     const source = fs.readFileSync(
-      path.join(process.cwd(), 'src', 'modules', 'console', fileName),
+      path.join(process.cwd(), 'src', 'read-models', 'operator', fileName),
       'utf8',
     );
     assert.doesNotMatch(source, /from\s+['"][^'"]*\/index\.ts['"]/, `${fileName} must avoid barrel imports`);
   }
 
   const appStateSource = fs.readFileSync(
-    path.join(process.cwd(), 'src', 'modules', 'console', 'app-state.ts'),
+    path.join(process.cwd(), 'src', 'read-models', 'operator', 'app-state.ts'),
     'utf8',
   );
   assert.doesNotMatch(
