@@ -32,7 +32,7 @@ Machine boundary: 本文是人读 runtime 命名与边界合同。机器 truth �
 
 - `one-person-lab`
 - `one-person-lab-app`
-- `opl-native-workbench`
+- `opl-studio`
 - `opl-flow`
 - `opl-doc`
 - `med-autoscience`

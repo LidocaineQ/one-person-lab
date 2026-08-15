@@ -10,10 +10,14 @@ test('whitepaper publication deploys the approved artifact and closes with exact
   const reusable = fs.readFileSync(path.join(repoRoot, '.github', 'workflows', 'reusable-whitepaper.yml'), 'utf8');
   const entry = fs.readFileSync(path.join(repoRoot, '.github', 'workflows', 'whitepaper.yml'), 'utf8');
   assert.match(entry, /- assets\/branding\/\*\*/);
+  assert.match(entry, /profile: contracts\/whitepaper_profile\.json/);
+  assert.match(entry, /profile: contracts\/framework-whitepaper_profile\.json/);
   assert.match(reusable, /environment: whitepaper-production/);
   assert.match(reusable, /actions\/download-artifact@/);
   assert.match(reusable, /verify-whitepaper-publication\.ts/);
   assert.match(reusable, /git -C site push origin gh-pages/);
+  assert.match(reusable, /if \[ -f source\/docs\/site\/latest\/whitepapers\/index\.html \]/);
+  assert.doesNotMatch(reusable, /rsync -a --delete artifact\/whitepapers/);
   assert.doesNotMatch(reusable, /checkout --orphan|push .*--force/);
 });
 

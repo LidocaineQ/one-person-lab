@@ -124,17 +124,26 @@ gap plan 和开发计划默认只维护 `功能/结构差距`：owner 边界、�
 
 ### App / Workbench 负责
 
-One Person Lab App / Workbench 的目标、消费合同和边界由 OPL 主仓负责记录。当前 GUI shell 主线来自独立 `one-person-lab-app` 产品仓的 `shells/aionui/`，该目录作为 upstream-backed AionUI shell adapter 维护，并由 `opl-aion-shell` 持有实现历史。`opl-native-workbench` 是 App-owned foreground alternative GUI candidate；Hermes Desktop / `hermes-codex` 只作为 retained explicit reference candidate；AG-UI/CopilotKit / `agui-codex` 只作为 archived technical proof 与显式 replay surface 保留，除非用户明确要求 AGUI，不进入普通开发 worklist。拆分 closeout 已归档到 [One Person Lab App 仓库拆分 Closeout](../history/process/plans/2026-05-15-one-person-lab-app-repo-split-closeout.md)；当前 App/workbench 边界以 `docs/product/`、App 仓合同和真实 release artifact 为准。
+One Person Lab App / GUI 的目标、消费合同和边界由 OPL 主仓记录，产品 SSOT 归独立
+`one-person-lab-app`。当前 GUI shell 主线是 `opl-aion-shell` 提供的 AionUI
+implementation carrier；`opl-studio` 是 App-owned、DSH-derived 的下一代候选 carrier。
+两者不是两套 App：App 主仓拥有产品行为、Client profile、GUI contribution ABI、active
+shell、版本组合和发布门禁；Framework 是唯一 Cordis Host；Shell 只实现 renderer、
+process、carrier 和 bridge。Hermes Desktop / `hermes-codex` 只作为 retained explicit
+reference candidate；AG-UI/CopilotKit / `agui-codex` 只作为 archived technical proof 与
+显式 replay surface 保留，除非用户明确要求 AGUI，不进入普通开发 worklist。拆分 closeout
+已归档到 [One Person Lab App 仓库拆分 Closeout](../history/process/plans/2026-05-15-one-person-lab-app-repo-split-closeout.md)；
+当前 App/GUI 边界以 App `docs/product/`、合同和真实 release artifact 为准。
 
 它的产品工作台职责是：
 
 - 展示 OPL runtime truth、provider proof、stage attempt、attention queue、domain projection、artifact refs、review/repair refs 和 action owner；
 - 执行明确 owner 的 UI action routing：OPL CLI/provider signal、domain sidecar/direct skill、manual handoff；
-- 保持 OPL fork overlay、upstream AionUI intake、packaging/update、bridge adapter 和本地 GUI shell 规则；迁移后这些规则应落在 App 仓顶层 contract 与 `shells/aionui/AGENTS.md`，避免 AionUI 规则主导 App 顶层。Hermes alternative 和 AGUI archived proof 的边界由 App candidate registry / shell-adapter contracts 持有，OPL 主仓只记录消费边界。
+- 保持 OPL fork overlay、upstream AionUI intake、packaging/update、bridge adapter 和本地 GUI shell 规则；这些规则落在 App 合同与 `opl-aion-shell` 的实现边界，避免 AionUI 规则主导 App 顶层。Studio 的 DSH GUI/Cordis 实现只在候选仓演进；Hermes alternative 和 AGUI archived proof 的边界由 App candidate registry / shell-adapter contracts 持有，OPL 主仓只记录消费边界。
 
 App 不持有 OPL runtime，不持有 domain truth，也不把 provider completion 写成 domain ready verdict。
 
-App 普通用户产品面按 `Codex App wrapper` 设计：固定 `Codex CLI` concrete executor，内置 MAS/MAG/RCA 及后续 Foundry Agent 的 task entry，并通过 OPL `app state/action` 消费 Framework runtime/read-model/action truth。AionUI 多 backend、多 Agent selector、通用 Agent host 或非默认 executor adapter 只能作为 shell implementation、developer/operator diagnostic 或显式 stage-level binding 语境存在；它们不能成为普通用户默认产品选择器。App 仓负责把这条产品取舍落实到 GUI product contract、page-state tests、release/user docs 和 active-shell validation；OPL 主仓只记录 Framework 侧目标、消费边界和机器读写 surface。
+App 普通用户产品面按 `Codex App wrapper` 设计：固定 `Codex CLI` concrete executor，内置 MAS/MAG/RCA 及后续 Foundry Agent 的 task entry，并通过 OPL `app state/action` 消费 Framework runtime/read-model/action truth。AionUI 与 Studio 都必须消费同一套 App/Framework ABI 与 contribution projection；renderer、组件库、上游同步和 carrier 可以不同。多 backend、多 Agent selector、通用 Agent host 或非默认 executor adapter 只能作为 shell implementation、developer/operator diagnostic 或显式 stage-level binding 语境存在；它们不能成为普通用户默认产品选择器。App 仓负责把这条产品取舍落实到 GUI product contract、page-state tests、release/user docs、active-shell validation 和版本组合冻结；OPL 主仓只记录 Framework 侧目标、消费边界和机器读写 surface。
 
 ## 上收判断
 

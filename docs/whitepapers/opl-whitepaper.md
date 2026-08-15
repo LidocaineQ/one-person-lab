@@ -6,7 +6,7 @@
 
 发布日期：2026-07-13
 
-最近修订：2026-08-12
+最近修订：2026-08-15
 
 适用对象：希望理解 One Person Lab 为什么这样设计，以及这种设计怎样让复杂知识工作更好用、更可信的用户、合作者、早期采用者和技术决策者。
 
@@ -167,6 +167,15 @@ Framework 说明运行是否发生、文件和证据在哪里；App 说明用户
 
 用户只需维护 Base、App 和 Packages。Base 管共同底座，App 管桌面体验，Packages 管专业能力；领域事实和质量判断仍留在对应专业责任方。这样的运维设计让“专业能力很多”与“日常维护简单”可以同时成立。
 
+需要在线 Workspace、账号治理、远端资源或协作时，再接入可选的 **OPL Cloud**。
+Cloud 扩展工作位置和治理能力，不替代 Base、App 或 Packages，也不要求用户学习另一套
+Agent 运行模型。
+
+App 自身也保持一个产品、多个可替换界面实现。`one-person-lab-app` 统一定义产品行为、
+GUI 合同和发布组合；当前 AionUI Shell 与 DSH-derived Studio 候选 Shell 都消费同一
+Framework Host 投影。这样，界面可以演进或替换，用户的任务、Package、状态、动作和
+专业判断 authority 不随 renderer 迁移。
+
 ## 为什么用户可以相信 OPL
 
 信任来自系统持续回答几个关键问题：要交付什么，推进到哪里，当前成果在哪里，依据是什么，谁负责下一步，什么判断仍在等待授权。
@@ -194,4 +203,4 @@ OPL 相信，真正优秀的 AI 产品既能在用户提出问题时给出高质
 - [One Person Lab](https://github.com/gaofeng21cn/one-person-lab)
 - [One Person Lab App](https://github.com/gaofeng21cn/one-person-lab-app)
 - [OPL Cloud](https://github.com/gaofeng21cn/one-person-lab-cloud)
-- [OPL Framework 白皮书在线版](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-whitepaper.html)
+- [OPL Framework 白皮书](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-framework-whitepaper.html)

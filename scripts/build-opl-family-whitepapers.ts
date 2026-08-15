@@ -18,6 +18,9 @@ type WhitepaperEntry = {
 
 type Registry = {
   schema_version: number;
+  renderer: {
+    owner_repo: string;
+  };
   whitepapers: WhitepaperEntry[];
 };
 
@@ -48,8 +51,8 @@ function canonicalWorkspaceRoot() {
 
 function readRegistry(): Registry {
   const parsed = JSON.parse(fs.readFileSync(registryPath, 'utf8')) as Registry;
-  if (parsed.schema_version !== 1 || !Array.isArray(parsed.whitepapers) || parsed.whitepapers.length !== 4) {
-    fail('Public whitepaper registry must declare exactly four schema v1 entries.');
+  if (parsed.schema_version !== 1 || !parsed.renderer?.owner_repo || !Array.isArray(parsed.whitepapers) || parsed.whitepapers.length === 0) {
+    fail('Public whitepaper registry must declare schema v1 renderer ownership and at least one entry.');
   }
   const ids = new Set(parsed.whitepapers.map(({ id }) => id));
   if (ids.size !== parsed.whitepapers.length) fail('Public whitepaper registry ids must be unique.');
@@ -74,8 +77,8 @@ function parseArgs(argv: string[]) {
   return { mode, only, list };
 }
 
-function repoRoot(entry: WhitepaperEntry) {
-  if (entry.id === 'opl-framework') return path.resolve(process.env[entry.repo_env] || frameworkRepo);
+function repoRoot(entry: WhitepaperEntry, rendererOwnerRepo: string) {
+  if (entry.repo_slug === rendererOwnerRepo) return path.resolve(process.env[entry.repo_env] || frameworkRepo);
   return path.resolve(process.env[entry.repo_env] || path.join(canonicalWorkspaceRoot(), entry.default_repo_dir));
 }
 
@@ -95,7 +98,7 @@ function main() {
   const selected = args.only ? registry.whitepapers.filter(({ id }) => id === args.only) : registry.whitepapers;
   if (selected.length === 0) fail(`Unknown whitepaper id: ${args.only}`);
 
-  const resolved = selected.map((entry) => ({ ...entry, repo_root: repoRoot(entry) }));
+  const resolved = selected.map((entry) => ({ ...entry, repo_root: repoRoot(entry, registry.renderer.owner_repo) }));
   if (args.list) {
     process.stdout.write(`${JSON.stringify({ mode: args.mode, whitepapers: resolved }, null, 2)}\n`);
     return;

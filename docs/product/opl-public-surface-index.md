@@ -1,5 +1,10 @@
 # OPL 公开界面索引
 
+当前 GUI 术语以 App 仓为准：`opl-aion-shell` 是 Stable Shell，`opl-studio` 是
+DSH-derived foreground candidate。历史正文中出现的 `opl-native-workbench` 仅表示
+该候选的旧仓名，不是当前仓库或 active-shell identity；产品、Client ABI、版本组合和
+发布准入仍归 `one-person-lab-app`。
+
 Owner: `One Person Lab`
 Purpose: `public_surface_index`
 State: `active_support`
@@ -52,7 +57,7 @@ Machine boundary: 本文是人读 public surface 索引。机器可读 surface t
 `OPL` 通过 `opl connect sync-skills` 和各 domain 仓自己的 CLI / 程序 / 脚本 / contract surface 来发现并激活它们。
 所以当前顶层集成单元其实是 repo-owned 的 domain app skill 及其底下的 command contract，而不是 OPL 自己再造一套 gateway handoff 词汇。
 
-`One Person Lab App` 是工作台产品 surface，消费 framework/provider 状态和 domain-owned projection；它不持有 domain truth、runtime provider 或 artifact authority。Framework 侧把普通用户 App path 定义为 `Codex App wrapper`：固定 `Codex CLI` executor、内置 Foundry Agent 任务入口、通过 OPL `app state/action` 读取和执行，不把 AionUI upstream 多 backend、多 Agent 选择暴露为普通用户 product surface。当前 GUI 主线是 `one-person-lab-app` 通过 `shells/aionui` 消费的 OPL-branded AionUI shell；`opl-native-workbench` 是 App-owned foreground alternative；Hermes Desktop / `hermes-codex` 是 retained explicit reference candidate。AG-UI/CopilotKit / `agui-codex` 只作为 archived technical proof / explicit replay provenance 读取，除非用户明确要求 AGUI，不进入默认开发、验证、polish、release 或 adoption worklist。`OPL Meta Agent` 是 Agent engineering semantic provider，只通过 `engineer-agent` 公开承接创建、接管和改进请求，产出 `AgentBlueprint` / `EvalSpec` 或基于 `EvidenceBundle` 的 `EvolutionProposal`；它可以被 OPL managed environment 与 generated plugin surface 消费，但不执行评测、候选物化、版本、canary、activation 或 rollback，也不替 MAS/MAG/RCA、future domain 或 target owner 签发 quality/export verdict、artifact authority、owner receipt 或生产采用结论。
+`One Person Lab App` 是工作台产品 surface，消费 framework/provider 状态和 domain-owned projection；它不持有 domain truth、runtime provider 或 artifact authority。Framework 侧把普通用户 App path 定义为 `Codex App wrapper`：固定 `Codex CLI` executor、内置 Foundry Agent 任务入口、通过 OPL `app state/action` 读取和执行，不把 AionUI upstream 多 backend、多 Agent 选择暴露为普通用户 product surface。当前 GUI 主线是 `one-person-lab-app` 通过 `shells/aionui` 消费的 OPL-branded AionUI shell；`opl-studio` 是 App-owned DSH-derived foreground alternative；Hermes Desktop / `hermes-codex` 是 retained explicit reference candidate。AG-UI/CopilotKit / `agui-codex` 只作为 archived technical proof / explicit replay provenance 读取，除非用户明确要求 AGUI，不进入默认开发、验证、polish、release 或 adoption worklist。`OPL Meta Agent` 是 Agent engineering semantic provider，只通过 `engineer-agent` 公开承接创建、接管和改进请求，产出 `AgentBlueprint` / `EvalSpec` 或基于 `EvidenceBundle` 的 `EvolutionProposal`；它可以被 OPL managed environment 与 generated plugin surface 消费，但不执行评测、候选物化、版本、canary、activation 或 rollback，也不替 MAS/MAG/RCA、future domain 或 target owner 签发 quality/export verdict、artifact authority、owner receipt 或生产采用结论。
 
 ### 3. 共享边界配套界面
 

@@ -5,6 +5,39 @@ Purpose: `decisions`
 State: `active_truth`
 Machine boundary: 本文是核心人读真相面。机器真相继续归 contracts、source、CLI/API 行为、runtime ledger、provider receipt、domain-owned manifest 和真实 workspace / App evidence。
 
+## 2026-08-15
+
+### 决策：OPL 生态保持四层产品认知，App 固定为一个 authority、两个可替换 Shell
+
+原因：Cordis 全面迁移和 DSH GUI 调研证明，产品认知、authority、Package、plugin 与
+renderer 必须分开。用户仍应只理解 Base、App、Packages 和按需 Cloud；内部则由
+Framework 唯一 Host、App 产品主仓与可替换 Shell 协作，不能把两个 GUI 仓解释成两套
+App，也不能把 Framework/Cloud 中同名 Console 解释成同一 authority。
+
+影响：
+
+- 对外产品模型固定为 `OPL Base + OPL App + OPL Packages + optional OPL Cloud`。
+- `one-person-lab` 是唯一 Cordis Host；`one-person-lab-app` 是 App 产品、Client profile、
+  GUI contribution ABI、active shell、版本组合和发布 authority。
+- `opl-aion-shell` 是当前 Stable AionUI implementation carrier；`opl-studio` 是 DSH-derived
+  foreground candidate carrier。旧名 `opl-native-workbench` 只按历史 provenance 读取。
+- 两种 Shell 统一产品语义、Framework state/action/runtime bridge、Client Cordis 组合协议、
+  GUI contribution schema、设计/可访问性语义和发布证据类别；renderer、组件树、carrier、
+  upstream intake、缓存、构建链、Git 历史和实现测试保持独立。
+- GUI 采用 Host/Client 双运行面：Framework 冻结 Host graph，App 定义 Client boot/profile
+  和 typed slots/routes/actions，Shell 从 Host projection 创建 Client Cordis。Shell 不创建
+  第二个 Host、Package registry/currentness、thread/history、domain truth 或 release authority。
+- 一次 OPL App 发布冻结 App product version、Framework compatibility、selected Shell
+  identity/version、GUI ABI version、Client composition snapshot 和 contribution versions。
+  只有 App `app-shell-adapter` 合同可切换 active shell；Studio 的源码或功能完成不自动取代
+  AionUI。
+- Framework `Console` 只表示 in-process read-model/inspect contribution；OPL Cloud Console
+  是 `one-person-lab-cloud` 持有的账号与治理产品。品牌认知可以跨产品复用，authority 不共享。
+
+本决策 supersede 早期把 `opl-native-workbench` 写成当前候选身份、把 GUI 描述为单纯
+CLI consumer，或暗示 App/Shell 可以各自维护 plugin graph 的 active 读法；历史段落保留为
+provenance，不再指导实现。
+
 ## 2026-08-14
 
 ### 决策：OPL 采用 DSH 体系的正式 `@deepseek-ai/cordis` 作为目标进程内组合框架

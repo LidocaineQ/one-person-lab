@@ -11,6 +11,13 @@ One Person Lab 白皮书系列面向用户、合作者和技术决策者，解�
 - [在线阅读](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-whitepaper.html)
 - [PDF](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-whitepaper.pdf)
 
+## OPL Framework
+
+为什么长期运行的 AI 专业工作需要可组合的能力底座，以及 Cordis、十四个品牌模块、Framework Host、App Client Cordis 和受控自进化如何共同降低开发与运维复杂度。
+
+- [在线阅读](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-framework-whitepaper.html)
+- [PDF](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-framework-whitepaper.pdf)
+
 ## One Person Lab App
 
 为什么用户先看到工作目的、产物和下一步，而不是运行时、后端和诊断细节。

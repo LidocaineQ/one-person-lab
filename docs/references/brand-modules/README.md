@@ -20,6 +20,30 @@ Machine boundary: 本文是人读目标态参考。机器真相继续归核心�
 
 Cordis 全面迁移已冻结一条更高优先级的目标态约束：`品牌模块/认知地图 != authority owner != Package 发布单元 != Cordis plugin 运行单元`。P5-R 已依据真实 caller、authority、lifecycle、scope、trust、故障隔离和发布节奏形成四层目标图；下表继续作为文档与源码导航基线，不代表一模块一 plugin，也不授权目录对称化 churn。
 
+### 产品层、权威层与运行层
+
+品牌名是认知地图，不是仓库清单。当前生态对外仍只暴露 `OPL Base`、`OPL App`、
+`OPL Packages` 和可选 `OPL Cloud`；内部按以下关系理解：
+
+```text
+OPL Framework = 唯一 Cordis Host / runtime authority
+one-person-lab-app = App 产品、Client profile、GUI ABI、发布 authority
+opl-aion-shell = 当前 Stable AionUI Shell implementation carrier
+opl-studio = DSH-derived 下一代候选 Shell implementation carrier
+OPL Cloud = Console / Control Plane / Fabric / Ledger / Workspace 产品实现
+```
+
+GUI 是 Host/Client 双运行面：Framework 先冻结 Host composition，再通过 App-owned
+contribution projection 供 Shell 创建 Client Cordis、挂载 typed slots/routes/actions。
+AionUI 可用薄 bridge 承接，Studio 可原生采用 DSH 形态；二者都不能建立第二个 OPL
+Host、Package registry、thread/history 或产品 release authority。
+
+因此，十大品牌模块继续作为认知与源码导航，不强行一对一变成十个 Package 或十个
+plugin；后续按 authority、独立 lifecycle、scope/trust、故障隔离和真实发布节奏决定
+拆分/合并。Console 品牌跨产品复用时，Framework 的 Console 贡献只负责 read-model /
+inspect projection，Cloud 的 OPL Console 负责账号、治理、额度、批准和 Cloud 服务，
+两者不共享 authority。
+
 ## 外部经验吸收
 
 OPL 借鉴的是成熟工程的分层原则；Cordis 是已授权采用的进程内组合 runtime，但仍不得成为第二真相源：
@@ -98,7 +122,7 @@ node --experimental-strip-types --test tests/src/cli/cases/brand-modules.test.ts
 
 ## 代码组织对齐
 
-OPL Framework 的当前物理代码组织以 `src/modules/` 作为品牌模块入口。源码边界、public entrypoint 规则、完成度口径和后续依赖治理读法见 [OPL Framework 源码模块边界](../source-module-boundary.md)。每个当前顶层品牌模块都有对应目录：
+OPL Framework 的当前物理代码组织以 `src/modules/` 作为品牌模块入口。源码边界、public entrypoint 规则、完成度口径和后续依赖治理读法见 [OPL Framework 源码模块边界](../source-module-boundary.md)。这些目录是当前源码 owner 和迁移导航，不是永久 plugin/package 边界；物理重排必须在新 owner、caller-zero 和 fresh readback 之后进行。每个当前顶层品牌模块都有对应目录：
 
 ```text
 src/modules/charter

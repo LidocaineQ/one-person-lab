@@ -27,6 +27,45 @@ Codex 的 protocol/runtime truth 与 executable carrier 分层。Framework 持�
 替换 GUI 只切换 carrier adapter；Codex App Server、`CODEX_HOME` 与 canonical thread
 history 的 owner 不变。
 
+### OPL 生态与 GUI 的统一心智模型
+
+对外只需要认识四个产品层：`OPL Base`、`OPL App`、`OPL Packages` 和可选的
+`OPL Cloud`。它们分别类似 R 的运行环境、RStudio、R packages，以及在线治理与资源
+层。内部实现不把这四层混成一个仓库或一个进程：
+
+```text
+OPL Base
+  = OPL Framework（唯一 Cordis Host）+ 通用执行/证据/恢复底座
+OPL App
+  = one-person-lab-app（产品、GUI ABI、发布 authority）
+  + 一个被选中的 GUI carrier
+OPL Packages
+  = 各 owner 发布的可安装能力与 Agent Package
+OPL Cloud
+  = Console / Control Plane / Fabric / Ledger / Workspace 产品实现
+```
+
+桌面 GUI 不是 Framework 的第二个产品，也不是 Node 直接渲染 React。正确关系是：
+
+```text
+Framework Cordis Host
+  -> 冻结的 Host composition / client contribution projection
+    -> App-owned Client ABI 与 typed slots/actions
+      -> AionUI 主线或 DSH-derived Studio renderer
+```
+
+`one-person-lab-app` 只维护一份产品、状态/动作合同、Package contribution schema、
+GUI slot/lifecycle 规则和发布准入；`opl-aion-shell` 是 AionUI 实现 carrier，
+`opl-studio` 是 DSH-derived 候选 carrier。两个 carrier 可以拥有不同 renderer、
+组件库、主题和构建链，但不能各自建立 Host、Package registry、currentness、thread
+history、domain truth 或 App release authority。Studio 的候选代码和 DSH Cordis 只证明
+可行性，不自动改变 AionUI 的 active release 角色。
+
+这也解释了 Console 的双重语义：Framework 的 `Console` 品牌是只读 runtime/projection
+贡献；真正面向 Cloud 管理员和账号治理的 OPL Console 仍归
+`one-person-lab-cloud`。品牌名可以跨产品复用，authority、Package 发布单元和 Cordis
+plugin 运行单元必须分开。
+
 ### Planned：平台组合式 Package 生态
 
 Package 生态的目标读法是 `OPL Base ≈ R`、`OPL App ≈ RStudio`、`OPL Package ≈ R Package`。Package 是唯一安装单元；Skill、Tool、Plugin、workflow 和 entrypoint 是 Package descriptor 中可发现、可调用、可自由组合的 capability，不再拥有平行 lifecycle。标准智能体只是 `kind=agent` 的普通 Package，可以像 MAS -> ScholarSkills 一样声明其他 Package 的 required presence dependency。
@@ -226,8 +265,8 @@ authority domain -> Package -> Cordis plugin contributions -> curated compositio
 - `OPL Framework` 集成开发与运行：developer-facing CLI/contracts/package 入口和 runtime control plane 使用同一套 truth；不通过拆仓或复制 runtime 来制造第二框架
 - OPL-compatible Agent 以独立 repo/package 形态开发；运行时通过 `opl framework locate` / `opl_framework_locator` 定位外部 OPL Framework 环境，再调用 framework-owned runtime、contract、package 或 projection surface
 - `One Person Lab App` 是 user-facing workbench：它消费 Framework 的 runtime/activation truth 和 domain-owned projection，持有 GUI product truth、GUI runtime bridge 产品合同、active shell validation、release gate、updater metadata 和用户文档，不成为 domain runtime、quality verdict 或 artifact authority
-- App 普通用户路径等价于 `Codex App wrapper`：`Codex CLI` 是固定 concrete executor，MAS/MAG/RCA 及后续 Foundry Agent 以任务入口内置呈现；`opl-aion-shell` 只是当前 App-owned GUI contract 的 implementation carrier，上游 AionUI 的多 backend、多 Agent 选择只允许作为 shell implementation / developer-operator diagnostic 细节，不成为普通用户产品面。当前 GUI 主线是 OPL-branded AionUI shell；`opl-native-workbench` 是 App-owned foreground alternative；Hermes Desktop / `hermes-codex` 是 retained explicit reference candidate；AG-UI/CopilotKit / `agui-codex` 只作为 archived technical proof 与显式 replay surface 保留
-- App / AionUI / Native Workbench 的 runtime、task、package 语义必须从同一条 App / Framework canonical projection 派生：runtime 来自 `opl app state --profile fast --json` 和按需 drilldown，task 来自 `app_state.operator.workbench.task_drilldowns` 与 action receipt refs，package 来自 `app_state.agent_packages.directory + app_state.agent_packages.status_index`，安全动作来自 `app_state.actions` 或明确的 dry-run action refs。AionUI 只把这些 canonical id/ref 翻译成主线 GUI 标签和操作按钮；Native Workbench 只把这些 ref 翻译成 preview / inspector / delivery context。fallback 只能降级为 unavailable、preview-only 或 payload-required，不能自造 ready、synced、installed、executable、task truth 或 action id。
+- App 普通用户路径等价于 `Codex App wrapper`：`Codex CLI` 是固定 concrete executor，MAS/MAG/RCA 及后续 Foundry Agent 以任务入口内置呈现；`opl-aion-shell` 只是当前 App-owned GUI contract 的 implementation carrier，上游 AionUI 的多 backend、多 Agent 选择只允许作为 shell implementation / developer-operator diagnostic 细节，不成为普通用户产品面。当前 GUI 主线是 OPL-branded AionUI shell；`opl-studio` 是 App-owned DSH-derived foreground alternative；Hermes Desktop / `hermes-codex` 是 retained explicit reference candidate；AG-UI/CopilotKit / `agui-codex` 只作为 archived technical proof 与显式 replay surface 保留
+- App / AionUI / Studio 的 runtime、task、package 语义必须从同一条 App / Framework canonical projection 派生：runtime 来自 `opl app state --profile fast --json` 和按需 drilldown，task 来自 `app_state.operator.workbench.task_drilldowns` 与 action receipt refs，package 来自 `app_state.agent_packages.directory + app_state.agent_packages.status_index`，安全动作来自 `app_state.actions` 或明确的 dry-run action refs。AionUI 只把这些 canonical id/ref 翻译成主线 GUI 标签和操作按钮；Studio 只把这些 ref 翻译成 candidate / inspector / delivery context。fallback 只能降级为 unavailable、preview-only 或 payload-required，不能自造 ready、synced、installed、executable、task truth 或 action id。
 - `OPL` 的 family-level agent framework 以 domain `stage` 为可观察、可编排、可恢复、可审计的语义单元；Agent executor 是 stage 内最小执行单位，`Codex CLI` 是当前第一公民 executor
 - 大型任务按接近人类专家实施的阶段推进：界定目标、准备材料、执行、审核、修订、交付收口；OPL 负责阶段生命周期与可见性，domain agent 负责领域判断和交付 authority
 - OPL 的合同面必须保持 contract-light 且只保下限：Minimal Trust Kernel 约束启动条件、owner、权限、安全、凭据、可写范围、审计、replay、恢复与 route-back；Stage Strategy Kernel 声明 stage 内认知策略、prompt、skills、tool affordance boundary、knowledge、rubric 和独立 quality gate；Readiness 只聚合 launch/evidence gap；Derived Diagnostic Lenses 只解释缺口；AI Capability Aperture 保留 stage 内开放式思考、写作、评审、诊断、工具选择和迭代
@@ -516,7 +555,7 @@ Stage attempt 的终态只允许收敛到三类：`success` 表示 required outp
 - 本地 `opl` shell / TUI
 - `Codex` 中的显式调用面
 - ACP-compatible 外部壳
-- `opl-aion-shell` AionUI 定制 GUI，经 `one-person-lab-app` 打包发布；`opl-native-workbench` 是 foreground alternative GUI candidate，Hermes Desktop 是 retained explicit reference candidate，AGUI/CopilotKit 只作为 archived technical proof 读取
+- `opl-aion-shell` AionUI 定制 GUI，经 `one-person-lab-app` 打包发布；`opl-studio` 是 DSH-derived foreground alternative GUI candidate，Hermes Desktop 是 retained explicit reference candidate，AGUI/CopilotKit 只作为 archived technical proof 读取
 - 未来 hosted / online 壳
 
 ## OPL 与 Domain Agents 的关系
