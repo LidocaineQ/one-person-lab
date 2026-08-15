@@ -30,6 +30,7 @@ import {
   FixtureEvaluator,
   activateCreateRun,
 } from './shared.ts';
+import { createCordisFoundryDevComposition } from '../../../src/host/composition-profiles.ts';
 import type {
   CandidateCompiler,
   DesignerPort,
@@ -521,10 +522,12 @@ test('production Foundry resolves a configurable semantic provider and keeps OMA
     root_override: path.join(root, 'custom-provider-state'),
     semantic_provider_agent_id: 'provider-fixture',
     resolve_managed_checkout: resolveManagedCheckout,
+    create_foundry_dev_composition: createCordisFoundryDevComposition,
   });
   await createProductionFoundryKernel({
     root_override: path.join(root, 'default-provider-state'),
     resolve_managed_checkout: resolveManagedCheckout,
+    create_foundry_dev_composition: createCordisFoundryDevComposition,
   });
 
   assert.deepEqual(observedProviderIds, ['provider-fixture', 'oma']);

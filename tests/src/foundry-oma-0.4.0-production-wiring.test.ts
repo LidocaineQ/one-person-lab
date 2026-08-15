@@ -36,6 +36,7 @@ import {
   type FoundryProviderStageRunGateway,
 } from '../../src/adapters/execution/foundry-provider-stage-run.ts';
 import { createProductionFoundryKernel } from '../../src/adapters/execution/foundry-production-runtime.ts';
+import { createCordisFoundryDevComposition } from '../../src/host/composition-profiles.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const fixtureRoot = path.join(repoRoot, 'tests/fixtures/oma-0.4.0');
@@ -510,6 +511,7 @@ test('production composition selects OMA 0.4.0 by default without claiming a liv
       resolvedAgentIds.push(input.domainId);
       return { checkout_root: checkout };
     }) as never,
+    create_foundry_dev_composition: createCordisFoundryDevComposition,
   });
   assert.deepEqual(resolvedAgentIds, ['oma']);
   assert.equal(typeof kernel.startRun, 'function');

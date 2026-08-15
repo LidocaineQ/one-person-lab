@@ -5,8 +5,8 @@
   "plugin_ref": "cordis:plugin:opl-console-readiness-projection@1.0.0",
   "plugin_api_version": "1.0.0",
   "source_ref": "src/host/plugins/cordis-framework-readiness.ts",
-  "source_commit": "898c21f3bbb4e55b771cc411aa51898476023973",
-  "source_identity": "git:898c21f3bbb4e55b771cc411aa51898476023973:src/host/plugins/cordis-framework-readiness.ts",
+  "source_commit": "b1bca04e9a77e6df4156d0858ecbb69566f6decd",
+  "source_identity": "git:b1bca04e9a77e6df4156d0858ecbb69566f6decd:src/host/plugins/cordis-framework-readiness.ts",
   "package_ref": null,
   "required": true,
   "provides": [

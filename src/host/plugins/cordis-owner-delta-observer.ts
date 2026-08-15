@@ -17,7 +17,7 @@ export const CORDIS_OWNER_DELTA_OBSERVER_SERVICE = 'opl.ledger.owner-delta-obser
 export const CORDIS_OWNER_DELTA_OBSERVER_SOURCE_REF =
   'src/host/plugins/cordis-owner-delta-observer.ts';
 export const CORDIS_OWNER_DELTA_OBSERVER_SOURCE_COMMIT =
-  'a896276b27b9f4ccfcf4e48ed636061d131094ae';
+  'b1bca04e9a77e6df4156d0858ecbb69566f6decd';
 
 const ledgerAuthorityBoundary = Object.freeze([
   'app_product_truth',

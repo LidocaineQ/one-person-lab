@@ -20,7 +20,7 @@ export const CORDIS_WORKSPACE_LOCATOR_SERVICE = 'opl.workspace.locator';
 export const CORDIS_WORKSPACE_LOCATOR_SOURCE_REF =
   'src/host/plugins/cordis-workspace-locator.ts';
 export const CORDIS_WORKSPACE_LOCATOR_SOURCE_COMMIT =
-  'a896276b27b9f4ccfcf4e48ed636061d131094ae';
+  'b1bca04e9a77e6df4156d0858ecbb69566f6decd';
 
 const workspaceAuthorityBoundary = Object.freeze([
   'app_product_truth',

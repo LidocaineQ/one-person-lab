@@ -21,6 +21,7 @@ import {
   ensureProviderHostedStageAttempt,
   findBlockingLiveDefaultExecutorWorkUnitAttempt,
 } from '../../src/adapters/execution/family-runtime-provider-hosted-attempts.ts';
+import { createCordisBaseHeadlessComposition } from '../../src/host/composition-profiles.ts';
 import { createStageAttempt, createStageAttemptTable } from '../../src/adapters/execution/family-runtime-stage-attempts.ts';
 import { persistStageAttemptLaunchBinding } from '../../src/adapters/execution/family-runtime-parts/stage-attempt-launch.ts';
 import {
@@ -867,6 +868,11 @@ test('provider-hosted attempt launch consumes typed capability readout without c
   };
 
   try {
+    const host = await createCordisBaseHeadlessComposition();
+    t.after(() => host.dispose());
+    const stageRouteOptions = {
+      createStageRouteComposition: host.services.childFactories.createStageRouteComposition,
+    };
     const readout = missingRouteReadout();
     const attempt = await ensureProviderHostedStageAttempt(db, row, {
       opl_provider_hosted_stage_attempt: true,
@@ -877,7 +883,7 @@ test('provider-hosted attempt launch consumes typed capability readout without c
       capability_registry_readout_ref: 'opl://capability-readouts/review-source-route',
       capability_registry_resolution: readout.resolutions[0],
       capability_registry_resolution_receipt_ref: 'opl://capability-resolutions/review-source-route',
-    });
+    }, stageRouteOptions);
 
     assert.ok(attempt);
     assert.equal(attempt.status, 'queued');
@@ -919,7 +925,10 @@ test('provider-hosted attempt launch consumes typed capability readout without c
       capability_registry_readout_ref: 'opl://capability-readouts/review-source-route',
       capability_registry_resolution: readout.resolutions[0],
       capability_registry_resolution_receipt_ref: 'opl://capability-resolutions/review-source-route',
-    }, { newAttempt: true });
+    }, {
+      ...stageRouteOptions,
+      newAttempt: true,
+    });
     assert.ok(nextAttempt);
     assert.notEqual(nextAttempt.stage_attempt_id, attempt.stage_attempt_id);
     assert.equal(Object.hasOwn(attempt.workspace_locator, 'package_use_binding'), false);
@@ -950,7 +959,7 @@ test('provider-hosted attempt launch consumes typed capability readout without c
       work_unit_fingerprint: 'sha256:review-current-output',
       source_fingerprint: 'sha256:compact-provider-attempt-identity',
       provider_attempt_identity: nestedProviderIdentity,
-    });
+    }, stageRouteOptions);
     assert.ok(compactIdentityAttempt);
     assert.deepEqual(compactIdentityAttempt.workspace_locator.provider_attempt_identity, {
       status: 'provider_attempt_pending',
@@ -987,7 +996,7 @@ test('provider-hosted attempt launch consumes typed capability readout without c
       workspace_root: familyRoot,
       capability_registry_resolution: resolvedRouteReadout().resolutions[0],
       capability_registry_resolution_receipt_ref: 'opl://capability-resolutions/resolved-review-source-route',
-    });
+    }, stageRouteOptions);
     assert.ok(resolutionOnlyAttempt);
     assert.equal(resolutionOnlyAttempt.status, 'queued');
     assert.equal(resolutionOnlyAttempt.blocked_reason, null);
@@ -1021,7 +1030,7 @@ test('provider-hosted attempt launch consumes typed capability readout without c
       current_owner_delta: stageADelta,
       capability_registry_resolution: stageAResolution,
       capability_registry_resolution_receipt_ref: 'opl://capability-resolutions/stage-a',
-    });
+    }, stageRouteOptions);
     assert.ok(crossStageAttempt);
     assert.equal(crossStageAttempt.status, 'queued');
     assert.equal(crossStageAttempt.blocked_reason, null);
