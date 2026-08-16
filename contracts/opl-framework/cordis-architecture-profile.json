@@ -66,6 +66,7 @@
       "domain_quality_verdict",
       "app_product_truth",
       "app_release_policy",
+      "release_or_publication_authority",
       "public_release_authorization",
       "github_actions_orchestration",
       "release_environment_permissions",
@@ -670,6 +671,39 @@
           "allowed_profiles": [
             "app-full"
           ]
+        },
+        {
+          "contribution_id": "connect-automation-provider-host",
+          "plugin_id": "opl-connect-automation-provider-host",
+          "disposition": "merge",
+          "implementation_state": "landed",
+          "source_refs": [
+            "src/host/plugins/cordis-automation-provider-host.ts"
+          ],
+          "caller_refs": [
+            "src/host/composition-profiles.ts",
+            "src/read-models/operator/app-state.ts",
+            "src/read-models/operator/app-state-parts/action-execute.ts"
+          ],
+          "scope": "composition",
+          "trust": "first_party_restricted",
+          "authority_role": "Attach only explicitly selected Framework-managed native providers through the bounded in-process host; inspect and declared actions remain bounded, while native carrier lifecycle, App product truth, and publication remain with their existing owners.",
+          "forbidden_authorities": [
+            "package_installed_truth",
+            "package_currentness",
+            "native_carrier_lifecycle",
+            "workspace_file_bytes",
+            "workspace_binding_registry",
+            "ledger_evidence_persistence",
+            "ledger_receipt_authority",
+            "app_product_truth",
+            "credential_material",
+            "security_sandbox",
+            "release_or_publication_authority"
+          ],
+          "allowed_profiles": [
+            "app-full"
+          ]
         }
       ],
       "authority_continues_refs": [
@@ -808,6 +842,11 @@
           "plugin_id": "opl-connect-channel-provider-host",
           "required": false,
           "reason": "App-full may opt into a Shell-injected bounded channel callback; absent injection the provider host remains dormant."
+        },
+        {
+          "plugin_id": "opl-connect-automation-provider-host",
+          "required": false,
+          "reason": "App-full may opt into explicitly selected Framework-managed native providers; absent configuration the provider host remains dormant."
         }
       ],
       "child_composition_allowlist": [

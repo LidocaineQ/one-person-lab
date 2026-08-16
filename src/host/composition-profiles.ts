@@ -24,6 +24,13 @@ import {
   type CordisChannelProviderHostService,
 } from './plugins/cordis-channel-provider-host.ts';
 import {
+  CORDIS_AUTOMATION_PROVIDER_HOST_PLUGIN_DESCRIPTOR,
+  CORDIS_AUTOMATION_PROVIDER_HOST_SERVICE,
+  cordisAutomationProviderHostPlugin,
+  type CordisAutomationProviderHostPluginConfig,
+  type CordisAutomationProviderHostService,
+} from './plugins/cordis-automation-provider-host.ts';
+import {
   discoverInstalledPackageDescriptors,
   loadInstalledChannelProviders,
 } from '../adapters/integration/index.ts';
@@ -146,6 +153,7 @@ type CordisAppFullServices = Omit<CordisBaseHeadlessServices, 'childFactories'> 
   >;
   frameworkReadiness: CordisFrameworkReadinessService;
   channelProviderHost: CordisChannelProviderHostService | null;
+  automationProviderHost: CordisAutomationProviderHostService | null;
 };
 
 type CordisFoundryDevServices = Pick<
@@ -185,6 +193,17 @@ export type CordisChannelProviderHostBootstrap = Readonly<{
   executeChannelAccessAction(
     input: Parameters<CordisChannelProviderHostService['executeChannelAccessAction']>[0],
   ): ReturnType<CordisChannelProviderHostService['executeChannelAccessAction']>;
+  dispose(): Promise<void>;
+}>;
+
+export type CordisAutomationProviderHostBootstrap = Readonly<{
+  inspect(input?: Parameters<CordisAutomationProviderHostService['inspect']>[0]):
+    ReturnType<CordisAutomationProviderHostService['inspect']>;
+  execute(input: Parameters<CordisAutomationProviderHostService['execute']>[0]):
+    ReturnType<CordisAutomationProviderHostService['execute']>;
+  actionCatalog(input?: Parameters<CordisAutomationProviderHostService['actionCatalog']>[0]):
+    ReturnType<CordisAutomationProviderHostService['actionCatalog']>;
+  appStatePatch(): Readonly<Record<string, unknown>>;
   dispose(): Promise<void>;
 }>;
 
@@ -374,10 +393,12 @@ export async function createCordisAppFullComposition(options: {
   atlas?: CordisAtlasCatalogPluginConfig;
   connect?: CordisConnectDescriptorDiscoveryPluginConfig;
   channelProvider?: CordisChannelProviderHostPluginConfig;
+  automationProvider?: CordisAutomationProviderHostPluginConfig;
 }): Promise<CordisAppFullComposition> {
   const base = await createCordisBaseComposition('app-full', options);
   let readinessFiber: CordisFiber | null = null;
   let channelProviderFiber: CordisFiber | null = null;
+  let automationProviderFiber: CordisFiber | null = null;
   try {
     const runtimeSnapshotProvider: RuntimeTraySnapshotProvider = (contracts, snapshotOptions) =>
       options.runtimeSnapshotProvider(contracts, {
@@ -399,6 +420,12 @@ export async function createCordisAppFullComposition(options: {
         },
       );
     }
+    if (options.automationProvider) {
+      automationProviderFiber = await base.ctx.plugin(
+        cordisAutomationProviderHostPlugin,
+        options.automationProvider,
+      );
+    }
     const {
       createReleaseOperationComposition: _releaseOperation,
       ...appChildFactories
@@ -413,19 +440,25 @@ export async function createCordisAppFullComposition(options: {
         channelProviderHost: options.channelProvider
           ? requiredService(base.ctx, CORDIS_CHANNEL_PROVIDER_HOST_SERVICE)
           : null,
+        automationProviderHost: options.automationProvider
+          ? requiredService(base.ctx, CORDIS_AUTOMATION_PROVIDER_HOST_SERVICE)
+          : null,
       },
       snapshot: profileSnapshot('app-full', [
         ...CORDIS_BASE_HEADLESS_PLUGIN_DESCRIPTORS,
         CORDIS_CONSOLE_READINESS_PLUGIN_DESCRIPTOR,
         ...(options.channelProvider ? [CORDIS_CHANNEL_PROVIDER_HOST_PLUGIN_DESCRIPTOR] : []),
+        ...(options.automationProvider ? [CORDIS_AUTOMATION_PROVIDER_HOST_PLUGIN_DESCRIPTOR] : []),
       ], ['agent_executor_request', 'runway_attempt', 'pack_stagecraft_route']),
       async dispose() {
+        await automationProviderFiber?.dispose();
         await channelProviderFiber?.dispose();
         await readinessFiber?.dispose();
         await base.dispose();
       },
     };
   } catch (error) {
+    await automationProviderFiber?.dispose();
     await channelProviderFiber?.dispose();
     await readinessFiber?.dispose();
     await base.dispose();
@@ -450,6 +483,28 @@ export async function startCordisChannelProviderHost(options: {
     appStatePatch: () => host.appStatePatch(),
     readChannelAccess: (input) => host.readChannelAccess(input),
     executeChannelAccessAction: (input) => host.executeChannelAccessAction(input),
+    dispose: () => composition.dispose(),
+  });
+}
+
+export async function startCordisAutomationProviderHost(
+  options: CordisAutomationProviderHostPluginConfig,
+): Promise<CordisAutomationProviderHostBootstrap> {
+  const composition = await createCordisAppFullComposition({
+    runtimeSnapshotProvider: async (contracts, snapshotOptions) => {
+      const { buildRuntimeTraySnapshot } = await import(
+        '../read-models/operator/runtime-tray-snapshot.ts'
+      );
+      return buildRuntimeTraySnapshot(contracts, snapshotOptions);
+    },
+    automationProvider: options,
+  });
+  const host = composition.services.automationProviderHost!;
+  return Object.freeze({
+    inspect: (input) => host.inspect(input),
+    execute: (input) => host.execute(input),
+    actionCatalog: (input) => host.actionCatalog(input),
+    appStatePatch: () => host.appStatePatch(),
     dispose: () => composition.dispose(),
   });
 }

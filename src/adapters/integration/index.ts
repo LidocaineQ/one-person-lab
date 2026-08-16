@@ -184,6 +184,7 @@ export { buildOplDeveloperModeSurface } from './system-installation/developer-mo
 export { buildOplDockerWebuiDoctor } from './system-installation/docker-webui-doctor.ts';
 export {
   buildManagedComputerUseActionCatalog,
+  createManagedComputerUseProvider,
   inspectManagedComputerUse,
   MANAGED_COMPUTER_USE_ACTION_IDS,
   readManagedComputerUseLock,
@@ -196,6 +197,7 @@ export type {
 } from './managed-computer-use.ts';
 export {
   buildManagedBrowserAutomationActionCatalog,
+  createManagedBrowserAutomationProvider,
   inspectManagedBrowserAutomation,
   MANAGED_BROWSER_AUTOMATION_ACTION_IDS,
   readManagedBrowserAutomationLock,

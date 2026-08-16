@@ -1,6 +1,7 @@
 import type { FrameworkContracts } from '../../../kernel/types.ts';
 import type { CordisConnectDescriptorDiscoveryService } from '../../../adapters/integration/index.ts';
 import type { CordisOwnerDeltaObserverService } from '../../../authority/evidence/index.ts';
+import type { CordisAutomationProviderHostService } from '../../../host/plugins/cordis-automation-provider-host.ts';
 import type { runFamilyRuntime } from '../../../adapters/execution/index.ts';
 import {
   parseRegisteredCommandOptions,
@@ -12,12 +13,18 @@ export function buildPublicAppCommandSpecs(
   descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>,
   familyRuntime?: typeof runFamilyRuntime,
   ownerDeltaObserver?: CordisOwnerDeltaObserverService,
+  automationProviderHost?: CordisAutomationProviderHostService | null,
 ): Record<string, CommandSpec> {
   const requireAppCordisServices = () => {
     if (!descriptorDiscovery || !familyRuntime || !ownerDeltaObserver) {
       throw new Error('App commands require an explicit Cordis app-full composition.');
     }
-    return { descriptorDiscovery, familyRuntime, ownerDeltaObserver };
+    return {
+      descriptorDiscovery,
+      familyRuntime,
+      ownerDeltaObserver,
+      automationProviderHost,
+    };
   };
   const commandSpecs: Record<string, CommandSpec> = {
     'app state': {
@@ -40,6 +47,7 @@ export function buildPublicAppCommandSpecs(
         return buildOplAppState({
           profile: input.profile,
           descriptorDiscovery,
+          automationProviderHost: automationProviderHost ?? undefined,
           ownerDeltaObserver: requireAppCordisServices().ownerDeltaObserver,
         });
       },

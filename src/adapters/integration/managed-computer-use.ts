@@ -700,3 +700,29 @@ export function reconcileManagedComputerUse(actionId: ManagedComputerUseActionId
   reconcileMcpRegistration(lock, executable);
   return inspectManagedComputerUse();
 }
+
+/**
+ * Package-facing adapter for the Framework automation ABI. The carrier
+ * implementation stays behind the ABI while the Cordis Host owns selection
+ * and lifecycle.
+ */
+export function createManagedComputerUseProvider() {
+  const lock = readManagedComputerUseLock();
+  return Object.freeze({
+    provider_id: lock.provider_id,
+    automation_kind: 'computer_use' as const,
+    buildActionCatalog: () => buildManagedComputerUseActionCatalog(),
+    inspect: (input?: { runExternalChecks?: boolean }) => inspectManagedComputerUse({
+      runExternalChecks: input?.runExternalChecks,
+    }) as unknown as Record<string, unknown>,
+    reconcile: (input: { action_id: string }) => {
+      if (!MANAGED_COMPUTER_USE_ACTION_IDS.includes(input.action_id as ManagedComputerUseActionId)) {
+        throw new FrameworkContractError('cli_usage_error', `Unknown Computer Use action: ${input.action_id}.`, {
+          action_id: input.action_id,
+        });
+      }
+      return reconcileManagedComputerUse(input.action_id as ManagedComputerUseActionId) as unknown as Record<string, unknown>;
+    },
+    dispose: () => undefined,
+  });
+}

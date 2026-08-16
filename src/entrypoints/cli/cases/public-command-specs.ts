@@ -254,6 +254,7 @@ export function buildPublicCommandSpecs(
     cordis?.services.descriptorDiscovery,
     cordis?.services.familyRuntime,
     cordis?.services.ownerDeltaObserver,
+    cordis?.profileId === 'app-full' ? cordis.services.automationProviderHost : null,
   );
   const familyAgentProviderPort = {
     readProviderContinuousProof,

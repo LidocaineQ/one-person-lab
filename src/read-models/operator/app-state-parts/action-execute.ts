@@ -93,6 +93,20 @@ import {
 import type { AppActionExecuteOptions } from './action-execute-parser.ts';
 export { parseAppActionExecuteArgs } from './action-execute-parser.ts';
 
+type AutomationProviderHostActions = Readonly<{
+  inspect(input: Readonly<{
+    provider_id?: string;
+    automation_kind?: 'computer_use' | 'browser_automation';
+    runExternalChecks?: boolean;
+  }>): Promise<Readonly<Record<string, unknown>>>;
+  execute(input: Readonly<{
+    provider_id?: string;
+    automation_kind?: 'computer_use' | 'browser_automation';
+    action_id: string;
+    dry_run?: boolean;
+  }>): Promise<Readonly<Record<string, unknown>>>;
+}>;
+
 function requireAgentPackageDelegatedSurface(actionId: string) {
   const delegatedSurface = agentPackageDelegatedSurface(actionId);
   if (!delegatedSurface) {
@@ -172,6 +186,7 @@ async function executeDirectAppAction(
   services: {
     descriptorDiscovery: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
     familyRuntime: typeof runFamilyRuntime;
+    automationProviderHost?: AutomationProviderHostActions | null;
   },
 ) {
   const refreshWorkspaceSkills = (
@@ -188,6 +203,29 @@ async function executeDirectAppAction(
 
   if (MANAGED_COMPUTER_USE_ACTION_IDS.includes(options.actionId as ManagedComputerUseActionId)) {
     const actionId = options.actionId as ManagedComputerUseActionId;
+    if (services.automationProviderHost) {
+      return {
+        delegatedSurface: `opl managed companion ${actionId}`,
+        result: options.dryRun
+          ? {
+            surface_kind: 'opl_managed_computer_use_action_preflight',
+            action_id: actionId,
+            status: 'dry_run',
+            current: await services.automationProviderHost.inspect({
+              automation_kind: 'computer_use',
+              runExternalChecks: false,
+            }),
+          }
+          : {
+            surface_kind: 'opl_managed_computer_use_action_result',
+            action_id: actionId,
+            current: await services.automationProviderHost.execute({
+              automation_kind: 'computer_use',
+              action_id: actionId,
+            }),
+          },
+      };
+    }
     return {
       delegatedSurface: `opl managed companion ${actionId}`,
       result: options.dryRun
@@ -207,6 +245,29 @@ async function executeDirectAppAction(
 
   if (MANAGED_BROWSER_AUTOMATION_ACTION_IDS.includes(options.actionId as ManagedBrowserAutomationActionId)) {
     const actionId = options.actionId as ManagedBrowserAutomationActionId;
+    if (services.automationProviderHost) {
+      return {
+        delegatedSurface: `opl managed companion ${actionId}`,
+        result: options.dryRun
+          ? {
+            surface_kind: 'opl_managed_browser_automation_action_preflight',
+            action_id: actionId,
+            status: 'dry_run',
+            current: await services.automationProviderHost.inspect({
+              automation_kind: 'browser_automation',
+              runExternalChecks: false,
+            }),
+          }
+          : {
+            surface_kind: 'opl_managed_browser_automation_action_result',
+            action_id: actionId,
+            current: await services.automationProviderHost.execute({
+              automation_kind: 'browser_automation',
+              action_id: actionId,
+            }),
+          },
+      };
+    }
     return {
       delegatedSurface: `opl managed companion ${actionId}`,
       result: options.dryRun
@@ -971,6 +1032,7 @@ export async function runOplAppActionExecute(
   services: {
     descriptorDiscovery: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
     familyRuntime: typeof runFamilyRuntime;
+    automationProviderHost?: AutomationProviderHostActions | null;
   },
 ) {
   const direct = await executeDirectAppAction(

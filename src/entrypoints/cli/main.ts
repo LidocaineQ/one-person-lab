@@ -15,9 +15,29 @@ import { printJson, type CliOutputStream } from './modules/cli-output.ts';
 import { buildInternalCommandSpecs } from './cases/private-command-specs.ts';
 import { buildPublicCommandSpecs } from './cases/public-command-specs.ts';
 import {
+  createManagedBrowserAutomationProvider,
+  createManagedComputerUseProvider,
+} from '../../adapters/integration/index.ts';
+import {
   createCordisAppFullComposition,
   createCordisBaseHeadlessComposition,
 } from '../../host/composition-profiles.ts';
+import type { CordisAutomationProviderHostPluginConfig } from '../../host/plugins/cordis-automation-provider-host.ts';
+
+/** The app Host consumes the existing Framework-managed native providers. */
+function defaultAppAutomationProviderConfig() {
+  const providers = [
+    createManagedComputerUseProvider(),
+    createManagedBrowserAutomationProvider(),
+  ] as const;
+  return {
+    providers,
+    selectedProviders: providers.map((provider) => ({
+      provider_id: provider.provider_id,
+      automation_kind: provider.automation_kind,
+    })),
+  };
+}
 
 async function runCodexPassthroughHandled(args: string[]) {
   const runtimeHelpers = await import('./modules/runtime-helpers.ts');
@@ -119,6 +139,7 @@ export type CliMainOptions = {
   argv?: string[];
   stdout?: CliOutputStream;
   stdoutIsTTY?: boolean;
+  automationProvider?: CordisAutomationProviderHostPluginConfig;
 };
 
 export async function main(options: CliMainOptions = {}) {
@@ -132,6 +153,7 @@ export async function main(options: CliMainOptions = {}) {
           );
           return buildRuntimeTraySnapshot(contracts, snapshotOptions);
         },
+        automationProvider: options.automationProvider ?? defaultAppAutomationProviderConfig(),
       })
     : await createCordisBaseHeadlessComposition();
   try {

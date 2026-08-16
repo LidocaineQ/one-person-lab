@@ -544,3 +544,29 @@ export function reconcileManagedBrowserAutomation(
   });
   return inspectManagedBrowserAutomation();
 }
+
+/**
+ * Package-facing adapter for the Framework automation ABI. The carrier
+ * implementation stays behind the ABI while the Cordis Host owns selection
+ * and lifecycle.
+ */
+export function createManagedBrowserAutomationProvider() {
+  const lock = readManagedBrowserAutomationLock();
+  return Object.freeze({
+    provider_id: lock.provider_id,
+    automation_kind: 'browser_automation' as const,
+    buildActionCatalog: () => buildManagedBrowserAutomationActionCatalog(),
+    inspect: (input?: { runExternalChecks?: boolean }) => inspectManagedBrowserAutomation({
+      runExternalChecks: input?.runExternalChecks,
+    }) as unknown as Record<string, unknown>,
+    reconcile: (input: { action_id: string }) => {
+      if (!MANAGED_BROWSER_AUTOMATION_ACTION_IDS.includes(input.action_id as ManagedBrowserAutomationActionId)) {
+        throw new FrameworkContractError('cli_usage_error', `Unknown Browser Automation action: ${input.action_id}.`, {
+          action_id: input.action_id,
+        });
+      }
+      return reconcileManagedBrowserAutomation(input.action_id as ManagedBrowserAutomationActionId) as unknown as Record<string, unknown>;
+    },
+    dispose: () => undefined,
+  });
+}

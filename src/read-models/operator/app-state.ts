@@ -54,6 +54,14 @@ import {
 import type { CordisOwnerDeltaObserverService } from '../../authority/evidence/public/app-state.ts';
 import { buildAppUiContributionsProjection } from './app-state-ui-contributions.ts';
 
+type AutomationProviderHostInspector = Readonly<{
+  inspect(input: Readonly<{
+    provider_id?: string;
+    automation_kind?: 'computer_use' | 'browser_automation';
+    runExternalChecks?: boolean;
+  }>): Promise<Readonly<Record<string, unknown>>>;
+}>;
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -896,6 +904,7 @@ export async function buildOplAppState(input: {
   profile?: AppStateProfile;
   readAgentPackageStatus?: AgentPackageStatusReader;
   descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
+  automationProviderHost?: AutomationProviderHostInspector;
   ownerDeltaObserver: CordisOwnerDeltaObserverService;
 }) {
   const startedAt = Date.now();
@@ -920,8 +929,18 @@ export async function buildOplAppState(input: {
   const release = buildReleaseState();
   const workspaceRoot = readOplWorkspaceRoot();
   const core = buildCoreState(profile);
-  const managedComputerUse = inspectManagedComputerUse({ runExternalChecks: profile === 'full' });
-  const managedBrowserAutomation = inspectManagedBrowserAutomation({ runExternalChecks: profile === 'full' });
+  const managedComputerUse = input.automationProviderHost
+    ? await input.automationProviderHost.inspect({
+      automation_kind: 'computer_use',
+      runExternalChecks: profile === 'full',
+    })
+    : inspectManagedComputerUse({ runExternalChecks: profile === 'full' });
+  const managedBrowserAutomation = input.automationProviderHost
+    ? await input.automationProviderHost.inspect({
+      automation_kind: 'browser_automation',
+      runExternalChecks: profile === 'full',
+    })
+    : inspectManagedBrowserAutomation({ runExternalChecks: profile === 'full' });
   const rawActions = buildActionCatalog(contracts, {
     inspectExternalOwners: profile === 'full',
     descriptorDiscovery: input.descriptorDiscovery,
