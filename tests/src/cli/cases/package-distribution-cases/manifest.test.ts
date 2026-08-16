@@ -13,6 +13,7 @@ import {
   test,
 } from './helpers.ts';
 import { readBundledCodexDefaultProfile } from '../../../../../src/kernel/local-codex-defaults.ts';
+import { getOplPackageSpecs } from '../../../../../src/adapters/integration/package-distribution.ts';
 
 const codexDefaultProfile = readBundledCodexDefaultProfile();
 
@@ -164,8 +165,9 @@ test('packages manifest exposes independent owner currentness and compatibility 
   assert.equal(output.packages_manifest.release_set_generation, '26.4.27');
   assert.equal(output.packages_manifest.release_set.generation, '26.4.27');
   assert.equal(output.packages_manifest.release_set.surface_kind, 'opl_release_set.v2');
-  assert.equal(output.packages_manifest.release_set.component_count, 11);
-  assert.equal(output.packages_manifest.release_set.components.packages.package_count, 9);
+  const packageCount = getOplPackageSpecs().length;
+  assert.equal(output.packages_manifest.release_set.component_count, packageCount + 2);
+  assert.equal(output.packages_manifest.release_set.components.packages.package_count, packageCount);
   assert.equal(output.packages_manifest.release_set.components.base.component_id, 'opl-base');
   assert.equal(output.packages_manifest.release_set.components.app.component_id, 'opl-app');
   assert.equal(output.packages_manifest.release_set.catalog_carrier_is_package_identity, false);

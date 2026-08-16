@@ -45,7 +45,10 @@ function createOwnerPackageFixture(
   ownerVersion: string,
   kind: 'standard_agent' | 'capability_package' | 'workflow_profile' = 'standard_agent',
 ) {
-  const pluginRoot = kind === 'standard_agent' || repoName === 'opl-relay' || repoName === 'opl-persona'
+  const pluginRoot = kind === 'standard_agent'
+    || repoName === 'opl-relay'
+    || repoName === 'opl-persona'
+    || repoName === 'opl-fleet-agent'
     ? `plugins/${repoName}`
     : '.';
   const manifestRef = kind === 'capability_package'
@@ -73,7 +76,7 @@ function createOwnerPackageFixture(
     [manifestRef]: `${JSON.stringify(ownerManifest, null, 2)}\n`,
     [`${pluginRoot}/.codex-plugin/plugin.json`.replace(/^\.\//, '')]: `${JSON.stringify({ name: repoName, version: ownerVersion }, null, 2)}\n`,
   };
-  if (kind === 'standard_agent') {
+  if (kind === 'standard_agent' || repoName === 'opl-fleet-agent') {
     extraFiles[`${pluginRoot}/plugin.json`] = `${JSON.stringify({
       $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
       name: repoName,
@@ -349,6 +352,7 @@ test('package archive builder writes channel manifest checksums git source and r
     oplrelay: createOwnerPackageFixture('opl-relay', 'opl-relay', '0.5.2', 'capability_package'),
     oplpersona: createOwnerPackageFixture('opl-persona', 'opl-persona', '0.2.2', 'capability_package'),
     oplflow: createOwnerPackageFixture('opl-flow', 'opl-flow', '0.1.20', 'workflow_profile'),
+    oplfleetagent: createOwnerPackageFixture('opl-fleet-agent', 'opl-fleet-agent', '0.2.40', 'capability_package'),
   };
   const ownerSourceEnv = {
     ...process.env,
@@ -361,6 +365,7 @@ test('package archive builder writes channel manifest checksums git source and r
     OPL_PACKAGE_SOURCE_PATH_OPL_RELAY: fixtures.oplrelay.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OPL_PERSONA: fixtures.oplpersona.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OPL_FLOW: fixtures.oplflow.sourceRoot,
+    OPL_PACKAGE_SOURCE_PATH_OPL_FLEET_AGENT: fixtures.oplfleetagent.sourceRoot,
     OPL_PACKAGE_RELEASE_GATE: 'test_owner_sha_release_gate',
   };
 
@@ -457,8 +462,9 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(channelManifest.release_set_generation, manifest.release_set_generation);
   assert.equal(manifest.release_set.generation, '26.4.31');
   assert.equal(manifest.release_set.surface_kind, 'opl_release_set.v2');
-  assert.equal(manifest.release_set.component_count, 11);
-  assert.equal(manifest.release_set.components.packages.package_count, 9);
+  const packageCount = getOplPackageSpecs().length;
+  assert.equal(manifest.release_set.component_count, packageCount + 2);
+  assert.equal(manifest.release_set.components.packages.package_count, packageCount);
   assert.equal(manifest.package_install_update_source, 'per_package_owner_latest_stable');
   assert.equal(manifest.package_consumption_status, 'ordinary_app_users_compose_independent_ghcr_packages');
   for (const artifact of Object.values(manifest.packages.package_artifacts) as any[]) {
@@ -534,6 +540,7 @@ test('package archive builder writes channel manifest checksums git source and r
     'opl-relay': fixtures.oplrelay.getHeadSha(),
     'opl-persona': fixtures.oplpersona.getHeadSha(),
     'opl-flow': fixtures.oplflow.getHeadSha(),
+    'opl-fleet-agent': fixtures.oplfleetagent.getHeadSha(),
   });
   const frozenOutDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-frozen-framework-out-'));
   const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-frozen-framework-bin-'));
@@ -699,13 +706,13 @@ test('package archive builder writes channel manifest checksums git source and r
     ...process.env,
     OPL_PACKAGE_PROMOTION_TARGET: 'latest-stable',
   };
-  for (const [index, packageId] of Object.keys(packageCatalog).entries()) {
+  for (const packageId of Object.keys(packageCatalog)) {
     execFileSync(process.execPath, [
       path.join(repoRoot, 'scripts/finalize-package-channel-digests.mjs'),
       '--release-manifest', releaseManifestPath,
       '--channel-manifest', channelManifestPath,
       '--package-id', packageId,
-      '--digest', `sha256:${String(index + 1).repeat(64)}`,
+      '--digest', `sha256:${crypto.createHash('sha256').update(packageId).digest('hex')}`,
     ], { encoding: 'utf8', env: finalizeEnv });
   }
   execFileSync(process.execPath, [
@@ -795,7 +802,7 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(promotionReceipt.surface_kind, 'opl_release_set_promotion_receipt.v1');
   assert.equal(promotionReceipt.carrier.digest, `sha256:${'b'.repeat(64)}`);
   assert.deepEqual(promotionReceipt.app.carriers, appCarriers);
-  assert.equal(promotionReceipt.anonymous_readback.verified_refs.length, 11);
+  assert.equal(promotionReceipt.anonymous_readback.verified_refs.length, packageCount + 2);
   assert.match(checksums, /one-person-lab-framework-0\.3\.5\.tar\.gz/);
   assert.match(checksums, new RegExp(manifest.packages.framework_core.source_archive.sha256));
   assert.equal(manifest.packages.native_helper.channel_status, 'active_ghcr_oci_prebuild');
@@ -1880,6 +1887,7 @@ test('package archive builder refreshes reused managed clones before archiving s
     oplrelay: createOwnerPackageFixture('opl-relay', 'opl-relay', '0.5.2', 'capability_package'),
     oplpersona: createOwnerPackageFixture('opl-persona', 'opl-persona', '0.2.2', 'capability_package'),
     oplflow: createOwnerPackageFixture('opl-flow', 'opl-flow', '0.1.20', 'workflow_profile'),
+    oplfleetagent: createOwnerPackageFixture('opl-fleet-agent', 'opl-fleet-agent', '0.2.40', 'capability_package'),
   };
   fs.writeFileSync(
     gitConfigPath,
@@ -1902,6 +1910,7 @@ test('package archive builder refreshes reused managed clones before archiving s
     OPL_PACKAGE_SOURCE_PATH_OPL_RELAY: fixtures.oplrelay.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OPL_PERSONA: fixtures.oplpersona.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OPL_FLOW: fixtures.oplflow.sourceRoot,
+    OPL_PACKAGE_SOURCE_PATH_OPL_FLEET_AGENT: fixtures.oplfleetagent.sourceRoot,
     OPL_PACKAGE_RELEASE_GATE: 'test_owner_sha_release_gate',
   };
 

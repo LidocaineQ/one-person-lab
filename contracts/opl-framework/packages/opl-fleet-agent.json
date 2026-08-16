@@ -7,6 +7,11 @@
   "source": "first_party",
   "package_role": "capability_package",
   "source_repo": "https://github.com/gaofeng21cn/opl-fleet-agent.git",
+  "publication_source": {
+    "module_id": "opl-fleet-agent",
+    "owner_package_manifest_ref": "plugins/opl-fleet-agent/opl-package.json",
+    "owner_plugin_manifest_ref": "plugins/opl-fleet-agent/plugin.json"
+  },
   "machine_boundary": "This Package projects sanitized node-local observations from the installed native OPL Fleet Agent. It does not own native installation, collection, upgrade, fleet admission, leases, dispatch, task completion, execution constraints, receipts, or Cordis Host truth.",
   "schema_ref": "one-person-lab/contracts/opl-framework/capability-package-manifest.schema.json",
   "capability_abi": {

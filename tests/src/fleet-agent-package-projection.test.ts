@@ -65,6 +65,11 @@ test('Fleet Agent owner projection is a schema-valid capability Package with one
     version: '1.0.0',
     compatibility_policy: 'same_major',
   });
+  assert.deepEqual(manifest.publication_source, {
+    module_id: 'opl-fleet-agent',
+    owner_package_manifest_ref: 'plugins/opl-fleet-agent/opl-package.json',
+    owner_plugin_manifest_ref: 'plugins/opl-fleet-agent/plugin.json',
+  });
   assert.equal(resolvePackageHostIntegration(manifest as any).integration_kind, 'capability_provider');
 
   const catalogEntry = normalizedManifest();

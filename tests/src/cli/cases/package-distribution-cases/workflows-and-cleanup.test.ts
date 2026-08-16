@@ -435,18 +435,8 @@ test('single-Package payload materialization binds exact physical archive proven
 
 test('single-Package publication is protected, selector-bound, and readback-only after unknown results', () => {
   const workflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/publish-package.yml'), 'utf8');
-  const publisherPackageIds = [
-    'mas',
-    'mag',
-    'rca',
-    'oma',
-    'obf',
-    'mas-scholar-skills',
-    'opl-relay',
-    'opl-persona',
-    'opl-flow',
-  ];
   const packageSpecs = getOplPackageSpecs();
+  const publisherPackageIds = packageSpecs.map((spec) => spec.package_id);
 
   assert.match(workflow, /^  workflow_dispatch:$/m);
   assert.doesNotMatch(workflow, /^\s+(?:workflow_run|schedule):$/m);

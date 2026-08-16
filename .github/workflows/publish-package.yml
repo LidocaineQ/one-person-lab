@@ -34,7 +34,7 @@ on:
         description: Canonical Package id
         required: true
         type: choice
-        options: [mas, mag, rca, oma, obf, mas-scholar-skills, opl-relay, opl-persona, opl-flow]
+        options: [mas, mag, rca, oma, obf, mas-scholar-skills, opl-relay, opl-persona, opl-flow, opl-fleet-agent]
       expected_package_version:
         description: Exact stable SemVer selected by canonical Framework main
         required: true
