@@ -15,8 +15,8 @@ import { buildAppUiContributionsProjection } from '../../src/read-models/operato
 const repoRoot = path.resolve(import.meta.dirname, '..', '..');
 const manifestRef = 'contracts/opl-framework/packages/opl-fleet-agent.json';
 const allowlistRef = 'contracts/opl-framework/package-payload-allowlists/opl-fleet-agent.json';
-const payloadRef = 'contracts/opl-framework/packages/payloads/opl-fleet-agent-0.2.39.json';
-const ownerCommit = '70f9a91ff9400efdb5a1ea5e748a3f370bf3c67a';
+const payloadRef = 'contracts/opl-framework/packages/payloads/opl-fleet-agent-0.2.40.json';
+const ownerCommit = '98891d42eebf1b0b179144611659ae21ba610437';
 
 function readJson(relativePath: string) {
   return parseJsonText(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')) as Record<string, any>;
