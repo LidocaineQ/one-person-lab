@@ -41,9 +41,20 @@ const qualityDetailsTimeoutHelperPatterns = [
 ];
 
 const verifyWorkflowTriggerPatterns = [
-  /on:\n\s+workflow_dispatch:\n\s+schedule:\n\s+- cron: '7 19 \* \* \*'/,
+  /on:\n\s+workflow_dispatch:\n\s+schedule:\n\s+- cron: '7 19 \* \* 0'/,
   /concurrency:\n\s+group: \$\{\{ github\.workflow \}\}-\$\{\{ github\.ref \}\}/,
   /cancel-in-progress: true/,
+];
+
+const sourceCiWorkflowPatterns = [
+  /name: CI/,
+  /push:\n\s+branches: \[main\]/,
+  /pull_request:\n\s+branches: \[main\]/,
+  /runs-on: ubuntu-latest/,
+  /npm run build/,
+  /npm run typecheck/,
+  /npm run lint/,
+  /npm test/,
 ];
 
 const verifyWorkflowBuildAndJsLanePatterns = [
@@ -154,11 +165,20 @@ test('local structural quality gate emits compare-ref quality details on Sentrux
   assert.doesNotMatch(shell, /<<'NODE'/);
 });
 
-test('GitHub verification workflow runs daily or manually without per-change duplication', () => {
+test('GitHub verification workflow runs weekly or manually without per-change duplication', () => {
   const workflow = read('.github/workflows/verify.yml');
   assertFilePatterns('.github/workflows/verify.yml', verifyWorkflowTriggerPatterns);
   assert.doesNotMatch(workflow, /^  push:/m);
   assert.doesNotMatch(workflow, /^  pull_request:/m);
+});
+
+test('GitHub source CI keeps the per-change gate focused on source validation', () => {
+  const workflow = read('.github/workflows/ci.yml');
+  assertFilePatterns('.github/workflows/ci.yml', sourceCiWorkflowPatterns);
+  assert.doesNotMatch(
+    workflow,
+    /cargo test|native:|test:fast|test:integration|test:regression|test:fresh-install|electron-builder|docker build|publish|release/,
+  );
 });
 
 test('GitHub verification workflow runs build and JavaScript test gates', () => {
@@ -190,8 +210,12 @@ test('quality details action stays reusable without a duplicate advisory workflo
   assertFilePatterns('.github/actions/quality-details/emit-quality-details.mjs', qualityDetailsActionScriptPatterns);
 });
 
-test('GitHub native helper prebuild workflow packs release artifacts across supported platforms', () => {
+test('native helper qualification remains explicit and can pack supported release artifacts', () => {
+  const workflow = read('.github/workflows/native-helper-prebuilds.yml');
   assertFilePatterns('.github/workflows/native-helper-prebuilds.yml', nativeHelperPrebuildWorkflowPatterns);
+  assert.match(workflow, /^  workflow_dispatch:/m);
+  assert.doesNotMatch(workflow, /^  pull_request:/m);
+  assert.doesNotMatch(workflow, /^  push:/m);
 });
 
 test('lint remains independent while legacy line-budget strict naming is an advisory alias', () => {

@@ -1,19 +1,6 @@
 name: OPL Whitepaper
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - docs/whitepapers/**
-      - assets/branding/**
-      - contracts/whitepaper_profile.json
-      - contracts/framework-whitepaper_profile.json
-      - contracts/opl-framework/public-whitepaper-registry.json
-      - scripts/opl-whitepaper-builder.ts
-      - scripts/run-domain-whitepaper.ts
-      - scripts/whitepaper-style.css
-      - .github/workflows/reusable-whitepaper.yml
-      - .github/workflows/whitepaper.yml
   schedule:
     - cron: '17 3 * * 1'
   workflow_dispatch:

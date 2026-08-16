@@ -13,22 +13,6 @@ on:
         required: false
         default: 'false'
         type: boolean
-  pull_request:
-    paths:
-      - Cargo.lock
-      - Cargo.toml
-      - native/opl-native-helper/**
-      - scripts/native-helper-prebuild.mjs
-      - .github/workflows/native-helper-prebuilds.yml
-  push:
-    branches:
-      - main
-    paths:
-      - Cargo.lock
-      - Cargo.toml
-      - native/opl-native-helper/**
-      - scripts/native-helper-prebuild.mjs
-      - .github/workflows/native-helper-prebuilds.yml
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
