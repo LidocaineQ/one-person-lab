@@ -7,7 +7,7 @@ import { resolveStandardAgent } from '../../kernel/standard-agent-registry.ts';
 import { buildDomainManifestCatalog } from './domain-manifest/catalog-builder.ts';
 import type { DomainManifestCatalogOptions } from '../../kernel/domain-manifest-port.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
-import type { WorkspaceLocator } from '../../kernel/workspace-binding-port.ts';
+import type { WorkspaceLocator } from '../../authority/workspace/index.ts';
 
 export type DomainLaunchStrategy = 'auto' | 'open_url' | 'spawn_command';
 

@@ -20,17 +20,37 @@ import {
 import {
   readAgentPackageReadinessPort,
 } from '../../kernel/agent-package-readiness-port.ts';
-import {
-  registerWorkspaceBindingPort,
-  type BoundWorkspaceLocator,
-  type DirectEntryLocator,
-  type WorkspaceBinding,
-} from '../../kernel/workspace-binding-port.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
 import { listWorkspaceAgentProfiles } from './workspace-agent-defaults.ts';
 import { createProjectScopeId, deriveLegacyProjectScopeId } from './execution-scope.ts';
 
-export type { WorkspaceBinding } from '../../kernel/workspace-binding-port.ts';
+type BoundWorkspaceLocator = {
+  surface_kind: string;
+  workspace_root: string | null;
+  profile_ref: string | null;
+  input_path: string | null;
+};
+
+type DirectEntryLocator = {
+  command: string | null;
+  manifest_command: string | null;
+  url: string | null;
+  workspace_locator: BoundWorkspaceLocator | null;
+};
+
+export type WorkspaceBinding = {
+  binding_id: string;
+  project_scope_id: string;
+  project_id: string;
+  project: string;
+  workspace_path: string;
+  label: string | null;
+  status: 'active' | 'inactive' | 'archived';
+  direct_entry: DirectEntryLocator;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+};
 
 type ProjectWorkspaceBindingContract = {
   surface_id: 'opl_project_workspace_binding_contract';
@@ -989,8 +1009,3 @@ export function resolveWorkspaceLocator(projectId: string, explicitWorkspacePath
     binding,
   };
 }
-
-registerWorkspaceBindingPort({
-  getActiveWorkspaceBinding,
-  resolveWorkspaceLocator,
-});

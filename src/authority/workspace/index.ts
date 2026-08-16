@@ -5,8 +5,6 @@ export const OPL_WORKSPACE_SOURCE_MODULE = {
   physicalRoot: 'src/authority/workspace',
 } as const;
 
-import { registerWorkspaceBindingPort } from '../../kernel/workspace-binding-port.ts';
-
 // Public cross-module surface generated from existing module consumers.
 export { buildEvidenceGroundedWorkspaceSubstrate } from './evidence-grounded-substrate.ts';
 export { buildAgentWorkspaceNormChecks, buildAgentWorkspaceNormProjection } from './agent-workspace-norm.ts';
@@ -51,10 +49,6 @@ export {
   pruneWorkspaceRegistry,
 };
 export { getActiveWorkspaceBinding, listWorkspaceBindings, resolveWorkspaceLocator } from './workspace-registry.ts';
-registerWorkspaceBindingPort({
-  getActiveWorkspaceBinding,
-  resolveWorkspaceLocator,
-});
 export type {
   WorkspaceBinding,
   WorkspaceLocator,
