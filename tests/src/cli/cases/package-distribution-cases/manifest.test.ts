@@ -302,7 +302,7 @@ test('packages manifest exposes independent owner currentness and compatibility 
     output.packages_manifest.packages.codex_default_profile.model_reasoning_effort,
     codexDefaultProfile.model_reasoning_effort,
   );
-  assert.equal(output.packages_manifest.packages.codex_default_profile.base_url, 'https://gflabtoken.cn/v1');
+  assert.equal(output.packages_manifest.packages.codex_default_profile.base_url, 'https://gateway.medopl.com/v1');
   assert.equal(
     output.packages_manifest.packages.codex_default_profile.base_url_role,
     'opl_base_default_provider_endpoint',

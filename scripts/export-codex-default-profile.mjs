@@ -105,7 +105,7 @@ function buildProfile(workflowPolicy) {
     model,
     model_reasoning_effort: reasoningEffort,
     provider_name: 'OPL Gateway',
-    base_url: 'https://gflabtoken.cn/v1',
+    base_url: 'https://gateway.medopl.com/v1',
     base_url_role: 'opl_base_default_provider_endpoint',
     model_profile_role: 'opl_flow_recommendation_projection',
   };

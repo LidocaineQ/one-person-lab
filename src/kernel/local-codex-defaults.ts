@@ -64,7 +64,7 @@ export type CodexDefaultProfile = {
   model_profile_role: string;
 };
 
-export const OPL_GATEWAY_BASE_URL = 'https://gflabtoken.cn/v1';
+export const OPL_GATEWAY_BASE_URL = 'https://gateway.medopl.com/v1';
 
 function normalizeOptionalString(value: string | null | undefined) {
   const trimmed = value?.trim();

@@ -477,7 +477,7 @@ test('system configure-codex writes the product endpoint and App-owned install f
       output.codex_config.default_profile.model_reasoning_effort,
       codexDefaultProfile.model_reasoning_effort,
     );
-    assert.equal(output.codex_config.default_profile.base_url, 'https://gflabtoken.cn/v1');
+    assert.equal(output.codex_config.default_profile.base_url, 'https://gateway.medopl.com/v1');
     assert.equal(output.codex_config.default_profile.base_url_role, codexDefaultProfile.base_url_role);
     assert.equal(output.codex_config.default_profile.model_profile_role, codexDefaultProfile.model_profile_role);
     assert.equal(output.codex_config.bootstrap.api_key_present, true);
@@ -525,7 +525,7 @@ test('system configure-codex keeps environment overrides over bundled model prof
 
     assert.equal(output.codex_config.bootstrap.model, 'gpt-5.6');
     assert.equal(output.codex_config.bootstrap.reasoning_effort, 'high');
-    assert.equal(output.codex_config.bootstrap.provider_base_url, 'https://gflabtoken.cn/v1');
+    assert.equal(output.codex_config.bootstrap.provider_base_url, 'https://gateway.medopl.com/v1');
 
     const config = fs.readFileSync(output.codex_config.config_path, 'utf8');
     assert.match(config, /model = "gpt-5\.6"/);
@@ -584,7 +584,7 @@ test('system configure-codex preserves an existing custom provider and registers
 
     assert.equal(output.codex_config.status, 'completed');
     assert.equal(output.codex_config.bootstrap.model, 'custom-model');
-    assert.equal(output.codex_config.bootstrap.provider_base_url, 'https://gflabtoken.cn/v1');
+    assert.equal(output.codex_config.bootstrap.provider_base_url, 'https://gateway.medopl.com/v1');
     assert.equal(output.codex_config.bootstrap.api_key_present, true);
     assert.equal(output.codex_config.bootstrap.management_receipt.selection_mode, 'inactive_provider');
     assert.equal(output.codex_config.bootstrap.management_receipt.provider_route, 'inactive_provider');
@@ -623,7 +623,7 @@ test('system configure-codex preserves an existing inactive gflab provider name'
         '',
         '[model_providers.gflab]',
         'name = "gflab"',
-        'base_url = "https://gflabtoken.cn/v1"',
+        'base_url = "https://gateway.medopl.com/v1"',
         'experimental_bearer_token = "existing-opl-key"',
         '',
       ].join('\n'),
@@ -758,7 +758,7 @@ test('system configure-codex completes a plugin-only Codex config created during
     };
 
     assert.equal(output.codex_config.status, 'completed');
-    assert.equal(output.codex_config.bootstrap.provider_base_url, 'https://gflabtoken.cn/v1');
+    assert.equal(output.codex_config.bootstrap.provider_base_url, 'https://gateway.medopl.com/v1');
     assert.equal(output.codex_config.bootstrap.api_key_present, true);
     assert.equal(JSON.stringify(output).includes(apiKey), false);
 

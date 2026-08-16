@@ -464,7 +464,7 @@ test('explicit Gateway binding activates an incomplete existing provider and res
     assert(binding.binding);
     const activated = fs.readFileSync(configPath, 'utf8');
     assert.equal(readLocalCodexAccessState().model_access_source, 'opl_gateway');
-    assert.equal(readLocalCodexAccessState().provider_base_url, 'https://gflabtoken.cn/v1');
+    assert.equal(readLocalCodexAccessState().provider_base_url, 'https://gateway.medopl.com/v1');
     assert.match(activated, new RegExp(`^model_provider = "${binding.binding.provider_id}"$`, 'm'));
     assert.match(activated, /experimental_bearer_token = "managed-explicit"/);
 
@@ -515,7 +515,7 @@ test('explicit Gateway binding overrides ChatGPT and environment access without 
       assert(binding.binding);
       const access = readLocalCodexAccessState();
       assert.equal(access.model_access_source, 'opl_gateway');
-      assert.equal(access.provider_base_url, 'https://gflabtoken.cn/v1');
+      assert.equal(access.provider_base_url, 'https://gateway.medopl.com/v1');
       assert.doesNotMatch(fs.readFileSync(binding.binding.config_path, 'utf8'), /ambient\.invalid/);
     } finally {
       for (const [envKey, value] of [

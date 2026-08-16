@@ -954,7 +954,7 @@ test('bundled Codex profile carries the OPL Flow recommendation without runtime 
   assert.equal(profile.model_provider, 'gflab');
   assert.equal(profile.model.length > 0, true);
   assert.equal(profile.model_reasoning_effort.length > 0, true);
-  assert.equal(profile.base_url, 'https://gflabtoken.cn/v1');
+  assert.equal(profile.base_url, 'https://gateway.medopl.com/v1');
   assert.equal(profile.base_url_role, 'opl_base_default_provider_endpoint');
   assert.equal(profile.model_profile_role, 'opl_flow_recommendation_projection');
   assert.equal(profile.provider_name, 'OPL Gateway');

@@ -1,5 +1,5 @@
-export const OPL_GATEWAY_CONTROL_BASE_URL = 'https://gflabtoken.cn/api/v1';
-export const OPL_GATEWAY_INFERENCE_BASE_URL = 'https://gflabtoken.cn/v1';
+export const OPL_GATEWAY_CONTROL_BASE_URL = 'https://gateway.medopl.com/api/v1';
+export const OPL_GATEWAY_INFERENCE_BASE_URL = 'https://gateway.medopl.com/v1';
 export const OPL_GATEWAY_CONNECTION_ID = 'opl-gateway-account';
 export const OPL_GATEWAY_CREDENTIAL_HANDLE = 'credential-store:opl-gateway-account';
 export const OPL_GATEWAY_CACHE_TTL_MS = 15 * 60 * 1000;
