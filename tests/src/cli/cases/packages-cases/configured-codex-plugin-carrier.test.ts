@@ -712,6 +712,91 @@ test('configured Codex carrier adds a missing marketplace and dry-run never refr
   assert.deepEqual(calls, ['plugin list --json']);
 });
 
+test('configured Codex carrier replaces a same-name marketplace when developer update changes its source', () => {
+  const calls: string[] = [];
+  const localSource = '/tmp/fixture-carrier';
+  runConfiguredCodexPluginCarrier({
+    descriptor: {
+      ...descriptor,
+      carrier: { ...descriptor.carrier, marketplaceSource: localSource },
+    },
+    action: 'update',
+    runner: ({ args }) => {
+      calls.push(args.join(' '));
+      if (args.join(' ') === 'plugin marketplace list --json') {
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            marketplaces: [{
+              name: 'fixture-carrier',
+              marketplaceSource: {
+                sourceType: 'git',
+                source: 'https://github.com/gaofeng21cn/fixture-carrier.git',
+              },
+            }],
+          }),
+          stderr: '',
+          error: null,
+        };
+      }
+      if (args.join(' ') === 'plugin list --json') {
+        return { status: 0, stdout: pluginList([]), stderr: '', error: null };
+      }
+      return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+    },
+  });
+  assert.deepEqual(calls, [
+    'plugin marketplace list --json',
+    'plugin marketplace remove fixture-carrier --json',
+    `plugin marketplace add ${localSource} --json`,
+    `plugin add ${pluginSelector} --json`,
+    'plugin list --json',
+  ]);
+});
+
+test('configured Codex carrier restores the prior marketplace when a source transition cannot be added', () => {
+  const calls: string[] = [];
+  const priorSource = 'https://github.com/gaofeng21cn/fixture-carrier.git';
+  const localSource = '/tmp/fixture-carrier';
+  assert.throws(
+    () => runConfiguredCodexPluginCarrier({
+      descriptor: {
+        ...descriptor,
+        carrier: { ...descriptor.carrier, marketplaceSource: localSource },
+      },
+      action: 'update',
+      runner: ({ args }) => {
+        const command = args.join(' ');
+        calls.push(command);
+        if (command === 'plugin marketplace list --json') {
+          return {
+            status: 0,
+            stdout: JSON.stringify({
+              marketplaces: [{
+                name: 'fixture-carrier',
+                marketplaceSource: { sourceType: 'git', source: priorSource },
+              }],
+            }),
+            stderr: '',
+            error: null,
+          };
+        }
+        if (command === `plugin marketplace add ${localSource} --json`) {
+          return { status: 1, stdout: '', stderr: 'fixture failure', error: null };
+        }
+        return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+      },
+    }),
+    (error: any) => error?.details?.failure_code === 'configured_codex_plugin_carrier_action_failed',
+  );
+  assert.deepEqual(calls, [
+    'plugin marketplace list --json',
+    'plugin marketplace remove fixture-carrier --json',
+    `plugin marketplace add ${localSource} --json`,
+    `plugin marketplace add ${priorSource} --json`,
+  ]);
+});
+
 test('configured Codex carrier reports an unexpected same-name source without selecting it', () => {
   const readback = runConfiguredCodexPluginCarrier({
     descriptor,

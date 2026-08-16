@@ -762,10 +762,11 @@ function ensureMarketplaceAvailable(input: {
     args: marketplaceListArgs,
     env: input.env,
   });
-  const configuredMarketplace = marketplaceList.status === 0 && !marketplaceList.error
+  const marketplaces = marketplaceList.status === 0 && !marketplaceList.error
     ? parseMarketplaceList(marketplaceList.stdout, input.packageId)
-      .find((entry) => sameMarketplaceSource(entry.marketplaceSource, input.marketplaceSource)) ?? null
-    : null;
+    : [];
+  const configuredMarketplace = marketplaces
+    .find((entry) => sameMarketplaceSource(entry.marketplaceSource, input.marketplaceSource)) ?? null;
   if (configuredMarketplace) {
     if ((input.action !== 'update' && input.action !== 'repair')
       || configuredMarketplace.sourceType !== 'git') return;
@@ -790,6 +791,33 @@ function ensureMarketplaceAvailable(input: {
     return;
   }
 
+  const expectedMarketplaceName = marketplaceName(input.pluginId);
+  const replacedMarketplace = (input.action === 'update' || input.action === 'repair')
+    && path.isAbsolute(input.marketplaceSource)
+    ? marketplaces.find((entry) => (
+      entry.name === expectedMarketplaceName
+      && entry.sourceType === 'git'
+      && entry.marketplaceSource
+      && !sameMarketplaceSource(entry.marketplaceSource, input.marketplaceSource)
+    )) ?? null
+    : null;
+  if (replacedMarketplace) {
+    const removeArgs = ['plugin', 'marketplace', 'remove', expectedMarketplaceName, '--json'];
+    const removeResult = input.runner({
+      binary: input.binary,
+      args: removeArgs,
+      env: input.env,
+    });
+    if (removeResult.status !== 0 || removeResult.error) {
+      commandFailure({
+        packageId: input.packageId,
+        action: input.action,
+        args: removeArgs,
+        result: removeResult,
+      });
+    }
+  }
+
   const marketplaceArgs = ensureMarketplaceArgs(input.marketplaceSource);
   const marketplaceResult = input.runner({
     binary: input.binary,
@@ -797,6 +825,13 @@ function ensureMarketplaceAvailable(input: {
     env: input.env,
   });
   if (marketplaceResult.status !== 0 || marketplaceResult.error) {
+    if (replacedMarketplace?.marketplaceSource) {
+      input.runner({
+        binary: input.binary,
+        args: ensureMarketplaceArgs(replacedMarketplace.marketplaceSource),
+        env: input.env,
+      });
+    }
     commandFailure({
       packageId: input.packageId,
       action: input.action,
