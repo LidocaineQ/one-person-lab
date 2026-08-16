@@ -270,7 +270,7 @@ export async function buildOplInitialize(
   const repairNativeHelpersAction = buildInitializeActionDescriptor({
     action_id: 'repair_native_helpers',
     label: 'Repair native helpers',
-    description: 'Build or refresh the OPL Rust helper binaries used for doctor, watch, and indexing checks.',
+    description: 'Run the OPL Node standard-library helper doctor used for watch and indexing checks.',
     section_id: 'environment',
     endpoint: endpoints.system_action,
     method: 'POST',
@@ -432,8 +432,8 @@ export async function buildOplInitialize(
         : 'Run native helper repair from Settings when faster local checks are needed.',
       section_id: 'environment',
       detail_summary: environment.native_helpers.health_status === 'ready'
-        ? 'Rust helper binaries are available for native doctor, watch, and indexing checks.'
-        : 'Run native helper repair to build or refresh Rust helper binaries for faster local checks.',
+        ? 'Node standard-library helpers are available for native doctor, watch, and indexing checks.'
+        : 'Run native helper repair to refresh the Node standard-library helper readback.',
       endpoint: endpoints.system_environment,
       action_endpoint: endpoints.system_action,
       action: environment.native_helpers.health_status === 'ready' ? openEnvironmentAction : repairNativeHelpersAction,

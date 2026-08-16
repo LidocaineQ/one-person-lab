@@ -120,7 +120,6 @@ test('repo temp env wrapper routes tool caches outside the checkout', () => {
       '"UV_PROJECT_ENVIRONMENT",',
       '"NPM_CONFIG_CACHE",',
       '"NODE_COMPILE_CACHE",',
-      '"CARGO_TARGET_DIR",',
       '"XDG_CACHE_HOME",',
       '"XDG_CONFIG_HOME",',
       '"XDG_DATA_HOME",',
@@ -142,7 +141,6 @@ test('repo temp env wrapper routes tool caches outside the checkout', () => {
       UV_PROJECT_ENVIRONMENT: path.join(repoRoot, 'stale-uv-env'),
       NPM_CONFIG_CACHE: path.join(repoRoot, 'stale-npm-cache'),
       NODE_COMPILE_CACHE: path.join(repoRoot, 'stale-node-cache'),
-      CARGO_TARGET_DIR: path.join(repoRoot, 'stale-cargo-target'),
       XDG_CACHE_HOME: path.join(repoRoot, 'stale-xdg-cache'),
     },
   });
@@ -163,7 +161,6 @@ test('repo temp env wrapper routes tool caches outside the checkout', () => {
     env.UV_PROJECT_ENVIRONMENT,
     env.NPM_CONFIG_CACHE,
     env.NODE_COMPILE_CACHE,
-    env.CARGO_TARGET_DIR,
     env.XDG_CACHE_HOME,
     env.XDG_CONFIG_HOME,
     env.XDG_DATA_HOME,
@@ -443,11 +440,6 @@ test('scripts/verify.sh provides the canonical verification wrapper', () => {
   assert.match(verifyScript, /npm run test:artifact/);
   assert.match(verifyScript, /npm run test:full/);
   assert.match(verifyScript, /npm run native:doctor/);
-  assert.match(verifyScript, /npm run native:prebuild-check/);
-  assert.match(verifyScript, /npm run native:pack-check/);
-  assert.match(verifyScript, /npm run native:test/);
-  assert.match(verifyScript, /npm run native:build/);
-  assert.match(verifyScript, /npm run native:cache/);
   assert.match(verifyScript, /npm run native:family-smoke/);
   assert.match(verifyScript, /\.\/scripts\/run-structural-quality-gate\.sh/);
   assert.match(verifyScript, /smoke\|fast\|regression\|integration\|structure\|structure:strict\|reuse-first\|family\|meta\|fresh-install\|artifact\|native\|full\|lint\|line-budget\|line-budget:strict\|typecheck/);

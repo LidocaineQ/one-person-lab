@@ -17,7 +17,7 @@ Machine boundary: 本文是人读公开路线图。当前实现和 readiness tru
 - provider-backed stage runtime 承担 queue、wakeup、attempt、receipt、approval、retry/dead-letter 与 projection
 - `MedAutoScience`、`MedAutoGrant`、`RedCube AI` 之上的 shared modules、contracts 与 indexes
 - `OPL Runtime Manager` 作为已配置 family runtime provider 之上的产品控制面
-- Rust native helper / index 工作只承担 native assistance 与 indexed discovery，不持有 domain truth 或 executor ownership
+- Node standard-library native helper / index 工作只承担 native assistance 与 indexed discovery，不持有 domain truth 或 executor ownership
 
 ## 活跃路线
 

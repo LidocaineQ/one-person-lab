@@ -13,9 +13,7 @@ export function writeNativeHelperFixtureScripts(
   fs.mkdirSync(helperBinDir, { recursive: true });
   const common = options.includeVersionFields
     ? {
-        helper_version: '0.1.0',
-        crate_name: 'opl-native-helper',
-        crate_version: '0.1.0',
+        helper_version: 'node-stdlib.v1',
       }
     : {};
   const payloads = {

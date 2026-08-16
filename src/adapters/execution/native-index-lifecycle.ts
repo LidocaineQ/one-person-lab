@@ -26,8 +26,6 @@ export type NativeIndexInvocation = {
   };
   helper_version?: string;
   binary_version?: string;
-  crate_name?: string;
-  crate_version?: string;
   result?: unknown;
   errors: NativeIndexError[];
 };

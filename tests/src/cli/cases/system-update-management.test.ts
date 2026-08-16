@@ -353,7 +353,7 @@ console.log(JSON.stringify({ sync: 'ok' }));
       ],
     });
     assert.equal(targets.get('medautoscience')?.status, 'completed');
-    assert.equal(targets.get('medautoscience')?.reason, 'capability_packages_refresh');
+    assert.equal(targets.get('medautoscience')?.reason, 'managed_module_git_refresh');
     assert.equal(targets.has('meddeepscientist'), false);
     assert.equal(targets.get('redcube')?.status, 'manual_required');
     assert.equal(targets.get('redcube')?.reason, 'developer_or_dirty_checkout_visible');

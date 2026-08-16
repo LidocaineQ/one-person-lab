@@ -11,7 +11,6 @@ import {
   removeFixtureTree,
   repoRoot,
   runCli,
-  runCliAsync,
   runCliFailure,
   test,
 } from '../helpers.ts';
@@ -24,6 +23,24 @@ import {
 
 function createPackageCarrierBinary(root: string) {
   return createFakeCodexPluginManagerFixture(path.join(root, 'fixture-bin')).codexPath;
+}
+
+function writeInstalledMasCarrierConfig(codexHome: string, root: string) {
+  fs.mkdirSync(codexHome, { recursive: true });
+  fs.writeFileSync(path.join(codexHome, 'config.toml'), [
+    '[marketplaces."mas-scholar-skills-local"]',
+    `source = ${JSON.stringify(path.join(root, 'provider', 'native-carrier-marketplace'))}`,
+    '',
+    '[marketplaces."med-autoscience-local"]',
+    `source = ${JSON.stringify(root)}`,
+    '',
+    '[plugins."mas-scholar-skills@mas-scholar-skills-local"]',
+    'enabled = true',
+    '',
+    '[plugins."med-autoscience@med-autoscience-local"]',
+    'enabled = true',
+    '',
+  ].join('\n'));
 }
 
 function writeStandardAgentCapabilityMap(root: string, skillIds: string[]) {
@@ -296,7 +313,7 @@ test('domain launch blocks a canonical package that is not installed', () => {
     ], { OPL_STATE_DIR: stateRoot });
     assert.equal(failure.payload.error.details.failure_code, 'agent_package_operational_readiness_blocked');
     assert.equal(failure.payload.error.details.launch_blocked_reason, 'package_not_installed');
-    assert.deepEqual(failure.payload.error.details.allowed_when_blocked, ['status', 'doctor', 'repair']);
+    assert.deepEqual(failure.payload.error.details.allowed_when_blocked, ['status', 'repair']);
   } finally {
     fs.rmSync(stateRoot, { recursive: true, force: true });
   }
@@ -382,6 +399,7 @@ if (args.join(' ') === 'plugin list --json') {
     installed: true,
     enabled: process.env.FIXTURE_PLUGIN_ENABLED !== 'false',
     source: { source: 'local', path: process.env.FIXTURE_PLUGIN_SOURCE },
+    marketplaceSource: { sourceType: 'remote', source: 'gaofeng21cn/redcube-ai' },
   }], available: [] }));
 } else {
   process.exitCode = 2;
@@ -427,7 +445,7 @@ if (args.join(' ') === 'plugin list --json') {
     );
     assert.equal(
       disabled.payload.error.details.launch_blocked_reason,
-      'configured_native_carrier_disabled',
+      'carrier_disabled',
     );
     const nativeInvocations = fs.readFileSync(invocationLog, 'utf8').trim().split('\n');
     assert.equal(nativeInvocations.length >= 1, true);
@@ -445,7 +463,7 @@ if (args.join(' ') === 'plugin list --json') {
   }
 });
 
-test('MAS launch projects Workspace Skills without private lifecycle materialization', async () => {
+test('MAS launch projects Workspace Skills without private lifecycle materialization', () => {
   const root = fs.mkdtempSync(`${os.tmpdir()}/opl-domain-launch-mas-scope-`);
   const stateRoot = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
@@ -469,16 +487,13 @@ test('MAS launch projects Workspace Skills without private lifecycle materializa
     OPL_CODEX_PLUGIN_BIN: createPackageCarrierBinary(root),
   };
   fs.mkdirSync(workspace, { recursive: true });
+  writeInstalledMasCarrierConfig(codexHome, root);
   try {
     runCli([
       'workspace', 'bind', '--project', 'medautoscience', '--path', workspace,
       '--entry-url', entryUrl,
       '--manifest-command', buildManifestCommand(loadFamilyManifestFixtures().medautoscience),
     ], env);
-    await runCliAsync([
-      'packages', 'install', 'mas',
-    ], env);
-
     const skillsRoot = path.join(workspace, '.codex', 'skills');
     const lifecycleLedger = path.join(stateRoot, 'agent-package-lifecycle-ledger.json');
     assert.equal(fs.existsSync(skillsRoot), false);
@@ -513,7 +528,7 @@ test('MAS launch projects Workspace Skills without private lifecycle materializa
   }
 });
 
-test('quest root activation projects MAS Workspace Skills without private lifecycle writes', async () => {
+test('quest root activation projects MAS Workspace Skills without private lifecycle writes', () => {
   const root = fs.mkdtempSync(`${os.tmpdir()}/opl-quest-package-activation-`);
   const stateRoot = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
@@ -534,6 +549,7 @@ test('quest root activation projects MAS Workspace Skills without private lifecy
     OPL_CODEX_PLUGIN_BIN: createPackageCarrierBinary(root),
   };
   fs.mkdirSync(quest, { recursive: true });
+  writeInstalledMasCarrierConfig(codexHome, root);
   try {
     const bound = runCli([
       'workspace', 'bind', '--project', 'medautoscience', '--path', quest,
@@ -547,9 +563,6 @@ test('quest root activation projects MAS Workspace Skills without private lifecy
     assert.equal(bound.binding.workspace_path, quest);
     assert.equal(boundProject.active_binding.binding_id, bound.binding.binding_id);
     assert.equal(boundProject.bindings[0].workspace_path_currentness.status, 'current');
-    await runCliAsync([
-      'packages', 'install', 'mas',
-    ], env);
     assert.equal(fs.existsSync(path.join(quest, '.codex', 'skills')), false);
     const current = runCli([
       'packages', 'status', '--package-id', 'mas',
@@ -563,7 +576,7 @@ test('quest root activation projects MAS Workspace Skills without private lifecy
   }
 });
 
-test('workspace bindings reuse the native MAS carrier without per-workspace Skill projection', async () => {
+test('workspace bindings reuse the native MAS carrier without per-workspace Skill projection', () => {
   const root = fs.mkdtempSync(`${os.tmpdir()}/opl-workspace-package-activation-`);
   const stateRoot = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
@@ -589,6 +602,7 @@ test('workspace bindings reuse the native MAS carrier without per-workspace Skil
   fs.mkdirSync(workspaceA, { recursive: true });
   fs.mkdirSync(workspaceB, { recursive: true });
   fs.mkdirSync(workspaceC, { recursive: true });
+  writeInstalledMasCarrierConfig(codexHome, root);
   try {
     for (const workspace of [workspaceA, workspaceB]) {
       runCli([
@@ -597,10 +611,6 @@ test('workspace bindings reuse the native MAS carrier without per-workspace Skil
         '--manifest-command', buildManifestCommand(loadFamilyManifestFixtures().medautoscience),
       ], env);
     }
-    await runCliAsync([
-      'packages', 'install', 'mas',
-    ], env);
-
     assert.equal(fs.existsSync(path.join(workspaceA, '.codex', 'skills')), false);
     assert.equal(fs.existsSync(path.join(workspaceB, '.codex', 'skills')), false);
     runCli([
@@ -614,7 +624,6 @@ test('workspace bindings reuse the native MAS carrier without per-workspace Skil
     assert.equal(fs.existsSync(path.join(workspaceA, '.codex', 'skills')), false);
     const current = runCli([
       'packages', 'status', '--package-id', 'mas',
-      '--scope', 'workspace', '--target-workspace', workspaceA,
     ], env).opl_agent_package_status;
     assert.equal(Object.hasOwn(current, 'materialization_readiness'), false);
     assert.equal(current.launch_allowed, true);

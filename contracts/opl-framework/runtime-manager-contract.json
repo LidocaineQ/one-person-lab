@@ -183,37 +183,23 @@
     "not_a_domain_temporal_server_owner"
   ],
   "native_helper_target": {
-    "status": "contracted_optional_rust_helpers",
-    "language": "rust",
+    "status": "framework_node_standard_library_helpers",
+    "language": "node",
     "protocol_ref": "contracts/opl-framework/native-helper-contract.json",
     "allowed_shape": "small_json_stdio_or_cli_helpers_managed_by_opl",
     "lifecycle": {
       "status_surface": "native_helper_target.lifecycle",
-      "build_command": "npm run native:build",
-      "prebuild_install_command": "npm run native:prebuild",
-      "prebuild_pack_command": "npm run native:prebuild-pack",
-      "prebuild_check_command": "npm run native:prebuild-check",
       "doctor_command": "npm run native:doctor",
       "repair_command": "npm run native:repair",
-      "test_command": "npm run native:test",
       "packaged_source_files": [
-        "Cargo.toml",
-        "Cargo.lock",
-        "native/opl-native-helper/Cargo.toml",
-        "native/opl-native-helper/src",
+        "scripts/native-helper.mjs",
         "scripts/native-helper-doctor.mjs",
-        "scripts/native-helper-prebuild.mjs",
-        "scripts/native-helper-repair.mjs"
+        "scripts/native-helper-family-smoke.mjs"
       ],
-      "prebuild_cache_strategy": {
-        "manifest": "native-helper-prebuilds/<target_triple>/<crate_version>/manifest.json",
-        "restore_order": [
-          "OPL_NATIVE_HELPER_PREBUILD_ROOT",
-          "package native-helper-prebuilds",
-          "GHCR one-person-lab-native-helper OCI archive",
-          "local Cargo build fallback"
-        ],
-        "cache_destination": "${OPL_STATE_DIR}/native-helper/bin/<target_triple>/<crate_version>"
+      "implementation": {
+        "runtime": "node",
+        "version": "node-stdlib.v1",
+        "entrypoint": "scripts/native-helper.mjs"
       }
     },
     "runtime_invocation": {
@@ -236,7 +222,7 @@
     ]
   },
   "state_index_target": {
-    "status": "rust_helper_backed_contract_first",
+    "status": "node_helper_backed_contract_first",
     "source_of_truth_rule": "indexes project runtime surfaces but never replace domain-owned durable truth",
     "persistence": {
       "status_surface": "state_index_target.persistence",

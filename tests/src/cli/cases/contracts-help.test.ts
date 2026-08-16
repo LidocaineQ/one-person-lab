@@ -415,7 +415,15 @@ test('domain selection uses installed owner descriptor routing signals for natur
       OPL_CODEX_PLUGIN_BIN: codexFixture.codexPath,
       PATH: `${codexFixture.fixtureRoot}${path.delimiter}${releaseSet.env.PATH}`,
     };
-    runCli(['packages', 'install', 'rca'], packageEnv);
+    fs.mkdirSync(packageEnv.CODEX_HOME, { recursive: true });
+    fs.writeFileSync(path.join(packageEnv.CODEX_HOME, 'config.toml'), [
+      '[marketplaces."redcube-ai-local"]',
+      `source = ${JSON.stringify(domainRepo)}`,
+      '',
+      '[plugins."redcube-ai@redcube-ai-local"]',
+      'enabled = true',
+      '',
+    ].join('\n'));
     const status = runCli(['packages', 'status', '--package-id', 'rca'], packageEnv)
       .opl_agent_package_status;
     assert.equal(status.configured_carrier.status, 'installed');

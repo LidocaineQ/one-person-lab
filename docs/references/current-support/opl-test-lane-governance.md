@@ -14,7 +14,7 @@ Currentness policy：查看当前 lane 集合时先读 `package.json` 的 `test:
 | Lane | 命令 | 角色 |
 | --- | --- | --- |
 | smoke | `npm test` / `npm run test:smoke` | 默认秒级核心入口，覆盖 lane registry、CLI 模块边界、runtime state path 与 OPL session runtime 基础合同。 |
-| fast | `npm run test:fast` | 显式标准本地入口；覆盖 repo hygiene、合同治理、native helper prebuild、轻量 runtime contract、stage pack 与 quality details。 |
+| fast | `npm run test:fast` | 显式标准本地入口；覆盖 repo hygiene、合同治理、Node native helper、轻量 runtime contract、stage pack 与 quality details。 |
 | read-model-gates | `npm run test:read-model-gates` | 串行重型 read-model / runtime gate；覆盖 framework readiness、App drilldown、evidence worklist、Temporal/provider、workspace-domain、domain-pack compiler 与 agent conformance。 |
 | meta | `npm run test:meta` | 治理、quality、contract 和 generated/default surface 元测试 lane；不等价于 `fast`。 |
 | regression | `npm run test:regression` | 宽回归入口；覆盖 CLI 默认 shell、domain catalog、entry contracts、product-entry、orchestration、skills、automation 与 full internal package。 |
@@ -26,7 +26,7 @@ Currentness policy：查看当前 lane 集合时先读 `package.json` 的 `test:
 
 | Verify lane | 命令 | 角色 |
 | --- | --- | --- |
-| native | `./scripts/verify.sh native` | native helper doctor、prebuild check、package dry-run、Rust test/build、state cache 与 family smoke。 |
+| native | `./scripts/verify.sh native` | Node native helper doctor、source/package readback 与 family smoke。 |
 | structure | `./scripts/verify.sh structure` | 本地结构质量 advisory 入口；line budget 和 Sentrux baseline/rules findings 都会输出诊断与 OPL quality details，但默认不阻断普通开发。 |
 | structure:strict | `./scripts/verify.sh structure:strict` | 兼容维护入口；模块 public-entry / forbidden dependency / module SCC 合同仍校验，line budget 与 generic Sentrux findings 保持 advisory。 |
 | family | `./scripts/verify.sh family` | Python shared harness bootstrap 验证；Python cache、pytest cache 和临时 venv 必须走 repo 外 temp env。 |

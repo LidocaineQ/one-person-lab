@@ -140,7 +140,7 @@ OPL 负责给 selected executor 提供 stage、上下文、工具、权限、质
 
 Hermes provider / Gateway / readiness / compat 面只保留为历史 provenance、诊断语料或负向 guard。Temporal-backed provider 已是 production online runtime 的必需 substrate，真实 production soak 仍单独验收。
 `OPL Runtime Manager` 可以在已配置 family runtime provider 之上适配 product-managed runtime operations，但不能写成 scheduler、session store、memory owner、domain truth owner 或 concrete executor owner。
-Rust native helper / index-only 工作可以支持 native assistance 与 indexed discovery，但不能成为 domain execution 或 truth 的 owner。
+Node standard-library native helper / index-only 工作可以支持 native assistance 与 indexed discovery，但不能成为 domain execution 或 truth 的 owner。
 
 ## 运行原则
 

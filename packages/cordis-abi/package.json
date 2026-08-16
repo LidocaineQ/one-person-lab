@@ -26,7 +26,10 @@
   },
   "files": ["dist", "contracts"],
   "scripts": {
+    "prepack": "node ../../scripts/materialize-package-contracts.mjs --package=cordis-abi",
+    "prebuild": "node ../../scripts/materialize-package-contracts.mjs --package=cordis-abi",
     "build": "tsc -p tsconfig.json",
+    "pretypecheck": "node ../../scripts/materialize-package-contracts.mjs --package=cordis-abi",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

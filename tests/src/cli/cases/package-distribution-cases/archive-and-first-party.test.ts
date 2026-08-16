@@ -805,10 +805,7 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(promotionReceipt.anonymous_readback.verified_refs.length, packageCount + 2);
   assert.match(checksums, /one-person-lab-framework-0\.3\.5\.tar\.gz/);
   assert.match(checksums, new RegExp(manifest.packages.framework_core.source_archive.sha256));
-  assert.equal(manifest.packages.native_helper.channel_status, 'active_ghcr_oci_prebuild');
-  assert.equal(manifest.packages.native_helper.retention_policy.retain_versions, 4);
-  assert.ok(manifest.packages.native_helper.retention_policy.protected_tags.includes('latest'));
-  assert.equal(manifest.packages.native_helper.required_gates.includes('ghcr_oci_archive_pushed'), true);
+  assert.equal(Object.hasOwn(manifest.packages, 'native_helper'), false);
   assert.equal(
     manifest.packages.package_artifacts.mas.release_discipline.rollback.version,
     '26.4.30',

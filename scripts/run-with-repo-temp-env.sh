@@ -35,7 +35,6 @@ mkdir -p \
   "${repo_temp_root}/pip/cache" \
   "${repo_temp_root}/npm/cache" \
   "${repo_temp_root}/node/compile-cache" \
-  "${repo_temp_root}/cargo-target" \
   "${repo_temp_root}/xdg-cache" \
   "${repo_temp_root}/xdg-config" \
   "${repo_temp_root}/xdg-data" \
@@ -60,16 +59,12 @@ export PIP_CACHE_DIR="${repo_temp_root}/pip/cache"
 export NPM_CONFIG_CACHE="${repo_temp_root}/npm/cache"
 export npm_config_cache="${NPM_CONFIG_CACHE}"
 export NODE_COMPILE_CACHE="${repo_temp_root}/node/compile-cache"
-export CARGO_TARGET_DIR="${repo_temp_root}/cargo-target"
 export XDG_CACHE_HOME="${repo_temp_root}/xdg-cache"
 export XDG_CONFIG_HOME="${repo_temp_root}/xdg-config"
 export XDG_DATA_HOME="${repo_temp_root}/xdg-data"
 export XDG_STATE_HOME="${repo_temp_root}/xdg-state"
 
-# Native verification still reads the installed Rust toolchain after HOME is isolated.
 if [ -n "${source_home}" ]; then
-  export CARGO_HOME="${CARGO_HOME:-${source_home}/.cargo}"
-  export RUSTUP_HOME="${RUSTUP_HOME:-${source_home}/.rustup}"
   # Preserve the uv-managed interpreter after HOME is isolated.
   if [ -x "${source_home}/.local/bin/python3" ]; then
     export PATH="${source_home}/.local/bin:${PATH}"

@@ -71,7 +71,6 @@ test('node test lanes propagate Python cache isolation to spawned tests', () => 
   assert.match(testLanes, /NODE_COMPILE_CACHE/);
   assert.match(testLanes, /NPM_CONFIG_CACHE/);
   assert.match(testLanes, /UV_PROJECT_ENVIRONMENT/);
-  assert.match(testLanes, /CARGO_TARGET_DIR/);
   assert.match(testLanes, /opl-node-test-python-cache-/);
   assert.match(testLanes, /PYTHONDONTWRITEBYTECODE/);
   assert.match(testLanes, /PYTHONPYCACHEPREFIX/);
@@ -95,19 +94,17 @@ test('carrier-only installs every dependency required by the prepare build', () 
   assert.equal(packageLock.packages?.['node_modules/@types/semver']?.dev, undefined);
 });
 
-test('native helper prebuild script handles platform executable names', () => {
-  const prebuildScript = read('scripts/native-helper-prebuild.mjs');
-  const cacheScript = read('scripts/native-helper-cache.mjs');
+test('native helper uses the Framework Node standard-library entrypoint', () => {
+  const helperScript = read('scripts/native-helper.mjs');
   const smokeScript = read('scripts/native-helper-family-smoke.mjs');
   const runtime = read('src/adapters/execution/native-helper-runtime.ts');
 
-  assert.match(prebuildScript, /targetTriple\.startsWith\('win32-'\)/);
-  assert.match(prebuildScript, /--force-local/);
-  assert.match(prebuildScript, /process\.env\.CARGO_TARGET_DIR/);
-  assert.match(cacheScript, /process\.platform === 'win32'/);
-  assert.match(cacheScript, /process\.env\.CARGO_TARGET_DIR/);
-  assert.match(smokeScript, /process\.env\.CARGO_TARGET_DIR/);
+  assert.match(helperScript, /node-stdlib\.v1/);
+  assert.match(helperScript, /fs\.readFileSync\(0, 'utf8'\)[\s\S]*JSON\.parse\(input\)/);
+  assert.match(smokeScript, /source: 'framework_node'/);
   assert.match(runtime, /nativeHelperExecutableName/);
+  assert.match(runtime, /scripts\/native-helper\.mjs/);
+  assert.doesNotMatch(runtime, /crate_version|nativeHelperCacheDir|target\/debug/);
 });
 
 test('package.json exports the unified domain-agent descriptor read model', () => {
@@ -133,19 +130,20 @@ test('package.json does not export the retired transition harness control plane'
   assert.equal(packageJson.exports?.['./family-transition-runner'], undefined);
 });
 
-test('package.json exposes native helper gate scripts and package dry-run check', () => {
+test('package.json exposes the native helper doctor and family smoke gates', () => {
   assert.equal(packageJson.scripts?.['native:doctor'], 'node ./scripts/native-helper-doctor.mjs');
-  assert.equal(packageJson.scripts?.['native:prebuild'], 'node ./scripts/native-helper-prebuild.mjs install');
-  assert.equal(packageJson.scripts?.['native:prebuild-pack'], 'node ./scripts/native-helper-prebuild.mjs pack');
-  assert.equal(packageJson.scripts?.['native:prebuild-archive'], 'node ./scripts/native-helper-prebuild.mjs archive');
-  assert.equal(packageJson.scripts?.['native:prebuild-check'], 'node ./scripts/native-helper-prebuild.mjs check');
-  assert.equal(packageJson.scripts?.['native:pack-check'], 'node ./scripts/native-helper-pack-check.mjs');
-  assert.equal(
-    packageJson.scripts?.['native:test'],
-    'RUSTC="$(rustup which --toolchain stable rustc)" RUSTDOC="$(rustup which --toolchain stable rustdoc)" "$(rustup which --toolchain stable cargo)" test --workspace',
-  );
-  assert.equal(fs.existsSync(path.join(repoRoot, 'scripts/native-helper-prebuild.mjs')), true);
-  assert.equal(fs.existsSync(path.join(repoRoot, 'scripts/native-helper-pack-check.mjs')), true);
+  assert.equal(packageJson.scripts?.['native:repair'], 'node ./scripts/native-helper-doctor.mjs');
+  assert.equal(packageJson.scripts?.['native:family-smoke'], 'node ./scripts/native-helper-family-smoke.mjs');
+  assert.equal(fs.existsSync(path.join(repoRoot, 'scripts/native-helper.mjs')), true);
+  assert.equal(fs.existsSync(path.join(repoRoot, 'scripts/native-helper-family-smoke.mjs')), true);
+  for (const retiredScript of [
+    'native-helper-cache.mjs',
+    'native-helper-pack-check.mjs',
+    'native-helper-prebuild.mjs',
+    'native-helper-repair.mjs',
+  ]) {
+    assert.equal(fs.existsSync(path.join(repoRoot, 'scripts', retiredScript)), false, retiredScript);
+  }
 });
 
 test('package.json exposes package channel maintenance scripts', () => {

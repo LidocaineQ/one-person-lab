@@ -24,7 +24,7 @@ Agent 的身份、stage、prompt、skill、knowledge、tool affordance、quality
 5. 只使用 `authority_function`、`domain_helper`、`native_helper` 三种 helper role；role 描述 owner 关系，不描述具体业务名称。
 6. 保持 `language_is_identity=false`。新 baseline 可以是 pack-only；尚未实现的 helper 需求进入 blueprint capability requirement、显式假设或质量债，不能伪装成已落地实现。
 7. 不以 helper profile 合法化私有 scheduler、runner、session store、generic CLI/MCP、workbench、status sidecar 或 product wrapper。这些通用 surface 应由 OPL 生成或托管。
-8. 不在 domain profile 中声明 Rust。Rust 只用于 OPL Framework 明确的系统 hot path / native boundary，不持有 domain truth、quality verdict、typed blocker、owner receipt 或 Agent identity。
+8. 不在 domain profile 中声明 Rust。Framework 当前 native boundary 由 Node standard-library helper 承载；任何未来系统 helper 仍不得持有 domain truth、quality verdict、typed blocker、owner receipt 或 Agent identity。
 
 ## 当前五个参考实现
 

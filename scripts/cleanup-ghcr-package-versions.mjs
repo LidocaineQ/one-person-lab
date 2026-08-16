@@ -85,11 +85,7 @@ function semverTag(tags) {
   return tags.find((tag) => /^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$/.test(tag));
 }
 
-function nativeHelperTag(tags) {
-  return tags.find((tag) => /^[a-z0-9_.-]+-[a-z0-9_.-]+-[0-9]+\.[0-9]+\.[0-9]+/.test(tag));
-}
-
-function protectedIdsForPackage(versions, packageKind, retainVersions, extraProtectedTags, protectedTags) {
+function protectedIdsForPackage(versions, retainVersions, extraProtectedTags, protectedTags) {
   const protectedIds = new Set();
   const explicitlyProtectedTags = new Set([...extraProtectedTags, ...protectedTags]);
 
@@ -101,10 +97,7 @@ function protectedIdsForPackage(versions, packageKind, retainVersions, extraProt
     }
   }
 
-  const taggedVersions = versions.filter((version) => {
-    const tags = versionTags(version);
-    return packageKind === 'native_helper' ? nativeHelperTag(tags) : semverTag(tags);
-  });
+  const taggedVersions = versions.filter((version) => semverTag(versionTags(version)));
   for (const version of sortRecentFirst(taggedVersions).slice(0, retainVersions)) {
     if (Number.isFinite(version.id)) protectedIds.add(version.id);
   }
@@ -129,16 +122,7 @@ function writeSummary(summaryPath, payload) {
 
 function packageTargets(manifest) {
   const cleanupPolicy = manifest.release_automation.cleanup;
-  const nativePolicy = manifest.packages.native_helper.retention_policy;
   return [
-    {
-      package_name: 'one-person-lab-native-helper',
-      package_kind: 'native_helper',
-      lifecycle_status: manifest.packages.native_helper.channel_status,
-      retain_versions: nativePolicy.retain_versions,
-      execution_mode: nativePolicy.execution_mode,
-      protected_tags: nativePolicy.protected_tags ?? [],
-    },
     ...Object.values(manifest.packages.package_artifacts).map((entry) => ({
       package_name: `one-person-lab-packages/${entry.package_id}`,
       package_kind: 'active_package',
@@ -213,7 +197,6 @@ function cleanup(options) {
 
     const protectedIds = protectedIdsForPackage(
       versions,
-      target.package_kind,
       target.retain_versions,
       options.extraProtectedTags,
       target.protected_tags,

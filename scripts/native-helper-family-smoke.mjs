@@ -201,7 +201,7 @@ function indexDomain(domain, workspacePath) {
     };
   }
 
-  const artifact = invokeHelper(artifactIndexer.path, 'opl-artifact-indexer', {
+  const artifact = invokeHelper(artifactIndexer, 'opl-artifact-indexer', {
     request_id: `family-smoke-${domain.domain_id}-artifact`,
     workspace_root: workspacePath,
     artifact_roots: [
@@ -213,7 +213,7 @@ function indexDomain(domain, workspacePath) {
     artifact_extensions: ['json', 'md', 'docx', 'pptx', 'xlsx', 'pdf'],
     max_depth: 6,
   });
-  const state = invokeHelper(stateIndexer.path, 'opl-state-indexer', {
+  const state = invokeHelper(stateIndexer, 'opl-state-indexer', {
     request_id: `family-smoke-${domain.domain_id}-state`,
     workspace_root: workspacePath,
     max_depth: 4,
@@ -421,8 +421,8 @@ function jsonPointer(pathParts) {
   return `/${pathParts.join('/')}`;
 }
 
-function invokeHelper(helperPath, helperId, input) {
-  const result = spawnSync(helperPath, [], {
+function invokeHelper(helper, helperId, input) {
+  const result = spawnSync(helper.path, helper.args ?? [], {
     input: JSON.stringify(input),
     encoding: 'utf8',
     maxBuffer: 16 * 1024 * 1024,
@@ -461,7 +461,7 @@ function invokeHelper(helperPath, helperId, input) {
   return {
     ok: true,
     result: payload.result,
-    helper_version: payload.helper_version ?? payload.crate_version ?? null,
+    helper_version: payload.helper_version ?? null,
     errors: [],
   };
 }
@@ -502,42 +502,18 @@ function resolveHelper(binary) {
       return { source: 'explicit_bin_dir', path: candidate };
     }
   }
-  const cacheCandidate = path.join(nativeHelperCacheDir(), binary);
-  if (fs.existsSync(cacheCandidate)) {
-    return { source: 'state_cache', path: cacheCandidate };
-  }
-  const targetDebug = path.join(process.env.CARGO_TARGET_DIR ?? path.join(repoRoot, 'target'), 'debug', binary);
-  if (fs.existsSync(targetDebug)) {
-    return { source: 'workspace_target_debug', path: targetDebug };
-  }
-  for (const entry of (process.env.PATH ?? '').split(path.delimiter).filter(Boolean)) {
-    const candidate = path.join(entry, binary);
-    if (fs.existsSync(candidate)) {
-      return { source: 'path', path: candidate };
-    }
-  }
-  return { source: 'not_found', path: null };
-}
-
-function nativeHelperCacheDir() {
-  const stateDir = process.env.OPL_STATE_DIR
-    ?? path.join(process.env.HOME ?? repoRoot, 'Library/Application Support/OPL/state');
-  return path.join(stateDir, 'native-helper', 'bin', `${process.platform}-${process.arch}`, nativeHelperCrateVersion());
-}
-
-function nativeHelperCrateVersion() {
-  try {
-    const cargoToml = fs.readFileSync(path.join(repoRoot, 'native/opl-native-helper/Cargo.toml'), 'utf8');
-    return cargoToml.match(/^version\s*=\s*"([^"]+)"/m)?.[1] ?? '0.0.0';
-  } catch {
-    return '0.0.0';
-  }
+  return {
+    source: 'framework_node',
+    path: process.execPath,
+    args: [path.join(repoRoot, 'scripts/native-helper.mjs'), binary],
+  };
 }
 
 function sanitizeResolution(resolution) {
   return {
     source: resolution.source,
     path: resolution.path,
+    ...(resolution.args ? { args: resolution.args } : {}),
   };
 }
 
@@ -572,7 +548,7 @@ function writeFixtureNativeHelperProjection(domain, repoPath) {
       manager_surface_id: 'opl_runtime_manager',
       consumer_domain: 'medautoscience',
       helper_owner: 'one-person-lab',
-      helper_language: 'rust',
+      helper_language: 'node',
       allowed_operations: ['index_only'],
       indexable_runtime_surface_refs: [
         '/skill_catalog/skills/0/domain_projection/runtime_continuity',

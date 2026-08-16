@@ -62,6 +62,16 @@ plugin/config/cache 投影，不是 Package identity、installed truth 或生态
 LKG、固定七包 cohort 和 Framework lifecycle owner 建议已被 2026-07-24 决策
 supersede，不得作为新增实现依据。
 
+## 当前 Package lifecycle（2026-08-17）
+
+当前实现已完成 Package Manager successor cutover：`opl packages` 只消费已安装
+descriptor、owner channel 和配置 carrier 的 fresh readback；install/update/remove/repair
+由实际 carrier 执行，Framework 只聚合 presence、callability、managed policy projection
+和 operator action。历史 registry/resolver、installed lock、payload、materializer、LKG、
+Package receipt 与跨 Package transaction 只保留 provenance 或兼容审计，不得成为新的
+writer、currentness 或 readiness authority。Base 自有 runtime rollback、Release Set
+digest/receipt 和 domain artifact/evidence receipt 仍由各自 owner 保留。
+
 ## 2026-07-23 旧方案（已 superseded）
 
 OPL 生态采用可自由组合的标准库模型：
@@ -91,7 +101,7 @@ Full/Release Set ≈ renv.lock，可复现的组合快照
 - 通用复杂性只实现一次：Framework 是 lifecycle owner；App/Shell 只展示目录、
   状态和动作，不复制 package authority。
 
-## 保留的生命周期内核
+## 2026-07-23 旧方案生命周期内核（已 superseded）
 
 以下能力是 Package 管理的必要安全内核，应继续保留：
 
@@ -252,7 +262,7 @@ ready、production ready 或用户文档：
 | --- | --- |
 | `contracts/` 与 Framework package manifests | owner、canonical id、SemVer、ABI、依赖、source policy |
 | `opl connect packages manifest` / `src/adapters/integration/package-distribution.ts` | 当前 registry/index、channel、carrier 和 consumption projection |
-| `opl packages ... --json` | installed lock、status、dependency closure、receipt、current/LKG |
+| `opl packages ... --json` | installed descriptor、native carrier status、dependency presence/callability、managed policy 与 repair readback |
 | Package build/release scripts and workflows | candidate/stable admission、digest、checksum、rollback 和 retention |
 | App release contracts/workflows/evidence | Desktop、Docker/WebUI、Full carrier、updater、签名和发布终态 |
 

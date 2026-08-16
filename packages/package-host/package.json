@@ -16,7 +16,10 @@
   },
   "files": ["dist", "contracts"],
   "scripts": {
+    "prepack": "node ../../scripts/materialize-package-contracts.mjs --package=package-host",
+    "prebuild": "node ../../scripts/materialize-package-contracts.mjs --package=package-host",
     "build": "tsc -p tsconfig.json",
+    "pretypecheck": "node ../../scripts/materialize-package-contracts.mjs --package=package-host",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

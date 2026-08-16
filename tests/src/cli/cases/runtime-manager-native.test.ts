@@ -8,9 +8,7 @@ function createNativeHelperRepairScript(root: string, helperBinDir: string) {
     'opl-doctor-native': {
       protocol_version: 'opl_native_helper.v1',
       helper_id: 'opl-doctor-native',
-      helper_version: '0.1.0',
-      crate_name: 'opl-native-helper',
-      crate_version: '0.1.0',
+      helper_version: 'node-stdlib.v1',
       ok: true,
       request_id: 'runtime-manager-doctor',
       result: { surface_kind: 'native_doctor_snapshot' },
@@ -19,9 +17,7 @@ function createNativeHelperRepairScript(root: string, helperBinDir: string) {
     'opl-runtime-watch': {
       protocol_version: 'opl_native_helper.v1',
       helper_id: 'opl-runtime-watch',
-      helper_version: '0.1.0',
-      crate_name: 'opl-native-helper',
-      crate_version: '0.1.0',
+      helper_version: 'node-stdlib.v1',
       ok: true,
       request_id: 'runtime-manager-runtime-watch',
       result: { surface_kind: 'runtime_health_snapshot_index', roots: [] },
@@ -30,9 +26,7 @@ function createNativeHelperRepairScript(root: string, helperBinDir: string) {
     'opl-artifact-indexer': {
       protocol_version: 'opl_native_helper.v1',
       helper_id: 'opl-artifact-indexer',
-      helper_version: '0.1.0',
-      crate_name: 'opl-native-helper',
-      crate_version: '0.1.0',
+      helper_version: 'node-stdlib.v1',
       ok: true,
       request_id: 'runtime-manager-artifact-index',
       result: { surface_kind: 'native_artifact_manifest', summary: { total_files_count: 1 }, files: [] },
@@ -41,9 +35,7 @@ function createNativeHelperRepairScript(root: string, helperBinDir: string) {
     'opl-state-indexer': {
       protocol_version: 'opl_native_helper.v1',
       helper_id: 'opl-state-indexer',
-      helper_version: '0.1.0',
-      crate_name: 'opl-native-helper',
-      crate_version: '0.1.0',
+      helper_version: 'node-stdlib.v1',
       ok: true,
       request_id: 'runtime-manager-state-index',
       result: {
@@ -260,7 +252,7 @@ test('runtime manager rebuilds an incomplete or version-incompatible fresh cache
   const indexFile = first.runtime_manager.state_index_target.persistence.index_file;
   const persisted = parseJsonText(fs.readFileSync(indexFile, 'utf8')) as any;
   delete persisted.native_indexes.artifact_manifest;
-  persisted.native_indexes.state_index.crate_version = '0.0.0';
+  persisted.native_indexes.state_index.helper_version = '0.0.0';
   writeJsonFile(indexFile, persisted);
 
   const rebuilt = runCli(['runtime', 'manager'], env);

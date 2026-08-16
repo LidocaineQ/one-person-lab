@@ -197,6 +197,16 @@ durable Package intent 定义为长期目标的旧决策。历史原文保留用
 目标边界已进入实施；具体路线以 2026-08-06 successor-first决策为准。在 terminal proof 前
 仍不能写成当前机器行为或已完成清理。
 
+### 2026-08-17 退役收口
+
+2026-08-06 successor-first cutover 已在 Framework `main` 完成：Legacy Package Manager
+的中央 registry/resolver、installed lock、payload、materializer、LKG、Package receipt、
+scope activation 与 durable transaction 已从当前实现移除；`opl packages` 的生产 caller
+统一走 installed descriptor、owner channel 和 native carrier readback。保留的 Base runtime
+rollback、Release Set digest/receipt 与 domain-owned evidence 不属于 Package lifecycle，
+不得因历史文档中的同名字段重新引入旧 authority。当前 remaining 的兼容文字只允许作为
+provenance/history，并由 affected CLI/readback 与 structural caller gate 约束。
+
 ## 2026-07-23
 
 ### 决策：专业能力包默认可随包提供，但不因此成为 Agent 运行硬依赖
@@ -355,11 +365,11 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 - `managed_update.components[].component_id` 只允许 `opl_base`、`opl_app`、`opl_packages`。`runtime_substrate`、`installation_carrier`、`capability_packages` 只作为内部 `provider_id`；不能作为 selector 或 lifecycle owner。
 - OPL Base 独占 Framework、Temporal-backed provider runtime、共享 toolchain 和系统级 dependency/integration lifecycle。Base catalog 至少投影 Codex、Temporal、OfficeCLI 和 MinerU 的版本、ownership、digest/receipt 与 activation policy：OPL-managed clean 对象静默 reconcile，Full bundle 只作 seed，环境变量、Homebrew、global npm、PATH 与用户目录对象只检测。Codex 与 Framework/Temporal 写 pending generation并记录 staging process instance；相同 version/artifact 已 pending 时不重复下载或覆盖 marker；同一 App process instance 的 daily maintenance 不激活，App 重启后的新 instance 才切换。标准 Agent 只声明并消费 Base 提供的 runtime contract；Agent package、App 或 domain repo 都不得安装、更新、回滚或反向管理 Base/Temporal。
 - Framework companion Skill catalog only exposes user-level capabilities with `scope=global_user` and an explicit owner marker; current global entries include OfficeCLI skills and the Codex `skill-creator` helper under `$CODEX_HOME/skills`. Framework writes or reconciles only `$CODEX_HOME/skills`; `.agents/skills` remains a domain-owner projection, and `cron` remains an App Scheduled Tasks surface rather than a Skill.
-- companion tools 归入 Base 的 `dependency_status` / `integration_status`。Codex skill/plugin sync 归入 Packages 的 `projection_status`，OPL Flow profile semantic merge 归入 `profile_migration_status`；空白 profile 可由 package transaction 安装，已有用户 profile 必须生成 review packet。Framework 不提供第二个 profile apply 命令，reviewed bytes 只能由 owner-controlled profile workflow 写回。禁止静默覆盖用户 profile，卸载 Package 也不得删除用户 profile。
-- package transaction 继续要求 immutable digest/content identity、dirty/developer checkout 保护、同 transaction 的 Codex skill/plugin sync、manifest-declared managed runtime source carrier 和单一 lifecycle receipt；Framework 复用现有 Agent Package lock/materializer 与 managed module package-channel，不创建第二套 package manager。runtime source 只有在 bootstrap、health 与 handler probe 全部成功后才可 current；后续失败必须恢复 previous generation 或删除本轮 fresh root，preexisting adopted root 不得误删。
-- OPL Flow 也是普通 `OPL Package`。其 owner `workflow-policy.json` 与 schema 由 manifest 的 `managed_policy_surface` 引入，Framework 先校验 package identity/version/schema，再通过通用 plugin/skill/service/config/prompt inventory 执行 typed conflict retirement；backup、inventory digest、policy digest、profile/model projection、lock、receipt 与 LKG 必须属于同一 Package transaction。禁止恢复 workflow 专属 checkout、lock、receipt、rollback 或 readback。
-- MAS 的 `mas-scholar-skills` 是 required capability dependency，不是用户单独选择的扩展。`opl packages install mas` 必须解析并安装整个 digest-locked closure；update、repair、rollback 同进同退，provider 被 MAS 引用时不能单独 disable/uninstall。
-- MAS workspace/quest 的每个 hosted action 与新 child Attempt 在首次启动边界由 Packages transaction 静默解析最新可运行的 MAS + `mas-scholar-skills` generation。完整 35 个 exported Skills 进入该 Attempt 自有的只读 `.agents/skills` generation，`<target>/.codex/skills/` 只保留为 Codex discovery/兼容投影；11 个 core Skill exports 加 10 个 module contract ids 是 readiness floor，module ids 只校验、不物化为 Skill 目录。新 generation admission 失败自动回退 LKG，不要求人工 activate、repair 或 reload；同一 Attempt 的重试复用已绑定 generation，新 Attempt 再追最新。
+- companion tools 归入 Base 的 `dependency_status` / `integration_status`。Codex skill/plugin sync 归入 Packages 的 `projection_status`，OPL Flow profile semantic merge 归入 `profile_migration_status`；空白 profile 只能由 owner-controlled profile workflow 写回，已有用户 profile 必须生成 review packet。Framework 不提供第二个 profile apply 命令，禁止静默覆盖用户 profile，卸载 Package 也不得删除用户 profile。
+- Package install/update/repair/remove 只要求 owner descriptor、immutable release bytes、dirty/developer checkout 保护和 native carrier fresh readback；hosted runtime 自己的 generation admission、staging/current/rollback 仍由对应 runtime owner 管理。Framework 不复用 Agent Package lock/materializer、跨 Package transaction 或 Package lifecycle receipt 作为普通 Package authority。
+- OPL Flow 也是普通 `OPL Package`。其 owner `workflow-policy.json` 与 schema 由 manifest 的 `managed_policy_surface` 引入，Framework 先校验 package identity/version/schema，再通过通用 plugin/skill/service/config/prompt inventory 执行 typed conflict retirement；inventory/policy digest 与 profile/model projection 只属于 owner-policy projection，Skill/tool 写入必须经明确的 native carrier adapter。不得把这些 projection 重新包装成 workflow 专属 Package transaction、lock、receipt、rollback 或第二份 currentness authority。
+- MAS 的 `mas-scholar-skills` 是 required capability dependency，不是用户单独选择的扩展。`opl packages install mas` 通过 installed descriptors 和 owner/native carrier readback 确认 required presence 与入口可调用；Package update/repair 不建立跨 Package transaction，provider 被 MAS 引用时仍不能单独 disable/uninstall。
+- MAS workspace/quest 的每个 hosted action 与新 child Attempt 在首次启动边界绑定自己的 runtime input；`.agents/skills` 与 `<target>/.codex/skills/` 只是 carrier/readback projection。缺 required capability 时只阻断 MAS root，不连坐 Base、App 或无关 Package；后续 carrier 更新不撤销既有 attempt、artifact 或 evidence。
 - App/Shell 只消费 `package_dependency_readiness`、`materialization_readiness`、`operational_ready` 和 `launch_allowed`。未安装 package 也是明确的 launch blocker；不能用 `installed_package_count=0`、shortcut、deep link 或 stale selection 绕过。
 - first-party package canonical ids 固定为 `mas`、`mag`、`rca`、`oma`、`obf`、`mas-scholar-skills`、`opl-flow`。每个对象只有一个 OCI repository：`ghcr.io/<owner>/one-person-lab-packages/<canonical-id>`；旧 `one-person-lab-modules/*` 和 repo-slug OCI 只可作为迁移或历史 locator。`one-person-lab-manifest` 仅是 Release Set catalog carrier，不是第八个 Package identity。moving channel 只允许 `candidate` 与 `latest-stable`，不可变 tag/version 必须绑定唯一 digest；不得恢复普通 `latest`。
 - daily package workflow 只处理 source/content fingerprint 发生变化的 package。package 发生内容变化却未推进 owner manifest SemVer、同一 canonical id/version 漂到不同 digest、channel version 与 manifest version 不一致，或无变化 package 被重发，均应 fail closed；candidate 通过 package gates 后才可逐包提升到 latest-stable。
@@ -836,19 +846,19 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 - 该能力不授权容器内 Docker socket、Watchtower、compose 操作或 host executor。Docker/WebUI image refresh 仍由 App/installer 的 host-side Installation Carrier route 处理，并必须证明 data/projects volume preservation。
 - 该能力只证明 OPL Framework runtime update/rollback 机制；不单独声明 GHCR channel latest/current、Docker image release-ready、App release-ready、domain module ready 或 family production-ready。release/currentness 必须另有 channel artifact readback、checksum、same-cohort image/manifest 和 owner gate。
 
-### 决策：OPL family 语言选型按 owner boundary 克制分工，不把 Rust 扩成核心语言
+### 决策：OPL family 语言选型按 owner boundary 克制分工，Framework helper 复用 Node 标准库
 
-原因：OPL family 已经形成清楚的 owner 分层：Framework / App / generated surface / runtime control plane 需要稳定的 CLI、JSON readback、contract 消费和 Codex / Electron / Node 生态；MAS/MAG/RCA/BookForge 等 domain agent 需要科学计算、文档、PDF/Office、统计、ML 和 domain-native helper 生态；native helper / state index / sysprobe 则需要少量跨平台系统能力。成熟的 polyglot 口径不是增加语言数量，而是在问题边界确实不同且收益能抵消认知成本时才引入第二语言。因此 family 默认保持 TypeScript / Node 优先，Python 用于科学 / 文档 / native helper execution，Rust 只用于系统边界和 hot path native helper。
+原因：OPL family 已经形成清楚的 owner 分层：Framework / App / generated surface / runtime control plane 需要稳定的 CLI、JSON readback、contract 消费和 Codex / Electron / Node 生态；MAS/MAG/RCA/BookForge 等 domain agent 需要科学计算、文档、PDF/Office、统计、ML 和 domain-native helper 生态。native helper / state index / sysprobe 的现有实现只需要 Node 标准库即可覆盖，继续维护 Rust toolchain、跨平台 prebuild 与 OCI cache 会复制平台能力并增加发布面。因此 family 默认保持 TypeScript / Node 优先，Python 用于科学 / 文档 / domain-native helper；不为现有 helper 引入第二套系统语言。
 
 影响：
 
 - `TypeScript / Node` 是 OPL Framework 控制面、App / shell UI、CLI、JSON readback、contracts 消费、安装 / 更新编排、Codex surface、manifest / receipt / owner-route 编排和 domain orchestration 的默认语言。
 - `Python` 继续服务 MAS / MAG 这类科学与文档主仓，以及 RCA / BookForge 的 Office/PPT/PDF、截图 / 导出、统计 / ML、数据分析和 domain-native helper。Python helper 必须挂在 domain route、proof lane、contract、owner receipt / typed blocker 或 refs-only output 边界下，不能绕过 domain truth 或替代 AI-first quality verdict。
-- `Rust` 只作为 OPL-owned native helper / state-index / sysprobe / watcher / file scan / cross-platform native boundary 的实现语言；它可以加速系统探测、artifact discovery、session / progress / artifact projection，但不得持有 OPL core orchestration、domain truth、owner receipt、typed blocker、quality verdict 或 runtime authority。
-- 标准 Agent 的 language / implementation contract 进一步收敛为 `contracts/opl-framework/standard-agent-implementation-profile.schema.json`：`implementation_profile` 只声明 declarative Markdown/JSON identity、可替换 helper（`authority_function`、`domain_helper`、`native_helper`）和 OPL generated-surface owner；helper language 不是 Agent kind，domain profile 显式拒绝 Rust，Rust 只可落在 OPL Framework hot path。该 profile 不复制 generic runtime / CLI / workbench ownership，也不把 OBF reference implementation 升格为标准 owner。
+- Framework 的 native helper / state-index / sysprobe 统一由 `scripts/native-helper.mjs` 使用 Node 标准库实现；它只提供 JSON stdio/CLI index、validation 和 readback，不持有 OPL core orchestration、domain truth、owner receipt、typed blocker、quality verdict 或 runtime authority。
+- 标准 Agent 的 language / implementation contract 进一步收敛为 `contracts/opl-framework/standard-agent-implementation-profile.schema.json`：`implementation_profile` 只声明 declarative Markdown/JSON identity、可替换 helper（`authority_function`、`domain_helper`、`native_helper`）和 OPL generated-surface owner；helper language 不是 Agent kind。该 profile 不复制 generic runtime / CLI / workbench ownership，也不把 OBF reference implementation 升格为 standard owner。
 - App GUI 当前继续以 Electron / Node / TypeScript 为主；除非 native reliability / security / performance 边界有明确收益，不因为 Tauri/Rust 模式本身而迁移 GUI shell。
 - 跨语言 shared surface 必须尽量从 machine-readable contract / schema / generated projection 派生；TS helper 与 Python mirror 可以存在，但不得继续复制 domain semantics 或形成两套 source of truth。
-- 该决策不要求任何仓库迁移语言，不声明 release/currentness/readiness，也不新增 contract surface；后续新增语言或扩大 Rust/Python/TS 边界时，必须说明 owner、machine boundary、active caller、验证口径和不能用现有语言解决的理由。
+- 该决策不声明 release/currentness/readiness，也不新增 contract surface；后续新增语言时，必须说明 owner、machine boundary、active caller、验证口径和不能用现有语言解决的理由。
 
 ## 2026-06-28
 
@@ -1845,7 +1855,7 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 - 当前 `opl install`、App 首启协调和环境管理仍以 git checkout 更新到远端最新为正式路径；Packages/GHCR 接入模块安装更新前不得写成当前机制
 - 中央 release manifest / Packages workflow 可以继续维护为机器分发雏形，但各 domain repo 不需要单独恢复用户安装型 GitHub Release
 - WebUI Docker 镜像的发布与用户路径 evidence 归 `one-person-lab-app`；OPL Framework 只保留 App-owned GHCR 坐标 / external reference，不在 framework packages workflow 中构建或发布 WebUI image
-- Native helper 预构建 archive 同步发布到 GHCR，后续 `native:repair` 可优先消费
+- Native helper 由 Framework Node source distribution 随包提供；`native:repair` 只做 helper doctor/readback，不再维护独立 GHCR 预构建 archive
 - 标准桌面 App 与自动更新包仍不打入 `OPL Meta Agent/MAS/MAG/RCA` runtime payload；macOS arm64 可额外发布 Full 首次安装资产，随包带 Agent Foundry 用的 `OPL Meta Agent`、`MAS/MAG/RCA`、`officecli` CLI binary 与推荐 companion skill payload，但不得写入 `latest*.yml` 或改变 App 自动更新通道
 
 ### 决策：One Person Lab App 只做 CLI-backed GUI，不复制安装与环境管理逻辑

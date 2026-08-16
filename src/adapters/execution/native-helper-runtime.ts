@@ -13,6 +13,7 @@ import {
 } from './native-index-lifecycle.ts';
 
 const PROTOCOL_VERSION = 'opl_native_helper.v1';
+const IMPLEMENTATION_VERSION = 'node-stdlib.v1';
 const SOURCE_OF_TRUTH_RULE =
   'OPL persists native helper indexes for fast lookup, then dereferences domain-owned durable truth before acting.';
 
@@ -25,8 +26,9 @@ type HelperResolution = {
   helper_id: string;
   binary: string;
   status: 'resolved' | 'missing';
-  source: 'explicit_binary' | 'explicit_bin_dir' | 'state_cache' | 'workspace_target_debug' | 'path' | 'not_found';
+  source: 'explicit_binary' | 'explicit_bin_dir' | 'framework_node' | 'not_found';
   path?: string;
+  args?: string[];
   repair_hint?: string;
 };
 
@@ -37,8 +39,6 @@ type NativeHelperInvocation = {
   resolution: HelperResolution;
   helper_version?: string;
   binary_version?: string;
-  crate_name?: string;
-  crate_version?: string;
   result?: unknown;
   errors: Array<{ code: string; message: string }>;
 };
@@ -61,16 +61,10 @@ type NativeHelperProjection = {
 type NativeIndexExecutionMode = 'auto' | 'refresh' | 'read_only';
 
 type NativeHelperLifecycle = {
-  status: 'ready_to_build' | 'package_source_incomplete';
+  status: 'ready' | 'package_source_incomplete';
   commands: {
-    build: 'npm run native:build';
-    cache: 'npm run native:cache';
     doctor: 'npm run native:doctor';
-    prebuild: 'npm run native:prebuild';
-    prebuild_pack: 'npm run native:prebuild-pack';
-    prebuild_check: 'npm run native:prebuild-check';
     repair: 'npm run native:repair';
-    test: 'npm run native:test';
   };
   package: {
     status: 'included' | 'missing_files';
@@ -78,23 +72,15 @@ type NativeHelperLifecycle = {
     missing_files: string[];
     npm_files: string[];
   };
-  prebuild: {
-    install_command: 'npm run native:prebuild';
-    pack_command: 'npm run native:prebuild-pack';
-    check_command: 'npm run native:prebuild-check';
-    default_prebuild_root: string;
-    restore_order: string[];
+  implementation: {
+    runtime: 'node';
+    version: string;
+    entrypoint: 'scripts/native-helper.mjs';
   };
   discovery: {
-    binary_discovery_order: string[];
+    custom_override_order: string[];
     helper_bin_dir_env: 'OPL_NATIVE_HELPER_BIN_DIR';
     helper_binary_env_template: 'OPL_NATIVE_HELPER_<HELPER_ID>_BIN';
-  };
-  cache: {
-    command: 'npm run native:cache';
-    cache_dir: string;
-    target_triple: string;
-    crate_version: string;
   };
 };
 
@@ -125,14 +111,8 @@ export type NativeHelperRepairAction = {
 };
 
 const NATIVE_HELPER_COMMANDS = {
-  build: 'npm run native:build',
-  cache: 'npm run native:cache',
   doctor: 'npm run native:doctor',
-  prebuild: 'npm run native:prebuild',
-  prebuild_pack: 'npm run native:prebuild-pack',
-  prebuild_check: 'npm run native:prebuild-check',
   repair: 'npm run native:repair',
-  test: 'npm run native:test',
 } as const;
 
 export const DEFAULT_NATIVE_HELPERS = [
@@ -144,30 +124,15 @@ export const DEFAULT_NATIVE_HELPERS = [
 ] as const;
 
 const NATIVE_HELPER_PACKAGE_FILES = [
-  'Cargo.toml',
-  'Cargo.lock',
-  'native/opl-native-helper/Cargo.toml',
-  'native/opl-native-helper/src/lib.rs',
-  'native/opl-native-helper/src/bin',
-  'scripts/native-helper-cache.mjs',
+  'scripts/native-helper.mjs',
   'scripts/native-helper-doctor.mjs',
   'scripts/native-helper-family-smoke.mjs',
-  'scripts/native-helper-pack-check.mjs',
-  'scripts/native-helper-prebuild.mjs',
-  'scripts/native-helper-repair.mjs',
 ] as const;
 
 const NATIVE_HELPER_NPM_FILES = [
-  'Cargo.toml',
-  'Cargo.lock',
-  'native/opl-native-helper/Cargo.toml',
-  'native/opl-native-helper/src',
-  'scripts/native-helper-cache.mjs',
+  'scripts/native-helper.mjs',
   'scripts/native-helper-doctor.mjs',
   'scripts/native-helper-family-smoke.mjs',
-  'scripts/native-helper-pack-check.mjs',
-  'scripts/native-helper-prebuild.mjs',
-  'scripts/native-helper-repair.mjs',
 ] as const;
 
 const RUNTIME_MANAGER_HELPER_SEQUENCE = [
@@ -234,7 +199,7 @@ export function buildNativeHelperProjection(
     : {};
   const cachedIndexes = Object.fromEntries(
     Object.entries(cachedIndexCandidates).filter(([, invocation]) => (
-      invocation.crate_version === lifecycle.cache.crate_version
+      invocation.helper_version === IMPLEMENTATION_VERSION
     )),
   );
   const runtime = inspectNativeHelperRuntime(helpers, {
@@ -396,7 +361,7 @@ export function buildNativeHelperLifecycle(): NativeHelperLifecycle {
   const allMissing = [...missingFiles, ...missingNpmFiles];
 
   return {
-    status: allMissing.length === 0 ? 'ready_to_build' : 'package_source_incomplete',
+    status: allMissing.length === 0 ? 'ready' : 'package_source_incomplete',
     commands: NATIVE_HELPER_COMMANDS,
     package: {
       status: allMissing.length === 0 ? 'included' : 'missing_files',
@@ -404,34 +369,19 @@ export function buildNativeHelperLifecycle(): NativeHelperLifecycle {
       missing_files: allMissing,
       npm_files: npmFiles,
     },
-    prebuild: {
-      install_command: 'npm run native:prebuild',
-      pack_command: 'npm run native:prebuild-pack',
-      check_command: 'npm run native:prebuild-check',
-      default_prebuild_root: path.join(repoRoot(), 'native-helper-prebuilds'),
-      restore_order: [
-        'OPL_NATIVE_HELPER_PREBUILD_ROOT',
-        'package native-helper-prebuilds',
-        'GHCR one-person-lab-native-helper OCI archive',
-        'local Cargo build fallback',
-      ],
+    implementation: {
+      runtime: 'node',
+      version: IMPLEMENTATION_VERSION,
+      entrypoint: 'scripts/native-helper.mjs',
     },
     discovery: {
-      binary_discovery_order: [
+      custom_override_order: [
         'OPL_NATIVE_HELPER_<HELPER_ID>_BIN',
         'OPL_NATIVE_HELPER_BIN_DIR',
-        'OPL_STATE_DIR native-helper cache',
-        'workspace target/debug',
-        'PATH',
+        'Framework Node standard-library helper',
       ],
       helper_bin_dir_env: 'OPL_NATIVE_HELPER_BIN_DIR',
       helper_binary_env_template: 'OPL_NATIVE_HELPER_<HELPER_ID>_BIN',
-    },
-    cache: {
-      command: 'npm run native:cache',
-      cache_dir: nativeHelperCacheDir(resolveOplStatePaths().state_dir),
-      target_triple: nativeHelperTargetTriple(),
-      crate_version: nativeHelperCrateVersion(),
     },
   };
 }
@@ -548,7 +498,7 @@ function invokeNativeHelper(
     };
   }
 
-  const result = spawnSync(resolution.path, [], {
+  const result = spawnSync(resolution.path, resolution.args ?? [], {
     input: JSON.stringify(input),
     encoding: 'utf8',
     maxBuffer: 8 * 1024 * 1024,
@@ -602,8 +552,6 @@ function invokeNativeHelper(
       resolution,
       helper_version: stringValue(payload.helper_version),
       binary_version: stringValue(payload.binary_version),
-      crate_name: stringValue(payload.crate_name),
-      crate_version: stringValue(payload.crate_version),
       errors,
     };
   }
@@ -615,8 +563,6 @@ function invokeNativeHelper(
     resolution,
     helper_version: stringValue(payload.helper_version),
     binary_version: stringValue(payload.binary_version),
-    crate_name: stringValue(payload.crate_name),
-    crate_version: stringValue(payload.crate_version),
     result: payload.result,
     errors,
   };
@@ -637,27 +583,12 @@ function resolveNativeHelper(helper: NativeHelperDefinition): HelperResolution {
     return pathExists(candidate) ? resolved(helper, candidate, 'explicit_bin_dir') : missing(helper, 'explicit_bin_dir');
   }
 
-  const stateCacheCandidate = path.join(
-    nativeHelperCacheDir(resolveOplStatePaths().state_dir),
-    nativeHelperExecutableName(helper.binary),
+  return resolved(
+    helper,
+    process.execPath,
+    'framework_node',
+    [path.join(repoRoot(), 'scripts/native-helper.mjs'), helper.helper_id],
   );
-  if (pathExists(stateCacheCandidate)) {
-    return resolved(helper, stateCacheCandidate, 'state_cache');
-  }
-
-  const targetDebugCandidate = path.join(repoRoot(), 'target', 'debug', nativeHelperExecutableName(helper.binary));
-  if (pathExists(targetDebugCandidate)) {
-    return resolved(helper, targetDebugCandidate, 'workspace_target_debug');
-  }
-
-  for (const entry of (process.env.PATH ?? '').split(path.delimiter).filter(Boolean)) {
-    const candidate = path.join(entry, nativeHelperExecutableName(helper.binary));
-    if (pathExists(candidate)) {
-      return resolved(helper, candidate, 'path');
-    }
-  }
-
-  return missing(helper, 'not_found');
 }
 
 function resolveRuntimeStatus(invocations: readonly NativeHelperInvocation[]) {
@@ -722,6 +653,7 @@ function resolved(
   helper: NativeHelperDefinition,
   helperPath: string,
   source: HelperResolution['source'],
+  args?: string[],
 ): HelperResolution {
   return {
     helper_id: helper.helper_id,
@@ -729,6 +661,7 @@ function resolved(
     status: 'resolved',
     source,
     path: helperPath,
+    ...(args ? { args } : {}),
   };
 }
 
@@ -749,6 +682,10 @@ function pathExists(candidate: string) {
   return fs.existsSync(candidate);
 }
 
+function nativeHelperExecutableName(binary: string) {
+  return process.platform === 'win32' ? `${binary}.exe` : binary;
+}
+
 function packageJsonFiles(packageRoot: string): string[] {
   try {
     const packageJson = readJsonPayloadFile(path.join(packageRoot, 'package.json')) as {
@@ -760,28 +697,6 @@ function packageJsonFiles(packageRoot: string): string[] {
     return packageJson.files.filter((entry): entry is string => typeof entry === 'string');
   } catch {
     return [];
-  }
-}
-
-function nativeHelperCacheDir(stateDir: string) {
-  return path.join(stateDir, 'native-helper', 'bin', nativeHelperTargetTriple(), nativeHelperCrateVersion());
-}
-
-function nativeHelperTargetTriple() {
-  return `${process.platform}-${process.arch}`;
-}
-
-function nativeHelperExecutableName(binary: string) {
-  return process.platform === 'win32' ? `${binary}.exe` : binary;
-}
-
-function nativeHelperCrateVersion() {
-  try {
-    const cargoToml = fs.readFileSync(path.join(repoRoot(), 'native/opl-native-helper/Cargo.toml'), 'utf8');
-    const match = cargoToml.match(/^version\s*=\s*"([^"]+)"/m);
-    return match?.[1] ?? '0.0.0';
-  } catch {
-    return '0.0.0';
   }
 }
 

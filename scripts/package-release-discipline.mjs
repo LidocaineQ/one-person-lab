@@ -181,10 +181,6 @@ function validateManifest(manifest, promotionTarget = 'candidate') {
   }
   validateFrameworkCore(manifest.packages?.framework_core, releaseSet?.components?.base, failures);
 
-  const nativeHelper = manifest.packages?.native_helper;
-  assertCondition(nativeHelper?.channel_status === 'active_ghcr_oci_prebuild', 'native helper channel status drifted', failures);
-  assertCondition(nativeHelper?.retention_policy?.protected_tags?.includes('latest'), 'native helper uses its separate prebuild latest tag', failures);
-  assertCondition(nativeHelper?.retention_policy?.execution_mode === 'dry_run_first_explicit_execute_required', 'native helper cleanup must remain dry-run first', failures);
   assertCondition(!Object.hasOwn(manifest.packages ?? {}, 'webui_docker_image'), 'Framework manifest must not carry App-owned WebUI coordinates', failures);
   return failures;
 }

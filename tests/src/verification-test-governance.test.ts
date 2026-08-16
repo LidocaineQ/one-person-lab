@@ -78,7 +78,6 @@ const verifyWorkflowNativeAndStructurePatterns = [
   /\.\/scripts\/verify\.sh native/,
   /\.\/scripts\/verify\.sh lint/,
   /\.\/scripts\/verify\.sh structure/,
-  /rust-toolchain/,
   /\.\/scripts\/install-sentrux-ci\.sh/,
   /OPL_QUALITY_DETAILS_TIMEOUT_SECONDS: '240'/,
   /fetch-depth: 0/,
@@ -107,29 +106,6 @@ const qualityDetailsActionScriptPatterns = [
   /diagnostic:/,
   /qualityDetailsArgs\('markdown', markdownLimit\)/,
   /qualityDetailsArgs\('json', jsonLimit\)/,
-];
-
-const nativeHelperPrebuildWorkflowPatterns = [
-  /include-linux:/,
-  /include-windows:/,
-  /Plan native helper prebuilds/,
-  /platforms='\["macos-latest"'/,
-  /inputs\.include-linux/,
-  /inputs\.include-windows/,
-  /macos-latest/,
-  /ubuntu-latest/,
-  /windows-latest/,
-  /fromJson\(needs\.plan-native-helper-prebuilds\.outputs\.matrix\)/,
-  /cargo build --release --workspace/,
-  /npm run native:prebuild-pack -- --source-dir target\/release/,
-  /npm run native:prebuild-check -- --prebuild-root dist\/native-helper-prebuilds/,
-  /npm run native:prebuild-archive -- --prebuild-root dist\/native-helper-prebuilds/,
-  /dist\/native-helper-prebuilds\/archives\/\*\.tar\.gz/,
-  /Validate native helper package retention policy/,
-  /retention_policy_recorded/,
-  /dry_run_first_explicit_execute_required/,
-  /actions\/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7\.0\.1/,
-  /FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'/,
 ];
 
 const expectedTestScripts = {
@@ -212,12 +188,12 @@ test('quality details action stays reusable without a duplicate advisory workflo
   assertFilePatterns('.github/actions/quality-details/emit-quality-details.mjs', qualityDetailsActionScriptPatterns);
 });
 
-test('native helper qualification remains explicit and can pack supported release artifacts', () => {
-  const workflow = read('.github/workflows/native-helper-prebuilds.yml');
-  assertFilePatterns('.github/workflows/native-helper-prebuilds.yml', nativeHelperPrebuildWorkflowPatterns);
-  assert.match(workflow, /^  workflow_dispatch:/m);
-  assert.doesNotMatch(workflow, /^  pull_request:/m);
-  assert.doesNotMatch(workflow, /^  push:/m);
+test('native helper qualification stays on the Node standard-library smoke gate', () => {
+  const workflow = read('.github/workflows/verify.yml');
+  assert.match(workflow, /name: Native helper lane/);
+  assert.match(workflow, /npm ci/);
+  assert.match(workflow, /\.\/scripts\/verify\.sh native/);
+  assert.doesNotMatch(workflow, /rust-toolchain|cargo|native-helper-prebuild/);
 });
 
 test('lint remains independent while legacy line-budget strict naming is an advisory alias', () => {

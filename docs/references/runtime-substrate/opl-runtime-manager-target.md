@@ -40,7 +40,7 @@ Runtime Manager 的支撑内容按下列入口读取：
 | Provider-backed online runtime | OPL provider layer | `contracts/opl-framework/family-runtime-online-substrate-contract.json`、`opl framework readiness --family-defaults --json`、`opl runtime app-operator-drilldown --json` | Temporal 是 production online runtime 必需 substrate；provider completion、SLO satisfied 或 attempt running 不能写成 domain ready。 |
 | Runtime route support | OPL App/operator projection | `opl runtime app-operator-drilldown --json` 的 `runtime_manager_route_support` | 只展示 supported task/action refs 和 non-authority boundary；不关闭 owner-chain、publication aftercare 或 quality/export verdict。 |
 | Evidence worklist | OPL derived attention lens | `opl family-runtime evidence-worklist --family-defaults --provider temporal --executor-kind codex_cli --detail full --json` | open/closed worklist 和 zero-open 状态只解释 operator attention；不授权 domain ready、production ready、artifact authority 或 domain physical delete。 |
-| Native helper lifecycle | OPL package/runtime helper layer | `contracts/opl-framework/native-helper-contract.json`、`package.json` 的 `native:*` scripts、`scripts/verify.sh native` | Rust helper 只能做 JSON stdio/CLI 边界内的检查、索引、缓存和 repair；不成为 scheduler、session/memory store、domain truth owner 或 Python domain logic replacement。 |
+| Native helper lifecycle | OPL package/runtime helper layer | `contracts/opl-framework/native-helper-contract.json`、`package.json` 的 `native:*` scripts、`scripts/verify.sh native` | Node standard-library helper 只做 JSON stdio/CLI 边界内的检查、索引和 readback；不成为 scheduler、session/memory store、domain truth owner 或 Python domain logic replacement。 |
 | Stage progress 与 true path proof | OPL attempt projection | `contracts/opl-framework/family-runtime-attempt-contract.json`、`opl family-runtime attempt query|inspect`、`opl runtime app-operator-drilldown --detail full --json` | 只证明 attempt/progress/Temporal visibility 可追踪；不构成 long-soak、owner receipt、artifact authority 或质量 verdict。 |
 
 首启与 readiness 口径：
@@ -64,7 +64,7 @@ v1 registry 只登记 MAS、MAG、RCA 已声明的 projection surface：
 
 ## OPL Native Helper
 
-`OPL native helper` 只允许是小型、可替换、JSON stdio/CLI 边界清楚的 Rust helper。
+`OPL native helper` 只允许是小型、可替换、JSON stdio/CLI 边界清楚的 Node standard-library helper。
 
 候选：
 
@@ -78,13 +78,8 @@ v1 registry 只登记 MAS、MAG、RCA 已声明的 projection surface：
 
 当前 package lifecycle：
 
-- `npm run native:build`：构建 Rust helper binaries
 - `npm run native:doctor`：输出 helper package、discovery 与 runtime invocation 的 JSON doctor
-- `npm run native:prebuild`：把匹配平台与 crate version 的 prebuild binaries 安装进 `OPL_STATE_DIR` cache
-- `npm run native:prebuild-pack`：把本地已构建的 helper binaries 打包成带 manifest 的 prebuild 目录
-- `npm run native:prebuild-check`：验证 prebuild manifest；没有 prebuild 时报告 skipped，不阻断源码构建路线
-- `npm run native:repair`：优先恢复 prebuild cache，失败或缺失时重建 helper binaries 后再次运行 doctor
-- `npm run native:test`：运行 Rust helper workspace 测试
+- `npm run native:repair`：重新运行 Node helper doctor/readback
 
 相关验证入口：
 
@@ -106,7 +101,7 @@ v1 registry 只登记 MAS、MAG、RCA 已声明的 projection surface：
 
 - index 可以缓存与加速 OPL projection
 - domain route index 只能缓存 `domain_route_projection` 的只读 projection 与 freshness 判断；修复必须回到 domain-owned route/action receipt
-- 高频扫描、artifact manifest、session ledger/file state、目录 snapshot 与 large JSON validation 优先落在 Rust helper
+- 高频扫描、artifact manifest、session ledger/file state、目录 snapshot 与 large JSON validation 优先落在 Node helper
 - index lifecycle 必须记录 TTL、diff history、failure log、last-success snapshot 与 freshness 状态；当前 helper 不可用时，OPL 需要明确报告是否还能临时信任上次成功快照
 - index 不得成为 domain-owned durable truth
 - domain 仓仍以各自 repo-tracked contract、workspace state 与 artifact record 为权威

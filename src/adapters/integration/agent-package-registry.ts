@@ -25,7 +25,10 @@ import {
   type ConfiguredCodexPluginCarrierAction,
   type ConfiguredCodexPluginCarrierReadback,
 } from './agent-package-registry-parts/configured-codex-plugin-carrier.ts';
-import { managedPolicyCurrentnessFromDescriptor } from './agent-package-registry-parts/managed-policy-surface.ts';
+import {
+  managedPolicyCurrentnessFromDescriptor,
+  repairManagedPolicyDependenciesFromDescriptor,
+} from './agent-package-registry-parts/managed-policy-surface.ts';
 import { materializeStandardAgentFrameworkLink } from './standard-agent-framework-link.ts';
 import type {
   AgentPackageHomeShortcutPreferencesSetInput,
@@ -477,8 +480,9 @@ function buildPackageStatus(input: OplAgentPackageStatusInput, snapshot: Package
 function nativeLifecycleResult(
   action: ConfiguredCodexPluginCarrierAction,
   input: AgentPackageInstallInput,
+  descriptorOverride?: InstalledPackageDescriptor,
 ) {
-  const descriptor = requireDescriptor(input, action, { installed: action !== 'install' });
+  const descriptor = descriptorOverride ?? requireDescriptor(input, action, { installed: action !== 'install' });
   const configuredCarrier = runConfiguredCodexPluginCarrier({
     descriptor: descriptor.carrier,
     action,
@@ -523,11 +527,28 @@ export async function runOplAgentPackageUpdate(input: AgentPackageInstallInput) 
 }
 
 export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
+  const descriptor = requireDescriptor(input, 'repair', { installed: true });
+  const nativeRepair = nativeLifecycleResult('repair', input, descriptor);
+  const managedPolicyRepair = descriptor.manifest.managed_policy_surface
+    ? repairManagedPolicyDependenciesFromDescriptor({
+        manifest: {
+          package_id: descriptor.manifest.package_id,
+          version: descriptor.manifest.version,
+          plugin_id: descriptor.pluginId.split('@', 1)[0] ?? null,
+          required_skill_ids: descriptor.manifest.required_skill_ids,
+          managed_policy_surface: descriptor.manifest.managed_policy_surface,
+        },
+        sourceRoot: descriptor.sourcePath,
+        activeCarrierIdentity: descriptor.carrier_readback.identity,
+        dryRun: input.dryRun,
+      })
+    : null;
   return {
     version: 'g2' as const,
     opl_agent_package_repair: {
       surface_kind: 'opl_agent_package_repair' as const,
-      ...nativeLifecycleResult('repair', input),
+      ...nativeRepair,
+      managed_policy_repair: managedPolicyRepair,
     },
   };
 }

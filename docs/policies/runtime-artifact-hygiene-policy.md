@@ -32,8 +32,8 @@ MAS、MAG、RCA 和后续 Foundry Agent 的源码仓应只承载可审查、可�
 - Python 测试入口必须显式设置 `PYTHONDONTWRITEBYTECODE`、`PYTHONPYCACHEPREFIX`、pytest `cache_dir` 和仓外 project venv 路径；使用 `uv sync` 时必须通过 `UV_PROJECT_ENVIRONMENT` 或等价机制把 project venv 指向临时目录。
 - Python package 测试不得为了验证本仓代码而把当前项目安装回源码目录；需要依赖同步时，应使用不安装项目本体的环境同步方式，并通过 `PYTHONPATH` 或等价源码入口读取待测代码。
 - Node、shell、native helper 或 product-entry 测试只要会启动 Python 子进程，也必须继承同一套仓外 cache 环境。
-- OPL 主仓的默认验证入口必须先进入 `scripts/run-with-repo-temp-env.sh`，统一设置 `OPL_REPO_TEMP_ROOT`、`TMPDIR`、`PYTHONPYCACHEPREFIX`、pytest `cache_dir`、`UV_PROJECT_ENVIRONMENT`、`NPM_CONFIG_CACHE`、`NODE_COMPILE_CACHE`、`CARGO_TARGET_DIR` 和 `XDG_CACHE_HOME`。同一次验证里的 Node、Python、Cargo 和 npm 子进程共享这个外部临时根。
-- OPL 独立 proof、doctor、provider、helper 和 prebuild 脚本也必须复用统一 state/cache resolver。没有显式 `OPL_STATE_DIR` 时，脚本应落到用户级 OPL state root；不得用当前工作目录下的 `.opl-state/`、`runtime-state/` 或类似隐藏目录作为默认 runtime root。
+- OPL 主仓的默认验证入口必须先进入 `scripts/run-with-repo-temp-env.sh`，统一设置 `OPL_REPO_TEMP_ROOT`、`TMPDIR`、`PYTHONPYCACHEPREFIX`、pytest `cache_dir`、`UV_PROJECT_ENVIRONMENT`、`NPM_CONFIG_CACHE`、`NODE_COMPILE_CACHE` 和 `XDG_CACHE_HOME`。同一次验证里的 Node、Python 和 npm 子进程共享这个外部临时根。
+- OPL 独立 proof、doctor、provider 和 helper 脚本也必须复用统一 state/cache resolver。没有显式 `OPL_STATE_DIR` 时，脚本应落到用户级 OPL state root；不得用当前工作目录下的 `.opl-state/`、`runtime-state/` 或类似隐藏目录作为默认 runtime root。
 - Foundry Agent 的默认启动包必须携带 workspace / runtime artifact root locator、scope refs、idempotency key、consumed refs、expected receipt refs 和 authority boundary；启动包可以引用源码仓中的 contract/schema/policy，但不得把源码仓目录当作 runtime artifact root。
 
 ## 目录边界

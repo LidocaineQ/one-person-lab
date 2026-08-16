@@ -55,12 +55,12 @@ attention diagnostic，其余 Agent、project inventory 与 Runtime 页面继续
 Package 的 direct inspect/action 仍对所选 Package 的真实 identity、presence 或
 callability 错误 fail closed，但不能以跨包 version/ABI/lock closure 阻止合法组合。
 
-当前 owner-channel source selection 已进入 Framework 主线，但 ordinary App Package
-projection 仍从 installed lock 和旧 status读取 ABI/digest、dependency closure、
-materialization、receipt/rollback与 LKG。Phase 2 的第一个 producer migration固定为
-`src/read-models/operator/app-state-agent-packages.ts` 及其
-`package-status-projection.test.ts`，先把该投影收敛为 fresh
-presence/callability/status/actions；`app-state.ts`不预先纳入写集。
+当前 owner-channel source selection 与 native carrier readback 已进入 Framework 主线。
+ordinary App Package projection 从 installed descriptor、presence/callability、dependency
+readiness、managed policy 和 status/actions 读取；历史 lock、ABI/digest、materialization、
+receipt/rollback 与 LKG 只作 provenance，不能再成为 projection 或 launch gate。对应生产
+投影由 `src/read-models/operator/app-state-agent-packages.ts` 持有，并由
+`package-status-projection.test.ts` 覆盖，`app-state.ts` 不复制第二套 Package truth。
 
 `workspace_binding.entry_command_template`、`workspace_binding.manifest_command_template` 与 `runtime.dispatch_command` 已退役，并因 closed-object 校验 fail closed。domain descriptor 缺失时 Workspace 只保留通用 workspace root locator 或用户显式提供的 command，不重建历史 MAS/MAG/RCA materializer。
 

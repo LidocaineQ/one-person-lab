@@ -2,8 +2,12 @@
   "version": "v1",
   "contract_id": "opl_native_helper_contract",
   "contract_ref": "contracts/opl-framework/native-helper-contract.json",
-  "scope": "opl_rust_native_helper_json_stdio_boundary",
-  "language": "rust",
+  "scope": "opl_node_standard_library_json_stdio_boundary",
+  "implementation": {
+    "runtime": "node",
+    "version": "node-stdlib.v1",
+    "entrypoint": "scripts/native-helper.mjs"
+  },
   "protocol": {
     "version": "opl_native_helper.v1",
     "transport": "cli_stdio",
@@ -36,113 +40,20 @@
     }
   },
   "runtime_manager_consumption": {
-    "binary_discovery_order": [
+    "custom_override_order": [
       "OPL_NATIVE_HELPER_<HELPER_ID>_BIN",
       "OPL_NATIVE_HELPER_BIN_DIR",
-      "OPL_STATE_DIR native-helper cache",
-      "workspace target/debug",
-      "PATH"
+      "Framework Node standard-library helper"
     ],
-    "build_command": "npm run native:build",
-    "prebuild_install_command": "npm run native:prebuild",
-    "prebuild_pack_command": "npm run native:prebuild-pack",
-    "prebuild_check_command": "npm run native:prebuild-check",
     "doctor_command": "npm run native:doctor",
     "repair_command": "npm run native:repair",
-    "test_command": "npm run native:test",
     "packaged_source_files": [
-      "Cargo.toml",
-      "Cargo.lock",
-      "native/opl-native-helper/Cargo.toml",
-      "native/opl-native-helper/src",
+      "scripts/native-helper.mjs",
       "scripts/native-helper-doctor.mjs",
-      "scripts/native-helper-prebuild.mjs",
-      "scripts/native-helper-repair.mjs"
+      "scripts/native-helper-family-smoke.mjs"
     ],
-    "prebuild_cache_strategy": {
-      "surface_kind": "opl_native_helper_prebuild_strategy",
-      "manifest": "native-helper-prebuilds/<target_triple>/<crate_version>/manifest.json",
-      "restore_order": [
-        "OPL_NATIVE_HELPER_PREBUILD_ROOT",
-        "package native-helper-prebuilds",
-        "GHCR one-person-lab-native-helper OCI archive",
-        "local Cargo build fallback"
-      ],
-      "cache_destination": "${OPL_STATE_DIR}/native-helper/bin/<target_triple>/<crate_version>"
-    },
     "persisted_projection": "${OPL_STATE_DIR}/runtime-manager/native-state-index.json",
-      "persisted_surface_kind": "opl_runtime_manager_native_state_projection",
-      "index_lifecycle": {
-      "ttl_ms": 86400000,
-      "history_file": "${OPL_STATE_DIR}/runtime-manager/native-state-index-history.jsonl",
-      "failure_file": "${OPL_STATE_DIR}/runtime-manager/native-state-index-failures.jsonl",
-      "last_success_file": "${OPL_STATE_DIR}/runtime-manager/native-state-index-last-success.json",
-        "freshness_statuses": [
-          "fresh",
-          "expired_current_index",
-          "stale_last_success_available",
-          "expired_last_success",
-          "unavailable_no_success"
-        ],
-        "execution_policy": {
-          "default_mode": "auto",
-          "auto_mode": "reuse_a_fresh_index_when_the_helper_binary_is_resolved",
-          "refresh_mode": "explicit_refresh_native_indexes_executes_all_index_helpers",
-          "read_only_mode": "read_existing_native_index_without_persisting",
-          "cache_hit_field": "execution.cache_hit",
-          "reused_index_keys_field": "execution.reused_index_keys"
-        },
-        "execution_fields": [
-          "mode",
-          "helper_execution",
-          "cache_hit",
-          "cache_reason",
-          "reused_index_keys"
-        ],
-      "diff_summary": {
-        "compared_fields": [
-          "index_key",
-          "helper_id",
-          "result_surface_kind",
-          "status"
-        ],
-        "count_fields": [
-          "previous_index_count",
-          "current_index_count",
-          "added_count",
-          "removed_count",
-          "changed_count",
-          "unchanged_count",
-          "helper_changed_count",
-          "result_surface_changed_count",
-          "status_changed_count"
-        ]
-      },
-      "failure_record": {
-        "required_fields": [
-          "generated_at",
-          "status",
-          "category",
-          "errors",
-          "details"
-        ],
-        "categories": [
-          "helper_unavailable",
-          "helper_error",
-          "write_failed"
-        ]
-      },
-      "history_gc": {
-        "max_history_entries": 50,
-        "reporting_fields": [
-          "retained_history_count",
-          "preserved_count",
-          "removed_count",
-          "history_count_before_gc",
-          "history_count_after_gc"
-        ]
-      }
-    }
+    "persisted_surface_kind": "opl_runtime_manager_native_state_projection"
   },
   "helpers": [
     {
@@ -170,14 +81,14 @@
       "helper_id": "opl-artifact-indexer",
       "priority": "p2_high_frequency_index",
       "binary": "opl-artifact-indexer",
-      "input_contract": "workspace_root plus optional artifact_roots[], artifact_extensions[], and excluded_dir_names[]",
+      "input_contract": "workspace_root plus optional artifact_roots[] and artifact_extensions[]",
       "output_surface": "native_artifact_manifest"
     },
     {
       "helper_id": "opl-state-indexer",
       "priority": "p2_high_frequency_index",
       "binary": "opl-state-indexer",
-      "input_contract": "workspace_roots[], session_ledger_roots[], attention_queue_roots[], and optional max_depth/excluded_dir_names[]/previous_json_validation[]",
+      "input_contract": "workspace_roots[] and optional max_depth/excluded_dir_names[]/previous_json_validation[]",
       "output_surface": "native_state_index"
     }
   ],
@@ -188,5 +99,5 @@
     "not_a_concrete_executor",
     "not_a_python_domain_logic_replacement"
   ],
-  "source_of_truth_rule": "Rust helpers may index, validate, and accelerate local file surfaces, but they must not replace standard OPL Agent domain-owned durable truth."
+  "source_of_truth_rule": "Node helpers index, validate, and accelerate local file surfaces, but they must not replace standard OPL Agent domain-owned durable truth."
 }

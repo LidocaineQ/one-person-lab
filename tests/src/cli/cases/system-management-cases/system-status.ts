@@ -149,7 +149,7 @@ exit 1
     assert.equal(output.system.core_engines.family_runtime_provider.status, 'provider_code_landed_unconfigured');
     assert.equal(output.system.core_engines.family_runtime_provider.degraded_reason, 'temporal_runtime_not_configured');
     assert.equal(output.system.core_engines.family_runtime_provider.details.worker_ready, false);
-    assert.equal(output.system.native_helpers.lifecycle.status, 'ready_to_build');
+    assert.equal(output.system.native_helpers.lifecycle.status, 'ready');
     assert.equal(output.system.native_helpers.lifecycle.commands.repair, 'npm run native:repair');
     assert.equal(output.system.native_helpers.runtime.discovery.repair_command, 'npm run native:repair');
     assert.equal(['ready', 'attention_needed'].includes(output.system.native_helpers.health_status), true);

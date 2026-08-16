@@ -10,7 +10,6 @@ import {
   test,
 } from '../../helpers.ts';
 import { formatJsonPayload } from '../../../../../src/kernel/json-file.ts';
-import { repairManagedPolicyDependenciesFromDescriptor } from '../../../../../src/adapters/integration/agent-package-registry-parts/managed-policy-surface.ts';
 
 function withEnvironment<T>(values: Record<string, string | undefined>, run: () => T): T {
   const previous = new Map(Object.keys(values).map((key) => [key, process.env[key]]));
@@ -37,12 +36,21 @@ function writeInstalledCodexPluginManager(
   root: string,
   sourcePath: string,
   pluginId = 'fixture.opl-flow@fixture-marketplace',
+  options: { allowMutations?: boolean } = {},
 ) {
   const binary = path.join(root, 'fake-codex-installed-plugin-manager');
   fs.mkdirSync(root, { recursive: true });
   fs.writeFileSync(binary, [
     '#!/usr/bin/env node',
-    "if (process.argv.slice(2).join(' ') !== 'plugin list --json') process.exit(2);",
+    `const allowMutations = ${JSON.stringify(options.allowMutations === true)};`,
+    "const command = process.argv.slice(2).join(' ');",
+    "const readOnly = command === 'plugin list --json' || command === 'plugin marketplace list --json';",
+    "const mutation = /^plugin (add|remove|marketplace (add|remove|upgrade)) /.test(command);",
+    'if (!readOnly && !(allowMutations && mutation)) process.exit(2);',
+    "if (command === 'plugin marketplace list --json') {",
+    "  process.stdout.write(JSON.stringify({ marketplaces: [{ name: 'fixture-marketplace', marketplaceSource: { sourceType: 'local', source: 'fixture-marketplace' } }] }));",
+    '  process.exit(0);',
+    '}',
     `process.stdout.write(JSON.stringify({ installed: [{`,
     `  pluginId: ${JSON.stringify(pluginId)},`,
     "  version: '0.1.16',",
@@ -544,15 +552,16 @@ test('installed native descriptor projects Flow policy planes and model recommen
   }
 });
 
-test('installed Flow policy repair converges a managed Git Skill entrypoint', () => {
+test('public packages repair runs the native carrier and managed policy projection', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-local-policy-repair-'));
   const home = path.join(root, 'home');
   const codexHome = path.join(home, '.codex');
   const sourceRoot = path.join(root, 'fixture.opl-flow-source');
-  writeOplFlowPackage(root, {
+  const manifestPath = writeOplFlowPackage(root, {
     policyVersion: 'v4',
     includeManagedSkillCompanion: true,
   });
+  fs.copyFileSync(manifestPath, path.join(sourceRoot, 'opl-package.json'));
   const repositoryUrl = 'https://github.com/fixture/ui-ux-pro-max';
   const repositoryDigest = crypto.createHash('sha256')
     .update(repositoryUrl.toLowerCase())
@@ -578,32 +587,39 @@ test('installed Flow policy repair converges a managed Git Skill entrypoint', ()
   execFileSync('git', ['commit', '--quiet', '-m', 'fixture'], { cwd: repositoryRoot });
 
   try {
+    const env = {
+      HOME: home,
+      CODEX_HOME: codexHome,
+      OPL_CODEX_PLUGIN_BIN: writeInstalledCodexPluginManager(
+        root,
+        sourceRoot,
+        'fixture.opl-flow@fixture-marketplace',
+        { allowMutations: true },
+      ),
+      OPL_STATE_DIR: path.join(root, 'state'),
+      OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
+    };
     withEnvironment({
       HOME: home,
       CODEX_HOME: codexHome,
       OPL_STATE_DIR: path.join(root, 'state'),
       OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1',
     }, () => {
-      const repair = repairManagedPolicyDependenciesFromDescriptor({
-        manifest: {
-          package_id: 'fixture.opl-flow',
-          version: '0.1.16',
-          plugin_id: 'fixture.opl-flow',
-          required_skill_ids: ['fixture.opl-flow', 'codex-ops-kit'],
-          managed_policy_surface: {
-            policy_kind: 'opl_flow_workflow_policy',
-            source_path: 'contracts/workflow-policy.json',
-            schema_path: 'contracts/workflow-policy.schema.json',
-          },
-        },
-        sourceRoot,
-        activeCarrierIdentity: 'fixture.opl-flow@fixture-marketplace',
-        networkAccess: 'forbidden',
-      });
+      const repair = (runCli(['packages', 'repair', 'fixture.opl-flow'], env) as any)
+        .opl_agent_package_repair;
 
       assert.equal(repair?.status, 'repaired');
-      assert.equal(repair?.writes_performed, true);
-      assert.equal(repair?.currentness.experience_baseline?.status, 'current');
+      assert.equal(repair?.configured_carrier.operation, 'repair');
+      assert.equal(repair?.configured_carrier.native_action_dispatched, true);
+      assert.deepEqual(repair?.configured_carrier.native_command, [
+        'plugin',
+        'add',
+        'fixture.opl-flow@fixture-marketplace',
+        '--json',
+      ]);
+      assert.equal(repair?.managed_policy_repair?.status, 'repaired');
+      assert.equal(repair?.managed_policy_repair?.writes_performed, true);
+      assert.equal(repair?.managed_policy_repair?.currentness.experience_baseline?.status, 'current');
       const entrypoint = path.join(codexHome, 'skills', 'ui-ux-pro-max');
       assert.equal(fs.lstatSync(entrypoint).isSymbolicLink(), true);
       assert.equal(fs.realpathSync(entrypoint), fs.realpathSync(skillRoot));

@@ -90,24 +90,6 @@ test('packages manifest exposes independent owner currentness and compatibility 
           base_url_role: string;
           model_profile_role: string;
         };
-        native_helper: {
-          image: string;
-          channel_status: string;
-          package_publish_owner: string;
-          target_tag_template: string;
-          publish_status_policy: {
-            workflow: string;
-            publication_mode: string;
-            pull_restore_consumers: string[];
-          };
-          retention_policy: {
-            strategy: string;
-            retain_versions: number;
-            protected_tags: string[];
-            execution_mode: string;
-          };
-          required_gates: string[];
-        };
         framework_core: {
           package_name: string;
           artifact: string;
@@ -257,46 +239,7 @@ test('packages manifest exposes independent owner currentness and compatibility 
     output.packages_manifest.packages.framework_core.release_discipline.required_gates.includes('runtime_substrate_apply_and_rollback_tested'),
     true,
   );
-  assert.equal(
-    output.packages_manifest.packages.native_helper.channel_status,
-    'active_ghcr_oci_prebuild',
-  );
-  assert.equal(
-    output.packages_manifest.packages.native_helper.package_publish_owner,
-    'one-person-lab_framework_native_helper_prebuilds',
-  );
-  assert.equal(
-    output.packages_manifest.packages.native_helper.target_tag_template,
-    'ghcr.io/gaofeng21cn/one-person-lab-native-helper:<target>-<native_helper_version>',
-  );
-  assert.equal(
-    output.packages_manifest.packages.native_helper.publish_status_policy.workflow,
-    '.github/workflows/native-helper-prebuilds.yml',
-  );
-  assert.equal(
-    output.packages_manifest.packages.native_helper.publish_status_policy.publication_mode,
-    'active_ghcr_oci_prebuild',
-  );
-  assert.equal(
-    output.packages_manifest.packages.native_helper.publish_status_policy.pull_restore_consumers.includes(
-      'opl system repair-native-helpers',
-    ),
-    true,
-  );
-  assert.equal(
-    output.packages_manifest.packages.native_helper.retention_policy.strategy,
-    'retain_latest_n_versions_and_declared_rollbacks',
-  );
-  assert.equal(output.packages_manifest.packages.native_helper.retention_policy.retain_versions, 3);
-  assert.ok(output.packages_manifest.packages.native_helper.retention_policy.protected_tags.includes('latest'));
-  assert.equal(
-    output.packages_manifest.packages.native_helper.retention_policy.execution_mode,
-    'dry_run_first_explicit_execute_required',
-  );
-  assert.equal(
-    output.packages_manifest.packages.native_helper.required_gates.includes('retention_policy_recorded'),
-    true,
-  );
+  assert.equal(Object.hasOwn(output.packages_manifest.packages, 'native_helper'), false);
   assert.equal(output.packages_manifest.packages.codex_default_profile.model_provider, 'oplgateway');
   assert.equal(output.packages_manifest.packages.codex_default_profile.model, codexDefaultProfile.model);
   assert.equal(

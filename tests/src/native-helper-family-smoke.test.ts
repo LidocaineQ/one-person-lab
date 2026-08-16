@@ -140,9 +140,7 @@ const result = helper === 'opl-artifact-indexer'
 process.stdout.write(JSON.stringify({
   protocol_version: 'opl_native_helper.v1',
   helper_id: helper,
-  helper_version: '0.1.0',
-  crate_name: 'opl-native-helper',
-  crate_version: '0.1.0',
+  helper_version: 'node-stdlib.v1',
   ok: true,
   request_id: input.request_id,
   result,
@@ -172,7 +170,7 @@ function writeMasFixture(repoPath: string) {
     manager_surface_id: 'opl_runtime_manager',
     consumer_domain: 'medautoscience',
     helper_owner: 'one-person-lab',
-    helper_language: 'rust',
+    helper_language: 'node',
     allowed_operations: ['index_only'],
     indexable_runtime_surface_refs: [
       '/skill_catalog/skills/0/domain_projection/runtime_continuity',

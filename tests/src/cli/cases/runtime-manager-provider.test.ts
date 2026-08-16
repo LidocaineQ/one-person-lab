@@ -13,6 +13,8 @@ import { writeNativeHelperFixtureScripts } from './native-helper-fixtures.ts';
 test('runtime manager reports OPL control plane over provider-backed family runtime', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-manager-state-'));
   const modulesRoot = path.join(stateRoot, 'modules');
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = stateRoot;
   const expectedDomainProfiles = runtimeManagerDomainProfiles(() => null);
 
   try {
@@ -214,14 +216,14 @@ test('runtime manager reports OPL control plane over provider-backed family runt
         .some((surface: { surface_id: string }) => surface.surface_id === 'product_entry_manifest'),
       true,
     );
-    assert.equal(output.runtime_manager.native_helper_target.status, 'contracted_optional_rust_helpers');
-    assert.equal(output.runtime_manager.native_helper_target.language, 'rust');
+    assert.equal(output.runtime_manager.native_helper_target.status, 'framework_node_standard_library_helpers');
+    assert.equal(output.runtime_manager.native_helper_target.language, 'node');
     assert.equal(output.runtime_manager.native_helper_target.protocol.transport, 'cli_stdio');
     assert.deepEqual(
       output.runtime_manager.native_helper_target.helpers.map((helper: { helper_id: string }) => helper.helper_id),
       ['opl-sysprobe', 'opl-doctor-native', 'opl-runtime-watch', 'opl-artifact-indexer', 'opl-state-indexer'],
     );
-    assert.equal(output.runtime_manager.state_index_target.status, 'rust_helper_backed_contract_first');
+    assert.equal(output.runtime_manager.state_index_target.status, 'node_helper_backed_contract_first');
     assert.equal(
       output.runtime_manager.state_index_target.index_catalog.artifact_projection_index.backing_helper_id,
       'opl-artifact-indexer',
@@ -270,6 +272,8 @@ test('runtime manager reports OPL control plane over provider-backed family runt
     );
     assert.equal(output.runtime_manager.future_sidecar_migration.enabled_now, false);
   } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
     fs.rmSync(stateRoot, { recursive: true, force: true });
   }
 });

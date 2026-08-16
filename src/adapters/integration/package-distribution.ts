@@ -504,36 +504,6 @@ export function buildOplPackageManifest(input: BuildPackageManifestInput = {}) {
     release_automation: buildReleaseAutomation(retainVersions, rollbackVersion),
     packages: {
       codex_default_profile: readBundledCodexDefaultProfile(),
-      native_helper: {
-        image: `ghcr.io/${owner}/one-person-lab-native-helper`,
-        channel_status: 'active_ghcr_oci_prebuild',
-        package_publish_owner: 'one-person-lab_framework_native_helper_prebuilds',
-        version_source: 'native/opl-native-helper/Cargo.toml',
-        target_tag_template: `ghcr.io/${owner}/one-person-lab-native-helper:<target>-<native_helper_version>`,
-        publish_status_policy: {
-          workflow: '.github/workflows/native-helper-prebuilds.yml',
-          trigger_policy: 'push_main_or_manual_dispatch',
-          publication_mode: 'active_ghcr_oci_prebuild',
-          pull_restore_consumers: ['opl system repair-native-helpers', 'opl install', 'npm run native:repair'],
-        },
-        retention_policy: {
-          strategy: 'retain_latest_n_versions_and_declared_rollbacks',
-          retain_versions: retainVersions,
-          applies_to: ['one-person-lab-native-helper'],
-          protected_tags: ['latest'],
-          protected_tag_pattern: '<target>-<native_helper_version>',
-          execution_mode: 'dry_run_first_explicit_execute_required',
-          destructive_action_requires: 'package_admin_with_delete_packages_scope',
-        },
-        required_gates: [
-          'native_helper_prebuild_pack',
-          'native_helper_prebuild_check',
-          'native_helper_archive_written',
-          'binary_sha256_recorded',
-          'ghcr_oci_archive_pushed',
-          'retention_policy_recorded',
-        ],
-      },
       framework_core: {
         package_name: 'one-person-lab-framework',
         label: 'OPL Framework Core',
