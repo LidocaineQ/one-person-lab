@@ -130,15 +130,11 @@ test('system startup-maintenance uses Developer Mode domain checkouts without gl
       assert.equal(target.result.module.source_policy.effective_install_update_source, 'git_checkout');
       assert.equal(target.result.turnkey.bootstrap.status, 'skipped');
       assert.equal(target.result.turnkey.skill_sync.status, 'completed');
-      assert.equal(target.result.turnkey.health_check.status, 'completed');
+      assert.equal(target.result.turnkey.health_check.status, 'skipped');
     }
 
-    assert.deepEqual(fs.readFileSync(logPath, 'utf8').trim().split('\n'), [
-      'med-autogrant-health',
-      'redcube-ai-health',
-      'opl-meta-agent-health',
-      'opl-bookforge-health',
-    ]);
+    const startupLog = fs.existsSync(logPath) ? fs.readFileSync(logPath, 'utf8') : '';
+    assert.doesNotMatch(startupLog, /(?:med-autoscience|med-autogrant|redcube-ai|opl-meta-agent|opl-bookforge)-(?:bootstrap|health)/);
     const codexConfig = fs.readFileSync(path.join(homeRoot, 'codex-home', 'config.toml'), 'utf8');
     for (const [moduleId, marketplaceId] of [
       ['medautoscience', 'med-autoscience-local'],

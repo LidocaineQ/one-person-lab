@@ -1,5 +1,3 @@
-import { spawnSync } from 'node:child_process';
-
 import {
   assert,
   createGitModuleRemoteFixture,
@@ -19,44 +17,6 @@ import { DOMAIN_MODULE_SPECS } from '../../../../src/adapters/integration/system
 import { getOplPackageSpecs } from '../../../../src/adapters/integration/package-distribution.ts';
 import { loadDeveloperCheckoutPackageSource } from '../../../../src/adapters/integration/agent-package-registry-parts/developer-checkout-package-source.ts';
 import './system-modules-cases/mds-skill-boundary.ts';
-
-const REQUIRED_FILES_PROBE_PROGRAM = 'const fs=require("node:fs");for(const p of process.argv.slice(1)){if(!fs.statSync(p).isFile())process.exit(1)}';
-
-function requiredFilesProbe(checkoutPath: string, relativePaths: string[]) {
-  return {
-    command: 'node',
-    args: [
-      '-e',
-      REQUIRED_FILES_PROBE_PROGRAM,
-      ...relativePaths.map((relativePath) => path.join(checkoutPath, relativePath)),
-    ],
-  };
-}
-
-function runProbe(probe: { command: string; args: string[] }, checkoutPath: string) {
-  return spawnSync(probe.command, probe.args, {
-    cwd: checkoutPath,
-    encoding: 'utf8',
-  });
-}
-
-function exactTreeInventory(root: string) {
-  const entries: string[] = [];
-  const visit = (directory: string) => {
-    for (const entry of fs.readdirSync(directory, { withFileTypes: true })
-      .sort((left, right) => left.name.localeCompare(right.name))) {
-      const absolutePath = path.join(directory, entry.name);
-      const relativePath = path.relative(root, absolutePath).split(path.sep).join('/');
-      const stat = fs.lstatSync(absolutePath);
-      entries.push(entry.isDirectory()
-        ? `directory\0${relativePath}\0${stat.mode & 0o777}`
-        : `file\0${relativePath}\0${stat.mode & 0o777}\0${fs.readFileSync(absolutePath).toString('base64')}`);
-      if (entry.isDirectory()) visit(absolutePath);
-    }
-  };
-  visit(root);
-  return entries;
-}
 
 function writeFixtureFile(root: string, relativePath: string, content = '{}\n') {
   const targetPath = path.join(root, relativePath);
@@ -103,153 +63,51 @@ test('git status porcelain v2 parser preserves sync and dirty state', () => {
   );
 });
 
-test('Book Forge fallback bootstrap does not create an untracked package lock', () => {
-  const checkoutPath = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bookforge-bootstrap-'));
-  try {
-    const bookForge = DOMAIN_MODULE_SPECS.find((module) => module.module_id === 'oplbookforge');
-    assert.deepEqual(bookForge?.bootstrap_command?.(checkoutPath), {
-      command: 'npm',
-      args: ['install', '--no-package-lock'],
-    });
-  } finally {
-    fs.rmSync(checkoutPath, { recursive: true, force: true });
-  }
-});
-
-test('MAS runtime preparation probes its declarative carrier without a private exec entry', () => {
-  const checkoutPath = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-mas-runtime-spec-'));
-  try {
-    const mas = DOMAIN_MODULE_SPECS.find((module) => module.module_id === 'medautoscience');
-    const expectedProbe = {
-      ...requiredFilesProbe(checkoutPath, [
-        'contracts/action_catalog.json',
-        'contracts/domain_handler_registry.json',
-        'contracts/pack_compiler_input.json',
-        'agent/stages/manifest.json',
-        'agent/primary_skill/SKILL.md',
-      ]),
-    };
-    assert.deepEqual(mas?.bootstrap_command?.(checkoutPath), expectedProbe);
-    assert.deepEqual(mas?.health_check_command?.(checkoutPath), expectedProbe);
-    assert.deepEqual(mas?.runtime_probe_command?.(checkoutPath), expectedProbe);
-    assert.equal(mas?.exec_command, undefined);
-  } finally {
-    fs.rmSync(checkoutPath, { recursive: true, force: true });
-  }
-});
-
-test('RCA mutable checkout health uses its repo script while package/runtime probes use pack structure', () => {
-  const checkoutPath = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-rca-runtime-spec-'));
-  const scriptsPath = path.join(checkoutPath, 'scripts');
-  const healthcheckPath = path.join(scriptsPath, 'opl-module-healthcheck.sh');
-  fs.mkdirSync(scriptsPath, { recursive: true });
-  fs.writeFileSync(healthcheckPath, '#!/usr/bin/env bash\n');
-  try {
-    const rca = DOMAIN_MODULE_SPECS.find((module) => module.module_id === 'redcube');
-    const expectedHealthcheck = {
-      command: 'bash',
-      args: [healthcheckPath],
-    };
-    const expectedPackProbe = requiredFilesProbe(checkoutPath, [
-      'contracts/action_catalog.json',
-      'contracts/domain_descriptor.json',
-      'contracts/pack_compiler_input.json',
-      'agent/stages/manifest.json',
-      'agent/primary_skill/SKILL.md',
-    ]);
-    assert.deepEqual(rca?.health_check_command?.(checkoutPath), expectedHealthcheck);
-    assert.deepEqual(rca?.package_health_check_command?.(checkoutPath), expectedPackProbe);
-    assert.deepEqual(rca?.runtime_probe_command?.(checkoutPath), expectedPackProbe);
-    assert.equal(rca?.package_bootstrap_command, undefined);
-    assert.equal(rca?.package_prepare_command, undefined);
-    assert.equal(rca?.exec_command, undefined);
-  } finally {
-    fs.rmSync(checkoutPath, { recursive: true, force: true });
-  }
-});
-
-test('immutable snapshot probes cover every runtime-bearing first-party package without build environments', () => {
-  const checkoutPath = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-immutable-pack-probes-'));
-  const standardAgentPaths = [
-    'contracts/action_catalog.json',
-    'contracts/domain_descriptor.json',
-    'contracts/pack_compiler_input.json',
-    'agent/stages/manifest.json',
-    'agent/primary_skill/SKILL.md',
-  ];
-  const matrix = [
-    {
-      packageId: 'mas',
-      moduleId: 'medautoscience',
-      probeKinds: ['runtime'] as const,
-      paths: [
-        'contracts/action_catalog.json',
-        'contracts/domain_handler_registry.json',
-        'contracts/pack_compiler_input.json',
-        'agent/stages/manifest.json',
-        'agent/primary_skill/SKILL.md',
-      ],
-    },
-    { packageId: 'mag', moduleId: 'medautogrant', probeKinds: ['package', 'runtime'] as const, paths: standardAgentPaths },
-    { packageId: 'rca', moduleId: 'redcube', probeKinds: ['package', 'runtime'] as const, paths: standardAgentPaths },
-    {
-      packageId: 'oma',
-      moduleId: 'oplmetaagent',
-      probeKinds: ['package', 'runtime'] as const,
-      paths: [
-        'contracts/action_catalog.json',
-        'contracts/domain_descriptor.json',
-        'contracts/foundry_provider.json',
-        'contracts/pack_compiler_input.json',
-        'agent/stages/manifest.json',
-        'agent/primary_skill/SKILL.md',
-      ],
-    },
-    {
-      packageId: 'obf',
-      moduleId: 'oplbookforge',
-      probeKinds: ['package', 'runtime'] as const,
-      paths: ['contracts/domain_descriptor.json', 'agent/primary_skill/SKILL.md'],
-    },
+test('Framework leaves Agent lifecycle operations to installed descriptors and native carriers', () => {
+  const lifecycleHooks = [
+    'bootstrap_command',
+    'package_bootstrap_command',
+    'package_prepare_command',
+    'health_check_command',
+    'package_health_check_command',
+    'runtime_probe_command',
+    'exec_command',
+  ] as const;
+  const brandModuleIds = [
+    'medautoscience',
+    'medautogrant',
+    'redcube',
+    'oplmetaagent',
+    'oplbookforge',
   ];
 
-  try {
-    for (const relativePath of new Set(matrix.flatMap((entry) => entry.paths))) {
-      writeFixtureFile(checkoutPath, relativePath);
+  for (const moduleId of brandModuleIds) {
+    const spec = DOMAIN_MODULE_SPECS.find((candidate) => candidate.module_id === moduleId);
+    assert.ok(spec, `${moduleId} must remain discoverable from the installed descriptor`);
+    for (const hook of lifecycleHooks) {
+      assert.equal(spec[hook], undefined, `${moduleId} must not receive a Framework brand hook: ${hook}`);
     }
-    assert.equal(fs.existsSync(path.join(checkoutPath, '.git')), false);
-    assert.equal(fs.existsSync(path.join(checkoutPath, 'node_modules')), false);
-    assert.equal(fs.existsSync(path.join(checkoutPath, '.venv')), false);
-    const before = exactTreeInventory(checkoutPath);
-
-    for (const entry of matrix) {
-      const spec = DOMAIN_MODULE_SPECS.find((candidate) => candidate.module_id === entry.moduleId);
-      assert.ok(spec, `${entry.packageId} must resolve a domain module probe owner`);
-      for (const probeKind of entry.probeKinds) {
-        const probe: { command: string; args: string[] } | null | undefined = probeKind === 'package'
-          ? spec.package_health_check_command?.(checkoutPath)
-          : spec.runtime_probe_command?.(checkoutPath);
-        assert.deepEqual(probe, requiredFilesProbe(checkoutPath, entry.paths));
-        assert.ok(probe);
-        const result = runProbe(probe, checkoutPath);
-        assert.equal(result.status, 0, `${entry.packageId} ${probeKind} probe: ${result.stderr}`);
-        assert.equal(probe.args.some((argument) => /scripts\/lib\/domain-pack|\.git|node_modules|\.venv/.test(argument)), false);
-      }
-    }
-    assert.deepEqual(exactTreeInventory(checkoutPath), before);
-
-    const flow = getOplPackageSpecs().find((entry) => entry.package_id === 'opl-flow');
-    assert.equal(flow?.owner_manifest_kind, 'workflow_profile');
-    assert.equal(DOMAIN_MODULE_SPECS.some((entry) => entry.repo_name === flow?.repo_name), false);
-
-    fs.rmSync(path.join(checkoutPath, 'contracts', 'foundry_provider.json'));
-    const oma = DOMAIN_MODULE_SPECS.find((entry) => entry.module_id === 'oplmetaagent');
-    const missingProvider = oma?.runtime_probe_command?.(checkoutPath);
-    assert.ok(missingProvider);
-    assert.notEqual(runProbe(missingProvider, checkoutPath).status, 0);
-  } finally {
-    fs.rmSync(checkoutPath, { recursive: true, force: true });
   }
+
+  const mas = DOMAIN_MODULE_SPECS.find((candidate) => candidate.module_id === 'medautoscience');
+  assert.deepEqual(
+    mas?.capability_dependencies?.map((dependency) => ({
+      module_id: dependency.module_id,
+      package_id: dependency.package_id,
+      required: dependency.required,
+      capability_abi: dependency.capability_abi,
+    })),
+    [{
+      module_id: 'scholarskills',
+      package_id: 'mas-scholar-skills',
+      required: true,
+      capability_abi: 'mas-scholar-skills.v1',
+    }],
+  );
+  assert.equal(DOMAIN_MODULE_SPECS.find((candidate) => candidate.module_id === 'medautogrant')?.scope, 'domain_module');
+  assert.equal(DOMAIN_MODULE_SPECS.find((candidate) => candidate.module_id === 'redcube')?.scope, 'domain_module');
+  assert.equal(DOMAIN_MODULE_SPECS.find((candidate) => candidate.module_id === 'oplmetaagent')?.scope, 'domain_module');
+  assert.equal(DOMAIN_MODULE_SPECS.find((candidate) => candidate.module_id === 'oplbookforge')?.scope, 'domain_module');
 });
 
 test('developer package snapshots cover Agent and Flow owners while excluding local environments', () => {
@@ -439,10 +297,6 @@ printf 'health\\n' >> ${JSON.stringify(turnkeyLogPath)}
   });
 }
 
-function readLines(filePath: string) {
-  return fs.readFileSync(filePath, 'utf8').trim().split('\n');
-}
-
 test('modules and module actions manage OPL-owned domain module installs and updates', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-modules-home-'));
   const modulesRoot = path.join(homeRoot, 'managed-modules');
@@ -488,10 +342,10 @@ test('modules and module actions manage OPL-owned domain module installs and upd
     assert.equal(install.module_action.module.module_id, 'medautoscience');
     assert.equal(install.module_action.module.installed, true);
     assert.equal(install.module_action.module.install_origin, 'managed_root');
-    assert.equal(install.module_action.turnkey.bootstrap.status, 'completed');
+    assert.equal(install.module_action.turnkey.bootstrap.status, 'skipped');
     assert.equal(install.module_action.turnkey.skill_sync.status, 'completed');
     assert.equal(install.module_action.turnkey.skill_sync.domain_id, 'medautoscience');
-    assert.equal(install.module_action.turnkey.health_check.status, 'completed');
+    assert.equal(install.module_action.turnkey.health_check.status, 'skipped');
     assert.equal(
       install.module_action.module.git.head_sha,
       medAutoScienceRemote.getHeadSha(),
@@ -622,8 +476,8 @@ test('module install creates an OPL-managed root even when a sibling checkout is
     assert.equal(install.module_action.module.git.dirty, false);
     assert.equal(install.module_action.turnkey.skill_sync.status, 'completed');
     assert.equal(install.module_action.turnkey.skill_sync.domain_id, 'oplmetaagent');
-    assert.equal(install.module_action.turnkey.health_check.status, 'completed');
-    assert.equal(fs.readFileSync(healthcheckLogPath, 'utf8').trim(), 'smoke');
+    assert.equal(install.module_action.turnkey.health_check.status, 'skipped');
+    assert.equal(fs.existsSync(healthcheckLogPath), false);
     assert.equal(fs.existsSync(path.join(managedCheckout, 'README.md')), true);
     assert.equal(fs.existsSync(path.join(siblingCheckout, 'LOCAL_EDIT.txt')), true);
   } finally {
@@ -969,38 +823,14 @@ test('modules projection treats Full runtime packaged overrides as launch source
   }
 });
 
-test('module exec runs supported domain CLIs from the current checkout and rejects retired private entries', () => {
+test('module exec rejects Framework brand-specific entries without invoking carrier commands', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-module-exec-home-'));
   const fakeBinRoot = path.join(homeRoot, 'fake-bin');
   const magRunnerArgvPath = path.join(homeRoot, 'mag-runner.argv');
   const magRunnerCwdPath = path.join(homeRoot, 'mag-runner.cwd');
-  const uvArgvPath = path.join(homeRoot, 'uv.argv');
-  const uvCwdPath = path.join(homeRoot, 'uv.cwd');
   const npmArgvPath = path.join(homeRoot, 'npm.argv');
   const npmCwdPath = path.join(homeRoot, 'npm.cwd');
   fs.mkdirSync(fakeBinRoot, { recursive: true });
-  fs.writeFileSync(
-    path.join(fakeBinRoot, 'uv'),
-    `#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\\n' "$PWD" > ${JSON.stringify(uvCwdPath)}
-: > ${JSON.stringify(uvArgvPath)}
-for arg in "$@"; do
-  printf '%s\\n' "$arg" >> ${JSON.stringify(uvArgvPath)}
-done
-printf '{"ok":true,"runner":"uv"}\\n'
-`,
-    { mode: 0o755 },
-  );
-  fs.writeFileSync(
-    path.join(fakeBinRoot, 'medautosci'),
-    `#!/usr/bin/env bash
-set -euo pipefail
-printf 'PATH medautosci should not be used\\n' >&2
-exit 43
-`,
-    { mode: 0o755 },
-  );
   fs.writeFileSync(
     path.join(fakeBinRoot, 'npm'),
     `#!/usr/bin/env bash
@@ -1042,6 +872,7 @@ printf '{"ok":true,"runner":"npm"}\\n'
   });
   const rcaFixture = createGitModuleRemoteFixture('redcube-ai');
   const metaFixture = createGitModuleRemoteFixture('opl-meta-agent');
+  const bookForgeFixture = createGitModuleRemoteFixture('opl-bookforge');
   const mdsFixture = createGitModuleRemoteFixture('med-deepscientist');
   const env = {
     HOME: homeRoot,
@@ -1051,46 +882,23 @@ printf '{"ok":true,"runner":"npm"}\\n'
     OPL_MODULE_PATH_MEDAUTOGRANT: magFixture.sourceRoot,
     OPL_MODULE_PATH_REDCUBE: rcaFixture.sourceRoot,
     OPL_MODULE_PATH_OPLMETAAGENT: metaFixture.sourceRoot,
+    OPL_MODULE_PATH_OPLBOOKFORGE: bookForgeFixture.sourceRoot,
     OPL_MODULE_PATH_MEDDEEPSCIENTIST: mdsFixture.sourceRoot,
     OPL_STATE_DIR: path.join(homeRoot, 'opl-state'),
   };
-  const realpath = (filePath: string) => fs.realpathSync(filePath);
 
   try {
-    const masFailure = runCliFailure(
-      ['connect', 'exec', '--module', 'medautoscience', '--', 'doctor', 'entry-modes', '--json'],
-      env,
-    );
-    assert.equal(masFailure.status, 2);
-    assert.equal(masFailure.payload.error.code, 'cli_usage_error');
-    assert.match(masFailure.payload.error.message, /does not expose an OPL module exec entry/);
-    assert.equal(fs.existsSync(uvCwdPath), false);
-
-    const magExec = runCli(
-      ['connect', 'exec', '--module', 'mag', '--', '--help'],
-      env,
-    ) as any;
-    assert.equal(magExec.module_exec.module_id, 'medautogrant');
-    assert.equal(magExec.module_exec.working_directory, magFixture.sourceRoot);
-    assert.deepEqual(magExec.module_exec.result, { ok: true, runner: 'mag-clean-runner' });
-    assert.deepEqual(magExec.module_exec.command_preview, [
-      path.join(magFixture.sourceRoot, 'scripts', 'run-python-clean.sh'),
-      '-m',
-      'med_autogrant.cli',
-      '--help',
-    ]);
-    assert.equal(realpath(fs.readFileSync(magRunnerCwdPath, 'utf8').trim()), realpath(magFixture.sourceRoot));
-    assert.deepEqual(readLines(magRunnerArgvPath), magExec.module_exec.command_preview.slice(1));
-    assert.equal(fs.existsSync(uvCwdPath), false);
-    assert.equal(fs.existsSync(uvArgvPath), false);
-
-    const rcaFailure = runCliFailure(
-      ['connect', 'exec', '--module', 'redcube', '--', 'product', 'manifest', '--workspace-root', '/tmp/demo'],
-      env,
-    );
-    assert.equal(rcaFailure.status, 2);
-    assert.equal(rcaFailure.payload.error.code, 'cli_usage_error');
-    assert.match(rcaFailure.payload.error.message, /does not expose an OPL module exec entry/);
+    for (const moduleId of ['medautoscience', 'mag', 'redcube', 'oplmetaagent', 'oplbookforge']) {
+      const failure = runCliFailure(
+        ['connect', 'exec', '--module', moduleId, '--', '--help'],
+        env,
+      );
+      assert.equal(failure.status, 2, moduleId);
+      assert.equal(failure.payload.error.code, 'cli_usage_error', moduleId);
+      assert.match(failure.payload.error.message, /does not expose an OPL module exec entry/, moduleId);
+    }
+    assert.equal(fs.existsSync(magRunnerCwdPath), false);
+    assert.equal(fs.existsSync(magRunnerArgvPath), false);
     assert.equal(fs.existsSync(npmCwdPath), false);
     assert.equal(fs.existsSync(npmArgvPath), false);
 
@@ -1106,47 +914,8 @@ printf '{"ok":true,"runner":"npm"}\\n'
     fs.rmSync(magFixture.fixtureRoot, { recursive: true, force: true });
     fs.rmSync(rcaFixture.fixtureRoot, { recursive: true, force: true });
     fs.rmSync(metaFixture.fixtureRoot, { recursive: true, force: true });
+    fs.rmSync(bookForgeFixture.fixtureRoot, { recursive: true, force: true });
     fs.rmSync(mdsFixture.fixtureRoot, { recursive: true, force: true });
-    fs.rmSync(homeRoot, { recursive: true, force: true });
-  }
-});
-
-test('module exec captures large domain CLI stdout without default spawnSync ENOBUFS', () => {
-  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-module-exec-buffer-home-'));
-  const magFixture = createGitModuleRemoteFixture('med-autogrant', {
-    extraFiles: {
-      'scripts/run-python-clean.sh': [
-        '#!/usr/bin/env bash',
-        'set -euo pipefail',
-        `printf '%*s' ${2 * 1024 * 1024} '' | tr ' ' x`,
-        '',
-      ].join('\n'),
-    },
-    executableFiles: ['scripts/run-python-clean.sh'],
-  });
-  const fakeBinRoot = path.join(homeRoot, 'fake-bin');
-  fs.mkdirSync(fakeBinRoot, { recursive: true });
-  const env = {
-    HOME: homeRoot,
-    PATH: `${fakeBinRoot}:${process.env.PATH ?? ''}`,
-    OPL_MODULES_ROOT: path.join(homeRoot, 'managed-modules'),
-    OPL_MODULE_PATH_MEDAUTOGRANT: magFixture.sourceRoot,
-    OPL_STATE_DIR: path.join(homeRoot, 'opl-state'),
-  };
-
-  try {
-    const magExec = runCli(
-      ['connect', 'exec', '--module', 'medautogrant', '--', 'sidecar', 'export', '--format', 'json'],
-      env,
-    ) as any;
-
-    assert.equal(magExec.module_exec.module_id, 'medautogrant');
-    assert.equal(magExec.module_exec.exit_code, 0);
-    assert.equal(magExec.module_exec.stdout.length, 2 * 1024 * 1024);
-    assert.equal(magExec.module_exec.result, null);
-    assert.equal(magExec.module_exec.max_buffer_bytes >= 2 * 1024 * 1024, true);
-  } finally {
-    fs.rmSync(magFixture.fixtureRoot, { recursive: true, force: true });
     fs.rmSync(homeRoot, { recursive: true, force: true });
   }
 });

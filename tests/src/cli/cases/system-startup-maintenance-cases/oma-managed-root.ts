@@ -55,6 +55,8 @@ test('system startup-maintenance installs OMA managed root when only a sibling c
       system_action: {
         details: {
           managed_install_update_receipts: {
+            status: string;
+            recorded_receipt_count: number;
             receipt_refs: string[];
           };
           module_targets: Array<{
@@ -88,13 +90,10 @@ test('system startup-maintenance installs OMA managed root when only a sibling c
     assert.equal(metaTarget?.result?.module.managed_checkout_path, managedCheckout);
     assert.equal(fs.existsSync(path.join(managedCheckout, 'README.md')), true);
     assert.equal(fs.existsSync(path.join(siblingCheckout, 'LOCAL_EDIT.txt')), true);
-    assert.equal(fs.readFileSync(omaHealthcheckLogPath, 'utf8').trim(), 'smoke');
-    assert.equal(
-      output.system_action.details.managed_install_update_receipts.receipt_refs.some(
-        (ref) => ref.startsWith('opl://managed-install-update/oplmetaagent/install/'),
-      ),
-      true,
-    );
+    assert.equal(fs.existsSync(omaHealthcheckLogPath), false);
+    assert.equal(output.system_action.details.managed_install_update_receipts.status, 'no_eligible_managed_receipts');
+    assert.equal(output.system_action.details.managed_install_update_receipts.recorded_receipt_count, 0);
+    assert.deepEqual(output.system_action.details.managed_install_update_receipts.receipt_refs, []);
   } finally {
     fs.rmSync(codexFixture.fixtureRoot, { recursive: true, force: true });
     fs.rmSync(homeRoot, { recursive: true, force: true });

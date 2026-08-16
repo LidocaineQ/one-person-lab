@@ -1,5 +1,4 @@
 import { assert, fs, os, path, runCli, runCliFailure, test } from '../helpers.ts';
-import { listManagedInstallUpdateReceipts } from '../../../../src/adapters/integration/managed-install-update-ledger.ts';
 import {
   createCurrentCodexFixture,
   createStartupDomainModuleRemotes,
@@ -145,23 +144,12 @@ test('system startup-maintenance installs clean managed modules and returns App 
       output.system_action.details.managed_install_update_receipts.surface_kind,
       'opl_managed_module_install_update_ledger_record',
     );
-    assert.equal(output.system_action.details.managed_install_update_receipts.status, 'recorded');
+    assert.equal(output.system_action.details.managed_install_update_receipts.status, 'no_eligible_managed_receipts');
     assert.equal(
       output.system_action.details.managed_install_update_receipts.recorded_receipt_count,
-      5,
+      0,
     );
-    assert.equal(
-      output.system_action.details.managed_install_update_receipts.receipt_refs.some(
-        (ref) => ref.startsWith('opl://managed-install-update/oplmetaagent/install/'),
-      ),
-      true,
-    );
-    assert.equal(
-      output.system_action.details.managed_install_update_receipts.receipt_refs.some(
-        (ref) => ref.startsWith('opl://managed-install-update/oplbookforge/install/'),
-      ),
-      true,
-    );
+    assert.deepEqual(output.system_action.details.managed_install_update_receipts.receipt_refs, []);
     assert.equal(
       output.system_action.details.managed_install_update_receipts.ledger_file,
       path.join(homeRoot, 'opl-state', 'managed-install-update-ledger.json'),
@@ -176,11 +164,11 @@ test('system startup-maintenance installs clean managed modules and returns App 
         target.result.turnkey.health_check.status,
       ]),
       [
-        ['medautoscience', 'completed', 'module_missing', 'missing', 'completed', 'completed'],
-        ['medautogrant', 'completed', 'module_missing', 'missing', 'completed', 'completed'],
-        ['redcube', 'completed', 'module_missing', 'missing', 'completed', 'completed'],
-        ['oplmetaagent', 'completed', 'module_missing', 'missing', 'completed', 'completed'],
-        ['oplbookforge', 'completed', 'module_missing', 'missing', 'completed', 'completed'],
+        ['medautoscience', 'completed', 'module_missing', 'missing', 'completed', 'skipped'],
+        ['medautogrant', 'completed', 'module_missing', 'missing', 'completed', 'skipped'],
+        ['redcube', 'completed', 'module_missing', 'missing', 'completed', 'skipped'],
+        ['oplmetaagent', 'completed', 'module_missing', 'missing', 'completed', 'skipped'],
+        ['oplbookforge', 'completed', 'module_missing', 'missing', 'completed', 'skipped'],
       ],
     );
     assert.equal(output.system_action.details.plugin_cache_freshness.status, 'freshened');
@@ -213,16 +201,8 @@ test('system startup-maintenance installs clean managed modules and returns App 
       'oplmetaagent',
       'oplbookforge',
     ]);
-    assert.deepEqual(fs.readFileSync(logPath, 'utf8').trim().split('\n'), [
-      'med-autogrant-bootstrap',
-      'med-autogrant-health',
-      'redcube-ai-bootstrap',
-      'redcube-ai-health',
-      'opl-meta-agent-bootstrap',
-      'opl-meta-agent-health',
-      'opl-bookforge-bootstrap',
-      'opl-bookforge-health',
-    ]);
+    const startupLog = fs.existsSync(logPath) ? fs.readFileSync(logPath, 'utf8') : '';
+    assert.doesNotMatch(startupLog, /(?:med-autoscience|med-autogrant|redcube-ai|opl-meta-agent|opl-bookforge)-(?:bootstrap|health)/);
     for (const skillName of ['mas', 'mag', 'rca', 'med-autoscience', 'med-autogrant', 'redcube-ai']) {
       assert.equal(fs.existsSync(path.join(homeRoot, 'codex-home', 'skills', skillName, 'SKILL.md')), false);
     }
@@ -285,27 +265,7 @@ test('system startup-maintenance installs clean managed modules and returns App 
     const codexConfig = fs.readFileSync(path.join(homeRoot, 'codex-home', 'config.toml'), 'utf8');
     assert.match(codexConfig, /\[plugins\."opl-meta-agent@opl-meta-agent-local"\]/);
     assert.match(codexConfig, /\[plugins\."opl-bookforge@opl-bookforge-local"\]/);
-    const previousStateDir = process.env.OPL_STATE_DIR;
-    process.env.OPL_STATE_DIR = path.join(homeRoot, 'opl-state');
-    try {
-      const receipts = listManagedInstallUpdateReceipts({ module_id: 'oplmetaagent' });
-      assert.equal(receipts.length, 1);
-      assert.equal(receipts[0].surface_kind, 'opl_managed_module_install_update_receipt');
-      assert.equal(receipts[0].repo_name, 'opl-meta-agent');
-      assert.equal(receipts[0].action, 'install');
-      assert.equal(receipts[0].install_origin_after, 'managed_root');
-      assert.equal(receipts[0].skill_sync_status, 'completed');
-      assert.equal(receipts[0].skill_sync_domain, 'oplmetaagent');
-      assert.equal(receipts[0].health_check_status, 'completed');
-      assert.equal(receipts[0].authority_boundary.can_write_domain_truth, false);
-      assert.equal(receipts[0].authority_boundary.can_claim_production_ready, false);
-    } finally {
-      if (previousStateDir === undefined) {
-        delete process.env.OPL_STATE_DIR;
-      } else {
-        process.env.OPL_STATE_DIR = previousStateDir;
-      }
-    }
+    assert.equal(fs.existsSync(output.system_action.details.managed_install_update_receipts.ledger_file), false);
   } finally {
     fs.rmSync(codexFixture.fixtureRoot, { recursive: true, force: true });
     fs.rmSync(homeRoot, { recursive: true, force: true });

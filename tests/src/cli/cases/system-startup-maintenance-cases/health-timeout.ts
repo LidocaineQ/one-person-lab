@@ -10,7 +10,7 @@ import {
 } from './shared.ts';
 import { scholarSkillsPackageFixture } from '../system-startup-maintenance-fixtures.ts';
 
-test('system startup-maintenance does not block all modules on a timed-out module health check', () => {
+test('system startup-maintenance does not execute legacy module health scripts', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-startup-maintenance-timeout-home-'));
   const modulesRoot = path.join(homeRoot, 'managed-modules');
   const logPath = path.join(homeRoot, 'startup-maintenance-timeout.log');
@@ -78,14 +78,8 @@ test('system startup-maintenance does not block all modules on a timed-out modul
               turnkey: {
                 health_check: {
                   status: string;
-                  result: {
-                    blocker_kind: string;
-                    timeout_ms: number;
-                    authority_boundary: {
-                      can_claim_module_healthy: boolean;
-                      can_claim_production_ready: boolean;
-                    };
-                  };
+                  command_preview: string[] | null;
+                  result: Record<string, unknown> | null;
                 };
               };
             };
@@ -100,42 +94,26 @@ test('system startup-maintenance does not block all modules on a timed-out modul
 
     const targets = new Map(output.system_action.details.module_targets.map((target) => [target.target_id, target]));
     const magTarget = targets.get('medautogrant');
-    assert.equal(output.system_action.status, 'manual_required');
-    assert.equal(output.system_action.details.summary.manual_required_targets_count, 1);
-    assert.equal(output.system_action.details.summary.completed_targets_count, 4);
-    assert.equal(magTarget?.status, 'manual_required');
-    assert.equal(magTarget?.reason, 'module_health_check_blocked');
-    assert.equal(magTarget?.result.turnkey.health_check.status, 'blocked');
-    assert.equal(magTarget?.result.turnkey.health_check.result.blocker_kind, 'module_action_step_timeout');
-    assert.equal(magTarget?.result.turnkey.health_check.result.timeout_ms, moduleActionStepTimeoutMs);
-    assert.equal(
-      magTarget?.result.turnkey.health_check.result.authority_boundary.can_claim_module_healthy,
-      false,
-    );
-    assert.equal(
-      magTarget?.result.turnkey.health_check.result.authority_boundary.can_claim_production_ready,
-      false,
-    );
+    assert.equal(output.system_action.status, 'completed');
+    assert.equal(output.system_action.details.summary.manual_required_targets_count, 0);
+    assert.equal(output.system_action.details.summary.completed_targets_count, 5);
+    assert.equal(magTarget?.status, 'completed');
+    assert.equal(magTarget?.reason, 'module_missing');
+    assert.equal(magTarget?.result.turnkey.health_check.status, 'skipped');
+    assert.equal(magTarget?.result.turnkey.health_check.command_preview, null);
+    assert.equal(magTarget?.result.turnkey.health_check.result, null);
     assert.equal(targets.get('oplmetaagent')?.status, 'completed');
     assert.equal(targets.get('oplbookforge')?.status, 'completed');
-    assert.equal(output.system_action.details.managed_install_update_receipts.status, 'recorded');
-    assert.equal(output.system_action.details.managed_install_update_receipts.recorded_receipt_count, 4);
-    assert.equal(
-      output.system_action.details.managed_install_update_receipts.receipt_refs.some(
-        (ref) => ref.startsWith('opl://managed-install-update/oplmetaagent/install/'),
-      ),
-      true,
-    );
-    assert.equal(
-      output.system_action.details.managed_install_update_receipts.receipt_refs.some(
-        (ref) => ref.startsWith('opl://managed-install-update/oplbookforge/install/'),
-      ),
-      true,
-    );
+    assert.equal(output.system_action.details.managed_install_update_receipts.status, 'no_eligible_managed_receipts');
+    assert.equal(output.system_action.details.managed_install_update_receipts.recorded_receipt_count, 0);
+    assert.deepEqual(output.system_action.details.managed_install_update_receipts.receipt_refs, []);
     assert.equal(output.system_action.details.plugin_cache_freshness.status, 'freshened');
     assert.equal(output.system_action.details.plugin_cache_freshness.synced_domain_packs_count, 5);
-    assert.equal(fs.readFileSync(logPath, 'utf8').includes('opl-meta-agent-health'), true);
-    assert.equal(fs.readFileSync(logPath, 'utf8').includes('opl-bookforge-health'), true);
+    const startupLog = fs.existsSync(logPath) ? fs.readFileSync(logPath, 'utf8') : '';
+    assert.equal(startupLog.includes('mag-health-start'), false);
+    assert.equal(startupLog.includes('mag-health-finished'), false);
+    assert.equal(startupLog.includes('opl-meta-agent-health'), false);
+    assert.equal(startupLog.includes('opl-bookforge-health'), false);
   } finally {
     fs.rmSync(codexFixture.fixtureRoot, { recursive: true, force: true });
     fs.rmSync(homeRoot, { recursive: true, force: true });

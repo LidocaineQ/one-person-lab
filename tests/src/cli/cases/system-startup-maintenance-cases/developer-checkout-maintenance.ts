@@ -128,6 +128,7 @@ test('system startup-maintenance syncs explicit developer checkouts and reports 
         details: {
           summary: { manual_required_targets_count: number };
           managed_install_update_receipts: {
+            status: string;
             recorded_receipt_count: number;
             receipt_refs: string[];
           };
@@ -150,19 +151,9 @@ test('system startup-maintenance syncs explicit developer checkouts and reports 
     assert.equal(secondTargets.get('redcube')?.status, 'completed');
     assert.equal(secondTargets.get('oplmetaagent')?.status, 'completed');
     assert.equal(secondTargets.get('oplbookforge')?.status, 'completed');
-    assert.equal(secondRun.system_action.details.managed_install_update_receipts.recorded_receipt_count, 3);
-    assert.equal(
-      secondRun.system_action.details.managed_install_update_receipts.receipt_refs.some(
-        (ref) => ref.startsWith('opl://managed-install-update/oplmetaagent/update/'),
-      ),
-      true,
-    );
-    assert.equal(
-      secondRun.system_action.details.managed_install_update_receipts.receipt_refs.some(
-        (ref) => ref.startsWith('opl://managed-install-update/oplbookforge/update/'),
-      ),
-      true,
-    );
+    assert.equal(secondRun.system_action.details.managed_install_update_receipts.status, 'no_eligible_managed_receipts');
+    assert.equal(secondRun.system_action.details.managed_install_update_receipts.recorded_receipt_count, 0);
+    assert.deepEqual(secondRun.system_action.details.managed_install_update_receipts.receipt_refs, []);
   } finally {
     fs.rmSync(codexFixture.fixtureRoot, { recursive: true, force: true });
     fs.rmSync(homeRoot, { recursive: true, force: true });
