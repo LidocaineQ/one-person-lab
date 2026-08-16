@@ -313,10 +313,12 @@ export function readProjectInventory(input: {
         workspace_binding_id: input.project.selected_binding_id,
         workspace_path: input.project.workspace_path,
         work_item_id: workItemId,
+        domain_work_item_id: workItemId,
         work_item_display_name: displayName,
         work_item_kind: descriptor.interface.workspace_binding.project_kind,
         work_item_root: workItemRoot,
         work_item_scope_id: workItemScopeId,
+        identity_state: 'resolved',
         source_kind: 'domain_inventory',
       },
       lifecycle: {

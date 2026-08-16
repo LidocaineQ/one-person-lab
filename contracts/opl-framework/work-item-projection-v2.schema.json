@@ -408,7 +408,7 @@
         "item_id": { "type": "string", "minLength": 1 },
         "identity": {
           "type": "object",
-          "required": ["agent_id", "agent_display_name", "domain_id", "project_id", "project_display_name", "project_scope_id", "workspace_binding_id", "workspace_path", "work_item_id", "work_item_display_name", "work_item_kind", "work_item_root", "work_item_scope_id", "source_kind"],
+          "required": ["agent_id", "agent_display_name", "domain_id", "project_id", "project_display_name", "project_scope_id", "workspace_binding_id", "workspace_path", "work_item_id", "domain_work_item_id", "work_item_display_name", "work_item_kind", "work_item_root", "work_item_scope_id", "identity_state", "source_kind"],
           "properties": {
             "agent_id": { "type": "string", "minLength": 1 },
             "agent_display_name": { "type": "string", "minLength": 1 },
@@ -419,10 +419,12 @@
             "workspace_binding_id": { "type": "string", "minLength": 1 },
             "workspace_path": { "type": "string", "minLength": 1 },
             "work_item_id": { "type": "string", "minLength": 1 },
+            "domain_work_item_id": { "type": "string", "minLength": 1 },
             "work_item_display_name": { "type": "string", "minLength": 1 },
             "work_item_kind": { "type": "string", "minLength": 1 },
             "work_item_root": { "$ref": "#/$defs/nullableString" },
             "work_item_scope_id": { "type": "string", "minLength": 1 },
+            "identity_state": { "const": "resolved" },
             "source_kind": { "enum": ["domain_inventory", "runtime_only"] }
           },
           "additionalProperties": false

@@ -37,7 +37,11 @@ process.stdin.on('end', () => {
     ok: true,
     ref: request.ref,
     operation: request.operation,
-    result: { owner_echo: request.input, source: 'fixture-owner' },
+    result: {
+      owner_echo: request.input,
+      source: 'fixture-owner',
+      workspace_root: process.env.OPL_PROFILE_WORKSPACE ?? null,
+    },
   }));
 });
 `,
@@ -178,6 +182,59 @@ test('generic broker reads a dynamically installed descriptor contribution witho
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
     fs.rmSync(stateDir, { recursive: true, force: true });
+  }
+});
+
+test('work-item contribution resolves its workspace from exact Host identity before owner invocation', () => {
+  const fixture = writeContributionFixture();
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-contribution-workspace-'));
+  const identity = {
+    agent_id: 'mas',
+    domain_id: 'medautoscience',
+    work_item_id: 'study-001',
+    domain_work_item_id: 'study-001',
+    work_item_scope_id: 'work-item:study-001',
+    identity_state: 'resolved' as const,
+  };
+  const observed: unknown[] = [];
+  try {
+    const output = runAppContribution({
+      packageId: fixture.manifest.package_id,
+      ref: 'future.data.v1#current',
+      operation: 'read',
+      input: { work_item_identity: identity },
+      confirmed: false,
+    }, {
+      descriptorDiscovery: {
+        discover: () => new Map([[fixture.manifest.package_id, fixture.descriptor]]),
+      },
+      resolveWorkItemWorkspace: (candidate) => {
+        observed.push(candidate);
+        return workspace;
+      },
+    }) as any;
+    assert.deepEqual(observed, [identity]);
+    assert.equal(output.opl_app_contribution.response.result.workspace_root, workspace);
+
+    assert.throws(
+      () => runAppContribution({
+        packageId: fixture.manifest.package_id,
+        ref: 'future.data.v1#current',
+        operation: 'read',
+        input: { work_item_identity: identity },
+        confirmed: false,
+      }, {
+        descriptorDiscovery: {
+          discover: () => new Map([[fixture.manifest.package_id, fixture.descriptor]]),
+        },
+        resolveWorkItemWorkspace: () => null,
+      }),
+      (error: unknown) => error instanceof FrameworkContractError
+        && error.details?.failure_code === 'agent_package_app_contribution_work_item_identity_unresolved',
+    );
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+    fs.rmSync(workspace, { recursive: true, force: true });
   }
 });
 

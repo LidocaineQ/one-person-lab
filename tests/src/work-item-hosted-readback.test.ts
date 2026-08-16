@@ -102,10 +102,12 @@ function fixtureProjection(workspaceRoot: string, workItemRoot: string): WorkIte
         workspace_binding_id: 'binding-1',
         workspace_path: workspaceRoot,
         work_item_id: 'study-003',
+        domain_work_item_id: 'study-003',
         work_item_display_name: 'Study 003',
         work_item_kind: 'study',
         work_item_root: workItemRoot,
         work_item_scope_id: 'work-item:fixture-project:study-003',
+        identity_state: 'resolved',
         source_kind: 'domain_inventory'
       },
       lifecycle: {

@@ -161,10 +161,12 @@ export type WorkItemProjectionItem = {
     workspace_binding_id: string;
     workspace_path: string;
     work_item_id: string;
+    domain_work_item_id: string;
     work_item_display_name: string;
     work_item_kind: string;
     work_item_root: string | null;
     work_item_scope_id: string;
+    identity_state: 'resolved';
     source_kind: 'domain_inventory' | 'runtime_only';
   };
   lifecycle: {

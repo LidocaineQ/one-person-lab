@@ -8,6 +8,7 @@ import {
   type CordisConnectDescriptorDiscoveryService,
   type InstalledPackageDescriptor,
 } from '../../adapters/integration/index.ts';
+import { buildWorkItemProjectionV2 } from './work-item-projection/projection.ts';
 
 const REQUEST_SCHEMA = 'opl-package-app-contribution-request.v1';
 const RESPONSE_SCHEMA = 'opl-package-app-contribution-response.v1';
@@ -20,6 +21,15 @@ const INVOCATION_MAX_BUFFER = 1024 * 1024;
 
 type JsonRecord = Record<string, unknown>;
 export type AppContributionOperation = 'read' | 'execute';
+
+type AppContributionWorkItemIdentity = {
+  agent_id: string;
+  domain_id: string;
+  work_item_id: string;
+  domain_work_item_id: string;
+  work_item_scope_id: string;
+  identity_state: 'resolved';
+};
 
 export type AppContributionRequest = {
   packageId: string;
@@ -37,6 +47,11 @@ type ResolvedContribution = {
   descriptor: InstalledPackageDescriptor;
   abi: ContributionAbi;
   confirmationRequired: boolean;
+};
+
+type AppContributionBrokerOptions = {
+  descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
+  resolveWorkItemWorkspace?: (identity: AppContributionWorkItemIdentity) => string | null;
 };
 
 function contributionReadback(resolved: ResolvedContribution, request: AppContributionRequest) {
@@ -185,6 +200,68 @@ function contributionAbi(descriptor: InstalledPackageDescriptor): ContributionAb
   return { argv };
 }
 
+function workItemIdentity(request: AppContributionRequest): AppContributionWorkItemIdentity | null {
+  if (!Object.hasOwn(request.input, 'work_item_identity')) return null;
+  const raw = request.input.work_item_identity;
+  if (!isRecord(raw)) {
+    return contractError('App contribution work-item identity must be an object.', {
+      failure_code: 'agent_package_app_contribution_work_item_identity_invalid',
+    });
+  }
+  const required = [
+    'agent_id',
+    'domain_id',
+    'work_item_id',
+    'domain_work_item_id',
+    'work_item_scope_id',
+  ] as const;
+  for (const field of required) {
+    if (typeof raw[field] !== 'string' || !raw[field].trim()) {
+      return contractError('App contribution work-item identity is incomplete.', {
+        field,
+        failure_code: 'agent_package_app_contribution_work_item_identity_invalid',
+      });
+    }
+  }
+  if (raw.identity_state !== 'resolved' || raw.work_item_id !== raw.domain_work_item_id) {
+    return contractError('App contribution work-item identity is unresolved or inconsistent.', {
+      failure_code: 'agent_package_app_contribution_work_item_identity_invalid',
+    });
+  }
+  return raw as AppContributionWorkItemIdentity;
+}
+
+function resolveProjectedWorkItemWorkspace(identity: AppContributionWorkItemIdentity) {
+  const matches = buildWorkItemProjectionV2({ profile: 'fast' }).items.filter((item) => (
+    item.identity.agent_id === identity.agent_id
+    && item.identity.domain_id === identity.domain_id
+    && item.identity.work_item_id === identity.work_item_id
+    && item.identity.domain_work_item_id === identity.domain_work_item_id
+    && item.identity.work_item_scope_id === identity.work_item_scope_id
+    && item.identity.identity_state === identity.identity_state
+  ));
+  return matches.length === 1 ? matches[0]!.identity.workspace_path : null;
+}
+
+function contributionInvocationEnv(
+  request: AppContributionRequest,
+  resolveWorkspace: NonNullable<AppContributionBrokerOptions['resolveWorkItemWorkspace']>,
+) {
+  const identity = workItemIdentity(request);
+  if (!identity) return process.env;
+  const workspaceRoot = resolveWorkspace(identity);
+  if (!workspaceRoot || !path.isAbsolute(workspaceRoot) || !fs.statSync(workspaceRoot, { throwIfNoEntry: false })?.isDirectory()) {
+    return contractError('App contribution work-item identity does not resolve to one current workspace.', {
+      agent_id: identity.agent_id,
+      domain_id: identity.domain_id,
+      work_item_id: identity.work_item_id,
+      work_item_scope_id: identity.work_item_scope_id,
+      failure_code: 'agent_package_app_contribution_work_item_identity_unresolved',
+    });
+  }
+  return { ...process.env, OPL_PROFILE_WORKSPACE: path.resolve(workspaceRoot) };
+}
+
 function resolveContribution(input: AppContributionRequest, discover: () => Map<string, InstalledPackageDescriptor>) {
   const descriptor = discover().get(input.packageId);
   if (!descriptor) {
@@ -271,7 +348,11 @@ function executableArgv(resolved: ResolvedContribution) {
   return { command, args };
 }
 
-function invokeContribution(resolved: ResolvedContribution, request: AppContributionRequest) {
+function invokeContribution(
+  resolved: ResolvedContribution,
+  request: AppContributionRequest,
+  resolveWorkspace: NonNullable<AppContributionBrokerOptions['resolveWorkItemWorkspace']>,
+) {
   const executable = executableArgv(resolved);
   const result = spawnSync(executable.command, executable.args, {
     cwd: resolved.descriptor.sourcePath,
@@ -284,7 +365,7 @@ function invokeContribution(resolved: ResolvedContribution, request: AppContribu
     }),
     timeout: INVOCATION_TIMEOUT_MS,
     maxBuffer: INVOCATION_MAX_BUFFER,
-    env: process.env,
+    env: contributionInvocationEnv(request, resolveWorkspace),
   });
   if (result.error || result.status !== 0) {
     return contractError('Package-owned app contribution command failed.', {
@@ -325,13 +406,15 @@ function invokeContribution(resolved: ResolvedContribution, request: AppContribu
 
 export function runAppContribution(
   request: AppContributionRequest,
-  options: {
-    descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
-  } = {},
+  options: AppContributionBrokerOptions = {},
 ) {
   const discover = requireDescriptorDiscovery(options.descriptorDiscovery);
   const resolved = resolveContribution(request, discover);
-  const response = invokeContribution(resolved, request);
+  const response = invokeContribution(
+    resolved,
+    request,
+    options.resolveWorkItemWorkspace ?? resolveProjectedWorkItemWorkspace,
+  );
   return {
     opl_app_contribution: {
       ...contributionReadback(resolved, request),
