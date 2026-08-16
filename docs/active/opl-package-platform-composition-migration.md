@@ -2,8 +2,8 @@
 
 Owner: `One Person Lab Framework`
 Purpose: `framework_package_platform_composition_migration`
-State: `controlled_breaking_cutover_in_progress`
-Status: `active_implementation`
+State: `completed`
+Status: `landed`
 Decision date: `2026-07-24`
 Machine boundary: 本文只维护 Framework 的兼容现状、仓内迁移责任和删除证明。跨仓
 目标架构、用户功能等价矩阵、总体顺序和 App/Shell 验收的唯一计划是
@@ -15,16 +15,16 @@ readback。
 
 - **Phase 1 - SSOT 与冻结计划**：已完成。目标边界、兼容面、功能不降级证明和
   删除门禁已经进入 canonical documentation authority。
-- **Phase 2 - controlled breaking cutover**：已获用户批准并执行中。先让 successor
-  Package plane 通过公共动作与 fresh readback 验收，再切换全部 production caller，最后
-  在一个受控删除批次中移除 legacy Manager。逐字段、逐 family 迁移不再是主路径。
+- **Phase 2 - controlled breaking cutover**：已完成。successor Package plane 已通过公共
+  动作与 fresh readback 验收，production caller 已切换，并在一个受控删除批次中移除
+  legacy Manager。逐字段、逐 family 迁移不再是主路径。
 
-Phase 2 已获授权不表示迁移已完成，也不自动授权 Package publication、Stable/Latest、
-真实用户 managed state 或其他 public mutation。当前仍存在的 installed lock、payload、
-materialization、receipt、LKG/rollback、scope activation 与 transaction 只作为待切断的
-兼容实现；它们不得阻止 successor source cutover，也不得在切换后继续充当 runtime fallback
-或第二 writer。docs、测试、checkpoint 或兼容数据静止不能替代真实 caller、OUT 和 fresh
-carrier readback 证明。
+Phase 2 的 Framework 删除门已闭合：installed lock、payload、materialization、receipt、
+LKG/rollback、scope activation 与 durable Package transaction 的生产实现、writer、reader、
+schema 和 fixture 已从当前实现移除，production caller 已归零。Package publication、
+Stable/Latest、真实用户 managed state 或其他 public mutation 仍不由本次 Framework
+收口授权；保留的 release/distribution 文档和 owner artifact 只描述各自边界，不恢复
+Framework lifecycle authority。
 
 ## 结论
 
@@ -81,10 +81,11 @@ owner保留。Temporal Worker Versioning 与 domain artifact/evidence digest 也
 
 ## Controlled Breaking Cutover
 
-当前 `opl packages`、first-party manifests、registry cache、installed lock、receipt、
-payload/materialization、LKG/rollback、scope activation 和 Release Set bridge 仍可能有
-active consumer。它们是 compatibility-to-delete，不是目标架构，也不再要求按字段或
-family 单独完成 retirement ceremony。
+迁移前的 `opl packages`、first-party manifests、registry cache、installed lock、receipt、
+payload/materialization、LKG/rollback、scope activation 和 Release Set bridge 曾属于
+compatibility-to-delete。本次 cutover 已移除 Framework lifecycle 部分；当前 `opl packages`
+只通过 installed descriptor、owner channel、configured/native carrier 和 fresh readback
+工作。保留的 owner release/distribution surface 不属于 Framework Package lifecycle。
 
 迁移期规则：
 
@@ -120,7 +121,7 @@ family 单独完成 retirement ceremony。
 
 ## 切换里程碑
 
-### M1 successor-only public actions
+### M1 successor-only public actions (completed)
 
 - owner descriptor 动态发现，per-Package owner OCI `latest-stable` download/verify/handoff，
   configured/native carrier `install|update|remove|repair|enable|disable`，以及 fresh
@@ -130,7 +131,7 @@ family 单独完成 retirement ceremony。
 - 禁止新增 resolver、lock、payload、LKG、receipt、materializer、scope activation、
   rollback 或 durable-intent 字段和公共动作。
 
-### M2 App/Shell consumers and preference migration
+### M2 App/Shell consumers and preference migration (completed for Framework scope)
 
 - App/Shell 只消费 generic directory、presence、status、actions、Agent task 和 typed-view
   projection；不解析 lock、payload、receipt、materializer 或 carrier 私有路径。
@@ -138,7 +139,7 @@ family 单独完成 retirement ceremony。
   visibility/order 继续由 App preference authority 持有。
 - producer 与 consumer 可在独立 worktree 并行准备，canonical main 与同路径 replay 短时串行。
 
-### M3 OUT01-17 and real carrier acceptance
+### M3 OUT01-17 and real carrier acceptance (completed for Framework scope)
 
 - 对 install/update/remove/repair/enable/disable、unknown Package、Home、Runtime 和 failure
   isolation 尽早执行自动化与隔离真实 acceptance；发现缺口只修 successor plane。
@@ -146,16 +147,16 @@ family 单独完成 retirement ceremony。
   required closure，不是第六个 root。
 - required dependency 只做 root-local presence ensure；更新单包不得选择其他 roots。
 
-### M4 legacy bulk deletion and parity
+### M4 legacy bulk deletion and parity (completed)
 
-- M1/M2 已 canonical 且受影响 OUT green 后，停止 legacy writer；用 structural call graph、
-  TypeScript/build 和 exact literal guards 证明 production caller=0。
-- 一次删除中央 registry/resolver/lock/payload/materializer/activation/LKG/receipt/rollback/
-  transaction reader、writer、schema 与 fixture；删除前后复跑同一 affected OUT 集合。
+- M1/M2/M3 已 canonical 且受影响 OUT green 后，legacy writer 已停止；structural call graph、
+  TypeScript/build 和 exact literal guards 已证明 production caller=0。
+- 中央 registry/resolver/lock/payload/materializer/activation/LKG/receipt/rollback/transaction
+  reader、writer、schema 与 fixture 已在同一批次删除，并复跑受影响 OUT 集合。
 - Release receipt、Temporal durability、Foundry/domain evidence、用户 preference/config
   atomic write 不在删除范围内。
 - Framework/App/Shell canonical parity、fresh carrier readback 与 task-owned lifecycle cleanup
-  全部闭合后，才能声明迁移完成。
+  已闭合；本文件只保留后续 owner publication、真实用户 state 和 release 证据边界。
 
 Bulk delete 不机械要求每个字段单独 consumer-zero。它的硬门禁是 successor facade 已
 canonical、所有 production callers 已切换、structural caller=0、受影响 OUT 通过，并在删除
@@ -164,7 +165,7 @@ mutation 和 heavy aggregate 使用短时唯一 baton。
 
 ## 功能不降级证明
 
-Framework 删除旧 lifecycle 前至少要提供：
+Framework 删除旧 lifecycle 的收口证据包括：
 
 - first-party owner GHCR 完整 runtime 与独立 `latest-stable` 匿名 readback；
 - OCI download/verify/handoff 和 configured carrier install/list/update/remove readback；

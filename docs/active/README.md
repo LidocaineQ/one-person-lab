@@ -15,7 +15,7 @@ Machine boundary: 本文是人读索引。机器真相继续归核心五件套�
 - Family：`opl-family-development-reference.md`、`opl-family-ideal-operating-model-redesign.md`、`opl-foundry-agent-target-operating-architecture.md`。
 - 路线与证据门：`current-development-lines.md`、`development-document-portfolio.md`、`production-framework-closure-gap-matrix.md`。
 - Stage / standard agent：`opl-stage-native-kernel-rollout-plan.md`、`standard-agent-migration-owner-map.md`（迁移主题 owner 路由）、`standard-agent-private-platform-inventory.md`、`standard-agent-repo-structure-audit.md`。
-- Package 平台组合：`opl-package-platform-composition-migration.md`（`planned` 支撑计划；功能等价、兼容桥和旧 Package Manager 删除门，不是第二 backlog）。
+- Package 平台组合：`opl-package-platform-composition-migration.md`（Framework successor cutover 与旧 Package Manager 删除门已闭合；仅保留 owner publication、真实用户 state 和 release 证据边界，不是第二 backlog）。
 - Cordis 进程内组合：`cordis-adoption-plan.md`（DSH `@deepseek-ai/cordis` 的全面迁移与运营 SSOT；P1-P6 已落地，`base-headless` 为非 App 默认 profile，`app-full`/`foundry-dev` 由真实入口选择，三 profile 的 child snapshot refs/teardown/source replay/caller-zero 已有 source/test/readback 证据；App/AionUI GUI ABI 与各 owner live readiness 仍回各自 SSOT）。
 - Runtime environment：`runtime-environment-bundle-cache-target-design.md`。
 - Connect：`opl-connect-external-specialist-skill-registry.md`、`opl-connect-reference-verification.md`。
