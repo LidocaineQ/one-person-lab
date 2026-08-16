@@ -574,7 +574,7 @@ function selectInactiveProviderId(
   if (desiredProviderId === 'oplgateway') {
     if (desiredEntry) return desiredProviderId;
     const existingLegacyAlias = [...providerValues.entries()].find(([id, entry]) => (
-      !/^oplgateway_\d+$/.test(id)
+      ['gflab', 'gflabtoken'].includes(id)
       && isOplGatewayBaseUrl(entry.get('base_url'))
     ));
     return existingLegacyAlias?.[0] ?? desiredProviderId;

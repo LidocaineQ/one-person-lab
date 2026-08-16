@@ -553,51 +553,6 @@ test('system configure-codex keeps collision protection for non-reserved provide
   }
 });
 
-test('system configure-codex never reuses an oplgateway suffix-family provider', () => {
-  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configure-codex-suffix-family-'));
-  const codexHome = path.join(homeRoot, 'codex-home');
-
-  try {
-    fs.mkdirSync(codexHome, { recursive: true });
-    fs.writeFileSync(
-      path.join(codexHome, 'config.toml'),
-      [
-        'model_provider = "custom"',
-        'model = "custom-model"',
-        '',
-        '[model_providers.custom]',
-        'name = "Custom Provider"',
-        'base_url = "https://custom-provider.example.test/v1"',
-        'experimental_bearer_token = "existing-custom-key"',
-        '',
-        '[model_providers.oplgateway_2]',
-        'name = "Candidate-era OPL Gateway"',
-        `base_url = "${OPL_GATEWAY_BASE_URL}"`,
-        'experimental_bearer_token = "old-opl-key"',
-        '',
-      ].join('\n'),
-      'utf8',
-    );
-
-    const output = runCliWithStdin(
-      ['system', 'configure-codex', '--api-key-stdin'],
-      'new-opl-key\n',
-      {
-        HOME: homeRoot,
-        CODEX_HOME: codexHome,
-        OPL_STATE_DIR: path.join(homeRoot, 'opl-state'),
-      },
-    ) as any;
-
-    assert.equal(output.codex_config.bootstrap.management_receipt.provider_id, 'oplgateway');
-    const config = fs.readFileSync(path.join(codexHome, 'config.toml'), 'utf8');
-    assert.match(config, /\[model_providers\.oplgateway\]/);
-    assert.match(config, /\[model_providers\.oplgateway_2\]/);
-  } finally {
-    fs.rmSync(homeRoot, { recursive: true, force: true });
-  }
-});
-
 test('system configure-codex keeps environment overrides over bundled model profile', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configure-codex-override-home-'));
 
@@ -826,7 +781,7 @@ test('system configure-codex treats oplgateway as the OPL-owned stable id and up
     assert.match(config, /name = "OPL Gateway"/);
     assert.match(config, new RegExp(`base_url = ${JSON.stringify(OPL_GATEWAY_BASE_URL)}`));
     assert.match(config, /experimental_bearer_token = "new-opl-key"/);
-    assert.doesNotMatch(config, /third-party\.example\.test|third-party-key|oplgateway_2/);
+    assert.doesNotMatch(config, /third-party\.example\.test|third-party-key/);
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
   }

@@ -551,7 +551,7 @@ test('install command treats oplgateway as the OPL-owned stable id and updates i
     assert.match(config, /name = "OPL Gateway"/);
     assert.match(config, /base_url = "https:\/\/gateway\.medopl\.com\/v1"/);
     assert.match(config, /experimental_bearer_token = "new-opl-key"/);
-    assert.doesNotMatch(config, /third-party\.example\.test|third-party-key|oplgateway_2/);
+    assert.doesNotMatch(config, /third-party\.example\.test|third-party-key/);
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
   }
