@@ -126,7 +126,7 @@ function bindingPathRefs(binding: AgentPackageRuntimeModuleBinding) {
 }
 
 function contentLockDigest(descriptor: InstalledPackageDescriptor): string {
-  const canonicalization = descriptor.manifest.content_lock_canonicalization;
+  const canonicalization: string | null = descriptor.manifest.content_lock_canonicalization;
   const declaredDigest = descriptor.manifest.content_digest;
   const contentLockPaths = descriptor.manifest.content_lock_paths ?? [];
   if (!canonicalization || !declaredDigest || contentLockPaths.length === 0) {
@@ -134,6 +134,13 @@ function contentLockDigest(descriptor: InstalledPackageDescriptor): string {
       package_id: descriptor.manifest.package_id,
       source_path: descriptor.sourcePath,
       reason_code: 'installed_runtime_module_content_lock_missing',
+    });
+  }
+  if (canonicalization !== 'ordered_path_length_file_length_bytes') {
+    throw new FrameworkContractError('codex_command_failed', 'Installed Package runtime module content lock canonicalization is unsupported.', {
+      package_id: descriptor.manifest.package_id,
+      content_lock_canonicalization: canonicalization,
+      reason_code: 'installed_runtime_module_content_lock_invalid',
     });
   }
   const digest = crypto.createHash('sha256');

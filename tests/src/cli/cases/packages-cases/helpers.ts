@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import { pathToFileURL } from 'node:url';
 
 import {
   assert,
@@ -167,7 +166,6 @@ export {
   fs,
   os,
   path,
-  pathToFileURL,
   removeFixtureTree,
   runCli,
   runCliAsync,
