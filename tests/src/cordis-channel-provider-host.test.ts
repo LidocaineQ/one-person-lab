@@ -218,6 +218,26 @@ test('app-full loads a callable channel provider from an installed descriptor en
       },
     },
   };
+  const manifestSchema = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/capability-package-manifest.schema.json'),
+    'utf8',
+  )) as Record<string, unknown>;
+  const ordinaryZeroSkillPackage = {
+    ...packageManifestPayload,
+    entrypoints: [],
+  };
+  assert.throws(
+    () => assertJsonSchemaPayload({
+      schemaId: String(manifestSchema.$id),
+      schema: manifestSchema,
+      sourceRef: 'contracts/opl-framework/capability-package-manifest.schema.json',
+    }, ordinaryZeroSkillPackage),
+    /JSON Schema validation/,
+  );
+  assert.throws(
+    () => normalizeCapabilityPackageManifest(ordinaryZeroSkillPackage, manifestPath),
+    /at least one core skill unless it provides a channel provider entrypoint/,
+  );
   assert.throws(
     () => normalizeCapabilityPackageManifest(packageManifestPayload, manifestPath),
     /content lock/,
@@ -251,10 +271,6 @@ test('app-full loads a callable channel provider from an installed descriptor en
     }, manifestPath),
     /must use POSIX separators/,
   );
-  const manifestSchema = parseJsonText(fs.readFileSync(
-    path.join(repoRoot, 'contracts/opl-framework/capability-package-manifest.schema.json'),
-    'utf8',
-  )) as Record<string, unknown>;
   assert.doesNotThrow(() => assertJsonSchemaPayload({
     schemaId: String(manifestSchema.$id),
     schema: manifestSchema,

@@ -141,6 +141,30 @@
     "owner_package_manifest_ref": ["owner_package_descriptor_ref"],
     "owner_package_descriptor_ref": ["owner_package_manifest_ref"]
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "entrypoints": {
+            "contains": {
+              "properties": { "kind": { "const": "channel_provider" } },
+              "required": ["kind"]
+            }
+          }
+        },
+        "required": ["entrypoints"]
+      },
+      "else": {
+        "properties": {
+          "exports": {
+            "properties": {
+              "core_skill_ids": { "minItems": 1 }
+            }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "package_entrypoint": {
       "type": "object",

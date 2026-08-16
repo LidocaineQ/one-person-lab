@@ -1638,6 +1638,16 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
   }
   const packageId = canonicalManifestIdentity(payload.package_id, 'package_id');
   const coreSkillIds = uniqueStrings(stringList(payload.exports.core_skill_ids));
+  const entrypoints = normalizePackageEntrypoints(payload.entrypoints, manifestUrl);
+  if (
+    coreSkillIds.length === 0
+    && !entrypoints.some((entry) => entry.kind === 'channel_provider')
+  ) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Capability package must export at least one core skill unless it provides a channel provider entrypoint.', {
+      manifest_url: manifestUrl,
+      failure_code: 'invalid_capability_package_manifest',
+    });
+  }
   const specialtySkillIds = uniqueStrings(stringList(payload.exports.specialty_skill_ids));
   const allSkillIds = [...coreSkillIds, ...specialtySkillIds];
   if (new Set(allSkillIds).size !== allSkillIds.length) {
@@ -1675,7 +1685,6 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
   }
   const contentLockPaths = uniqueStrings(stringList(payload.content_lock.paths).map((entry, index) =>
     normalizedRelativePath(entry, `content_lock.paths[${index}]`)));
-  const entrypoints = normalizePackageEntrypoints(payload.entrypoints, manifestUrl);
   assertChannelProviderEntrypointsContentLocked(entrypoints, contentLockPaths, manifestUrl);
   const coreModuleIds = uniqueStrings(stringList(payload.exports.core_module_ids));
   if (coreModuleIds.length === 0) {
