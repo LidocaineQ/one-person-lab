@@ -1,7 +1,4 @@
-import http from 'node:http';
 import crypto from 'node:crypto';
-import type { AddressInfo } from 'node:net';
-import { pathToFileURL } from 'node:url';
 
 import {
   assert,
@@ -19,60 +16,8 @@ import { formatJsonPayload, parseJsonText } from '../../../../../src/kernel/json
 
 export { repoRoot };
 
-export function createPluginSourceFixture(input: { includeRequiredSkill?: boolean; pluginId?: string } = {}) {
-  const pluginSourcePath = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-package-plugin-source-'));
-  const pluginId = input.pluginId ?? 'third-party-research';
-  fs.mkdirSync(path.join(pluginSourcePath, '.codex-plugin'), { recursive: true });
-  fs.writeFileSync(
-    path.join(pluginSourcePath, '.codex-plugin', 'plugin.json'),
-    formatJsonPayload({
-      name: pluginId,
-      version: '1.2.3',
-      displayName: 'Third Party Research',
-      description: 'Fixture third-party OPL agent package plugin.',
-    }),
-    'utf8',
-  );
-  if (input.includeRequiredSkill !== false) {
-    fs.mkdirSync(path.join(pluginSourcePath, 'skills', pluginId), { recursive: true });
-    fs.writeFileSync(
-      path.join(pluginSourcePath, 'skills', pluginId, 'SKILL.md'),
-      '# Third Party Research\n\nUse for fixture package materialization tests.\n',
-      'utf8',
-    );
-  }
-  return pluginSourcePath;
-}
-
 export function sha256Fixture(value: string) {
   return `sha256:${crypto.createHash('sha256').update(value).digest('hex')}`;
-}
-
-export function remotePayloadManifest(baseUrl?: string) {
-  const pluginJson = formatJsonPayload({
-    name: 'third-party-research',
-    version: '1.2.3',
-    displayName: 'Third Party Research',
-    description: 'Fixture third-party OPL agent package plugin.',
-  });
-  const skillMarkdown = '# Third Party Research\n\nUse for fixture package materialization tests.\n';
-  return {
-    surface_kind: 'opl_agent_package_payload_manifest',
-    files: [
-      {
-        path: '.codex-plugin/plugin.json',
-        content_utf8: pluginJson,
-        sha256: sha256Fixture(pluginJson),
-      },
-      {
-        path: 'skills/third-party-research/SKILL.md',
-        ...(baseUrl
-          ? { source_url: `${baseUrl}/skills/third-party-research/SKILL.md` }
-          : { content_utf8: skillMarkdown }),
-        sha256: sha256Fixture(skillMarkdown),
-      },
-    ],
-  };
 }
 
 export function distributionPayload(input: { digest?: string; immutableTag?: string } = {}) {
@@ -191,97 +136,11 @@ export function registryPayload(baseUrl: string, input: { packageId?: string } =
   };
 }
 
-export async function withAgentPackageServer(
-  run: (baseUrl: string) => Promise<void>,
-  manifest = agentPackageManifest(),
-) {
-  const server = http.createServer((request, response) => {
-    const url = new URL(request.url ?? '/', 'http://127.0.0.1');
-    if (url.pathname === '/manifest.json') {
-      response.writeHead(200, { 'content-type': 'application/json' });
-      response.end(formatJsonPayload(manifest));
-      return;
-    }
-    if (url.pathname === '/registry.json') {
-      const address = server.address();
-      assert.equal(typeof address, 'object');
-      const baseUrl = `http://127.0.0.1:${(address as AddressInfo).port}`;
-      response.writeHead(200, { 'content-type': 'application/json' });
-      response.end(formatJsonPayload(registryPayload(baseUrl, { packageId: manifest.package_id })));
-      return;
-    }
-    if (url.pathname === '/payload.json') {
-      response.writeHead(200, { 'content-type': 'application/json' });
-      response.end(formatJsonPayload(remotePayloadManifest()));
-      return;
-    }
-    response.writeHead(404, { 'content-type': 'application/json' });
-    response.end(formatJsonPayload({ error: 'not_found' }));
-  });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const address = server.address();
-  assert.equal(typeof address, 'object');
-  const baseUrl = `http://127.0.0.1:${(address as AddressInfo).port}`;
-  try {
-    await run(baseUrl);
-  } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((error) => error ? reject(error) : resolve());
-    });
-  }
-}
-
-export async function withRemotePayloadAgentPackageServer(run: (baseUrl: string) => Promise<void>) {
-  const server = http.createServer((request, response) => {
-    const url = new URL(request.url ?? '/', 'http://127.0.0.1');
-    const address = server.address();
-    assert.equal(typeof address, 'object');
-    const baseUrl = `http://127.0.0.1:${(address as AddressInfo).port}`;
-    if (url.pathname === '/manifest.json') {
-      response.writeHead(200, { 'content-type': 'application/json' });
-      response.end(formatJsonPayload(agentPackageManifest({
-        pluginPayloadManifestUrl: 'payload.json',
-      })));
-      return;
-    }
-    if (url.pathname === '/registry.json') {
-      response.writeHead(200, { 'content-type': 'application/json' });
-      response.end(formatJsonPayload(registryPayload(baseUrl)));
-      return;
-    }
-    if (url.pathname === '/payload.json') {
-      response.writeHead(200, { 'content-type': 'application/json' });
-      response.end(formatJsonPayload(remotePayloadManifest(baseUrl)));
-      return;
-    }
-    if (url.pathname === '/skills/third-party-research/SKILL.md') {
-      response.writeHead(200, { 'content-type': 'text/markdown' });
-      response.end('# Third Party Research\n\nUse for fixture package materialization tests.\n');
-      return;
-    }
-    response.writeHead(404, { 'content-type': 'application/json' });
-    response.end(formatJsonPayload({ error: 'not_found' }));
-  });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const address = server.address();
-  assert.equal(typeof address, 'object');
-  const baseUrl = `http://127.0.0.1:${(address as AddressInfo).port}`;
-  try {
-    await run(baseUrl);
-  } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((error) => error ? reject(error) : resolve());
-    });
-  }
-}
-
-
 export {
   assert,
   fs,
   os,
   path,
-  pathToFileURL,
   removeFixtureTree,
   runCli,
   runCliAsync,

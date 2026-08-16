@@ -16,12 +16,7 @@ const MAX_GIT_OUTPUT = 128 * 1024 * 1024;
 const CANONICAL_PAYLOAD_SURFACE = 'opl_package_payload_manifest.v2';
 const CANONICAL_PAYLOAD_SCHEMA = 'contracts/opl-framework/package-payload-manifest-v2.schema.json';
 const CANONICAL_CONTENT_LOCK = 'ordered_path_length_file_length_bytes';
-const LEGACY_CONTENT_LOCK = 'ordered_path_nul_file_bytes';
 const AGENT_PLUGIN_SCHEMA = 'contracts/opl-framework/agent-plugin-manifest-1.0.0.schema.json';
-const LEGACY_PAYLOAD_SURFACES = new Set([
-  'opl_agent_package_payload_manifest',
-  'opl_package_payload_manifest.v1',
-]);
 const ALLOWED_FILE_MODES = new Set(['100644', '100755']);
 const EXPECTED_REMOTE_REF = 'refs/remotes/origin/main';
 const PACKAGE_MANIFEST_SCHEMAS = new Map([
@@ -347,7 +342,7 @@ function loadAuthority(options) {
   if (manifest.content_lock !== undefined) {
     const declared = requireObject(manifest.content_lock, 'Framework package content_lock');
     if (declared.algorithm !== 'sha256'
-      || ![LEGACY_CONTENT_LOCK, CANONICAL_CONTENT_LOCK].includes(declared.canonicalization)
+      || declared.canonicalization !== CANONICAL_CONTENT_LOCK
       || typeof declared.digest !== 'string'
       || !/^sha256:[0-9a-f]{64}$/.test(declared.digest)) {
       throw new Error('Framework package content_lock must use a supported sha256 canonicalization');
@@ -586,12 +581,6 @@ function contentLockDigest(canonicalization, paths, blobs) {
   for (const relativePath of paths) {
     const pathBytes = Buffer.from(relativePath, 'utf8');
     const fileBytes = blobs.get(relativePath);
-    if (canonicalization === LEGACY_CONTENT_LOCK) {
-      digest.update(pathBytes);
-      digest.update('\0');
-      digest.update(fileBytes);
-      continue;
-    }
     if (canonicalization !== CANONICAL_CONTENT_LOCK) {
       throw new Error(`Unsupported content_lock canonicalization: ${canonicalization}`);
     }
@@ -677,11 +666,11 @@ function readSourceSnapshot(options, authority) {
   return { blobs, entries };
 }
 
-function verifyDeclaredContentLock(authority, snapshot, { allowLegacy }) {
+function verifyDeclaredContentLock(authority, snapshot) {
   if (authority.contentLock) {
-    if (!allowLegacy && authority.contentLock.canonicalization !== CANONICAL_CONTENT_LOCK) {
+    if (authority.contentLock.canonicalization !== CANONICAL_CONTENT_LOCK) {
       throw new Error(
-        `Framework package content_lock uses the historical ${LEGACY_CONTENT_LOCK} boundary; bump SemVer and issue ${CANONICAL_CONTENT_LOCK}`,
+        `Framework package content_lock must use ${CANONICAL_CONTENT_LOCK}`,
       );
     }
     const actual = contentLockDigest(
@@ -698,7 +687,7 @@ function verifyDeclaredContentLock(authority, snapshot, { allowLegacy }) {
 }
 
 function buildPayload(authority, snapshot) {
-  const canonicalDigest = verifyDeclaredContentLock(authority, snapshot, { allowLegacy: false });
+  const canonicalDigest = verifyDeclaredContentLock(authority, snapshot);
 
   return {
     surface_kind: CANONICAL_PAYLOAD_SURFACE,
@@ -767,55 +756,6 @@ function assertExpectedBytes(filePath, expected, expectedDigest, conflictMessage
   if (!actual.equals(expected)) {
     throw new Error(`${conflictMessage}: ${filePath} expected=${expectedDigest} actual=sha256:${sha256(actual)}`);
   }
-}
-
-function legacyPayloadAt(filePath) {
-  if (!fs.existsSync(filePath)) return null;
-  const bytes = readImmutableTarget(filePath, `Tracked payload manifest is missing: ${filePath}`);
-  let payload;
-  try {
-    payload = parseJsonBytes(bytes, 'Published payload manifest');
-  } catch {
-    return null;
-  }
-  return payload && typeof payload === 'object' && LEGACY_PAYLOAD_SURFACES.has(payload.surface_kind)
-    ? { bytes, payload }
-    : null;
-}
-
-function checkLegacyPayload(authority, snapshot, legacy) {
-  const payload = requireObject(legacy.payload, 'Published legacy payload manifest');
-  if (payload.surface_kind === 'opl_package_payload_manifest.v1') {
-    assertSchemaPayload(
-      'contracts/opl-framework/package-payload-manifest.schema.json',
-      payload,
-      'Published legacy package payload manifest',
-    );
-  } else if (payload.schema_ref !== undefined) {
-    throw new Error('Historical unversioned payload manifest must not claim a canonical schema_ref');
-  }
-  if (payload.package_id !== authority.packageId
-    || payload.package_version !== authority.packageVersion
-    || payload.source_repo !== authority.sourceRepoUrl
-    || payload.source_commit !== authority.expectedCommit
-    || payload.source_root !== authority.sourceRoot) {
-    throw new Error('Published legacy payload identity does not match Framework and owner cohort authority');
-  }
-  if (!Array.isArray(payload.files) || payload.files.length !== snapshot.entries.length) {
-    throw new Error('Published legacy payload files do not match the Framework allowlist');
-  }
-  for (let index = 0; index < snapshot.entries.length; index += 1) {
-    const expected = snapshot.entries[index];
-    const actual = requireObject(payload.files[index], `Published legacy payload file ${index}`);
-    const bytes = snapshot.blobs.get(expected.relativePath);
-    if (actual.path !== expected.relativePath
-      || actual.source_url !== rawSourceUrl(authority.githubRepository, authority.expectedCommit, expected.treePath)
-      || actual.sha256 !== `sha256:${sha256(bytes)}`) {
-      throw new Error(`Published legacy payload file does not match exact source authority: ${expected.relativePath}`);
-    }
-  }
-  verifyDeclaredContentLock(authority, snapshot, { allowLegacy: true });
-  return `sha256:${sha256(legacy.bytes)}`;
 }
 
 function fsyncDirectory(directory) {
@@ -932,28 +872,6 @@ function main() {
   const options = parseOptions(process.argv.slice(2));
   const authority = loadAuthority(options);
   const snapshot = readSourceSnapshot(options, authority);
-  const legacy = legacyPayloadAt(authority.output);
-  if (legacy) {
-    if (!options.check) {
-      throw new Error(
-        `Published legacy payload is historical read-only; bump package SemVer before creating ${CANONICAL_PAYLOAD_SURFACE}: ${authority.output}`,
-      );
-    }
-    const payloadSha256 = checkLegacyPayload(authority, snapshot, legacy);
-    process.stdout.write(`${JSON.stringify({
-      status: 'checked_legacy',
-      output: authority.output,
-      package_id: authority.packageId,
-      package_version: authority.packageVersion,
-      plugin_id: authority.pluginId,
-      source_commit: authority.expectedCommit,
-      source_remote_ref: authority.remoteRef,
-      source_root: authority.sourceRoot,
-      file_count: legacy.payload.files.length,
-      payload_sha256: payloadSha256,
-    }, null, 2)}\n`);
-    return;
-  }
   const payload = buildPayload(authority, snapshot);
   assertSchemaPayload(
     CANONICAL_PAYLOAD_SCHEMA,

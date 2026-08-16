@@ -5,7 +5,6 @@ import { fs, path } from './helpers.ts';
 
 const PACKAGE_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.source.v1+gzip';
 const PACKAGE_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.manifest.v1+json';
-const PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.payload.v1+json';
 const CHANNEL_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.release.channel-manifest.v1+json';
 
 function sha256(filePath: string) {
@@ -19,13 +18,11 @@ export function writeManagedRuntimeSourceFixture(input: {
   version: string;
   sourceHeadSha: string;
   packageManifest?: Record<string, unknown>;
-  payloadManifest?: Record<string, unknown>;
   sourceFiles?: Array<{
     sourcePath: string;
     content: string | Buffer;
     mode?: number;
   }>;
-  artifactBackedPayload?: boolean;
 }) {
   const blobRoot = path.join(input.root, 'blobs');
   const fakeBin = path.join(input.root, 'bin');
@@ -113,10 +110,6 @@ export function writeManagedRuntimeSourceFixture(input: {
       (codexSurface as Record<string, unknown>).carrier_source_commit = exactSourceCommit;
     }
   }
-  const payloadManifest = structuredClone(input.payloadManifest ?? {
-    source_commit: input.sourceHeadSha,
-  });
-  if (payloadManifest && exactSourceCommit) payloadManifest.source_commit = exactSourceCommit;
   const manifestJson = packageManifest
     ? `${JSON.stringify({
         ...packageManifest,
@@ -127,44 +120,8 @@ export function writeManagedRuntimeSourceFixture(input: {
   const manifestDigest = manifestJson
     ? `sha256:${crypto.createHash('sha256').update(manifestJson).digest('hex')}`
     : null;
-  const payloadManifestJson = payloadManifest
-    ? `${JSON.stringify({
-        ...payloadManifest,
-        package_id: packageId,
-        package_version: input.version,
-        package_source: {
-          transport: 'same_oci_artifact_source_archive',
-          artifact_ref: sourceArtifactRef,
-          archive_sha256: `sha256:${archiveDigest}`,
-          archive_root: input.repoName,
-        },
-        files: Array.isArray(payloadManifest.files)
-          ? payloadManifest.files.map((candidate) => {
-              const file = candidate && typeof candidate === 'object' && !Array.isArray(candidate)
-                ? candidate as Record<string, unknown>
-                : {};
-              return input.artifactBackedPayload === false
-                ? file
-                : {
-                    ...file,
-                    source_artifact_ref: sourceArtifactRef,
-                    content_utf8: undefined,
-                    content_base64: undefined,
-                    source_url: undefined,
-                  };
-            })
-          : [],
-      }, null, 2)}\n`
-    : null;
-  const payloadManifestDigest = payloadManifestJson
-    ? `sha256:${crypto.createHash('sha256').update(payloadManifestJson).digest('hex')}`
-    : null;
   const manifestLayerPath = manifestJson ? path.join(blobRoot, 'package-manifest.json') : null;
-  const payloadLayerPath = payloadManifestJson ? path.join(blobRoot, 'payload-manifest.json') : null;
   if (manifestJson && manifestLayerPath) fs.writeFileSync(manifestLayerPath, manifestJson);
-  if (payloadManifestJson && payloadLayerPath) {
-    fs.writeFileSync(payloadLayerPath, payloadManifestJson);
-  }
   const packageArtifactManifest = {
     schemaVersion: 2,
     layers: [
@@ -176,11 +133,6 @@ export function writeManagedRuntimeSourceFixture(input: {
         mediaType: PACKAGE_MANIFEST_LAYER_MEDIA_TYPE,
         digest: manifestDigest,
         annotations: { 'org.opencontainers.image.title': 'package-manifest.json' },
-      }] : []),
-      ...(payloadManifestDigest ? [{
-        mediaType: PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE,
-        digest: payloadManifestDigest,
-        annotations: { 'org.opencontainers.image.title': 'payload-manifest.json' },
       }] : []),
     ],
   };
@@ -205,11 +157,6 @@ export function writeManagedRuntimeSourceFixture(input: {
                 sha256: manifestDigest,
               },
               content_digest: manifestDigest,
-            } : {}),
-            ...(payloadManifestJson && payloadManifestDigest ? {
-              payload_digest: payloadManifestDigest,
-              payload_manifest_json: payloadManifestJson,
-              payload_manifest_sha256: payloadManifestDigest,
             } : {}),
             source_artifact_ref: sourceArtifactRef,
             artifact_digest: artifactDigest,
@@ -236,7 +183,6 @@ export function writeManagedRuntimeSourceFixture(input: {
     [`sha256:${channelDigest}`]: channelManifestPath,
     [`sha256:${archiveDigest}`]: archivePath,
     ...(manifestDigest && manifestLayerPath ? { [manifestDigest]: manifestLayerPath } : {}),
-    ...(payloadManifestDigest && payloadLayerPath ? { [payloadManifestDigest]: payloadLayerPath } : {}),
   };
   fs.writeFileSync(path.join(fakeBin, 'curl'), [
     '#!/usr/bin/env node',

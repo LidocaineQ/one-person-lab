@@ -528,8 +528,8 @@ test('MAS launch projects Workspace Skills without private lifecycle materializa
   }
 });
 
-test('quest root activation projects MAS Workspace Skills without private lifecycle writes', () => {
-  const root = fs.mkdtempSync(`${os.tmpdir()}/opl-quest-package-activation-`);
+test('bound quest root reads MAS native carrier without private lifecycle writes', () => {
+  const root = fs.mkdtempSync(`${os.tmpdir()}/opl-quest-package-readback-`);
   const stateRoot = path.join(root, 'state');
   const codexHome = path.join(root, 'codex-home');
   const quest = path.join(root, 'quest');

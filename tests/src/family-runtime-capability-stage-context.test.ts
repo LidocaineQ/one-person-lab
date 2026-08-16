@@ -11,7 +11,6 @@ import {
   type CapabilityRegistryCatalog,
   type CurrentOwnerDeltaCapabilityBinding,
 } from '../../src/adapters/integration/capability-registry-resolver.ts';
-import { sha256Fixture } from './cli/cases/packages-cases/helpers.ts';
 import { writeManagedRuntimeSourceFixture } from './cli/cases/packages-cases/managed-runtime-source-fixture.ts';
 import { createFakeCodexPluginManagerFixture } from './cli/helpers-parts/fixtures.ts';
 import { removeFixtureTree } from './cli/helpers-parts/filesystem.ts';
@@ -803,14 +802,6 @@ test('provider-hosted attempt launch consumes typed capability readout without c
     version: '0.2.1',
     sourceHeadSha: ownerSourceCommit,
     packageManifest,
-    payloadManifest: {
-      surface_kind: 'opl_agent_package_payload_manifest',
-      files: Object.entries(packageFiles).map(([relativePath, content]) => ({
-        path: relativePath,
-        source_path: relativePath,
-        sha256: sha256Fixture(content),
-      })),
-    },
     sourceFiles: Object.entries(packageFiles).map(([sourcePath, content]) => ({ sourcePath, content })),
   });
   process.env.PATH = packageFixtureEnv.PATH;

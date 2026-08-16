@@ -648,6 +648,9 @@ export function materializeArchiveBackedPackagePayload(input: {
   archiveSha256: string | null;
   archiveRoot: string;
 }) {
+  if (input.payload.surface_kind !== 'opl_package_payload_manifest.v2') {
+    throw new Error(`${input.payloadRef}.surface_kind must be opl_package_payload_manifest.v2.`);
+  }
   if (!/^[0-9a-f]{40}$/.test(input.ownerSourceCommit ?? '')) {
     throw new Error(`${input.payloadRef}.source_commit must be an exact Git commit.`);
   }
@@ -691,9 +694,6 @@ export function materializeArchiveBackedPackagePayload(input: {
     package_id: input.packageId,
     package_version: input.packageVersion,
     source_commit: input.ownerSourceCommit,
-    ...(input.payload.surface_kind === 'opl_package_payload_manifest.v2'
-      ? {}
-      : { source_root: undefined }),
     ...(trackedSourceCommit && trackedSourceCommit !== input.ownerSourceCommit
       ? { migration_source_commit: trackedSourceCommit }
       : {}),

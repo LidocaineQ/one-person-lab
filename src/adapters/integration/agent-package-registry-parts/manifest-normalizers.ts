@@ -1575,8 +1575,7 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
     payload.content_lock.canonicalization,
     'content_lock.canonicalization',
   );
-  if (contentLockCanonicalization !== 'ordered_path_nul_file_bytes'
-    && contentLockCanonicalization !== 'ordered_path_length_file_length_bytes') {
+  if (contentLockCanonicalization !== 'ordered_path_length_file_length_bytes') {
     throw new FrameworkContractError('contract_shape_invalid', 'Capability package content lock canonicalization is unsupported.', {
       manifest_url: manifestUrl,
       content_lock_canonicalization: contentLockCanonicalization,

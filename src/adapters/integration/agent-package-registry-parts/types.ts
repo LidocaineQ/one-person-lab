@@ -203,7 +203,7 @@ export type AgentPackageManifest = {
   capability_provider: AgentPackageCapabilityProvider | null;
   runtime_module_bindings: AgentPackageRuntimeModuleBinding[];
   content_digest: string | null;
-  content_lock_canonicalization: 'ordered_path_nul_file_bytes' | 'ordered_path_length_file_length_bytes' | null;
+  content_lock_canonicalization: 'ordered_path_length_file_length_bytes' | null;
   content_lock_paths: string[];
   configured_codex_plugin_carrier?: AgentPackageConfiguredCodexPluginCarrierDescriptor | null;
   app_contributions?: AgentPackageAppContributions | null;
