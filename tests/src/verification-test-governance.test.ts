@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { parseJsonText } from '../../src/kernel/json-file.ts';
+import { discoverTestRoots } from '../../scripts/test-lanes.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
@@ -138,6 +139,7 @@ const expectedTestScripts = {
   'test:read-model-gates': 'node ./scripts/test-lanes.mjs run read-model-gates',
   'test:regression': 'node ./scripts/test-lanes.mjs run regression',
   'test:integration': 'node ./scripts/test-lanes.mjs run integration',
+  'test:stage-run-mag-integration': 'node ./scripts/test-lanes.mjs run stage-run-mag-integration',
   'test:artifact': 'node ./scripts/test-lanes.mjs run artifact',
   'test:fresh-install': 'node ./scripts/test-lanes.mjs run fresh-install',
   'test:native': './scripts/verify.sh native',
@@ -309,6 +311,18 @@ test('reasonable refactor patrol keeps selection evidence-led and fork bodies ex
 test('package.json exposes repo hygiene check and cleanup entrypoints', () => {
   assert.equal(packageJson.scripts?.['repo:hygiene'], 'scripts/repo-hygiene.sh');
   assert.equal(packageJson.scripts?.['repo:hygiene:fix'], 'scripts/repo-hygiene.sh --fix');
+});
+
+test('test lane discovery admits new roots without executing imported children separately', () => {
+  const sources = new Map([
+    ['tests/src/new-root.test.ts', "import './new-root-child.test.ts';\n"],
+    ['tests/src/new-root-child.test.ts', "import test from 'node:test';\n"],
+  ]);
+
+  assert.deepEqual(
+    discoverTestRoots([...sources.keys()], (relativePath) => sources.get(relativePath) ?? ''),
+    ['tests/src/new-root.test.ts'],
+  );
 });
 
 test('package.json exposes a single test lane registry for active test ownership', () => {
