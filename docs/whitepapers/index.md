@@ -13,14 +13,14 @@ One Person Lab 白皮书面向用户、合作者和技术决策者，呈现 OPL 
 
 ## OPL Framework
 
-以 Cordis 组织可组合、可检查、可持续演进的专业能力，让 OPL Base 在长期运行中依然保持清楚的责任、版本和恢复路径。
+让专业能力可以动态装配、独立验证和持续演进，使 OPL Base 在长期运行中依然保持清楚的责任、版本和恢复路径。
 
 - [在线阅读](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-framework-whitepaper.html)
 - [PDF](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-framework-whitepaper.pdf)
 
 ## One Person Lab App
 
-把目标、材料、进度、成果、审阅和下一步组织成一张连续工作台。AionUI 主线界面与借鉴 DeepSeek Harness 的候选界面共享同一份产品设计与产品承诺。
+把目标、材料、进度、成果、审阅和下一步组织成一张连续工作台，并在持续演进中保持统一的产品体验。
 
 - [在线阅读](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-app-whitepaper.html)
 - [PDF](https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/opl-app-whitepaper.pdf)
