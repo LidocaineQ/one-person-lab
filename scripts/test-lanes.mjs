@@ -81,7 +81,6 @@ const readModelGateCliExclusions = [
 const readModelGateTopLevelPatterns = [
   'tests/src/domain-detail-view.test.ts',
   'tests/src/work-item-*.test.ts',
-  'tests/src/app-runtime-fast-work-item-projection-contract.test.ts',
   'tests/src/app-state-view-model-runtime-scope.test.ts',
   'tests/src/current-owner-delta-topline.test.ts',
   'tests/src/framework-readiness-attention-actions.test.ts',
