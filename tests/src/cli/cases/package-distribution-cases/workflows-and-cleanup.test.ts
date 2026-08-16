@@ -727,16 +727,9 @@ process.exit(2);
   };
 }
 
-test('GHCR package cleanup dry-runs active native helper and active package-channel packages', () => {
+test('GHCR package cleanup dry-runs active package-channel packages', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-ghcr-cleanup-'));
   const packageVersions = {
-    'one-person-lab-native-helper': [
-      { id: 1, updated_at: '2026-06-01T00:00:00Z', metadata: { container: { tags: ['darwin-arm64-0.1.0'] } } },
-      { id: 2, updated_at: '2026-05-31T00:00:00Z', metadata: { container: { tags: ['linux-x64-0.1.0'] } } },
-      { id: 3, updated_at: '2026-05-30T00:00:00Z', metadata: { container: { tags: ['windows-x64-0.1.0'] } } },
-      { id: 4, updated_at: '2026-05-20T00:00:00Z', metadata: { container: { tags: ['old-0.0.9'] } } },
-      { id: 5, updated_at: '2026-05-19T00:00:00Z', metadata: { container: { tags: ['latest'] } } },
-    ],
     'one-person-lab-packages/mas': [
       { id: 11, updated_at: '2026-05-06T00:00:00Z', metadata: { container: { tags: ['26.5.6'] } } },
       { id: 12, updated_at: '2026-05-02T00:00:00Z', metadata: { container: { tags: ['26.5.2-a'] } } },
@@ -791,9 +784,10 @@ test('GHCR package cleanup dry-runs active native helper and active package-chan
   assert.equal(summary.status, 'dry_run');
   assert.deepEqual(summary.extra_protected_tags, ['manual-keep']);
   assert.equal(fs.existsSync(logPath), false);
-  const nativeHelper = summary.packages.find((entry: { package_name: string }) => entry.package_name === 'one-person-lab-native-helper');
-  assert.deepEqual(nativeHelper.protected_version_ids, [1, 2, 3, 5]);
-  assert.deepEqual(nativeHelper.candidates.map((candidate: { id: number }) => candidate.id), [4]);
+  assert.equal(
+    summary.packages.some((entry: { package_name: string }) => entry.package_name === 'one-person-lab-native-helper'),
+    false,
+  );
   const mas = summary.packages.find((entry: { package_name: string }) => entry.package_name === 'one-person-lab-packages/mas');
   assert.equal(mas.package_kind, 'active_package');
   assert.equal(mas.lifecycle_status, 'active_release_channel');
