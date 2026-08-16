@@ -35,17 +35,13 @@ export { buildFamilyStageContextObservation, buildFamilyStageControlPlaneParity,
 export { normalizeFamilyStageControlPlane } from './family-stage-control-plane-contract.ts';
 export type { FamilyStageControlPlane, FamilyStageDescriptor, FamilyStageSurfaceRef } from './family-stage-control-plane-contract.ts';
 export { buildFamilyStageProofBundle } from './family-stage-proof-bundle.ts';
-export { buildFamilyStageRuntimeBudgetProjection } from './family-stage-runtime-budget.ts';
 export { buildStagecraftDomainProfileRegistryReadback } from './domain-profile-registry.ts';
 export { commitStageArtifactAttemptRuntime, conformanceStageArtifactRuntime, explainStageArtifactRuntime, gcStageArtifactRuntime, openStageArtifactAttemptRuntime, promoteStageArtifactRuntime, rebuildStageArtifactRuntime, restoreStageArtifactRuntime, statusStageArtifactRuntime, validateStageArtifactRuntime, workbenchStageArtifactRuntime } from './stage-artifact-runtime.ts';
-export { buildDirectoryArtifactIndex, buildDomainArtifactIndex, readDomainArtifact, writeDomainArtifact } from './domain-artifact-runtime.ts';
 export type { DomainArtifactRole } from './domain-artifact-runtime.ts';
 export { assertStageProductionEvidencePayloadReady, buildStageProductionEvidencePayloadWorkorder, preflightStageProductionEvidencePayload, STAGE_PRODUCTION_EVIDENCE_COVERAGE_PAYLOAD_REFS, STAGE_PRODUCTION_EVIDENCE_OPTIONAL_PAYLOAD_REFS, STAGE_PRODUCTION_EVIDENCE_REQUIRED_PAYLOAD_REFS } from './stage-production-evidence-payload-preflight.ts';
-export { stageReplayMissingReceiptTargetKey } from './stage-replay-missing-receipt-ledger.ts';
 export type { StageReplayMissingReceiptReceipt } from './stage-replay-missing-receipt-ledger.ts';
 export { buildStageReplayMissingReceiptWorkorderPacket, compactStageReplayMissingReceiptWorkorderAttentionItems, compactStageReplayMissingReceiptWorkorderAttentionSummary } from './stage-replay-missing-receipt-workorders.ts';
 export { buildAppStageRunCockpit } from './stage-run-cockpit.ts';
-export { buildOwnerAnswerProjectionProfileRegistryReadback } from './domain-owner-answer-projection.ts';
 export {
   EVIDENCE_DEPENDENCY_RELATIONS,
   EVIDENCE_NODE_KINDS,

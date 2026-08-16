@@ -1,5 +1,5 @@
 import type { FrameworkContracts } from '../../../kernel/types.ts';
-import type { WorkspaceBinding } from '../../../kernel/workspace-binding-port.ts';
+import type { WorkspaceBinding } from '../../../authority/workspace/index.ts';
 import type { ManifestCommandTimeoutPolicy } from './resolver.ts';
 import { resolveBindingManifest } from './resolver.ts';
 import {

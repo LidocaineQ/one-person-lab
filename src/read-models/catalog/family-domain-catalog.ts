@@ -1,6 +1,6 @@
 import type { DomainManifestCatalogEntry } from './domain-manifest/types.ts';
 import { record, stringList, stringValue, type JsonRecord } from '../../kernel/json-record.ts';
-import type { WorkspaceBinding } from '../../kernel/workspace-binding-port.ts';
+import type { WorkspaceBinding } from '../../authority/workspace/index.ts';
 
 type BuildFamilyDomainCatalogOptions = {
   resolveActiveWorkspaceBinding?: (projectId: string) => WorkspaceBinding | null;
