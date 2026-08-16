@@ -571,6 +571,15 @@ function selectInactiveProviderId(
   providerValues: Map<string, Map<string, string>>,
 ) {
   const desiredEntry = providerValues.get(desiredProviderId);
+  if (desiredProviderId === 'oplgateway') {
+    if (desiredEntry) return desiredProviderId;
+    const existingLegacyAlias = [...providerValues.entries()].find(([id, entry]) => (
+      !/^oplgateway_\d+$/.test(id)
+      && isOplGatewayBaseUrl(entry.get('base_url'))
+    ));
+    return existingLegacyAlias?.[0] ?? desiredProviderId;
+  }
+
   if (desiredEntry && (
     isOplGatewayBaseUrl(providerBaseUrl)
       ? isOplGatewayBaseUrl(desiredEntry.get('base_url'))
@@ -684,11 +693,20 @@ export function bootstrapLocalCodexDefaults(input: BootstrapLocalCodexDefaultsIn
   const providerId = activeOplProvider?.model_provider
     ? activeOplProvider.model_provider
     : selectInactiveProviderId(requestedProviderId, providerBaseUrl, providerValues);
+  const reservedOplGatewaySelected = requestedProviderId === 'oplgateway' && providerId === 'oplgateway';
+  const reservedOplGatewayIsActive = Boolean(
+    existing
+    && existing.model_provider === 'oplgateway'
+    && reservedOplGatewaySelected
+    && isOplGatewayBaseUrl(providerBaseUrl),
+  );
   const existingProviderName = normalizeOptionalString(providerValues.get(providerId)?.get('name'));
   const existingProviderBaseUrl = normalizeOptionalString(providerValues.get(providerId)?.get('base_url'));
   const providerName = activeOplProvider
     ? activeOplProvider.provider_name ?? requestedProviderName
-    : existingProviderName ?? requestedProviderName;
+    : reservedOplGatewaySelected
+      ? requestedProviderName
+      : existingProviderName ?? requestedProviderName;
   const preserveLocalOverride = activeOplProvider
     ? hasLocalOverride(activeOplProvider, receipt)
     : false;
@@ -707,12 +725,12 @@ export function bootstrapLocalCodexDefaults(input: BootstrapLocalCodexDefaultsIn
     : existingProviderBaseUrl && isOplGatewayBaseUrl(existingProviderBaseUrl) && isOplGatewayBaseUrl(providerBaseUrl)
       ? existingProviderBaseUrl
     : providerBaseUrl;
-  const selectionMode = existing && !oplProviderActive && !activateProvider
+  const selectionMode = existing && !oplProviderActive && !reservedOplGatewayIsActive && !activateProvider
     ? 'inactive_provider' as const
     : preserveLocalOverride
       ? 'local_override' as const
       : 'auto' as const;
-  const nextText = existing && !oplProviderActive && !activateProvider
+  const nextText = existing && !oplProviderActive && !reservedOplGatewayIsActive && !activateProvider
     ? buildCodexProviderOnlyConfigText(existingText, {
       providerId,
       providerName,
@@ -738,7 +756,7 @@ export function bootstrapLocalCodexDefaults(input: BootstrapLocalCodexDefaultsIn
     selection_mode: selectionMode,
     provider_route: providerRoute(
       selectedProviderBaseUrl,
-      activateProvider || !existing || Boolean(activeOplProvider),
+      activateProvider || !existing || Boolean(activeOplProvider) || reservedOplGatewayIsActive,
     ),
     owned_keys: [
       ...(selectionMode === 'auto' ? [

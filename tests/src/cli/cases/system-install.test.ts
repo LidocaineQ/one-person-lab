@@ -506,7 +506,7 @@ test('install command does not upgrade a direct OPL Gateway config without a bea
   }
 });
 
-test('install command does not overwrite a third-party provider using the oplgateway id', () => {
+test('install command treats oplgateway as the OPL-owned stable id and updates it in place', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-install-oplgateway-collision-home-'));
   const codexHome = path.join(homeRoot, 'codex-home');
   const configPath = path.join(codexHome, 'config.toml');
@@ -521,7 +521,7 @@ test('install command does not overwrite a third-party provider using the oplgat
         'model_reasoning_effort = "medium"',
         '',
         '[model_providers.oplgateway]',
-        'name = "Third Party"',
+        'name = "Stale OPL Gateway"',
         'base_url = "https://third-party.example.test/v1"',
         'experimental_bearer_token = "third-party-key"',
         '',
@@ -541,18 +541,17 @@ test('install command does not overwrite a third-party provider using the oplgat
     assert.equal(bootstrap.status, 'completed');
     assert.equal(bootstrap.model, 'third-party-model');
     assert.equal(bootstrap.reasoning_effort, 'medium');
-    assert.equal(bootstrap.management_receipt.selection_mode, 'inactive_provider');
-    assert.equal(bootstrap.management_receipt.provider_id, 'oplgateway_2');
+    assert.equal(bootstrap.management_receipt.selection_mode, 'auto');
+    assert.equal(bootstrap.management_receipt.provider_route, 'direct_gateway');
+    assert.equal(bootstrap.management_receipt.provider_id, 'oplgateway');
     const config = fs.readFileSync(configPath, 'utf8');
     assert.match(config, /model_provider = "oplgateway"/);
     assert.match(config, /model = "third-party-model"/);
     assert.match(config, /\[model_providers\.oplgateway\]/);
-    assert.match(config, /base_url = "https:\/\/third-party\.example\.test\/v1"/);
-    assert.match(config, /experimental_bearer_token = "third-party-key"/);
-    assert.match(config, /\[model_providers\.oplgateway_2\]/);
     assert.match(config, /name = "OPL Gateway"/);
     assert.match(config, /base_url = "https:\/\/gateway\.medopl\.com\/v1"/);
     assert.match(config, /experimental_bearer_token = "new-opl-key"/);
+    assert.doesNotMatch(config, /third-party\.example\.test|third-party-key|oplgateway_2/);
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
   }
