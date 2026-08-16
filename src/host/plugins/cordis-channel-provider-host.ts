@@ -14,7 +14,7 @@ import {
   type ChannelTurnRef,
   type ChannelTurnTerminalEvent,
   type ChannelTurnTerminalObserver,
-} from '../../authority/packages/package-host-integration.ts';
+} from '../../authority/packages/index.ts';
 import {
   buildCordisPluginDescriptor,
   type CordisPluginDescriptor,
@@ -26,7 +26,7 @@ export const CORDIS_CHANNEL_PROVIDER_HOST_SERVICE = CHANNEL_PROVIDER_HOST_SERVIC
 export const CORDIS_CHANNEL_PROVIDER_HOST_SOURCE_REF =
   'src/host/plugins/cordis-channel-provider-host.ts';
 export const CORDIS_CHANNEL_PROVIDER_HOST_SOURCE_COMMIT =
-  '0a4c3660c4e85327014a4c62492fcf3ae0eb570d';
+  'dc556694fd97e28d96f05346b09b8093d0b3a60a';
 
 export type CordisChannelProviderHostService = Readonly<{
   callback_api_version: typeof CHANNEL_THREAD_CALLBACK_API_VERSION;
