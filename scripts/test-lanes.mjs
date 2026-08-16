@@ -55,6 +55,7 @@ const fastTestFiles = [
   'tests/src/cordis-composition-contract.test.ts',
   'tests/src/cordis-composition-inspect.test.ts',
   'tests/src/cordis-architecture-profile.test.ts',
+  'tests/src/cordis-channel-provider-host.test.ts',
   'tests/src/cordis-runway-attempt.test.ts',
   'tests/src/cordis-workspace-ledger.test.ts',
   'tests/src/cordis-connect-services.test.ts',

@@ -26,7 +26,7 @@ export const CORDIS_CHANNEL_PROVIDER_HOST_SERVICE = CHANNEL_PROVIDER_HOST_SERVIC
 export const CORDIS_CHANNEL_PROVIDER_HOST_SOURCE_REF =
   'src/host/plugins/cordis-channel-provider-host.ts';
 export const CORDIS_CHANNEL_PROVIDER_HOST_SOURCE_COMMIT =
-  'dc556694fd97e28d96f05346b09b8093d0b3a60a';
+  'd39c4026811620a3511c8a8af708462f31a0549a';
 
 export type CordisChannelProviderHostService = Readonly<{
   callback_api_version: typeof CHANNEL_THREAD_CALLBACK_API_VERSION;
