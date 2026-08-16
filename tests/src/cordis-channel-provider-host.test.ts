@@ -112,6 +112,14 @@ test('app-full attaches a long-lived provider to the bounded callback and tears 
         }),
         /cannot bind another provider identity/,
       );
+      await assert.rejects(
+        () => injected.startThread({
+          provider_id: 'opl-channel-weixin',
+          account_id: ' account-1',
+          channel_session_id: 'session-1',
+        }),
+        /requires exact account_id/,
+      );
       const thread = await injected.startThread({
         provider_id: 'opl-channel-weixin',
         account_id: 'account-1',
@@ -153,12 +161,109 @@ test('app-full attaches a long-lived provider to the bounded callback and tears 
     'turn:subscribe:turn-1',
     'turn:terminal:completed',
   ]);
+  const transportBindings = composition.services.channelProviderHost!.appStatePatch()
+    .transport_bindings as any;
+  assert.equal(transportBindings.surface_kind, 'opl_app_transport_bindings_projection.v1');
+  assert.equal(transportBindings.status, 'available');
+  assert.equal(transportBindings.unavailable_reason, undefined);
+  assert.deepEqual(transportBindings.bindings.map(({ binding_id: _bindingId, ...binding }: any) => binding), [{
+    provider_id: 'opl-channel-weixin',
+    account_id: 'account-1',
+    channel_session_id: 'session-1',
+    canonical_thread_host: 'studio',
+    canonical_thread_id: 'thread-1',
+    project_affinity: 'projectless',
+    status: 'bound',
+  }]);
+  assert.match(transportBindings.bindings[0].binding_id, /^binding-[a-f0-9]{64}$/);
+  assert.deepEqual(transportBindings.authority_boundary, {
+    raw_fact_owner: 'current_shell_exact_binding_store',
+    projection_owner: 'one-person-lab-framework',
+    thread_truth_owner: 'canonical_codex_app_server',
+    consumer_role: 'render_and_join_only',
+    persistence_role: 'none',
+  });
   await assert.rejects(
     () => composition.services.channelProviderHost!.attach(provider),
     /already attached/,
   );
+  const host = composition.services.channelProviderHost;
   await composition.dispose();
+  assert.deepEqual((host!.appStatePatch() as any).transport_bindings, {
+    surface_kind: 'opl_app_transport_bindings_projection.v1',
+    status: 'unavailable',
+    bindings: [],
+    unavailable_reason: 'producer_absent',
+    authority_boundary: {
+      raw_fact_owner: 'current_shell_exact_binding_store',
+      projection_owner: 'one-person-lab-framework',
+      thread_truth_owner: 'canonical_codex_app_server',
+      consumer_role: 'render_and_join_only',
+      persistence_role: 'none',
+    },
+  });
   assert.deepEqual(events.slice(-2), ['turn:unsubscribe:turn-1', 'provider:dispose']);
+});
+
+test('channel transport projection rejects identity and canonical-thread conflicts', async () => {
+  let callbackCount = 0;
+  const callback = callbackFixture();
+  const conflictingCallback: ChannelThreadCallback = {
+    ...callback,
+    async startThread() {
+      callbackCount += 1;
+      return {
+        canonical_thread_host: 'studio',
+        canonical_thread_id: `thread-${callbackCount}`,
+      };
+    },
+  };
+  const provider: ChannelProvider = {
+    provider_id: 'opl-channel-weixin',
+    async start({ callback: injected }) {
+      const identity = {
+        provider_id: 'opl-channel-weixin',
+        account_id: 'account-1',
+        channel_session_id: 'session-1',
+      };
+      await injected.startThread(identity);
+      await injected.startThread(identity);
+      return { dispose() {} };
+    },
+  };
+  await assert.rejects(
+    () => createCordisAppFullComposition({
+      runtimeSnapshotProvider: async () => ({ runtime_tray_snapshot: {} }),
+      channelProvider: { callback: conflictingCallback, providers: [provider] },
+      connect: emptyDescriptorDiscovery(),
+    }),
+    /mismatched canonical thread ref/,
+  );
+
+  const sharedThreadProvider: ChannelProvider = {
+    provider_id: 'opl-channel-weixin',
+    async start({ callback: injected }) {
+      await injected.startThread({
+        provider_id: 'opl-channel-weixin',
+        account_id: 'account-1',
+        channel_session_id: 'session-1',
+      });
+      await injected.startThread({
+        provider_id: 'opl-channel-weixin',
+        account_id: 'account-1',
+        channel_session_id: 'session-2',
+      });
+      return { dispose() {} };
+    },
+  };
+  await assert.rejects(
+    () => createCordisAppFullComposition({
+      runtimeSnapshotProvider: async () => ({ runtime_tray_snapshot: {} }),
+      channelProvider: { callback, providers: [sharedThreadProvider] },
+      connect: emptyDescriptorDiscovery(),
+    }),
+    /already bound to another channel identity/,
+  );
 });
 
 test('app-full loads a callable channel provider from an installed descriptor entrypoint', async () => {
@@ -399,6 +504,8 @@ test('app-full loads a callable channel provider from an installed descriptor en
     assert.equal(loaded.startCount, 1);
     assert.ok(composition.services.channelProviderHost);
     const patch = composition.services.channelProviderHost!.appStatePatch() as any;
+    assert.equal(patch.transport_bindings.status, 'available');
+    assert.deepEqual(patch.transport_bindings.bindings, []);
     assert.equal(patch.ui_contributions.entries[0].view.view_type, 'channel_access');
     assert.equal(
       patch.ui_contributions.entries[0].action_boundary,

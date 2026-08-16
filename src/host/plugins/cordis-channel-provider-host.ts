@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { Context } from '@deepseek-ai/cordis';
 
 import {
@@ -60,6 +62,12 @@ type ActiveProvider = Readonly<{
   confirmationRequiredRefs: ReadonlySet<string>;
 }>;
 
+type ChannelTransportBinding = ChannelConversationIdentity & ChannelThreadRef & Readonly<{
+  binding_id: string;
+  project_affinity: 'projectless';
+  status: 'bound';
+}>;
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     [CORDIS_CHANNEL_PROVIDER_HOST_SERVICE]: CordisChannelProviderHostService;
@@ -71,6 +79,14 @@ function requiredString(value: unknown, field: string): string {
     throw new TypeError(`Channel callback requires ${field}.`);
   }
   return value;
+}
+
+function requiredExactString(value: unknown, field: string): string {
+  const exact = requiredString(value, field);
+  if (exact !== exact.trim() || exact.length > 512) {
+    throw new TypeError(`Channel callback requires exact ${field}.`);
+  }
+  return exact;
 }
 
 function contributionRef(value: unknown): string {
@@ -139,26 +155,52 @@ function contributionReadback(
 
 function conversationIdentity(input: ChannelConversationIdentity): ChannelConversationIdentity {
   return Object.freeze({
-    provider_id: requiredString(input?.provider_id, 'provider_id'),
-    account_id: requiredString(input?.account_id, 'account_id'),
-    channel_session_id: requiredString(input?.channel_session_id, 'channel_session_id'),
+    provider_id: requiredExactString(input?.provider_id, 'provider_id'),
+    account_id: requiredExactString(input?.account_id, 'account_id'),
+    channel_session_id: requiredExactString(input?.channel_session_id, 'channel_session_id'),
   });
 }
 
 function threadRef(input: ChannelThreadRef): ChannelThreadRef {
   return Object.freeze({
-    canonical_thread_host: requiredString(
+    canonical_thread_host: requiredExactString(
       input?.canonical_thread_host,
       'canonical_thread_host',
     ),
-    canonical_thread_id: requiredString(input?.canonical_thread_id, 'canonical_thread_id'),
+    canonical_thread_id: requiredExactString(input?.canonical_thread_id, 'canonical_thread_id'),
   });
 }
 
 function turnRef(input: ChannelTurnRef): ChannelTurnRef {
   return Object.freeze({
     ...threadRef(input),
-    canonical_turn_id: requiredString(input?.canonical_turn_id, 'canonical_turn_id'),
+    canonical_turn_id: requiredExactString(input?.canonical_turn_id, 'canonical_turn_id'),
+  });
+}
+
+function transportBindingKey(identity: ChannelConversationIdentity): string {
+  return JSON.stringify([
+    identity.provider_id,
+    identity.account_id,
+    identity.channel_session_id,
+  ]);
+}
+
+function transportThreadKey(thread: ChannelThreadRef): string {
+  return JSON.stringify([thread.canonical_thread_host, thread.canonical_thread_id]);
+}
+
+function channelTransportBinding(
+  identity: ChannelConversationIdentity,
+  thread: ChannelThreadRef,
+): ChannelTransportBinding {
+  const key = transportBindingKey(identity);
+  return Object.freeze({
+    binding_id: `binding-${createHash('sha256').update(key).digest('hex')}`,
+    ...identity,
+    ...thread,
+    project_affinity: 'projectless',
+    status: 'bound',
   });
 }
 
@@ -221,6 +263,32 @@ export const cordisChannelProviderHostPlugin = {
   async apply(ctx: Context, config: CordisChannelProviderHostPluginConfig) {
     assertChannelThreadCallback(config.callback);
     const activeProviders = new Map<string, ActiveProvider>();
+    const transportBindings = new Map<string, ChannelTransportBinding>();
+    const removeProviderBindings = (providerId: string) => {
+      for (const [key, binding] of transportBindings) {
+        if (binding.provider_id === providerId) transportBindings.delete(key);
+      }
+    };
+    const recordTransportBinding = (
+      identity: ChannelConversationIdentity,
+      canonicalThread: ChannelThreadRef,
+    ) => {
+      const key = transportBindingKey(identity);
+      const existing = transportBindings.get(key);
+      if (existing) {
+        sameThread(existing, canonicalThread);
+        return existing;
+      }
+      const threadKey = transportThreadKey(canonicalThread);
+      if ([...transportBindings.values()].some((binding) => (
+        transportThreadKey(binding) === threadKey
+      ))) {
+        throw new Error('Canonical channel thread is already bound to another channel identity.');
+      }
+      const binding = channelTransportBinding(identity, canonicalThread);
+      transportBindings.set(key, binding);
+      return binding;
+    };
     const attachProvider = async (
       provider: ChannelProvider,
       attachment?: InstalledChannelProviderAttachment,
@@ -248,7 +316,9 @@ export const cordisChannelProviderHostPlugin = {
               `Channel provider ${provider.provider_id} cannot bind another provider identity: ${identity.provider_id}`,
             );
           }
-          return threadRef(await config.callback.startThread(identity));
+          const canonicalThread = threadRef(await config.callback.startThread(identity));
+          recordTransportBinding(identity, canonicalThread);
+          return canonicalThread;
         },
         resumeThread: (input) => config.callback.resumeThread(threadRef(input)),
         async startTurn(input) {
@@ -279,6 +349,7 @@ export const cordisChannelProviderHostPlugin = {
         assertChannelDisposable(providerDisposable);
       } catch (error) {
         activeProviders.delete(provider.provider_id);
+        removeProviderBindings(provider.provider_id);
         throw error;
       }
       activeProviders.set(provider.provider_id, Object.freeze({
@@ -292,6 +363,7 @@ export const cordisChannelProviderHostPlugin = {
         if (disposed) return;
         disposed = true;
         activeProviders.delete(provider.provider_id);
+        removeProviderBindings(provider.provider_id);
         await providerDisposable.dispose();
       }, `channel-provider:${provider.provider_id}`);
       return Object.freeze({
@@ -315,6 +387,9 @@ export const cordisChannelProviderHostPlugin = {
       callback_api_version: CHANNEL_THREAD_CALLBACK_API_VERSION,
       attach: (provider) => attachProvider(provider),
       appStatePatch() {
+        const activeProviderIds = new Set([...activeProviders]
+          .filter(([, active]) => active.status === 'active')
+          .map(([providerId]) => providerId));
         const packageStatusById = Object.fromEntries([...activeProviders]
           .filter(([, active]) => (
             active.status === 'active'
@@ -326,9 +401,26 @@ export const cordisChannelProviderHostPlugin = {
             capability_exposure: { status: 'enabled' },
             app_contributions: active.attachment!.descriptor.manifest.app_contributions,
           }]));
+        const bindings = [...transportBindings.values()]
+          .filter((binding) => activeProviderIds.has(binding.provider_id))
+          .sort((left, right) => left.binding_id.localeCompare(right.binding_id));
+        const providerAvailable = activeProviderIds.size > 0;
         return Object.freeze({
           ui_contributions: buildAppUiContributionsProjection(packageStatusById, {
             actionRoute: 'opl.connect.channel-provider-host',
+          }),
+          transport_bindings: Object.freeze({
+            surface_kind: 'opl_app_transport_bindings_projection.v1',
+            status: providerAvailable ? 'available' : 'unavailable',
+            bindings: Object.freeze(bindings),
+            ...(!providerAvailable ? { unavailable_reason: 'producer_absent' } : {}),
+            authority_boundary: Object.freeze({
+              raw_fact_owner: 'current_shell_exact_binding_store',
+              projection_owner: 'one-person-lab-framework',
+              thread_truth_owner: 'canonical_codex_app_server',
+              consumer_role: 'render_and_join_only',
+              persistence_role: 'none',
+            }),
           }),
         });
       },
