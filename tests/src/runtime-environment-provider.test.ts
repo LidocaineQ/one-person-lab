@@ -48,6 +48,14 @@ test('runtime environment provider selection is explicit and never silently fall
   assert.equal(resolveRuntimeEnvironmentProviderId({
     OPL_CODEX_STAGE_SANDBOX_PROVIDER: 'local_docker',
   }), null);
+  for (const alias of ['dev_container', 'dev-container']) {
+    assert.equal(resolveRuntimeEnvironmentProviderId({
+      OPL_CODEX_STAGE_SANDBOX_PROVIDER: alias,
+    }), null);
+    assert.equal(selectCodexStageSandboxProvider({
+      OPL_CODEX_STAGE_SANDBOX_PROVIDER: alias,
+    }), 'local_devcontainer');
+  }
   assert.throws(
     () => resolveRuntimeEnvironmentProviderId({
       OPL_CODEX_STAGE_SANDBOX_PROVIDER: 'daytona',

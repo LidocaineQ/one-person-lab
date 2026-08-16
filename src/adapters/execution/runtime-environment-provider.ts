@@ -82,7 +82,7 @@ export function resolveRuntimeEnvironmentProviderId(
   const explicit = normalized(env.OPL_CODEX_STAGE_SANDBOX_PROVIDER);
   if (explicit) {
     if (explicit === 'e2b') return 'e2b';
-    if (['host', 'none', 'local_host', 'docker', 'local_docker', 'devcontainer', 'local_devcontainer'].includes(explicit)) {
+    if (['host', 'none', 'local_host', 'docker', 'local_docker', 'devcontainer', 'dev_container', 'local_devcontainer'].includes(explicit)) {
       return null;
     }
     return unsupportedProvider(explicit, 'OPL_CODEX_STAGE_SANDBOX_PROVIDER');
