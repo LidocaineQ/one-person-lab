@@ -23,7 +23,7 @@
   },
   "native_package_gate": {
     "owner_module": "connect",
-    "package_status_surface": "opl packages status --package-id <agent_id> --scope workspace --target-workspace <absolute_path> --json",
+    "package_status_surface": "opl packages status --package-id <agent_id> --json",
     "ordinary_user_distribution": {
       "moving_pointer": "latest-stable",
       "owner_channel": "per_package_owner_oci",

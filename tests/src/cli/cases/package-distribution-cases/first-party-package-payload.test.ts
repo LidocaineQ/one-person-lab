@@ -895,10 +895,6 @@ test('Framework allowlists and historical payload envelopes validate at their ex
     path.join(repoRoot, 'contracts/opl-framework/package-payload-manifest.schema.json'),
     'utf8',
   )) as Record<string, any>;
-  const bundledCatalog = JSON.parse(fs.readFileSync( // reuse-first: allow local contract fixture parser.
-    path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
-    'utf8',
-  )) as Record<string, any>;
   const canonicalIds = getOplPackageSpecs().map((spec) => spec.package_id);
   const packageRoot = path.join(repoRoot, 'contracts/opl-framework/packages');
   const payloadRoot = path.join(packageRoot, 'payloads');
@@ -913,21 +909,6 @@ test('Framework allowlists and historical payload envelopes validate at their ex
       'utf8',
     )) as Record<string, any>,
   ]));
-  const oplFlow0130RetiredPaths = [
-    'contracts/code-review-policy.json',
-    'contracts/code-review-policy.schema.json',
-    'skills/opl-flow/references/start-onboarding.json',
-    'skills/opl-flow/scripts/validate_start_onboarding.py',
-    'skills/recover-codex-tasks/references/evidence-and-prompts.md',
-    'skills/recover-codex-tasks/scripts/inspect_codex_recovery.py',
-    'scripts/install_local_plugin.py',
-    'scripts/profile_compose.py',
-    'scripts/repo_profile.py',
-  ];
-  const historicalPortableOwnerDescriptorPaths: Record<string, string[]> = {
-    'oma@0.4.5': ['opl-package.json'],
-  };
-
   function assertPayloadEnvelope(payload: Record<string, any>, label: string) {
     if (payload.surface_kind === 'opl_package_payload_manifest.v2') {
       assert.doesNotThrow(() => assertJsonSchemaPayload({
@@ -976,39 +957,17 @@ test('Framework allowlists and historical payload envelopes validate at their ex
     assert.equal(payload.package_id, manifest.package_id, id);
     assert.equal(payload.package_version, manifest.version, id);
     assert.equal(payload.source_commit, manifest.codex_surface.carrier_source_commit, id);
-    const selectedPayloads = [payload];
-    const bundledEntry = bundledCatalog.packages[id] as Record<string, string> | undefined;
-    if (bundledEntry !== undefined) {
-      selectedPayloads.push(JSON.parse(fs.readFileSync( // reuse-first: allow local contract fixture parser.
-        path.join(repoRoot, 'contracts/opl-framework', bundledEntry.payload_manifest_ref),
-        'utf8',
-      )) as Record<string, any>);
-    }
-    const selectedPayloadCoverage = selectedPayloads.map((selectedPayload) => {
+    const selectedPayloadCoverage = [payload].map((selectedPayload) => {
       const paths = selectedPayload.files.map((entry: Record<string, string>) => entry.path);
       const currentPaths = new Set(allowlist.paths);
       const selectedCurrentPaths = paths.filter((entry: string) => currentPaths.has(entry));
       const extraPaths = paths.filter((entry: string) => !currentPaths.has(entry));
-      const identity = `${selectedPayload.package_id}@${selectedPayload.package_version}`;
-      const portableOwnerDescriptorPaths = historicalPortableOwnerDescriptorPaths[identity] ?? [];
-      const retiredPaths = selectedPayload.package_id === 'opl-flow'
-        && selectedPayload.package_version === '0.1.30'
-        ? oplFlow0130RetiredPaths
-        : [];
-      const allowedExtraPaths = [...portableOwnerDescriptorPaths, ...retiredPaths];
-      const allowedExtraPathSet = new Set(allowedExtraPaths);
-      assert.equal(
-        extraPaths.length === allowedExtraPaths.length
-        && new Set(extraPaths).size === extraPaths.length
-        && extraPaths.every((entry: string) => allowedExtraPathSet.has(entry)),
-        true,
-        `${selectedPayload.package_id}@${selectedPayload.package_version} selected payload extras`,
-      );
+      assert.equal(extraPaths.length, 0, `${selectedPayload.package_id}@${selectedPayload.package_version} selected payload extras`);
       return selectedCurrentPaths.length === allowlist.paths.length
         && selectedCurrentPaths.every((entry: string, index: number) => entry === allowlist.paths[index]);
     });
     assert.equal(
-      id === 'opl-flow' ? selectedPayloadCoverage.every(Boolean) : selectedPayloadCoverage.some(Boolean),
+      selectedPayloadCoverage.some(Boolean),
       true,
       `${id} selected payload current allowlist coverage`,
     );

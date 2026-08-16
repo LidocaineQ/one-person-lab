@@ -1,13 +1,3 @@
-export const REGISTRY_REQUIRED_FIELDS = [
-  'package_id',
-  'display_name',
-  'publisher',
-  'source',
-  'manifest_url',
-  'version_source_ref',
-  'trust_tier',
-] as const;
-
 export const MANIFEST_REQUIRED_FIELDS = [
   'surface_kind',
   'package_id',

@@ -3971,11 +3971,9 @@
                         "description",
                         "tags",
                         "package_role",
-                        "trust_tier",
-                        "source_explanation",
-                        "manifest_url",
-                        "selected_version",
-                        "stable_version",
+                        "configured_carrier",
+                        "installed_carrier_readback",
+                        "installed_readiness",
                         "installed",
                         "activated",
                         "installability",
@@ -4014,27 +4012,6 @@
           "value_kind": "string",
           "required": false,
           "summary": "Optional installed OPL Agent Package id to inspect."
-        },
-        {
-          "name": "scope",
-          "flag": "--scope",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Target materialization scope: workspace or quest."
-        },
-        {
-          "name": "target-workspace",
-          "flag": "--target-workspace",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Workspace root whose Codex discovery surface is inspected."
-        },
-        {
-          "name": "target-quest",
-          "flag": "--target-quest",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Quest root whose Codex discovery surface is inspected."
         }
       ],
       "output_schema": {
@@ -4142,81 +4119,18 @@
       "parser_adapter": "node_util_parse_args",
       "options": [
         {
-          "name": "manifest-url",
-          "flag": "--manifest-url",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Direct OPL Agent Package manifest URL or local file path."
-        },
-        {
-          "name": "registry-url",
-          "flag": "--registry-url",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Registry URL used to select a package manifest."
-        },
-        {
           "name": "package-id",
           "flag": "--package-id",
           "value_kind": "string",
           "required": false,
-          "summary": "Package id to select from --registry-url."
-        },
-        {
-          "name": "trust-tier",
-          "flag": "--trust-tier",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Explicit user/organization trust tier assigned before install."
-        },
-        {
-          "name": "source-kind",
-          "flag": "--source-kind",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Package source kind for the package lock receipt."
-        },
-        {
-          "name": "agent-root",
-          "flag": "--agent-root",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Standard Agent checkout to link to the resolved OPL Framework installation."
-        },
-        {
-          "name": "keep-migration",
-          "flag": "--keep-migration",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Comma-separated managed policy migration ids to preserve in discovery for this transaction."
-        },
-        {
-          "name": "scope",
-          "flag": "--scope",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Target materialization scope: workspace or quest."
-        },
-        {
-          "name": "target-workspace",
-          "flag": "--target-workspace",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Workspace root receiving package core skills."
-        },
-        {
-          "name": "target-quest",
-          "flag": "--target-quest",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Quest root receiving package core skills."
+          "summary": "Package id exposed by an available native carrier descriptor."
         },
         {
           "name": "dry-run",
           "flag": "--dry-run",
           "value_kind": "boolean",
           "required": false,
-          "summary": "Validate and preview lock and carrier output without writing state."
+          "summary": "Validate and preview the native carrier action without writing state."
         }
       ],
       "output_schema": {
@@ -4236,21 +4150,9 @@
               "surface_kind",
               "status",
               "dry_run",
-              "package_lock",
+              "package_id",
+              "configured_carrier",
               "authority_boundary"
-            ],
-            "oneOf": [
-              {
-                "required": [
-                  "physical_surface"
-                ]
-              },
-              {
-                "required": [
-                  "configured_carrier",
-                  "registry_entry"
-                ]
-              }
             ],
             "additionalProperties": true
           }
@@ -4279,81 +4181,18 @@
       "parser_adapter": "node_util_parse_args",
       "options": [
         {
-          "name": "manifest-url",
-          "flag": "--manifest-url",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Direct OPL Agent Package manifest URL or local file path."
-        },
-        {
-          "name": "registry-url",
-          "flag": "--registry-url",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Registry URL used to select a package manifest."
-        },
-        {
           "name": "package-id",
           "flag": "--package-id",
           "value_kind": "string",
           "required": false,
-          "summary": "Package id to select from --registry-url."
-        },
-        {
-          "name": "trust-tier",
-          "flag": "--trust-tier",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Explicit user/organization trust tier assigned before install."
-        },
-        {
-          "name": "source-kind",
-          "flag": "--source-kind",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Package source kind for the package lock receipt."
-        },
-        {
-          "name": "agent-root",
-          "flag": "--agent-root",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Standard Agent checkout to link to the resolved OPL Framework installation."
-        },
-        {
-          "name": "keep-migration",
-          "flag": "--keep-migration",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Comma-separated managed policy migration ids to preserve in discovery for this transaction."
-        },
-        {
-          "name": "scope",
-          "flag": "--scope",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Target materialization scope: workspace or quest."
-        },
-        {
-          "name": "target-workspace",
-          "flag": "--target-workspace",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Workspace root receiving package core skills."
-        },
-        {
-          "name": "target-quest",
-          "flag": "--target-quest",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Quest root receiving package core skills."
+          "summary": "Package id exposed by an available native carrier descriptor."
         },
         {
           "name": "dry-run",
           "flag": "--dry-run",
           "value_kind": "boolean",
           "required": false,
-          "summary": "Validate and preview lock and carrier output without writing state."
+          "summary": "Validate and preview the native carrier action without writing state."
         }
       ],
       "output_schema": {
@@ -4373,87 +4212,8 @@
               "surface_kind",
               "status",
               "dry_run",
-              "package_lock",
-              "physical_surface",
-              "authority_boundary"
-            ],
-            "additionalProperties": true
-          }
-        }
-      },
-      "authority_boundary": {
-        "can_write_domain_truth": false,
-        "can_create_owner_receipt": false,
-        "can_create_typed_blocker": false,
-        "can_claim_domain_ready": false,
-        "can_claim_production_ready": false,
-        "owner": "OPL Packages",
-        "surface": "opl_packages_lifecycle"
-      },
-      "positional_args": [
-        {
-          "name": "package_id",
-          "required": false,
-          "summary": "First-party OPL Package id or alias."
-        }
-      ]
-    },
-    "packages_activate": {
-      "command_id": "packages activate",
-      "owner": "OPL Packages",
-      "parser_adapter": "node_util_parse_args",
-      "options": [
-        {
-          "name": "package-id",
-          "flag": "--package-id",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Installed OPL Agent Package id whose native carrier readiness is read back."
-        },
-        {
-          "name": "scope",
-          "flag": "--scope",
-          "value_kind": "string",
-          "required": true,
-          "summary": "Target runtime context: workspace or quest."
-        },
-        {
-          "name": "target-workspace",
-          "flag": "--target-workspace",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Workspace root used for fresh Package runtime readiness readback."
-        },
-        {
-          "name": "target-quest",
-          "flag": "--target-quest",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Quest root used for fresh Package runtime readiness readback."
-        },
-        {
-          "name": "dry-run",
-          "flag": "--dry-run",
-          "value_kind": "boolean",
-          "required": false,
-          "summary": "Validate installed native carrier readiness without writing state."
-        }
-      ],
-      "output_schema": {
-        "type": "object",
-        "required": ["version", "opl_agent_package_activation"],
-        "additionalProperties": true,
-        "properties": {
-          "version": { "const": "g2" },
-          "opl_agent_package_activation": {
-            "type": "object",
-            "required": [
-              "surface_kind",
-              "status",
               "package_id",
-              "writes_performed",
-              "operational_ready",
-              "launch_allowed",
+              "configured_carrier",
               "authority_boundary"
             ],
             "additionalProperties": true
@@ -4472,7 +4232,7 @@
       "positional_args": [
         {
           "name": "package_id",
-          "required": true,
+          "required": false,
           "summary": "First-party OPL Package id or alias."
         }
       ]
@@ -4483,67 +4243,11 @@
       "parser_adapter": "node_util_parse_args",
       "options": [
         {
-          "name": "manifest-url",
-          "flag": "--manifest-url",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Canonical OPL Agent Package manifest URL or local file path used to replace a stale lock source during repair."
-        },
-        {
-          "name": "registry-url",
-          "flag": "--registry-url",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Registry URL used to reselect the package manifest during repair."
-        },
-        {
           "name": "package-id",
           "flag": "--package-id",
           "value_kind": "string",
           "required": false,
-          "summary": "Installed OPL Agent Package id to repair."
-        },
-        {
-          "name": "trust-tier",
-          "flag": "--trust-tier",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Explicit trust tier for a replacement repair manifest."
-        },
-        {
-          "name": "source-kind",
-          "flag": "--source-kind",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Package source kind recorded for a replacement repair manifest."
-        },
-        {
-          "name": "agent-root",
-          "flag": "--agent-root",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Standard Agent checkout to link to the resolved OPL Framework installation."
-        },
-        {
-          "name": "scope",
-          "flag": "--scope",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Target materialization scope: workspace or quest."
-        },
-        {
-          "name": "target-workspace",
-          "flag": "--target-workspace",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Workspace root whose package core skills are repaired."
-        },
-        {
-          "name": "target-quest",
-          "flag": "--target-quest",
-          "value_kind": "string",
-          "required": false,
-          "summary": "Quest root whose package core skills are repaired."
+          "summary": "Installed Package id exposed by its native carrier descriptor."
         },
         {
           "name": "dry-run",
@@ -4570,8 +4274,8 @@
               "surface_kind",
               "status",
               "dry_run",
-              "package_lock",
-              "physical_surface",
+              "package_id",
+              "configured_carrier",
               "authority_boundary"
             ],
             "additionalProperties": true
@@ -4632,8 +4336,8 @@
               "surface_kind",
               "status",
               "dry_run",
-              "removed_package_lock",
-              "physical_surface",
+              "package_id",
+              "configured_carrier",
               "authority_boundary"
             ],
             "additionalProperties": true

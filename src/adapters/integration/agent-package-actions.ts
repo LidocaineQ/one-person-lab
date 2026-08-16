@@ -1,8 +1,7 @@
 export type AgentPackageAppActionId =
-  | 'install_from_manifest_url'
+  | 'agent_package_install'
   | 'agent_package_update'
   | 'agent_package_repair'
-  | 'agent_package_activate'
   | 'agent_package_uninstall'
   | 'agent_package_preferences_set';
 
@@ -14,7 +13,6 @@ export type AgentPackageActionTaskKind =
 
 export type AgentPackageActionCatalogEntry = {
   action_id: AgentPackageAppActionId;
-  aliases: readonly string[];
   stable_id: string;
   label: string;
   section_id: 'capabilities';
@@ -33,32 +31,30 @@ export type AgentPackageActionCatalogEntry = {
 
 const AGENT_PACKAGE_ACTION_CATALOG = [
   {
-    action_id: 'install_from_manifest_url',
-    aliases: ['agent_package_install_from_manifest_url'],
-    stable_id: 'install_agent_package_from_manifest_url',
+    action_id: 'agent_package_install',
+    stable_id: 'install_agent_package',
     label: 'Install agent package',
     section_id: 'capabilities',
     task_kind: 'install',
     taxonomy: 'settings.capabilities.agent_package.install',
-    delegated_surface: 'opl packages install --manifest-url <manifest_url>',
-    payload_fields: ['manifest_url', 'registry_url', 'package_id', 'trust_tier', 'source_kind'],
+    delegated_surface: 'opl packages install <package_id>',
+    payload_fields: ['package_id'],
     mutates: 'native_package_carrier',
     dry_run_supported: true,
     confirmation_required: true,
     danger_level: 'medium',
-    impact: 'Validates one owner manifest, delegates installation to the native carrier, and returns fresh carrier readback.',
+    impact: 'Delegates installation to the Package native carrier and returns fresh carrier readback.',
     follow_up_action_ids: [],
   },
   {
     action_id: 'agent_package_update',
-    aliases: [],
     stable_id: 'update_agent_package',
     label: 'Update agent package',
     section_id: 'capabilities',
     task_kind: 'install',
     taxonomy: 'settings.capabilities.agent_package.update',
-    delegated_surface: 'opl packages update --manifest-url <manifest_url>',
-    payload_fields: ['manifest_url', 'registry_url', 'package_id', 'trust_tier', 'source_kind'],
+    delegated_surface: 'opl packages update <package_id>',
+    payload_fields: ['package_id'],
     mutates: 'native_package_carrier',
     dry_run_supported: true,
     confirmation_required: true,
@@ -68,7 +64,6 @@ const AGENT_PACKAGE_ACTION_CATALOG = [
   },
   {
     action_id: 'agent_package_repair',
-    aliases: [],
     stable_id: 'repair_agent_package',
     label: 'Repair agent package',
     section_id: 'capabilities',
@@ -84,26 +79,7 @@ const AGENT_PACKAGE_ACTION_CATALOG = [
     follow_up_action_ids: [],
   },
   {
-    action_id: 'agent_package_activate',
-    aliases: [],
-    stable_id: 'activate_agent_package_for_use',
-    label: 'Activate agent package',
-    section_id: 'capabilities',
-    task_kind: 'configure',
-    taxonomy: 'settings.capabilities.agent_package.activate',
-    delegated_surface: 'opl packages activate --package-id <package_id> --scope <workspace|quest>',
-    payload_fields: ['package_id', 'scope', 'target_workspace', 'target_quest', 'use_boundary_id'],
-    mutates: 'none',
-    dry_run_supported: true,
-    confirmation_required: false,
-    danger_level: 'low',
-    impact: 'Confirms fresh native carrier presence and callability at the requested use boundary.',
-    follow_up_action_ids: [],
-    verify_action_id: 'agent_package_activate',
-  },
-  {
     action_id: 'agent_package_uninstall',
-    aliases: [],
     stable_id: 'uninstall_agent_package',
     label: 'Uninstall agent package',
     section_id: 'capabilities',
@@ -120,7 +96,6 @@ const AGENT_PACKAGE_ACTION_CATALOG = [
   },
   {
     action_id: 'agent_package_preferences_set',
-    aliases: [],
     stable_id: 'set_agent_package_preferences',
     label: 'Set agent package preferences',
     section_id: 'capabilities',
@@ -139,9 +114,7 @@ const AGENT_PACKAGE_ACTION_CATALOG = [
 ] as const satisfies readonly AgentPackageActionCatalogEntry[];
 
 function findAgentPackageAction(actionId: string): AgentPackageActionCatalogEntry | null {
-  return AGENT_PACKAGE_ACTION_CATALOG.find((entry) =>
-    entry.action_id === actionId || entry.aliases.some((alias) => alias === actionId)
-  ) ?? null;
+  return AGENT_PACKAGE_ACTION_CATALOG.find((entry) => entry.action_id === actionId) ?? null;
 }
 
 export function agentPackageDelegatedSurface(actionId: string) {
@@ -150,18 +123,7 @@ export function agentPackageDelegatedSurface(actionId: string) {
 
 export function listAgentPackageSettingsActions() {
   return AGENT_PACKAGE_ACTION_CATALOG
-    .filter((entry) => entry.action_id !== 'agent_package_activate')
-    .map(({ aliases: _aliases, ...entry }) => ({
-      ...entry,
-      payload_fields: [...entry.payload_fields],
-      follow_up_action_ids: [...entry.follow_up_action_ids],
-    }));
-}
-
-export function listAgentPackageLaunchActions() {
-  return AGENT_PACKAGE_ACTION_CATALOG
-    .filter((entry) => entry.action_id === 'agent_package_activate')
-    .map(({ aliases: _aliases, ...entry }) => ({
+    .map((entry) => ({
       ...entry,
       payload_fields: [...entry.payload_fields],
       follow_up_action_ids: [...entry.follow_up_action_ids],

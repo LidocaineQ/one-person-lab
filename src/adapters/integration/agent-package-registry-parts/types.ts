@@ -10,62 +10,9 @@ export type AgentPackageAuthorityBoundary = {
   can_claim_production_ready: false;
 };
 
-export type AgentPackageSourceKind =
-  | 'first_party_managed_cohort'
-  | 'bundled_full_runtime_modules'
-  | 'local_manifest_file'
-  | 'manifest_url'
-  | 'manifest_import'
-  | 'developer_checkout_override';
-
-export type AgentPackageCarrierAuthority = {
-  surface_kind: 'opl_agent_package_carrier_authority.v1';
-  status: 'verified';
-  catalog_ref: string;
-  catalog_sha256: string;
-  catalog_owner_source_commit: string;
-  manifest_carrier_source_commit: string;
-  payload_source_commit: string;
-  verified_source_commit: string;
-};
-
-export type AgentPackageLifecycleAction =
-  | 'install'
-  | 'update'
-  | 'repair'
-  | 'activate'
-  | 'uninstall'
-  | 'hide'
-  | 'unhide'
-  | 'enable'
-  | 'disable';
-
-export type AgentPackageManifestValidateInput = {
-  manifestUrl?: string | null;
-  registryUrl?: string | null;
+export type AgentPackageInstallInput = {
   packageId?: string | null;
-  trustTier?: string | null;
-  sourceKind?: AgentPackageSourceKind | null;
-};
-
-export type AgentPackageOperationProvenance = {
-  trigger: string;
-  initiator: string;
-  source_policy: string;
-  source_policy_reason: string;
-  operation_id: string;
-  correlation_id: string;
-};
-
-export type AgentPackageInstallInput = AgentPackageManifestValidateInput & {
   dryRun?: boolean;
-  agentRoot?: string | null;
-  scope?: 'workspace' | 'quest' | null;
-  targetWorkspace?: string | null;
-  targetQuest?: string | null;
-  keepMigrationIds?: string[];
-  agentRoots?: Record<string, string>;
-  provenance?: AgentPackageOperationProvenance;
 };
 
 export type AgentPackageRole =
@@ -76,14 +23,9 @@ export type AgentPackageRole =
 export type AgentPackagePackageActionInput = {
   packageId: string;
   dryRun?: boolean;
-  agentRoot?: string | null;
-  scope?: 'workspace' | 'quest' | null;
-  targetWorkspace?: string | null;
-  targetQuest?: string | null;
-  useBoundaryId?: string | null;
 };
 
-export type AgentPackageRepairInput = AgentPackagePackageActionInput & AgentPackageManifestValidateInput;
+export type AgentPackageRepairInput = AgentPackagePackageActionInput;
 
 export type AgentPackageHomeShortcutPreferencesSetInput = {
   packageId: string;
@@ -91,21 +33,6 @@ export type AgentPackageHomeShortcutPreferencesSetInput = {
   visible?: boolean | null;
   sortOrder?: number | null;
   dryRun?: boolean;
-};
-
-export type FetchJsonResult = {
-  source_url: string;
-  source_kind: 'http_url' | 'file_url' | 'local_file';
-  source_sha256: string;
-  payload: unknown;
-};
-
-export type AgentPackagePayloadFile = {
-  relativePath: string;
-  content: Buffer;
-  sha256: string | null;
-  mode: '100644' | '100755';
-  digestVerified: boolean;
 };
 
 export type AgentPackageLocalizedText = Record<string, string>;
@@ -203,47 +130,6 @@ export type AgentPackageConfiguredCodexPluginCarrierDescriptor = {
   publicationRef: string | null;
 };
 
-export type AgentPackageRegistryEntry = {
-  package_id: string;
-  display_name: string;
-  publisher: string;
-  description: string;
-  tags: string[];
-  package_role: AgentPackageRole | null;
-  source: string;
-  manifest_url: string;
-  version_source_ref: string;
-  selected_version: string | null;
-  stable_version: string | null;
-  manifest_validation: 'deferred' | 'fetched_manifest' | 'catalog_inline_manifest';
-  trust_tier: string;
-  starter_default: boolean;
-  codex_visible_entry: string | null;
-  required_skill_ids: string[];
-  optional_skill_ids: string[];
-  home_shortcut_ids: string[];
-  presentation?: AgentPackagePresentation | null;
-  display_policy: string | null;
-  ordinary_user_source: AgentPackageOrdinaryUserSource | null;
-  configured_codex_plugin_carrier?: AgentPackageConfiguredCodexPluginCarrierDescriptor | null;
-  app_contributions?: AgentPackageAppContributions | null;
-};
-
-export type AgentPackageOrdinaryUserSource = {
-  kind: 'ghcr_oci_artifact_latest_stable';
-  registry: 'ghcr.io';
-  artifact_ref: string;
-  ordinary_user_ref: string;
-  immutable_version_ref_pattern: string;
-  candidate_ref: string;
-  latest_stable_role: 'ordinary_user_latest_stable_pointer_after_candidate_gates';
-  latest_stable_is_only_ordinary_user_channel: true;
-  daily_candidate_build_gate: 'daily_candidate_build_must_pass_before_promote_latest_stable';
-  install_truth: string[];
-  latest_stable_is_install_truth: false;
-  developer_checkout_auto_apply_allowed: false;
-};
-
 export type AgentPackageDistributionPayload = {
   payload_kind: string;
   payload_ref: string;
@@ -310,6 +196,7 @@ export type AgentPackageManifest = {
   plugin_source_path: string | null;
   plugin_payload_manifest_url: string | null;
   plugin_payload_manifest_sha256: string | null;
+  plugin_payload_cache_path: string | null;
   profile_surface: AgentPackageProfileSurfaceConfig | null;
   managed_policy_surface: AgentPackageManagedPolicySurfaceConfig | null;
   capability_dependencies: AgentPackageCapabilityDependency[];
@@ -318,23 +205,8 @@ export type AgentPackageManifest = {
   content_digest: string | null;
   content_lock_canonicalization: 'ordered_path_nul_file_bytes' | 'ordered_path_length_file_length_bytes' | null;
   content_lock_paths: string[];
-  developer_checkout_source?: AgentPackageDeveloperCheckoutSource | null;
   configured_codex_plugin_carrier?: AgentPackageConfiguredCodexPluginCarrierDescriptor | null;
   app_contributions?: AgentPackageAppContributions | null;
-};
-
-export type AgentPackageDeveloperCheckoutSource = {
-  surface_kind: 'opl_agent_package_developer_checkout_source.v1';
-  checkout_path: string;
-  owner_manifest_path: string;
-  owner_manifest_sha256: string;
-  plugin_source_path: string;
-  source_git_head_sha: string | null;
-  tree_sha256: string;
-  payload_digest: string;
-  declared_content_digest: string | null;
-  copy_paths: string[];
-  copy_file_modes: Record<string, '100644' | '100755'>;
 };
 
 export type AgentPackageOwnerLanguageVersion = {
@@ -543,44 +415,6 @@ export type AgentPackageCapabilityProvider = {
   consumer_profiles?: AgentPackageCapabilityConsumerProfile[];
 };
 
-export type AgentPackageResolvedDependency = {
-  package_id: string;
-  required: boolean;
-  dependency_kind: 'hard_runtime_dependency' | 'optional_enhancement';
-  consumer_profile_id?: string | null;
-  required_export_ids: string[];
-  required_module_ids: string[];
-  installed_version: string;
-  manifest_url: string;
-  manifest_sha256: string;
-  source_artifact_ref?: string | null;
-  artifact_digest?: string | null;
-  owner_source_commit?: string | null;
-  carrier_authority?: AgentPackageCarrierAuthority | null;
-  content_digest: string;
-};
-
-export type AgentPackageDependencyReadinessItem = {
-  package_id: string;
-  required: boolean;
-  consumer_profile_id: string | null;
-  required_export_ids: string[];
-  required_module_ids: string[];
-  installed_version: string | null;
-  manifest_sha256: string | null;
-  content_digest: string | null;
-  status: 'missing' | 'current' | 'incompatible';
-  reasons: string[];
-  missing_required_export_ids: string[];
-  missing_required_module_ids: string[];
-};
-
-export type AgentPackageDependencyReadiness = {
-  status: 'missing' | 'current' | 'incompatible';
-  operational_ready: boolean;
-  dependencies: AgentPackageDependencyReadinessItem[];
-};
-
 export type AgentPackageProfileSurfaceConfig = {
   runtime_profile: {
     source_path: string;
@@ -639,11 +473,6 @@ export type AgentPackageHomeShortcutPreferenceFile = {
   preferences: AgentPackageStoredHomeShortcutPreference[];
 };
 
-export type AgentPackageRegistryDocument = {
-  registry_url: string;
-  registry_sha256: string;
-  entries: AgentPackageRegistryEntry[];
-};
 import type { AgentPackageSkillProjection } from '../../../kernel/agent-package-skill-projection.ts';
 
 export type { AgentPackageSkillProjection } from '../../../kernel/agent-package-skill-projection.ts';

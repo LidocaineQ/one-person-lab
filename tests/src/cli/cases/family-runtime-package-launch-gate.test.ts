@@ -11,7 +11,6 @@ import {
   test,
 } from '../helpers.ts';
 import {
-  writeCapabilityCatalog,
   writeCapabilityProvider,
   writeMasConsumer,
 } from './packages-cases/capability-fixtures.ts';
@@ -207,7 +206,7 @@ test('family-runtime attempt create fails closed when the canonical domain packa
     const failure = runCliFailure(createArgs(workspace), env);
     assert.equal(failure.payload.error.details.failure_code, 'agent_package_operational_readiness_blocked');
     assert.equal(failure.payload.error.details.launch_blocked_reason, 'package_not_installed');
-    assert.deepEqual(failure.payload.error.details.allowed_when_blocked, ['status', 'doctor', 'repair']);
+    assert.deepEqual(failure.payload.error.details.allowed_when_blocked, ['status', 'repair']);
   } finally {
     removeFixtureTree(root);
   }
@@ -224,10 +223,10 @@ test('a retained legacy package lock is not accepted as an installed native carr
     const status = runCli(['packages', 'status', '--package-id', 'mas'], env).opl_agent_package_status;
     assert.equal(status.installed_package_count, 0);
     assert.equal(status.installed_readiness, null);
-    assert.equal(status.configured_carrier.status, 'physical_unavailable');
+    assert.equal(status.configured_carrier, null);
     assert.equal(status.operational_ready, false);
     assert.equal(status.launch_allowed, false);
-    assert.equal(status.launch_blocked_reason, 'native_carrier_reports_not_installed');
+    assert.equal(status.launch_blocked_reason, 'native_carrier_descriptor_unavailable');
 
     const failure = runCliFailure(createArgs(workspace), env);
     assert.equal(failure.payload.error.details.failure_code, 'agent_package_operational_readiness_blocked');
@@ -240,38 +239,41 @@ test('a retained legacy package lock is not accepted as an installed native carr
 test('native package launch projects Workspace Skills without private lifecycle state', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-native-package-launch-'));
   const workspace = path.join(root, 'workspace');
-  const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0', {
+  const providerRoot = path.join(root, 'provider');
+  const consumerRoot = path.join(root, 'consumer');
+  const providerManifest = writeCapabilityProvider(providerRoot, '0.1.0', {
     configuredCarrier: true,
   });
-  const consumerManifest = writeMasConsumer(
-    path.join(root, 'consumer'),
+  writeMasConsumer(
+    consumerRoot,
     providerManifest,
     '0.1.0a4',
     { configuredCarrier: true },
   );
-  writeEmptyCapabilityMap(path.join(root, 'consumer'));
-  const releaseSet = writeCapabilityCatalog(
-    path.join(root, 'release-set'),
-    [consumerManifest, providerManifest],
-  );
+  writeEmptyCapabilityMap(consumerRoot);
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
     OPL_CODEX_PLUGIN_BIN: createFakeCodexPluginManagerFixture(
       path.join(root, 'fake-codex-plugin-manager'),
     ).codexPath,
-    ...releaseSet.env,
   };
   fs.mkdirSync(workspace, { recursive: true });
+  fs.mkdirSync(env.CODEX_HOME, { recursive: true });
+  fs.writeFileSync(path.join(env.CODEX_HOME, 'config.toml'), [
+    '[marketplaces."mas-scholar-skills-local"]',
+    `source = ${JSON.stringify(path.join(providerRoot, 'native-carrier-marketplace'))}`,
+    '',
+    '[marketplaces."med-autoscience-local"]',
+    `source = ${JSON.stringify(consumerRoot)}`,
+    '',
+  ].join('\n'));
   try {
     runCli([
       'workspace', 'bind', '--project', 'medautoscience', '--path', workspace,
     ], env);
-    await runCliAsync([
-      'packages', 'install', 'mas',
-      '--scope', 'workspace', '--target-workspace', workspace,
-    ], env);
-    fs.mkdirSync(env.CODEX_HOME, { recursive: true });
+    await runCliAsync(['packages', 'install', 'mas-scholar-skills'], env);
+    await runCliAsync(['packages', 'install', 'mas'], env);
     fs.appendFileSync(
       path.join(env.CODEX_HOME, 'config.toml'),
       '\n[plugins."mas-scholar-skills@mas-scholar-skills-local"]\nenabled = false\n',
@@ -284,7 +286,6 @@ test('native package launch projects Workspace Skills without private lifecycle 
     assert.equal(providerStatus.installed_readiness.projection_callability, 'callable');
     const status = runCli([
       'packages', 'status', '--package-id', 'mas',
-      '--scope', 'workspace', '--target-workspace', workspace,
     ], env).opl_agent_package_status;
     assert.equal(status.installed_readiness.callability, 'callable');
     assert.equal(status.package_dependency_readiness.status, 'current');

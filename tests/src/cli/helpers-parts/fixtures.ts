@@ -176,6 +176,53 @@ for (const [header, lines] of sections) {
   });
 }
 
+const installedEntries = () => {
+  const installed = new Map();
+  for (const entry of [...configuredInstalled, ...state.installed]) installed.set(entry.pluginId, entry);
+  for (const entry of installed.values()) {
+    const pluginSection = [...sections].find(([header]) => pluginTableSelector(header) === entry.pluginId);
+    const lines = pluginSection?.[1] || [];
+    entry.enabled = !lines.some((line) => /^\\s*enabled\\s*=\\s*false\\s*$/.test(line));
+  }
+  return [...installed.values()];
+};
+
+const availableEntries = () => {
+  const installed = new Set(installedEntries().map((entry) => entry.pluginId));
+  const entries = [];
+  for (const [id, source] of marketplaces) {
+    const root = localMarketplaceRoot(source);
+    const manifestPath = root && path.join(root, '.agents', 'plugins', 'marketplace.json');
+    if (!manifestPath || !fs.existsSync(manifestPath)) continue;
+    let manifest;
+    try {
+      manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(manifest.plugins)) continue;
+    for (const plugin of manifest.plugins) {
+      if (!plugin || typeof plugin.name !== 'string') continue;
+      const selector = plugin.name + '@' + id;
+      if (installed.has(selector)) continue;
+      const sourcePath = marketplacePluginSourcePath(source, plugin.name);
+      const pluginManifestPath = sourcePath && path.join(sourcePath, '.codex-plugin', 'plugin.json');
+      const pluginManifest = pluginManifestPath && fs.existsSync(pluginManifestPath)
+        ? JSON.parse(fs.readFileSync(pluginManifestPath, 'utf8'))
+        : {};
+      entries.push({
+        pluginId: selector,
+        version: typeof pluginManifest.version === 'string' ? pluginManifest.version : null,
+        installed: false,
+        enabled: false,
+        source: { source: 'local', path: sourcePath },
+        marketplaceSource: { sourceType: 'local', source },
+      });
+    }
+  }
+  return entries;
+};
+
 const command = args.join(' ');
 if (command === 'plugin marketplace list --json') {
   const entries = [...marketplaces].map(([id, source]) => ({
@@ -211,6 +258,9 @@ if (command === 'plugin marketplace list --json') {
   const pluginId = selector.slice(0, separator);
   const requestedMarketplace = selector.slice(separator + 1);
   const candidate = state.marketplaces.find((entry) => entry.id === requestedMarketplace)
+    || (marketplaces.has(requestedMarketplace)
+      ? { id: requestedMarketplace, source: marketplaces.get(requestedMarketplace) }
+      : null)
     || (state.marketplaces.length === 1 ? state.marketplaces[0] : null);
   const marketplaceRoot = candidate && localMarketplaceRoot(candidate.source);
   const sourcePath = candidate ? marketplacePluginSourcePath(candidate.source, pluginId) : null;
@@ -239,15 +289,10 @@ if (command === 'plugin marketplace list --json') {
   removePluginTable(args[2]);
   writeState();
   process.stdout.write(JSON.stringify({ status: 'ok' }));
+} else if (command === 'plugin list --available --json') {
+  process.stdout.write(JSON.stringify({ installed: installedEntries(), available: availableEntries() }));
 } else if (command === 'plugin list --json') {
-  const installed = new Map();
-  for (const entry of [...configuredInstalled, ...state.installed]) installed.set(entry.pluginId, entry);
-  for (const entry of installed.values()) {
-    const pluginSection = [...sections].find(([header]) => pluginTableSelector(header) === entry.pluginId);
-    const lines = pluginSection?.[1] || [];
-    entry.enabled = !lines.some((line) => /^\\s*enabled\\s*=\\s*false\\s*$/.test(line));
-  }
-  process.stdout.write(JSON.stringify({ installed: [...installed.values()], available: [] }));
+  process.stdout.write(JSON.stringify({ installed: installedEntries(), available: [] }));
 } else {
   process.stderr.write('unexpected fake Codex Plugin Manager command: ' + command + '\\n');
   process.exitCode = 2;

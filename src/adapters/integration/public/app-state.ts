@@ -6,8 +6,6 @@ export {
   readOplFlowDefaultUserInstructions,
   runOplAgentPackageStatus,
 } from '../agent-package-registry.ts';
-export { resolveFirstPartyPackageCatalogSnapshot } from '../agent-package-registry-parts/first-party-release-catalog.ts';
-export { listAgentPackageLaunchActions } from '../agent-package-actions.ts';
 export { listOplConnections } from '../connection-registry.ts';
 export { readOplGatewayAccount } from '../opl-gateway-account.ts';
 export { listExternalOwnerDelegatedUpdateActions } from '../external-dependency-currentness.ts';

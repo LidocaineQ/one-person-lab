@@ -35,10 +35,10 @@ const registryCases = [
   ['connect update', 'connect_update', ['module'], undefined],
   ['connect reinstall', 'connect_reinstall', ['module'], undefined],
   ['connect remove', 'connect_remove', ['module'], undefined],
-  ['packages install', 'packages_install', ['manifest-url', 'registry-url', 'package-id', 'trust-tier', 'source-kind', 'agent-root', 'keep-migration', 'scope', 'target-workspace', 'target-quest', 'dry-run'], 'OPL Packages'],
-  ['packages status', 'packages_status', ['package-id', 'scope', 'target-workspace', 'target-quest'], 'OPL Packages'],
-  ['packages update', 'packages_update', ['manifest-url', 'registry-url', 'package-id', 'trust-tier', 'source-kind', 'agent-root', 'keep-migration', 'scope', 'target-workspace', 'target-quest', 'dry-run'], 'OPL Packages'],
-  ['packages repair', 'packages_repair', ['manifest-url', 'registry-url', 'package-id', 'trust-tier', 'source-kind', 'agent-root', 'scope', 'target-workspace', 'target-quest', 'dry-run'], 'OPL Packages'],
+  ['packages install', 'packages_install', ['package-id', 'dry-run'], 'OPL Packages'],
+  ['packages status', 'packages_status', ['package-id'], 'OPL Packages'],
+  ['packages update', 'packages_update', ['package-id', 'dry-run'], 'OPL Packages'],
+  ['packages repair', 'packages_repair', ['package-id', 'dry-run'], 'OPL Packages'],
   ['packages link-framework', 'packages_link_framework', ['agent-root', 'check', 'dry-run'], 'OPL Packages'],
   ['system codex-config-hygiene', 'system_codex_config_hygiene', ['dry-run', 'rollback-receipt'], 'OPL Base'],
   ['status workspace', 'status_workspace', ['path'], 'OPL Console'],
@@ -157,12 +157,6 @@ test('registered command help mirrors the canonical command registry', () => {
 
 test('Package lifecycle schemas do not expose legacy private retirement state', () => {
   const contract = loadCliCommandRegistryContract();
-  const install = contract.commands.packages_install.output_schema.properties.opl_agent_package_install;
-  const configuredCarrier = install.oneOf.find(
-    (entry: { required?: string[] }) => entry.required?.includes('configured_carrier'),
-  );
-
-  assert.deepEqual(configuredCarrier?.required, ['configured_carrier', 'registry_entry']);
   const listRequired = contract.commands.packages_list.output_schema.properties.opl_agent_packages.required;
   for (const retiredSummaryField of [
     'conditions',
@@ -173,9 +167,16 @@ test('Package lifecycle schemas do not expose legacy private retirement state', 
     assert.equal(listRequired.includes(retiredSummaryField), false, retiredSummaryField);
   }
   for (const command of ['packages_install', 'packages_update', 'packages_repair', 'packages_uninstall']) {
-    const outputSchema = contract.commands[command].output_schema;
-    assert.equal(JSON.stringify(outputSchema).includes('legacy_state_retirement'), false, command);
-    assert.equal(JSON.stringify(outputSchema).includes('opl_private_state_writes'), false, command);
+    const outputSchema = JSON.stringify(contract.commands[command].output_schema);
+    for (const retiredField of [
+      'legacy_state_retirement',
+      'opl_private_state_writes',
+      'package_lock',
+      'physical_surface',
+      'registry_entry',
+    ]) {
+      assert.equal(outputSchema.includes(retiredField), false, `${command}:${retiredField}`);
+    }
   }
 });
 

@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { parseArgs as parseNodeArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 type BuildManifest = {
@@ -27,10 +28,26 @@ function fail(message: string): never {
 }
 
 function parseArgs(argv: string[]) {
-  if (argv.length !== 4 || argv[0] !== '--manifest' || argv[2] !== '--output') {
-    fail('Usage: node scripts/stage-family-whitepaper-artifact.ts --manifest <path> --output <path>');
+  const usage = 'Usage: node scripts/stage-family-whitepaper-artifact.ts --manifest <path> --output <path>';
+  let values;
+  try {
+    values = parseNodeArgs({
+      args: argv,
+      options: {
+        manifest: { type: 'string', multiple: true },
+        output: { type: 'string', multiple: true },
+      },
+      allowPositionals: false,
+    }).values;
+  } catch {
+    fail(usage);
   }
-  return { manifest: path.resolve(argv[1]), output: path.resolve(argv[3]) };
+  const single = (name: 'manifest' | 'output') => {
+    const entries = values[name] as string[] | undefined;
+    if (!entries || entries.length !== 1) fail(usage);
+    return entries[0];
+  };
+  return { manifest: path.resolve(single('manifest')), output: path.resolve(single('output')) };
 }
 
 function copy(source: string, target: string) {

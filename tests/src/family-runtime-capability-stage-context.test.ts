@@ -11,7 +11,6 @@ import {
   type CapabilityRegistryCatalog,
   type CurrentOwnerDeltaCapabilityBinding,
 } from '../../src/adapters/integration/capability-registry-resolver.ts';
-import { runOplAgentPackageInstall } from '../../src/adapters/integration/agent-package-registry.ts';
 import { sha256Fixture } from './cli/cases/packages-cases/helpers.ts';
 import { writeManagedRuntimeSourceFixture } from './cli/cases/packages-cases/managed-runtime-source-fixture.ts';
 import { createFakeCodexPluginManagerFixture } from './cli/helpers-parts/fixtures.ts';
@@ -716,7 +715,7 @@ test('provider-hosted attempt launch fails closed before queueing when its canon
     }), (error: any) => {
       assert.equal(error.details?.failure_code, 'agent_package_operational_readiness_blocked');
       assert.equal(error.details?.launch_blocked_reason, 'package_not_installed');
-      assert.deepEqual(error.details?.allowed_when_blocked, ['status', 'doctor', 'repair']);
+      assert.deepEqual(error.details?.allowed_when_blocked, ['status', 'repair']);
       return true;
     });
     assert.equal((db.prepare('SELECT COUNT(*) AS count FROM stage_attempts').get() as { count: number }).count, 0);
@@ -816,6 +815,14 @@ test('provider-hosted attempt launch consumes typed capability readout without c
   });
   process.env.PATH = packageFixtureEnv.PATH;
   process.env.OPL_PACKAGES_OWNER = packageFixtureEnv.OPL_PACKAGES_OWNER;
+  fs.writeFileSync(path.join(process.env.CODEX_HOME, 'config.toml'), [
+    '[marketplaces."med-autoscience-local"]',
+    `source = ${JSON.stringify(sourceRoot)}`,
+    '',
+    '[plugins."med-autoscience@med-autoscience-local"]',
+    'enabled = true',
+    '',
+  ].join('\n'), 'utf8');
   process.env.OPL_CODEX_PLUGIN_BIN = createFakeCodexPluginManagerFixture(
     path.join(familyRoot, 'fake-codex-plugin-manager'),
   ).codexPath;
@@ -833,11 +840,6 @@ test('provider-hosted attempt launch consumes typed capability readout without c
     if (previousPackagesOwner === undefined) delete process.env.OPL_PACKAGES_OWNER;
     else process.env.OPL_PACKAGES_OWNER = previousPackagesOwner;
     removeFixtureTree(familyRoot);
-  });
-  await runOplAgentPackageInstall({
-    packageId: 'mas',
-    scope: 'workspace',
-    targetWorkspace: familyRoot,
   });
   assert.equal(
     fs.existsSync(path.join(process.env.OPL_STATE_DIR!, 'agent-package-locks.json')),

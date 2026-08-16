@@ -105,7 +105,7 @@ opl packages list --json
 opl packages install mas --json
 opl packages install rca --json
 opl packages install opl-flow --json
-opl packages status --package-id mas --scope workspace --target-workspace /path/to/study --json
+opl packages status --package-id mas --json
 opl packages status --package-id rca --json
 opl packages update rca --json
 ```

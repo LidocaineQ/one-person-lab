@@ -4,7 +4,6 @@ import { hasExecutableAppContribution } from './app-contribution-broker.ts';
 import {
   buildManagedBrowserAutomationActionCatalog,
   buildManagedComputerUseActionCatalog,
-  listAgentPackageLaunchActions,
   listExternalOwnerDelegatedUpdateActions,
   type CordisConnectDescriptorDiscoveryService,
 } from '../../adapters/integration/public/app-state.ts';
@@ -471,20 +470,6 @@ export function buildActionCatalog(
       danger_level: 'medium',
       impact: 'replace_user_agents_with_installed_opl_flow_default_and_keep_backup',
     },
-    ...listAgentPackageLaunchActions().map((action) => ({
-      action_id: action.action_id,
-      label: action.label,
-      surface: 'opl app action execute' as const,
-      delegated_surface: action.delegated_surface,
-      payload_fields: action.payload_fields,
-      mutates: action.mutates,
-      dry_run_supported: action.dry_run_supported,
-      confirmation_required: action.confirmation_required,
-      danger_level: action.danger_level,
-      impact: action.impact,
-      follow_up_action_ids: action.follow_up_action_ids,
-      verify_action_id: action.verify_action_id,
-    })),
     ...SETTINGS_CONTROL_CENTER_ACTIONS.map((action) => ({
       action_id: action.action_id,
       label: action.label,

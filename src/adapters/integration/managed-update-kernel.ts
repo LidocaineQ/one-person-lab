@@ -46,7 +46,6 @@ import {
 } from './managed-update-owner-boundary.ts';
 import { buildInstallationCarrierComponent } from './managed-update-kernel-parts/installation-carrier.ts';
 import { buildRuntimeSubstrateComponent } from './managed-update-kernel-parts/runtime-substrate.ts';
-import { readBundledFullRuntimePackageCatalog } from './agent-package-registry-parts/bundled-full-runtime-catalog.ts';
 import { asRecord, booleanValue, stringValue } from './managed-update-kernel-parts/shared.ts';
 
 function requestedComponentId(componentId: string | undefined) {
@@ -81,7 +80,7 @@ function moduleState(module: Record<string, unknown>): ManagedUpdateComponentSta
   const dirty = booleanValue(git, 'dirty') === true;
   const syncStatus = stringValue(git, 'sync_status');
   if (!installed || healthStatus === 'missing') {
-    return 'failed_with_repair';
+    return 'skipped_manual_required';
   }
   if (
     dirty
@@ -127,38 +126,24 @@ function buildCapabilityPackagesComponent(
       : null;
     return {
       ...entry,
+      // A native package-channel marker can prove an update even when the
+      // optional installed owner descriptor is unavailable. Only turn a
+      // non-updating target into manual review when no native action exists.
       state: owner?.status === 'update_available'
         ? 'update_available' as const
-        : owner?.status === 'unavailable'
+        : owner?.status === 'unavailable' && entry.state !== 'update_available'
           ? 'skipped_manual_required' as const
           : entry.state,
       owner_channel_ref: resolveFirstPartyPackageOwnerChannelRef(entry.package_id),
       owner_currentness: owner,
     };
   });
-  const bundledRuntimeRequested = process.env.OPL_FULL_RUNTIME_HOME !== undefined
-    || moduleStates.some((entry) => entry.install_origin === 'full_runtime');
-  const bundledCatalog = bundledRuntimeRequested
-    ? readBundledFullRuntimePackageCatalog()
-    : null;
-  const targetStates = bundledRuntimeRequested
-    ? moduleStates
-    : moduleStates.filter((entry) => entry.state !== 'failed_with_repair');
-  const bundledReconciliationRequired = bundledRuntimeRequested
-    && targetStates.some((entry) => entry.state !== 'current');
-  const failedWithRepairCount = bundledRuntimeRequested
-    ? 0
-    : targetStates.filter((entry) => entry.state === 'failed_with_repair').length;
+  const targetStates = moduleStates;
+  const failedWithRepairCount = targetStates.filter((entry) => entry.state === 'failed_with_repair').length;
   const nativeUpdateCount = targetStates.filter((entry) => entry.state === 'update_available').length;
-  const updateCount = nativeUpdateCount > 0
-    ? nativeUpdateCount
-    : bundledReconciliationRequired ? 1 : 0;
-  const manualCount = bundledRuntimeRequested
-    ? 0
-    : targetStates.filter((entry) => entry.state === 'skipped_manual_required').length;
-  const cleanManagedTargetsCount = bundledReconciliationRequired
-    ? Math.max(targetStates.length, 1)
-    : nativeUpdateCount;
+  const updateCount = nativeUpdateCount;
+  const manualCount = targetStates.filter((entry) => entry.state === 'skipped_manual_required').length;
+  const cleanManagedTargetsCount = nativeUpdateCount;
   const state: ManagedUpdateComponentState = failedWithRepairCount > 0
       ? 'failed_with_repair'
       : updateCount > 0
@@ -173,17 +158,10 @@ function buildCapabilityPackagesComponent(
         : manualCount > 0
           ? 'manual_review'
           : 'none';
-  const postApplyHooks = [
-    'reconcile_packages',
-    'sync_skills',
-    'sync_plugin_registry',
-    'sync_plugin_packaged_skills',
-  ];
+  const postApplyHooks = ['reconcile_packages'];
   const cleanManagedScopeSafe = cleanManagedTargetsCount > 0;
   const autoApplyEligible = cleanManagedScopeSafe && action !== 'none';
-  const packageApplyCommand = bundledRuntimeRequested
-    ? 'opl update apply --json'
-    : 'opl packages update --json';
+  const packageApplyCommand = 'opl packages update --json';
   const blockedReasons = [
     ...(manualCount > 0 ? ['manual_required_targets_are_detect_only_and_skipped'] : []),
   ];
@@ -192,9 +170,9 @@ function buildCapabilityPackagesComponent(
     ? {
       reload_required: false,
       reload_recommended: true,
-      reload_targets: ['one_person_lab_app', 'codex_plugin_cache'],
-      command_ref: 'Reload One Person Lab App or Codex plugin cache',
-      reason: 'Codex may cache plugin metadata until App/Codex reload after managed module package changes.',
+      reload_targets: ['one_person_lab_app'],
+      command_ref: 'Reload One Person Lab App',
+      reason: 'The App may retain the previous native module projection until reload.',
     }
     : noReloadGuidance();
   const detail = statusDetail({
@@ -207,11 +185,11 @@ function buildCapabilityPackagesComponent(
     reload_status: reloadRecommended ? 'recommended' : manualCount > 0 ? 'manual_required' : 'not_required',
   });
   const route = ownerRoute({
-    owner: 'one-person-lab-managed-modules',
-    authority_surface: 'Native module carrier state, package-channel content identity, and protected runtime source roots',
+    owner: 'installed-package-owner-descriptors',
+    authority_surface: 'Installed owner descriptors and native carrier state over protected runtime source roots',
     route_kind: 'clean_managed_package_executor',
     readback_ref: 'opl connect modules --json',
-    apply_owner: 'opl_connect_managed_module_reconciler',
+    apply_owner: 'opl_connect_native_package_carrier',
     forbidden_claims: [
       'capability_package_currentness_is_domain_ready',
       'capability_package_channel_signs_owner_receipt',
@@ -229,7 +207,7 @@ function buildCapabilityPackagesComponent(
     policy_id: 'ordinary_user_non_development_silent_background',
     owner_route: route,
     owner_execution_boundary: ownerExecutionBoundary(route, {
-      owner_executor_id: 'opl_connect_managed_module_reconciler',
+      owner_executor_id: 'opl_connect_native_package_carrier',
       executor_kind: 'clean_managed_package_executor',
       runner_can_execute: true,
       allowed_operations: ['apply', 'repair', MANAGED_UPDATE_OWNER_ACTIONS.revert], // reuse-first: allow clean content-addressed module roots only.
@@ -250,15 +228,6 @@ function buildCapabilityPackagesComponent(
       })),
       shared_snapshot_role: 'explicit_full_offline_integration_qa_compatibility_only',
       tag_role: 'selector_only',
-      transaction_guards: {
-        installed_digest_required: true,
-        content_identity_fields: ['digest', 'sha256', 'source_fingerprint', 'git_head_sha'],
-        dirty_checkout_policy: 'fail_closed_no_overwrite',
-        developer_checkout_policy: 'source_reconcile_then_protect_no_channel_overwrite',
-        codex_skill_plugin_sync: 'same_transaction_post_apply',
-        profile_semantic_merge: 'fail_closed_owner_handoff',
-        receipt_policy: 'native_module_owner_receipt',
-      },
       oci_distribution: {
         descriptor_media_type: 'application/vnd.opl.capability-package.channel.v1+json',
         channel_scope: 'per_package_owner_latest_stable',
@@ -271,11 +240,6 @@ function buildCapabilityPackagesComponent(
       managed_module_count: targetStates.length,
       projection_source: 'native_module_directory',
       module_states: moduleStates,
-      bundled_full_runtime_catalog: bundledCatalog ? {
-        catalog_ref: bundledCatalog.catalogRef,
-        catalog_digest: bundledCatalog.catalogSha256,
-        catalog_package_count: bundledCatalog.entries.size,
-      } : null,
     },
     target: state === 'current'
       ? null
@@ -320,9 +284,7 @@ function buildCapabilityPackagesComponent(
       mode: cleanManagedScopeSafe ? 'auto_apply' : 'manual_required',
       eligible: autoApplyEligible,
       app_background_safe: cleanManagedScopeSafe,
-      scope: bundledRuntimeRequested
-        ? 'catalog_owned_bundled_full_runtime_root_packages_only'
-        : 'native_package_channel_modules_only',
+      scope: 'native_package_channel_modules_only',
       command_ref: autoApplyEligible ? packageApplyCommand : null,
       blocked_reasons: blockedReasons,
     },
@@ -341,8 +303,8 @@ function buildCapabilityPackagesComponent(
         : action === 'manual_review'
           ? 'Manual review is required before OPL can update one or more native module roots.'
           : manualCount > 0
-            ? 'Reconcile eligible clean package-channel targets, leave manual targets unchanged, then sync Codex-visible skills and plugins.'
-            : 'Reconcile native module carriers against package-channel targets, then sync Codex-visible skills and plugins.',
+            ? 'Reconcile eligible clean package-channel targets and leave manual targets unchanged.'
+            : 'Reconcile native module carriers against package-channel targets.',
       command_refs: action === 'manual_review'
         ? [
           manualCommand(
@@ -363,7 +325,7 @@ function buildCapabilityPackagesComponent(
             controlledCommand(
               'update_packages',
               packageApplyCommand,
-              'Resolve package dependency closures and refresh their managed Codex projections.',
+              'Delegate clean package-channel updates to their native module owners.',
             ),
           ],
     },
@@ -387,33 +349,11 @@ function buildCapabilityPackagesComponent(
     },
     notes: [
       'Each first-party Package owner latest-stable channel is the ordinary non-development currentness source.',
-      'Developer checkout content remains protected while native module state is compared with the selected package-channel target.',
+      'Developer checkout content remains protected; only clean managed module roots are eligible.',
       'Shared manifests are compatibility-only Full, offline, integration, or QA snapshot inputs, never Package currentness authority.',
-      'App-carried bundled Full runtime modules are reconciled against the canonical bundled catalog only through the managed update kernel.',
       'Package-channel freshness does not claim domain readiness, artifact authority, quality verdict, or export readiness.',
     ],
   });
-}
-
-function buildCodexProjectionStatus(capabilityPackages: ManagedUpdateComponent) {
-  const needsReload = capabilityPackages.plan.command_refs.some((entry) => entry.action_id === 'sync_codex_skills');
-  return {
-    status: needsReload ? 'needs_reload' : 'current',
-    codex_skill_plugin_sync: needsReload ? 'not_run' : 'skipped',
-    reload_status: needsReload ? 'recommended' : 'not_required',
-    materialized_by: 'package_transaction_post_apply',
-    separate_lifecycle_owner: false,
-  };
-}
-
-function buildProfileMigrationStatus() {
-  return {
-    status: 'current',
-    semantic_merge_required: true,
-    silent_overwrite_allowed: false,
-    apply_mode: 'fail_closed_owner_handoff',
-    separate_lifecycle_owner: false,
-  };
 }
 
 export async function buildManagedUpdateKernelProjection(
@@ -460,13 +400,7 @@ export async function buildManagedUpdateKernelProjection(
     const ownerCurrentness = await (
       deps.readFirstPartyPackageOwnerCurrentness ?? readFirstPartyPackageOwnerCurrentness
     )(eligiblePackageIds);
-    const capabilityPackages = buildCapabilityPackagesComponent(modules, channel, ownerCurrentness);
-    const projectionStatus = buildCodexProjectionStatus(capabilityPackages);
-    components.push({
-      ...capabilityPackages,
-      projection_status: projectionStatus,
-      profile_migration_status: buildProfileMigrationStatus(),
-    });
+    components.push(buildCapabilityPackagesComponent(modules, channel, ownerCurrentness));
   }
   const selectedComponents = filterManagedUpdateComponents(
     components,
@@ -494,7 +428,7 @@ export async function buildManagedUpdateKernelProjection(
         status: 'not_acquired_for_projection',
         lock_file: managedUpdateLockFilePath(),
         stale_after_seconds: MANAGED_UPDATE_LOCK_STALE_AFTER_SECONDS,
-        contention_policy: 'report_in_progress_or_skip_without_parallel_stage_or_plugin_sync',
+        contention_policy: 'report_in_progress_or_skip_without_parallel_mutation',
       },
       summary: summarizeManagedUpdateComponents(selectedComponents),
       components: selectedComponents,
@@ -527,7 +461,7 @@ export async function buildManagedUpdateKernelProjection(
       },
       notes: [
         'Public lifecycle ownership is limited to OPL Base, OPL App, and OPL Packages.',
-        'Codex skill/plugin projection and workflow profile migration are OPL Packages transaction statuses, not lifecycle owners.',
+        'OPL Packages delegates only clean managed module roots to their existing native owner path.',
         'OPL App replacement remains App-owned and must not be claimed by opl update apply.',
         'Real artifact fetch/verify/stage/activate remains provider-specific; this surface exposes the shared state machine and safe action refs.',
         'Package freshness and runtime maintenance do not imply domain readiness, owner receipt authority, artifact authority, quality verdict, or export readiness.',

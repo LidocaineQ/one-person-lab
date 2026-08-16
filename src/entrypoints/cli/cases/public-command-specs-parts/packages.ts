@@ -1,7 +1,4 @@
-import path from 'node:path';
-
 import {
-  canonicalAgentPackageId,
   listOplAgentPackages,
   buildManagedUpdateKernelProjection,
   runManagedUpdateKernelOperation,
@@ -11,19 +8,14 @@ import {
   runOplAgentPackageInstall,
   runOplAgentPackageRepair,
   runOplAgentPackageStatus,
-  runOplAgentPackageActivate,
   runOplAgentPackageUninstall,
   runOplAgentPackageUpdate,
   type AgentPackageInstallInput,
   type AgentPackageHomeShortcutPreferencesSetInput,
   type AgentPackagePackageActionInput,
   type AgentPackageRepairInput,
-  type CordisConnectDescriptorDiscoveryService,
 } from '../../../../adapters/integration/index.ts';
-import { FrameworkContractError } from '../../../../kernel/contract-validation.ts';
 import type { FrameworkContracts } from '../../../../kernel/types.ts';
-import { STANDARD_AGENT_REGISTRY } from '../../../../kernel/standard-agent-registry.ts';
-import type { CordisWorkspaceLocatorService } from '../../../../authority/workspace/index.ts';
 import { readOptionalString } from '../../modules/json-boundary.ts';
 import {
   buildUsageError,
@@ -73,20 +65,8 @@ function parsePackageSelection(
   }
   const selectedPackageId = positional.packageId ?? optionPackageId;
   return {
-    manifestUrl: readOptionalString(parsed['manifest-url']),
-    registryUrl: readOptionalString(parsed['registry-url']),
     packageId: selectedPackageId,
-    trustTier: readOptionalString(parsed['trust-tier']),
-    sourceKind: readOptionalString(parsed['source-kind']) as AgentPackageInstallInput['sourceKind'],
     dryRun: parsed['dry-run'] === true,
-    agentRoot: readOptionalString(parsed['agent-root']),
-    scope: readOptionalString(parsed.scope) as AgentPackageInstallInput['scope'],
-    targetWorkspace: readOptionalString(parsed['target-workspace']),
-    targetQuest: readOptionalString(parsed['target-quest']),
-    keepMigrationIds: readOptionalString(parsed['keep-migration'])
-      ?.split(',')
-      .map((entry) => entry.trim())
-      .filter(Boolean),
   };
 }
 
@@ -112,10 +92,6 @@ function parsePackageAction(
   return {
     packageId,
     dryRun: parsed['dry-run'] === true,
-    agentRoot: readOptionalString(parsed['agent-root']),
-    scope: readOptionalString(parsed.scope) as AgentPackagePackageActionInput['scope'],
-    targetWorkspace: readOptionalString(parsed['target-workspace']),
-    targetQuest: readOptionalString(parsed['target-quest']),
   };
 }
 
@@ -130,157 +106,7 @@ function parsePackageRepair(args: string[], spec: CommandSpec): AgentPackageRepa
 }
 
 function hasExplicitPackageSelection(input: AgentPackageInstallInput) {
-  return Boolean(input.manifestUrl || input.registryUrl || input.packageId || input.agentRoot);
-}
-
-type ScopedPackageMutationInput = {
-  packageId?: string | null;
-  manifestUrl?: string | null;
-  registryUrl?: string | null;
-  agentRoot?: string | null;
-  scope?: 'workspace' | 'quest' | null;
-  targetWorkspace?: string | null;
-  targetQuest?: string | null;
-};
-
-function pathIsWithin(root: string, candidate: string) {
-  const relative = path.relative(path.resolve(root), path.resolve(candidate));
-  return relative === '' || (!path.isAbsolute(relative)
-    && relative !== '..'
-    && !relative.startsWith(`..${path.sep}`));
-}
-
-export function admitMasWorkspaceScopedPackageMutation<T extends ScopedPackageMutationInput>(
-  command: string,
-  input: T,
-  workspaceLocator?: CordisWorkspaceLocatorService,
-): T {
-  if (!input.scope) return input;
-  const packageId = canonicalAgentPackageId(input.packageId);
-  const unresolvedExplicitSelection = !packageId
-    && Boolean(input.manifestUrl || input.registryUrl || input.agentRoot);
-  if (packageId !== 'mas' && !unresolvedExplicitSelection) return input;
-  if (input.scope === 'quest' && input.targetQuest && !input.targetWorkspace) {
-    if (!workspaceLocator) {
-      throw new Error('Package workspace-scoped commands require an explicit Cordis workspace locator service.');
-    }
-    const targetQuest = path.resolve(input.targetQuest);
-    const containingBindings = workspaceLocator.list()
-      .filter((binding) => pathIsWithin(binding.workspace_path, targetQuest))
-      .sort((left, right) => right.workspace_path.length - left.workspace_path.length);
-    const mostSpecificRoot = containingBindings[0]?.workspace_path ?? null;
-    const governingBindings = mostSpecificRoot
-      ? containingBindings.filter((binding) =>
-        path.resolve(binding.workspace_path) === path.resolve(mostSpecificRoot))
-      : [];
-    const masBinding = governingBindings.find((binding) =>
-      binding.project_id === 'medautoscience' && binding.status !== 'archived'
-    );
-    if (masBinding) return input;
-
-    const archivedMasBinding = governingBindings.find((binding) =>
-      binding.project_id === 'medautoscience' && binding.status === 'archived'
-    );
-    throw new FrameworkContractError(
-      'contract_shape_invalid',
-      'MAS Scholar Skills quest target must be inside a non-archived MAS workspace binding.',
-      {
-        command,
-        package_id: packageId,
-        requested_scope: input.scope,
-        target_workspace: archivedMasBinding?.workspace_path ?? null,
-        target_quest: targetQuest,
-        binding_status: archivedMasBinding
-          ? 'archived'
-          : governingBindings.length > 0 ? 'wrong_domain' : 'unbound',
-        bound_project_ids: governingBindings.map((binding) => binding.project_id),
-        failure_code: archivedMasBinding
-          ? 'mas_scholar_skills_workspace_binding_archived'
-          : 'mas_scholar_skills_workspace_binding_required',
-      },
-    );
-  }
-  if (input.scope !== 'workspace' || !input.targetWorkspace || input.targetQuest) {
-    throw new FrameworkContractError(
-      'contract_shape_invalid',
-      'MAS Scholar Skills may only be projected through a registered MAS workspace binding.',
-      {
-        command,
-        package_id: packageId,
-        requested_scope: input.scope,
-        target_workspace: input.targetWorkspace ?? null,
-        target_quest: input.targetQuest ?? null,
-        failure_code: 'mas_scholar_skills_workspace_binding_required',
-      },
-    );
-  }
-
-  let locator: ReturnType<CordisWorkspaceLocatorService['resolve']>;
-  if (!workspaceLocator) {
-    throw new Error('Package workspace-scoped commands require an explicit Cordis workspace locator service.');
-  }
-  try {
-    locator = workspaceLocator.resolve('medautoscience', input.targetWorkspace);
-  } catch (error) {
-    throw new FrameworkContractError(
-      'contract_shape_invalid',
-      'MAS Scholar Skills target does not resolve to a current MAS workspace binding.',
-      {
-        command,
-        package_id: packageId,
-        target_workspace: input.targetWorkspace,
-        cause: error instanceof Error ? error.message : String(error),
-        failure_code: 'mas_scholar_skills_workspace_binding_required',
-      },
-    );
-  }
-  const samePathBindings = workspaceLocator.list().filter((binding) =>
-    path.resolve(binding.workspace_path) === locator.absolute_path
-  );
-  if (!locator.binding || locator.binding.status === 'archived') {
-    throw new FrameworkContractError(
-      'contract_shape_invalid',
-      'MAS Scholar Skills target must be a non-archived MAS workspace binding.',
-      {
-        command,
-        package_id: packageId,
-        target_workspace: locator.absolute_path,
-        binding_status: locator.binding?.status
-          ?? (samePathBindings.length > 0 ? 'wrong_domain' : 'unbound'),
-        bound_project_ids: samePathBindings.map((binding) => binding.project_id),
-        failure_code: locator.binding?.status === 'archived'
-          ? 'mas_scholar_skills_workspace_binding_archived'
-          : 'mas_scholar_skills_workspace_binding_required',
-      },
-    );
-  }
-  return input;
-}
-
-async function installPackageWithActiveWorkspace(
-  input: AgentPackageInstallInput,
-  descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>,
-  workspaceLocator?: CordisWorkspaceLocatorService,
-) {
-  const result = await runOplAgentPackageInstall(input);
-  if (input.dryRun || input.scope) return result;
-  const packageId = result.opl_agent_package_install.package_id;
-  if (!packageId) return result;
-  const agent = STANDARD_AGENT_REGISTRY.find((entry) => entry.project === packageId);
-  const binding = agent ? workspaceLocator?.active(agent.domain_id) : null;
-  if (!binding) return result;
-  const defaultScopeActivation = (await runOplAgentPackageActivate({
-    packageId,
-    scope: 'workspace',
-    targetWorkspace: binding.workspace_path,
-  }, { descriptorDiscovery })).opl_agent_package_activation;
-  return {
-    ...result,
-    opl_agent_package_install: {
-      ...result.opl_agent_package_install,
-      default_scope_activation: defaultScopeActivation,
-    },
-  };
+  return Boolean(input.packageId);
 }
 
 function parseFrameworkLink(args: string[], spec: CommandSpec) {
@@ -327,8 +153,6 @@ function parsePreferences(
 export function buildPackagesCommandSpecs(
   getContracts: () => FrameworkContracts,
   getCommandSpec: (command: string) => CommandSpec,
-  descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>,
-  workspaceLocator?: CordisWorkspaceLocatorService,
 ): Record<string, CommandSpec> {
   const specs: Record<string, CommandSpec> = {
     'packages list': {
@@ -340,7 +164,7 @@ export function buildPackagesCommandSpecs(
       handler: () => listOplAgentPackages(),
     },
     'packages status': {
-      usage: 'opl packages status [--package-id <id>] [--scope workspace|quest --target-workspace <path>|--target-quest <path>]',
+      usage: 'opl packages status [--package-id <id>]',
       summary: 'Read compact package presence, callability, actions, and owner-route status.',
       examples: ['opl packages status --package-id mas --json'],
       group: 'packages',
@@ -354,9 +178,6 @@ export function buildPackagesCommandSpecs(
         );
         return runOplAgentPackageStatus({
           packageId: readOptionalString(parsed['package-id']),
-          scope: readOptionalString(parsed.scope) as 'workspace' | 'quest' | null,
-          targetWorkspace: readOptionalString(parsed['target-workspace']),
-          targetQuest: readOptionalString(parsed['target-quest']),
         });
       },
     },
@@ -373,45 +194,21 @@ export function buildPackagesCommandSpecs(
       ),
     },
     'packages install': {
-      usage: 'opl packages install <package_id> [--scope workspace|quest --target-workspace <path>|--target-quest <path>] [--keep-migration <id,...>] [--dry-run] [--manifest-url <url>|--registry-url <url> --trust-tier <tier>] [--source-kind <kind>] [--agent-root <repo>]',
-      summary: 'Install a first-party OPL Package from its owner OCI latest-stable channel, or use an explicitly selected manifest or registry.',
+      usage: 'opl packages install <package_id> [--dry-run]',
+      summary: 'Install one Package through its native carrier and return fresh carrier readback.',
       examples: [
         'opl packages install rca --json',
         'opl packages install opl-flow --json',
       ],
       group: 'packages',
       help_surface: 'default',
-      handler: (args) => installPackageWithActiveWorkspace(
-        admitMasWorkspaceScopedPackageMutation(
-          'packages install',
-          parsePackageSelection('packages install', args, getCommandSpec('packages install')),
-          workspaceLocator,
-        ),
-        descriptorDiscovery,
-        workspaceLocator,
-      ),
-    },
-    'packages activate': {
-      usage: 'opl packages activate <package_id> --scope workspace|quest [--target-workspace <path>|--target-quest <path>] [--dry-run]',
-      summary: 'Confirm that an installed Package is callable at a workspace or quest use boundary.',
-      examples: [
-        'opl packages activate mas --scope workspace --target-workspace /path/to/study --json',
-        'opl packages activate mas --scope quest --target-quest /path/to/quest --json',
-      ],
-      group: 'packages',
-      help_surface: 'migration_compatibility',
-      handler: (args) => runOplAgentPackageActivate(
-        admitMasWorkspaceScopedPackageMutation(
-          'packages activate',
-          parsePackageAction('packages activate', args, getCommandSpec('packages activate')),
-          workspaceLocator,
-        ),
-        { descriptorDiscovery },
+      handler: (args) => runOplAgentPackageInstall(
+        parsePackageSelection('packages install', args, getCommandSpec('packages install')),
       ),
     },
     'packages update': {
-      usage: 'opl packages update [<package_id>] [--scope workspace|quest --target-workspace <path>|--target-quest <path>] [--keep-migration <id,...>] [--manifest-url <url>|--registry-url <url>] [--trust-tier <tier>] [--source-kind <kind>] [--agent-root <repo>] [--dry-run]',
-      summary: 'Update one installed first-party Package from its owner OCI latest-stable channel, or reconcile all clean managed packages.',
+      usage: 'opl packages update [<package_id>] [--dry-run]',
+      summary: 'Update one Package through its native carrier, or run the managed aggregate when no Package is selected.',
       examples: [
         'opl packages update rca --json',
         'opl packages update --json',
@@ -419,11 +216,7 @@ export function buildPackagesCommandSpecs(
       group: 'packages',
       help_surface: 'default',
       handler: (args) => {
-        const input = admitMasWorkspaceScopedPackageMutation(
-          'packages update',
-          parsePackageSelection('packages update', args, getCommandSpec('packages update')),
-          workspaceLocator,
-        );
+        const input = parsePackageSelection('packages update', args, getCommandSpec('packages update'));
         if (hasExplicitPackageSelection(input)) {
           return runOplAgentPackageUpdate(input);
         }
@@ -494,16 +287,14 @@ export function buildPackagesCommandSpecs(
       ),
     },
     'packages repair': {
-      usage: 'opl packages repair <package_id> [--scope workspace|quest --target-workspace <path>|--target-quest <path>] [--manifest-url <url>|--registry-url <url>] [--trust-tier <tier>] [--source-kind <kind>] [--agent-root <repo>] [--dry-run]',
-      summary: 'Repair one installed OPL Package dependency closure and current workspace/quest materialization.',
-      examples: ['opl packages repair mas --scope workspace --target-workspace /path/to/study --json'],
+      usage: 'opl packages repair <package_id> [--dry-run]',
+      summary: 'Repair one Package through its native carrier and return fresh readback.',
+      examples: ['opl packages repair mas --json'],
       group: 'packages',
       help_surface: 'default',
-      handler: (args) => runOplAgentPackageRepair(admitMasWorkspaceScopedPackageMutation(
-        'packages repair',
+      handler: (args) => runOplAgentPackageRepair(
         parsePackageRepair(args, getCommandSpec('packages repair')),
-        workspaceLocator,
-      )),
+      ),
     },
     'packages uninstall': {
       usage: 'opl packages uninstall <package_id> [--dry-run]',

@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { parseArgs as parseNodeArgs } from 'node:util';
 
 import { buildOplWhitepaper } from './opl-whitepaper-builder.ts';
 
@@ -61,20 +62,33 @@ function parseArgs(argv: string[]) {
     process.stdout.write(`${usage}\n`);
     return null;
   }
-  const values = new Map<string, string>();
-  for (let index = 0; index < argv.length; index += 2) {
-    const flag = argv[index];
-    const value = argv[index + 1];
-    if (!['--repo-root', '--profile', '--public-html-url', '--public-pdf-url'].includes(flag) || !value || values.has(flag)) {
+  let values;
+  try {
+    values = parseNodeArgs({
+      args: argv,
+      options: {
+        'repo-root': { type: 'string', multiple: true },
+        profile: { type: 'string', multiple: true },
+        'public-html-url': { type: 'string', multiple: true },
+        'public-pdf-url': { type: 'string', multiple: true },
+      },
+      allowPositionals: false,
+    }).values;
+  } catch {
+    fail(usage);
+  }
+  const single = (name: string, required: boolean) => {
+    const entries = values[name] as string[] | undefined;
+    if (!entries || entries.length !== 1) {
+      if (!required && !entries) return undefined;
       fail(usage);
     }
-    values.set(flag, value);
-  }
-  const repoRoot = values.get('--repo-root');
-  const profile = values.get('--profile');
-  if (!repoRoot || !profile) fail(usage);
-  const publicHtmlUrl = values.get('--public-html-url');
-  const publicPdfUrl = values.get('--public-pdf-url');
+    return entries[0];
+  };
+  const repoRoot = single('repo-root', true);
+  const profile = single('profile', true);
+  const publicHtmlUrl = single('public-html-url', false);
+  const publicPdfUrl = single('public-pdf-url', false);
   if ((publicHtmlUrl && !publicPdfUrl) || (!publicHtmlUrl && publicPdfUrl)) fail(usage);
   return { repoRoot, profile, publicHtmlUrl, publicPdfUrl };
 }

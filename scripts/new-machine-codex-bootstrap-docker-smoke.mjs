@@ -79,20 +79,19 @@ const packages = [
   if (packageInstall?.status !== 'installed' || packageInstall?.package_id !== spec.packageId) {
     throw new Error('package install failed for ' + spec.packageId + ': ' + JSON.stringify(packageInstall));
   }
-  const physicalSurface = packageInstall.physical_surface;
-  const profile = physicalSurface?.profile_migration;
-  if (profile?.status !== 'not_requested' || profile?.writes_performed !== false) {
-    throw new Error('package profile metadata escaped owner-managed no-write handling for '
-      + spec.packageId + ': ' + JSON.stringify(profile));
+  const carrier = packageInstall.configured_carrier;
+  if (carrier?.status !== 'installed' || carrier?.executor?.status !== 'callable') {
+    throw new Error('native carrier install did not converge for '
+      + spec.packageId + ': ' + JSON.stringify(carrier));
   }
-  const requiredSkillPaths = physicalSurface?.materialized_required_skill_paths ?? [];
-  if (!requiredSkillPaths.some((filePath) => filePath.endsWith('/skills/' + spec.requiredSkillId + '/SKILL.md'))) {
-    throw new Error('missing required skill path for ' + spec.packageId + ': ' + JSON.stringify(requiredSkillPaths));
+  const requiredSkillIds = carrier.executor.required_skill_ids ?? [];
+  if (!requiredSkillIds.includes(spec.requiredSkillId)) {
+    throw new Error('native carrier omitted required Skill identity for '
+      + spec.packageId + ': ' + JSON.stringify(requiredSkillIds));
   }
-  for (const filePath of [physicalSurface?.plugin_manifest_path, ...requiredSkillPaths]) {
-    if (!filePath || !fs.existsSync(filePath)) {
-      throw new Error('missing package surface for ' + spec.packageId + ': ' + filePath);
-    }
+  if (!carrier.plugin_source_path || !fs.existsSync(carrier.plugin_source_path)) {
+    throw new Error('native carrier source is unavailable for '
+      + spec.packageId + ': ' + carrier.plugin_source_path);
   }
   if (packageStatus?.status !== 'available'
     || packageStatus?.operational_ready !== true
@@ -103,10 +102,9 @@ const packages = [
     package_id: spec.packageId,
     install_status: packageInstall.status,
     status: packageStatus.status,
-    plugin_manifest_path: physicalSurface.plugin_manifest_path,
-    required_skill_paths: requiredSkillPaths,
-    profile_status: profile.status,
-    writes_performed: profile.writes_performed,
+    carrier_source_path: carrier.plugin_source_path,
+    required_skill_ids: requiredSkillIds,
+    carrier_authority: packageStatus.installed_carrier_readback?.lifecycle_authority,
   };
 });
 
@@ -173,25 +171,20 @@ const packageInstall = install.opl_agent_package_install;
 if (packageInstall?.status !== 'installed') {
   throw new Error('opl-flow package install failed: ' + JSON.stringify(install));
 }
-const profile = packageInstall.physical_surface?.profile_migration;
-if (profile?.status !== 'not_requested' || profile?.writes_performed !== false) {
-  throw new Error('opl-flow profile metadata escaped owner-managed no-write handling: ' + JSON.stringify(profile));
-}
-for (const filePath of [
-  packageInstall.physical_surface.plugin_manifest_path,
-  ...packageInstall.physical_surface.materialized_required_skill_paths,
-]) {
-  if (!filePath || !fs.existsSync(filePath)) {
-    throw new Error('missing opl-flow package surface: ' + filePath);
-  }
+const carrier = packageInstall.configured_carrier;
+if (carrier?.status !== 'installed'
+  || carrier?.executor?.status !== 'callable'
+  || !carrier.plugin_source_path
+  || !fs.existsSync(carrier.plugin_source_path)) {
+  throw new Error('opl-flow native carrier did not converge: ' + JSON.stringify(carrier));
 }
 
 console.log(JSON.stringify({
   status: 'ok',
   surface: 'opl_packages_bootstrap',
   package_status: packageInstall.status,
-  profile_status: profile.status,
-  plugin_path: packageInstall.physical_surface.codex_plugin_cache_path,
+  carrier_source_path: carrier.plugin_source_path,
+  carrier_authority: status.opl_agent_package_status?.installed_carrier_readback?.lifecycle_authority,
   status_readback: status.opl_agent_package_status?.status,
 }, null, 2));
 NODE
@@ -247,6 +240,13 @@ const ownerDescriptor = {
     plugin_ids: ['future-agent'],
     required_skill_ids: ['future-agent'],
     optional_skill_ids: [],
+    configured_codex_plugin_carrier: {
+      kind: 'codex_plugin_manager',
+      plugin_selector: 'future-agent@future-carrier',
+      marketplace_source: 'future-carrier',
+      executor_route: 'codex_cli',
+      publication_ref: null,
+    },
   },
   presentation,
   capability_dependencies: [],
@@ -257,27 +257,9 @@ const ownerDescriptor = {
     required_skill_ids: ['future-agent'],
     shortcut_eligible: true,
   }],
-  health_check: {
-    kind: 'opl_package_receipt',
-    required_surfaces: ['plugin_registry', 'required_skill_ids'],
-  },
-  permissions: [],
-  update_channel: 'manifest_url',
+  update_channel: 'native_carrier',
 };
 fs.writeFileSync(path.join(sourceRoot, 'opl-package.json'), JSON.stringify(ownerDescriptor, null, 2) + '\n');
-fs.writeFileSync(path.join(root, 'manifest.json'), JSON.stringify({
-  ...ownerDescriptor,
-  codex_surface: {
-    ...ownerDescriptor.codex_surface,
-    configured_codex_plugin_carrier: {
-      kind: 'codex_plugin_manager',
-      plugin_selector: 'future-agent@future-carrier',
-      marketplace_source: 'future-carrier',
-      executor_route: 'codex_cli',
-      publication_ref: null,
-    },
-  },
-}, null, 2) + '\n');
 
 const binary = path.join(root, 'fake-codex.mjs');
 fs.writeFileSync(binary, [
@@ -286,7 +268,7 @@ fs.writeFileSync(binary, [
   "const args = process.argv.slice(2);",
   "const stateFile = process.env.FIXTURE_PLUGIN_STATE;",
   "const sourcePath = process.env.FIXTURE_PLUGIN_SOURCE;",
-  "let state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : { installed: false, version: '9.1.0', marketplaceSource: null }; // reuse-first: allow test-only fake carrier state boundary.",
+  "let state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : { installed: false, version: '9.1.0', marketplaceSource: 'future-carrier' }; // reuse-first: allow test-only fake carrier state boundary.",
   "if (args.join(' ') === 'plugin marketplace list --json') {",
   "  process.stdout.write(JSON.stringify({ marketplaces: state.marketplaceSource ? [{ marketplaceSource: { sourceType: 'local', source: state.marketplaceSource } }] : [] }));",
   "} else if (args[0] === 'plugin' && args[1] === 'marketplace' && args[2] === 'add') {",
@@ -301,6 +283,9 @@ fs.writeFileSync(binary, [
   "  state = { ...state, installed: false };",
   "  fs.writeFileSync(stateFile, JSON.stringify(state));",
   "  process.stdout.write(JSON.stringify({ status: 'ok' }));",
+  "} else if (args.join(' ') === 'plugin list --available --json') {",
+  "  const entry = { pluginId: 'future-agent@future-carrier', version: state.version, enabled: state.installed, source: { source: 'local', path: sourcePath }, marketplaceSource: { sourceType: 'local', source: 'future-carrier' } };",
+  "  process.stdout.write(JSON.stringify({ installed: state.installed ? [{ ...entry, installed: true }] : [], available: state.installed ? [] : [{ ...entry, installed: false }] }));",
   "} else if (args.join(' ') === 'plugin list --json') {",
   "  process.stdout.write(JSON.stringify({ installed: state.installed ? [{ pluginId: 'future-agent@future-carrier', version: state.version, installed: true, enabled: true, source: { source: 'local', path: sourcePath }, marketplaceSource: { sourceType: 'local', source: 'future-carrier' } }] : [], available: [] }));",
   "} else {",
@@ -315,44 +300,7 @@ NODE
 export OPL_CODEX_PLUGIN_BIN=/tmp/future-agent-lab/fake-codex.mjs
 export FIXTURE_PLUGIN_STATE=/tmp/future-agent-lab/plugin-state.json
 export FIXTURE_PLUGIN_SOURCE=/tmp/future-agent-lab/plugin-source
-cat >/tmp/future-agent-private-state-snapshot.mjs <<'NODE'
-import crypto from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
-
-const [action, baselineFile, phase] = process.argv.slice(2);
-const stateDir = '/root/.opl/state';
-const exactNames = new Set([
-  'agent-package-registry-cache.json',
-  'agent-package-locks.json',
-  'agent-package-lifecycle-ledger.json',
-]);
-const snapshot = Object.fromEntries(
-  (fs.existsSync(stateDir) ? fs.readdirSync(stateDir) : [])
-    .filter((name) => exactNames.has(name) || name.startsWith('agent-package-lifecycle.sqlite'))
-    .sort()
-    .map((name) => {
-      const file = path.join(stateDir, name);
-      return [name, 'sha256:' + crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')];
-    }),
-);
-if (action === 'record') {
-  fs.writeFileSync(baselineFile, JSON.stringify(snapshot));
-} else if (action === 'assert') {
-  const baseline = JSON.parse(fs.readFileSync(baselineFile, 'utf8')); // reuse-first: allow self-authored Docker snapshot boundary.
-  if (JSON.stringify(snapshot) !== JSON.stringify(baseline)) {
-    throw new Error('unknown Package changed Framework private lifecycle state during ' + phase
-      + ': ' + JSON.stringify({ baseline, current: snapshot }));
-  }
-} else {
-  throw new Error('unknown private-state snapshot action: ' + action);
-}
-NODE
-node /tmp/future-agent-private-state-snapshot.mjs record /tmp/future-agent-private-state-before.json
-opl packages install future.agent-lab \
-  --manifest-url file:///tmp/future-agent-lab/manifest.json \
-  --trust-tier third_party_verified \
-  --json >/tmp/future-agent-install.json
+opl packages install future.agent-lab --json >/tmp/future-agent-install.json
 opl packages status --package-id future.agent-lab --json >/tmp/future-agent-status.json
 opl packages list --detail full --json >/tmp/future-agent-list.json
 opl app state --profile fast --json >/tmp/future-agent-app-state.json
@@ -393,16 +341,12 @@ console.log(JSON.stringify({
   carrier_kind: directoryEntry.installed_carrier_readback?.kind,
   app_state_display_name: appStateEntry.display_name,
   app_state_home_shortcuts: appStateEntry.home_shortcuts,
-  no_framework_private_lifecycle_state_writes: true,
+  native_carrier_is_lifecycle_authority: directoryEntry.installed_carrier_readback?.lifecycle_authority === 'carrier_owned',
 }, null, 2));
 NODE
-node /tmp/future-agent-private-state-snapshot.mjs assert \
-  /tmp/future-agent-private-state-before.json after-install-readback
 
 opl packages uninstall future.agent-lab --json >/tmp/future-agent-uninstall.json
 opl packages status --package-id future.agent-lab --json >/tmp/future-agent-after-remove.json
-node /tmp/future-agent-private-state-snapshot.mjs assert \
-  /tmp/future-agent-private-state-before.json after-uninstall-readback
 
 node <<'NODE'
 const fs = require('fs');

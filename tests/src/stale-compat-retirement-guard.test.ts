@@ -90,6 +90,7 @@ test('retired Package lock and Skill projection writers stay absent', () => {
     'src/adapters/integration/agent-package-registry-parts/installed-plugin-source.ts',
     'src/adapters/integration/agent-package-registry-parts/currentness.ts',
     'src/adapters/integration/agent-package-registry-parts/package-role.ts',
+    'src/adapters/integration/agent-package-registry-parts/capability-reconciliation.ts',
   ];
   for (const relativePath of retiredPaths) {
     assert.equal(fs.existsSync(path.join(repoRoot, relativePath)), false, relativePath);
@@ -123,19 +124,11 @@ test('retired Package lock and Skill projection writers stay absent', () => {
   assert.doesNotMatch(statePaths, /agent_package_lock_file/);
 });
 
-test('ordinary owner-channel catalog paths do not emit Release Set selection state', () => {
-  const capabilityReconciliation = fs.readFileSync(
-    path.join(repoRoot, 'src/adapters/integration/agent-package-registry-parts/capability-reconciliation.ts'),
-    'utf8',
+test('ordinary owner-channel catalog paths do not retain a Framework catalog selector', () => {
+  assert.equal(
+    fs.existsSync(path.join(repoRoot, 'src/adapters/integration/agent-package-registry-parts/first-party-release-catalog.ts')),
+    false,
   );
-  const firstPartyCatalog = fs.readFileSync(
-    path.join(repoRoot, 'src/adapters/integration/agent-package-registry-parts/first-party-release-catalog.ts'),
-    'utf8',
-  );
-  assert.doesNotMatch(capabilityReconciliation, /function releaseSetPackageCatalog\b/);
-  assert.match(capabilityReconciliation, /selected_for_owner_channel/);
-  assert.match(firstPartyCatalog, /selection_status: 'selected_for_owner_channel'/);
-  assert.doesNotMatch(firstPartyCatalog, /selection_status: 'selected_for_release_set'/);
 });
 
 test('retired profile and MAG aliases remain history-only in active docs', () => {
@@ -306,77 +299,12 @@ test('retired Package lifecycle lock construction stays absent', () => {
   for (const retiredPackageWriterPath of [
     'src/adapters/integration/agent-package-registry-parts/lifecycle-lock.ts',
     'src/adapters/integration/agent-package-registry-parts/persisted-path-safety.ts',
+    'src/adapters/integration/agent-package-registry-parts/physical-surface.ts',
+    'src/adapters/integration/agent-package-registry-parts/developer-checkout-runtime-source.ts',
+    'src/adapters/integration/agent-package-registry-parts/bundled-full-runtime-catalog.ts',
+    'src/adapters/integration/agent-package-registry-parts/dependency-closure.ts',
   ]) {
     assert.equal(fs.existsSync(path.join(repoRoot, retiredPackageWriterPath)), false);
-  }
-  const physicalSurface = fs.readFileSync(
-    path.join(repoRoot, 'src/adapters/integration/agent-package-registry-parts/physical-surface.ts'),
-    'utf8',
-  );
-  assert.doesNotMatch(physicalSurface, /\brematerializePhysicalCodexSurfaceFromLock\b/);
-  for (const retiredPhysicalSurfaceExport of [
-    'materializeImmutablePluginCache',
-    'assertDeveloperCheckoutPluginCacheGeneration',
-    'restorePhysicalCodexSurfaceMutation',
-    'finalizePhysicalCodexSurfaceMutation',
-    'removePhysicalCodexSurface',
-    'resolveManifestPhysicalSource',
-    'materializePhysicalCodexSurface',
-    'inspectMaterializedPhysicalCodexSurface',
-  ]) {
-    assert.doesNotMatch(
-      physicalSurface,
-      new RegExp(`\\bexport\\s+(?:async\\s+)?function\\s+${retiredPhysicalSurfaceExport}\\b`),
-      retiredPhysicalSurfaceExport,
-    );
-  }
-  for (const retiredPhysicalSurfaceHelper of [
-    'readPayloadFileContent',
-    'normalizePayloadFiles',
-    'exactPayloadGenerationMatches',
-    'materializeArtifactPayloadSource',
-    'materializePayloadManifestSource',
-  ]) {
-    assert.doesNotMatch(
-      physicalSurface,
-      new RegExp(`\\b(?:async\\s+)?function\\s+${retiredPhysicalSurfaceHelper}\\b`),
-      retiredPhysicalSurfaceHelper,
-    );
-  }
-  for (const retiredMaterializerSymbol of [
-    'PluginGenerationMutation',
-    'managedCarrierProjectionDigest',
-    'restorePluginGenerationMutation',
-    'finalizePluginGenerationMutation',
-    'buildPhysicalSurfacePaths',
-    'inspectMaterializedPhysicalCodexSurface',
-    'removeHiddenPackageGlobalExposure',
-    'materializeImmutablePluginCacheTransaction',
-    'verifyImmutablePluginCache',
-    'copyDeveloperCheckoutSurface',
-    'validateProjectedSkillContentClosure',
-    'materializePhysicalCodexSurface',
-  ]) {
-    assert.doesNotMatch(
-      physicalSurface,
-      new RegExp(`\\b${retiredMaterializerSymbol}\\b`),
-      retiredMaterializerSymbol,
-    );
-  }
-  const developerRuntimeSource = fs.readFileSync(
-    path.join(repoRoot, 'src/adapters/integration/agent-package-registry-parts/developer-checkout-runtime-source.ts'),
-    'utf8',
-  );
-  for (const retiredDeveloperRuntimeSymbol of [
-    'materializeDeveloperCheckoutRuntimeSnapshot',
-    'makeDeveloperCheckoutRuntimeSnapshotWritable',
-    'buildDeveloperCheckoutRuntimeSourceState',
-  ]) {
-    assert.doesNotMatch(
-      developerRuntimeSource,
-      new RegExp(`\\b${retiredDeveloperRuntimeSymbol}\\b`),
-      retiredDeveloperRuntimeSymbol,
-    );
   }
   const packageTypes = fs.readFileSync(
     path.join(repoRoot, 'src/adapters/integration/agent-package-registry-parts/types.ts'),
@@ -436,15 +364,11 @@ test('retired Package lifecycle lock construction stays absent', () => {
       retiredPolicyWriter,
     );
   }
-  for (const [relativePath, retiredHelper] of [
-    ['src/adapters/integration/agent-package-registry-parts/capability-reconciliation.ts', 'catalogPayloadManifestJson'],
-    ['src/adapters/integration/agent-package-registry-parts/shared.ts', 'normalizeSourceKind'],
-    ['src/adapters/integration/agent-package-registry-parts/bundled-full-runtime-catalog.ts', 'resolveBundledFullRuntimePackageClosureRoots'],
-    ['src/adapters/integration/agent-package-registry-parts/dependency-closure.ts', 'verifyManifestContentLock'],
-  ] as const) {
-    const source = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
-    assert.doesNotMatch(source, new RegExp(`\\b${retiredHelper}\\b`), retiredHelper);
-  }
+  const shared = fs.readFileSync(
+    path.join(repoRoot, 'src/adapters/integration/agent-package-registry-parts/shared.ts'),
+    'utf8',
+  );
+  assert.doesNotMatch(shared, /\bnormalizeSourceKind\b/);
 });
 
 test('active Foundry operating-evidence contract uses only kernel canonical ids', () => {

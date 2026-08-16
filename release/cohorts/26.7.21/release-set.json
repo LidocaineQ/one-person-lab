@@ -149,7 +149,7 @@
           "artifact_digest": null,
           "artifact_status": "pending_remote_verification",
           "manifest_ref": "contracts/opl-framework/packages/mas-scholar-skills.json",
-          "manifest_sha256": "sha256:5632a86480facb350fe4941c2fe2cc05e5c353cf22f11feb0774924cf6d6708e",
+          "manifest_sha256": "sha256:e0a91cf8d0770032e08fcc2158eeab7d6c05200bce6e7b9ad08e872de06b70fb",
           "payload_manifest_ref": "contracts/opl-framework/packages/payloads/mas-scholar-skills-0.2.14.json",
           "payload_manifest_sha256": "sha256:b86e9f97fa2a1417b93c0bd08c3dbbf5dd3280fb27e007d7cb0fe8abe1d612fa"
         },

@@ -146,9 +146,6 @@ function requestCachedAgentPackageStatusReader(readStatus: AgentPackageStatusRea
   return (input = {}) => {
     const key = JSON.stringify([
       input.packageId ?? null,
-      input.scope ?? null,
-      input.targetWorkspace ?? null,
-      input.targetQuest ?? null,
       input.detail ?? null,
     ]);
     const cached = cache.get(key);

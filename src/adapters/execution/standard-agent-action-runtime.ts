@@ -1109,7 +1109,6 @@ function assertDurableRuntimeProvenance(binding: StandardAgentActionRunBinding) 
     || provenance.target_agent_id !== binding.canonical_domain_id
     || ![
       'installed_native_carrier',
-      'managed_package_checkout',
       'foundry_active_agent_version',
     ].includes(provenance.source_kind)
     || binding.hosted_runtime_binding_ref !== expectedRef

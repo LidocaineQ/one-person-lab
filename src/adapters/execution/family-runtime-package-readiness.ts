@@ -99,9 +99,11 @@ function nativePackageClosure(packageId: string, packageStatus: any) {
   const installedCarrier = isRecord(packageStatus?.installed_carrier_readback)
     ? packageStatus.installed_carrier_readback
     : null;
-  const rootDigest = observedSources.length === 1
-    ? sha256Digest(observedSources[0]?.source_tree_sha256)
-    : null;
+  const rootDigest = sha256Digest(packageStatus?.installed_content_digest)
+    ?? sha256Digest(packageStatus?.installed_manifest_sha256)
+    ?? (observedSources.length === 1
+      ? sha256Digest(observedSources[0]?.source_tree_sha256)
+      : null);
   const packageVersion = optionalString(configured?.installed_version)
     ?? optionalString(installedCarrier?.version);
   if (!rootDigest || !packageVersion) return null;
@@ -133,7 +135,7 @@ function nativePackageClosure(packageId: string, packageStatus: any) {
     package_version: packageVersion,
     owner_language_version: null,
     package_lock_ref: null,
-    manifest_sha256: null,
+    manifest_sha256: sha256Digest(packageStatus?.installed_manifest_sha256),
     content_digest: rootDigest,
     source_artifact_ref: optionalString(installedCarrier?.source_ref),
     artifact_digest: rootDigest,

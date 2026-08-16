@@ -1294,13 +1294,8 @@ test('static first-party presentation is optional without weakening manifest val
 test('MAS Scholar Skills provider manifest separates core Skill exports from module contract ids', () => {
   const schemaPath = path.join(repoRoot, 'contracts/opl-framework/capability-package-manifest.schema.json');
   const manifestPath = path.join(repoRoot, 'contracts/opl-framework/packages/mas-scholar-skills.json');
-  const catalogPath = path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json');
   const schema = parseJsonText(fs.readFileSync(schemaPath, 'utf8')) as Record<string, any>;
   const manifest = parseJsonText(fs.readFileSync(manifestPath, 'utf8')) as Record<string, any>;
-  const catalog = parseJsonText(fs.readFileSync(catalogPath, 'utf8')) as Record<string, any>;
-  const catalogEntry = catalog.packages['mas-scholar-skills'];
-  const frozenManifestPath = path.join(repoRoot, 'contracts/opl-framework', catalogEntry.manifest_ref);
-  const frozenManifest = parseJsonText(fs.readFileSync(frozenManifestPath, 'utf8')) as Record<string, any>;
   assert.doesNotThrow(() => assertJsonSchemaPayload({
     schemaId: schema.$id,
     schema,
@@ -1341,23 +1336,18 @@ test('MAS Scholar Skills provider manifest separates core Skill exports from mod
   );
   const payloadPath = path.join(path.dirname(manifestPath), manifest.codex_surface.plugin_payload_manifest_url);
   const payload = parseJsonText(fs.readFileSync(payloadPath, 'utf8')) as Record<string, any>;
-  assert.equal(catalogEntry.manifest_ref, 'packages/mas-scholar-skills-0.2.27.json');
-  const {
-    publication_projection_order: publicationProjectionOrder,
-    publication_source: publicationSource,
-    compatibility_projection: compatibilityProjection,
-    ...ownerManifestProjection
-  } = manifest;
+  const publicationProjectionOrder = manifest.publication_projection_order;
+  const publicationSource = manifest.publication_source;
+  const compatibilityProjection = manifest.compatibility_projection;
   assert.equal(publicationProjectionOrder, 60);
   assert.equal(publicationSource.module_id, 'scholarskills');
   assert.equal(compatibilityProjection.registry_short_label, 'ScholarSkills');
-  assert.deepEqual(frozenManifest, ownerManifestProjection);
-  assert.equal(manifest.version, catalogEntry.package_version);
+  assert.equal(manifest.version, '0.2.27');
   assert.deepEqual(manifest.consumer_policy.supported_required_by, ['mas', 'mag']);
   assert.equal(manifest.consumer_policy.supported_optional_consumer_agent_ids, undefined);
   assert.equal(manifest.content_lock.canonicalization, 'ordered_path_length_file_length_bytes');
   assert.equal(manifest.content_lock.digest, payload.content_lock.digest);
-  assert.equal(manifest.codex_surface.carrier_source_commit, catalogEntry.owner_source_commit);
+  assert.equal(manifest.codex_surface.carrier_source_commit, payload.source_commit);
   assert.equal(normalized.required_skill_ids.length, 36);
   assert.equal(normalized.capability_provider?.module_export_ids.length, 10);
   assert.equal(normalized.capability_provider?.exports.filter((entry) => entry.install_mode === 'core_required').length, 11);
@@ -1572,11 +1562,7 @@ test('first-party Package descriptors do not resurrect Framework-owned lock auth
 });
 
 test('bundled Full MAS source projection advances to the immutable ordinary package version', () => {
-  const catalog = parseJsonText(fs.readFileSync(
-    path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
-    'utf8',
-  )) as Record<string, any>;
-  const frozenRef = catalog.packages.mas.manifest_ref;
+  const frozenRef = 'packages/mas-0.2.25.json';
   const frozenPath = path.join(repoRoot, 'contracts/opl-framework', frozenRef);
   const frozenBytes = fs.readFileSync(frozenPath);
   const frozenManifest = parseJsonText(frozenBytes.toString('utf8')) as Record<string, any>;
@@ -1604,11 +1590,7 @@ test('bundled Full MAS source projection advances to the immutable ordinary pack
 });
 
 test('bundled Full MAG source projection advances to the immutable ordinary package version', () => {
-  const catalog = parseJsonText(fs.readFileSync(
-    path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
-    'utf8',
-  )) as Record<string, any>;
-  const frozenRef = catalog.packages.mag.manifest_ref;
+  const frozenRef = 'packages/mag-0.3.11.json';
   const frozenPath = path.join(repoRoot, 'contracts/opl-framework', frozenRef);
   const frozenBytes = fs.readFileSync(frozenPath);
   const frozenManifest = parseJsonText(frozenBytes.toString('utf8')) as Record<string, any>;
@@ -1626,11 +1608,7 @@ test('bundled Full MAG source projection advances to the immutable ordinary pack
 });
 
 test('bundled Full RCA source projection advances to the immutable ordinary package version', () => {
-  const catalog = parseJsonText(fs.readFileSync(
-    path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
-    'utf8',
-  )) as Record<string, any>;
-  const frozenRef = catalog.packages.rca.manifest_ref;
+  const frozenRef = 'packages/rca-0.2.13.json';
   const frozenPath = path.join(repoRoot, 'contracts/opl-framework', frozenRef);
   const frozenBytes = fs.readFileSync(frozenPath);
   const frozenManifest = parseJsonText(frozenBytes.toString('utf8')) as Record<string, any>;
@@ -1648,11 +1626,7 @@ test('bundled Full RCA source projection advances to the immutable ordinary pack
 });
 
 test('bundled Full OMA source projection advances independently of ordinary publication', () => {
-  const catalog = parseJsonText(fs.readFileSync(
-    path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
-    'utf8',
-  )) as Record<string, any>;
-  const frozenRef = catalog.packages.oma.manifest_ref;
+  const frozenRef = 'packages/oma-0.4.7.json';
   const frozenPath = path.join(repoRoot, 'contracts/opl-framework', frozenRef);
   const frozenBytes = fs.readFileSync(frozenPath);
   const frozenManifest = parseJsonText(frozenBytes.toString('utf8')) as Record<string, any>;
@@ -1670,11 +1644,7 @@ test('bundled Full OMA source projection advances independently of ordinary publ
 });
 
 test('bundled Full OBF source projection advances independently of ordinary publication', () => {
-  const catalog = parseJsonText(fs.readFileSync(
-    path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
-    'utf8',
-  )) as Record<string, any>;
-  const frozenRef = catalog.packages.obf.manifest_ref;
+  const frozenRef = 'packages/obf-0.3.9.json';
   const frozenPath = path.join(repoRoot, 'contracts/opl-framework', frozenRef);
   const frozenBytes = fs.readFileSync(frozenPath);
   const frozenManifest = parseJsonText(frozenBytes.toString('utf8')) as Record<string, any>;

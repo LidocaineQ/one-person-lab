@@ -105,14 +105,12 @@ export {
   runOplAgentPackageInstall,
   runOplAgentPackageRepair,
   runOplAgentPackageStatus,
-  runOplAgentPackageActivate,
   runOplAgentPackageUninstall,
   runOplAgentPackageUpdate,
 } from './agent-package-registry.ts';
 export type {
   AgentPackageHomeShortcutPreferencesSetInput,
   AgentPackageInstallInput,
-  AgentPackageManifestValidateInput,
   AgentPackagePackageActionInput,
   AgentPackageRepairInput,
 } from './agent-package-registry.ts';

@@ -1,15 +1,5 @@
-import './packages-cases/lifecycle.test.ts';
 import './packages-cases/compact-read-model.test.ts';
-import './packages-cases/directory.test.ts';
-import './packages-cases/payload-and-actions.test.ts';
-import './packages-cases/payload-manifest-contract.test.ts';
-import './packages-cases/guards-and-identities.test.ts';
-import './packages-cases/first-party-catalog.test.ts';
-import './packages-cases/dependency-closure.test.ts';
 import './packages-cases/workflow-policy-transaction.test.ts';
 import './packages-cases/storage-owner-inventory.test.ts';
 import './packages-cases/command-surface.test.ts';
 import './packages-cases/configured-codex-plugin-carrier.test.ts';
-import './packages-cases/legacy-opl-skills-migration.test.ts';
-import './packages-cases/legacy-opl-doc-install-migration.test.ts';
-import './packages-cases/descriptor-owned-legacy-state-retirement.test.ts';

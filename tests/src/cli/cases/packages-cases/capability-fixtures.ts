@@ -2,10 +2,6 @@ import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 
 import { formatJsonPayload, fs, path } from './helpers.ts';
-import {
-  CANONICAL_PACKAGE_CONTENT_LOCK,
-  packageContentLockDigest,
-} from '../../../../../src/adapters/integration/agent-package-registry-parts/payload-content-lock.ts';
 import { resolveOplDomainModuleSpec } from '../../../../../src/adapters/integration/system-installation/modules.ts';
 
 const PACKAGE_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.source.v1+gzip';
@@ -13,6 +9,7 @@ const PACKAGE_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.
 const PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.payload.v1+json';
 const CHANNEL_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.release.channel-manifest.v1+json';
 const FIXTURE_PACKAGE_CHANNEL_REF = 'ghcr.io/fixture/one-person-lab-manifest:fixture';
+const CANONICAL_PACKAGE_CONTENT_LOCK = 'ordered_path_length_file_length_bytes';
 
 export const scholarSkillsCoreSkillIds = [
   'mas-scholar-skills',
@@ -78,6 +75,22 @@ function contentDigest(root: string, paths: string[]) {
 
 function sha256(value: Buffer | string) {
   return `sha256:${crypto.createHash('sha256').update(value).digest('hex')}`;
+}
+
+function packagePayloadContentDigest(files: Array<{ path: string; content: Buffer }>) {
+  const digest = crypto.createHash('sha256');
+  for (const file of files) {
+    const pathBytes = Buffer.from(file.path, 'utf8');
+    const pathLength = Buffer.allocUnsafe(8);
+    const fileLength = Buffer.allocUnsafe(8);
+    pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
+    fileLength.writeBigUInt64BE(BigInt(file.content.length));
+    digest.update(pathLength);
+    digest.update(pathBytes);
+    digest.update(fileLength);
+    digest.update(file.content);
+  }
+  return `sha256:${digest.digest('hex')}`;
 }
 
 function listFixtureFiles(
@@ -375,7 +388,7 @@ export function writePackageCatalog(
       content_lock: {
         algorithm: 'sha256',
         canonicalization: CANONICAL_PACKAGE_CONTENT_LOCK,
-        digest: packageContentLockDigest(CANONICAL_PACKAGE_CONTENT_LOCK, payloadFiles),
+        digest: packagePayloadContentDigest(payloadFiles),
       },
       package_source: {
         transport: 'same_oci_artifact_source_archive',

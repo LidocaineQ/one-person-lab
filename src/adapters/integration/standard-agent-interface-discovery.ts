@@ -28,7 +28,7 @@ export type StandardAgentContractCheckout = {
   package_id: string;
   checkout_path: string;
   install_origin: SelectedModuleSource['install_origin'] | 'package_status';
-  source_kind: 'opl_selected_developer_checkout' | 'opl_managed_package_checkout';
+  source_kind: 'opl_selected_developer_checkout' | 'opl_installed_native_carrier';
 };
 
 export type StandardAgentContractCheckoutResolution = {
@@ -434,7 +434,7 @@ function resolveStandardAgentContractCheckoutTyped(
       checkout_path: selected.resolution.checkout_path,
       install_origin: selected.install_origin,
       source_kind: selected.install_origin === 'managed_root'
-        ? 'opl_managed_package_checkout'
+        ? 'opl_installed_native_carrier'
         : 'opl_selected_developer_checkout',
     }, selected.resolution.source_status);
   }
@@ -456,7 +456,7 @@ function resolveStandardAgentContractCheckoutTyped(
     package_id: agent.agent_id,
     checkout_path: checkoutPath,
     install_origin: 'package_status',
-    source_kind: 'opl_managed_package_checkout',
+    source_kind: 'opl_installed_native_carrier',
   }, packageResolution.source_status);
 }
 

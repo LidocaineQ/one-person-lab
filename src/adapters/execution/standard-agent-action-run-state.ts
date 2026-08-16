@@ -22,7 +22,6 @@ import type { HostedAgentRuntimeBindingProvenance } from './hosted-agent-runtime
 const ACTION_RUN_STATE_RELATIVE_ROOT = 'control/opl/action_run_state';
 const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const DIGEST_PATTERN = /^[a-f0-9]{64}$/;
-const EXACT_COMMIT_PATTERN = /^[a-f0-9]{40}$/;
 
 export type StandardAgentActionRunBindingV1 = {
   surface_kind: 'opl_standard_agent_action_run_binding';
@@ -252,33 +251,13 @@ function canonicalStringList(value: unknown, field: string) {
   return canonical;
 }
 
-function nullableText(value: unknown, field: string) {
-  if (value === null) return null;
-  return text(value, field);
-}
-
 function sha256Digest(value: unknown, field: string) {
   const digest = text(value, field);
   if (!/^sha256:[a-f0-9]{64}$/.test(digest)) fail(`${field} must be a sha256 digest.`, { field });
   return digest;
 }
 
-function packageSha256Digest(value: unknown, field: string) {
-  const digest = text(value, field);
-  if (!/^(?:sha256:)?[a-f0-9]{64}$/.test(digest)) {
-    fail(`${field} must be a package sha256 digest.`, { field });
-  }
-  return digest;
-}
-
-function nullableSha256Digest(value: unknown, field: string) {
-  return value === null ? null : sha256Digest(value, field);
-}
-
-function hostedRuntimeProvenanceRecord(
-  value: Record<string, unknown>,
-  allowBundledNullArtifactDigest: boolean,
-): HostedAgentRuntimeBindingProvenance {
+function hostedRuntimeProvenanceRecord(value: Record<string, unknown>): HostedAgentRuntimeBindingProvenance {
   const sourceKind = value.source_kind;
   const commonKeys = ['surface_kind', 'version', 'source_kind', 'target_agent_id', 'target_domain_id'];
   const sourceKeys = sourceKind === 'foundry_active_agent_version'
@@ -293,30 +272,18 @@ function hostedRuntimeProvenanceRecord(
         'activation_transaction_kind',
         'prepared_runtime_binding_ref',
       ]
-    : sourceKind === 'managed_package_checkout'
+    : sourceKind === 'installed_native_carrier'
       ? [
           'package_id',
-          'package_use_boundary_id',
           'package_version',
-          'package_lock_ref',
-          'package_manifest_sha256',
-          'package_content_digest',
-          'package_artifact_digest',
-          'package_dependency_closure_digest',
-          'package_source_kind',
+          'carrier_installed_version',
+          'owner_manifest_sha256',
+          'plugin_selector',
+          'marketplace_source',
+          'plugin_source_path',
+          'source_tree_sha256',
+          'action_contracts_sha256',
         ]
-      : sourceKind === 'installed_native_carrier'
-        ? [
-            'package_id',
-            'package_version',
-            'carrier_installed_version',
-            'owner_manifest_sha256',
-            'plugin_selector',
-            'marketplace_source',
-            'plugin_source_path',
-            'source_tree_sha256',
-            'action_contracts_sha256',
-          ]
       : fail('Hosted runtime provenance has an unsupported source_kind.');
   exactKeys(value, [...commonKeys, ...sourceKeys], 'Hosted runtime provenance');
   const targetAgentId = text(value.target_agent_id, 'provenance.target_agent_id');
@@ -326,73 +293,6 @@ function hostedRuntimeProvenanceRecord(
     || value.version !== 'opl-hosted-agent-runtime-binding-provenance.v1'
   ) {
     fail('Hosted runtime provenance has an unsupported identity or version.');
-  }
-  if (sourceKind === 'managed_package_checkout') {
-    const packageId = text(value.package_id, 'provenance.package_id');
-    const packageSourceKind = value.package_source_kind === undefined
-      ? undefined
-      : text(value.package_source_kind, 'provenance.package_source_kind');
-    if (
-      packageSourceKind !== undefined
-      && ![
-        'first_party_managed_cohort',
-        'bundled_full_runtime_modules',
-        'local_manifest_file',
-        'manifest_url',
-        'manifest_import',
-        'developer_checkout_override',
-      ].includes(packageSourceKind)
-    ) {
-      fail('provenance.package_source_kind is not supported.', {
-        package_source_kind: packageSourceKind,
-      });
-    }
-    const packageArtifactDigest = nullableSha256Digest(
-      value.package_artifact_digest,
-      'provenance.package_artifact_digest',
-    );
-    if (
-      packageArtifactDigest === null
-      && packageSourceKind !== 'developer_checkout_override'
-      && !(allowBundledNullArtifactDigest && packageSourceKind === 'bundled_full_runtime_modules')
-    ) {
-      fail('Only developer checkout or verified bundled Full runtime provenance may omit package_artifact_digest.');
-    }
-    if (packageId !== targetAgentId) {
-      fail('Managed package provenance package_id must match target_agent_id.', {
-        package_id: packageId,
-        target_agent_id: targetAgentId,
-      });
-    }
-    return {
-      surface_kind: value.surface_kind,
-      version: value.version,
-      source_kind: sourceKind,
-      target_agent_id: targetAgentId,
-      target_domain_id: targetDomainId,
-      package_id: packageId,
-      package_use_boundary_id: text(value.package_use_boundary_id, 'provenance.package_use_boundary_id'),
-      package_version: text(value.package_version, 'provenance.package_version'),
-      package_lock_ref: text(value.package_lock_ref, 'provenance.package_lock_ref'),
-      ...(value.package_manifest_sha256 === undefined ? {} : {
-        package_manifest_sha256: packageSha256Digest(
-          value.package_manifest_sha256,
-          'provenance.package_manifest_sha256',
-        ),
-      }),
-      package_content_digest: sha256Digest(
-        value.package_content_digest,
-        'provenance.package_content_digest',
-      ),
-      package_artifact_digest: packageArtifactDigest,
-      ...(value.package_dependency_closure_digest === undefined ? {} : {
-        package_dependency_closure_digest: packageSha256Digest(
-          value.package_dependency_closure_digest,
-          'provenance.package_dependency_closure_digest',
-        ),
-      }),
-      ...(packageSourceKind === undefined ? {} : { package_source_kind: packageSourceKind }),
-    };
   }
   if (sourceKind === 'installed_native_carrier') {
     const packageId = text(value.package_id, 'provenance.package_id');
@@ -795,7 +695,7 @@ function bindingRecord(value: Record<string, unknown>): StandardAgentActionRunBi
   }
   const runId = text(value.run_id, 'binding.run_id');
   validateRunId(runId);
-  const hostedRuntimeBinding = hostedRuntimeProvenanceRecord(value.hosted_runtime_binding, v2);
+  const hostedRuntimeBinding = hostedRuntimeProvenanceRecord(value.hosted_runtime_binding);
   const hostedRuntimeBindingRef = text(
     value.hosted_runtime_binding_ref,
     'binding.hosted_runtime_binding_ref',
@@ -838,55 +738,6 @@ function bindingRecord(value: Record<string, unknown>): StandardAgentActionRunBi
       };
 }
 
-function nullableRecordText(record: Record<string, unknown>, field: string) {
-  const value = record[field];
-  return typeof value === 'string' && value.length > 0 ? value : null;
-}
-
-function assertVerifiedBundledPackageCarrierAuthority(
-  packageBinding: Record<string, unknown>,
-  rootPackage: Record<string, unknown>,
-) {
-  const authority = isRecord(rootPackage.carrier_authority)
-    ? rootPackage.carrier_authority
-    : fail('Bundled Full runtime provenance requires verified package carrier authority.');
-  const authorityFields = [
-    'surface_kind',
-    'status',
-    'catalog_ref',
-    'catalog_sha256',
-    'catalog_owner_source_commit',
-    'manifest_carrier_source_commit',
-    'payload_source_commit',
-    'verified_source_commit',
-  ] as const;
-  exactKeys(authority, authorityFields, 'Bundled Full runtime package carrier authority');
-  const catalogRef = text(authority.catalog_ref, 'carrier_authority.catalog_ref');
-  const catalogSha256 = sha256Digest(authority.catalog_sha256, 'carrier_authority.catalog_sha256');
-  const ownerSourceCommit = text(rootPackage.owner_source_commit, 'root_package.owner_source_commit');
-  const authoritySourceCommits = [
-    text(authority.catalog_owner_source_commit, 'carrier_authority.catalog_owner_source_commit'),
-    text(authority.manifest_carrier_source_commit, 'carrier_authority.manifest_carrier_source_commit'),
-    text(authority.payload_source_commit, 'carrier_authority.payload_source_commit'),
-    text(authority.verified_source_commit, 'carrier_authority.verified_source_commit'),
-  ];
-  if (
-    authority.surface_kind !== 'opl_agent_package_carrier_authority.v1'
-    || authority.status !== 'verified'
-    || !EXACT_COMMIT_PATTERN.test(ownerSourceCommit)
-    || authoritySourceCommits.some((commit) => (
-      !EXACT_COMMIT_PATTERN.test(commit) || commit !== ownerSourceCommit
-    ))
-    || packageBinding.channel_ref !== catalogRef
-    || packageBinding.channel_digest !== catalogSha256
-  ) {
-    fail('Bundled Full runtime package carrier authority is incomplete or inconsistent.', {
-      package_id: rootPackage.package_id,
-      owner_source_commit: ownerSourceCommit,
-    });
-  }
-}
-
 function assertPlanRuntimeIdentity(
   plan: StandardAgentActionRunPlan,
   binding: StandardAgentActionRunBinding,
@@ -922,52 +773,7 @@ function assertPlanRuntimeIdentity(
     return;
   }
   if (!isRecord(packageBinding)) {
-    fail('Standard Agent action run plan is missing its package-use binding.', { run_id: plan.run_id });
-  }
-  const useBoundaryId = text(
-    packageBinding.use_boundary_id,
-    'plan.package_use_binding.use_boundary_id',
-  );
-  if (provenance.source_kind === 'managed_package_checkout') {
-    if (useBoundaryId !== provenance.package_use_boundary_id) {
-      fail('Managed package-use boundary conflicts with runtime provenance.', { run_id: plan.run_id });
-    }
-    const rootPackage = isRecord(packageBinding.root_package)
-      ? packageBinding.root_package
-      : fail('Managed package-use binding is missing root_package.', { run_id: plan.run_id });
-    if (
-      packageBinding.surface_kind !== 'opl_agent_package_use_binding.v1'
-      || rootPackage.package_id !== provenance.package_id
-      || nullableRecordText(rootPackage, 'package_version') !== provenance.package_version
-      || nullableRecordText(rootPackage, 'package_lock_ref') !== provenance.package_lock_ref
-      || (
-        provenance.package_manifest_sha256 !== undefined
-        && nullableRecordText(rootPackage, 'manifest_sha256') !== provenance.package_manifest_sha256
-      )
-      || nullableRecordText(rootPackage, 'content_digest') !== provenance.package_content_digest
-      || (
-        provenance.package_artifact_digest === null
-          ? rootPackage.artifact_digest !== null
-          : nullableRecordText(rootPackage, 'artifact_digest') !== provenance.package_artifact_digest
-      )
-      || (
-        provenance.package_dependency_closure_digest !== undefined
-        && packageBinding.dependency_closure_digest !== provenance.package_dependency_closure_digest
-      )
-      || (
-        provenance.package_source_kind !== undefined
-        && rootPackage.source_kind !== provenance.package_source_kind
-      )
-    ) {
-      fail('Managed package-use identity conflicts with runtime provenance.', { run_id: plan.run_id });
-    }
-    if (
-      provenance.package_source_kind === 'bundled_full_runtime_modules'
-      && provenance.package_artifact_digest === null
-    ) {
-      assertVerifiedBundledPackageCarrierAuthority(packageBinding, rootPackage);
-    }
-    return;
+    fail('Standard Agent action run plan is missing its Foundry package-use binding.', { run_id: plan.run_id });
   }
   const rootPackage = isRecord(packageBinding.root_package)
     ? packageBinding.root_package

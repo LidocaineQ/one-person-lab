@@ -155,8 +155,6 @@ export type ManagedUpdateComponent = {
   notes: string[];
   dependency_status?: Record<string, unknown>;
   integration_status?: Record<string, unknown>;
-  projection_status?: Record<string, unknown>;
-  profile_migration_status?: Record<string, unknown>;
 };
 
 export type ManagedUpdateKernelInput = {

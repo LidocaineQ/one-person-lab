@@ -14,7 +14,7 @@ export type StandardAgentContractCheckout = {
     | 'missing'
     | 'invalid_checkout'
     | 'package_status';
-  source_kind: 'opl_selected_developer_checkout' | 'opl_managed_package_checkout';
+  source_kind: 'opl_selected_developer_checkout' | 'opl_installed_native_carrier';
 };
 
 export type StandardAgentContractCheckoutResolution = {

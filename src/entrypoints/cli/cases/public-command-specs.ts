@@ -214,8 +214,6 @@ export function buildPublicCommandSpecs(
   const packagesCommandSpecs = buildPackagesCommandSpecs(
     getContracts,
     (command) => publicCommandSpecs[command],
-    cordis?.services.descriptorDiscovery,
-    cordis?.services.workspaceLocator,
   );
   const profileCommandSpecs = buildProfileCommandSpecs();
   const createReleaseOperationComposition =

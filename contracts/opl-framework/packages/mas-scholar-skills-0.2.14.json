@@ -365,12 +365,12 @@
     "update_transaction": "consumer_dependency_closure_atomic",
     "rollback_transaction": "consumer_dependency_closure_atomic",
     "status_command_templates": {
-      "workspace": "opl packages status --package-id mas --scope workspace --target-workspace <workspace-root> --json",
-      "quest": "opl packages status --package-id mas --scope quest --target-quest <quest-root> --json"
+      "workspace": "opl packages status --package-id mas --json",
+      "quest": "opl packages status --package-id mas --json"
     },
     "repair_command_templates": {
-      "workspace": "opl packages repair --package-id mas --scope workspace --target-workspace <workspace-root> --json",
-      "quest": "opl packages repair --package-id mas --scope quest --target-quest <quest-root> --json"
+      "workspace": "opl packages repair --package-id mas --json",
+      "quest": "opl packages repair --package-id mas --json"
     },
     "activation_materialization": {
       "required": true,

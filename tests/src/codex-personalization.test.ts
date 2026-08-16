@@ -45,8 +45,17 @@ function writeOplFlowPackage(root: string) {
     ])),
     'templates/AGENTS.md': 'OPL Flow default instructions.\n',
   };
-  return {
-    ...writeManagedRuntimeSourceFixture({
+  const codexHome = path.join(root, 'codex-home');
+  fs.mkdirSync(codexHome, { recursive: true });
+  fs.writeFileSync(
+    path.join(codexHome, 'config.toml'),
+    [
+      '[marketplaces."opl-flow-local"]',
+      `source = ${JSON.stringify(sourceRoot)}`,
+      '',
+    ].join('\n'),
+  );
+  const runtimeFixture = writeManagedRuntimeSourceFixture({
       root,
       moduleId: 'opl-flow',
       repoName: 'opl-flow',
@@ -83,7 +92,13 @@ function writeOplFlowPackage(root: string) {
         })),
       },
       sourceFiles: Object.entries(files).map(([sourcePath, content]) => ({ sourcePath, content })),
-    }),
+    });
+  fs.copyFileSync(
+    path.join(root, 'blobs', 'package-manifest.json'),
+    path.join(sourceRoot, 'opl-package.json'),
+  );
+  return {
+    ...runtimeFixture,
     OPL_CODEX_PLUGIN_BIN: createFakeCodexPluginManagerFixture(
       path.join(root, 'fake-codex-plugin-manager'),
     ).codexPath,
@@ -147,7 +162,7 @@ test('Codex user instructions restore from one installed owner descriptor withou
     const defaultInstructions = readOplFlowDefaultUserInstructions();
     assert.equal(defaultInstructions.status, 'available');
     assert.equal(defaultInstructions.source, 'installed_owner_descriptor');
-    assert.equal(defaultInstructions.source_root, fixture.sourceRoot);
+    assert.equal(defaultInstructions.source_root, fs.realpathSync(fixture.sourceRoot));
     assert.equal(defaultInstructions.source_path, fs.realpathSync(fixture.profilePath));
     assert.equal(defaultInstructions.package_version, '1.2.3');
     assert.equal(defaultInstructions.content, 'Descriptor-owned default instructions.\n');
