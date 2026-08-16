@@ -13,9 +13,10 @@ import {
   normalizeReferenceVerificationProviders,
   referenceVerificationProviderIds,
 } from '../../../../src/adapters/integration/opl-connect-reference-verification.ts';
+import { resolveFamilyWorkspaceRootFromRepoRoot } from '../../../../src/kernel/family-workspace-root.ts';
 
 const scholarPackageRoot = process.env.OPL_SCHOLAR_SKILLS_E2E_ROOT?.trim()
-  || path.resolve(repoRoot, '..', 'mas-scholar-skills');
+  || path.join(resolveFamilyWorkspaceRootFromRepoRoot(repoRoot), 'mas-scholar-skills');
 const cliPackageFixture = createInstalledPackageCarrierFixture(scholarPackageRoot);
 test.after(() => fs.rmSync(cliPackageFixture.fixtureRoot, { recursive: true, force: true }));
 const testTlsFixture = createTestTlsServerFixture();
@@ -381,7 +382,7 @@ test('scientific connector providers are explicit adapters with no core default'
 
 test('canonical ScholarSkills installed descriptor executes the two-step package handler through Framework I/O', async () => {
   const scholarRoot = process.env.OPL_SCHOLAR_SKILLS_E2E_ROOT?.trim()
-    || path.resolve(repoRoot, '..', 'mas-scholar-skills');
+    || path.join(resolveFamilyWorkspaceRootFromRepoRoot(repoRoot), 'mas-scholar-skills');
   assert.equal(fs.existsSync(path.join(scholarRoot, 'opl-package.json')), true, `missing canonical ScholarSkills package: ${scholarRoot}`);
   const manifest = JSON.parse(fs.readFileSync(path.join(scholarRoot, 'opl-package.json'), 'utf8')) as {
     version: string;
