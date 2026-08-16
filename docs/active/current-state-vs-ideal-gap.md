@@ -35,7 +35,7 @@ North-star 参考仍归 [OPL 与 Foundry Agents 理想目标态](../references/r
 
 | 范围 | 当前完成状态 | 证据边界 |
 | --- | --- | --- |
-| 非 live 功能 / 结构基线 | `opl_package_platform_composition_phase_2_controlled_breaking_cutover_in_progress` | 既有 Package platform-first composition 仍是独立 active migration slice；本仓 owner 边界见 [`opl-package-platform-composition-migration.md`](./opl-package-platform-composition-migration.md)，跨仓唯一实施计划归 App SSOT。Phase 2 已获用户批准，当前按 successor-only 纵向链路、production caller 切换、affected OUT / carrier 验收与 owner-gated bulk deletion 顺序执行。 |
+| 非 live 功能 / 结构基线 | `opl_package_platform_composition_framework_cutover_landed` | Package platform-first composition 的 Framework source/caller/legacy deletion cutover 已完成；本仓删除门与 no-resurrection 边界见 [`opl-package-platform-composition-migration.md`](./opl-package-platform-composition-migration.md)。Package publication、Stable/Latest、真实用户 managed state、App/Shell 产品选择与 release/runtime evidence 继续由各 owner 独立证明。 |
 | Framework Host Cordis | `full_host_migration_landed_default_base_headless_with_package_host_abi_and_explicit_caller_parity` | P1-P6 已进入 canonical main；`base-headless`、`app-full`、`foundry-dev` Host profiles具有精确 allowlist、child snapshot/digest、teardown和 source replay。CLI/App action/Workspace/managed Agent/Runtime caller显式消费 profile service；Package currentness、Temporal、Workspace bytes/binding、Ledger persistence、Foundry activation、domain truth和 App/Cloud product authority继续由各 owner持有。 |
 | Family capability/source topology | `physical_cutover_landed_brand_portfolio_aligned` | 唯一家族 portfolio 当前登记 11 个 capability domains，Framework 十项 registry 只是 CLI/L4/L5 projection；源码已按 13 个 responsibility source units、6 个 target roots（`authority/adapters/read-models/host/entrypoints/kernel`）完成物理重排，`src/modules/**` 为 retired/must-be-absent legacy root。该结构完成不外推 release、production、App 或 Cloud 完成。 |
 | Host-derived Client Cordis / dual GUI | `aionui_admitted_studio_candidate_conformance_landed` | Framework Host projection、App Client Contribution contract、AionUI active renderer admission 与 Studio candidate conformance/E2E 已在各 owner canonical source/tests/readback 闭合。Studio 仍是 candidate；是否替换 active shell 继续由 App owner 显式选择并重新准入，本文不外推 release-ready。 |
@@ -51,7 +51,9 @@ North-star 参考仍归 [OPL 与 Foundry Agents 理想目标态](../references/r
 
 当前默认读法：默认 OPL family maintained repo 的非 live 功能/结构基线只能从 fresh repo truth、四份 `contracts/opl-framework/foundry-*.schema.json`、FoundryRun source/tests 与各 domain owner surface 读取。本文不冻结日期、branch、SHA、`origin/main` 状态、receipt id、worktree closeout、workflow run 或某轮 readback。
 
-当前 active 非 live 功能/结构 gap 有六个相互关联但不互相替代的切片：
+当前 active 非 live 功能/结构 gap 有五个相互关联但不互相替代的切片；Package
+platform composition 的 Framework cutover 已从 active gap 移出，只保留 no-resurrection
+边界和后置 owner evidence：
 
 1. `cordis_host_runtime_composition_adoption` 已完成默认 Framework Host cutover。正式
    `@deepseek-ai/cordis` 是 OPL 进程内组合框架；P1-P4 契约、P5 vertical seams 与 P6
@@ -83,13 +85,7 @@ North-star 参考仍归 [OPL 与 Foundry Agents 理想目标态](../references/r
 4. `high_value_package_topology` 为 Runway executor、Foundry evaluation、Connect discovery和
    `opl-package-host` 建立独立版本/发布候选。只有真实 consumer、独立发布节奏、currentness/readback
    和回退证据齐备才提升为独立 Package 或仓库；不按品牌或全部 plugin 机械拆包。
-5. `opl_package_platform_composition` 是保留的独立迁移切片。Phase 1 已完成 SSOT 与冻结
-   实施计划；Phase 2 已获用户批准并进入 successor-first controlled cutover。先让
-   successor-only Package plane 形成可验证、可回退的真实纵向链路，再切换全部 production
-   caller 并通过 affected OUT / real-carrier acceptance；只有 structural caller 为零且
-   对应 owner decision / physical-delete gate 成立后，才进入受控 legacy bulk deletion。其
-   计划见 [`opl-package-platform-composition-migration.md`](./opl-package-platform-composition-migration.md)。
-6. `bounded_security_hardening` 只处理当前可证的安全边界。第一批 Host、Git URL evidence、
+5. `bounded_security_hardening` 只处理当前可证的安全边界。第一批 Host、Git URL evidence、
    Provider response body 和 Workspace projection 采用局部兼容修复；Redirect 与 Python handler
    只在 caller/runtime inventory 后 canary；CAS、E2B、Carrier 与 mutable channel 保持
    evidence/owner route，不增加 Framework 第二 resolver、lock、LKG 或签名 registry。
@@ -133,7 +129,7 @@ composition inspect 或 compatibility bridge 写成迁移完成。
 | Host-derived Client Cordis / dual GUI | `aionui_admitted_studio_candidate_conformance_landed` | Framework Host projection + App product owner；AionUI/Studio renderer owner | Host allowlisted client graph、Client Contribution ABI、App product profile、typed slots/actions、RPC/events 与 state semantics 已统一，并由两个 renderer 的真实 caller/E2E 证明。AionUI 是当前 admitted active renderer；Studio 是已验证 candidate，只有 App owner 显式选择并重新执行 compatibility/release admission 后才能替换，不建立第二 discovery/install/currentness/action truth。 |
 | Family capability/source topology | `physical_cutover_landed_brand_portfolio_aligned` | Framework Integrator + 各产品/authority owner | 当前 11 个品牌 capability domains 由唯一 portfolio 管理，Framework 十项 registry 是 surface projection；13 个 source units / 6 个 target roots 已完成 successor-first 物理重排，`src/modules/**` retired/absent；Console 分层为 Cloud product、App product 与 Framework projection。 |
 | High-value Package topology | `workspace_source_candidates_landed_publication_open` | Framework/Package owners | Runway executor、Foundry evaluation、Connect discovery、`opl-package-host` 与 Cordis ABI 已形成 workspace/source candidates；独立 publication/拆仓必须有真实发布节奏、consumer 与 currentness/readback，不按品牌或 plugin 数量机械拆分。 |
-| Package platform-first composition | `phase_2_controlled_breaking_cutover_in_progress` | OPL Framework + OPL App | Phase 1 的 SSOT、旧 resolver/lock/payload/receipt/Durable 扩张禁令与 no-resurrection 边界已冻结；Phase 2 按 M1 successor-only public actions、M2 App/Shell caller switch、M3 affected OUT / real-carrier acceptance、M4 owner-gated legacy bulk deletion 与同 outcome 复验推进。 |
+| Package platform-first composition | `framework_source_caller_legacy_deletion_cutover_landed` | OPL Framework；后置 evidence 归 App/Package/release owner | successor public actions、production caller switch、affected OUT / carrier acceptance 与 legacy bulk deletion 已在 Framework scope 闭合；旧 resolver/lock/payload/materializer/receipt/LKG/activation/transaction 不得复活。Package publication、Stable/Latest、真实用户 managed state、App/Shell 产品选择与 release/runtime evidence 仍后置。 |
 | Bounded security hardening | `first_local_compatibility_batch_implemented_verified` | OPL Framework | 10 条 finding 的当前 disposition 归 `security-hardening-worklist.json`；首批已验证修复只收紧 Host 请求、durable Git URL evidence、Provider body consumption 与 Workspace Skill projection。单一危险输入不得阻断无关 Provider、Workspace、Carrier、Attempt 或已安装 generation。 |
 | 文档 SSOT / active gap 污染 | `active_governance_guard` | OPL + OPL Flow `$opl-doc` Skill | 理想态定义保留在 support/reference；active gap 文档只保留当前 gap、完成口径和下一轮 baton；已完成过程进 history。 |
 | Live / release / production / owner evidence | `deferred_evidence_lane` | 对应 evidence owner | 单独走 live evidence 维护入口，不混入本文 active gap。 |
@@ -157,8 +153,9 @@ source/package exports 和 owner currentness，再为每个真实 publication sl
 affected outcome 与回退门禁。品牌组合只在真实 owner/caller 变化时更新；独立 Package 不能因命名或
 plugin 数量机械拆包。
 不得因上游新能力恢复平行 registry/event bus/lifecycle；任何 Host或 Client caller必须显式选择 profile、
-source identity与 disposer。Package platform composition仍按其独立 M1-M4 baton推进，不能被 Cordis docs
-或 workspace package候选替代。
+source identity与 disposer。Package platform composition 不再保留 M1-M4 实施 baton；后续只维护
+no-resurrection 边界，并把 publication、真实用户 managed state、App/Shell 产品选择与 release/runtime
+证据路由到各自 owner。
 安全 hardening 的四项局部兼容修复已实现并通过回归，完成态仍须回读 canonical `main`；其余 finding 只按
 `security-hardening-worklist.json` 的 canary、evidence 或 owner route 推进，不为清零 finding
 建立全局 gate、第二控制面或无证据的冷启动。
