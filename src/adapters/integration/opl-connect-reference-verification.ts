@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { parseJsonText } from '../../kernel/json-file.ts';
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
+import { validateJsonSchemaPayload } from '../../kernel/schema-registry.ts';
 import {
   maxResponseBodyBytes,
   readResponseBody,
@@ -269,6 +270,29 @@ function referenceProviderRegistry(
           provider_id: providerId,
           adapter_id: adapterId,
           reason_code: 'reference_provider_profile_entry_invalid',
+        },
+      );
+    }
+    const profileSchema = runtime.readJson(runtime.binding.profile_schema_ref);
+    const providerIdSchema = asRecord(
+      asRecord(
+        asRecord(asRecord(profileSchema.$defs).provider).properties,
+      ).provider_id,
+    );
+    const providerIdValidation = validateJsonSchemaPayload({
+      schemaId: `${runtime.binding.profile_schema_ref}#provider_id@${runtime.contentDigest}`,
+      schema: providerIdSchema,
+      sourceRef: runtime.binding.profile_schema_ref,
+    }, providerId);
+    if (Object.keys(providerIdSchema).length === 0 || !providerIdValidation.ok) {
+      throw new FrameworkContractError(
+        'codex_command_failed',
+        'Scholar Skills reference provider profile declares an unsafe provider id.',
+        {
+          provider_id: providerId,
+          profile_schema_ref: runtime.binding.profile_schema_ref,
+          ...(!providerIdValidation.ok ? { schema_errors: providerIdValidation.errors } : {}),
+          reason_code: 'reference_provider_profile_provider_id_invalid',
         },
       );
     }
@@ -933,7 +957,30 @@ function adapterEvidenceToProviderEvidence(
   });
 }
 
-function referenceAdapterNext(result: unknown, providerId: ProviderId) {
+function referenceAdapterNext(
+  result: unknown,
+  providerId: ProviderId,
+  runtime: LoadedInstalledPackageRuntimeModule,
+) {
+  const stepSchema = runtime.readJson(runtime.binding.step_schema_ref);
+  delete stepSchema.$id;
+  const validation = validateJsonSchemaPayload({
+    schemaId: `${runtime.binding.step_schema_ref}@${runtime.contentDigest}`,
+    schema: stepSchema,
+    sourceRef: runtime.binding.step_schema_ref,
+  }, result);
+  if (!validation.ok) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'OPL Connect reference provider adapter returned a result outside its locked step schema.',
+      {
+        provider_id: providerId,
+        schema_ref: runtime.binding.step_schema_ref,
+        schema_errors: validation.errors,
+        reason_code: 'reference_provider_adapter_result_schema_invalid',
+      },
+    );
+  }
   const next = asRecord(asRecord(result).next);
   const kind = asString(next.kind);
   if (kind === 'complete' && next.evidence !== undefined) {
@@ -975,7 +1022,7 @@ async function verifyProviderWithAdapter(
   }
   let retryAttempts: RetryAttempt[] = [];
   for (let requestCount = 0; requestCount <= runtime.binding.max_steps; requestCount += 1) {
-    const next = referenceAdapterNext(result, providerId);
+    const next = referenceAdapterNext(result, providerId, runtime);
     if (next.kind === 'complete') {
       return adapterEvidenceToProviderEvidence(reference, provider, next.evidence, retryAttempts, runtime);
     }

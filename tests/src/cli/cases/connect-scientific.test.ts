@@ -1,7 +1,9 @@
 import crypto from 'node:crypto';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { createServer } from 'node:https';
 
 import { assert, createInstalledPackageCarrierFixture, fs, os, path, repoRoot, runCli, runCliAsync, runCliFailure, test } from '../helpers.ts';
+import { createTestTlsServerFixture } from '../helpers-parts/tls-fixture.ts';
 import {
   buildScientificConnectorProviderRegistryReadback,
   runOplConnectScientificSearch,
@@ -16,6 +18,15 @@ const scholarPackageRoot = process.env.OPL_SCHOLAR_SKILLS_E2E_ROOT?.trim()
   || path.resolve(repoRoot, '..', '..', '..', 'mas-scholar-skills');
 const cliPackageFixture = createInstalledPackageCarrierFixture(scholarPackageRoot);
 test.after(() => fs.rmSync(cliPackageFixture.fixtureRoot, { recursive: true, force: true }));
+const testTlsFixture = createTestTlsServerFixture();
+test.after(() => testTlsFixture.close());
+
+const originalTlsRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+test.after(() => {
+  if (originalTlsRejectUnauthorized === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+  else process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalTlsRejectUnauthorized;
+});
 
 function cliEnv(overrides: Record<string, string> = {}) {
   return { OPL_STATE_DIR: cliPackageFixture.stateRoot, ...overrides };
@@ -85,6 +96,82 @@ function contentLockDigest(sourceRoot: string, relativePaths: string[]) {
   return `sha256:${digest.digest('hex')}`;
 }
 
+function refreshSyntheticContentLock(sourceRoot: string) {
+  const manifestPath = path.join(sourceRoot, 'opl-package.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
+    content_lock: { digest: string; paths: string[] };
+  };
+  manifest.content_lock.digest = contentLockDigest(sourceRoot, manifest.content_lock.paths);
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest), 'utf8');
+}
+
+function syntheticScientificStepSchema() {
+  const candidateRequired = [
+    'source_ref',
+    'source_kind',
+    'source_provider',
+    'provider_id',
+    'doi',
+    'pmid',
+    'pmcid',
+    'openalex_id',
+    'title',
+    'journal',
+    'publication_year',
+    'authors',
+    'article_types',
+    'source_urls',
+  ];
+  return {
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    $id: 'https://one-person-lab.dev/tests/synthetic-scientific-adapter-step.schema.json',
+    type: 'object',
+    required: ['surface_kind', 'adapter_abi', 'next'],
+    properties: {
+      surface_kind: { const: 'opl_connect_scientific_search_adapter_step_result.v1' },
+      adapter_abi: { const: 'opl-connect-scientific-search-adapter.v1' },
+      next: {
+        oneOf: [
+          {
+            type: 'object',
+            required: ['kind', 'request', 'state'],
+            properties: {
+              kind: { const: 'request' },
+              request: {
+                type: 'object',
+                required: ['method', 'url', 'body'],
+                properties: {
+                  method: { const: 'GET' },
+                  url: { type: 'string', pattern: '^https://' },
+                  headers: { type: 'object', additionalProperties: { type: 'string' } },
+                  body: { type: 'null' },
+                },
+                additionalProperties: false,
+              },
+              state: { type: 'object' },
+            },
+            additionalProperties: false,
+          },
+          {
+            type: 'object',
+            required: ['kind', 'candidates', 'provider_total'],
+            properties: {
+              kind: { const: 'complete' },
+              candidates: {
+                type: 'array',
+                items: { type: 'object', required: candidateRequired },
+              },
+              provider_total: { type: ['integer', 'null'], minimum: 0 },
+            },
+            additionalProperties: false,
+          },
+        ],
+      },
+    },
+    additionalProperties: false,
+  };
+}
+
 async function withSyntheticScientificAdapter<T>(callback: (
   requests: string[],
   installedPackage: { runner: (input: { binary: string; args: string[]; env: NodeJS.ProcessEnv }) => {
@@ -120,6 +207,16 @@ async function withSyntheticScientificAdapter<T>(callback: (
   fs.writeFileSync(path.join(sourceRoot, 'runtime', 'scientific-search-adapters', 'index.mjs'), `
 export function runScientificSearchAdapterStep(request) {
   if (request.operation === 'build_search_request') {
+    if (process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_MALFORMED_RESULT === 'envelope') {
+      return { next: { kind: 'complete', candidates: [], provider_total: 0 } };
+    }
+    if (process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_MALFORMED_RESULT === 'candidate') {
+      return {
+        surface_kind: 'opl_connect_scientific_search_adapter_step_result.v1',
+        adapter_abi: 'opl-connect-scientific-search-adapter.v1',
+        next: { kind: 'complete', candidates: [{ title: 'Incomplete candidate' }], provider_total: 1 },
+      };
+    }
     return {
       surface_kind: 'opl_connect_scientific_search_adapter_step_result.v1',
       adapter_abi: 'opl-connect-scientific-search-adapter.v1',
@@ -169,6 +266,7 @@ export function runScientificSearchAdapterStep(request) {
 
   const originalAdapterBase = process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_BASE;
   const originalBadOrigin = process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_BAD_ORIGIN;
+  const originalMalformedResult = process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_MALFORMED_RESULT;
   const originalFetch = globalThis.fetch;
   const requests: string[] = [];
   process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_BASE = 'https://adapter.test';
@@ -201,6 +299,11 @@ export function runScientificSearchAdapterStep(request) {
     if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, '', 'utf8');
   }
   fs.writeFileSync(path.join(sourceRoot, 'skills', 'mas-scholar-skills', 'SKILL.md'), '# synthetic\n', 'utf8');
+  fs.writeFileSync(
+    path.join(sourceRoot, binding.step_schema_ref),
+    JSON.stringify(syntheticScientificStepSchema()),
+    'utf8',
+  );
   fs.writeFileSync(path.join(sourceRoot, 'opl-package.json'), JSON.stringify({
     surface_kind: 'opl_capability_package_manifest.v2',
     package_id: 'mas-scholar-skills',
@@ -261,6 +364,8 @@ export function runScientificSearchAdapterStep(request) {
     else process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_BASE = originalAdapterBase;
     if (originalBadOrigin === undefined) delete process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_BAD_ORIGIN;
     else process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_BAD_ORIGIN = originalBadOrigin;
+    if (originalMalformedResult === undefined) delete process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_MALFORMED_RESULT;
+    else process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_MALFORMED_RESULT = originalMalformedResult;
     fs.rmSync(sourceRoot, { recursive: true, force: true });
   }
 }
@@ -394,6 +499,60 @@ test('scientific connector routes HTTP and normalization through the installed p
   });
 });
 
+test('scientific connector rejects malformed adapter envelopes and candidates before network access', async () => {
+  await withSyntheticScientificAdapter(async (requests, installedPackage) => {
+    for (const mode of ['envelope', 'candidate']) {
+      process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_MALFORMED_RESULT = mode;
+      await assert.rejects(
+        () => runOplConnectScientificSearch({
+          provider: 'synthetic-scientific',
+          query: `malformed adapter ${mode}`,
+          limit: 1,
+          installedPackage,
+        }),
+        (error: unknown) => {
+          const details = (error as { details?: { reason_code?: string; schema_errors?: unknown[] } }).details;
+          assert.equal((error as { code?: string }).code, 'codex_command_failed');
+          assert.equal(details?.reason_code, 'scientific_adapter_result_schema_invalid');
+          assert.equal((details?.schema_errors?.length ?? 0) > 0, true);
+          return true;
+        },
+      );
+    }
+    assert.deepEqual(requests, []);
+  });
+});
+
+test('scientific connector requires restart when a loaded module path changes digest', async () => {
+  await withSyntheticScientificAdapter(async (requests, installedPackage, sourceRoot) => {
+    const input = {
+      provider: 'synthetic-scientific',
+      query: 'module generation',
+      limit: 1,
+      installedPackage,
+    };
+    await runOplConnectScientificSearch(input);
+    fs.appendFileSync(
+      path.join(sourceRoot, 'runtime', 'scientific-search-adapters', 'index.mjs'),
+      '\n// replacement generation\n',
+      'utf8',
+    );
+    refreshSyntheticContentLock(sourceRoot);
+    await assert.rejects(
+      () => runOplConnectScientificSearch(input),
+      (error: unknown) => {
+        assert.equal((error as { code?: string }).code, 'codex_command_failed');
+        assert.equal(
+          (error as { details?: { reason_code?: string } }).details?.reason_code,
+          'installed_runtime_module_restart_required',
+        );
+        return true;
+      },
+    );
+    assert.deepEqual(requests, ['/adapter-only']);
+  });
+});
+
 test('scientific connector rejects a handler origin outside the active provider profile before fetch', async () => {
   await withSyntheticScientificAdapter(async (requests, installedPackage) => {
     process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_BAD_ORIGIN = '1';
@@ -464,7 +623,7 @@ test('scientific provider discovery is lazy for help and fail-closed for Connect
 
 async function startFakeScientificServer() {
   const requests: string[] = [];
-  const server = createServer((request: IncomingMessage, response: ServerResponse) => {
+  const server = createServer(testTlsFixture.options, (request: IncomingMessage, response: ServerResponse) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
     requests.push(`${url.pathname}?${url.searchParams.toString()}`);
     response.setHeader('content-type', 'application/json');
@@ -570,7 +729,7 @@ async function startFakeScientificServer() {
   if (!address || typeof address === 'string') {
     throw new Error('Fake scientific connector server did not bind a TCP address.');
   }
-  const baseUrl = `http://127.0.0.1:${address.port}`;
+  const baseUrl = `https://127.0.0.1:${address.port}`;
   return {
     crossrefBaseUrl: `${baseUrl}/crossref`,
     openalexBaseUrl: `${baseUrl}/openalex`,

@@ -27,6 +27,7 @@ export type InstalledPackageRuntimeModuleInput = InstalledPackageRuntimeDiscover
 export type InstalledPackageRuntimeModuleContext = {
   descriptor: InstalledPackageDescriptor;
   binding: AgentPackageRuntimeModuleBinding;
+  contentDigest: string;
   modulePath: string;
   readJson: (relativePath: string) => Record<string, unknown>;
 };
@@ -35,6 +36,8 @@ export type LoadedInstalledPackageRuntimeModule = InstalledPackageRuntimeModuleC
   module: Record<string, unknown>;
   handler: (request: unknown) => unknown;
 };
+
+const loadedRuntimeModuleDigests = new Map<string, string>();
 
 function packagePathError(
   descriptor: InstalledPackageDescriptor,
@@ -202,7 +205,7 @@ function resolveBinding(input: InstalledPackageRuntimeModuleInput): InstalledPac
       reason_code: 'installed_package_descriptor_not_callable',
     });
   }
-  contentLockDigest(descriptor);
+  const contentDigest = contentLockDigest(descriptor);
   const matchingBindings = descriptor.manifest.runtime_module_bindings.filter((binding) => (
     binding.module_kind === input.moduleKind
     && binding.adapter_abi === input.adapterAbi
@@ -250,7 +253,7 @@ function resolveBinding(input: InstalledPackageRuntimeModuleInput): InstalledPac
       });
     }
   };
-  return { descriptor, binding, modulePath, readJson };
+  return { descriptor, binding, contentDigest, modulePath, readJson };
 }
 
 export function resolveInstalledPackageRuntimeModule(
@@ -263,10 +266,25 @@ export async function loadInstalledPackageRuntimeModule(
   input: InstalledPackageRuntimeModuleInput,
 ): Promise<LoadedInstalledPackageRuntimeModule> {
   const context = resolveBinding(input);
+  const loadedDigest = loadedRuntimeModuleDigests.get(context.modulePath);
+  if (loadedDigest && loadedDigest !== context.contentDigest) {
+    throw new FrameworkContractError('codex_command_failed', 'Installed Package runtime module changed at an already loaded path.', {
+      package_id: input.packageId,
+      module_id: context.binding.module_id,
+      module_path: context.binding.handler.file,
+      loaded_content_digest: loadedDigest,
+      current_content_digest: context.contentDigest,
+      reason_code: 'installed_runtime_module_restart_required',
+    });
+  }
+  if (!loadedDigest) loadedRuntimeModuleDigests.set(context.modulePath, context.contentDigest);
   let module: Record<string, unknown>;
   try {
     module = await import(pathToFileURL(context.modulePath).href) as Record<string, unknown>;
   } catch (error) {
+    if (!loadedDigest && loadedRuntimeModuleDigests.get(context.modulePath) === context.contentDigest) {
+      loadedRuntimeModuleDigests.delete(context.modulePath);
+    }
     throw new FrameworkContractError('codex_command_failed', 'Installed Package runtime module could not be loaded.', {
       package_id: input.packageId,
       module_id: context.binding.module_id,

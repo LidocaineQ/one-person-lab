@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { createServer } from 'node:https';
 import path from 'node:path';
 import { test } from 'node:test';
 
@@ -10,10 +11,14 @@ import {
 } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 import { repoRoot } from './cli/helpers.ts';
+import { createTestTlsServerFixture } from './cli/helpers-parts/tls-fixture.ts';
+
+const testTlsFixture = createTestTlsServerFixture();
+test.after(() => testTlsFixture.close());
 
 async function startFakeBiomedicalProviderServer() {
   const requests: string[] = [];
-  const server = createServer((request: IncomingMessage, response: ServerResponse) => {
+  const server = createServer(testTlsFixture.options, (request: IncomingMessage, response: ServerResponse) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
     requests.push(`${url.pathname}?${url.searchParams.toString()}`);
 
@@ -81,7 +86,7 @@ async function startFakeBiomedicalProviderServer() {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('Fake biomedical provider server did not bind.');
-  const baseUrl = `http://127.0.0.1:${address.port}`;
+  const baseUrl = `https://127.0.0.1:${address.port}`;
   return {
     pubmedBaseUrl: `${baseUrl}/pubmed`,
     europePmcBaseUrl: `${baseUrl}/pmc`,
@@ -109,6 +114,7 @@ test('opl-connect stdio MCP exposes progressive discovery and executes PubMed to
     cwd: repoRoot,
     env: {
       ...getDefaultEnvironment(),
+      NODE_TLS_REJECT_UNAUTHORIZED: '0',
       OPL_CONNECT_PUBMED_EUTILS_BASE: fakeServer.pubmedBaseUrl,
       OPL_CONNECT_EUROPE_PMC_API_BASE: fakeServer.europePmcBaseUrl,
     },

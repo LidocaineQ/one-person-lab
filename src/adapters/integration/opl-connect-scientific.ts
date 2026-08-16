@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
+import { validateJsonSchemaPayload } from '../../kernel/schema-registry.ts';
 import {
   maxResponseBodyBytes,
   readResponseBody,
@@ -414,7 +415,30 @@ async function fetchScientificAdapterRequest(
   }
 }
 
-function scientificAdapterNext(result: unknown, provider: ScientificConnectorProviderId) {
+function scientificAdapterNext(
+  result: unknown,
+  provider: ScientificConnectorProviderId,
+  runtime: LoadedInstalledPackageRuntimeModule,
+) {
+  const stepSchema = runtime.readJson(runtime.binding.step_schema_ref);
+  delete stepSchema.$id;
+  const validation = validateJsonSchemaPayload({
+    schemaId: `${runtime.binding.step_schema_ref}@${runtime.contentDigest}`,
+    schema: stepSchema,
+    sourceRef: runtime.binding.step_schema_ref,
+  }, result);
+  if (!validation.ok) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'OPL Connect scientific adapter returned a result outside its locked step schema.',
+      {
+        provider_id: provider,
+        schema_ref: runtime.binding.step_schema_ref,
+        schema_errors: validation.errors,
+        reason_code: 'scientific_adapter_result_schema_invalid',
+      },
+    );
+  }
   const next = asRecord(asRecord(result).next);
   const kind = asString(next.kind);
   if (kind === 'complete') {
@@ -474,7 +498,7 @@ async function searchWithScientificAdapter(
     adapterContractFailure(error, { provider_id: input.provider, operation: 'build_search_request' });
   }
   for (let requestCount = 0; requestCount <= runtime.binding.max_steps; requestCount += 1) {
-    const next = scientificAdapterNext(result, input.provider);
+    const next = scientificAdapterNext(result, input.provider, runtime);
     if (next.kind === 'complete') {
       return {
         normalized_results: next.candidates,

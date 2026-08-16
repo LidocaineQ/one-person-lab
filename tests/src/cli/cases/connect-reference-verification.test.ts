@@ -1,13 +1,24 @@
 import crypto from 'node:crypto';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { createServer } from 'node:https';
 
 import { runOplConnectReferenceVerification } from '../../../../src/adapters/integration/opl-connect-reference-verification.ts';
 import { assert, createInstalledPackageCarrierFixture, fs, os, path, repoRoot, runCliAsync, test } from '../helpers.ts';
+import { createTestTlsServerFixture } from '../helpers-parts/tls-fixture.ts';
 
 const scholarPackageRoot = process.env.OPL_SCHOLAR_SKILLS_E2E_ROOT?.trim()
   || path.resolve(repoRoot, '..', '..', '..', 'mas-scholar-skills');
 const cliPackageFixture = createInstalledPackageCarrierFixture(scholarPackageRoot);
 test.after(() => fs.rmSync(cliPackageFixture.fixtureRoot, { recursive: true, force: true }));
+const testTlsFixture = createTestTlsServerFixture();
+test.after(() => testTlsFixture.close());
+
+const originalTlsRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+test.after(() => {
+  if (originalTlsRejectUnauthorized === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+  else process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalTlsRejectUnauthorized;
+});
 
 function cliEnv(overrides: Record<string, string> = {}) {
   return { OPL_STATE_DIR: cliPackageFixture.stateRoot, ...overrides };
@@ -30,6 +41,94 @@ function contentLockDigest(sourceRoot: string, relativePaths: string[]) {
   return `sha256:${digest.digest('hex')}`;
 }
 
+function refreshSyntheticContentLock(sourceRoot: string) {
+  const manifestPath = path.join(sourceRoot, 'opl-package.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
+    content_lock: { digest: string; paths: string[] };
+  };
+  manifest.content_lock.digest = contentLockDigest(sourceRoot, manifest.content_lock.paths);
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest), 'utf8');
+}
+
+function syntheticReferenceProfileSchema() {
+  return {
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    $defs: {
+      provider: {
+        type: 'object',
+        properties: {
+          provider_id: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]*$' },
+        },
+      },
+    },
+  };
+}
+
+function syntheticReferenceStepSchema() {
+  return {
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    $id: 'https://one-person-lab.dev/tests/synthetic-reference-adapter-step.schema.json',
+    type: 'object',
+    required: ['surface_kind', 'adapter_abi', 'next'],
+    properties: {
+      surface_kind: { const: 'opl_connect_reference_provider_adapter_step_result.v1' },
+      adapter_abi: { const: 'opl-connect-reference-provider-adapter.v1' },
+      next: {
+        oneOf: [
+          {
+            type: 'object',
+            required: ['kind', 'request', 'state'],
+            properties: {
+              kind: { const: 'request' },
+              request: {
+                type: 'object',
+                required: ['method', 'url', 'body'],
+                properties: {
+                  method: { const: 'GET' },
+                  url: { type: 'string', pattern: '^https://' },
+                  headers: { type: 'object', additionalProperties: { type: 'string' } },
+                  body: { type: 'null' },
+                },
+                additionalProperties: false,
+              },
+              state: { type: 'object' },
+            },
+            additionalProperties: false,
+          },
+          {
+            type: 'object',
+            required: ['kind', 'evidence'],
+            properties: {
+              kind: { const: 'complete' },
+              evidence: {
+                type: 'object',
+                required: [
+                  'match_basis',
+                  'provider_identifiers',
+                  'metadata',
+                  'retraction_or_update_flags',
+                  'normalized',
+                ],
+                properties: {
+                  match_basis: { enum: ['doi', 'pmid', 'pmcid', 'title', 'none'] },
+                  provider_identifiers: { type: 'object', additionalProperties: { type: 'string' } },
+                  metadata: { type: 'object' },
+                  retraction_or_update_flags: { type: 'object' },
+                  normalized: { type: 'object' },
+                  verification_scope: { type: 'object' },
+                },
+                additionalProperties: false,
+              },
+            },
+            additionalProperties: false,
+          },
+        ],
+      },
+    },
+    additionalProperties: false,
+  };
+}
+
 async function withSyntheticReferenceAdapter<T>(callback: (
   requests: string[],
   installedPackage: { runner: (input: { binary: string; args: string[]; env: NodeJS.ProcessEnv }) => {
@@ -38,6 +137,7 @@ async function withSyntheticReferenceAdapter<T>(callback: (
     stderr: string;
     error: Error | null;
   } },
+  sourceRoot: string,
 ) => Promise<T>) {
   const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-reference-adapter-source-'));
   fs.mkdirSync(path.join(sourceRoot, 'contracts', 'reference-provider-adapters'), { recursive: true });
@@ -64,6 +164,34 @@ async function withSyntheticReferenceAdapter<T>(callback: (
   fs.writeFileSync(path.join(sourceRoot, 'runtime', 'reference-provider-adapters', 'index.mjs'), `
 export function runReferenceProviderAdapterStep(request) {
   if (request.operation === 'build_request') {
+    if (process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_MALFORMED_RESULT === 'envelope') {
+      return {
+        next: {
+          kind: 'complete',
+          evidence: {
+            match_basis: 'doi',
+            provider_identifiers: { doi: request.reference.doi },
+            metadata: {},
+            retraction_or_update_flags: {},
+            normalized: { doi: request.reference.doi },
+          },
+        },
+      };
+    }
+    if (process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_MALFORMED_RESULT === 'evidence') {
+      return {
+        surface_kind: 'opl_connect_reference_provider_adapter_step_result.v1',
+        adapter_abi: 'opl-connect-reference-provider-adapter.v1',
+        next: {
+          kind: 'complete',
+          evidence: {
+            match_basis: 'doi',
+            provider_identifiers: { doi: request.reference.doi },
+            metadata: {},
+          },
+        },
+      };
+    }
     return {
       surface_kind: 'opl_connect_reference_provider_adapter_step_result.v1',
       adapter_abi: 'opl-connect-reference-provider-adapter.v1',
@@ -109,6 +237,7 @@ export function runReferenceProviderAdapterStep(request) {
 
   const originalAdapterBase = process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BASE;
   const originalBadOrigin = process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BAD_ORIGIN;
+  const originalMalformedResult = process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_MALFORMED_RESULT;
   const originalFetch = globalThis.fetch;
   const requests: string[] = [];
   process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BASE = 'https://adapter.test';
@@ -141,6 +270,16 @@ export function runReferenceProviderAdapterStep(request) {
     if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, '', 'utf8');
   }
   fs.writeFileSync(path.join(sourceRoot, 'skills', 'mas-scholar-skills', 'SKILL.md'), '# synthetic\n', 'utf8');
+  fs.writeFileSync(
+    path.join(sourceRoot, binding.profile_schema_ref),
+    JSON.stringify(syntheticReferenceProfileSchema()),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(sourceRoot, binding.step_schema_ref),
+    JSON.stringify(syntheticReferenceStepSchema()),
+    'utf8',
+  );
   fs.writeFileSync(path.join(sourceRoot, 'opl-package.json'), JSON.stringify({
     surface_kind: 'opl_capability_package_manifest.v2',
     package_id: 'mas-scholar-skills',
@@ -194,13 +333,15 @@ export function runReferenceProviderAdapterStep(request) {
     });
   };
   try {
-    return await callback(requests, installedPackage);
+    return await callback(requests, installedPackage, sourceRoot);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalAdapterBase === undefined) delete process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BASE;
     else process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BASE = originalAdapterBase;
     if (originalBadOrigin === undefined) delete process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BAD_ORIGIN;
     else process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BAD_ORIGIN = originalBadOrigin;
+    if (originalMalformedResult === undefined) delete process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_MALFORMED_RESULT;
+    else process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_MALFORMED_RESULT = originalMalformedResult;
     fs.rmSync(sourceRoot, { recursive: true, force: true });
   }
 }
@@ -220,6 +361,63 @@ test('reference verification routes transport and evidence through the installed
     assert.equal(evidence.provider_id, 'synthetic-reference');
     assert.equal(evidence.provider, 'synthetic_receipt');
     assert.equal(evidence.verification_scope.evidence_source, 'synthetic-reference-adapter');
+  });
+});
+
+test('reference verification rejects malformed adapter envelopes and evidence before network access', async () => {
+  await withSyntheticReferenceAdapter(async (requests, installedPackage) => {
+    for (const mode of ['envelope', 'evidence']) {
+      process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_MALFORMED_RESULT = mode;
+      const output = await runOplConnectReferenceVerification({
+        references: [{ id: `synthetic-reference-malformed-${mode}`, doi: '10.9999/malformed' }],
+        providers: ['synthetic-reference'],
+        maxRetries: 0,
+        installedPackage,
+      });
+      const evidence = output.opl_connect_reference_verification.provider_evidence[0];
+      assert.equal(evidence.lookup_status, 'error');
+      assert.equal(evidence.status, 'deferred');
+      assert.equal(evidence.error?.code, 'reference_provider_adapter_result_schema_invalid');
+      assert.equal(Array.isArray(evidence.error?.details?.schema_errors), true);
+    }
+    assert.deepEqual(requests, []);
+  });
+});
+
+test('reference verification rejects unsafe profile provider ids before cache path construction', async () => {
+  await withSyntheticReferenceAdapter(async (requests, installedPackage, sourceRoot) => {
+    const profilePath = path.join(
+      sourceRoot,
+      'contracts',
+      'reference-provider-adapters',
+      'scientific-metadata.json',
+    );
+    const profile = JSON.parse(fs.readFileSync(profilePath, 'utf8')) as {
+      providers: Array<{ provider_id: string }>;
+    };
+    profile.providers[0]!.provider_id = '../escape';
+    fs.writeFileSync(profilePath, JSON.stringify(profile), 'utf8');
+    refreshSyntheticContentLock(sourceRoot);
+    const cacheRoot = path.join(sourceRoot, 'cache-root');
+    await assert.rejects(
+      () => runOplConnectReferenceVerification({
+        references: [{ id: 'unsafe-provider', doi: '10.9999/unsafe' }],
+        providers: ['../escape'],
+        cacheRoot,
+        maxRetries: 0,
+        installedPackage,
+      }),
+      (error: unknown) => {
+        assert.equal((error as { code?: string }).code, 'codex_command_failed');
+        assert.equal(
+          (error as { details?: { reason_code?: string } }).details?.reason_code,
+          'reference_provider_profile_provider_id_invalid',
+        );
+        return true;
+      },
+    );
+    assert.equal(fs.existsSync(path.resolve(cacheRoot, '..', 'escape')), false);
+    assert.deepEqual(requests, []);
   });
 });
 
@@ -402,7 +600,7 @@ test('reference providers normalize OpenAlex and both Semantic Scholar PMID fiel
 async function startFakeReferenceProviderServer() {
   const requests: string[] = [];
   let crossrefAttempts = 0;
-  const server = createServer((request: IncomingMessage, response: ServerResponse) => {
+  const server = createServer(testTlsFixture.options, (request: IncomingMessage, response: ServerResponse) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
     requests.push(`${url.pathname}?${url.searchParams.toString()}`);
     response.setHeader('content-type', 'application/json');
@@ -533,7 +731,7 @@ async function startFakeReferenceProviderServer() {
     throw new Error('Fake reference provider server did not bind a TCP address.');
   }
   return {
-    baseUrl: `http://127.0.0.1:${address.port}`,
+    baseUrl: `https://127.0.0.1:${address.port}`,
     requests,
     close: () => new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
