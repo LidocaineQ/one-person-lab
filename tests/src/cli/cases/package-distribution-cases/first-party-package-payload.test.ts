@@ -177,6 +177,15 @@ function lengthPrefixedContentLock(source: Pick<SourceFixture, 'repo' | 'sourceR
   return `sha256:${contentLock.digest('hex')}`;
 }
 
+function legacyUnframedContentLock(source: Pick<SourceFixture, 'repo' | 'sourceRoot' | 'paths' | 'contentLockPaths'>) {
+  const contentLock = crypto.createHash('sha256');
+  for (const relativePath of source.contentLockPaths ?? source.paths) {
+    contentLock.update(relativePath);
+    contentLock.update(fs.readFileSync(path.join(source.repo, rootedPath(source.sourceRoot, relativePath))));
+  }
+  return `sha256:${contentLock.digest('hex')}`;
+}
+
 function createAuthority(root: string, source: SourceFixture, input: {
   id?: string;
   plugin?: string;
@@ -490,6 +499,7 @@ test('length-prefixed content locks distinguish payloads that collide under lega
 
   const leftAuthority = createAuthority(path.join(root, 'left'), left);
   const rightAuthority = createAuthority(path.join(root, 'right'), right);
+  assert.equal(legacyUnframedContentLock(left), legacyUnframedContentLock(right));
   runGenerator({ authority: leftAuthority, repo: left.repo, sourceCommit: left.sourceCommit });
   runGenerator({ authority: rightAuthority, repo: right.repo, sourceCommit: right.sourceCommit });
   const leftPayload = JSON.parse(fs.readFileSync(leftAuthority.output, 'utf8')) as Record<string, any>;

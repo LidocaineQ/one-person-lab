@@ -134,11 +134,13 @@ export function writeManagedRuntimeSourceFixture(input: {
       (codexSurface as Record<string, unknown>).carrier_source_commit = exactSourceCommit;
     }
   }
-  const suppliedPayloadManifest = structuredClone(input.payloadManifest ?? {});
+  const suppliedPayloadManifest = input.payloadManifest
+    ? structuredClone(input.payloadManifest)
+    : null;
   const sourceFiles = new Map(
     (input.sourceFiles ?? []).map((file) => [file.sourcePath, file.content]),
   );
-  const payloadFiles: Array<Record<string, unknown>> = Array.isArray(suppliedPayloadManifest.files)
+  const payloadFiles: Array<Record<string, unknown>> = Array.isArray(suppliedPayloadManifest?.files)
     ? suppliedPayloadManifest.files.map((candidate) => {
         const file = candidate && typeof candidate === 'object' && !Array.isArray(candidate)
           ? candidate as Record<string, unknown>
@@ -152,23 +154,25 @@ export function writeManagedRuntimeSourceFixture(input: {
   const payloadPaths = payloadFiles
     .map((file) => typeof file.path === 'string' ? file.path : null)
     .filter((file): file is string => file !== null);
-  const payloadManifest = {
-    ...suppliedPayloadManifest,
-    surface_kind: 'opl_package_payload_manifest.v2',
-    schema_ref: 'contracts/opl-framework/package-payload-manifest-v2.schema.json',
-    package_id: packageId,
-    plugin_id: input.repoName,
-    package_version: input.version,
-    source_repo: `https://github.com/gaofeng21cn/${input.repoName}.git`,
-    source_commit: exactSourceCommit ?? input.sourceHeadSha,
-    source_root: '.',
-    content_lock: {
-      algorithm: 'sha256',
-      canonicalization: 'ordered_path_length_file_length_bytes',
-      digest: contentLockDigest(payloadPaths, sourceFiles),
-    },
-    files: payloadFiles,
-  };
+  const payloadManifest = suppliedPayloadManifest
+    ? {
+        ...suppliedPayloadManifest,
+        surface_kind: 'opl_package_payload_manifest.v2',
+        schema_ref: 'contracts/opl-framework/package-payload-manifest-v2.schema.json',
+        package_id: packageId,
+        plugin_id: input.repoName,
+        package_version: input.version,
+        source_repo: `https://github.com/gaofeng21cn/${input.repoName}.git`,
+        source_commit: exactSourceCommit ?? input.sourceHeadSha,
+        source_root: '.',
+        content_lock: {
+          algorithm: 'sha256',
+          canonicalization: 'ordered_path_length_file_length_bytes',
+          digest: contentLockDigest(payloadPaths, sourceFiles),
+        },
+        files: payloadFiles,
+      }
+    : null;
   const manifestJson = packageManifest
     ? `${JSON.stringify({
         ...packageManifest,

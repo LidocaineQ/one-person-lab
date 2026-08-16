@@ -320,12 +320,43 @@ test('single-Package payload materialization binds exact physical archive proven
   const archiveRoot = 'example-agent';
   const artifactRef = `ghcr.io/example/one-person-lab-packages/${packageId}:${packageVersion}`;
   const filePath = 'skills/example-plugin/SKILL.md';
-  const sourceRoot = 'plugins/example-plugin';
+  const descriptorPath = 'opl-package.json';
+  const sourceRoot = '.';
   const fileBytes = Buffer.from('# Example\n', 'utf8');
+  const descriptorBytes = Buffer.from('{"package_id":"example-agent"}\n', 'utf8');
   const fileSha256 = `sha256:${crypto.createHash('sha256').update(fileBytes).digest('hex')}`;
+  const descriptorSha256 = `sha256:${crypto.createHash('sha256').update(descriptorBytes).digest('hex')}`;
   const input = path.join(root, 'payload.json');
+  const packageManifest = path.join(root, 'package-manifest.json');
   const stage = path.join(root, 'stage');
   const archive = path.join(root, 'example-agent-1.2.3.tar.gz');
+  const lengthPrefixedDigest = (entries: Array<{ path: string; bytes: Buffer }>) => {
+    const hash = crypto.createHash('sha256');
+    for (const entry of entries) {
+      const pathBytes = Buffer.from(entry.path, 'utf8');
+      const pathLength = Buffer.allocUnsafe(8);
+      const fileLength = Buffer.allocUnsafe(8);
+      pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
+      fileLength.writeBigUInt64BE(BigInt(entry.bytes.length));
+      hash.update(pathLength);
+      hash.update(pathBytes);
+      hash.update(fileLength);
+      hash.update(entry.bytes);
+    }
+    return `sha256:${hash.digest('hex')}`;
+  };
+  const capabilityContentLock = lengthPrefixedDigest([{ path: filePath, bytes: fileBytes }]);
+  const payloadFiles = [{
+    path: filePath,
+    mode: '100644',
+    source_url: `https://raw.githubusercontent.com/example/example-agent/${sourceCommit}/${filePath}`,
+    sha256: fileSha256,
+  }, {
+    path: descriptorPath,
+    mode: '100644',
+    source_url: `https://raw.githubusercontent.com/example/example-agent/${sourceCommit}/${descriptorPath}`,
+    sha256: descriptorSha256,
+  }];
   const payload = {
     surface_kind: 'opl_package_payload_manifest.v2',
     schema_ref: 'contracts/opl-framework/package-payload-manifest-v2.schema.json',
@@ -338,24 +369,38 @@ test('single-Package payload materialization binds exact physical archive proven
     content_lock: {
       algorithm: 'sha256',
       canonicalization: 'ordered_path_length_file_length_bytes',
-      digest: `sha256:${'b'.repeat(64)}`,
+      digest: capabilityContentLock,
     },
-    files: [{
-      path: filePath,
-      mode: '100644',
-      source_url: `https://raw.githubusercontent.com/example/example-agent/${sourceCommit}/${sourceRoot}/${filePath}`,
-      sha256: fileSha256,
-    }],
+    files: payloadFiles,
   };
-  fs.mkdirSync(path.join(stage, archiveRoot, sourceRoot, path.dirname(filePath)), { recursive: true });
-  fs.writeFileSync(path.join(stage, archiveRoot, sourceRoot, filePath), fileBytes);
+  fs.mkdirSync(path.join(stage, archiveRoot, path.dirname(filePath)), { recursive: true });
+  fs.writeFileSync(path.join(stage, archiveRoot, filePath), fileBytes);
+  fs.writeFileSync(path.join(stage, archiveRoot, descriptorPath), descriptorBytes);
   fs.writeFileSync(input, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(packageManifest, `${JSON.stringify({
+    package_id: packageId,
+    package_role: 'capability_package',
+    version: packageVersion,
+    source_repo: payload.source_repo,
+    content_lock: {
+      algorithm: 'sha256',
+      canonicalization: 'ordered_path_length_file_length_bytes',
+      paths: [filePath],
+      digest: capabilityContentLock,
+    },
+    codex_surface: {
+      plugin_id: payload.plugin_id,
+      carrier_source_commit: sourceCommit,
+      plugin_payload_manifest_url: path.basename(input),
+    },
+  }, null, 2)}\n`, 'utf8');
   execFileSync('tar', ['-czf', archive, '-C', stage, archiveRoot]);
   const archiveSha256 = `sha256:${crypto.createHash('sha256').update(fs.readFileSync(archive)).digest('hex')}`;
   const baseArgs = [
     '--experimental-strip-types',
     materializer,
     '--input', input,
+    '--package-manifest', packageManifest,
     '--archive', archive,
     '--artifact-ref', artifactRef,
     '--archive-sha256', archiveSha256,
@@ -379,7 +424,7 @@ test('single-Package payload materialization binds exact physical archive proven
     ) as Record<string, any>;
     assert.equal(receipt.status, 'materialized');
     assert.equal(receipt.archive_sha256, archiveSha256);
-    assert.equal(receipt.file_count, 1);
+    assert.equal(receipt.file_count, 2);
     assert.deepEqual(materialized.package_source, {
       transport: 'same_oci_artifact_source_archive',
       artifact_ref: artifactRef,
@@ -390,15 +435,54 @@ test('single-Package payload materialization binds exact physical archive proven
       path: filePath,
       mode: '100644',
       sha256: fileSha256,
-      source_path: `${sourceRoot}/${filePath}`,
+      source_path: filePath,
+      source_artifact_ref: artifactRef,
+    }, {
+      path: descriptorPath,
+      mode: '100644',
+      sha256: descriptorSha256,
+      source_path: descriptorPath,
       source_artifact_ref: artifactRef,
     }]);
+
+    const standardInput = path.join(root, 'standard-payload.json');
+    const standardPackageManifest = path.join(root, 'standard-package-manifest.json');
+    fs.writeFileSync(standardInput, `${JSON.stringify({
+      ...payload,
+      content_lock: {
+        ...payload.content_lock,
+        digest: lengthPrefixedDigest([
+          { path: filePath, bytes: fileBytes },
+          { path: descriptorPath, bytes: descriptorBytes },
+        ]),
+      },
+    }, null, 2)}\n`);
+    fs.writeFileSync(standardPackageManifest, `${JSON.stringify({
+      package_id: packageId,
+      version: packageVersion,
+      source_repo: payload.source_repo,
+      codex_surface: {
+        plugin_id: payload.plugin_id,
+        carrier_source_commit: sourceCommit,
+      },
+    }, null, 2)}\n`);
+    const standardArgs = [...baseArgs];
+    standardArgs[standardArgs.indexOf('--input') + 1] = standardInput;
+    standardArgs[standardArgs.indexOf('--package-manifest') + 1] = standardPackageManifest;
+    const standard = run('standard', standardArgs);
+    assert.equal(standard.status, 0, standard.stderr);
 
     const missingArchiveRootArgs = [...baseArgs];
     missingArchiveRootArgs.splice(missingArchiveRootArgs.indexOf('--archive-root'), 2);
     const missingArchiveRoot = run('missing-archive-root', missingArchiveRootArgs);
     assert.equal(missingArchiveRoot.status, 1);
     assert.match(missingArchiveRoot.stderr, /Missing required options: --archive-root/);
+
+    const missingPackageManifestArgs = [...baseArgs];
+    missingPackageManifestArgs.splice(missingPackageManifestArgs.indexOf('--package-manifest'), 2);
+    const missingPackageManifest = run('missing-package-manifest', missingPackageManifestArgs);
+    assert.equal(missingPackageManifest.status, 1);
+    assert.match(missingPackageManifest.stderr, /Missing required options: --package-manifest/);
 
     const wrongArtifactArgs = [...baseArgs];
     wrongArtifactArgs[wrongArtifactArgs.indexOf('--artifact-ref') + 1] = `${artifactRef}-wrong`;
@@ -417,6 +501,59 @@ test('single-Package payload materialization binds exact physical archive proven
     const wrongRoot = run('wrong-root', wrongRootArgs);
     assert.equal(wrongRoot.status, 1);
     assert.match(wrongRoot.stderr, /Archive root does not match the Package owner repository/);
+
+    const wrongContentLockInput = path.join(root, 'wrong-content-lock-input.json');
+    fs.writeFileSync(wrongContentLockInput, `${JSON.stringify({
+      ...payload,
+      content_lock: { ...payload.content_lock, digest: `sha256:${'0'.repeat(64)}` },
+    })}\n`);
+    const wrongContentLockManifest = path.join(root, 'wrong-content-lock-package-manifest.json');
+    fs.writeFileSync(wrongContentLockManifest, `${JSON.stringify({
+      ...JSON.parse(fs.readFileSync(packageManifest, 'utf8')),
+      content_lock: {
+        ...JSON.parse(fs.readFileSync(packageManifest, 'utf8')).content_lock,
+        digest: `sha256:${'0'.repeat(64)}`,
+      },
+    }, null, 2)}\n`);
+    const wrongContentLockArgs = [...baseArgs];
+    wrongContentLockArgs[wrongContentLockArgs.indexOf('--input') + 1] = wrongContentLockInput;
+    wrongContentLockArgs[wrongContentLockArgs.indexOf('--package-manifest') + 1] = wrongContentLockManifest;
+    const wrongContentLock = run('wrong-content-lock', wrongContentLockArgs);
+    assert.equal(wrongContentLock.status, 1);
+    assert.match(wrongContentLock.stderr, /Package archive content_lock mismatch/);
+
+    const duplicatePathInput = path.join(root, 'duplicate-path-input.json');
+    fs.writeFileSync(duplicatePathInput, `${JSON.stringify({
+      ...payload,
+      files: [...payload.files, { ...payload.files[0], mode: '100755' }],
+    })}\n`);
+    const duplicatePathArgs = [...baseArgs];
+    duplicatePathArgs[duplicatePathArgs.indexOf('--input') + 1] = duplicatePathInput;
+    const duplicatePath = run('duplicate-path', duplicatePathArgs);
+    assert.equal(duplicatePath.status, 1);
+    assert.match(duplicatePath.stderr, /files repeats package path/);
+
+    for (const [name, invalidPayload] of [
+      ['legacy-envelope', { ...payload, surface_kind: 'opl_agent_package_payload_manifest.v1' }],
+      ['wrong-canonicalization', {
+        ...payload,
+        content_lock: { ...payload.content_lock, canonicalization: 'ordered_path_nul_file_bytes' },
+      }],
+      ['missing-mode', {
+        ...payload,
+        files: payload.files.map((entry, index) => index === 0
+          ? Object.fromEntries(Object.entries(entry).filter(([key]) => key !== 'mode'))
+          : entry),
+      }],
+    ] as const) {
+      const invalidPath = path.join(root, `${name}-input.json`);
+      fs.writeFileSync(invalidPath, `${JSON.stringify(invalidPayload)}\n`);
+      const invalidArgs = [...baseArgs];
+      invalidArgs[invalidArgs.indexOf('--input') + 1] = invalidPath;
+      const result = run(name, invalidArgs);
+      assert.equal(result.status, 1, name);
+      assert.match(result.stderr, /Payload input failed.*package-payload-manifest-v2\.schema\.json/, name);
+    }
 
     const invalidInput = path.join(root, 'invalid-schema-input.json');
     fs.writeFileSync(invalidInput, `${JSON.stringify({ ...payload, schema_ref: 'wrong-schema' })}\n`);

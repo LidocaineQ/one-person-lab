@@ -92,6 +92,7 @@ function standardFixture(t: TestContext) {
     version,
     source_repo: repoUrl,
     codex_surface: {
+      plugin_id: 'med-autoscience',
       plugin_payload_manifest_url: payloadRef,
       carrier_source_commit: carrierCommit,
     },
@@ -318,6 +319,7 @@ test('package source projection gate verifies every capability Package ordered c
     source_repo: repoUrl,
     content_lock: contentLock,
     codex_surface: {
+      plugin_id: packageId,
       plugin_payload_manifest_url: payloadRef,
       carrier_source_commit: head,
     },
@@ -432,7 +434,11 @@ test('package source projection gate binds one regular owner descriptor outside 
     content_lock: contentLock,
     owner_package_manifest_ref: ownerPackageManifestRef,
     owner_package_descriptor_ref: ownerPackageDescriptorRef,
-    codex_surface: { plugin_payload_manifest_url: payloadRef, carrier_source_commit: head },
+    codex_surface: {
+      plugin_id: packageId,
+      plugin_payload_manifest_url: payloadRef,
+      carrier_source_commit: head,
+    },
   });
   const payloadPath = path.join(path.dirname(manifestPath), payloadRef);
   const payloadPaths = [lockPaths[0], ownerPackageDescriptorRef, lockPaths[1]];

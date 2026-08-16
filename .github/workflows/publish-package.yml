@@ -154,6 +154,7 @@ jobs:
           node --experimental-strip-types scripts/materialize-package-payload.mjs \
             --input "$payload" \
             --output "$package_root/payload-manifest.json" \
+            --package-manifest "$manifest" \
             --archive "$archive" \
             --artifact-ref "${image}:${EXPECTED_PACKAGE_VERSION}" \
             --archive-sha256 "$archive_sha256" \
