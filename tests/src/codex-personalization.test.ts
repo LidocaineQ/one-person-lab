@@ -84,7 +84,7 @@ function writeOplFlowPackage(root: string) {
         capability_dependencies: [],
       },
       payloadManifest: {
-        surface_kind: 'opl_agent_package_payload_manifest',
+        surface_kind: 'opl_package_payload_manifest.v2',
         files: Object.entries(files).map(([relativePath, content]) => ({
           path: relativePath,
           source_path: relativePath,

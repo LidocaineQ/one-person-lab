@@ -12,6 +12,27 @@ function sha256(filePath: string) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
 
+function contentLockDigest(paths: string[], sourceFiles: Map<string, string | Buffer>) {
+  const digest = crypto.createHash('sha256');
+  for (const relativePath of paths) {
+    const pathBytes = Buffer.from(relativePath, 'utf8');
+    const sourceFile = sourceFiles.get(relativePath);
+    if (sourceFile === undefined) {
+      throw new Error(`Fixture payload content lock references a missing source file: ${relativePath}`);
+    }
+    const fileBytes = Buffer.isBuffer(sourceFile) ? sourceFile : Buffer.from(sourceFile, 'utf8');
+    const pathLength = Buffer.allocUnsafe(8);
+    const fileLength = Buffer.allocUnsafe(8);
+    pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
+    fileLength.writeBigUInt64BE(BigInt(fileBytes.length));
+    digest.update(pathLength);
+    digest.update(pathBytes);
+    digest.update(fileLength);
+    digest.update(fileBytes);
+  }
+  return `sha256:${digest.digest('hex')}`;
+}
+
 export function writeManagedRuntimeSourceFixture(input: {
   root: string;
   moduleId: string;
@@ -113,10 +134,41 @@ export function writeManagedRuntimeSourceFixture(input: {
       (codexSurface as Record<string, unknown>).carrier_source_commit = exactSourceCommit;
     }
   }
-  const payloadManifest = structuredClone(input.payloadManifest ?? {
-    source_commit: input.sourceHeadSha,
-  });
-  if (payloadManifest && exactSourceCommit) payloadManifest.source_commit = exactSourceCommit;
+  const suppliedPayloadManifest = structuredClone(input.payloadManifest ?? {});
+  const sourceFiles = new Map(
+    (input.sourceFiles ?? []).map((file) => [file.sourcePath, file.content]),
+  );
+  const payloadFiles: Array<Record<string, unknown>> = Array.isArray(suppliedPayloadManifest.files)
+    ? suppliedPayloadManifest.files.map((candidate) => {
+        const file = candidate && typeof candidate === 'object' && !Array.isArray(candidate)
+          ? candidate as Record<string, unknown>
+          : {};
+        return {
+          ...file,
+          mode: file.mode ?? '100644',
+        };
+      })
+    : [];
+  const payloadPaths = payloadFiles
+    .map((file) => typeof file.path === 'string' ? file.path : null)
+    .filter((file): file is string => file !== null);
+  const payloadManifest = {
+    ...suppliedPayloadManifest,
+    surface_kind: 'opl_package_payload_manifest.v2',
+    schema_ref: 'contracts/opl-framework/package-payload-manifest-v2.schema.json',
+    package_id: packageId,
+    plugin_id: input.repoName,
+    package_version: input.version,
+    source_repo: `https://github.com/gaofeng21cn/${input.repoName}.git`,
+    source_commit: exactSourceCommit ?? input.sourceHeadSha,
+    source_root: '.',
+    content_lock: {
+      algorithm: 'sha256',
+      canonicalization: 'ordered_path_length_file_length_bytes',
+      digest: contentLockDigest(payloadPaths, sourceFiles),
+    },
+    files: payloadFiles,
+  };
   const manifestJson = packageManifest
     ? `${JSON.stringify({
         ...packageManifest,
@@ -130,30 +182,24 @@ export function writeManagedRuntimeSourceFixture(input: {
   const payloadManifestJson = payloadManifest
     ? `${JSON.stringify({
         ...payloadManifest,
-        package_id: packageId,
-        package_version: input.version,
         package_source: {
           transport: 'same_oci_artifact_source_archive',
           artifact_ref: sourceArtifactRef,
           archive_sha256: `sha256:${archiveDigest}`,
           archive_root: input.repoName,
         },
-        files: Array.isArray(payloadManifest.files)
-          ? payloadManifest.files.map((candidate) => {
-              const file = candidate && typeof candidate === 'object' && !Array.isArray(candidate)
-                ? candidate as Record<string, unknown>
-                : {};
-              return input.artifactBackedPayload === false
-                ? file
-                : {
-                    ...file,
-                    source_artifact_ref: sourceArtifactRef,
-                    content_utf8: undefined,
-                    content_base64: undefined,
-                    source_url: undefined,
-                  };
-            })
-          : [],
+        files: payloadManifest.files.map((candidate) => {
+          const file = candidate as Record<string, unknown>;
+          return input.artifactBackedPayload === false
+            ? file
+            : {
+                ...file,
+                source_artifact_ref: sourceArtifactRef,
+                content_utf8: undefined,
+                content_base64: undefined,
+                source_url: undefined,
+              };
+        }),
       }, null, 2)}\n`
     : null;
   const payloadManifestDigest = payloadManifestJson

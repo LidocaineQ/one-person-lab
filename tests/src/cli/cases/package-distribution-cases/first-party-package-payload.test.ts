@@ -476,6 +476,27 @@ test('published non-canonical envelopes cannot be replaced at the same SemVer', 
   assert.deepEqual(fs.readFileSync(authority.output), before);
 });
 
+test('length-prefixed content locks distinguish payloads that collide under legacy concatenation', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-payload-content-lock-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const left = createSourceRepo(path.join(root, 'left'), {
+    assetBytes: Buffer.from('a'),
+    extraFile: { path: 'bc', content: 'same' },
+  });
+  const right = createSourceRepo(path.join(root, 'right'), {
+    assetBytes: Buffer.from('ab'),
+    extraFile: { path: 'c', content: 'same' },
+  });
+
+  const leftAuthority = createAuthority(path.join(root, 'left'), left);
+  const rightAuthority = createAuthority(path.join(root, 'right'), right);
+  runGenerator({ authority: leftAuthority, repo: left.repo, sourceCommit: left.sourceCommit });
+  runGenerator({ authority: rightAuthority, repo: right.repo, sourceCommit: right.sourceCommit });
+  const leftPayload = JSON.parse(fs.readFileSync(leftAuthority.output, 'utf8')) as Record<string, any>;
+  const rightPayload = JSON.parse(fs.readFileSync(rightAuthority.output, 'utf8')) as Record<string, any>;
+  assert.notEqual(leftPayload.content_lock.digest, rightPayload.content_lock.digest);
+});
+
 test('existing SemVer paths are immutable in write and check modes', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-payload-immutable-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

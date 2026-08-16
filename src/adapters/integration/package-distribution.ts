@@ -10,6 +10,7 @@ import {
 import { listCurrentPackageProjections } from '../../kernel/standard-agent-registry.ts';
 import { getOplReleaseRepo, getOplReleaseVersion } from './opl-release.ts';
 import { readBundledCodexDefaultProfile } from '../../kernel/local-codex-defaults.ts';
+import { assertJsonSchemaPayload } from '../../kernel/schema-registry.ts';
 import { MANAGED_UPDATE_OWNER_FIELDS } from './managed-update-owner-boundary.ts';
 import type { ModuleCapabilityDependency } from './system-installation/shared.ts';
 
@@ -79,7 +80,26 @@ export type OplPackageManifest = ReturnType<typeof buildOplPackageManifest>;
 const PACKAGE_WORKFLOW_TRIGGER_POLICY = 'independent_owner_channel_workflow_call_or_manual_dispatch';
 const PACKAGE_REMOTE_PUBLISH_STATUS = 'publication_workflow_configured_pending_remote_verification';
 const RELEASE_SET_GENERATION_PATTERN = /^\d{2}\.\d{1,2}\.\d{1,2}(?:-r[1-9]\d*)?$/;
+const PACKAGE_PAYLOAD_MANIFEST_SCHEMA_REF = 'contracts/opl-framework/package-payload-manifest-v2.schema.json';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const packagePayloadManifestSchema = JSON.parse(fs.readFileSync(
+  path.join(repoRoot, PACKAGE_PAYLOAD_MANIFEST_SCHEMA_REF),
+  'utf8',
+)) as Record<string, unknown>;
+
+function assertCanonicalPackagePayloadManifest(payload: Record<string, unknown>, sourceRef: string) {
+  if (payload.surface_kind !== 'opl_package_payload_manifest.v2'
+    || payload.schema_ref !== PACKAGE_PAYLOAD_MANIFEST_SCHEMA_REF) {
+    throw new Error(`${sourceRef} must use the canonical v2 Package payload manifest.`);
+  }
+  assertJsonSchemaPayload({
+    schemaId: typeof packagePayloadManifestSchema.$id === 'string'
+      ? packagePayloadManifestSchema.$id
+      : PACKAGE_PAYLOAD_MANIFEST_SCHEMA_REF,
+    schema: packagePayloadManifestSchema,
+    sourceRef: PACKAGE_PAYLOAD_MANIFEST_SCHEMA_REF,
+  }, payload);
+}
 
 function projectionString(payload: Record<string, unknown>, field: string) {
   const value = payload[field];
@@ -648,6 +668,10 @@ export function materializeArchiveBackedPackagePayload(input: {
   archiveSha256: string | null;
   archiveRoot: string;
 }) {
+  if (input.payload.surface_kind !== 'opl_package_payload_manifest.v2'
+    || input.payload.schema_ref !== PACKAGE_PAYLOAD_MANIFEST_SCHEMA_REF) {
+    throw new Error(`${input.payloadRef} must use the canonical v2 Package payload manifest.`);
+  }
   if (!/^[0-9a-f]{40}$/.test(input.ownerSourceCommit ?? '')) {
     throw new Error(`${input.payloadRef}.source_commit must be an exact Git commit.`);
   }
@@ -691,9 +715,6 @@ export function materializeArchiveBackedPackagePayload(input: {
     package_id: input.packageId,
     package_version: input.packageVersion,
     source_commit: input.ownerSourceCommit,
-    ...(input.payload.surface_kind === 'opl_package_payload_manifest.v2'
-      ? {}
-      : { source_root: undefined }),
     ...(trackedSourceCommit && trackedSourceCommit !== input.ownerSourceCommit
       ? { migration_source_commit: trackedSourceCommit }
       : {}),

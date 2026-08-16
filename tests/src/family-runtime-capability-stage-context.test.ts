@@ -804,7 +804,7 @@ test('provider-hosted attempt launch consumes typed capability readout without c
     sourceHeadSha: ownerSourceCommit,
     packageManifest,
     payloadManifest: {
-      surface_kind: 'opl_agent_package_payload_manifest',
+      surface_kind: 'opl_package_payload_manifest.v2',
       files: Object.entries(packageFiles).map(([relativePath, content]) => ({
         path: relativePath,
         source_path: relativePath,
