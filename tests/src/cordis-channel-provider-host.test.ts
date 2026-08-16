@@ -9,7 +9,7 @@ import {
   readCapabilityPackageHostContract,
   type ChannelProvider,
   type ChannelThreadCallback,
-} from '../../src/authority/packages/package-host-integration.ts';
+} from '../../src/authority/packages/index.ts';
 import {
   createCordisAppFullComposition,
 } from '../../src/host/composition-profiles.ts';

@@ -14,7 +14,7 @@ import {
   type ChannelTurnRef,
   type ChannelTurnTerminalEvent,
   type ChannelTurnTerminalObserver,
-} from '../../authority/packages/package-host-integration.ts';
+} from '../../authority/packages/index.ts';
 import {
   buildCordisPluginDescriptor,
   type CordisPluginDescriptor,
