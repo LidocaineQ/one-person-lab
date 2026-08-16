@@ -72,10 +72,13 @@ export type {
   AgentExecutionReceipt,
   AgentExecutionRequest,
 } from './agent-executor.ts';
-export type CordisAgentExecutorService = import('@one-person-lab/runway-executor').CordisAgentExecutorService<
-  import('./agent-executor.ts').AgentExecutionRequest,
-  import('./agent-executor.ts').AgentExecutionReceipt
->;
+import type {
+  AgentExecutionReceipt,
+  AgentExecutionRequest,
+} from './agent-executor.ts';
+export type CordisAgentExecutorService = {
+  execute(input: AgentExecutionRequest): Promise<AgentExecutionReceipt>;
+};
 export { appendDomainRunEvent, createDomainRunRecord, dispatchDomainAction, executeDomainTask, readDomainRunEvents, runDomainCodexPrompt } from './domain-task-runtime.ts';
 export type { DomainActionHandler, DomainCodexPromptRunner, DomainRunIdentity } from './domain-task-runtime.ts';
 export { resolveDomainPythonCommand, runDomainPythonHelper } from './domain-helper-runtime.ts';

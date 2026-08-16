@@ -35,57 +35,6 @@
       "plugin_descriptor_sources": [
         "contracts/opl-package-host.json"
       ]
-    },
-    {
-      "package_id": "@one-person-lab/connect-discovery",
-      "path": "packages/connect-discovery",
-      "package_kind": "cordis_contribution",
-      "version_policy": "independent",
-      "authority_owner": "opl-framework/integration",
-      "capability_domain_ids": ["catalog-discovery", "integration"],
-      "source_unit_refs": ["framework.adapters.integration", "framework.read-models.catalog", "framework.host"],
-      "plugin_ids": ["opl-cordis-connect-descriptor-discovery"],
-      "contributions": [
-        "descriptor-discovery-plugin"
-      ],
-      "plugin_descriptor_sources": [
-        "src/index.ts"
-      ]
-    },
-    {
-      "package_id": "@one-person-lab/runway-executor",
-      "path": "packages/runway-executor",
-      "package_kind": "cordis_contribution",
-      "version_policy": "independent",
-      "authority_owner": "opl-framework/execution",
-      "capability_domain_ids": ["execution"],
-      "source_unit_refs": ["framework.adapters.execution", "framework.host"],
-      "plugin_ids": ["opl-cordis-agent-executor-adapter", "opl-cordis-agent-executor-service", "opl-cordis-agent-executor-observer"],
-      "contributions": [
-        "executor-adapter",
-        "executor-service",
-        "executor-observer"
-      ],
-      "plugin_descriptor_sources": [
-        "src/index.ts"
-      ]
-    },
-    {
-      "package_id": "@one-person-lab/foundry-evaluation",
-      "path": "packages/foundry-evaluation",
-      "package_kind": "cordis_contribution",
-      "version_policy": "independent",
-      "authority_owner": "opl-framework/evolution",
-      "capability_domain_ids": ["evolution"],
-      "source_unit_refs": ["framework.authority.evolution", "framework.adapters.execution", "framework.host"],
-      "plugin_ids": ["opl-cordis-foundry-provider-manifest", "opl-cordis-foundry-evaluation-adapter"],
-      "contributions": [
-        "provider-manifest",
-        "evaluation-adapter"
-      ],
-      "plugin_descriptor_sources": [
-        "src/index.ts"
-      ]
     }
   ],
   "legacy_paths": {

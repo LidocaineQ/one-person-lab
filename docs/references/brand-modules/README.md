@@ -148,10 +148,10 @@ src/authority/evolution
 src/adapters/integration
 ```
 
-App / Cloud 产品语义可以跨多个 domain/authority/Package 组合面向用户；Framework 实现不再以品牌目录作为终局 owner。`source-module-map.v3` 管理 13 个 source units 与 retired root，`package-topology.v2` 管理 Package/source/plugin 关联；二者都不是 Cordis registry。真实 caller 已切换且旧 root 已删除；不以目录移动、零引用扫描或 docs alone 声明独立发布、runtime 或 production 完成。
+App / Cloud 产品语义可以跨多个 domain/authority/Package 组合面向用户；Framework 实现不再以品牌目录作为终局 owner。`source-module-map.v3` 管理 13 个 source units 与 retired root，`package-topology.v2` 管理 Package/source/plugin 关联；二者都不是 Cordis registry。真实 caller 已切换且旧 root 已删除；Connect descriptor discovery、Runway executor 和 Foundry evaluation 的 Host-owned Cordis contribution 不形成独立 Package；不以目录移动、零引用扫描或 docs alone 声明独立发布、runtime 或 production 完成。
 
 源码边界的默认门仍是 public interface，但入口归 authority/adapter/read-model/host source-unit exports、薄 entrypoints 与 brand-neutral kernel。source-unit 恰好一次归属、deep import、forbidden dependency、cycle 和 legacy-root absence必须保持通过；不得恢复 `src/modules/**` compatibility export或永久双入口。当前源码满足物理 cutover 的结构门；独立 Package publication、runtime、release 和 production 仍须对应 owner readback。
 
 ## Package 发布边界
 
-品牌域不预先决定 Package 数量。当前已建立五个独立 workspace Package：`@one-person-lab/cordis-abi`、`@one-person-lab/package-host`、`@one-person-lab/connect-discovery`、`@one-person-lab/runway-executor` 和 `@one-person-lab/foundry-evaluation`。它们只是 source-extracted/candidate packages，尚未证明独立发布、安装、currentness、回退或独立仓库完成。正式拆分仍要求独立安装/发布/升级节奏、真实 consumer、currentness/readback 和回退价值；Package identity、plugin API/source identity、composition snapshot 和 App product profile 分开回读。
+品牌域不预先决定 Package 数量。当前保留两个独立 workspace Package：`@one-person-lab/cordis-abi` 和 `@one-person-lab/package-host`。Connect descriptor discovery、Runway executor 和 Foundry evaluation 已内联到 Framework Host；它们的 plugin API/source identity、composition snapshot 和真实 caller 仍可回读，但不声明独立 Package identity 或 independent release。现有 workspace packages 仍只是 source-extracted/candidate packages，尚未证明独立发布、安装、currentness、回退或独立仓库完成。正式拆分仍要求独立安装/发布/升级节奏、真实 consumer、currentness/readback 和回退价值。

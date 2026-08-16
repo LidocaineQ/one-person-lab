@@ -11,7 +11,7 @@ Machine boundary: 用户已明确授权把长期终态推进到 Cordis 全面迁
 
 OPL 采用 DeepSeek Harness（DSH）所使用的正式 `@deepseek-ai/cordis` 作为长期目标的进程内组合框架。目标是最终使用 Cordis 本身，不再另造 `Cordis-like` 内核、平行 event bus、平行 service registry 或平行 plugin lifecycle。
 
-这是一项已完成 P0-P6 默认 Framework Host cutover 和 P8 source/package topology 对齐的架构迁移，不再以迁移成本作为 go/no-go。P1 surface map、P2 `Agent Executor` 隔离实验、P3 只读 composition inspect、P4 组合合同、P5 vertical seams、P5-R 五层重基线、P6 `base-headless` profile/default caller，以及 13 source units / 6 target roots 与五个 workspace Package candidates 已落地。当前 OPL CLI/Runtime 默认链由 Cordis composition 创建并在 finally 中销毁；三个 curated Host profile 统一装载 `opl-package-host`，让标准 Agent、能力 Package 和 workflow profile 消费相同的 host context ABI。Host-derived Client Cordis、AionUI active renderer admission 与 Studio candidate conformance/E2E 也已对齐；Studio 是否替换 active shell 是未来 App owner 的显式产品选择，不是 Framework 的未完成迁移。下一阶段只按真实发布节奏推进高价值 Package 的 owner-gated publication，不恢复旧品牌桶或机械拆包。
+这是一项已完成 P0-P6 默认 Framework Host cutover 和 P8 source/package topology 对齐的架构迁移，不再以迁移成本作为 go/no-go。P1 surface map、P2 `Agent Executor` 隔离实验、P3 只读 composition inspect、P4 组合合同、P5 vertical seams、P5-R 五层重基线、P6 `base-headless` profile/default caller，以及 13 source units / 6 target roots 与两个 workspace Package candidates 已落地。Connect descriptor discovery、Runway executor 和 Foundry evaluation 的 Cordis contribution 已直接归 Framework Host 持有，保留真实 caller、ABI 和 authority boundary。当前 OPL CLI/Runtime 默认链由 Cordis composition 创建并在 finally 中销毁；三个 curated Host profile 统一装载 `opl-package-host`，让标准 Agent、能力 Package 和 workflow profile 消费相同的 host context ABI。Host-derived Client Cordis、AionUI active renderer admission 与 Studio candidate conformance/E2E 也已对齐；Studio 是否替换 active shell 是未来 App owner 的显式产品选择，不是 Framework 的未完成迁移。下一阶段只按真实发布节奏推进高价值 Package 的 owner-gated publication，不恢复旧品牌桶或机械拆包。
 
 全面 Cordis 化不等于把品牌机械翻译成 plugin。家族品牌已收敛为唯一、动态的 capability portfolio；当前 11 个品牌按真实 authority/caller 进入 Foundation / Build / Run / Operate 四组，Framework 的十项 registry 只是 surface projection。源码归属回到 authority surface，安装/发布回到 Package，运行期组合回到 Host/Client Cordis contribution；任何一层的数量和边界都不再由历史“十大”约束。
 
@@ -341,9 +341,9 @@ P5-R 的结果可以让一个品牌贡献多个 plugin、多个品牌合并到�
 | 项目 | 内容 |
 | --- | --- |
 | Owner | Framework Integrator 统筹物理重排；各 authority/Package owner确认自己的发布与 currentness边界。 |
-| 状态 | `physical_source_cutover_landed_publication_open`；13 个 source units / 6 个 target roots、旧品牌桶 retired/absent 与五个高替换价值 Package source candidates 已落地。独立 Package publication/拆仓仍必须逐单元由真实发布节奏、consumer、currentness 和 owner canonical readback 证明。 |
+| 状态 | `physical_source_cutover_landed_publication_open`；13 个 source units / 6 个 target roots、旧品牌桶 retired/absent 与两个高替换价值 Package source candidates 已落地，三个 Cordis contribution leaf 已内联到 Framework Host。独立 Package publication/拆仓仍必须逐单元由真实发布节奏、consumer、currentness 和 owner canonical readback 证明。 |
 | 输入 | P5/P6 真实 caller、P7 Host/Client ABI、authority map、发布节奏、Package host compatibility matrix 和历史 `src/modules/**` provenance；当前 source-unit/package boundary readback 以 v3/v2 contracts 为准。 |
-| 产物 | 13 个 responsibility source units / 6 个 target roots 的物理源码拓扑；五个独立 workspace Package 的 source-extracted/candidate topology（`@one-person-lab/cordis-abi`、`@one-person-lab/package-host`、`@one-person-lab/connect-discovery`、`@one-person-lab/runway-executor`、`@one-person-lab/foundry-evaluation`）；旧品牌桶 retired/absent；更新后的 contracts/tests/docs。Workspace Package 不是已发布 Package 或独立仓库，正式 publication 仍需真实 consumer、发布节奏、currentness/readback 与 owner gate。 |
+| 产物 | 13 个 responsibility source units / 6 个 target roots 的物理源码拓扑；两个独立 workspace Package 的 source-extracted/candidate topology（`@one-person-lab/cordis-abi`、`@one-person-lab/package-host`）；Connect descriptor discovery、Runway executor 和 Foundry evaluation 的 Host-owned Cordis contribution；旧品牌桶 retired/absent；更新后的 contracts/tests/docs。Workspace Package 不是已发布 Package 或独立仓库，正式 publication 仍需真实 consumer、发布节奏、currentness/readback 与 owner gate。 |
 | 完成门 | 每个迁移 slice successor 可达、caller 已切、affected outcome/typecheck/build green、public exports 和 Host/Client snapshot等价；独立 Package有真实 consumer/版本/currentness/readback；旧路径 caller=0且无永久 fallback。 |
 | 回退 | 失败时 canonical revert 到上一 immutable source/package/profile；不恢复 `src/modules/**` compatibility barrel，不引入第二 registry、双写或隐式 fallback。 |
 
@@ -441,7 +441,7 @@ Framework Host 的组合收益已在 P1-P6 获得；family capability/source top
 
 ## 9. 下一棒
 
-P0-P6 的 Framework Host 路线图和 P8 capability-domain source/package topology cutover 已完成：P1 surface map、P2 隔离 executor experiment、P3 composition inspect、P4 plugin/package version contract、P5 vertical seams、P5-R 重基线、P6 `base-headless` 默认切换，以及 13 source units / 6 target roots 和五个 workspace Package candidates 已串行落地。P7 的 Host-derived Client Cordis 与双 GUI 顶层合同/ABI 已对齐；当前 baton 只剩 AionUI/Studio release/runtime 准入、跨 GUI E2E，以及高价值 Package 的 owner-gated publication，同时保持 DSH/Cordis 上游兼容维护与真实 owner live evidence分账。实际 active优先级、owner、write set和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准。
+P0-P6 的 Framework Host 路线图和 P8 capability-domain source/package topology cutover 已完成：P1 surface map、P2 隔离 executor experiment、P3 composition inspect、P4 plugin/package version contract、P5 vertical seams、P5-R 重基线、P6 `base-headless` 默认切换，以及 13 source units / 6 target roots 和两个 workspace Package candidates 已串行落地。Connect descriptor discovery、Runway executor 和 Foundry evaluation 已收薄为 Framework Host-owned Cordis contribution。P7 的 Host-derived Client Cordis 与双 GUI 顶层合同/ABI 已对齐；当前 baton 只剩 AionUI/Studio release/runtime 准入、跨 GUI E2E，以及高价值 Package 的 owner-gated publication，同时保持 DSH/Cordis 上游兼容维护与真实 owner live evidence分账。实际 active优先级、owner、write set和状态继续以 [`current-state-vs-ideal-gap.md`](./current-state-vs-ideal-gap.md) 为准。
 
 ## 10. 禁止声明
 

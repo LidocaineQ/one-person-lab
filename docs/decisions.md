@@ -37,13 +37,13 @@ candidate 会制造不存在的 replay、验证和维护义务，也会让活动
 - `OPL App` 继续持有产品 truth、product profile、page/action policy、active-shell validation 与 release gate；App 不是一个可被任意替换的普通 plugin。App renderer 可以运行 Host 派生的 Client Cordis。AionUI 主线和 DSH GUI 候选必须消费同一 client contribution descriptor、typed slot/action ABI、Host projection 和 App product profile，差异仅限 renderer、carrier 与视觉实现。
 - `OPL Console` 采用分层 authority：Cloud 持有托管 Console/control-plane 产品，App 持有本地 GUI 产品策略和用户 action，Framework 只持有 readiness/operator/action projection、inspect 与 read model。品牌认知可以跨产品复用，authority 不共享。
 - Framework 源码已从 `src/modules/<brand>/` 品牌桶 successor-first 迁到按责任命名的 `src/authority/**`、`src/adapters/**`、`src/read-models/**`、`src/host/**` 与薄 `src/entrypoints/**`：新路径、真实 caller、affected outcome/public exports 和 structural caller=0 均由机器边界验证，旧目录已 retired/absent。后续变更继续遵守同一 successor-first 规则；文档或目录移动本身不证明完成。
-- 独立版本、分支和发布能力通过 Package topology 实现，但只拆有真实替换价值和独立发布节奏的单元。第一批优先评估 Runway executor、Foundry evaluation、Connect discovery 与 `opl-package-host`；不按 plugin 或品牌数量机械拆仓，也不把 monorepo workspace package 自动写成已独立发布。
+- 独立版本、分支和发布能力通过 Package topology 实现，但只拆有真实替换价值和独立发布节奏的单元。第一批曾优先评估 Runway executor、Foundry evaluation、Connect discovery 与 `opl-package-host`；fresh caller 和 owner boundary review 后，前三者回到 Framework Host，当前只保留 `opl-package-host` 作为独立 Cordis contribution workspace。不按 plugin 或品牌数量机械拆仓，也不把 monorepo workspace package 自动写成已独立发布。
 - 受控 profile 隐藏内部组合矩阵，普通用户不面对任意 plugin 组合。Host/Client graph、Package/currentness、App product profile、Cloud product truth 和 domain authority 分别由对应 owner 回读，任何一层都不能从另一层推导 ready。
 - `one-person-lab` 是唯一 Cordis Host；`one-person-lab-app` 是 App 产品、Client profile、GUI contribution ABI、active shell、版本组合和发布 authority。
 - `opl-aion-shell` 是当前 Stable AionUI implementation carrier；`opl-studio` 是 DSH-derived foreground candidate carrier。旧名 `opl-native-workbench` 只按历史 provenance 读取。两个 Shell 统一产品语义、Framework state/action/runtime bridge、Client Cordis 组合协议、GUI contribution schema、设计/可访问性语义和发布证据类别；renderer、组件树、carrier、upstream intake、缓存、构建链、Git 历史和实现测试保持独立。
 - 一次 OPL App 发布冻结 App product version、Framework compatibility、selected Shell identity/version、GUI ABI version、Client composition snapshot 和 contribution versions。只有 App `app-shell-adapter` 合同可切换 active shell；Studio 的源码或功能完成不自动取代 AionUI。
 
-当前状态：Framework Host Cordis P1-P6、动态 family capability portfolio、Framework surface projection、13 个 source units / 6 个 target roots、`src/modules/**` 退役和五个 workspace Package 候选已经进入当前源码。Host/Client 合同与双 GUI 顶层 ABI 已对齐；AionUI/Studio 的 release/runtime 准入、跨 GUI E2E 和独立 Package publication 仍须由各自 owner 的 canonical readback 证明，不得由源码 topology 推导完成。
+当前状态：Framework Host Cordis P1-P6、动态 family capability portfolio、Framework surface projection、13 个 source units / 6 个 target roots、`src/modules/**` 退役和两个 workspace Package 候选已经进入当前源码；Runway executor、Foundry evaluation、Connect discovery 的 Cordis contributions 已内联到 Framework Host。Host/Client 合同与双 GUI 顶层 ABI 已对齐；AionUI/Studio 的 release/runtime 准入、跨 GUI E2E 和独立 Package publication 仍须由各自 owner 的 canonical readback 证明，不得由源码 topology 推导完成。
 
 ## 2026-08-14
 

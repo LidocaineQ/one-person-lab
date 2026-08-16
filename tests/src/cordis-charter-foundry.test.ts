@@ -41,11 +41,7 @@ test('Charter and Foundry publish P4-compatible plugin descriptors without takin
   }
   assert.equal(CORDIS_CHARTER_POLICY_PLUGIN_DESCRIPTOR.package_ref, null);
   for (const descriptor of CORDIS_FOUNDRY_PLUGIN_DESCRIPTORS) {
-    assert.deepEqual(descriptor.package_ref, {
-      package_id: '@one-person-lab/foundry-evaluation',
-      package_version: '0.1.0',
-      package_ref: 'npm:@one-person-lab/foundry-evaluation@0.1.0',
-    });
+    assert.equal(descriptor.package_ref, null);
   }
   assert.equal(CORDIS_CHARTER_POLICY_PLUGIN_DESCRIPTOR.required, true);
   assert.equal(CORDIS_FOUNDRY_PROVIDER_MANIFEST_PLUGIN_DESCRIPTOR.required, true);

@@ -131,19 +131,16 @@ test('package topology contract validates and matches all independent workspaces
   const result = runBoundary();
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.summary.status, 'ok');
-  assert.equal(result.summary.workspace_package_count, 5);
-  assert.equal(result.summary.topology_package_count, 5);
+  assert.equal(result.summary.workspace_package_count, 2);
+  assert.equal(result.summary.topology_package_count, 2);
   assert.deepEqual(
     result.summary.packages.map((entry) => entry.package_id).sort(),
     [
-      '@one-person-lab/connect-discovery',
       '@one-person-lab/cordis-abi',
-      '@one-person-lab/foundry-evaluation',
       '@one-person-lab/package-host',
-      '@one-person-lab/runway-executor',
     ],
   );
-  assert.deepEqual(result.summary.packages.map((entry) => entry.version), Array(5).fill('0.1.0'));
+  assert.deepEqual(result.summary.packages.map((entry) => entry.version), Array(2).fill('0.1.0'));
   assert.equal(result.summary.packages.every((entry) => entry.failures.length === 0), true);
   assert.equal(
     result.summary.packages

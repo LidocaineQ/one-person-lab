@@ -23,7 +23,7 @@ Cordis adoption 当前状态：OPL 已正式采用 DSH 使用的 `@deepseek-ai/c
 
 Family capability-domain 当前状态：原 `Charter/Atlas/Workspace/Pack/Stagecraft/Runway/Ledger/Console/Foundry/Connect` 已在 SSOT中升级为跨 Framework/App/Cloud的认知域，不再一对一对应 Framework目录、Package或 Cordis plugin。Console明确分层为 Cloud托管 control-plane、App本地产品工作面与 Framework readiness/operator/action projection。Source topology 已按 13 个 responsibility source units、6 个 target roots（`authority`、`adapters`、`read-models`、`host`、`entrypoints`、`kernel`）完成物理重排；`src/modules/**` 已标记 `retired`/`must_be_absent` 且 legacy root 不存在。该源码结构不能外推 release、production、App 或 Cloud 完成。
 
-Package topology 当前状态：源码已建立五个独立 workspace/source-extracted Package candidates：`@one-person-lab/cordis-abi`、`@one-person-lab/package-host`、`@one-person-lab/connect-discovery`、`@one-person-lab/runway-executor`、`@one-person-lab/foundry-evaluation`。它们尚不是已发布 Package、独立仓库、installed/current 或 production-ready 证明；正式发布仍需真实 consumer、安装/发布节奏、currentness/readback与回退证据。不能按品牌或 plugin 数量机械拆分。
+Package topology 当前状态：源码保留两个独立 workspace/source-extracted Package candidates：`@one-person-lab/cordis-abi`、`@one-person-lab/package-host`。Connect descriptor discovery、Runway executor 和 Foundry evaluation 已回到 Framework Host，保留 Cordis ABI 与真实 caller，但不再作为独立 workspace Package。现有 Package 尚不是已发布 Package、独立仓库、installed/current 或 production-ready 证明；正式发布仍需真实 consumer、安装/发布节奏、currentness/readback与回退证据。不能按品牌或 plugin 数量机械拆分。
 
 Plugin native profile pointer: `contracts/opl-native-profile.json` 只声明 OPL Flow bundled Skills 的 repo-native profile 与 drift 检查所需入口；它不是 framework truth、runtime truth、domain truth、artifact authority、owner receipt 或 production-ready 证据。已退休的 OPL Doc repo 不再提供 plugin、doctor 或 profile writer。
 
@@ -158,7 +158,7 @@ Wrapper-aware readout discipline：`framework readiness`、`operating-maturity`�
 
 ## 品牌模块成熟度
 
-OPL 顶层品牌已经收敛为一个随真实责任演进的 family capability portfolio，而不是固定十大。当前机器 SSOT 按 Foundation / Build / Run / Operate 四组登记 11 个品牌：`OPL Charter`、`OPL Workspace`、`OPL Atlas`、`OPL Pack`、`OPL Stagecraft`、`OPL Runway`、`OPL Ledger`、`OPL Connect`、`OPL Console`、`OPL Foundry` 和 `OPL Fabric`。`brand-module-registry.json` 只是 10 个 Framework CLI / L4 / L5 surfaces 的投影；Fabric 归 Cloud authority，不伪装成 Framework module。authority、source unit、Package、contribution 和 composition profile 仍按真实 caller、生命周期、trust、故障隔离和发布节奏独立决定。物理 topology 与五个 workspace Package candidates 已形成；各 Package publication、App/Cloud runtime 和 owner readback 仍独立验证。
+OPL 顶层品牌已经收敛为一个随真实责任演进的 family capability portfolio，而不是固定十大。当前机器 SSOT 按 Foundation / Build / Run / Operate 四组登记 11 个品牌：`OPL Charter`、`OPL Workspace`、`OPL Atlas`、`OPL Pack`、`OPL Stagecraft`、`OPL Runway`、`OPL Ledger`、`OPL Connect`、`OPL Console`、`OPL Foundry` 和 `OPL Fabric`。`brand-module-registry.json` 只是 10 个 Framework CLI / L4 / L5 surfaces 的投影；Fabric 归 Cloud authority，不伪装成 Framework module。authority、source unit、Package、contribution 和 composition profile 仍按真实 caller、生命周期、trust、故障隔离和发布节奏独立决定。物理 topology 与两个 workspace Package candidates 已形成；各 Package publication、App/Cloud runtime 和 owner readback 仍独立验证。
 
 成熟度读法固定为五级：
 

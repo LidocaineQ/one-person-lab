@@ -75,25 +75,25 @@
       "unit_id": "framework.authority.evolution", "layer_id": "authority", "responsibility_kind": "evolution",
       "physical_root": "src/authority/evolution", "public_entrypoints": ["src/authority/evolution/index.ts"],
       "source_globs": ["src/authority/evolution/**/*.ts"], "capability_domain_ids": ["evolution"],
-      "package_ids": ["opl-framework", "@one-person-lab/foundry-evaluation"]
+      "package_ids": ["opl-framework"]
     },
     {
       "unit_id": "framework.adapters.execution", "layer_id": "adapters", "responsibility_kind": "execution",
       "physical_root": "src/adapters/execution", "public_entrypoints": ["src/adapters/execution/index.ts"],
       "source_globs": ["src/adapters/execution/**/*.ts"], "capability_domain_ids": ["execution"],
-      "package_ids": ["opl-framework", "@one-person-lab/runway-executor"]
+      "package_ids": ["opl-framework"]
     },
     {
       "unit_id": "framework.adapters.integration", "layer_id": "adapters", "responsibility_kind": "integration",
       "physical_root": "src/adapters/integration", "public_entrypoints": ["src/adapters/integration/index.ts"],
       "source_globs": ["src/adapters/integration/**/*.ts"], "capability_domain_ids": ["integration"],
-      "package_ids": ["opl-framework", "@one-person-lab/connect-discovery"]
+      "package_ids": ["opl-framework"]
     },
     {
       "unit_id": "framework.read-models.catalog", "layer_id": "read-models", "responsibility_kind": "catalog",
       "physical_root": "src/read-models/catalog", "public_entrypoints": ["src/read-models/catalog/index.ts"],
       "source_globs": ["src/read-models/catalog/**/*.ts"], "capability_domain_ids": ["catalog-discovery"],
-      "package_ids": ["opl-framework", "@one-person-lab/connect-discovery"]
+      "package_ids": ["opl-framework"]
     },
     {
       "unit_id": "framework.read-models.operator", "layer_id": "read-models", "responsibility_kind": "operator",

@@ -44,15 +44,12 @@ Machine boundary: 当前 task branch 已按责任重排 Framework 源码；机�
 
 ## Package Boundary
 
-当前分支建立五个独立 workspace Package：
+当前分支保留两个独立 workspace Package：
 
 - `@one-person-lab/cordis-abi`
 - `@one-person-lab/package-host`
-- `@one-person-lab/connect-discovery`
-- `@one-person-lab/runway-executor`
-- `@one-person-lab/foundry-evaluation`
 
-它们是 source-extracted/candidate packages，不是已发布 Package、独立仓库、installed/current 或 production-ready 证明。正式 publication 仍需真实 consumer、独立发布节奏、currentness/readback、回退证据和 owner gate。
+Connect descriptor discovery、Runway executor 和 Foundry evaluation 已内联到 Framework Host；它们的 Cordis descriptor 保留真实 caller、ABI 和 authority boundary，但 `package_ref` 为 `null`，不再形成独立 workspace Package。现有两个 workspace Package 仍只是 source-extracted/candidate packages，不是已发布 Package、独立仓库、installed/current 或 production-ready 证明。正式 publication 仍需真实 consumer、独立发布节奏、currentness/readback、回退证据和 owner gate。
 
 ## 维护规则
 
