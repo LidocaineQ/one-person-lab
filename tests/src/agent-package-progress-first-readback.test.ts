@@ -38,7 +38,6 @@ function buildProjection(stateRoot: string): AgentPackageSkillProjection {
     projection_root: projectionRoot,
     skills_root: path.join(projectionRoot, '.agents', 'skills'),
     root_package_id: 'fixture-agent-package',
-    package_lock_refs: ['opl://agent-package/fixture-agent-package/projection-generation'],
     root_skill_ids: ['fixture-agent'],
     core_skill_ids: ['fixture-agent'],
     specialty_skill_ids: [],

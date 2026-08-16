@@ -3,15 +3,13 @@ import { fileURLToPath } from 'node:url';
 
 import { FrameworkContractError, isRecord } from '../../../kernel/contract-validation.ts';
 import { recordList, stringList, stringValue } from '../../../kernel/json-record.ts';
-import { resolveFirstPartyPackageCatalog } from '../agent-package-first-party.ts';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
-import { MANIFEST_REQUIRED_FIELDS, REGISTRY_REQUIRED_FIELDS } from './constants.ts';
+import { MANIFEST_REQUIRED_FIELDS } from './constants.ts';
 import {
   assertChannelProviderEntrypointsContentLocked,
   normalizePackageEntrypoints,
 } from './channel-provider-entrypoint-contract.ts';
 import {
-  assertExplicitExternalRegistryClaim,
   assertNoForbiddenFields,
   assertStringValue,
   missingFields,
@@ -29,11 +27,8 @@ import type {
   AgentPackageDistributionPayload,
   AgentPackageManifest,
   AgentPackageManagedPolicySurfaceConfig,
-  AgentPackageOrdinaryUserSource,
   AgentPackagePresentation,
   AgentPackageProfileSurfaceConfig,
-  AgentPackageRegistryDocument,
-  AgentPackageRegistryEntry,
   AgentPackageRole,
   AgentPackageRuntimeModuleBinding,
 } from './types.ts';
@@ -1152,209 +1147,6 @@ function normalizeDistributionPayload(value: unknown): AgentPackageDistributionP
     moving_tag: 'latest-stable',
     promotion_policy: 'daily_candidate_gates_then_promote_latest_stable',
     install_truth: 'resolved_digest_lock',
-  };
-}
-
-function normalizeOrdinaryUserSource(value: unknown, sourceLabel: string): AgentPackageOrdinaryUserSource | null {
-  if (value === undefined || value === null) {
-    return null;
-  }
-  if (!isRecord(value)) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package ordinary_user_source must be a JSON object.', {
-      source: sourceLabel,
-      failure_code: 'agent_package_ordinary_source_invalid',
-    });
-  }
-  if (
-    value.kind !== 'ghcr_oci_artifact_latest_stable'
-    || value.registry !== 'ghcr.io'
-    || value.latest_stable_is_only_ordinary_user_channel !== true
-    || value.latest_stable_is_install_truth !== false
-    || value.latest_stable_role !== 'ordinary_user_latest_stable_pointer_after_candidate_gates'
-    || value.daily_candidate_build_gate !== 'daily_candidate_build_must_pass_before_promote_latest_stable'
-    || value.developer_checkout_auto_apply_allowed !== false
-  ) {
-    throw new FrameworkContractError('contract_shape_invalid', 'OPL Package ordinary user source must use GHCR latest-stable after candidate gates without treating the moving tag as install truth.', {
-      source: sourceLabel,
-      failure_code: 'agent_package_ordinary_source_policy_invalid',
-    });
-  }
-  const installTruth = stringList(value.install_truth);
-  for (const required of ['immutable_version_tag', 'oci_digest', 'package_lock_receipt']) {
-    if (!installTruth.includes(required)) {
-      throw new FrameworkContractError('contract_shape_invalid', 'Agent package ordinary user source must declare immutable tag, OCI digest, and package lock receipt as install truth.', {
-        source: sourceLabel,
-        failure_code: 'agent_package_ordinary_source_install_truth_invalid',
-        missing_install_truth: required,
-      });
-    }
-  }
-  const ordinaryUserRef = assertStringValue(value.ordinary_user_ref, `${sourceLabel}.ordinary_user_ref`);
-  if (!ordinaryUserRef.endsWith(':latest-stable')) {
-    throw new FrameworkContractError('contract_shape_invalid', 'OPL Package ordinary user ref must be the latest-stable tag.', {
-      source: sourceLabel,
-      failure_code: 'agent_package_ordinary_source_latest_stable_ref_required',
-      ordinary_user_ref: ordinaryUserRef,
-    });
-  }
-  const artifactRef = assertStringValue(value.artifact_ref, `${sourceLabel}.artifact_ref`);
-  const immutableVersionRefPattern = assertStringValue(
-    value.immutable_version_ref_pattern,
-    `${sourceLabel}.immutable_version_ref_pattern`,
-  );
-  const candidateRef = assertStringValue(value.candidate_ref, `${sourceLabel}.candidate_ref`);
-  if (ordinaryUserRef !== `${artifactRef}:latest-stable`
-    || candidateRef !== `${artifactRef}:candidate`
-    || immutableVersionRefPattern !== `${artifactRef}:<semver>`) {
-    throw new FrameworkContractError('contract_shape_invalid', 'OPL Package channel refs must share one canonical OCI artifact repository.', {
-      source: sourceLabel,
-      failure_code: 'agent_package_ordinary_source_repository_mismatch',
-    });
-  }
-  return {
-    kind: 'ghcr_oci_artifact_latest_stable',
-    registry: 'ghcr.io',
-    artifact_ref: artifactRef,
-    ordinary_user_ref: ordinaryUserRef,
-    immutable_version_ref_pattern: immutableVersionRefPattern,
-    candidate_ref: candidateRef,
-    latest_stable_role: 'ordinary_user_latest_stable_pointer_after_candidate_gates',
-    latest_stable_is_only_ordinary_user_channel: true,
-    daily_candidate_build_gate: 'daily_candidate_build_must_pass_before_promote_latest_stable',
-    install_truth: installTruth,
-    latest_stable_is_install_truth: false,
-    developer_checkout_auto_apply_allowed: false,
-  };
-}
-
-export function normalizeRegistryEntry(entry: Record<string, unknown>, index: number): AgentPackageRegistryEntry {
-  const declaredPackageId = stringValue(entry.package_id);
-  const packageId = declaredPackageId
-    ? canonicalManifestIdentity(declaredPackageId, `registry.entries.${index}.package_id`)
-    : null;
-  if (resolveFirstPartyPackageCatalog(packageId)) {
-    throw new FrameworkContractError('contract_shape_invalid', 'External registries cannot claim canonical first-party package identities.', {
-      entry_index: index,
-      package_id: packageId,
-      failure_code: 'agent_package_registry_first_party_identity_collision',
-    });
-  }
-  const missing = missingFields(entry, REGISTRY_REQUIRED_FIELDS);
-  assertNoForbiddenFields(entry, `registry.entries.${index}`);
-  if (missing.length > 0) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package registry entry is missing required fields.', {
-      entry_index: index,
-      missing_fields: missing,
-    });
-  }
-  if ('latest_version' in entry) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package registry entries must not duplicate package version truth.', {
-      entry_index: index,
-      forbidden_field: 'latest_version',
-      canonical_field: 'version_source_ref',
-      failure_code: 'agent_package_registry_latest_version_retired',
-    });
-  }
-  const manifestUrl = stringValue(entry.manifest_url)!;
-  const versionSourceRef = stringValue(entry.version_source_ref)!;
-  if (manifestUrl.startsWith('opl+oci://') || versionSourceRef.startsWith('opl+oci://')) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package registry entries must use manifest sources supported by explicit package selection.', {
-      entry_index: index,
-      manifest_url: manifestUrl,
-      version_source_ref: versionSourceRef,
-      supported_schemes: ['https', 'http', 'file', 'local_path'],
-      failure_code: 'agent_package_registry_manifest_scheme_unsupported',
-    });
-  }
-  validateUrlLike(manifestUrl, `entries.${index}.manifest_url`);
-  validateUrlLike(versionSourceRef, `entries.${index}.version_source_ref`);
-  const displayName = stringValue(entry.display_name)!;
-  const source = assertExplicitExternalRegistryClaim(entry.source, {
-    field: 'source',
-    sourceLabel: `registry.entries.${index}`,
-    failureCode: 'agent_package_registry_source_invalid',
-  });
-  const trustTier = assertExplicitExternalRegistryClaim(entry.trust_tier, {
-    field: 'trust_tier',
-    sourceLabel: `registry.entries.${index}`,
-    failureCode: 'agent_package_registry_trust_tier_invalid',
-  });
-  const packageRole = normalizeAgentPackageRole(entry.package_role, `entries.${index}.package_role`);
-  const selectedVersion = stringValue(entry.selected_version);
-  const stableVersion = stringValue(entry.stable_version);
-  const manifestValidation = stringValue(entry.manifest_validation) ?? 'deferred';
-  if (!['deferred', 'fetched_manifest', 'catalog_inline_manifest'].includes(manifestValidation)) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package registry manifest validation state is invalid.', {
-      entry_index: index,
-      manifest_validation: manifestValidation,
-      failure_code: 'agent_package_registry_manifest_validation_invalid',
-    });
-  }
-  return {
-    package_id: packageId!,
-    display_name: displayName,
-    publisher: stringValue(entry.publisher)!,
-    description: stringValue(entry.description) ?? `${displayName} package.`,
-    tags: uniqueStrings([...stringList(entry.tags), ...(packageRole ? [packageRole] : [])]),
-    package_role: packageRole,
-    source,
-    manifest_url: manifestUrl,
-    version_source_ref: versionSourceRef,
-    selected_version: selectedVersion,
-    stable_version: stableVersion,
-    manifest_validation: manifestValidation as AgentPackageRegistryEntry['manifest_validation'],
-    trust_tier: trustTier,
-    starter_default: entry.starter_default === true,
-    codex_visible_entry: stringValue(entry.codex_visible_entry),
-    required_skill_ids: stringList(entry.required_skill_ids),
-    optional_skill_ids: stringList(entry.optional_skill_ids),
-    home_shortcut_ids: stringList(entry.home_shortcut_ids),
-    presentation: null,
-    display_policy: stringValue(entry.display_policy),
-    ordinary_user_source: normalizeOrdinaryUserSource(entry.ordinary_user_source, `registry.entries.${index}.ordinary_user_source`),
-    configured_codex_plugin_carrier: normalizeConfiguredCodexPluginCarrier(
-      entry.configured_codex_plugin_carrier,
-      {
-        packageId: packageId!,
-        requiredSkillIds: stringList(entry.required_skill_ids),
-        manifestUrl,
-      },
-    ),
-  };
-}
-
-export function normalizeRegistryDocument(
-  payload: unknown,
-  registryUrl: string,
-  registrySha256: string,
-): AgentPackageRegistryDocument {
-  if (!isRecord(payload) || !Array.isArray(payload.entries)) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package registry must contain an entries array.', {
-      registry_url: registryUrl,
-      required: ['entries'],
-    });
-  }
-  const entries = recordList(payload.entries).map(normalizeRegistryEntry);
-  if (entries.length !== payload.entries.length) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package registry entries must be JSON objects.', {
-      registry_url: registryUrl,
-      entry_count: payload.entries.length,
-      valid_entry_count: entries.length,
-    });
-  }
-  const duplicatePackageIds = entries
-    .map((entry) => entry.package_id)
-    .filter((packageId, index, values) => values.indexOf(packageId) !== index);
-  if (duplicatePackageIds.length > 0) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Agent package registry package_id values must be unique.', {
-      registry_url: registryUrl,
-      duplicate_package_ids: uniqueStrings(duplicatePackageIds),
-    });
-  }
-  return {
-    registry_url: registryUrl,
-    registry_sha256: registrySha256,
-    entries,
   };
 }
 

@@ -18,12 +18,11 @@ import { getOplPackageSpecs } from '../../../../../src/adapters/integration/pack
 const codexDefaultProfile = readBundledCodexDefaultProfile();
 
 test('packages manifest exposes independent owner currentness and compatibility snapshot coordinates', () => {
-  const catalog = parseJsonText(fs.readFileSync(
-    path.join(repoRoot, 'contracts/opl-framework/bundled-full-runtime-package-catalog.json'),
-    'utf8',
-  )) as Record<string, any>;
-  const scholarCatalogEntry = catalog.packages['mas-scholar-skills'];
-  const flowCatalogEntry = catalog.packages['opl-flow'];
+  const packageSpecs = getOplPackageSpecs();
+  const scholarPackage = packageSpecs.find((spec) => spec.package_id === 'mas-scholar-skills');
+  const flowPackage = packageSpecs.find((spec) => spec.package_id === 'opl-flow');
+  assert.ok(scholarPackage);
+  assert.ok(flowPackage);
   const output = runCli(['connect', 'packages', 'manifest'], {
     OPL_RELEASE_SET_GENERATION: '26.4.27',
     OPL_PACKAGES_OWNER: 'gaofeng21cn',
@@ -473,17 +472,17 @@ test('packages manifest exposes independent owner currentness and compatibility 
   assert.equal(omaCodexStandaloneDistribution.distribution_shape, 'generated_carrier_surface');
   assert.equal(omaCodexStandaloneDistribution.package_manifest_ref, 'contracts/opl-framework/packages/oma.json');
   const scholarArtifact = output.packages_manifest.packages.package_artifacts['mas-scholar-skills'];
-  assert.equal(scholarArtifact.package_version, scholarCatalogEntry.package_version);
+  assert.equal(scholarArtifact.package_version, scholarPackage.version);
   assert.equal(
     scholarArtifact.artifact,
-    `ghcr.io/gaofeng21cn/one-person-lab-packages/mas-scholar-skills:${scholarCatalogEntry.package_version}`,
+    `ghcr.io/gaofeng21cn/one-person-lab-packages/mas-scholar-skills:${scholarPackage.version}`,
   );
   assert.equal(output.packages_manifest.packages.package_artifacts['opl-flow'].package_id, 'opl-flow');
-  assert.equal(output.packages_manifest.packages.package_artifacts['opl-flow'].package_version, flowCatalogEntry.package_version);
+  assert.equal(output.packages_manifest.packages.package_artifacts['opl-flow'].package_version, flowPackage.version);
   assert.equal(output.packages_manifest.packages.package_artifacts['opl-flow'].codex_standalone_distribution, null);
   assert.equal(
     output.packages_manifest.packages.package_artifacts['opl-flow'].artifact,
-    `ghcr.io/gaofeng21cn/one-person-lab-packages/opl-flow:${flowCatalogEntry.package_version}`,
+    `ghcr.io/gaofeng21cn/one-person-lab-packages/opl-flow:${flowPackage.version}`,
   );
   assert.equal(
     output.packages_manifest.packages.package_artifacts['mas-scholar-skills'].scope,

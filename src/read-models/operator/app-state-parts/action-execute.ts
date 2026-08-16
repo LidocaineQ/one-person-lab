@@ -7,7 +7,6 @@ import {
   runOplAgentPackageRepair,
   runOplAgentPackageUninstall,
   runOplAgentPackageUpdate,
-  runOplAgentPackageActivate,
   runOplModuleAction,
   agentPackageDelegatedSurface,
   buildManagedUpdateKernelProjection,
@@ -53,7 +52,6 @@ import {
   parseCodexAction,
   parseModuleAction,
   releaseChannelPayload,
-  agentPackageActivationPayload,
   settingsVerifyWorkspacePayload,
   stringPayloadField,
   workspaceRootPayload,
@@ -626,11 +624,8 @@ async function executeDirectAppAction(
     };
   }
 
-  if (
-    options.actionId === 'install_from_manifest_url'
-    || options.actionId === 'agent_package_install_from_manifest_url'
-  ) {
-    const installPayload = agentPackageInstallPayload(options.payload, { allowPackageOnly: true });
+  if (options.actionId === 'agent_package_install') {
+    const installPayload = agentPackageInstallPayload(options.payload);
     return {
       delegatedSurface: requireAgentPackageDelegatedSurface(options.actionId),
       result: await runOplAgentPackageInstall({
@@ -641,7 +636,7 @@ async function executeDirectAppAction(
   }
 
   if (options.actionId === 'agent_package_update') {
-    const installPayload = agentPackageInstallPayload(options.payload, { allowPackageOnly: true });
+    const installPayload = agentPackageInstallPayload(options.payload);
     return {
       delegatedSurface: requireAgentPackageDelegatedSurface(options.actionId),
       result: await runOplAgentPackageUpdate({
@@ -691,17 +686,6 @@ async function executeDirectAppAction(
         sortOrder: preferencesPayload.sortOrder,
         dryRun: options.dryRun,
       }),
-    };
-  }
-
-  if (options.actionId === 'agent_package_activate') {
-    const activation = agentPackageActivationPayload(options.payload);
-    return {
-      delegatedSurface: requireAgentPackageDelegatedSurface(options.actionId),
-      result: await runOplAgentPackageActivate({
-        ...activation,
-        dryRun: options.dryRun,
-      }, { descriptorDiscovery: services.descriptorDiscovery }),
     };
   }
 

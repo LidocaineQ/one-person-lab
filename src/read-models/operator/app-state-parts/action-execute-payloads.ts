@@ -6,7 +6,6 @@ import {
   type OplEngineAction,
   type OplModuleAction,
   type OplModuleId,
-  type runOplAgentPackageInstall,
 } from '../../../adapters/integration/index.ts';
 
 type JsonRecord = Record<string, unknown>;
@@ -36,40 +35,6 @@ export function workspaceRootPayload(payload: JsonRecord) {
     });
   }
   return workspaceRoot;
-}
-
-export function agentPackageActivationPayload(payload: JsonRecord): {
-  packageId: string;
-  scope: 'workspace' | 'quest';
-  targetWorkspace?: string;
-  targetQuest?: string;
-  useBoundaryId: string | null;
-} {
-  const { packageId } = agentPackageIdPayload('agent_package_activate', payload);
-  const scope = stringPayloadField(payload, 'scope');
-  const targetWorkspace = stringPayloadField(payload, 'target_workspace');
-  const targetQuest = stringPayloadField(payload, 'target_quest');
-  const useBoundaryId = stringPayloadField(payload, 'use_boundary_id');
-  if (scope !== 'workspace' && scope !== 'quest') {
-    throw new FrameworkContractError('cli_usage_error', 'agent_package_activate action requires payload.scope workspace or quest.', {
-      action_id: 'agent_package_activate',
-      allowed_scopes: ['workspace', 'quest'],
-    });
-  }
-  const target = scope === 'workspace' ? targetWorkspace : targetQuest;
-  if (!target || (scope === 'workspace' ? targetQuest : targetWorkspace)) {
-    throw new FrameworkContractError('cli_usage_error', 'agent_package_activate requires exactly the target matching its scope.', {
-      action_id: 'agent_package_activate',
-      required: [scope === 'workspace' ? 'target_workspace' : 'target_quest'],
-    });
-  }
-  return {
-    packageId,
-    scope: scope as 'workspace' | 'quest',
-    targetWorkspace: scope === 'workspace' ? target : undefined,
-    targetQuest: scope === 'quest' ? target : undefined,
-    useBoundaryId,
-  };
 }
 
 export function booleanPayloadField(payload: JsonRecord, field: string, fallback = false) {
@@ -181,30 +146,8 @@ export function settingsVerifyWorkspacePayload(payload: JsonRecord) {
   return workspacePath;
 }
 
-export function agentPackageInstallPayload(payload: JsonRecord, options: { allowPackageOnly?: boolean } = {}) {
-  const manifestUrl = stringPayloadField(payload, 'manifest_url')
-    ?? stringPayloadField(payload, 'manifestUrl');
-  const registryUrl = stringPayloadField(payload, 'registry_url')
-    ?? stringPayloadField(payload, 'registryUrl');
-  const packageId = stringPayloadField(payload, 'package_id')
-    ?? stringPayloadField(payload, 'packageId');
-  const trustTier = stringPayloadField(payload, 'trust_tier')
-    ?? stringPayloadField(payload, 'trustTier');
-  const sourceKind = stringPayloadField(payload, 'source_kind')
-    ?? stringPayloadField(payload, 'sourceKind');
-  if (!manifestUrl && !(registryUrl && packageId) && !(options.allowPackageOnly && packageId)) {
-    throw new FrameworkContractError('cli_usage_error', 'install_from_manifest_url action requires payload.manifest_url or payload.registry_url + payload.package_id.', {
-      action_id: 'install_from_manifest_url',
-      required: ['manifest_url or registry_url + package_id'],
-    });
-  }
-  return {
-    manifestUrl,
-    registryUrl,
-    packageId,
-    trustTier,
-    sourceKind: sourceKind as Parameters<typeof runOplAgentPackageInstall>[0]['sourceKind'],
-  };
+export function agentPackageInstallPayload(payload: JsonRecord) {
+  return agentPackageIdPayload('agent_package_install', payload);
 }
 
 export function agentPackageIdPayload(actionId: string, payload: JsonRecord) {

@@ -636,16 +636,18 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 
 ## 2026-07-04
 
-### 决策：Agent Package Registry 和第三方 manifest lifecycle 归 OPL Connect / Framework receipt 面
+### 历史决策（已废止）：Agent Package Registry 和第三方 manifest lifecycle 归 OPL Connect / Framework receipt 面
 
-原因：OPL App 的专业智能体管理需要“入口可配置、package 可管理、receipt 可读”，但不能把 MAS/MAG/RCA/OMA/OBF 写成 App 固定模块，也不能把第三方 registry 变成 domain authority。Framework 因此只承接 registry URL 拉取、manifest shape 校验、显式 trust tier、package lock 和 lifecycle receipt；专业 workflow、prompt、artifact schema、quality verdict、readiness 和 owner receipt 继续归各 agent / domain owner。
+废止状态（2026-08-17）：该 Framework 私有 lifecycle 已由 installed descriptor discovery 和 Codex 原生 plugin/marketplace carrier 取代。Framework 不再提供 registry URL/cache、第三方 manifest validation receipt、`agent-package-locks.json`、`agent-package-lifecycle-ledger.json`、payload materializer、rollback 或 transaction writer；App 与 CLI 的安装、更新、修复和卸载只调用原生 carrier 并以 fresh native list readback 为准。保留的 manifest normalization 只服务 owner descriptor、Package 分发与准入，不恢复第二套 Package Manager。
 
-影响：
+历史原因：OPL App 的专业智能体管理需要“入口可配置、package 可管理、receipt 可读”，但不能把 MAS/MAG/RCA/OMA/OBF 写成 App 固定模块，也不能把第三方 registry 变成 domain authority。Framework 因此只承接 registry URL 拉取、manifest shape 校验、显式 trust tier、package lock 和 lifecycle receipt；专业 workflow、prompt、artifact schema、quality verdict、readiness 和 owner receipt 继续归各 agent / domain owner。
 
-- `opl packages registry refresh --registry-url <url> --json` 是 registry URL 的真实拉取与缓存入口；registry 只做 discovery，不能成为安装 authority。
-- `opl packages validate-manifest (--manifest-url <url>|--registry-url <url> --package-id <id>) --json` 校验单个 OPL Agent Package manifest 并写 validation receipt，显式拒绝 `session_contract_ref`、domain workflow schema、prompt body、artifact schema、readiness/quality verdict rule 和 owner receipt authority。标准 Agent Package manifest 的机器 SSOT 留在 OPL contracts / Connect validator；OMA / new-agent generator 只能生成候选 sidecar 后调用该 CLI 校验，不能复制一套 package manifest 标准。
-- `opl packages install ... --json` 在 Framework `OPL_STATE_DIR` 写 `agent-package-locks.json` 和 `agent-package-lifecycle-ledger.json`；lock/receipt 记录 package id、version/source digest、Codex visible entry、required/optional Skill refs、source kind、trust tier、dependency closure、scope receipt，以及标准 Agent 声明的 managed runtime source carrier 的 module/source/tree digest、bootstrap、health、handler probe、ownership 与 rollback ref。runtime source 是 Packages transaction participant，不形成第二个 module lifecycle。
-- `opl app action execute --action install_from_manifest_url --payload <json>` 只路由到上述 Framework package lock writer；App shell 仍只展示 package / shortcut / receipt refs，不拥有 agent 语义。
+历史影响（以下命令与 writer 均非当前运行合同）：
+
+- 历史实现曾以 `opl packages registry refresh --registry-url <url> --json` 拉取和缓存 registry URL；该命令现已删除。
+- 历史实现曾以 `opl packages validate-manifest (--manifest-url <url>|--registry-url <url> --package-id <id>) --json` 写 validation receipt；该命令与 receipt writer 现已删除。
+- 历史实现曾在 Framework `OPL_STATE_DIR` 写 `agent-package-locks.json` 和 `agent-package-lifecycle-ledger.json`；这些私有 writer、payload/rollback/transaction 路径现已删除。
+- 历史 App action `install_from_manifest_url` 曾路由到 Framework package lock writer；该 action ID 与 writer 现已删除，唯一安装 action 为 `agent_package_install`。
 - 该能力不接管 Pack OS generic capability-pack descriptor，也不替代 first-party GHCR package channel；第三方 agent package lifecycle 是 Connect 的 external descriptor / distribution surface，Pack OS 继续持有通用 capability pack descriptor / content-addressed cache / refs-only distribution lock。
 - 该 landing 不声明 domain ready、publication ready、visual/export ready、App release ready、Brand L5 或 production ready；package 的 Codex/runtime-source carrier currentness 只授权 package launch gate，真实 domain 结果、App release、生产长稳和用户交付仍需要对应 owner evidence。
 
@@ -1597,7 +1599,7 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 
 - `contracts/opl-framework/settings-control-center-action-read-model-contract.json` 冻结 Settings Control Center v2 的 IA、issue status code、action sections、allowed action ids、action taxonomy、action metadata、dry-run / apply / verify 边界和 authority false flags。
 - `opl app state --profile fast|full --json` 输出 `settings_control_center`，并在 operator workbench 中引用同一对象；它是 GUI-ready projection，不写 domain truth、不读取 artifact/memory body、不签 owner receipt、不创建 typed blocker，也不声明 App release ready 或 production ready。v2 增加 `settings_ia`、`app_settings_read_model`、`issue_catalog`、`issue_queue` 和 `action_catalog`，并在 `settings_ia` 中显式列出 ordinary routes 与 Workspace、Local Services、About、Update、Theme secondary/deep-link routes；`app_settings_read_model` 从既有 `core.codex`、`developer_mode`、`modules`、`provider`、`paths`、`release`、IA 和 action catalog 派生页面结构、Codex model/reasoning policy、Access/API key、workspace services 和 local environment 状态，避免 App/Aion shell 维护第二套策略解释。这些字段只从现有 App state / update 状态语言投影用户可读问题，不模拟 domain owner truth。
-- `settings_repair_model_access`、`settings_verify_workspace`、`settings_sync_capabilities`、`settings_apply_opl_packages`、`settings_check_app_update`、`settings_prune_runtime_roots_dry_run` 和 `settings_rollback_runtime_substrate` 只通过既有 `opl app action execute` envelope 暴露；更新类动作默认消费 Managed Update coordinator：capability/package apply 走 `opl packages update`，App carrier check 走 `opl app state --profile fast`，runtime restore route 走 `opl update rollback`。workspace / quest use boundary 自动复用 Packages scope reconciliation transaction；`agent_package_activate` 只保留为内部 launch-boundary 与旧调用兼容路由，不进入 Settings/action catalog，也不暴露第二个 Connect 安装入口。cleanup 只提供 dry-run plan，不删除 runtime roots。
+- `settings_repair_model_access`、`settings_verify_workspace`、`settings_sync_capabilities`、`settings_apply_opl_packages`、`settings_check_app_update`、`settings_prune_runtime_roots_dry_run` 和 `settings_rollback_runtime_substrate` 只通过既有 `opl app action execute` envelope 暴露；更新类动作默认消费 Managed Update coordinator：capability/package apply 走 `opl packages update`，App carrier check 走 `opl app state --profile fast`，runtime restore route 走 `opl update rollback`。`agent_package_activate` action 已删除；launch boundary 直接消费 installed native descriptor/readback，不保留第二个 Connect 安装或激活入口。cleanup 只提供 dry-run plan，不删除 runtime roots。
 - App repo 继续持有 GUI product truth、page-state contract、release artifact 和 shell validation；Aion shell 只实现渲染与 IPC adapter，不能把 Settings Control Center 的 domain/runtime truth 搬到 shell。
 
 ### 决策：generic workspace / source / artifact / memory substrate 由 OPL 持有 locator / index / lifecycle / projection，domain agent 持有 truth / body / verdict / authority

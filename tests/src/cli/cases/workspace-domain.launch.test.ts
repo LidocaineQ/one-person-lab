@@ -500,7 +500,7 @@ test('MAS launch projects Workspace Skills without private lifecycle materializa
     assert.equal(fs.readFileSync(openFixture.capturePath, 'utf8').trim(), entryUrl);
     assert.equal(fs.existsSync(skillsRoot), true);
     const current = runCli([
-      'packages', 'status', '--package-id', 'mas', '--scope', 'workspace', '--target-workspace', workspace,
+      'packages', 'status', '--package-id', 'mas',
     ], env).opl_agent_package_status;
     assert.equal(Object.hasOwn(current, 'materialization_readiness'), false);
     assert.equal(current.configured_carrier.status, 'installed');
@@ -551,25 +551,8 @@ test('quest root activation projects MAS Workspace Skills without private lifecy
       'packages', 'install', 'mas',
     ], env);
     assert.equal(fs.existsSync(path.join(quest, '.codex', 'skills')), false);
-    const preview = runCli([
-      'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', quest, '--dry-run',
-    ], env).opl_agent_package_activation;
-    assert.equal(preview.status, 'validated_no_write');
-    assert.equal(preview.operational_ready, true);
-    assert.equal(preview.launch_allowed, true);
-    assert.equal(preview.writes_performed, false);
-    assert.equal(fs.existsSync(path.join(quest, '.codex', 'skills')), false);
-    const activation = runCli([
-      'packages', 'activate', 'mas', '--scope', 'workspace', '--target-workspace', quest,
-    ], env).opl_agent_package_activation;
-    assert.equal(activation.status, 'already_activated');
-    assert.equal(activation.package_id, 'mas');
-    assert.equal(activation.writes_performed, true);
-    assert.equal(Object.hasOwn(activation, 'lifecycle_receipt_ref'), false);
-    assert.equal(Object.hasOwn(activation, 'package_use_binding'), false);
-    assert.equal(fs.existsSync(path.join(quest, '.codex', 'skills')), true);
     const current = runCli([
-      'packages', 'status', '--package-id', 'mas', '--scope', 'workspace', '--target-workspace', quest,
+      'packages', 'status', '--package-id', 'mas',
     ], env).opl_agent_package_status;
     assert.equal(Object.hasOwn(current, 'materialization_readiness'), false);
     assert.equal(current.operational_ready, true);

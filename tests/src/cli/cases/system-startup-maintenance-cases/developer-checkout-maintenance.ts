@@ -11,7 +11,7 @@ import {
 } from './shared.ts';
 import { scholarSkillsPackageFixture } from '../system-startup-maintenance-fixtures.ts';
 
-test('system startup-maintenance leaves healthy Full runtime launch sources to package reconciliation', () => {
+test('system startup-maintenance leaves healthy Full runtime launch sources to system module policy', () => {
   const targets = [
     'medautoscience',
     'medautogrant',
@@ -50,7 +50,7 @@ test('system startup-maintenance leaves healthy Full runtime launch sources to p
   ].map((targetId) => ({
     target_id: targetId,
     status: 'skipped',
-    reason: 'full_runtime_launch_source_owned_by_package_reconciliation',
+    reason: 'full_runtime_launch_source_owned_by_system_module_policy',
     action: null,
     result: null,
     error: null,

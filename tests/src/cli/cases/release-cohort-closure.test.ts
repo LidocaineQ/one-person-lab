@@ -8,9 +8,6 @@ import test, { type TestContext } from 'node:test';
 import { repoRoot } from '../helpers.ts';
 import { FrameworkContractError } from '../../../../src/kernel/contract-validation.ts';
 import {
-  readBundledFullRuntimePackageCatalog,
-} from '../../../../src/adapters/integration/agent-package-registry-parts/bundled-full-runtime-catalog.ts';
-import {
   assertReleaseBundleFreezeInputs,
 } from '../../../../src/adapters/integration/release-bundle/contracts.ts';
 import type {
@@ -18,7 +15,6 @@ import type {
 } from '../../../../src/adapters/integration/release-bundle/types.ts';
 
 const generation = '26.7.21';
-const catalogRef = 'contracts/opl-framework/bundled-full-runtime-package-catalog.json';
 const releaseSetRef = `release/cohorts/${generation}/release-set.json`;
 const ownerLockRef = `release/cohorts/${generation}/owner-cohort-lock.json`;
 
@@ -47,25 +43,11 @@ function releaseSetPackageIds(root: string) {
   return releaseSet.components.packages.package_ids as string[];
 }
 
-function committedSurfaceFixture(
-  t: TestContext,
-  packageAuthority: 'release-set' | 'catalog' = 'release-set',
-) {
+function committedSurfaceFixture(t: TestContext) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-release-cohort-closure-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  copyRef(repoRoot, root, catalogRef);
   copyRef(repoRoot, root, releaseSetRef);
   copyRef(repoRoot, root, ownerLockRef);
-  if (packageAuthority === 'catalog') {
-    const catalog = readJson(path.join(repoRoot, catalogRef));
-    for (const packageId of Object.keys(catalog.packages)) {
-      const entry = catalog.packages[packageId];
-      copyRef(repoRoot, root, `contracts/opl-framework/${entry.manifest_ref}`);
-      copyRef(repoRoot, root, `contracts/opl-framework/${entry.payload_manifest_ref}`);
-    }
-    return root;
-  }
-
   const releaseSet = readJson(path.join(root, releaseSetRef));
   for (const packageId of releaseSetPackageIds(root)) {
     const member = releaseSet.components.packages.members[packageId];
@@ -147,17 +129,9 @@ function freezeRequest(root: string): ReleaseBundleFreezeRequest {
   } as unknown as ReleaseBundleFreezeRequest;
 }
 
-test('committed 26.7.21 cohort closes catalog, owner lock, manifests, and payloads', (t) => {
+test('committed 26.7.21 cohort closes its Release Set, owner lock, manifests, and payloads', (t) => {
   const root = committedSurfaceFixture(t);
   const packageIds = releaseSetPackageIds(root);
-  const catalog = readBundledFullRuntimePackageCatalog();
-  assert.deepEqual([...catalog.entries.keys()].sort(), [...packageIds].sort());
-  assert.match(catalog.catalogSha256, /^sha256:[0-9a-f]{64}$/);
-  const catalogPath = path.join(root, catalogRef);
-  const movingCatalog = readJson(catalogPath);
-  movingCatalog.packages['mas-scholar-skills'].package_version = '0.2.15';
-  movingCatalog.packages['mas-scholar-skills'].owner_source_commit = 'f'.repeat(40);
-  writeJson(catalogPath, movingCatalog);
   const request = freezeRequest(root);
   const releaseSet = readJson(path.join(root, releaseSetRef));
   const ownerLock = readJson(path.join(root, ownerLockRef));
@@ -167,14 +141,6 @@ test('committed 26.7.21 cohort closes catalog, owner lock, manifests, and payloa
   assert.equal(
     request.packages['mas-scholar-skills'].owner_source_commit,
     ownerLock.packages['mas-scholar-skills'].source_commit,
-  );
-  assert.notEqual(
-    request.packages['mas-scholar-skills'].version,
-    movingCatalog.packages['mas-scholar-skills'].package_version,
-  );
-  assert.notEqual(
-    request.packages['mas-scholar-skills'].owner_source_commit,
-    movingCatalog.packages['mas-scholar-skills'].owner_source_commit,
   );
   const closure = assertReleaseBundleFreezeInputs(request, root);
   assert.equal(closure.releaseSetSha256, sha256(fs.readFileSync(path.join(root, releaseSetRef))));
@@ -229,71 +195,5 @@ test('committed cohort rejects freeze request Package key-set drift', (t) => {
     () => assertReleaseBundleFreezeInputs(extra, root),
     (error: unknown) => error instanceof FrameworkContractError
       && /freeze request must exactly match/.test(error.message),
-  );
-});
-
-test('bundled catalog rejects its own manifest digest drift', (t) => {
-  const root = committedSurfaceFixture(t, 'catalog');
-  const catalogPath = path.join(root, catalogRef);
-  const catalog = readJson(catalogPath);
-  catalog.packages.mas.manifest_sha256 = `sha256:${'0'.repeat(64)}`;
-  writeJson(catalogPath, catalog);
-  const previousFaultGate = process.env.OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED;
-  const previousCatalog = process.env.OPL_TEST_BUNDLED_FULL_RUNTIME_PACKAGE_CATALOG;
-  process.env.OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED = '1';
-  process.env.OPL_TEST_BUNDLED_FULL_RUNTIME_PACKAGE_CATALOG = catalogPath;
-  t.after(() => {
-    if (previousFaultGate === undefined) delete process.env.OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED;
-    else process.env.OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED = previousFaultGate;
-    if (previousCatalog === undefined) delete process.env.OPL_TEST_BUNDLED_FULL_RUNTIME_PACKAGE_CATALOG;
-    else process.env.OPL_TEST_BUNDLED_FULL_RUNTIME_PACKAGE_CATALOG = previousCatalog;
-  });
-  assert.throws(
-    () => readBundledFullRuntimePackageCatalog(),
-    (error: unknown) => {
-      const details = error instanceof FrameworkContractError ? error.details : undefined;
-      return details?.failure_code === 'agent_package_bundled_full_runtime_catalog_invalid'
-        && Array.isArray(details.mismatches)
-        && details.mismatches.includes('manifest_sha256');
-    },
-  );
-});
-
-test('bundled catalog includes required dependencies without relaxing member integrity', (t) => {
-  const root = committedSurfaceFixture(t, 'catalog');
-  const catalogPath = path.join(root, catalogRef);
-  const catalog = readJson(catalogPath);
-  const manifestRoot = path.join(root, 'contracts', 'opl-framework');
-
-  const previousFaultGate = process.env.OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED;
-  const previousCatalog = process.env.OPL_TEST_BUNDLED_FULL_RUNTIME_PACKAGE_CATALOG;
-  process.env.OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED = '1';
-  process.env.OPL_TEST_BUNDLED_FULL_RUNTIME_PACKAGE_CATALOG = catalogPath;
-  t.after(() => {
-    if (previousFaultGate === undefined) delete process.env.OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED;
-    else process.env.OPL_TEST_RUNTIME_SOURCE_FAULTS_ENABLED = previousFaultGate;
-    if (previousCatalog === undefined) delete process.env.OPL_TEST_BUNDLED_FULL_RUNTIME_PACKAGE_CATALOG;
-    else process.env.OPL_TEST_BUNDLED_FULL_RUNTIME_PACKAGE_CATALOG = previousCatalog;
-  });
-
-  const selected = readBundledFullRuntimePackageCatalog();
-  assert.deepEqual(selected.entries.get('mas')?.dependencyPackageIds, ['mas-scholar-skills']);
-  assert.deepEqual(selected.entries.get('mag')?.dependencyPackageIds, ['mas-scholar-skills']);
-  assert.ok(selected.entries.has('mas-scholar-skills'));
-
-  const scholarPayloadPath = path.join(
-    manifestRoot,
-    catalog.packages['mas-scholar-skills'].payload_manifest_ref,
-  );
-  fs.appendFileSync(scholarPayloadPath, '\n');
-  assert.throws(
-    () => readBundledFullRuntimePackageCatalog(),
-    (error: unknown) => {
-      const details = error instanceof FrameworkContractError ? error.details : undefined;
-      return details?.failure_code === 'agent_package_bundled_full_runtime_catalog_invalid'
-        && details.package_id === 'mas-scholar-skills'
-        && Array.isArray(details.mismatches)
-        && details.mismatches.includes('payload_manifest_sha256');
-    },
   );
 });

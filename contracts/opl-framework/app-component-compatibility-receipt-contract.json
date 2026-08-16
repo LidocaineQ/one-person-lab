@@ -44,7 +44,7 @@
       {
         "capability_id": "opl_dynamic_package_directory",
         "schema_version": "1.0.0",
-        "source_ref": "src/adapters/integration/agent-package-registry-parts/directory.ts"
+        "source_ref": "src/adapters/integration/agent-package-registry.ts"
       },
       {
         "capability_id": "opl_component_compatibility_receipt",

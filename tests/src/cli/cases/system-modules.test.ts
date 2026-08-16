@@ -4,7 +4,6 @@ import {
   fs,
   os,
   path,
-  repoRoot,
   runCli,
   runCliFailure,
   runCliInCwd,
@@ -14,15 +13,7 @@ import { runGitFixtureCommand } from '../helpers-parts/family-fixtures.ts';
 import { writeFakeOmaGeneratedSurfacePack } from '../../cli-codex-default-shell-helpers.ts';
 import { parseGitStatusPorcelainV2 } from '../../../../src/adapters/integration/system-installation/module-git.ts';
 import { DOMAIN_MODULE_SPECS } from '../../../../src/adapters/integration/system-installation/module-specs.ts';
-import { getOplPackageSpecs } from '../../../../src/adapters/integration/package-distribution.ts';
-import { loadDeveloperCheckoutPackageSource } from '../../../../src/adapters/integration/agent-package-registry-parts/developer-checkout-package-source.ts';
 import './system-modules-cases/mds-skill-boundary.ts';
-
-function writeFixtureFile(root: string, relativePath: string, content = '{}\n') {
-  const targetPath = path.join(root, relativePath);
-  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-  fs.writeFileSync(targetPath, content);
-}
 
 test('git status porcelain v2 parser preserves sync and dirty state', () => {
   assert.deepEqual(
@@ -108,154 +99,6 @@ test('Framework leaves Agent lifecycle operations to installed descriptors and n
   assert.equal(DOMAIN_MODULE_SPECS.find((candidate) => candidate.module_id === 'redcube')?.scope, 'domain_module');
   assert.equal(DOMAIN_MODULE_SPECS.find((candidate) => candidate.module_id === 'oplmetaagent')?.scope, 'domain_module');
   assert.equal(DOMAIN_MODULE_SPECS.find((candidate) => candidate.module_id === 'oplbookforge')?.scope, 'domain_module');
-});
-
-test('developer package snapshots cover Agent and Flow owners while excluding local environments', () => {
-  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-developer-package-source-matrix-'));
-  const packageIds = ['mas', 'mag', 'rca', 'oma', 'obf', 'opl-flow'] as const;
-
-  try {
-    for (const packageId of packageIds) {
-      const spec = getOplPackageSpecs().find((entry) => entry.package_id === packageId);
-      assert.ok(spec);
-      const checkoutPath = path.join(fixtureRoot, spec.repo_name);
-      const frameworkManifest = JSON.parse(fs.readFileSync(
-        path.join(repoRoot, spec.package_manifest_ref),
-        'utf8',
-      )) as Record<string, any>;
-      const pluginId = frameworkManifest.codex_surface.plugin_id as string;
-      const requiredSkillIds = frameworkManifest.codex_surface.required_skill_ids as string[];
-      const ownerPayload = packageId === 'oma'
-        ? {
-            surface_kind: 'opl_agent_package_manifest.v1',
-            agent_id: 'oma',
-            package_id: 'oma',
-            domain_id: 'agent_engineering',
-            carrier_slug: 'opl-meta-agent',
-            display_name: 'OPL Meta Agent',
-            publisher: 'one-person-lab',
-            version: '0.4.0',
-            source: 'first_party_repo_local',
-            provider_manifest_ref: 'contracts/foundry_provider.json',
-            codex_surface: {
-              plugin_id: 'opl-meta-agent',
-              standalone_distribution: 'generated_carrier_surface',
-              required_skill_ids: ['opl-meta-agent'],
-              user_install_action_count: 1,
-            },
-            capability_dependencies: [],
-          }
-        : packageId === 'opl-flow'
-          ? {
-              schema: 'opl_flow_workflow_policy.v1',
-              package: {
-                id: 'opl-flow',
-                version: frameworkManifest.version,
-                owner: 'opl-flow',
-                kind: 'workflow_profile',
-              },
-            }
-          : frameworkManifest;
-      const ownerVersion = packageId === 'oma' ? '0.4.0' : frameworkManifest.version;
-      const ownerPayloadRecord = ownerPayload as Record<string, any>;
-      const configuredCarrierPayload = packageId === 'oma'
-        ? {
-            ...frameworkManifest,
-            ...ownerPayloadRecord,
-            codex_surface: {
-              ...frameworkManifest.codex_surface,
-              ...ownerPayloadRecord.codex_surface,
-            },
-          }
-        : packageId === 'opl-flow'
-          ? { ...frameworkManifest, version: ownerVersion }
-          : ownerPayload;
-
-      writeFixtureFile(checkoutPath, spec.owner_package_manifest_ref, `${JSON.stringify(ownerPayload, null, 2)}\n`);
-      const ownerPluginManifest = {
-        $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
-        name: pluginId,
-        version: ownerVersion,
-      };
-      writeFixtureFile(
-        checkoutPath,
-        spec.owner_plugin_manifest_ref,
-        `${JSON.stringify(ownerPluginManifest, null, 2)}\n`,
-      );
-      const pluginManifestPath = path.join(checkoutPath, spec.owner_plugin_manifest_ref);
-      const pluginManifestDirectory = path.dirname(pluginManifestPath);
-      const pluginRoot = path.basename(pluginManifestDirectory) === '.codex-plugin'
-        ? path.dirname(pluginManifestDirectory)
-        : pluginManifestDirectory;
-      if (path.basename(pluginManifestDirectory) === '.codex-plugin') {
-        writeFixtureFile(
-          pluginRoot,
-          'plugin.json',
-          `${JSON.stringify(ownerPluginManifest, null, 2)}\n`,
-        );
-      } else {
-        writeFixtureFile(
-          pluginRoot,
-          '.codex-plugin/plugin.json',
-          `${JSON.stringify({ name: pluginId, version: ownerVersion, skills: './skills/' }, null, 2)}\n`,
-        );
-      }
-      writeFixtureFile(pluginRoot, 'opl-package.json', `${JSON.stringify(configuredCarrierPayload, null, 2)}\n`);
-      for (const skillId of requiredSkillIds) {
-        writeFixtureFile(pluginRoot, path.join('skills', skillId, 'SKILL.md'), `# ${skillId}\n`);
-        for (const ignoredName of ['.git', '.venv', 'node_modules']) {
-          writeFixtureFile(pluginRoot, path.join('skills', skillId, ignoredName, 'ignored.txt'), 'ignored\n');
-        }
-      }
-
-      if (packageId === 'opl-flow') {
-        const allowlist = JSON.parse(fs.readFileSync(
-          path.join(repoRoot, 'contracts', 'opl-framework', 'package-payload-allowlists', 'opl-flow.json'),
-          'utf8',
-        )) as { paths: string[] };
-        for (const relativePath of allowlist.paths) {
-          if (!fs.existsSync(path.join(checkoutPath, relativePath))) {
-            writeFixtureFile(checkoutPath, relativePath);
-          }
-        }
-      }
-
-      const loaded = loadDeveloperCheckoutPackageSource(packageId, checkoutPath);
-      assert.equal(loaded.ownerManifest.package_id, packageId);
-      assert.equal(loaded.ownerManifest.version, ownerVersion);
-      for (const ignoredName of ['.git', '.venv', 'node_modules']) {
-        assert.equal(
-          loaded.source.copy_paths.some((relativePath) => relativePath.split('/').includes(ignoredName)),
-          false,
-        );
-      }
-      assert.deepEqual(
-        Object.keys(loaded.source.copy_file_modes).sort(),
-        loaded.source.copy_paths,
-      );
-      assert.equal(
-        Object.values(loaded.source.copy_file_modes).every((mode) =>
-          mode === '100644' || mode === '100755'),
-        true,
-      );
-      if (packageId === 'opl-flow') {
-        for (const relativePath of [
-          'contracts/workflow-policy.json',
-          'contracts/workflow-policy.schema.json',
-          'templates/AGENTS.md',
-          'templates/TASTE.md',
-          'profile/manifest.json',
-          'profile/modules/01-user-preferences.md',
-          'scripts/opl_workflow.py',
-          'contracts/fleet-telemetry-protocol.json',
-        ]) {
-          assert.equal(loaded.source.copy_paths.includes(relativePath), true, relativePath);
-        }
-      }
-    }
-  } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
-  }
 });
 
 function createBasicMasModuleRemoteFixture(turnkeyLogPath: string) {

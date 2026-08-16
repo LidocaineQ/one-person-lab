@@ -168,12 +168,21 @@ export function projectRuntimeAgentPackageDirectoryEntry(
     && statusReadError === null
     && (launchAllowed === true || entry.readiness.verification_deferred === true);
   const callable = entry.installed && launchAllowed === true && statusReadError === null;
-  const sourceRef = entry.manifest_url || entry.version_currentness.source_ref;
+  const installedCarrier = entry.installed_carrier_readback;
+  const configuredCarrier = entry.configured_carrier;
+  const sourceRef = installedCarrier?.source_ref
+    ?? configuredCarrier?.plugin_source_path
+    ?? null;
+  const sourceOrigin = installedCarrier?.kind === 'codex_plugin_manager'
+    ? 'native_carrier_installed'
+    : configuredCarrier?.carrier.kind === 'codex_plugin_manager'
+      ? 'native_carrier_configured'
+      : 'native_carrier';
   return {
     packageProjectionItem: {
       package_id: entry.package_id,
       source_present: entry.installed,
-      source_origin: entry.source_explanation.kind,
+      source_origin: sourceOrigin,
       source_path: null,
       managed_source_path: null,
       source_health_status: statusReadError ? 'status_unavailable' : entry.readiness.status,
@@ -220,11 +229,12 @@ export function projectAppAgentPackageStatus(input: {
   const { status, profile } = input;
   const presence = projectedPresence(status);
   const capabilityExposure = exposureProjection(status, presence.present);
-  const nativeCarrierReadiness =
-    status.operational_ready_scope === 'configured_native_carrier_presence_callability_identity_and_precedence'
-    || status.operational_ready_scope === 'installed_carrier_presence_callability_and_managed_policy'
-    || status.operational_ready_scope
-      === 'installed_carrier_presence_callability_dependency_closure_and_managed_policy';
+  const nativeCarrierReadiness = new Set([
+    'configured_native_carrier_presence_callability_identity_and_precedence',
+    'installed_carrier_presence_callability_and_managed_policy',
+    'installed_carrier_presence_callability_dependency_closure_and_managed_policy',
+    'installed_carrier_presence_callability_dependency_closure',
+  ]).has(String(status.operational_ready_scope));
   const readinessDeferred = profile === 'fast'
     && !nativeCarrierReadiness
     && presence.callable

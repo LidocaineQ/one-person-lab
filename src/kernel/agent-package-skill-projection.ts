@@ -17,7 +17,6 @@ export type AgentPackageSkillProjection = {
   skills_root: string;
   root_package_id: string;
   source_refs?: string[];
-  package_lock_refs: string[];
   root_skill_ids: string[];
   core_skill_ids: string[];
   specialty_skill_ids: string[];
@@ -167,7 +166,6 @@ export function agentPackageSkillProjectionFromUnknown(
     || typeof value.skills_root !== 'string'
     || typeof value.root_package_id !== 'string'
     || (value.source_refs !== undefined && !Array.isArray(value.source_refs))
-    || !Array.isArray(value.package_lock_refs)
     || !Array.isArray(value.root_skill_ids)
     || !Array.isArray(value.core_skill_ids)
     || !Array.isArray(value.specialty_skill_ids)
@@ -183,7 +181,6 @@ export function agentPackageSkillProjectionFromUnknown(
   }
   const stringLists = [
     value.source_refs ?? [],
-    value.package_lock_refs,
     value.root_skill_ids,
     value.core_skill_ids,
     value.specialty_skill_ids,

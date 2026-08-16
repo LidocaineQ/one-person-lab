@@ -146,7 +146,8 @@ export function buildAgentCatalog(input: {
       independent_from_work_item_state: true,
       package_id: descriptorPackageId,
       source_ref: stringValue(packageItem?.source_path)
-        ?? stringValue(packageItem?.managed_source_path),
+        ?? stringValue(packageItem?.managed_source_path)
+        ?? stringValue(packageItem?.source_ref),
       inventory_descriptor: {
         status: descriptorStatus,
         reason: descriptorStatus === 'readable'

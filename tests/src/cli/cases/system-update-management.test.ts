@@ -191,7 +191,7 @@ EOF
   }
 });
 
-test('packages update installs missing managed carriers updates clean carriers and reports dirty or developer carriers as manual', () => {
+test('packages update delegates installed clean carriers and leaves missing or developer carriers unchanged', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-packages-update-home-'));
   const modulesRoot = path.join(homeRoot, 'managed-modules');
   const turnkeyLogPath = path.join(homeRoot, 'turnkey.log');
@@ -329,9 +329,9 @@ console.log(JSON.stringify({ sync: 'ok' }));
     assert.deepEqual(adapter.result.summary, {
       total_targets_count: 5,
       current_targets_count: 0,
-      completed_targets_count: 3,
-      changed_targets_count: 3,
-      manual_required_targets_count: 2,
+      completed_targets_count: 1,
+      changed_targets_count: 1,
+      manual_required_targets_count: 4,
       failed_targets_count: 0,
       manual_required_reasons: [
         {
@@ -342,6 +342,14 @@ console.log(JSON.stringify({ sync: 'ok' }));
           target_id: 'redcube',
           reason: 'developer_or_dirty_checkout_visible',
         },
+        {
+          target_id: 'oplmetaagent',
+          reason: 'native_carrier_not_installed',
+        },
+        {
+          target_id: 'oplbookforge',
+          reason: 'native_carrier_not_installed',
+        },
       ],
     });
     assert.equal(targets.get('medautoscience')?.status, 'completed');
@@ -349,10 +357,10 @@ console.log(JSON.stringify({ sync: 'ok' }));
     assert.equal(targets.has('meddeepscientist'), false);
     assert.equal(targets.get('redcube')?.status, 'manual_required');
     assert.equal(targets.get('redcube')?.reason, 'developer_or_dirty_checkout_visible');
-    assert.equal(targets.get('oplmetaagent')?.status, 'completed');
-    assert.equal(targets.get('oplmetaagent')?.reason, 'module_missing');
-    assert.equal(targets.get('oplbookforge')?.status, 'completed');
-    assert.equal(targets.get('oplbookforge')?.reason, 'module_missing');
+    assert.equal(targets.get('oplmetaagent')?.status, 'manual_required');
+    assert.equal(targets.get('oplmetaagent')?.reason, 'native_carrier_not_installed');
+    assert.equal(targets.get('oplbookforge')?.status, 'manual_required');
+    assert.equal(targets.get('oplbookforge')?.reason, 'native_carrier_not_installed');
     assert.equal(targets.has('scholarskills'), false);
     assert.equal(targets.get('medautogrant')?.status, 'manual_required');
     assert.equal(targets.get('medautogrant')?.reason, 'developer_or_dirty_checkout_visible');
@@ -364,18 +372,16 @@ console.log(JSON.stringify({ sync: 'ok' }));
     assert.doesNotMatch(turnkeyLog, /bootstrap:external-redcube-ai/);
     assert.doesNotMatch(turnkeyLog, /skill:external-redcube-ai/);
     assert.doesNotMatch(turnkeyLog, /health:external-redcube-ai/);
-    assert.match(turnkeyLog, /bootstrap:opl-meta-agent/);
-    assert.match(turnkeyLog, /health:opl-meta-agent:smoke/);
-    assert.match(turnkeyLog, /bootstrap:opl-bookforge/);
-    assert.match(turnkeyLog, /health:opl-bookforge:fast/);
+    assert.doesNotMatch(turnkeyLog, /opl-meta-agent/);
+    assert.doesNotMatch(turnkeyLog, /opl-bookforge/);
 
     const modules = runCli(['connect', 'modules'], env) as any;
     const byId = new Map<string, any>(modules.modules.items.map((entry: any) => [entry.module_id, entry]));
     assert.equal(byId.get('medautoscience')?.git?.head_sha, nextMasSha);
     assert.equal(byId.get('meddeepscientist')?.installed, false);
     assert.equal(byId.get('redcube')?.installed, true);
-    assert.equal(byId.get('oplmetaagent')?.installed, true);
-    assert.equal(byId.get('oplbookforge')?.installed, true);
+    assert.equal(byId.get('oplmetaagent')?.installed, false);
+    assert.equal(byId.get('oplbookforge')?.installed, false);
   } finally {
     for (const remote of Object.values(remotes)) {
       fs.rmSync(remote.fixtureRoot, { recursive: true, force: true });

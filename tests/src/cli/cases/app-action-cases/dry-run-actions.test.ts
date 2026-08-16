@@ -307,26 +307,6 @@ test('app action execute dry-runs Codex, module, scheduler, and worker actions f
     assert.equal(settingsVerify.result.settings_control_center_action.task_kind, 'verify');
     assert.deepEqual(settingsVerify.result.settings_control_center_action.payload_fields, ['workspace_path']);
 
-    const settingsReload = runCli([
-      'app',
-      'action',
-      'execute',
-      '--action',
-      'agent_package_activate',
-      '--payload',
-      '{"package_id":"mas","scope":"workspace","target_workspace":"/tmp/opl-workspace","use_boundary_id":"dry-run-boundary"}',
-      '--dry-run',
-    ], env).app_action_execution;
-
-    assert.equal(
-      settingsReload.delegated_surface,
-      'opl packages activate --package-id <package_id> --scope <workspace|quest>',
-    );
-    assert.equal(settingsReload.result.opl_agent_package_activation.status, 'validated_no_write');
-    assert.equal(settingsReload.result.opl_agent_package_activation.launch_allowed, false);
-    assert.equal(settingsReload.result.opl_agent_package_activation.launch_blocked_reason, 'package_not_installed');
-    assert.equal(settingsReload.result.opl_agent_package_activation.use_boundary_id, 'dry-run-boundary');
-
     const appUpdate = runCli([
       'app',
       'action',

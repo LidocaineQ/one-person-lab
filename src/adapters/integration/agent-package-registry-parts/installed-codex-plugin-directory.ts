@@ -12,25 +12,36 @@ import {
 } from '../../../kernel/agent-plugin-manifest.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
-import { resolveFirstPartyPackageCatalog } from '../agent-package-first-party.ts';
+import { isFirstPartyPackage } from '../agent-package-first-party.ts';
 import { normalizePackageManifest } from './manifest-normalizers.ts';
-import { sha256Text } from './shared.ts';
+import { sameMarketplaceSource, sha256Text } from './shared.ts';
 import type {
   AgentPackageConfiguredCodexPluginCarrierDescriptor,
   AgentPackageManifest,
 } from './types.ts';
-import type {
-  CodexPluginCommandRunner,
-} from './configured-codex-plugin-carrier.ts';
-
 export type InstalledCarrierEntry = {
   pluginId: string;
   version: string | null;
+  /** Native list fixtures predating availability readback omit this field; omission means installed. */
+  installed?: boolean;
   enabled: boolean;
   sourcePath: string;
   sourceKind: string;
   marketplaceSource: string | null;
 };
+
+export type CodexPluginCommandResult = {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+  error: Error | null;
+};
+
+export type CodexPluginCommandRunner = (input: {
+  binary: string;
+  args: string[];
+  env: NodeJS.ProcessEnv;
+}) => CodexPluginCommandResult;
 
 /**
  * Carrier-neutral installed readback.  This is deliberately a read model:
@@ -103,6 +114,7 @@ function stringValue(value: unknown) {
 export function parseInstalledCarrierEntries(
   value: string,
   packageId: string | null,
+  includeAvailable = false,
 ): InstalledCarrierEntry[] {
   const parsed = parseJsonText(value);
   const readback = isRecord(parsed) ? parsed : null;
@@ -116,22 +128,35 @@ export function parseInstalledCarrierEntries(
       },
     );
   }
-  return readback.installed.flatMap((value) => {
-    if (!isRecord(value)) return [];
-    const pluginId = stringValue(value.pluginId);
-    const source = isRecord(value.source) ? value.source : null;
+  const values = [
+    ...readback.installed.map((entry) => ({ entry, installed: true })),
+    ...(includeAvailable && Array.isArray(readback.available)
+      ? readback.available.map((entry) => ({ entry, installed: false }))
+      : []),
+  ];
+  const entries = values.flatMap(({ entry, installed }) => {
+    if (!isRecord(entry)) return [];
+    const pluginId = stringValue(entry.pluginId);
+    const source = isRecord(entry.source) ? entry.source : null;
     const sourcePath = stringValue(source?.path);
     if (!pluginId || !sourcePath || !path.isAbsolute(sourcePath)) return [];
-    const marketplace = isRecord(value.marketplaceSource) ? value.marketplaceSource : null;
+    const marketplace = isRecord(entry.marketplaceSource) ? entry.marketplaceSource : null;
     return [{
       pluginId,
-      version: stringValue(value.version),
-      enabled: value.enabled === true,
+      version: stringValue(entry.version),
+      installed: entry.installed === true || installed,
+      enabled: entry.enabled === true,
       sourcePath,
       sourceKind: stringValue(source?.source) ?? 'codex_plugin_manager',
       marketplaceSource: stringValue(marketplace?.source),
     }];
   });
+  const byPluginId = new Map<string, InstalledCarrierEntry>();
+  for (const entry of entries) {
+    const previous = byPluginId.get(entry.pluginId);
+    if (!previous || (!previous.installed && entry.installed)) byPluginId.set(entry.pluginId, entry);
+  }
+  return [...byPluginId.values()];
 }
 
 function defaultRunner(input: {
@@ -256,6 +281,7 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
         pathToFileURL(ownerManifestPath).toString(),
       );
     } else {
+      if (!entry.installed) return null;
       const resolvedPlugin = resolveAgentPluginManifest([entry.sourcePath]);
       if (!resolvedPlugin) return null;
       manifestPath = resolvedPlugin.manifestPath;
@@ -264,22 +290,30 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
       // First-party Package identity remains owned by its stable catalog. A
       // carrier-native manifest without an explicit Framework owner descriptor
       // must not synthesize a second authority for that identity.
-      if (resolveFirstPartyPackageCatalog(manifest.package_id)) return null;
+      if (isFirstPartyPackage(manifest.package_id)) return null;
     }
-    const carrier = manifest.configured_codex_plugin_carrier
-      ?? {
-        packageId: manifest.package_id,
-        carrier: {
-          kind: 'codex_plugin_manager' as const,
-          pluginId: entry.pluginId,
-          marketplaceSource: entry.marketplaceSource,
-        },
-        executor: {
-          route: 'codex_cli' as const,
-          requiredSkillIds: [...manifest.required_skill_ids],
-        },
-        publicationRef: null,
-      };
+    const carrier = manifest.configured_codex_plugin_carrier ?? {
+      packageId: manifest.package_id,
+      carrier: {
+        kind: 'codex_plugin_manager' as const,
+        pluginId: entry.pluginId,
+        marketplaceSource: entry.marketplaceSource,
+      },
+      executor: {
+        route: 'codex_cli' as const,
+        requiredSkillIds: [...manifest.required_skill_ids],
+      },
+      publicationRef: null,
+    };
+    manifest = {
+      ...manifest,
+      codex_surface: {
+        ...manifest.codex_surface,
+        plugin_id: entry.pluginId,
+        plugin_source_path: entry.sourcePath,
+      },
+      configured_codex_plugin_carrier: carrier,
+    };
     const projectionCallableWhileDisabled = manifest.package_role === 'capability_package'
       && manifest.codex_default_exposure === false;
     return {
@@ -300,9 +334,9 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
         lifecycle_authority: 'carrier_owned',
       },
       readiness: {
-        installed: true,
+        installed: entry.installed !== false,
         physical_status: fs.existsSync(entry.sourcePath) ? 'available' : 'unavailable',
-        callability: entry.enabled ? 'callable' : 'disabled',
+        callability: entry.installed !== false && entry.enabled ? 'callable' : 'disabled',
         ...(projectionCallableWhileDisabled
           ? { projection_callability: 'callable' as const }
           : {}),
@@ -313,8 +347,19 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
   }
 }
 
-export function discoverInstalledPackageDescriptors(input: {
+export function installedDescriptorMatchesConfiguredCarrier(
+  descriptor: InstalledPackageDescriptor,
+) {
+  const expected = descriptor.carrier.carrier;
+  return descriptor.pluginId === expected.pluginId
+    && (!expected.marketplaceSource
+      || (descriptor.marketplaceSource !== null
+        && sameMarketplaceSource(descriptor.marketplaceSource, expected.marketplaceSource)));
+}
+
+export function discoverPackageDescriptors(input: {
   packageId?: string | null;
+  includeAvailable?: boolean;
   binary?: string;
   env?: NodeJS.ProcessEnv;
   runner?: CodexPluginCommandRunner;
@@ -327,7 +372,19 @@ export function discoverInstalledPackageDescriptors(input: {
     if (!descriptor) continue;
     if (input.packageId && descriptor.manifest.package_id !== input.packageId) continue;
     const previous = discovered.get(descriptor.manifest.package_id);
-    if (previous && (previous.enabled || !descriptor.enabled)) continue;
+    if (previous) {
+      const previousExact = installedDescriptorMatchesConfiguredCarrier(previous);
+      const descriptorExact = installedDescriptorMatchesConfiguredCarrier(descriptor);
+      if (previousExact !== descriptorExact) {
+        if (previousExact) continue;
+      } else if (
+        (previous.readiness.installed && !descriptor.readiness.installed)
+        || (previous.readiness.installed === descriptor.readiness.installed
+          && (previous.enabled || !descriptor.enabled))
+      ) {
+        continue;
+      }
+    }
     discovered.set(descriptor.manifest.package_id, descriptor);
   }
   return discovered;
@@ -335,6 +392,7 @@ export function discoverInstalledPackageDescriptors(input: {
 
 export function readInstalledCarrierEntries(input: {
   packageId?: string | null;
+  includeAvailable?: boolean;
   binary?: string;
   env?: NodeJS.ProcessEnv;
   runner?: CodexPluginCommandRunner;
@@ -345,7 +403,7 @@ export function readInstalledCarrierEntries(input: {
   const runner = input.runner ?? defaultRunner;
   const result = runner({
     binary,
-    args: ['plugin', 'list', '--json'],
+    args: ['plugin', 'list', ...(input.includeAvailable ? ['--available'] : []), '--json'],
     env: { ...process.env, ...input.env },
   });
   if (result.status !== 0 || result.error) {
@@ -375,7 +433,11 @@ export function readInstalledCarrierEntries(input: {
   }
   let entries: InstalledCarrierEntry[];
   try {
-    entries = parseInstalledCarrierEntries(result.stdout, input.packageId ?? null);
+    entries = parseInstalledCarrierEntries(
+      result.stdout,
+      input.packageId ?? null,
+      input.includeAvailable === true,
+    );
   } catch (error) {
     if (input.failClosedOnCarrierError) {
       if (error instanceof FrameworkContractError) throw error;
@@ -391,6 +453,25 @@ export function readInstalledCarrierEntries(input: {
     return [];
   }
   return entries;
+}
+
+export function discoverInstalledPackageDescriptors(input: {
+  packageId?: string | null;
+  binary?: string;
+  env?: NodeJS.ProcessEnv;
+  runner?: CodexPluginCommandRunner;
+  failClosedOnCarrierError?: boolean;
+} = {}) {
+  return discoverPackageDescriptors(input);
+}
+
+export function discoverAvailablePackageDescriptors(input: {
+  packageId?: string | null;
+  binary?: string;
+  env?: NodeJS.ProcessEnv;
+  runner?: CodexPluginCommandRunner;
+} = {}) {
+  return discoverPackageDescriptors({ ...input, includeAvailable: true });
 }
 
 /**

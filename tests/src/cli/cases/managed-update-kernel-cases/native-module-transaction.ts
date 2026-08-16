@@ -583,10 +583,10 @@ exit 2
     assert.equal(output.managed_update.execution.status, 'completed');
     assert.equal(output.managed_update.execution.adapter_results[0].adapter_id, 'capability_packages_adapter');
     assert.equal(output.managed_update.execution.adapter_results[0].status, 'completed');
-    assert.equal(output.managed_update.execution.adapter_results[0].reason, 'managed_modules_reconciled_and_codex_surface_synced');
-    assert.equal(output.managed_update.execution.adapter_results[0].owner_route.apply_owner, 'opl_connect_managed_module_reconciler');
+    assert.equal(output.managed_update.execution.adapter_results[0].reason, 'managed_modules_reconciled');
+    assert.equal(output.managed_update.execution.adapter_results[0].owner_route.apply_owner, 'opl_connect_native_package_carrier');
     assert.equal(output.managed_update.execution.adapter_results[0].owner_route.package_manager_claim, false);
-    assert.equal(output.managed_update.execution.adapter_results[0].owner_execution_boundary.owner_executor_id, 'opl_connect_managed_module_reconciler');
+    assert.equal(output.managed_update.execution.adapter_results[0].owner_execution_boundary.owner_executor_id, 'opl_connect_native_package_carrier');
     assert.equal(output.managed_update.execution.adapter_results[0].owner_execution_boundary.runner_can_execute, true);
     assert.equal(output.managed_update.execution.adapter_results[0].owner_execution_boundary.package_manager_claim, false);
     assert.equal(output.managed_update.execution.adapter_results[0].apply_mode, 'auto_apply');
@@ -599,7 +599,6 @@ exit 2
     assert.equal(output.managed_update.execution.adapter_results[0].reload_guidance.reload_recommended, true);
     assert.deepEqual(output.managed_update.execution.adapter_results[0].reload_guidance.reload_targets, [
       'one_person_lab_app',
-      'codex_plugin_cache',
     ]);
     assert.equal(output.managed_update.execution.adapter_results[0].result.apply_mode, 'auto_apply');
     assert.equal(output.managed_update.execution.adapter_results[0].result.app_background_safe, true);
@@ -612,23 +611,11 @@ exit 2
     );
     assert.deepEqual(
       output.managed_update.execution.adapter_results[0].post_apply_actions.map((entry: any) => entry.action_id),
-      ['reconcile_packages', 'sync_skills', 'sync_codex_skill_plugin_projection'],
+      ['reconcile_packages'],
     );
     assert.deepEqual(
       output.managed_update.execution.adapter_results[0].post_apply_actions.map((entry: any) => entry.status),
-      ['completed', 'completed', 'completed'],
-    );
-    const capabilityExposure = output.managed_update.execution.adapter_results[0].post_apply_actions.find((entry: any) => (
-      entry.action_id === 'sync_codex_skill_plugin_projection'
-    ));
-    assert.deepEqual(
-      (capabilityExposure?.result?.target_bound_package_scope_activation as Record<string, unknown> | undefined),
-      {
-        status: 'not_applicable',
-        lifecycle_owner: 'opl_packages',
-        status_command_ref: 'opl packages status --package-id mas --scope <workspace|quest> --json',
-        repair_command_ref: 'opl packages repair mas --scope <workspace|quest> --json',
-      },
+      ['completed'],
     );
     assert.equal(output.managed_update.execution.receipt_record.status, 'recorded');
     assert.equal(output.managed_update.execution.receipt_record.recorded_receipt_count, 1);
@@ -640,10 +627,10 @@ exit 2
     assert.equal(receiptLedger.receipts[0].operation, 'apply');
     assert.equal(receiptLedger.receipts[0].verify_result, 'passed');
     assert.equal(typeof receiptLedger.receipts[0].activated_at, 'string');
-    assert.equal(receiptLedger.receipts[0].post_apply_hooks.includes('sync_skills'), true);
+    assert.deepEqual(receiptLedger.receipts[0].post_apply_hooks, ['reconcile_packages']);
     assert.equal(receiptLedger.receipts[0].apply_mode, 'auto_apply');
-    assert.equal(receiptLedger.receipts[0].owner_projection.owner, 'one-person-lab-managed-modules');
-    assert.equal(receiptLedger.receipts[0].owner_projection.apply_owner, 'opl_connect_managed_module_reconciler');
+    assert.equal(receiptLedger.receipts[0].owner_projection.owner, 'installed-package-owner-descriptors');
+    assert.equal(receiptLedger.receipts[0].owner_projection.apply_owner, 'opl_connect_native_package_carrier');
     assert.equal(receiptLedger.receipts[0].owner_projection.package_manager_claim, false);
     assert.equal(receiptLedger.receipts[0].status_detail.auto_apply_eligible, true);
     assert.equal(receiptLedger.receipts[0].status_detail.app_background_safe, true);
@@ -653,12 +640,11 @@ exit 2
     assert.equal(receiptLedger.receipts[0].status_detail.reload_status, 'recommended');
     assert.deepEqual(
       receiptLedger.receipts[0].post_apply_action_statuses.map((entry: any) => entry.action_id),
-      ['reconcile_packages', 'sync_skills', 'sync_codex_skill_plugin_projection'],
+      ['reconcile_packages'],
     );
     assert.equal(receiptLedger.receipts[0].reload_guidance.reload_recommended, true);
     assert.deepEqual(receiptLedger.receipts[0].reload_guidance.reload_targets, [
       'one_person_lab_app',
-      'codex_plugin_cache',
     ]);
     assert.equal(receiptLedger.receipts[0].authority_boundary.can_write_domain_truth, false);
     assert.equal(typeof receiptLedger.receipts[0].adapter_result_ref, 'string');
@@ -673,7 +659,7 @@ exit 2
     assert.equal(agents.receipt.last_receipt_ref, receiptLedger.receipts[0].receipt_ref);
     assert.equal(agents.receipt.verify_result, 'passed');
     assert.equal(typeof agents.receipt.activated_at, 'string');
-    assert.equal(agents.receipt.post_apply_hooks.includes('sync_plugin_registry'), true);
+    assert.deepEqual(agents.receipt.post_apply_hooks, ['reconcile_packages']);
     assert.equal(agents.receipt.apply_mode, 'auto_apply');
     assert.equal(agents.receipt.status_detail.post_apply_status, 'completed');
     assert.equal(agents.receipt.status_detail.reload_status, 'recommended');

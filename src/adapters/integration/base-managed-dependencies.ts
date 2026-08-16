@@ -197,7 +197,6 @@ export function inspectBaseManagedDependencies(
   return {
     surface_kind: 'opl_base_managed_dependency_catalog.v1',
     lifecycle_owner: 'opl_base',
-    flow_dependency_ids: flowDependencyIds,
     flow_dependencies: flowDependencies,
     dependencies,
     summary: {

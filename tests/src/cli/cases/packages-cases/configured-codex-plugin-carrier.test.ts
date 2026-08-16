@@ -1,5 +1,3 @@
-import { pathToFileURL } from 'node:url';
-
 import {
   agentPackageManifest,
   assert,
@@ -15,7 +13,6 @@ import {
   runCliAsync,
   runCliFailure,
   test,
-  withAgentPackageServer,
 } from './helpers.ts';
 import { validateJsonSchemaPayload } from '../../../../../src/kernel/schema-registry.ts';
 import {
@@ -28,9 +25,7 @@ import {
   type CodexPluginCommandRunner,
 } from '../../../../../src/adapters/integration/agent-package-registry-parts/configured-codex-plugin-carrier.ts';
 import {
-  descriptorDependencyReadiness,
-} from '../../../../../src/adapters/integration/agent-package-registry-parts/dependency-closure.ts';
-import {
+  discoverAvailablePackageDescriptors,
   discoverInstalledPackageDescriptors,
 } from '../../../../../src/adapters/integration/agent-package-registry-parts/installed-codex-plugin-directory.ts';
 import { createOplAgentPackageStatusReader } from '../../../../../src/adapters/integration/agent-package-registry.ts';
@@ -75,6 +70,217 @@ test('configured carrier snapshot reuses one Codex plugin list across descriptor
     runner,
   });
   assert.equal(calls, 1);
+});
+
+test('available discovery failure does not erase installed Package truth', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-installed-package-survives-available-failure-'));
+  const sourcePath = path.join(root, 'plugin-source');
+  const binary = path.join(root, 'fake-codex.mjs');
+  writePluginSource(sourcePath, 'installed truth');
+  fs.writeFileSync(
+    path.join(sourcePath, 'opl-package.json'),
+    formatJsonPayload(installedOwnerDescriptor()),
+  );
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+const args = process.argv.slice(2).join(' ');
+if (args === 'plugin list --json') {
+  process.stdout.write(JSON.stringify({
+    installed: [{
+      pluginId: ${JSON.stringify(pluginSelector)},
+      version: ${JSON.stringify(ownerPackageVersion)},
+      installed: true,
+      enabled: true,
+      source: { source: 'local', path: process.env.FIXTURE_PLUGIN_SOURCE },
+      marketplaceSource: { sourceType: 'local', source: 'fixture-carrier' },
+    }],
+    available: [],
+  }));
+} else if (args === 'plugin list --available --json') {
+  process.stderr.write('available discovery unavailable');
+  process.exitCode = 23;
+} else {
+  process.exitCode = 2;
+}
+`);
+  fs.chmodSync(binary, 0o755);
+  try {
+    const result = runCli(['packages', 'list', '--detail', 'full'], {
+      HOME: root,
+      CODEX_HOME: path.join(root, 'codex-home'),
+      OPL_STATE_DIR: path.join(root, 'opl-state'),
+      OPL_CODEX_PLUGIN_BIN: binary,
+      FIXTURE_PLUGIN_SOURCE: sourcePath,
+    }) as any;
+    const entry = result.opl_agent_packages.directory.entries.find(
+      (value: any) => value.package_id === packageId,
+    );
+    assert.ok(entry);
+    assert.equal(entry.installed, true);
+    assert.equal(result.opl_agent_packages.installed_package_count, 1);
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
+test('installed descriptor wins over an available descriptor with the same carrier identity', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-installed-package-precedence-'));
+  const installedSource = path.join(root, 'installed');
+  const availableSource = path.join(root, 'available');
+  for (const [sourcePath, marker] of [
+    [installedSource, 'installed'],
+    [availableSource, 'available'],
+  ] as const) {
+    writePluginSource(sourcePath, marker);
+    fs.writeFileSync(
+      path.join(sourcePath, 'opl-package.json'),
+      formatJsonPayload(installedOwnerDescriptor()),
+    );
+  }
+  try {
+    const discovered = discoverAvailablePackageDescriptors({
+      runner: () => ({
+        status: 0,
+        stdout: JSON.stringify({
+          installed: [{
+            pluginId: pluginSelector,
+            version: ownerPackageVersion,
+            installed: true,
+            enabled: true,
+            source: { source: 'local', path: installedSource },
+            marketplaceSource: { sourceType: 'local', source: 'fixture-carrier' },
+          }],
+          available: [{
+            pluginId: pluginSelector,
+            version: '9.9.9',
+            installed: false,
+            enabled: false,
+            source: { source: 'local', path: availableSource },
+            marketplaceSource: { sourceType: 'local', source: 'fixture-carrier' },
+          }],
+        }),
+        stderr: '',
+        error: null,
+      }),
+    });
+    const selected = discovered.get(packageId);
+    assert.ok(selected);
+    assert.equal(selected.sourcePath, installedSource);
+    assert.equal(selected.readiness.installed, true);
+    assert.equal(selected.enabled, true);
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
+test('available-only descriptor reports an installable carrier without unexpected-source precedence', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-available-package-precedence-'));
+  const sourcePath = path.join(root, 'available');
+  const binary = path.join(root, 'fake-codex.mjs');
+  writePluginSource(sourcePath, 'available');
+  fs.writeFileSync(
+    path.join(sourcePath, 'opl-package.json'),
+    formatJsonPayload(installedOwnerDescriptor()),
+  );
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+if (process.argv.slice(2).join(' ') === 'plugin list --available --json') {
+  process.stdout.write(JSON.stringify({
+    installed: [],
+    available: [{
+      pluginId: ${JSON.stringify(pluginSelector)},
+      version: ${JSON.stringify(ownerPackageVersion)},
+      installed: false,
+      enabled: false,
+      source: { source: 'local', path: process.env.FIXTURE_PLUGIN_SOURCE },
+      marketplaceSource: { sourceType: 'local', source: 'fixture-carrier' },
+    }],
+  }));
+} else if (process.argv.slice(2).join(' ') === 'plugin list --json') {
+  process.stdout.write(JSON.stringify({ installed: [], available: [] }));
+} else {
+  process.exitCode = 2;
+}
+`);
+  fs.chmodSync(binary, 0o755);
+  try {
+    const result = runCli(['packages', 'list', '--detail', 'full'], {
+      HOME: root,
+      CODEX_HOME: path.join(root, 'codex-home'),
+      OPL_STATE_DIR: path.join(root, 'opl-state'),
+      OPL_CODEX_PLUGIN_BIN: binary,
+      FIXTURE_PLUGIN_SOURCE: sourcePath,
+    }) as any;
+    const entry = result.opl_agent_packages.directory.entries.find(
+      (value: any) => value.package_id === packageId,
+    );
+    assert.ok(entry);
+    assert.equal(entry.installed, false);
+    assert.equal(entry.installability.status, 'installable');
+    assert.equal(entry.configured_carrier.status, 'not_installed');
+    assert.equal(entry.configured_carrier.carrier.precedence, 'not_present');
+    assert.equal(entry.configured_carrier.reason, 'configured_native_carrier_not_installed');
+    assert.equal(entry.recommended_action, 'agent_package_install');
+    assert.equal(entry.recommended_action_ref?.action_id, 'agent_package_install');
+    assert.deepEqual(entry.available_actions.map((action: any) => action.action_id), [
+      'agent_package_install',
+    ]);
+    for (const retiredDirectoryField of [
+      'trust_tier',
+      'source_explanation',
+      'manifest_url',
+      'version_currentness',
+      'selected_version',
+      'stable_version',
+      'migration_required_count',
+      'manifest_sha256',
+      'content_digest',
+    ]) {
+      assert.equal(Object.hasOwn(entry, retiredDirectoryField), false);
+    }
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
+test('installed descriptor accepts equivalent GitHub marketplace source spellings', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-marketplace-source-identity-'));
+  const sourcePath = path.join(root, 'installed');
+  writePluginSource(sourcePath, 'installed');
+  const ownerDescriptor = installedOwnerDescriptor() as any;
+  ownerDescriptor.configured_codex_plugin_carrier = {
+    packageId,
+    carrier: {
+      kind: 'codex_plugin_manager',
+      pluginId: pluginSelector,
+      marketplaceSource: 'gaofeng21cn/fixture-carrier',
+    },
+    executor: { route: 'codex_cli', requiredSkillIds: ['third-party-research'] },
+    publicationRef: null,
+  };
+  fs.writeFileSync(
+    path.join(sourcePath, 'opl-package.json'),
+    formatJsonPayload(ownerDescriptor),
+  );
+  try {
+    const discovered = discoverInstalledPackageDescriptors({
+      runner: () => ({
+        status: 0,
+        stdout: pluginList([{
+          pluginId: pluginSelector,
+          version: ownerPackageVersion,
+          sourcePath,
+          marketplaceSource: 'https://github.com/gaofeng21cn/fixture-carrier.git',
+        }]),
+        stderr: '',
+        error: null,
+      }),
+    });
+    const selected = discovered.get(packageId);
+    assert.ok(selected);
+    assert.equal(selected.readiness.installed, true);
+    assert.equal(selected.enabled, true);
+  } finally {
+    removeFixtureTree(root);
+  }
 });
 
 test('Agent Plugins 1.0 manifests win globally and fatal standard errors never fall back to legacy', () => {
@@ -123,74 +329,6 @@ test('Agent Plugins 1.0 manifests win globally and fatal standard errors never f
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
-});
-
-test('native descriptor dependency readiness is fail-closed without legacy lock state', () => {
-  const dependency = {
-    package_id: 'mas-scholar-skills',
-    required: true,
-    dependency_kind: 'hard_runtime_dependency' as const,
-    version_requirement: '>=0.2.0 <0.3.0',
-    capability_abi: 'mas-scholar-skills.v1',
-    consumer_profile_id: 'mas-medical-paper.v1',
-    required_export_ids: ['scholar-core'],
-    required_module_ids: ['scholarskills'],
-    bootstrap_manifest_url: null,
-    dependency_source: null,
-  };
-  const root = {
-    agent_id: 'mas',
-    capability_dependencies: [dependency],
-  };
-  const providerManifest = {
-    package_id: 'mas-scholar-skills',
-    version: '0.2.24',
-    capability_provider: {
-      capability_abi: 'mas-scholar-skills.v1',
-      exports: [{ export_id: 'scholar-core', skill_id: 'scholar-core', install_mode: 'core_required' as const }],
-      module_export_ids: ['scholarskills'],
-      consumer_profiles: [{
-        profile_id: 'mas-medical-paper.v1',
-        consumer_agent_id: 'mas',
-        required_export_ids: ['scholar-core'],
-        required_module_ids: ['scholarskills'],
-      }],
-    },
-  };
-  const provider = {
-    manifest: providerManifest,
-    manifest_sha256: 'sha256:provider',
-    content_digest: 'sha256:content',
-    readiness: {
-      installed: true,
-      physical_status: 'available' as const,
-      callability: 'callable' as const,
-    },
-  };
-  const current = descriptorDependencyReadiness({
-    root,
-    providers: new Map([[providerManifest.package_id, provider]]),
-  });
-  assert.equal(current.status, 'current');
-  assert.equal(current.operational_ready, true);
-  assert.equal(current.dependencies[0]?.installed_version, '0.2.24');
-  assert.equal(current.dependencies[0]?.manifest_sha256, 'sha256:provider');
-
-  const missing = descriptorDependencyReadiness({ root, providers: new Map() });
-  assert.equal(missing.status, 'missing');
-  assert.equal(missing.operational_ready, false);
-  assert.deepEqual(missing.dependencies[0]?.reasons, ['dependency_not_installed']);
-
-  const disabled = descriptorDependencyReadiness({
-    root,
-    providers: new Map([[
-      providerManifest.package_id,
-      { ...provider, readiness: { ...provider.readiness, callability: 'disabled' as const } },
-    ]]),
-  });
-  assert.equal(disabled.status, 'incompatible');
-  assert.equal(disabled.operational_ready, false);
-  assert.deepEqual(disabled.dependencies[0]?.reasons, ['dependency_disabled']);
 });
 
 test('package status projects required closure from installed owner descriptors', () => {
@@ -272,72 +410,13 @@ test('package status projects required closure from installed owner descriptors'
     assert.equal(status.launch_allowed, true);
     assert.deepEqual(fs.readFileSync(callsPath, 'utf8').trim().split('\n'), [
       'plugin list --json',
-      'plugin list --json',
     ]);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
 
-    const historicalSource = path.join(root, 'historical-mas');
-    writePlugin(historicalSource, 'mas', '0.2.25');
-    fs.writeFileSync(path.join(historicalSource, 'opl-package.json'), formatJsonPayload({
-      ...rootManifest,
-      codex_surface: {
-        ...rootManifest.codex_surface,
-        plugin_source_path: path.relative(historicalSource, rootSource),
-        configured_codex_plugin_carrier: {
-          kind: 'codex_plugin_manager',
-          plugin_selector: 'med-autoscience@carrier',
-          executor_route: 'codex_cli',
-          marketplace_source: 'fixture',
-          publication_ref: null,
-        },
-      },
-    }));
-    fs.writeFileSync(binary, `#!/usr/bin/env node\nprocess.stdout.write(${JSON.stringify(pluginList([
-      {
-        pluginId: 'med-autoscience@historical-carrier',
-        version: '0.2.25',
-        sourcePath: historicalSource,
-        marketplaceSource: 'historical-carrier',
-      },
-      {
-        pluginId: 'mas-scholar-skills@carrier',
-        version: '0.2.24',
-        sourcePath: providerSource,
-        marketplaceSource: 'fixture',
-      },
-    ]))});\n`);
-    const unexpectedSource = runCli(['packages', 'status', '--package-id', 'mas'], env)
-      .opl_agent_package_status;
-    assert.equal(unexpectedSource.configured_carrier?.status, 'not_installed');
-    assert.equal(unexpectedSource.configured_carrier?.carrier.precedence, 'unexpected_same_plugin_name');
-    assert.equal(unexpectedSource.installed_readiness?.callability, 'callable');
-    assert.equal(unexpectedSource.status, 'not_installed');
-    assert.equal(unexpectedSource.installed_package_count, 0);
-    assert.equal(unexpectedSource.operational_ready, false);
-    assert.equal(unexpectedSource.launch_allowed, false);
-    assert.equal(
-      unexpectedSource.launch_blocked_reason,
-      'configured_native_carrier_unexpected_source_present',
-    );
   } finally {
     removeFixtureTree(root);
   }
 });
-
-function configuredManifest(marketplaceSource: string | null = null) {
-  const manifest = agentPackageManifest();
-  manifest.codex_surface = {
-    ...manifest.codex_surface,
-    configured_codex_plugin_carrier: {
-      kind: 'codex_plugin_manager',
-      plugin_selector: pluginSelector,
-      executor_route: 'codex_cli',
-      publication_ref: descriptor.publicationRef,
-      ...(marketplaceSource ? { marketplace_source: marketplaceSource } : {}),
-    },
-  } as typeof manifest.codex_surface & Record<string, unknown>;
-  return manifest;
-}
 
 function pluginList(entries: Array<{
   pluginId: string;
@@ -820,6 +899,61 @@ test('configured Codex carrier reports an unexpected same-name source without se
   assert.equal(readback.carrier.observed_sources.length, 1);
 });
 
+test('package status repair targets the declared carrier after observing a historical same-name source', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-repair-selector-'));
+  const stateDir = path.join(root, 'opl-state');
+  const codexHome = path.join(root, 'codex-home');
+  const sourcePath = path.join(root, 'historical-carrier');
+  const binary = path.join(root, 'fake-codex.mjs');
+  const ownerDescriptor = installedOwnerDescriptor() as any;
+  const manifest = {
+    ...ownerDescriptor,
+    codex_surface: {
+      ...ownerDescriptor.codex_surface,
+      configured_codex_plugin_carrier: {
+        kind: 'codex_plugin_manager',
+        plugin_selector: pluginSelector,
+        marketplace_source: 'fixture-carrier',
+        executor_route: 'codex_cli',
+        publication_ref: null,
+      },
+    },
+  };
+  writePluginSource(sourcePath, 'historical carrier');
+  fs.writeFileSync(path.join(sourcePath, 'opl-package.json'), formatJsonPayload(manifest));
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+const installed = {
+  pluginId: 'third-party-research@historical-carrier',
+  version: '1.0.1',
+  installed: true,
+  enabled: true,
+  source: { source: 'local', path: ${JSON.stringify(sourcePath)} },
+  marketplaceSource: { sourceType: 'local', source: 'historical-carrier' },
+};
+const args = process.argv.slice(2).join(' ');
+if (args === 'plugin list --json' || args === 'plugin list --available --json') {
+  process.stdout.write(JSON.stringify({ installed: [installed], available: [] }));
+} else {
+  process.exitCode = 2;
+}
+`);
+  fs.chmodSync(binary, 0o755);
+  try {
+    const result = runCli(['packages', 'status', '--package-id', packageId], {
+      HOME: root,
+      CODEX_HOME: codexHome,
+      OPL_STATE_DIR: stateDir,
+      OPL_CODEX_PLUGIN_BIN: binary,
+    }) as any;
+    const status = result.opl_agent_package_status;
+    assert.equal(status.configured_carrier.carrier.precedence, 'unexpected_same_plugin_name');
+    assert.equal(status.package_operational.repair_command, `codex plugin add ${pluginSelector}`);
+    assert.equal(status.repair_action, `codex plugin add ${pluginSelector}`);
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
 test('configured Codex carrier repair replaces a stale same-name source after the target is ready', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-replace-source-'));
   const targetSource = path.join(root, 'target');
@@ -1029,15 +1163,10 @@ test('an absent default Codex carrier does not masquerade as a failed native rea
   }
 });
 
-test('exposure actions without an installed native owner fail closed before legacy state access', () => {
+test('exposure actions require an installed native descriptor', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-exposure-owner-required-'));
   const stateDir = path.join(root, 'opl-state');
   const binary = path.join(root, 'empty-codex.mjs');
-  const lockPath = path.join(stateDir, 'agent-package-locks.json');
-  const ledgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
-  const sqlitePath = path.join(stateDir, 'agent-package-lifecycle.sqlite');
-  const invalidLock = '{ invalid native-exposure lock\n';
-  const invalidLedger = '{ invalid native-exposure ledger\n';
   const env = {
     HOME: root,
     CODEX_HOME: path.join(root, 'codex-home'),
@@ -1053,49 +1182,15 @@ if (process.argv.slice(2).join(' ') === 'plugin list --json') {
 }
 `);
     fs.chmodSync(binary, 0o755);
-    fs.mkdirSync(stateDir, { recursive: true });
-    fs.writeFileSync(lockPath, invalidLock, 'utf8');
-    fs.writeFileSync(ledgerPath, invalidLedger, 'utf8');
-
     for (const action of ['hide', 'unhide', 'enable', 'disable']) {
       const failure = runCliFailure(['packages', action, '--package-id', 'legacy.package'], env);
       assert.equal(
         failure.payload.error.details.failure_code,
-        'agent_package_exposure_native_owner_required',
+        'agent_package_not_installed',
       );
       assert.equal(failure.payload.error.details.action, action);
-      assert.equal(fs.readFileSync(lockPath, 'utf8'), invalidLock);
-      assert.equal(fs.readFileSync(ledgerPath, 'utf8'), invalidLedger);
-      assert.equal(fs.existsSync(sqlitePath), false);
     }
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('ordinary remote manifests without a native carrier fail closed before legacy state writes', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-owner-required-'));
-  const stateDir = path.join(root, 'opl-state');
-  const homeDir = path.join(root, 'home');
-  const pluginSource = path.join(root, 'plugin-source');
-  writePluginSource(pluginSource, 'legacy fallback must remain unused');
-  try {
-    await withAgentPackageServer(async (baseUrl) => {
-      await assert.rejects(
-        () => runCliAsync([
-          'packages', 'install', '--manifest-url', `${baseUrl}/manifest.json`,
-          '--package-id', packageId, '--trust-tier', 'third_party_verified',
-        ], {
-          HOME: homeDir,
-          CODEX_HOME: path.join(homeDir, '.codex'),
-          OPL_STATE_DIR: stateDir,
-        }),
-        /agent_package_lifecycle_native_owner_required/,
-      );
-    }, agentPackageManifest({ pluginSourcePath: pluginSource }));
-    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
-    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
-    assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle.sqlite')), false);
+    assert.deepEqual(fs.existsSync(stateDir) ? fs.readdirSync(stateDir) : [], []);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -1123,13 +1218,25 @@ if (args.join(' ') === 'plugin marketplace list --json') {
   process.stdout.write(JSON.stringify({ status: 'ok' }));
 } else if (args[0] === 'plugin' && args[1] === 'add') {
   if (!state.marketplaceSource) process.exitCode = 3;
-  state = { installed: true, version: state.version === '1.0.0' ? ${JSON.stringify(installedVersion)} : state.version };
+  state = { ...state, installed: true, version: state.version === '1.0.0' ? ${JSON.stringify(installedVersion)} : state.version };
   fs.writeFileSync(stateFile, JSON.stringify(state));
   process.stdout.write(JSON.stringify({ status: 'ok' }));
 } else if (args[0] === 'plugin' && args[1] === 'remove') {
   state = { ...state, installed: false };
   fs.writeFileSync(stateFile, JSON.stringify(state));
   process.stdout.write(JSON.stringify({ status: 'ok' }));
+} else if (args.join(' ') === 'plugin list --available --json') {
+  const entry = {
+    pluginId: '${pluginSelector}',
+    version: state.version,
+    enabled,
+    source: { source: 'local', path: sourcePath },
+    marketplaceSource: { sourceType: 'local', source: 'fixture-carrier' },
+  };
+  process.stdout.write(JSON.stringify({
+    installed: state.installed ? [{ ...entry, installed: true }] : [],
+    available: state.installed ? [] : [{ ...entry, installed: false, enabled: false }],
+  }));
 } else if (args.join(' ') === 'plugin list --json') {
   process.stdout.write(JSON.stringify({
     installed: state.installed ? [{
@@ -1369,11 +1476,9 @@ test('configured Codex carrier ensures a descriptor-owned marketplace before nat
 test('owner descriptor lifecycle and read-model use the native carrier without OPL private state writes', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-generic-'));
   const stateDir = path.join(root, 'opl-state');
-  const manifestPath = path.join(root, 'manifest.json');
   const binary = path.join(root, 'fake-codex.mjs');
   const pluginState = path.join(root, 'plugin-state.json');
   const pluginSource = path.join(root, 'plugin-source');
-  const manifestUrl = pathToFileURL(manifestPath).toString();
   writePluginSource(pluginSource, 'callable');
   fs.writeFileSync(
     path.join(pluginSource, 'opl-package.json'),
@@ -1383,7 +1488,6 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     formatJsonPayload(installedOwnerDescriptor()),
   );
   writeFakeCodex(binary, ownerPackageVersion);
-  fs.writeFileSync(manifestPath, formatJsonPayload(configuredManifest('fixture-carrier')));
   const env = {
     HOME: root,
     CODEX_HOME: path.join(root, 'codex-home'),
@@ -1400,8 +1504,6 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
   try {
     const install = runCli([
       'packages', 'install', packageId,
-      '--manifest-url', manifestUrl,
-      '--trust-tier', 'third_party_verified',
     ], env) as any;
     assert.equal(install.opl_agent_package_install.status, 'installed');
     assert.equal(install.opl_agent_package_install.package_id, packageId);
@@ -1430,34 +1532,9 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
     fs.rmSync(lockPath);
     assertNoPrivateState();
 
-    const workspace = path.join(root, 'workspace');
-    fs.mkdirSync(workspace, { recursive: true });
-    const activate = runCli([
-      'packages', 'activate', packageId,
-      '--scope', 'workspace', '--target-workspace', workspace,
-    ], env) as any;
-    assert.equal(activate.opl_agent_package_activation.status, 'already_activated');
-    assert.equal(activate.opl_agent_package_activation.writes_performed, false);
-    assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'package_lock'), false);
-    assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'lifecycle_receipt'), false);
-    assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'scope_materializations'), false);
-    assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'package_dependency_readiness'), false);
-    assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'materialization_readiness'), false);
-    assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'package_use_binding'), false);
-    assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'use_receipt'), false);
-    assert.equal(Object.hasOwn(activate.opl_agent_package_activation, 'use_receipt_ref'), false);
-    assert.equal(activate.opl_agent_package_activation.launch_state, 'ready');
-    assertNoPrivateState();
-
-    const activateDryRun = runCli([
-      'packages', 'activate', packageId,
-      '--scope', 'workspace', '--target-workspace', workspace, '--dry-run',
-    ], env) as any;
-    assert.equal(activateDryRun.opl_agent_package_activation.status, 'validated_no_write');
-    assert.equal(activateDryRun.opl_agent_package_activation.writes_performed, false);
-    assert.equal(Object.hasOwn(activateDryRun.opl_agent_package_activation, 'package_lock'), false);
-    assert.equal(Object.hasOwn(activateDryRun.opl_agent_package_activation, 'lifecycle_receipt'), false);
-    assert.equal(Object.hasOwn(activateDryRun.opl_agent_package_activation, 'materialization_readiness'), false);
+    const packageStatus = runCli(['packages', 'status', '--package-id', packageId], env) as any;
+    assert.equal(packageStatus.opl_agent_package_status.operational_ready, true);
+    assert.equal(packageStatus.opl_agent_package_status.launch_allowed, true);
     assertNoPrivateState();
 
     const hideDryRun = runCli(['packages', 'hide', '--package-id', packageId, '--dry-run'], env) as any;
@@ -1499,14 +1576,6 @@ test('owner descriptor lifecycle and read-model use the native carrier without O
 
     const disabled = runCli(['packages', 'disable', packageId], env) as any;
     assert.equal(disabled.opl_agent_package_exposure.status, 'disabled');
-    const disabledActivation = runCliFailure([
-      'packages', 'activate', packageId,
-      '--scope', 'workspace', '--target-workspace', workspace,
-    ], env);
-    assert.equal(
-      disabledActivation.payload.error.details.failure_code,
-      'agent_package_scope_activation_blocked',
-    );
     assertNoPrivateState();
 
     const enabled = runCli(['packages', 'enable', packageId], env) as any;
@@ -1641,26 +1710,15 @@ if (args.join(' ') === 'plugin list --json') {
     );
     assert.equal(updateSurface.configured_carrier.native_action_dispatched, true);
 
-    const activation = runCli([
-      'packages', 'activate', 'opl-relay',
-      '--scope', 'workspace', '--target-workspace', root,
-    ], env) as any;
-    const surface = activation.opl_agent_package_activation;
-    assert.equal(surface.package_id, 'opl-relay');
-    assert.equal(surface.status, 'already_activated');
-    assert.equal(surface.writes_performed, false);
-    assert.equal(Object.hasOwn(surface, 'package_lock'), false);
-    assert.equal(Object.hasOwn(surface, 'lifecycle_receipt'), false);
-    assert.equal(Object.hasOwn(surface, 'scope_materializations'), false);
-    assert.equal(Object.hasOwn(surface, 'package_dependency_readiness'), false);
-    assert.equal(Object.hasOwn(surface, 'materialization_readiness'), false);
-    assert.equal(Object.hasOwn(surface, 'package_use_binding'), false);
-    assert.equal(Object.hasOwn(surface, 'use_receipt'), false);
-    assert.equal(Object.hasOwn(surface, 'use_receipt_ref'), false);
     const status = runCli(['packages', 'status', '--package-id', 'opl-relay'], env) as any;
-    assert.equal(status.opl_agent_package_status.configured_carrier.status, 'installed');
-    assert.equal(status.opl_agent_package_status.configured_carrier.operation, 'list');
-    assert.equal(status.opl_agent_package_status.configured_carrier.native_action_dispatched, true);
+    const surface = status.opl_agent_package_status;
+    assert.equal(surface.package_id, 'opl-relay');
+    assert.equal(surface.status, 'available');
+    assert.equal(surface.operational_ready, true);
+    assert.equal(surface.launch_allowed, true);
+    assert.equal(surface.configured_carrier.status, 'installed');
+    assert.equal(surface.configured_carrier.operation, 'list');
+    assert.equal(surface.configured_carrier.native_action_dispatched, true);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-registry-cache.json')), false);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-lifecycle-ledger.json')), false);
@@ -1749,14 +1807,11 @@ test('native descriptor visibility leaves an existing legacy lock diagnostic-onl
     assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
     assert.equal(fs.existsSync(legacyLedgerPath), false);
 
-    const activated = runCli([
-      'packages', 'activate', packageId,
-      '--scope', 'workspace', '--target-workspace', workspace,
+    const packageStatus = runCli([
+      'packages', 'status', '--package-id', packageId,
     ], env) as any;
-    assert.equal(activated.opl_agent_package_activation.status, 'already_activated');
-    assert.equal(activated.opl_agent_package_activation.writes_performed, false);
-    assert.equal(Object.hasOwn(activated.opl_agent_package_activation, 'package_lock'), false);
-    assert.equal(Object.hasOwn(activated.opl_agent_package_activation, 'lifecycle_receipt'), false);
+    assert.equal(packageStatus.opl_agent_package_status.operational_ready, true);
+    assert.equal(packageStatus.opl_agent_package_status.launch_allowed, true);
     assert.equal(fs.readFileSync(path.join(stateDir, 'agent-package-locks.json'), 'utf8'), legacyLockBytes);
     assert.equal(fs.existsSync(legacyLedgerPath), false);
 

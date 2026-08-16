@@ -53,12 +53,7 @@ async function ensureDomainPackageLaunchReady(
   if (!workspaceLocator.binding) return;
   const packageId = canonicalAgentPackageId(projectId);
   if (!packageId) return;
-  const statusInput = {
-    packageId,
-    scope: 'workspace' as const,
-    targetWorkspace: workspaceLocator.absolute_path,
-  };
-  const packageStatus = runOplAgentPackageStatus(statusInput).opl_agent_package_status;
+  const packageStatus = runOplAgentPackageStatus({ packageId }).opl_agent_package_status;
   if (packageStatus.launch_allowed === true) return;
   const hardStopReason = packageLaunchHardStopReason(packageStatus)
     ?? (packageStatus.installed_package_count > 0
@@ -638,11 +633,7 @@ resume: {
           profileRef: parsed.profileRef,
           inputPath: parsed.inputPath,
         });
-        const packageId = canonicalAgentPackageId(parsed.projectId);
-        return {
-          ...workspaceBinding,
-          package_scope_activation: null,
-        };
+        return workspaceBinding;
       },
     },
     'workspace-activate': {
@@ -667,8 +658,6 @@ resume: {
         if (locator.binding && locator.binding.status !== 'archived' && packageId) {
           const packageStatus = runOplAgentPackageStatus({
             packageId,
-            scope: 'workspace',
-            targetWorkspace: locator.absolute_path,
           }).opl_agent_package_status;
           const hardStopReason = packageLaunchHardStopReason(packageStatus)
             ?? (packageStatus.installed_package_count > 0
@@ -685,7 +674,7 @@ resume: {
                 allowed_when_blocked: packageStatus.allowed_when_blocked,
                 package_dependency_readiness: packageStatus.package_dependency_readiness,
                 repair_action: packageStatus.repair_action,
-                failure_code: 'agent_package_scope_activation_blocked',
+                failure_code: 'agent_package_operational_readiness_blocked',
               },
             );
           }

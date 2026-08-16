@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { parseArgs as parseNodeArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 type WhitepaperEntry = {
@@ -75,21 +76,18 @@ function readRegistry(): Registry {
 }
 
 function parseArgs(argv: string[]) {
-  let mode: 'preview' | 'release' = 'preview';
-  let only: string | null = null;
-  let list = false;
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (arg === '--list') list = true;
-    else if (arg === '--mode') {
-      const value = argv[++index];
-      if (value !== 'preview' && value !== 'release') fail('--mode must be preview or release.');
-      mode = value;
-    } else if (arg === '--only') {
-      only = argv[++index] ?? fail('--only requires a whitepaper id.');
-    } else fail(`Unknown argument: ${arg}`);
-  }
-  return { mode, only, list };
+  const { values } = parseNodeArgs({
+    args: argv,
+    options: {
+      list: { type: 'boolean' },
+      mode: { type: 'string' },
+      only: { type: 'string' },
+    },
+    allowPositionals: false,
+  });
+  const mode = values.mode ?? 'preview';
+  if (mode !== 'preview' && mode !== 'release') fail('--mode must be preview or release.');
+  return { mode, only: values.only ?? null, list: values.list === true };
 }
 
 function repoRoot(entry: WhitepaperEntry, rendererOwnerRepo: string) {

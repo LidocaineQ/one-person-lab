@@ -1,27 +1,10 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { FrameworkContractError } from '../../../kernel/contract-validation.ts';
-import { parseJsonText } from '../../../kernel/json-file.ts';
 import { stringValue } from '../../../kernel/json-record.ts';
 import { FORBIDDEN_AGENT_PACKAGE_FIELDS } from './constants.ts';
-import type { AgentPackageAuthorityBoundary, FetchJsonResult } from './types.ts';
-
-const RESERVED_FIRST_PARTY_REGISTRY_CLAIMS = [
-  'first_party',
-  'first_party_managed',
-  'first_party_managed_cohort',
-  'first_party_release_catalog',
-] as const;
-
-function externalRegistryClaimKey(claim: string) {
-  return claim
-    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '');
-}
+import type { AgentPackageAuthorityBoundary } from './types.ts';
 
 export function nowIso() {
   return new Date().toISOString();
@@ -29,6 +12,42 @@ export function nowIso() {
 
 export function sha256Text(text: string) {
   return crypto.createHash('sha256').update(text).digest('hex');
+}
+
+export function githubMarketplaceSourceIdentity(value: string) {
+  const slug = value.match(/^([A-Za-z0-9][A-Za-z0-9-]*)\/([A-Za-z0-9][A-Za-z0-9._-]*)$/);
+  if (slug) return `${slug[1]!.toLowerCase()}/${slug[2]!.toLowerCase()}`;
+  try {
+    const source = new URL(value);
+    if (source.protocol !== 'https:'
+      || source.hostname.toLowerCase() !== 'github.com'
+      || source.port
+      || source.username
+      || source.password
+      || source.search
+      || source.hash) {
+      return null;
+    }
+    const parts = source.pathname.split('/').filter(Boolean);
+    if (parts.length !== 2) return null;
+    const owner = parts[0]!;
+    const repository = parts[1]!.replace(/\.git$/, '');
+    if (!/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(owner)
+      || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(repository)) {
+      return null;
+    }
+    return `${owner.toLowerCase()}/${repository.toLowerCase()}`;
+  } catch {
+    return null;
+  }
+}
+
+export function sameMarketplaceSource(left: string | null, right: string) {
+  if (left === right) return true;
+  if (!left) return false;
+  const leftIdentity = githubMarketplaceSourceIdentity(left);
+  const rightIdentity = githubMarketplaceSourceIdentity(right);
+  return leftIdentity !== null && leftIdentity === rightIdentity;
 }
 
 export function uniqueStrings(values: string[]) {
@@ -78,52 +97,6 @@ export function validateUrlLike(value: string, field: string) {
   });
 }
 
-export async function fetchJsonSource(
-  sourceUrl: string,
-  input: { timeoutMs?: number } = {},
-): Promise<FetchJsonResult> {
-  validateUrlLike(sourceUrl, 'source_url');
-  let raw: string;
-  let sourceKind: FetchJsonResult['source_kind'];
-  if (sourceUrl.startsWith('http://') || sourceUrl.startsWith('https://')) {
-    const timeoutMs = Number.isFinite(input.timeoutMs) && Number(input.timeoutMs) > 0
-      ? Math.floor(Number(input.timeoutMs))
-      : 60_000;
-    const response = await fetch(sourceUrl, {
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!response.ok) {
-      throw new FrameworkContractError('codex_command_failed', 'Agent package source fetch failed.', {
-        source_url: sourceUrl,
-        status: response.status,
-        status_text: response.statusText,
-      });
-    }
-    raw = await response.text();
-    sourceKind = 'http_url';
-  } else {
-    const filePath = sourceUrl.startsWith('file:')
-      ? fileURLToPath(sourceUrl)
-      : path.resolve(sourceUrl);
-    raw = fs.readFileSync(filePath, 'utf8');
-    sourceKind = sourceUrl.startsWith('file:') ? 'file_url' : 'local_file';
-  }
-
-  try {
-    return {
-      source_url: sourceUrl,
-      source_kind: sourceKind,
-      source_sha256: sha256Text(raw),
-      payload: parseJsonText(raw),
-    };
-  } catch (error) {
-    throw new FrameworkContractError('contract_json_invalid', 'Agent package source must be valid JSON.', {
-      source_url: sourceUrl,
-      cause: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
 export function missingFields(record: Record<string, unknown>, fields: readonly string[]) {
   return fields.filter((field) => {
     const value = record[field];
@@ -154,33 +127,4 @@ export function assertStringValue(value: unknown, field: string): string {
     });
   }
   return normalized;
-}
-
-export function assertExplicitExternalRegistryClaim(
-  value: unknown,
-  input: {
-    field: 'source' | 'trust_tier';
-    sourceLabel: string;
-    failureCode: string;
-  },
-) {
-  const claim = stringValue(value);
-  const claimKey = claim ? externalRegistryClaimKey(claim) : null;
-  if (
-    !claim
-    || claimKey?.startsWith('firstparty') === true
-  ) {
-    throw new FrameworkContractError(
-      'contract_shape_invalid',
-      `External package registries require an explicit non-first-party ${input.field}.`,
-      {
-        source: input.sourceLabel,
-        field: input.field,
-        declared_claim: claim,
-        forbidden_first_party_claims: [...RESERVED_FIRST_PARTY_REGISTRY_CLAIMS],
-        failure_code: input.failureCode,
-      },
-    );
-  }
-  return claim;
 }

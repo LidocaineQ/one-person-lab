@@ -1,23 +1,16 @@
 import {
-  agentPackageManifest,
   assert,
-  createPluginSourceFixture,
   fs,
   os,
   path,
-  pathToFileURL,
   runCli,
   runCliFailure,
   test,
 } from './helpers.ts';
-import { formatJsonPayload } from '../../../../../src/kernel/json-file.ts';
 
 test('package read models stay compact without exposing lifecycle history', (context) => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-compact-read-model-state-'));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-compact-read-model-home-'));
-  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-compact-read-model-fixture-'));
-  const pluginSourcePath = createPluginSourceFixture();
-  const manifestPath = path.join(fixtureDir, 'manifest.json');
   const ledgerPath = path.join(stateDir, 'agent-package-lifecycle-ledger.json');
   const env = {
     OPL_STATE_DIR: stateDir,
@@ -25,24 +18,14 @@ test('package read models stay compact without exposing lifecycle history', (con
     CODEX_HOME: path.join(homeDir, '.codex'),
   };
   try {
-    fs.writeFileSync(
-      manifestPath,
-      formatJsonPayload(agentPackageManifest({ pluginSourcePath })),
-      'utf8',
-    );
     const install = runCliFailure([
       'packages',
       'install',
-      '--manifest-url',
-      pathToFileURL(manifestPath).href,
-      '--trust-tier',
-      'third_party_verified',
+      'third.party.research',
+      '--manifest-url=file:///retired/manifest.json',
     ], env);
-    assert.equal(install.payload.error.code, 'contract_shape_invalid');
-    assert.equal(
-      install.payload.error.details.failure_code,
-      'agent_package_lifecycle_native_owner_required',
-    );
+    assert.equal(install.payload.error.code, 'cli_usage_error');
+    assert.match(install.payload.error.message, /manifest-url/);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(ledgerPath), false);
 
@@ -105,7 +88,5 @@ test('package read models stay compact without exposing lifecycle history', (con
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
     fs.rmSync(homeDir, { recursive: true, force: true });
-    fs.rmSync(fixtureDir, { recursive: true, force: true });
-    fs.rmSync(pluginSourcePath, { recursive: true, force: true });
   }
 });

@@ -10,8 +10,8 @@ export const MANAGED_UPDATE_OWNER_FIELDS = {
   revertRef: 'rollback_ref',
   revertPlan: MANAGED_UPDATE_OWNER_ACTIONS.revert,
 } as const;
-export const CAPABILITY_PACKAGE_OWNER = 'one-person-lab-managed-modules';
-export const CAPABILITY_PACKAGE_APPLY_OWNER = 'opl_connect_managed_module_reconciler';
+export const CAPABILITY_PACKAGE_OWNER = 'installed-package-owner-descriptors';
+export const CAPABILITY_PACKAGE_APPLY_OWNER = 'opl_connect_native_package_carrier';
 export const CAPABILITY_PACKAGE_READBACK_REF = 'opl packages list --json';
 export const CAPABILITY_PACKAGE_STATUS_READBACK_REF = 'opl packages list --json';
 export const CAPABILITY_PACKAGE_APPLY_COMMAND = 'opl packages update --json';
@@ -165,7 +165,7 @@ export function capabilityPackageOwnerRoute(
 ): ManagedUpdateOwnerRoute {
   return {
     owner: input.owner ?? CAPABILITY_PACKAGE_OWNER,
-    authority_surface: 'descriptor/digest/lock/materializer readback over clean managed capability package roots',
+    authority_surface: 'installed owner descriptor and native carrier readback',
     route_kind: 'clean_managed_package_executor',
     readback_ref: CAPABILITY_PACKAGE_READBACK_REF,
     apply_owner: input.apply_owner ?? CAPABILITY_PACKAGE_APPLY_OWNER,

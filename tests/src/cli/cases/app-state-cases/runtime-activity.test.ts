@@ -55,9 +55,29 @@ function runtimeDirectoryEntry(input: {
     package_role: input.packageRole ?? 'standard_agent',
     installed,
     activated: false,
-    manifest_url: `file:///fixture/${input.packageId}/manifest.json`,
-    version_currentness: { source_ref: `fixture:${input.packageId}` },
-    source_explanation: { kind: 'installed_package_lock' },
+    configured_carrier: {
+      carrier: {
+        kind: 'codex_plugin_manager',
+      },
+      plugin_source_path: installed ? `/fixture/${input.packageId}` : null,
+    },
+    installed_carrier_readback: installed
+      ? {
+          kind: 'codex_plugin_manager',
+          identity: `${input.packageId}@fixture`,
+          source_ref: `fixture:${input.packageId}`,
+          version: '1.0.0',
+          enabled: true,
+          lifecycle_authority: 'carrier_owned',
+        }
+      : null,
+    installed_readiness: installed
+      ? {
+          installed: true,
+          physical_status: input.statusReadError ? 'unavailable' : 'available',
+          callability: input.statusReadError ? 'disabled' : 'callable',
+        }
+      : null,
     readiness: {
       status: input.statusReadError
         ? 'repair_required'
@@ -313,6 +333,11 @@ test('runtime membership follows one installed standard-Agent directory cohort',
       projection.agent_availability.find((entry: any) => entry.package_id === 'healthy-agent')?.availability,
       'available',
     );
+    const healthyAvailability = projection.agent_availability.find(
+      (entry: any) => entry.package_id === 'healthy-agent',
+    );
+    assert.equal(healthyAvailability?.source, 'package_directory');
+    assert.equal(healthyAvailability?.source_ref, 'fixture:healthy-agent');
     assert.equal(
       projection.agent_availability.find((entry: any) => entry.package_id === 'deferred-agent')?.availability,
       'available',

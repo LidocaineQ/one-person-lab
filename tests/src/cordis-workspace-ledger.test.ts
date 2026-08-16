@@ -15,10 +15,6 @@ import {
 import { buildCurrentOwnerDeltaTopline as buildDirectTopline } from '../../src/authority/evidence/current-owner-delta-topline.ts';
 import { buildAppOperatorOwnerDeltaTopline } from '../../src/read-models/operator/runtime-tray-app-operator-drilldown-parts/owner-delta-topline.ts';
 import { buildProductEntryHandoffBundleView } from '../../src/read-models/operator/product-entry-handoff-bundle.ts';
-import {
-  buildCordisWorkspaceLedgerCompositionSnapshot,
-  createCordisWorkspaceLedgerComposition,
-} from '../../src/host/plugins/cordis-workspace-ledger.ts';
 import { CordisCompositionContractError, validateCordisCompositionSnapshot } from '../../src/authority/packages/index.ts';
 import { loadFrameworkContracts } from '../../src/authority/contracts/contracts.ts';
 import type { BoundaryExplanation, ResolutionResult } from '../../src/kernel/types.ts';
@@ -161,32 +157,4 @@ test('Console production consumers use injected Cordis services rather than lega
   assert.equal(observerCalls, 1);
   assert.equal(output.operator.current_owner_delta.current_owner, 'injected-cordis-owner');
   assert.equal(direct.current_owner_delta.current_owner, 'one-person-lab');
-});
-
-test('Workspace/Ledger Cordis composition is deterministic, schema-valid, and typed on missing providers', async () => {
-  const snapshot = buildCordisWorkspaceLedgerCompositionSnapshot();
-  assert.deepEqual(snapshot, buildCordisWorkspaceLedgerCompositionSnapshot());
-  assert.equal(validateCordisCompositionSnapshot(snapshot).ok, true);
-  assert.deepEqual(snapshot.plugins.map((plugin) => plugin.plugin_id), [
-    'opl-ledger-owner-delta-observer',
-    'opl-workspace-locator',
-  ]);
-  assert.equal(snapshot.plugins.every((plugin) => plugin.source_commit === 'b1bca04e9a77e6df4156d0858ecbb69566f6decd'), true);
-
-  const composition = await createCordisWorkspaceLedgerComposition();
-  assert.equal(composition.ctx.get(CORDIS_WORKSPACE_LOCATOR_SERVICE), composition.workspaceLocator);
-  assert.equal(composition.ctx.get(CORDIS_OWNER_DELTA_OBSERVER_SERVICE), composition.ownerDeltaObserver);
-  await composition.dispose();
-  assert.equal(composition.ctx.get(CORDIS_WORKSPACE_LOCATOR_SERVICE), undefined);
-  assert.equal(composition.ctx.get(CORDIS_OWNER_DELTA_OBSERVER_SERVICE), undefined);
-
-  await assert.rejects(
-    createCordisWorkspaceLedgerComposition({ mountWorkspaceLocator: false }),
-    (error: unknown) => {
-      assert.ok(error instanceof CordisCompositionContractError);
-      assert.equal(error.code, 'missing_required_provider');
-      assert.equal(error.details.service_id, CORDIS_WORKSPACE_LOCATOR_SERVICE);
-      return true;
-    },
-  );
 });

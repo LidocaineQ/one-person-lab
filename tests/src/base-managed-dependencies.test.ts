@@ -538,6 +538,7 @@ test('managed companion currentness makes OPL Base background apply eligible', (
       assert.equal(component.state, 'update_available');
       assert.equal(component.auto_apply.eligible, true);
       const catalog = component.current.dependency_catalog as ReturnType<typeof inspectBaseManagedDependencies>;
+      assert.equal(Object.hasOwn(catalog, 'flow_dependency_ids'), false);
       assert.deepEqual(catalog.flow_dependencies.map((entry) => [entry.dependency_id, entry.dependency_kind]), [
         ['opl-base', 'base'],
         ['officecli', 'cli'],

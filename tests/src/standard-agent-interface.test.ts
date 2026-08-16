@@ -1061,7 +1061,7 @@ test('native carrier contract checkout uses the carrier source without runtime s
     assert.equal(resolution.status, 'resolved');
     assert.equal(resolution.launch_allowed, true);
     assert.equal(resolution.source_status, 'current');
-    assert.equal(resolution.checkout?.source_kind, 'opl_managed_package_checkout');
+    assert.equal(resolution.checkout?.source_kind, 'opl_installed_native_carrier');
     assert.equal(fs.realpathSync.native(resolution.checkout?.checkout_path ?? ''), fs.realpathSync.native(carrierRepo));
   } finally {
     fs.rmSync(carrierRepo, { recursive: true, force: true });

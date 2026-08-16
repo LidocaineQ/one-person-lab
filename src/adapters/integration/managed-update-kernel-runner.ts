@@ -1,5 +1,3 @@
-import { spawnSync } from 'node:child_process';
-
 import { reconcileBaseManagedDependencies } from './base-managed-dependencies.ts';
 import {
   buildOplModules,
@@ -9,7 +7,6 @@ import {
 } from './system-installation/modules.ts';
 import { rollbackManagedModulePackageChannel } from './system-installation/module-package-channel.ts';
 import { runOplStartupMaintenance } from './system-installation/startup-maintenance.ts';
-import { reconcileBundledFullRuntimePackagesIfAvailable } from './system-installation/full-runtime-package-reconciliation.ts';
 import { isRecord } from '../../kernel/contract-validation.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
 import {
@@ -59,12 +56,6 @@ function stringValue(value: unknown) {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }
 
-function records(value: unknown) {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is Record<string, unknown> => isRecord(entry))
-    : [];
-}
-
 function nestedRecord(value: unknown, key: string) {
   return isRecord(value) && isRecord(value[key]) ? value[key] : null;
 }
@@ -83,18 +74,6 @@ function adapterResultRef(componentId: string, operation: ManagedUpdateKernelInp
     return resultRef;
   }
   return `opl://managed-update-adapter/${componentId}/${operation}/${new Date().toISOString()}`;
-}
-
-function frameworkCommit() {
-  const explicit = process.env.OPL_FRAMEWORK_REVISION?.trim();
-  if (explicit && /^[0-9a-f]{40}$/i.test(explicit)) return explicit.toLowerCase();
-  const result = spawnSync('git', ['rev-parse', 'HEAD'], {
-    cwd: resolveProjectRoot(),
-    encoding: 'utf8',
-    stdio: 'pipe',
-  });
-  const commit = result.status === 0 ? result.stdout.trim() : '';
-  return /^[0-9a-f]{40}$/i.test(commit) ? commit.toLowerCase() : null;
 }
 
 function runtimeAdapterReceiptRef(operation: ManagedUpdateKernelInput['operation']) {
@@ -126,8 +105,14 @@ function moduleStatus(result: unknown) {
 function reconcileManagedChannelTargets() {
   return buildOplModules().modules.modules.filter((module) => module.default_install).map((module) => {
     if (!module.installed || module.install_origin === 'missing') {
-      const result = runOplModuleAction('install', module.module_id).module_action as Record<string, unknown>;
-      return { target_type: 'module', target_id: module.module_id, status: moduleStatus(result), reason: 'module_missing', action: 'install', result };
+      return {
+        target_type: 'module',
+        target_id: module.module_id,
+        status: 'manual_required',
+        reason: 'native_carrier_not_installed',
+        action: null,
+        result: null,
+      };
     }
     const managedPackageChannel = module.install_origin === 'managed_root'
       && module.source_policy.effective_install_update_source === 'package_channel'
@@ -230,38 +215,16 @@ function buildAgentPackagePostApplyActions(
     ];
   }
 
-  const bundledReconciliation = nestedRecord(reconcileResult, 'bundled_full_runtime_reconciliation');
-  const reconciliation = bundledReconciliation ?? reconcileResult;
-  const reconciliationItems = records(reconciliation.items);
-  const reconciliationRoots = records(reconciliation.root_installs);
-  const targetItems = records(reconcileResult.targets);
-  const currentStatuses = new Set(['installed', 'already_installed']);
-  const rootStatuses = new Set(['completed', 'current', 'skipped']);
-  const closureVerified = bundledReconciliation
-    ? reconciliation.status === 'completed'
-      && reconciliationItems.length > 0
-      && reconciliationItems.every((entry) => currentStatuses.has(nestedString(entry, 'status') ?? ''))
-      && reconciliationRoots.length > 0
-      && reconciliationRoots.every((entry) => rootStatuses.has(nestedString(entry, 'status') ?? ''))
-    : targetItems.length > 0
-      && targetItems.every((entry) => ['completed', 'current', 'validated'].includes(
-        nestedString(entry, 'status') ?? '',
-      ));
+  const targetItems = Array.isArray(reconcileResult.targets)
+    ? reconcileResult.targets.filter((entry): entry is Record<string, unknown> => isRecord(entry))
+    : [];
+  const closureVerified = targetItems.length > 0
+    && targetItems.every((entry) => ['completed', 'current', 'validated'].includes(
+      nestedString(entry, 'status') ?? '',
+    ));
   const currentnessStatus: ManagedUpdateOwnerPostApplyAction['status'] = closureVerified
     ? 'completed'
     : 'manual_required';
-  const currentness = {
-    surface_kind: 'opl_managed_bundled_package_closure_currentness.v1',
-    status: closureVerified ? 'current' : 'incomplete',
-    writes_performed: false,
-    catalog_ref: nestedString(reconciliation, 'catalog_ref'),
-    catalog_sha256: nestedString(reconciliation, 'catalog_sha256'),
-    root_package_ids: Array.isArray(reconciliation.root_package_ids)
-      ? reconciliation.root_package_ids
-      : [],
-    items: bundledReconciliation ? reconciliationItems : targetItems,
-  };
-
   return [
     {
       action_id: 'reconcile_packages',
@@ -269,37 +232,6 @@ function buildAgentPackagePostApplyActions(
       status: currentnessStatus,
       result_ref: adapterResultRef('capability_packages', operation, reconcileResult),
       result: reconcileResult,
-    },
-    {
-      action_id: 'sync_skills',
-      command_ref: 'opl packages status --json',
-      status: currentnessStatus,
-      result_ref: adapterResultRef('opl_packages', operation, currentness),
-      result: currentness,
-    },
-    {
-      action_id: 'sync_codex_skill_plugin_projection',
-      command_ref: 'opl packages status --json',
-      status: currentnessStatus,
-      result_ref: adapterResultRef('opl_packages', operation, currentness),
-      result: {
-        source: 'bundled_package_transaction_currentness_readback',
-        writes_performed: false,
-        scholarskills_source: {
-          source: 'capability_packages_target',
-          status: 'maintained_by_package_update',
-          package_channel_auto_update: true,
-        },
-        package_closure_currentness: currentness,
-        target_bound_package_scope_activation: {
-          status: bundledReconciliation
-            ? 'maintained_by_package_scope_materialization'
-            : 'not_applicable',
-          lifecycle_owner: 'opl_packages',
-          status_command_ref: 'opl packages status --package-id mas --scope <workspace|quest> --json',
-          repair_command_ref: 'opl packages repair mas --scope <workspace|quest> --json',
-        },
-      },
     },
   ];
 }
@@ -320,9 +252,9 @@ function agentPackageReloadGuidance(
   return {
     reload_required: false,
     reload_recommended: true,
-    reload_targets: ['one_person_lab_app', 'codex_plugin_cache'],
-    command_ref: 'Reload One Person Lab App or Codex plugin cache',
-    reason: 'Post-apply skill and plugin metadata can be cached until the App/Codex plugin cache reloads.',
+    reload_targets: ['one_person_lab_app'],
+    command_ref: 'Reload One Person Lab App',
+    reason: 'The App may retain the previous native module projection until reload.',
   };
 }
 
@@ -355,7 +287,6 @@ function buildAgentPackageStatusDetail(input: {
 
 async function runAgentPackageAdapter(
   operation: ManagedUpdateKernelInput['operation'],
-  useBundledFullRuntimePlane: boolean,
 ): Promise<AdapterExecutionResult> {
   if (operation === MANAGED_UPDATE_OWNER_ACTIONS.revert) {
     const modules = buildOplModules().modules.modules.filter((module) => module.default_install);
@@ -441,39 +372,7 @@ async function runAgentPackageAdapter(
     };
   }
 
-  const bundledReconciliation = operation === 'apply' && useBundledFullRuntimePlane
-      ? await reconcileBundledFullRuntimePackagesIfAvailable(process.env, {
-        lifecycleAction: 'update',
-        operationId: adapterResultRef('opl_packages', operation, null),
-        requireSourceRoots: true,
-      })
-    : null;
-  const bundledTargets = bundledReconciliation
-    ? records(bundledReconciliation.root_installs).map((entry) => ({
-        target_type: 'package',
-        ...entry,
-        reason: entry.status === 'skipped'
-          ? 'bundled_full_runtime_target_current'
-          : entry.status === 'completed'
-            ? 'bundled_full_runtime_target_applied'
-            : entry.status === 'manual_required'
-              ? 'bundled_full_runtime_target_manual_required_without_mutation'
-              : 'bundled_full_runtime_target_failed_retryable',
-      }))
-    : null;
-  const packageTargets = bundledTargets ?? [];
-  const targets: Record<string, unknown>[] = packageTargets.length > 0
-    ? [...packageTargets]
-    : bundledReconciliation
-      ? [{
-          target_type: 'package_closure',
-          target_id: 'bundled_full_runtime_packages',
-          status: 'failed',
-          reason: 'bundled_full_runtime_reconciliation_incomplete',
-          action: 'update',
-          result: bundledReconciliation,
-        }]
-      : reconcileManagedChannelTargets();
+  const targets: Record<string, unknown>[] = reconcileManagedChannelTargets();
   const manualCount = targets.filter((target) => target.status === 'manual_required').length;
   const completedCount = targets.filter((target) => target.status === 'completed').length;
   const validatedCount = targets.filter((target) => target.status === 'validated').length;
@@ -495,7 +394,6 @@ async function runAgentPackageAdapter(
       : 'projection_only';
   const postApplyActions = changedCount > 0 ? buildAgentPackagePostApplyActions(operation, {
     surface_kind: 'capability_packages_adapter_result',
-    bundled_full_runtime_reconciliation: bundledReconciliation,
     targets,
     summary: {
       total_targets_count: targets.length,
@@ -534,15 +432,9 @@ async function runAgentPackageAdapter(
   });
   const result = {
     surface_kind: 'capability_packages_adapter_result',
-    framework_commit: bundledReconciliation ? frameworkCommit() : null,
-    catalog_ref: bundledReconciliation ? stringValue(bundledReconciliation.catalog_ref) : null,
-    catalog_sha256: bundledReconciliation ? stringValue(bundledReconciliation.catalog_sha256) : null,
-    bundled_full_runtime_reconciliation: bundledReconciliation,
     apply_mode: applyMode,
     app_background_safe: applyMode === 'auto_apply' && failedCount === 0 && !postApplyFailed,
-    auto_apply_scope: bundledTargets !== null
-      ? 'catalog_owned_bundled_full_runtime_root_packages_only'
-      : 'native_package_channel_modules_only',
+    auto_apply_scope: 'native_package_channel_modules_only',
     status_detail: statusDetail,
     reload_guidance: reloadGuidance,
     read_model_guidance: {
@@ -577,7 +469,7 @@ async function runAgentPackageAdapter(
             ? 'manual_review_required'
             : status === 'failed'
               ? 'package_update_failed_with_repair'
-              : 'managed_modules_reconciled_and_codex_surface_synced',
+              : 'managed_modules_reconciled',
     result_ref: changedCount > 0 || failedCount > 0 || manualCount > 0
       ? adapterResultRef('capability_packages', operation, result)
       : null,
@@ -595,17 +487,13 @@ async function runAdapter(
   contracts: FrameworkContracts,
   operation: ManagedUpdateKernelInput['operation'],
   componentId: string,
-  useBundledFullRuntimePlane: boolean,
 ): Promise<AdapterExecutionResult> {
   try {
     if (componentId === 'opl_base') {
       return await runRuntimeSubstrateAdapter(contracts, operation);
     }
     if (componentId === 'opl_packages') {
-      return await runAgentPackageAdapter(
-        operation,
-        useBundledFullRuntimePlane,
-      );
+      return await runAgentPackageAdapter(operation);
     }
     return {
       component_id: componentId,
@@ -733,9 +621,7 @@ function applyExecutionToProjection(
         ...projection.managed_update.authority_boundary,
         can_mutate_app_owned_runtime_root: results.some((entry) => entry.component_id === 'opl_base'),
         can_silently_update_clean_managed_modules: results.some((entry) => entry.component_id === 'opl_packages'),
-        can_sync_codex_plugin_skill_projection: results.some((entry) =>
-          entry.component_id === 'opl_packages'
-        ),
+        can_sync_codex_plugin_skill_projection: false,
       },
     },
   };
@@ -756,11 +642,6 @@ export async function runManagedUpdateKernelOperation(
       input,
       initialProjection.managed_update.components,
     );
-    const packageComponent = initialProjection.managed_update.components.find((component) =>
-      component.component_id === 'opl_packages');
-    const bundledPackageApply = Boolean(packageComponent
-      && isRecord(packageComponent.current)
-      && isRecord(packageComponent.current.bundled_full_runtime_catalog));
     const componentIds = selectedComponentIds;
     const results: AdapterExecutionResult[] = [];
     const componentsById = new Map(
@@ -772,7 +653,6 @@ export async function runManagedUpdateKernelOperation(
         contracts,
         input.operation,
         componentId,
-        bundledPackageApply,
       );
       results.push(component ? bindOwnerExecutionResult(component, result) : result);
     }

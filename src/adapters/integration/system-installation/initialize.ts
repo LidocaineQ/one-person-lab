@@ -4,8 +4,13 @@ import {
   readOplWorkspaceRoot,
 } from '../../../kernel/system-preferences.ts';
 import { readOplRuntimeModes } from '../../../kernel/runtime-modes.ts';
-import { buildOplGuiShellSurface, type OplRecommendedSkill } from '../install-companions.ts';
-import { runOplAgentPackageStatus } from '../agent-package-registry.ts';
+import {
+  buildOplGuiShellSurface,
+  buildOplRecommendedSkills,
+  type OplManagedSkillDependency,
+  type OplRecommendedSkill,
+} from '../install-companions.ts';
+import { readOplFlowManagedPolicyDependencies } from '../agent-package-registry.ts';
 import type { FrameworkContracts } from '../../../kernel/types.ts';
 
 import { buildOplEnvironment } from './environment.ts';
@@ -58,49 +63,42 @@ function buildRecommendedSkillsStatus(recommendedSkills: OplRecommendedSkill[]) 
 }
 
 export function buildOplRecommendedSkillsFromFlowStatus(): OplRecommendedSkill[] {
-  const packageStatus = runOplAgentPackageStatus({ packageId: 'opl-flow', detail: 'fast' })
-    .opl_agent_package_status;
-  const strategy = packageStatus.capability_strategy;
-  if (!strategy) return [];
-  const dependencySync = packageStatus.managed_policy_currentness?.dependency_sync;
-  const syncItems = dependencySync && typeof dependencySync === 'object'
-    && Array.isArray((dependencySync as Record<string, unknown>).items)
-    ? (dependencySync as { items: Array<Record<string, unknown>> }).items
-    : [];
-  const syncBySkillId = new Map(syncItems
-    .filter((item) => typeof item.skill_id === 'string')
-    .map((item) => [String(item.skill_id), item]));
-  return strategy.materialization_plan.items
-    .filter((item) => item.kind === 'codex_skill' && item.relationship === 'recommended')
-    .map((item): OplRecommendedSkill => {
-      const sync = syncBySkillId.get(item.id);
-      const status = sync && ['ready', 'synced', 'installed', 'available'].includes(String(sync.status))
-        ? 'ready'
-        : 'missing';
-      const requiredTools = strategy.materialization_plan.items
-        .filter((candidate) => candidate.kind === 'cli' && candidate.bundle_id === item.bundle_id)
+  const dependencies = readOplFlowManagedPolicyDependencies();
+  const managed = dependencies
+    .filter((dependency) => dependency.kind === 'codex_skill' && dependency.relationship === 'recommended')
+    .map((dependency): OplManagedSkillDependency => {
+      const requiredTools = dependencies
+        .filter((candidate) => candidate.kind === 'cli' && candidate.bundle_id === dependency.bundle_id)
         .map((candidate) => candidate.id)
         .filter((toolId): toolId is 'officecli' | 'mineru-open-api' | 'agent-reach' => (
           toolId === 'officecli' || toolId === 'mineru-open-api' || toolId === 'agent-reach'
         ));
-      return {
-        skill_id: item.id,
-        scope: 'global_user',
-        owner: item.owner ?? 'declared-capability-owner',
-        label: item.id,
+      const base = {
+        id: dependency.id,
         required: false,
-        source: 'flow_capability_strategy',
-        managed_dependency: true,
-        expected_paths: [sync?.target_path, sync?.agents_target_path, sync?.source_path]
-          .filter((candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0),
-        status,
-        required_tools: requiredTools,
-        install_hint: typeof sync?.note === 'string'
-          ? sync.note
-          : `Repair the OPL Flow experience baseline with opl packages repair --package-id opl-flow.`,
-        supports: [item.bundle_id ?? item.id],
+        owner: dependency.owner,
+        requiredTools,
+        versionRequirement: dependency.version_requirement,
+        installSource: dependency.install_source,
+      };
+      if (dependency.install_source === 'owner_cli' && dependency.id === 'agent-reach') {
+        return { ...base, sourceMode: 'owner_cli', ownerToolId: 'agent-reach' };
+      }
+      if (dependency.source?.startsWith('https://') && dependency.source_path) {
+        return {
+          ...base,
+          sourceMode: 'github',
+          repositoryUrl: dependency.source,
+          repositorySourcePath: dependency.source_path,
+        };
+      }
+      return {
+        ...base,
+        sourceMode: 'observe_existing',
+        legacySource: dependency.source ?? 'installed_owner_descriptor',
       };
     });
+  return buildOplRecommendedSkills(undefined, managed, { toolInspection: 'fast' });
 }
 
 function buildInitializeChecklistItem(input: OplInitializeChecklistItem): OplInitializeChecklistItem {
