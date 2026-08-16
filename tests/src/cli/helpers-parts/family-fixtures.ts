@@ -277,6 +277,7 @@ function installRuntimePackageFixtureClosure(
       plugin_id: string;
       configured_codex_plugin_carrier?: {
         plugin_selector?: unknown;
+        marketplace_source?: unknown;
       };
       required_skill_ids?: unknown;
     };
@@ -329,7 +330,23 @@ function installRuntimePackageFixtureClosure(
     }, null, 2)}\n`,
     'utf8',
   );
-  fs.writeFileSync(path.join(pluginRoot, 'opl-package.json'), packageManifestBytes, 'utf8');
+  const fixtureManifest = {
+    ...packageManifest,
+    codex_surface: {
+      ...packageManifest.codex_surface,
+      configured_codex_plugin_carrier: packageManifest.codex_surface.configured_codex_plugin_carrier
+        ? {
+            ...packageManifest.codex_surface.configured_codex_plugin_carrier,
+            marketplace_source: marketplaceRoot,
+          }
+        : packageManifest.codex_surface.configured_codex_plugin_carrier,
+    },
+  };
+  fs.writeFileSync(
+    path.join(pluginRoot, 'opl-package.json'),
+    `${JSON.stringify(fixtureManifest, null, 2)}\n`,
+    'utf8',
+  );
   materializeStandardAgentRuntimeFixture(pluginRoot, canonicalPackageId);
 
   fs.mkdirSync(codexHome, { recursive: true });
