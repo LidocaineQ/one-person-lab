@@ -3,6 +3,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { parseArgs as parseNodeArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 type ArtifactVerification = {
@@ -21,6 +22,8 @@ type ReadbackOptions = {
   intervalMs: number;
 };
 
+const usage = 'Usage: verify-whitepaper-publication.ts --verification <json> --output <json> [--attempts <n>] [--interval-ms <n>]';
+
 function fingerprint(bytes: Uint8Array) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
@@ -36,24 +39,41 @@ function positiveInteger(value: string | undefined, fallback: number, label: str
   return parsed;
 }
 
-function parseArgs(argv: string[]) {
-  const values = new Map<string, string>();
-  for (let index = 0; index < argv.length; index += 2) {
-    const flag = argv[index];
-    const value = argv[index + 1];
-    if (!['--verification', '--output', '--attempts', '--interval-ms'].includes(flag) || !value || values.has(flag)) {
-      throw new Error('Usage: verify-whitepaper-publication.ts --verification <json> --output <json> [--attempts <n>] [--interval-ms <n>]');
-    }
-    values.set(flag, value);
+type PublicationSourceOption = 'verification' | 'artifact-dir';
+
+export function parsePublicationArgs(
+  argv: string[],
+  sourceOption: PublicationSourceOption,
+  usageMessage: string,
+  requiredMessage: string,
+) {
+  let values: Record<string, string | undefined>;
+  try {
+    values = parseNodeArgs({
+      args: argv,
+      options: {
+        [sourceOption]: { type: 'string' },
+        output: { type: 'string' },
+        attempts: { type: 'string' },
+        'interval-ms': { type: 'string' },
+      },
+      strict: true,
+      allowPositionals: false,
+    }).values as Record<string, string | undefined>;
+  } catch {
+    throw new Error(usageMessage);
   }
-  const verification = values.get('--verification');
-  const output = values.get('--output');
-  if (!verification || !output) throw new Error('--verification and --output are required.');
+  const source = values[sourceOption];
+  const output = values.output;
+  const attempts = values.attempts;
+  const intervalMs = values['interval-ms'];
+  if (source === '' || output === '' || attempts === '' || intervalMs === '') throw new Error(usageMessage);
+  if (!source || !output) throw new Error(requiredMessage);
   return {
-    verification: path.resolve(verification),
+    sourcePath: path.resolve(source),
     output: path.resolve(output),
-    attempts: positiveInteger(values.get('--attempts'), 6, '--attempts'),
-    intervalMs: positiveInteger(values.get('--interval-ms'), 10_000, '--interval-ms'),
+    attempts: positiveInteger(attempts, 6, '--attempts'),
+    intervalMs: positiveInteger(intervalMs, 10_000, '--interval-ms'),
   };
 }
 
@@ -123,8 +143,8 @@ export async function verifyPublication(
 }
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2));
-  const receipt = await verifyPublication(args.verification, args.output, {
+  const args = parsePublicationArgs(process.argv.slice(2), 'verification', usage, '--verification and --output are required.');
+  const receipt = await verifyPublication(args.sourcePath, args.output, {
     attempts: args.attempts,
     intervalMs: args.intervalMs,
   });

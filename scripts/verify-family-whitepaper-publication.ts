@@ -4,38 +4,12 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { verifyPublication } from './verify-whitepaper-publication.ts';
+import { parsePublicationArgs, verifyPublication } from './verify-whitepaper-publication.ts';
+
+const usage = 'Usage: verify-family-whitepaper-publication.ts --artifact-dir <path> --output <json> [--attempts <n>] [--interval-ms <n>]';
 
 function fail(message: string): never {
   throw new Error(message);
-}
-
-function positiveInteger(value: string | undefined, fallback: number, label: string) {
-  if (value === undefined) return fallback;
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 1) fail(`${label} must be a positive integer.`);
-  return parsed;
-}
-
-function parseArgs(argv: string[]) {
-  const values = new Map<string, string>();
-  for (let index = 0; index < argv.length; index += 2) {
-    const flag = argv[index];
-    const value = argv[index + 1];
-    if (!['--artifact-dir', '--output', '--attempts', '--interval-ms'].includes(flag) || !value || values.has(flag)) {
-      fail('Usage: verify-family-whitepaper-publication.ts --artifact-dir <path> --output <json> [--attempts <n>] [--interval-ms <n>]');
-    }
-    values.set(flag, value);
-  }
-  const artifactDir = values.get('--artifact-dir');
-  const output = values.get('--output');
-  if (!artifactDir || !output) fail('--artifact-dir and --output are required.');
-  return {
-    artifactDir: path.resolve(artifactDir),
-    output: path.resolve(output),
-    attempts: positiveInteger(values.get('--attempts'), 6, '--attempts'),
-    intervalMs: positiveInteger(values.get('--interval-ms'), 10_000, '--interval-ms'),
-  };
 }
 
 function sha256(filePath: string) {
@@ -43,8 +17,13 @@ function sha256(filePath: string) {
 }
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2));
-  const manifestPath = path.join(args.artifactDir, 'opl-family-whitepaper-build.json');
+  const args = parsePublicationArgs(
+    process.argv.slice(2),
+    'artifact-dir',
+    usage,
+    '--artifact-dir and --output are required.',
+  );
+  const manifestPath = path.join(args.sourcePath, 'opl-family-whitepaper-build.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
     builds?: Array<{ id: string; verification: string }>;
   };
@@ -55,7 +34,7 @@ async function main() {
     if (path.basename(verification) !== verification || !verification.endsWith('.verification.json')) {
       fail(`Invalid verification path for ${id}.`);
     }
-    const verificationPath = path.join(args.artifactDir, verification);
+    const verificationPath = path.join(args.sourcePath, verification);
     if (!fs.existsSync(verificationPath)) fail(`Missing verification for ${id}: ${verification}`);
     const receiptPath = path.join(receiptDir, `${id}.json`);
     try {
