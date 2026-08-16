@@ -1,7 +1,7 @@
 {
   "schema_version": "opl_whitepaper_artifact_verification.v2",
   "status": "whitepaper_artifact_verified",
-  "generated_at": "2026-08-15T23:58:37.018Z",
+  "generated_at": "2026-08-16T00:34:41.710Z",
   "publication_date": "2026-07-13",
   "claim_boundary": {
     "artifact_render_verified": true,
@@ -11,7 +11,7 @@
     "domain_ready": false
   },
   "source_git": {
-    "commit": "601583c9a98a91fe401cd1ef9281f61af12f0230",
+    "commit": "c3ca7b3e96770767e632de8724aac0cf3cd42371",
     "branch": "main",
     "tracked_dirty": false
   },
@@ -19,17 +19,17 @@
   "source_profile_sha256": "f76cb8e9861dafaf622f4c0183c40210743662289230a0dc4a39833fb901a40d",
   "source_profile_size": 543,
   "source_markdown": "docs/whitepapers/mas-whitepaper.md",
-  "source_markdown_sha256": "cc7c417562c85d059fca3e7ca36f6e2d719a426b92d86c64526ca4466c2d9d1a",
-  "source_markdown_size": 18389,
+  "source_markdown_sha256": "231ebb2115682c40f3a8a8ea7c875b7d0744f90b6e5357d6d6c1a87e454ecadd",
+  "source_markdown_size": 18365,
   "generated_markdown": "docs/site/latest/whitepapers/mas-whitepaper.md",
-  "generated_markdown_sha256": "cc7c417562c85d059fca3e7ca36f6e2d719a426b92d86c64526ca4466c2d9d1a",
-  "generated_markdown_size": 18389,
+  "generated_markdown_sha256": "231ebb2115682c40f3a8a8ea7c875b7d0744f90b6e5357d6d6c1a87e454ecadd",
+  "generated_markdown_size": 18365,
   "generated_html": "docs/site/latest/whitepapers/mas-whitepaper.html",
-  "generated_html_sha256": "c3563d19cd893f7311519f3a8e9e888efabb7ff9d8587e845bad82920bff982c",
-  "generated_html_size": 2759139,
+  "generated_html_sha256": "30f6fef2bdae787cb7be7fc677c948bdfbb96a7e5a3a0fc7173dd2e633bcf87d",
+  "generated_html_size": 2759113,
   "generated_pdf": "docs/site/latest/whitepapers/mas-whitepaper.pdf",
-  "generated_pdf_sha256": "86b8fb17ac0a1e8a2050e3382e81b032172cfe147657a0a9cd1e8bc5a9b7bd0e",
-  "generated_pdf_size": 2023463,
+  "generated_pdf_sha256": "67f264f4074c74c47c2978cd21520a7fd9b2c5ca92421abeda6b7628b6ee043b",
+  "generated_pdf_size": 2023892,
   "temp_markdown": "tmp/pdfs/mas-whitepaper/mas-whitepaper.pandoc.md",
   "rendered_dir": "tmp/pdfs/mas-whitepaper/rendered",
   "rendered_pages": 8,
@@ -41,13 +41,13 @@
     },
     {
       "page": "page-2.png",
-      "sha256": "ab5669bc99900a0c433de8ec895c15c172d0118b396eb04782e93b7e403abfe0",
-      "size": 96427
+      "sha256": "69bb865a89abacaba0e1e118130f05aff702c05e59186a90c3e92bf8593040f6",
+      "size": 98206
     },
     {
       "page": "page-3.png",
-      "sha256": "94ebc93b80d48ee8c2d18f2de87704be74fbcf566938fd46b9743dab0d849626",
-      "size": 428719
+      "sha256": "340ad34bd71ed9cb66cf457ccd1333fc738e9bdd8a183ecb9c36c7588eefe09b",
+      "size": 428993
     },
     {
       "page": "page-4.png",
@@ -61,13 +61,13 @@
     },
     {
       "page": "page-6.png",
-      "sha256": "26e3f49fb611663639e01ad4556fcb398d223e927f9e7df64882ad7804e74702",
-      "size": 379429
+      "sha256": "c69dad0fc8f9cea1e883f1b88f289418cb0da99e6a88a31e0a20192470bcf95a",
+      "size": 375931
     },
     {
       "page": "page-7.png",
-      "sha256": "2c636e73e949e280a635939fd31b645a61a6d63ee14720315d91365de709cc2d",
-      "size": 511949
+      "sha256": "475b72f94a826513aae5e1725d318b0691bc7dac04fb233bae15d6defff9a42c",
+      "size": 514287
     },
     {
       "page": "page-8.png",
@@ -86,7 +86,7 @@
   },
   "style_profile": "opl-whitepaper-pandoc-xelatex-v2",
   "renderer": {
-    "repo_commit": "67d8276adb95255ce6dd12d7fa7cc70e53f98282",
+    "repo_commit": "0a34ae51a374477fcd5c0043c05e2c48a04534aa",
     "builder": {
       "path": "scripts/opl-whitepaper-builder.ts",
       "sha256": "1b9f93e4678d9f74a370d7ca6baf29dbca0636382c6fa443f60f0e6589b514aa",

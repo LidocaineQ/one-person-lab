@@ -1,7 +1,7 @@
 {
   "schema_version": "opl_whitepaper_artifact_verification.v2",
   "status": "whitepaper_artifact_verified",
-  "generated_at": "2026-08-15T23:58:22.186Z",
+  "generated_at": "2026-08-16T00:34:24.421Z",
   "publication_date": "2026-07-15",
   "claim_boundary": {
     "artifact_render_verified": true,
@@ -11,7 +11,7 @@
     "domain_ready": false
   },
   "source_git": {
-    "commit": "7d5e00b57b119e15e38bfb66c19ff48c9d98474c",
+    "commit": "a43b3a412d873cefbfa3cb5dfd1b0c8076864604",
     "branch": "main",
     "tracked_dirty": false
   },
@@ -19,17 +19,17 @@
   "source_profile_sha256": "af5210c008db3c70190c84cbe033ffe5b953c009f81d0eefb3a85ae14ae80213",
   "source_profile_size": 622,
   "source_markdown": "docs/whitepapers/opl-cloud-whitepaper.md",
-  "source_markdown_sha256": "11a1c2696abc31397f8c1b92d21a5dec1dd6e6e24a427a675f4bed9c1eded60b",
-  "source_markdown_size": 17863,
+  "source_markdown_sha256": "79d25ad0bd2cb18b6f6a301e5c99aa8d3201433fa8dc36ef60ca241e8a2bf6df",
+  "source_markdown_size": 17543,
   "generated_markdown": "docs/site/latest/whitepapers/opl-cloud-whitepaper.md",
-  "generated_markdown_sha256": "11a1c2696abc31397f8c1b92d21a5dec1dd6e6e24a427a675f4bed9c1eded60b",
-  "generated_markdown_size": 17863,
+  "generated_markdown_sha256": "79d25ad0bd2cb18b6f6a301e5c99aa8d3201433fa8dc36ef60ca241e8a2bf6df",
+  "generated_markdown_size": 17543,
   "generated_html": "docs/site/latest/whitepapers/opl-cloud-whitepaper.html",
-  "generated_html_sha256": "d072ddf00977024037ee4d3a4456fa380687b99a7a9a4fabab7c62919e67163a",
-  "generated_html_size": 2402583,
+  "generated_html_sha256": "8c45c1aab7cc98ebdab7ec3a6148806f702576b847060ba4cd2ae0ffc8140583",
+  "generated_html_size": 2402254,
   "generated_pdf": "docs/site/latest/whitepapers/opl-cloud-whitepaper.pdf",
-  "generated_pdf_sha256": "99549abf38fc8397d5226357143344a9b8f13ac386b696defa479ad98ee475da",
-  "generated_pdf_size": 1660392,
+  "generated_pdf_sha256": "284f3b8db54926f9ed5d438c4a680b5e9d9db12acdbceaa4c2f79dd7885c7929",
+  "generated_pdf_size": 1657524,
   "temp_markdown": "tmp/pdfs/opl-cloud-whitepaper/opl-cloud-whitepaper.pandoc.md",
   "rendered_dir": "tmp/pdfs/opl-cloud-whitepaper/rendered",
   "rendered_pages": 9,
@@ -41,13 +41,13 @@
     },
     {
       "page": "page-2.png",
-      "sha256": "b54d0e755fd627bdf1c9a423ee5b249ebd79376f059276c50785a9e2503e48be",
-      "size": 157808
+      "sha256": "a24f15b47703c181fbc5b17c56408a6483fc52376d3c84478689442e80e3e66b",
+      "size": 157657
     },
     {
       "page": "page-3.png",
-      "sha256": "ec44b4f7c8801ff649681ce52c50ac12ff7c7644fc1806bb1c5a678b43e32d7b",
-      "size": 445424
+      "sha256": "93c04d7bb85cf9e1cf810e39570f287448fc046cdc6773b0dab4daddd15e77ad",
+      "size": 438861
     },
     {
       "page": "page-4.png",
@@ -56,8 +56,8 @@
     },
     {
       "page": "page-5.png",
-      "sha256": "7e035e7f39b872dd2b190cf12886c2bbd03cc0692aa230e6d43065f87968aa25",
-      "size": 433387
+      "sha256": "0b7caf08e45f601bc7edd1dded2466a38f71944b6c0837bf6c842874503f7e39",
+      "size": 407339
     },
     {
       "page": "page-6.png",
@@ -91,7 +91,7 @@
   },
   "style_profile": "opl-whitepaper-pandoc-xelatex-v2",
   "renderer": {
-    "repo_commit": "67d8276adb95255ce6dd12d7fa7cc70e53f98282",
+    "repo_commit": "0a34ae51a374477fcd5c0043c05e2c48a04534aa",
     "builder": {
       "path": "scripts/opl-whitepaper-builder.ts",
       "sha256": "1b9f93e4678d9f74a370d7ca6baf29dbca0636382c6fa443f60f0e6589b514aa",

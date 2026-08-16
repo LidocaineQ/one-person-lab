@@ -125,7 +125,7 @@ font-size: 1.9rem;
 </blockquote>
 <!-- Owner: `one-person-lab-app`; Purpose: `public_app_whitepaper_body_source`; State: `active_public_source`; Machine boundary: Human-readable whitepaper body source. Generated PDF and verification JSON are derived artifacts. App release, runtime, domain, quality, owner receipt, production, and currentness truth stay in contracts, source, release artifacts, runtime readback, domain owner surfaces, and evidence records. -->
 <p>发布日期：2026-07-13</p>
-<p>最近修订：2026-08-15</p>
+<p>最近修订：2026-08-16</p>
 <p>适用对象：希望理解 OPL App
 为什么这样设计，以及这些设计怎样帮助自己完成研究、基金、演示和书稿等复杂知识工作的用户、合作者、早期采用者和技术决策者。</p>
 <p>核心判断：一个专业 AI
@@ -279,31 +279,17 @@ Workspace
 <p>这个模型让产品边界更容易理解：Base 负责运行，App
 负责工作体验，Packages 负责专业能力，Cloud
 负责在线工作与治理。界面汇总它们的真实状态，不要求用户理解多套运行器、状态来源与恢复机制。</p>
-<h2 id="一个产品两种界面实现">一个产品，两种界面实现</h2>
-<p>OPL App 由一份产品定义和一位发布负责人统筹，也支持多个界面实现。当前
-AionUI 主线界面 承载稳定产品体验；借鉴 DeepSeek Harness 的 Studio
-候选界面探索新的交互与载体实现。两者都是同一 App 产品合同的载体：</p>
-<pre class="text"><code>OPL Packages -&gt; 专业能力与受控界面描述
-OPL Framework Host -&gt; 动态、经过准入的状态、动作与界面能力投影
-OPL App profile / allowlist -&gt; Client Contribution ABI 与产品状态语义
-OPL App Client Cordis -&gt; 产品页面、动作与界面贡献
-  -&gt; AionUI 主线界面
-  -&gt; DeepSeek Harness 候选界面</code></pre>
-<p>导航、页面身份、状态名称、命令含义、首次使用引导、能力包管理和发布准入都由
-One Person Lab App
-统一。两个界面可以采用不同的渲染技术、组件库、上游来源和构建方式，
-同时共享 Framework 提供的 Host-derived graph、App allowlist、typed
-slots/actions、RPC/events 和状态语义。App
-不维护固定品牌能力名单，而是显示并准入 Framework 的动态投影。所有 Shell
-命令都要先通过 App-owned compatibility/admission；这证明显式 adapter
-可选择，不承诺无验证 热切换。AionUI
-的真实消费链由主线源码和测试证明，Studio
-仍需完成独立候选与发布准入。</p>
-<p>一次发布会明确记录 App 版本、Framework
-兼容范围、所选界面版本、界面能力版本和组合快照。 AionUI
-当前承载主线发布；候选界面会在安装、安全、更新和发布证据完整后，按照 App
-的正式 产品决策进入默认发布。</p>
-<h2 id="清楚的分工带来可信的产品">清楚的分工带来可信的产品</h2>
+<h2 id="一个产品一套连续体验">一个产品，一套连续体验</h2>
+<p>OPL App
+用一份产品定义统筹导航、页面、状态、操作、首次使用引导和能力管理。用户始终面对一套
+一致的工作语言，不需要理解底层能力来自哪里，也不需要在多个控制面之间判断哪个状态才是真的。</p>
+<p>专业能力会根据当前任务动态进入工作台。App
+把它们组织成可理解的页面、操作和进度，同时保持
+任务、文件、运行状态和专业判断各自的真实来源。新增或升级能力时，用户已有的项目和工作方式继续
+有效；只有经过兼容性、安装、安全和发布验证的变化才会进入正式产品。</p>
+<p>界面设计可以持续改进，但每次正式发布只呈现一套完整验证的产品体验。产品升级不会复制用户工作、
+能力安装状态或操作规则，也不会让显示结果取代运行事实和专业结论。</p>
+<h2 id="清楚分工如何保持体验一致">清楚分工如何保持体验一致</h2>
 <p>OPL App 通过清楚分工建立专业性：</p>
 <pre class="text"><code>OPL 产品体验
   = OPL Base：阶段运行、恢复、证据与交接
@@ -325,8 +311,8 @@ Agent 和人类负责人判断。</p>
 <p>它让用户从真实目的开始，让成果带着来路，让状态指向下一步，让设置围绕用户决策组织；它让工作从本机自然延伸到浏览器和
 Cloud，同时清楚区分设计目标与发布事实；它把专业能力放进可扩展
 Packages，让 Base、App、Packages 和 Cloud 各自承担清楚而互补的责任。</p>
-<p>产品通过把复杂性放在正确的位置而变得好用。用户看到目标、成果和决定，专业
-Agent 保留判断权，运行系统保留事实，诊断细节在需要时出现。这就是 OPL App
-的设计选择，也是它值得被信任的原因。</p>
+<p>产品把复杂性放在正确的位置：用户看到目标、成果和决定，专业 Agent
+保留判断权，运行系统保留事实，诊断细节在需要时出现。OPL App
+的一致性与可靠性，应由这些可观察、可复查的结果持续证明。</p>
 </body>
 </html>

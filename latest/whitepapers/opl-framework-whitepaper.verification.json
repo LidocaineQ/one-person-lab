@@ -1,7 +1,7 @@
 {
   "schema_version": "opl_whitepaper_artifact_verification.v2",
   "status": "whitepaper_artifact_verified",
-  "generated_at": "2026-08-15T23:57:49.071Z",
+  "generated_at": "2026-08-16T00:33:46.193Z",
   "publication_date": "2026-08-15",
   "claim_boundary": {
     "artifact_render_verified": true,
@@ -11,7 +11,7 @@
     "domain_ready": false
   },
   "source_git": {
-    "commit": "67d8276adb95255ce6dd12d7fa7cc70e53f98282",
+    "commit": "0a34ae51a374477fcd5c0043c05e2c48a04534aa",
     "branch": "main",
     "tracked_dirty": false
   },
@@ -19,17 +19,17 @@
   "source_profile_sha256": "da3faee5e83c924dda611682f5f28b77993f3ffe98c491bbff087c6eb1bf5518",
   "source_profile_size": 584,
   "source_markdown": "docs/whitepapers/opl-framework-whitepaper.md",
-  "source_markdown_sha256": "1407a729a8502758311543921bfaee24711c28fae6b533f76e819760e4a0fd3c",
-  "source_markdown_size": 12421,
+  "source_markdown_sha256": "9606692c59289c017b1aa867952be42e2a99fe1c47c23afd502d6598eb0c5870",
+  "source_markdown_size": 12299,
   "generated_markdown": "docs/site/latest/whitepapers/opl-framework-whitepaper.md",
-  "generated_markdown_sha256": "1407a729a8502758311543921bfaee24711c28fae6b533f76e819760e4a0fd3c",
-  "generated_markdown_size": 12421,
+  "generated_markdown_sha256": "9606692c59289c017b1aa867952be42e2a99fe1c47c23afd502d6598eb0c5870",
+  "generated_markdown_size": 12299,
   "generated_html": "docs/site/latest/whitepapers/opl-framework-whitepaper.html",
-  "generated_html_sha256": "a6b2658fb6f25cf8cd1c35bae46cb956f234b4ef4d30a1ef2c3ced2f02577af2",
-  "generated_html_size": 16749,
+  "generated_html_sha256": "0e50d1781eb06ff0c3a0848d993c9e9a05671d848e108833b90aaaeb2d165ee5",
+  "generated_html_size": 16647,
   "generated_pdf": "docs/site/latest/whitepapers/opl-framework-whitepaper.pdf",
-  "generated_pdf_sha256": "0f560d92aa912d25afd37702796afc037c7e2e61ff42ebc1d10561c46b83cd23",
-  "generated_pdf_size": 145529,
+  "generated_pdf_sha256": "f314a91430d07b7224bcc996034cc63735b54211d87a316088d6e4095be1e317",
+  "generated_pdf_size": 142158,
   "temp_markdown": "tmp/pdfs/opl-framework-whitepaper/opl-framework-whitepaper.pandoc.md",
   "rendered_dir": "tmp/pdfs/opl-framework-whitepaper/rendered",
   "rendered_pages": 6,
@@ -41,28 +41,28 @@
     },
     {
       "page": "page-2.png",
-      "sha256": "6801a51ccdc12f5b3a4ef484aad7656ca5f3e1cbe6d53976d1887396b4876781",
-      "size": 79943
+      "sha256": "c88a483766de105ea417b3b1aac6b06901708f1a7530bb6d62e30d8bd1b912d0",
+      "size": 83077
     },
     {
       "page": "page-3.png",
-      "sha256": "2e6cdb32c75d89c0688f464a4f2912bf0f917e6e45357d7c2ca5143a28047e29",
-      "size": 444693
+      "sha256": "5dcaf84929083472f8e1463206fc1f50c9a05b838ccd64b535b300536bad1038",
+      "size": 443278
     },
     {
       "page": "page-4.png",
-      "sha256": "ab38cf7f26f0560dc0c38f8e84d4a3bca60908c6308308462babebdec0ceca24",
-      "size": 421634
+      "sha256": "1f0d328f20acbafab4d5d39928a7bfcc95c78db6ef9e03d99ce277d092edcf53",
+      "size": 433209
     },
     {
       "page": "page-5.png",
-      "sha256": "d2a7f3d4711e8954b5a47b4fa7e440aa3a91eecc3ef1c6c70d66eada5d3254c4",
-      "size": 442914
+      "sha256": "cee8327a939dd94fdfab87c671e7a2d1e051fa8b3d2e3e8d8a746f22770a9196",
+      "size": 462345
     },
     {
       "page": "page-6.png",
-      "sha256": "c5117b62ee97577476ccba4f6dbc063d7d05e1addd2d4930f5b05bf53312b0ef",
-      "size": 63955
+      "sha256": "b57fcc57fda20248163b8000852b1d11ce8a9693e5358a3769eb586b5cd776ea",
+      "size": 22372
     }
   ],
   "pdf_pages": 6,
@@ -76,7 +76,7 @@
   },
   "style_profile": "opl-whitepaper-pandoc-xelatex-v2",
   "renderer": {
-    "repo_commit": "67d8276adb95255ce6dd12d7fa7cc70e53f98282",
+    "repo_commit": "0a34ae51a374477fcd5c0043c05e2c48a04534aa",
     "builder": {
       "path": "scripts/opl-whitepaper-builder.ts",
       "sha256": "1b9f93e4678d9f74a370d7ca6baf29dbca0636382c6fa443f60f0e6589b514aa",
@@ -96,8 +96,8 @@
     {
       "kind": "html",
       "path": "docs/site/latest/whitepapers/index.html",
-      "sha256": "478538b870cac0d9251572f7e5f721deab8f878ece56834ada3c6a4c33d06877",
-      "size": 6109,
+      "sha256": "7e2d510c1c5b3e6638b056c467505f5ceb427a150505bb3b01c92c471e5fa104",
+      "size": 6046,
       "url": "https://gaofeng21cn.github.io/one-person-lab/latest/whitepapers/"
     }
   ],
