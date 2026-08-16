@@ -134,30 +134,6 @@ export const cordisChannelProviderHostPlugin = {
   provide: CORDIS_CHANNEL_PROVIDER_HOST_SERVICE,
   async apply(ctx: Context, config: CordisChannelProviderHostPluginConfig) {
     assertChannelThreadCallback(config.callback);
-    const boundedCallback: ChannelThreadCallback = Object.freeze({
-      async startThread(input) {
-        return threadRef(await config.callback.startThread(conversationIdentity(input)));
-      },
-      resumeThread: (input) => config.callback.resumeThread(threadRef(input)),
-      async startTurn(input) {
-        const canonicalThread = threadRef(input);
-        const result = turnRef(await config.callback.startTurn({
-          ...canonicalThread,
-          text: requiredString(input?.text, 'text'),
-        }));
-        sameThread(canonicalThread, result);
-        return result;
-      },
-      subscribeTurn(input, observer) {
-        const canonicalTurn = turnRef(input);
-        const subscription = config.callback.subscribeTurn(
-          canonicalTurn,
-          terminalObserver(canonicalTurn, observer),
-        );
-        assertChannelDisposable(subscription);
-        return Object.freeze({ dispose: () => subscription.dispose() });
-      },
-    });
     const activeProviders = new Set<string>();
     const service: CordisChannelProviderHostService = {
       callback_api_version: CHANNEL_THREAD_CALLBACK_API_VERSION,
@@ -167,6 +143,36 @@ export const cordisChannelProviderHostPlugin = {
           throw new Error(`Channel provider is already attached: ${provider.provider_id}`);
         }
         activeProviders.add(provider.provider_id);
+        const boundedCallback: ChannelThreadCallback = Object.freeze({
+          async startThread(input) {
+            const identity = conversationIdentity(input);
+            if (identity.provider_id !== provider.provider_id) {
+              throw new Error(
+                `Channel provider ${provider.provider_id} cannot bind another provider identity: ${identity.provider_id}`,
+              );
+            }
+            return threadRef(await config.callback.startThread(identity));
+          },
+          resumeThread: (input) => config.callback.resumeThread(threadRef(input)),
+          async startTurn(input) {
+            const canonicalThread = threadRef(input);
+            const result = turnRef(await config.callback.startTurn({
+              ...canonicalThread,
+              text: requiredString(input?.text, 'text'),
+            }));
+            sameThread(canonicalThread, result);
+            return result;
+          },
+          subscribeTurn(input, observer) {
+            const canonicalTurn = turnRef(input);
+            const subscription = config.callback.subscribeTurn(
+              canonicalTurn,
+              terminalObserver(canonicalTurn, observer),
+            );
+            assertChannelDisposable(subscription);
+            return Object.freeze({ dispose: () => subscription.dispose() });
+          },
+        });
         let providerDisposable: ChannelDisposable;
         try {
           providerDisposable = await provider.start({

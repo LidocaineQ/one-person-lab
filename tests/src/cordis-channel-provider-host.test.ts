@@ -89,6 +89,14 @@ test('app-full attaches a long-lived provider to the bounded callback and tears 
         'startTurn',
         'subscribeTurn',
       ]);
+      await assert.rejects(
+        () => injected.startThread({
+          provider_id: 'other-provider',
+          account_id: 'account-1',
+          channel_session_id: 'session-1',
+        }),
+        /cannot bind another provider identity/,
+      );
       const thread = await injected.startThread({
         provider_id: 'opl-channel-weixin',
         account_id: 'account-1',
