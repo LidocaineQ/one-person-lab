@@ -129,7 +129,7 @@ function runCliProcess(args: string[], cwd: string, envOverrides: Record<string,
   };
   const result = spawnSync(
     process.execPath,
-    ['--experimental-strip-types', cliPath, ...args],
+    ['--conditions=opl-source', '--experimental-strip-types', cliPath, ...args],
     options,
   );
   cleanupTimedOutCli(result);
@@ -197,7 +197,7 @@ export function runCliViaEntryPathInCwd(
   };
   const result = spawnSync(
     process.execPath,
-    ['--experimental-strip-types', entryPath, ...args],
+    ['--conditions=opl-source', '--experimental-strip-types', entryPath, ...args],
     options,
   );
   cleanupTimedOutCli(result);
@@ -246,7 +246,7 @@ export async function runCliAsync(args: string[], envOverrides: Record<string, s
     const timeoutMs = cliTestTimeoutMs(envOverrides);
     const child = spawn(
       process.execPath,
-      ['--experimental-strip-types', cliPath, ...args],
+      ['--conditions=opl-source', '--experimental-strip-types', cliPath, ...args],
       {
         cwd: repoRoot,
         env: cliTestEnv(envOverrides),

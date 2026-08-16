@@ -16,7 +16,7 @@ LAUNCHER_PATH="$(cd "$(dirname "$SOURCE_PATH")" && pwd)/$(basename "$SOURCE_PATH
 
 run_opl() {
   if [[ -f "$ROOT_DIR/src/entrypoints/cli.ts" ]]; then
-    exec -a "$LAUNCHER_PATH" node --experimental-strip-types "$ROOT_DIR/src/entrypoints/cli.ts" "$@"
+    exec -a "$LAUNCHER_PATH" node --conditions=opl-source --experimental-strip-types "$ROOT_DIR/src/entrypoints/cli.ts" "$@"
   fi
 
   exec -a "$LAUNCHER_PATH" node "$ROOT_DIR/dist/entrypoints/cli.js" "$@"
@@ -24,7 +24,7 @@ run_opl() {
 
 run_opl_mcp_stdio() {
   if [[ -f "$ROOT_DIR/src/entrypoints/mcp-stdio.ts" ]]; then
-    exec node --experimental-strip-types "$ROOT_DIR/src/entrypoints/mcp-stdio.ts"
+    exec node --conditions=opl-source --experimental-strip-types "$ROOT_DIR/src/entrypoints/mcp-stdio.ts"
   fi
 
   exec node "$ROOT_DIR/dist/entrypoints/mcp-stdio.js"
