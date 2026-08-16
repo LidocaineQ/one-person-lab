@@ -111,6 +111,13 @@ const readModelGateTestFiles = [
       'tests/src/work-item-inventory-binding.test.ts',
     ],
   }),
+  // These imported files belong to this focused lane even though their aggregate
+  // roots execute in fast or regression.
+  'tests/src/cli/cases/managed-update-kernel-projection.test.ts',
+  'tests/src/cli/cases/packages-cases/workflow-policy-transaction.test.ts',
+  'tests/src/cli/cases/framework-readiness-binding-cases.test.ts',
+  'tests/src/cli/cases/workspace-domain.agent-skeleton.test.ts',
+  'tests/src/cli/cases/workspace-domain.external-evidence.test.ts',
 ];
 
 const fastLaneExcludedTestFiles = new Set(expandTestFiles([
