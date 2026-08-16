@@ -31,6 +31,7 @@
       "items": { "$ref": "#/$defs/integrationPoint" }
     },
     "composition_policy": { "$ref": "#/$defs/compositionPolicy" },
+    "channel_provider": { "$ref": "#/$defs/channelProvider" },
     "authority_boundary": { "$ref": "#/$defs/authorityBoundary" }
   },
   "$defs": {
@@ -104,6 +105,7 @@
             "stage_binding",
             "foundry_binding",
             "app_contribution",
+            "channel_provider",
             "profile_materialization",
             "descriptor_discovery"
           ]
@@ -128,6 +130,51 @@
         },
         "hot_swap": { "const": false },
         "teardown_owner": { "enum": ["opl_host", "package"] }
+      }
+    },
+    "channelProvider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host_service_id",
+        "callback_api_version",
+        "activation",
+        "thread_binding_fields",
+        "thread_ref_fields",
+        "turn_ref_field",
+        "methods",
+        "terminal_statuses",
+        "subscription_lifecycle",
+        "transport_boundary",
+        "forbidden_surfaces"
+      ],
+      "properties": {
+        "host_service_id": { "const": "opl.connect.channel-provider-host" },
+        "callback_api_version": { "const": "1.0.0" },
+        "activation": { "const": "optional_shell_injected" },
+        "thread_binding_fields": {
+          "const": ["provider_id", "account_id", "channel_session_id"]
+        },
+        "thread_ref_fields": {
+          "const": ["canonical_thread_host", "canonical_thread_id"]
+        },
+        "turn_ref_field": { "const": "canonical_turn_id" },
+        "methods": {
+          "const": ["startThread", "resumeThread", "startTurn", "subscribeTurn"]
+        },
+        "terminal_statuses": {
+          "const": ["completed", "failed", "cancelled"]
+        },
+        "subscription_lifecycle": { "const": "disposable" },
+        "transport_boundary": { "const": "current_shell_codex_app_server_only" },
+        "forbidden_surfaces": {
+          "const": [
+            "unrestricted_json_rpc",
+            "second_app_server",
+            "secret_persistence",
+            "thread_persistence"
+          ]
+        }
       }
     },
     "authorityBoundary": {

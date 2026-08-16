@@ -640,6 +640,36 @@
           "allowed_profiles": [
             "base-headless"
           ]
+        },
+        {
+          "contribution_id": "connect-channel-provider-host",
+          "plugin_id": "opl-connect-channel-provider-host",
+          "disposition": "merge",
+          "implementation_state": "landed",
+          "source_refs": [
+            "src/host/plugins/cordis-channel-provider-host.ts",
+            "src/authority/packages/package-host-integration.ts"
+          ],
+          "caller_refs": [
+            "src/host/composition-profiles.ts"
+          ],
+          "scope": "composition",
+          "trust": "first_party_restricted",
+          "authority_role": "Attach only an explicitly injected Shell callback and optional Package channel provider; expose four bounded thread/turn operations and terminal observation. It never owns secrets, thread truth, persistent conversation state, or unrestricted App Server RPC.",
+          "forbidden_authorities": [
+            "package_installed_truth",
+            "package_currentness",
+            "native_carrier_lifecycle",
+            "workspace_binding_registry",
+            "ledger_evidence_persistence",
+            "ledger_receipt_authority",
+            "app_product_truth",
+            "credential_material",
+            "security_sandbox"
+          ],
+          "allowed_profiles": [
+            "app-full"
+          ]
         }
       ],
       "authority_continues_refs": [
@@ -773,6 +803,11 @@
           "plugin_id": "opl-connect-descriptor-discovery",
           "required": true,
           "reason": "App contribution and package projections use profile-bound discovery."
+        },
+        {
+          "plugin_id": "opl-connect-channel-provider-host",
+          "required": false,
+          "reason": "App-full may opt into a Shell-injected bounded channel callback; absent injection the provider host remains dormant."
         }
       ],
       "child_composition_allowlist": [

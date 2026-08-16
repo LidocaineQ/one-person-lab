@@ -40,6 +40,7 @@ export type PackageHostIntegrationTrigger =
   | 'stage_binding'
   | 'foundry_binding'
   | 'app_contribution'
+  | 'channel_provider'
   | 'profile_materialization'
   | 'descriptor_discovery';
 
@@ -63,6 +64,25 @@ export type PackageHostIntegrationPoint = Readonly<{
   }>;
 }>;
 
+export type PackageHostChannelProviderContract = Readonly<{
+  host_service_id: 'opl.connect.channel-provider-host';
+  callback_api_version: '1.0.0';
+  activation: 'optional_shell_injected';
+  thread_binding_fields: readonly ['provider_id', 'account_id', 'channel_session_id'];
+  thread_ref_fields: readonly ['canonical_thread_host', 'canonical_thread_id'];
+  turn_ref_field: 'canonical_turn_id';
+  methods: readonly ['startThread', 'resumeThread', 'startTurn', 'subscribeTurn'];
+  terminal_statuses: readonly ['completed', 'failed', 'cancelled'];
+  subscription_lifecycle: 'disposable';
+  transport_boundary: 'current_shell_codex_app_server_only';
+  forbidden_surfaces: readonly [
+    'unrestricted_json_rpc',
+    'second_app_server',
+    'secret_persistence',
+    'thread_persistence',
+  ];
+}>;
+
 export type PackageHostIntegration = Readonly<{
   surface_kind: 'opl_package_host_integration.v1';
   integration_kind: PackageHostIntegrationKind;
@@ -73,12 +93,104 @@ export type PackageHostIntegration = Readonly<{
     hot_swap: false;
     teardown_owner: 'opl_host' | 'package';
   }>;
+  channel_provider?: PackageHostChannelProviderContract;
   authority_boundary: Readonly<{
     forbidden_authorities: readonly string[];
   }>;
 }>;
 
 export type PackageHostProfileId = 'base-headless' | 'app-full' | 'foundry-dev';
+
+export const CHANNEL_THREAD_CALLBACK_API_VERSION = '1.0.0' as const;
+export const CHANNEL_PROVIDER_HOST_SERVICE_ID = 'opl.connect.channel-provider-host' as const;
+
+export type ChannelConversationIdentity = Readonly<{
+  provider_id: string;
+  account_id: string;
+  channel_session_id: string;
+}>;
+
+export type ChannelThreadRef = Readonly<{
+  canonical_thread_host: string;
+  canonical_thread_id: string;
+}>;
+
+export type ChannelTurnRef = ChannelThreadRef & Readonly<{
+  canonical_turn_id: string;
+}>;
+
+export type ChannelTurnTerminalEvent = ChannelTurnRef & (
+  | Readonly<{
+    status: 'completed';
+    response_text: string;
+  }>
+  | Readonly<{
+    status: 'failed';
+    error: Readonly<{
+      code: string;
+      message: string;
+    }>;
+  }>
+  | Readonly<{
+    status: 'cancelled';
+  }>
+);
+
+export type ChannelTurnTerminalObserver = Readonly<{
+  onTerminal(event: ChannelTurnTerminalEvent): void | Promise<void>;
+}>;
+
+export type ChannelDisposable = Readonly<{
+  dispose(): void | Promise<void>;
+}>;
+
+export type ChannelThreadCallback = Readonly<{
+  startThread(input: ChannelConversationIdentity): Promise<ChannelThreadRef>;
+  resumeThread(input: ChannelThreadRef): Promise<void>;
+  startTurn(input: ChannelThreadRef & Readonly<{ text: string }>): Promise<ChannelTurnRef>;
+  subscribeTurn(input: ChannelTurnRef, observer: ChannelTurnTerminalObserver): ChannelDisposable;
+}>;
+
+export type ChannelProvider = Readonly<{
+  provider_id: string;
+  start(input: Readonly<{
+    callback_api_version: typeof CHANNEL_THREAD_CALLBACK_API_VERSION;
+    callback: ChannelThreadCallback;
+  }>): ChannelDisposable | Promise<ChannelDisposable>;
+}>;
+
+function hasMethod(value: unknown, method: string): boolean {
+  return Boolean(value && typeof value === 'object'
+    && typeof (value as Record<string, unknown>)[method] === 'function');
+}
+
+export function assertChannelThreadCallback(
+  value: unknown,
+): asserts value is ChannelThreadCallback {
+  for (const method of ['startThread', 'resumeThread', 'startTurn', 'subscribeTurn']) {
+    if (!hasMethod(value, method)) {
+      throw new TypeError(`Channel thread callback requires ${method}().`);
+    }
+  }
+}
+
+export function assertChannelDisposable(value: unknown): asserts value is ChannelDisposable {
+  if (!hasMethod(value, 'dispose')) {
+    throw new TypeError('Channel provider lifecycle requires a Disposable.');
+  }
+}
+
+export function assertChannelProvider(value: unknown): asserts value is ChannelProvider {
+  const providerId = value && typeof value === 'object'
+    ? (value as Record<string, unknown>).provider_id
+    : null;
+  if (typeof providerId !== 'string' || !/^[a-z][a-z0-9._-]*$/.test(providerId)) {
+    throw new TypeError('Channel provider requires a stable provider_id.');
+  }
+  if (!hasMethod(value, 'start')) {
+    throw new TypeError(`Channel provider ${providerId} requires start().`);
+  }
+}
 
 export type PackageHostManifest = Readonly<{
   surface_kind:

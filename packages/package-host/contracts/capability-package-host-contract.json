@@ -52,12 +52,49 @@
         "required_missing": "reject_launch",
         "optional_missing": "diagnostic_only"
       }
+    },
+    {
+      "integration_id": "capability-package.channel-provider",
+      "trigger": "channel_provider",
+      "allowed_profiles": ["app-full"],
+      "requirements": {
+        "required": [
+          {
+            "service_id": "opl.connect.channel-provider-host",
+            "api_versions": ["1.0.0"],
+            "scope": "composition"
+          }
+        ],
+        "optional": []
+      },
+      "failure_policy": {
+        "required_missing": "reject_launch",
+        "optional_missing": "diagnostic_only"
+      }
     }
   ],
   "composition_policy": {
     "freeze": "composition_start",
     "hot_swap": false,
     "teardown_owner": "opl_host"
+  },
+  "channel_provider": {
+    "host_service_id": "opl.connect.channel-provider-host",
+    "callback_api_version": "1.0.0",
+    "activation": "optional_shell_injected",
+    "thread_binding_fields": ["provider_id", "account_id", "channel_session_id"],
+    "thread_ref_fields": ["canonical_thread_host", "canonical_thread_id"],
+    "turn_ref_field": "canonical_turn_id",
+    "methods": ["startThread", "resumeThread", "startTurn", "subscribeTurn"],
+    "terminal_statuses": ["completed", "failed", "cancelled"],
+    "subscription_lifecycle": "disposable",
+    "transport_boundary": "current_shell_codex_app_server_only",
+    "forbidden_surfaces": [
+      "unrestricted_json_rpc",
+      "second_app_server",
+      "secret_persistence",
+      "thread_persistence"
+    ]
   },
   "authority_boundary": {
     "forbidden_authorities": [

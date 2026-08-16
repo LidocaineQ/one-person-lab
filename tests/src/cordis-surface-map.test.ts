@@ -102,7 +102,7 @@ test('surface evidence points to existing exports and real caller files', () => 
     }>;
   };
 
-  const allServices = new Set<string>();
+  const seenServiceIds = new Set<string>();
   for (const candidate of map.modules) {
     for (const evidence of candidate.surface_evidence) {
       const declaration = readRepoRef(evidence.declaration_ref);
@@ -126,15 +126,18 @@ test('surface evidence points to existing exports and real caller files', () => 
     }
 
     for (const service of candidate.provides) {
-      assert.equal(allServices.has(service.service_id), false);
-      allServices.add(service.service_id);
+      assert.equal(
+        seenServiceIds.has(service.service_id),
+        false,
+        `duplicate service ${service.service_id}`,
+      );
+      seenServiceIds.add(service.service_id);
     }
   }
-  assert.equal(allServices.size, map.modules.length);
 
   for (const candidate of map.modules) {
     for (const injected of candidate.injects) {
-      assert.equal(allServices.has(injected.service_id), true, injected.service_id);
+      assert.equal(seenServiceIds.has(injected.service_id), true, injected.service_id);
     }
   }
 });

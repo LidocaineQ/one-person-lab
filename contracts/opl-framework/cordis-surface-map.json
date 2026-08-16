@@ -673,6 +673,14 @@
           "caller_refs": [
             "src/host/plugins/cordis-connect-services.ts"
           ]
+        },
+        {
+          "symbol": "CORDIS_CHANNEL_PROVIDER_HOST_SERVICE",
+          "declaration_ref": "src/host/plugins/cordis-channel-provider-host.ts",
+          "public_entrypoint_ref": "src/host/composition-profiles.ts",
+          "caller_refs": [
+            "src/host/composition-profiles.ts"
+          ]
         }
       ],
       "provides": [
@@ -680,6 +688,11 @@
           "service_id": "opl.connect.descriptor-discovery",
           "service_kind": "adapter_service",
           "existing_surface_symbol": "discoverInstalledPackageDescriptors"
+        },
+        {
+          "service_id": "opl.connect.channel-provider-host",
+          "service_kind": "adapter_service",
+          "existing_surface_symbol": "CORDIS_CHANNEL_PROVIDER_HOST_SERVICE"
         }
       ],
       "injects": [],
@@ -707,6 +720,10 @@
         "package_installed_truth",
         "package_currentness",
         "native_carrier_lifecycle",
+        "workspace_binding_registry",
+        "ledger_evidence_persistence",
+        "ledger_receipt_authority",
+        "app_product_truth",
         "credential_material",
         "security_sandbox"
       ]

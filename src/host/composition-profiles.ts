@@ -17,6 +17,13 @@ import {
   type CordisCharterPolicyService,
 } from './plugins/cordis-charter-policy.ts';
 import {
+  CORDIS_CHANNEL_PROVIDER_HOST_PLUGIN_DESCRIPTOR,
+  CORDIS_CHANNEL_PROVIDER_HOST_SERVICE,
+  cordisChannelProviderHostPlugin,
+  type CordisChannelProviderHostPluginConfig,
+  type CordisChannelProviderHostService,
+} from './plugins/cordis-channel-provider-host.ts';
+import {
   discoverInstalledPackageDescriptors,
 } from '../adapters/integration/index.ts';
 import {
@@ -137,6 +144,7 @@ type CordisAppFullServices = Omit<CordisBaseHeadlessServices, 'childFactories'> 
     'createReleaseOperationComposition'
   >;
   frameworkReadiness: CordisFrameworkReadinessService;
+  channelProviderHost: CordisChannelProviderHostService | null;
 };
 
 type CordisFoundryDevServices = Pick<
@@ -353,9 +361,11 @@ export async function createCordisAppFullComposition(options: {
   runtimeSnapshotProvider: RuntimeTraySnapshotProvider;
   atlas?: CordisAtlasCatalogPluginConfig;
   connect?: CordisConnectDescriptorDiscoveryPluginConfig;
+  channelProvider?: CordisChannelProviderHostPluginConfig;
 }): Promise<CordisAppFullComposition> {
   const base = await createCordisBaseComposition('app-full', options);
   let readinessFiber: CordisFiber | null = null;
+  let channelProviderFiber: CordisFiber | null = null;
   try {
     const runtimeSnapshotProvider: RuntimeTraySnapshotProvider = (contracts, snapshotOptions) =>
       options.runtimeSnapshotProvider(contracts, {
@@ -365,6 +375,12 @@ export async function createCordisAppFullComposition(options: {
     readinessFiber = await base.ctx.plugin(cordisFrameworkReadinessPlugin, {
       runtimeSnapshotProvider,
     });
+    if (options.channelProvider) {
+      channelProviderFiber = await base.ctx.plugin(
+        cordisChannelProviderHostPlugin,
+        options.channelProvider,
+      );
+    }
     const {
       createReleaseOperationComposition: _releaseOperation,
       ...appChildFactories
@@ -376,17 +392,23 @@ export async function createCordisAppFullComposition(options: {
         ...base.services,
         childFactories: appChildFactories,
         frameworkReadiness: requiredService(base.ctx, CORDIS_CONSOLE_READINESS_SERVICE),
+        channelProviderHost: options.channelProvider
+          ? requiredService(base.ctx, CORDIS_CHANNEL_PROVIDER_HOST_SERVICE)
+          : null,
       },
       snapshot: profileSnapshot('app-full', [
         ...CORDIS_BASE_HEADLESS_PLUGIN_DESCRIPTORS,
         CORDIS_CONSOLE_READINESS_PLUGIN_DESCRIPTOR,
+        ...(options.channelProvider ? [CORDIS_CHANNEL_PROVIDER_HOST_PLUGIN_DESCRIPTOR] : []),
       ], ['agent_executor_request', 'runway_attempt', 'pack_stagecraft_route']),
       async dispose() {
+        await channelProviderFiber?.dispose();
         await readinessFiber?.dispose();
         await base.dispose();
       },
     };
   } catch (error) {
+    await channelProviderFiber?.dispose();
     await readinessFiber?.dispose();
     await base.dispose();
     throw error;

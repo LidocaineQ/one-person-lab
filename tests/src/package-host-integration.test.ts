@@ -69,6 +69,32 @@ test('default host contracts classify standard agents, capability packages, and 
   }
   assert.equal(readStandardAgentHostContract().standalone_policy, 'allowed');
   assert.equal(readCapabilityPackageHostContract().standalone_policy, 'allowed');
+  assert.deepEqual(readCapabilityPackageHostContract().channel_provider, {
+    host_service_id: 'opl.connect.channel-provider-host',
+    callback_api_version: '1.0.0',
+    activation: 'optional_shell_injected',
+    thread_binding_fields: ['provider_id', 'account_id', 'channel_session_id'],
+    thread_ref_fields: ['canonical_thread_host', 'canonical_thread_id'],
+    turn_ref_field: 'canonical_turn_id',
+    methods: ['startThread', 'resumeThread', 'startTurn', 'subscribeTurn'],
+    terminal_statuses: ['completed', 'failed', 'cancelled'],
+    subscription_lifecycle: 'disposable',
+    transport_boundary: 'current_shell_codex_app_server_only',
+    forbidden_surfaces: [
+      'unrestricted_json_rpc',
+      'second_app_server',
+      'secret_persistence',
+      'thread_persistence',
+    ],
+  });
+  assert.equal(
+    readCapabilityPackageHostContract().integration_points.some(
+      (point) => point.trigger === 'channel_provider'
+        && point.allowed_profiles.length === 1
+        && point.allowed_profiles[0] === 'app-full',
+    ),
+    true,
+  );
   assert.equal(readWorkflowProfileHostContract().standalone_policy, 'allowed');
 });
 
