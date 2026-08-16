@@ -3,7 +3,10 @@ import { buildOplWorkspaceRootSurface, writeOplWorkspaceRootSurface } from '../.
 import { buildProductEntryHandoffEnvelope } from '../../../read-models/operator/product-entry-handoff-envelope.ts';
 import { buildProductEntryDoctor } from '../../../read-models/operator/product-entry-runtime.ts';
 import { buildRuntimeTraySnapshot } from '../../../read-models/operator/runtime-tray-snapshot.ts';
-import { runAgentExecutorDoctor, runAgentExecutorRequestFile } from '../../../adapters/execution/agent-executor.ts';
+import {
+  readAgentExecutorRequestFile,
+  runAgentExecutorDoctor,
+} from '../../../adapters/execution/agent-executor.ts';
 import { packageLaunchHardStopReason } from '../../../adapters/execution/family-runtime-package-readiness.ts';
 import { launchDomainEntry } from '../../../read-models/catalog/domain-launch.ts';
 import { buildOplDashboard, buildOplStart, buildProjectsOverview } from '../../../read-models/operator/management/runtime-dashboard.ts';
@@ -535,9 +538,20 @@ export function buildInternalCommandSpecs(
       examples: [
         'opl executor run --request /tmp/agent-execution-request.json',
       ],
-      handler: (args) => runAgentExecutorRequestFile(
-        parseExecutorRequestPath(args, commandSpecs['executor run']),
-      ),
+      handler: async (args) => {
+        const requestPath = parseExecutorRequestPath(args, commandSpecs['executor run']);
+        const request = readAgentExecutorRequestFile(requestPath);
+        const executorComposition = await requireCordisComposition(cordis)
+          .services.childFactories.createAgentExecutorRequest();
+        try {
+          return {
+            version: 'g2',
+            agent_execution_receipt: await executorComposition.executor.execute(request),
+          };
+        } finally {
+          await executorComposition.dispose();
+        }
+      },
     },
 resume: {
   usage: 'opl resume [codex resume args...]',

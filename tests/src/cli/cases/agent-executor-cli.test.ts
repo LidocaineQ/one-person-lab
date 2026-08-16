@@ -41,6 +41,34 @@ test('executor CLI exposes doctor and request-file run surfaces', () => {
   }
 });
 
+test('executor request-file run keeps an explicit non-default executor fail-closed without Codex fallback', () => {
+  const codex = makeExecutable(
+    'codex',
+    '#!/bin/sh\nprintf \'{"type":"thread.started","thread_id":"unexpected-codex-fallback"}\\n{"item":{"type":"agent_message","text":"unexpected fallback"}}\\n\'\n',
+  );
+  const requestRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-executor-request-fail-closed-'));
+  const requestPath = path.join(requestRoot, 'request.json');
+  fs.writeFileSync(requestPath, JSON.stringify({
+    executor_kind: 'claude_code',
+    prompt: 'The configured non-default executor is unavailable.',
+    cwd: repoRoot,
+  }));
+
+  try {
+    const failure = runCliFailure(['executor', 'run', '--request', requestPath], {
+      OPL_CLAUDE_CODE_BIN: '',
+      OPL_CODEX_BIN: codex.file,
+      PATH: '',
+    });
+    assert.equal(failure.payload.error.code, 'surface_not_found');
+    assert.equal(failure.payload.error.details.executor_kind, 'claude_code');
+    assert.equal(failure.payload.error.details.fallback_allowed, false);
+  } finally {
+    fs.rmSync(codex.fixtureRoot, { recursive: true, force: true });
+    fs.rmSync(requestRoot, { recursive: true, force: true });
+  }
+});
+
 test('explicit Hermes-Agent executor fails closed when binary is missing', () => {
   const failure = runCliFailure(['executor', 'doctor', '--executor', 'hermes_agent'], {
     OPL_HERMES_AGENT_EXECUTOR_BIN: '',

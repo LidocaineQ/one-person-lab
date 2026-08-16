@@ -721,14 +721,14 @@ export function runAgentExecutorDoctor(args: {
   };
 }
 
-export function runAgentExecutorRequestFile(requestPath: string) {
+export function readAgentExecutorRequestFile(requestPath: string): AgentExecutionRequest {
   const payload = parseJsonText(fs.readFileSync(requestPath, 'utf8'));
   if (!isRecord(payload)) {
     throw new FrameworkContractError('cli_usage_error', 'Agent executor request file must contain a JSON object.', {
       request: requestPath,
     });
   }
-  const receipt = runAgentExecutor({
+  return {
     executor_kind: stringValue(payload.executor_kind) as AgentExecutorKind | null,
     stage_attempt_executor_kind: stringValue(payload.stage_attempt_executor_kind) as AgentExecutorKind | null,
     request_executor_policy: isRecord(payload.request_executor_policy) ? payload.request_executor_policy : null,
@@ -748,7 +748,11 @@ export function runAgentExecutorRequestFile(requestPath: string) {
     reasoning_effort: stringValue(payload.reasoning_effort),
     json: payload.json !== false,
     domain_payload: isRecord(payload.domain_payload) ? payload.domain_payload : null,
-  });
+  };
+}
+
+export function runAgentExecutorRequestFile(requestPath: string) {
+  const receipt = runAgentExecutor(readAgentExecutorRequestFile(requestPath));
   return {
     version: 'g2',
     agent_execution_receipt: receipt,
