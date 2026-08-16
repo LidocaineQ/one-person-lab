@@ -257,10 +257,10 @@ function installRuntimePackageFixtureClosure(
   stateRoot: string,
   packageId: string,
   installedPackageIds: Set<string>,
-) {
+): string | null {
   const canonicalPackageId = canonicalAgentPackageId(packageId);
   assert.ok(canonicalPackageId);
-  if (installedPackageIds.has(canonicalPackageId)) return;
+  if (installedPackageIds.has(canonicalPackageId)) return null;
   installedPackageIds.add(canonicalPackageId);
   fs.mkdirSync(stateRoot, { recursive: true });
   const packageManifestPath = path.join(
@@ -377,10 +377,13 @@ function installRuntimePackageFixtureClosure(
     if (dependency.required !== true || typeof dependency.package_id !== 'string') continue;
     installRuntimePackageFixtureClosure(stateRoot, dependency.package_id, installedPackageIds);
   }
+  return pluginRoot;
 }
 
 export function installRuntimePackageFixture(stateRoot: string, packageId: string) {
-  installRuntimePackageFixtureClosure(stateRoot, packageId, new Set());
+  const pluginRoot = installRuntimePackageFixtureClosure(stateRoot, packageId, new Set());
+  assert.ok(pluginRoot);
+  return pluginRoot;
 }
 
 export function createRuntimeWorkspaceFixture(stateRoot: string, name: string) {

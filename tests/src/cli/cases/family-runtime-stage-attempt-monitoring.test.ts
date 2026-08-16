@@ -15,13 +15,14 @@ import { listStageAttemptsWithMonitoringProjection } from '../../../../src/adapt
 
 test('family-runtime compact timeline exposes filtered public currentness', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-attempt-monitoring-'));
-  const env = {
-    OPL_STATE_DIR: stateRoot,
-    OPL_TEMPORAL_ADDRESS: '',
-    TEMPORAL_ADDRESS: '',
-  };
   try {
-    installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    const runtimePackageRoot = installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    const env = {
+      OPL_STATE_DIR: stateRoot,
+      OPL_MODULE_PATH_REDCUBE: runtimePackageRoot,
+      OPL_TEMPORAL_ADDRESS: '',
+      TEMPORAL_ADDRESS: '',
+    };
     const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'redcube-runtime');
     const attempt = runCli([
       'family-runtime',
@@ -69,13 +70,14 @@ test('family-runtime compact timeline exposes filtered public currentness', () =
 
 test('family-runtime monitoring projection remains callable without the tasks table', async () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-attempt-monitoring-absence-'));
-  const env = {
-    OPL_STATE_DIR: stateRoot,
-    OPL_TEMPORAL_ADDRESS: '',
-    TEMPORAL_ADDRESS: '',
-  };
   try {
-    installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    const runtimePackageRoot = installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    const env = {
+      OPL_STATE_DIR: stateRoot,
+      OPL_MODULE_PATH_REDCUBE: runtimePackageRoot,
+      OPL_TEMPORAL_ADDRESS: '',
+      TEMPORAL_ADDRESS: '',
+    };
     const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'redcube-runtime');
     const task = insertFamilyRuntimeTaskProjectionFixture({
       stateRoot,

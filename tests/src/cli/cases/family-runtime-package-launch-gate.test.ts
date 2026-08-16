@@ -254,6 +254,7 @@ test('native package launch projects Workspace Skills without private lifecycle 
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_MODULE_PATH_MEDAUTOSCIENCE: path.join(consumerRoot, 'plugins', 'med-autoscience'),
     OPL_CODEX_PLUGIN_BIN: createFakeCodexPluginManagerFixture(
       path.join(root, 'fake-codex-plugin-manager'),
     ).codexPath,
