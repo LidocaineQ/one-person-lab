@@ -7,6 +7,10 @@ import { resolveFirstPartyPackageCatalog } from '../agent-package-first-party.ts
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
 import { MANIFEST_REQUIRED_FIELDS, REGISTRY_REQUIRED_FIELDS } from './constants.ts';
 import {
+  assertChannelProviderEntrypointsContentLocked,
+  normalizePackageEntrypoints,
+} from './channel-provider-entrypoint-contract.ts';
+import {
   assertExplicitExternalRegistryClaim,
   assertNoForbiddenFields,
   assertStringValue,
@@ -1493,7 +1497,7 @@ export function normalizeManifest(payload: unknown, manifestUrl: string): AgentP
   const rawEntrypoints = payload.entrypoints ?? [];
   const rawPermissions = payload.permissions ?? [];
   const skillPacks = recordList(rawSkillPacks);
-  const entrypoints = recordList(rawEntrypoints);
+  const entrypoints = normalizePackageEntrypoints(rawEntrypoints, manifestUrl);
   if (!Array.isArray(rawSkillPacks) || skillPacks.length !== rawSkillPacks.length) {
     throw new FrameworkContractError('contract_shape_invalid', 'Agent package manifest skill_packs must be an array of objects.', {
       manifest_url: manifestUrl,
@@ -1677,6 +1681,8 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
   }
   const contentLockPaths = uniqueStrings(stringList(payload.content_lock.paths).map((entry, index) =>
     normalizedRelativePath(entry, `content_lock.paths[${index}]`)));
+  const entrypoints = normalizePackageEntrypoints(payload.entrypoints, manifestUrl);
+  assertChannelProviderEntrypointsContentLocked(entrypoints, contentLockPaths, manifestUrl);
   const coreModuleIds = uniqueStrings(stringList(payload.exports.core_module_ids));
   if (coreModuleIds.length === 0) {
     throw new FrameworkContractError('contract_shape_invalid', 'Capability package must export at least one core module contract id.', {
@@ -1744,7 +1750,7 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
     codex_surface: codexSurface,
     codex_default_exposure: normalizeCodexDefaultExposure(codexSurface, manifestUrl),
     skill_packs: [],
-    entrypoints: [],
+    entrypoints,
     health_check: {},
     permissions: [],
     distribution_payload: null,

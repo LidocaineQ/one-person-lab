@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { pathToFileURL } from 'node:url';
 
 import {
   CHANNEL_THREAD_CALLBACK_API_VERSION,
@@ -16,9 +18,20 @@ import {
 import {
   CORDIS_CHANNEL_PROVIDER_HOST_PLUGIN_ID,
 } from '../../src/host/plugins/cordis-channel-provider-host.ts';
+import {
+  normalizeCapabilityPackageManifest,
+} from '../../src/adapters/integration/agent-package-registry-parts/manifest-normalizers.ts';
+import type {
+  InstalledPackageDescriptor,
+} from '../../src/adapters/integration/agent-package-registry-parts/installed-codex-plugin-directory.ts';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
+import { assertJsonSchemaPayload } from '../../src/kernel/schema-registry.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..');
+
+function emptyDescriptorDiscovery() {
+  return { discover: () => new Map() };
+}
 
 function callbackFixture(events: string[] = []): ChannelThreadCallback {
   return {
@@ -121,6 +134,7 @@ test('app-full attaches a long-lived provider to the bounded callback and tears 
   const composition = await createCordisAppFullComposition({
     runtimeSnapshotProvider: async () => ({ runtime_tray_snapshot: {} }),
     channelProvider: { callback, providers: [provider] },
+    connect: emptyDescriptorDiscovery(),
   });
   assert.ok(composition.services.channelProviderHost);
   assert.equal(composition.services.channelProviderHost.callback_api_version, '1.0.0');
@@ -145,6 +159,103 @@ test('app-full attaches a long-lived provider to the bounded callback and tears 
   assert.deepEqual(events.slice(-2), ['turn:unsubscribe:turn-1', 'provider:dispose']);
 });
 
+test('app-full loads a callable channel provider from an installed descriptor entrypoint', async () => {
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-channel-provider-'));
+  const moduleRef = 'channel-provider.mjs';
+  const modulePath = path.join(packageRoot, moduleRef);
+  fs.writeFileSync(modulePath, [
+    'export let startCount = 0;',
+    'export let disposeCount = 0;',
+    'export const channelProvider = {',
+    "  provider_id: 'opl-channel-test',",
+    '  async start() {',
+    '    startCount += 1;',
+    '    return { async dispose() { disposeCount += 1; } };',
+    '  },',
+    '};',
+  ].join('\n'));
+  const ownerManifest = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/packages/opl-relay.json'),
+    'utf8',
+  )) as Record<string, any>;
+  const manifestPath = path.join(packageRoot, 'opl-package.json');
+  const packageManifestPayload: Record<string, any> = {
+    ...ownerManifest,
+    package_id: 'opl-channel-test',
+    display_name: 'Channel test provider',
+    entrypoints: [{
+      entrypoint_id: 'channel-provider',
+      kind: 'channel_provider',
+      module_ref: moduleRef,
+      export_name: 'channelProvider',
+    }],
+    codex_surface: {
+      ...ownerManifest.codex_surface,
+      plugin_id: 'opl-channel-test',
+      configured_codex_plugin_carrier: {
+        ...ownerManifest.codex_surface.configured_codex_plugin_carrier,
+        plugin_selector: 'opl-channel-test@opl-channel-test',
+      },
+    },
+  };
+  assert.throws(
+    () => normalizeCapabilityPackageManifest(packageManifestPayload, manifestPath),
+    /content lock/,
+  );
+  packageManifestPayload.content_lock = {
+    ...ownerManifest.content_lock,
+    paths: [...ownerManifest.content_lock.paths, moduleRef],
+  };
+  const manifestSchema = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/capability-package-manifest.schema.json'),
+    'utf8',
+  )) as Record<string, unknown>;
+  assert.doesNotThrow(() => assertJsonSchemaPayload({
+    schemaId: String(manifestSchema.$id),
+    schema: manifestSchema,
+    sourceRef: 'contracts/opl-framework/capability-package-manifest.schema.json',
+  }, packageManifestPayload));
+  const manifest = normalizeCapabilityPackageManifest(packageManifestPayload, manifestPath);
+  const descriptor = {
+    manifest,
+    manifestPath,
+    manifest_sha256: 'test',
+    sourcePath: packageRoot,
+    pluginId: 'opl-channel-test',
+    marketplaceSource: null,
+    enabled: true,
+    carrier: manifest.configured_codex_plugin_carrier!,
+    carrier_readback: {
+      kind: 'test',
+      identity: 'opl-channel-test',
+      source_ref: packageRoot,
+      version: manifest.version,
+      enabled: true,
+      lifecycle_authority: 'carrier_owned',
+    },
+    readiness: {
+      installed: true,
+      physical_status: 'available',
+      callability: 'callable',
+    },
+  } as InstalledPackageDescriptor;
+  const composition = await createCordisAppFullComposition({
+    runtimeSnapshotProvider: async () => ({ runtime_tray_snapshot: {} }),
+    channelProvider: { callback: callbackFixture() },
+    connect: { discover: () => new Map([[manifest.package_id, descriptor]]) },
+  });
+  try {
+    const loaded = await import(pathToFileURL(modulePath).href);
+    assert.equal(loaded.startCount, 1);
+    assert.ok(composition.services.channelProviderHost);
+  } finally {
+    await composition.dispose();
+    const loaded = await import(pathToFileURL(modulePath).href);
+    assert.equal(loaded.disposeCount, 1);
+    fs.rmSync(packageRoot, { recursive: true, force: true });
+  }
+});
+
 test('capability Package channel-provider context requires the optional app-full host', async () => {
   const dormant = await createCordisAppFullComposition({
     runtimeSnapshotProvider: async () => ({ runtime_tray_snapshot: {} }),
@@ -152,6 +263,7 @@ test('capability Package channel-provider context requires the optional app-full
   const configured = await createCordisAppFullComposition({
     runtimeSnapshotProvider: async () => ({ runtime_tray_snapshot: {} }),
     channelProvider: { callback: callbackFixture() },
+    connect: emptyDescriptorDiscovery(),
   });
   try {
     const manifest = parseJsonText(fs.readFileSync(

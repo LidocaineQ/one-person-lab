@@ -65,6 +65,7 @@ export type InstalledPackageManifest = Pick<
   | 'codex_surface'
   | 'codex_default_exposure'
   | 'codex_visible_entry'
+  | 'entrypoints'
   | 'required_skill_ids'
   | 'optional_skill_refs'
   | 'presentation'
@@ -74,7 +75,7 @@ export type InstalledPackageManifest = Pick<
   | 'capability_provider'
   | 'configured_codex_plugin_carrier'
   | 'app_contributions'
-> & Partial<Pick<AgentPackageManifest, 'content_digest'>>;
+> & Partial<Pick<AgentPackageManifest, 'content_digest' | 'content_lock_paths'>>;
 
 export type InstalledPackageDescriptor = {
   manifest: InstalledPackageManifest;
@@ -213,6 +214,7 @@ function normalizeNativeCarrierManifest(
     },
     codex_default_exposure: entry.enabled,
     codex_visible_entry: packageId,
+    entrypoints: [],
     required_skill_ids: requiredSkillIds,
     optional_skill_refs: [],
     presentation: null,

@@ -25,6 +25,7 @@ import {
 } from './plugins/cordis-channel-provider-host.ts';
 import {
   discoverInstalledPackageDescriptors,
+  loadInstalledChannelProviders,
 } from '../adapters/integration/index.ts';
 import {
   CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_PLUGIN_DESCRIPTOR,
@@ -376,9 +377,18 @@ export async function createCordisAppFullComposition(options: {
       runtimeSnapshotProvider,
     });
     if (options.channelProvider) {
+      const installedProviders = await loadInstalledChannelProviders(
+        base.services.descriptorDiscovery.discover().values(),
+      );
       channelProviderFiber = await base.ctx.plugin(
         cordisChannelProviderHostPlugin,
-        options.channelProvider,
+        {
+          ...options.channelProvider,
+          providers: [
+            ...installedProviders,
+            ...(options.channelProvider.providers ?? []),
+          ],
+        },
       );
     }
     const {

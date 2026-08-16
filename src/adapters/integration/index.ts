@@ -54,6 +54,7 @@ export type {
   UpdateOplConnectionInput,
 } from './connection-registry.ts';
 export type { CordisConnectDescriptorDiscoveryService } from './public/descriptor-discovery.ts';
+export { loadInstalledChannelProviders } from './public/channel-provider-entrypoints.ts';
 export {
   admitReleaseBundleOperation,
   buildReleaseBundle,

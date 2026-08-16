@@ -75,6 +75,10 @@
       "items": { "$ref": "#/$defs/consumer_profile" },
       "uniqueItems": true
     },
+    "entrypoints": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/package_entrypoint" }
+    },
     "content_lock": {
       "type": "object",
       "required": ["algorithm", "canonicalization", "paths", "digest"],
@@ -139,6 +143,32 @@
     "owner_package_descriptor_ref": ["owner_package_manifest_ref"]
   },
   "$defs": {
+    "package_entrypoint": {
+      "type": "object",
+      "required": ["entrypoint_id", "kind"],
+      "properties": {
+        "entrypoint_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9._-]*$"
+        },
+        "kind": { "type": "string", "minLength": 1 },
+        "module_ref": { "type": "string", "minLength": 1 },
+        "export_name": {
+          "type": "string",
+          "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "kind": { "const": "channel_provider" } },
+            "required": ["kind"]
+          },
+          "then": { "required": ["module_ref", "export_name"] }
+        }
+      ],
+      "additionalProperties": true
+    },
     "consumer_profile": {
       "type": "object",
       "required": [

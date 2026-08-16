@@ -139,6 +139,8 @@
         "host_service_id",
         "callback_api_version",
         "activation",
+        "provider_source",
+        "provider_identity",
         "thread_binding_fields",
         "thread_ref_fields",
         "turn_ref_field",
@@ -152,6 +154,8 @@
         "host_service_id": { "const": "opl.connect.channel-provider-host" },
         "callback_api_version": { "const": "1.0.0" },
         "activation": { "const": "optional_shell_injected" },
+        "provider_source": { "const": "installed_descriptor_entrypoint" },
+        "provider_identity": { "const": "manifest_package_id" },
         "thread_binding_fields": {
           "const": ["provider_id", "account_id", "channel_session_id"]
         },

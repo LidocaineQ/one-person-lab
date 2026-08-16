@@ -73,6 +73,8 @@ test('default host contracts classify standard agents, capability packages, and 
     host_service_id: 'opl.connect.channel-provider-host',
     callback_api_version: '1.0.0',
     activation: 'optional_shell_injected',
+    provider_source: 'installed_descriptor_entrypoint',
+    provider_identity: 'manifest_package_id',
     thread_binding_fields: ['provider_id', 'account_id', 'channel_session_id'],
     thread_ref_fields: ['canonical_thread_host', 'canonical_thread_id'],
     turn_ref_field: 'canonical_turn_id',
