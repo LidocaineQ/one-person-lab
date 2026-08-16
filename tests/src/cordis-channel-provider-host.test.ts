@@ -231,6 +231,26 @@ test('app-full loads a callable channel provider from an installed descriptor en
       moduleRef,
     ],
   };
+  const hostSpecificPath = 'dist\\channel-provider.js';
+  assert.throws(
+    () => normalizeCapabilityPackageManifest({
+      ...packageManifestPayload,
+      entrypoints: [{
+        ...packageManifestPayload.entrypoints[0],
+        module_ref: hostSpecificPath,
+      }],
+      content_lock: {
+        ...packageManifestPayload.content_lock,
+        paths: [
+          ...packageManifestPayload.content_lock.paths.filter(
+            (entry: string) => entry !== moduleRef,
+          ),
+          hostSpecificPath,
+        ],
+      },
+    }, manifestPath),
+    /must use POSIX separators/,
+  );
   const manifestSchema = parseJsonText(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/capability-package-manifest.schema.json'),
     'utf8',

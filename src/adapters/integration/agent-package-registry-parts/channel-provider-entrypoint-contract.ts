@@ -13,16 +13,18 @@ export type ChannelProviderPackageEntrypoint = Readonly<{
 
 function normalizedModuleRef(value: unknown, field: string) {
   const raw = assertStringValue(value, field);
-  const normalized = path.normalize(raw);
+  const normalized = path.posix.normalize(raw);
   if (
-    path.isAbsolute(raw)
+    raw.includes('\\')
+    || path.posix.isAbsolute(raw)
+    || path.win32.isAbsolute(raw)
     || normalized === '.'
     || normalized === '..'
-    || normalized.startsWith(`..${path.sep}`)
+    || normalized.startsWith('../')
   ) {
     throw new FrameworkContractError(
       'contract_shape_invalid',
-      `${field} must stay within its installed Package root.`,
+      `${field} must use POSIX separators and stay within its installed Package root.`,
       {
         field,
         value: raw,
