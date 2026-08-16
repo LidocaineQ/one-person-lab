@@ -170,8 +170,18 @@ test('app-full loads a callable channel provider from an installed descriptor en
     'export let startCount = 0;',
     'export let disposeCount = 0;',
     'function provider(providerId = "opl-channel-test") {',
+    '  let connectionState = "disconnected";',
     '  return {',
     '    provider_id: providerId,',
+    '    channel_access: {',
+    '      data_ref: "channel.state",',
+    '      action_refs: ["channel.connect", "channel.disconnect"],',
+    '      async read() { return { connection_state: connectionState }; },',
+    '      async execute({ action_ref }) {',
+    '        connectionState = action_ref === "channel.connect" ? "connected" : "disconnected";',
+    '        return { connection_state: connectionState };',
+    '      },',
+    '    },',
     '    async start() {',
     '      startCount += 1;',
     '      return { async dispose() { disposeCount += 1; } };',
@@ -187,6 +197,11 @@ test('app-full loads a callable channel provider from an installed descriptor en
     'export async function asyncFactory() { return provider(); }',
     'export function invalidFactory() { return {}; }',
     'export function wrongIdentityFactory() { return provider("other-provider"); }',
+    'export function mismatchedRefsFactory() {',
+    '  const value = provider();',
+    '  value.channel_access = { ...value.channel_access, action_refs: ["channel.connect"] };',
+    '  return value;',
+    '}',
   ].join('\n'));
   const ownerManifest = parseJsonText(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/packages/opl-relay.json'),
@@ -209,6 +224,39 @@ test('app-full loads a callable channel provider from an installed descriptor en
       module_ref: moduleRef,
       export_name: 'createChannelProvider',
     }],
+    app_contributions: {
+      schema_version: 'opl-app-contributions.v1',
+      navigation: [],
+      views: [{
+        view_id: 'channel-access',
+        view_type: 'channel_access',
+        title_i18n: { en: 'Channel access' },
+        data_ref: 'channel.state',
+        command_ids: ['channel-connect', 'channel-disconnect'],
+        badge_ids: [],
+      }],
+      commands: [{
+        command_id: 'channel-connect',
+        label_i18n: { en: 'Connect' },
+        action_ref: 'channel.connect',
+        confirmation_required: false,
+      }, {
+        command_id: 'channel-disconnect',
+        label_i18n: { en: 'Disconnect' },
+        action_ref: 'channel.disconnect',
+        confirmation_required: true,
+      }],
+      badges: [],
+      ui: [{
+        contribution_id: 'channel-access',
+        slot: 'settings.section',
+        contribution_kind: 'view',
+        trust_tier: 'declarative',
+        scope: 'root',
+        sort_order: 0,
+        view_id: 'channel-access',
+      }],
+    },
     codex_surface: {
       ...ownerManifest.codex_surface,
       plugin_id: 'opl-channel-test',
@@ -315,7 +363,7 @@ test('app-full loads a callable channel provider from an installed descriptor en
   });
   const first = (await loadInstalledChannelProviders([descriptor]))[0];
   const second = (await loadInstalledChannelProviders([descriptor]))[0];
-  assert.notEqual(first, second);
+  assert.notEqual(first?.provider, second?.provider);
   await assert.rejects(
     () => loadInstalledChannelProviders([descriptorForExport('channelProvider')]),
     /zero-argument factory/,
@@ -336,6 +384,10 @@ test('app-full loads a callable channel provider from an installed descriptor en
     () => loadInstalledChannelProviders([descriptorForExport('wrongIdentityFactory')]),
     /identity must match/,
   );
+  await assert.rejects(
+    () => loadInstalledChannelProviders([descriptorForExport('mismatchedRefsFactory')]),
+    /refs must exactly match/,
+  );
   const composition = await createCordisAppFullComposition({
     runtimeSnapshotProvider: async () => ({ runtime_tray_snapshot: {} }),
     channelProvider: { callback: callbackFixture() },
@@ -346,10 +398,69 @@ test('app-full loads a callable channel provider from an installed descriptor en
     assert.equal(loaded.factoryCount, 3);
     assert.equal(loaded.startCount, 1);
     assert.ok(composition.services.channelProviderHost);
+    const patch = composition.services.channelProviderHost!.appStatePatch() as any;
+    assert.equal(patch.ui_contributions.entries[0].view.view_type, 'channel_access');
+    assert.equal(
+      patch.ui_contributions.entries[0].action_boundary,
+      'opl.connect.channel-provider-host',
+    );
+    assert.equal(Object.hasOwn(patch, 'actions'), false);
+    const disconnected = await composition.services.channelProviderHost!.readChannelAccess({
+      package_id: 'opl-channel-test',
+      ref: 'channel.state',
+      input: {},
+    }) as any;
+    assert.equal(
+      disconnected.opl_app_contribution.response.result.connection_state,
+      'disconnected',
+    );
+    await assert.rejects(
+      () => composition.services.channelProviderHost!.executeChannelAccessAction({
+        package_id: 'opl-channel-test',
+        ref: 'channel.disconnect',
+        input: {},
+      }),
+      /requires confirmation/,
+    );
+    await composition.services.channelProviderHost!.executeChannelAccessAction({
+      package_id: 'opl-channel-test',
+      ref: 'channel.connect',
+      input: {},
+    });
+    const connected = await composition.services.channelProviderHost!.readChannelAccess({
+      package_id: 'opl-channel-test',
+      ref: 'channel.state',
+      input: {},
+    }) as any;
+    assert.equal(connected.opl_app_contribution.response.result.connection_state, 'connected');
+    const isolatedComposition = await createCordisAppFullComposition({
+      runtimeSnapshotProvider: async () => ({ runtime_tray_snapshot: {} }),
+      channelProvider: { callback: callbackFixture() },
+      connect: { discover: () => new Map([[manifest.package_id, descriptor]]) },
+    });
+    try {
+      const isolated = await isolatedComposition.services.channelProviderHost!.readChannelAccess({
+        package_id: 'opl-channel-test',
+        ref: 'channel.state',
+        input: {},
+      }) as any;
+      assert.equal(isolated.opl_app_contribution.response.result.connection_state, 'disconnected');
+    } finally {
+      await isolatedComposition.dispose();
+    }
   } finally {
+    const host = composition.services.channelProviderHost!;
     await composition.dispose();
+    await assert.rejects(
+      () => host.readChannelAccess({
+        package_id: 'opl-channel-test',
+        ref: 'channel.state',
+        input: {},
+      }),
+      /unavailable/,
+    );
     const loaded = await import(pathToFileURL(modulePath).href);
-    assert.equal(loaded.disposeCount, 1);
+    assert.equal(loaded.disposeCount, 2);
     fs.rmSync(packageRoot, { recursive: true, force: true });
   }
 });
@@ -363,6 +474,8 @@ test('public channel-provider bootstrap owns the app-full Host lifecycle', async
   try {
     const host = await startCordisChannelProviderHost({ callback: callbackFixture() });
     assert.equal(typeof host.dispose, 'function');
+    assert.equal(typeof host.readChannelAccess, 'function');
+    assert.equal(typeof host.executeChannelAccessAction, 'function');
     await host.dispose();
   } finally {
     if (previousBinary === undefined) delete process.env.OPL_CODEX_PLUGIN_BIN;

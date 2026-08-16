@@ -82,10 +82,13 @@ test('default host contracts classify standard agents, capability packages, and 
     terminal_statuses: ['completed', 'failed', 'cancelled'],
     subscription_lifecycle: 'disposable',
     transport_boundary: 'current_shell_codex_app_server_only',
+    channel_access_controller: 'optional_descriptor_bound',
+    channel_access_methods: ['readChannelAccess', 'executeChannelAccessAction'],
     forbidden_surfaces: [
       'unrestricted_json_rpc',
       'second_app_server',
       'secret_persistence',
+      'session_persistence',
       'thread_persistence',
     ],
   });

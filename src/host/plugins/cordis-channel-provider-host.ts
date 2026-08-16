@@ -15,10 +15,14 @@ import {
   type ChannelTurnTerminalEvent,
   type ChannelTurnTerminalObserver,
 } from '../../authority/packages/index.ts';
+import type {
+  InstalledChannelProviderAttachment,
+} from '../../adapters/integration/public/channel-provider-entrypoints.ts';
 import {
   buildCordisPluginDescriptor,
   type CordisPluginDescriptor,
 } from '../../authority/packages/index.ts';
+import { buildAppUiContributionsProjection } from '../../read-models/operator/index.ts';
 
 export const CORDIS_CHANNEL_PROVIDER_HOST_PLUGIN_ID = 'opl-connect-channel-provider-host';
 export const CORDIS_CHANNEL_PROVIDER_HOST_PLUGIN_API_VERSION = '1.0.0';
@@ -31,11 +35,29 @@ export const CORDIS_CHANNEL_PROVIDER_HOST_SOURCE_COMMIT =
 export type CordisChannelProviderHostService = Readonly<{
   callback_api_version: typeof CHANNEL_THREAD_CALLBACK_API_VERSION;
   attach(provider: ChannelProvider): Promise<ChannelDisposable>;
+  appStatePatch(): Readonly<Record<string, unknown>>;
+  readChannelAccess(input: CordisChannelProviderContributionRequest): Promise<Readonly<Record<string, unknown>>>;
+  executeChannelAccessAction(input: CordisChannelProviderContributionRequest): Promise<Readonly<Record<string, unknown>>>;
 }>;
 
 export type CordisChannelProviderHostPluginConfig = Readonly<{
   callback: ChannelThreadCallback;
   providers?: readonly ChannelProvider[];
+  installedProviders?: readonly InstalledChannelProviderAttachment[];
+}>;
+
+export type CordisChannelProviderContributionRequest = Readonly<{
+  package_id: string;
+  ref: string;
+  input?: Readonly<Record<string, unknown>>;
+  confirmed?: boolean;
+}>;
+
+type ActiveProvider = Readonly<{
+  status: 'starting' | 'active';
+  provider: ChannelProvider;
+  attachment?: InstalledChannelProviderAttachment;
+  confirmationRequiredRefs: ReadonlySet<string>;
 }>;
 
 declare module '@deepseek-ai/cordis' {
@@ -49,6 +71,70 @@ function requiredString(value: unknown, field: string): string {
     throw new TypeError(`Channel callback requires ${field}.`);
   }
   return value;
+}
+
+function contributionRef(value: unknown): string {
+  const ref = requiredString(value, 'ref');
+  if (!/^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:#[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?)?$/.test(ref)) {
+    throw new TypeError('Channel provider app contribution ref is invalid.');
+  }
+  return ref;
+}
+
+function boundedJsonValue(value: unknown, field: string): unknown {
+  let encoded: string | undefined;
+  try {
+    encoded = JSON.stringify(value);
+  } catch {
+    throw new TypeError(`${field} must be JSON serializable.`);
+  }
+  if (encoded === undefined || Buffer.byteLength(encoded) > 1024 * 1024) {
+    throw new TypeError(`${field} must be a bounded JSON value.`);
+  }
+  return JSON.parse(encoded) as unknown;
+}
+
+function contributionInput(value: unknown): Readonly<Record<string, unknown>> {
+  const input = boundedJsonValue(value ?? {}, 'Channel provider app contribution input');
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new TypeError('Channel provider app contribution input must be a JSON object.');
+  }
+  return Object.freeze(input as Record<string, unknown>);
+}
+
+function contributionReadback(
+  active: ActiveProvider & { attachment: InstalledChannelProviderAttachment },
+  ref: string,
+  operation: 'read' | 'execute',
+  result: unknown,
+) {
+  const { descriptor } = active.attachment;
+  return Object.freeze({
+    opl_app_contribution: {
+      surface_kind: 'opl_app_package_contribution.v1',
+      package_id: descriptor.manifest.package_id,
+      ref,
+      operation,
+      confirmation_required: active.confirmationRequiredRefs.has(ref),
+      carrier_readback: {
+        kind: descriptor.carrier_readback.kind,
+        identity: descriptor.carrier_readback.identity,
+        lifecycle_authority: descriptor.carrier_readback.lifecycle_authority,
+      },
+      readiness: {
+        installed: descriptor.readiness.installed,
+        physical_status: descriptor.readiness.physical_status,
+        callability: descriptor.readiness.callability,
+      },
+      response: {
+        schema_version: 'opl-package-app-contribution-response.v1',
+        ok: true,
+        ref,
+        operation,
+        result: boundedJsonValue(result, 'Channel provider app contribution result'),
+      },
+    },
+  });
 }
 
 function conversationIdentity(input: ChannelConversationIdentity): ChannelConversationIdentity {
@@ -134,71 +220,147 @@ export const cordisChannelProviderHostPlugin = {
   provide: CORDIS_CHANNEL_PROVIDER_HOST_SERVICE,
   async apply(ctx: Context, config: CordisChannelProviderHostPluginConfig) {
     assertChannelThreadCallback(config.callback);
-    const activeProviders = new Set<string>();
+    const activeProviders = new Map<string, ActiveProvider>();
+    const attachProvider = async (
+      provider: ChannelProvider,
+      attachment?: InstalledChannelProviderAttachment,
+    ): Promise<ChannelDisposable> => {
+      assertChannelProvider(provider);
+      if (activeProviders.has(provider.provider_id)) {
+        throw new Error(`Channel provider is already attached: ${provider.provider_id}`);
+      }
+      const confirmationRequiredRefs = new Set(
+        attachment?.descriptor.manifest.app_contributions?.commands
+          .filter((entry) => entry.confirmation_required)
+          .map((entry) => entry.action_ref) ?? [],
+      );
+      activeProviders.set(provider.provider_id, Object.freeze({
+        status: 'starting',
+        provider,
+        ...(attachment ? { attachment } : {}),
+        confirmationRequiredRefs,
+      }));
+      const boundedCallback: ChannelThreadCallback = Object.freeze({
+        async startThread(input) {
+          const identity = conversationIdentity(input);
+          if (identity.provider_id !== provider.provider_id) {
+            throw new Error(
+              `Channel provider ${provider.provider_id} cannot bind another provider identity: ${identity.provider_id}`,
+            );
+          }
+          return threadRef(await config.callback.startThread(identity));
+        },
+        resumeThread: (input) => config.callback.resumeThread(threadRef(input)),
+        async startTurn(input) {
+          const canonicalThread = threadRef(input);
+          const result = turnRef(await config.callback.startTurn({
+            ...canonicalThread,
+            text: requiredString(input?.text, 'text'),
+          }));
+          sameThread(canonicalThread, result);
+          return result;
+        },
+        subscribeTurn(input, observer) {
+          const canonicalTurn = turnRef(input);
+          const subscription = config.callback.subscribeTurn(
+            canonicalTurn,
+            terminalObserver(canonicalTurn, observer),
+          );
+          assertChannelDisposable(subscription);
+          return Object.freeze({ dispose: () => subscription.dispose() });
+        },
+      });
+      let providerDisposable: ChannelDisposable;
+      try {
+        providerDisposable = await provider.start({
+          callback_api_version: CHANNEL_THREAD_CALLBACK_API_VERSION,
+          callback: boundedCallback,
+        });
+        assertChannelDisposable(providerDisposable);
+      } catch (error) {
+        activeProviders.delete(provider.provider_id);
+        throw error;
+      }
+      activeProviders.set(provider.provider_id, Object.freeze({
+        status: 'active',
+        provider,
+        ...(attachment ? { attachment } : {}),
+        confirmationRequiredRefs,
+      }));
+      let disposed = false;
+      const disposeEffect = ctx.effect(() => async () => {
+        if (disposed) return;
+        disposed = true;
+        activeProviders.delete(provider.provider_id);
+        await providerDisposable.dispose();
+      }, `channel-provider:${provider.provider_id}`);
+      return Object.freeze({
+        async dispose() {
+          await disposeEffect();
+        },
+      });
+    };
+    const contribution = (input: CordisChannelProviderContributionRequest) => {
+      const packageId = requiredString(input?.package_id, 'package_id');
+      const active = activeProviders.get(packageId);
+      if (active?.status !== 'active' || !active.attachment || !active.provider.channel_access) {
+        throw new Error(`Channel provider channel_access is unavailable: ${packageId}`);
+      }
+      return {
+        active: active as ActiveProvider & { attachment: InstalledChannelProviderAttachment },
+        controller: active.provider.channel_access,
+      };
+    };
     const service: CordisChannelProviderHostService = {
       callback_api_version: CHANNEL_THREAD_CALLBACK_API_VERSION,
-      async attach(provider) {
-        assertChannelProvider(provider);
-        if (activeProviders.has(provider.provider_id)) {
-          throw new Error(`Channel provider is already attached: ${provider.provider_id}`);
-        }
-        activeProviders.add(provider.provider_id);
-        const boundedCallback: ChannelThreadCallback = Object.freeze({
-          async startThread(input) {
-            const identity = conversationIdentity(input);
-            if (identity.provider_id !== provider.provider_id) {
-              throw new Error(
-                `Channel provider ${provider.provider_id} cannot bind another provider identity: ${identity.provider_id}`,
-              );
-            }
-            return threadRef(await config.callback.startThread(identity));
-          },
-          resumeThread: (input) => config.callback.resumeThread(threadRef(input)),
-          async startTurn(input) {
-            const canonicalThread = threadRef(input);
-            const result = turnRef(await config.callback.startTurn({
-              ...canonicalThread,
-              text: requiredString(input?.text, 'text'),
-            }));
-            sameThread(canonicalThread, result);
-            return result;
-          },
-          subscribeTurn(input, observer) {
-            const canonicalTurn = turnRef(input);
-            const subscription = config.callback.subscribeTurn(
-              canonicalTurn,
-              terminalObserver(canonicalTurn, observer),
-            );
-            assertChannelDisposable(subscription);
-            return Object.freeze({ dispose: () => subscription.dispose() });
-          },
-        });
-        let providerDisposable: ChannelDisposable;
-        try {
-          providerDisposable = await provider.start({
-            callback_api_version: CHANNEL_THREAD_CALLBACK_API_VERSION,
-            callback: boundedCallback,
-          });
-          assertChannelDisposable(providerDisposable);
-        } catch (error) {
-          activeProviders.delete(provider.provider_id);
-          throw error;
-        }
-        let disposed = false;
-        const disposeEffect = ctx.effect(() => async () => {
-          if (disposed) return;
-          disposed = true;
-          activeProviders.delete(provider.provider_id);
-          await providerDisposable.dispose();
-        }, `channel-provider:${provider.provider_id}`);
+      attach: (provider) => attachProvider(provider),
+      appStatePatch() {
+        const packageStatusById = Object.fromEntries([...activeProviders]
+          .filter(([, active]) => (
+            active.status === 'active'
+            && active.attachment !== undefined
+            && active.provider.channel_access !== undefined
+          ))
+          .map(([packageId, active]) => [packageId, {
+            presence: { installed: true },
+            capability_exposure: { status: 'enabled' },
+            app_contributions: active.attachment!.descriptor.manifest.app_contributions,
+          }]));
         return Object.freeze({
-          async dispose() {
-            await disposeEffect();
-          },
+          ui_contributions: buildAppUiContributionsProjection(packageStatusById, {
+            actionRoute: 'opl.connect.channel-provider-host',
+          }),
         });
+      },
+      async readChannelAccess(input) {
+        const { active, controller } = contribution(input);
+        const ref = contributionRef(input.ref);
+        if (controller.data_ref !== ref) {
+          throw new Error(`Channel provider channel_access data ref is not declared: ${active.provider.provider_id}:${ref}`);
+        }
+        const result = await controller.read(contributionInput(input.input));
+        return contributionReadback(active, ref, 'read', result);
+      },
+      async executeChannelAccessAction(input) {
+        const { active, controller } = contribution(input);
+        const ref = contributionRef(input.ref);
+        if (!controller.action_refs.includes(ref)) {
+          throw new Error(`Channel provider channel_access action ref is not declared: ${active.provider.provider_id}:${ref}`);
+        }
+        if (active.confirmationRequiredRefs.has(ref) && input.confirmed !== true) {
+          throw new Error(`Channel provider channel_access action requires confirmation: ${active.provider.provider_id}:${ref}`);
+        }
+        const result = await controller.execute({
+          action_ref: ref,
+          input: contributionInput(input.input),
+        });
+        return contributionReadback(active, ref, 'execute', result);
       },
     };
     ctx.provide(CORDIS_CHANNEL_PROVIDER_HOST_SERVICE, service);
+    for (const attachment of config.installedProviders ?? []) {
+      await attachProvider(attachment.provider, attachment);
+    }
     for (const provider of config.providers ?? []) await service.attach(provider);
   },
 };

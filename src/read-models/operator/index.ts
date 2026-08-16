@@ -9,6 +9,7 @@ export const OPL_CONSOLE_SOURCE_MODULE = {
 export { buildEvidenceGroundedDecisionAgentProfileConsoleDrilldown } from './evidence-grounded-profile-drilldown.ts';
 export type { EvidenceGroundedDecisionAgentProfileDrilldownInput } from './evidence-grounded-profile-drilldown.ts';
 export * from './agent-readiness.ts';
+export * from './app-state-ui-contributions.ts';
 export * from './foundry-operator-projection.ts';
 export * from './framework-operating-maturity.ts';
 export * from './framework-readiness-attention-actions.ts';

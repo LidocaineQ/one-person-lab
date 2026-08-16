@@ -148,6 +148,8 @@
         "terminal_statuses",
         "subscription_lifecycle",
         "transport_boundary",
+        "channel_access_controller",
+        "channel_access_methods",
         "forbidden_surfaces"
       ],
       "properties": {
@@ -171,11 +173,16 @@
         },
         "subscription_lifecycle": { "const": "disposable" },
         "transport_boundary": { "const": "current_shell_codex_app_server_only" },
+        "channel_access_controller": { "const": "optional_descriptor_bound" },
+        "channel_access_methods": {
+          "const": ["readChannelAccess", "executeChannelAccessAction"]
+        },
         "forbidden_surfaces": {
           "const": [
             "unrestricted_json_rpc",
             "second_app_server",
             "secret_persistence",
+            "session_persistence",
             "thread_persistence"
           ]
         }

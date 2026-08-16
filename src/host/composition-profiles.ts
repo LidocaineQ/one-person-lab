@@ -178,6 +178,13 @@ export type CordisAppFullComposition = Omit<
 };
 
 export type CordisChannelProviderHostBootstrap = Readonly<{
+  appStatePatch(): Readonly<Record<string, unknown>>;
+  readChannelAccess(
+    input: Parameters<CordisChannelProviderHostService['readChannelAccess']>[0],
+  ): ReturnType<CordisChannelProviderHostService['readChannelAccess']>;
+  executeChannelAccessAction(
+    input: Parameters<CordisChannelProviderHostService['executeChannelAccessAction']>[0],
+  ): ReturnType<CordisChannelProviderHostService['executeChannelAccessAction']>;
   dispose(): Promise<void>;
 }>;
 
@@ -388,10 +395,7 @@ export async function createCordisAppFullComposition(options: {
         cordisChannelProviderHostPlugin,
         {
           ...options.channelProvider,
-          providers: [
-            ...installedProviders,
-            ...(options.channelProvider.providers ?? []),
-          ],
+          installedProviders,
         },
       );
     }
@@ -441,7 +445,11 @@ export async function startCordisChannelProviderHost(options: {
     },
     channelProvider: { callback: options.callback },
   });
+  const host = composition.services.channelProviderHost!;
   return Object.freeze({
+    appStatePatch: () => host.appStatePatch(),
+    readChannelAccess: (input) => host.readChannelAccess(input),
+    executeChannelAccessAction: (input) => host.executeChannelAccessAction(input),
     dispose: () => composition.dispose(),
   });
 }

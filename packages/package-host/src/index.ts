@@ -77,10 +77,13 @@ export type PackageHostChannelProviderContract = Readonly<{
   terminal_statuses: readonly ['completed', 'failed', 'cancelled'];
   subscription_lifecycle: 'disposable';
   transport_boundary: 'current_shell_codex_app_server_only';
+  channel_access_controller: 'optional_descriptor_bound';
+  channel_access_methods: readonly ['readChannelAccess', 'executeChannelAccessAction'];
   forbidden_surfaces: readonly [
     'unrestricted_json_rpc',
     'second_app_server',
     'secret_persistence',
+    'session_persistence',
     'thread_persistence',
   ];
 }>;
@@ -153,8 +156,19 @@ export type ChannelThreadCallback = Readonly<{
   subscribeTurn(input: ChannelTurnRef, observer: ChannelTurnTerminalObserver): ChannelDisposable;
 }>;
 
+export type ChannelAccessController = Readonly<{
+  data_ref: string;
+  action_refs: readonly string[];
+  read(input: Readonly<Record<string, unknown>>): unknown | Promise<unknown>;
+  execute(input: Readonly<{
+    action_ref: string;
+    input: Readonly<Record<string, unknown>>;
+  }>): unknown | Promise<unknown>;
+}>;
+
 export type ChannelProvider = Readonly<{
   provider_id: string;
+  channel_access?: ChannelAccessController;
   start(input: Readonly<{
     callback_api_version: typeof CHANNEL_THREAD_CALLBACK_API_VERSION;
     callback: ChannelThreadCallback;
@@ -191,6 +205,31 @@ export function assertChannelProvider(value: unknown): asserts value is ChannelP
   }
   if (!hasMethod(value, 'start')) {
     throw new TypeError(`Channel provider ${providerId} requires start().`);
+  }
+  const controller = (value as Record<string, unknown>).channel_access;
+  if (controller === undefined) return;
+  if (!controller || typeof controller !== 'object') {
+    throw new TypeError('Channel provider channel_access controller must be an object.');
+  }
+  if (
+    typeof (controller as Record<string, unknown>).data_ref !== 'string'
+    || ((controller as Record<string, unknown>).data_ref as string).length === 0
+  ) {
+    throw new TypeError('Channel provider channel_access controller requires data_ref.');
+  }
+  const actionRefs = (controller as Record<string, unknown>).action_refs;
+  if (
+    !Array.isArray(actionRefs)
+    || actionRefs.length === 0
+    || actionRefs.some((ref) => typeof ref !== 'string' || ref.length === 0)
+    || new Set(actionRefs).size !== actionRefs.length
+  ) {
+    throw new TypeError('Channel provider channel_access controller requires unique action_refs.');
+  }
+  for (const method of ['read', 'execute']) {
+    if (!hasMethod(controller, method)) {
+      throw new TypeError(`Channel provider channel_access controller requires ${method}().`);
+    }
   }
 }
 

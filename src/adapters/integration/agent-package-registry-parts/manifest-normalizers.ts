@@ -54,6 +54,7 @@ const APP_CONTRIBUTION_VIEW_TYPES = new Set<AgentPackageAppContributionViewType>
   'task_board',
   'artifact_view',
   'activity_log',
+  'channel_access',
 ]);
 const APP_CONTRIBUTION_BADGE_TONES = new Set([
   'neutral',

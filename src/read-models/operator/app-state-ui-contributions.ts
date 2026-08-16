@@ -21,7 +21,9 @@ function enabledInstalledPackage(status: JsonRecord) {
 
 export function buildAppUiContributionsProjection(
   packageStatusById: Record<string, JsonRecord>,
+  options: Readonly<{ actionRoute?: string }> = {},
 ) {
+  const actionRoute = options.actionRoute ?? 'opl app action execute --json';
   const entries = Object.entries(packageStatusById).flatMap(([packageId, status]) => {
     if (!enabledInstalledPackage(status) || !isRecord(status.app_contributions)) return [];
     const descriptor = status.app_contributions;
@@ -67,7 +69,7 @@ export function buildAppUiContributionsProjection(
         view,
         commands: resolvedCommands,
         badges: resolvedBadges,
-        action_boundary: 'opl app action execute --action package_contribution_execute --payload <json> --json',
+        action_boundary: actionRoute,
       } satisfies JsonRecord];
     });
   }).sort((left, right) =>
@@ -99,7 +101,7 @@ export function buildAppUiContributionsProjection(
       arbitrary_html_allowed: false,
       arbitrary_url_allowed: false,
       direct_domain_mutation_allowed: false,
-      action_route: 'opl app action execute --json',
+      action_route: actionRoute,
     },
   };
 }

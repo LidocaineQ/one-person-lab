@@ -13,6 +13,11 @@ import type {
   ChannelProviderPackageEntrypoint,
 } from '../agent-package-registry-parts/channel-provider-entrypoint-contract.ts';
 
+export type InstalledChannelProviderAttachment = Readonly<{
+  descriptor: InstalledPackageDescriptor;
+  provider: ChannelProvider;
+}>;
+
 function channelProviderEntrypoints(
   descriptor: InstalledPackageDescriptor,
 ): ChannelProviderPackageEntrypoint[] {
@@ -90,10 +95,43 @@ function createChannelProvider(
   return candidate;
 }
 
+function sameRefs(declared: Set<string>, implemented: readonly string[]) {
+  return declared.size === implemented.length
+    && implemented.every((ref) => declared.has(ref));
+}
+
+function assertChannelAccessController(
+  descriptor: InstalledPackageDescriptor,
+  provider: ChannelProvider,
+) {
+  const contributions = descriptor.manifest.app_contributions;
+  const views = contributions?.views.filter((entry) => entry.view_type === 'channel_access') ?? [];
+  const controller = provider.channel_access;
+  if (views.length === 0 && !controller) return;
+  if (views.length !== 1 || !contributions || !controller) {
+    throw new Error(
+      `Channel provider requires exactly one descriptor-bound channel_access controller: ${descriptor.manifest.package_id}`,
+    );
+  }
+  const view = views[0]!;
+  const commandIds = new Set(view.command_ids);
+  const actionRefs = new Set(contributions.commands
+    .filter((entry) => commandIds.has(entry.command_id))
+    .map((entry) => entry.action_ref));
+  if (
+    controller.data_ref !== view.data_ref
+    || !sameRefs(actionRefs, controller.action_refs)
+  ) {
+    throw new Error(
+      `Channel provider channel_access refs must exactly match its descriptor: ${descriptor.manifest.package_id}`,
+    );
+  }
+}
+
 export async function loadInstalledChannelProviders(
   descriptors: Iterable<InstalledPackageDescriptor>,
-): Promise<readonly ChannelProvider[]> {
-  const providers: ChannelProvider[] = [];
+): Promise<readonly InstalledChannelProviderAttachment[]> {
+  const attachments: InstalledChannelProviderAttachment[] = [];
   const providerIds = new Set<string>();
   const callableDescriptors = [...descriptors]
     .filter(isCallable)
@@ -115,9 +153,10 @@ export async function loadInstalledChannelProviders(
       if (providerIds.has(provider.provider_id)) {
         throw new Error(`Channel provider identity is duplicated: ${provider.provider_id}`);
       }
+      assertChannelAccessController(descriptor, provider);
       providerIds.add(provider.provider_id);
-      providers.push(provider);
+      attachments.push(Object.freeze({ descriptor, provider }));
     }
   }
-  return Object.freeze(providers);
+  return Object.freeze(attachments);
 }

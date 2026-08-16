@@ -116,7 +116,8 @@ export type AgentPackageAppContributionViewType =
   | 'approval_diff'
   | 'task_board'
   | 'artifact_view'
-  | 'activity_log';
+  | 'activity_log'
+  | 'channel_access';
 
 export type AgentPackageAppContributionUiSlot =
   | 'composer.palette'

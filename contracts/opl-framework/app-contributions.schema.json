@@ -147,7 +147,8 @@
             "approval_diff",
             "task_board",
             "artifact_view",
-            "activity_log"
+            "activity_log",
+            "channel_access"
           ]
         },
         "title_i18n": {
