@@ -1185,12 +1185,21 @@ export function runConfiguredCodexPluginCarrier(input: {
   if (isConfiguredCarrierReadback(entries)) return entries;
   if ((input.action === 'update' || input.action === 'repair') && marketplaceSource) {
     const selection = configuredPluginSelection({ entries, descriptor: input.descriptor });
-    const targetReady = selection.entry?.installed === true
-      && selection.entry.enabled === true
-      && selection.missingSkills.length === 0
-      && sameMarketplaceSource(selection.entry.marketplaceSource, marketplaceSource);
-    if (targetReady && selection.unexpectedSameName.length > 0) {
-      for (const pluginId of new Set(selection.unexpectedSameName.map((entry) => entry.pluginId))) {
+    const targetEntry = selection.installedSameName.find((entry) => (
+      entry.enabled
+      && sameMarketplaceSource(entry.marketplaceSource, marketplaceSource)
+      && missingRequiredSkills(
+        entry.sourcePath,
+        input.descriptor.executor.requiredSkillIds,
+      ).length === 0
+    )) ?? null;
+    const staleSameNameSources = targetEntry
+      ? selection.installedSameName.filter(
+        (entry) => !sameMarketplaceSource(entry.marketplaceSource, marketplaceSource),
+      )
+      : [];
+    if (targetEntry && staleSameNameSources.length > 0) {
+      for (const pluginId of new Set(staleSameNameSources.map((entry) => entry.pluginId))) {
         const removeArgs = nativeArgs('remove', pluginId);
         dispatchConfiguredPluginAction({
           dispatchAction: true,

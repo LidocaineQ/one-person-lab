@@ -900,6 +900,96 @@ test('configured Codex carrier repair replaces a stale same-name source after th
   }
 });
 
+test('configured Codex carrier update replaces an accepted managed wrapper after a developer source is ready', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-managed-to-developer-'));
+  const targetSource = path.join(root, 'target');
+  const managedSource = path.join(root, 'managed');
+  const calls: string[] = [];
+  let targetInstalled = false;
+  let managedInstalled = true;
+  writePluginSource(targetSource, 'target');
+  writePluginSource(managedSource, 'managed');
+  const configured = {
+    ...descriptor,
+    packageId: 'mas',
+    carrier: {
+      ...descriptor.carrier,
+      pluginId: 'med-autoscience@med-autoscience',
+      marketplaceSource: targetSource,
+    },
+    executor: {
+      ...descriptor.executor,
+      requiredSkillIds: ['third-party-research'],
+    },
+  };
+  try {
+    const readback = runConfiguredCodexPluginCarrier({
+      descriptor: configured,
+      action: 'update',
+      runner: ({ args }) => {
+        const command = args.join(' ');
+        calls.push(command);
+        if (command === 'plugin marketplace list --json') {
+          return {
+            status: 0,
+            stdout: JSON.stringify({
+              marketplaces: [{
+                name: 'med-autoscience',
+                marketplaceSource: { sourceType: 'local', source: targetSource },
+              }],
+            }),
+            stderr: '',
+            error: null,
+          };
+        }
+        if (command === 'plugin add med-autoscience@med-autoscience --json') {
+          targetInstalled = true;
+          return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+        }
+        if (command === 'plugin remove med-autoscience@med-autoscience-local --json') {
+          assert.equal(targetInstalled, true);
+          managedInstalled = false;
+          return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+        }
+        if (command === 'plugin list --json') {
+          return {
+            status: 0,
+            stdout: pluginList([
+              ...(managedInstalled ? [{
+                pluginId: 'med-autoscience@med-autoscience-local',
+                version: '0.2.27',
+                sourcePath: managedSource,
+                marketplaceSource: managedSource,
+              }] : []),
+              ...(targetInstalled ? [{
+                pluginId: 'med-autoscience@med-autoscience',
+                version: '0.2.27',
+                sourcePath: targetSource,
+                marketplaceSource: targetSource,
+              }] : []),
+            ]),
+            stderr: '',
+            error: null,
+          };
+        }
+        return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+      },
+    });
+    assert.equal(readback.carrier.precedence, 'exact_single_source');
+    assert.equal(readback.carrier.marketplace_source, targetSource);
+    assert.equal(readback.executor.status, 'callable');
+    assert.deepEqual(calls, [
+      'plugin marketplace list --json',
+      'plugin add med-autoscience@med-autoscience --json',
+      'plugin list --json',
+      'plugin remove med-autoscience@med-autoscience-local --json',
+      'plugin list --json',
+    ]);
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
 test('configured Codex carrier reports a declared selector without a physical source as unavailable', () => {
   const readback = runConfiguredCodexPluginCarrier({
     descriptor,
