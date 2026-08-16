@@ -237,18 +237,13 @@ test('package source projection gate verifies every capability Package ordered c
     for (const declaredPath of paths) {
       const pathBytes = Buffer.from(declaredPath);
       const fileBytes = fs.readFileSync(path.join(ownerRoot, declaredPath));
-      if (canonicalization === 'ordered_path_nul_file_bytes') {
-        lockHash.update(pathBytes);
-        lockHash.update(Buffer.from([0]));
-      } else {
-        const pathLength = Buffer.allocUnsafe(8);
-        const fileLength = Buffer.allocUnsafe(8);
-        pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
-        fileLength.writeBigUInt64BE(BigInt(fileBytes.length));
-        lockHash.update(pathLength);
-        lockHash.update(pathBytes);
-        lockHash.update(fileLength);
-      }
+      const pathLength = Buffer.allocUnsafe(8);
+      const fileLength = Buffer.allocUnsafe(8);
+      pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
+      fileLength.writeBigUInt64BE(BigInt(fileBytes.length));
+      lockHash.update(pathLength);
+      lockHash.update(pathBytes);
+      lockHash.update(fileLength);
       lockHash.update(fileBytes);
     }
     return `sha256:${lockHash.digest('hex')}`;
@@ -311,13 +306,19 @@ test('package source projection gate verifies every capability Package ordered c
   const legacyLock = {
     ...contentLock,
     canonicalization: 'ordered_path_nul_file_bytes',
-    digest: contentLockDigest('ordered_path_nul_file_bytes'),
-  };
+  } as Record<string, unknown>;
   ownerManifest.content_lock = legacyLock;
   projected.content_lock = legacyLock;
   writeJson(ownerManifestPath, ownerManifest);
   writeJson(manifestPath, projected);
-  assert.equal(validatePackageSourceProjection({ frameworkRoot, spec, ownerRepoPath: ownerRoot }).status, 'validated');
+  assert.throws(
+    () => validatePackageSourceProjection({ frameworkRoot, spec, ownerRepoPath: ownerRoot }),
+    (error: unknown) => (error as { code?: string }).code === 'content_lock_invalid',
+  );
+  ownerManifest.content_lock = contentLock;
+  projected.content_lock = contentLock;
+  writeJson(ownerManifestPath, ownerManifest);
+  writeJson(manifestPath, projected);
   projected.content_lock.digest = `sha256:${'0'.repeat(64)}`;
   writeJson(manifestPath, projected);
   assert.throws(

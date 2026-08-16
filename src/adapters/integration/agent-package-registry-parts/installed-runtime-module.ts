@@ -141,19 +141,6 @@ function contentLockDigest(descriptor: InstalledPackageDescriptor): string {
     const filePath = lockedPackagePath(descriptor, relativePath, 'content lock file');
     const fileBytes = fs.readFileSync(filePath);
     const pathBytes = Buffer.from(relativePath, 'utf8');
-    if (canonicalization === 'ordered_path_nul_file_bytes') {
-      digest.update(pathBytes);
-      digest.update(Buffer.from([0]));
-      digest.update(fileBytes);
-      continue;
-    }
-    if (canonicalization !== 'ordered_path_length_file_length_bytes') {
-      throw new FrameworkContractError('codex_command_failed', 'Installed Package runtime module content lock canonicalization is unsupported.', {
-        package_id: descriptor.manifest.package_id,
-        content_lock_canonicalization: canonicalization,
-        reason_code: 'installed_runtime_module_content_lock_invalid',
-      });
-    }
     const pathLength = Buffer.allocUnsafe(8);
     const fileLength = Buffer.allocUnsafe(8);
     pathLength.writeBigUInt64BE(BigInt(pathBytes.length));

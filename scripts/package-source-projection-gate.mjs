@@ -16,7 +16,6 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const semVerPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const exactCommitPattern = /^[0-9a-f]{40}$/;
 const allowedPayloadModes = new Set(['100644', '100755']);
-const legacyContentLock = 'ordered_path_nul_file_bytes';
 const canonicalContentLock = 'ordered_path_length_file_length_bytes';
 
 function fail(code, packageId, message, details = {}) {
@@ -232,7 +231,7 @@ function validateContentLock({
     fail('content_lock_drift', packageId, 'Framework and owner content locks differ');
   }
   if (ownerLock?.algorithm !== 'sha256'
-    || ![legacyContentLock, canonicalContentLock].includes(ownerLock?.canonicalization)
+    || ownerLock?.canonicalization !== canonicalContentLock
     || !Array.isArray(ownerLock?.paths)
     || !/^sha256:[0-9a-f]{64}$/.test(ownerLock?.digest ?? '')) {
     fail('content_lock_invalid', packageId, 'owner content lock contract is invalid');
@@ -311,18 +310,13 @@ function validateContentLock({
       failureCode: 'content_lock_source_missing',
     });
     const pathBytes = Buffer.from(relative, 'utf8');
-    if (ownerLock.canonicalization === legacyContentLock) {
-      hash.update(pathBytes);
-      hash.update(Buffer.from([0]));
-    } else {
-      const pathLength = Buffer.allocUnsafe(8);
-      const fileLength = Buffer.allocUnsafe(8);
-      pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
-      fileLength.writeBigUInt64BE(BigInt(bytes.length));
-      hash.update(pathLength);
-      hash.update(pathBytes);
-      hash.update(fileLength);
-    }
+    const pathLength = Buffer.allocUnsafe(8);
+    const fileLength = Buffer.allocUnsafe(8);
+    pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
+    fileLength.writeBigUInt64BE(BigInt(bytes.length));
+    hash.update(pathLength);
+    hash.update(pathBytes);
+    hash.update(fileLength);
     hash.update(bytes);
   }
   const digest = `sha256:${hash.digest('hex')}`;

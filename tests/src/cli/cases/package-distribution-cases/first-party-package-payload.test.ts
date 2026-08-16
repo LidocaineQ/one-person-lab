@@ -304,36 +304,6 @@ function sha256(content: string | Buffer) {
   return `sha256:${crypto.createHash('sha256').update(content).digest('hex')}`;
 }
 
-function legacyContentLock(source: SourceFixture) {
-  const digest = crypto.createHash('sha256');
-  for (const relativePath of source.paths) {
-    digest.update(relativePath);
-    digest.update('\0');
-    digest.update(fs.readFileSync(path.join(source.repo, rootedPath(source.sourceRoot, relativePath))));
-  }
-  return `sha256:${digest.digest('hex')}`;
-}
-
-function legacyV1Payload(source: SourceFixture) {
-  return {
-    surface_kind: 'opl_package_payload_manifest.v1',
-    schema_ref: 'contracts/opl-framework/package-payload-manifest.schema.json',
-    package_id: packageId,
-    package_version: packageVersion,
-    source_repo: sourceRepoUrl,
-    source_commit: source.sourceCommit,
-    source_root: source.sourceRoot,
-    files: source.paths.map((relativePath) => {
-      const treePath = rootedPath(source.sourceRoot, relativePath);
-      return {
-        path: relativePath,
-        source_url: `https://raw.githubusercontent.com/example/example-agent/${source.sourceCommit}/${treePath}`,
-        sha256: sha256(fs.readFileSync(path.join(source.repo, treePath))),
-      };
-    }),
-  };
-}
-
 test('generator consumes manifest identity and an exact allowlist, emits the canonical schema, and is idempotent', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-payload-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -491,49 +461,19 @@ test('generator preserves executable Git blobs as the canonical 100755 mode', (t
   );
 });
 
-test('published legacy envelopes are check-only and cannot be replaced by canonical v2 at the same SemVer', (t) => {
+test('published non-canonical envelopes cannot be replaced at the same SemVer', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-payload-legacy-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const source = createSourceRepo(root);
   const authority = createAuthority(root, source);
   fs.mkdirSync(path.dirname(authority.output), { recursive: true });
-  fs.writeFileSync(authority.output, `${JSON.stringify(legacyV1Payload(source), null, 2)}\n`);
+  fs.writeFileSync(authority.output, `${JSON.stringify({ surface_kind: 'unsupported_payload', files: [] }, null, 2)}\n`);
   const before = fs.readFileSync(authority.output);
 
   const write = runFailure({ authority, repo: source.repo, sourceCommit: source.sourceCommit });
   assert.notEqual(write.status, 0);
-  assert.match(write.stderr, /historical read-only; bump package SemVer/);
+  assert.match(write.stderr, /Immutable payload manifest conflict/);
   assert.deepEqual(fs.readFileSync(authority.output), before);
-  const checked = runGenerator({
-    authority,
-    repo: source.repo,
-    sourceCommit: source.sourceCommit,
-    check: true,
-  });
-  assert.equal(checked.status, 'checked_legacy');
-  assert.deepEqual(fs.readFileSync(authority.output), before);
-});
-
-test('length-prefixed content locks distinguish payloads that collide under legacy concatenation', (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-payload-content-lock-'));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const left = createSourceRepo(path.join(root, 'left'), {
-    assetBytes: Buffer.from('a'),
-    extraFile: { path: 'bc', content: 'same' },
-  });
-  const right = createSourceRepo(path.join(root, 'right'), {
-    assetBytes: Buffer.from('ab'),
-    extraFile: { path: 'c', content: 'same' },
-  });
-  assert.equal(legacyContentLock(left), legacyContentLock(right));
-
-  const leftAuthority = createAuthority(path.join(root, 'left'), left);
-  const rightAuthority = createAuthority(path.join(root, 'right'), right);
-  runGenerator({ authority: leftAuthority, repo: left.repo, sourceCommit: left.sourceCommit });
-  runGenerator({ authority: rightAuthority, repo: right.repo, sourceCommit: right.sourceCommit });
-  const leftPayload = JSON.parse(fs.readFileSync(leftAuthority.output, 'utf8')) as Record<string, any>;
-  const rightPayload = JSON.parse(fs.readFileSync(rightAuthority.output, 'utf8')) as Record<string, any>;
-  assert.notEqual(leftPayload.content_lock.digest, rightPayload.content_lock.digest);
 });
 
 test('existing SemVer paths are immutable in write and check modes', (t) => {
@@ -884,15 +824,11 @@ test('manifest and committed plugin JSON require strict round-trip UTF-8', (t) =
   assert.match(manifestResult.stderr, /Framework package manifest is not valid UTF-8/);
 });
 
-test('Framework allowlists and historical payload envelopes validate at their explicit schema boundaries', () => {
+test('Framework allowlists and payloads validate at their explicit schema boundaries', () => {
   const schemaPath = path.join(repoRoot, 'contracts/opl-framework/package-payload-allowlist.schema.json');
   const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8')) as Record<string, any>;
   const canonicalPayloadSchema = JSON.parse(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/package-payload-manifest-v2.schema.json'),
-    'utf8',
-  )) as Record<string, any>;
-  const legacyPayloadSchema = JSON.parse(fs.readFileSync(
-    path.join(repoRoot, 'contracts/opl-framework/package-payload-manifest.schema.json'),
     'utf8',
   )) as Record<string, any>;
   const canonicalIds = getOplPackageSpecs().map((spec) => spec.package_id);
@@ -920,21 +856,8 @@ test('Framework allowlists and historical payload envelopes validate at their ex
       assert.equal(payload.content_lock.algorithm, 'sha256', label);
       assert.equal(payload.content_lock.canonicalization, 'ordered_path_length_file_length_bytes', label);
       assert.equal(payload.files.every((entry: Record<string, unknown>) => entry.mode !== undefined), true, label);
-    } else if (payload.surface_kind === 'opl_package_payload_manifest.v1') {
-      assert.doesNotThrow(() => assertJsonSchemaPayload({
-        schemaId: legacyPayloadSchema.$id,
-        schema: legacyPayloadSchema,
-        sourceRef: 'contracts/opl-framework/package-payload-manifest.schema.json',
-      }, payload), label);
-      assert.equal(payload.plugin_id, undefined, label);
-      assert.equal(payload.content_lock, undefined, label);
-      assert.equal(payload.files.some((entry: Record<string, unknown>) => entry.mode !== undefined), false, label);
     } else {
-      assert.equal(payload.surface_kind, 'opl_agent_package_payload_manifest', label);
-      assert.equal(payload.schema_ref, undefined, label);
-      assert.equal(payload.plugin_id, undefined, label);
-      assert.equal(payload.content_lock, undefined, label);
-      assert.equal(payload.files.some((entry: Record<string, unknown>) => entry.mode !== undefined), false, label);
+      assert.fail(`${label}: unsupported payload envelope ${String(payload.surface_kind)}`);
     }
   }
 

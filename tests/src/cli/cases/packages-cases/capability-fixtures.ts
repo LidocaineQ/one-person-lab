@@ -66,9 +66,16 @@ export const scholarSkillsSpecialtySkillIds = [
 function contentDigest(root: string, paths: string[]) {
   const digest = crypto.createHash('sha256');
   for (const relativePath of paths) {
-    digest.update(relativePath);
-    digest.update('\0');
-    digest.update(fs.readFileSync(path.join(root, relativePath)));
+    const pathBytes = Buffer.from(relativePath, 'utf8');
+    const fileBytes = fs.readFileSync(path.join(root, relativePath));
+    const pathLength = Buffer.allocUnsafe(8);
+    const fileLength = Buffer.allocUnsafe(8);
+    pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
+    fileLength.writeBigUInt64BE(BigInt(fileBytes.length));
+    digest.update(pathLength);
+    digest.update(pathBytes);
+    digest.update(fileLength);
+    digest.update(fileBytes);
   }
   return `sha256:${digest.digest('hex')}`;
 }
@@ -265,7 +272,7 @@ export function writeCapabilityProvider(
     consumer_profiles: options.consumerProfiles ?? [],
     content_lock: {
       algorithm: 'sha256',
-      canonicalization: 'ordered_path_nul_file_bytes',
+      canonicalization: CANONICAL_PACKAGE_CONTENT_LOCK,
       paths: lockPaths,
       digest: contentDigest(root, lockPaths),
     },

@@ -295,7 +295,7 @@ test('package archive builder writes channel manifest checksums git source and r
   const previousScholarSkillsManifestSha256 = `sha256:${crypto.createHash('sha256').update(previousScholarSkillsManifestJson).digest('hex')}`;
   const previousScholarSkillsPayloadJson = `${JSON.stringify({
     ...parseJsonText(fs.readFileSync(
-      path.join(repoRoot, 'contracts/opl-framework/packages/payloads/mas-scholar-skills-0.2.1.json'),
+      path.join(repoRoot, 'contracts/opl-framework/packages/payloads/mas-scholar-skills-0.2.14.json'),
       'utf8',
     )) as Record<string, unknown>,
     package_version: '0.0.9',
