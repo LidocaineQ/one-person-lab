@@ -65,6 +65,31 @@ function isCallable(descriptor: InstalledPackageDescriptor) {
     && descriptor.readiness.callability === 'callable';
 }
 
+function createChannelProvider(
+  descriptor: InstalledPackageDescriptor,
+  entrypoint: ChannelProviderPackageEntrypoint,
+  exported: unknown,
+): ChannelProvider {
+  if (typeof exported !== 'function' || exported.length !== 0) {
+    throw new TypeError(
+      `Channel provider entrypoint must export a zero-argument factory: ${descriptor.manifest.package_id}:${entrypoint.export_name}`,
+    );
+  }
+  const candidate = Reflect.apply(exported, undefined, []);
+  if (
+    candidate !== null
+    && (typeof candidate === 'object' || typeof candidate === 'function')
+    && typeof (candidate as { then?: unknown }).then === 'function'
+  ) {
+    void Promise.resolve(candidate).catch(() => undefined);
+    throw new TypeError(
+      `Channel provider factory must return synchronously: ${descriptor.manifest.package_id}:${entrypoint.export_name}`,
+    );
+  }
+  assertChannelProvider(candidate);
+  return candidate;
+}
+
 export async function loadInstalledChannelProviders(
   descriptors: Iterable<InstalledPackageDescriptor>,
 ): Promise<readonly ChannelProvider[]> {
@@ -77,8 +102,11 @@ export async function loadInstalledChannelProviders(
     for (const entrypoint of channelProviderEntrypoints(descriptor)) {
       const modulePath = resolveEntrypointModule(descriptor, entrypoint);
       const module = await import(pathToFileURL(modulePath).href) as Record<string, unknown>;
-      const provider = module[entrypoint.export_name];
-      assertChannelProvider(provider);
+      const provider = createChannelProvider(
+        descriptor,
+        entrypoint,
+        module[entrypoint.export_name],
+      );
       if (provider.provider_id !== descriptor.manifest.package_id) {
         throw new Error(
           `Channel provider identity must match its installed Package: ${descriptor.manifest.package_id}:${provider.provider_id}`,

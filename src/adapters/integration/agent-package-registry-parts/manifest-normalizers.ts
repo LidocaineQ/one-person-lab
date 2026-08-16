@@ -1646,12 +1646,6 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
       failure_code: 'capability_package_export_overlap',
     });
   }
-  if (coreSkillIds.length === 0) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Capability package must export at least one core skill.', {
-      manifest_url: manifestUrl,
-      failure_code: 'invalid_capability_package_manifest',
-    });
-  }
   const capabilityAbi = assertStringValue(payload.capability_abi.id, 'capability_abi.id');
   if (payload.content_lock.algorithm !== 'sha256') {
     throw new FrameworkContractError('contract_shape_invalid', 'Capability package content lock algorithm must be sha256.', {

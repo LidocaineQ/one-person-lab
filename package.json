@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "exports": {
-    "./cordis-profiles": "./dist/entrypoints/cordis/composition-profiles.js",
+    "./cordis-profiles": "./dist/host/composition-profiles.js",
     "./foundry-protocol": "./dist/authority/evolution/protocol.js",
     "./foundry-protocol-fixture-conformance": "./dist/authority/evolution/protocol-fixture-conformance.js",
     "./foundry-control": "./dist/authority/evolution/control.js",

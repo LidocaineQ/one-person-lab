@@ -177,6 +177,10 @@ export type CordisAppFullComposition = Omit<
   dispose(): Promise<void>;
 };
 
+export type CordisChannelProviderHostBootstrap = Readonly<{
+  dispose(): Promise<void>;
+}>;
+
 export type CordisCliComposition = CordisBaseHeadlessComposition | CordisAppFullComposition;
 
 export type CordisFoundryDevComposition = {
@@ -423,6 +427,23 @@ export async function createCordisAppFullComposition(options: {
     await base.dispose();
     throw error;
   }
+}
+
+export async function startCordisChannelProviderHost(options: {
+  callback: CordisChannelProviderHostPluginConfig['callback'];
+}): Promise<CordisChannelProviderHostBootstrap> {
+  const composition = await createCordisAppFullComposition({
+    runtimeSnapshotProvider: async (contracts, snapshotOptions) => {
+      const { buildRuntimeTraySnapshot } = await import(
+        '../read-models/operator/runtime-tray-snapshot.ts'
+      );
+      return buildRuntimeTraySnapshot(contracts, snapshotOptions);
+    },
+    channelProvider: { callback: options.callback },
+  });
+  return Object.freeze({
+    dispose: () => composition.dispose(),
+  });
 }
 
 export async function createCordisFoundryDevComposition(options: {

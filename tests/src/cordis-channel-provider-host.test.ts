@@ -14,6 +14,7 @@ import {
 } from '../../src/authority/packages/index.ts';
 import {
   createCordisAppFullComposition,
+  startCordisChannelProviderHost,
 } from '../../src/host/composition-profiles.ts';
 import {
   CORDIS_CHANNEL_PROVIDER_HOST_PLUGIN_ID,
@@ -24,6 +25,7 @@ import {
 import type {
   InstalledPackageDescriptor,
 } from '../../src/adapters/integration/agent-package-registry-parts/installed-codex-plugin-directory.ts';
+import { loadInstalledChannelProviders } from '../../src/adapters/integration/public/channel-provider-entrypoints.ts';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 import { assertJsonSchemaPayload } from '../../src/kernel/schema-registry.ts';
 
@@ -164,15 +166,27 @@ test('app-full loads a callable channel provider from an installed descriptor en
   const moduleRef = 'channel-provider.mjs';
   const modulePath = path.join(packageRoot, moduleRef);
   fs.writeFileSync(modulePath, [
+    'export let factoryCount = 0;',
     'export let startCount = 0;',
     'export let disposeCount = 0;',
-    'export const channelProvider = {',
-    "  provider_id: 'opl-channel-test',",
-    '  async start() {',
-    '    startCount += 1;',
-    '    return { async dispose() { disposeCount += 1; } };',
-    '  },',
-    '};',
+    'function provider(providerId = "opl-channel-test") {',
+    '  return {',
+    '    provider_id: providerId,',
+    '    async start() {',
+    '      startCount += 1;',
+    '      return { async dispose() { disposeCount += 1; } };',
+    '    },',
+    '  };',
+    '}',
+    'export function createChannelProvider() {',
+    '  factoryCount += 1;',
+    '  return provider();',
+    '}',
+    'export const channelProvider = provider();',
+    'export function requiresOptions(_options) { return provider(); }',
+    'export async function asyncFactory() { return provider(); }',
+    'export function invalidFactory() { return {}; }',
+    'export function wrongIdentityFactory() { return provider("other-provider"); }',
   ].join('\n'));
   const ownerManifest = parseJsonText(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/packages/opl-relay.json'),
@@ -183,11 +197,17 @@ test('app-full loads a callable channel provider from an installed descriptor en
     ...ownerManifest,
     package_id: 'opl-channel-test',
     display_name: 'Channel test provider',
+    exports: {
+      ...ownerManifest.exports,
+      core_skill_ids: [],
+      specialty_skill_ids: [],
+    },
+    consumer_profiles: [],
     entrypoints: [{
       entrypoint_id: 'channel-provider',
       kind: 'channel_provider',
       module_ref: moduleRef,
-      export_name: 'channelProvider',
+      export_name: 'createChannelProvider',
     }],
     codex_surface: {
       ...ownerManifest.codex_surface,
@@ -204,7 +224,12 @@ test('app-full loads a callable channel provider from an installed descriptor en
   );
   packageManifestPayload.content_lock = {
     ...ownerManifest.content_lock,
-    paths: [...ownerManifest.content_lock.paths, moduleRef],
+    paths: [
+      ...ownerManifest.content_lock.paths.filter(
+        (entry: string) => !entry.startsWith('skills/'),
+      ),
+      moduleRef,
+    ],
   };
   const manifestSchema = parseJsonText(fs.readFileSync(
     path.join(repoRoot, 'contracts/opl-framework/capability-package-manifest.schema.json'),
@@ -216,6 +241,7 @@ test('app-full loads a callable channel provider from an installed descriptor en
     sourceRef: 'contracts/opl-framework/capability-package-manifest.schema.json',
   }, packageManifestPayload));
   const manifest = normalizeCapabilityPackageManifest(packageManifestPayload, manifestPath);
+  assert.deepEqual(manifest.required_skill_ids, []);
   const descriptor = {
     manifest,
     manifestPath,
@@ -239,6 +265,41 @@ test('app-full loads a callable channel provider from an installed descriptor en
       callability: 'callable',
     },
   } as InstalledPackageDescriptor;
+  const descriptorForExport = (exportName: string): InstalledPackageDescriptor => ({
+    ...descriptor,
+    manifest: {
+      ...descriptor.manifest,
+      entrypoints: [{
+        entrypoint_id: 'channel-provider',
+        kind: 'channel_provider',
+        module_ref: moduleRef,
+        export_name: exportName,
+      }],
+    },
+  });
+  const first = (await loadInstalledChannelProviders([descriptor]))[0];
+  const second = (await loadInstalledChannelProviders([descriptor]))[0];
+  assert.notEqual(first, second);
+  await assert.rejects(
+    () => loadInstalledChannelProviders([descriptorForExport('channelProvider')]),
+    /zero-argument factory/,
+  );
+  await assert.rejects(
+    () => loadInstalledChannelProviders([descriptorForExport('requiresOptions')]),
+    /zero-argument factory/,
+  );
+  await assert.rejects(
+    () => loadInstalledChannelProviders([descriptorForExport('asyncFactory')]),
+    /return synchronously/,
+  );
+  await assert.rejects(
+    () => loadInstalledChannelProviders([descriptorForExport('invalidFactory')]),
+    /stable provider_id/,
+  );
+  await assert.rejects(
+    () => loadInstalledChannelProviders([descriptorForExport('wrongIdentityFactory')]),
+    /identity must match/,
+  );
   const composition = await createCordisAppFullComposition({
     runtimeSnapshotProvider: async () => ({ runtime_tray_snapshot: {} }),
     channelProvider: { callback: callbackFixture() },
@@ -246,6 +307,7 @@ test('app-full loads a callable channel provider from an installed descriptor en
   });
   try {
     const loaded = await import(pathToFileURL(modulePath).href);
+    assert.equal(loaded.factoryCount, 3);
     assert.equal(loaded.startCount, 1);
     assert.ok(composition.services.channelProviderHost);
   } finally {
@@ -253,6 +315,22 @@ test('app-full loads a callable channel provider from an installed descriptor en
     const loaded = await import(pathToFileURL(modulePath).href);
     assert.equal(loaded.disposeCount, 1);
     fs.rmSync(packageRoot, { recursive: true, force: true });
+  }
+});
+
+test('public channel-provider bootstrap owns the app-full Host lifecycle', async () => {
+  const previousBinary = process.env.OPL_CODEX_PLUGIN_BIN;
+  process.env.OPL_CODEX_PLUGIN_BIN = path.join(
+    os.tmpdir(),
+    `missing-codex-plugin-manager-${process.pid}`,
+  );
+  try {
+    const host = await startCordisChannelProviderHost({ callback: callbackFixture() });
+    assert.equal(typeof host.dispose, 'function');
+    await host.dispose();
+  } finally {
+    if (previousBinary === undefined) delete process.env.OPL_CODEX_PLUGIN_BIN;
+    else process.env.OPL_CODEX_PLUGIN_BIN = previousBinary;
   }
 });
 
