@@ -280,6 +280,11 @@ test('framework packages workflow is release-gated and manually repairable witho
   assert.match(dailyPackageWorkflow, /frozen_base_release_set_generation/);
   assert.match(dailyPackageWorkflow, /frozen_base_release_set_digest/);
   assert.match(dailyPackageWorkflow, /bootstrap is forbidden on an availability error/);
+  assert.match(dailyPackageWorkflow, /name unknown: repository name not known to registry/);
+  assert.match(dailyPackageWorkflow, /verified absence/);
+  assert.match(dailyPackageWorkflow, /oras repo tags "\$image" > "\$tags_file" 2> "\$tags_error"/);
+  assert.match(dailyPackageWorkflow, /elif grep -Fq 'name unknown: repository name not known to registry' "\$tags_error"/);
+  assert.match(dailyPackageWorkflow, /Unable to verify the independent latest-stable predecessor for \$package_id\.[\s\S]*cat "\$tags_error" >&2[\s\S]*exit 1/);
   assert.match(dailyPackageWorkflow, /latest-stable exists but its exact digest could not be resolved/);
   assert.match(dailyPackageWorkflow, /release_manifests\[@\]/);
   assert.match(dailyPackageWorkflow, /\.release_set\.bom_status == "complete"/);

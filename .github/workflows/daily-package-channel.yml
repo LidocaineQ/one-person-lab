@@ -220,12 +220,17 @@ jobs:
               predecessor="$(jq -er '.digest | select(test("^sha256:[0-9a-f]{64}$"))' "$descriptor_file")"
             else
               tags_file="$RUNNER_TEMP/opl-$package_id-tags.txt"
-              if ! oras repo tags "$image" > "$tags_file"; then
+              tags_error="$RUNNER_TEMP/opl-$package_id-tags.error"
+              if oras repo tags "$image" > "$tags_file" 2> "$tags_error"; then
+                if grep -Fxq latest-stable "$tags_file"; then
+                  echo "::error::latest-stable exists but its exact predecessor digest could not be resolved for $package_id."
+                  exit 1
+                fi
+              elif grep -Fq 'name unknown: repository name not known to registry' "$tags_error"; then
+                echo "::notice::No owner repository exists for $package_id; treating the independent predecessor as verified absence."
+              else
                 echo "::error::Unable to verify the independent latest-stable predecessor for $package_id."
-                exit 1
-              fi
-              if grep -Fxq latest-stable "$tags_file"; then
-                echo "::error::latest-stable exists but its exact predecessor digest could not be resolved for $package_id."
+                cat "$tags_error" >&2
                 exit 1
               fi
             fi
