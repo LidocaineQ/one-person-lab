@@ -1,11 +1,8 @@
 import { reconcileBaseManagedDependencies } from './base-managed-dependencies.ts';
 import {
   buildOplModules,
-  resolveManagedModuleCheckoutPath,
-  resolveOplDomainModuleSpec,
   runOplModuleAction,
 } from './system-installation/modules.ts';
-import { rollbackManagedModulePackageChannel } from './system-installation/module-package-channel.ts';
 import { runOplStartupMaintenance } from './system-installation/startup-maintenance.ts';
 import { isRecord } from '../../kernel/contract-validation.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
@@ -102,7 +99,7 @@ function moduleStatus(result: unknown) {
   return isRecord(result) && result.status === 'completed' ? 'completed' : 'manual_required';
 }
 
-function reconcileManagedChannelTargets() {
+function reconcileManagedModuleTargets() {
   return buildOplModules().modules.modules.filter((module) => module.default_install).map((module) => {
     if (!module.installed || module.install_origin === 'missing') {
       return {
@@ -114,18 +111,15 @@ function reconcileManagedChannelTargets() {
         result: null,
       };
     }
-    const managedPackageChannel = module.install_origin === 'managed_root'
-      && module.source_policy.effective_install_update_source === 'package_channel'
-      && module.source_policy.package_channel_auto_update;
     if (module.install_origin !== 'managed_root' || module.health_status === 'dirty'
       || module.health_status === 'invalid_checkout' || module.git?.dirty
       || ['ahead', 'diverged', 'unknown'].includes(module.git?.sync_status ?? '')
-      || (module.git?.sync_status === 'no_upstream' && !managedPackageChannel)) {
+      || module.git?.sync_status === 'no_upstream') {
       return { target_type: 'module', target_id: module.module_id, status: 'manual_required', reason: 'developer_or_dirty_checkout_visible', action: null, result: null };
     }
     const action = module.recommended_action === 'update' && module.available_actions.includes('update') ? 'update' : 'sync';
     const result = runOplModuleAction(action, module.module_id).module_action as Record<string, unknown>;
-    return { target_type: 'module', target_id: module.module_id, status: moduleStatus(result), reason: action === 'update' ? 'capability_packages_refresh' : 'capability_packages_post_apply_sync', action, result };
+    return { target_type: 'module', target_id: module.module_id, status: moduleStatus(result), reason: action === 'update' ? 'managed_module_git_refresh' : 'managed_module_post_apply_sync', action, result };
   });
 }
 
@@ -206,9 +200,9 @@ function buildAgentPackagePostApplyActions(
   if (operation === MANAGED_UPDATE_OWNER_ACTIONS.revert) {
     return [
       {
-        action_id: 'rollback_package_channel',
-        command_ref: managedUpdateCommand(MANAGED_UPDATE_OWNER_ACTIONS.revert, 'opl_packages'),
-        status: nestedRecord(reconcileResult, 'summary') ? 'completed' : 'manual_required',
+        action_id: 'manual_package_revert',
+        command_ref: 'opl connect modules --json',
+        status: 'manual_required',
         result_ref: adapterResultRef('capability_packages', operation, reconcileResult),
         result: reconcileResult,
       },
@@ -290,52 +284,20 @@ async function runAgentPackageAdapter(
 ): Promise<AdapterExecutionResult> {
   if (operation === MANAGED_UPDATE_OWNER_ACTIONS.revert) {
     const modules = buildOplModules().modules.modules.filter((module) => module.default_install);
-    const targets: Record<string, unknown>[] = [];
-    for (const module of modules) {
-      if (module.install_origin !== 'managed_root' || module.health_status !== 'ready') {
-        targets.push({
-          target_type: 'module',
-          target_id: module.module_id,
-          status: 'manual_required',
-          reason: 'rollback_requires_clean_managed_package_root',
-          action: MANAGED_UPDATE_OWNER_ACTIONS.revert,
-          result: null,
-        });
-        continue;
-      }
-      try {
-        const spec = resolveOplDomainModuleSpec(module.module_id);
-        const result = rollbackManagedModulePackageChannel(
-          spec,
-          resolveManagedModuleCheckoutPath(spec),
-        ) as unknown as Record<string, unknown>;
-        targets.push({
-          target_type: 'module',
-          target_id: module.module_id,
-          status: 'completed',
-          reason: 'package_channel_previous_root_restored',
-          action: MANAGED_UPDATE_OWNER_ACTIONS.revert,
-          result,
-        });
-      } catch (error) {
-        const normalized = normalizeError(error);
-        targets.push({
-          target_type: 'module',
-          target_id: module.module_id,
-          status: 'manual_required',
-          reason: 'package_channel_rollback_unavailable',
-          action: MANAGED_UPDATE_OWNER_ACTIONS.revert,
-          result: null,
-          error: normalized,
-        });
-      }
-    }
+    const targets: Record<string, unknown>[] = modules.map((module) => ({
+      target_type: 'module',
+      target_id: module.module_id,
+      status: 'manual_required',
+      reason: 'native_git_checkout_requires_owner_revert',
+      action: MANAGED_UPDATE_OWNER_ACTIONS.revert,
+      result: null,
+    }));
     const manualCount = targets.filter((target) => target.status === 'manual_required').length;
     const completedCount = targets.filter((target) => target.status === 'completed').length;
     const status: AdapterExecutionResult['status'] = completedCount > 0 && manualCount === 0 ? 'completed' : 'manual_required';
     const reloadGuidance = agentPackageReloadGuidance(operation, completedCount);
     const result = {
-      surface_kind: 'capability_packages_rollback_result',
+      surface_kind: 'capability_packages_revert_result',
       apply_mode: 'manual_required',
       app_background_safe: false,
       reload_guidance: reloadGuidance,
@@ -351,10 +313,8 @@ async function runAgentPackageAdapter(
       component_id: 'opl_packages',
       adapter_id: 'capability_packages_adapter',
       status,
-      reason: completedCount > 0 && manualCount === 0
-        ? 'package_channel_previous_roots_restored'
-        : 'package_channel_rollback_partially_available_or_missing_previous_roots',
-      result_ref: completedCount > 0 ? adapterResultRef('capability_packages', operation, result) : null,
+      reason: 'package_revert_requires_owner_revert',
+      result_ref: null,
       result,
       error: null,
       apply_mode: 'manual_required',
@@ -372,7 +332,7 @@ async function runAgentPackageAdapter(
     };
   }
 
-  const targets: Record<string, unknown>[] = reconcileManagedChannelTargets();
+  const targets: Record<string, unknown>[] = reconcileManagedModuleTargets();
   const manualCount = targets.filter((target) => target.status === 'manual_required').length;
   const completedCount = targets.filter((target) => target.status === 'completed').length;
   const validatedCount = targets.filter((target) => target.status === 'validated').length;
@@ -434,7 +394,7 @@ async function runAgentPackageAdapter(
     surface_kind: 'capability_packages_adapter_result',
     apply_mode: applyMode,
     app_background_safe: applyMode === 'auto_apply' && failedCount === 0 && !postApplyFailed,
-    auto_apply_scope: 'native_package_channel_modules_only',
+    auto_apply_scope: 'native_git_checkout_modules_only',
     status_detail: statusDetail,
     reload_guidance: reloadGuidance,
     read_model_guidance: {

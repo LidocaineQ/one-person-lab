@@ -3,7 +3,6 @@ import type { FrameworkContracts } from '../../kernel/types.ts';
 import { resolveCodexVersion } from './system-installation/engine-helpers.ts';
 import { buildOplModules } from './system-installation/modules.ts';
 import { canonicalAgentPackageId } from './agent-package-identity.ts';
-import { resolveFirstPartyPackageOwnerChannelRef } from './agent-package-first-party.ts';
 import {
   readFirstPartyPackageOwnerCurrentness,
   type FirstPartyPackageOwnerCurrentness,
@@ -21,7 +20,6 @@ import {
   filterManagedUpdateComponents,
   KERNEL_LIFECYCLE,
   MANAGED_UPDATE_OWNER_ACTIONS,
-  MANAGED_UPDATE_OWNER_FIELDS,
   MANAGED_UPDATE_KERNEL_ID,
   managedUpdateComponent,
   managedUpdateOperationMode,
@@ -72,10 +70,6 @@ function moduleState(module: Record<string, unknown>): ManagedUpdateComponentSta
   const healthStatus = stringValue(module, 'health_status');
   const recommendedAction = stringValue(module, 'recommended_action');
   const installOrigin = stringValue(module, 'install_origin');
-  const sourcePolicy = asRecord(module.source_policy);
-  const managedPackageChannel = installOrigin === 'managed_root'
-    && stringValue(sourcePolicy, 'effective_install_update_source') === 'package_channel'
-    && booleanValue(sourcePolicy, 'package_channel_auto_update') === true;
   const git = asRecord(module.git);
   const dirty = booleanValue(git, 'dirty') === true;
   const syncStatus = stringValue(git, 'sync_status');
@@ -90,7 +84,7 @@ function moduleState(module: Record<string, unknown>): ManagedUpdateComponentSta
     || installOrigin === 'sibling_workspace'
     || syncStatus === 'ahead'
     || syncStatus === 'diverged'
-    || (syncStatus === 'no_upstream' && !managedPackageChannel)
+    || syncStatus === 'no_upstream'
     || syncStatus === 'unknown'
   ) {
     return 'skipped_manual_required';
@@ -126,15 +120,10 @@ function buildCapabilityPackagesComponent(
       : null;
     return {
       ...entry,
-      // A native package-channel marker can prove an update even when the
-      // optional installed owner descriptor is unavailable. Only turn a
-      // non-updating target into manual review when no native action exists.
       state: owner?.status === 'update_available'
         ? 'update_available' as const
-        : owner?.status === 'unavailable' && entry.state !== 'update_available'
-          ? 'skipped_manual_required' as const
-          : entry.state,
-      owner_channel_ref: resolveFirstPartyPackageOwnerChannelRef(entry.package_id),
+        : entry.state,
+      owner_channel_ref: null,
       owner_currentness: owner,
     };
   });
@@ -161,7 +150,7 @@ function buildCapabilityPackagesComponent(
   const postApplyHooks = ['reconcile_packages'];
   const cleanManagedScopeSafe = cleanManagedTargetsCount > 0;
   const autoApplyEligible = cleanManagedScopeSafe && action !== 'none';
-  const packageApplyCommand = 'opl packages update --json';
+  const packageApplyCommand = 'opl connect modules --json';
   const blockedReasons = [
     ...(manualCount > 0 ? ['manual_required_targets_are_detect_only_and_skipped'] : []),
   ];
@@ -192,7 +181,6 @@ function buildCapabilityPackagesComponent(
     apply_owner: 'opl_connect_native_package_carrier',
     forbidden_claims: [
       'capability_package_currentness_is_domain_ready',
-      'capability_package_channel_signs_owner_receipt',
       'managed_update_kernel_is_package_manager',
     ],
   });
@@ -210,7 +198,7 @@ function buildCapabilityPackagesComponent(
       owner_executor_id: 'opl_connect_native_package_carrier',
       executor_kind: 'clean_managed_package_executor',
       runner_can_execute: true,
-      allowed_operations: ['apply', 'repair', MANAGED_UPDATE_OWNER_ACTIONS.revert], // reuse-first: allow clean content-addressed module roots only.
+      allowed_operations: ['apply', 'repair'],
       receipt_projection: 'component_receipt_with_owner_route',
       diagnostic_only: false,
       notes: [
@@ -221,21 +209,8 @@ function buildCapabilityPackagesComponent(
     state,
     channel,
     current: {
-      currentness_authority: 'per_package_owner_latest_stable',
-      owner_channel_refs: moduleStates.map((entry) => ({
-        package_id: entry.package_id,
-        channel_ref: entry.owner_channel_ref,
-      })),
+      currentness_authority: 'native_git_checkout',
       shared_snapshot_role: 'explicit_full_offline_integration_qa_compatibility_only',
-      tag_role: 'selector_only',
-      oci_distribution: {
-        descriptor_media_type: 'application/vnd.opl.capability-package.channel.v1+json',
-        channel_scope: 'per_package_owner_latest_stable',
-        channel_refs: moduleStates.map((entry) => entry.owner_channel_ref).filter(Boolean),
-        tag_role: 'selector_only',
-        installed_receipt_must_record_digest: true,
-        digest_field: MANAGED_UPDATE_OWNER_FIELDS.toDigest,
-      },
       default_modules_count: defaultModules.length,
       managed_module_count: targetStates.length,
       projection_source: 'native_module_directory',
@@ -244,13 +219,8 @@ function buildCapabilityPackagesComponent(
     target: state === 'current'
       ? null
       : {
-        source: 'Native module carrier target selected by Framework module source policy',
-        content_identity: 'digest_or_source_fingerprint_required_in_receipt',
-        oci_descriptor: {
-          media_type: 'application/vnd.opl.capability-package.channel.v1+json',
-          digest_required: true,
-          digest_algorithm: 'sha256',
-        },
+        source: 'Native Git checkout target selected by Framework module source policy',
+        content_identity: 'git_head_sha_or_source_fingerprint',
       },
     conditions: [
       condition(
@@ -260,14 +230,8 @@ function buildCapabilityPackagesComponent(
           ? 'CapabilityPackagesCurrent'
           : 'CapabilityPackageMaintenanceAvailable',
         state === 'current'
-          ? 'Native module carriers match their selected package-channel targets.'
+          ? 'Native module carriers match their Git checkout state.'
           : 'Native module maintenance or manual review is required.',
-      ),
-      condition(
-        'DigestPinned',
-        'Unknown',
-        'ChannelTagSelectorOnly',
-        'GHCR latest-stable is a rolling channel selector; installed receipts must record digest, sha256, source fingerprint, or git head.',
       ),
       condition(
         'DeveloperCheckoutProtected',
@@ -275,7 +239,7 @@ function buildCapabilityPackagesComponent(
         manualCount > 0 ? 'ManualSourceVisible' : 'CleanManagedRootsOnly',
         manualCount > 0
           ? 'At least one native module has an unavailable, dirty, or user-managed source.'
-          : 'Silent Package maintenance is limited to clean content-addressed native module roots.',
+          : 'Silent module maintenance is limited to clean managed Git roots.',
       ),
     ],
     lifecycle: KERNEL_LIFECYCLE,
@@ -284,7 +248,7 @@ function buildCapabilityPackagesComponent(
       mode: cleanManagedScopeSafe ? 'auto_apply' : 'manual_required',
       eligible: autoApplyEligible,
       app_background_safe: cleanManagedScopeSafe,
-      scope: 'native_package_channel_modules_only',
+      scope: 'native_git_checkout_modules_only',
       command_ref: autoApplyEligible ? packageApplyCommand : null,
       blocked_reasons: blockedReasons,
     },
@@ -303,8 +267,8 @@ function buildCapabilityPackagesComponent(
         : action === 'manual_review'
           ? 'Manual review is required before OPL can update one or more native module roots.'
           : manualCount > 0
-            ? 'Reconcile eligible clean package-channel targets and leave manual targets unchanged.'
-            : 'Reconcile native module carriers against package-channel targets.',
+            ? 'Reconcile eligible clean Git targets and leave manual targets unchanged.'
+            : 'Reconcile native module carriers against Git checkout state.',
       command_refs: action === 'manual_review'
         ? [
           manualCommand(
@@ -325,13 +289,13 @@ function buildCapabilityPackagesComponent(
             controlledCommand(
               'update_packages',
               packageApplyCommand,
-              'Delegate clean package-channel updates to their native module owners.',
+              'Delegate clean Git checkout updates to their native module owners.',
             ),
           ],
     },
     receipt: componentReceipt({
       component_id: 'opl_packages',
-      sourceManifestRef: 'opl://packages/per-package-owner-latest-stable',
+      sourceManifestRef: 'opl://packages/native-git-checkout',
       postApplyHooks,
       apply_mode: cleanManagedScopeSafe ? 'auto_apply' : 'manual_required',
       status_detail: detail,
@@ -348,10 +312,10 @@ function buildCapabilityPackagesComponent(
       can_claim_quality_or_export_verdict: false,
     },
     notes: [
-      'Each first-party Package owner latest-stable channel is the ordinary non-development currentness source.',
+      'Managed module currentness is derived from the native Git checkout carrier.',
       'Developer checkout content remains protected; only clean managed module roots are eligible.',
       'Shared manifests are compatibility-only Full, offline, integration, or QA snapshot inputs, never Package currentness authority.',
-      'Package-channel freshness does not claim domain readiness, artifact authority, quality verdict, or export readiness.',
+      'Module freshness does not claim domain readiness, artifact authority, quality verdict, or export readiness.',
     ],
   });
 }
@@ -386,11 +350,9 @@ export async function buildManagedUpdateKernelProjection(
     }).modules;
     const modules = modulesPayload.modules as Record<string, unknown>[];
     const eligiblePackageIds = modules.flatMap((entry): string[] => {
-      const sourcePolicy = asRecord(entry.source_policy);
       const state = moduleState(entry);
       return booleanValue(entry, 'installed') === true
         && stringValue(entry, 'install_origin') === 'managed_root'
-        && stringValue(sourcePolicy, 'effective_install_update_source') === 'package_channel'
         && state !== 'skipped_manual_required'
         && state !== 'failed_with_repair'
         ? [canonicalAgentPackageId(stringValue(entry, 'module_id'))]

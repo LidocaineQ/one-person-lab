@@ -11,7 +11,6 @@ export type AgentPackageEffectiveSourcePolicy = {
   reason: string;
   developer_checkout_path: string | null;
   developer_checkout_available: boolean;
-  package_channel_auto_update: boolean;
 };
 
 export function resolveAgentPackageEffectiveSourcePolicy(
@@ -29,7 +28,6 @@ export function resolveAgentPackageEffectiveSourcePolicy(
       reason: 'package_has_no_framework_module_source_policy',
       developer_checkout_path: null,
       developer_checkout_available: false,
-      package_channel_auto_update: false,
     };
   }
 
@@ -51,6 +49,5 @@ export function resolveAgentPackageEffectiveSourcePolicy(
         : sourcePolicy.configured_by,
     developer_checkout_path: checkoutPath,
     developer_checkout_available: checkoutAvailable,
-    package_channel_auto_update: sourcePolicy.package_channel_auto_update,
   };
 }

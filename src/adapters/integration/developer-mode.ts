@@ -472,7 +472,7 @@ function resolveDeveloperCapabilities(input: {
       'not_checked',
       'identity_check_pending',
       'authority_inspection_pending',
-      'The managed package channel remains selected until automatic Developer Mode identity inspection completes.',
+      'The native module source remains selected until automatic Developer Mode identity inspection completes.',
     )
     : developerSourceSelected
     ? developerCapability(
@@ -483,9 +483,9 @@ function resolveDeveloperCapabilities(input: {
     )
     : developerCapability(
       disabled ? 'disabled' : 'limited',
-      'managed_package_channel',
-      disabled ? 'developer_mode_disabled' : 'agent_latest_package_channel',
-      'Module source remains on the managed package channel unless the source selector activates Developer Mode.',
+      'native_git_checkout',
+      disabled ? 'developer_mode_disabled' : 'native_git_checkout',
+      'Module source remains on the native Git checkout unless the source selector activates Developer Mode.',
     );
 
   const workspaceTrust = pending

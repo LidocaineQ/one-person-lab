@@ -246,15 +246,12 @@ function runPackagedModuleHealthCheck(
   const sourceKind = marker?.source_kind ?? 'full_runtime';
   return {
     status: 'completed',
-    summary: sourceKind === 'package_channel'
-      ? 'Package-channel module marker is present and matches this module.'
-      : 'Packaged Full runtime marker is present and matches this module.',
+    summary: 'Packaged Full runtime marker is present and matches this module.',
     command_preview: null,
     stdout: '',
     stderr: '',
     result: {
       packaged_runtime: sourceKind === 'full_runtime',
-      package_channel: sourceKind === 'package_channel',
       module_id: spec.module_id,
       repo_name: spec.repo_name,
       source_git: packagedGit,

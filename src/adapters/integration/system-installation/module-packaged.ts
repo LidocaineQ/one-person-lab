@@ -12,16 +12,10 @@ import type {
   GitRepoSnapshot,
 } from './shared.ts';
 import { normalizeOptionalString } from './shared.ts';
-import {
-  computePackageChannelTreeSha256,
-  readPackageChannelLifecycle,
-  type PackageChannelLifecycle,
-} from './module-package-channel.ts';
 
 export type PackagedModuleMarker = {
-  source_kind: 'full_runtime' | 'package_channel';
+  source_kind: 'full_runtime';
   source_git: GitRepoSnapshot;
-  package_channel_lifecycle: PackageChannelLifecycle | null;
 };
 
 function readPackagedModuleMarkerRecord(repoPath: string, spec: DomainModuleSpec) {
@@ -48,9 +42,7 @@ function markerFromRecord(
 ): PackagedModuleMarker | null {
   const sourceKind = parsed.packaged_runtime === true
     ? 'full_runtime'
-    : parsed.package_channel === true
-      ? 'package_channel'
-      : null;
+    : null;
   if (!sourceKind) {
     return null;
   }
@@ -75,9 +67,6 @@ function markerFromRecord(
       sync_status: 'no_upstream',
       dirty: false,
     },
-    package_channel_lifecycle: sourceKind === 'package_channel'
-      ? readPackageChannelLifecycle(repoPath, spec)
-      : null,
   };
 }
 
@@ -96,17 +85,7 @@ export function isPackagedModuleCheckout(repoPath: string, spec: DomainModuleSpe
 
 export function packagedModuleDirty(repoPath: string, spec: DomainModuleSpec) {
   const marker = readPackagedModuleMarker(repoPath, spec);
-  if (!marker) {
-    return null;
-  }
-  if (marker.source_kind !== 'package_channel') {
-    return false;
-  }
-  const expectedTreeSha256 = marker.package_channel_lifecycle?.current.tree_sha256;
-  if (!expectedTreeSha256) {
-    return true;
-  }
-  return computePackageChannelTreeSha256(repoPath) !== expectedTreeSha256;
+  return marker ? false : null;
 }
 
 export function inspectPackagedModule(repoPath: string, spec: DomainModuleSpec) {
@@ -118,20 +97,13 @@ export function inspectPackagedModule(repoPath: string, spec: DomainModuleSpec) 
   if (!marker) {
     return null;
   }
-  const dirty = marker.source_kind === 'package_channel'
-    ? (
-      marker.package_channel_lifecycle?.current.tree_sha256
-        ? computePackageChannelTreeSha256(repoPath) !== marker.package_channel_lifecycle.current.tree_sha256
-        : true
-    )
-    : false;
   return {
     marker,
     git: {
       ...marker.source_git,
-      dirty,
+      dirty: false,
     },
-    dirty,
+    dirty: false,
   };
 }
 

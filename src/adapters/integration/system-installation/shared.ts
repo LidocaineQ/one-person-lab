@@ -241,9 +241,9 @@ export type GitRepoSnapshot = {
 };
 
 export type ModuleSourcePolicy = {
-  effective_install_update_source: 'package_channel' | 'git_checkout' | 'full_runtime';
+  effective_install_update_source: 'git_checkout' | 'full_runtime';
   configured_by:
-    | 'agent_latest_package_channel'
+    | 'native_git_checkout'
     | 'developer_mode'
     | 'env_source_mode'
     | 'module_path_override'
@@ -254,7 +254,6 @@ export type ModuleSourcePolicy = {
   source_preference: 'auto' | 'managed' | 'developer';
   developer_checkout_path: string;
   fallback_reason: 'developer_checkout_unavailable' | 'developer_mode_inactive' | null;
-  package_channel_auto_update: boolean;
   app_setting_surface: 'Developer Mode' | null;
   low_level_override_env: string | null;
 };
@@ -277,7 +276,7 @@ export type ModuleInspection = {
   capabilities: {
     source_channel: {
       status: 'ready' | 'limited' | 'blocked';
-      level: 'managed_package_channel' | 'local_checkout' | 'full_runtime' | 'missing' | 'invalid_checkout';
+      level: 'local_checkout' | 'full_runtime' | 'missing' | 'invalid_checkout';
       source: ModuleSourcePolicy['configured_by'];
       impact: string;
     };

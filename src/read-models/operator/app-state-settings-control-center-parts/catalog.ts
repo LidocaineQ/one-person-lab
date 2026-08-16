@@ -694,7 +694,7 @@ export const SETTINGS_CONTROL_CENTER_ACTIONS: SettingsAction[] = [
     dry_run_supported: true,
     confirmation_required: true,
     danger_level: 'medium',
-    impact: 'Applies package-channel updates through the managed update coordinator; module update primitives stay behind the capability_packages adapter.',
+    impact: 'Applies native Git module updates through the managed update coordinator; module update primitives stay behind the capability_packages adapter.',
     follow_up_action_ids: ['provider_scheduler_status'],
     rollback_action_id: 'settings_rollback_runtime_substrate',
     verify_action_id: 'provider_scheduler_status',

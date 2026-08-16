@@ -99,13 +99,6 @@ function buildEngineTarget(
 }
 
 function isManualSyncStatus(module: ModuleStatus) {
-  if (
-    module.install_origin === 'managed_root'
-    && module.source_policy.effective_install_update_source === 'package_channel'
-    && module.source_policy.package_channel_auto_update
-  ) {
-    return false;
-  }
   const syncStatus = module.git?.sync_status;
   return syncStatus === 'ahead'
     || syncStatus === 'diverged'
@@ -130,9 +123,6 @@ function buildManualReason(module: ModuleStatus) {
 }
 
 function buildAutoUpdateReason(module: ModuleStatus) {
-  if (module.source_policy.effective_install_update_source === 'package_channel') {
-    return 'capability_packages_refresh';
-  }
   return module.git?.sync_status === 'behind'
     ? 'module_update_available'
     : 'startup_health_and_skill_refresh';

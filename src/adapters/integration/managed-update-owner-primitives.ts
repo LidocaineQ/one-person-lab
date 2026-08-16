@@ -17,8 +17,8 @@ export const CAPABILITY_PACKAGE_STATUS_READBACK_REF = 'opl packages list --json'
 export const CAPABILITY_PACKAGE_APPLY_COMMAND = 'opl packages update --json';
 export const CAPABILITY_PACKAGE_REPAIR_COMMAND = 'opl packages repair --package-id <package_id> --json';
 export const CAPABILITY_PACKAGE_OWNER_FORBIDDEN_CLAIMS = [
-  'capability_package_channel_signs_owner_receipt',
-  'capability_package_channel_writes_domain_truth',
+  'native_module_carrier_signs_owner_receipt',
+  'native_module_carrier_writes_domain_truth',
   'managed_update_kernel_is_package_manager',
 ] as const;
 

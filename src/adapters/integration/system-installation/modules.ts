@@ -51,12 +51,6 @@ import {
   readPackagedModuleGitSnapshot,
   readPackagedModuleMarker,
 } from './module-packaged.ts';
-import {
-  installManagedModuleFromPackageChannel,
-  readPackageChannelLifecycle,
-  readManagedModulePackageChannelUpdateStatus,
-  refreshPackageChannelCurrentSnapshot,
-} from './module-package-channel.ts';
 import { DOMAIN_MODULE_SPECS } from './module-specs.ts';
 
 const MODULE_WORKFLOW_DEPS = {
@@ -71,12 +65,7 @@ const LEGACY_RUNTIME_MODULE_ALIASES = new Map([
 ]);
 
 function runManagedWorkflow(spec: DomainModuleRuntimeSpec, checkoutPath: string) {
-  const workflow = runManagedModuleWorkflow(spec, checkoutPath, MODULE_WORKFLOW_DEPS);
-  const blocked = Object.values(workflow).some((step) => step.status === 'blocked');
-  if (!blocked && readPackageChannelLifecycle(checkoutPath, spec)) {
-    refreshPackageChannelCurrentSnapshot(checkoutPath, spec);
-  }
-  return workflow;
+  return runManagedModuleWorkflow(spec, checkoutPath, MODULE_WORKFLOW_DEPS);
 }
 
 export const DEFAULT_OPL_MODULE_IDS: readonly OplModuleId[] = DOMAIN_MODULE_SPECS
@@ -124,13 +113,10 @@ function buildModulePathEnvKey(moduleId: string) {
 
 function moduleSourceMode() {
   const raw = normalizeOptionalString(process.env.OPL_MODULE_SOURCE_MODE);
-  if (!raw || raw === 'package_channel') {
-    return 'package_channel';
-  }
-  if (raw === 'git_checkout') {
+  if (!raw || raw === 'git_checkout') {
     return 'git_checkout';
   }
-  throw new FrameworkContractError('contract_shape_invalid', 'OPL_MODULE_SOURCE_MODE must be package_channel or git_checkout.', {
+  throw new FrameworkContractError('contract_shape_invalid', 'OPL_MODULE_SOURCE_MODE must be git_checkout.', {
     env: 'OPL_MODULE_SOURCE_MODE',
     value: raw,
   });
@@ -180,7 +166,7 @@ function moduleHasPathOverride(spec: OplSourcePolicySubject) {
 }
 
 function explicitGitCheckoutSourceMode() {
-  return moduleSourceMode() === 'git_checkout';
+  return normalizeOptionalString(process.env.OPL_MODULE_SOURCE_MODE) === 'git_checkout';
 }
 
 function moduleSourcePreference(spec: OplSourcePolicySubject): OplModuleSourcePreference {
@@ -209,12 +195,6 @@ function developerModeUsesGitCheckouts(
     return false;
   }
   return developerModePrefersLocalCheckouts(developerSupervisor);
-}
-
-function shouldUsePackageChannel(spec: DomainModuleSpec) {
-  return !explicitGitCheckoutSourceMode()
-    && !moduleHasGitCheckoutOverride(spec)
-    && !developerModeUsesGitCheckouts(spec);
 }
 
 function resolveManagedModulePath(spec: DomainModuleSpec) {
@@ -271,7 +251,6 @@ function buildModuleSourcePolicy(
       ...sourceSelection,
       effective_install_update_source: 'full_runtime',
       configured_by: 'full_runtime_override',
-      package_channel_auto_update: false,
       app_setting_surface: null,
       low_level_override_env: buildModulePathEnvKey(spec.module_id),
     };
@@ -281,7 +260,6 @@ function buildModuleSourcePolicy(
       ...sourceSelection,
       effective_install_update_source: 'git_checkout',
       configured_by: 'module_path_override',
-      package_channel_auto_update: false,
       app_setting_surface: null,
       low_level_override_env: buildModulePathEnvKey(spec.module_id),
     };
@@ -291,7 +269,6 @@ function buildModuleSourcePolicy(
       ...sourceSelection,
       effective_install_update_source: 'git_checkout',
       configured_by: 'module_repo_url_override',
-      package_channel_auto_update: false,
       app_setting_surface: null,
       low_level_override_env: buildModuleRepoUrlEnvKey(spec.module_id),
     };
@@ -301,7 +278,6 @@ function buildModuleSourcePolicy(
       ...sourceSelection,
       effective_install_update_source: 'git_checkout',
       configured_by: 'env_source_mode',
-      package_channel_auto_update: false,
       app_setting_surface: null,
       low_level_override_env: 'OPL_MODULE_SOURCE_MODE',
     };
@@ -309,10 +285,9 @@ function buildModuleSourcePolicy(
   if (sourcePreference === 'managed') {
     return {
       ...sourceSelection,
-      effective_install_update_source: 'package_channel',
-      configured_by: 'developer_mode_managed_override',
-      package_channel_auto_update: true,
-      app_setting_surface: 'Developer Mode',
+      effective_install_update_source: 'git_checkout',
+      configured_by: 'native_git_checkout',
+      app_setting_surface: null,
       low_level_override_env: null,
     };
   }
@@ -322,16 +297,14 @@ function buildModuleSourcePolicy(
       effective_install_update_source: 'git_checkout',
       configured_by:
         sourcePreference === 'developer' ? 'developer_mode_package_override' : 'developer_mode',
-      package_channel_auto_update: false,
       app_setting_surface: 'Developer Mode',
       low_level_override_env: null,
     };
   }
   return {
     ...sourceSelection,
-    effective_install_update_source: 'package_channel',
-    configured_by: 'agent_latest_package_channel',
-    package_channel_auto_update: true,
+    effective_install_update_source: 'git_checkout',
+    configured_by: 'native_git_checkout',
     app_setting_surface: null,
     low_level_override_env: null,
   };
@@ -426,9 +399,9 @@ function buildModuleCapabilities(
   return {
     source_channel: {
       status: 'ready' as const,
-      level: 'managed_package_channel' as const,
+      level: 'local_checkout' as const,
       source: sourcePolicy.configured_by,
-      impact: 'This module uses the managed GHCR capability packages channel.',
+      impact: 'This module uses the native Git checkout carrier.',
     },
   };
 }
@@ -482,22 +455,6 @@ function inspectModule(spec: DomainModuleSpec, profile: ModuleInspectionProfile 
         continue;
       }
 
-      const packageUpdateAvailable = (() => {
-        if (
-          profile !== 'full'
-          || packagedModule.marker.source_kind !== 'package_channel'
-          || candidate.origin !== 'managed_root'
-          || packagedModule.dirty
-          || sourcePolicy.effective_install_update_source !== 'package_channel'
-        ) {
-          return false;
-        }
-        try {
-          return readManagedModulePackageChannelUpdateStatus(candidate.path, spec).status === 'update_available';
-        } catch {
-          return false;
-        }
-      })();
       return {
         module_id: spec.module_id,
         label: spec.label,
@@ -514,10 +471,8 @@ function inspectModule(spec: DomainModuleSpec, profile: ModuleInspectionProfile 
         git: packagedModule.git,
         source_policy: sourcePolicyForOrigin(sourcePolicy, candidate.origin),
         capabilities: buildModuleCapabilities(sourcePolicy, candidate.origin, true),
-        available_actions: candidate.origin === 'managed_root'
-          ? [...(packageUpdateAvailable ? (['update'] as const) : []), 'reinstall', 'remove']
-          : [],
-        recommended_action: packageUpdateAvailable ? 'update' : null,
+        available_actions: candidate.origin === 'managed_root' ? ['reinstall', 'remove'] : [],
+        recommended_action: null,
       };
     }
 
@@ -697,18 +652,13 @@ function installManagedModule(spec: DomainModuleSpec, checkoutPath: string) {
     return;
   }
 
-  if (shouldUsePackageChannel(spec)) {
-    installManagedModuleFromPackageChannel(spec, checkoutPath);
-    return;
-  }
-
   cloneManagedModule(spec, checkoutPath);
 }
 
 function runManagedInstallWorkflow(spec: DomainModuleRuntimeSpec) {
   const checkoutPath = resolveManagedModulePath(spec);
   if (fs.existsSync(checkoutPath)) {
-    if (shouldUsePackageChannel(spec) || resolvePackagedModuleSourcePath(spec)) {
+    if (resolvePackagedModuleSourcePath(spec)) {
       installManagedModule(spec, checkoutPath);
     } else {
       replaceManagedModuleWithFreshClone(spec, checkoutPath);
@@ -740,7 +690,6 @@ export function runOplModuleAction(
   const spec = findModuleSpecOrThrow(moduleId);
   const current = inspectModule(spec);
   let workflow: ModuleActionWorkflow = buildSkippedWorkflow('Workflow not required for this action.');
-  let sourceReconciliation: ReturnType<typeof installManagedModuleFromPackageChannel> | null = null;
 
   switch (action) {
     case 'install': {
@@ -767,26 +716,6 @@ export function runOplModuleAction(
           },
           2,
         );
-      }
-      if (
-        current.install_origin === 'managed_root'
-        && shouldUsePackageChannel(spec)
-      ) {
-        if (current.git?.dirty) {
-          throw new FrameworkContractError(
-            'cli_usage_error',
-            'Module update requires a clean checkout.',
-            {
-              module_id: spec.module_id,
-              checkout_path: current.checkout_path,
-            },
-            2,
-          );
-        }
-        sourceReconciliation = installManagedModuleFromPackageChannel(spec, current.checkout_path);
-        const updated = inspectModule(spec);
-        workflow = runManagedWorkflow(spec, updated.checkout_path);
-        break;
       }
       if (
         current.install_origin === 'managed_root'
@@ -837,7 +766,7 @@ export function runOplModuleAction(
       if (current.health_status === 'invalid_checkout') {
         throw new FrameworkContractError(
           'cli_usage_error',
-          'Module sync requires a valid git or packaged module checkout.',
+          'Module sync requires a valid native checkout.',
           {
             module_id: spec.module_id,
             checkout_path: current.checkout_path,
@@ -904,7 +833,6 @@ export function runOplModuleAction(
       status: 'completed',
       module: inspectModule(spec),
       turnkey: workflow,
-      ...(sourceReconciliation ? { source_reconciliation: sourceReconciliation } : {}),
     },
   };
 }

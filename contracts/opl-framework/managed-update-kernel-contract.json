@@ -161,7 +161,7 @@
     "states": [
       {
         "state_id": "auto_apply",
-        "meaning": "Framework may delegate an eligible clean managed module to its native Package channel, verify the resulting carrier readback, run post-apply hooks, and write a component receipt without asking.",
+        "meaning": "Framework may delegate an eligible clean managed module to its native Git checkout carrier, verify the resulting carrier readback, run post-apply hooks, and write a component receipt without asking.",
         "allowed_component_classes": [
           "opl_packages"
         ],
@@ -176,7 +176,7 @@
           "developer checkout",
           "ahead",
           "diverged",
-          "no_upstream without verified managed package-channel identity",
+          "no_upstream without a verified managed Git checkout",
           "unknown identity"
         ]
       },
@@ -272,8 +272,8 @@
         "readback_state": "auto_apply",
         "owner": "installed-package-owner-descriptors",
         "examples": [
-          "domain_module_package_channel",
-          "capability_package_channel"
+          "domain_module_git_checkout",
+          "capability_module_git_checkout"
         ],
         "not_installation_carrier": true,
         "not_domain_truth": true
@@ -512,14 +512,14 @@
       "provider_id": "capability_packages",
       "adapter_id": "capability_packages_adapter",
       "owner": "installed-package-owner-descriptors",
-      "role": "Clean managed native module package-channel reconciliation",
+      "role": "Clean managed native module Git checkout reconciliation",
       "authority": "Native module source policy, module readback, and per-Package owner currentness select clean managed roots. Package locks, payload manifests, and bundled catalogs are not currentness or mutation authority.",
-      "default_policy": "silent_background_for_clean_managed_module_package_channels",
+      "default_policy": "silent_background_for_clean_managed_module_git_checkouts",
       "mutation_scope": "clean_managed_native_module_roots_only",
       "source_policy": {
         "authority": "native module source policy and per-package owner currentness",
         "developer_checkout_effect": "recognize and exclude developer, dirty, divergent, or user-managed checkouts without overwriting them",
-        "managed_effect": "compare clean managed module package-channel state to owner currentness and delegate only an available native module action",
+        "managed_effect": "compare clean managed module Git checkout state and delegate only an available native module action",
         "external_package_effect": "manual_explicit_update_only"
       },
       "currentness_identity_fields": [
@@ -533,10 +533,10 @@
         "mode": "auto_apply",
         "app_background_safe": true,
         "command_ref": "opl packages update --json",
-        "eligible_scope": "native_package_channel_modules_only",
+        "eligible_scope": "native_git_checkout_modules_only",
         "eligible_when": [
           "default native module is installed under managed_root",
-          "source policy selects package_channel automatic update",
+          "source policy selects native Git checkout update",
           "module root is clean and not ahead, diverged, or unknown",
           "owner currentness or native module action reports maintenance available"
         ],

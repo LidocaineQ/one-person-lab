@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -10,7 +11,7 @@ import {
 } from '../../../kernel/agent-plugin-manifest.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { resolveCanonicalOplFamilyMarketplaceId } from '../system-installation/codex-plugin-registry.ts';
-import { computePackageChannelTreeSha256 } from '../system-installation/module-package-channel.ts';
+import { PACKAGED_MODULE_MARKER_FILE } from '../packaged-module-marker.ts';
 import {
   parseTomlDocument,
   renderTomlDocument,
@@ -304,9 +305,28 @@ function pluginBareName(pluginId: string) {
 function sourceTreeSha256(sourcePath: string | null) {
   if (!sourcePath) return null;
   try {
-    return fs.statSync(sourcePath).isDirectory()
-      ? computePackageChannelTreeSha256(sourcePath)
-      : null;
+    if (!fs.statSync(sourcePath).isDirectory()) return null;
+    const hash = crypto.createHash('sha256');
+    const visit = (directory: string) => {
+      for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
+        const absolutePath = path.join(directory, entry.name);
+        const relativePath = path.relative(sourcePath, absolutePath).split(path.sep).join('/');
+        if (relativePath === PACKAGED_MODULE_MARKER_FILE || (entry.isDirectory() && entry.name === '__pycache__')) continue;
+        const stat = fs.lstatSync(absolutePath);
+        const mode = (stat.mode & 0o777).toString(8);
+        if (entry.isDirectory()) {
+          hash.update(`dir\0${relativePath}\0${mode}\0`);
+          visit(absolutePath);
+        } else if (entry.isSymbolicLink()) {
+          hash.update(`symlink\0${relativePath}\0${mode}\0${fs.readlinkSync(absolutePath)}\0`);
+        } else if (entry.isFile()) {
+          const fileHash = crypto.createHash('sha256').update(fs.readFileSync(absolutePath)).digest('hex');
+          hash.update(`file\0${relativePath}\0${mode}\0${fileHash}\0`);
+        }
+      }
+    };
+    visit(sourcePath);
+    return hash.digest('hex');
   } catch {
     return null;
   }
