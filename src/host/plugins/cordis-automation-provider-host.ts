@@ -11,7 +11,7 @@ export const CORDIS_AUTOMATION_PROVIDER_HOST_SERVICE = 'opl.connect.automation-p
 export const CORDIS_AUTOMATION_PROVIDER_HOST_SOURCE_REF =
   'src/host/plugins/cordis-automation-provider-host.ts';
 export const CORDIS_AUTOMATION_PROVIDER_HOST_SOURCE_COMMIT =
-  '12696ebce3a87e2c94bd13e3f3f43cbded71379f';
+  '7bb2a4ef76dcbc74cc208fa374cac472f7e0fe0a';
 
 const AUTOMATION_PROVIDER_API_VERSION = '1.0.0' as const;
 

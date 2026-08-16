@@ -702,7 +702,7 @@ export function reconcileManagedComputerUse(actionId: ManagedComputerUseActionId
 }
 
 /**
- * Package-facing adapter for the Framework automation ABI. The carrier
+ * Host-facing adapter for the Framework automation ABI. The carrier
  * implementation stays behind the ABI while the Cordis Host owns selection
  * and lifecycle.
  */

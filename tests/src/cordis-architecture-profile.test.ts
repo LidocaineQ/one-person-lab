@@ -17,6 +17,7 @@ import {
 } from '../../src/host/plugins/cordis-agent-executor-experiment.ts';
 import { buildCordisRunwayAttemptCompositionSnapshot } from '../../src/host/plugins/cordis-runway-attempt.ts';
 import { buildCordisReleaseOperationCompositionSnapshot } from '../../src/host/plugins/cordis-release-operation.ts';
+import { CORDIS_AUTOMATION_PROVIDER_HOST_PLUGIN_DESCRIPTOR } from '../../src/host/plugins/cordis-automation-provider-host.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..');
 const contractRef = 'contracts/opl-framework/cordis-architecture-profile.json';
@@ -147,6 +148,7 @@ test('every profile and child descriptor source identity resolves to reachable G
   try {
     const descriptors = [
       ...compositions.flatMap((composition) => composition.snapshot.plugins),
+      CORDIS_AUTOMATION_PROVIDER_HOST_PLUGIN_DESCRIPTOR,
       ...buildCordisAgentExecutorCompositionSnapshot('opl-existing-agent-executor').plugins,
       ...buildCordisRunwayAttemptCompositionSnapshot().plugins,
       ...buildCordisPackStagecraftCompositionSnapshot().plugins,
