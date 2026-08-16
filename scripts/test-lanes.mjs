@@ -47,331 +47,88 @@ function expandTestFiles(patterns, options = {}) {
   return expanded.filter((file) => !excluded.includes(file));
 }
 
-const fastTestFiles = [
-  'tests/src/domain-runtime-surfaces.test.ts',
-  'tests/src/cordis-surface-map.test.ts',
-  'tests/src/cordis-agent-executor-experiment.test.ts',
-  'tests/src/cordis-pack-stagecraft-runtime.test.ts',
-  'tests/src/cordis-composition-contract.test.ts',
-  'tests/src/cordis-composition-inspect.test.ts',
-  'tests/src/cordis-architecture-profile.test.ts',
-  'tests/src/cordis-channel-provider-host.test.ts',
-  'tests/src/cordis-runway-attempt.test.ts',
-  'tests/src/cordis-workspace-ledger.test.ts',
-  'tests/src/cordis-connect-services.test.ts',
-  'tests/src/cordis-release-operation.test.ts',
-  'tests/src/package-host-integration.test.ts',
-  'tests/src/fleet-agent-package-projection.test.ts',
-  'tests/src/package-topology.test.ts',
-  'tests/src/cordis-charter-foundry.test.ts',
-  'tests/src/cordis-atlas-console-runtime.test.ts',
-  'tests/src/domain-task-codex-stdin.test.ts',
-  'tests/src/family-runtime-domain-task-runtime-context.test.ts',
-  'tests/src/family-runtime-execution-scope-persistence.test.ts',
-  'tests/src/family-runtime-temporal-identity.test.ts',
-  'tests/src/family-runtime-temporal-client.test.ts',
-  'tests/src/family-runtime-trusted-cli-ingress.test.ts',
-  'tests/src/domain-agent-admission-gates.test.ts',
-  'tests/src/codex-personalization.test.ts',
-  'tests/src/domain-whitepaper-runner.test.ts',
-  'tests/src/family-whitepaper-artifact.test.ts',
-  'tests/src/family-whitepaper-registry.test.ts',
-  'tests/src/whitepaper-publication-readback.test.ts',
-  'tests/src/whitepaper-workflow-contract.test.ts',
-  'tests/src/verification-command-surfaces.test.ts',
-  'tests/src/workspace-transport-url.test.ts',
-  'tests/src/opl-gateway-account.test.ts',
-  'tests/src/verification-package-surfaces.test.ts',
-  'tests/src/base-managed-dependencies.test.ts',
-  'tests/src/flow-capability-compiler.test.ts',
-  'tests/src/managed-dependencies-descriptor.test.ts',
-  'tests/src/foundry-agent-series-policy.test.ts',
-  'tests/src/foundry-baseline-adoption.test.ts',
-  'tests/src/foundry-activation-runtime.test.ts',
-  'tests/src/foundry-candidate-resource-lock.test.ts',
-  'tests/src/foundry-canonical-json.test.ts',
-  'tests/src/foundry-end-to-end.test.ts',
-  'tests/src/foundry-file-store-durability.test.ts',
-  'tests/src/foundry-kernel.test.ts',
-  'tests/src/foundry-oma-0.4.0-production-wiring.test.ts',
-  'tests/src/foundry-operator-projection.test.ts',
-  'tests/src/foundry-owner-gate.test.ts',
-  'tests/src/foundry-process-evaluator.test.ts',
-  'tests/src/foundry-persistent-registry.test.ts',
-  'tests/src/foundry-provider-stage-run.test.ts',
-  'tests/src/foundry-risk-policy.test.ts',
-  'tests/src/foundry-control-cli.test.ts',
-  'tests/src/hosted-agent-runtime-binding.test.ts',
-  'tests/src/target-architecture-schema-contracts.test.ts',
-  'tests/src/capability-registry-resolver.test.ts',
-  'tests/src/family-runtime-capability-stage-context.test.ts',
-  'tests/src/family-runtime-provider-hosted-task-stage-bindings.test.ts',
-  'tests/src/family-runtime-temporal-session-activity-producer.test.ts',
-  'tests/src/cognitive-computation-kernel-contract.test.ts',
-  'tests/src/epistemic-review-currentness.test.ts',
-  'tests/src/stage-quality-cycle.test.ts',
-  'tests/src/standard-agent-stage-quality-route-conformance.test.ts',
-  'tests/src/stage-quality-route-selection.test.ts',
-  'tests/src/stage-quality-review-receipt-ledger.test.ts',
-  'tests/src/family-runtime-review-transport.test.ts',
-  'tests/src/family-runtime-stage-quality-artifact-identity.test.ts',
-  'tests/src/family-runtime-stage-quality-raw-artifact-identity.test.ts',
-  'tests/src/progress-hard-stop-policy.test.ts',
-  'tests/src/agent-package-home-localization.test.ts',
-  'tests/src/agent-package-progress-first-readback.test.ts',
-  'tests/src/package-catalog-selection.test.ts',
-  'tests/src/stage-quality-attempt-boundary.test.ts',
-  'tests/src/family-runtime-stage-run-launch.test.ts',
-  'tests/src/family-runtime-temporal-stage-run-controller.test.ts',
-  'tests/src/family-runtime-pack-bound-stage-quality-e2e.test.ts',
-  'tests/src/advisory-knowledge-boundary-contract.test.ts',
-  'tests/src/opl-flow-completion-audit-contract.test.ts',
-  'tests/src/operator-compact-readback-contract.test.ts',
-  'tests/src/verification-test-governance.test.ts',
-  'tests/src/test-lanes-state-isolation.test.ts',
-  'tests/src/line-budget.test.ts',
-  'tests/src/source-structure-operator-readback.test.ts',
-  'tests/src/active-path-residue-scan.test.ts',
-  'tests/src/stale-compat-retirement-guard.test.ts',
-  'tests/src/managed-shell-command-env.test.ts',
-  'tests/src/observability-projection-vocabulary.test.ts',
-  'tests/src/agent-workspace-norm.test.ts',
-  'tests/src/domain-manifest-resolver.test.ts',
-  'tests/src/family-structure-advisory.test.ts',
-  'tests/src/native-helper-family-smoke.test.ts',
-  'tests/src/native-helper-prebuild.test.ts',
-  'tests/src/cli/cases/cli-broken-pipe.test.ts',
-  'tests/src/cli/cases/family-manifest-fixtures.test.ts',
-  'tests/src/cli/cases/read-only-cli-invocation.test.ts',
-  'tests/src/standard-agent-registry-contract-boundaries.test.ts',
-  'tests/src/standard-agent-interface.test.ts',
-  'tests/src/standard-agent-action-output.test.ts',
-  'tests/src/domain-artifact-cas-materialization.test.ts',
-  'tests/src/standard-agent-lifecycle-admission.test.ts',
-  'tests/src/standard-agent-mas-lifecycle-roundtrip.test.ts',
-  'tests/src/standard-agent-action-runtime.test.ts',
-  'tests/src/execution-scope-kernel.test.ts',
-  'tests/src/execution-scope-schema.test.ts',
-  'tests/src/family-runtime-legacy-execution-scope-mutation.test.ts',
-  'tests/src/runtime-state-admission.test.ts',
-  'tests/src/work-item-file-boundary.test.ts',
-  'tests/src/work-item-inventory-binding.test.ts',
-  'tests/src/standard-agent-handler-sandbox.test.ts',
-  'tests/src/standard-agent-hosted-action-runtime-contract.test.ts',
-  'tests/src/standard-agent-managed-checkout.test.ts',
-  'tests/src/cli/cases/standard-agent-unified-public-surfaces.test.ts',
-  'tests/src/cli/cases/agents-run.test.ts',
-  'tests/src/repo-json-schema.test.ts',
-  'tests/src/standard-agent-implementation-profile.test.ts',
-  'tests/src/standard-agent-capability-map.test.ts',
-  'tests/src/source-derived-agent-design-abi.test.ts',
-  'tests/src/mas-mag-cognitive-kernel-stage-pack-fixtures.test.ts',
-  ...expandTestFiles(['tests/src/stage-artifact-runtime.test.ts', 'tests/src/stage-artifact-contract.test.ts']),
-  'tests/src/schema-registry.test.ts',
-  'tests/src/domain-tail-default-caller-matrix.test.ts',
-  'tests/src/workspace-diagnostics-policy.test.ts',
-  'tests/src/observability-semantic-conventions.test.ts',
-  ...expandTestFiles(['tests/src/state-index-kernel-contract.test.ts', 'tests/src/stage-run-kernel-contract.test.ts', 'tests/src/progress-delta-receipt-contract.test.ts']),
-  'tests/src/json-file-boundary.test.ts',
-  'tests/src/quality-gate-runtime-contract.test.ts',
-  'tests/src/stage-run-transition-authority-read-model.test.ts',
-  ...expandTestFiles(['tests/src/family-runtime-state-index.test.ts', 'tests/src/family-runtime-attempt-contract.test.ts', 'tests/src/family-runtime-stage-run-currentness-identity.test.ts', 'tests/src/family-runtime-effective-current-context.test.ts']),
-  'tests/src/cli/cases/family-runtime-command-parser.test.ts',
-  'tests/src/current-owner-delta-read-model-cache.test.ts',
-  'tests/src/stagecraft-domain-profile-registry.test.ts',
-  'tests/src/family-runtime-opl-attempt-admission-receipt.test.ts',
-  'tests/src/family-runtime-stage-native-owner-answer.test.ts',
-  'tests/src/functional-privatization-audit-envelope.test.ts',
-  'tests/src/domain-dispatch-evidence-payload-preflight.test.ts',
-  'tests/src/domain-dispatch-evidence-workorder-packet.test.ts',
-  'tests/src/runtime-tray-app-operator-domain-dispatch-action-routes.test.ts',
+function selectTestRoots(patterns, options = {}) {
+  const matched = new Set(expandTestFiles(patterns, options));
+  return sourceTestRoots.filter((file) => matched.has(file));
+}
+
+export function discoverTestRoots(testFiles, sourceReader = readTestSource) {
+  const availableFiles = new Set(testFiles.map(normalizeRelativePath));
+  const importedFiles = new Set();
+  for (const relativePath of availableFiles) {
+    collectImportedTestFiles(relativePath, availableFiles, sourceReader)
+      .forEach((imported) => importedFiles.add(imported));
+  }
+  return [...availableFiles].filter((file) => !importedFiles.has(file)).sort();
+}
+
+const sourceTestPatterns = ['tests/src/**/*.test.{ts,mjs}'];
+const activeSourceTestFiles = expandTestFiles(sourceTestPatterns).sort();
+const sourceTestRoots = discoverTestRoots(activeSourceTestFiles);
+
+const readModelGateCliExclusions = [
   ...expandTestFiles([
-    'tests/src/family-runtime-lifecycle-index.test.ts',
-    'tests/src/family-runtime-schema-migrations.test.ts',
-    'tests/src/family-runtime-sqlite.test.ts',
+    'tests/src/cli/cases/{agents-conformance-mas-tombstones,agents-conformance-stage-pack-v2,agents-default-callers,agents-residue-decisions,domain-pack-compiler-canonical-targets,framework-readiness-cli-surface,system-dependency-doctor,web-runtime}.test.ts',
+    'tests/src/cli/cases/connect-*.test.ts',
+    'tests/src/cli/cases/pack-*.test.ts',
+    'tests/src/cli/cases/release-*.test.ts',
   ]),
-  'tests/src/stage-route-transport-contract.test.ts',
-  'tests/src/cli/cases/capability-map-audit-script.test.ts',
-  ...expandTestFiles(['tests/src/family-stage-proof-bundle.test.ts', 'tests/src/family-stage-cohort-loop.test.ts', 'tests/src/family-stage-runtime-budget.test.ts', 'tests/src/family-stage-assumption-lifecycle.test.ts', 'tests/src/family-stage-replay-certification.test.ts']),
-  'tests/src/stage-run-evidence-pack.test.ts',
-  'tests/src/stage-candidate-portfolio.test.ts',
-  'tests/src/runtime-environment-substrate.test.ts',
-  'tests/src/pack-bundle.test.ts',
-  'tests/src/okf-context-bundle.test.ts',
-  'tests/src/domain-pack-okf-context-bundle.test.ts',
-  'tests/src/cli/cases/okf-command-surface.test.ts',
-  'tests/src/cli/cases/runtime-environment-substrate-command-surface.test.ts',
-  'tests/src/cli/cases/pack-bundle-command-surface.test.ts',
-  'tests/src/cli/cases/pack-artifact-projection-materialization.test.ts',
-  'tests/src/cli/cases/pack-native-helper-probe.test.ts',
-  'tests/src/cli/cases/pack-native-helper-run.test.ts',
-  'tests/src/cli/cases/pack-submission-resource-provisioning.test.ts',
-  'tests/src/cli/cases/opl-foundation-skills-plugin-surface.test.ts',
-  'tests/src/opl-connect-mcp-stdio.test.ts',
-  ...expandTestFiles(['tests/src/cli/cases/connect-scientific.test.ts', 'tests/src/cli/cases/connect-reference-verification.test.ts', 'tests/src/cli/cases/connect-external-skills.test.ts', 'tests/src/cli/cases/connect-foundation-skills.test.ts', 'tests/src/cli/cases/packages.test.ts']),
-  'tests/src/standard-agent-framework-link.test.ts',
-  'tests/src/app-component-compatibility-receipt.test.ts',
-  'tests/src/cli/cases/cli-command-registry.test.ts',
-  'tests/src/cli/cases/release-cohort-closure.test.ts',
-  'tests/src/cli/cases/release-bundle.test.ts',
-  'tests/src/cli/cases/runtime-stage-run-evidence-pack-read-model.test.ts',
-  'tests/src/cli/cases/runtime-stage-candidate-portfolio-read-model.test.ts',
-  'tests/src/cli/cases/artifact-provenance-bundle-ledger.test.ts',
-  'tests/src/substrate-provenance-surface.test.ts',
-  ...expandTestFiles(['tests/src/family-stage-pack-registry.test.ts', 'tests/src/family-stage-integrity-metadata-contract.test.ts', 'tests/src/family-stage-conformance.test.ts']),
-  'tests/src/family-action-stage-route.test.ts',
-  'tests/src/cli/cases/system-semantic-hygiene.test.ts',
-  'tests/src/cli/cases/domain-pack-compiler-active-caller-targets.test.ts',
-  'tests/src/cli/cases/domain-pack-compiler-generated-interfaces.test.ts',
-  'tests/src/cli/cases/domain-pack-compiler-standard-agent-contract-pack.test.ts',
-  'tests/src/standard-agent-stage-manifest-compiler.test.ts',
-  'tests/src/standard-agent-stage-prompt.test.ts',
-  'tests/src/family-domain-quality-projection-contract.test.ts',
-  'tests/src/family-incident-learning-loop.test.ts',
-  'tests/src/family-product-operator-projection.test.ts',
-  'tests/src/quality-details.test.ts',
-  'tests/src/cli/cases/brand-modules.test.ts',
-  'tests/src/cli/cases/framework-operating-maturity.test.ts',
-  'tests/src/evidence-grounded-stagecraft-runway.test.ts',
-  'tests/src/evidence-grounded-substrate.test.ts',
-  'tests/src/cli/cases/runtime-brand-module-l5-evidence-ledger.test.ts',
+  ...expandTestFiles([
+    'tests/src/cli/cases/{agents-run,artifact-provenance-bundle-ledger,brand-modules,capability-map-audit-script,cli-broken-pipe,cli-command-registry,family-manifest-fixtures,family-runtime-command-parser,framework-operating-maturity,okf-command-surface,opl-foundation-skills-plugin-surface,packages,read-only-cli-invocation,runtime-brand-module-l5-evidence-ledger,runtime-environment-substrate-command-surface,runtime-stage-candidate-portfolio-read-model,runtime-stage-run-evidence-pack-read-model,standard-agent-unified-public-surfaces,system-semantic-hygiene}.test.ts',
+  ]),
 ];
 
-const readModelGateTestFiles = [
+const readModelGateTopLevelPatterns = [
   'tests/src/domain-detail-view.test.ts',
-  'tests/src/work-item-projection-v2.test.ts',
+  'tests/src/work-item-*.test.ts',
   'tests/src/app-runtime-fast-work-item-projection-contract.test.ts',
-  'tests/src/work-item-hosted-readback.test.ts',
-  'tests/src/work-item-session-activity.test.ts',
-  'tests/src/work-item-stage-catalog.test.ts',
-  'tests/src/verification-test-governance.test.ts',
+  'tests/src/app-state-view-model-runtime-scope.test.ts',
   'tests/src/current-owner-delta-topline.test.ts',
   'tests/src/framework-readiness-attention-actions.test.ts',
   'tests/src/generic-substrate-projection.test.ts',
-  ...expandTestFiles([
-    'tests/src/cli/cases/family-runtime-{codex-stage-runner,retired-provider}.test.ts',
-  ], { exclude: ['tests/src/cli/cases/family-runtime-retired-provider.test.ts'] }),
   'tests/src/family-runtime-codex-stage-runner.test.ts',
   'tests/src/family-runtime-stage-attempt-closeout-ledger.test.ts',
-  'tests/src/family-runtime-temporal-terminal-sync.test.ts',
-  'tests/src/family-runtime-temporal-runtime-observation-reconciliation.test.ts',
-  'tests/src/foundry-temporal.test.ts',
+  'tests/src/family-runtime-temporal-{provider,terminal-sync,runtime-observation-reconciliation}.test.ts',
   'tests/src/family-runtime-agent-stage-runner.test.ts',
-  'tests/src/family-runtime-temporal-provider.test.ts',
-  'tests/src/cli/cases/family-runtime-provider-worker-supervisor.test.ts',
-  'tests/src/cli/cases/family-runtime-temporal-service-supervisor.test.ts',
-  'tests/src/cli/cases/family-runtime-temporal-startup-maintenance.test.ts',
+  'tests/src/foundry-temporal.test.ts',
   'tests/src/temporal-production-proof-fixture.test.ts',
   'tests/src/default-executor-recovery.test.ts',
   'tests/src/agent-executor.test.ts',
-  'tests/src/cli/cases/system-seed-manifest.test.ts',
-  'tests/src/cli/cases/system-startup-maintenance.test.ts',
-  'tests/src/cli/cases/full-runtime-package-reconciliation.test.ts',
-  'tests/src/cli/cases/system-module-package-channel.test.ts',
-  'tests/src/cli/cases/system-configure-codex.test.ts',
-  'tests/src/cli/cases/system-codex-config-hygiene.test.ts',
-  'tests/src/cli/cases/managed-update-kernel-projection.test.ts',
-  'tests/src/cli/cases/app-state.test.ts',
-  'tests/src/app-state-view-model-runtime-scope.test.ts',
-  'tests/src/cli/cases/app-action.test.ts',
-  'tests/src/work-item-control-ledger.test.ts',
-  'tests/src/cli/cases/packages-cases/workflow-policy-transaction.test.ts',
-  'tests/src/cli/cases/packages-cases/codex-default-exposure.test.ts',
-  ...expandTestFiles(['tests/src/cli/cases/app-state-runtime-workbench.test.ts', 'tests/src/cli/cases/app-state-provider-source.test.ts', 'tests/src/cli/cases/app-state-developer-mode-closeout.test.ts']),
-  'tests/src/cli/cases/runtime-tray-stage-attempt-workbench-bounded-history.test.ts',
-  ...expandTestFiles(['tests/src/cli/cases/framework-readiness-binding-cases.test.ts', 'tests/src/cli/cases/framework-readiness.test.ts', 'tests/src/cli/cases/framework-readiness-stage-run-adoption.test.ts', 'tests/src/cli/cases/framework-readiness-stage-replay-guidance.test.ts']),
-  'tests/src/cli/cases/runtime-manifest-cache-timeout.test.ts',
-  ...expandTestFiles(['tests/src/cli/cases/framework-readiness-attention-semantics.test.ts', 'tests/src/cli/cases/framework-readiness-app-release-user-path-ledger.test.ts']),
-  'tests/src/cli/cases/family-runtime-managed-state.test.ts',
   'tests/src/framework-readiness-owner-delta-handoff-summary.test.ts',
-  ...expandTestFiles(['tests/src/cli/cases/workspace-domain.initializer-rca-series.test.ts', 'tests/src/cli/cases/workspace-domain.initializer.test.ts']),
-  'tests/src/cli/cases/workspace-skill-projection.test.ts',
-  'tests/src/cli/cases/workspace-domain.projections.test.ts',
-  'tests/src/cli/cases/workspace-domain.project-protocol.test.ts',
-  'tests/src/cli/cases/workspace-domain.binding.test.ts',
-  ...expandTestFiles([
-    'tests/src/cli/cases/family-runtime.test.ts', 'tests/src/cli/cases/family-runtime-provider-liveness.test.ts',
-    'tests/src/cli/cases/family-runtime-evidence-worklist.test.ts', 'tests/src/cli/cases/family-runtime-evidence-worklist-default-caller-deletion-gates.test.ts',
-    'tests/src/cli/cases/family-runtime-evidence-worklist-no-worklist-root-planning.test.ts', 'tests/src/cli/cases/family-runtime-evidence-worklist-domain-blockers.test.ts',
-    'tests/src/cli/cases/family-runtime-evidence-worklist-stage-payload.test.ts',
-  ]),
   'tests/src/family-runtime-evidence-worklist-family-scope.test.ts',
-  ...expandTestFiles([
-    'tests/src/cli/cases/family-runtime-provider-repair.test.ts',
-    'tests/src/cli/cases/family-runtime-provider-slo.test.ts', 'tests/src/cli/cases/family-runtime-provider-slo-worker-repair.test.ts',
-    'tests/src/cli/cases/family-runtime-lifecycle-handoff.test.ts', 'tests/src/cli/cases/family-runtime-worker.test.ts',
-    'tests/src/cli/cases/family-runtime-worker-lifecycle.test.ts', 'tests/src/cli/cases/family-runtime-stage-attempts.test.ts',
-    'tests/src/cli/cases/family-runtime-stage-attempt-monitoring.test.ts', 'tests/src/cli/cases/family-runtime-stage-context.test.ts',
-    'tests/src/cli/cases/family-runtime-package-launch-gate.test.ts',
-    'tests/src/cli/cases/family-runtime-stage-context-contract-light.test.ts',
-  ]),
-  'tests/src/cli/cases/runtime-stage-attempt-frontier-board-projection.test.ts',
-  ...expandTestFiles(['tests/src/cli/cases/family-runtime-stage-attempt-usage-projection.test.ts', 'tests/src/cli/cases/family-runtime-stage-attempts-temporal-provider.test.ts']),
-  'tests/src/cli/cases/agent-executor-cli.test.ts',
-  'tests/src/cli/cases/agents-check.test.ts',
-  'tests/src/cli/cases/standard-agent-template-consumption-read-model.test.ts',
-  'tests/src/cli/cases/runtime-standard-agent-template-consumption-ledger.test.ts',
-  'tests/src/cli/cases/agents-readiness-stage-run-adoption.test.ts',
-  ...expandTestFiles([
-    'tests/src/cli/cases/agents-conformance.test.ts', 'tests/src/cli/cases/agents-conformance-foundry-agent-os.test.ts',
-    'tests/src/cli/cases/agents-conformance-stage-operating-principles.test.ts', 'tests/src/cli/cases/agents-conformance-readiness.test.ts',
-    'tests/src/cli/cases/agents-conformance-private-surface.test.ts', 'tests/src/cli/cases/agents-conformance-stage-run-kernel.test.ts',
-    'tests/src/cli/cases/agents-conformance-rca-mvp.test.ts', 'tests/src/cli/cases/agents-conformance-state-index-adoption.test.ts',
-    'tests/src/cli/cases/agents-conformance-platform-surfaces.test.ts',
-    'tests/src/cli/cases/agents-source-closure.test.ts',
-  ]),
-  'tests/src/cli/cases/golden-path-single-default.test.ts',
-  ...expandTestFiles([
-    'tests/src/cli/cases/domain-pack-compiler-active-caller-targets.test.ts', 'tests/src/cli/cases/domain-pack-compiler-oma-fixture.test.ts',
-    'tests/src/cli/cases/domain-pack-compiler-drift-manifest.test.ts', 'tests/src/cli/cases/domain-pack-compiler-generated-interfaces.test.ts',
-    'tests/src/cli/cases/domain-pack-compiler-compact-functional-audit.test.ts',
-    'tests/src/cli/cases/domain-pack-compiler-standard-agent-contract-pack.test.ts', 'tests/src/cli/cases/domain-pack-compiler.test.ts',
-    'tests/src/cli/cases/domain-pack-compiler-real-repo.test.ts',
-  ]),
-  ...expandTestFiles([
-    'tests/src/cli/cases/workspace-domain.stages-graph.test.ts',
-    'tests/src/cli/cases/workspace-domain.stages-replay.test.ts',
-  ]),
-  'tests/src/cli/cases/workspace-domain.agent-skeleton.test.ts',
-  'tests/src/cli/cases/workspace-domain.external-evidence.test.ts',
-  ...expandTestFiles([
-    'tests/src/cli/cases/runtime-tray-domain-projection-ingestion.test.ts',
-    'tests/src/cli/cases/runtime-tray-app-operator-drilldown-visualization-projection.test.ts',
-  ]),
   'tests/src/runtime-app-operator-selected-safe-action.test.ts',
-  ...expandTestFiles([
-    'tests/src/cli/cases/runtime-app-operator-drilldown.test.ts',
-    'tests/src/cli/cases/runtime-app-operator-drilldown-visualization-projection.test.ts',
-    'tests/src/cli/cases/runtime-app-operator-drilldown-route-support.test.ts',
-  ]),
-  'tests/src/cli/cases/runtime-app-release-user-path-evidence-ledger.test.ts',
-  'tests/src/cli/cases/runtime-app-release-user-path-long-operator.test.ts',
-  'tests/src/cli/cases/runtime-codex-app-runtime-evidence-ledger.test.ts',
-  ...expandTestFiles([
-    'tests/src/cli/cases/runtime-owner-evidence-sustained-consumption-ledger.test.ts',
-    'tests/src/cli/cases/runtime-developer-mode-closeout-ledger.test.ts',
-  ]),
-  ...expandTestFiles([
-    'tests/src/cli/cases/runtime-app-operator-drilldown-runtime-role.test.ts', 'tests/src/cli/cases/runtime-app-operator-drilldown-lifecycle.test.ts',
-    'tests/src/cli/cases/runtime-app-operator-drilldown-actions.test.ts', 'tests/src/cli/cases/runtime-app-operator-drilldown-actions-ops.test.ts',
-    'tests/src/cli/cases/runtime-app-operator-drilldown-actions-execute.test.ts',
-    'tests/src/cli/cases/runtime-app-operator-drilldown-external-evidence-actions.test.ts',
-  ]),
-  'tests/src/cli/cases/runtime-app-operator-stage-evidence-closeout.test.ts',
-  ...expandTestFiles([
-    'tests/src/cli/cases/runtime-app-operator-drilldown-summary.test.ts',
-    'tests/src/cli/cases/runtime-app-operator-drilldown-manifest-cache.test.ts',
-    'tests/src/cli/cases/runtime-app-operator-drilldown-owner-handoff.test.ts',
-  ]),
-  ...expandTestFiles([
-    'tests/src/cli/cases/runtime-tray-stage-attempt-workbench.test.ts',
-    'tests/src/cli/cases/runtime-tray-stage-attempt-workbench-cognitive-kernel.test.ts',
-    'tests/src/cli/cases/runtime-tray-provider-continuous-proof.test.ts',
-  ]),
-  'tests/src/cli/cases/runtime-observability-export.test.ts',
-  'tests/src/cli/cases/runtime-manager-provider.test.ts',
-  'tests/src/cli/cases/runtime-lifecycle-operator.test.ts',
+  'tests/src/verification-test-governance.test.ts',
 ];
+
+const readModelGateTestFiles = [
+  ...selectTestRoots(
+    ['tests/src/cli/cases/**/*.test.{ts,mjs}'],
+    { exclude: readModelGateCliExclusions },
+  ),
+  ...selectTestRoots(readModelGateTopLevelPatterns, {
+    exclude: [
+      'tests/src/work-item-file-boundary.test.ts',
+      'tests/src/work-item-inventory-binding.test.ts',
+    ],
+  }),
+];
+
+const fastLaneExcludedTestFiles = new Set(expandTestFiles([
+  'tests/built/**/*.test.{ts,mjs}',
+  'tests/src/{agent-profile-spine,cli-acp-runtime,cli-codex-default-shell-sync-skills,cli-codex-default-shell,cli-install,cli,cli-modularization,domain-definition-contract,evidence-grounded-decision-agent-profile,family-domain-catalog,family-entry-contracts,family-executor-adapter-contract,family-orchestration,fresh-install-smoke,handoff-bundle,opl-skills-boundary,product-entry-agent-executor,product-entry-companions,product-entry-runtime,profile-capability-plan,refactor-patrol-state,reuse-first-scan,runtime-state-paths,source-module-boundary,source-module-public-imports,stage-run-mag-integration,standard-agent-conformance-profile}.test.ts',
+  'tests/src/cli/cases/{agents-conformance-mas-tombstones,agents-conformance-stage-pack-v2,agents-default-callers,agents-residue-decisions,domain-pack-compiler-canonical-targets,framework-readiness-cli-surface,system-dependency-doctor,web-runtime}.test.ts',
+]));
+
+const fastReadModelSharedTestFiles = new Set([
+  'tests/src/verification-test-governance.test.ts',
+  'tests/src/cli/cases/domain-pack-compiler-active-caller-targets.test.ts',
+  'tests/src/cli/cases/domain-pack-compiler-generated-interfaces.test.ts',
+  'tests/src/cli/cases/domain-pack-compiler-standard-agent-contract-pack.test.ts',
+]);
+
+const readModelGateTestFileSet = new Set(readModelGateTestFiles);
+const fastTestFiles = sourceTestRoots.filter((file) => fastReadModelSharedTestFiles.has(file)
+  || (!readModelGateTestFileSet.has(file) && !fastLaneExcludedTestFiles.has(file)));
 
 const readModelGateTemporalHeavyTestFiles = [
   'tests/src/family-runtime-temporal-provider.test.ts',
@@ -804,12 +561,12 @@ function markCovered(relativePath, covered) {
   return true;
 }
 
-function collectImportedTestFiles(relativePath) {
-  const source = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
+function collectImportedTestFiles(relativePath, availableFiles = null, sourceReader = readTestSource) {
+  const source = sourceReader(relativePath);
   const importPattern = /import\s+(?:[^'"]+\s+from\s+)?['"](\.{1,2}\/[^'"]+)['"]/g;
   const sourceDir = path.dirname(relativePath);
   return [...source.matchAll(importPattern)]
-    .map((match) => resolveImport(sourceDir, match[1]))
+    .map((match) => resolveImport(sourceDir, match[1], availableFiles))
     .filter(isImportableTestFile);
 }
 
@@ -817,9 +574,12 @@ function isImportableTestFile(file) {
   return Boolean(file && /\.(?:test\.)?(?:ts|mjs)$/.test(file));
 }
 
-function resolveImport(sourceDir, specifier) {
+function resolveImport(sourceDir, specifier, availableFiles = null) {
   const base = normalizeRelativePath(path.join(sourceDir, specifier));
-  return importCandidates(base).find(trackedFileExists) ?? null;
+  const fileExists = availableFiles
+    ? (candidate) => availableFiles.has(candidate)
+    : trackedFileExists;
+  return importCandidates(base).find(fileExists) ?? null;
 }
 
 function importCandidates(base) {
@@ -828,6 +588,10 @@ function importCandidates(base) {
 
 function trackedFileExists(relativePath) {
   return fs.existsSync(path.join(repoRoot, relativePath));
+}
+
+function readTestSource(relativePath) {
+  return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
 }
 
 function printLaneList() {
