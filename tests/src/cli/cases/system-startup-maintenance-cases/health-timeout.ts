@@ -6,9 +6,7 @@ import {
   currentCodexEnvironment,
   removeStartupDomainModuleRemotes,
   withCliTimeout,
-  writeStartupPackageChannelFixture,
 } from './shared.ts';
-import { scholarSkillsPackageFixture } from '../system-startup-maintenance-fixtures.ts';
 
 test('system startup-maintenance does not execute legacy module health scripts', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-startup-maintenance-timeout-home-'));
@@ -16,11 +14,6 @@ test('system startup-maintenance does not execute legacy module health scripts',
   const logPath = path.join(homeRoot, 'startup-maintenance-timeout.log');
   const remotes = createStartupDomainModuleRemotes({ logPath });
   const { masRemote, magRemote, rcaRemote, metaRemote, bookForgeRemote } = remotes;
-  const scholarSkillsChannel = writeStartupPackageChannelFixture({
-    root: path.join(homeRoot, 'scholarskills-channel'),
-    version: '26.6.10-nightly',
-    modules: [scholarSkillsPackageFixture('v1')],
-  });
   const codexFixture = createCurrentCodexFixture();
   // Keep normal fixture probes below the timeout even when the full lane is under load.
   const moduleActionStepTimeoutMs = 2_000;
@@ -52,10 +45,9 @@ test('system startup-maintenance does not execute legacy module health scripts',
       OPL_MODULE_REPO_URL_REDCUBE: rcaRemote.remoteRoot,
       OPL_MODULE_REPO_URL_OPLMETAAGENT: metaRemote.remoteRoot,
       OPL_MODULE_REPO_URL_OPLBOOKFORGE: bookForgeRemote.remoteRoot,
-      OPL_PACKAGE_CHANNEL_MANIFEST_REF: 'ghcr.io/owner/one-person-lab-manifest:26.6.10-nightly',
       OPL_MODULE_ACTION_STEP_TIMEOUT_MS: String(moduleActionStepTimeoutMs),
       OPL_GIT_RETRY_ATTEMPTS: '1',
-      ...currentCodexEnvironment(codexFixture, [scholarSkillsChannel.fakeBin]),
+      ...currentCodexEnvironment(codexFixture),
       ...{ OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1' },
     })) as {
       system_action: {

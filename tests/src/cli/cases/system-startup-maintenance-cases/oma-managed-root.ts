@@ -6,9 +6,7 @@ import {
   currentCodexEnvironment,
   removeStartupDomainModuleRemotes,
   withCliTimeout,
-  writeStartupPackageChannelFixture,
 } from './shared.ts';
-import { scholarSkillsPackageFixture } from '../system-startup-maintenance-fixtures.ts';
 
 test('system startup-maintenance installs OMA managed root when only a sibling checkout is visible', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-startup-maintenance-oma-sibling-home-'));
@@ -24,11 +22,6 @@ test('system startup-maintenance installs OMA managed root when only a sibling c
     omaHealthcheckLogPath,
   });
   const { masRemote, magRemote, rcaRemote, metaRemote, bookForgeRemote } = remotes;
-  const scholarSkillsChannel = writeStartupPackageChannelFixture({
-    root: path.join(homeRoot, 'scholarskills-channel'),
-    version: '26.6.10-nightly',
-    modules: [scholarSkillsPackageFixture('v1')],
-  });
   const codexFixture = createCurrentCodexFixture();
 
   try {
@@ -45,11 +38,10 @@ test('system startup-maintenance installs OMA managed root when only a sibling c
       OPL_MODULE_REPO_URL_REDCUBE: rcaRemote.remoteRoot,
       OPL_MODULE_REPO_URL_OPLMETAAGENT: metaRemote.remoteRoot,
       OPL_MODULE_REPO_URL_OPLBOOKFORGE: bookForgeRemote.remoteRoot,
-      OPL_PACKAGE_CHANNEL_MANIFEST_REF: 'ghcr.io/owner/one-person-lab-manifest:26.6.10-nightly',
       OPL_STATE_DIR: stateRoot,
       OPL_DEVELOPER_MODE_GH_FIXTURE: JSON.stringify({ login: 'ordinary-user' }),
       OPL_GIT_RETRY_ATTEMPTS: '1',
-      ...currentCodexEnvironment(codexFixture, [scholarSkillsChannel.fakeBin]),
+      ...currentCodexEnvironment(codexFixture),
       ...{ OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1' },
     })) as {
       system_action: {

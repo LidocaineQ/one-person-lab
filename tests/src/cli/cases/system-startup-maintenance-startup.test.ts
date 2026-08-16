@@ -6,9 +6,7 @@ import {
   removeStartupDomainModuleRemotes,
   scholarSkillsPluginFixtureFiles,
   withCliTimeout,
-  writeStartupPackageChannelFixture,
 } from './system-startup-maintenance-cases/shared.ts';
-import { scholarSkillsPackageFixture } from './system-startup-maintenance-fixtures.ts';
 
 test('system startup-maintenance installs clean managed modules and returns App reload guidance', () => {
   const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-startup-maintenance-home-'));
@@ -65,7 +63,7 @@ test('system startup-maintenance installs clean managed modules and returns App 
                 scope: string;
                 managed_checkout_path: string;
                 git: { head_sha: string | null } | null;
-                source_policy: { configured_by: string; package_channel_auto_update: boolean };
+                source_policy: { configured_by: string };
               };
               turnkey: {
                 skill_sync: {
@@ -278,11 +276,6 @@ test('system startup-maintenance does not install ScholarSkills without an insta
   const logPath = path.join(homeRoot, 'startup-maintenance-scholarskills.log');
   const remotes = createStartupDomainModuleRemotes({ logPath });
   const { masRemote, magRemote, rcaRemote, metaRemote, bookForgeRemote } = remotes;
-  const scholarSkillsChannel = writeStartupPackageChannelFixture({
-    root: path.join(homeRoot, 'scholarskills-channel'),
-    version: '26.6.10-nightly',
-    modules: [scholarSkillsPackageFixture('v1')],
-  });
   const codexFixture = createCurrentCodexFixture();
 
   try {
@@ -296,9 +289,8 @@ test('system startup-maintenance does not install ScholarSkills without an insta
       OPL_MODULE_REPO_URL_REDCUBE: rcaRemote.remoteRoot,
       OPL_MODULE_REPO_URL_OPLMETAAGENT: metaRemote.remoteRoot,
       OPL_MODULE_REPO_URL_OPLBOOKFORGE: bookForgeRemote.remoteRoot,
-      OPL_PACKAGE_CHANNEL_MANIFEST_REF: 'ghcr.io/owner/one-person-lab-manifest:26.6.10-nightly',
       OPL_GIT_RETRY_ATTEMPTS: '1',
-      ...currentCodexEnvironment(codexFixture, [scholarSkillsChannel.fakeBin]),
+      ...currentCodexEnvironment(codexFixture),
       ...{ OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1' },
     })) as {
       system_action: {

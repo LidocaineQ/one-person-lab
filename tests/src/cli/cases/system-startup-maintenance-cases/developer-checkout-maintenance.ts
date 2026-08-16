@@ -7,9 +7,7 @@ import {
   currentCodexEnvironment,
   removeStartupDomainModuleRemotes,
   withCliTimeout,
-  writeStartupPackageChannelFixture,
 } from './shared.ts';
-import { scholarSkillsPackageFixture } from '../system-startup-maintenance-fixtures.ts';
 
 test('system startup-maintenance leaves healthy Full runtime launch sources to system module policy', () => {
   const targets = [
@@ -64,11 +62,6 @@ test('system startup-maintenance syncs explicit developer checkouts and reports 
   const logPath = path.join(homeRoot, 'startup-maintenance.log');
   const remotes = createStartupDomainModuleRemotes({ logPath });
   const { masRemote, magRemote, rcaRemote, metaRemote, bookForgeRemote } = remotes;
-  const scholarSkillsChannel = writeStartupPackageChannelFixture({
-    root: path.join(homeRoot, 'scholarskills-channel'),
-    version: '26.6.10-nightly',
-    modules: [scholarSkillsPackageFixture('v1')],
-  });
   const codexFixture = createCurrentCodexFixture();
   const masDeveloperCheckout = path.join(homeRoot, 'developer-med-autoscience');
 
@@ -84,9 +77,8 @@ test('system startup-maintenance syncs explicit developer checkouts and reports 
       OPL_MODULE_REPO_URL_REDCUBE: rcaRemote.remoteRoot,
       OPL_MODULE_REPO_URL_OPLMETAAGENT: metaRemote.remoteRoot,
       OPL_MODULE_REPO_URL_OPLBOOKFORGE: bookForgeRemote.remoteRoot,
-      OPL_PACKAGE_CHANNEL_MANIFEST_REF: 'ghcr.io/owner/one-person-lab-manifest:26.6.10-nightly',
       OPL_GIT_RETRY_ATTEMPTS: '1',
-      ...currentCodexEnvironment(codexFixture, [scholarSkillsChannel.fakeBin]),
+      ...currentCodexEnvironment(codexFixture),
       ...{ OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1' },
     })) as {
       system_action: {
@@ -118,9 +110,8 @@ test('system startup-maintenance syncs explicit developer checkouts and reports 
       OPL_MODULE_REPO_URL_REDCUBE: rcaRemote.remoteRoot,
       OPL_MODULE_REPO_URL_OPLMETAAGENT: metaRemote.remoteRoot,
       OPL_MODULE_REPO_URL_OPLBOOKFORGE: bookForgeRemote.remoteRoot,
-      OPL_PACKAGE_CHANNEL_MANIFEST_REF: 'ghcr.io/owner/one-person-lab-manifest:26.6.10-nightly',
       OPL_GIT_RETRY_ATTEMPTS: '1',
-      ...currentCodexEnvironment(codexFixture, [scholarSkillsChannel.fakeBin]),
+      ...currentCodexEnvironment(codexFixture),
       ...{ OPL_COMPANION_DISABLE_REMOTE_INSTALL: '1' },
     })) as {
       system_action: {

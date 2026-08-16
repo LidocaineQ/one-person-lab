@@ -409,6 +409,8 @@ test('modules projection prefers local developer checkouts when Developer Mode i
   const modulesRoot = path.join(homeRoot, 'opl-state', 'modules');
   const stateDir = path.join(homeRoot, 'opl-state');
   const medAutoScienceRemote = createGitModuleRemoteFixture('med-autoscience');
+  const previousSourceMode = process.env.OPL_MODULE_SOURCE_MODE;
+  delete process.env.OPL_MODULE_SOURCE_MODE;
 
   try {
     fs.mkdirSync(onePersonLabRoot, { recursive: true });
@@ -418,6 +420,7 @@ test('modules projection prefers local developer checkouts when Developer Mode i
     const env = {
       HOME: homeRoot,
       OPL_STATE_DIR: stateDir,
+      OPL_MODULE_SOURCE_MODE: '',
       OPL_DEVELOPER_MODE_GH_FIXTURE: JSON.stringify({
         user: { login: 'gaofeng21cn' },
         permissions: {
@@ -482,7 +485,7 @@ test('modules projection prefers local developer checkouts when Developer Mode i
     const managedMas = managedOutput.modules.items.find((entry: any) => entry.module_id === 'medautoscience');
     assert.equal(managedMas?.install_origin, 'managed_root');
     assert.equal(managedMas?.source_policy.source_preference, 'managed');
-    assert.equal(managedMas?.source_policy.configured_by, 'developer_mode_managed_override');
+    assert.equal(managedMas?.source_policy.configured_by, 'native_git_checkout');
 
     runCliInCwd(
       ['system', 'developer-supervisor', '--enabled', 'off'],
@@ -508,6 +511,8 @@ test('modules projection prefers local developer checkouts when Developer Mode i
     assert.equal(fallbackMas?.source_policy.source_preference, 'developer');
     assert.equal(fallbackMas?.source_policy.fallback_reason, 'developer_checkout_unavailable');
   } finally {
+    if (previousSourceMode === undefined) delete process.env.OPL_MODULE_SOURCE_MODE;
+    else process.env.OPL_MODULE_SOURCE_MODE = previousSourceMode;
     fs.rmSync(medAutoScienceRemote.fixtureRoot, { recursive: true, force: true });
     fs.rmSync(homeRoot, { recursive: true, force: true });
   }

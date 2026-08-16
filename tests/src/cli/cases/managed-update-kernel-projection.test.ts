@@ -126,7 +126,7 @@ test('managed update contract exposes only OPL Base, OPL App, and OPL Packages l
     entry.lifecycle_owner === 'opl_packages'
   );
   assert.equal(packages.owner, 'installed-package-owner-descriptors');
-  assert.equal(packages.role, 'Clean managed native module package-channel reconciliation');
+  assert.equal(packages.role, 'Clean managed native module Git checkout reconciliation');
   assert.equal(packages.mutation_scope, 'clean_managed_native_module_roots_only');
   assert.equal(Object.hasOwn(packages, 'transaction_status_fields'), false);
   assert.equal(Object.hasOwn(packages, 'transaction_guards'), false);
@@ -138,7 +138,7 @@ test('managed update contract exposes only OPL Base, OPL App, and OPL Packages l
     'owner_currentness',
   ]);
   assert.equal(packages.auto_apply.current_noop_receipt_policy, 'do_not_write_component_receipt');
-  assert.equal(packages.auto_apply.eligible_scope, 'native_package_channel_modules_only');
+  assert.equal(packages.auto_apply.eligible_scope, 'native_git_checkout_modules_only');
   assert.equal(Object.hasOwn(packages, 'bundled_full_runtime_reconciliation'), false);
   assert.equal(Object.hasOwn(packages, 'profile_migration_policy'), false);
   assert.equal(
@@ -205,7 +205,7 @@ test('opl update projects coordinated Base and installed Packages while rejectin
   assert.match(failure.payload.error.message, /Unknown option '--component'/);
 });
 
-test('OPL Packages projection delegates currentness to installed owners and native carriers', async () => {
+test('OPL Packages projection delegates currentness to native module carriers', async () => {
   const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
     operation: 'plan',
     componentId: 'opl_packages',
@@ -220,20 +220,14 @@ test('OPL Packages projection delegates currentness to installed owners and nati
   assert.equal(components[0].owner_route.owner, 'installed-package-owner-descriptors');
   assert.equal(components[0].owner_route.apply_owner, 'opl_connect_native_package_carrier');
   assert.equal(Object.hasOwn(components[0].current, 'transaction_guards'), false);
-  assert.equal(components[0].current.currentness_authority, 'per_package_owner_latest_stable');
+  assert.equal(components[0].current.currentness_authority, 'native_git_checkout');
   assert.equal(
     components[0].current.shared_snapshot_role,
     'explicit_full_offline_integration_qa_compatibility_only',
   );
   assert.equal(Object.hasOwn(components[0].current, 'channel_manifest'), false);
-  assert.equal(
-    components[0].current.owner_channel_refs.some(
-      (entry: Record<string, unknown>) => entry.package_id === 'mas'
-        && String(entry.channel_ref).endsWith('/one-person-lab-packages/mas:latest-stable'),
-    ),
-    true,
-  );
-  assert.equal(components[0].receipt.source_manifest_ref, 'opl://packages/per-package-owner-latest-stable');
+  assert.equal(Object.hasOwn(components[0].current, 'owner_channel_refs'), false);
+  assert.equal(components[0].receipt.source_manifest_ref, 'opl://packages/native-git-checkout');
   assert.deepEqual(components[0].receipt.content_identity_fields, [
     'digest',
     'sha256',
@@ -397,10 +391,9 @@ test('OPL Packages aggregate consumes explicit owner currentness for clean manag
     health_status: 'ready',
     recommended_action: null,
     source_policy: {
-      effective_install_update_source: 'package_channel',
-      package_channel_auto_update: true,
+      effective_install_update_source: 'git_checkout',
     },
-    git: { dirty: false, sync_status: 'no_upstream' },
+    git: { dirty: false, sync_status: 'behind' },
   };
   const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
     operation: 'status',
@@ -453,8 +446,7 @@ test('OPL Packages aggregate preserves protected managed checkout state without 
     health_status: 'ready',
     recommended_action: null,
     source_policy: {
-      effective_install_update_source: 'package_channel',
-      package_channel_auto_update: true,
+      effective_install_update_source: 'git_checkout',
     },
     git: { dirty: false, sync_status: 'ahead' },
   };
@@ -489,8 +481,7 @@ test('OPL Packages aggregate does not claim current when owner currentness is un
     health_status: 'ready',
     recommended_action: null,
     source_policy: {
-      effective_install_update_source: 'package_channel',
-      package_channel_auto_update: true,
+      effective_install_update_source: 'git_checkout',
     },
     git: { dirty: false, sync_status: 'no_upstream' },
   };
@@ -540,10 +531,9 @@ test('OPL Packages current state cannot mask the latest failed component receipt
     health_status: 'ready',
     recommended_action: null,
     source_policy: {
-      effective_install_update_source: 'package_channel',
-      package_channel_auto_update: true,
+      effective_install_update_source: 'git_checkout',
     },
-    git: { dirty: false, sync_status: 'no_upstream' },
+    git: { dirty: false, sync_status: 'behind' },
   };
   const receipt = (verifyResult: 'passed' | 'failed', activatedAt: string) => ({
     surface_kind: 'opl_managed_update_component_receipt',
@@ -555,7 +545,7 @@ test('OPL Packages current state cannot mask the latest failed component receipt
     component_id: 'opl_packages',
     provider_id: 'capability_packages',
     adapter_id: 'capability_packages_adapter',
-    source_manifest_ref: 'opl://packages/per-package-owner-latest-stable', // reuse-first: allow existing owner-routed receipt fixture.
+    source_manifest_ref: 'opl://packages/native-git-checkout',
     from_version: null,
     from_digest: null, // reuse-first: allow existing owner-routed receipt fixture.
     to_version: null,
