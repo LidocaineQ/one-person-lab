@@ -217,8 +217,16 @@ test('Connect output schemas freeze provider receipts behind no-authority flags'
     assert.equal(contract.commands[key].output_schema.properties.version.const, 'g2');
   }
   assert.equal(scientific.properties.profile_role.const, 'optional_scientific_connector_profile');
-  assert.deepEqual(scientificProvider.allowed_values, ['crossref', 'openalex', 'pubmed', 'pmc']);
-  assert.equal(scientificProvider.summary, 'Scientific provider id: crossref, openalex, pubmed, pmc.');
+  assert.equal('allowed_values' in scientificProvider, false);
+  assert.deepEqual(scientificProvider, {
+    name: 'provider',
+    flag: '--provider',
+    value_kind: 'string',
+    required: true,
+    summary: 'Provider id loaded from the installed scientific connector profile.',
+  });
+  assert.deepEqual(scientific.properties.provider_id, { type: 'string', minLength: 1 });
+  assert.deepEqual(scientific.properties.request.properties.provider, { type: 'string', minLength: 1 });
   assert.equal(scientific.required.includes('retrieval_count_reconciliation'), true);
   assert.equal('default' in contract.commands.connect_references_verify.options.find(
     (option: { name: string }) => option.name === 'providers',

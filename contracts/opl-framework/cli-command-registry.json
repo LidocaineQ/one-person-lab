@@ -2034,13 +2034,7 @@
           "flag": "--provider",
           "value_kind": "string",
           "required": true,
-          "allowed_values": [
-            "crossref",
-            "openalex",
-            "pubmed",
-            "pmc"
-          ],
-          "summary": "Scientific provider id: crossref, openalex, pubmed, pmc."
+          "summary": "Provider id loaded from the installed scientific connector profile."
         },
         {
           "name": "query",
@@ -2104,12 +2098,8 @@
                 "const": "optional_scientific_connector_profile"
               },
               "provider_id": {
-                "enum": [
-                  "crossref",
-                  "openalex",
-                  "pubmed",
-                  "pmc"
-                ]
+                "type": "string",
+                "minLength": 1
               },
               "status": {
                 "enum": [
@@ -2125,12 +2115,8 @@
                 ],
                 "properties": {
                   "provider": {
-                    "enum": [
-                      "crossref",
-                      "openalex",
-                      "pubmed",
-                      "pmc"
-                    ]
+                    "type": "string",
+                    "minLength": 1
                   },
                   "query": {
                     "type": "string",

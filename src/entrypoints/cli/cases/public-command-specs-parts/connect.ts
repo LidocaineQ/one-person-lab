@@ -506,7 +506,7 @@ export function buildConnectCommandSpecs(
       () => disconnectOplGatewayAccount(),
     ),
     'connect scientific search': {
-      usage: `opl connect scientific search --provider <${scientificConnectorProviderIds().join('|')}> --query <query> [--limit <n>]`,
+      usage: 'opl connect scientific search --provider <provider> --query <query> [--limit <n>]',
       summary: 'Search an optional scientific provider profile through OPL Connect and return normalized read-only source refs.',
       examples: [
         'opl connect scientific search --provider crossref --query "clinical prediction model" --json',
@@ -522,7 +522,7 @@ export function buildConnectCommandSpecs(
         ),
     },
     'connect references verify': {
-      usage: `opl connect references verify --references-file <json> [--providers ${referenceVerificationProviderIds().join(',')}] [--cache-root <path>] [--max-retries <n>]`,
+      usage: 'opl connect references verify --references-file <json> [--providers <provider[,provider...]>] [--cache-root <path>] [--max-retries <n>]',
       summary: 'Verify literature reference metadata through read-only OPL Connect provider receipts without citation judgment authority.',
       examples: [
         'opl connect references verify --references-file references.json --providers crossref,openalex --cache-root .cache/opl-connect --max-retries 1 --json',

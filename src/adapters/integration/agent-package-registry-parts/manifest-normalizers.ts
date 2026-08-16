@@ -35,6 +35,7 @@ import type {
   AgentPackageRegistryDocument,
   AgentPackageRegistryEntry,
   AgentPackageRole,
+  AgentPackageRuntimeModuleBinding,
 } from './types.ts';
 
 const AGENT_PACKAGE_ROLES = new Set<AgentPackageRole>([
@@ -922,6 +923,119 @@ function normalizedRelativePath(value: unknown, field: string) {
   return normalized;
 }
 
+const RUNTIME_MODULE_REFERENCE_FIELDS = [
+  'profile_ref',
+  'profile_schema_ref',
+  'registry_ref',
+  'registry_schema_ref',
+  'step_schema_ref',
+] as const;
+
+function normalizeRuntimeModuleBindings(
+  value: unknown,
+  contentLockPaths: readonly string[],
+  manifestUrl: string,
+): AgentPackageRuntimeModuleBinding[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Package runtime_module_bindings must be an array.', {
+      manifest_url: manifestUrl,
+      failure_code: 'agent_package_runtime_module_bindings_invalid',
+    });
+  }
+  const entries = recordList(value);
+  if (entries.length !== value.length) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Package runtime_module_bindings entries must be objects.', {
+      manifest_url: manifestUrl,
+      failure_code: 'agent_package_runtime_module_bindings_invalid',
+    });
+  }
+  const moduleIds = new Set<string>();
+  return entries.map((entry, index) => {
+    const field = `exports.runtime_module_bindings[${index}]`;
+    const moduleId = assertStringValue(entry.module_id, `${field}.module_id`);
+    if (moduleIds.has(moduleId)) {
+      throw new FrameworkContractError('contract_shape_invalid', 'Package runtime module ids must be unique.', {
+        manifest_url: manifestUrl,
+        module_id: moduleId,
+        failure_code: 'agent_package_runtime_module_bindings_invalid',
+      });
+    }
+    moduleIds.add(moduleId);
+    const moduleKind = assertStringValue(entry.module_kind, `${field}.module_kind`);
+    const adapterAbi = assertStringValue(entry.adapter_abi, `${field}.adapter_abi`);
+    const handler = isRecord(entry.handler) ? entry.handler : null;
+    if (!handler || handler.kind !== 'typescript_export') {
+      throw new FrameworkContractError('contract_shape_invalid', 'Package runtime module handler must be a TypeScript export.', {
+        manifest_url: manifestUrl,
+        module_id: moduleId,
+        failure_code: 'agent_package_runtime_module_handler_invalid',
+      });
+    }
+    const handlerFile = normalizedRelativePath(handler.file, `${field}.handler.file`);
+    const handlerExport = assertStringValue(handler.export, `${field}.handler.export`);
+    if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(handlerExport)) {
+      throw new FrameworkContractError('contract_shape_invalid', 'Package runtime module handler export is invalid.', {
+        manifest_url: manifestUrl,
+        module_id: moduleId,
+        handler_export: handlerExport,
+        failure_code: 'agent_package_runtime_module_handler_invalid',
+      });
+    }
+    const references = RUNTIME_MODULE_REFERENCE_FIELDS.map((referenceField) => [
+      referenceField,
+      normalizedRelativePath(entry[referenceField], `${field}.${referenceField}`),
+    ] as const);
+    if (!Array.isArray(entry.contained_implementation_files)) {
+      throw new FrameworkContractError('contract_shape_invalid', 'Package runtime module contained implementation files must be an array.', {
+        manifest_url: manifestUrl,
+        module_id: moduleId,
+        failure_code: 'agent_package_runtime_module_bindings_invalid',
+      });
+    }
+    const containedImplementationFiles = entry.contained_implementation_files.map((file, fileIndex) =>
+      normalizedRelativePath(file, `${field}.contained_implementation_files[${fileIndex}]`));
+    const lockedPaths = [
+      handlerFile,
+      ...references.map(([, reference]) => reference),
+      ...containedImplementationFiles,
+    ];
+    const unlockedPaths = [...new Set(lockedPaths.filter((candidate) => !contentLockPaths.includes(candidate)))];
+    if (unlockedPaths.length > 0) {
+      throw new FrameworkContractError('contract_shape_invalid', 'Package runtime module paths must be covered by the content lock.', {
+        manifest_url: manifestUrl,
+        module_id: moduleId,
+        unlocked_paths: unlockedPaths,
+        failure_code: 'agent_package_runtime_module_path_unlocked',
+      });
+    }
+    const maxSteps = entry.max_steps;
+    if (!Number.isSafeInteger(maxSteps) || (maxSteps as number) < 1 || (maxSteps as number) > 16) {
+      throw new FrameworkContractError('contract_shape_invalid', 'Package runtime module max_steps must be a positive bounded integer.', {
+        manifest_url: manifestUrl,
+        module_id: moduleId,
+        max_steps: maxSteps,
+        failure_code: 'agent_package_runtime_module_bindings_invalid',
+      });
+    }
+    return {
+      ...entry,
+      module_id: moduleId,
+      module_kind: moduleKind,
+      adapter_abi: adapterAbi,
+      ...Object.fromEntries(references),
+      handler: {
+        ...handler,
+        kind: 'typescript_export' as const,
+        file: handlerFile,
+        export: handlerExport,
+      },
+      max_steps: maxSteps as number,
+      contained_implementation_files: containedImplementationFiles,
+    } as AgentPackageRuntimeModuleBinding;
+  });
+}
+
 function normalizeProfileSurface(value: unknown): AgentPackageProfileSurfaceConfig | null {
   if (value === undefined || value === null) return null;
   if (!isRecord(value) || !isRecord(value.runtime_profile)) {
@@ -1596,6 +1710,7 @@ export function normalizeManifest(payload: unknown, manifestUrl: string): AgentP
     managed_policy_surface: normalizeManagedPolicySurface(payload.managed_policy_surface),
     capability_dependencies: capabilityDependencies,
     capability_provider: capabilityProvider,
+    runtime_module_bindings: [],
     content_digest: distributionPayload?.payload_digest_ref ?? null,
     content_lock_canonicalization: null,
     content_lock_paths: [],
@@ -1687,6 +1802,11 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
   const contentLockPaths = uniqueStrings(stringList(payload.content_lock.paths).map((entry, index) =>
     normalizedRelativePath(entry, `content_lock.paths[${index}]`)));
   assertChannelProviderEntrypointsContentLocked(entrypoints, contentLockPaths, manifestUrl);
+  const runtimeModuleBindings = normalizeRuntimeModuleBindings(
+    payload.exports.runtime_module_bindings,
+    contentLockPaths,
+    manifestUrl,
+  );
   const coreModuleIds = uniqueStrings(stringList(payload.exports.core_module_ids));
   if (coreModuleIds.length === 0) {
     throw new FrameworkContractError('contract_shape_invalid', 'Capability package must export at least one core module contract id.', {
@@ -1777,6 +1897,7 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
       module_export_ids: coreModuleIds,
       consumer_profiles: consumerProfiles,
     },
+    runtime_module_bindings: runtimeModuleBindings,
     content_digest: contentDigest,
     content_lock_canonicalization: contentLockCanonicalization,
     content_lock_paths: contentLockPaths,
@@ -1873,6 +1994,7 @@ export function normalizeWorkflowProfilePackageManifest(payload: unknown, manife
     managed_policy_surface: managedPolicySurface,
     capability_dependencies: [],
     capability_provider: null,
+    runtime_module_bindings: [],
     content_digest: null,
     content_lock_canonicalization: null,
     content_lock_paths: [],

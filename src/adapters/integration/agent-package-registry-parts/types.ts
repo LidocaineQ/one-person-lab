@@ -260,6 +260,27 @@ export type AgentPackageDistributionPayload = {
   install_truth: 'resolved_digest_lock';
 };
 
+export type AgentPackageRuntimeModuleBinding = {
+  module_id: string;
+  module_kind: string;
+  adapter_abi: string;
+  profile_ref: string;
+  profile_schema_ref: string;
+  registry_ref: string;
+  registry_schema_ref: string;
+  step_schema_ref: string;
+  handler: {
+    kind: 'typescript_export';
+    file: string;
+    export: string;
+    [key: string]: unknown;
+  };
+  max_steps: number;
+  contained_implementation_files: string[];
+  exports: string[];
+  [key: string]: unknown;
+};
+
 export type AgentPackageManifest = {
   package_id: string;
   agent_id: string | null;
@@ -294,6 +315,7 @@ export type AgentPackageManifest = {
   managed_policy_surface: AgentPackageManagedPolicySurfaceConfig | null;
   capability_dependencies: AgentPackageCapabilityDependency[];
   capability_provider: AgentPackageCapabilityProvider | null;
+  runtime_module_bindings: AgentPackageRuntimeModuleBinding[];
   content_digest: string | null;
   content_lock_canonicalization: 'ordered_path_nul_file_bytes' | 'ordered_path_length_file_length_bytes' | null;
   content_lock_paths: string[];

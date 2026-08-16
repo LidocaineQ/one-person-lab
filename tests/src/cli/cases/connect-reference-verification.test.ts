@@ -1,7 +1,244 @@
+import crypto from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
 import { runOplConnectReferenceVerification } from '../../../../src/adapters/integration/opl-connect-reference-verification.ts';
-import { assert, fs, os, path, runCliAsync, test } from '../helpers.ts';
+import { assert, createInstalledPackageCarrierFixture, fs, os, path, repoRoot, runCliAsync, test } from '../helpers.ts';
+
+const scholarPackageRoot = process.env.OPL_SCHOLAR_SKILLS_E2E_ROOT?.trim()
+  || path.resolve(repoRoot, '..', '..', '..', 'mas-scholar-skills');
+const cliPackageFixture = createInstalledPackageCarrierFixture(scholarPackageRoot);
+test.after(() => fs.rmSync(cliPackageFixture.fixtureRoot, { recursive: true, force: true }));
+
+function cliEnv(overrides: Record<string, string> = {}) {
+  return { OPL_STATE_DIR: cliPackageFixture.stateRoot, ...overrides };
+}
+
+function contentLockDigest(sourceRoot: string, relativePaths: string[]) {
+  const digest = crypto.createHash('sha256');
+  for (const relativePath of relativePaths) {
+    const pathBytes = Buffer.from(relativePath, 'utf8');
+    const fileBytes = fs.readFileSync(path.join(sourceRoot, relativePath));
+    const pathLength = Buffer.allocUnsafe(8);
+    const fileLength = Buffer.allocUnsafe(8);
+    pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
+    fileLength.writeBigUInt64BE(BigInt(fileBytes.length));
+    digest.update(pathLength);
+    digest.update(pathBytes);
+    digest.update(fileLength);
+    digest.update(fileBytes);
+  }
+  return `sha256:${digest.digest('hex')}`;
+}
+
+async function withSyntheticReferenceAdapter<T>(callback: (
+  requests: string[],
+  installedPackage: { runner: (input: { binary: string; args: string[]; env: NodeJS.ProcessEnv }) => {
+    status: number;
+    stdout: string;
+    stderr: string;
+    error: Error | null;
+  } },
+) => Promise<T>) {
+  const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-reference-adapter-source-'));
+  fs.mkdirSync(path.join(sourceRoot, 'contracts', 'reference-provider-adapters'), { recursive: true });
+  fs.mkdirSync(path.join(sourceRoot, 'runtime', 'reference-provider-adapters'), { recursive: true });
+  fs.writeFileSync(
+    path.join(sourceRoot, 'contracts', 'reference-provider-adapters', 'scientific-metadata.json'),
+    JSON.stringify({
+      providers: [{
+        provider_id: 'synthetic-reference',
+        adapter_id: 'synthetic_reference_adapter',
+        receipt_provider_name: 'synthetic_receipt',
+        aliases: [],
+        endpoint: {
+          default_base_url: 'https://profile.invalid',
+          environment_override: 'OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BASE',
+          allowed_origins: ['https://profile.invalid'],
+        },
+        verification_scope: { evidence_source: 'synthetic-reference-adapter' },
+      }],
+    }),
+    'utf8',
+  );
+  const handlerFile = 'runtime/reference-provider-adapters/index.mjs';
+  fs.writeFileSync(path.join(sourceRoot, 'runtime', 'reference-provider-adapters', 'index.mjs'), `
+export function runReferenceProviderAdapterStep(request) {
+  if (request.operation === 'build_request') {
+    return {
+      surface_kind: 'opl_connect_reference_provider_adapter_step_result.v1',
+      adapter_abi: 'opl-connect-reference-provider-adapter.v1',
+      next: {
+        kind: 'request',
+        request: {
+          method: 'GET',
+          url: process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BAD_ORIGIN === '1'
+            ? 'https://evil.test/adapter-only'
+            : String(request.provider.endpoint.base_url) + '/adapter-only',
+          body: null,
+        },
+        state: { surface_kind: 'synthetic-reference-state', step: 1 },
+      },
+    };
+  }
+  if (request.operation === 'parse_response') {
+    if (request.response.body.adapter_marker !== 'reference') throw new Error('synthetic reference adapter marker missing');
+    return {
+      surface_kind: 'opl_connect_reference_provider_adapter_step_result.v1',
+      adapter_abi: 'opl-connect-reference-provider-adapter.v1',
+      next: {
+        kind: 'complete',
+        evidence: {
+          match_basis: 'doi',
+          provider_identifiers: { doi: request.reference.doi },
+          metadata: { title: request.reference.title },
+          retraction_or_update_flags: {},
+          normalized: {
+            doi: request.reference.doi,
+            pmid: null,
+            pmcid: null,
+            title: request.reference.title,
+          },
+          verification_scope: { evidence_source: 'synthetic-reference-adapter' },
+        },
+      },
+    };
+  }
+  throw new Error('unexpected synthetic reference adapter operation');
+}
+`, 'utf8');
+
+  const originalAdapterBase = process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BASE;
+  const originalBadOrigin = process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BAD_ORIGIN;
+  const originalFetch = globalThis.fetch;
+  const requests: string[] = [];
+  process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BASE = 'https://adapter.test';
+  const binding = {
+    module_id: 'mas-scholar-skills.reference-provider-adapters',
+    module_kind: 'opl_connect_reference_provider_adapter',
+    adapter_abi: 'opl-connect-reference-provider-adapter.v1',
+    profile_ref: 'contracts/reference-provider-adapters/scientific-metadata.json',
+    profile_schema_ref: 'contracts/reference-provider-adapters/reference-provider-profile.schema.json',
+    registry_ref: 'contracts/reference-provider-adapters/reference-provider-adapter-registry.json',
+    registry_schema_ref: 'contracts/reference-provider-adapters/reference-provider-adapter-registry.schema.json',
+    step_schema_ref: 'contracts/reference-provider-adapters/reference-provider-adapter-step.schema.json',
+    handler: { kind: 'typescript_export', file: handlerFile, export: 'runReferenceProviderAdapterStep' },
+    max_steps: 1,
+    contained_implementation_files: [handlerFile],
+    exports: ['runReferenceProviderAdapterStep'],
+  };
+  const lockPaths = [
+    'skills/mas-scholar-skills/SKILL.md',
+    binding.profile_ref,
+    binding.profile_schema_ref,
+    binding.registry_ref,
+    binding.registry_schema_ref,
+    binding.step_schema_ref,
+    handlerFile,
+  ];
+  for (const relativePath of lockPaths) {
+    const filePath = path.join(sourceRoot, relativePath);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, '', 'utf8');
+  }
+  fs.writeFileSync(path.join(sourceRoot, 'skills', 'mas-scholar-skills', 'SKILL.md'), '# synthetic\n', 'utf8');
+  fs.writeFileSync(path.join(sourceRoot, 'opl-package.json'), JSON.stringify({
+    surface_kind: 'opl_capability_package_manifest.v2',
+    package_id: 'mas-scholar-skills',
+    display_name: 'Synthetic MAS Scholar Skills',
+    publisher: 'synthetic',
+    version: '0.0.0',
+    source: 'first_party_repo_local',
+    package_role: 'capability_package',
+    capability_abi: { id: 'mas-scholar-skills.v1' },
+    codex_surface: {
+      plugin_id: 'mas-scholar-skills',
+      required_skill_ids: ['mas-scholar-skills'],
+    },
+    exports: {
+      core_skill_ids: ['mas-scholar-skills'],
+      core_module_ids: [binding.module_id],
+      optional_skill_policy_ref: 'contracts/synthetic-optional.json',
+      optional_skills_installed_by_default: true,
+      default_materialization_policy: 'all_exported_skills',
+      runtime_module_bindings: [binding],
+    },
+    content_lock: {
+      algorithm: 'sha256',
+      canonicalization: 'ordered_path_length_file_length_bytes',
+      digest: contentLockDigest(sourceRoot, lockPaths),
+      paths: lockPaths,
+    },
+  }), 'utf8');
+  const installedPackage = {
+    runner: ({ args }: { binary: string; args: string[]; env: NodeJS.ProcessEnv }) => ({
+      status: args.join(' ') === 'plugin list --json' ? 0 : 2,
+      stdout: JSON.stringify({ installed: [{
+        pluginId: 'mas-scholar-skills@synthetic',
+        version: '0.0.0',
+        enabled: true,
+        source: { source: 'local', path: sourceRoot },
+        marketplaceSource: { source: sourceRoot },
+      }] }),
+      stderr: '',
+      error: null,
+    }),
+  };
+  globalThis.fetch = async (input) => {
+    const url = new URL(input instanceof Request ? input.url : input.toString());
+    requests.push(url.pathname);
+    if (url.origin !== 'https://adapter.test' || url.pathname !== '/adapter-only') {
+      throw new Error(`unexpected non-adapter reference request: ${url.toString()}`);
+    }
+    return new Response(JSON.stringify({ adapter_marker: 'reference' }), {
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  try {
+    return await callback(requests, installedPackage);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalAdapterBase === undefined) delete process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BASE;
+    else process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BASE = originalAdapterBase;
+    if (originalBadOrigin === undefined) delete process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BAD_ORIGIN;
+    else process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BAD_ORIGIN = originalBadOrigin;
+    fs.rmSync(sourceRoot, { recursive: true, force: true });
+  }
+}
+
+test('reference verification routes transport and evidence through the installed package adapter state machine', async () => {
+  await withSyntheticReferenceAdapter(async (requests, installedPackage) => {
+    const output = await runOplConnectReferenceVerification({
+      references: [{ id: 'synthetic-reference', doi: '10.9999/adapter', title: 'Synthetic adapter reference' }],
+      providers: ['synthetic-reference'],
+      maxRetries: 0,
+      installedPackage,
+    });
+    const evidence = output.opl_connect_reference_verification.provider_evidence[0];
+    assert.deepEqual(requests, ['/adapter-only']);
+    assert.equal(evidence.status, 'matched');
+    assert.equal(evidence.match_status, 'identifier_matched');
+    assert.equal(evidence.provider_id, 'synthetic-reference');
+    assert.equal(evidence.provider, 'synthetic_receipt');
+    assert.equal(evidence.verification_scope.evidence_source, 'synthetic-reference-adapter');
+  });
+});
+
+test('reference verification rejects a handler origin outside the active provider profile before fetch', async () => {
+  await withSyntheticReferenceAdapter(async (requests, installedPackage) => {
+    process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BAD_ORIGIN = '1';
+    const output = await runOplConnectReferenceVerification({
+      references: [{ id: 'synthetic-reference-origin', doi: '10.9999/adapter' }],
+      providers: ['synthetic-reference'],
+      maxRetries: 0,
+      installedPackage,
+    });
+    const evidence = output.opl_connect_reference_verification.provider_evidence[0];
+    assert.equal(evidence.lookup_status, 'error');
+    assert.equal(evidence.status, 'deferred');
+    assert.equal(evidence.error?.code, 'reference_provider_request_origin_not_allowed');
+    assert.deepEqual(requests, []);
+  });
+});
 
 test('reference providers materialize PubMed and PMC receipts without domain authority', async () => {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-reference-ncbi-'));
@@ -321,9 +558,9 @@ test('connect references verify returns provider receipts, cache metadata, retri
       ],
     }), 'utf8');
 
-    const env = {
+    const env = cliEnv({
       OPL_CONNECT_CROSSREF_API_BASE: `${fakeProviders.baseUrl}/crossref`,
-    };
+    });
     const args = [
       'connect',
       'references',
@@ -473,12 +710,12 @@ test('connect references verify covers OpenAlex, Semantic Scholar, Crossmark, an
       'openalex,semantic_scholar,crossmark,publisher',
       '--max-retries',
       '1',
-    ], {
+    ], cliEnv({
       OPL_CONNECT_OPENALEX_API_BASE: `${fakeProviders.baseUrl}/openalex`,
       OPL_CONNECT_SEMANTIC_SCHOLAR_API_BASE: `${fakeProviders.baseUrl}/semantic`,
       OPL_CONNECT_CROSSREF_API_BASE: `${fakeProviders.baseUrl}/crossref`,
       OPL_CONNECT_PUBLISHER_DOI_BASE: `${fakeProviders.baseUrl}/doi`,
-    }) as {
+    })) as {
       opl_connect_reference_verification: {
         request: { providers: string[] };
         provider_evidence: Array<{
@@ -554,11 +791,11 @@ test('connect references verify separates provider found from strict identifier 
       'openalex,semantic_scholar,publisher',
       '--max-retries',
       '0',
-    ], {
+    ], cliEnv({
       OPL_CONNECT_OPENALEX_API_BASE: `${fakeProviders.baseUrl}/id-only-openalex`,
       OPL_CONNECT_SEMANTIC_SCHOLAR_API_BASE: `${fakeProviders.baseUrl}/conflict-semantic`,
       OPL_CONNECT_PUBLISHER_DOI_BASE: `${fakeProviders.baseUrl}/conflict-doi`,
-    }) as {
+    })) as {
       opl_connect_reference_verification: {
         provider_evidence: Array<{
           provider_id: string;
@@ -644,10 +881,10 @@ test('connect references verify defers one failed provider while matched provide
       'semantic-scholar,openalex',
       '--max-retries',
       '0',
-    ], {
+    ], cliEnv({
       OPL_CONNECT_SEMANTIC_SCHOLAR_API_BASE: `${fakeProviders.baseUrl}/semantic`,
       OPL_CONNECT_OPENALEX_API_BASE: `${fakeProviders.baseUrl}/rate-limited-openalex`,
-    }) as {
+    })) as {
       opl_connect_reference_verification: {
         status: string;
         provider_evidence: Array<{
@@ -708,7 +945,7 @@ test('connect references verify declares publisher DOI requirement without prete
     referencesFile,
     '--providers',
     'publisher',
-  ]) as {
+  ], cliEnv()) as {
     opl_connect_reference_verification: {
       provider_evidence: Array<{ provider: string; provider_id: string; lookup_status: string; status: string; deferred_reason: string }>;
       deferred_provider_receipt_requirements: Array<{ provider_id: string; status: string }>;

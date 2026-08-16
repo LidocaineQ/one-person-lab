@@ -261,6 +261,51 @@ if (command === 'plugin marketplace list --json') {
   };
 }
 
+export function createInstalledPackageCarrierFixture(
+  packageRoot: string,
+  packageId = 'mas-scholar-skills',
+) {
+  if (!fs.existsSync(path.join(packageRoot, 'opl-package.json'))) {
+    throw new Error(`Installed Package fixture is missing its owner manifest: ${packageRoot}`);
+  }
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-installed-package-carrier-fixture-'));
+  const marketplaceRoot = path.join(fixtureRoot, 'marketplace');
+  const marketplaceId = `${packageId}-test`;
+  fs.mkdirSync(path.join(marketplaceRoot, '.agents', 'plugins'), { recursive: true });
+  fs.writeFileSync(
+    path.join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json'),
+    `${JSON.stringify({
+      name: marketplaceId,
+      plugins: [{
+        name: packageId,
+        source: { source: 'local', path: packageRoot },
+      }],
+    }, null, 2)}\n`,
+    'utf8',
+  );
+  const codexHome = path.join(fixtureRoot, 'codex-home');
+  fs.mkdirSync(codexHome, { recursive: true });
+  fs.writeFileSync(
+    path.join(codexHome, 'config.toml'),
+    [
+      `[marketplaces."${marketplaceId}"]`,
+      `source = ${JSON.stringify(marketplaceRoot)}`,
+      '',
+      `[plugins."${packageId}@${marketplaceId}"]`,
+      'enabled = true',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  return {
+    fixtureRoot,
+    stateRoot: fixtureRoot,
+    codexHome,
+    marketplaceRoot,
+    packageRoot,
+  };
+}
+
 export function shellSingleQuote(value: string) {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }

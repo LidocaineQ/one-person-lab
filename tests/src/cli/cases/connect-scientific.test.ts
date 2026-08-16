@@ -1,6 +1,7 @@
+import crypto from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
-import { assert, runCliAsync, runCliFailure, test } from '../helpers.ts';
+import { assert, createInstalledPackageCarrierFixture, fs, os, path, repoRoot, runCli, runCliAsync, runCliFailure, test } from '../helpers.ts';
 import {
   buildScientificConnectorProviderRegistryReadback,
   runOplConnectScientificSearch,
@@ -10,6 +11,15 @@ import {
   normalizeReferenceVerificationProviders,
   referenceVerificationProviderIds,
 } from '../../../../src/adapters/integration/opl-connect-reference-verification.ts';
+
+const scholarPackageRoot = process.env.OPL_SCHOLAR_SKILLS_E2E_ROOT?.trim()
+  || path.resolve(repoRoot, '..', '..', '..', 'mas-scholar-skills');
+const cliPackageFixture = createInstalledPackageCarrierFixture(scholarPackageRoot);
+test.after(() => fs.rmSync(cliPackageFixture.fixtureRoot, { recursive: true, force: true }));
+
+function cliEnv(overrides: Record<string, string> = {}) {
+  return { OPL_STATE_DIR: cliPackageFixture.stateRoot, ...overrides };
+}
 
 type ScientificSearchOutput = {
   opl_connect_scientific: {
@@ -58,6 +68,203 @@ type ScientificSearchOutput = {
   };
 };
 
+function contentLockDigest(sourceRoot: string, relativePaths: string[]) {
+  const digest = crypto.createHash('sha256');
+  for (const relativePath of relativePaths) {
+    const pathBytes = Buffer.from(relativePath, 'utf8');
+    const fileBytes = fs.readFileSync(path.join(sourceRoot, relativePath));
+    const pathLength = Buffer.allocUnsafe(8);
+    const fileLength = Buffer.allocUnsafe(8);
+    pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
+    fileLength.writeBigUInt64BE(BigInt(fileBytes.length));
+    digest.update(pathLength);
+    digest.update(pathBytes);
+    digest.update(fileLength);
+    digest.update(fileBytes);
+  }
+  return `sha256:${digest.digest('hex')}`;
+}
+
+async function withSyntheticScientificAdapter<T>(callback: (
+  requests: string[],
+  installedPackage: { runner: (input: { binary: string; args: string[]; env: NodeJS.ProcessEnv }) => {
+    status: number;
+    stdout: string;
+    stderr: string;
+    error: Error | null;
+  } },
+  sourceRoot: string,
+) => Promise<T>) {
+  const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-scientific-adapter-source-'));
+  fs.mkdirSync(path.join(sourceRoot, 'contracts', 'scientific-search-adapters'), { recursive: true });
+  fs.mkdirSync(path.join(sourceRoot, 'runtime', 'scientific-search-adapters'), { recursive: true });
+  fs.writeFileSync(
+    path.join(sourceRoot, 'contracts', 'scientific-search-adapters', 'scientific-search.json'),
+    JSON.stringify({
+      registry_owner: 'synthetic-scientific-adapter',
+      providers: [{
+        provider_id: 'synthetic-scientific',
+        adapter_id: 'synthetic_scientific_adapter',
+        source_provider: 'Synthetic Scientific Source',
+        source_system: 'Synthetic Scientific API',
+        endpoint: {
+          default_base_url: 'https://profile.invalid',
+          environment_override: 'OPL_CONNECT_SYNTHETIC_ADAPTER_BASE',
+          allowed_origins: ['https://profile.invalid'],
+        },
+      }],
+    }),
+    'utf8',
+  );
+  const handlerFile = 'runtime/scientific-search-adapters/index.mjs';
+  fs.writeFileSync(path.join(sourceRoot, 'runtime', 'scientific-search-adapters', 'index.mjs'), `
+export function runScientificSearchAdapterStep(request) {
+  if (request.operation === 'build_search_request') {
+    return {
+      surface_kind: 'opl_connect_scientific_search_adapter_step_result.v1',
+      adapter_abi: 'opl-connect-scientific-search-adapter.v1',
+      next: {
+        kind: 'request',
+        request: {
+          method: 'GET',
+          url: process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_BAD_ORIGIN === '1'
+            ? 'https://evil.test/adapter-only'
+            : String(request.provider.endpoint.base_url) + '/adapter-only',
+          body: null,
+        },
+        state: { surface_kind: 'synthetic-scientific-state', step: 1 },
+      },
+    };
+  }
+  if (request.operation === 'parse_search_response') {
+    if (request.response.body.adapter_marker !== 'scientific') throw new Error('synthetic scientific adapter marker missing');
+    return {
+      surface_kind: 'opl_connect_scientific_search_adapter_step_result.v1',
+      adapter_abi: 'opl-connect-scientific-search-adapter.v1',
+      next: {
+        kind: 'complete',
+        provider_total: 1,
+        candidates: [{
+          source_ref: 'synthetic:scientific',
+          source_kind: 'literature_article',
+          source_provider: 'Synthetic Scientific Source',
+          provider_id: 'synthetic-scientific',
+          doi: null,
+          pmid: null,
+          pmcid: null,
+          openalex_id: null,
+          title: 'Synthetic adapter candidate',
+          journal: null,
+          publication_year: null,
+          authors: [],
+          article_types: [],
+          source_urls: {},
+        }],
+      },
+    };
+  }
+  throw new Error('unexpected synthetic scientific adapter operation');
+}
+`, 'utf8');
+
+  const originalAdapterBase = process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_BASE;
+  const originalBadOrigin = process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_BAD_ORIGIN;
+  const originalFetch = globalThis.fetch;
+  const requests: string[] = [];
+  process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_BASE = 'https://adapter.test';
+  const binding = {
+    module_id: 'mas-scholar-skills.scientific-search-adapters',
+    module_kind: 'opl_connect_scientific_search_adapter',
+    adapter_abi: 'opl-connect-scientific-search-adapter.v1',
+    profile_ref: 'contracts/scientific-search-adapters/scientific-search.json',
+    profile_schema_ref: 'contracts/scientific-search-adapters/scientific-search-provider-profile.schema.json',
+    registry_ref: 'contracts/scientific-search-adapters/scientific-search-adapter-registry.json',
+    registry_schema_ref: 'contracts/scientific-search-adapters/scientific-search-adapter-registry.schema.json',
+    step_schema_ref: 'contracts/scientific-search-adapters/scientific-search-adapter-step.schema.json',
+    handler: { kind: 'typescript_export', file: handlerFile, export: 'runScientificSearchAdapterStep' },
+    max_steps: 1,
+    contained_implementation_files: [handlerFile],
+    exports: ['runScientificSearchAdapterStep'],
+  };
+  const lockPaths = [
+    'skills/mas-scholar-skills/SKILL.md',
+    binding.profile_ref,
+    binding.profile_schema_ref,
+    binding.registry_ref,
+    binding.registry_schema_ref,
+    binding.step_schema_ref,
+    handlerFile,
+  ];
+  for (const relativePath of lockPaths) {
+    const filePath = path.join(sourceRoot, relativePath);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, '', 'utf8');
+  }
+  fs.writeFileSync(path.join(sourceRoot, 'skills', 'mas-scholar-skills', 'SKILL.md'), '# synthetic\n', 'utf8');
+  fs.writeFileSync(path.join(sourceRoot, 'opl-package.json'), JSON.stringify({
+    surface_kind: 'opl_capability_package_manifest.v2',
+    package_id: 'mas-scholar-skills',
+    display_name: 'Synthetic MAS Scholar Skills',
+    publisher: 'synthetic',
+    version: '0.0.0',
+    source: 'first_party_repo_local',
+    package_role: 'capability_package',
+    capability_abi: { id: 'mas-scholar-skills.v1' },
+    codex_surface: {
+      plugin_id: 'mas-scholar-skills',
+      required_skill_ids: ['mas-scholar-skills'],
+    },
+    exports: {
+      core_skill_ids: ['mas-scholar-skills'],
+      core_module_ids: [binding.module_id],
+      optional_skill_policy_ref: 'contracts/synthetic-optional.json',
+      optional_skills_installed_by_default: true,
+      default_materialization_policy: 'all_exported_skills',
+      runtime_module_bindings: [binding],
+    },
+    content_lock: {
+      algorithm: 'sha256',
+      canonicalization: 'ordered_path_length_file_length_bytes',
+      digest: contentLockDigest(sourceRoot, lockPaths),
+      paths: lockPaths,
+    },
+  }), 'utf8');
+  const installedPackage = {
+    runner: ({ args }: { binary: string; args: string[]; env: NodeJS.ProcessEnv }) => ({
+      status: args.join(' ') === 'plugin list --json' ? 0 : 2,
+      stdout: JSON.stringify({ installed: [{
+        pluginId: 'mas-scholar-skills@synthetic',
+        version: '0.0.0',
+        enabled: true,
+        source: { source: 'local', path: sourceRoot },
+        marketplaceSource: { source: sourceRoot },
+      }] }),
+      stderr: '',
+      error: null,
+    }),
+  };
+  globalThis.fetch = async (input) => {
+    const url = new URL(input instanceof Request ? input.url : input.toString());
+    requests.push(url.pathname);
+    if (url.origin !== 'https://adapter.test' || url.pathname !== '/adapter-only') {
+      throw new Error(`unexpected non-adapter scientific request: ${url.toString()}`);
+    }
+    return new Response(JSON.stringify({ adapter_marker: 'scientific' }), {
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  try {
+    return await callback(requests, installedPackage, sourceRoot);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalAdapterBase === undefined) delete process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_BASE;
+    else process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_BASE = originalAdapterBase;
+    if (originalBadOrigin === undefined) delete process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_BAD_ORIGIN;
+    else process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_BAD_ORIGIN = originalBadOrigin;
+    fs.rmSync(sourceRoot, { recursive: true, force: true });
+  }
+}
+
 test('scientific connector providers are explicit adapters with no core default', () => {
   const registry = buildScientificConnectorProviderRegistryReadback();
   assert.equal(registry.surface_kind, 'opl_scientific_connector_provider_registry');
@@ -65,6 +272,76 @@ test('scientific connector providers are explicit adapters with no core default'
   assert.deepEqual(scientificConnectorProviderIds(), ['crossref', 'openalex', 'pubmed', 'pmc']);
   assert.equal(registry.providers.every((provider) => provider.adapter_role === 'optional_provider_adapter'), true);
   assert.equal(registry.authority_boundary.can_write_domain_truth, false);
+});
+
+test('canonical ScholarSkills installed descriptor executes the two-step package handler through Framework I/O', async () => {
+  const scholarRoot = process.env.OPL_SCHOLAR_SKILLS_E2E_ROOT?.trim()
+    || path.resolve(repoRoot, '..', '..', '..', 'mas-scholar-skills');
+  assert.equal(fs.existsSync(path.join(scholarRoot, 'opl-package.json')), true, `missing canonical ScholarSkills package: ${scholarRoot}`);
+  const manifest = JSON.parse(fs.readFileSync(path.join(scholarRoot, 'opl-package.json'), 'utf8')) as {
+    version: string;
+    exports: { runtime_module_bindings: Array<{ module_id: string; module_kind: string; adapter_abi: string; max_steps: number }> };
+  };
+  const binding = manifest.exports.runtime_module_bindings.find((entry) => entry.module_kind === 'opl_connect_scientific_search_adapter');
+  assert.ok(binding);
+  assert.equal(binding.max_steps, 2);
+  const installedPackage = {
+    runner: ({ args }: { binary: string; args: string[]; env: NodeJS.ProcessEnv }) => ({
+      status: args.join(' ') === 'plugin list --json' ? 0 : 2,
+      stdout: JSON.stringify({ installed: [{
+        pluginId: 'mas-scholar-skills@mas-scholar-skills',
+        version: manifest.version,
+        enabled: true,
+        source: { source: 'local', path: scholarRoot },
+        marketplaceSource: { sourceType: 'local', source: scholarRoot },
+      }] }),
+      stderr: '',
+      error: null,
+    }),
+  };
+  const originalFetch = globalThis.fetch;
+  const originalBase = process.env.OPL_CONNECT_PUBMED_EUTILS_BASE;
+  const requests: string[] = [];
+  process.env.OPL_CONNECT_PUBMED_EUTILS_BASE = 'https://scholar-e2e.test/entrez/eutils';
+  globalThis.fetch = async (input) => {
+    const url = new URL(input instanceof Request ? input.url : input.toString());
+    requests.push(url.pathname);
+    if (url.pathname.endsWith('/esearch.fcgi')) {
+      return new Response(JSON.stringify({ esearchresult: { count: '1', idlist: ['20332509'] } }), {
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    if (url.pathname.endsWith('/esummary.fcgi')) {
+      return new Response(JSON.stringify({ result: {
+        uids: ['20332509'],
+        '20332509': {
+          uid: '20332509',
+          title: 'Canonical ScholarSkills E2E',
+          pubdate: '2026',
+          fulljournalname: 'Framework I/O Journal',
+          authors: [{ name: 'Package Owner' }],
+          pubtype: ['Journal Article'],
+          articleids: [{ idtype: 'doi', value: '10.9999/scholar-e2e' }],
+        },
+      } }), { headers: { 'content-type': 'application/json' } });
+    }
+    throw new Error(`unexpected ScholarSkills E2E request: ${url.toString()}`);
+  };
+  try {
+    const output = await runOplConnectScientificSearch({
+      provider: 'pubmed',
+      query: 'canonical ScholarSkills package',
+      limit: 1,
+      installedPackage,
+    });
+    assert.deepEqual(requests, ['/entrez/eutils/esearch.fcgi', '/entrez/eutils/esummary.fcgi']);
+    assert.deepEqual(output.opl_connect_scientific.result_refs, ['pubmed:20332509']);
+    assert.equal(output.opl_connect_scientific.normalized_results[0].doi, '10.9999/scholar-e2e');
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalBase === undefined) delete process.env.OPL_CONNECT_PUBMED_EUTILS_BASE;
+    else process.env.OPL_CONNECT_PUBMED_EUTILS_BASE = originalBase;
+  }
 });
 
 test('reference verification provider registry owns defaults and aliases', () => {
@@ -103,6 +380,88 @@ test('reference verification provider registry owns defaults and aliases', () =>
   );
 });
 
+test('scientific connector routes HTTP and normalization through the installed package adapter state machine', async () => {
+  await withSyntheticScientificAdapter(async (requests, installedPackage) => {
+    const output = await runOplConnectScientificSearch({
+      provider: 'synthetic-scientific',
+      query: 'adapter-owned query',
+      limit: 1,
+      installedPackage,
+    });
+    assert.deepEqual(requests, ['/adapter-only']);
+    assert.deepEqual(output.opl_connect_scientific.result_refs, ['synthetic:scientific']);
+    assert.equal(output.opl_connect_scientific.normalized_results[0].title, 'Synthetic adapter candidate');
+  });
+});
+
+test('scientific connector rejects a handler origin outside the active provider profile before fetch', async () => {
+  await withSyntheticScientificAdapter(async (requests, installedPackage) => {
+    process.env.OPL_CONNECT_SYNTHETIC_ADAPTER_BAD_ORIGIN = '1';
+    await assert.rejects(
+      () => runOplConnectScientificSearch({
+        provider: 'synthetic-scientific',
+        query: 'malicious origin',
+        limit: 1,
+        installedPackage,
+      }),
+      (error: unknown) => {
+        assert.equal((error as { code?: string }).code, 'codex_command_failed');
+        assert.equal(
+          (error as { details?: { reason_code?: string } }).details?.reason_code,
+          'scientific_provider_request_origin_not_allowed',
+        );
+        return true;
+      },
+    );
+    assert.deepEqual(requests, []);
+  });
+});
+
+test('scientific connector rejects installed package content lock drift before handler execution', async () => {
+  await withSyntheticScientificAdapter(async (requests, installedPackage, sourceRoot) => {
+    fs.appendFileSync(path.join(sourceRoot, 'runtime', 'scientific-search-adapters', 'index.mjs'), '\n// drift\n', 'utf8');
+    await assert.rejects(
+      () => runOplConnectScientificSearch({
+        provider: 'synthetic-scientific',
+        query: 'content lock drift',
+        limit: 1,
+        installedPackage,
+      }),
+      (error: unknown) => {
+        assert.equal((error as { code?: string }).code, 'codex_command_failed');
+        assert.equal(
+          (error as { details?: { reason_code?: string } }).details?.reason_code,
+          'installed_runtime_module_content_lock_mismatch',
+        );
+        return true;
+      },
+    );
+    assert.deepEqual(requests, []);
+  });
+});
+
+test('scientific provider discovery is lazy for help and fail-closed for Connect without an installed Package', () => {
+  const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-empty-carrier-state-'));
+  try {
+    const help = runCli(['--help'], { OPL_STATE_DIR: stateRoot });
+    assert.equal(help.version, 'g2');
+    const failure = runCliFailure([
+      'connect',
+      'scientific',
+      'search',
+      '--provider',
+      'synthetic-scientific',
+      '--query',
+      'missing package',
+      '--json',
+    ], { OPL_STATE_DIR: stateRoot });
+    assert.equal(failure.payload.error.code, 'codex_command_failed');
+    assert.equal(failure.payload.error.details.reason_code, 'installed_package_descriptor_missing');
+  } finally {
+    fs.rmSync(stateRoot, { recursive: true, force: true });
+  }
+});
+
 async function startFakeScientificServer() {
   const requests: string[] = [];
   const server = createServer((request: IncomingMessage, response: ServerResponse) => {
@@ -118,7 +477,7 @@ async function startFakeScientificServer() {
               DOI: '10.2000/crossref-example',
               title: ['Crossref metadata for clinical models'],
               'container-title': ['Metadata Journal'],
-              issued: { 'date-parts': [[2025, 4, 1]] },
+              published: { 'date-parts': [[2025, 4, 1]] },
               author: [{ given: 'Alex', family: 'Rivera' }],
             },
           ],
@@ -229,7 +588,7 @@ test('connect scientific search returns normalized Crossref refs', async () => {
   try {
     const output = await runCliAsync(
       ['connect', 'scientific', 'search', '--provider', 'crossref', '--query', 'clinical model', '--limit', '1'],
-      { OPL_CONNECT_CROSSREF_API_BASE: fakeServer.crossrefBaseUrl },
+      cliEnv({ OPL_CONNECT_CROSSREF_API_BASE: fakeServer.crossrefBaseUrl }),
     ) as ScientificSearchOutput;
     const scientific = output.opl_connect_scientific;
 
@@ -251,7 +610,7 @@ test('connect scientific search discovers and normalizes PubMed refs', async () 
   try {
     const output = await runCliAsync(
       ['connect', 'scientific', 'search', '--provider', 'pubmed', '--query', 'CONSORT randomized trial', '--limit', '1'],
-      { OPL_CONNECT_PUBMED_EUTILS_BASE: fakeServer.pubmedBaseUrl },
+      cliEnv({ OPL_CONNECT_PUBMED_EUTILS_BASE: fakeServer.pubmedBaseUrl }),
     ) as ScientificSearchOutput;
     const scientific = output.opl_connect_scientific;
 
@@ -276,7 +635,7 @@ test('connect scientific search discovers and normalizes Europe PMC refs', async
   try {
     const output = await runCliAsync(
       ['connect', 'scientific', 'search', '--provider', 'pmc', '--query', 'OPEN_ACCESS:Y AND CONSORT', '--limit', '1'],
-      { OPL_CONNECT_EUROPE_PMC_API_BASE: fakeServer.europePmcBaseUrl },
+      cliEnv({ OPL_CONNECT_EUROPE_PMC_API_BASE: fakeServer.europePmcBaseUrl }),
     ) as ScientificSearchOutput;
     const scientific = output.opl_connect_scientific;
 
@@ -297,7 +656,7 @@ test('connect scientific search returns normalized OpenAlex refs', async () => {
   try {
     const output = await runCliAsync(
       ['connect', 'scientific', 'search', '--provider', 'openalex', '--query', 'citation graph', '--limit', '1'],
-      { OPL_CONNECT_OPENALEX_API_BASE: fakeServer.openalexBaseUrl },
+      cliEnv({ OPL_CONNECT_OPENALEX_API_BASE: fakeServer.openalexBaseUrl }),
     ) as ScientificSearchOutput;
     const scientific = output.opl_connect_scientific;
 
@@ -313,17 +672,17 @@ test('connect scientific search returns normalized OpenAlex refs', async () => {
 });
 
 test('connect scientific search requires provider and query', () => {
-  const missingProvider = runCliFailure(['connect', 'scientific', 'search', '--query', 'clinical AI']);
+  const missingProvider = runCliFailure(['connect', 'scientific', 'search', '--query', 'clinical AI'], cliEnv());
   assert.equal(missingProvider.status, 2);
   assert.equal(missingProvider.payload.error.code, 'cli_usage_error');
   assert.match(missingProvider.payload.error.message, /requires --provider/);
 
-  const missingQuery = runCliFailure(['connect', 'scientific', 'search', '--provider', 'crossref']);
+  const missingQuery = runCliFailure(['connect', 'scientific', 'search', '--provider', 'crossref'], cliEnv());
   assert.equal(missingQuery.status, 2);
   assert.equal(missingQuery.payload.error.code, 'cli_usage_error');
   assert.match(missingQuery.payload.error.message, /requires --query/);
 
-  const compatibility = runCliFailure(['connect', 'pubmed', 'search', '--query', 'clinical AI']);
+  const compatibility = runCliFailure(['connect', 'pubmed', 'search', '--query', 'clinical AI'], cliEnv());
   assert.equal(compatibility.status, 2);
   assert.equal(compatibility.payload.error.code, 'unknown_command');
 

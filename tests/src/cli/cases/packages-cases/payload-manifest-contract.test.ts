@@ -94,6 +94,7 @@ function canonicalFixture() {
     managed_policy_surface: null,
     capability_dependencies: [],
     capability_provider: null,
+    runtime_module_bindings: [],
     content_digest: null,
     content_lock_canonicalization: null,
     content_lock_paths: [],

@@ -10,10 +10,12 @@ import {
   ResponseBodyTooLargeError,
 } from './http-response-body.ts';
 import {
-  normalizePmcid,
-  parseEuropePmcSearch,
-  parsePubmedSummary,
-} from './opl-connect-reference-ncbi.ts';
+  loadInstalledPackageRuntimeModule,
+  resolveInstalledPackageRuntimeModule,
+  type InstalledPackageRuntimeDiscoveryOptions,
+  type InstalledPackageRuntimeModuleContext,
+  type LoadedInstalledPackageRuntimeModule,
+} from './agent-package-registry-parts/installed-runtime-module.ts';
 
 export type ReferenceVerificationInput = {
   referencesFile?: string;
@@ -22,19 +24,10 @@ export type ReferenceVerificationInput = {
   cacheRoot?: string;
   maxRetries: number;
   timeoutMs?: number;
+  installedPackage?: InstalledPackageRuntimeDiscoveryOptions;
 };
 
-const REFERENCE_VERIFICATION_PROVIDER_IDS = [
-  'crossref',
-  'openalex',
-  'pubmed',
-  'pmc',
-  'semantic-scholar',
-  'crossmark',
-  'publisher',
-] as const;
-
-export type ReferenceVerificationProviderId = typeof REFERENCE_VERIFICATION_PROVIDER_IDS[number];
+export type ReferenceVerificationProviderId = string;
 
 type ReferenceRecord = {
   id: string;
@@ -56,7 +49,7 @@ type MismatchDetail = {
 };
 type ProviderEvidence = {
   reference_id: string;
-  provider: 'crossref' | 'openalex' | 'pubmed' | 'pmc' | 'semantic_scholar' | 'crossmark' | 'publisher';
+  provider: string;
   provider_id: ProviderId;
   lookup_status: 'found' | 'not_found' | 'deferred' | 'error';
   status: 'matched' | 'deferred';
@@ -99,14 +92,27 @@ type ProviderEvidence = {
 type ProviderEvidenceError = NonNullable<ProviderEvidence['error']>;
 type ProviderEvidenceDraft = Omit<ProviderEvidence, 'receipt_ref'>;
 
-const DEFAULT_CROSSREF_API_BASE = 'https://api.crossref.org';
-const DEFAULT_OPENALEX_API_BASE = 'https://api.openalex.org';
-const DEFAULT_PUBMED_EUTILS_BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
-const DEFAULT_EUROPE_PMC_API_BASE = 'https://www.ebi.ac.uk/europepmc/webservices/rest';
-const DEFAULT_SEMANTIC_SCHOLAR_API_BASE = 'https://api.semanticscholar.org/graph/v1';
-const DEFAULT_PUBLISHER_DOI_BASE = 'https://doi.org';
 const DEFAULT_TIMEOUT_MS = 30_000;
 const STRICT_MATCH_SCHEMA_VERSION = 'strict_provider_match_v1';
+
+type ReferenceProviderDefinition = {
+  provider_id: ProviderId;
+  adapter_id: string;
+  receipt_provider_name: ProviderEvidence['provider'];
+  aliases: string[];
+  endpoint: {
+    default_base_url: string;
+    base_url?: string;
+    allowed_origins: string[];
+  };
+  verification_scope: Record<string, unknown>;
+};
+
+type ReferenceProviderAdapterHandler = (request: unknown) => unknown;
+
+const REFERENCE_PROVIDER_MODULE_KIND = 'opl_connect_reference_provider_adapter';
+const REFERENCE_PROVIDER_PACKAGE_ID = 'mas-scholar-skills';
+const REFERENCE_PROVIDER_ADAPTER_ABI = 'opl-connect-reference-provider-adapter.v1';
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -114,6 +120,10 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function asString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function stableString(value: unknown): string | null {
+  return asString(value);
 }
 
 function normalizeDoi(value: string | null) {
@@ -125,18 +135,201 @@ function normalizeDoi(value: string | null) {
     .toLowerCase() || null;
 }
 
-export function referenceVerificationProviderIds(): ReferenceVerificationProviderId[] {
-  return [...REFERENCE_VERIFICATION_PROVIDER_IDS];
+function normalizePmcid(value: string | null) {
+  const normalized = value?.trim().toUpperCase() || null;
+  if (!normalized) return null;
+  return normalized.startsWith('PMC') ? normalized : `PMC${normalized}`;
+}
+
+function resolveReferenceRuntime(options: InstalledPackageRuntimeDiscoveryOptions = {}) {
+  return resolveInstalledPackageRuntimeModule({
+    packageId: REFERENCE_PROVIDER_PACKAGE_ID,
+    moduleKind: REFERENCE_PROVIDER_MODULE_KIND,
+    adapterAbi: REFERENCE_PROVIDER_ADAPTER_ABI,
+    ...options,
+  });
+}
+
+function configuredEndpoint(providerId: ProviderId, rawEndpoint: unknown): ReferenceProviderDefinition['endpoint'] {
+  const endpoint = asRecord(rawEndpoint);
+  const defaultBaseUrl = asString(endpoint.default_base_url);
+  const rawAllowedOrigins = Array.isArray(endpoint.allowed_origins) ? endpoint.allowed_origins : [];
+  const allowedOrigins: string[] = [];
+  try {
+    for (const rawOrigin of rawAllowedOrigins) {
+      const origin = stableString(rawOrigin);
+      if (!origin) throw new Error('allowed origin must be a non-empty string');
+      const parsed = new URL(origin);
+      if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.origin !== origin) {
+        throw new Error('allowed origin must be an absolute HTTP origin');
+      }
+      allowedOrigins.push(parsed.origin);
+    }
+  } catch (error) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'Scholar Skills reference provider profile declares invalid allowed origins.',
+      {
+        provider_id: providerId,
+        reason_code: 'reference_provider_endpoint_invalid',
+        cause: error instanceof Error ? error.message : String(error),
+      },
+    );
+  }
+  if (!defaultBaseUrl || allowedOrigins.length === 0) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'Scholar Skills reference provider profile declares an invalid endpoint.',
+      { provider_id: providerId, reason_code: 'reference_provider_endpoint_invalid' },
+    );
+  }
+  let defaultOrigin: string;
+  try {
+    const parsed = new URL(defaultBaseUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('default base URL must use HTTP or HTTPS');
+    defaultOrigin = parsed.origin;
+  } catch (error) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'Scholar Skills reference provider profile declares an invalid default endpoint URL.',
+      {
+        provider_id: providerId,
+        default_base_url: defaultBaseUrl,
+        reason_code: 'reference_provider_endpoint_invalid',
+        cause: error instanceof Error ? error.message : String(error),
+      },
+    );
+  }
+  if (!allowedOrigins.includes(defaultOrigin)) allowedOrigins.push(defaultOrigin);
+  const environmentOverride = asString(endpoint.environment_override);
+  if (environmentOverride && !/^OPL_CONNECT_[A-Z0-9_]+_BASE$/.test(environmentOverride)) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'OPL Connect reference provider endpoint environment override is outside the allowed namespace.',
+      {
+        provider_id: providerId,
+        environment_override: environmentOverride,
+        reason_code: 'reference_provider_endpoint_environment_override_invalid',
+      },
+    );
+  }
+  const baseUrl = environmentOverride ? asString(process.env[environmentOverride]) : null;
+  if (!baseUrl) {
+    return { default_base_url: defaultBaseUrl, allowed_origins: allowedOrigins };
+  }
+  let overrideOrigin: string;
+  try {
+    const parsed = new URL(baseUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('base URL must use HTTP or HTTPS');
+    overrideOrigin = parsed.origin;
+  } catch (error) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'OPL Connect reference provider endpoint override is not a valid absolute URL.',
+      {
+        provider_id: providerId,
+        environment_override: environmentOverride,
+        base_url: baseUrl,
+        reason_code: 'reference_provider_endpoint_override_invalid',
+        cause: error instanceof Error ? error.message : String(error),
+      },
+    );
+  }
+  return {
+    default_base_url: defaultBaseUrl,
+    base_url: baseUrl.replace(/\/+$/, ''),
+    allowed_origins: [...new Set([...allowedOrigins, overrideOrigin])],
+  };
+}
+
+function referenceProviderRegistry(
+  runtime: InstalledPackageRuntimeModuleContext = resolveReferenceRuntime(),
+): ReferenceProviderDefinition[] {
+  const profile = runtime.readJson(runtime.binding.profile_ref);
+  if (!Array.isArray(profile.providers) || profile.providers.length === 0) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'Scholar Skills reference provider profile must declare providers.',
+      { profile_ref: runtime.binding.profile_ref, reason_code: 'reference_provider_profile_empty' },
+    );
+  }
+  const providers = profile.providers.map((rawProvider) => {
+    const entry = asRecord(rawProvider);
+    const providerId = stableString(entry.provider_id);
+    const adapterId = stableString(entry.adapter_id);
+    const receiptProviderName = stableString(entry.receipt_provider_name);
+    const aliases = Array.isArray(entry.aliases)
+      ? entry.aliases.filter((alias): alias is string => typeof alias === 'string' && alias.trim().length > 0)
+      : [];
+    if (!providerId || !adapterId || !receiptProviderName) {
+      throw new FrameworkContractError(
+        'codex_command_failed',
+        'Scholar Skills reference provider profile declares an invalid provider entry.',
+        {
+          provider_id: providerId,
+          adapter_id: adapterId,
+          reason_code: 'reference_provider_profile_entry_invalid',
+        },
+      );
+    }
+    return {
+      provider_id: providerId,
+      adapter_id: adapterId,
+      receipt_provider_name: receiptProviderName,
+      aliases,
+      endpoint: configuredEndpoint(providerId, entry.endpoint),
+      verification_scope: asRecord(entry.verification_scope),
+    };
+  });
+  const providerIds = providers.map((provider) => provider.provider_id);
+  if (new Set(providerIds).size !== providerIds.length) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'Scholar Skills reference provider profile declares duplicate provider ids.',
+      { provider_ids: providerIds, reason_code: 'reference_provider_profile_duplicate_provider' },
+    );
+  }
+  return providers;
+}
+
+function providerDefinition(
+  providerId: ProviderId,
+  runtime: InstalledPackageRuntimeModuleContext = resolveReferenceRuntime(),
+) {
+  const provider = referenceProviderRegistry(runtime).find((entry) => entry.provider_id === providerId);
+  if (!provider) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'Scholar Skills reference provider profile does not export the requested provider.',
+      { provider_id: providerId, reason_code: 'reference_provider_not_exported' },
+    );
+  }
+  return provider;
+}
+
+export function referenceVerificationProviderIds(
+  options: InstalledPackageRuntimeDiscoveryOptions = {},
+): ReferenceVerificationProviderId[] {
+  return referenceProviderRegistry(resolveReferenceRuntime(options)).map((provider) => provider.provider_id);
 }
 
 export function normalizeReferenceVerificationProviders(
   providers: string[],
+  options: InstalledPackageRuntimeDiscoveryOptions = {},
+  runtime?: InstalledPackageRuntimeModuleContext,
 ): ReferenceVerificationProviderId[] {
+  const registry = referenceProviderRegistry(runtime ?? resolveReferenceRuntime(options));
+  const aliases = new Map<string, ProviderId>(
+    registry.flatMap((provider) => [
+      [provider.provider_id, provider.provider_id] as const,
+      ...provider.aliases.map((alias) => [alias.toLowerCase(), provider.provider_id] as const),
+    ]),
+  );
   const entries = providers.flatMap((entry) => entry.split(','))
     .map((entry) => entry.trim().toLowerCase())
-    .map((entry) => entry === 'semantic_scholar' ? 'semantic-scholar' : entry)
+    .map((entry) => aliases.get(entry) ?? entry)
     .filter(Boolean);
-  const defaults = referenceVerificationProviderIds();
+  const defaults = registry.map((provider) => provider.provider_id);
   if (providers.length > 0 && entries.length === 0) {
     throw new FrameworkContractError(
       'codex_command_failed',
@@ -221,8 +414,132 @@ function timeoutMs(input?: number) {
   return DEFAULT_TIMEOUT_MS;
 }
 
-function apiBase(envName: string, fallback: string) {
-  return (process.env[envName]?.trim() || fallback).replace(/\/+$/, '');
+function adapterContractFailure(error: unknown, context: Record<string, unknown>): never {
+  const errorRecord = typeof error === 'object' && error !== null
+    ? error as Record<string, unknown>
+    : {};
+  const details = asRecord(errorRecord.details);
+  throw new FrameworkContractError(
+    'codex_command_failed',
+    'OPL Connect reference provider adapter returned an invalid contract result.',
+    {
+      ...context,
+      adapter_code: asString(errorRecord.code),
+      adapter_details: details,
+      cause: error instanceof Error ? error.message : String(error),
+      reason_code: 'reference_provider_adapter_contract_error',
+    },
+  );
+}
+
+type ReferenceAdapterRequest = {
+  method: string;
+  url: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+};
+
+type ReferenceAdapterHttpResponse = {
+  status: number;
+  url: string;
+  headers: Record<string, string>;
+  body: unknown;
+};
+
+async function fetchReferenceAdapterRequest(
+  request: ReferenceAdapterRequest,
+  provider: ReferenceProviderDefinition,
+  input: ReferenceVerificationInput,
+): Promise<{ response: ReferenceAdapterHttpResponse; retryAttempts: RetryAttempt[] }> {
+  if (request.method !== 'GET' || typeof request.url !== 'string') {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'OPL Connect reference provider adapter returned an unsupported HTTP request.',
+      { provider_id: provider.provider_id, method: request.method, url: request.url, reason_code: 'reference_provider_adapter_request_invalid' },
+    );
+  }
+  let url: URL;
+  try {
+    url = new URL(request.url);
+  } catch (error) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'OPL Connect reference provider adapter returned an invalid HTTP request URL.',
+      {
+        provider_id: provider.provider_id,
+        url: request.url,
+        reason_code: 'reference_provider_adapter_request_url_invalid',
+        cause: error instanceof Error ? error.message : String(error),
+      },
+    );
+  }
+  if (!provider.endpoint.allowed_origins.includes(url.origin)) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'OPL Connect reference provider adapter returned a URL outside the provider profile allowed origins.',
+      {
+        provider_id: provider.provider_id,
+        url: url.toString(),
+        origin: url.origin,
+        allowed_origins: provider.endpoint.allowed_origins,
+        reason_code: 'reference_provider_request_origin_not_allowed',
+      },
+    );
+  }
+  const { response, retryAttempts, cleanup } = await fetchWithRetry(
+    url,
+    input.maxRetries,
+    provider.provider_id,
+    timeoutMs(input.timeoutMs),
+    {
+      method: request.method,
+      ...(request.headers ? { headers: request.headers } : {}),
+    },
+  );
+  try {
+    const raw = await readResponseBody(response, maxResponseBodyBytes());
+    const acceptsText = request.headers?.accept?.toLowerCase().includes('text/') === true;
+    let body: unknown = raw;
+    if (!acceptsText) {
+      try {
+        body = JSON.parse(raw) as unknown;
+      } catch (error) {
+        throw new FrameworkContractError(
+          'codex_command_failed',
+          'Reference provider response was not valid JSON.',
+          {
+            provider_id: provider.provider_id,
+            url: url.toString(),
+            retry_attempts: retryAttempts,
+            cause: error instanceof Error ? error.message : String(error),
+          },
+        );
+      }
+    }
+    return {
+      response: {
+        status: response.status,
+        url: response.url || url.toString(),
+        headers: Object.fromEntries(response.headers.entries()),
+        body,
+      },
+      retryAttempts,
+    };
+  } catch (error) {
+    if (error instanceof ResponseBodyTooLargeError) {
+      throw new FrameworkContractError('codex_command_failed', 'Reference provider response body exceeded the configured limit.', {
+        provider_id: provider.provider_id,
+        url: url.toString(),
+        reason_code: 'provider_response_too_large',
+        response_body_limit_bytes: error.limitBytes,
+        response_body_bytes: error.observedBytes,
+        retry_attempts: retryAttempts,
+      });
+    }
+    throw error;
+  } finally {
+    cleanup();
+  }
 }
 
 function cacheRef(cacheRoot: string | undefined, providerId: ProviderId, reference: ReferenceRecord) {
@@ -306,64 +623,16 @@ async function fetchWithRetry(
   });
 }
 
-async function fetchJsonWithRetry(url: URL, maxRetries: number, providerId: ProviderId, timeout: number) {
-  const { response, retryAttempts, cleanup } = await fetchWithRetry(url, maxRetries, providerId, timeout);
-  try {
-    const raw = await readResponseBody(response, maxResponseBodyBytes());
-    return { json: JSON.parse(raw) as unknown, retryAttempts };
-  } catch (error) {
-    if (error instanceof ResponseBodyTooLargeError) {
-      throw new FrameworkContractError('codex_command_failed', 'Reference provider response body exceeded the configured limit.', {
-        provider_id: providerId,
-        url: url.toString(),
-        reason_code: 'provider_response_too_large',
-        response_body_limit_bytes: error.limitBytes,
-        response_body_bytes: error.observedBytes,
-        retry_attempts: retryAttempts,
-      });
-    }
-    throw error;
-  } finally {
-    cleanup();
-  }
-}
-
-async function fetchTextWithRetry(
-  url: URL,
-  maxRetries: number,
+function deferredEvidence(
+  reference: ReferenceRecord,
   providerId: ProviderId,
-  timeout: number,
-  init: RequestInit = {},
-) {
-  const { response, retryAttempts, cleanup } = await fetchWithRetry(url, maxRetries, providerId, timeout, init);
-  try {
-    return {
-      text: await readResponseBody(response, maxResponseBodyBytes()),
-      responseUrl: response.url || url.toString(),
-      contentType: response.headers.get('content-type'),
-      retryAttempts,
-    };
-  } catch (error) {
-    if (error instanceof ResponseBodyTooLargeError) {
-      throw new FrameworkContractError('codex_command_failed', 'Reference provider response body exceeded the configured limit.', {
-        provider_id: providerId,
-        url: url.toString(),
-        reason_code: 'provider_response_too_large',
-        response_body_limit_bytes: error.limitBytes,
-        response_body_bytes: error.observedBytes,
-        retry_attempts: retryAttempts,
-      });
-    }
-    throw error;
-  } finally {
-    cleanup();
-  }
-}
-
-function deferredEvidence(reference: ReferenceRecord, providerId: ProviderId, reason: string): ProviderEvidenceDraft {
+  reason: string,
+  verificationScopeOverride: Record<string, unknown> = {},
+  runtime: InstalledPackageRuntimeModuleContext = resolveReferenceRuntime(),
+): ProviderEvidenceDraft {
   return {
     reference_id: reference.id,
-    provider: providerName(providerId),
+    provider: providerName(providerId, runtime),
     provider_id: providerId,
     lookup_status: 'deferred',
     status: 'deferred',
@@ -376,7 +645,10 @@ function deferredEvidence(reference: ReferenceRecord, providerId: ProviderId, re
     mismatch_details: [],
     metadata: metadataFromReference(reference),
     retraction_or_update_flags: {},
-    verification_scope: verificationScope(providerId),
+    verification_scope: {
+      ...verificationScope(providerId, runtime),
+      ...verificationScopeOverride,
+    },
     error: {
       code: 'provider_receipt_requirement_deferred',
       message: reason,
@@ -396,11 +668,16 @@ function deferredEvidence(reference: ReferenceRecord, providerId: ProviderId, re
   };
 }
 
-function providerErrorEvidence(reference: ReferenceRecord, providerId: ProviderId, error: unknown): ProviderEvidenceDraft {
+function providerErrorEvidence(
+  reference: ReferenceRecord,
+  providerId: ProviderId,
+  error: unknown,
+  runtime: InstalledPackageRuntimeModuleContext,
+): ProviderEvidenceDraft {
   const payload = providerErrorPayload(error);
   return {
     reference_id: reference.id,
-    provider: providerName(providerId),
+    provider: providerName(providerId, runtime),
     provider_id: providerId,
     lookup_status: 'error',
     status: 'deferred',
@@ -413,7 +690,7 @@ function providerErrorEvidence(reference: ReferenceRecord, providerId: ProviderI
     mismatch_details: [],
     metadata: metadataFromReference(reference),
     retraction_or_update_flags: {},
-    verification_scope: verificationScope(providerId),
+    verification_scope: verificationScope(providerId, runtime),
     error: payload,
     normalized: {
       doi: reference.doi,
@@ -499,10 +776,7 @@ function foundEvidence(
     mismatch_details: mismatchDetails,
     metadata: input.metadata,
     retraction_or_update_flags: input.retraction_or_update_flags,
-    verification_scope: {
-      ...verificationScope(input.provider_id),
-      ...(input.verification_scope ?? {}),
-    },
+    verification_scope: input.verification_scope ?? {},
     ...(status === 'deferred' ? {
       error: {
         code: matchStatus === 'metadata_conflict' ? 'provider_metadata_conflict' : 'provider_found_without_identifier_match',
@@ -574,302 +848,182 @@ function normalizeTitleForCompare(value: string | null) {
   return value?.replace(/\s+/g, ' ').trim().toLowerCase() || null;
 }
 
-async function verifyCrossref(reference: ReferenceRecord, maxRetries: number, timeout: number): Promise<ProviderEvidenceDraft> {
-  if (!reference.doi && !reference.title) {
-    return deferredEvidence(reference, 'crossref', 'crossref provider receipt requirement needs a DOI or title');
+function adapterStringMap(value: unknown, providerId: ProviderId, field: string): Record<string, string> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'Reference provider adapter returned an invalid string map.',
+      { provider_id: providerId, field, reason_code: 'reference_provider_adapter_evidence_invalid' },
+    );
   }
-  const baseUrl = apiBase('OPL_CONNECT_CROSSREF_API_BASE', DEFAULT_CROSSREF_API_BASE);
-  const url = reference.doi
-    ? new URL(`${baseUrl}/works/${encodeURIComponent(reference.doi)}`)
-    : new URL(`${baseUrl}/works`);
-  if (!reference.doi && reference.title) {
-    url.searchParams.set('query.title', reference.title);
-    url.searchParams.set('rows', '1');
+  const record = value as Record<string, unknown>;
+  if (Object.values(record).some((entry) => typeof entry !== 'string')) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'Reference provider adapter returned a string map with non-string values.',
+      { provider_id: providerId, field, reason_code: 'reference_provider_adapter_evidence_invalid' },
+    );
   }
-  const { json, retryAttempts } = await fetchJsonWithRetry(url, maxRetries, 'crossref', timeout);
-  const message = asRecord(asRecord(json).message);
-  const item = reference.doi
-    ? message
-    : asRecord((Array.isArray(message.items) ? message.items : [])[0]);
-  if (Object.keys(item).length === 0) {
-    return deferredEvidence(reference, 'crossref', 'crossref provider did not return a matching DOI/title item');
-  }
-  const titleList = Array.isArray(item.title) ? item.title.map(asString).filter(Boolean) : [];
-  const doi = normalizeDoi(asString(item.DOI));
-  const title = titleList[0] ?? null;
-  return foundEvidence(reference, {
-    provider: 'crossref',
-    provider_id: 'crossref',
-    match_basis: reference.doi ? 'doi' : 'title',
-    provider_identifiers: { doi },
-    metadata: compactMetadata({
-      title,
-      year: crossrefYear(item),
-      journal: firstString(item['container-title']),
-    }),
-    retraction_or_update_flags: crossrefFlags(item),
-    normalized: {
-      doi,
-      pmid: null,
-      pmcid: null,
-      title,
-    },
-    retry_attempts: retryAttempts,
-  });
+  return record as Record<string, string>;
 }
 
-async function verifyCrossmark(reference: ReferenceRecord, maxRetries: number, timeout: number): Promise<ProviderEvidenceDraft> {
-  if (!reference.doi) {
-    return deferredEvidence(reference, 'crossmark', 'crossmark provider receipt requirement needs a DOI');
+function adapterOptionalString(value: unknown, providerId: ProviderId, field: string): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'Reference provider adapter returned an invalid normalized field.',
+      { provider_id: providerId, field, reason_code: 'reference_provider_adapter_evidence_invalid' },
+    );
   }
-  const evidence = await verifyCrossref(reference, maxRetries, timeout);
-  return {
-    ...evidence,
-    provider: 'crossmark',
-    provider_id: 'crossmark',
-    retraction_or_update_flags: {
-      ...evidence.retraction_or_update_flags,
-      crossmark_metadata_source: 'crossref_rest_api',
-    },
-    verification_scope: verificationScope('crossmark'),
+  return value;
+}
+
+function adapterEvidenceToProviderEvidence(
+  reference: ReferenceRecord,
+  provider: ReferenceProviderDefinition,
+  rawEvidence: unknown,
+  retryAttempts: RetryAttempt[],
+  runtime: InstalledPackageRuntimeModuleContext,
+  verificationScopeOverride: Record<string, unknown> = {},
+): ProviderEvidenceDraft {
+  const evidence = asRecord(rawEvidence);
+  const matchBasis = asString(evidence.match_basis);
+  const allowedMatchBases = new Set(['doi', 'pmid', 'pmcid', 'title', 'none']);
+  if (!matchBasis || !allowedMatchBases.has(matchBasis)) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'Reference provider adapter returned an invalid match basis.',
+      { provider_id: provider.provider_id, match_basis: matchBasis, reason_code: 'reference_provider_adapter_evidence_invalid' },
+    );
+  }
+  const normalizedRecord = asRecord(evidence.normalized);
+  const normalized = {
+    doi: adapterOptionalString(normalizedRecord.doi, provider.provider_id, 'normalized.doi'),
+    pmid: adapterOptionalString(normalizedRecord.pmid, provider.provider_id, 'normalized.pmid'),
+    pmcid: adapterOptionalString(normalizedRecord.pmcid, provider.provider_id, 'normalized.pmcid'),
+    title: adapterOptionalString(normalizedRecord.title, provider.provider_id, 'normalized.title'),
   };
-}
-
-async function verifyOpenAlex(reference: ReferenceRecord, maxRetries: number, timeout: number): Promise<ProviderEvidenceDraft> {
-  if (!reference.doi && !reference.title) {
-    return deferredEvidence(reference, 'openalex', 'openalex provider receipt requirement needs a DOI or title');
-  }
-  const baseUrl = apiBase('OPL_CONNECT_OPENALEX_API_BASE', DEFAULT_OPENALEX_API_BASE);
-  const url = reference.doi
-    ? new URL(`${baseUrl}/works/${encodeURIComponent(`https://doi.org/${reference.doi}`)}`)
-    : new URL(`${baseUrl}/works`);
-  if (!reference.doi && reference.title) {
-    url.searchParams.set('search', reference.title);
-    url.searchParams.set('per-page', '1');
-  }
-  const { json, retryAttempts } = await fetchJsonWithRetry(url, maxRetries, 'openalex', timeout);
-  const root = asRecord(json);
-  const item = Array.isArray(root.results) ? asRecord(root.results[0]) : root;
-  if (!asString(item.id)) {
-    return deferredEvidence(reference, 'openalex', 'openalex provider did not return a matching work item');
-  }
-  const ids = asRecord(item.ids);
-  const primaryLocation = asRecord(item.primary_location);
-  const source = asRecord(primaryLocation.source);
-  const doi = normalizeDoi(asString(item.doi) ?? asString(ids.doi));
-  const pmid = asString(ids.pmid)
-    ?.replace(/^https?:\/\/pubmed\.ncbi\.nlm\.nih\.gov\//i, '')
-    .replace(/\/$/, '') || null;
-  const pmcid = normalizePmcid(asString(ids.pmcid) ?? asString(ids.pmc));
-  const title = asString(item.title) ?? asString(item.display_name);
-  return foundEvidence(reference, {
-    provider: 'openalex',
-    provider_id: 'openalex',
-    match_basis: reference.doi ? 'doi' : 'title',
-    provider_identifiers: { doi, pmid, pmcid, openalex: asString(item.id) },
-    metadata: compactMetadata({
-      title,
-      year: asString(item.publication_year),
-      journal: asString(source.display_name),
-    }),
-    retraction_or_update_flags: item.is_retracted === true ? { retracted: true } : {},
-    normalized: {
-      doi,
-      pmid,
-      pmcid,
-      title,
-    },
-    retry_attempts: retryAttempts,
-  });
-}
-
-async function verifyPubmed(reference: ReferenceRecord, maxRetries: number, timeout: number): Promise<ProviderEvidenceDraft> {
-  if (!reference.pmid) {
-    return deferredEvidence(reference, 'pubmed', 'pubmed provider receipt requirement needs a PMID');
-  }
-  const baseUrl = apiBase('OPL_CONNECT_PUBMED_EUTILS_BASE', DEFAULT_PUBMED_EUTILS_BASE);
-  const url = new URL(`${baseUrl}/esummary.fcgi`);
-  url.searchParams.set('db', 'pubmed');
-  url.searchParams.set('id', reference.pmid);
-  url.searchParams.set('retmode', 'json');
-  url.searchParams.set('tool', 'one-person-lab');
-  const { json, retryAttempts } = await fetchJsonWithRetry(url, maxRetries, 'pubmed', timeout);
-  const record = parsePubmedSummary(json, reference.pmid);
-  if (!record) {
-    return deferredEvidence(reference, 'pubmed', 'pubmed provider did not return a matching summary');
+  const verificationScope = asRecord(evidence.verification_scope);
+  if (matchBasis === 'none') {
+    const reason = asString(verificationScope.adapter_deferred_reason)
+      ?? `${provider.provider_id} provider returned no usable metadata`;
+    return deferredEvidence(
+      reference,
+      provider.provider_id,
+      reason,
+      { ...verificationScope, ...verificationScopeOverride },
+      runtime,
+    );
   }
   return foundEvidence(reference, {
-    provider: 'pubmed',
-    provider_id: 'pubmed',
-    match_basis: 'pmid',
-    provider_identifiers: record.identifiers,
-    metadata: record.metadata,
-    retraction_or_update_flags: {},
-    normalized: record.normalized,
+    provider: provider.receipt_provider_name,
+    provider_id: provider.provider_id,
+    match_basis: matchBasis as ProviderEvidence['match_basis'],
+    provider_identifiers: adapterStringMap(evidence.provider_identifiers, provider.provider_id, 'provider_identifiers'),
+    metadata: asRecord(evidence.metadata) as ProviderEvidence['metadata'],
+    retraction_or_update_flags: asRecord(evidence.retraction_or_update_flags),
+    normalized,
     retry_attempts: retryAttempts,
     verification_scope: {
-      evidence_source: 'ncbi_pubmed_esummary',
-      full_text_available: record.fullTextAvailable,
-      full_text_body_verified: false,
+      ...provider.verification_scope,
+      ...verificationScope,
+      ...verificationScopeOverride,
     },
   });
 }
 
-async function verifyPmc(reference: ReferenceRecord, maxRetries: number, timeout: number): Promise<ProviderEvidenceDraft> {
-  if (!reference.pmcid && !reference.pmid && !reference.doi) {
-    return deferredEvidence(reference, 'pmc', 'pmc provider receipt requirement needs a PMCID, PMID, or DOI');
+function referenceAdapterNext(result: unknown, providerId: ProviderId) {
+  const next = asRecord(asRecord(result).next);
+  const kind = asString(next.kind);
+  if (kind === 'complete' && next.evidence !== undefined) {
+    return { kind: 'complete' as const, evidence: next.evidence };
   }
-  const baseUrl = apiBase('OPL_CONNECT_EUROPE_PMC_API_BASE', DEFAULT_EUROPE_PMC_API_BASE);
-  const url = new URL(`${baseUrl}/search`);
-  const query = reference.pmcid
-    ? `PMCID:${reference.pmcid}`
-    : reference.pmid
-      ? `EXT_ID:${reference.pmid} AND SRC:MED`
-      : `DOI:\"${reference.doi}\"`;
-  url.searchParams.set('query', query);
-  url.searchParams.set('format', 'json');
-  url.searchParams.set('resultType', 'core');
-  url.searchParams.set('pageSize', '1');
-  const { json, retryAttempts } = await fetchJsonWithRetry(url, maxRetries, 'pmc', timeout);
-  const record = parseEuropePmcSearch(json);
-  if (!record) {
-    return deferredEvidence(reference, 'pmc', 'pmc provider did not return a matching Europe PMC record');
+  if (kind === 'request' && typeof next.request === 'object' && next.request !== null && next.state !== undefined) {
+    return {
+      kind: 'request' as const,
+      request: next.request as ReferenceAdapterRequest,
+      state: next.state,
+    };
   }
+  throw new FrameworkContractError(
+    'codex_command_failed',
+    'OPL Connect reference provider adapter returned an invalid next step.',
+    { provider_id: providerId, next_kind: kind, reason_code: 'reference_provider_adapter_transition_invalid' },
+  );
+}
 
-  let fullTextBodyVerified = false;
-  let fullTextProbeStatus = record.fullTextAvailable ? 'not_attempted' : 'not_available';
-  if (record.fullTextAvailable && record.normalized.pmcid) {
-    const articleUrl = new URL(`${baseUrl}/${encodeURIComponent(record.normalized.pmcid)}/fullTextXML`);
+async function verifyProviderWithAdapter(
+  reference: ReferenceRecord,
+  providerId: ProviderId,
+  input: ReferenceVerificationInput,
+  runtime: LoadedInstalledPackageRuntimeModule,
+): Promise<ProviderEvidenceDraft> {
+  const provider = providerDefinition(providerId, runtime);
+  const handler = runtime.handler as ReferenceProviderAdapterHandler;
+  const requestBase = {
+    surface_kind: 'opl_connect_reference_provider_adapter_step_request.v1',
+    adapter_abi: REFERENCE_PROVIDER_ADAPTER_ABI,
+    provider,
+    reference,
+  };
+  let result: unknown;
+  try {
+    result = handler({ ...requestBase, operation: 'build_request' });
+  } catch (error) {
+    adapterContractFailure(error, { provider_id: providerId, operation: 'build_request' });
+  }
+  let retryAttempts: RetryAttempt[] = [];
+  for (let requestCount = 0; requestCount <= runtime.binding.max_steps; requestCount += 1) {
+    const next = referenceAdapterNext(result, providerId);
+    if (next.kind === 'complete') {
+      return adapterEvidenceToProviderEvidence(reference, provider, next.evidence, retryAttempts, runtime);
+    }
+    if (requestCount === runtime.binding.max_steps) {
+      throw new FrameworkContractError(
+        'codex_command_failed',
+        'OPL Connect reference provider adapter exceeded its state-machine step cap.',
+        {
+          provider_id: providerId,
+          max_steps: runtime.binding.max_steps,
+          reason_code: 'reference_provider_adapter_step_cap_exceeded',
+        },
+      );
+    }
+    let fetched: { response: ReferenceAdapterHttpResponse; retryAttempts: RetryAttempt[] };
     try {
-      const probe = await fetchTextWithRetry(articleUrl, maxRetries, 'pmc', timeout, {
-        headers: { accept: 'application/xml,text/xml;q=0.9' },
+      fetched = await fetchReferenceAdapterRequest(next.request, provider, input);
+    } catch (error) {
+      const state = asRecord(next.state);
+      const retainedEvidence = asRecord(asRecord(state.retained).evidence);
+      if (state.step === 'full_text_xml' && Object.keys(retainedEvidence).length > 0) {
+        return adapterEvidenceToProviderEvidence(
+          reference,
+          provider,
+          retainedEvidence,
+          [...retryAttempts, ...retryAttemptsFromError(error)],
+          runtime,
+          { full_text_probe_status: 'request_failed' },
+        );
+      }
+      throw error;
+    }
+    retryAttempts = [...retryAttempts, ...fetched.retryAttempts];
+    try {
+      result = handler({
+        ...requestBase,
+        operation: 'parse_response',
+        state: next.state,
+        response: fetched.response,
       });
-      fullTextBodyVerified = /<article\b/i.test(probe.text);
-      fullTextProbeStatus = fullTextBodyVerified ? 'verified' : 'invalid_payload';
-    } catch {
-      fullTextProbeStatus = 'request_failed';
+    } catch (error) {
+      adapterContractFailure(error, { provider_id: providerId, operation: 'parse_response' });
     }
   }
-
-  return foundEvidence(reference, {
-    provider: 'pmc',
-    provider_id: 'pmc',
-    match_basis: reference.pmcid ? 'pmcid' : reference.pmid ? 'pmid' : 'doi',
-    provider_identifiers: record.identifiers,
-    metadata: record.metadata,
-    retraction_or_update_flags: {},
-    normalized: record.normalized,
-    retry_attempts: retryAttempts,
-    verification_scope: {
-      evidence_source: 'europe_pmc_core_metadata',
-      full_text_available: record.fullTextAvailable,
-      full_text_body_verified: fullTextBodyVerified,
-      full_text_probe_status: fullTextProbeStatus,
-    },
+  throw new FrameworkContractError('codex_command_failed', 'OPL Connect reference provider adapter did not complete.', {
+    provider_id: providerId,
+    reason_code: 'reference_provider_adapter_incomplete',
   });
-}
-
-async function verifySemanticScholar(reference: ReferenceRecord, maxRetries: number, timeout: number): Promise<ProviderEvidenceDraft> {
-  if (!reference.doi && !reference.title) {
-    return deferredEvidence(reference, 'semantic-scholar', 'semantic-scholar provider receipt requirement needs a DOI or title');
-  }
-  const baseUrl = apiBase('OPL_CONNECT_SEMANTIC_SCHOLAR_API_BASE', DEFAULT_SEMANTIC_SCHOLAR_API_BASE);
-  const fields = 'paperId,externalIds,title,year,venue,publicationVenue';
-  const url = reference.doi
-    ? new URL(`${baseUrl}/paper/${encodeURIComponent(`DOI:${reference.doi}`)}`)
-    : new URL(`${baseUrl}/paper/search`);
-  url.searchParams.set('fields', fields);
-  if (!reference.doi && reference.title) {
-    url.searchParams.set('query', reference.title);
-    url.searchParams.set('limit', '1');
-  }
-  const { json, retryAttempts } = await fetchJsonWithRetry(url, maxRetries, 'semantic-scholar', timeout);
-  const root = asRecord(json);
-  const item = Array.isArray(root.data) ? asRecord(root.data[0]) : root;
-  if (!asString(item.paperId)) {
-    return deferredEvidence(reference, 'semantic-scholar', 'semantic-scholar provider did not return a matching paper item');
-  }
-  const externalIds = asRecord(item.externalIds);
-  const venue = asRecord(item.publicationVenue);
-  const doi = normalizeDoi(asString(externalIds.DOI) ?? asString(externalIds.doi));
-  const pmid = asString(externalIds.PMID) ?? asString(externalIds.PubMed);
-  const pmcid = normalizePmcid(asString(externalIds.PMCID) ?? asString(externalIds.PMC));
-  const title = asString(item.title);
-  return foundEvidence(reference, {
-    provider: 'semantic_scholar',
-    provider_id: 'semantic-scholar',
-    match_basis: reference.doi ? 'doi' : 'title',
-    provider_identifiers: { doi, pmid, pmcid, semantic_scholar: asString(item.paperId) },
-    metadata: compactMetadata({
-      title,
-      year: asString(item.year),
-      journal: asString(venue.name) ?? asString(item.venue),
-    }),
-    retraction_or_update_flags: {},
-    normalized: {
-      doi,
-      pmid,
-      pmcid,
-      title,
-    },
-    retry_attempts: retryAttempts,
-  });
-}
-
-async function verifyPublisher(reference: ReferenceRecord, maxRetries: number, timeout: number): Promise<ProviderEvidenceDraft> {
-  if (!reference.doi) {
-    return deferredEvidence(reference, 'publisher', 'publisher provider receipt requirement needs a DOI for DOI resolver landing lookup');
-  }
-  const baseUrl = apiBase('OPL_CONNECT_PUBLISHER_DOI_BASE', DEFAULT_PUBLISHER_DOI_BASE);
-  const url = new URL(`${baseUrl}/${encodeURIComponent(reference.doi)}`);
-  const { text, responseUrl, contentType, retryAttempts } = await fetchTextWithRetry(url, maxRetries, 'publisher', timeout, {
-    headers: {
-      accept: 'text/html,application/xhtml+xml,text/plain;q=0.8,*/*;q=0.5',
-    },
-  });
-  const title = htmlMeta(text, 'citation_title', 'dc.title', 'og:title') ?? htmlTitle(text) ?? reference.title;
-  return foundEvidence(reference, {
-    provider: 'publisher',
-    provider_id: 'publisher',
-    match_basis: 'doi',
-    provider_identifiers: {
-      doi: reference.doi,
-      publisher_landing_url: responseUrl,
-    },
-    metadata: compactMetadata({
-      title,
-      year: yearFromText(htmlMeta(text, 'citation_publication_date', 'dc.date') ?? ''),
-      journal: htmlMeta(text, 'citation_journal_title', 'citation_publisher'),
-    }),
-    retraction_or_update_flags: {
-      publisher_landing_resolved: true,
-      publisher_lookup_source: 'doi_resolver_landing_metadata',
-      full_text_body_verified: false,
-      ...(contentType ? { content_type: contentType } : {}),
-    },
-    verification_scope: {
-      evidence_source: 'doi_resolver_landing_metadata',
-      landing_metadata_only: true,
-      full_text_body_verified: false,
-    },
-    normalized: {
-      doi: reference.doi,
-      pmid: null,
-      pmcid: null,
-      title,
-    },
-    retry_attempts: retryAttempts,
-  });
-}
-
-async function verifyProvider(reference: ReferenceRecord, providerId: ProviderId, maxRetries: number, timeout: number): Promise<ProviderEvidenceDraft> {
-  if (providerId === 'crossref') return verifyCrossref(reference, maxRetries, timeout);
-  if (providerId === 'openalex') return verifyOpenAlex(reference, maxRetries, timeout);
-  if (providerId === 'pubmed') return verifyPubmed(reference, maxRetries, timeout);
-  if (providerId === 'pmc') return verifyPmc(reference, maxRetries, timeout);
-  if (providerId === 'semantic-scholar') return verifySemanticScholar(reference, maxRetries, timeout);
-  if (providerId === 'crossmark') return verifyCrossmark(reference, maxRetries, timeout);
-  return verifyPublisher(reference, maxRetries, timeout);
 }
 
 function withReceiptRef(evidence: ProviderEvidenceDraft): ProviderEvidence {
@@ -883,6 +1037,7 @@ async function verifyProviderWithCache(
   reference: ReferenceRecord,
   providerId: ProviderId,
   input: ReferenceVerificationInput,
+  runtime: LoadedInstalledPackageRuntimeModule,
 ): Promise<ProviderEvidence> {
   const cachePath = cacheRef(input.cacheRoot, providerId, reference);
   const cached = readCache(cachePath);
@@ -899,8 +1054,8 @@ async function verifyProviderWithCache(
       retry_attempts: [],
     };
   }
-  const evidence = withReceiptRef(await verifyProvider(reference, providerId, input.maxRetries, timeoutMs(input.timeoutMs)).catch((error) =>
-    providerErrorEvidence(reference, providerId, error)
+  const evidence = withReceiptRef(await verifyProviderWithAdapter(reference, providerId, input, runtime).catch((error) =>
+    providerErrorEvidence(reference, providerId, error, runtime)
   ));
   const writeStatus = evidence.status === 'matched'
     ? writeCache(cachePath, {
@@ -928,25 +1083,18 @@ function receiptRef(evidence: { reference_id: string; provider_id: string; norma
   return `opl://connect/references/verify/${digest}`;
 }
 
-function providerName(providerId: ProviderId): ProviderEvidence['provider'] {
-  return providerId === 'semantic-scholar' ? 'semantic_scholar' : providerId;
+function providerName(
+  providerId: ProviderId,
+  runtime: InstalledPackageRuntimeModuleContext = resolveReferenceRuntime(),
+): ProviderEvidence['provider'] {
+  return providerDefinition(providerId, runtime).receipt_provider_name;
 }
 
-function verificationScope(providerId: ProviderId): Record<string, unknown> {
-  if (providerId === 'crossmark') {
-    return {
-      evidence_source: 'crossref_metadata_signal',
-      independent_crossmark_api_verified: false,
-    };
-  }
-  if (providerId === 'publisher') {
-    return {
-      evidence_source: 'doi_resolver_landing_metadata',
-      landing_metadata_only: true,
-      full_text_body_verified: false,
-    };
-  }
-  return { evidence_source: providerName(providerId) };
+function verificationScope(
+  providerId: ProviderId,
+  runtime: InstalledPackageRuntimeModuleContext = resolveReferenceRuntime(),
+): Record<string, unknown> {
+  return providerDefinition(providerId, runtime).verification_scope;
 }
 
 function identifiersFromReference(reference: ReferenceRecord): Record<string, string> {
@@ -977,68 +1125,6 @@ function compactMetadata(input: {
   ) as ProviderEvidence['metadata'];
 }
 
-function firstString(value: unknown): string | null {
-  if (Array.isArray(value)) return value.map(asString).find(Boolean) ?? null;
-  return asString(value);
-}
-
-function crossrefYear(item: Record<string, unknown>): string | null {
-  for (const key of ['published-print', 'published-online', 'published', 'created', 'deposited']) {
-    const payload = asRecord(item[key]);
-    const dateParts = payload['date-parts'];
-    if (!Array.isArray(dateParts) || !Array.isArray(dateParts[0])) continue;
-    const year = asString(dateParts[0][0]);
-    if (year) return yearFromText(year);
-  }
-  return null;
-}
-
-function yearFromText(value: string | null): string | null {
-  return value?.match(/\d{4}/)?.[0] ?? null;
-}
-
-function crossrefFlags(item: Record<string, unknown>): Record<string, unknown> {
-  const relation = asRecord(item.relation);
-  const flags: Record<string, unknown> = {};
-  if (relation['is-retracted-by'] || relation['is-withdrawn-by']) flags.retracted = true;
-  if (relation['is-corrected-by'] || relation['has-update']) flags.has_update = true;
-  if (Array.isArray(item['update-to']) && item['update-to'].length > 0) flags.has_update = true;
-  if (asString(item['update-policy'])) flags.crossmark_update_policy = true;
-  return flags;
-}
-
-function htmlMeta(html: string, ...names: string[]): string | null {
-  const wanted = new Set(names.map((entry) => entry.toLowerCase()));
-  for (const match of html.matchAll(/<meta\b[^>]*>/gi)) {
-    const tag = match[0];
-    const key = (htmlAttribute(tag, 'name') ?? htmlAttribute(tag, 'property'))?.toLowerCase();
-    const content = htmlAttribute(tag, 'content');
-    if (key && content && wanted.has(key)) return decodeHtmlText(content);
-  }
-  return null;
-}
-
-function htmlAttribute(tag: string, name: string): string | null {
-  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = tag.match(new RegExp(`\\b${escapedName}\\s*=\\s*("[^"]*"|'[^']*'|[^\\s>]+)`, 'i'));
-  if (!match) return null;
-  return match[1].replace(/^["']|["']$/g, '').trim() || null;
-}
-
-function htmlTitle(html: string): string | null {
-  const match = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
-  return match ? decodeHtmlText(match[1]).replace(/\s+/g, ' ').trim() || null : null;
-}
-
-function decodeHtmlText(value: string): string {
-  return value
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-}
-
 function noAuthorityBoundary() {
   return {
     read_only: true,
@@ -1056,13 +1142,19 @@ function noAuthorityBoundary() {
 }
 
 export async function runOplConnectReferenceVerification(input: ReferenceVerificationInput) {
+  const runtime = await loadInstalledPackageRuntimeModule({
+    packageId: REFERENCE_PROVIDER_PACKAGE_ID,
+    moduleKind: REFERENCE_PROVIDER_MODULE_KIND,
+    adapterAbi: REFERENCE_PROVIDER_ADAPTER_ABI,
+    ...(input.installedPackage ?? {}),
+  });
   const referenceInput = resolveReferences(input);
   const references = referenceInput.references;
-  const providers = normalizeReferenceVerificationProviders(input.providers);
+  const providers = normalizeReferenceVerificationProviders(input.providers, {}, runtime);
   const providerEvidence: ProviderEvidence[] = [];
   for (const reference of references) {
     for (const providerId of providers) {
-      providerEvidence.push(await verifyProviderWithCache(reference, providerId, input));
+      providerEvidence.push(await verifyProviderWithCache(reference, providerId, input, runtime));
     }
   }
   const retryAttempts = providerEvidence.flatMap((entry) =>

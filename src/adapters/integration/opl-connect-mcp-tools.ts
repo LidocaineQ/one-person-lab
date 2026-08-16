@@ -1,13 +1,9 @@
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
 import {
   runOplConnectReferenceVerification,
-  normalizeReferenceVerificationProviders,
-  referenceVerificationProviderIds,
 } from './opl-connect-reference-verification.ts';
 import {
   runOplConnectScientificSearch,
-  scientificConnectorProviderIds,
-  type ScientificConnectorProviderId,
 } from './opl-connect-scientific.ts';
 
 export const OPL_CONNECT_MCP_SERVER_ID = 'opl-connect';
@@ -34,66 +30,68 @@ function authorityBoundary() {
   };
 }
 
-const TOOL_CATALOG = [
-  {
-    tool_id: 'scientific_search',
-    toolset: 'scientific',
-    title: 'Search scientific literature',
-    summary: 'Search Crossref, OpenAlex, PubMed, or Europe PMC and return normalized read-only source refs.',
-    input_schema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['provider', 'query'],
-      properties: {
-        provider: { type: 'string', enum: scientificConnectorProviderIds() },
-        query: { type: 'string', minLength: 1 },
-        limit: { type: 'integer', minimum: 1, maximum: 50, default: 10 },
+function toolCatalog() {
+  return [
+    {
+      tool_id: 'scientific_search',
+      toolset: 'scientific',
+      title: 'Search scientific literature',
+      summary: 'Search an installed package-declared scientific provider and return normalized read-only source refs.',
+      input_schema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['provider', 'query'],
+        properties: {
+          provider: { type: 'string', minLength: 1 },
+          query: { type: 'string', minLength: 1 },
+          limit: { type: 'integer', minimum: 1, maximum: 50, default: 10 },
+        },
       },
     },
-  },
-  {
-    tool_id: 'references_verify',
-    toolset: 'references',
-    title: 'Verify literature references',
-    summary: 'Strictly verify identifiers and metadata through selected OPL Connect providers, including PubMed and Europe PMC.',
-    input_schema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['references', 'providers'],
-      properties: {
-        references: {
-          type: 'array',
-          minItems: 1,
-          maxItems: 100,
-          items: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              id: { type: 'string' },
-              doi: { type: 'string' },
-              pmid: { type: 'string' },
-              pmcid: { type: 'string' },
-              title: { type: 'string' },
+    {
+      tool_id: 'references_verify',
+      toolset: 'references',
+      title: 'Verify literature references',
+      summary: 'Strictly verify identifiers and metadata through selected installed package-declared providers.',
+      input_schema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['references', 'providers'],
+        properties: {
+          references: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 100,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                id: { type: 'string' },
+                doi: { type: 'string' },
+                pmid: { type: 'string' },
+                pmcid: { type: 'string' },
+                title: { type: 'string' },
+              },
+              anyOf: [
+                { required: ['doi'] },
+                { required: ['pmid'] },
+                { required: ['pmcid'] },
+                { required: ['title'] },
+              ],
             },
-            anyOf: [
-              { required: ['doi'] },
-              { required: ['pmid'] },
-              { required: ['pmcid'] },
-              { required: ['title'] },
-            ],
           },
+          providers: {
+            type: 'array',
+            minItems: 1,
+            uniqueItems: true,
+            items: { type: 'string', minLength: 1 },
+          },
+          max_retries: { type: 'integer', minimum: 0, maximum: 5, default: 1 },
         },
-        providers: {
-          type: 'array',
-          minItems: 1,
-          uniqueItems: true,
-          items: { type: 'string', enum: referenceVerificationProviderIds() },
-        },
-        max_retries: { type: 'integer', minimum: 0, maximum: 5, default: 1 },
       },
     },
-  },
-] as const;
+  ] as const;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -207,7 +205,7 @@ export function searchOplConnectMcpTools(input: { query?: unknown; toolset?: unk
   if (toolset !== undefined && toolset !== 'scientific' && toolset !== 'references') {
     usageError('Unknown OPL Connect MCP toolset.', { toolset, available_toolsets: ['scientific', 'references'] });
   }
-  const matches = TOOL_CATALOG.filter((tool) => {
+  const matches = toolCatalog().filter((tool) => {
     if (toolset && tool.toolset !== toolset) return false;
     return !query || `${tool.tool_id} ${tool.title} ${tool.summary}`.toLowerCase().includes(query);
   });
@@ -223,7 +221,7 @@ export function searchOplConnectMcpTools(input: { query?: unknown; toolset?: unk
 
 export function describeOplConnectMcpTool(toolIdInput: unknown) {
   const toolId = readToolId(toolIdInput);
-  const tool = TOOL_CATALOG.find((entry) => entry.tool_id === toolId)!;
+  const tool = toolCatalog().find((entry) => entry.tool_id === toolId)!;
   return {
     surface_kind: 'opl_connect_mcp_tool_descriptor',
     server_id: OPL_CONNECT_MCP_SERVER_ID,
@@ -239,15 +237,10 @@ export async function executeOplConnectMcpTool(toolIdInput: unknown, rawArgument
   if (toolId === 'scientific_search') {
     const provider = rawArguments.provider;
     const query = typeof rawArguments.query === 'string' ? rawArguments.query.trim() : '';
-    if (typeof provider !== 'string' || !scientificConnectorProviderIds().includes(provider as ScientificConnectorProviderId)) {
-      usageError('Scientific search requires a supported provider.', {
-        provider,
-        available_providers: scientificConnectorProviderIds(),
-      });
-    }
+    if (typeof provider !== 'string' || provider.trim().length === 0) usageError('Scientific search requires a non-empty provider string.');
     if (!query) usageError('Scientific search requires a non-empty query.');
     return runOplConnectScientificSearch({
-      provider: provider as ScientificConnectorProviderId,
+      provider: provider.trim(),
       query,
       limit: readLimit(rawArguments.limit, 10, 50),
     });
@@ -273,7 +266,7 @@ export async function executeOplConnectMcpTool(toolIdInput: unknown, rawArgument
   }
   return runOplConnectReferenceVerification({
     references,
-    providers: normalizeReferenceVerificationProviders(rawArguments.providers as string[]),
+    providers: (rawArguments.providers as string[]).map((provider) => provider.trim()),
     maxRetries,
   });
 }

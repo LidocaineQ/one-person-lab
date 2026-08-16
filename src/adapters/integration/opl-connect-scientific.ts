@@ -7,24 +7,27 @@ import {
   ResponseBodyTooLargeError,
 } from './http-response-body.ts';
 import {
-  parseEuropePmcResults,
-  parsePubmedSummary,
-  type NcbiReferenceRecord,
-} from './opl-connect-reference-ncbi.ts';
+  loadInstalledPackageRuntimeModule,
+  resolveInstalledPackageRuntimeModule,
+  type InstalledPackageRuntimeDiscoveryOptions,
+  type InstalledPackageRuntimeModuleContext,
+  type LoadedInstalledPackageRuntimeModule,
+} from './agent-package-registry-parts/installed-runtime-module.ts';
 
-export type ScientificConnectorProviderId = 'crossref' | 'openalex' | 'pubmed' | 'pmc';
+export type ScientificConnectorProviderId = string;
 
 export type ScientificConnectorSearchInput = {
   provider: ScientificConnectorProviderId;
   query: string;
   limit: number;
   timeoutMs?: number;
+  installedPackage?: InstalledPackageRuntimeDiscoveryOptions;
 };
 
 export type NormalizedScientificSourceRef = {
   source_ref: string;
   source_kind: 'literature_article';
-  source_provider: 'Crossref' | 'OpenAlex' | 'PubMed' | 'Europe PMC';
+  source_provider: string;
   provider_id: ScientificConnectorProviderId;
   doi: string | null;
   pmid: string | null;
@@ -47,13 +50,25 @@ type ScientificConnectorProviderAdapter = {
   provider_id: ScientificConnectorProviderId;
   provider_owner: string;
   source_system: string;
-  search: (input: ScientificConnectorSearchInput) => Promise<ScientificConnectorSearchResult>;
+  definition: ScientificSearchProviderDefinition;
 };
 
-const DEFAULT_CROSSREF_API_BASE = 'https://api.crossref.org';
-const DEFAULT_OPENALEX_API_BASE = 'https://api.openalex.org';
-const DEFAULT_PUBMED_EUTILS_BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
-const DEFAULT_EUROPE_PMC_API_BASE = 'https://www.ebi.ac.uk/europepmc/webservices/rest';
+type ScientificSearchProviderDefinition = {
+  provider_id: ScientificConnectorProviderId;
+  adapter_id: string;
+  source_provider: NormalizedScientificSourceRef['source_provider'];
+  endpoint: {
+    default_base_url: string;
+    base_url?: string;
+    allowed_origins: string[];
+  };
+};
+
+type ScientificSearchAdapterHandler = (request: unknown) => unknown;
+
+const SCIENTIFIC_SEARCH_ADAPTER_ABI = 'opl-connect-scientific-search-adapter.v1';
+const SCIENTIFIC_SEARCH_MODULE_KIND = 'opl_connect_scientific_search_adapter';
+const SCIENTIFIC_SEARCH_PACKAGE_ID = 'mas-scholar-skills';
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -64,23 +79,8 @@ function asString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-function asNumberString(value: unknown): string | null {
-  return typeof value === 'number' && Number.isFinite(value) ? String(value) : asString(value);
-}
-
-function asNumber(value: unknown): number | null {
-  const normalized = typeof value === 'number' ? value : asString(value);
-  if (normalized === null) return null;
-  const parsed = typeof normalized === 'number' ? normalized : Number(normalized);
-  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
-}
-
-function firstString(value: unknown): string | null {
-  return Array.isArray(value) ? value.map(asString).find(Boolean) ?? null : asString(value);
-}
-
-function apiBase(envName: string, fallback: string) {
-  return (process.env[envName]?.trim() || fallback).replace(/\/+$/, '');
+function stableString(value: unknown): string | null {
+  return asString(value);
 }
 
 function timeoutMs(input?: number) {
@@ -89,10 +89,6 @@ function timeoutMs(input?: number) {
   if (!raw) return DEFAULT_TIMEOUT_MS;
   const parsed = Number(raw);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_TIMEOUT_MS;
-}
-
-function normalizeDoi(value: string | null) {
-  return value?.replace(/^https?:\/\/doi\.org\//i, '').trim() || null;
 }
 
 function queryDigest(input: Pick<ScientificConnectorSearchInput, 'provider' | 'query' | 'limit'>) {
@@ -136,15 +132,242 @@ function buildOwnershipBoundary(provider: ScientificConnectorProviderId) {
   };
 }
 
-async function fetchJson(url: URL, provider: ScientificConnectorProviderId, timeout: number) {
+function resolveScientificRuntime(options: InstalledPackageRuntimeDiscoveryOptions = {}) {
+  return resolveInstalledPackageRuntimeModule({
+    packageId: SCIENTIFIC_SEARCH_PACKAGE_ID,
+    moduleKind: SCIENTIFIC_SEARCH_MODULE_KIND,
+    adapterAbi: SCIENTIFIC_SEARCH_ADAPTER_ABI,
+    ...options,
+  });
+}
+
+function configuredEndpoint(
+  providerId: ScientificConnectorProviderId,
+  rawEndpoint: unknown,
+): ScientificSearchProviderDefinition['endpoint'] {
+  const endpoint = asRecord(rawEndpoint);
+  const defaultBaseUrl = asString(endpoint.default_base_url);
+  const rawAllowedOrigins = Array.isArray(endpoint.allowed_origins) ? endpoint.allowed_origins : [];
+  const allowedOrigins: string[] = [];
+  try {
+    for (const rawOrigin of rawAllowedOrigins) {
+      const origin = stableString(rawOrigin);
+      if (!origin) throw new Error('allowed origin must be a non-empty string');
+      const parsed = new URL(origin);
+      if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.origin !== origin) {
+        throw new Error('allowed origin must be an absolute HTTP origin');
+      }
+      allowedOrigins.push(parsed.origin);
+    }
+  } catch (error) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'Scholar Skills scientific provider profile declares invalid allowed origins.',
+      {
+        provider_id: providerId,
+        reason_code: 'scientific_provider_endpoint_invalid',
+        cause: error instanceof Error ? error.message : String(error),
+      },
+    );
+  }
+  if (!defaultBaseUrl || allowedOrigins.length === 0) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'Scholar Skills scientific provider profile declares an invalid endpoint.',
+      { provider_id: providerId, reason_code: 'scientific_provider_endpoint_invalid' },
+    );
+  }
+  let defaultOrigin: string;
+  try {
+    const parsed = new URL(defaultBaseUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('default base URL must use HTTP or HTTPS');
+    defaultOrigin = parsed.origin;
+  } catch (error) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'Scholar Skills scientific provider profile declares an invalid default endpoint URL.',
+      {
+        provider_id: providerId,
+        default_base_url: defaultBaseUrl,
+        reason_code: 'scientific_provider_endpoint_invalid',
+        cause: error instanceof Error ? error.message : String(error),
+      },
+    );
+  }
+  if (!allowedOrigins.includes(defaultOrigin)) allowedOrigins.push(defaultOrigin);
+  const environmentOverride = asString(endpoint.environment_override);
+  if (environmentOverride && !/^OPL_CONNECT_[A-Z0-9_]+_BASE$/.test(environmentOverride)) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'OPL Connect scientific provider endpoint environment override is outside the allowed namespace.',
+      {
+        provider_id: providerId,
+        environment_override: environmentOverride,
+        reason_code: 'scientific_provider_endpoint_environment_override_invalid',
+      },
+    );
+  }
+  const baseUrl = environmentOverride ? asString(process.env[environmentOverride]) : null;
+  if (!baseUrl) {
+    return { default_base_url: defaultBaseUrl, allowed_origins: allowedOrigins };
+  }
+  let overrideOrigin: string;
+  try {
+    const parsed = new URL(baseUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('base URL must use HTTP or HTTPS');
+    overrideOrigin = parsed.origin;
+  } catch (error) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'OPL Connect scientific provider endpoint override is not a valid absolute URL.',
+      {
+        provider_id: providerId,
+        environment_override: environmentOverride,
+        base_url: baseUrl,
+        reason_code: 'scientific_provider_endpoint_override_invalid',
+        cause: error instanceof Error ? error.message : String(error),
+      },
+    );
+  }
+  return {
+    default_base_url: defaultBaseUrl,
+    base_url: baseUrl.replace(/\/+$/, ''),
+    allowed_origins: [...new Set([...allowedOrigins, overrideOrigin])],
+  };
+}
+
+function scientificConnectorProviderRegistry(
+  runtime: InstalledPackageRuntimeModuleContext = resolveScientificRuntime(),
+): ScientificConnectorProviderAdapter[] {
+  const profile = runtime.readJson(runtime.binding.profile_ref);
+  const rawProviders = profile.providers;
+  if (!Array.isArray(rawProviders) || rawProviders.length === 0) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'Scholar Skills scientific provider profile must declare providers.',
+      { profile_ref: runtime.binding.profile_ref, reason_code: 'scientific_provider_profile_empty' },
+    );
+  }
+  const providerOwner = asString(profile.registry_owner) ?? 'mas-scholar-skills.scientific-search-adapters';
+  const providers = rawProviders.map((rawProvider) => {
+    const entry = asRecord(rawProvider);
+    const provider = stableString(entry.provider_id);
+    const adapterId = stableString(entry.adapter_id);
+    const sourceProvider = stableString(entry.source_provider);
+    if (!provider || !adapterId || !sourceProvider) {
+      throw new FrameworkContractError(
+        'codex_command_failed',
+        'Scholar Skills scientific provider profile declares an invalid provider entry.',
+        { provider_id: provider, adapter_id: adapterId, reason_code: 'scientific_provider_profile_entry_invalid' },
+      );
+    }
+    return {
+      provider_id: provider,
+      provider_owner: providerOwner,
+      source_system: stableString(entry.source_system) ?? sourceProvider,
+      definition: {
+        provider_id: provider,
+        adapter_id: adapterId,
+        source_provider: sourceProvider,
+        endpoint: configuredEndpoint(provider, entry.endpoint),
+      },
+    };
+  });
+  const providerIds = providers.map((provider) => provider.provider_id);
+  if (new Set(providerIds).size !== providerIds.length) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'Scholar Skills scientific provider profile declares duplicate provider ids.',
+      { provider_ids: providerIds, reason_code: 'scientific_provider_profile_duplicate_provider' },
+    );
+  }
+  return providers;
+}
+
+function adapterContractFailure(error: unknown, context: Record<string, unknown>): never {
+  const errorRecord = typeof error === 'object' && error !== null
+    ? error as Record<string, unknown>
+    : {};
+  const details = asRecord(errorRecord.details);
+  throw new FrameworkContractError(
+    'codex_command_failed',
+    'OPL Connect scientific adapter returned an invalid contract result.',
+    {
+      ...context,
+      adapter_code: asString(errorRecord.code),
+      adapter_details: details,
+      cause: error instanceof Error ? error.message : String(error),
+      reason_code: 'scientific_adapter_contract_error',
+    },
+  );
+}
+
+type ScientificAdapterRequest = {
+  method: string;
+  url: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+};
+
+type ScientificAdapterHttpResponse = {
+  status: number;
+  url: string;
+  headers: Record<string, string>;
+  body: unknown;
+};
+
+async function fetchScientificAdapterRequest(
+  request: ScientificAdapterRequest,
+  provider: ScientificConnectorProviderAdapter,
+  timeout: number,
+): Promise<ScientificAdapterHttpResponse> {
+  if (request.method !== 'GET' || typeof request.url !== 'string') {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'OPL Connect scientific adapter returned an unsupported HTTP request.',
+      { provider_id: provider.provider_id, method: request.method, url: request.url, reason_code: 'scientific_adapter_request_invalid' },
+    );
+  }
+  let url: URL;
+  try {
+    url = new URL(request.url);
+  } catch (error) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'OPL Connect scientific adapter returned an invalid HTTP request URL.',
+      {
+        provider_id: provider.provider_id,
+        url: request.url,
+        reason_code: 'scientific_adapter_request_url_invalid',
+        cause: error instanceof Error ? error.message : String(error),
+      },
+    );
+  }
+  if (!provider.definition.endpoint.allowed_origins.includes(url.origin)) {
+    throw new FrameworkContractError(
+      'codex_command_failed',
+      'OPL Connect scientific adapter returned a URL outside the provider profile allowed origins.',
+      {
+        provider_id: provider.provider_id,
+        url: url.toString(),
+        origin: url.origin,
+        allowed_origins: provider.definition.endpoint.allowed_origins,
+        reason_code: 'scientific_provider_request_origin_not_allowed',
+      },
+    );
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, {
+      method: request.method,
+      ...(request.headers ? { headers: request.headers } : {}),
+      signal: controller.signal,
+    });
     if (!response.ok) {
       throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector request returned a non-OK status.', {
         connector_id: 'scientific',
-        provider_id: provider,
+        provider_id: provider.provider_id,
         url: url.toString(),
         status: response.status,
         status_text: response.statusText,
@@ -152,11 +375,16 @@ async function fetchJson(url: URL, provider: ScientificConnectorProviderId, time
     }
     const raw = await readResponseBody(response, maxResponseBodyBytes());
     try {
-      return JSON.parse(raw) as unknown;
+      return {
+        status: response.status,
+        url: response.url || url.toString(),
+        headers: Object.fromEntries(response.headers.entries()),
+        body: JSON.parse(raw) as unknown,
+      };
     } catch (error) {
       throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector response was not valid JSON.', {
         connector_id: 'scientific',
-        provider_id: provider,
+        provider_id: provider.provider_id,
         url: url.toString(),
         cause: error instanceof Error ? error.message : String(error),
       });
@@ -165,7 +393,7 @@ async function fetchJson(url: URL, provider: ScientificConnectorProviderId, time
     if (error instanceof ResponseBodyTooLargeError) {
       throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector response body exceeded the configured limit.', {
         connector_id: 'scientific',
-        provider_id: provider,
+        provider_id: provider.provider_id,
         url: url.toString(),
         reason_code: 'provider_response_too_large',
         response_body_limit_bytes: error.limitBytes,
@@ -175,7 +403,7 @@ async function fetchJson(url: URL, provider: ScientificConnectorProviderId, time
     if (error instanceof FrameworkContractError) throw error;
     throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector request failed.', {
       connector_id: 'scientific',
-      provider_id: provider,
+      provider_id: provider.provider_id,
       url: url.toString(),
       timeout_ms: timeout,
       cause: error instanceof Error ? error.message : String(error),
@@ -186,232 +414,118 @@ async function fetchJson(url: URL, provider: ScientificConnectorProviderId, time
   }
 }
 
-function crossrefYear(item: Record<string, unknown>) {
-  const dateParts = asRecord(asRecord(item.issued)['date-parts']);
-  const first = Array.isArray(asRecord(item.issued)['date-parts'])
-    ? (asRecord(item.issued)['date-parts'] as unknown[])[0]
-    : dateParts[0];
-  return Array.isArray(first) ? asNumberString(first[0]) : null;
-}
-
-function crossrefAuthors(item: Record<string, unknown>) {
-  return Array.isArray(item.author)
-    ? item.author.map(asRecord).map((author) => [asString(author.given), asString(author.family)].filter(Boolean).join(' ')).filter(Boolean)
-    : [];
-}
-
-function fallbackSourceRef(provider: ScientificConnectorProviderId, seed: string) {
-  const digest = crypto.createHash('sha256').update(seed).digest('hex').slice(0, 16);
-  return `${provider}:query-result:${digest}`;
-}
-
-function normalizeCrossrefItem(item: Record<string, unknown>): NormalizedScientificSourceRef | null {
-  const doi = normalizeDoi(asString(item.DOI));
-  const title = firstString(item.title);
-  if (!doi && !title) return null;
-  return {
-    source_ref: doi ? `crossref:${doi}` : fallbackSourceRef('crossref', JSON.stringify(item)),
-    source_kind: 'literature_article',
-    source_provider: 'Crossref',
-    provider_id: 'crossref',
-    doi,
-    pmid: null,
-    pmcid: null,
-    openalex_id: null,
-    title: title ?? '',
-    journal: firstString(item['container-title']),
-    publication_year: crossrefYear(item),
-    authors: crossrefAuthors(item),
-    article_types: [],
-    source_urls: {
-      doi: doi ? `https://doi.org/${doi}` : null,
-      crossref: doi ? `https://api.crossref.org/works/${encodeURIComponent(doi)}` : asString(item.URL),
-    },
-  };
-}
-
-async function searchCrossref(input: ScientificConnectorSearchInput) {
-  const url = new URL(`${apiBase('OPL_CONNECT_CROSSREF_API_BASE', DEFAULT_CROSSREF_API_BASE)}/works`);
-  url.searchParams.set('query', input.query);
-  url.searchParams.set('rows', String(input.limit));
-  const json = asRecord(await fetchJson(url, 'crossref', timeoutMs(input.timeoutMs)));
-  const message = asRecord(json.message);
-  const normalizedResults = (Array.isArray(message.items) ? message.items : [])
-    .map(asRecord)
-    .map(normalizeCrossrefItem)
-    .filter((entry): entry is NormalizedScientificSourceRef => Boolean(entry));
-  return {
-    normalized_results: normalizedResults,
-    provider_total: asNumber(message['total-results']),
-  };
-}
-
-function openAlexShortId(value: string | null) {
-  return value?.replace(/^https?:\/\/openalex\.org\//i, '').trim() || null;
-}
-
-function normalizeOpenAlexItem(item: Record<string, unknown>): NormalizedScientificSourceRef | null {
-  const id = asString(item.id);
-  const openalexId = openAlexShortId(id);
-  const doi = normalizeDoi(asString(item.doi) ?? asString(asRecord(item.ids).doi));
-  const primaryLocation = asRecord(item.primary_location);
-  const source = asRecord(primaryLocation.source);
-  const title = asString(item.title) ?? asString(item.display_name);
-  if (!openalexId && !doi && !title) return null;
-  return {
-    source_ref: openalexId ? `openalex:${openalexId}` : fallbackSourceRef('openalex', JSON.stringify(item)),
-    source_kind: 'literature_article',
-    source_provider: 'OpenAlex',
-    provider_id: 'openalex',
-    doi,
-    pmid: asString(asRecord(item.ids).pmid)?.replace(/^https?:\/\/pubmed\.ncbi\.nlm\.nih\.gov\//i, '').replace(/\/$/, '') ?? null,
-    pmcid: null,
-    openalex_id: openalexId,
-    title: title ?? '',
-    journal: asString(source.display_name),
-    publication_year: asNumberString(item.publication_year),
-    authors: Array.isArray(item.authorships)
-      ? item.authorships.map(asRecord).map((authorship) => asString(asRecord(authorship.author).display_name)).filter((name): name is string => Boolean(name))
-      : [],
-    article_types: [],
-    source_urls: {
-      openalex: id,
-      doi: doi ? `https://doi.org/${doi}` : null,
-    },
-  };
-}
-
-async function searchOpenAlex(input: ScientificConnectorSearchInput) {
-  const url = new URL(`${apiBase('OPL_CONNECT_OPENALEX_API_BASE', DEFAULT_OPENALEX_API_BASE)}/works`);
-  url.searchParams.set('search', input.query);
-  url.searchParams.set('per-page', String(input.limit));
-  const json = asRecord(await fetchJson(url, 'openalex', timeoutMs(input.timeoutMs)));
-  const normalizedResults = (Array.isArray(json.results) ? json.results : [])
-    .map(asRecord)
-    .map(normalizeOpenAlexItem)
-    .filter((entry): entry is NormalizedScientificSourceRef => Boolean(entry));
-  return {
-    normalized_results: normalizedResults,
-    provider_total: asNumber(asRecord(json.meta).count),
-  };
-}
-
-function normalizeBiomedicalRecord(
-  provider: 'pubmed' | 'pmc',
-  record: NcbiReferenceRecord,
-): NormalizedScientificSourceRef | null {
-  const { doi, pmid, pmcid } = record.normalized;
-  const title = record.normalized.title;
-  const providerIdentifier = provider === 'pubmed' ? pmid : pmcid ?? pmid;
-  if (!providerIdentifier || !title) return null;
-  return {
-    source_ref: `${provider}:${providerIdentifier}`,
-    source_kind: 'literature_article',
-    source_provider: provider === 'pubmed' ? 'PubMed' : 'Europe PMC',
-    provider_id: provider,
-    doi,
-    pmid,
-    pmcid,
-    openalex_id: null,
-    title,
-    journal: record.metadata.journal ?? null,
-    publication_year: record.metadata.year ?? null,
-    authors: record.metadata.authors ?? [],
-    article_types: record.metadata.article_types ?? [],
-    source_urls: {
-      doi: doi ? `https://doi.org/${doi}` : null,
-      pubmed: pmid ? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/` : null,
-      pmc: pmcid ? `https://pmc.ncbi.nlm.nih.gov/articles/${pmcid}/` : null,
-      europe_pmc: provider === 'pmc'
-        ? `https://europepmc.org/article/${pmid ? 'MED' : 'PMC'}/${pmid ?? pmcid}`
-        : null,
-    },
-  };
-}
-
-async function searchPubmed(input: ScientificConnectorSearchInput): Promise<ScientificConnectorSearchResult> {
-  const baseUrl = apiBase('OPL_CONNECT_PUBMED_EUTILS_BASE', DEFAULT_PUBMED_EUTILS_BASE);
-  const searchUrl = new URL(`${baseUrl}/esearch.fcgi`);
-  searchUrl.searchParams.set('db', 'pubmed');
-  searchUrl.searchParams.set('term', input.query);
-  searchUrl.searchParams.set('retmode', 'json');
-  searchUrl.searchParams.set('retmax', String(input.limit));
-  const searchPayload = asRecord(await fetchJson(searchUrl, 'pubmed', timeoutMs(input.timeoutMs)));
-  const searchResult = asRecord(searchPayload.esearchresult);
-  const pmids = (Array.isArray(searchResult.idlist) ? searchResult.idlist : [])
-    .map(asString)
-    .filter((entry): entry is string => Boolean(entry));
-  if (pmids.length === 0) {
-    return { normalized_results: [], provider_total: asNumber(searchResult.count) };
+function scientificAdapterNext(result: unknown, provider: ScientificConnectorProviderId) {
+  const next = asRecord(asRecord(result).next);
+  const kind = asString(next.kind);
+  if (kind === 'complete') {
+    if (!Array.isArray(next.candidates)) {
+      throw new FrameworkContractError(
+        'codex_command_failed',
+        'OPL Connect scientific adapter completion did not include candidates.',
+        { provider_id: provider, reason_code: 'scientific_adapter_completion_invalid' },
+      );
+    }
+    const providerTotal = next.provider_total;
+    if (providerTotal !== undefined && providerTotal !== null
+      && (!Number.isSafeInteger(providerTotal) || (providerTotal as number) < 0)) {
+      throw new FrameworkContractError(
+        'codex_command_failed',
+        'OPL Connect scientific adapter completion returned an invalid provider total.',
+        { provider_id: provider, provider_total: providerTotal, reason_code: 'scientific_adapter_completion_invalid' },
+      );
+    }
+    return {
+      kind: 'complete' as const,
+      candidates: next.candidates as NormalizedScientificSourceRef[],
+      provider_total: (providerTotal ?? null) as number | null,
+    };
   }
-  const summaryUrl = new URL(`${baseUrl}/esummary.fcgi`);
-  summaryUrl.searchParams.set('db', 'pubmed');
-  summaryUrl.searchParams.set('id', pmids.join(','));
-  summaryUrl.searchParams.set('retmode', 'json');
-  const summaryPayload = await fetchJson(summaryUrl, 'pubmed', timeoutMs(input.timeoutMs));
-  return {
-    normalized_results: pmids
-      .map((pmid) => parsePubmedSummary(summaryPayload, pmid))
-      .filter((record): record is NcbiReferenceRecord => Boolean(record))
-      .map((record) => normalizeBiomedicalRecord('pubmed', record))
-      .filter((entry): entry is NormalizedScientificSourceRef => Boolean(entry)),
-    provider_total: asNumber(searchResult.count),
+  if (kind === 'request' && typeof next.request === 'object' && next.request !== null && next.state !== undefined) {
+    return {
+      kind: 'request' as const,
+      request: next.request as ScientificAdapterRequest,
+      state: next.state,
+    };
+  }
+  throw new FrameworkContractError(
+    'codex_command_failed',
+    'OPL Connect scientific adapter returned an invalid next step.',
+    { provider_id: provider, next_kind: kind, reason_code: 'scientific_adapter_transition_invalid' },
+  );
+}
+
+async function searchWithScientificAdapter(
+  input: ScientificConnectorSearchInput,
+  provider: ScientificConnectorProviderAdapter,
+  runtime: LoadedInstalledPackageRuntimeModule,
+): Promise<ScientificConnectorSearchResult> {
+  const handler = runtime.handler as ScientificSearchAdapterHandler;
+  const requestBase = {
+    surface_kind: 'opl_connect_scientific_search_adapter_step_request.v1',
+    adapter_abi: SCIENTIFIC_SEARCH_ADAPTER_ABI,
+    provider: provider.definition,
+    query: input.query,
+    limit: input.limit,
   };
+  let result: unknown;
+  try {
+    result = handler({ ...requestBase, operation: 'build_search_request' });
+  } catch (error) {
+    adapterContractFailure(error, { provider_id: input.provider, operation: 'build_search_request' });
+  }
+  for (let requestCount = 0; requestCount <= runtime.binding.max_steps; requestCount += 1) {
+    const next = scientificAdapterNext(result, input.provider);
+    if (next.kind === 'complete') {
+      return {
+        normalized_results: next.candidates,
+        provider_total: next.provider_total,
+      };
+    }
+    if (requestCount === runtime.binding.max_steps) {
+      throw new FrameworkContractError(
+        'codex_command_failed',
+        'OPL Connect scientific adapter exceeded its state-machine step cap.',
+        {
+          provider_id: input.provider,
+          max_steps: runtime.binding.max_steps,
+          reason_code: 'scientific_adapter_step_cap_exceeded',
+        },
+      );
+    }
+    const response = await fetchScientificAdapterRequest(next.request, provider, timeoutMs(input.timeoutMs));
+    try {
+      result = handler({
+        ...requestBase,
+        operation: 'parse_search_response',
+        state: next.state,
+        response,
+      });
+    } catch (error) {
+      adapterContractFailure(error, { provider_id: input.provider, operation: 'parse_search_response' });
+    }
+  }
+  throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific adapter did not complete.', {
+    provider_id: input.provider,
+    reason_code: 'scientific_adapter_incomplete',
+  });
 }
 
-async function searchPmc(input: ScientificConnectorSearchInput): Promise<ScientificConnectorSearchResult> {
-  const url = new URL(`${apiBase('OPL_CONNECT_EUROPE_PMC_API_BASE', DEFAULT_EUROPE_PMC_API_BASE)}/search`);
-  url.searchParams.set('query', input.query);
-  url.searchParams.set('format', 'json');
-  url.searchParams.set('resultType', 'core');
-  url.searchParams.set('pageSize', String(input.limit));
-  const payload = asRecord(await fetchJson(url, 'pmc', timeoutMs(input.timeoutMs)));
-  return {
-    normalized_results: parseEuropePmcResults(payload)
-      .map((record) => normalizeBiomedicalRecord('pmc', record))
-      .filter((entry): entry is NormalizedScientificSourceRef => Boolean(entry)),
-    provider_total: asNumber(payload.hitCount),
-  };
+export function scientificConnectorProviderIds(
+  options: InstalledPackageRuntimeDiscoveryOptions = {},
+): ScientificConnectorProviderId[] {
+  return scientificConnectorProviderRegistry(resolveScientificRuntime(options)).map((provider) => provider.provider_id);
 }
 
-const SCIENTIFIC_CONNECTOR_PROVIDER_REGISTRY = [
-  {
-    provider_id: 'crossref',
-    provider_owner: 'OPL Connect optional scientific provider adapter',
-    source_system: 'Crossref REST API',
-    search: searchCrossref,
-  },
-  {
-    provider_id: 'openalex',
-    provider_owner: 'OPL Connect optional scientific provider adapter',
-    source_system: 'OpenAlex Works API',
-    search: searchOpenAlex,
-  },
-  {
-    provider_id: 'pubmed',
-    provider_owner: 'OPL Connect biomedical scientific provider adapter',
-    source_system: 'NCBI PubMed ESearch and ESummary',
-    search: searchPubmed,
-  },
-  {
-    provider_id: 'pmc',
-    provider_owner: 'OPL Connect biomedical scientific provider adapter',
-    source_system: 'Europe PMC search API',
-    search: searchPmc,
-  },
-] as const satisfies readonly ScientificConnectorProviderAdapter[];
-
-export function scientificConnectorProviderIds(): ScientificConnectorProviderId[] {
-  return SCIENTIFIC_CONNECTOR_PROVIDER_REGISTRY.map((provider) => provider.provider_id);
-}
-
-export function buildScientificConnectorProviderRegistryReadback() {
+export function buildScientificConnectorProviderRegistryReadback(
+  options: InstalledPackageRuntimeDiscoveryOptions = {},
+) {
+  const runtime = resolveScientificRuntime(options);
   return {
     surface_kind: 'opl_scientific_connector_provider_registry',
     version: 'opl-scientific-connector-provider-registry.v1',
     owner: 'OPL Connect',
     default_provider_id: null,
-    providers: SCIENTIFIC_CONNECTOR_PROVIDER_REGISTRY.map((provider) => ({
+    providers: scientificConnectorProviderRegistry(runtime).map((provider) => ({
       provider_id: provider.provider_id,
       provider_owner: provider.provider_owner,
       source_system: provider.source_system,
@@ -421,20 +535,29 @@ export function buildScientificConnectorProviderRegistryReadback() {
   };
 }
 
-function resolveProvider(providerId: ScientificConnectorProviderId) {
-  const provider = SCIENTIFIC_CONNECTOR_PROVIDER_REGISTRY.find((entry) => entry.provider_id === providerId);
+function resolveProvider(
+  providerId: ScientificConnectorProviderId,
+  runtime: InstalledPackageRuntimeModuleContext,
+) {
+  const provider = scientificConnectorProviderRegistry(runtime).find((entry) => entry.provider_id === providerId);
   if (!provider) {
     throw new FrameworkContractError('cli_usage_error', 'Unknown scientific connector provider.', {
       provider_id: providerId,
-      available_providers: scientificConnectorProviderIds(),
+      available_providers: scientificConnectorProviderRegistry(runtime).map((entry) => entry.provider_id),
     });
   }
   return provider;
 }
 
 export async function runOplConnectScientificSearch(input: ScientificConnectorSearchInput) {
-  const provider = resolveProvider(input.provider);
-  const searchResult = await provider.search(input);
+  const runtime = await loadInstalledPackageRuntimeModule({
+    packageId: SCIENTIFIC_SEARCH_PACKAGE_ID,
+    moduleKind: SCIENTIFIC_SEARCH_MODULE_KIND,
+    adapterAbi: SCIENTIFIC_SEARCH_ADAPTER_ABI,
+    ...(input.installedPackage ?? {}),
+  });
+  const provider = resolveProvider(input.provider, runtime);
+  const searchResult = await searchWithScientificAdapter(input, provider, runtime);
   const normalizedResults = searchResult.normalized_results;
   const digest = queryDigest(input);
   const connectorInvocationRef = `opl://connect/scientific/${input.provider}/search/${digest}`;

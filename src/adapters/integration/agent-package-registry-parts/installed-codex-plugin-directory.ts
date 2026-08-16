@@ -73,6 +73,8 @@ export type InstalledPackageManifest = Pick<
   | 'managed_policy_surface'
   | 'capability_dependencies'
   | 'capability_provider'
+  | 'runtime_module_bindings'
+  | 'content_lock_canonicalization'
   | 'configured_codex_plugin_carrier'
   | 'app_contributions'
 > & Partial<Pick<AgentPackageManifest, 'content_digest' | 'content_lock_paths'>>;
@@ -222,6 +224,8 @@ function normalizeNativeCarrierManifest(
     managed_policy_surface: null,
     capability_dependencies: [],
     capability_provider: null,
+    runtime_module_bindings: [],
+    content_lock_canonicalization: null,
     configured_codex_plugin_carrier: {
       packageId,
       carrier: {

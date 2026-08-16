@@ -130,7 +130,7 @@ test('opl-connect stdio MCP exposes progressive discovery and executes PubMed to
 
     const searched = structuredContent(await client.callTool({
       name: 'opl_connect_search_tools',
-      arguments: { query: 'PubMed', toolset: 'scientific' },
+      arguments: { query: 'scientific', toolset: 'scientific' },
     }));
     assert.deepEqual(searched.tools.map((tool: { tool_id: string }) => tool.tool_id), ['scientific_search']);
     assert.equal(searched.authority_boundary.can_write_domain_truth, false);
@@ -139,7 +139,7 @@ test('opl-connect stdio MCP exposes progressive discovery and executes PubMed to
       name: 'opl_connect_describe_tool',
       arguments: { tool_id: 'scientific_search' },
     }));
-    assert.deepEqual(described.input_schema.properties.provider.enum, ['crossref', 'openalex', 'pubmed', 'pmc']);
+    assert.deepEqual(described.input_schema.properties.provider, { type: 'string', minLength: 1 });
 
     const searchResult = structuredContent(await client.callTool({
       name: 'opl_connect_execute_tool',
