@@ -67,7 +67,7 @@ test('Codex executor receipt exposes model route and local config provenance', (
     prompt: 'Execute through Codex CLI.',
     cwd: repoRoot,
     model: 'gpt-5.5',
-    provider: 'gflab',
+    provider: 'oplgateway',
     reasoning_effort: 'xhigh',
     required_capabilities: ['image_generation'],
   }));
@@ -83,7 +83,7 @@ test('Codex executor receipt exposes model route and local config provenance', (
     assert.deepEqual(run.agent_execution_receipt.requested_capabilities, ['image_generation']);
     assert.deepEqual(run.agent_execution_receipt.activated_capabilities, ['image_generation']);
     assert.equal(proof.model, 'gpt-5.5');
-    assert.equal(proof.provider, 'gflab');
+    assert.equal(proof.provider, 'oplgateway');
     assert.equal(proof.reasoning_effort, 'xhigh');
     assert.equal(proof.codex_binary_path, fake.file);
     assert.equal(proof.codex_binary_source, 'env');

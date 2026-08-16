@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   bootstrapLocalCodexDefaults,
   OPL_GATEWAY_BASE_URL,
+  parseTomlTablePath,
   readBundledCodexDefaultProfile,
   readLocalCodexAccessState,
   readLocalCodexDefaultsIfAvailable,
@@ -122,16 +123,16 @@ export function restoreCodexBinding(
       .filter(([key, value]) => currentRootValues[key as keyof typeof currentRootValues] === value)
       .map(([key]) => key),
   );
-  const providerHeader = `[model_providers.${binding.provider_id}]`;
+  const providerSectionKey = JSON.stringify(['model_providers', binding.provider_id]);
   const splitBlocks = (text: string) => {
     const lines = text.split(/\r?\n/);
     const root: string[] = [];
     const sections = new Map<string, string[]>();
     let section = '';
     for (const line of lines) {
-      const header = /^\s*\[([^\]]+)\]\s*$/.exec(line)?.[1] ?? null;
-      if (header) {
-        section = `[${header}]`;
+      const tablePath = parseTomlTablePath(line);
+      if (tablePath) {
+        section = JSON.stringify(tablePath);
         sections.set(section, [line]);
       } else if (section) {
         sections.get(section)!.push(line);
@@ -151,9 +152,9 @@ export function restoreCodexBinding(
     const key = /^\s*([A-Za-z0-9_-]+)\s*=/.exec(line)?.[1];
     return Boolean(key && rootKeys.has(key));
   });
-  currentBlocks.sections.delete(providerHeader);
-  const previousProvider = previousBlocks.sections.get(providerHeader);
-  if (previousProvider) currentBlocks.sections.set(providerHeader, previousProvider);
+  currentBlocks.sections.delete(providerSectionKey);
+  const previousProvider = previousBlocks.sections.get(providerSectionKey);
+  if (previousProvider) currentBlocks.sections.set(providerSectionKey, previousProvider);
   const merged = [...previousOwnedRoot, ...keepRoot]
     .concat([...currentBlocks.sections.values()].flat())
     .join('\n')

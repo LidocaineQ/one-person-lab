@@ -101,11 +101,11 @@ function buildProfile(workflowPolicy) {
       generation_stage: 'development_or_release_sync',
       runtime_source_checkout_required: false,
     },
-    model_provider: 'gflab',
+    model_provider: 'oplgateway',
     model,
     model_reasoning_effort: reasoningEffort,
     provider_name: 'OPL Gateway',
-    base_url: 'https://gflabtoken.cn/v1',
+    base_url: 'https://gateway.medopl.com/v1',
     base_url_role: 'opl_base_default_provider_endpoint',
     model_profile_role: 'opl_flow_recommendation_projection',
   };

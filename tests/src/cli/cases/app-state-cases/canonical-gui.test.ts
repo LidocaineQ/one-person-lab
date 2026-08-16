@@ -357,3 +357,57 @@ exit 1
     fs.rmSync(homeRoot, { recursive: true, force: true });
   }
 });
+
+test('app state keeps a legacy Gateway provider identity internally consistent', () => {
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-state-legacy-gateway-'));
+  const codexHome = path.join(homeRoot, 'codex-home');
+  const stateDir = path.join(homeRoot, 'opl-state');
+  const codexFixture = createFakeCodexFixture(`
+if [[ "$1" == "--version" ]]; then
+  echo "codex-cli 0.125.0"
+  exit 0
+fi
+echo "Unsupported codex fixture command: $*" >&2
+exit 1
+`);
+
+  try {
+    fs.mkdirSync(codexHome, { recursive: true });
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(path.join(codexHome, 'config.toml'), [
+      'model_provider = "gflab"',
+      'model = "legacy-model"',
+      'model_reasoning_effort = "high"',
+      '',
+      '[model_providers."gflab"]',
+      'name = "Legacy OPL Gateway"',
+      'base_url = "https://gflabtoken.cn/v1"',
+      'experimental_bearer_token = "legacy-key"',
+      '',
+    ].join('\n'));
+
+    const output = runCli(['app', 'state', '--profile', 'fast'], {
+      HOME: homeRoot,
+      CODEX_HOME: codexHome,
+      OPL_STATE_DIR: stateDir,
+      OPL_MODULES_ROOT: path.join(stateDir, 'modules'),
+      OPL_CODEX_CLI_LATEST_VERSION: '0.125.0',
+      OPL_DEVELOPER_MODE_GH_BINARY: path.join(homeRoot, 'missing-gh'),
+      PATH: `${codexFixture.fixtureRoot}:/usr/bin:/bin`,
+    }) as any;
+    const codex = output.app_state.core.codex;
+    const policy = output.app_state.settings_control_center.app_settings_read_model.codex_model_policy;
+
+    assert.equal(codex.model_provider, 'gflab');
+    assert.equal(codex.provider_name, 'Legacy OPL Gateway');
+    assert.equal(codex.provider_base_url, 'https://gflabtoken.cn/v1');
+    assert.equal(codex.default_profile.model_provider, 'oplgateway');
+    assert.equal(policy.model_provider, 'gflab');
+    assert.equal(policy.provider_name, 'Legacy OPL Gateway');
+    assert.equal(policy.provider_base_url, 'https://gflabtoken.cn/v1');
+    assert.equal(policy.profile_source, 'local_codex_config');
+  } finally {
+    fs.rmSync(codexFixture.fixtureRoot, { recursive: true, force: true });
+    fs.rmSync(homeRoot, { recursive: true, force: true });
+  }
+});

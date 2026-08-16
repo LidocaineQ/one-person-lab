@@ -64,7 +64,10 @@ export type CodexDefaultProfile = {
   model_profile_role: string;
 };
 
-export const OPL_GATEWAY_BASE_URL = 'https://gflabtoken.cn/v1';
+export const OPL_GATEWAY_BASE_URL = 'https://gateway.medopl.com/v1';
+export const OPL_GATEWAY_LEGACY_BASE_URLS = [
+  'https://gflabtoken.cn/v1',
+] as const;
 
 function normalizeOptionalString(value: string | null | undefined) {
   const trimmed = value?.trim();
@@ -125,6 +128,65 @@ function parseTomlValue(rawValue: string) {
   return trimmed;
 }
 
+function parseTomlKeyPart(rawPart: string) {
+  const trimmed = rawPart.trim();
+  if (!trimmed) return null;
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"'))
+    || (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return parseTomlValue(trimmed);
+  }
+  return /^[A-Za-z0-9_-]+$/.test(trimmed) ? trimmed : null;
+}
+
+export function parseTomlTablePath(rawLine: string) {
+  const line = stripTomlInlineComment(rawLine);
+  if (line.startsWith('[[')) return null;
+  const match = /^\[([^\[\]]+)\]$/.exec(line);
+  if (!match) return null;
+
+  const rawParts: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | null = null;
+  for (let index = 0; index < match[1].length; index += 1) {
+    const character = match[1][index];
+    if (quote) {
+      current += character;
+      if (quote === '"' && character === '\\' && index + 1 < match[1].length) {
+        current += match[1][index + 1];
+        index += 1;
+      } else if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      current += character;
+      continue;
+    }
+    if (character === '.') {
+      rawParts.push(current);
+      current = '';
+      continue;
+    }
+    current += character;
+  }
+  if (quote) return null;
+  rawParts.push(current);
+  const parts = rawParts.map(parseTomlKeyPart);
+  return parts.every((part): part is string => part !== null) ? parts : null;
+}
+
+function renderTomlKey(value: string) {
+  return /^[A-Za-z0-9_-]+$/.test(value) ? value : quoteTomlString(value);
+}
+
+function sameTomlTablePath(left: string[] | null, right: string[] | null) {
+  return Boolean(left && right && left.length === right.length && left.every((part, index) => part === right[index]));
+}
+
 function resolveLocalCodexHome() {
   const explicitCodexHome = normalizeOptionalString(process.env.CODEX_HOME);
   const homeDir = normalizeOptionalString(process.env.HOME) ?? os.homedir();
@@ -144,7 +206,9 @@ function normalizeBaseUrl(value: string | null | undefined) {
 }
 
 function isOplGatewayBaseUrl(value: string | null | undefined) {
-  return normalizeBaseUrl(value) === OPL_GATEWAY_BASE_URL;
+  const normalized = normalizeBaseUrl(value);
+  return normalized === normalizeBaseUrl(OPL_GATEWAY_BASE_URL)
+    || OPL_GATEWAY_LEGACY_BASE_URLS.some((legacy) => normalized === normalizeBaseUrl(legacy));
 }
 
 function quoteTomlString(value: string) {
@@ -362,12 +426,9 @@ function removeRootTomlKeys(text: string, keys: Set<string>) {
 
   for (const rawLine of text.split(/\r?\n/)) {
     const line = stripTomlInlineComment(rawLine);
-    const sectionMatch = line.match(/^\[([^\]]+)\]$/);
-    if (sectionMatch) {
-      currentSection = sectionMatch[1]
-        .split('.')
-        .map((entry) => entry.trim())
-        .filter(Boolean);
+    const sectionPath = parseTomlTablePath(line);
+    if (sectionPath) {
+      currentSection = sectionPath;
       kept.push(rawLine);
       continue;
     }
@@ -396,11 +457,13 @@ function upsertTomlTableKeys(
     .map(([key, renderedValue]) => `${key} = ${renderedValue}`);
   let foundTable = false;
   let inTargetTable = false;
+  const targetPath = parseTomlTablePath(tableHeader);
 
   for (const rawLine of text.split(/\r?\n/)) {
     const line = stripTomlInlineComment(rawLine);
-    if (/^\[[^\]]+\]$/.test(line)) {
-      inTargetTable = line === tableHeader;
+    const sectionPath = parseTomlTablePath(line);
+    if (sectionPath) {
+      inTargetTable = sameTomlTablePath(sectionPath, targetPath);
       if (inTargetTable) {
         foundTable = true;
         kept.push(rawLine, ...replacementLines);
@@ -436,7 +499,7 @@ function buildCodexConfigText(
     `model = ${quoteTomlString(input.model)}`,
     ...(input.reasoningEffort ? [`model_reasoning_effort = ${quoteTomlString(input.reasoningEffort)}`] : []),
   ];
-  const providerHeader = `[model_providers.${input.providerId}]`;
+  const providerHeader = `[model_providers.${renderTomlKey(input.providerId)}]`;
   const preserved = upsertTomlTableKeys(
     removeRootTomlKeys(existingText, new Set(['model_provider', 'model', 'model_reasoning_effort'])),
     providerHeader,
@@ -463,7 +526,7 @@ function buildCodexProviderOnlyConfigText(
     providerApiKey: string | null;
   },
 ) {
-  const providerHeader = `[model_providers.${input.providerId}]`;
+  const providerHeader = `[model_providers.${renderTomlKey(input.providerId)}]`;
   const preserved = upsertTomlTableKeys(
     existingText,
     providerHeader,
@@ -480,8 +543,7 @@ function buildCodexProviderOnlyConfigText(
 
 function providerRoute(baseUrl: string, active: boolean): CodexConfigManagementReceipt['provider_route'] {
   if (!active) return 'inactive_provider';
-  const normalized = normalizeBaseUrl(baseUrl);
-  if (normalized === normalizeBaseUrl(OPL_GATEWAY_BASE_URL)) return 'direct_gateway';
+  if (isOplGatewayBaseUrl(baseUrl)) return 'direct_gateway';
   return 'opl_custom_route';
 }
 
@@ -500,7 +562,7 @@ function isOplManagedActiveProvider(
   _receipt: CodexConfigManagementReceipt | null,
 ) {
   if (!existing?.model_provider) return false;
-  return normalizeBaseUrl(existing.provider_base_url) === normalizeBaseUrl(OPL_GATEWAY_BASE_URL);
+  return isOplGatewayBaseUrl(existing.provider_base_url);
 }
 
 function selectInactiveProviderId(
@@ -509,18 +571,25 @@ function selectInactiveProviderId(
   providerValues: Map<string, Map<string, string>>,
 ) {
   const desiredEntry = providerValues.get(desiredProviderId);
-  if (!desiredEntry || normalizeBaseUrl(desiredEntry.get('base_url')) === normalizeBaseUrl(providerBaseUrl)) {
+  if (desiredEntry && (
+    isOplGatewayBaseUrl(providerBaseUrl)
+      ? isOplGatewayBaseUrl(desiredEntry.get('base_url'))
+      : normalizeBaseUrl(desiredEntry.get('base_url')) === normalizeBaseUrl(providerBaseUrl)
+  )) {
     return desiredProviderId;
   }
 
   const existingOplAlias = [...providerValues.entries()].find(([, entry]) => (
-    normalizeBaseUrl(entry.get('base_url')) === normalizeBaseUrl(providerBaseUrl)
+    isOplGatewayBaseUrl(providerBaseUrl)
+      ? isOplGatewayBaseUrl(entry.get('base_url'))
+      : normalizeBaseUrl(entry.get('base_url')) === normalizeBaseUrl(providerBaseUrl)
   ));
   if (existingOplAlias) return existingOplAlias[0];
+  if (!desiredEntry) return desiredProviderId;
 
-  let suffix = 1;
+  let suffix = 2;
   while (true) {
-    const candidate = suffix === 1 ? 'opl_gateway' : `opl_gateway_${suffix}`;
+    const candidate = `${desiredProviderId}_${suffix}`;
     if (!providerValues.has(candidate)) return candidate;
     suffix += 1;
   }
@@ -616,6 +685,7 @@ export function bootstrapLocalCodexDefaults(input: BootstrapLocalCodexDefaultsIn
     ? activeOplProvider.model_provider
     : selectInactiveProviderId(requestedProviderId, providerBaseUrl, providerValues);
   const existingProviderName = normalizeOptionalString(providerValues.get(providerId)?.get('name'));
+  const existingProviderBaseUrl = normalizeOptionalString(providerValues.get(providerId)?.get('base_url'));
   const providerName = activeOplProvider
     ? activeOplProvider.provider_name ?? requestedProviderName
     : existingProviderName ?? requestedProviderName;
@@ -634,6 +704,8 @@ export function bootstrapLocalCodexDefaults(input: BootstrapLocalCodexDefaultsIn
       : reasoningEffort;
   const selectedProviderBaseUrl = activeOplProvider?.provider_base_url
     ? activeOplProvider.provider_base_url
+    : existingProviderBaseUrl && isOplGatewayBaseUrl(existingProviderBaseUrl) && isOplGatewayBaseUrl(providerBaseUrl)
+      ? existingProviderBaseUrl
     : providerBaseUrl;
   const selectionMode = existing && !oplProviderActive && !activateProvider
     ? 'inactive_provider' as const
@@ -644,7 +716,7 @@ export function bootstrapLocalCodexDefaults(input: BootstrapLocalCodexDefaultsIn
     ? buildCodexProviderOnlyConfigText(existingText, {
       providerId,
       providerName,
-      providerBaseUrl,
+      providerBaseUrl: selectedProviderBaseUrl,
       providerApiKey: selectedProviderApiKey,
     })
     : buildCodexConfigText(existingText, {
@@ -727,12 +799,9 @@ function readLocalCodexConfigValues(configPath: string) {
       continue;
     }
 
-    const sectionMatch = line.match(/^\[([^\]]+)\]$/);
-    if (sectionMatch) {
-      currentSection = sectionMatch[1]
-        .split('.')
-        .map((entry) => entry.trim())
-        .filter(Boolean);
+    const sectionPath = parseTomlTablePath(line);
+    if (sectionPath) {
+      currentSection = sectionPath;
       continue;
     }
 

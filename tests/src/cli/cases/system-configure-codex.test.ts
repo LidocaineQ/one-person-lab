@@ -2,7 +2,11 @@ import crypto from 'node:crypto';
 
 import { assert, createFakeCodexPluginManagerFixture, fs, os, parseJsonText, path, removeFixtureTree, runCli, runCliFailure, test } from '../helpers.ts';
 import { createFakeFamilySkillWorkspace } from '../../cli-codex-default-shell-helpers.ts';
-import { readBundledCodexDefaultProfile } from '../../../../src/kernel/local-codex-defaults.ts';
+import {
+  OPL_GATEWAY_BASE_URL,
+  OPL_GATEWAY_LEGACY_BASE_URLS,
+  readBundledCodexDefaultProfile,
+} from '../../../../src/kernel/local-codex-defaults.ts';
 import {
   CANONICAL_PACKAGE_CONTENT_LOCK,
   packageContentLockDigest,
@@ -454,6 +458,7 @@ test('system configure-codex writes the product endpoint and App-owned install f
           model_profile_role: string;
         };
         bootstrap: {
+          model_provider: string;
           model: string;
           reasoning_effort: string;
           provider_base_url: string;
@@ -470,16 +475,17 @@ test('system configure-codex writes the product endpoint and App-owned install f
     };
 
     assert.equal(output.codex_config.status, 'completed');
-    assert.equal(output.codex_config.default_profile.model_provider, 'gflab');
+    assert.equal(output.codex_config.default_profile.model_provider, 'oplgateway');
     assert.equal(output.codex_config.default_profile.provider_name, 'OPL Gateway');
     assert.equal(output.codex_config.default_profile.model, codexDefaultProfile.model);
     assert.equal(
       output.codex_config.default_profile.model_reasoning_effort,
       codexDefaultProfile.model_reasoning_effort,
     );
-    assert.equal(output.codex_config.default_profile.base_url, 'https://gflabtoken.cn/v1');
+    assert.equal(output.codex_config.default_profile.base_url, 'https://gateway.medopl.com/v1');
     assert.equal(output.codex_config.default_profile.base_url_role, codexDefaultProfile.base_url_role);
     assert.equal(output.codex_config.default_profile.model_profile_role, codexDefaultProfile.model_profile_role);
+    assert.equal(output.codex_config.bootstrap.model_provider, 'oplgateway');
     assert.equal(output.codex_config.bootstrap.api_key_present, true);
     assert.equal(output.codex_config.bootstrap.management_receipt.selection_mode, 'auto');
     assert.equal(output.codex_config.bootstrap.management_receipt.provider_route, 'direct_gateway');
@@ -488,10 +494,11 @@ test('system configure-codex writes the product endpoint and App-owned install f
     assert.equal(JSON.stringify(output).includes(apiKey), false);
 
     const config = fs.readFileSync(output.codex_config.config_path, 'utf8');
-    assert.match(config, /model_provider = "gflab"/);
+    assert.match(config, /model_provider = "oplgateway"/);
+    assert.match(config, /\[model_providers\.oplgateway\]/);
     assert.match(config, /name = "OPL Gateway"/);
     assertBundledCodexModel(output.codex_config.bootstrap, config);
-    assert.match(config, /base_url = "https:\/\/gflabtoken\.cn\/v1"/);
+    assert.match(config, /base_url = "https:\/\/gateway\.medopl\.com\/v1"/);
     assert.match(config, /experimental_bearer_token = "secret-stdin-key"/);
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
@@ -525,12 +532,12 @@ test('system configure-codex keeps environment overrides over bundled model prof
 
     assert.equal(output.codex_config.bootstrap.model, 'gpt-5.6');
     assert.equal(output.codex_config.bootstrap.reasoning_effort, 'high');
-    assert.equal(output.codex_config.bootstrap.provider_base_url, 'https://gflabtoken.cn/v1');
+    assert.equal(output.codex_config.bootstrap.provider_base_url, 'https://gateway.medopl.com/v1');
 
     const config = fs.readFileSync(output.codex_config.config_path, 'utf8');
     assert.match(config, /model = "gpt-5\.6"/);
     assert.match(config, /model_reasoning_effort = "high"/);
-    assert.match(config, /base_url = "https:\/\/gflabtoken\.cn\/v1"/);
+    assert.match(config, /base_url = "https:\/\/gateway\.medopl\.com\/v1"/);
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
   }
@@ -584,7 +591,7 @@ test('system configure-codex preserves an existing custom provider and registers
 
     assert.equal(output.codex_config.status, 'completed');
     assert.equal(output.codex_config.bootstrap.model, 'custom-model');
-    assert.equal(output.codex_config.bootstrap.provider_base_url, 'https://gflabtoken.cn/v1');
+    assert.equal(output.codex_config.bootstrap.provider_base_url, 'https://gateway.medopl.com/v1');
     assert.equal(output.codex_config.bootstrap.api_key_present, true);
     assert.equal(output.codex_config.bootstrap.management_receipt.selection_mode, 'inactive_provider');
     assert.equal(output.codex_config.bootstrap.management_receipt.provider_route, 'inactive_provider');
@@ -595,17 +602,84 @@ test('system configure-codex preserves an existing custom provider and registers
     assert.match(config, /model = "custom-model"/);
     assert.match(config, /\[model_providers\.custom\]/);
     assert.match(config, /base_url = "https:\/\/custom-provider\.example\.test\/v1"/);
-    assert.match(config, /\[model_providers\.gflab\]/);
+    assert.match(config, /\[model_providers\.oplgateway\]/);
     assert.match(config, /name = "OPL Gateway"/);
-    assert.match(config, /base_url = "https:\/\/gflabtoken\.cn\/v1"/);
+    assert.match(config, /base_url = "https:\/\/gateway\.medopl\.com\/v1"/);
     assert.match(config, /experimental_bearer_token = "opl-gateway-key"/);
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
   }
 });
 
-test('system configure-codex preserves an existing inactive gflab provider name', () => {
-  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configure-codex-existing-inactive-home-'));
+for (const legacyProviderId of ['gflab', 'gflabtoken']) {
+  test(`system configure-codex reuses the inactive legacy ${legacyProviderId} provider without migrating its identity`, () => {
+    const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), `opl-configure-codex-${legacyProviderId}-`));
+    const codexHome = path.join(homeRoot, 'codex-home');
+
+    try {
+      fs.mkdirSync(codexHome, { recursive: true });
+      fs.writeFileSync(
+        path.join(codexHome, 'config.toml'),
+        [
+          'model_provider = "custom"',
+          'model = "custom-model"',
+          '',
+          '[model_providers.custom]',
+          'name = "Custom Provider"',
+          'base_url = "https://custom-provider.example.test/v1"',
+          'experimental_bearer_token = "existing-custom-key"',
+          '',
+          `[model_providers.${JSON.stringify(legacyProviderId)}]`,
+          `name = "${legacyProviderId}"`,
+          `base_url = "${OPL_GATEWAY_LEGACY_BASE_URLS[0]}"`,
+          'experimental_bearer_token = "existing-opl-key"',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+
+      const output = runCliWithStdin(
+        ['system', 'configure-codex', '--api-key-stdin'],
+        'replacement-opl-key\n',
+        {
+          HOME: homeRoot,
+          CODEX_HOME: codexHome,
+          OPL_STATE_DIR: path.join(homeRoot, 'opl-state'),
+        },
+      ) as {
+        codex_config: {
+          bootstrap: {
+            model_provider: string;
+            provider_base_url: string;
+            management_receipt: {
+              provider_id: string;
+              selection_mode: string;
+            };
+          };
+        };
+      };
+
+      assert.equal(output.codex_config.bootstrap.provider_base_url, OPL_GATEWAY_LEGACY_BASE_URLS[0]);
+      assert.equal(output.codex_config.bootstrap.model_provider, legacyProviderId);
+      assert.equal(output.codex_config.bootstrap.management_receipt.provider_id, legacyProviderId);
+      assert.equal(output.codex_config.bootstrap.management_receipt.selection_mode, 'inactive_provider');
+      const config = fs.readFileSync(path.join(codexHome, 'config.toml'), 'utf8');
+      assert.match(config, /model_provider = "custom"/);
+      assert.match(config, new RegExp(`\\[model_providers\\."${legacyProviderId}"\\]`));
+      assert.doesNotMatch(config, new RegExp(`\\[model_providers\\.${legacyProviderId}\\]`));
+      assert.match(config, new RegExp(`^name = "${legacyProviderId}"$`, 'm'));
+      assert.match(config, /base_url = "https:\/\/gflabtoken\.cn\/v1"/);
+      assert.doesNotMatch(config, /\[model_providers\.oplgateway\]/);
+      assert.doesNotMatch(config, /^name = "OPL Gateway"$/m);
+      assert.match(config, /experimental_bearer_token = "replacement-opl-key"/);
+    } finally {
+      fs.rmSync(homeRoot, { recursive: true, force: true });
+    }
+  });
+}
+
+test('system configure-codex avoids a third-party oplgateway provider with an oplgateway-family suffix', () => {
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configure-codex-oplgateway-collision-'));
   const codexHome = path.join(homeRoot, 'codex-home');
 
   try {
@@ -621,10 +695,10 @@ test('system configure-codex preserves an existing inactive gflab provider name'
         'base_url = "https://custom-provider.example.test/v1"',
         'experimental_bearer_token = "existing-custom-key"',
         '',
-        '[model_providers.gflab]',
-        'name = "gflab"',
-        'base_url = "https://gflabtoken.cn/v1"',
-        'experimental_bearer_token = "existing-opl-key"',
+        '[model_providers."oplgateway"]',
+        'name = "Third Party"',
+        'base_url = "https://third-party.example.test/v1"',
+        'experimental_bearer_token = "third-party-key"',
         '',
       ].join('\n'),
       'utf8',
@@ -632,7 +706,7 @@ test('system configure-codex preserves an existing inactive gflab provider name'
 
     const output = runCliWithStdin(
       ['system', 'configure-codex', '--api-key-stdin'],
-      'replacement-opl-key\n',
+      'new-opl-key\n',
       {
         HOME: homeRoot,
         CODEX_HOME: codexHome,
@@ -641,6 +715,7 @@ test('system configure-codex preserves an existing inactive gflab provider name'
     ) as {
       codex_config: {
         bootstrap: {
+          model_provider: string;
           management_receipt: {
             provider_id: string;
             selection_mode: string;
@@ -649,13 +724,17 @@ test('system configure-codex preserves an existing inactive gflab provider name'
       };
     };
 
-    assert.equal(output.codex_config.bootstrap.management_receipt.provider_id, 'gflab');
+    assert.equal(output.codex_config.bootstrap.model_provider, 'oplgateway_2');
+    assert.equal(output.codex_config.bootstrap.management_receipt.provider_id, 'oplgateway_2');
     assert.equal(output.codex_config.bootstrap.management_receipt.selection_mode, 'inactive_provider');
     const config = fs.readFileSync(path.join(codexHome, 'config.toml'), 'utf8');
-    assert.match(config, /model_provider = "custom"/);
-    assert.match(config, /^name = "gflab"$/m);
-    assert.doesNotMatch(config, /^name = "OPL Gateway"$/m);
-    assert.match(config, /experimental_bearer_token = "replacement-opl-key"/);
+    assert.match(config, /\[model_providers\."oplgateway"\]/);
+    assert.doesNotMatch(config, /\[model_providers\.oplgateway\]/);
+    assert.match(config, /base_url = "https:\/\/third-party\.example\.test\/v1"/);
+    assert.match(config, /experimental_bearer_token = "third-party-key"/);
+    assert.match(config, /\[model_providers\.oplgateway_2\]/);
+    assert.match(config, new RegExp(`base_url = ${JSON.stringify(OPL_GATEWAY_BASE_URL)}`));
+    assert.match(config, /experimental_bearer_token = "new-opl-key"/);
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
   }
@@ -758,14 +837,14 @@ test('system configure-codex completes a plugin-only Codex config created during
     };
 
     assert.equal(output.codex_config.status, 'completed');
-    assert.equal(output.codex_config.bootstrap.provider_base_url, 'https://gflabtoken.cn/v1');
+    assert.equal(output.codex_config.bootstrap.provider_base_url, 'https://gateway.medopl.com/v1');
     assert.equal(output.codex_config.bootstrap.api_key_present, true);
     assert.equal(JSON.stringify(output).includes(apiKey), false);
 
     const config = fs.readFileSync(configPath, 'utf8');
-    assert.match(config, /model_provider = "gflab"/);
+    assert.match(config, /model_provider = "oplgateway"/);
     assertBundledCodexModel(output.codex_config.bootstrap, config);
-    assert.match(config, /base_url = "https:\/\/gflabtoken\.cn\/v1"/);
+    assert.match(config, /base_url = "https:\/\/gateway\.medopl\.com\/v1"/);
     assert.match(config, /experimental_bearer_token = "secret-plugin-key"/);
     assert.match(config, /\[marketplaces\.med-autoscience-local\]/);
     assert.match(config, /\[plugins\."med-autoscience@med-autoscience-local"\]/);

@@ -3,7 +3,11 @@ import { buildInternalCommandSpecs } from '../../../../src/entrypoints/cli/cases
 import { buildPublicCommandSpecs } from '../../../../src/entrypoints/cli/cases/public-command-specs.ts';
 import { createCordisBaseHeadlessComposition } from '../../../../src/host/composition-profiles.ts';
 import { parseTurnkeyInstallArgs } from '../../../../src/entrypoints/cli/modules/support.ts';
-import { OPL_GATEWAY_BASE_URL, readBundledCodexDefaultProfile } from '../../../../src/kernel/local-codex-defaults.ts';
+import {
+  OPL_GATEWAY_BASE_URL,
+  OPL_GATEWAY_LEGACY_BASE_URLS,
+  readBundledCodexDefaultProfile,
+} from '../../../../src/kernel/local-codex-defaults.ts';
 import { listDefaultOplDomainModuleSpecs } from '../../../../src/adapters/integration/system-installation/modules.ts';
 import { createFakeCompanionInstallEnv } from './system-install-fixtures.ts';
 
@@ -370,7 +374,7 @@ test('install command upgrades an existing OPL Gateway alias while preserving it
         '',
         '[model_providers.company-opl]',
         'name = "Company OPL Gateway"',
-        `base_url = "${OPL_GATEWAY_BASE_URL}"`,
+        `base_url = "${OPL_GATEWAY_LEGACY_BASE_URLS[0]}"`,
         'experimental_bearer_token = "existing-opl-key"',
         'wire_api = "responses"',
         'custom_header = "preserve-me"',
@@ -398,6 +402,7 @@ test('install command upgrades an existing OPL Gateway alias while preserving it
     assertBundledCodexModel(bootstrap, config);
     assert.match(config, /custom_user_setting = true/);
     assert.match(config, /name = "Company OPL Gateway"/);
+    assert.match(config, /base_url = "https:\/\/gflabtoken\.cn\/v1"/);
     assert.match(config, /experimental_bearer_token = "existing-opl-key"/);
     assert.doesNotMatch(config, /ambient-openai-key-must-not-replace-provider-token/);
     assert.match(config, /wire_api = "responses"/);
@@ -435,7 +440,7 @@ test('install command preserves the legacy gflab provider name for existing conv
         '',
         '[model_providers.gflab]',
         'name = "gflab"',
-        `base_url = "${OPL_GATEWAY_BASE_URL}"`,
+        `base_url = "${OPL_GATEWAY_LEGACY_BASE_URLS[0]}"`,
         'experimental_bearer_token = "existing-opl-key"',
         '',
       ].join('\n'),
@@ -454,6 +459,7 @@ test('install command preserves the legacy gflab provider name for existing conv
     assert.match(config, /model_provider = "gflab"/);
     assert.match(config, /\[model_providers\.gflab\]/);
     assert.match(config, /^name = "gflab"$/m);
+    assert.match(config, /base_url = "https:\/\/gflabtoken\.cn\/v1"/);
     assert.doesNotMatch(config, /^name = "OPL Gateway"$/m);
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
@@ -476,7 +482,7 @@ test('install command does not upgrade a direct OPL Gateway config without a bea
         '',
         '[model_providers.gflab]',
         'name = "gflab"',
-        `base_url = "${OPL_GATEWAY_BASE_URL}"`,
+        `base_url = "${OPL_GATEWAY_LEGACY_BASE_URLS[0]}"`,
         '',
       ].join('\n'),
       'utf8',
@@ -500,8 +506,8 @@ test('install command does not upgrade a direct OPL Gateway config without a bea
   }
 });
 
-test('install command does not overwrite a third-party provider using the gflab id', () => {
-  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-install-gflab-collision-home-'));
+test('install command does not overwrite a third-party provider using the oplgateway id', () => {
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-install-oplgateway-collision-home-'));
   const codexHome = path.join(homeRoot, 'codex-home');
   const configPath = path.join(codexHome, 'config.toml');
 
@@ -510,11 +516,11 @@ test('install command does not overwrite a third-party provider using the gflab 
     fs.writeFileSync(
       configPath,
       [
-        'model_provider = "gflab"',
+        'model_provider = "oplgateway"',
         'model = "third-party-model"',
         'model_reasoning_effort = "medium"',
         '',
-        '[model_providers.gflab]',
+        '[model_providers.oplgateway]',
         'name = "Third Party"',
         'base_url = "https://third-party.example.test/v1"',
         'experimental_bearer_token = "third-party-key"',
@@ -536,16 +542,16 @@ test('install command does not overwrite a third-party provider using the gflab 
     assert.equal(bootstrap.model, 'third-party-model');
     assert.equal(bootstrap.reasoning_effort, 'medium');
     assert.equal(bootstrap.management_receipt.selection_mode, 'inactive_provider');
-    assert.equal(bootstrap.management_receipt.provider_id, 'opl_gateway');
+    assert.equal(bootstrap.management_receipt.provider_id, 'oplgateway_2');
     const config = fs.readFileSync(configPath, 'utf8');
-    assert.match(config, /model_provider = "gflab"/);
+    assert.match(config, /model_provider = "oplgateway"/);
     assert.match(config, /model = "third-party-model"/);
-    assert.match(config, /\[model_providers\.gflab\]/);
+    assert.match(config, /\[model_providers\.oplgateway\]/);
     assert.match(config, /base_url = "https:\/\/third-party\.example\.test\/v1"/);
     assert.match(config, /experimental_bearer_token = "third-party-key"/);
-    assert.match(config, /\[model_providers\.opl_gateway\]/);
+    assert.match(config, /\[model_providers\.oplgateway_2\]/);
     assert.match(config, /name = "OPL Gateway"/);
-    assert.match(config, /base_url = "https:\/\/gflabtoken\.cn\/v1"/);
+    assert.match(config, /base_url = "https:\/\/gateway\.medopl\.com\/v1"/);
     assert.match(config, /experimental_bearer_token = "new-opl-key"/);
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
@@ -671,8 +677,8 @@ test('system initialize reports selected OPL Gateway config as the model access 
   const codexFixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-initialize-opl-gateway-bin-'));
   const codexPath = path.join(codexFixtureRoot, 'codex');
   const codexConfigFixture = createCodexConfigFixture({
-    providerId: 'gflab',
-    providerName: 'gflab',
+    providerId: 'oplgateway',
+    providerName: 'OPL Gateway',
     baseUrl: OPL_GATEWAY_BASE_URL,
     apiKey: 'opl-gateway-key',
   });

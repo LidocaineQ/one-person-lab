@@ -13,6 +13,10 @@ import { buildGatewayInstallation, normalizeGatewayDeviceSlug } from '../../src/
 import { reconcileGatewayManagedKey } from '../../src/adapters/integration/opl-gateway-account-parts/key-reconcile.ts';
 import { readOrCreateGatewayInstallation } from '../../src/adapters/integration/opl-gateway-account-parts/private-store.ts';
 import {
+  OPL_GATEWAY_CONTROL_BASE_URL,
+  OPL_GATEWAY_INFERENCE_BASE_URL,
+} from '../../src/adapters/integration/opl-gateway-account-parts/types.ts';
+import {
   disconnectOplGatewayAccount,
   loginOplGatewayAccount,
   readOplGatewayAccount,
@@ -25,6 +29,11 @@ function json(response: http.ServerResponse, value: unknown, status = 200) {
   response.writeHead(status, { 'content-type': 'application/json' });
   response.end(JSON.stringify(value));
 }
+
+test('gateway login, account inspection and Codex inference use the medopl endpoints', () => {
+  assert.equal(OPL_GATEWAY_CONTROL_BASE_URL, 'https://gateway.medopl.com/api/v1');
+  assert.equal(OPL_GATEWAY_INFERENCE_BASE_URL, 'https://gateway.medopl.com/v1');
+});
 
 test('gateway identity uses a stable readable name without hardware identity', () => {
   const installation = buildGatewayInstallation('高峰 MacBook Pro', '11111111-2222-4333-8444-555555555555');
@@ -464,9 +473,58 @@ test('explicit Gateway binding activates an incomplete existing provider and res
     assert(binding.binding);
     const activated = fs.readFileSync(configPath, 'utf8');
     assert.equal(readLocalCodexAccessState().model_access_source, 'opl_gateway');
-    assert.equal(readLocalCodexAccessState().provider_base_url, 'https://gflabtoken.cn/v1');
+    assert.equal(readLocalCodexAccessState().provider_base_url, 'https://gateway.medopl.com/v1');
     assert.match(activated, new RegExp(`^model_provider = "${binding.binding.provider_id}"$`, 'm'));
     assert.match(activated, /experimental_bearer_token = "managed-explicit"/);
+
+    assert.equal(restoreCodexBinding(binding.binding, binding.previous_config, true), 'restored_owned_fields');
+    assert.equal(fs.readFileSync(configPath, 'utf8'), previousConfig);
+  } finally {
+    for (const [envKey, value] of [
+      ['CODEX_HOME', previous.codex],
+      ['HOME', previous.home],
+      ['OPL_STATE_DIR', previous.state],
+    ] as const) {
+      if (value === undefined) delete process.env[envKey];
+      else process.env[envKey] = value;
+    }
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('explicit Gateway binding reuses an active legacy provider and restores its exact identity', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-gateway-legacy-binding-'));
+  const previous = { codex: process.env.CODEX_HOME, home: process.env.HOME, state: process.env.OPL_STATE_DIR };
+  process.env.CODEX_HOME = path.join(root, 'codex');
+  process.env.HOME = root;
+  process.env.OPL_STATE_DIR = path.join(root, 'state');
+  try {
+    fs.mkdirSync(process.env.CODEX_HOME, { recursive: true });
+    const configPath = path.join(process.env.CODEX_HOME, 'config.toml');
+    const previousConfig = [
+      'model_provider = "gflabtoken"',
+      'model = "legacy-model"',
+      'model_reasoning_effort = "high"',
+      '',
+      '[model_providers."gflabtoken"]',
+      'name = "gflabtoken"',
+      'base_url = "https://gflabtoken.cn/v1"',
+      'experimental_bearer_token = "legacy-secret"',
+      '',
+    ].join('\n');
+    fs.writeFileSync(configPath, previousConfig, { mode: 0o600 });
+
+    const binding = bindGatewayKeyToCodex('managed-legacy');
+    assert(binding.binding);
+    assert.equal(binding.binding.provider_id, 'gflabtoken');
+    const activated = fs.readFileSync(configPath, 'utf8');
+    assert.match(activated, /^model_provider = "gflabtoken"$/m);
+    assert.match(activated, /base_url = "https:\/\/gflabtoken\.cn\/v1"/);
+    assert.match(activated, /^name = "gflabtoken"$/m);
+    assert.match(activated, /\[model_providers\."gflabtoken"\]/);
+    assert.doesNotMatch(activated, /\[model_providers\.gflabtoken\]/);
+    assert.doesNotMatch(activated, /\[model_providers\.oplgateway\]/);
+    assert.equal(readLocalCodexAccessState().model_access_source, 'opl_gateway');
 
     assert.equal(restoreCodexBinding(binding.binding, binding.previous_config, true), 'restored_owned_fields');
     assert.equal(fs.readFileSync(configPath, 'utf8'), previousConfig);
@@ -515,7 +573,7 @@ test('explicit Gateway binding overrides ChatGPT and environment access without 
       assert(binding.binding);
       const access = readLocalCodexAccessState();
       assert.equal(access.model_access_source, 'opl_gateway');
-      assert.equal(access.provider_base_url, 'https://gflabtoken.cn/v1');
+      assert.equal(access.provider_base_url, 'https://gateway.medopl.com/v1');
       assert.doesNotMatch(fs.readFileSync(binding.binding.config_path, 'utf8'), /ambient\.invalid/);
     } finally {
       for (const [envKey, value] of [

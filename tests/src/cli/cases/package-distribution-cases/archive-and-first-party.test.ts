@@ -478,8 +478,8 @@ test('package archive builder writes channel manifest checksums git source and r
   );
   assert.equal(channelManifest.manifest_role, 'opl_release_channel_manifest');
   assert.notEqual(channelManifestSource, releaseManifestSource);
-  assert.equal(channelManifest.packages.codex_default_profile.model_provider, 'gflab');
-  assert.equal(channelManifest.packages.codex_default_profile.base_url, 'https://gflabtoken.cn/v1');
+  assert.equal(channelManifest.packages.codex_default_profile.model_provider, 'oplgateway');
+  assert.equal(channelManifest.packages.codex_default_profile.base_url, 'https://gateway.medopl.com/v1');
   assert.equal(channelManifest.packages.codex_default_profile.base_url_role, 'opl_base_default_provider_endpoint');
   assert.equal(channelManifest.packages.codex_default_profile.model_profile_role, 'opl_flow_recommendation_projection');
   assert.equal(JSON.stringify(channelManifest.packages.codex_default_profile).includes('experimental_bearer_token'), false);

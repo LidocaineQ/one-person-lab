@@ -132,7 +132,7 @@ export function buildPublicSystemCommandSpecs(
           default_profile: defaultProfile,
           bootstrap: {
             config_path: bootstrap.config_path,
-            model_provider: defaultProfile.model_provider,
+            model_provider: bootstrap.management_receipt?.provider_id ?? defaultProfile.model_provider,
             model: bootstrap.model,
             reasoning_effort: bootstrap.reasoning_effort,
             provider_base_url: bootstrap.provider_base_url,

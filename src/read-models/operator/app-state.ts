@@ -279,6 +279,8 @@ function buildCoreState(profile: AppStateProfile) {
       default_model: localDefaults?.model ?? defaultProfile.model,
       default_reasoning_effort: localDefaults?.reasoning_effort ?? defaultProfile.model_reasoning_effort,
       default_profile: defaultProfile,
+      model_provider: localDefaults?.model_provider ?? defaultProfile.model_provider,
+      provider_name: localDefaults?.provider_name ?? defaultProfile.provider_name,
       provider_base_url: localDefaults?.provider_base_url ?? defaultProfile.base_url,
       config_path: localDefaults?.config_path ?? null,
       api_key_present: Boolean(localDefaults?.provider_api_key),
