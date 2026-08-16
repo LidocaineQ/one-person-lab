@@ -9,7 +9,6 @@ import type {
 
 const DEPENDENCY_HARD_FAILURE_REASONS = new Set([
   'package_id_mismatch',
-  'dependency_lock_missing',
   'dependency_not_installed',
   'dependency_physical_unavailable',
   'dependency_disabled',
@@ -127,7 +126,6 @@ export function validateCapabilityProvider(
     manifest_url: '',
     manifest_sha256: manifestSha256,
     content_digest: contentDigest,
-    package_lock_ref: '',
   };
 }
 

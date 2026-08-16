@@ -310,7 +310,6 @@ export type AgentPackageManifest = {
   plugin_source_path: string | null;
   plugin_payload_manifest_url: string | null;
   plugin_payload_manifest_sha256: string | null;
-  plugin_payload_cache_path: string | null;
   profile_surface: AgentPackageProfileSurfaceConfig | null;
   managed_policy_surface: AgentPackageManagedPolicySurfaceConfig | null;
   capability_dependencies: AgentPackageCapabilityDependency[];
@@ -559,7 +558,6 @@ export type AgentPackageResolvedDependency = {
   owner_source_commit?: string | null;
   carrier_authority?: AgentPackageCarrierAuthority | null;
   content_digest: string;
-  package_lock_ref: string;
 };
 
 export type AgentPackageDependencyReadinessItem = {

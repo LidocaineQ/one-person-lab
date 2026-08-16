@@ -222,7 +222,6 @@ export function resolveBundledFullRuntimeManifestPhysicalSource(input: {
     plugin_source_path: sourceRootPath,
     plugin_payload_manifest_url: input.catalogEntry.payloadManifestUrl,
     plugin_payload_manifest_sha256: input.catalogEntry.payloadManifestSha256.replace(/^sha256:/, ''),
-    plugin_payload_cache_path: null,
     verified_payload_source_commit: admission.sourceCommit,
   };
 }

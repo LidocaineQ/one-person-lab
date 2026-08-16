@@ -1180,7 +1180,7 @@ function normalizeOrdinaryUserSource(value: unknown, sourceLabel: string): Agent
     });
   }
   const installTruth = stringList(value.install_truth);
-  for (const required of ['immutable_version_tag', 'oci_digest', 'package_lock_receipt']) {
+  for (const required of ['immutable_version_tag', 'oci_digest']) {
     if (!installTruth.includes(required)) {
       throw new FrameworkContractError('contract_shape_invalid', 'Agent package ordinary user source must declare immutable tag, OCI digest, and package lock receipt as install truth.', {
         source: sourceLabel,
@@ -1705,7 +1705,6 @@ export function normalizeManifest(payload: unknown, manifestUrl: string): AgentP
     plugin_source_path: pluginSourcePath,
     plugin_payload_manifest_url: pluginPayloadManifestUrl,
     plugin_payload_manifest_sha256: null,
-    plugin_payload_cache_path: null,
     profile_surface: normalizeProfileSurface(payload.profile_surface),
     managed_policy_surface: normalizeManagedPolicySurface(payload.managed_policy_surface),
     capability_dependencies: capabilityDependencies,
@@ -1887,7 +1886,6 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
     plugin_source_path: pluginSourcePath,
     plugin_payload_manifest_url: pluginPayloadManifestUrl,
     plugin_payload_manifest_sha256: null,
-    plugin_payload_cache_path: null,
     profile_surface: null,
     managed_policy_surface: null,
     capability_dependencies: [],
@@ -1989,7 +1987,6 @@ export function normalizeWorkflowProfilePackageManifest(payload: unknown, manife
     plugin_source_path: null,
     plugin_payload_manifest_url: pluginPayloadManifestUrl,
     plugin_payload_manifest_sha256: null,
-    plugin_payload_cache_path: null,
     profile_surface: profileSurface,
     managed_policy_surface: managedPolicySurface,
     capability_dependencies: [],

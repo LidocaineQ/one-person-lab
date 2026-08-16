@@ -89,7 +89,6 @@ function canonicalFixture() {
     plugin_source_path: null,
     plugin_payload_manifest_url: null,
     plugin_payload_manifest_sha256: null,
-    plugin_payload_cache_path: null,
     profile_surface: null,
     managed_policy_surface: null,
     capability_dependencies: [],

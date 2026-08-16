@@ -300,7 +300,6 @@ function projectionFromPlan(
     skills_root: path.join(projectionRoot, '.agents', 'skills'),
     root_package_id: rootPackageId,
     source_refs: plan.sourceRefs,
-    package_lock_refs: [],
     root_skill_ids: plan.rootSkillIds,
     core_skill_ids: plan.coreSkillIds,
     specialty_skill_ids: plan.specialtySkillIds,
