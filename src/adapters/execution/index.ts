@@ -162,6 +162,20 @@ export { buildNativeIndexSummary } from './native-index-summary.ts';
 export type { OplEndpoints, OplRuntimeEndpoints } from '../../kernel/opl-runtime-endpoints.ts';
 export { buildOplRuntimeEndpoints } from '../../kernel/opl-runtime-endpoints.ts';
 export { buildRuntimeEnvironmentPrepareReadback, buildRuntimeEnvironmentRunContextReadback } from './runtime-environment-substrate.ts';
+export {
+  RUNTIME_ENVIRONMENT_PROVIDER_ABI_VERSION,
+  RUNTIME_ENVIRONMENT_PROVIDER_IDS,
+  resolveRuntimeEnvironmentProvider,
+  resolveRuntimeEnvironmentProviderId,
+  runtimeEnvironmentProviderContract,
+  runtimeEnvironmentProviderFor,
+} from './runtime-environment-provider.ts';
+export type {
+  RuntimeEnvironmentProvider,
+  RuntimeEnvironmentProviderExecutionInput,
+  RuntimeEnvironmentProviderId,
+  RuntimeEnvironmentProviderReadback,
+} from './runtime-environment-provider.ts';
 export { buildRuntimeManager, runRuntimeManagerAction } from './runtime-manager.ts';
 export { runRuntimeOperatorActionExecute } from './runtime-operator-action-execution.ts';
 export { requireRuntimeTraySnapshotProvider } from './runtime-tray-snapshot-provider.ts';

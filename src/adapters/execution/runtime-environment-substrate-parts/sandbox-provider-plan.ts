@@ -8,6 +8,10 @@ import {
   normalizeTarget,
   targetRef,
 } from './target-state.ts';
+import {
+  RUNTIME_ENVIRONMENT_PROVIDER_ABI_VERSION,
+  RUNTIME_ENVIRONMENT_PROVIDER_IDS,
+} from '../runtime-environment-provider.ts';
 
 export function sandboxProviderPlan(input: RuntimeEnvironmentTargetInput) {
   const target = normalizeTarget(input);
@@ -68,6 +72,19 @@ export function sandboxProviderPlan(input: RuntimeEnvironmentTargetInput) {
     external_provider_examples: policy.external_provider_examples,
     provider_family_catalog: policy.provider_family_catalog,
     required_external_sandbox_refs: policy.required_external_sandbox_refs,
+    runtime_environment_provider: externalSelected
+      ? {
+          surface_kind: 'opl_runtime_environment_provider_binding',
+          abi_version: RUNTIME_ENVIRONMENT_PROVIDER_ABI_VERSION,
+          provider_id: adapter?.selected_external_substrate === 'e2b' ? 'e2b' : null,
+          implemented_provider_ids: [...RUNTIME_ENVIRONMENT_PROVIDER_IDS],
+          selection: 'explicit_only',
+          unsupported_provider_behavior: 'fail_closed_no_host_fallback',
+          temporal_replacement: false,
+          can_claim_provider_ready: false,
+          can_claim_runtime_ready: false,
+        }
+      : null,
     modal_like_env_spec_catalog: policy.modal_like_env_spec_catalog,
     e2b_default_dependency: policy.e2b_default_dependency,
     e2b_package_dependency_class: policy.e2b_package_dependency_class,

@@ -365,6 +365,24 @@
     "can_claim_domain_ready": false,
     "can_claim_app_release_ready": false
   },
+  "runtime_environment_provider": {
+    "surface_kind": "opl_runtime_environment_provider_contract",
+    "abi_version": "1.0.0",
+    "implemented_provider_ids": [
+      "e2b"
+    ],
+    "selection": "explicit_only",
+    "unsupported_provider_behavior": "fail_closed_no_host_fallback",
+    "temporal_replacement": false,
+    "authority_boundary": {
+      "opl_owns_stage_lifecycle_and_receipt_refs": true,
+      "provider_owns_isolated_execution_environment": true,
+      "provider_writes_domain_truth": false,
+      "provider_claims_runtime_ready": false,
+      "provider_claims_domain_ready": false,
+      "provider_claims_app_release_ready": false
+    }
+  },
   "model_endpoint_provider_policy": {
     "surface_kind": "opl_model_endpoint_provider_policy",
     "status": "invoke_readback_contract_only",

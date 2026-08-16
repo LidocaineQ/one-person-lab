@@ -68,10 +68,10 @@ import {
   buildProgressCloseoutProjection,
 } from './progress-closeout-projection.ts';
 import {
-  runCodexInE2bSandbox,
   sandboxAttemptForCodex,
   type E2bCodexStageExecutionSummary,
 } from './e2b-codex-stage-execution.ts';
+import { resolveRuntimeEnvironmentProvider } from './runtime-environment-provider.ts';
 import {
   localSandboxWorkspaceRoot,
   runCodexInLocalSandbox,
@@ -445,7 +445,22 @@ async function runCodexStageRunner(input: CodexStageRunnerInput): Promise<CodexS
   const runInE2bSandbox = sandboxProvider === 'e2b';
   const runInLocalSandbox = sandboxProvider === 'local_devcontainer' || sandboxProvider === 'local_docker';
   const runInSandbox = runInE2bSandbox || runInLocalSandbox;
+  let runtimeEnvironmentProvider: ReturnType<typeof resolveRuntimeEnvironmentProvider> = null;
   try {
+    runtimeEnvironmentProvider = runInE2bSandbox
+      ? resolveRuntimeEnvironmentProvider(stageSandboxEnv)
+      : null;
+    if (runInE2bSandbox && !runtimeEnvironmentProvider) {
+      throw new FrameworkContractError(
+        'contract_shape_invalid',
+        'E2B sandbox selection did not resolve an E2B runtime environment provider.',
+        {
+          blocked_reason: 'runtime_environment_provider_missing',
+          selected_provider: sandboxProvider,
+          fallback_allowed: false,
+        },
+      );
+    }
     const sandboxWorkspaceRoot = runInE2bSandbox
       ? stageSandboxEnv.OPL_E2B_WORKSPACE_ROOT?.trim()
         || stageSandboxEnv.OPL_EXTERNAL_SANDBOX_WORKSPACE_ROOT?.trim()
@@ -489,7 +504,7 @@ async function runCodexStageRunner(input: CodexStageRunnerInput): Promise<CodexS
     );
     let result: CodexCommandResult;
     if (runInE2bSandbox) {
-      const sandboxResult = await runCodexInE2bSandbox({
+      const sandboxResult = await runtimeEnvironmentProvider!.execute({
           attempt: input.attempt,
           args,
           env: {

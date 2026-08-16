@@ -12,6 +12,7 @@ import { isRecord, normalizeTimeoutMs, type JsonRecord } from './family-runtime-
 import type { RunnerEventSummary } from './family-runtime-codex-stage-runner-parts/input-prompt.ts';
 import { sandboxAttemptSkillRuntime } from './family-runtime-attempt-skill-projection.ts';
 import { workspaceTransportDisplayUrl } from './workspace-transport-url.ts';
+import { resolveRuntimeEnvironmentProviderId } from './runtime-environment-provider.ts';
 
 type LocalSandboxProviderKind = 'local_devcontainer' | 'local_docker';
 
@@ -91,15 +92,13 @@ function normalizeProvider(value?: string | null): CodexStageSandboxProviderKind
 export function selectCodexStageSandboxProvider(
   env: Record<string, string | undefined> = process.env,
 ): CodexStageSandboxProviderKind {
+  const runtimeEnvironmentProviderId = resolveRuntimeEnvironmentProviderId(env);
+  if (runtimeEnvironmentProviderId === 'e2b') {
+    return 'e2b';
+  }
   const explicit = normalizeProvider(env.OPL_CODEX_STAGE_SANDBOX_PROVIDER);
   if (explicit) {
     return explicit;
-  }
-  if (
-    env.OPL_FAMILY_RUNTIME_PROVIDER?.trim().toLowerCase() === 'external_sandbox'
-    && env.OPL_EXTERNAL_SANDBOX_SUBSTRATE?.trim().toLowerCase() === 'e2b'
-  ) {
-    return 'e2b';
   }
   return 'host';
 }
