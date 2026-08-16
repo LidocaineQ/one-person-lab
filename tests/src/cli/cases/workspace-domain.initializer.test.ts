@@ -8,7 +8,6 @@ import {
   removeFixtureTree,
   repoRoot,
   runCli,
-  runCliAsync,
   test,
 } from '../helpers.ts';
 import {
@@ -229,7 +228,7 @@ test('workspace init honors an installed MAS study collection and keeps the gene
   }
 });
 
-test('workspace init projects the installed MAS professional Skill generation and reuses it', async () => {
+test('workspace init projects the installed MAS professional Skill generation and reuses it', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-workspace-init-skill-generation-'));
   const stateRoot = path.join(root, 'state');
   const modulesRoot = path.join(root, 'plugins');
@@ -253,9 +252,25 @@ test('workspace init projects the installed MAS professional Skill generation an
     OPL_DEVELOPER_MODE_GITHUB_IDENTITY_FIXTURE: 'opl-managed-package-test',
     ...releaseSet.env,
   };
+  fs.mkdirSync(env.CODEX_HOME, { recursive: true });
+  fs.writeFileSync(path.join(env.CODEX_HOME, 'config.toml'), [
+    '[marketplaces."mas-scholar-skills-local"]',
+    'source_type = "local"',
+    `source = ${JSON.stringify(path.join(root, 'provider', 'native-carrier-marketplace'))}`,
+    '',
+    '[marketplaces."med-autoscience-local"]',
+    'source_type = "local"',
+    `source = ${JSON.stringify(root)}`,
+    '',
+    '[plugins."mas-scholar-skills@mas-scholar-skills-local"]',
+    'enabled = true',
+    '',
+    '[plugins."med-autoscience@med-autoscience-local"]',
+    'enabled = true',
+    '',
+  ].join('\n'));
 
   try {
-    await runCliAsync(['packages', 'install', 'mas'], env);
     const args = [
       'workspace', 'init',
       '--agent', 'mas',
