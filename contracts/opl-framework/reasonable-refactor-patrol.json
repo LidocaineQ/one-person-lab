@@ -23,8 +23,7 @@
       "opl-bookforge"
     ],
     "excluded_repositories": [
-      "opl-aion-shell",
-      "opl-hermes-shell"
+      "opl-aion-shell"
     ],
     "excluded_path_prefixes": {
       "one-person-lab-app": [

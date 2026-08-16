@@ -111,7 +111,6 @@ test('default family structure advisory scope follows the current OPL series', (
     generatedReport.excluded_repositories.map((repo: { repo: string }) => repo.repo),
     [
       'opl-aion-shell',
-      'opl-hermes-shell',
     ],
   );
   const app = generatedReport.repositories.find(

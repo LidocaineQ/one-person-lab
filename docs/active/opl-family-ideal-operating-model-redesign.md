@@ -269,7 +269,7 @@ App 理想形态是 `Codex App wrapper + Foundry Agent cockpit`：
 - Settings：App profile、access、agents/capabilities、local environment、appearance、advanced、about/update，不暴露 ordinary backend/provider selector。
 - Release：cohort-bound evidence，不外推到 family production ready。
 
-优化方向：App 普通路径只展示 `purpose -> task -> current_owner_delta -> owner action`。Shell candidate、AionUI upstream detail、provider trace、release proof、full drilldown 都下沉为 diagnostics / release / developer detail。GUI 路线按 App owner policy 固定为 `opl-aion-shell` AionUI 主线、`opl-studio` DSH-derived foreground alternative、Hermes Desktop / `hermes-codex` retained explicit reference candidate、AGUI / `agui-codex` archived technical proof；除非用户明确要求 AGUI，AGUI 不再进入默认优化、验证、polish、release 或 adoption 路线。后续按本文推进功能面缺口时，任何来自 AGUI proof 的 UI、WebUI、adapter 或 smoke 待办都只能作为历史 replay 输入读取，不能转化为 OPL App 的默认开发 lane。
+优化方向：App 普通路径只展示 `purpose -> task -> current_owner_delta -> owner action`。Shell candidate、AionUI upstream detail、provider trace、release proof、full drilldown 都下沉为 diagnostics / release / developer detail。GUI 路线按 App owner policy 固定为 `opl-aion-shell` AionUI 主线与 `opl-studio` DSH-derived foreground alternative；Hermes Desktop / `hermes-codex` 已退休，仓库只保留 read-only Git provenance，AGUI / `agui-codex` 只保留 archived technical proof。Hermes 不再进入候选、replay、验证、polish、release、adoption 或维护路线；重新打开必须有新的 App 产品决策。后续按本文推进功能面缺口时，任何来自归档 shell 的 UI、WebUI、adapter 或 smoke 待办都只能作为历史输入读取，不能转化为 OPL App 的默认开发 lane。
 
 ### 3. MAS / MAG / RCA / OMA
 
@@ -313,7 +313,7 @@ OPL 对 MAS 的进一步优化重点不是再补 MAS 私有推进器，而是让
 
 `opl-aion-shell`、`opl-agui-codex-shell` 和已退休的 `opl-doc` tombstone 不进入 Foundry Agent core truth set。
 
-- Shell：`opl-aion-shell` 是当前 App GUI 主线，只实现 App contract；`opl-studio` 是 DSH-derived foreground alternative；Hermes Desktop 是 retained explicit reference candidate；AGUI shell 只保留为 archived technical proof / explicit replay provenance，不做默认更新或完善。上游 AionUI/DSH detail 是 implementation material，产品 authority 与版本组合仍由 `one-person-lab-app` 持有。
+- Shell：`opl-aion-shell` 是当前 App GUI 主线，只实现 App contract；`opl-studio` 是 DSH-derived foreground alternative。Hermes Desktop 已退休且仓库只保留 read-only Git provenance；AGUI shell 只保留 archived technical proof / explicit replay provenance。归档 shell 不做更新、完善、默认验证或 replay；上游 AionUI/DSH detail 是 implementation material，产品 authority 与版本组合仍由 `one-person-lab-app` 持有。
 - OPL Doc：standalone repo 只保留 provenance；当前 workflow steward 是 OPL Flow bundled `$opl-doc` Skill。它不提供 doctor CLI 或 profile sync writer，Skill/文档检查通过也不是 truth clean。
 
 ## Redesign Support Index

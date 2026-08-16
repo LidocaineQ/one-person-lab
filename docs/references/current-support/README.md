@@ -15,7 +15,7 @@ Currentness policy：本文只索引当前支撑参考，不冻结 skill 安装�
 
 | 文件组 | 角色 | 当前 owner / boundary |
 | --- | --- | --- |
-| `opl-gui-shell-adapter-boundary.md` | GUI adapter 归属与 upstream-sync 边界 | 当前 GUI 主线是 App 仓 `shells/aionui` 消费的 OPL-branded AionUI shell，`opl-aion-shell` 持有 upstream-backed adapter 实现；`opl-studio` 是 DSH-derived foreground alternative；Hermes Desktop / `hermes-codex` 是 retained explicit reference candidate；AGUI / `agui-codex` 只作为 archived technical proof / explicit replay provenance。OPL 持有 CLI-backed runtime/contracts/projection surfaces。 |
+| `opl-gui-shell-adapter-boundary.md` | GUI adapter 归属与 upstream-sync 边界 | 当前 GUI 主线是 App 仓 `shells/aionui` 消费的 OPL-branded AionUI shell，`opl-aion-shell` 持有 upstream-backed adapter 实现；`opl-studio` 是 DSH-derived foreground alternative；Hermes Desktop / `hermes-codex` 已退休且只保留 read-only Git provenance；AGUI / `agui-codex` 只作为 archived technical proof / explicit replay provenance。OPL 持有 CLI-backed runtime/contracts/projection surfaces。 |
 | `../../history/process/plans/2026-05-15-one-person-lab-app-repo-split-closeout.md` | App repo 拆分和 AionUI shell 独立化 closeout | 历史 closeout；当前边界由 App 仓合同、真实 release artifact 与 GUI shell adapter boundary 承接。 |
 | `opl-docker-webui-deployment*` | Docker 与浏览器部署参考 | WebUI 是 OPL-branded AionUI shell；已退役 headless Product API 端口不是用户入口。 |
 | `opl-fresh-install-and-gui-first-launch-testing.md` | Fresh install 与 GUI 首启证据计划 | OPL 主仓持有 CLI clean-room truth；release App VM proof 由 `one-person-lab-app` 调用 `opl-aion-shell` 执行。AGUI proof 不进入默认 fresh-install 或首启验证，除非用户明确要求 replay。 |
@@ -28,4 +28,4 @@ Currentness policy：本文只索引当前支撑参考，不冻结 skill 安装�
 
 ## 使用规则
 
-修改操作支撑参考前，先确认底层 owner 是 OPL CLI/source/contracts、`opl-aion-shell`、App release artifact 还是 domain repo。GUI 相关工作默认只推进 AionUI 主线或 App candidate registry 声明的 Native Workbench foreground alternative；Hermes Desktop 只做 explicit reference replay；AGUI 相关材料只做归档读取或显式 replay。行为变化应先更新 owner surface。
+修改操作支撑参考前，先确认底层 owner 是 OPL CLI/source/contracts、`opl-aion-shell`、App release artifact 还是 domain repo。GUI 相关工作默认只推进 AionUI 主线或 App candidate registry 声明的 Native Workbench foreground alternative；Hermes 已退休，只读归档 provenance 不产生实现或 replay 待办；AGUI 相关材料只做归档读取或显式 replay。行为变化应先更新 owner surface。

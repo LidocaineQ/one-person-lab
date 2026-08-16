@@ -289,7 +289,7 @@ test('reasonable refactor patrol keeps selection evidence-led and fork bodies ex
   assert.equal(contract.execution_policy?.fixed_selected_package_quota, false);
   assert.equal(contract.execution_policy?.fixed_line_budget_percentage, false);
   assert.equal(contract.execution_policy?.single_package_policy, 'allowed_when_it_is_the_highest_value_coherent_executable_batch');
-  assert.deepEqual(contract.scope?.excluded_repositories, ['opl-aion-shell', 'opl-hermes-shell']);
+  assert.deepEqual(contract.scope?.excluded_repositories, ['opl-aion-shell']);
   assert.deepEqual(
     contract.scope?.excluded_path_prefixes?.['one-person-lab-app'],
     ['shells/aionui/', '_external/hermes-agent/'],

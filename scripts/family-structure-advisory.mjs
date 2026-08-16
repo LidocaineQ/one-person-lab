@@ -50,12 +50,6 @@ const DEFAULT_EXCLUDED_REPOS = [
     repo_role: 'external_fork_app_shell_carrier',
     exclusion_reason: 'user_excluded_external_fork',
   },
-  {
-    repo: 'opl-hermes-shell',
-    root: path.join(workspaceRoot, 'opl-hermes-shell'),
-    repo_role: 'external_fork_app_shell_carrier',
-    exclusion_reason: 'user_excluded_external_fork',
-  },
 ];
 
 function repoEntry(name, root, role, options = {}) {

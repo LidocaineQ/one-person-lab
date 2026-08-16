@@ -121,7 +121,7 @@ function validateContract(contract) {
     }
   }
   const excluded = new Set(contract.scope?.excluded_repositories ?? []);
-  for (const repo of ['opl-aion-shell', 'opl-hermes-shell']) {
+  for (const repo of ['opl-aion-shell']) {
     if (!excluded.has(repo)) {
       errors.push(`scope must exclude ${repo}`);
     }

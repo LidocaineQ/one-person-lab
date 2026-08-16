@@ -581,7 +581,7 @@ Stage attempt 的终态只允许收敛到三类：`success` 表示 required outp
 - 本地 `opl` shell / TUI
 - `Codex` 中的显式调用面
 - ACP-compatible 外部壳
-- `opl-aion-shell` AionUI 定制 GUI，经 `one-person-lab-app` 打包发布；`opl-studio` 是 DSH-derived foreground alternative GUI candidate，Hermes Desktop 是 retained explicit reference candidate，AGUI/CopilotKit 只作为 archived technical proof 读取
+- `opl-aion-shell` AionUI 定制 GUI，经 `one-person-lab-app` 打包发布；`opl-studio` 是 DSH-derived foreground alternative GUI candidate；Hermes Desktop 已退休且仓库只保留 read-only Git provenance，AGUI/CopilotKit 只作为 archived technical proof 读取
 - 未来 hosted / online 壳
 
 ## OPL 与 Domain Agents 的关系

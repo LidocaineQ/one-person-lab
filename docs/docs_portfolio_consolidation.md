@@ -19,7 +19,7 @@ repo-native product / docs / support / capability-pack / workflow-profile truth 
 扩大 framework/domain taxonomy。下文具名仓库只记录已有长期角色判断，不是 live inventory
 或准入清单；Cloud 纳入治理也不等于把 Hosted Workspace 认定为当前必要产品面。
 
-`opl-aion-shell`、`opl-hermes-shell`、`one-person-lab-app/shells/aionui` 和 `one-person-lab-app/_external/hermes-agent` 是 upstream fork / reference body，默认只做 owner、fork 状态、overlay 边界和文档链接的 read-only 盘点。`opl-agui-codex-shell` 只作为 archived technical proof / explicit replay provenance，除非用户明确要求 AGUI replay 或历史技术验证审计，不进入默认维护、polish、release 或功能面落地巡检。
+`opl-aion-shell`、`one-person-lab-app/shells/aionui` 和 `one-person-lab-app/_external/hermes-agent` 是 upstream fork / reference body，默认只做 owner、fork 状态、overlay 边界和文档链接的 read-only 盘点。`opl-hermes-shell` 已退休并作为 read-only Git provenance 归档，不再进入维护、结构或 replay 巡检；`opl-agui-codex-shell` 只作为 archived technical proof / explicit replay provenance，除非用户明确要求 AGUI replay 或历史技术验证审计，不进入默认维护、polish、release 或功能面落地巡检。
 
 `active/public/product/runtime/delivery/source/policies/specs/references/history`
 
@@ -27,7 +27,7 @@ repo-native product / docs / support / capability-pack / workflow-profile truth 
 
 `opl-meta-agent` 属于 OPL-compatible Foundry Agent / target-agent builder repo，`opl-bookforge` 属于 OPL-compatible authoring agent / artifact lifecycle owner repo；二者纳入 series docs governance 巡检，但不强制套用 OPL/MAS/MAG/RCA 的完整目录骨架。OMA 和 BookForge 当前可以保持轻量 docs 形态；只有当它们出现长期 public、product、runtime、delivery、source、policies、specs 或 history 内容时，才按相同生命周期规则新增对应目录索引。
 
-`one-person-lab-app/docs/` 治理 One Person Lab App 的产品文档、release、testing、user guides 和 screenshots，纳入 family 维护巡检，但按 App 产品仓职责治理，不反向扩大 framework/domain canonical taxonomy。当前 AionUI shell 的 upstream 依赖文档归 `opl-aion-shell/docs/`，DSH-derived Studio 候选文档归 `opl-studio/docs/`，两者不主导 App 顶层，也不纳入 OPL/MAS/MAG/RCA 的 canonical docs taxonomy。`opl-studio` 是 App-owned foreground alternative GUI candidate；Hermes Desktop / `hermes-codex` 只作为 retained explicit reference candidate；AG-UI/CopilotKit / `agui-codex` 文档只作为 archived technical proof / explicit replay provenance 维护，不进入默认开发和 polish 巡检。`one-person-lab-app/shells/aionui` 只是外部 checkout 入口，不能把 AionUI 文档历史合入 App 默认分支。OPL 主仓只记录 One Person Lab App/GUI 的目标、消费合同、action routing 和 runtime/domain truth 投影边界。
+`one-person-lab-app/docs/` 治理 One Person Lab App 的产品文档、release、testing、user guides 和 screenshots，纳入 family 维护巡检，但按 App 产品仓职责治理，不反向扩大 framework/domain canonical taxonomy。当前 AionUI shell 的 upstream 依赖文档归 `opl-aion-shell/docs/`，DSH-derived Studio 候选文档归 `opl-studio/docs/`，两者不主导 App 顶层，也不纳入 OPL/MAS/MAG/RCA 的 canonical docs taxonomy。`opl-studio` 是 App-owned foreground alternative GUI candidate；Hermes Desktop / `hermes-codex` 已退休，其仓库只保留 read-only Git provenance，不进入默认开发、replay 和巡检；AG-UI/CopilotKit / `agui-codex` 文档只作为 archived technical proof / explicit replay provenance 维护，不进入默认开发和 polish 巡检。`one-person-lab-app/shells/aionui` 只是外部 checkout 入口，不能把 AionUI 文档历史合入 App 默认分支。OPL 主仓只记录 One Person Lab App/GUI 的目标、消费合同、action routing 和 runtime/domain truth 投影边界。
 
 ## 主参考
 
@@ -146,7 +146,7 @@ fresh discovery 新发现的 OPL-owned 仓库。仓库是否进入某轮治理�
 | `RCA` | 完整保留 canonical 目录集合；`active/product/runtime/delivery/source/policies/references/history` 已真实承载，`public/specs` 可以保持薄索引。旧 `program/`、`plans/`、`capabilities/` 不复活成 active 目录。 |
 | `OPL Meta Agent` | 纳入维护巡检；当前保持轻量 docs root / active / references 形态。只有当 target-agent builder 职责产生长期 public、product、runtime、delivery、source、policies、specs 或 history 内容时，才新增对应目录索引。 |
 | `OPL BookForge` | 纳入维护巡检；按 authoring agent / artifact lifecycle owner 职责维护 active truth、history/provenance 和必要 reference。只有当长期 public、product、runtime、delivery、source、policies、specs 或 history 内容稳定出现时，才新增对应目录索引。 |
-| `One Person Lab App` | 纳入维护巡检；App docs 归产品、release、testing、user guides 和 screenshot lifecycle。App release truth、GUI product truth、GUI candidate policy 和 active-shell validation 回 App repo 自身 contracts/source/tests；AionUI/DSH upstream docs 不合入 App 默认分支，也不主导 OPL framework/domain taxonomy。`opl-studio` 是 DSH-derived foreground alternative；Hermes Desktop 是 retained explicit reference candidate；AGUI 只作为 archived technical proof / explicit replay provenance。 |
+| `One Person Lab App` | 纳入维护巡检；App docs 归产品、release、testing、user guides 和 screenshot lifecycle。App release truth、GUI product truth、GUI candidate policy 和 active-shell validation 回 App repo 自身 contracts/source/tests；AionUI/DSH upstream docs 不合入 App 默认分支，也不主导 OPL framework/domain taxonomy。`opl-studio` 是 DSH-derived foreground alternative；Hermes Desktop 已退休并只保留 read-only Git provenance；AGUI 只作为 archived technical proof / explicit replay provenance。 |
 | `One Person Lab Cloud` | 纳入维护巡检；持有正在落地的 Cloud 产品、owner policy 与公开白皮书 truth。Hosted Workspace、Gateway、Fabric、Console 或组织协作面按各自的 account、storage、isolation、backend 与 owner policy 逐步形成产品证据，并与 App desktop、Docker/WebUI 和 Framework runtime 保持清楚分工。 |
 | `OPL Studio` | 纳入维护巡检；作为 DSH-derived GUI candidate 的 repo-native truth 读取，只对 App / Framework canonical `app_state`、`action_refs`、Client Cordis contribution 和 package/runtime/task projection 的消费边界负责，不声明 App release ready 或 runtime ready。 |
 | `OPL Flow` | 纳入维护巡检；只持有 workflow profile、managed surface sync 和 repo profile drift 检查边界，不替代目标 repo 的 source/contracts/docs/runtime truth。 |

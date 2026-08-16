@@ -5,6 +5,23 @@ Purpose: `decisions`
 State: `active_truth`
 Machine boundary: 本文是核心人读真相面。机器真相继续归 contracts、source、CLI/API 行为、runtime ledger、provider receipt、domain-owned manifest 和真实 workspace / App evidence。
 
+## 2026-08-16
+
+### 决策：退休并归档 `opl-hermes-shell`
+
+原因：One Person Lab App 已明确使用 AionUI 主线与 DSH-derived `opl-studio` 候选；App
+合同和真实 caller 都不再消费 Hermes GUI。继续把 Hermes 写成 retained reference
+candidate 会制造不存在的 replay、验证和维护义务，也会让活动巡检产生伪待办。
+
+影响：
+
+- Hermes Desktop / `hermes-codex` 产品角色退休；`opl-hermes-shell` 只保留完整 Git
+  历史和源代码作为 GitHub read-only provenance。
+- Hermes 不再是 candidate、replay route、默认验证目标、开发 lane、release route 或
+  maintained reference，也不再进入 family structure/refactor patrol 或活动仓库治理清单。
+- 既有 `candidate` 文件名、包名和命令名只作历史实现标识，不能恢复候选资格。
+- 重新打开必须由 One Person Lab App 作出新的明确产品决策；归档不删除仓库、历史或源代码。
+
 ## 2026-08-15
 
 ### 决策：OPL 保持四层产品认知，品牌收敛为动态 Family capability portfolio
