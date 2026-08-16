@@ -10,7 +10,6 @@ import {
   buildPackageHostContext,
   readCapabilityPackageHostContract,
   type ChannelProvider,
-  type ChannelThreadCallback,
 } from '../../src/authority/packages/index.ts';
 import {
   createCordisAppFullComposition,
@@ -18,6 +17,8 @@ import {
 } from '../../src/host/composition-profiles.ts';
 import {
   CORDIS_CHANNEL_PROVIDER_HOST_PLUGIN_ID,
+  type ChannelThreadBinding,
+  type ChannelThreadHostCallback,
 } from '../../src/host/plugins/cordis-channel-provider-host.ts';
 import {
   normalizeCapabilityPackageManifest,
@@ -35,7 +36,10 @@ function emptyDescriptorDiscovery() {
   return { discover: () => new Map() };
 }
 
-function callbackFixture(events: string[] = []): ChannelThreadCallback {
+function callbackFixture(
+  events: string[] = [],
+  readTransportBindings?: ChannelThreadHostCallback['readTransportBindings'],
+): ChannelThreadHostCallback {
   return {
     async startThread(identity) {
       assert.deepEqual(Object.keys(identity).sort(), [
@@ -70,6 +74,7 @@ function callbackFixture(events: string[] = []): ChannelThreadCallback {
         },
       };
     },
+    ...(readTransportBindings ? { readTransportBindings } : {}),
   };
 }
 
@@ -92,7 +97,17 @@ test('app-full channel provider is dormant unless a Shell callback is injected',
 
 test('app-full attaches a long-lived provider to the bounded callback and tears it down', async () => {
   const events: string[] = [];
-  const callback = callbackFixture(events);
+  let persistedBindings: readonly ChannelThreadBinding[] = [];
+  const baseCallback = callbackFixture(events);
+  const callback: ChannelThreadHostCallback = {
+    ...baseCallback,
+    async startThread(identity) {
+      const canonicalThread = await baseCallback.startThread(identity);
+      persistedBindings = [{ ...identity, ...canonicalThread }];
+      return canonicalThread;
+    },
+    readTransportBindings: async () => persistedBindings,
+  };
   const provider: ChannelProvider = {
     provider_id: 'opl-channel-weixin',
     async start({ callback_api_version: apiVersion, callback: injected }) {
@@ -205,42 +220,85 @@ test('app-full attaches a long-lived provider to the bounded callback and tears 
   assert.deepEqual(events.slice(-2), ['turn:unsubscribe:turn-1', 'provider:dispose']);
 });
 
-test('channel transport projection rejects identity and canonical-thread conflicts', async () => {
-  let callbackCount = 0;
-  const callback = callbackFixture();
-  const conflictingCallback: ChannelThreadCallback = {
-    ...callback,
-    async startThread() {
-      callbackCount += 1;
-      return {
-        canonical_thread_host: 'studio',
-        canonical_thread_id: `thread-${callbackCount}`,
-      };
-    },
+test('channel transport projection validates the Shell-owned persisted binding readback', async () => {
+  const first: ChannelThreadBinding = {
+    provider_id: 'opl-channel-weixin',
+    account_id: 'account-1',
+    channel_session_id: 'session-1',
+    canonical_thread_host: 'studio',
+    canonical_thread_id: 'thread-1',
+  };
+  const inactiveOtherProvider = {
+    ...first,
+    provider_id: 'other-provider',
+    account_id: 'account-2',
+    channel_session_id: 'session-2',
+    canonical_thread_id: 'thread-2',
   };
   const provider: ChannelProvider = {
     provider_id: 'opl-channel-weixin',
-    async start({ callback: injected }) {
-      const identity = {
-        provider_id: 'opl-channel-weixin',
-        account_id: 'account-1',
-        channel_session_id: 'session-1',
-      };
-      await injected.startThread(identity);
-      await injected.startThread(identity);
-      return { dispose() {} };
-    },
+    async start() { return { dispose() {} }; },
   };
-  await assert.rejects(
-    () => createCordisAppFullComposition({
+  const projectionFor = async (
+    readTransportBindings?: ChannelThreadHostCallback['readTransportBindings'],
+  ) => {
+    const composition = await createCordisAppFullComposition({
       runtimeSnapshotProvider: async () => ({ runtime_tray_snapshot: {} }),
-      channelProvider: { callback: conflictingCallback, providers: [provider] },
+      channelProvider: {
+        callback: callbackFixture([], readTransportBindings),
+        providers: [provider],
+      },
       connect: emptyDescriptorDiscovery(),
-    }),
-    /mismatched canonical thread ref/,
-  );
+    });
+    return {
+      composition,
+      projection: (composition.services.channelProviderHost!.appStatePatch() as any)
+        .transport_bindings,
+    };
+  };
 
-  const sharedThreadProvider: ChannelProvider = {
+  const valid = await projectionFor(async () => [first, inactiveOtherProvider]);
+  try {
+    assert.equal(valid.projection.status, 'available');
+    assert.deepEqual(
+      valid.projection.bindings.map(({ binding_id: _bindingId, ...binding }: any) => binding),
+      [{ ...first, project_affinity: 'projectless', status: 'bound' }],
+    );
+  } finally {
+    await valid.composition.dispose();
+  }
+
+  for (const invalid of [
+    [{ ...first, provider_id: ' opl-channel-weixin' }],
+    [{ ...first, account_id: 'a'.repeat(513) }],
+    [first, { ...first, canonical_thread_id: 'thread-2' }],
+    [first, { ...first, account_id: 'account-2', channel_session_id: 'session-2' }],
+  ]) {
+    const result = await projectionFor(async () => invalid);
+    try {
+      assert.equal(result.projection.status, 'unavailable');
+      assert.equal(result.projection.unavailable_reason, 'invalid_projection');
+    } finally {
+      await result.composition.dispose();
+    }
+  }
+
+  const failed = await projectionFor(async () => { throw new Error('store unavailable'); });
+  try {
+    assert.equal(failed.projection.unavailable_reason, 'projection_unavailable');
+  } finally {
+    await failed.composition.dispose();
+  }
+
+  const legacy = await projectionFor();
+  try {
+    assert.equal(legacy.projection.status, 'unavailable');
+    assert.equal(legacy.projection.unavailable_reason, 'producer_absent');
+  } finally {
+    await legacy.composition.dispose();
+  }
+
+  const nonPersistingProvider: ChannelProvider = {
     provider_id: 'opl-channel-weixin',
     async start({ callback: injected }) {
       await injected.startThread({
@@ -248,21 +306,19 @@ test('channel transport projection rejects identity and canonical-thread conflic
         account_id: 'account-1',
         channel_session_id: 'session-1',
       });
-      await injected.startThread({
-        provider_id: 'opl-channel-weixin',
-        account_id: 'account-1',
-        channel_session_id: 'session-2',
-      });
       return { dispose() {} };
     },
   };
   await assert.rejects(
     () => createCordisAppFullComposition({
       runtimeSnapshotProvider: async () => ({ runtime_tray_snapshot: {} }),
-      channelProvider: { callback, providers: [sharedThreadProvider] },
+      channelProvider: {
+        callback: callbackFixture([], async () => []),
+        providers: [nonPersistingProvider],
+      },
       connect: emptyDescriptorDiscovery(),
     }),
-    /already bound to another channel identity/,
+    /did not persist the exact transport binding/,
   );
 });
 
@@ -495,7 +551,7 @@ test('app-full loads a callable channel provider from an installed descriptor en
   );
   const composition = await createCordisAppFullComposition({
     runtimeSnapshotProvider: async () => ({ runtime_tray_snapshot: {} }),
-    channelProvider: { callback: callbackFixture() },
+    channelProvider: { callback: callbackFixture([], async () => []) },
     connect: { discover: () => new Map([[manifest.package_id, descriptor]]) },
   });
   try {
@@ -583,6 +639,8 @@ test('public channel-provider bootstrap owns the app-full Host lifecycle', async
     assert.equal(typeof host.dispose, 'function');
     assert.equal(typeof host.readChannelAccess, 'function');
     assert.equal(typeof host.executeChannelAccessAction, 'function');
+    const patch = host.appStatePatch() as any;
+    assert.equal(patch.transport_bindings.unavailable_reason, 'producer_absent');
     await host.dispose();
   } finally {
     if (previousBinary === undefined) delete process.env.OPL_CODEX_PLUGIN_BIN;

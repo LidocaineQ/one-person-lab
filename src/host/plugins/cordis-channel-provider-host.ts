@@ -42,8 +42,14 @@ export type CordisChannelProviderHostService = Readonly<{
   executeChannelAccessAction(input: CordisChannelProviderContributionRequest): Promise<Readonly<Record<string, unknown>>>;
 }>;
 
+export type ChannelThreadBinding = ChannelConversationIdentity & ChannelThreadRef;
+
+export type ChannelThreadHostCallback = ChannelThreadCallback & Readonly<{
+  readTransportBindings?(): Promise<readonly ChannelThreadBinding[]>;
+}>;
+
 export type CordisChannelProviderHostPluginConfig = Readonly<{
-  callback: ChannelThreadCallback;
+  callback: ChannelThreadHostCallback;
   providers?: readonly ChannelProvider[];
   installedProviders?: readonly InstalledChannelProviderAttachment[];
 }>;
@@ -62,11 +68,26 @@ type ActiveProvider = Readonly<{
   confirmationRequiredRefs: ReadonlySet<string>;
 }>;
 
-type ChannelTransportBinding = ChannelConversationIdentity & ChannelThreadRef & Readonly<{
+type ChannelTransportBinding = ChannelThreadBinding & Readonly<{
   binding_id: string;
   project_affinity: 'projectless';
   status: 'bound';
 }>;
+
+type ChannelTransportBindingsProjection = Readonly<{
+  surface_kind: 'opl_app_transport_bindings_projection.v1';
+  authority_boundary: typeof transportBindingAuthorityBoundary;
+}> & (
+  | Readonly<{
+      status: 'available';
+      bindings: readonly ChannelTransportBinding[];
+    }>
+  | Readonly<{
+      status: 'unavailable';
+      bindings: readonly ChannelTransportBinding[];
+      unavailable_reason: 'producer_absent' | 'projection_unavailable' | 'invalid_projection';
+    }>
+);
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -191,9 +212,10 @@ function transportThreadKey(thread: ChannelThreadRef): string {
 }
 
 function channelTransportBinding(
-  identity: ChannelConversationIdentity,
-  thread: ChannelThreadRef,
+  input: ChannelThreadBinding,
 ): ChannelTransportBinding {
+  const identity = conversationIdentity(input);
+  const thread = threadRef(input);
   const key = transportBindingKey(identity);
   return Object.freeze({
     binding_id: `binding-${createHash('sha256').update(key).digest('hex')}`,
@@ -202,6 +224,107 @@ function channelTransportBinding(
     project_affinity: 'projectless',
     status: 'bound',
   });
+}
+
+const transportBindingAuthorityBoundary = Object.freeze({
+  raw_fact_owner: 'current_shell_exact_binding_store',
+  projection_owner: 'one-person-lab-framework',
+  thread_truth_owner: 'canonical_codex_app_server',
+  consumer_role: 'render_and_join_only',
+  persistence_role: 'none',
+});
+
+function unavailableTransportBindings(
+  reason: 'producer_absent' | 'projection_unavailable' | 'invalid_projection',
+): ChannelTransportBindingsProjection {
+  return Object.freeze({
+    surface_kind: 'opl_app_transport_bindings_projection.v1',
+    status: 'unavailable',
+    bindings: Object.freeze([]),
+    unavailable_reason: reason,
+    authority_boundary: transportBindingAuthorityBoundary,
+  });
+}
+
+function availableTransportBindings(
+  bindings: readonly ChannelTransportBinding[],
+): ChannelTransportBindingsProjection {
+  return Object.freeze({
+    surface_kind: 'opl_app_transport_bindings_projection.v1',
+    status: 'available',
+    bindings: Object.freeze([...bindings]),
+    authority_boundary: transportBindingAuthorityBoundary,
+  });
+}
+
+async function readTransportBindingsProjection(
+  callback: ChannelThreadHostCallback,
+): Promise<ChannelTransportBindingsProjection> {
+  if (callback.readTransportBindings === undefined) {
+    return unavailableTransportBindings('producer_absent');
+  }
+  if (typeof callback.readTransportBindings !== 'function') {
+    return unavailableTransportBindings('invalid_projection');
+  }
+  let rawBindings: unknown;
+  try {
+    rawBindings = await callback.readTransportBindings();
+  } catch {
+    return unavailableTransportBindings('projection_unavailable');
+  }
+  try {
+    const bounded = boundedJsonValue(rawBindings, 'Channel transport bindings');
+    if (!Array.isArray(bounded)) {
+      throw new TypeError('Channel transport bindings must be an array.');
+    }
+    const identityKeys = new Set<string>();
+    const threadKeys = new Set<string>();
+    const bindings = bounded.map((input) => {
+      const binding = channelTransportBinding(input as ChannelThreadBinding);
+      const identityKey = transportBindingKey(binding);
+      const canonicalThreadKey = transportThreadKey(binding);
+      if (identityKeys.has(identityKey) || threadKeys.has(canonicalThreadKey)) {
+        throw new TypeError('Channel transport bindings must contain unique exact identities and threads.');
+      }
+      identityKeys.add(identityKey);
+      threadKeys.add(canonicalThreadKey);
+      return binding;
+    }).sort((left, right) => left.binding_id.localeCompare(right.binding_id));
+    return availableTransportBindings(bindings);
+  } catch {
+    return unavailableTransportBindings('invalid_projection');
+  }
+}
+
+function activeTransportBindingsProjection(
+  projection: ChannelTransportBindingsProjection,
+  activeProviderIds: ReadonlySet<string>,
+): ChannelTransportBindingsProjection {
+  if (activeProviderIds.size === 0) return unavailableTransportBindings('producer_absent');
+  if (projection.status !== 'available') return projection;
+  return availableTransportBindings(
+    projection.bindings.filter((binding) => activeProviderIds.has(binding.provider_id)),
+  );
+}
+
+function assertPersistedTransportBinding(
+  projection: ChannelTransportBindingsProjection,
+  identity: ChannelConversationIdentity,
+  canonicalThread: ChannelThreadRef,
+) {
+  if (projection.status !== 'available') {
+    throw new Error(
+      `Channel transport binding readback is unavailable: ${projection.unavailable_reason}`,
+    );
+  }
+  const expectedKey = transportBindingKey(identity);
+  const binding = projection.bindings.find((candidate) => (
+    transportBindingKey(candidate) === expectedKey
+  ));
+  if (!binding) {
+    throw new Error('Channel callback did not persist the exact transport binding.');
+  }
+  sameThread(canonicalThread, binding);
 }
 
 function sameThread(expected: ChannelThreadRef, actual: ChannelThreadRef) {
@@ -263,31 +386,10 @@ export const cordisChannelProviderHostPlugin = {
   async apply(ctx: Context, config: CordisChannelProviderHostPluginConfig) {
     assertChannelThreadCallback(config.callback);
     const activeProviders = new Map<string, ActiveProvider>();
-    const transportBindings = new Map<string, ChannelTransportBinding>();
-    const removeProviderBindings = (providerId: string) => {
-      for (const [key, binding] of transportBindings) {
-        if (binding.provider_id === providerId) transportBindings.delete(key);
-      }
-    };
-    const recordTransportBinding = (
-      identity: ChannelConversationIdentity,
-      canonicalThread: ChannelThreadRef,
-    ) => {
-      const key = transportBindingKey(identity);
-      const existing = transportBindings.get(key);
-      if (existing) {
-        sameThread(existing, canonicalThread);
-        return existing;
-      }
-      const threadKey = transportThreadKey(canonicalThread);
-      if ([...transportBindings.values()].some((binding) => (
-        transportThreadKey(binding) === threadKey
-      ))) {
-        throw new Error('Canonical channel thread is already bound to another channel identity.');
-      }
-      const binding = channelTransportBinding(identity, canonicalThread);
-      transportBindings.set(key, binding);
-      return binding;
+    let transportBindingsProjection = await readTransportBindingsProjection(config.callback);
+    const refreshTransportBindingsProjection = async () => {
+      transportBindingsProjection = await readTransportBindingsProjection(config.callback);
+      return transportBindingsProjection;
     };
     const attachProvider = async (
       provider: ChannelProvider,
@@ -317,7 +419,11 @@ export const cordisChannelProviderHostPlugin = {
             );
           }
           const canonicalThread = threadRef(await config.callback.startThread(identity));
-          recordTransportBinding(identity, canonicalThread);
+          assertPersistedTransportBinding(
+            await refreshTransportBindingsProjection(),
+            identity,
+            canonicalThread,
+          );
           return canonicalThread;
         },
         resumeThread: (input) => config.callback.resumeThread(threadRef(input)),
@@ -349,7 +455,6 @@ export const cordisChannelProviderHostPlugin = {
         assertChannelDisposable(providerDisposable);
       } catch (error) {
         activeProviders.delete(provider.provider_id);
-        removeProviderBindings(provider.provider_id);
         throw error;
       }
       activeProviders.set(provider.provider_id, Object.freeze({
@@ -363,7 +468,6 @@ export const cordisChannelProviderHostPlugin = {
         if (disposed) return;
         disposed = true;
         activeProviders.delete(provider.provider_id);
-        removeProviderBindings(provider.provider_id);
         await providerDisposable.dispose();
       }, `channel-provider:${provider.provider_id}`);
       return Object.freeze({
@@ -401,27 +505,14 @@ export const cordisChannelProviderHostPlugin = {
             capability_exposure: { status: 'enabled' },
             app_contributions: active.attachment!.descriptor.manifest.app_contributions,
           }]));
-        const bindings = [...transportBindings.values()]
-          .filter((binding) => activeProviderIds.has(binding.provider_id))
-          .sort((left, right) => left.binding_id.localeCompare(right.binding_id));
-        const providerAvailable = activeProviderIds.size > 0;
         return Object.freeze({
           ui_contributions: buildAppUiContributionsProjection(packageStatusById, {
             actionRoute: 'opl.connect.channel-provider-host',
           }),
-          transport_bindings: Object.freeze({
-            surface_kind: 'opl_app_transport_bindings_projection.v1',
-            status: providerAvailable ? 'available' : 'unavailable',
-            bindings: Object.freeze(bindings),
-            ...(!providerAvailable ? { unavailable_reason: 'producer_absent' } : {}),
-            authority_boundary: Object.freeze({
-              raw_fact_owner: 'current_shell_exact_binding_store',
-              projection_owner: 'one-person-lab-framework',
-              thread_truth_owner: 'canonical_codex_app_server',
-              consumer_role: 'render_and_join_only',
-              persistence_role: 'none',
-            }),
-          }),
+          transport_bindings: activeTransportBindingsProjection(
+            transportBindingsProjection,
+            activeProviderIds,
+          ),
         });
       },
       async readChannelAccess(input) {
