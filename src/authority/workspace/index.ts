@@ -7,7 +7,6 @@ export const OPL_WORKSPACE_SOURCE_MODULE = {
 
 // Public cross-module surface generated from existing module consumers.
 export { buildEvidenceGroundedWorkspaceSubstrate } from './evidence-grounded-substrate.ts';
-export { buildAgentWorkspaceNormChecks, buildAgentWorkspaceNormProjection } from './agent-workspace-norm.ts';
 export { resolveDefaultFamilyWorkspaceRoot, resolveFamilyWorkspaceRootFromRepoRoot } from '../../kernel/family-workspace-root.ts';
 export {
   adoptWorkspace,
@@ -22,20 +21,6 @@ export {
   type WorkspaceSkillProjectionRefresher,
 } from './workspace-initializer.ts';
 export { archiveWorkspaceProject, deleteWorkspaceProject, exportWorkspaceMap, inspectWorkspace, updateWorkspaceProjectLifecycle, upgradeWorkspace, workspaceFleetReport, workspaceHealth, workspaceInventory, workspaceReport } from './workspace-lifecycle.ts';
-export { ingestWorkspaceSourceMaterial } from './workspace-source-material.ts';
-export {
-  DEFAULT_DOMAIN_WORKSPACE_GITIGNORE_ENTRIES,
-  ensureDomainWorkspaceGitBoundary,
-  fingerprintDomainSource,
-  materializeDomainSources,
-  renderDomainWorkspaceGitignore,
-} from './domain-source-runtime.ts';
-export type { DomainSourceInput } from './domain-source-runtime.ts';
-export {
-  assertRepoSourceByproductsClean,
-  fixRepoSourceByproducts,
-  inspectRepoSourceByproducts,
-} from './repo-source-byproduct-guard.ts';
 import {
   buildWorkspaceCatalog,
   inspectWorkspacePathCurrentness,
@@ -53,68 +38,32 @@ export type {
   WorkspaceBinding,
   WorkspaceLocator,
   WorkspaceLocatorService,
-  WorkspacePathCurrentness,
 } from './workspace-registry.ts';
 export type {
   WorkspaceLocator as CordisWorkspaceLocator,
   WorkspaceLocatorService as CordisWorkspaceLocatorService,
 } from './workspace-registry.ts';
 export {
-  assertSameExecutionScope,
-  createProjectScopeId,
   createWorkItemExecutionScopeSnapshot,
-  deriveLegacyProjectScopeId,
-  deriveWorkItemScopeId,
   executionScopeEnvironment,
-  EXECUTION_SCOPE_SNAPSHOT_VERSION,
-  executionScopeSnapshotVersion,
-  LEGACY_EXECUTION_SCOPE_SNAPSHOT_VERSION,
-  requireLegacyWorkItemExecutionScopeSnapshot,
   requireWorkItemExecutionScopeSnapshot,
-  resolveWorkItemIdentity,
-  WORK_ITEM_IDENTITY_ALIAS_FIELDS,
 } from './execution-scope.ts';
 export type {
-  ExecutionScopeKind,
-  ExecutionScopeRequirement,
-  LegacyWorkItemExecutionScopeSnapshot,
-  NonWorkItemExecutionScopeRequirement,
-  ResolvedWorkItemIdentity,
-  WorkItemExecutionScopeRequirement,
   WorkItemExecutionScopeSnapshot,
 } from './execution-scope.ts';
-export { WORKSPACE_TOPOLOGY_PROFILE_CONTRACT } from './workspace-topology.ts';
-export { resolveWorkItemInventoryBinding } from './work-item-inventory-binding.ts';
 export {
   captureWorkItemRootIdentity,
   readStableWorkItemFile,
   requireWorkItemRootIdentity,
-  WORK_ITEM_ROOT_IDENTITY_VERSION,
   WorkItemFileBoundaryError,
 } from './work-item-file-boundary.ts';
 export type {
-  StableWorkItemFileObservation,
-  WorkItemFileBoundaryFailureCode,
   WorkItemRootIdentity,
 } from './work-item-file-boundary.ts';
-export {
-  commitStandardAgentActionOutput,
-  inspectStandardAgentActionRunOutput,
-  inspectStoredStandardAgentActionRunOutput,
-  prepareStandardAgentActionRunRequest,
-  STANDARD_AGENT_ACTION_RUNS_RELATIVE_ROOT,
-} from './standard-agent-action-output.ts';
-export type {
-  StandardAgentActionRunRequest,
-  StandardAgentActionRunOutput,
-  StandardAgentActionRunStoredBytes,
-} from './standard-agent-action-output.ts';
 export * from './agent-default-caller-delete-read-model.ts';
 export * from './agent-platform-surface-ownership.ts';
 export {
-  DEFAULT_CALLER_DEFAULT_ORDINARY_LANE_ID,
   DEFAULT_CALLER_OWNER_DECISION_ACCEPTED_RESULT_SHAPES,
-  DEFAULT_CALLER_OWNER_DECISION_NEXT_REQUIRED_ACTION,
   DEFAULT_CALLER_PRIVATE_PLATFORM_CLEANUP_ALLOWED_DISPOSITIONS,
   DEFAULT_CALLER_PRIVATE_PLATFORM_CLEANUP_LANE_ID,
   DEFAULT_CALLER_PRIVATE_PLATFORM_RESIDUE_TARGET_KINDS,
@@ -125,15 +74,12 @@ export {
   DEFAULT_CALLER_STATIC_RETIREMENT_PREREQUISITE_GATE_IDS,
   aggregateDefaultCallerOwnerDecisionResultShape,
   buildDefaultCallerOwnerDecisionReadModel,
-  defaultCallerOwnerDecisionCloseoutReadout,
 } from '../../kernel/default-caller-retirement-guard.ts';
 export type {
   DefaultCallerPrivatePlatformCleanupDisposition,
   DefaultCallerPrivatePlatformResidueTargetKind,
 } from '../../kernel/default-caller-retirement-guard.ts';
 export {
-  DEFAULT_CALLER_DELETION_NOT_AUTHORIZED_CLAIMS,
-  DEFAULT_CALLER_PHYSICAL_DELETE_BLOCKERS,
   defaultCallerSurfaceGates,
 } from '../../kernel/default-caller-surface-gates.ts';
 export * from './domain-private-platform-tail-matrix.ts';

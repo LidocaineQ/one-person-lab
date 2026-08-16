@@ -5,15 +5,13 @@ export const OPL_LEDGER_SOURCE_MODULE = {
   physicalRoot: 'src/authority/evidence',
 } as const;
 
-export { buildWorkItemControlResolver, findWorkItemControl, readWorkItemControlLedger, setWorkItemControlState, setWorkItemVisibilityState, workItemControlKey, WORK_ITEM_USER_LIFECYCLE_STATES, WORK_ITEM_VISIBILITY_STATES } from './work-item-control-ledger.ts';
-export type { SetWorkItemControlStateInput, SetWorkItemVisibilityStateInput, WorkItemControlEntry, WorkItemControlIdentity, WorkItemControlLedger, WorkItemControlProjectionRecord, WorkItemUserLifecycleState, WorkItemVisibilityState } from './work-item-control-ledger.ts';
+export { buildWorkItemControlResolver, setWorkItemControlState, setWorkItemVisibilityState } from './work-item-control-ledger.ts';
+export type { WorkItemUserLifecycleState, WorkItemVisibilityState } from './work-item-control-ledger.ts';
 
 // Public cross-module surface generated from existing module consumers.
 export { buildEvidenceGroundedLedgerSubstrate } from './evidence-grounded-substrate.ts';
 export { doctorArtifactProvenanceBundle, exportArtifactProvenanceBundle, inspectArtifactProvenanceBundle, recordArtifactProvenanceBundle, validateArtifactProvenanceBundle } from './artifact-provenance-bundle.ts';
-export { buildSubstrateProvenanceSurface } from './substrate-provenance-surface.ts';
-export type { SubstrateProvenanceSurfaceInput } from './substrate-provenance-surface.ts';
-export { buildCurrentOwnerDeltaCacheRefreshRequiredReadModel, buildCurrentOwnerDeltaReadModel, buildDefaultNextActionFromCurrentOwnerDelta } from './current-owner-delta-projection.ts';
+export { buildCurrentOwnerDeltaReadModel, buildDefaultNextActionFromCurrentOwnerDelta } from './current-owner-delta-projection.ts';
 export { readCurrentOwnerDeltaReadModelProjectionCache, writeCurrentOwnerDeltaReadModelProjectionCache } from './current-owner-delta-read-model-cache.ts';
 export { buildCurrentOwnerDeltaTopline } from './current-owner-delta-topline.ts';
 export type {
@@ -40,7 +38,7 @@ export type { ExternalEvidenceReceipt } from './external-evidence-ledger.ts';
 export { classifyExternalEvidenceReceiptRefs } from './external-evidence-receipt-classification.ts';
 export { assertOwnerEvidenceSustainedConsumptionReceiptInputReady, listOwnerEvidenceSustainedConsumptionReceipts, ownerEvidenceSustainedConsumptionTargetKey, preflightOwnerEvidenceSustainedConsumptionReceiptInput, recordOwnerEvidenceSustainedConsumptionReceipts, verifyOwnerEvidenceSustainedConsumptionReceipt } from './owner-evidence-sustained-consumption-ledger.ts';
 export type { OwnerEvidenceSustainedConsumptionReceipt, OwnerEvidenceSustainedConsumptionReceiptInput } from './owner-evidence-sustained-consumption-ledger.ts';
-export { buildMemoryArtifactLifecycleEvidenceProjection, memoryArtifactLifecycleEvidenceAuthorityBoundary } from './memory-artifact-lifecycle-evidence-ledger.ts';
+export { buildMemoryArtifactLifecycleEvidenceProjection } from './memory-artifact-lifecycle-evidence-ledger.ts';
 export { OPL_OBSERVABILITY_SEMANTIC_CONVENTIONS, appOperatorProjectionCommand, appOperatorProjectionRef, appOperatorProjectionTestRef, buildObservabilitySemanticConventionExportSeed, buildObservabilitySemanticConventionReadback, renderObservabilitySemanticConventionOpenMetrics } from './observability-semantic-conventions.ts';
 export type { ObservabilityMetricInstrument, ObservabilitySemanticConventionInput } from './observability-semantic-conventions.ts';
 export { buildAppDrilldownProductionEvidenceTailLedger, buildConformanceProductionEvidenceTailLedger, buildProductionTailNextActionLedger } from './production-evidence-tail-ledger.ts';
@@ -59,19 +57,7 @@ export {
 export type {
   DeveloperModeCloseoutReceipt,
   DeveloperModeCloseoutReceiptInput,
-  DeveloperModeCloseoutReceiptVerifyInput,
 } from './developer-mode-closeout-ledger.ts';
-export {
-  buildStandardAgentActionRunLedgerEntry,
-  buildStandardAgentActionRunLedgerEvent,
-} from './standard-agent-action-run-ledger.ts';
-export type {
-  StandardAgentActionRunBytesRef,
-  StandardAgentActionRunLedgerEntry,
-  StandardAgentActionRunLedgerEvent,
-  StandardAgentActionRunLedgerInput,
-  StandardAgentActionRunStatus,
-} from './standard-agent-action-run-ledger.ts';
 export {
   ContentAddressedCandidateCompiler,
   FileFoundryContentStore,
@@ -81,4 +67,3 @@ export {
   LedgerFoundryOperationResultJournal,
   LedgerVersionRegistry,
 } from './foundry-persistent-adapters.ts';
-export type { FoundryStoragePaths } from './foundry-persistent-adapters.ts';
