@@ -285,7 +285,13 @@ function validateContentLock({
     'owner_plugin_manifest_ref',
     packageId,
   );
-  const carrierRoot = path.posix.dirname(path.posix.dirname(pluginManifestPath));
+  // Owner plugin manifests may be either the package-root `plugin.json` or the
+  // nested `.codex-plugin/plugin.json`; resolve the carrier root from that
+  // shape instead of assuming every manifest has the nested layout.
+  const pluginManifestParent = path.posix.dirname(pluginManifestPath);
+  const carrierRoot = path.posix.basename(pluginManifestParent) === '.codex-plugin'
+    ? path.posix.dirname(pluginManifestParent)
+    : pluginManifestParent;
   if (descriptorRef !== null) {
     const descriptorPath = carrierRoot === '.' ? descriptorRef : path.posix.join(carrierRoot, descriptorRef);
     const descriptorBytes = readCommitBlob({

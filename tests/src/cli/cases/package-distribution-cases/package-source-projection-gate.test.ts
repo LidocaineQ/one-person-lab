@@ -272,15 +272,17 @@ test('package source projection gate verifies every capability Package ordered c
   const repoUrl = 'https://github.com/example/opl-relay.git';
   const packageId = 'opl-relay';
   const version = '0.2.0';
-  const paths = ['.codex-plugin/plugin.json', 'skills/example/SKILL.md'];
-  writeJson(path.join(ownerRoot, paths[0]), { id: packageId, version });
-  fs.mkdirSync(path.dirname(path.join(ownerRoot, paths[1])), { recursive: true });
-  fs.writeFileSync(path.join(ownerRoot, paths[1]), '# Skill\n');
+  const sourceRoot = 'plugins/opl-relay';
+  const paths = ['.codex-plugin/plugin.json', 'plugin.json', 'skills/example/SKILL.md'];
+  writeJson(path.join(ownerRoot, sourceRoot, paths[0]), { id: packageId, version });
+  writeJson(path.join(ownerRoot, sourceRoot, paths[1]), { name: packageId, version });
+  fs.mkdirSync(path.dirname(path.join(ownerRoot, sourceRoot, paths[2])), { recursive: true });
+  fs.writeFileSync(path.join(ownerRoot, sourceRoot, paths[2]), '# Skill\n');
   const contentLockDigest = () => {
     const lockHash = crypto.createHash('sha256');
     for (const declaredPath of paths) {
       const pathBytes = Buffer.from(declaredPath);
-      const fileBytes = fs.readFileSync(path.join(ownerRoot, declaredPath));
+      const fileBytes = fs.readFileSync(path.join(ownerRoot, sourceRoot, declaredPath));
       const pathLength = Buffer.allocUnsafe(8);
       const fileLength = Buffer.allocUnsafe(8);
       pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
@@ -299,7 +301,8 @@ test('package source projection gate verifies every capability Package ordered c
     paths,
     digest: contentLockDigest(),
   };
-  writeJson(path.join(ownerRoot, 'contracts', 'owner-package.json'), {
+  const ownerPackageManifestRef = `${sourceRoot}/opl-package.json`;
+  writeJson(path.join(ownerRoot, ownerPackageManifestRef), {
     package_id: packageId,
     version,
     content_lock: contentLock,
@@ -332,7 +335,7 @@ test('package source projection gate verifies every capability Package ordered c
     package_version: version,
     source_repo: repoUrl,
     source_commit: head,
-    source_root: '.',
+    source_root: sourceRoot,
     content_lock: {
       algorithm: 'sha256',
       canonicalization: 'ordered_path_length_file_length_bytes',
@@ -341,20 +344,20 @@ test('package source projection gate verifies every capability Package ordered c
     files: paths.map((declaredPath) => ({
       path: declaredPath,
       mode: '100644',
-      source_url: `https://raw.githubusercontent.com/example/opl-relay/${head}/${declaredPath}`,
-      sha256: digest(path.join(ownerRoot, declaredPath)),
+      source_url: `https://raw.githubusercontent.com/example/opl-relay/${head}/${sourceRoot}/${declaredPath}`,
+      sha256: digest(path.join(ownerRoot, sourceRoot, declaredPath)),
     })),
   });
   const spec = {
     package_id: packageId,
     repo_url: repoUrl,
     package_manifest_ref: `contracts/opl-framework/packages/${packageId}.json`,
-    owner_package_manifest_ref: 'contracts/owner-package.json',
-    owner_plugin_manifest_ref: paths[0],
+    owner_package_manifest_ref: ownerPackageManifestRef,
+    owner_plugin_manifest_ref: `${sourceRoot}/plugin.json`,
     owner_manifest_kind: 'capability_package',
   };
   assert.equal(validatePackageSourceProjection({ frameworkRoot, spec, ownerRepoPath: ownerRoot }).status, 'validated');
-  const ownerManifestPath = path.join(ownerRoot, 'contracts', 'owner-package.json');
+  const ownerManifestPath = path.join(ownerRoot, ownerPackageManifestRef);
   const ownerManifest = JSON.parse(fs.readFileSync(ownerManifestPath, 'utf8'));
   const projected = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   const legacyLock = {
