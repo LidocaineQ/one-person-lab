@@ -147,7 +147,11 @@
       "lifecycle_owner": "opl_packages",
       "label": "OPL Packages",
       "public_surface": "opl packages",
-      "provider_id": "capability_packages"
+      "provider_id": "capability_packages",
+      "nested_status_fields": [
+        "installed_owner_descriptor",
+        "native_carrier"
+      ]
     }
   ],
   "update_plane_state_machine": {
@@ -161,23 +165,18 @@
     "states": [
       {
         "state_id": "auto_apply",
-        "meaning": "Framework may delegate an eligible clean managed module to its native Git checkout carrier, verify the resulting carrier readback, run post-apply hooks, and write a component receipt without asking.",
+        "meaning": "Framework may delegate an eligible installed Package operation to its native carrier without becoming the Package lifecycle or receipt owner.",
         "allowed_component_classes": [
           "opl_packages"
         ],
         "required_identity": [
-          "digest",
-          "sha256",
-          "source_fingerprint",
-          "git_head_sha"
+          "installed_owner_descriptor",
+          "native_carrier_readback"
         ],
         "forbidden_when": [
-          "dirty checkout",
-          "developer checkout",
-          "ahead",
-          "diverged",
-          "no_upstream without a verified managed Git checkout",
-          "unknown identity"
+          "owner descriptor unavailable",
+          "native carrier unavailable or not callable",
+          "owner carrier rejects the delegated operation"
         ]
       },
       {
@@ -512,47 +511,41 @@
       "provider_id": "capability_packages",
       "adapter_id": "capability_packages_adapter",
       "owner": "installed-package-owner-descriptors",
-      "role": "Clean managed native module Git checkout reconciliation",
-      "authority": "Native module source policy, module readback, and per-Package owner currentness select clean managed roots. Package locks, payload manifests, and bundled catalogs are not currentness or mutation authority.",
-      "default_policy": "silent_background_for_clean_managed_module_git_checkouts",
-      "mutation_scope": "clean_managed_native_module_roots_only",
+      "role": "Installed OPL Package aggregation and owner-routed native carrier delegation",
+      "authority": "Installed owner descriptors and fresh native carrier readback define ordinary Package presence and callability. Framework owns no second Package lock, payload, receipt, rollback, or currentness plane.",
+      "default_policy": "delegate_explicit_apply_to_callable_installed_owner_packages",
+      "mutation_scope": "owner_delegated_installed_package_carriers_only",
       "source_policy": {
-        "authority": "native module source policy and per-package owner currentness",
-        "developer_checkout_effect": "recognize and exclude developer, dirty, divergent, or user-managed checkouts without overwriting them",
-        "managed_effect": "compare clean managed module Git checkout state and delegate only an available native module action",
+        "authority": "installed owner descriptor and native carrier",
+        "developer_checkout_effect": "developer or local source remains an explicit owner-carrier selection and is never overwritten by Framework",
+        "managed_effect": "delegate apply or repair to the installed Package native carrier and accept its fresh readback",
         "external_package_effect": "manual_explicit_update_only"
       },
       "currentness_identity_fields": [
-        "module_id",
-        "install_origin",
-        "source_policy",
-        "git_head_sha",
-        "owner_currentness"
+        "installed_owner_descriptor",
+        "native_carrier_identity",
+        "native_carrier_callability"
       ],
       "auto_apply": {
         "mode": "auto_apply",
         "app_background_safe": true,
         "command_ref": "opl packages update --json",
-        "eligible_scope": "native_git_checkout_modules_only",
+        "eligible_scope": "installed_package_owner_channels_only",
         "eligible_when": [
-          "default native module is installed under managed_root",
-          "source policy selects native Git checkout update",
-          "module root is clean and not ahead, diverged, or unknown",
-          "owner currentness or native module action reports maintenance available"
+          "installed owner descriptor is present",
+          "native carrier reports a callable installed target",
+          "opl update apply explicitly requests owner delegation"
         ],
         "blocked_when": [
-          "dirty checkout",
-          "developer, sibling, environment override, or other user-managed checkout",
-          "missing or invalid native module root",
-          "owner currentness unavailable",
-          "native module action unavailable or failed"
+          "owner descriptor is missing or invalid",
+          "native carrier is unavailable or not callable",
+          "package owner operation failed"
         ],
         "current_noop_receipt_policy": "do_not_write_component_receipt"
       },
-      "post_apply_actions": [
-        "reconcile_packages"
-      ],
-      "partial_outcome_policy": "delegate_each_clean_managed_module_and_report_current_changed_manual_failed_separately"
+      "post_apply_actions": [],
+      "receipt_policy": "native_carrier_owner_receipt_only",
+      "partial_outcome_policy": "delegate_each_independent_owner_target_and_report_completed_validated_failed_separately"
     }
   ],
   "components": [
@@ -599,9 +592,9 @@
     "status": "read_only",
     "check": "read_only",
     "plan": "read_only",
-    "apply": "recorded_component_receipt",
-    "repair": "recorded_component_receipt",
-    "rollback": "recorded_component_receipt"
+    "apply": "recorded_component_receipt_for_runtime_substrate_only",
+    "repair": "recorded_component_receipt_for_runtime_substrate_only",
+    "rollback": "recorded_component_receipt_for_runtime_substrate_only"
   },
   "runner_result_shape": {
     "surface_kind": "opl_managed_update_execution",
@@ -706,6 +699,7 @@
   },
   "component_receipt_shape": {
     "schema_version": "opl_managed_update_component_receipt.v1",
+    "scope": "opl_base_runtime_substrate_only",
     "required_fields": [
       "source_manifest_ref",
       "from_version",
@@ -750,8 +744,7 @@
   },
   "authority_boundary": {
     "can_silently_mutate_app_owned_runtime_root": true,
-    "can_silently_update_clean_managed_modules": true,
-    "can_sync_codex_plugin_skill_projection": false,
+    "can_delegate_installed_owner_package_updates": true,
     "can_mutate_user_global_homebrew": false,
     "can_mutate_user_global_npm": false,
     "can_mutate_system_path_tools": false,

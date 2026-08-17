@@ -1,8 +1,4 @@
 import { reconcileBaseManagedDependencies } from './base-managed-dependencies.ts';
-import {
-  buildOplModules,
-  runOplModuleAction,
-} from './system-installation/modules.ts';
 import { runOplStartupMaintenance } from './system-installation/startup-maintenance.ts';
 import { isRecord } from '../../kernel/contract-validation.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
@@ -12,7 +8,6 @@ import {
 import {
   bindOwnerExecutionResult,
   MANAGED_UPDATE_OWNER_ACTIONS,
-  managedUpdateCommand,
   managedUpdateComponentMatches,
   managedUpdateComponentReceiptInput,
   managedUpdatePostApplyStatus,
@@ -49,12 +44,23 @@ type AdapterExecutionResult = ManagedUpdateOwnerExecutionReceiptResult & {
   write_receipt?: boolean;
 };
 
+type AgentPackageOwnerUpdateTarget = {
+  target_id?: unknown;
+  status?: unknown;
+  reason?: unknown;
+  [key: string]: unknown;
+};
+
+export type ManagedUpdateKernelOwnerExecutors = {
+  runAgentPackageBulkUpdate(input: {
+    action: 'update' | 'repair';
+  }): Promise<{
+    targets: AgentPackageOwnerUpdateTarget[];
+  }>;
+};
+
 function stringValue(value: unknown) {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
-}
-
-function nestedRecord(value: unknown, key: string) {
-  return isRecord(value) && isRecord(value[key]) ? value[key] : null;
 }
 
 function nestedString(value: unknown, key: string) {
@@ -93,34 +99,6 @@ function systemActionStatus(value: unknown): ManagedUpdateOwnerExecutionStatus {
     return 'failed';
   }
   return 'manual_required';
-}
-
-function moduleStatus(result: unknown) {
-  return isRecord(result) && result.status === 'completed' ? 'completed' : 'manual_required';
-}
-
-function reconcileManagedModuleTargets() {
-  return buildOplModules().modules.modules.filter((module) => module.default_install).map((module) => {
-    if (!module.installed || module.install_origin === 'missing') {
-      return {
-        target_type: 'module',
-        target_id: module.module_id,
-        status: 'manual_required',
-        reason: 'native_carrier_not_installed',
-        action: null,
-        result: null,
-      };
-    }
-    if (module.install_origin !== 'managed_root' || module.health_status === 'dirty'
-      || module.health_status === 'invalid_checkout' || module.git?.dirty
-      || ['ahead', 'diverged', 'unknown'].includes(module.git?.sync_status ?? '')
-      || module.git?.sync_status === 'no_upstream') {
-      return { target_type: 'module', target_id: module.module_id, status: 'manual_required', reason: 'developer_or_dirty_checkout_visible', action: null, result: null };
-    }
-    const action = module.recommended_action === 'update' && module.available_actions.includes('update') ? 'update' : 'sync';
-    const result = runOplModuleAction(action, module.module_id).module_action as Record<string, unknown>;
-    return { target_type: 'module', target_id: module.module_id, status: moduleStatus(result), reason: action === 'update' ? 'managed_module_git_refresh' : 'managed_module_post_apply_sync', action, result };
-  });
 }
 
 function normalizeError(error: unknown) {
@@ -193,43 +171,6 @@ async function runRuntimeSubstrateAdapter(
   };
 }
 
-function buildAgentPackagePostApplyActions(
-  operation: ManagedUpdateKernelInput['operation'],
-  reconcileResult: Record<string, unknown>,
-): ManagedUpdateOwnerPostApplyAction[] {
-  if (operation === MANAGED_UPDATE_OWNER_ACTIONS.revert) {
-    return [
-      {
-        action_id: 'manual_package_revert',
-        command_ref: 'opl connect modules --json',
-        status: 'manual_required',
-        result_ref: adapterResultRef('capability_packages', operation, reconcileResult),
-        result: reconcileResult,
-      },
-    ];
-  }
-
-  const targetItems = Array.isArray(reconcileResult.targets)
-    ? reconcileResult.targets.filter((entry): entry is Record<string, unknown> => isRecord(entry))
-    : [];
-  const closureVerified = targetItems.length > 0
-    && targetItems.every((entry) => ['completed', 'current', 'validated'].includes(
-      nestedString(entry, 'status') ?? '',
-    ));
-  const currentnessStatus: ManagedUpdateOwnerPostApplyAction['status'] = closureVerified
-    ? 'completed'
-    : 'manual_required';
-  return [
-    {
-      action_id: 'reconcile_packages',
-      command_ref: 'opl packages status --json',
-      status: currentnessStatus,
-      result_ref: adapterResultRef('capability_packages', operation, reconcileResult),
-      result: reconcileResult,
-    },
-  ];
-}
-
 function agentPackageReloadGuidance(
   operation: ManagedUpdateKernelInput['operation'],
   changedCount: number,
@@ -248,7 +189,7 @@ function agentPackageReloadGuidance(
     reload_recommended: true,
     reload_targets: ['one_person_lab_app'],
     command_ref: 'Reload One Person Lab App',
-    reason: 'The App may retain the previous native module projection until reload.',
+    reason: 'The App may retain the previous installed Package projection until reload.',
   };
 }
 
@@ -281,58 +222,54 @@ function buildAgentPackageStatusDetail(input: {
 
 async function runAgentPackageAdapter(
   operation: ManagedUpdateKernelInput['operation'],
+  executors: ManagedUpdateKernelOwnerExecutors,
 ): Promise<AdapterExecutionResult> {
   if (operation === MANAGED_UPDATE_OWNER_ACTIONS.revert) {
-    const modules = buildOplModules().modules.modules.filter((module) => module.default_install);
-    const targets: Record<string, unknown>[] = modules.map((module) => ({
-      target_type: 'module',
-      target_id: module.module_id,
-      status: 'manual_required',
-      reason: 'native_git_checkout_requires_owner_revert',
-      action: MANAGED_UPDATE_OWNER_ACTIONS.revert,
-      result: null,
-    }));
-    const manualCount = targets.filter((target) => target.status === 'manual_required').length;
-    const completedCount = targets.filter((target) => target.status === 'completed').length;
-    const status: AdapterExecutionResult['status'] = completedCount > 0 && manualCount === 0 ? 'completed' : 'manual_required';
-    const reloadGuidance = agentPackageReloadGuidance(operation, completedCount);
+    const targets: Record<string, unknown>[] = [];
+    const status: AdapterExecutionResult['status'] = 'manual_required';
+    const reloadGuidance = agentPackageReloadGuidance(operation, 0);
     const result = {
-      surface_kind: 'capability_packages_revert_result',
+      surface_kind: 'capability_packages_rollback_result',
       apply_mode: 'manual_required',
       app_background_safe: false,
       reload_guidance: reloadGuidance,
       targets,
       summary: {
-        total_targets_count: targets.length,
-        completed_targets_count: completedCount,
-        manual_required_targets_count: manualCount,
+        total_targets_count: 0,
+        completed_targets_count: 0,
+        manual_required_targets_count: 0,
       },
+      reason: 'package_owner_rollback_is_not_a_framework_operation',
     };
-    const postApplyActions = buildAgentPackagePostApplyActions(operation, result);
+    const postApplyActions: ManagedUpdateOwnerPostApplyAction[] = [];
     return {
       component_id: 'opl_packages',
       adapter_id: 'capability_packages_adapter',
       status,
-      reason: 'package_revert_requires_owner_revert',
+      reason: 'package_owner_rollback_is_not_a_framework_operation',
       result_ref: null,
       result,
       error: null,
       apply_mode: 'manual_required',
       status_detail: buildAgentPackageStatusDetail({
-        componentState: status === 'completed' ? 'current' : 'skipped_manual_required',
+        componentState: 'skipped_manual_required',
         applyMode: 'manual_required',
-        completedCount,
-        manualCount,
+        completedCount: 0,
+        manualCount: 0,
         postApplyActions,
         reloadGuidance,
         status,
       }),
       reload_guidance: reloadGuidance,
       post_apply_actions: postApplyActions,
+      write_receipt: false,
     };
   }
 
-  const targets: Record<string, unknown>[] = reconcileManagedModuleTargets();
+  const ownerUpdate = await executors.runAgentPackageBulkUpdate({
+    action: operation === 'repair' ? 'repair' : 'update',
+  });
+  const targets = ownerUpdate.targets;
   const manualCount = targets.filter((target) => target.status === 'manual_required').length;
   const completedCount = targets.filter((target) => target.status === 'completed').length;
   const validatedCount = targets.filter((target) => target.status === 'validated').length;
@@ -352,18 +289,7 @@ async function runAgentPackageAdapter(
     : manualCount > 0 || failedCount > 0
       ? 'manual_required'
       : 'projection_only';
-  const postApplyActions = changedCount > 0 ? buildAgentPackagePostApplyActions(operation, {
-    surface_kind: 'capability_packages_adapter_result',
-    targets,
-    summary: {
-      total_targets_count: targets.length,
-      current_targets_count: currentCount,
-      completed_targets_count: completedCount,
-      changed_targets_count: changedCount,
-      manual_required_targets_count: manualCount,
-      failed_targets_count: failedCount,
-    },
-  }) : [];
+  const postApplyActions: ManagedUpdateOwnerPostApplyAction[] = [];
   const postApplyFailed = postApplyActions.some((entry) => entry.status === 'failed');
   const postApplyManual = postApplyActions.some((entry) => entry.status === 'manual_required');
   const status: AdapterExecutionResult['status'] = postApplyFailed
@@ -394,12 +320,11 @@ async function runAgentPackageAdapter(
     surface_kind: 'capability_packages_adapter_result',
     apply_mode: applyMode,
     app_background_safe: applyMode === 'auto_apply' && failedCount === 0 && !postApplyFailed,
-    auto_apply_scope: 'native_git_checkout_modules_only',
+    auto_apply_scope: 'installed_package_owner_channels_only',
     status_detail: statusDetail,
     reload_guidance: reloadGuidance,
     read_model_guidance: {
       status_plane: 'opl packages status --json',
-      component_receipt_ledger: managedUpdateComponentReceiptLedgerFilePath(),
       app_consumer: 'App may apply eligible targets when auto_apply.eligible is true and must surface manual or failed targets separately.',
     },
     targets,
@@ -429,17 +354,15 @@ async function runAgentPackageAdapter(
             ? 'manual_review_required'
             : status === 'failed'
               ? 'package_update_failed_with_repair'
-              : 'managed_modules_reconciled',
-    result_ref: changedCount > 0 || failedCount > 0 || manualCount > 0
-      ? adapterResultRef('capability_packages', operation, result)
-      : null,
+              : 'native_carrier_owner_operation_completed',
+    result_ref: null,
     result,
     error: null,
     apply_mode: applyMode,
     status_detail: statusDetail,
     reload_guidance: reloadGuidance,
     post_apply_actions: postApplyActions,
-    write_receipt: changedCount > 0 || manualCount > 0 || failedCount > 0,
+    write_receipt: false,
   };
 }
 
@@ -447,13 +370,14 @@ async function runAdapter(
   contracts: FrameworkContracts,
   operation: ManagedUpdateKernelInput['operation'],
   componentId: string,
+  executors: ManagedUpdateKernelOwnerExecutors,
 ): Promise<AdapterExecutionResult> {
   try {
     if (componentId === 'opl_base') {
       return await runRuntimeSubstrateAdapter(contracts, operation);
     }
     if (componentId === 'opl_packages') {
-      return await runAgentPackageAdapter(operation);
+      return await runAgentPackageAdapter(operation, executors);
     }
     return {
       component_id: componentId,
@@ -580,8 +504,7 @@ function applyExecutionToProjection(
       authority_boundary: {
         ...projection.managed_update.authority_boundary,
         can_mutate_app_owned_runtime_root: results.some((entry) => entry.component_id === 'opl_base'),
-        can_silently_update_clean_managed_modules: results.some((entry) => entry.component_id === 'opl_packages'),
-        can_sync_codex_plugin_skill_projection: false,
+        can_delegate_installed_owner_package_updates: results.some((entry) => entry.component_id === 'opl_packages'),
       },
     },
   };
@@ -590,6 +513,7 @@ function applyExecutionToProjection(
 export async function runManagedUpdateKernelOperation(
   contracts: FrameworkContracts,
   input: ManagedUpdateKernelInput,
+  executors: ManagedUpdateKernelOwnerExecutors,
 ) {
   const initialProjection = await buildManagedUpdateKernelProjection(contracts, input);
   const lock = acquireManagedUpdateLock({
@@ -613,6 +537,7 @@ export async function runManagedUpdateKernelOperation(
         contracts,
         input.operation,
         componentId,
+        executors,
       );
       results.push(component ? bindOwnerExecutionResult(component, result) : result);
     }

@@ -526,6 +526,63 @@ export async function runOplAgentPackageUpdate(input: AgentPackageInstallInput) 
   };
 }
 
+type OplAgentPackageBulkUpdateInput = {
+  action?: 'update' | 'repair';
+  dryRun?: boolean;
+};
+
+export async function runOplAgentPackageBulkUpdate(
+  input: OplAgentPackageBulkUpdateInput = {},
+) {
+  const action = input.action ?? 'update';
+  const installed = packageSnapshot().installed;
+  const requiredDependencies = new Set(
+    [...installed.values()].flatMap((descriptor) => descriptor.manifest.capability_dependencies
+      .filter((dependency) => dependency.required)
+      .map((dependency) => dependency.package_id)),
+  );
+  const roots = [...installed.values()]
+    .filter((descriptor) => !requiredDependencies.has(descriptor.manifest.package_id))
+    .sort((left, right) => left.manifest.package_id.localeCompare(right.manifest.package_id));
+  const targets: Record<string, unknown>[] = [];
+  for (const descriptor of roots) {
+    const packageId = descriptor.manifest.package_id;
+    try {
+      const result = action === 'repair'
+        ? await runOplAgentPackageRepair({ packageId, dryRun: input.dryRun })
+        : await runOplAgentPackageUpdate({ packageId, dryRun: input.dryRun });
+      targets.push({
+        target_type: 'package',
+        target_id: packageId,
+        status: input.dryRun ? 'validated' : 'completed',
+        reason: input.dryRun
+          ? `native_carrier_owner_${action}_validated`
+          : `native_carrier_owner_${action === 'repair' ? 'repaired' : 'updated'}`,
+        action,
+        result,
+      });
+    } catch (error) {
+      targets.push({
+        target_type: 'package',
+        target_id: packageId,
+        status: 'failed',
+        reason: `native_carrier_owner_${action}_failed`,
+        action,
+        result: null,
+        error: error instanceof FrameworkContractError
+          ? error.toJSON()
+          : { message: error instanceof Error ? error.message : String(error) },
+      });
+    }
+  }
+  return {
+    surface_kind: 'opl_agent_package_bulk_update' as const,
+    action,
+    source: 'installed_owner_descriptor_and_native_carrier' as const,
+    targets,
+  };
+}
+
 export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
   const descriptor = requireDescriptor(input, 'repair', { installed: true });
   const nativeRepair = nativeLifecycleResult('repair', input, descriptor);

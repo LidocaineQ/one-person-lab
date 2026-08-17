@@ -1,5 +1,10 @@
 import { registerAgentPackageReadinessPort } from '../../kernel/agent-package-readiness-port.ts';
-import { runOplAgentPackageStatus } from './agent-package-registry.ts';
+import type { FrameworkContracts } from '../../kernel/types.ts';
+import { runOplAgentPackageBulkUpdate, runOplAgentPackageStatus } from './agent-package-registry.ts';
+import {
+  runManagedUpdateKernelOperation as runManagedUpdateKernelOperationWithOwners,
+} from './managed-update-kernel-runner.ts';
+import type { ManagedUpdateKernelInput } from './managed-update-owner-boundary.ts';
 import { resolveAgentPackageEffectiveSourcePolicy } from './agent-package-registry-parts/source-policy.ts';
 import { refreshInstalledAgentPackageWorkspaceSkills } from './agent-package-registry-parts/skill-projection.ts';
 import { discoverInstalledPackageDescriptors } from './agent-package-registry-parts/installed-codex-plugin-directory.ts';
@@ -31,6 +36,15 @@ registerAgentPackageReadinessPort({
   ),
   standardAgentProgressDeltaKeySet,
 });
+
+export function runManagedUpdateKernelOperation(
+  contracts: FrameworkContracts,
+  input: ManagedUpdateKernelInput,
+) {
+  return runManagedUpdateKernelOperationWithOwners(contracts, input, {
+    runAgentPackageBulkUpdate: runOplAgentPackageBulkUpdate,
+  });
+}
 
 export const OPL_CONNECT_SOURCE_MODULE = {
   moduleId: 'connect',
@@ -126,7 +140,6 @@ export type {
 export type { LocalCodexDefaults } from '../../kernel/local-codex-defaults.ts';
 export { MANAGED_UPDATE_OWNER_ACTIONS, managedUpdateCommand } from './managed-update-owner-boundary.ts';
 export { buildManagedUpdateKernelProjection } from './managed-update-kernel.ts';
-export { runManagedUpdateKernelOperation } from './managed-update-kernel-runner.ts';
 export {
   listExternalOwnerDelegatedUpdateActions,
   runExternalOwnerDelegatedUpdate,

@@ -14,6 +14,7 @@ import os from 'node:os';
 import { formatJsonPayload } from '../../../../src/kernel/json-file.ts';
 import { loadFrameworkContracts } from '../../../../src/authority/contracts/contracts.ts';
 import { buildManagedUpdateKernelProjection } from '../../../../src/adapters/integration/managed-update-kernel.ts';
+import { runManagedUpdateKernelOperation } from '../../../../src/adapters/integration/index.ts';
 import { selectedManagedUpdateComponentIds } from '../../../../src/adapters/integration/managed-update-owner-boundary.ts';
 import { agentPackageManifest } from './packages-cases/helpers.ts';
 
@@ -125,26 +126,32 @@ test('managed update contract exposes only OPL Base, OPL App, and OPL Packages l
   const packages = contract.providers.find((entry: Record<string, unknown>) =>
     entry.lifecycle_owner === 'opl_packages'
   );
+  const packageLifecycle = contract.lifecycle_owners.find((entry: Record<string, unknown>) =>
+    entry.lifecycle_owner === 'opl_packages'
+  );
+  assert.deepEqual(packageLifecycle.nested_status_fields, [
+    'installed_owner_descriptor',
+    'native_carrier',
+  ]);
   assert.equal(packages.owner, 'installed-package-owner-descriptors');
-  assert.equal(packages.role, 'Clean managed native module Git checkout reconciliation');
-  assert.equal(packages.mutation_scope, 'clean_managed_native_module_roots_only');
+  assert.equal(packages.role, 'Installed OPL Package aggregation and owner-routed native carrier delegation');
+  assert.equal(packages.mutation_scope, 'owner_delegated_installed_package_carriers_only');
   assert.equal(Object.hasOwn(packages, 'transaction_status_fields'), false);
   assert.equal(Object.hasOwn(packages, 'transaction_guards'), false);
   assert.deepEqual(packages.currentness_identity_fields, [
-    'module_id',
-    'install_origin',
-    'source_policy',
-    'git_head_sha',
-    'owner_currentness',
+    'installed_owner_descriptor',
+    'native_carrier_identity',
+    'native_carrier_callability',
   ]);
   assert.equal(packages.auto_apply.current_noop_receipt_policy, 'do_not_write_component_receipt');
-  assert.equal(packages.auto_apply.eligible_scope, 'native_git_checkout_modules_only');
+  assert.equal(packages.auto_apply.eligible_scope, 'installed_package_owner_channels_only');
   assert.equal(Object.hasOwn(packages, 'bundled_full_runtime_reconciliation'), false);
   assert.equal(Object.hasOwn(packages, 'profile_migration_policy'), false);
   assert.equal(
     packages.partial_outcome_policy,
-    'delegate_each_clean_managed_module_and_report_current_changed_manual_failed_separately',
+    'delegate_each_independent_owner_target_and_report_completed_validated_failed_separately',
   );
+  assert.equal(packages.receipt_policy, 'native_carrier_owner_receipt_only');
   assert.deepEqual(contract.base_dependency_catalog_contract.update_mode_values, [
     'silent_managed',
     'explicit_owner_delegated',
@@ -205,7 +212,7 @@ test('opl update projects coordinated Base and installed Packages while rejectin
   assert.match(failure.payload.error.message, /Unknown option '--component'/);
 });
 
-test('OPL Packages projection delegates currentness to native module carriers', async () => {
+test('OPL Packages projection delegates currentness to installed owner native carriers', async () => {
   const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
     operation: 'plan',
     componentId: 'opl_packages',
@@ -220,20 +227,14 @@ test('OPL Packages projection delegates currentness to native module carriers', 
   assert.equal(components[0].owner_route.owner, 'installed-package-owner-descriptors');
   assert.equal(components[0].owner_route.apply_owner, 'opl_connect_native_package_carrier');
   assert.equal(Object.hasOwn(components[0].current, 'transaction_guards'), false);
-  assert.equal(components[0].current.currentness_authority, 'native_git_checkout');
-  assert.equal(
-    components[0].current.shared_snapshot_role,
-    'explicit_full_offline_integration_qa_compatibility_only',
-  );
+  assert.equal(components[0].current.currentness_authority, 'installed_owner_descriptor_and_native_carrier');
+  assert.equal(components[0].current.projection_source, 'installed_owner_descriptor');
   assert.equal(Object.hasOwn(components[0].current, 'channel_manifest'), false);
   assert.equal(Object.hasOwn(components[0].current, 'owner_channel_refs'), false);
-  assert.equal(components[0].receipt.source_manifest_ref, 'opl://packages/native-git-checkout');
-  assert.deepEqual(components[0].receipt.content_identity_fields, [
-    'digest',
-    'sha256',
-    'source_fingerprint',
-    'git_head_sha',
-  ]);
+  assert.equal(components[0].receipt.required, false);
+  assert.equal(components[0].receipt.source_manifest_ref, null);
+  assert.deepEqual(components[0].receipt.content_identity_fields, []);
+  assert.equal(components[0].authority_boundary.can_delegate_installed_owner_package_updates, true);
   assert.equal(components[0].authority_boundary.can_overwrite_dirty_checkout, false);
   assert.equal(components[0].authority_boundary.can_overwrite_developer_checkout, false);
 });
@@ -286,6 +287,12 @@ if [[ "$*" == "plugin list --json" ]]; then
   printf '%s\\n' ${shellSingleQuote(pluginList)}
   exit 0
 fi
+if [[ "$*" == "plugin marketplace add fixture-carrier --json" ]]; then
+  exit 0
+fi
+if [[ "$*" == "plugin add third-party-research@fixture-carrier --json" ]]; then
+  exit 0
+fi
 exit 2
 `);
   const packageLock = (packageId: string) => ({
@@ -332,12 +339,28 @@ exit 2
     }) as Record<string, any>;
     const packages = output.managed_update.components[0];
 
-    assert.equal(packages.state, 'skipped_manual_required');
-    assert.equal(packages.plan.action, 'manual_review');
-    assert.equal(packages.current.projection_source, 'native_module_directory');
+    assert.equal(packages.state, 'current');
+    assert.equal(packages.plan.action, 'none');
+    assert.equal(packages.current.projection_source, 'installed_owner_descriptor');
+    assert.equal(packages.current.installed_package_count, 1);
+    assert.equal(packages.current.package_states[0].package_id, nativePackageId);
     assert.equal(Object.hasOwn(packages.current, 'package_lock_states'), false);
     assert.equal(Object.hasOwn(packages.current, 'installed_root_package_count'), false);
     assert.equal(Object.hasOwn(packages.current, 'legacy_authority'), false);
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytes);
+
+    const delegated = await runManagedUpdateKernelOperation(loadFrameworkContracts(), {
+      operation: 'apply',
+      componentId: 'opl_packages',
+    }) as Record<string, any>;
+    const adapter = delegated.managed_update.execution.adapter_results[0];
+    assert.deepEqual(adapter.result.targets.map((target: Record<string, unknown>) => target.target_id), [nativePackageId]);
+    assert.deepEqual(
+      adapter.result.targets.map((target: Record<string, unknown>) => target.status),
+      ['completed'],
+      JSON.stringify(adapter, null, 2),
+    );
+    assert.equal(adapter.write_receipt, false);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), lockBytes);
 
     const corruptLockBytes = '{ invalid legacy lock\n';
@@ -348,12 +371,10 @@ exit 2
     }) as Record<string, any>;
     const unaffectedPackages = unaffected.managed_update.components[0];
 
-    assert.equal(unaffectedPackages.state, 'skipped_manual_required');
-    assert.equal(unaffectedPackages.plan.action, 'manual_review');
+    assert.equal(unaffectedPackages.state, 'current');
+    assert.equal(unaffectedPackages.plan.action, 'none');
     assert.equal(unaffectedPackages.auto_apply.eligible, false);
-    assert.deepEqual(unaffectedPackages.auto_apply.blocked_reasons, [
-      'manual_required_targets_are_detect_only_and_skipped',
-    ]);
+    assert.deepEqual(unaffectedPackages.auto_apply.blocked_reasons, []);
     assert.equal(Object.hasOwn(unaffectedPackages.current, 'package_lock_states'), false);
     assert.equal(Object.hasOwn(unaffectedPackages.current, 'legacy_authority'), false);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), corruptLockBytes);
@@ -364,9 +385,10 @@ exit 2
       operation: 'status',
       componentId: 'opl_packages',
     }) as Record<string, any>;
+    assert.equal(descriptorIndependent.managed_update.components[0].state, 'current');
     assert.equal(
-      descriptorIndependent.managed_update.components[0].state,
-      'skipped_manual_required',
+      descriptorIndependent.managed_update.components[0].current.installed_package_count,
+      0,
     );
     assert.equal(fs.readFileSync(lockPath, 'utf8'), corruptLockBytes);
   } finally {
@@ -379,237 +401,24 @@ exit 2
   }
 });
 
-test('OPL Packages aggregate consumes explicit owner currentness for clean managed Packages', async () => {
-  const module = {
-    module_id: 'redcube',
-    label: 'RedCube AI',
-    default_install: true,
-    installed: true,
-    install_origin: 'managed_root',
-    checkout_path: '/fixture/modules/redcube-ai',
-    managed_checkout_path: '/fixture/modules/redcube-ai',
-    health_status: 'ready',
-    recommended_action: null,
-    source_policy: {
-      effective_install_update_source: 'git_checkout',
-    },
-    git: { dirty: false, sync_status: 'behind' },
-  };
-  const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
-    operation: 'status',
-    componentId: 'opl_packages',
-  }, {
-    buildOplModules: (() => ({ modules: { modules: [module] } })) as never,
-    readFirstPartyPackageOwnerCurrentness: async (packageIds) => {
-      assert.deepEqual(packageIds, ['rca']);
-      return [{
-        package_id: 'rca',
-        status: 'update_available',
-        reasons: ['package_version_changed'],
-        installed_version: '0.2.7',
-        target_version: '0.2.15',
-        installed_content_digest: null,
-        target_content_digest: `sha256:${'1'.repeat(64)}`,
-        installed_artifact_digest: null,
-        target_artifact_digest: `sha256:${'2'.repeat(64)}`,
-        installed_manifest_sha256: null,
-        target_manifest_sha256: `sha256:${'3'.repeat(64)}`,
-        source_policy: null,
-        owner_channel_ref: 'ghcr.io/fixture/one-person-lab-packages/rca:latest-stable',
-        catalog_freshness: 'live',
-      }];
-    },
-  }) as Record<string, any>;
-  const packages = output.managed_update.components[0];
-  const rca = packages.current.module_states[0];
-
-  assert.equal(packages.state, 'update_available');
-  assert.equal(packages.plan.action, 'update');
-  assert.equal(output.managed_update.summary.update_available_components_count, 1);
-  assert.equal(rca.state, 'update_available');
-  assert.equal(rca.owner_currentness.installed_version, '0.2.7');
-  assert.equal(rca.owner_currentness.target_version, '0.2.15');
-  assert.equal(rca.owner_currentness.target_manifest_sha256, `sha256:${'3'.repeat(64)}`);
-  assert.equal(rca.owner_currentness.target_content_digest, `sha256:${'1'.repeat(64)}`);
-  assert.equal(rca.owner_currentness.target_artifact_digest, `sha256:${'2'.repeat(64)}`);
-});
-
-test('OPL Packages aggregate preserves protected managed checkout state without owner currentness', async () => {
-  const module = {
-    module_id: 'redcube',
-    label: 'RedCube AI',
-    default_install: true,
-    installed: true,
-    install_origin: 'managed_root',
-    checkout_path: '/fixture/modules/redcube-ai',
-    managed_checkout_path: '/fixture/modules/redcube-ai',
-    health_status: 'ready',
-    recommended_action: null,
-    source_policy: {
-      effective_install_update_source: 'git_checkout',
-    },
-    git: { dirty: false, sync_status: 'ahead' },
-  };
-  const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
-    operation: 'status',
-    componentId: 'opl_packages',
-  }, {
-    buildOplModules: (() => ({ modules: { modules: [module] } })) as never,
-    readFirstPartyPackageOwnerCurrentness: async (packageIds) => {
-      assert.deepEqual(packageIds, []);
-      return [];
-    },
-  }) as Record<string, any>;
-  const packages = output.managed_update.components[0];
-  const rca = packages.current.module_states[0];
-
-  assert.equal(packages.state, 'skipped_manual_required');
-  assert.equal(packages.plan.action, 'manual_review');
-  assert.equal(rca.state, 'skipped_manual_required');
-  assert.equal(rca.owner_currentness, null);
-});
-
-test('OPL Packages aggregate does not claim current when owner currentness is unavailable', async () => {
-  const module = {
-    module_id: 'redcube',
-    label: 'RedCube AI',
-    default_install: true,
-    installed: true,
-    install_origin: 'managed_root',
-    checkout_path: '/fixture/modules/redcube-ai',
-    managed_checkout_path: '/fixture/modules/redcube-ai',
-    health_status: 'ready',
-    recommended_action: null,
-    source_policy: {
-      effective_install_update_source: 'git_checkout',
-    },
-    git: { dirty: false, sync_status: 'no_upstream' },
-  };
-  const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
-    operation: 'status',
-    componentId: 'opl_packages',
-  }, {
-    buildOplModules: (() => ({ modules: { modules: [module] } })) as never,
-    readFirstPartyPackageOwnerCurrentness: async () => [{
-      package_id: 'rca',
-      status: 'unavailable',
-      reasons: ['agent_package_capability_channel_unavailable'],
-      installed_version: null,
-      target_version: null,
-      installed_content_digest: null,
-      target_content_digest: null,
-      installed_artifact_digest: null,
-      target_artifact_digest: null,
-      installed_manifest_sha256: null,
-      target_manifest_sha256: null,
-      source_policy: null,
-      owner_channel_ref: 'ghcr.io/fixture/one-person-lab-packages/rca:latest-stable',
-      catalog_freshness: 'unavailable',
-    }],
-  }) as Record<string, any>;
-  const packages = output.managed_update.components[0];
-  const rca = packages.current.module_states[0];
-
-  assert.equal(packages.state, 'skipped_manual_required');
-  assert.equal(packages.plan.action, 'manual_review');
-  assert.equal(rca.state, 'skipped_manual_required');
-  assert.equal(rca.owner_currentness.status, 'unavailable');
-});
-
-test('OPL Packages current state cannot mask the latest failed component receipt', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-update-failed-receipt-'));
+test('legacy Package component receipts do not override native carrier currentness', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-managed-update-legacy-receipt-'));
   const previousStateDir = process.env.OPL_STATE_DIR;
+  const legacyReceipt = '{ legacy package receipt ledger\n';
+  const receiptPath = path.join(root, 'managed-update-component-receipts.json');
   process.env.OPL_STATE_DIR = root;
-  const module = {
-    module_id: 'redcube',
-    label: 'RedCube AI',
-    default_install: true,
-    installed: true,
-    install_origin: 'managed_root',
-    checkout_path: '/fixture/modules/redcube-ai',
-    managed_checkout_path: '/fixture/modules/redcube-ai',
-    health_status: 'ready',
-    recommended_action: null,
-    source_policy: {
-      effective_install_update_source: 'git_checkout',
-    },
-    git: { dirty: false, sync_status: 'behind' },
-  };
-  const receipt = (verifyResult: 'passed' | 'failed', activatedAt: string) => ({
-    surface_kind: 'opl_managed_update_component_receipt',
-    schema_version: 'opl_managed_update_component_receipt.v1',
-    receipt_ref: `opl://fixture/${verifyResult}/${activatedAt}`,
-    receipt_status: 'recorded',
-    recorded_at: activatedAt,
-    operation: 'apply',
-    component_id: 'opl_packages',
-    provider_id: 'capability_packages',
-    adapter_id: 'capability_packages_adapter',
-    source_manifest_ref: 'opl://packages/native-git-checkout',
-    from_version: null,
-    from_digest: null, // reuse-first: allow existing owner-routed receipt fixture.
-    to_version: null,
-    to_digest: null, // reuse-first: allow existing owner-routed receipt fixture.
-    verify_result: verifyResult,
-    activated_at: activatedAt,
-    post_apply_hooks: [], // reuse-first: allow existing owner-routed receipt fixture.
-    rollback_ref: null,
-    repair_action: verifyResult === 'failed' ? 'update_packages' : null,
-    adapter_result_ref: null,
-    apply_mode: 'auto_apply',
-    owner_projection: {},
-    status_detail: {},
-    post_apply_action_statuses: [],
-    reload_guidance: {},
-    authority_boundary: {},
-  });
-  const project = () => buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
-    operation: 'status',
-    componentId: 'opl_packages',
-  }, {
-    buildOplModules: (() => ({ modules: { modules: [module] } })) as never,
-    readFirstPartyPackageOwnerCurrentness: async () => [{
-      package_id: 'rca',
-      status: 'current',
-      reasons: [],
-      installed_version: '0.2.15',
-      target_version: '0.2.15',
-      installed_content_digest: null,
-      target_content_digest: `sha256:${'1'.repeat(64)}`,
-      installed_artifact_digest: null,
-      target_artifact_digest: `sha256:${'2'.repeat(64)}`,
-      installed_manifest_sha256: null,
-      target_manifest_sha256: `sha256:${'3'.repeat(64)}`,
-      source_policy: null,
-      owner_channel_ref: 'ghcr.io/fixture/one-person-lab-packages/rca:latest-stable',
-      catalog_freshness: 'live',
-    }],
-  }) as Promise<Record<string, any>>;
-
+  fs.writeFileSync(receiptPath, legacyReceipt);
   try {
-    fs.mkdirSync(root, { recursive: true });
-    fs.writeFileSync(path.join(root, 'managed-update-component-receipts.json'), formatJsonPayload({
-      surface_kind: 'opl_managed_update_component_receipt_ledger',
-      version: 'opl-managed-update-component-receipts.v1',
-      receipts: [receipt('failed', '2026-08-13T00:00:00.000Z')],
-    }));
-    const failed = (await project()).managed_update.components[0];
-    assert.equal(failed.state, 'failed_with_repair');
-    assert.equal(failed.plan.action, 'manual_review');
-    assert.equal(failed.receipt.verify_result, 'failed');
+    const output = await buildManagedUpdateKernelProjection(loadFrameworkContracts(), {
+      operation: 'status',
+      componentId: 'opl_packages',
+    }) as Record<string, any>;
+    const packages = output.managed_update.components[0];
 
-    fs.writeFileSync(path.join(root, 'managed-update-component-receipts.json'), formatJsonPayload({
-      surface_kind: 'opl_managed_update_component_receipt_ledger',
-      version: 'opl-managed-update-component-receipts.v1',
-      receipts: [
-        receipt('passed', '2026-08-13T00:01:00.000Z'),
-        receipt('failed', '2026-08-13T00:00:00.000Z'),
-      ],
-    }));
-    const recovered = (await project()).managed_update.components[0];
-    assert.equal(recovered.state, 'current');
-    assert.equal(recovered.plan.action, 'none');
-    assert.equal(recovered.receipt.verify_result, 'passed');
+    assert.equal(packages.receipt.required, false);
+    assert.equal(packages.receipt.verify_result, 'not_run_projection_only');
+    assert.equal(packages.receipt.last_receipt_ref, null);
+    assert.equal(fs.readFileSync(receiptPath, 'utf8'), legacyReceipt);
   } finally {
     if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateDir;

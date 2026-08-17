@@ -305,7 +305,8 @@ export function ownerExecutionBoundary(
 }
 
 export function bindOwnerReceiptProjection(component: ManagedUpdateComponent): ManagedUpdateComponent {
-  const unreconciledReceiptFailure = component.receipt.verify_result === 'failed';
+  const unreconciledReceiptFailure = component.receipt.required
+    && component.receipt.verify_result === 'failed';
   const state = unreconciledReceiptFailure && component.state === 'current'
     ? 'failed_with_repair'
     : component.state;
@@ -348,6 +349,7 @@ export function componentReceipt(options: {
   sourceManifestRef: string | null;
   contentIdentityFields: string[];
   postApplyHooks: string[];
+  required?: boolean;
   apply_mode: ManagedUpdateReceiptApplyMode;
   status_detail: ManagedUpdateReceiptStatusDetail;
   reload_guidance: ManagedUpdateReloadGuidance;
@@ -357,11 +359,13 @@ export function componentReceipt(options: {
   toDigest?: string | null;
   repair_action?: string | null;
 }) {
-  const latestReceipt = findLatestManagedUpdateReceipt(options.component_id);
+  const latestReceipt = options.required === false
+    ? null
+    : findLatestManagedUpdateReceipt(options.component_id);
   const latestActionStatuses = latestReceipt?.post_apply_action_statuses ?? [];
   return {
     schema_version: 'opl_managed_update_component_receipt.v1' as const,
-    required: true,
+    required: options.required ?? true,
     last_receipt_ref: latestReceipt?.receipt_ref ?? null,
     source_manifest_ref: options.sourceManifestRef,
     from_version: latestReceipt?.from_version ?? options.from_version ?? null,

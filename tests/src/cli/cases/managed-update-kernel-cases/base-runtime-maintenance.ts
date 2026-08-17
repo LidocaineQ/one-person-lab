@@ -123,8 +123,11 @@ exit 2
       );
       assert.equal(['completed', 'skipped', 'manual_required'].includes(output.managed_update.execution.status), true);
       assert.equal(output.managed_update.authority_boundary.can_mutate_app_owned_runtime_root, true);
-      assert.equal(output.managed_update.authority_boundary.can_silently_update_clean_managed_modules, false);
-      assert.equal(output.managed_update.authority_boundary.can_sync_codex_plugin_skill_projection, false);
+      assert.equal(output.managed_update.authority_boundary.can_delegate_installed_owner_package_updates, false);
+      assert.equal(Object.hasOwn(
+        output.managed_update.authority_boundary,
+        'can_silently_update_clean_managed_modules',
+      ), false);
       assert.equal(output.managed_update.authority_boundary.can_mutate_user_global_npm, false);
       assert.equal(output.managed_update.receipts.write_policy, 'recorded_component_receipt');
       const baseComponent = output.managed_update.components.find((entry) => entry.component_id === 'opl_base');
