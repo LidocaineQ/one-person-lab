@@ -13,12 +13,13 @@ import {
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
 import { isFirstPartyPackage } from '../agent-package-first-party.ts';
+import { resolveCanonicalOplFamilyMarketplaceId } from '../system-installation/codex-plugin-registry.ts';
 import type {
   CodexPluginCommandResult,
   CodexPluginCommandRunner,
 } from './configured-codex-plugin-carrier.ts';
 import { normalizePackageManifest } from './manifest-normalizers.ts';
-import { sameMarketplaceSource, sha256Text } from './shared.ts';
+import { sha256Text } from './shared.ts';
 import type {
   AgentPackageConfiguredCodexPluginCarrierDescriptor,
   AgentPackageManifest,
@@ -339,10 +340,13 @@ export function installedDescriptorMatchesConfiguredCarrier(
   descriptor: InstalledPackageDescriptor,
 ) {
   const expected = descriptor.carrier.carrier;
+  const pluginName = expected.pluginId.split('@', 1)[0]?.trim() ?? '';
+  const canonicalMarketplaceId = pluginName
+    ? resolveCanonicalOplFamilyMarketplaceId(descriptor.manifest.package_id, pluginName)
+    : null;
   return descriptor.pluginId === expected.pluginId
-    && (!expected.marketplaceSource
-      || (descriptor.marketplaceSource !== null
-        && sameMarketplaceSource(descriptor.marketplaceSource, expected.marketplaceSource)));
+    || (canonicalMarketplaceId !== null
+      && descriptor.pluginId === `${pluginName}@${canonicalMarketplaceId}`);
 }
 
 export function discoverPackageDescriptors(input: {

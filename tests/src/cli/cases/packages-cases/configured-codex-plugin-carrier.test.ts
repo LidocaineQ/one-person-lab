@@ -674,6 +674,137 @@ test('standard Agent carrier accepts its single canonical local wrapper selector
   }
 });
 
+test('standard Agent Package status accepts required installed local carriers consistently', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-required-agent-local-carriers-'));
+  const binary = path.join(root, 'fake-codex.mjs');
+  const requiredAgents = [
+    { packageId: 'mag', pluginId: 'med-autogrant@med-autogrant-local' },
+    { packageId: 'mas', pluginId: 'med-autoscience@med-autoscience-local' },
+    { packageId: 'obf', pluginId: 'opl-bookforge@opl-bookforge-local' },
+    { packageId: 'oma', pluginId: 'opl-meta-agent@opl-meta-agent-local' },
+    { packageId: 'rca', pluginId: 'redcube-ai@redcube-ai-local' },
+  ] as const;
+  const installedPackages = [
+    ...requiredAgents,
+    { packageId: 'mas-scholar-skills', pluginId: 'mas-scholar-skills@mas-scholar-skills' },
+  ].map(({ packageId, pluginId }) => {
+    const sourcePath = path.join(root, 'plugins', packageId);
+    const manifest = fs.readFileSync(
+      path.join(repoRoot, 'contracts', 'opl-framework', 'packages', `${packageId}.json`),
+      'utf8',
+    );
+    fs.mkdirSync(sourcePath, { recursive: true });
+    fs.writeFileSync(path.join(sourcePath, 'opl-package.json'), manifest, 'utf8');
+    return {
+      pluginId,
+      version: (parseJsonText(manifest) as any).version,
+      installed: true,
+      enabled: true,
+      source: { source: 'local', path: sourcePath },
+      marketplaceSource: {
+        sourceType: 'local',
+        source: path.join(root, 'marketplaces', pluginId.split('@')[1]),
+      },
+    };
+  });
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+const args = process.argv.slice(2).join(' ');
+if (args === 'plugin list --json' || args === 'plugin list --available --json') {
+  process.stdout.write(${JSON.stringify(JSON.stringify({ installed: installedPackages, available: [] }))});
+} else {
+  process.exitCode = 2;
+}
+`);
+  fs.chmodSync(binary, 0o755);
+  const env = {
+    HOME: root,
+    CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_STATE_DIR: path.join(root, 'opl-state'),
+    OPL_CODEX_PLUGIN_BIN: binary,
+  };
+  try {
+    const directory = (runCli(['packages', 'list', '--detail', 'full'], env) as any)
+      .opl_agent_packages.directory;
+    for (const { packageId } of requiredAgents) {
+      const entry = directory.entries.find((candidate: any) => candidate.package_id === packageId);
+      assert.ok(entry, packageId);
+      assert.equal(entry.installed, true, packageId);
+      assert.equal(entry.activated, true, packageId);
+      assert.equal(entry.configured_carrier.status, 'installed', packageId);
+      assert.equal(entry.installed_readiness.installed, true, packageId);
+      assert.equal(entry.readiness.status, 'ready', packageId);
+      assert.equal(entry.readiness.launch_allowed, true, packageId);
+
+      const status = (runCli(['packages', 'status', '--package-id', packageId], env) as any)
+        .opl_agent_package_status;
+      assert.equal(status.status, 'available', packageId);
+      assert.equal(status.installed_package_count, 1, packageId);
+      assert.equal(status.configured_carrier.status, 'installed', packageId);
+      assert.equal(status.configured_carrier.carrier.precedence, 'exact_single_source', packageId);
+      assert.equal(status.installed_readiness.installed, true, packageId);
+      assert.equal(status.installed_readiness.physical_status, 'available', packageId);
+      assert.equal(status.installed_readiness.callability, 'callable', packageId);
+      assert.equal(status.package_operational.status, 'operational', packageId);
+      assert.equal(status.operational_ready, true, packageId);
+      assert.equal(status.launch_allowed, true, packageId);
+      assert.ok(status.home_shortcut_preferences.length > 0, packageId);
+      assert.equal(
+        status.home_shortcut_preferences.every((shortcut: any) => shortcut.installed === true),
+        true,
+        packageId,
+      );
+    }
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
+test('standard Agent Package status rejects an unregistered same-name local carrier', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-required-agent-unregistered-carrier-'));
+  const sourcePath = path.join(root, 'plugin');
+  const binary = path.join(root, 'fake-codex.mjs');
+  fs.mkdirSync(sourcePath, { recursive: true });
+  fs.copyFileSync(
+    path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'mag.json'),
+    path.join(sourcePath, 'opl-package.json'),
+  );
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+const args = process.argv.slice(2).join(' ');
+if (args === 'plugin list --json' || args === 'plugin list --available --json') {
+  process.stdout.write(JSON.stringify({
+    installed: [{
+      pluginId: 'med-autogrant@unregistered-local',
+      version: '0.3.11',
+      installed: true,
+      enabled: true,
+      source: { source: 'local', path: ${JSON.stringify(sourcePath)} },
+      marketplaceSource: { sourceType: 'local', source: ${JSON.stringify(root)} },
+    }],
+    available: [],
+  }));
+} else {
+  process.exitCode = 2;
+}
+`);
+  fs.chmodSync(binary, 0o755);
+  try {
+    const status = (runCli(['packages', 'status', '--package-id', 'mag'], {
+      HOME: root,
+      CODEX_HOME: path.join(root, 'codex-home'),
+      OPL_STATE_DIR: path.join(root, 'opl-state'),
+      OPL_CODEX_PLUGIN_BIN: binary,
+    }) as any).opl_agent_package_status;
+    assert.equal(status.status, 'not_installed');
+    assert.equal(status.installed_package_count, 0);
+    assert.equal(status.configured_carrier.status, 'not_installed');
+    assert.equal(status.configured_carrier.carrier.precedence, 'unexpected_same_plugin_name');
+    assert.equal(status.launch_allowed, false);
+    assert.equal(status.home_shortcut_preferences.every((shortcut: any) => shortcut.installed === false), true);
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
 test('configured Codex carrier resolves the plugin-declared Skill root and rejects unsafe roots', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-skill-root-'));
   const sourcePath = path.join(root, 'source');
