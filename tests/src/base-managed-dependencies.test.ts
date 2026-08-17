@@ -55,6 +55,7 @@ function toolInstaller(filePath: string, binaryName: string, versionCommand: str
 function writeFlowDependencyDescriptor(root: string, dependencyIds: string[]) {
   const sourceRoot = path.join(root, 'opl-flow');
   const policyPath = path.join(sourceRoot, 'contracts', 'workflow-policy.json');
+  const schemaPath = path.join(sourceRoot, 'contracts', 'workflow-policy.schema.json');
   const manifest = agentPackageManifest({
     packageId: 'opl-flow',
     agentId: 'opl-flow',
@@ -82,6 +83,21 @@ function writeFlowDependencyDescriptor(root: string, dependencyIds: string[]) {
   fs.writeFileSync(policyPath, formatJsonPayload({
     schema: 'opl_flow_workflow_policy.v3',
     package: { id: 'opl-flow', version: '1.2.3', owner: 'opl-flow', kind: 'workflow_profile' },
+    workflow_generation: 'fixture-generation',
+    provides: [
+      {
+        id: 'opl-flow',
+        kind: 'codex_plugin',
+        online_install_default: true,
+        activation: 'always',
+      },
+      {
+        id: 'opl-flow',
+        kind: 'codex_skill',
+        online_install_default: true,
+        activation: 'always',
+      },
+    ],
     requires: dependencyIds.map((id) => ({
       id,
       kind: id === 'opl-base' ? 'base' : 'cli',
@@ -89,6 +105,42 @@ function writeFlowDependencyDescriptor(root: string, dependencyIds: string[]) {
       online_install_default: true,
       source: id,
     })),
+    recommends: [],
+    compatible_optional: [],
+    capability_bundles: [],
+    conflicts: [],
+    retires: [],
+    migration_policy: {
+      trigger: 'explicit_opl_flow_install_update_optimize_or_generic_app_post_update_reconcile',
+      default_action: 'backup_disable_and_remove_from_discovery',
+      physical_delete: false,
+      receipt_owner: 'opl-framework',
+      rollback_required: true,
+      keep_override_supported: true,
+      fresh_discovery_required: true,
+    },
+    historical_fingerprints: {
+      plugin_ids: ['opl-flow'],
+      skill_ids: ['opl-flow'],
+      service_ids: ['opl-flow-service'],
+      config_markers: ['opl-flow-config'],
+      legacy_prompt_ids: ['opl-flow-prompt'],
+    },
+    codex_model_policy: {
+      authority: 'opl-flow',
+      mode_default: 'auto',
+      configured_default: { model: 'gpt-5.6-sol', reasoning_effort: 'max' },
+      override_precedence: ['local_codex_config'],
+      catalog_policy: {},
+    },
+  }));
+  fs.writeFileSync(schemaPath, formatJsonPayload({
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    type: 'object',
+    required: ['workflow_generation'],
+    properties: {
+      workflow_generation: { type: 'string', minLength: 1 },
+    },
   }));
   fs.writeFileSync(binary, `#!${process.execPath}
 process.stdout.write(${JSON.stringify(JSON.stringify({

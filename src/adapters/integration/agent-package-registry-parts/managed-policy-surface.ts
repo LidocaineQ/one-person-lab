@@ -188,9 +188,9 @@ function sha256File(filePath: string) {
 }
 
 function resolveInside(root: string, relativePath: string, field: string) {
-  const resolvedRoot = path.resolve(root);
-  const resolved = path.resolve(resolvedRoot, relativePath);
-  if (!resolved.startsWith(`${resolvedRoot}${path.sep}`)) {
+  const resolvedRoot = fs.realpathSync(root);
+  const candidate = path.resolve(resolvedRoot, relativePath);
+  if (!candidate.startsWith(`${resolvedRoot}${path.sep}`)) {
     throw new FrameworkContractError('contract_shape_invalid', `${field} escapes the package root.`, {
       field,
       root: resolvedRoot,
@@ -198,11 +198,21 @@ function resolveInside(root: string, relativePath: string, field: string) {
       failure_code: 'agent_package_managed_policy_path_invalid',
     });
   }
-  if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
+  if (!fs.existsSync(candidate) || !fs.statSync(candidate).isFile()) {
     throw new FrameworkContractError('contract_shape_invalid', `${field} was not found in the package payload.`, {
       field,
-      path: resolved,
+      path: candidate,
       failure_code: 'agent_package_managed_policy_source_missing',
+    });
+  }
+  const resolved = fs.realpathSync(candidate);
+  if (!resolved.startsWith(`${resolvedRoot}${path.sep}`)) {
+    throw new FrameworkContractError('contract_shape_invalid', `${field} escapes the package root.`, {
+      field,
+      root: resolvedRoot,
+      relative_path: relativePath,
+      resolved_path: resolved,
+      failure_code: 'agent_package_managed_policy_path_invalid',
     });
   }
   return resolved;
@@ -745,12 +755,10 @@ export function renderTomlDocument(preamble: string, tables: Array<Pick<TomlTabl
   return parts.length > 0 ? `${parts.join('\n\n')}\n` : '';
 }
 
-function inspectManagedPolicySurface(input: {
+function loadManagedPolicySurface(input: {
   identity: ManagedPolicyIdentity;
   sourceRoot: string;
-  keepMigrationIds?: string[];
-  enabledMigrationIds?: string[];
-}): ManagedPolicyInspection {
+}) {
   const { config } = input.identity;
   const policyPath = resolveInside(input.sourceRoot, config.source_path, 'managed_policy_surface.source_path');
   const schemaPath = resolveInside(input.sourceRoot, config.schema_path, 'managed_policy_surface.schema_path');
@@ -763,6 +771,56 @@ function inspectManagedPolicySurface(input: {
   }, policyPayload);
   const policy = normalizePolicy(policyPayload, input.identity);
   assertProvidedCapabilities(policy, input.identity);
+  return {
+    config,
+    policy,
+    policyPath,
+    schemaPath,
+    policySha256: sha256File(policyPath),
+  };
+}
+
+export function managedPolicyDependenciesFromDescriptor(input: {
+  manifest: Pick<
+    AgentPackageManifest,
+    'package_id' | 'version' | 'plugin_id' | 'required_skill_ids' | 'managed_policy_surface'
+  >;
+  sourceRoot: string;
+}): AgentPackageManagedPolicyDependency[] {
+  const config = input.manifest.managed_policy_surface;
+  if (!config) return [];
+  const { policy } = loadManagedPolicySurface({
+    identity: {
+      packageId: input.manifest.package_id,
+      packageVersion: input.manifest.version,
+      pluginId: input.manifest.plugin_id,
+      requiredSkillIds: input.manifest.required_skill_ids,
+      config,
+    },
+    sourceRoot: input.sourceRoot,
+  });
+  const recommended = policy.schema === 'opl_flow_workflow_policy.v4'
+    ? policy.experience_baseline
+    : policy.recommends;
+  return [
+    ...policy.requires.map((dependency) => ({ ...dependency, relationship: 'required' as const })),
+    ...recommended.map((dependency) => ({ ...dependency, relationship: 'recommended' as const })),
+  ];
+}
+
+function inspectManagedPolicySurface(input: {
+  identity: ManagedPolicyIdentity;
+  sourceRoot: string;
+  keepMigrationIds?: string[];
+  enabledMigrationIds?: string[];
+}): ManagedPolicyInspection {
+  const {
+    config,
+    policy,
+    policyPath,
+    schemaPath,
+    policySha256,
+  } = loadManagedPolicySurface(input);
   const groups = [...policy.conflicts, ...policy.retires];
   const groupsByAlias = new Map<string, MigrationGroup[]>();
   for (const group of groups) {
@@ -879,7 +937,7 @@ function inspectManagedPolicySurface(input: {
     policyPath,
     schemaPath,
     home,
-    policySha256: sha256File(policyPath),
+    policySha256,
     inventoryDigest,
     enabledMigrationIds: groups.filter((group) => enabledGroups.has(group.id)).map((group) => group.id),
     detectedConflicts,

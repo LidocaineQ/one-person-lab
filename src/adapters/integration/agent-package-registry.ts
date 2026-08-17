@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { deriveAgentPackageLaunchState } from '../../kernel/agent-package-launch-state.ts';
-import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
+import { FrameworkContractError } from '../../kernel/contract-validation.ts';
 import { refsOnlyAuthorityBoundary } from '../../kernel/refs-only-authority-boundary.ts';
 import { resolveOplStatePaths } from '../../kernel/runtime-state-paths.ts';
 import { canonicalAgentPackageId } from './agent-package-identity.ts';
@@ -25,6 +25,7 @@ import {
   type ConfiguredCodexPluginCarrierReadback,
 } from './agent-package-registry-parts/configured-codex-plugin-carrier.ts';
 import {
+  managedPolicyDependenciesFromDescriptor,
   managedPolicyCurrentnessFromDescriptor,
   repairManagedPolicyDependenciesFromDescriptor,
 } from './agent-package-registry-parts/managed-policy-surface.ts';
@@ -519,16 +520,10 @@ export async function runOplAgentPackageBulkUpdate(
 ) {
   const action = input.action ?? 'update';
   const installed = packageSnapshot().installed;
-  const requiredDependencies = new Set(
-    [...installed.values()].flatMap((descriptor) => descriptor.manifest.capability_dependencies
-      .filter((dependency) => dependency.required)
-      .map((dependency) => dependency.package_id)),
-  );
-  const roots = [...installed.values()]
-    .filter((descriptor) => !requiredDependencies.has(descriptor.manifest.package_id))
+  const descriptors = [...installed.values()]
     .sort((left, right) => left.manifest.package_id.localeCompare(right.manifest.package_id));
   const targets: Record<string, unknown>[] = [];
-  for (const descriptor of roots) {
+  for (const descriptor of descriptors) {
     const packageId = descriptor.manifest.package_id;
     try {
       const result = action === 'repair'
@@ -790,57 +785,18 @@ export function readOplFlowDefaultUserInstructions() {
 
 export function readOplFlowManagedPolicyDependencies(): AgentPackageManagedPolicyDependency[] {
   const descriptor = discoverInstalledPackageDescriptors().get('opl-flow');
-  const policySurface = descriptor?.manifest.managed_policy_surface;
-  if (!descriptor || !policySurface) return [];
+  if (!descriptor?.manifest.managed_policy_surface) return [];
   try {
-    const sourceRoot = fs.realpathSync(descriptor.sourcePath);
-    const policyPath = fs.realpathSync(path.resolve(sourceRoot, policySurface.source_path));
-    if (!policyPath.startsWith(`${sourceRoot}${path.sep}`) || !fs.statSync(policyPath).isFile()) return [];
-    const policy = JSON.parse(fs.readFileSync(policyPath, 'utf8')) as unknown;
-    if (!isRecord(policy)
-      || !isRecord(policy.package)
-      || ![
-        'opl_flow_workflow_policy.v1',
-        'opl_flow_workflow_policy.v2',
-        'opl_flow_workflow_policy.v3',
-        'opl_flow_workflow_policy.v4',
-      ].includes(String(policy.schema))
-      || policy.package.id !== descriptor.manifest.package_id
-      || policy.package.version !== descriptor.manifest.version
-      || policy.package.owner !== 'opl-flow'
-      || policy.package.kind !== 'workflow_profile') return [];
-    const recommended = policy.schema === 'opl_flow_workflow_policy.v4'
-      ? policy.experience_baseline
-      : policy.recommends;
-    const groups = [
-      { values: policy.requires, relationship: 'required' as const },
-      { values: recommended, relationship: 'recommended' as const },
-    ];
-    return groups.flatMap(({ values, relationship }) => (Array.isArray(values) ? values : []).flatMap((value) => {
-      if (!isRecord(value)
-        || typeof value.id !== 'string'
-        || typeof value.kind !== 'string'
-        || typeof value.online_install_default !== 'boolean'
-        || !['always', 'task_routed', 'explicit'].includes(String(value.activation))) return [];
-      if (!['base', 'codex_skill', 'codex_plugin', 'mcp_server', 'cli', 'runtime_capability'].includes(value.kind)) return [];
-      return [{
-        id: value.id,
-        kind: value.kind as AgentPackageManagedPolicyDependency['kind'],
-        offline_bundle: value.offline_bundle === 'full' ? 'full' as const : 'none' as const,
-        online_install_default: value.online_install_default,
-        activation: value.activation as AgentPackageManagedPolicyDependency['activation'],
-        source: typeof value.source === 'string' ? value.source : undefined,
-        source_path: typeof value.source_path === 'string' ? value.source_path : undefined,
-        owner: typeof value.owner === 'string' ? value.owner : undefined,
-        bundle_id: typeof value.bundle_id === 'string' ? value.bundle_id : undefined,
-        version_requirement: typeof value.version_requirement === 'string'
-          ? value.version_requirement
-          : undefined,
-        install_source: typeof value.install_source === 'string' ? value.install_source : undefined,
-        lifecycle_owner: typeof value.lifecycle_owner === 'string' ? value.lifecycle_owner : undefined,
-        relationship,
-      }];
-    }));
+    return managedPolicyDependenciesFromDescriptor({
+      manifest: {
+        package_id: descriptor.manifest.package_id,
+        version: descriptor.manifest.version,
+        plugin_id: descriptor.pluginId.split('@', 1)[0] ?? null,
+        required_skill_ids: descriptor.manifest.required_skill_ids,
+        managed_policy_surface: descriptor.manifest.managed_policy_surface,
+      },
+      sourceRoot: descriptor.sourcePath,
+    });
   } catch {
     return [];
   }

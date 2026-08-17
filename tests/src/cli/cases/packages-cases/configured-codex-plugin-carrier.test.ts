@@ -28,7 +28,10 @@ import {
   discoverAvailablePackageDescriptors,
   discoverInstalledPackageDescriptors,
 } from '../../../../../src/adapters/integration/agent-package-registry-parts/installed-codex-plugin-directory.ts';
-import { createOplAgentPackageStatusReader } from '../../../../../src/adapters/integration/agent-package-registry.ts';
+import {
+  createOplAgentPackageStatusReader,
+  runOplAgentPackageBulkUpdate,
+} from '../../../../../src/adapters/integration/agent-package-registry.ts';
 
 const packageId = 'third.party.research';
 const pluginSelector = 'third-party-research@fixture-carrier';
@@ -331,7 +334,7 @@ test('Agent Plugins 1.0 manifests win globally and fatal standard errors never f
   }
 });
 
-test('package status projects required closure from installed owner descriptors', () => {
+test('package status projects and bulk update visits required installed owner descriptors', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-dependency-status-'));
   const stateDir = path.join(root, 'opl-state');
   const codexHome = path.join(root, 'codex-home');
@@ -392,7 +395,10 @@ test('package status projects required closure from installed owner descriptors'
   fs.writeFileSync(binary, `#!/usr/bin/env node\nimport fs from 'node:fs';\nfs.appendFileSync(process.env.FIXTURE_CODEX_CALLS, process.argv.slice(2).join(' ') + '\\n');\nprocess.stdout.write(${JSON.stringify(pluginList([
     { pluginId: 'med-autoscience@carrier', version: '0.2.25', sourcePath: rootSource, marketplaceSource: 'fixture' },
     { pluginId: 'mas-scholar-skills@carrier', version: '0.2.24', sourcePath: providerSource, marketplaceSource: 'fixture' },
-  ]))});\n`);
+  ], [{
+    name: 'carrier',
+    marketplaceSource: { sourceType: 'local', source: 'fixture' },
+  }]))});\n`);
   fs.chmodSync(binary, 0o755);
   const env = {
     HOME: root,
@@ -401,6 +407,18 @@ test('package status projects required closure from installed owner descriptors'
     OPL_CODEX_PLUGIN_BIN: binary,
     FIXTURE_CODEX_CALLS: callsPath,
   };
+  const previous = {
+    home: process.env.HOME,
+    codexHome: process.env.CODEX_HOME,
+    stateDir: process.env.OPL_STATE_DIR,
+    pluginBin: process.env.OPL_CODEX_PLUGIN_BIN,
+    callsPath: process.env.FIXTURE_CODEX_CALLS,
+  };
+  process.env.HOME = env.HOME;
+  process.env.CODEX_HOME = env.CODEX_HOME;
+  process.env.OPL_STATE_DIR = env.OPL_STATE_DIR;
+  process.env.OPL_CODEX_PLUGIN_BIN = env.OPL_CODEX_PLUGIN_BIN;
+  process.env.FIXTURE_CODEX_CALLS = env.FIXTURE_CODEX_CALLS;
   try {
     const status = runCli(['packages', 'status', '--package-id', 'mas'], env).opl_agent_package_status;
     assert.equal(status.package_dependency_readiness?.status, 'current');
@@ -413,7 +431,36 @@ test('package status projects required closure from installed owner descriptors'
     ]);
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
 
+    fs.writeFileSync(callsPath, '');
+    const bulkUpdate = await runOplAgentPackageBulkUpdate();
+    assert.deepEqual(bulkUpdate.targets.map((target: any) => target.target_id), [
+      'mas',
+      'mas-scholar-skills',
+    ]);
+    assert.deepEqual(bulkUpdate.targets.map((target: any) => target.status), [
+      'completed',
+      'completed',
+    ], JSON.stringify(bulkUpdate, null, 2));
+    assert.deepEqual(
+      fs.readFileSync(callsPath, 'utf8').trim().split('\n')
+        .filter((command) => command.startsWith('plugin add ')),
+      [
+        'plugin add med-autoscience@carrier --json',
+        'plugin add mas-scholar-skills@carrier --json',
+      ],
+    );
+
   } finally {
+    if (previous.home === undefined) delete process.env.HOME;
+    else process.env.HOME = previous.home;
+    if (previous.codexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = previous.codexHome;
+    if (previous.stateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previous.stateDir;
+    if (previous.pluginBin === undefined) delete process.env.OPL_CODEX_PLUGIN_BIN;
+    else process.env.OPL_CODEX_PLUGIN_BIN = previous.pluginBin;
+    if (previous.callsPath === undefined) delete process.env.FIXTURE_CODEX_CALLS;
+    else process.env.FIXTURE_CODEX_CALLS = previous.callsPath;
     removeFixtureTree(root);
   }
 });
@@ -424,7 +471,7 @@ function pluginList(entries: Array<{
   sourcePath: string;
   marketplaceSource: string;
   enabled?: boolean;
-}>) {
+}>, marketplaces: unknown[] = []) {
   return JSON.stringify({
     installed: entries.map((entry) => ({
       pluginId: entry.pluginId,
@@ -435,6 +482,7 @@ function pluginList(entries: Array<{
       marketplaceSource: { sourceType: 'local', source: entry.marketplaceSource },
     })),
     available: [],
+    ...(marketplaces.length > 0 ? { marketplaces } : {}),
   });
 }
 

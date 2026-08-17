@@ -67,6 +67,7 @@ test('managed dependencies read from the installed owner descriptor policy witho
   const sourceRoot = path.join(root, 'opl-flow');
   const stateRoot = path.join(root, 'state');
   const policyPath = path.join(sourceRoot, 'contracts', 'workflow-policy.json');
+  const schemaPath = path.join(sourceRoot, 'contracts', 'workflow-policy.schema.json');
   const manifest = agentPackageManifest({
     packageId: 'opl-flow',
     agentId: 'opl-flow',
@@ -89,6 +90,21 @@ test('managed dependencies read from the installed owner descriptor policy witho
   const policy = {
     schema: 'opl_flow_workflow_policy.v3',
     package: { id: 'opl-flow', version: '1.2.3', owner: 'opl-flow', kind: 'workflow_profile' },
+    workflow_generation: 'fixture-generation',
+    provides: [
+      {
+        id: 'opl-flow',
+        kind: 'codex_plugin',
+        online_install_default: true,
+        activation: 'always',
+      },
+      {
+        id: 'opl-flow',
+        kind: 'codex_skill',
+        online_install_default: true,
+        activation: 'always',
+      },
+    ],
     requires: [
       {
         id: 'opl-base',
@@ -126,11 +142,46 @@ test('managed dependencies read from the installed owner descriptor policy witho
         source: 'mineru-open-api',
       },
     ],
+    compatible_optional: [],
+    capability_bundles: [],
+    conflicts: [],
+    retires: [],
+    migration_policy: {
+      trigger: 'explicit_opl_flow_install_update_optimize_or_generic_app_post_update_reconcile',
+      default_action: 'backup_disable_and_remove_from_discovery',
+      physical_delete: false,
+      receipt_owner: 'opl-framework',
+      rollback_required: true,
+      keep_override_supported: true,
+      fresh_discovery_required: true,
+    },
+    historical_fingerprints: {
+      plugin_ids: ['opl-flow'],
+      skill_ids: ['opl-flow'],
+      service_ids: ['opl-flow-service'],
+      config_markers: ['opl-flow-config'],
+      legacy_prompt_ids: ['opl-flow-prompt'],
+    },
+    codex_model_policy: {
+      authority: 'opl-flow',
+      mode_default: 'auto',
+      configured_default: { model: 'gpt-5.6-sol', reasoning_effort: 'max' },
+      override_precedence: ['local_codex_config'],
+      catalog_policy: {},
+    },
   };
   fs.mkdirSync(path.dirname(policyPath), { recursive: true });
   fs.mkdirSync(path.join(sourceRoot, 'templates'), { recursive: true });
   fs.writeFileSync(path.join(sourceRoot, 'opl-package.json'), formatJsonPayload(manifest));
   fs.writeFileSync(policyPath, formatJsonPayload(policy));
+  fs.writeFileSync(schemaPath, formatJsonPayload({
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    type: 'object',
+    required: ['workflow_generation'],
+    properties: {
+      workflow_generation: { type: 'string', minLength: 1 },
+    },
+  }));
   fs.writeFileSync(
     path.join(sourceRoot, 'templates', 'AGENTS.md'),
     'descriptor dependency fixture\n',
@@ -228,6 +279,28 @@ test('managed dependencies read from the installed owner descriptor policy witho
     ]);
     assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-lifecycle-ledger.json')), false);
+
+    const schemaInvalidPolicy = { ...policy } as Record<string, unknown>;
+    delete schemaInvalidPolicy.workflow_generation;
+    fs.writeFileSync(policyPath, formatJsonPayload(schemaInvalidPolicy));
+    assert.deepEqual(readOplFlowManagedDependencyIds(), []);
+    assert.deepEqual(readOplFlowManagedDependencies(), []);
+
+    fs.writeFileSync(policyPath, formatJsonPayload({
+      ...policy,
+      requires: [...policy.requires, { ...policy.requires[0] }],
+    }));
+    assert.deepEqual(readOplFlowManagedDependencyIds(), []);
+    assert.deepEqual(readOplFlowManagedDependencies(), []);
+
+    fs.writeFileSync(policyPath, formatJsonPayload({
+      ...policy,
+      requires: policy.requires.map((dependency, index) => index === 0
+        ? { ...dependency, conflict_policy: 'unsafe_parallel_writer' }
+        : dependency),
+    }));
+    assert.deepEqual(readOplFlowManagedDependencyIds(), []);
+    assert.deepEqual(readOplFlowManagedDependencies(), []);
 
     fs.writeFileSync(policyPath, formatJsonPayload({
       ...policy,
