@@ -21,6 +21,7 @@ import {
 } from '../../../../../src/kernel/agent-plugin-manifest.ts';
 import {
   createMemoizedCodexPluginListRunner,
+  githubMarketplaceSourceIdentity,
   runConfiguredCodexPluginCarrier,
   type CodexPluginCommandRunner,
 } from '../../../../../src/adapters/integration/agent-package-registry-parts/configured-codex-plugin-carrier.ts';
@@ -244,6 +245,27 @@ if (process.argv.slice(2).join(' ') === 'plugin list --available --json') {
   }
 });
 
+test('GitHub marketplace source identity accepts only the exact SSH-over-443 spelling', () => {
+  const expected = 'gaofeng21cn/fixture-carrier';
+  for (const source of [
+    'gaofeng21cn/fixture-carrier',
+    'https://github.com/gaofeng21cn/fixture-carrier.git',
+    'ssh://git@ssh.github.com:443/gaofeng21cn/fixture-carrier.git',
+  ]) {
+    assert.equal(githubMarketplaceSourceIdentity(source), expected, source);
+  }
+  for (const source of [
+    'ssh://git@github.com:443/gaofeng21cn/fixture-carrier.git',
+    'ssh://git@ssh.github.com:22/gaofeng21cn/fixture-carrier.git',
+    'ssh://github@ssh.github.com:443/gaofeng21cn/fixture-carrier.git',
+    'ssh://git@ssh.github.com:443/gaofeng21cn/fixture-carrier',
+    'ssh://git@ssh.github.com:443/gaofeng21cn/fixture-carrier.git/',
+    'ssh://git@ssh.github.com:443/gaofeng21cn/nested/fixture-carrier.git',
+  ]) {
+    assert.equal(githubMarketplaceSourceIdentity(source), null, source);
+  }
+});
+
 test('installed descriptor accepts equivalent GitHub marketplace source spellings', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-marketplace-source-identity-'));
   const sourcePath = path.join(root, 'installed');
@@ -264,23 +286,29 @@ test('installed descriptor accepts equivalent GitHub marketplace source spelling
     formatJsonPayload(ownerDescriptor),
   );
   try {
-    const discovered = discoverInstalledPackageDescriptors({
-      runner: () => ({
-        status: 0,
-        stdout: pluginList([{
-          pluginId: pluginSelector,
-          version: ownerPackageVersion,
-          sourcePath,
-          marketplaceSource: 'https://github.com/gaofeng21cn/fixture-carrier.git',
-        }]),
-        stderr: '',
-        error: null,
-      }),
-    });
-    const selected = discovered.get(packageId);
-    assert.ok(selected);
-    assert.equal(selected.readiness.installed, true);
-    assert.equal(selected.enabled, true);
+    for (const marketplaceSource of [
+      'gaofeng21cn/fixture-carrier',
+      'https://github.com/gaofeng21cn/fixture-carrier.git',
+      'ssh://git@ssh.github.com:443/gaofeng21cn/fixture-carrier.git',
+    ]) {
+      const discovered = discoverInstalledPackageDescriptors({
+        runner: () => ({
+          status: 0,
+          stdout: pluginList([{
+            pluginId: pluginSelector,
+            version: ownerPackageVersion,
+            sourcePath,
+            marketplaceSource,
+          }]),
+          stderr: '',
+          error: null,
+        }),
+      });
+      const selected = discovered.get(packageId);
+      assert.ok(selected, marketplaceSource);
+      assert.equal(selected.readiness.installed, true, marketplaceSource);
+      assert.equal(selected.enabled, true, marketplaceSource);
+    }
   } finally {
     removeFixtureTree(root);
   }
@@ -971,6 +999,45 @@ test('configured Codex carrier adds a missing marketplace and dry-run never refr
   calls.length = 0;
   runConfiguredCodexPluginCarrier({ descriptor: configured, action: 'update', dryRun: true, runner });
   assert.deepEqual(calls, ['plugin list --json']);
+});
+
+test('configured Codex carrier reuses an equivalent SSH-over-443 marketplace on install', () => {
+  const calls: string[] = [];
+  runConfiguredCodexPluginCarrier({
+    descriptor: {
+      ...descriptor,
+      carrier: { ...descriptor.carrier, marketplaceSource: 'gaofeng21cn/example' },
+    },
+    action: 'install',
+    runner: ({ args }) => {
+      calls.push(args.join(' '));
+      if (args.join(' ') === 'plugin marketplace list --json') {
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            marketplaces: [{
+              name: 'fixture-carrier',
+              marketplaceSource: {
+                sourceType: 'git',
+                source: 'ssh://git@ssh.github.com:443/gaofeng21cn/example.git',
+              },
+            }],
+          }),
+          stderr: '',
+          error: null,
+        };
+      }
+      if (args.join(' ') === 'plugin list --json') {
+        return { status: 0, stdout: pluginList([]), stderr: '', error: null };
+      }
+      return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+    },
+  });
+  assert.deepEqual(calls, [
+    'plugin marketplace list --json',
+    `plugin add ${pluginSelector} --json`,
+    'plugin list --json',
+  ]);
 });
 
 test('configured Codex carrier replaces a same-name marketplace when developer update changes its source', () => {

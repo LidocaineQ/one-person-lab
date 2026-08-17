@@ -17,6 +17,10 @@ export function sha256Text(text: string) {
 export function githubMarketplaceSourceIdentity(value: string) {
   const slug = value.match(/^([A-Za-z0-9][A-Za-z0-9-]*)\/([A-Za-z0-9][A-Za-z0-9._-]*)$/);
   if (slug) return `${slug[1]!.toLowerCase()}/${slug[2]!.toLowerCase()}`;
+  const ssh = value.match(
+    /^ssh:\/\/git@ssh\.github\.com:443\/([A-Za-z0-9][A-Za-z0-9-]*)\/([A-Za-z0-9][A-Za-z0-9._-]*)\.git$/,
+  );
+  if (ssh) return `${ssh[1]!.toLowerCase()}/${ssh[2]!.toLowerCase()}`;
   try {
     const source = new URL(value);
     if (source.protocol !== 'https:'
