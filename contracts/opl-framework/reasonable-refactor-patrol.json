@@ -87,7 +87,56 @@
       "verification_command",
       "estimated_complexity_reduction",
       "status",
-      "selected_or_skipped_reason"
+      "selected_or_skipped_reason",
+      "source_provenance_class",
+      "source_provenance_evidence",
+      "reserve_capability_assessment",
+      "replacement_or_retirement_evidence"
+    ]
+  },
+  "provenance_policy": {
+    "required_before_delete": [
+      "source_provenance_class",
+      "source_provenance_evidence",
+      "reserve_capability_assessment",
+      "replacement_or_retirement_evidence"
+    ],
+    "classes": [
+      "user_requested",
+      "externally_learned",
+      "contract_or_owner_required",
+      "model_invented",
+      "unknown"
+    ],
+    "default_action": {
+      "user_requested": "preserve",
+      "externally_learned": "preserve",
+      "contract_or_owner_required": "route_to_owner",
+      "model_invented": "investigate_then_delete_only_with_no_consumer_and_no_reserve_value",
+      "unknown": "preserve_and_block_delete"
+    },
+    "protected_surface_hints": [
+      "research",
+      "connector",
+      "provider",
+      "integration",
+      "external_learning",
+      "reference",
+      "scientific",
+      "reserve"
+    ],
+    "no_caller_is": "investigation_signal_only",
+    "known_protected_reserve_capabilities": [
+      {
+        "id": "opl-connect-ncbi-reference-parsers",
+        "owner_surface": "src/adapters/integration/opl-connect-reference-ncbi.ts",
+        "provenance_classes": ["user_requested", "externally_learned"],
+        "evidence_refs": [
+          "git:21d8079fe:feat(connect): provide PubMed and PMC receipts",
+          "user_instruction:2026-08-17:preserve externally learned NCBI research capability"
+        ],
+        "retention": "preserve_as_tested_research_reserve_even_without_an_active_caller"
+      }
     ]
   },
   "execution_policy": {
@@ -128,7 +177,10 @@
     "threshold_only_file_splitting",
     "fork_body_refactor",
     "docs_or_tests_as_runtime_or_release_truth",
-    "lane_success_as_run_closeout"
+    "lane_success_as_run_closeout",
+    "delete_from_no_caller_without_provenance",
+    "delete_user_requested_or_externally_learned_reserve",
+    "treat_unknown_provenance_as_model_invented"
   ],
   "terminal_states": [
     "completed",

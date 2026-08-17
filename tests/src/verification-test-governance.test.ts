@@ -267,6 +267,13 @@ test('reasonable refactor patrol keeps selection evidence-led and fork bodies ex
   assert.equal(contract.execution_policy?.fixed_selected_package_quota, false);
   assert.equal(contract.execution_policy?.fixed_line_budget_percentage, false);
   assert.equal(contract.execution_policy?.single_package_policy, 'allowed_when_it_is_the_highest_value_coherent_executable_batch');
+  assert.ok((contract as any).candidate?.required_authority_fields?.includes('source_provenance_class'));
+  assert.equal((contract as any).provenance_policy?.no_caller_is, 'investigation_signal_only');
+  assert.ok(contract.forbidden_patterns?.includes('delete_user_requested_or_externally_learned_reserve'));
+  assert.equal(
+    (contract as any).provenance_policy?.known_protected_reserve_capabilities?.[0]?.owner_surface,
+    'src/adapters/integration/opl-connect-reference-ncbi.ts',
+  );
   assert.deepEqual(contract.scope?.excluded_repositories, ['opl-aion-shell']);
   assert.deepEqual(
     contract.scope?.excluded_path_prefixes?.['one-person-lab-app'],

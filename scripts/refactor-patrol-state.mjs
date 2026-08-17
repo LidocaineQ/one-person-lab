@@ -135,6 +135,29 @@ function validateContract(contract) {
   if (contract.state_contract?.selected_batch_invariant !== 'every_selected_package_has_exactly_one_burn_down_entry') {
     errors.push('selected batch invariant is missing');
   }
+  const provenanceFields = [
+    'source_provenance_class',
+    'source_provenance_evidence',
+    'reserve_capability_assessment',
+    'replacement_or_retirement_evidence',
+  ];
+  for (const field of provenanceFields) {
+    if (!contract.candidate?.required_authority_fields?.includes(field)) {
+      errors.push(`candidate provenance field is missing: ${field}`);
+    }
+  }
+  if (contract.provenance_policy?.no_caller_is !== 'investigation_signal_only') {
+    errors.push('no caller must remain an investigation signal only');
+  }
+  for (const pattern of [
+    'delete_from_no_caller_without_provenance',
+    'delete_user_requested_or_externally_learned_reserve',
+    'treat_unknown_provenance_as_model_invented',
+  ]) {
+    if (!contract.forbidden_patterns?.includes(pattern)) {
+      errors.push(`provenance forbidden pattern is missing: ${pattern}`);
+    }
+  }
   return errors;
 }
 
@@ -146,9 +169,25 @@ function validateCrossReferences(state) {
   const selectedIds = new Set(state.selected_package_ids);
 
   validateCandidateReferences(state.work_packages, candidateIds, errors);
+  validateCandidateProvenance(state.issue_library, errors);
   validateSelectedPackages(selectedIds, packageIds, burnDownIds, errors);
   validateRunTerminalState(state, selectedIds, errors);
   return errors;
+}
+
+function validateCandidateProvenance(candidates, errors) {
+  const protectedProvenance = new Set(['user_requested', 'externally_learned', 'unknown']);
+  for (const candidate of candidates) {
+    if (
+      candidate.status === 'selected'
+      && ['delete', 'shrink'].includes(candidate.tag)
+      && protectedProvenance.has(candidate.source_provenance_class)
+    ) {
+      errors.push(
+        `${candidate.id}: ${candidate.source_provenance_class} provenance cannot be selected for ${candidate.tag}`,
+      );
+    }
+  }
 }
 
 function validateCandidateReferences(workPackages, candidateIds, errors) {

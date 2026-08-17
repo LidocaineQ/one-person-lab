@@ -31,6 +31,10 @@ function candidate() {
     estimated_complexity_reduction: 'one duplicate implementation removed',
     status: 'selected',
     selected_or_skipped_reason: 'highest-value executable package',
+    source_provenance_class: 'model_invented',
+    source_provenance_evidence: 'No user, external-learning, contract, or owner source found in current history.',
+    reserve_capability_assessment: 'No research, connector, provider, integration, or future-boundary reserve value found.',
+    replacement_or_retirement_evidence: 'No active consumer and no replacement obligation after exact caller and owner readback.',
   };
 }
 
@@ -142,6 +146,25 @@ test('refactor patrol state rejects terminal runs with remaining work', () => {
     const output = parseJsonText(result.stdout) as any;
     assert.equal(output.status, 'invalid');
     assert.ok(output.errors.includes('completed run must have remaining=[]'));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('refactor patrol state rejects deletion of user-requested reserve capability', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-refactor-patrol-state-'));
+  try {
+    const input = path.join(root, 'state.json');
+    const state = validState();
+    state.issue_library[0].tag = 'delete';
+    state.issue_library[0].source_provenance_class = 'user_requested';
+    fs.writeFileSync(input, `${JSON.stringify(state, null, 2)}\n`);
+    const result = run(['validate', '--input', input]);
+    assert.equal(result.status, 1, result.stderr);
+    const output = parseJsonText(result.stdout) as any;
+    assert.ok(output.errors.includes(
+      'candidate-1: user_requested provenance cannot be selected for delete',
+    ));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

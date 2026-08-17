@@ -76,7 +76,11 @@
         "verification_command",
         "estimated_complexity_reduction",
         "status",
-        "selected_or_skipped_reason"
+        "selected_or_skipped_reason",
+        "source_provenance_class",
+        "source_provenance_evidence",
+        "reserve_capability_assessment",
+        "replacement_or_retirement_evidence"
       ],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
@@ -94,7 +98,11 @@
         "verification_command": { "type": "string", "minLength": 1 },
         "estimated_complexity_reduction": { "type": "string", "minLength": 1 },
         "status": { "enum": ["candidate", "selected", "done", "deleted", "shrunk", "done_gate_no_delete", "no_safe_change", "blocked_owner_gated", "not_safe", "watch_only", "rejected_not_complexity_debt"] },
-        "selected_or_skipped_reason": { "type": "string", "minLength": 1 }
+        "selected_or_skipped_reason": { "type": "string", "minLength": 1 },
+        "source_provenance_class": { "enum": ["user_requested", "externally_learned", "contract_or_owner_required", "model_invented", "unknown"] },
+        "source_provenance_evidence": { "type": "string", "minLength": 1 },
+        "reserve_capability_assessment": { "type": "string", "minLength": 1 },
+        "replacement_or_retirement_evidence": { "type": "string", "minLength": 1 }
       }
     },
     "workPackage": {
