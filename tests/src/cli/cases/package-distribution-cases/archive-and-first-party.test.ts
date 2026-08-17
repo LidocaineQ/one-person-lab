@@ -103,7 +103,18 @@ function createFrozenFrameworkFixture(version: string) {
     'package.json': `${JSON.stringify({
       name: 'one-person-lab',
       version,
-      files: ['bin', 'dist', 'contracts/opl-framework'],
+      workspaces: ['packages/*'],
+      files: [
+        'bin',
+        'dist',
+        'contracts/opl-framework',
+        'packages/cordis-abi/package.json',
+        'packages/cordis-abi/dist',
+        'packages/cordis-abi/contracts',
+        'packages/package-host/package.json',
+        'packages/package-host/dist',
+        'packages/package-host/contracts',
+      ],
       scripts: { build: 'fixture-build', prepare: 'fixture-prepare' },
     }, null, 2)}\n`,
     'package-lock.json': `${JSON.stringify({
@@ -116,6 +127,20 @@ function createFrozenFrameworkFixture(version: string) {
     'bin/opl': '#!/bin/sh\nexit 0\n',
     'dist/entrypoints/cli.js': 'export {};\n',
     'contracts/opl-framework/fixture.json': '{}\n',
+    'packages/cordis-abi/package.json': `${JSON.stringify({
+      name: '@one-person-lab/cordis-abi',
+      version: '0.1.0',
+    }, null, 2)}\n`,
+    'packages/cordis-abi/dist/index.js': 'export {};\n',
+    'packages/cordis-abi/contracts/fixture.json': '{}\n',
+    'packages/cordis-abi/src/index.ts': 'export {};\n',
+    'packages/package-host/package.json': `${JSON.stringify({
+      name: '@one-person-lab/package-host',
+      version: '0.1.0',
+    }, null, 2)}\n`,
+    'packages/package-host/dist/index.js': 'export {};\n',
+    'packages/package-host/contracts/fixture.json': '{}\n',
+    'packages/package-host/src/index.ts': 'export {};\n',
   };
   for (const [relativePath, content] of Object.entries(files)) {
     const target = path.join(sourceRoot, relativePath);
@@ -512,6 +537,12 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(frameworkArchiveEntries.includes('one-person-lab/package.json'), true);
   assert.equal(frameworkArchiveEntries.includes('one-person-lab/package-lock.json'), true);
   assert.equal(frameworkArchiveEntries.some((entry) => entry.startsWith('one-person-lab/contracts/opl-framework/')), true);
+  for (const workspace of ['cordis-abi', 'package-host']) {
+    assert.equal(frameworkArchiveEntries.includes(`one-person-lab/packages/${workspace}/package.json`), true);
+    assert.equal(frameworkArchiveEntries.includes(`one-person-lab/packages/${workspace}/dist/index.js`), true);
+    assert.equal(frameworkArchiveEntries.includes(`one-person-lab/packages/${workspace}/contracts/fixture.json`), true);
+    assert.equal(frameworkArchiveEntries.some((entry) => entry.startsWith(`one-person-lab/packages/${workspace}/src/`)), false);
+  }
   for (const excludedRoot of ['docs', 'tests', '.github', 'src']) {
     assert.equal(frameworkArchiveEntries.some((entry) => entry.startsWith(`one-person-lab/${excludedRoot}/`)), false);
   }
