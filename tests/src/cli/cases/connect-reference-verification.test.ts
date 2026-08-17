@@ -4,13 +4,32 @@ import { createServer } from 'node:https';
 
 import { runOplConnectReferenceVerification } from '../../../../src/adapters/integration/opl-connect-reference-verification.ts';
 import { resolveFamilyWorkspaceRootFromRepoRoot } from '../../../../src/kernel/family-workspace-root.ts';
-import { assert, createInstalledPackageCarrierFixture, fs, os, path, repoRoot, runCliAsync, test } from '../helpers.ts';
+import {
+  assert,
+  createFakeCodexFixture,
+  createInstalledPackageCarrierFixture,
+  fs,
+  os,
+  path,
+  repoRoot,
+  runCliAsync,
+  shellSingleQuote,
+  test,
+} from '../helpers.ts';
 import { createTestTlsServerFixture } from '../helpers-parts/tls-fixture.ts';
 
-const scholarPackageRoot = process.env.OPL_SCHOLAR_SKILLS_E2E_ROOT?.trim()
-  || path.join(resolveFamilyWorkspaceRootFromRepoRoot(repoRoot), 'mas-scholar-skills');
-const cliPackageFixture = createInstalledPackageCarrierFixture(scholarPackageRoot);
-test.after(() => fs.rmSync(cliPackageFixture.fixtureRoot, { recursive: true, force: true }));
+const configuredScholarPackageRoot = process.env.OPL_SCHOLAR_SKILLS_E2E_ROOT?.trim() || null;
+const familyScholarPackageRoot = path.join(resolveFamilyWorkspaceRootFromRepoRoot(repoRoot), 'mas-scholar-skills');
+const scholarPackageRoot = configuredScholarPackageRoot
+  ?? (fs.existsSync(path.join(familyScholarPackageRoot, 'opl-package.json')) ? familyScholarPackageRoot : null);
+if (configuredScholarPackageRoot && !fs.existsSync(path.join(configuredScholarPackageRoot, 'opl-package.json'))) {
+  throw new Error(`Configured ScholarSkills E2E root is missing its owner manifest: ${configuredScholarPackageRoot}`);
+}
+const cliPackageFixture = scholarPackageRoot ? createInstalledPackageCarrierFixture(scholarPackageRoot) : null;
+if (cliPackageFixture) {
+  test.after(() => fs.rmSync(cliPackageFixture.fixtureRoot, { recursive: true, force: true }));
+}
+const packageBackedTest = cliPackageFixture ? test : test.skip;
 const testTlsFixture = createTestTlsServerFixture();
 test.after(() => testTlsFixture.close());
 
@@ -22,7 +41,9 @@ test.after(() => {
 });
 
 function cliEnv(overrides: Record<string, string> = {}) {
-  return { OPL_STATE_DIR: cliPackageFixture.stateRoot, ...overrides };
+  return cliPackageFixture
+    ? { OPL_STATE_DIR: cliPackageFixture.stateRoot, ...overrides }
+    : overrides;
 }
 
 function contentLockDigest(sourceRoot: string, relativePaths: string[]) {
@@ -365,6 +386,72 @@ test('reference verification routes transport and evidence through the installed
   });
 });
 
+test('reference verification CLI loads a repo-contained synthetic installed Package', async () => {
+  await withSyntheticReferenceAdapter(async (_requests, _installedPackage, sourceRoot) => {
+    const carrier = createInstalledPackageCarrierFixture(sourceRoot);
+    const codex = createFakeCodexFixture(`
+if [[ "$*" != "plugin list --json" ]]; then exit 2; fi
+printf '%s\n' ${shellSingleQuote(JSON.stringify({ installed: [{
+  pluginId: 'mas-scholar-skills@synthetic',
+  version: '0.0.0',
+  enabled: true,
+  source: { source: 'local', path: sourceRoot },
+  marketplaceSource: { source: sourceRoot },
+}] }))}
+`);
+    const server = createServer(testTlsFixture.options, (request, response) => {
+      const url = new URL(request.url ?? '/', 'https://127.0.0.1');
+      response.setHeader('content-type', 'application/json');
+      if (url.pathname !== '/adapter-only') {
+        response.statusCode = 404;
+        response.end(JSON.stringify({ error: 'not_found' }));
+        return;
+      }
+      response.end(JSON.stringify({ adapter_marker: 'reference' }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-reference-synthetic-cli-'));
+    const referencesFile = path.join(fixtureRoot, 'references.json');
+    fs.writeFileSync(referencesFile, JSON.stringify([{
+      id: 'synthetic-reference',
+      doi: '10.1234/synthetic',
+      title: 'Repo-contained fixture',
+    }]), 'utf8');
+    try {
+      const output = await runCliAsync([
+        'connect',
+        'references',
+        'verify',
+        '--references-file',
+        referencesFile,
+        '--providers',
+        'synthetic-reference',
+        '--max-retries',
+        '0',
+      ], {
+        OPL_STATE_DIR: carrier.stateRoot,
+        OPL_CODEX_PLUGIN_BIN: codex.codexPath,
+        OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BASE: `https://127.0.0.1:${address.port}`,
+      }) as {
+        opl_connect_reference_verification: {
+          provider_evidence: Array<{ status: string; provider_id: string }>;
+        };
+      };
+      const evidence = output.opl_connect_reference_verification.provider_evidence;
+      assert.equal(evidence.length, 1);
+      assert.equal(evidence[0]?.status, 'matched');
+      assert.equal(evidence[0]?.provider_id, 'synthetic-reference');
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+      fs.rmSync(fixtureRoot, { recursive: true, force: true });
+      fs.rmSync(carrier.fixtureRoot, { recursive: true, force: true });
+      fs.rmSync(codex.fixtureRoot, { recursive: true, force: true });
+    }
+  });
+});
+
 test('reference verification rejects malformed adapter envelopes and evidence before network access', async () => {
   await withSyntheticReferenceAdapter(async (requests, installedPackage) => {
     for (const mode of ['envelope', 'evidence']) {
@@ -439,7 +526,77 @@ test('reference verification rejects a handler origin outside the active provide
   });
 });
 
-test('reference providers materialize PubMed and PMC receipts without domain authority', async () => {
+test('reference verification manually follows allowlisted redirects and blocks unsafe chains', async () => {
+  await withSyntheticReferenceAdapter(async (requests, installedPackage) => {
+    const originalFetch = globalThis.fetch;
+    let mode: 'same-origin' | 'disallowed' | 'loop' | 'hop-limit' = 'same-origin';
+    globalThis.fetch = async (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      requests.push(url.toString());
+      assert.equal(init?.redirect, 'manual');
+      const redirect = (location: string) => new Response(null, { status: 302, headers: { location } });
+      if (mode === 'same-origin') {
+        if (url.pathname === '/redirect/adapter-only') return redirect('/adapter-only');
+        if (url.pathname === '/adapter-only') return new Response(JSON.stringify({ adapter_marker: 'reference' }));
+      }
+      if (mode === 'disallowed' && url.pathname === '/redirect/adapter-only') {
+        return redirect('https://evil.test/adapter-only');
+      }
+      if (mode === 'loop') {
+        if (url.pathname === '/loop-a/adapter-only') return redirect('/loop-b');
+        if (url.pathname === '/loop-b') return redirect('/loop-a/adapter-only');
+      }
+      if (mode === 'hop-limit') {
+        const match = /^\/hop-(\d+)(?:\/adapter-only)?$/.exec(url.pathname);
+        if (match) return redirect(`/hop-${Number(match[1]) + 1}`);
+      }
+      throw new Error(`unexpected reference redirect request: ${url.toString()}`);
+    };
+    const input = {
+      references: [{ id: 'redirect-reference', doi: '10.9999/redirect', title: 'Redirect policy' }],
+      providers: ['synthetic-reference'],
+      maxRetries: 0,
+      installedPackage,
+    };
+    try {
+      process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BASE = 'https://adapter.test/redirect';
+      const sameOrigin = await runOplConnectReferenceVerification(input);
+      assert.equal(sameOrigin.opl_connect_reference_verification.provider_evidence[0]?.status, 'matched');
+      assert.deepEqual(requests, [
+        'https://adapter.test/redirect/adapter-only',
+        'https://adapter.test/adapter-only',
+      ]);
+
+      requests.length = 0;
+      mode = 'disallowed';
+      const disallowed = await runOplConnectReferenceVerification(input);
+      const disallowedEvidence = disallowed.opl_connect_reference_verification.provider_evidence[0];
+      assert.equal(disallowedEvidence?.error?.code, 'reference_provider_redirect_origin_not_allowed');
+      assert.deepEqual(requests, ['https://adapter.test/redirect/adapter-only']);
+
+      requests.length = 0;
+      mode = 'loop';
+      process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BASE = 'https://adapter.test/loop-a';
+      const loop = await runOplConnectReferenceVerification(input);
+      assert.equal(loop.opl_connect_reference_verification.provider_evidence[0]?.error?.code, 'reference_provider_redirect_loop');
+      assert.deepEqual(requests, [
+        'https://adapter.test/loop-a/adapter-only',
+        'https://adapter.test/loop-b',
+      ]);
+
+      requests.length = 0;
+      mode = 'hop-limit';
+      process.env.OPL_CONNECT_SYNTHETIC_REFERENCE_ADAPTER_BASE = 'https://adapter.test/hop-0';
+      const hopLimit = await runOplConnectReferenceVerification(input);
+      assert.equal(hopLimit.opl_connect_reference_verification.provider_evidence[0]?.error?.code, 'reference_provider_redirect_hop_limit_exceeded');
+      assert.equal(requests.length, 6);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+packageBackedTest('reference providers materialize PubMed and PMC receipts without domain authority', async () => {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-reference-ncbi-'));
   const referencesFile = path.join(fixtureRoot, 'references.json');
   fs.writeFileSync(referencesFile, JSON.stringify([{
@@ -545,7 +702,7 @@ test('reference providers materialize PubMed and PMC receipts without domain aut
   }
 });
 
-test('reference providers normalize OpenAlex and both Semantic Scholar PMID fields', async () => {
+packageBackedTest('reference providers normalize OpenAlex and both Semantic Scholar PMID fields', async () => {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-reference-pmid-normalization-'));
   const referencesFile = path.join(fixtureRoot, 'references.json');
   fs.writeFileSync(referencesFile, JSON.stringify([
@@ -740,7 +897,7 @@ async function startFakeReferenceProviderServer() {
   };
 }
 
-test('connect references verify returns provider receipts, cache metadata, retries, and no-authority boundary', async () => {
+packageBackedTest('connect references verify returns provider receipts, cache metadata, retries, and no-authority boundary', async () => {
   const fakeProviders = await startFakeReferenceProviderServer();
   try {
     const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-reference-verification-'));
@@ -886,7 +1043,7 @@ test('connect references verify returns provider receipts, cache metadata, retri
   }
 });
 
-test('connect references verify covers OpenAlex, Semantic Scholar, Crossmark, and publisher receipts', async () => {
+packageBackedTest('connect references verify covers OpenAlex, Semantic Scholar, Crossmark, and publisher receipts', async () => {
   const fakeProviders = await startFakeReferenceProviderServer();
   try {
     const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-reference-verification-provider-coverage-'));
@@ -967,7 +1124,7 @@ test('connect references verify covers OpenAlex, Semantic Scholar, Crossmark, an
   }
 });
 
-test('connect references verify separates provider found from strict identifier match and defers conflicts', async () => {
+packageBackedTest('connect references verify separates provider found from strict identifier match and defers conflicts', async () => {
   const fakeProviders = await startFakeReferenceProviderServer();
   try {
     const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-reference-verification-strict-match-'));
@@ -1056,7 +1213,7 @@ test('connect references verify separates provider found from strict identifier 
   }
 });
 
-test('connect references verify defers one failed provider while matched providers keep receipts', async () => {
+packageBackedTest('connect references verify defers one failed provider while matched providers keep receipts', async () => {
   const fakeProviders = await startFakeReferenceProviderServer();
   try {
     const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-reference-verification-provider-error-'));
@@ -1126,7 +1283,7 @@ test('connect references verify defers one failed provider while matched provide
   }
 });
 
-test('connect references verify declares publisher DOI requirement without pretending provider truth', async () => {
+packageBackedTest('connect references verify declares publisher DOI requirement without pretending provider truth', async () => {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-reference-verification-deferred-'));
   const referencesFile = path.join(fixtureRoot, 'references.json');
   fs.writeFileSync(referencesFile, JSON.stringify([
@@ -1163,7 +1320,7 @@ test('connect references verify declares publisher DOI requirement without prete
   ]);
 });
 
-test('connect references defer a chunked oversized provider body and abort its attempt', async () => {
+packageBackedTest('connect references defer a chunked oversized provider body and abort its attempt', async () => {
   const originalFetch = globalThis.fetch;
   const originalLimit = process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES;
   let activeSignal: AbortSignal | undefined;

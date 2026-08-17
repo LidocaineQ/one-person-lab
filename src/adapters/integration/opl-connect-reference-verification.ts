@@ -114,6 +114,8 @@ type ReferenceProviderAdapterHandler = (request: unknown) => unknown;
 const REFERENCE_PROVIDER_MODULE_KIND = 'opl_connect_reference_provider_adapter';
 const REFERENCE_PROVIDER_PACKAGE_ID = 'mas-scholar-skills';
 const REFERENCE_PROVIDER_ADAPTER_ABI = 'opl-connect-reference-provider-adapter.v1';
+const MAX_REDIRECT_HOPS = 5;
+const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -515,6 +517,7 @@ async function fetchReferenceAdapterRequest(
     input.maxRetries,
     provider.provider_id,
     timeoutMs(input.timeoutMs),
+    provider.endpoint.allowed_origins,
     {
       method: request.method,
       ...(request.headers ? { headers: request.headers } : {}),
@@ -596,36 +599,103 @@ async function fetchWithRetry(
   maxRetries: number,
   providerId: ProviderId,
   timeout: number,
+  allowedOrigins: string[],
   init: RequestInit = {},
 ) {
   const retryAttempts: RetryAttempt[] = [];
   let lastError: unknown = null;
+  const deadline = Date.now() + timeout;
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    if (Date.now() >= deadline) break;
+    let currentUrl = url;
+    let redirectHops = 0;
+    const visitedUrls = new Set<string>();
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
+    const timer = setTimeout(() => controller.abort(), Math.max(1, deadline - Date.now()));
     const cleanup = () => {
       clearTimeout(timer);
       controller.abort();
     };
     try {
-      const response = await fetch(url, { ...init, signal: controller.signal });
-      if (!response.ok) {
-        const status = response.status >= 500 && attempt < maxRetries ? 'retryable_error' : 'failed';
-        retryAttempts.push({ attempt, status, http_status: response.status });
-        if (status === 'retryable_error') {
-          cleanup();
+      while (true) {
+        visitedUrls.add(currentUrl.toString());
+        const response = await fetch(currentUrl, { ...init, redirect: 'manual', signal: controller.signal });
+        if (REDIRECT_STATUS_CODES.has(response.status)) {
+          const location = response.headers.get('location');
+          if (!location) {
+            throw new FrameworkContractError('codex_command_failed', 'Reference provider redirect omitted its Location header.', {
+              provider_id: providerId,
+              url: currentUrl.toString(),
+              status: response.status,
+              retry_attempts: retryAttempts,
+              reason_code: 'reference_provider_redirect_location_missing',
+            });
+          }
+          if (redirectHops >= MAX_REDIRECT_HOPS) {
+            throw new FrameworkContractError('codex_command_failed', 'Reference provider exceeded its redirect hop limit.', {
+              provider_id: providerId,
+              url: currentUrl.toString(),
+              redirect_hops: redirectHops,
+              max_redirect_hops: MAX_REDIRECT_HOPS,
+              retry_attempts: retryAttempts,
+              reason_code: 'reference_provider_redirect_hop_limit_exceeded',
+            });
+          }
+          let nextUrl: URL;
+          try {
+            nextUrl = new URL(location, currentUrl);
+          } catch (error) {
+            throw new FrameworkContractError('codex_command_failed', 'Reference provider returned an invalid redirect target.', {
+              provider_id: providerId,
+              url: currentUrl.toString(),
+              location,
+              retry_attempts: retryAttempts,
+              reason_code: 'reference_provider_redirect_target_invalid',
+              cause: error instanceof Error ? error.message : String(error),
+            });
+          }
+          if ((nextUrl.protocol !== 'http:' && nextUrl.protocol !== 'https:')
+            || !allowedOrigins.includes(nextUrl.origin)) {
+            throw new FrameworkContractError('codex_command_failed', 'Reference provider redirect target is outside the provider profile allowed origins.', {
+              provider_id: providerId,
+              url: nextUrl.toString(),
+              origin: nextUrl.origin,
+              allowed_origins: allowedOrigins,
+              retry_attempts: retryAttempts,
+              reason_code: 'reference_provider_redirect_origin_not_allowed',
+            });
+          }
+          if (visitedUrls.has(nextUrl.toString())) {
+            throw new FrameworkContractError('codex_command_failed', 'Reference provider encountered a redirect loop.', {
+              provider_id: providerId,
+              url: nextUrl.toString(),
+              redirect_hops: redirectHops + 1,
+              retry_attempts: retryAttempts,
+              reason_code: 'reference_provider_redirect_loop',
+            });
+          }
+          redirectHops += 1;
+          currentUrl = nextUrl;
           continue;
         }
-        cleanup();
-        throw new FrameworkContractError('codex_command_failed', 'Reference provider returned a non-OK status.', {
-          provider_id: providerId,
-          status: response.status,
-          url: url.toString(),
-          retry_attempts: retryAttempts,
-        });
+        if (!response.ok) {
+          const status = response.status >= 500 && attempt < maxRetries ? 'retryable_error' : 'failed';
+          retryAttempts.push({ attempt, status, http_status: response.status });
+          if (status === 'retryable_error') {
+            cleanup();
+            break;
+          }
+          cleanup();
+          throw new FrameworkContractError('codex_command_failed', 'Reference provider returned a non-OK status.', {
+            provider_id: providerId,
+            status: response.status,
+            url: currentUrl.toString(),
+            retry_attempts: retryAttempts,
+          });
+        }
+        retryAttempts.push({ attempt, status: 'success', http_status: response.status });
+        return { response, retryAttempts, cleanup, url: currentUrl };
       }
-      retryAttempts.push({ attempt, status: 'success', http_status: response.status });
-      return { response, retryAttempts, cleanup };
     } catch (error) {
       lastError = error;
       if (error instanceof FrameworkContractError) {

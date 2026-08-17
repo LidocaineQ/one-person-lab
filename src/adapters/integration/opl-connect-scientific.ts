@@ -71,6 +71,8 @@ const SCIENTIFIC_SEARCH_ADAPTER_ABI = 'opl-connect-scientific-search-adapter.v1'
 const SCIENTIFIC_SEARCH_MODULE_KIND = 'opl_connect_scientific_search_adapter';
 const SCIENTIFIC_SEARCH_PACKAGE_ID = 'mas-scholar-skills';
 const DEFAULT_TIMEOUT_MS = 30_000;
+const MAX_REDIRECT_HOPS = 5;
+const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -357,61 +359,135 @@ async function fetchScientificAdapterRequest(
       },
     );
   }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(url, {
-      method: request.method,
-      ...(request.headers ? { headers: request.headers } : {}),
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector request returned a non-OK status.', {
+  const deadline = Date.now() + timeout;
+  const visitedUrls = new Set<string>();
+  let redirectHops = 0;
+  while (true) {
+    if (Date.now() >= deadline) {
+      throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector request failed.', {
         connector_id: 'scientific',
         provider_id: provider.provider_id,
         url: url.toString(),
-        status: response.status,
-        status_text: response.statusText,
+        timeout_ms: timeout,
+        reason_code: 'scientific_provider_request_timeout',
       });
     }
-    const raw = await readResponseBody(response, maxResponseBodyBytes());
+    visitedUrls.add(url.toString());
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.max(1, deadline - Date.now()));
     try {
-      return {
-        status: response.status,
-        url: response.url || url.toString(),
-        headers: Object.fromEntries(response.headers.entries()),
-        body: JSON.parse(raw) as unknown,
-      };
+      const response = await fetch(url, {
+        method: request.method,
+        ...(request.headers ? { headers: request.headers } : {}),
+        redirect: 'manual',
+        signal: controller.signal,
+      });
+      if (REDIRECT_STATUS_CODES.has(response.status)) {
+        const location = response.headers.get('location');
+        if (!location) {
+          throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector redirect omitted its Location header.', {
+            connector_id: 'scientific',
+            provider_id: provider.provider_id,
+            url: url.toString(),
+            status: response.status,
+            reason_code: 'scientific_provider_redirect_location_missing',
+          });
+        }
+        if (redirectHops >= MAX_REDIRECT_HOPS) {
+          throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector exceeded its redirect hop limit.', {
+            connector_id: 'scientific',
+            provider_id: provider.provider_id,
+            url: url.toString(),
+            redirect_hops: redirectHops,
+            max_redirect_hops: MAX_REDIRECT_HOPS,
+            reason_code: 'scientific_provider_redirect_hop_limit_exceeded',
+          });
+        }
+        let nextUrl: URL;
+        try {
+          nextUrl = new URL(location, url);
+        } catch (error) {
+          throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector returned an invalid redirect target.', {
+            connector_id: 'scientific',
+            provider_id: provider.provider_id,
+            url: url.toString(),
+            location,
+            reason_code: 'scientific_provider_redirect_target_invalid',
+            cause: error instanceof Error ? error.message : String(error),
+          });
+        }
+        if ((nextUrl.protocol !== 'http:' && nextUrl.protocol !== 'https:')
+          || !provider.definition.endpoint.allowed_origins.includes(nextUrl.origin)) {
+          throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector redirect target is outside the provider profile allowed origins.', {
+            connector_id: 'scientific',
+            provider_id: provider.provider_id,
+            url: nextUrl.toString(),
+            origin: nextUrl.origin,
+            allowed_origins: provider.definition.endpoint.allowed_origins,
+            reason_code: 'scientific_provider_redirect_origin_not_allowed',
+          });
+        }
+        if (visitedUrls.has(nextUrl.toString())) {
+          throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector encountered a redirect loop.', {
+            connector_id: 'scientific',
+            provider_id: provider.provider_id,
+            url: nextUrl.toString(),
+            redirect_hops: redirectHops + 1,
+            reason_code: 'scientific_provider_redirect_loop',
+          });
+        }
+        redirectHops += 1;
+        url = nextUrl;
+        continue;
+      }
+      if (!response.ok) {
+        throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector request returned a non-OK status.', {
+          connector_id: 'scientific',
+          provider_id: provider.provider_id,
+          url: url.toString(),
+          status: response.status,
+          status_text: response.statusText,
+        });
+      }
+      const raw = await readResponseBody(response, maxResponseBodyBytes());
+      try {
+        return {
+          status: response.status,
+          url: response.url || url.toString(),
+          headers: Object.fromEntries(response.headers.entries()),
+          body: JSON.parse(raw) as unknown,
+        };
+      } catch (error) {
+        throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector response was not valid JSON.', {
+          connector_id: 'scientific',
+          provider_id: provider.provider_id,
+          url: url.toString(),
+          cause: error instanceof Error ? error.message : String(error),
+        });
+      }
     } catch (error) {
-      throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector response was not valid JSON.', {
+      if (error instanceof ResponseBodyTooLargeError) {
+        throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector response body exceeded the configured limit.', {
+          connector_id: 'scientific',
+          provider_id: provider.provider_id,
+          url: url.toString(),
+          reason_code: 'provider_response_too_large',
+          response_body_limit_bytes: error.limitBytes,
+          response_body_bytes: error.observedBytes,
+        });
+      }
+      if (error instanceof FrameworkContractError) throw error;
+      throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector request failed.', {
         connector_id: 'scientific',
         provider_id: provider.provider_id,
         url: url.toString(),
+        timeout_ms: timeout,
         cause: error instanceof Error ? error.message : String(error),
       });
+    } finally {
+      clearTimeout(timer);
+      controller.abort();
     }
-  } catch (error) {
-    if (error instanceof ResponseBodyTooLargeError) {
-      throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector response body exceeded the configured limit.', {
-        connector_id: 'scientific',
-        provider_id: provider.provider_id,
-        url: url.toString(),
-        reason_code: 'provider_response_too_large',
-        response_body_limit_bytes: error.limitBytes,
-        response_body_bytes: error.observedBytes,
-      });
-    }
-    if (error instanceof FrameworkContractError) throw error;
-    throw new FrameworkContractError('codex_command_failed', 'OPL Connect scientific connector request failed.', {
-      connector_id: 'scientific',
-      provider_id: provider.provider_id,
-      url: url.toString(),
-      timeout_ms: timeout,
-      cause: error instanceof Error ? error.message : String(error),
-    });
-  } finally {
-    clearTimeout(timer);
-    controller.abort();
   }
 }
 
