@@ -192,7 +192,7 @@ test('runtime snapshot workbench shows current managed Temporal readiness withou
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-attempt-workbench-current-provider-'));
   const runtimeRoot = path.join(stateRoot, 'family-runtime');
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
-  installRuntimePackageFixture(stateRoot, 'mas');
+  const masModulePath = installRuntimePackageFixture(stateRoot, 'mas');
   const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-current-provider');
   const server = net.createServer((socket) => socket.end());
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -241,6 +241,7 @@ test('runtime snapshot workbench shows current managed Temporal readiness withou
       OPL_TEMPORAL_WORKER_STATUS: '',
       OPL_TEMPORAL_WORKER_ENABLED: '',
       OPL_TEMPORAL_WORKER_SOURCE_VERSION: 'git:runtime-tray-provider-proof-current',
+      OPL_MODULE_PATH_MEDAUTOSCIENCE: masModulePath,
     };
     const created = runCli([
       'family-runtime',

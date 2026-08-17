@@ -27,16 +27,17 @@ test('runtime observability export aggregates provider, stage, gate, memory, and
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-observability-export-state-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
   try {
-    installRuntimePackageFixture(stateRoot, 'mas');
-    installRuntimePackageFixture(stateRoot, 'rca');
-    installRuntimePackageFixture(stateRoot, 'mag');
+    const cliEnv = {
+      OPL_STATE_DIR: stateRoot,
+      OPL_CONTRACTS_DIR: fixtureContractsRoot,
+      OPL_MODULE_PATH_MEDAUTOSCIENCE: installRuntimePackageFixture(stateRoot, 'mas'),
+      OPL_MODULE_PATH_REDCUBE: installRuntimePackageFixture(stateRoot, 'rca'),
+      OPL_MODULE_PATH_MEDAUTOGRANT: installRuntimePackageFixture(stateRoot, 'mag'),
+    };
     const masWorkspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-observability');
     const rcaWorkspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'rca-observability');
     const magWorkspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mag-observability');
-    runCli(['family-runtime', 'events', 'export'], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    runCli(['family-runtime', 'events', 'export'], cliEnv);
     const queueDb = path.join(stateRoot, 'family-runtime', 'queue.sqlite');
     const proofResult = spawnSync(process.execPath, [
       '--experimental-strip-types',
@@ -97,10 +98,7 @@ db.close();`,
       'temporal',
       '--workspace-locator',
       JSON.stringify({ workspace_root: masWorkspaceRoot }),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
     runCli([
       'family-runtime',
       'attempt',
@@ -108,10 +106,7 @@ db.close();`,
       completedAttempt.family_runtime_stage_attempt.attempt.stage_attempt_id,
       '--closeout-packet',
       '{"surface_kind":"stage_attempt_closeout_packet","closeout_refs":["receipt:analysis-closeout"],"consumed_memory_refs":["memory:route-policy"],"writeback_receipt_refs":["memory-writeback:receipt-1"],"rejected_writes":[{"reason":"domain_truth_write_forbidden"}],"domain_ready_verdict":"domain_gate_pending"}',
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
 
     const gatedAttempt = runCli([
       'family-runtime',
@@ -125,10 +120,7 @@ db.close();`,
       'temporal',
       '--workspace-locator',
       JSON.stringify({ workspace_root: rcaWorkspaceRoot }),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
     const deadLetterAttempt = runCli([
       'family-runtime',
       'attempt',
@@ -141,10 +133,7 @@ db.close();`,
       'temporal',
       '--workspace-locator',
       JSON.stringify({ workspace_root: magWorkspaceRoot }),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
     const statusResult = spawnSync(process.execPath, [
       '--experimental-strip-types',
       '-e',
@@ -165,8 +154,7 @@ db.close();`,
     assert.equal(statusResult.status, 0, statusResult.stderr);
 
     const output = runCli(['runtime', 'observability-export'], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
+      ...cliEnv,
       OPL_FAMILY_RUNTIME_PROVIDER: 'temporal',
     });
     const observability = output.observability_export;

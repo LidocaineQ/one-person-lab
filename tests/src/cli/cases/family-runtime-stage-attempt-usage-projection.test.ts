@@ -3,7 +3,10 @@ import { assert, createRuntimeWorkspaceFixture, fs, installRuntimePackageFixture
 test('family-runtime usage readback exposes a refs-only public envelope', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-attempt-usage-envelope-'));
   try {
-    installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    const env = {
+      OPL_STATE_DIR: stateRoot,
+      OPL_MODULE_PATH_REDCUBE: installRuntimePackageFixture(stateRoot, 'redcube-ai'),
+    };
     const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'redcube-runtime');
     const created = runCli([
       'family-runtime',
@@ -20,14 +23,14 @@ test('family-runtime usage readback exposes a refs-only public envelope', () => 
       '--retry-budget',
       '{"max_attempts":2}',
       '--source-fingerprint',
-      'sha256:usage-envelope',
-    ], { OPL_STATE_DIR: stateRoot });
+      'sha256:05b4f5b8f27dbfece614471ea3b20155734baea638d276f4871363704d625376',
+    ], env);
     const query = runCli([
       'family-runtime',
       'attempt',
       'query',
       created.family_runtime_stage_attempt.attempt.stage_attempt_id,
-    ], { OPL_STATE_DIR: stateRoot }).family_runtime_stage_attempt_query.stage_attempt_query;
+    ], env).family_runtime_stage_attempt_query.stage_attempt_query;
     const usage = query.usage_projection;
 
     assert.equal(usage.surface_kind, 'opl_stage_attempt_usage_projection');

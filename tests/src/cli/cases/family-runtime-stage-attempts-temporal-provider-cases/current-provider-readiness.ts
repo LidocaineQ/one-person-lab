@@ -25,7 +25,7 @@ test('family-runtime attempt inspect uses current readiness instead of its creat
   worker.unref();
 
   try {
-    installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    const redcubeModulePath = installRuntimePackageFixture(stateRoot, 'redcube-ai');
     fs.mkdirSync(runtimeRoot, { recursive: true });
     fs.mkdirSync(workspaceRoot, { recursive: true });
     const taskQueue = resolveTemporalWorkerTaskQueue({ root: runtimeRoot });
@@ -55,6 +55,7 @@ test('family-runtime attempt inspect uses current readiness instead of its creat
       OPL_TEMPORAL_WORKER_STATUS: '',
       OPL_TEMPORAL_WORKER_ENABLED: '',
       OPL_TEMPORAL_WORKER_SOURCE_VERSION: 'git:attempt-current-provider',
+      OPL_MODULE_PATH_REDCUBE: redcubeModulePath,
     };
     const created = runCli([
       'family-runtime',

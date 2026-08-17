@@ -7,15 +7,15 @@ import type {
 import './family-runtime-stage-attempts-temporal-provider-cases/current-provider-readiness.ts';
 import './family-runtime-stage-attempts-temporal-provider-cases/local-ledger-fail-closed.ts';
 
-function familyRuntimeEnv(stateRoot: string) {
-  return { OPL_STATE_DIR: stateRoot };
+function familyRuntimeEnv(stateRoot: string, envOverrides: Record<string, string> = {}) {
+  return { OPL_STATE_DIR: stateRoot, ...envOverrides };
 }
 
 test('family-runtime maps a Temporal attempt to provider launch input without domain authority', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-temporal-attempt-input-'));
   const workspaceRoot = path.join(stateRoot, 'workspace');
   try {
-    installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    const redcubeModulePath = installRuntimePackageFixture(stateRoot, 'redcube-ai');
     fs.mkdirSync(workspaceRoot, { recursive: true });
     const created = runCli([
       'family-runtime',
@@ -32,10 +32,12 @@ test('family-runtime maps a Temporal attempt to provider launch input without do
       '--executor-kind',
       'codex_cli',
       '--source-fingerprint',
-      'source:artifact-owner-current',
+      'sha256:fd33628421655bf3bc2725eaab2ac55fe323d06ae34fd6d7c75f18b35a0af6dc',
       '--checkpoint-ref',
       'packets/artifact-owner.json',
-    ], familyRuntimeEnv(stateRoot)) as TemporalStageAttemptCreateOutput;
+    ], familyRuntimeEnv(stateRoot, {
+      OPL_MODULE_PATH_REDCUBE: redcubeModulePath,
+    })) as TemporalStageAttemptCreateOutput;
 
     const input = buildTemporalStageAttemptWorkflowInput(created.family_runtime_stage_attempt.attempt);
 
@@ -52,7 +54,7 @@ test('family-runtime may transport a declared stage without source fingerprint f
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-temporal-attempt-no-auth-'));
   const workspaceRoot = path.join(stateRoot, 'workspace');
   try {
-    installRuntimePackageFixture(stateRoot, 'redcube-ai');
+    const redcubeModulePath = installRuntimePackageFixture(stateRoot, 'redcube-ai');
     fs.mkdirSync(workspaceRoot, { recursive: true });
     const created = runCli([
       'family-runtime',
@@ -70,7 +72,9 @@ test('family-runtime may transport a declared stage without source fingerprint f
       'codex_cli',
       '--checkpoint-ref',
       'packets/artifact-owner.json',
-    ], familyRuntimeEnv(stateRoot)) as TemporalStageAttemptCreateOutput;
+    ], familyRuntimeEnv(stateRoot, {
+      OPL_MODULE_PATH_REDCUBE: redcubeModulePath,
+    })) as TemporalStageAttemptCreateOutput;
 
     const input = buildTemporalStageAttemptWorkflowInput(created.family_runtime_stage_attempt.attempt);
     assert.equal(input.source_fingerprint, null);

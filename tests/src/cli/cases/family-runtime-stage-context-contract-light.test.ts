@@ -14,6 +14,7 @@ test('family-runtime treats static stage conformance as passive launch context',
       OPL_CONTRACTS_DIR: fixtureContractsRoot,
       OPL_STATE_DIR: stateRoot,
       CODEX_HOME: `${stateRoot}/codex-home`,
+      OPL_MODULE_PATH_MEDAUTOSCIENCE: installRuntimePackageFixture(stateRoot, 'med-autoscience'),
     };
     runCli([
       'workspace',
@@ -25,7 +26,6 @@ test('family-runtime treats static stage conformance as passive launch context',
       '--manifest-command',
       buildManifestCommand(masPack.manifest),
     ], env);
-    installRuntimePackageFixture(stateRoot, 'med-autoscience');
     const workspaceRoot = `${stateRoot}/workspace`;
     fs.mkdirSync(workspaceRoot, { recursive: true });
 
@@ -42,7 +42,7 @@ test('family-runtime treats static stage conformance as passive launch context',
       '--workspace-locator',
       JSON.stringify({ workspace_root: workspaceRoot }),
       '--source-fingerprint',
-      'sha256:scout-cohort-loop',
+      'sha256:1550db14a9a1e6f08f4180708c69b6cb1b2df17390e11a8e0b77e30c7b893045',
     ], env);
     const observation = created.family_runtime_stage_attempt.stage_context_observation;
 

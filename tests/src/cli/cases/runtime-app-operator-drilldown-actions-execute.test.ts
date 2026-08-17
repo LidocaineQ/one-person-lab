@@ -159,7 +159,12 @@ test('runtime action execute can apply and verify legacy cleanup plans from App 
 test('runtime action execute records MAS paper-line owner-chain results as refs-only domain dispatch evidence', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-action-execute-mas-owner-chain-result-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
-  installRuntimePackageFixture(stateRoot, 'mas');
+  const cliEnv = {
+    OPL_STATE_DIR: stateRoot,
+    OPL_CONTRACTS_DIR: fixtureContractsRoot,
+    OPL_MODULE_PATH_MEDAUTOSCIENCE: installRuntimePackageFixture(stateRoot, 'mas'),
+    OPL_PROVIDER_PROOF_WINDOW_SECONDS: '86400',
+  };
   const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-owner-chain');
   try {
     const created = runCli([
@@ -181,11 +186,8 @@ test('runtime action execute records MAS paper-line owner-chain results as refs-
       '--task',
       'task-mas-paper-line-owner-chain',
       '--source-fingerprint',
-      'sha256:mas-paper-line-owner-chain',
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+      'sha256:e54cf87b9efd9d61c7cb121bb7f89bc6640b2187794476821eb6408a071a1148',
+    ], cliEnv);
     const attemptId = created.family_runtime_stage_attempt.attempt.stage_attempt_id;
     runCli([
       'family-runtime',
@@ -203,17 +205,11 @@ test('runtime action execute records MAS paper-line owner-chain results as refs-
           repair_command: 'medautosci domain-handler dispatch --task <task.json> --format json',
         },
       }),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
 
     const recordActionId = `domain_dispatch:medautoscience:${attemptId}:record`;
-    const projection = runCli(['runtime', 'app-operator-drilldown', '--detail', 'full'], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-      OPL_PROVIDER_PROOF_WINDOW_SECONDS: '86400',
-    }).app_operator_drilldown;
+    const projection = runCli(['runtime', 'app-operator-drilldown', '--detail', 'full'], cliEnv)
+      .app_operator_drilldown;
     assert.equal(
       projection.operator_action_routing_refs.refs.some(
         (ref: { action_id: string; action_kind: string }) =>
@@ -249,11 +245,7 @@ test('runtime action execute records MAS paper-line owner-chain results as refs-
           },
         ],
       }),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-      OPL_PROVIDER_PROOF_WINDOW_SECONDS: '86400',
-    });
+    ], cliEnv);
 
     assert.equal(pollutedPayloadExecution.payload.error.code, 'cli_usage_error');
     assert.equal(
@@ -306,11 +298,7 @@ test('runtime action execute records MAS paper-line owner-chain results as refs-
           },
         ],
       }),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-      OPL_PROVIDER_PROOF_WINDOW_SECONDS: '86400',
-    }).runtime_operator_action_execution;
+    ], cliEnv).runtime_operator_action_execution;
 
     assert.equal(recordExecution.execution.execution_kind, 'opl_cli_external_evidence_apply');
     assert.equal(

@@ -3,7 +3,11 @@ import { assert, createFamilyContractsFixtureRoot, createRuntimeWorkspaceFixture
 test('runtime snapshot projects cognitive kernel launch and closeout boundaries into stage attempt workbench', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-attempt-workbench-cognitive-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
-  installRuntimePackageFixture(stateRoot, 'mas');
+  const cliEnv = {
+    OPL_STATE_DIR: stateRoot,
+    OPL_CONTRACTS_DIR: fixtureContractsRoot,
+    OPL_MODULE_PATH_MEDAUTOSCIENCE: installRuntimePackageFixture(stateRoot, 'mas'),
+  };
   const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-cognitive-workbench');
   try {
     const attempt = runCli([
@@ -36,11 +40,8 @@ test('runtime snapshot projects cognitive kernel launch and closeout boundaries 
       '--task',
       'task-runtime-snapshot-cognitive-kernel',
       '--source-fingerprint',
-      'sha256:cognitive-workbench',
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+      'sha256:1b6d514a8651ff3d6dbc964fb908772526583c371f217f24fc2c1b2c7013564a',
+    ], cliEnv);
     runCli([
       'family-runtime',
       'attempt',
@@ -62,15 +63,9 @@ test('runtime snapshot projects cognitive kernel launch and closeout boundaries 
           typed_blocker_refs: ['typed-blocker:mas/reviewer-refresh-required'],
         },
       }),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
 
-    const output = runCli(['runtime', 'snapshot'], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    const output = runCli(['runtime', 'snapshot'], cliEnv);
     const projectedAttempt = output.runtime_tray_snapshot.stage_attempt_workbench.attempts[0];
 
     assert.equal(projectedAttempt.attempt_launch_envelope.surface_kind, 'opl_stage_attempt_launch_envelope');

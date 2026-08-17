@@ -38,7 +38,11 @@ test('controlled apply projects one generic return contract across domains', () 
 test('runtime snapshot projects stage attempt workbench without owning domain verdicts', async () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-attempt-workbench-state-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
-  installRuntimePackageFixture(stateRoot, 'mas');
+  const cliEnv = {
+    OPL_STATE_DIR: stateRoot,
+    OPL_CONTRACTS_DIR: fixtureContractsRoot,
+    OPL_MODULE_PATH_MEDAUTOSCIENCE: installRuntimePackageFixture(stateRoot, 'mas'),
+  };
   const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-stage-attempt-workbench');
   try {
     const attempt = runCli([
@@ -66,11 +70,8 @@ test('runtime snapshot projects stage attempt workbench without owning domain ve
       '--checkpoint-ref',
       'checkpoint:analysis-seed',
       '--source-fingerprint',
-      'sha256:analysis-source',
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+      'sha256:5e9428c3d2a28c3212de51eebf63f0aad890ebced985488ccad4427bd7afce79',
+    ], cliEnv);
     assert.equal(attempt.family_runtime_stage_attempt.attempt.domain_id, 'medautoscience');
     const attemptId = attempt.family_runtime_stage_attempt.attempt.stage_attempt_id;
 
@@ -107,15 +108,9 @@ test('runtime snapshot projects stage attempt workbench without owning domain ve
           external_submission_status_ref: 'portal:manual-boundary',
         },
       }),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
 
-    const snapshot = runCli(['runtime', 'snapshot'], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    }).runtime_tray_snapshot;
+    const snapshot = runCli(['runtime', 'snapshot'], cliEnv).runtime_tray_snapshot;
     const workbench = snapshot.stage_attempt_workbench;
     const projectedAttempt = workbench.attempts[0];
 
@@ -191,9 +186,13 @@ test('runtime snapshot projects stage attempt workbench without owning domain ve
 test('runtime snapshot groups multi-attempt workbench attention and counters', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-attempt-workbench-ledger-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
-  installRuntimePackageFixture(stateRoot, 'mas');
-  installRuntimePackageFixture(stateRoot, 'rca');
-  installRuntimePackageFixture(stateRoot, 'mag');
+  const cliEnv = {
+    OPL_STATE_DIR: stateRoot,
+    OPL_CONTRACTS_DIR: fixtureContractsRoot,
+    OPL_MODULE_PATH_MEDAUTOSCIENCE: installRuntimePackageFixture(stateRoot, 'mas'),
+    OPL_MODULE_PATH_REDCUBE: installRuntimePackageFixture(stateRoot, 'rca'),
+    OPL_MODULE_PATH_MEDAUTOGRANT: installRuntimePackageFixture(stateRoot, 'mag'),
+  };
   try {
     const attemptIds = [
       ['medautoscience', 'analysis-campaign'],
@@ -213,10 +212,7 @@ test('runtime snapshot groups multi-attempt workbench attention and counters', (
         'temporal',
         '--workspace-locator',
         JSON.stringify({ workspace_root: workspaceRoot }),
-      ], {
-        OPL_STATE_DIR: stateRoot,
-        OPL_CONTRACTS_DIR: fixtureContractsRoot,
-      }).family_runtime_stage_attempt.attempt.stage_attempt_id;
+      ], cliEnv).family_runtime_stage_attempt.attempt.stage_attempt_id;
     });
 
     runCli([
@@ -234,10 +230,7 @@ test('runtime snapshot groups multi-attempt workbench attention and counters', (
         writeback_receipt_refs: ['memory-writeback:receipt-1'],
         domain_ready_verdict: 'domain_gate_pending',
       }),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
 
     const result = spawnSync(process.execPath, [
       '--experimental-strip-types',
@@ -256,10 +249,7 @@ db.close();`,
     });
     assert.equal(result.status, 0, result.stderr);
 
-    const snapshot = runCli(['runtime', 'snapshot'], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    }).runtime_tray_snapshot;
+    const snapshot = runCli(['runtime', 'snapshot'], cliEnv).runtime_tray_snapshot;
     const workbench = snapshot.stage_attempt_workbench;
     const trayItems = [...snapshot.running_items, ...snapshot.attention_items, ...snapshot.recent_items];
 
