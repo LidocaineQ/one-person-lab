@@ -674,7 +674,7 @@ test('standard Agent carrier accepts its single canonical local wrapper selector
   }
 });
 
-test('standard Agent Package status accepts required installed local carriers consistently', () => {
+test('required OPL Package status accepts installed local carriers consistently', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-required-agent-local-carriers-'));
   const binary = path.join(root, 'fake-codex.mjs');
   const requiredAgents = [
@@ -684,10 +684,11 @@ test('standard Agent Package status accepts required installed local carriers co
     { packageId: 'oma', pluginId: 'opl-meta-agent@opl-meta-agent-local' },
     { packageId: 'rca', pluginId: 'redcube-ai@redcube-ai-local' },
   ] as const;
-  const installedPackages = [
+  const requiredPackages = [
     ...requiredAgents,
     { packageId: 'mas-scholar-skills', pluginId: 'mas-scholar-skills@mas-scholar-skills' },
-  ].map(({ packageId, pluginId }) => {
+  ] as const;
+  const installedPackages = requiredPackages.map(({ packageId, pluginId }) => {
     const sourcePath = path.join(root, 'plugins', packageId);
     const manifest = fs.readFileSync(
       path.join(repoRoot, 'contracts', 'opl-framework', 'packages', `${packageId}.json`),
@@ -725,7 +726,7 @@ if (args === 'plugin list --json' || args === 'plugin list --available --json') 
   try {
     const directory = (runCli(['packages', 'list', '--detail', 'full'], env) as any)
       .opl_agent_packages.directory;
-    for (const { packageId } of requiredAgents) {
+    for (const { packageId } of requiredPackages) {
       const entry = directory.entries.find((candidate: any) => candidate.package_id === packageId);
       assert.ok(entry, packageId);
       assert.equal(entry.installed, true, packageId);
@@ -747,12 +748,14 @@ if (args === 'plugin list --json' || args === 'plugin list --available --json') 
       assert.equal(status.package_operational.status, 'operational', packageId);
       assert.equal(status.operational_ready, true, packageId);
       assert.equal(status.launch_allowed, true, packageId);
-      assert.ok(status.home_shortcut_preferences.length > 0, packageId);
-      assert.equal(
-        status.home_shortcut_preferences.every((shortcut: any) => shortcut.installed === true),
-        true,
-        packageId,
-      );
+      if (requiredAgents.some((agent) => agent.packageId === packageId)) {
+        assert.ok(status.home_shortcut_preferences.length > 0, packageId);
+        assert.equal(
+          status.home_shortcut_preferences.every((shortcut: any) => shortcut.installed === true),
+          true,
+          packageId,
+        );
+      }
     }
   } finally {
     removeFixtureTree(root);
