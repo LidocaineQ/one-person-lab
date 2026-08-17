@@ -166,6 +166,10 @@ test('Codex user instructions restore from one installed owner descriptor withou
     assert.equal(defaultInstructions.source_path, fs.realpathSync(fixture.profilePath));
     assert.equal(defaultInstructions.package_version, '1.2.3');
     assert.equal(defaultInstructions.content, 'Descriptor-owned default instructions.\n');
+    assert.equal(
+      defaultInstructions.sha256,
+      crypto.createHash('sha256').update(defaultInstructions.content).digest('hex'),
+    );
     assert.equal(fs.existsSync(path.join(process.env.OPL_STATE_DIR, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(process.env.OPL_STATE_DIR, 'agent-package-lifecycle-ledger.json')), false);
 

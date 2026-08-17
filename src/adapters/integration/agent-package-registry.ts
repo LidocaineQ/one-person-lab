@@ -28,6 +28,7 @@ import {
   managedPolicyCurrentnessFromDescriptor,
   repairManagedPolicyDependenciesFromDescriptor,
 } from './agent-package-registry-parts/managed-policy-surface.ts';
+import { sha256Text } from './agent-package-registry-parts/shared.ts';
 import { materializeStandardAgentFrameworkLink } from './standard-agent-framework-link.ts';
 import type {
   AgentPackageHomeShortcutPreferencesSetInput,
@@ -766,7 +767,7 @@ function readInstalledOwnerProfileDefault() {
       status: 'available' as const,
       reason: null,
       content,
-      sha256: descriptor.manifest_sha256,
+      sha256: sha256Text(content),
     };
   } catch {
     return {
@@ -796,10 +797,24 @@ export function readOplFlowManagedPolicyDependencies(): AgentPackageManagedPolic
     const policyPath = fs.realpathSync(path.resolve(sourceRoot, policySurface.source_path));
     if (!policyPath.startsWith(`${sourceRoot}${path.sep}`) || !fs.statSync(policyPath).isFile()) return [];
     const policy = JSON.parse(fs.readFileSync(policyPath, 'utf8')) as unknown;
-    if (!isRecord(policy)) return [];
+    if (!isRecord(policy)
+      || !isRecord(policy.package)
+      || ![
+        'opl_flow_workflow_policy.v1',
+        'opl_flow_workflow_policy.v2',
+        'opl_flow_workflow_policy.v3',
+        'opl_flow_workflow_policy.v4',
+      ].includes(String(policy.schema))
+      || policy.package.id !== descriptor.manifest.package_id
+      || policy.package.version !== descriptor.manifest.version
+      || policy.package.owner !== 'opl-flow'
+      || policy.package.kind !== 'workflow_profile') return [];
+    const recommended = policy.schema === 'opl_flow_workflow_policy.v4'
+      ? policy.experience_baseline
+      : policy.recommends;
     const groups = [
       { values: policy.requires, relationship: 'required' as const },
-      { values: policy.experience_baseline, relationship: 'recommended' as const },
+      { values: recommended, relationship: 'recommended' as const },
     ];
     return groups.flatMap(({ values, relationship }) => (Array.isArray(values) ? values : []).flatMap((value) => {
       if (!isRecord(value)

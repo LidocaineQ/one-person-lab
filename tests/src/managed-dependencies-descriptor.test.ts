@@ -88,7 +88,7 @@ test('managed dependencies read from the installed owner descriptor policy witho
   };
   const policy = {
     schema: 'opl_flow_workflow_policy.v3',
-    package: { id: 'opl-flow', version: '0.1.28', owner: 'opl-flow', kind: 'workflow_profile' },
+    package: { id: 'opl-flow', version: '1.2.3', owner: 'opl-flow', kind: 'workflow_profile' },
     requires: [
       {
         id: 'opl-base',
@@ -116,6 +116,16 @@ test('managed dependencies read from the installed owner descriptor policy witho
         source: 'officecli',
       },
     ],
+    recommends: [
+      {
+        id: 'mineru-open-api',
+        kind: 'cli',
+        owner: 'mineru',
+        online_install_default: false,
+        activation: 'task_routed',
+        source: 'mineru-open-api',
+      },
+    ],
   };
   fs.mkdirSync(path.dirname(policyPath), { recursive: true });
   fs.mkdirSync(path.join(sourceRoot, 'templates'), { recursive: true });
@@ -136,7 +146,12 @@ test('managed dependencies read from the installed owner descriptor policy witho
   process.env.OPL_CODEX_PLUGIN_BIN = writeFakePluginList(root, sourceRoot);
 
   try {
-    assert.deepEqual(readOplFlowManagedDependencyIds(), ['opl-base', 'agent-reach', 'officecli']);
+    assert.deepEqual(readOplFlowManagedDependencyIds(), [
+      'opl-base',
+      'agent-reach',
+      'officecli',
+      'mineru-open-api',
+    ]);
     assert.deepEqual(readOplFlowManagedDependencies(), [
       {
         dependency_id: 'opl-base',
@@ -192,9 +207,35 @@ test('managed dependencies read from the installed owner descriptor policy witho
         observed_status: null,
         installed: null,
       },
+      {
+        dependency_id: 'mineru-open-api',
+        dependency_kind: 'cli',
+        activation: 'task_routed',
+        offline_bundle: 'none',
+        online_install_default: false,
+        source: 'mineru-open-api',
+        source_path: null,
+        owner: 'mineru',
+        bundle_id: null,
+        version_requirement: null,
+        install_source: null,
+        relationship: 'recommended',
+        lifecycle_owner: 'opl_base',
+        update_mode: 'detect_only_guidance',
+        observed_status: null,
+        installed: null,
+      },
     ]);
     assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-lifecycle-ledger.json')), false);
+
+    fs.writeFileSync(policyPath, formatJsonPayload({
+      ...policy,
+      package: { ...policy.package, id: 'not-opl-flow' },
+    }));
+    assert.deepEqual(readOplFlowManagedDependencyIds(), []);
+    assert.deepEqual(readOplFlowManagedDependencies(), []);
+    fs.writeFileSync(policyPath, formatJsonPayload(policy));
 
     const outsidePolicyPath = path.join(root, 'outside-workflow-policy.json');
     fs.renameSync(policyPath, outsidePolicyPath);

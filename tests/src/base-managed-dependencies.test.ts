@@ -81,7 +81,7 @@ function writeFlowDependencyDescriptor(root: string, dependencyIds: string[]) {
   fs.writeFileSync(path.join(sourceRoot, 'templates', 'AGENTS.md'), 'fixture\n');
   fs.writeFileSync(policyPath, formatJsonPayload({
     schema: 'opl_flow_workflow_policy.v3',
-    package: { id: 'opl-flow', version: '0.1.28', owner: 'opl-flow', kind: 'workflow_profile' },
+    package: { id: 'opl-flow', version: '1.2.3', owner: 'opl-flow', kind: 'workflow_profile' },
     requires: dependencyIds.map((id) => ({
       id,
       kind: id === 'opl-base' ? 'base' : 'cli',
