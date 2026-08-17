@@ -575,7 +575,11 @@ function main() {
 
   const checksumPath = writeChecksumFile(options.outDir, archives);
   const releaseDisciplineWorkflows = copyReleaseDisciplineWorkflows(options.outDir);
-  const channelManifest = buildOplPackageChannelManifest(manifest, previousManifest);
+  const channelManifest = buildOplPackageChannelManifest(
+    manifest,
+    previousManifest,
+    path.join(options.frameworkSourceRoot, 'contracts/opl-framework/packages'),
+  );
   const manifestPath = writeOplPackageManifest(path.join(options.outDir, 'opl-release-manifest.json'), manifest);
   const channelManifestPath = writeOplPackageManifest(
     path.join(options.outDir, 'opl-channel-manifest.json'),

@@ -8,6 +8,7 @@ import {
   getOplPackageSpecs,
   normalizeDistributionVersion,
 } from '../src/adapters/integration/package-distribution.ts';
+import { assertJsonSchemaPayload } from '../src/kernel/schema-registry.ts';
 import { parseJsonText, readJsonFile } from './script-json-boundary.mjs';
 
 export const TEST_ONLY_PACKAGE_RELEASE_GATE = 'test_owner_sha_release_gate';
@@ -17,12 +18,28 @@ const semVerPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]
 const exactCommitPattern = /^[0-9a-f]{40}$/;
 const allowedPayloadModes = new Set(['100644', '100755']);
 const canonicalContentLock = 'ordered_path_length_file_length_bytes';
+const canonicalPayloadSchemaRef = 'contracts/opl-framework/package-payload-manifest-v2.schema.json';
+const canonicalPayloadSchema = readJsonFile(path.join(repoRoot, canonicalPayloadSchemaRef));
 
 function fail(code, packageId, message, details = {}) {
   const error = new Error(`${code}: ${packageId}: ${message}`);
   error.code = code;
   error.details = { package_id: packageId, ...details };
   throw error;
+}
+
+function assertCanonicalPayloadSchema(payload, packageId) {
+  try {
+    assertJsonSchemaPayload({
+      schemaId: canonicalPayloadSchema.$id ?? canonicalPayloadSchemaRef,
+      schema: canonicalPayloadSchema,
+      sourceRef: canonicalPayloadSchemaRef,
+    }, payload);
+  } catch (error) {
+    fail('payload_surface_invalid', packageId, 'payload must satisfy the canonical v2 Package payload schema', {
+      cause: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 function git(repoPath, args, allowFailure = false) {
@@ -326,6 +343,12 @@ function validateContentLock({
       actual: digest,
     });
   }
+  if (payload.content_lock.digest !== digest) {
+    fail('payload_content_lock_mismatch', packageId, 'payload content lock digest differs from owner carrier bytes', {
+      expected: digest,
+      actual: payload.content_lock.digest,
+    });
+  }
 }
 
 export function validatePackageSourceProjection({
@@ -372,13 +395,21 @@ export function validatePackageSourceProjection({
     });
   }
   const payload = readJsonFile(path.join(path.dirname(manifestPath), payloadRef));
+  if (payload.surface_kind !== 'opl_package_payload_manifest.v2'
+    || payload.schema_ref !== canonicalPayloadSchemaRef) {
+    fail('payload_surface_invalid', spec.package_id, 'payload must use the canonical v2 Package payload manifest');
+  }
+  assertCanonicalPayloadSchema(payload, spec.package_id);
   if (payload.package_id !== spec.package_id
+    || payload.plugin_id !== projectedManifest.codex_surface?.plugin_id
     || payload.package_version !== owner.version
     || payload.source_repo !== spec.repo_url
     || payload.source_commit !== carrierSourceCommit) {
-    fail('payload_source_drift', spec.package_id, 'payload identity, version, repository, or commit differs from carrier authority', {
+    fail('payload_source_drift', spec.package_id, 'payload identity, plugin, version, repository, or commit differs from carrier authority', {
       owner_head: ownerHead,
       carrier_source_commit: carrierSourceCommit,
+      projected_plugin_id: projectedManifest.codex_surface?.plugin_id,
+      payload_plugin_id: payload.plugin_id,
       payload_source_commit: payload.source_commit,
     });
   }
@@ -388,6 +419,7 @@ export function validatePackageSourceProjection({
   const sourceRoot = safeRelativePath(payload.source_root, 'source_root', spec.package_id, true);
   const coordinates = repoCoordinates(spec.repo_url, spec.package_id);
   const seen = new Set();
+  const payloadContentLock = crypto.createHash('sha256');
   for (const entry of payload.files) {
     const relativePath = safeRelativePath(entry?.path, 'files[].path', spec.package_id);
     if (seen.has(relativePath)) {
@@ -403,7 +435,7 @@ export function validatePackageSourceProjection({
       failureCode: 'payload_source_missing',
     });
     const sourceBytes = sourceEntry.bytes;
-    if (entry.mode !== undefined && entry.mode !== sourceEntry.mode) {
+    if (entry.mode !== sourceEntry.mode) {
       fail('payload_source_mode_mismatch', spec.package_id, `payload mode differs from owner Git bytes: ${relativePath}`, {
         expected: sourceEntry.mode,
         actual: entry.mode,
@@ -421,6 +453,24 @@ export function validatePackageSourceProjection({
       fail('payload_source_digest_mismatch', spec.package_id, `payload digest differs from owner bytes: ${relativePath}`, {
         expected: entry.sha256,
         actual: actualDigest,
+      });
+    }
+    const pathBytes = Buffer.from(relativePath, 'utf8');
+    const pathLength = Buffer.allocUnsafe(8);
+    const fileLength = Buffer.allocUnsafe(8);
+    pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
+    fileLength.writeBigUInt64BE(BigInt(sourceBytes.length));
+    payloadContentLock.update(pathLength);
+    payloadContentLock.update(pathBytes);
+    payloadContentLock.update(fileLength);
+    payloadContentLock.update(sourceBytes);
+  }
+  if (spec.owner_manifest_kind !== 'capability_package') {
+    const actualPayloadDigest = `sha256:${payloadContentLock.digest('hex')}`;
+    if (payload.content_lock.digest !== actualPayloadDigest) {
+      fail('payload_content_lock_mismatch', spec.package_id, 'payload content lock digest differs from owner carrier bytes', {
+        expected: actualPayloadDigest,
+        actual: payload.content_lock.digest,
       });
     }
   }

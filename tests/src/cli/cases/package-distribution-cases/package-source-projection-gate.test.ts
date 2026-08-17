@@ -17,6 +17,23 @@ function digest(filePath: string) {
   return `sha256:${crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')}`;
 }
 
+function lengthPrefixedFileDigest(entries: Array<{ path: string; absolute: string }>) {
+  const hash = crypto.createHash('sha256');
+  for (const entry of entries) {
+    const pathBytes = Buffer.from(entry.path, 'utf8');
+    const fileBytes = fs.readFileSync(entry.absolute);
+    const pathLength = Buffer.allocUnsafe(8);
+    const fileLength = Buffer.allocUnsafe(8);
+    pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
+    fileLength.writeBigUInt64BE(BigInt(fileBytes.length));
+    hash.update(pathLength);
+    hash.update(pathBytes);
+    hash.update(fileLength);
+    hash.update(fileBytes);
+  }
+  return `sha256:${hash.digest('hex')}`;
+}
+
 function git(cwd: string, args: string[]) {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
 }
@@ -59,11 +76,13 @@ function standardFixture(t: TestContext) {
   const payloadRef = `payloads/${packageId}-${version}.json`;
   const manifestPath = path.join(frameworkRoot, 'contracts', 'opl-framework', 'packages', `${packageId}.json`);
   const payloadPath = path.join(path.dirname(manifestPath), payloadRef);
-  const files = [
+  const fileSources = [
     { path: '.codex-plugin/plugin.json', absolute: pluginPath },
     { path: 'skills/med-autoscience/SKILL.md', absolute: skillPath },
-  ].map((entry) => ({
+  ];
+  const files = fileSources.map((entry) => ({
     path: entry.path,
+    mode: '100644',
     source_url: `https://raw.githubusercontent.com/example/med-autoscience/${carrierCommit}/${sourceRoot}/${entry.path}`,
     sha256: digest(entry.absolute),
   }));
@@ -73,16 +92,25 @@ function standardFixture(t: TestContext) {
     version,
     source_repo: repoUrl,
     codex_surface: {
+      plugin_id: 'med-autoscience',
       plugin_payload_manifest_url: payloadRef,
       carrier_source_commit: carrierCommit,
     },
   });
   writeJson(payloadPath, {
+    surface_kind: 'opl_package_payload_manifest.v2',
+    schema_ref: 'contracts/opl-framework/package-payload-manifest-v2.schema.json',
     package_id: packageId,
+    plugin_id: 'med-autoscience',
     package_version: version,
     source_repo: repoUrl,
     source_commit: carrierCommit,
     source_root: sourceRoot,
+    content_lock: {
+      algorithm: 'sha256',
+      canonicalization: 'ordered_path_length_file_length_bytes',
+      digest: lengthPrefixedFileDigest(fileSources),
+    },
     files,
   });
   const spec = {
@@ -118,6 +146,22 @@ test('package source projection gate binds annotated owner tag, exact commit, UR
   assert.notEqual(result.owner_head, result.owner_source_commit);
   assert.equal(result.owner_version_tag, `v${fixture.version}`);
   assert.equal(result.file_count, 2);
+});
+
+test('package source projection gate rejects historical payload envelopes', (t) => {
+  const fixture = standardFixture(t);
+  const payload = JSON.parse(fs.readFileSync(fixture.payloadPath, 'utf8'));
+  payload.surface_kind = 'unsupported_payload_manifest';
+  writeJson(fixture.payloadPath, payload);
+
+  assert.throws(
+    () => validatePackageSourceProjection({
+      frameworkRoot: fixture.frameworkRoot,
+      spec: fixture.spec,
+      ownerRepoPath: fixture.ownerRoot,
+    }),
+    (error: unknown) => (error as { code?: string }).code === 'payload_surface_invalid',
+  );
 });
 
 test('package source projection gate accepts the annotated owner tag without a self-referential manifest commit', (t) => {
@@ -232,7 +276,7 @@ test('package source projection gate verifies every capability Package ordered c
   writeJson(path.join(ownerRoot, paths[0]), { id: packageId, version });
   fs.mkdirSync(path.dirname(path.join(ownerRoot, paths[1])), { recursive: true });
   fs.writeFileSync(path.join(ownerRoot, paths[1]), '# Skill\n');
-  const contentLockDigest = (canonicalization: string) => {
+  const contentLockDigest = () => {
     const lockHash = crypto.createHash('sha256');
     for (const declaredPath of paths) {
       const pathBytes = Buffer.from(declaredPath);
@@ -253,7 +297,7 @@ test('package source projection gate verifies every capability Package ordered c
     algorithm: 'sha256',
     canonicalization,
     paths,
-    digest: contentLockDigest(canonicalization),
+    digest: contentLockDigest(),
   };
   writeJson(path.join(ownerRoot, 'contracts', 'owner-package.json'), {
     package_id: packageId,
@@ -275,18 +319,28 @@ test('package source projection gate verifies every capability Package ordered c
     source_repo: repoUrl,
     content_lock: contentLock,
     codex_surface: {
+      plugin_id: packageId,
       plugin_payload_manifest_url: payloadRef,
       carrier_source_commit: head,
     },
   });
   writeJson(path.join(path.dirname(manifestPath), payloadRef), {
+    surface_kind: 'opl_package_payload_manifest.v2',
+    schema_ref: 'contracts/opl-framework/package-payload-manifest-v2.schema.json',
     package_id: packageId,
+    plugin_id: packageId,
     package_version: version,
     source_repo: repoUrl,
     source_commit: head,
     source_root: '.',
+    content_lock: {
+      algorithm: 'sha256',
+      canonicalization: 'ordered_path_length_file_length_bytes',
+      digest: contentLock.digest,
+    },
     files: paths.map((declaredPath) => ({
       path: declaredPath,
+      mode: '100644',
       source_url: `https://raw.githubusercontent.com/example/opl-relay/${head}/${declaredPath}`,
       sha256: digest(path.join(ownerRoot, declaredPath)),
     })),
@@ -380,16 +434,28 @@ test('package source projection gate binds one regular owner descriptor outside 
     content_lock: contentLock,
     owner_package_manifest_ref: ownerPackageManifestRef,
     owner_package_descriptor_ref: ownerPackageDescriptorRef,
-    codex_surface: { plugin_payload_manifest_url: payloadRef, carrier_source_commit: head },
+    codex_surface: {
+      plugin_id: packageId,
+      plugin_payload_manifest_url: payloadRef,
+      carrier_source_commit: head,
+    },
   });
   const payloadPath = path.join(path.dirname(manifestPath), payloadRef);
   const payloadPaths = [lockPaths[0], ownerPackageDescriptorRef, lockPaths[1]];
   writeJson(payloadPath, {
+    surface_kind: 'opl_package_payload_manifest.v2',
+    schema_ref: 'contracts/opl-framework/package-payload-manifest-v2.schema.json',
     package_id: packageId,
+    plugin_id: packageId,
     package_version: version,
     source_repo: repoUrl,
     source_commit: head,
     source_root: '.',
+    content_lock: {
+      algorithm: 'sha256',
+      canonicalization: 'ordered_path_length_file_length_bytes',
+      digest: contentLock.digest,
+    },
     files: payloadPaths.map((declaredPath) => ({
       path: declaredPath,
       mode: '100644',

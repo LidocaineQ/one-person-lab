@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,6 +13,10 @@ import { readOplFlowDefaultUserInstructions } from '../../src/adapters/integrati
 import { createFakeCodexPluginManagerFixture, runCli } from './cli/helpers.ts';
 import { writeManagedRuntimeSourceFixture } from './cli/cases/packages-cases/managed-runtime-source-fixture.ts';
 import { agentPackageManifest, formatJsonPayload } from './cli/cases/packages-cases/helpers.ts';
+
+function sha256(content: string) {
+  return `sha256:${crypto.createHash('sha256').update(content).digest('hex')}`;
+}
 
 function writeOplFlowPackage(root: string) {
   const version = '0.1.42';
@@ -77,6 +82,14 @@ function writeOplFlowPackage(root: string) {
           required_skill_ids: requiredSkillIds,
         },
         capability_dependencies: [],
+      },
+      payloadManifest: {
+        surface_kind: 'opl_package_payload_manifest.v2',
+        files: Object.entries(files).map(([relativePath, content]) => ({
+          path: relativePath,
+          source_path: relativePath,
+          sha256: sha256(content),
+        })),
       },
       sourceFiles: Object.entries(files).map(([sourcePath, content]) => ({ sourcePath, content })),
     });

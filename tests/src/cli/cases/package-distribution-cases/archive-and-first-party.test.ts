@@ -88,7 +88,11 @@ function createOwnerPackageFixture(
   } else if (kind === 'standard_agent') {
     extraFiles['package.json'] = `${JSON.stringify({ name: repoName, version: ownerVersion }, null, 2)}\n`;
   }
-  return createGitModuleRemoteFixture(repoName, { extraFiles });
+  return {
+    ...createGitModuleRemoteFixture(repoName, { extraFiles }),
+    packageId,
+    packageVersion: ownerVersion,
+  };
 }
 
 function createFrozenFrameworkFixture(version: string) {
@@ -133,16 +137,46 @@ function createFrozenFrameworkFixture(version: string) {
 
 function addFrameworkPackageProjections(
   sourceRoot: string,
-  commits: Record<string, string>,
+  fixtures: Record<string, ReturnType<typeof createOwnerPackageFixture>>,
 ) {
   for (const spec of getOplPackageSpecs()) {
-    const sourceCommit = commits[spec.package_id];
+    const fixture = Object.values(fixtures).find((candidate) => candidate.packageId === spec.package_id);
+    assert.ok(fixture);
+    const sourceCommit = fixture.getHeadSha();
     assert.match(sourceCommit, /^[0-9a-f]{40}$/);
+    const canonicalManifestPath = path.join(repoRoot, spec.package_manifest_ref);
+    const projectedManifest = parseJsonText(
+      fs.readFileSync(canonicalManifestPath, 'utf8'),
+    ) as Record<string, any>;
+    const canonicalPayloadRef = projectedManifest.codex_surface.plugin_payload_manifest_url;
+    const projectedPayload = parseJsonText(fs.readFileSync(
+      path.join(path.dirname(canonicalManifestPath), canonicalPayloadRef),
+      'utf8',
+    )) as Record<string, any>;
+    const payloadRef = `payloads/${spec.package_id}-${fixture.packageVersion}.json`;
     const target = path.join(sourceRoot, spec.package_manifest_ref);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, `${JSON.stringify({
-      package_id: spec.package_id,
-      codex_surface: { carrier_source_commit: sourceCommit },
+      ...projectedManifest,
+      version: fixture.packageVersion,
+      codex_surface: {
+        ...projectedManifest.codex_surface,
+        carrier_source_commit: sourceCommit,
+        plugin_payload_manifest_url: payloadRef,
+      },
+    }, null, 2)}\n`, 'utf8');
+    const payloadTarget = path.join(path.dirname(target), payloadRef);
+    fs.mkdirSync(path.dirname(payloadTarget), { recursive: true });
+    fs.writeFileSync(payloadTarget, `${JSON.stringify({
+      ...projectedPayload,
+      package_version: fixture.packageVersion,
+      source_commit: sourceCommit,
+      files: projectedPayload.files.map((file: Record<string, unknown>) => ({
+        ...file,
+        source_url: typeof file.source_url === 'string'
+          ? file.source_url.replace(/\/[0-9a-f]{40}\//, `/${sourceCommit}/`)
+          : file.source_url,
+      })),
     }, null, 2)}\n`, 'utf8');
   }
   execFileSync('git', ['add', '--all'], { cwd: sourceRoot, encoding: 'utf8' });
@@ -235,7 +269,7 @@ test('App component resolver canonicalizes a Draft alias without weakening immut
   assert.throws(resolve, /does not bind the exact repository/);
 });
 
-test('package archive builder writes channel manifest checksums git source and release discipline gate', () => {
+test('package archive builder writes channel manifest checksums git source and release discipline gate', (t) => {
   const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-out-'));
   const previousManifest = path.join(outDir, 'previous-manifest.json');
   const appComponentManifest = path.join(outDir, 'opl-app-component-manifest.json');
@@ -319,6 +353,11 @@ test('package archive builder writes channel manifest checksums git source and r
     source_artifact_ref: 'ghcr.io/gaofeng21cn/one-person-lab-packages/mas-scholar-skills:0.0.9',
     dependency_package_ids: [],
   };
+  const legacyScholarSkillsPayloadJson = `${JSON.stringify({
+    ...JSON.parse(previousScholarSkillsPayloadJson),
+    surface_kind: 'opl_agent_package_payload_manifest.v1',
+  }, null, 2)}\n`;
+  const legacyScholarSkillsPayloadSha256 = `sha256:${crypto.createHash('sha256').update(legacyScholarSkillsPayloadJson).digest('hex')}`;
   fs.writeFileSync(previousManifest, JSON.stringify({
     release_set_generation: '26.4.30',
     packages: {
@@ -335,6 +374,13 @@ test('package archive builder writes channel manifest checksums git source and r
               ...previousScholarSkillsVersion,
               package_version: '2.0.0',
               capability_abi: 'mas-scholar-skills.v2',
+            },
+            {
+              ...previousScholarSkillsVersion,
+              package_version: '3.0.0',
+              payload_digest: legacyScholarSkillsPayloadSha256,
+              payload_manifest_json: legacyScholarSkillsPayloadJson,
+              payload_manifest_sha256: legacyScholarSkillsPayloadSha256,
             },
           ],
         },
@@ -368,7 +414,19 @@ test('package archive builder writes channel manifest checksums git source and r
     OPL_PACKAGE_SOURCE_PATH_OPL_FLEET_AGENT: fixtures.oplfleetagent.sourceRoot,
     OPL_PACKAGE_RELEASE_GATE: 'test_owner_sha_release_gate',
   };
-
+  const frameworkFixture = createFrozenFrameworkFixture('0.3.5');
+  frameworkFixture.headSha = addFrameworkPackageProjections(frameworkFixture.sourceRoot, fixtures);
+  const frameworkFakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-framework-bin-'));
+  fs.writeFileSync(path.join(frameworkFakeBin, 'npm'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  t.after(() => {
+    fs.rmSync(frameworkFixture.sourceRoot, { recursive: true, force: true });
+    fs.rmSync(frameworkFakeBin, { recursive: true, force: true });
+  });
+  const archiveEnv = {
+    ...ownerSourceEnv,
+    PATH: `${frameworkFakeBin}:${process.env.PATH ?? ''}`,
+    OPL_FRAMEWORK_SOURCE_ROOT: frameworkFixture.sourceRoot,
+  };
   const archiveBuilderOutput = execFileSync(process.execPath, [
     '--experimental-strip-types',
     path.join(repoRoot, 'scripts/package-archives.mjs'),
@@ -387,7 +445,7 @@ test('package archive builder writes channel manifest checksums git source and r
   ], {
     cwd: repoRoot,
     encoding: 'utf8',
-    env: ownerSourceEnv,
+    env: archiveEnv,
   });
   const archiveBuilderResult = parseJsonText(archiveBuilderOutput) as {
     clone_root: string;
@@ -530,18 +588,7 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(channelManifest.packages.framework_core.artifact, manifest.packages.framework_core.artifact);
 
   const frozenFramework = createFrozenFrameworkFixture('0.1.0');
-  frozenFramework.headSha = addFrameworkPackageProjections(frozenFramework.sourceRoot, {
-    mas: fixtures.medautoscience.getHeadSha(),
-    mag: fixtures.medautogrant.getHeadSha(),
-    rca: fixtures.redcube.getHeadSha(),
-    oma: fixtures.oplmetaagent.getHeadSha(),
-    obf: fixtures.oplbookforge.getHeadSha(),
-    'mas-scholar-skills': fixtures.scholarskills.getHeadSha(),
-    'opl-relay': fixtures.oplrelay.getHeadSha(),
-    'opl-persona': fixtures.oplpersona.getHeadSha(),
-    'opl-flow': fixtures.oplflow.getHeadSha(),
-    'opl-fleet-agent': fixtures.oplfleetagent.getHeadSha(),
-  });
+  frozenFramework.headSha = addFrameworkPackageProjections(frozenFramework.sourceRoot, fixtures);
   const frozenOutDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-frozen-framework-out-'));
   const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-frozen-framework-bin-'));
   fs.writeFileSync(path.join(fakeBin, 'npm'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
@@ -691,6 +738,10 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.deepEqual(
     scholarSkillsCatalog.versions.map((entry: Record<string, unknown>) => entry.package_version),
     ['0.2.1', '2.0.0', '0.0.9'],
+  );
+  assert.equal(
+    scholarSkillsCatalog.versions.some((entry: Record<string, unknown>) => entry.package_version === '3.0.0'),
+    false,
   );
   assert.equal(
     scholarSkillsCatalog.versions[0].content_digest,
@@ -910,8 +961,7 @@ test('package archive builder writes channel manifest checksums git source and r
   immutablePreviousFlow.manifest_sha256 = `sha256:${crypto.createHash('sha256').update(immutablePreviousFlow.manifest_json).digest('hex')}`;
   immutablePreviousFlow.package_manifest.sha256 = immutablePreviousFlow.manifest_sha256;
   const immutablePreviousFlowPayload = JSON.parse(immutablePreviousFlow.payload_manifest_json);
-  delete immutablePreviousFlowPayload.package_source.archive_root;
-  immutablePreviousFlowPayload.legacy_registry_fixture = 'must not override the canonical projection';
+  immutablePreviousFlowPayload.source_root = 'legacy-source-root';
   immutablePreviousFlow.payload_manifest_json = `${JSON.stringify(immutablePreviousFlowPayload, null, 2)}\n`;
   immutablePreviousFlow.payload_manifest_sha256 = `sha256:${crypto.createHash('sha256').update(immutablePreviousFlow.payload_manifest_json).digest('hex')}`;
   immutablePreviousFlow.payload_digest = immutablePreviousFlow.payload_manifest_sha256;
@@ -927,7 +977,8 @@ test('package archive builder writes channel manifest checksums git source and r
       '--owner-cohort-lock', archiveBuilderResult.owner_cohort_lock,
       '--previous-manifest', immutablePreviousManifestPath,
       '--app-component-manifest', appComponentManifest,
-    ], { cwd: repoRoot, encoding: 'utf8', env: ownerSourceEnv });
+      '--framework-source-root', frameworkFixture.sourceRoot,
+    ], { cwd: repoRoot, encoding: 'utf8', env: archiveEnv });
     const repeatedManifest = parseJsonText(fs.readFileSync(
       path.join(repeatOutDir, 'opl-release-manifest.json'),
       'utf8',
@@ -953,7 +1004,7 @@ test('package archive builder writes channel manifest checksums git source and r
     assert.equal(repeatedFlowManifest.legacy_registry_fixture, undefined);
     const repeatedFlowPayload = JSON.parse(repeatedFlow.payload_manifest_json);
     assert.equal(repeatedFlowPayload.package_source.archive_root, 'opl-flow');
-    assert.equal(repeatedFlowPayload.legacy_registry_fixture, undefined);
+    assert.notEqual(repeatedFlowPayload.source_root, 'legacy-source-root');
 
     const collisionPreviousManifest = structuredClone(immutablePreviousManifest);
     collisionPreviousManifest.packages.package_catalog.mas.versions[0].owner_source_commit = 'f'.repeat(40);
@@ -972,7 +1023,8 @@ test('package archive builder writes channel manifest checksums git source and r
       '--owner-cohort-lock', archiveBuilderResult.owner_cohort_lock,
       '--previous-manifest', collisionPreviousManifestPath,
       '--app-component-manifest', appComponentManifest,
-    ], { cwd: repoRoot, encoding: 'utf8', env: ownerSourceEnv }), /Immutable Package version collision for mas:0\.2\.1.*Bump the owner Package version/s);
+      '--framework-source-root', frameworkFixture.sourceRoot,
+    ], { cwd: repoRoot, encoding: 'utf8', env: archiveEnv }), /Immutable Package version collision for mas:0\.2\.1.*Bump the owner Package version/s);
   } finally {
     fs.rmSync(docsOnlyFixturePath, { force: true });
     fs.rmSync(repeatOutDir, { recursive: true, force: true });
@@ -999,7 +1051,8 @@ test('package archive builder writes channel manifest checksums git source and r
       '--out-dir', staleLockOutDir,
       '--owner-cohort-lock', archiveBuilderResult.owner_cohort_lock,
       '--app-component-manifest', appComponentManifest,
-    ], { cwd: repoRoot, encoding: 'utf8', env: ownerSourceEnv }), /does not match cohort lock/);
+      '--framework-source-root', frameworkFixture.sourceRoot,
+    ], { cwd: repoRoot, encoding: 'utf8', env: archiveEnv }), /does not match cohort lock/);
   } finally {
     fs.rmSync(staleLockOutDir, { recursive: true, force: true });
   }
@@ -1839,7 +1892,7 @@ test('MAS first-party agent package manifest fails closed for unsafe dependency 
   );
 });
 
-test('package archive builder refreshes reused managed clones before archiving source', () => {
+test('package archive builder refreshes reused managed clones before archiving source', (t) => {
   const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-refresh-out-'));
   const cloneRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-refresh-clones-'));
   const gitConfigPath = path.join(os.tmpdir(), `opl-package-refresh-git-${Date.now()}.config`);
@@ -1856,6 +1909,15 @@ test('package archive builder refreshes reused managed clones before archiving s
     oplflow: createOwnerPackageFixture('opl-flow', 'opl-flow', '0.1.20', 'workflow_profile'),
     oplfleetagent: createOwnerPackageFixture('opl-fleet-agent', 'opl-fleet-agent', '0.2.40', 'capability_package'),
   };
+  const frameworkFixture = createFrozenFrameworkFixture('0.3.5');
+  frameworkFixture.headSha = addFrameworkPackageProjections(frameworkFixture.sourceRoot, fixtures);
+  const frameworkFakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-refresh-bin-'));
+  fs.writeFileSync(path.join(frameworkFakeBin, 'npm'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  t.after(() => {
+    fs.rmSync(frameworkFixture.sourceRoot, { recursive: true, force: true });
+    fs.rmSync(frameworkFakeBin, { recursive: true, force: true });
+    fs.rmSync(gitConfigPath, { force: true });
+  });
   fs.writeFileSync(
     gitConfigPath,
     [
@@ -1868,7 +1930,9 @@ test('package archive builder refreshes reused managed clones before archiving s
 
   const env = {
     ...process.env,
+    PATH: `${frameworkFakeBin}:${process.env.PATH ?? ''}`,
     GIT_CONFIG_GLOBAL: gitConfigPath,
+    OPL_FRAMEWORK_SOURCE_ROOT: frameworkFixture.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_MAG: fixtures.medautogrant.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_RCA: fixtures.redcube.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OMA: fixtures.oplmetaagent.sourceRoot,
@@ -1898,6 +1962,7 @@ test('package archive builder refreshes reused managed clones before archiving s
     env,
   });
   const advancedHead = fixtures.medautoscience.advance('CHANGELOG.md', 'fresh source\n', 'Advance module source');
+  frameworkFixture.headSha = addFrameworkPackageProjections(frameworkFixture.sourceRoot, fixtures);
 
   execFileSync(process.execPath, [
     '--experimental-strip-types',

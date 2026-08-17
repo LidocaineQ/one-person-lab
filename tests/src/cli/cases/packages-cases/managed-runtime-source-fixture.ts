@@ -5,10 +5,32 @@ import { fs, path } from './helpers.ts';
 
 const PACKAGE_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.source.v1+gzip';
 const PACKAGE_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.manifest.v1+json';
+const PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.package.payload.v1+json';
 const CHANNEL_MANIFEST_LAYER_MEDIA_TYPE = 'application/vnd.onepersonlab.release.channel-manifest.v1+json';
 
 function sha256(filePath: string) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+function contentLockDigest(paths: string[], sourceFiles: Map<string, string | Buffer>) {
+  const digest = crypto.createHash('sha256');
+  for (const relativePath of paths) {
+    const pathBytes = Buffer.from(relativePath, 'utf8');
+    const sourceFile = sourceFiles.get(relativePath);
+    if (sourceFile === undefined) {
+      throw new Error(`Fixture payload content lock references a missing source file: ${relativePath}`);
+    }
+    const fileBytes = Buffer.isBuffer(sourceFile) ? sourceFile : Buffer.from(sourceFile, 'utf8');
+    const pathLength = Buffer.allocUnsafe(8);
+    const fileLength = Buffer.allocUnsafe(8);
+    pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
+    fileLength.writeBigUInt64BE(BigInt(fileBytes.length));
+    digest.update(pathLength);
+    digest.update(pathBytes);
+    digest.update(fileLength);
+    digest.update(fileBytes);
+  }
+  return `sha256:${digest.digest('hex')}`;
 }
 
 export function writeManagedRuntimeSourceFixture(input: {
@@ -18,11 +40,13 @@ export function writeManagedRuntimeSourceFixture(input: {
   version: string;
   sourceHeadSha: string;
   packageManifest?: Record<string, unknown>;
+  payloadManifest?: Record<string, unknown>;
   sourceFiles?: Array<{
     sourcePath: string;
     content: string | Buffer;
     mode?: number;
   }>;
+  artifactBackedPayload?: boolean;
 }) {
   const blobRoot = path.join(input.root, 'blobs');
   const fakeBin = path.join(input.root, 'bin');
@@ -110,6 +134,45 @@ export function writeManagedRuntimeSourceFixture(input: {
       (codexSurface as Record<string, unknown>).carrier_source_commit = exactSourceCommit;
     }
   }
+  const suppliedPayloadManifest = input.payloadManifest
+    ? structuredClone(input.payloadManifest)
+    : null;
+  const sourceFiles = new Map(
+    (input.sourceFiles ?? []).map((file) => [file.sourcePath, file.content]),
+  );
+  const payloadFiles: Array<Record<string, unknown>> = Array.isArray(suppliedPayloadManifest?.files)
+    ? suppliedPayloadManifest.files.map((candidate) => {
+        const file = candidate && typeof candidate === 'object' && !Array.isArray(candidate)
+          ? candidate as Record<string, unknown>
+          : {};
+        return {
+          ...file,
+          mode: file.mode ?? '100644',
+        };
+      })
+    : [];
+  const payloadPaths = payloadFiles
+    .map((file) => typeof file.path === 'string' ? file.path : null)
+    .filter((file): file is string => file !== null);
+  const payloadManifest = suppliedPayloadManifest
+    ? {
+        ...suppliedPayloadManifest,
+        surface_kind: 'opl_package_payload_manifest.v2',
+        schema_ref: 'contracts/opl-framework/package-payload-manifest-v2.schema.json',
+        package_id: packageId,
+        plugin_id: input.repoName,
+        package_version: input.version,
+        source_repo: `https://github.com/gaofeng21cn/${input.repoName}.git`,
+        source_commit: exactSourceCommit ?? input.sourceHeadSha,
+        source_root: '.',
+        content_lock: {
+          algorithm: 'sha256',
+          canonicalization: 'ordered_path_length_file_length_bytes',
+          digest: contentLockDigest(payloadPaths, sourceFiles),
+        },
+        files: payloadFiles,
+      }
+    : null;
   const manifestJson = packageManifest
     ? `${JSON.stringify({
         ...packageManifest,
@@ -120,8 +183,38 @@ export function writeManagedRuntimeSourceFixture(input: {
   const manifestDigest = manifestJson
     ? `sha256:${crypto.createHash('sha256').update(manifestJson).digest('hex')}`
     : null;
+  const payloadManifestJson = payloadManifest
+    ? `${JSON.stringify({
+        ...payloadManifest,
+        package_source: {
+          transport: 'same_oci_artifact_source_archive',
+          artifact_ref: sourceArtifactRef,
+          archive_sha256: `sha256:${archiveDigest}`,
+          archive_root: input.repoName,
+        },
+        files: payloadManifest.files.map((candidate) => {
+          const file = candidate as Record<string, unknown>;
+          return input.artifactBackedPayload === false
+            ? file
+            : {
+                ...file,
+                source_artifact_ref: sourceArtifactRef,
+                content_utf8: undefined,
+                content_base64: undefined,
+                source_url: undefined,
+              };
+        }),
+      }, null, 2)}\n`
+    : null;
+  const payloadManifestDigest = payloadManifestJson
+    ? `sha256:${crypto.createHash('sha256').update(payloadManifestJson).digest('hex')}`
+    : null;
   const manifestLayerPath = manifestJson ? path.join(blobRoot, 'package-manifest.json') : null;
+  const payloadLayerPath = payloadManifestJson ? path.join(blobRoot, 'payload-manifest.json') : null;
   if (manifestJson && manifestLayerPath) fs.writeFileSync(manifestLayerPath, manifestJson);
+  if (payloadManifestJson && payloadLayerPath) {
+    fs.writeFileSync(payloadLayerPath, payloadManifestJson);
+  }
   const packageArtifactManifest = {
     schemaVersion: 2,
     layers: [
@@ -133,6 +226,11 @@ export function writeManagedRuntimeSourceFixture(input: {
         mediaType: PACKAGE_MANIFEST_LAYER_MEDIA_TYPE,
         digest: manifestDigest,
         annotations: { 'org.opencontainers.image.title': 'package-manifest.json' },
+      }] : []),
+      ...(payloadManifestDigest ? [{
+        mediaType: PACKAGE_PAYLOAD_LAYER_MEDIA_TYPE,
+        digest: payloadManifestDigest,
+        annotations: { 'org.opencontainers.image.title': 'payload-manifest.json' },
       }] : []),
     ],
   };
@@ -157,6 +255,11 @@ export function writeManagedRuntimeSourceFixture(input: {
                 sha256: manifestDigest,
               },
               content_digest: manifestDigest,
+            } : {}),
+            ...(payloadManifestJson && payloadManifestDigest ? {
+              payload_digest: payloadManifestDigest,
+              payload_manifest_json: payloadManifestJson,
+              payload_manifest_sha256: payloadManifestDigest,
             } : {}),
             source_artifact_ref: sourceArtifactRef,
             artifact_digest: artifactDigest,
@@ -183,6 +286,7 @@ export function writeManagedRuntimeSourceFixture(input: {
     [`sha256:${channelDigest}`]: channelManifestPath,
     [`sha256:${archiveDigest}`]: archivePath,
     ...(manifestDigest && manifestLayerPath ? { [manifestDigest]: manifestLayerPath } : {}),
+    ...(payloadManifestDigest && payloadLayerPath ? { [payloadManifestDigest]: payloadLayerPath } : {}),
   };
   fs.writeFileSync(path.join(fakeBin, 'curl'), [
     '#!/usr/bin/env node',

@@ -10,6 +10,7 @@ import {
 import { listCurrentPackageProjections } from '../../kernel/standard-agent-registry.ts';
 import { getOplReleaseRepo, getOplReleaseVersion } from './opl-release.ts';
 import { readBundledCodexDefaultProfile } from '../../kernel/local-codex-defaults.ts';
+import { assertJsonSchemaPayload } from '../../kernel/schema-registry.ts';
 import { MANAGED_UPDATE_OWNER_FIELDS } from './managed-update-owner-boundary.ts';
 import type { ModuleCapabilityDependency } from './system-installation/shared.ts';
 
@@ -79,7 +80,26 @@ export type OplPackageManifest = ReturnType<typeof buildOplPackageManifest>;
 const PACKAGE_WORKFLOW_TRIGGER_POLICY = 'independent_owner_channel_workflow_call_or_manual_dispatch';
 const PACKAGE_REMOTE_PUBLISH_STATUS = 'publication_workflow_configured_pending_remote_verification';
 const RELEASE_SET_GENERATION_PATTERN = /^\d{2}\.\d{1,2}\.\d{1,2}(?:-r[1-9]\d*)?$/;
+const PACKAGE_PAYLOAD_MANIFEST_SCHEMA_REF = 'contracts/opl-framework/package-payload-manifest-v2.schema.json';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const packagePayloadManifestSchema = JSON.parse(fs.readFileSync(
+  path.join(repoRoot, PACKAGE_PAYLOAD_MANIFEST_SCHEMA_REF),
+  'utf8',
+)) as Record<string, unknown>;
+
+function assertCanonicalPackagePayloadManifest(payload: Record<string, unknown>, sourceRef: string) {
+  if (payload.surface_kind !== 'opl_package_payload_manifest.v2'
+    || payload.schema_ref !== PACKAGE_PAYLOAD_MANIFEST_SCHEMA_REF) {
+    throw new Error(`${sourceRef} must use the canonical v2 Package payload manifest.`);
+  }
+  assertJsonSchemaPayload({
+    schemaId: typeof packagePayloadManifestSchema.$id === 'string'
+      ? packagePayloadManifestSchema.$id
+      : PACKAGE_PAYLOAD_MANIFEST_SCHEMA_REF,
+    schema: packagePayloadManifestSchema,
+    sourceRef: PACKAGE_PAYLOAD_MANIFEST_SCHEMA_REF,
+  }, payload);
+}
 
 function projectionString(payload: Record<string, unknown>, field: string) {
   const value = payload[field];
@@ -648,9 +668,7 @@ export function materializeArchiveBackedPackagePayload(input: {
   archiveSha256: string | null;
   archiveRoot: string;
 }) {
-  if (input.payload.surface_kind !== 'opl_package_payload_manifest.v2') {
-    throw new Error(`${input.payloadRef}.surface_kind must be opl_package_payload_manifest.v2.`);
-  }
+  assertCanonicalPackagePayloadManifest(input.payload, input.payloadRef);
   if (!/^[0-9a-f]{40}$/.test(input.ownerSourceCommit ?? '')) {
     throw new Error(`${input.payloadRef}.source_commit must be an exact Git commit.`);
   }
@@ -688,15 +706,17 @@ export function materializeArchiveBackedPackagePayload(input: {
   if (!Array.isArray(input.payload.files) || input.payload.files.length === 0) {
     throw new Error(`${input.payloadRef}.files must contain at least one payload file.`);
   }
-  const trackedSourceCommit = stringValue(input.payload.source_commit);
-  return {
+  if (input.payload.package_id !== input.packageId
+    || input.payload.package_version !== input.packageVersion
+    || input.payload.source_commit !== input.ownerSourceCommit) {
+    throw new Error(`${input.payloadRef} identity must match the exact Package publication selection.`);
+  }
+  const seenPayloadPaths = new Set<string>();
+  const materialized = {
     ...input.payload,
     package_id: input.packageId,
     package_version: input.packageVersion,
     source_commit: input.ownerSourceCommit,
-    ...(trackedSourceCommit && trackedSourceCommit !== input.ownerSourceCommit
-      ? { migration_source_commit: trackedSourceCommit }
-      : {}),
     package_source: {
       transport: 'same_oci_artifact_source_archive',
       artifact_ref: input.sourceArtifactRef,
@@ -712,6 +732,10 @@ export function materializeArchiveBackedPackagePayload(input: {
         stringValue(file.path),
         `${input.payloadRef}.files[${index}].path`,
       );
+      if (seenPayloadPaths.has(payloadFilePath)) {
+        throw new Error(`${input.payloadRef}.files repeats package path ${payloadFilePath}.`);
+      }
+      seenPayloadPaths.add(payloadFilePath);
       const sourcePath = payloadSourceRoot === '.'
         ? payloadFilePath
         : path.posix.join(payloadSourceRoot, payloadFilePath);
@@ -729,6 +753,8 @@ export function materializeArchiveBackedPackagePayload(input: {
       };
     }),
   };
+  assertCanonicalPackagePayloadManifest(materialized, input.payloadRef);
+  return materialized;
 }
 
 function dependencyPackageIds(source: Record<string, unknown>) {
@@ -740,9 +766,12 @@ function dependencyPackageIds(source: Record<string, unknown>) {
     .sort((left, right) => left.localeCompare(right, 'en'));
 }
 
-function buildCurrentPackageCatalog(manifest: OplPackageManifest) {
+function buildCurrentPackageCatalog(
+  manifest: OplPackageManifest,
+  packageDirectory = path.join(repoRoot, 'contracts/opl-framework/packages'),
+) {
   return Object.fromEntries(PACKAGE_SPECS.map((spec) => {
-    const manifestPath = path.join(repoRoot, spec.package_manifest_ref);
+    const manifestPath = path.join(packageDirectory, path.basename(spec.package_manifest_ref));
     const projectedManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
     const packageEntry = manifest.packages.package_artifacts[spec.package_id];
     const ownerManifest = packageEntry.owner_package_manifest_json
@@ -850,6 +879,19 @@ function isRetainableCatalogVersion(candidate: Record<string, unknown>) {
   const manifest = stringRecord(candidate.package_manifest);
   const manifestJson = typeof candidate.manifest_json === 'string' ? candidate.manifest_json : null;
   const manifestSha256 = stringValue(candidate.manifest_sha256);
+  const payloadManifestJson = typeof candidate.payload_manifest_json === 'string'
+    ? candidate.payload_manifest_json
+    : null;
+  let canonicalPayload = false;
+  if (payloadManifestJson) {
+    try {
+      const payload = JSON.parse(payloadManifestJson) as Record<string, unknown>;
+      assertCanonicalPackagePayloadManifest(payload, 'retained payload manifest');
+      canonicalPayload = true;
+    } catch {
+      canonicalPayload = false;
+    }
+  }
   return Boolean(
     stringValue(candidate.package_version)
     && stringValue(candidate.manifest_url)
@@ -860,8 +902,9 @@ function isRetainableCatalogVersion(candidate: Record<string, unknown>) {
     && stringValue(manifest?.sha256) === manifestSha256
     && stringValue(candidate.content_digest)?.match(/^sha256:[0-9a-f]{64}$/)
     && stringValue(candidate.payload_digest)?.match(/^sha256:[0-9a-f]{64}$/)
-    && typeof candidate.payload_manifest_json === 'string'
-    && sha256Payload(candidate.payload_manifest_json) === stringValue(candidate.payload_manifest_sha256)
+    && payloadManifestJson
+    && canonicalPayload
+    && sha256Payload(payloadManifestJson) === stringValue(candidate.payload_manifest_sha256)
     && stringValue(candidate.payload_manifest_sha256) === stringValue(candidate.payload_digest)
     && stringValue(candidate.source_artifact_ref)
   );
@@ -1022,10 +1065,14 @@ function synchronizeReleaseSetBom(
     : 'pending_remote_verification';
 }
 
-export function buildOplPackageChannelManifest(manifest: OplPackageManifest, previousManifest: unknown = null) {
+export function buildOplPackageChannelManifest(
+  manifest: OplPackageManifest,
+  previousManifest: unknown = null,
+  packageDirectory = path.join(repoRoot, 'contracts/opl-framework/packages'),
+) {
   const retainVersions = manifest.release_automation.cleanup.retain_versions;
   const packageCatalog = mergePackageCatalog(
-    buildCurrentPackageCatalog(manifest),
+    buildCurrentPackageCatalog(manifest, packageDirectory),
     previousManifest,
     retainVersions,
   );

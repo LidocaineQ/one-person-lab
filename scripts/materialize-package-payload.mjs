@@ -23,6 +23,7 @@ function parseOptions(argv) {
     options: {
       input: { type: 'string' },
       output: { type: 'string' },
+      'package-manifest': { type: 'string' },
       archive: { type: 'string' },
       'artifact-ref': { type: 'string' },
       'archive-sha256': { type: 'string' },
@@ -35,6 +36,7 @@ function parseOptions(argv) {
   const required = [
     'input',
     'output',
+    'package-manifest',
     'archive',
     'artifact-ref',
     'archive-sha256',
@@ -50,6 +52,7 @@ function parseOptions(argv) {
   return {
     input: path.resolve(values.input.trim()),
     output: path.resolve(values.output.trim()),
+    packageManifest: path.resolve(values['package-manifest'].trim()),
     archive: path.resolve(values.archive.trim()),
     artifactRef: values['artifact-ref'].trim(),
     archiveSha256: values['archive-sha256'].trim(),
@@ -130,7 +133,74 @@ function sourceCoordinates(payload) {
   return { owner: components[0], repo: components[1] };
 }
 
-function verifyArchiveEntries(archivePath, payload) {
+function stringRecord(value) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value
+    : null;
+}
+
+function exactString(value) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function packageContentLockPaths(packageManifest, payload, options) {
+  const codexSurface = stringRecord(packageManifest.codex_surface);
+  const packageSourceCommit = exactString(codexSurface?.carrier_source_commit)
+    ?? exactString(packageManifest.source_commit);
+  if (packageManifest.package_id !== options.packageId
+    || packageManifest.version !== options.packageVersion
+    || packageSourceCommit !== options.sourceCommit
+    || packageManifest.source_repo !== payload.source_repo
+    || exactString(codexSurface?.plugin_id) !== payload.plugin_id) {
+    throw new Error('Package manifest identity does not match the exact Package publication selection.');
+  }
+  const packageRole = exactString(packageManifest.package_role) ?? 'standard_agent';
+  if (packageRole === 'capability_package') {
+    const packageContentLock = stringRecord(packageManifest.content_lock);
+    const payloadContentLock = stringRecord(payload.content_lock);
+    const paths = packageContentLock?.paths;
+    if (packageContentLock?.algorithm !== 'sha256'
+      || packageContentLock?.canonicalization !== 'ordered_path_length_file_length_bytes'
+      || packageContentLock?.digest !== payloadContentLock?.digest
+      || !Array.isArray(paths)
+      || paths.length === 0
+      || paths.some((entry) => typeof entry !== 'string' || !entry)) {
+      throw new Error('Capability Package manifest must declare the exact canonical payload content lock.');
+    }
+    return paths;
+  }
+  if (packageRole !== 'standard_agent' && packageRole !== 'workflow_profile') {
+    throw new Error(`Unsupported Package role for payload materialization: ${packageRole}`);
+  }
+  return payload.files.map((file) => file.path);
+}
+
+function lengthPrefixedContentLock(paths, archiveBytesByPath) {
+  const hash = crypto.createHash('sha256');
+  const seen = new Set();
+  for (const packagePath of paths) {
+    if (seen.has(packagePath)) {
+      throw new Error(`Package content_lock repeats package path ${packagePath}.`);
+    }
+    seen.add(packagePath);
+    const fileBytes = archiveBytesByPath.get(packagePath);
+    if (!fileBytes) {
+      throw new Error(`Package content_lock path is absent from the payload archive: ${packagePath}`);
+    }
+    const pathBytes = Buffer.from(packagePath, 'utf8');
+    const pathLength = Buffer.allocUnsafe(8);
+    const fileLength = Buffer.allocUnsafe(8);
+    pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
+    fileLength.writeBigUInt64BE(BigInt(fileBytes.length));
+    hash.update(pathLength);
+    hash.update(pathBytes);
+    hash.update(fileLength);
+    hash.update(fileBytes);
+  }
+  return `sha256:${hash.digest('hex')}`;
+}
+
+function verifyArchiveEntries(archivePath, payload, packageManifest, options) {
   const listing = spawnSync('tar', ['-tzf', archivePath], {
     encoding: 'utf8',
     maxBuffer: MAX_FILE_BYTES,
@@ -140,6 +210,7 @@ function verifyArchiveEntries(archivePath, payload) {
     throw new Error(`Package source archive is not a readable gzip tar archive: ${listing.stderr.trim()}`);
   }
   const entries = new Set(listing.stdout.split('\n').filter(Boolean));
+  const archiveBytesByPath = new Map();
   for (const file of payload.files) {
     const archivePathRef = `${payload.package_source.archive_root}/${file.source_path}`;
     if (!entries.has(archivePathRef)) {
@@ -156,6 +227,16 @@ function verifyArchiveEntries(archivePath, payload) {
     if (file.sha256 !== actualSha256) {
       throw new Error(`Package archive payload SHA-256 mismatch: ${archivePathRef}`);
     }
+    archiveBytesByPath.set(file.path, extracted.stdout);
+  }
+  const actualContentLock = lengthPrefixedContentLock(
+    packageContentLockPaths(packageManifest, payload, options),
+    archiveBytesByPath,
+  );
+  if (payload.content_lock.digest !== actualContentLock) {
+    throw new Error(
+      `Package archive content_lock mismatch: expected=${payload.content_lock.digest} actual=${actualContentLock}`,
+    );
   }
 }
 
@@ -189,6 +270,10 @@ function main() {
     throw new Error('Input and output paths must be distinct.');
   }
   const payload = parseJson(readPhysicalRegularFile(options.input, 'payload input'), 'Payload input');
+  const packageManifest = parseJson(
+    readPhysicalRegularFile(options.packageManifest, 'Package manifest'),
+    'Package manifest',
+  );
   const validate = schemaValidator();
   assertSchema(validate, payload, 'Payload input');
   if (payload.surface_kind !== 'opl_package_payload_manifest.v2'
@@ -222,7 +307,7 @@ function main() {
     archiveRoot: options.archiveRoot,
   });
   assertSchema(validate, materialized, 'Materialized payload');
-  verifyArchiveEntries(options.archive, materialized);
+  verifyArchiveEntries(options.archive, materialized, packageManifest, options);
   const output = Buffer.from(`${JSON.stringify(materialized, null, 2)}\n`, 'utf8');
   writePhysicalRegularFile(options.output, output);
   process.stdout.write(`${JSON.stringify({
