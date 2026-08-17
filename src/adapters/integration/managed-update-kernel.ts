@@ -2,11 +2,6 @@ import { readOplUpdateChannel, readOplWorkspaceRoot } from '../../kernel/system-
 import type { FrameworkContracts } from '../../kernel/types.ts';
 import { resolveCodexVersion } from './system-installation/engine-helpers.ts';
 import { buildOplModules } from './system-installation/modules.ts';
-import { canonicalAgentPackageId } from './agent-package-identity.ts';
-import {
-  readFirstPartyPackageOwnerCurrentness,
-  type FirstPartyPackageOwnerCurrentness,
-} from './agent-package-registry.ts';
 import {
   managedUpdateComponentReceiptLedgerFilePath,
 } from './managed-update-component-receipts.ts';
@@ -98,15 +93,10 @@ function moduleState(module: Record<string, unknown>): ManagedUpdateComponentSta
 function buildCapabilityPackagesComponent(
   modules: Record<string, unknown>[],
   channel: string,
-  ownerCurrentness: FirstPartyPackageOwnerCurrentness[],
 ): ManagedUpdateComponent {
-  const ownerCurrentnessByPackageId = new Map(
-    ownerCurrentness.map((entry) => [entry.package_id, entry]),
-  );
   const defaultModules = modules.filter((entry) => booleanValue(entry, 'default_install') === true);
   const moduleStates = defaultModules.map((entry) => ({
     module_id: stringValue(entry, 'module_id'),
-    package_id: canonicalAgentPackageId(stringValue(entry, 'module_id')),
     label: stringValue(entry, 'label'),
     state: moduleState(entry),
     install_origin: stringValue(entry, 'install_origin'),
@@ -114,19 +104,7 @@ function buildCapabilityPackagesComponent(
     managed_checkout_path: stringValue(entry, 'managed_checkout_path'),
     source_policy: entry.source_policy ?? null,
     git: entry.git ?? null,
-  })).map((entry) => {
-    const owner = entry.package_id
-      ? ownerCurrentnessByPackageId.get(entry.package_id) ?? null
-      : null;
-    return {
-      ...entry,
-      state: owner?.status === 'update_available'
-        ? 'update_available' as const
-        : entry.state,
-      owner_channel_ref: null,
-      owner_currentness: owner,
-    };
-  });
+  }));
   const targetStates = moduleStates;
   const failedWithRepairCount = targetStates.filter((entry) => entry.state === 'failed_with_repair').length;
   const nativeUpdateCount = targetStates.filter((entry) => entry.state === 'update_available').length;
@@ -325,7 +303,6 @@ export async function buildManagedUpdateKernelProjection(
   input: ManagedUpdateKernelInput,
   deps: {
     buildOplModules?: typeof buildOplModules;
-    readFirstPartyPackageOwnerCurrentness?: typeof readFirstPartyPackageOwnerCurrentness;
   } = {},
 ) {
   const channel = readOplUpdateChannel().channel;
@@ -349,20 +326,7 @@ export async function buildManagedUpdateKernelProjection(
       profile: refreshPackageCurrentness ? 'full' : 'fast',
     }).modules;
     const modules = modulesPayload.modules as Record<string, unknown>[];
-    const eligiblePackageIds = modules.flatMap((entry): string[] => {
-      const state = moduleState(entry);
-      return booleanValue(entry, 'installed') === true
-        && stringValue(entry, 'install_origin') === 'managed_root'
-        && state !== 'skipped_manual_required'
-        && state !== 'failed_with_repair'
-        ? [canonicalAgentPackageId(stringValue(entry, 'module_id'))]
-          .filter((packageId): packageId is string => Boolean(packageId))
-        : [];
-    });
-    const ownerCurrentness = await (
-      deps.readFirstPartyPackageOwnerCurrentness ?? readFirstPartyPackageOwnerCurrentness
-    )(eligiblePackageIds);
-    components.push(buildCapabilityPackagesComponent(modules, channel, ownerCurrentness));
+    components.push(buildCapabilityPackagesComponent(modules, channel));
   }
   const selectedComponents = filterManagedUpdateComponents(
     components,

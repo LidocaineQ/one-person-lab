@@ -135,7 +135,6 @@ test('managed update contract exposes only OPL Base, OPL App, and OPL Packages l
     'install_origin',
     'source_policy',
     'git_head_sha',
-    'owner_currentness',
   ]);
   assert.equal(packages.auto_apply.current_noop_receipt_policy, 'do_not_write_component_receipt');
   assert.equal(packages.auto_apply.eligible_scope, 'native_git_checkout_modules_only');
@@ -379,7 +378,7 @@ exit 2
   }
 });
 
-test('OPL Packages aggregate consumes explicit owner currentness for clean managed Packages', async () => {
+test('OPL Packages aggregate reports native module update state directly', async () => {
   const module = {
     module_id: 'redcube',
     label: 'RedCube AI',
@@ -389,7 +388,7 @@ test('OPL Packages aggregate consumes explicit owner currentness for clean manag
     checkout_path: '/fixture/modules/redcube-ai',
     managed_checkout_path: '/fixture/modules/redcube-ai',
     health_status: 'ready',
-    recommended_action: null,
+    recommended_action: 'update',
     source_policy: {
       effective_install_update_source: 'git_checkout',
     },
@@ -400,25 +399,6 @@ test('OPL Packages aggregate consumes explicit owner currentness for clean manag
     componentId: 'opl_packages',
   }, {
     buildOplModules: (() => ({ modules: { modules: [module] } })) as never,
-    readFirstPartyPackageOwnerCurrentness: async (packageIds) => {
-      assert.deepEqual(packageIds, ['rca']);
-      return [{
-        package_id: 'rca',
-        status: 'update_available',
-        reasons: ['package_version_changed'],
-        installed_version: '0.2.7',
-        target_version: '0.2.15',
-        installed_content_digest: null,
-        target_content_digest: `sha256:${'1'.repeat(64)}`,
-        installed_artifact_digest: null,
-        target_artifact_digest: `sha256:${'2'.repeat(64)}`,
-        installed_manifest_sha256: null,
-        target_manifest_sha256: `sha256:${'3'.repeat(64)}`,
-        source_policy: null,
-        owner_channel_ref: 'ghcr.io/fixture/one-person-lab-packages/rca:latest-stable',
-        catalog_freshness: 'live',
-      }];
-    },
   }) as Record<string, any>;
   const packages = output.managed_update.components[0];
   const rca = packages.current.module_states[0];
@@ -427,14 +407,11 @@ test('OPL Packages aggregate consumes explicit owner currentness for clean manag
   assert.equal(packages.plan.action, 'update');
   assert.equal(output.managed_update.summary.update_available_components_count, 1);
   assert.equal(rca.state, 'update_available');
-  assert.equal(rca.owner_currentness.installed_version, '0.2.7');
-  assert.equal(rca.owner_currentness.target_version, '0.2.15');
-  assert.equal(rca.owner_currentness.target_manifest_sha256, `sha256:${'3'.repeat(64)}`);
-  assert.equal(rca.owner_currentness.target_content_digest, `sha256:${'1'.repeat(64)}`);
-  assert.equal(rca.owner_currentness.target_artifact_digest, `sha256:${'2'.repeat(64)}`);
+  assert.equal(Object.hasOwn(rca, 'owner_currentness'), false);
+  assert.equal(Object.hasOwn(rca, 'owner_channel_ref'), false);
 });
 
-test('OPL Packages aggregate preserves protected managed checkout state without owner currentness', async () => {
+test('OPL Packages aggregate preserves protected managed checkout state', async () => {
   const module = {
     module_id: 'redcube',
     label: 'RedCube AI',
@@ -455,10 +432,6 @@ test('OPL Packages aggregate preserves protected managed checkout state without 
     componentId: 'opl_packages',
   }, {
     buildOplModules: (() => ({ modules: { modules: [module] } })) as never,
-    readFirstPartyPackageOwnerCurrentness: async (packageIds) => {
-      assert.deepEqual(packageIds, []);
-      return [];
-    },
   }) as Record<string, any>;
   const packages = output.managed_update.components[0];
   const rca = packages.current.module_states[0];
@@ -466,10 +439,10 @@ test('OPL Packages aggregate preserves protected managed checkout state without 
   assert.equal(packages.state, 'skipped_manual_required');
   assert.equal(packages.plan.action, 'manual_review');
   assert.equal(rca.state, 'skipped_manual_required');
-  assert.equal(rca.owner_currentness, null);
+  assert.equal(Object.hasOwn(rca, 'owner_currentness'), false);
 });
 
-test('OPL Packages aggregate does not claim current when owner currentness is unavailable', async () => {
+test('OPL Packages aggregate reports unavailable native source as manual review', async () => {
   const module = {
     module_id: 'redcube',
     label: 'RedCube AI',
@@ -490,22 +463,6 @@ test('OPL Packages aggregate does not claim current when owner currentness is un
     componentId: 'opl_packages',
   }, {
     buildOplModules: (() => ({ modules: { modules: [module] } })) as never,
-    readFirstPartyPackageOwnerCurrentness: async () => [{
-      package_id: 'rca',
-      status: 'unavailable',
-      reasons: ['agent_package_capability_channel_unavailable'],
-      installed_version: null,
-      target_version: null,
-      installed_content_digest: null,
-      target_content_digest: null,
-      installed_artifact_digest: null,
-      target_artifact_digest: null,
-      installed_manifest_sha256: null,
-      target_manifest_sha256: null,
-      source_policy: null,
-      owner_channel_ref: 'ghcr.io/fixture/one-person-lab-packages/rca:latest-stable',
-      catalog_freshness: 'unavailable',
-    }],
   }) as Record<string, any>;
   const packages = output.managed_update.components[0];
   const rca = packages.current.module_states[0];
@@ -513,7 +470,7 @@ test('OPL Packages aggregate does not claim current when owner currentness is un
   assert.equal(packages.state, 'skipped_manual_required');
   assert.equal(packages.plan.action, 'manual_review');
   assert.equal(rca.state, 'skipped_manual_required');
-  assert.equal(rca.owner_currentness.status, 'unavailable');
+  assert.equal(Object.hasOwn(rca, 'owner_currentness'), false);
 });
 
 test('OPL Packages current state cannot mask the latest failed component receipt', async () => {
@@ -568,22 +525,6 @@ test('OPL Packages current state cannot mask the latest failed component receipt
     componentId: 'opl_packages',
   }, {
     buildOplModules: (() => ({ modules: { modules: [module] } })) as never,
-    readFirstPartyPackageOwnerCurrentness: async () => [{
-      package_id: 'rca',
-      status: 'current',
-      reasons: [],
-      installed_version: '0.2.15',
-      target_version: '0.2.15',
-      installed_content_digest: null,
-      target_content_digest: `sha256:${'1'.repeat(64)}`,
-      installed_artifact_digest: null,
-      target_artifact_digest: `sha256:${'2'.repeat(64)}`,
-      installed_manifest_sha256: null,
-      target_manifest_sha256: `sha256:${'3'.repeat(64)}`,
-      source_policy: null,
-      owner_channel_ref: 'ghcr.io/fixture/one-person-lab-packages/rca:latest-stable',
-      catalog_freshness: 'live',
-    }],
   }) as Promise<Record<string, any>>;
 
   try {

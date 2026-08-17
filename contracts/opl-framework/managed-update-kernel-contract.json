@@ -513,11 +513,11 @@
       "adapter_id": "capability_packages_adapter",
       "owner": "installed-package-owner-descriptors",
       "role": "Clean managed native module Git checkout reconciliation",
-      "authority": "Native module source policy, module readback, and per-Package owner currentness select clean managed roots. Package locks, payload manifests, and bundled catalogs are not currentness or mutation authority.",
+      "authority": "Native module source policy and module carrier readback select clean managed roots. Package locks, payload manifests, and bundled catalogs are not currentness or mutation authority.",
       "default_policy": "silent_background_for_clean_managed_module_git_checkouts",
       "mutation_scope": "clean_managed_native_module_roots_only",
       "source_policy": {
-        "authority": "native module source policy and per-package owner currentness",
+        "authority": "native module source policy and carrier readback",
         "developer_checkout_effect": "recognize and exclude developer, dirty, divergent, or user-managed checkouts without overwriting them",
         "managed_effect": "compare clean managed module Git checkout state and delegate only an available native module action",
         "external_package_effect": "manual_explicit_update_only"
@@ -526,8 +526,7 @@
         "module_id",
         "install_origin",
         "source_policy",
-        "git_head_sha",
-        "owner_currentness"
+        "git_head_sha"
       ],
       "auto_apply": {
         "mode": "auto_apply",
@@ -538,13 +537,13 @@
           "default native module is installed under managed_root",
           "source policy selects native Git checkout update",
           "module root is clean and not ahead, diverged, or unknown",
-          "owner currentness or native module action reports maintenance available"
+          "native module carrier readback or action reports maintenance available"
         ],
         "blocked_when": [
           "dirty checkout",
           "developer, sibling, environment override, or other user-managed checkout",
           "missing or invalid native module root",
-          "owner currentness unavailable",
+          "native module carrier readback unavailable",
           "native module action unavailable or failed"
         ],
         "current_noop_receipt_policy": "do_not_write_component_receipt"

@@ -6,7 +6,6 @@ import { FrameworkContractError, isRecord } from '../../kernel/contract-validati
 import { refsOnlyAuthorityBoundary } from '../../kernel/refs-only-authority-boundary.ts';
 import { resolveOplStatePaths } from '../../kernel/runtime-state-paths.ts';
 import { canonicalAgentPackageId } from './agent-package-identity.ts';
-import { resolveFirstPartyPackageOwnerChannelRef } from './agent-package-first-party.ts';
 import { listAgentPackageSettingsActions } from './agent-package-actions.ts';
 import {
   discoverAvailablePackageDescriptors,
@@ -48,23 +47,6 @@ export type {
 export type OplAgentPackageStatusInput = {
   packageId?: string | null;
   detail?: 'fast' | 'full';
-};
-
-export type FirstPartyPackageOwnerCurrentness = {
-  package_id: string;
-  status: 'current' | 'update_available' | 'newer_source_preserved' | 'unavailable' | 'not_applicable';
-  reasons: string[];
-  installed_version: string | null;
-  target_version: string | null;
-  installed_content_digest: string | null;
-  target_content_digest: string | null;
-  installed_artifact_digest: string | null;
-  target_artifact_digest: string | null;
-  installed_manifest_sha256: string | null;
-  target_manifest_sha256: string | null;
-  source_policy: null;
-  owner_channel_ref: string | null;
-  catalog_freshness: 'live' | 'unavailable' | null;
 };
 
 type PackageSnapshot = {
@@ -816,36 +798,6 @@ export function readOplFlowManagedDependencies() {
     observed_status: null,
     installed: dependency.kind === 'base' ? true : null,
   }));
-}
-
-export async function readFirstPartyPackageOwnerCurrentness(
-  packageIds: string[],
-): Promise<FirstPartyPackageOwnerCurrentness[]> {
-  const snapshot = packageSnapshot();
-  return [...new Set(packageIds.map(canonicalAgentPackageId).filter((value): value is string => Boolean(value)))]
-    .map((packageId) => {
-      const descriptor = snapshot.descriptors.get(packageId) ?? null;
-      const installed = snapshot.installed.get(packageId) ?? null;
-      return {
-        package_id: packageId,
-        status: descriptor ? installed ? 'current' as const : 'not_applicable' as const : 'unavailable' as const,
-        reasons: descriptor
-          ? ['currentness_owned_by_native_carrier']
-          : ['native_carrier_descriptor_unavailable'],
-        installed_version: installed?.manifest.version ?? null,
-        target_version: null,
-        installed_content_digest: installed?.manifest.content_digest ?? null,
-        target_content_digest: null,
-        installed_artifact_digest: null,
-        target_artifact_digest: null,
-        installed_manifest_sha256: installed?.manifest_sha256 ?? null,
-        target_manifest_sha256: null,
-        source_policy: null,
-        owner_channel_ref: descriptor?.carrier.publicationRef
-          ?? resolveFirstPartyPackageOwnerChannelRef(packageId),
-        catalog_freshness: descriptor ? 'live' as const : 'unavailable' as const,
-      };
-    });
 }
 
 export function configuredCarrierReadbackIncludesTarget(input: {
