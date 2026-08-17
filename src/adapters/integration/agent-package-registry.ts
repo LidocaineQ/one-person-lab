@@ -871,11 +871,3 @@ export function readOplFlowManagedDependencies() {
     installed: dependency.kind === 'base' ? true : null,
   }));
 }
-
-export function configuredCarrierReadbackIncludesTarget(input: {
-  readback: ConfiguredCodexPluginCarrierReadback;
-  descriptor: InstalledPackageDescriptor['carrier'];
-}) {
-  return input.readback.status === 'installed'
-    && input.readback.carrier.plugin_id === input.descriptor.carrier.pluginId;
-}

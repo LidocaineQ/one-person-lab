@@ -13,6 +13,10 @@ import {
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
 import { isFirstPartyPackage } from '../agent-package-first-party.ts';
+import type {
+  CodexPluginCommandResult,
+  CodexPluginCommandRunner,
+} from './configured-codex-plugin-carrier.ts';
 import { normalizePackageManifest } from './manifest-normalizers.ts';
 import { sameMarketplaceSource, sha256Text } from './shared.ts';
 import type {
@@ -29,19 +33,6 @@ export type InstalledCarrierEntry = {
   sourceKind: string;
   marketplaceSource: string | null;
 };
-
-export type CodexPluginCommandResult = {
-  status: number | null;
-  stdout: string;
-  stderr: string;
-  error: Error | null;
-};
-
-export type CodexPluginCommandRunner = (input: {
-  binary: string;
-  args: string[];
-  env: NodeJS.ProcessEnv;
-}) => CodexPluginCommandResult;
 
 /**
  * Carrier-neutral installed readback.  This is deliberately a read model:
@@ -103,9 +94,6 @@ export type InstalledPackageDescriptor = {
   carrier_readback: InstalledPackageCarrierReadback;
   readiness: InstalledPackageReadiness;
 };
-
-/** Compatibility alias for the Codex carrier adapter. */
-export type InstalledCodexPluginDescriptor = InstalledPackageDescriptor;
 
 function stringValue(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -492,9 +480,3 @@ export function discoverInstalledOwnerProfileDescriptors(input: {
     ))
     .sort((left, right) => left.manifest.package_id.localeCompare(right.manifest.package_id));
 }
-
-/**
- * Codex remains one native carrier adapter. Keep its historical export while
- * making the installed descriptor producer explicit and carrier-neutral.
- */
-export const discoverInstalledCodexPluginDescriptors = discoverInstalledPackageDescriptors;

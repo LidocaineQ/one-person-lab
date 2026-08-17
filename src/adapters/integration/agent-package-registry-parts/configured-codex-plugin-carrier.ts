@@ -59,7 +59,7 @@ export type ConfiguredCodexPluginCarrierObservedSource = {
   source_tree_sha256: string | null;
 };
 
-type CodexPluginCommandResult = {
+export type CodexPluginCommandResult = {
   status: number | null;
   stdout: string;
   stderr: string;
