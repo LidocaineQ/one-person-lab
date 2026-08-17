@@ -107,7 +107,7 @@ test('runtime app operator projects completed memory trace refs without body or 
 
   try {
     fs.mkdirSync(workspaceRoot, { recursive: true });
-    installRuntimePackageFixture(stateRoot, 'mas');
+    env.OPL_MODULE_PATH_MEDAUTOSCIENCE = installRuntimePackageFixture(stateRoot, 'mas');
     const attempt = runCli([
       'family-runtime',
       'attempt',

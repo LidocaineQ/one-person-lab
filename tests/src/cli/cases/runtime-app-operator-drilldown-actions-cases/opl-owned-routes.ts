@@ -21,7 +21,12 @@ import { createAdmittedStagePackFixture } from '../workspace-domain-test-helper.
 test('runtime action execute can execute OPL-owned attempt query routes', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-action-execute-query-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
-  installRuntimePackageFixture(stateRoot, 'mag');
+  const magModuleRoot = installRuntimePackageFixture(stateRoot, 'mag');
+  const cliEnv = {
+    OPL_STATE_DIR: stateRoot,
+    OPL_CONTRACTS_DIR: fixtureContractsRoot,
+    OPL_MODULE_PATH_MEDAUTOGRANT: magModuleRoot,
+  };
   const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mag-query');
   try {
     const attempt = runCli([
@@ -38,10 +43,7 @@ test('runtime action execute can execute OPL-owned attempt query routes', () => 
       JSON.stringify({ workspace_root: workspaceRoot }),
       '--source-fingerprint',
       'sha256:action-execute-query',
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
     const attemptId = attempt.family_runtime_stage_attempt.attempt.stage_attempt_id;
 
     const execution = runCli([
@@ -50,10 +52,7 @@ test('runtime action execute can execute OPL-owned attempt query routes', () => 
       'execute',
       '--action',
       `action:${attemptId}:attempt-query`,
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    }).runtime_operator_action_execution;
+    ], cliEnv).runtime_operator_action_execution;
 
     assert.equal(execution.execution.execution_kind, 'opl_cli_internal');
     assert.equal(execution.execution.execution_status, 'executed');
@@ -70,7 +69,12 @@ test('runtime action execute can execute OPL-owned attempt query routes', () => 
 test('runtime action execute can create OPL-owned stage production attempt requests', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-action-execute-stage-production-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
-  installRuntimePackageFixture(stateRoot, 'mas');
+  const masModuleRoot = installRuntimePackageFixture(stateRoot, 'mas');
+  const cliEnv = {
+    OPL_STATE_DIR: stateRoot,
+    OPL_CONTRACTS_DIR: fixtureContractsRoot,
+    OPL_MODULE_PATH_MEDAUTOSCIENCE: masModuleRoot,
+  };
   const masManifest = structuredClone(loadFamilyManifestFixtures().medautoscience);
   masManifest.family_stage_control_plane = {
     surface_kind: 'family_stage_control_plane',
@@ -150,10 +154,7 @@ test('runtime action execute can create OPL-owned stage production attempt reque
       stagePack.repoDir,
       '--manifest-command',
       buildManifestCommand(stagePack.manifest),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
 
     const dryRun = runCli([
       'runtime',
@@ -162,10 +163,7 @@ test('runtime action execute can create OPL-owned stage production attempt reque
       '--action',
       'stage-production-attempt:medautoscience:review',
       '--dry-run',
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    }).runtime_operator_action_execution;
+    ], cliEnv).runtime_operator_action_execution;
 
     assert.equal(dryRun.execution.execution_kind, 'opl_cli_stage_attempt_create');
     assert.equal(dryRun.execution.execution_status, 'dry_run');
@@ -188,10 +186,7 @@ test('runtime action execute can create OPL-owned stage production attempt reque
       'execute',
       '--action',
       'stage-production-attempt:medautoscience:review',
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    }).runtime_operator_action_execution;
+    ], cliEnv).runtime_operator_action_execution;
 
     assert.equal(execution.execution.execution_kind, 'opl_cli_stage_attempt_create');
     assert.equal(execution.execution.execution_status, 'executed');
@@ -238,10 +233,7 @@ test('runtime action execute can create OPL-owned stage production attempt reque
       '--action',
       'stage-production-attempt-start:medautoscience:review',
       '--dry-run',
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    }).runtime_operator_action_execution;
+    ], cliEnv).runtime_operator_action_execution;
 
     assert.equal(startDryRun.execution.execution_kind, 'opl_cli_stage_attempt_create_and_start');
     assert.equal(startDryRun.execution.execution_status, 'dry_run');

@@ -13,7 +13,12 @@ import {
 test('runtime action execute blocks domain dispatch evidence payloads bound to a different attempt identity', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-action-execute-domain-dispatch-conflict-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
-  installRuntimePackageFixture(stateRoot, 'mas');
+  const masModuleRoot = installRuntimePackageFixture(stateRoot, 'mas');
+  const cliEnv = {
+    OPL_STATE_DIR: stateRoot,
+    OPL_CONTRACTS_DIR: fixtureContractsRoot,
+    OPL_MODULE_PATH_MEDAUTOSCIENCE: masModuleRoot,
+  };
   try {
     const created = runCli([
       'family-runtime',
@@ -37,10 +42,7 @@ test('runtime action execute blocks domain dispatch evidence payloads bound to a
       'task-domain-dispatch-identity-conflict',
       '--source-fingerprint',
       '95d9b5310c9c7a8d',
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
     const attemptId = created.family_runtime_stage_attempt.attempt.stage_attempt_id;
     runCli([
       'family-runtime',
@@ -58,10 +60,7 @@ test('runtime action execute blocks domain dispatch evidence payloads bound to a
           repair_command: 'medautosci domain-handler dispatch --task <task.json> --format json',
         },
       }),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
 
     const recordActionId = `domain_dispatch:medautoscience:${attemptId}:record`;
     const blockedExecution = runCliFailure([
@@ -78,10 +77,7 @@ test('runtime action execute blocks domain dispatch evidence payloads bound to a
         typed_blocker_refs: ['mas://typed-blockers/nfpitnet-001/reviewer-refresh-pending'],
         owner_chain_refs: ['mas://owner-chain/nfpitnet-001/reviewer-refresh.json'],
       }),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
 
     assert.equal(blockedExecution.payload.error.code, 'cli_usage_error');
     assert.equal(
@@ -96,10 +92,8 @@ test('runtime action execute blocks domain dispatch evidence payloads bound to a
       ['study_id', 'source_fingerprint'],
     );
 
-    const afterBlockedDrilldown = runCli(['runtime', 'app-operator-drilldown', '--detail', 'full'], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    }).app_operator_drilldown;
+    const afterBlockedDrilldown = runCli(['runtime', 'app-operator-drilldown', '--detail', 'full'], cliEnv)
+      .app_operator_drilldown;
     const attempt = afterBlockedDrilldown.domain_dispatch_evidence.attempts.find(
       (entry: { stage_attempt_id: string }) => entry.stage_attempt_id === attemptId,
     );
@@ -125,10 +119,7 @@ test('runtime action execute blocks domain dispatch evidence payloads bound to a
         owner_chain_refs: ['mas://owner-chain/dm-cvd/reviewer-refresh.json'],
         transport_identity: recordRoute.payload_template.transport_identity,
       }),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    }).runtime_operator_action_execution;
+    ], cliEnv).runtime_operator_action_execution;
 
     assert.equal(
       matchedExecution.execution.result.domain_dispatch_evidence_payload_preflight.status,
@@ -149,7 +140,12 @@ test('runtime action execute blocks stale local typed blocker refs bound to anot
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-action-execute-local-blocker-conflict-'));
   const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-action-execute-local-blocker-workspace-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
-  installRuntimePackageFixture(stateRoot, 'mas');
+  const masModuleRoot = installRuntimePackageFixture(stateRoot, 'mas');
+  const cliEnv = {
+    OPL_STATE_DIR: stateRoot,
+    OPL_CONTRACTS_DIR: fixtureContractsRoot,
+    OPL_MODULE_PATH_MEDAUTOSCIENCE: masModuleRoot,
+  };
   try {
     const blockerRef = 'studies/002-dm-china-us-mortality-attribution/artifacts/stage_outputs/08-publication_package_handoff/receipts/typed_blocker.json';
     const blockerPath = path.join(workspaceRoot, blockerRef);
@@ -191,10 +187,7 @@ test('runtime action execute blocks stale local typed blocker refs bound to anot
       'task-domain-dispatch-local-typed-blocker-conflict',
       '--source-fingerprint',
       'default_executor_source_current_dispatch',
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
     const attemptId = created.family_runtime_stage_attempt.attempt.stage_attempt_id;
     runCli([
       'family-runtime',
@@ -212,10 +205,7 @@ test('runtime action execute blocks stale local typed blocker refs bound to anot
           repair_command: 'medautosci domain-handler dispatch --task <task.json> --format json',
         },
       }),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
 
     const blockedExecution = runCliFailure([
       'runtime',
@@ -227,10 +217,7 @@ test('runtime action execute blocks stale local typed blocker refs bound to anot
       JSON.stringify({
         typed_blocker_refs: [blockerRef],
       }),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
 
     assert.equal(blockedExecution.payload.error.code, 'cli_usage_error');
     assert.equal(
@@ -254,10 +241,8 @@ test('runtime action execute blocks stale local typed blocker refs bound to anot
     assert.equal(conflictFields.includes('source_fingerprint'), true);
     assert.equal(preflight.can_record_refs_only_receipt, false);
 
-    const afterBlockedDrilldown = runCli(['runtime', 'app-operator-drilldown', '--detail', 'full'], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    }).app_operator_drilldown;
+    const afterBlockedDrilldown = runCli(['runtime', 'app-operator-drilldown', '--detail', 'full'], cliEnv)
+      .app_operator_drilldown;
     const attempt = afterBlockedDrilldown.domain_dispatch_evidence.attempts.find(
       (entry: { stage_attempt_id: string }) => entry.stage_attempt_id === attemptId,
     );

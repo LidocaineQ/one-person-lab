@@ -17,7 +17,10 @@ const FULL_DETAIL_COMMAND = [...SUMMARY_COMMAND, '--detail', 'full'];
 
 test('runtime operator summary exposes running provider attempts as liveness refs only', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-operator-live-control-'));
-  installRuntimePackageFixture(stateRoot, 'mas');
+  const env = {
+    OPL_STATE_DIR: stateRoot,
+    OPL_MODULE_PATH_MEDAUTOSCIENCE: installRuntimePackageFixture(stateRoot, 'mas'),
+  };
   const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-live-control');
   try {
     const taskId = insertFamilyRuntimeTaskProjectionFixture({
@@ -55,9 +58,7 @@ test('runtime operator summary exposes running provider attempts as liveness ref
       'sha256:mas-live-control',
       '--task',
       taskId,
-    ], {
-      OPL_STATE_DIR: stateRoot,
-    });
+    ], env);
     const attemptId = created.family_runtime_stage_attempt.attempt.stage_attempt_id;
 
     runCli([
@@ -67,13 +68,9 @@ test('runtime operator summary exposes running provider attempts as liveness ref
       attemptId,
       '--stage-packet-ref',
       'packet:mas-live-control',
-    ], {
-      OPL_STATE_DIR: stateRoot,
-    });
+    ], env);
 
-    const summaryOutput = runCli(SUMMARY_COMMAND, {
-      OPL_STATE_DIR: stateRoot,
-    });
+    const summaryOutput = runCli(SUMMARY_COMMAND, env);
     const summary = summaryOutput.app_operator_drilldown.summary;
 
     assert.equal(summary.current_control_state_count, 1);
@@ -103,9 +100,7 @@ test('runtime operator summary exposes running provider attempts as liveness ref
     assert.equal(Object.hasOwn(summary, 'publication_ready'), false);
     assert.equal(Object.hasOwn(summary, 'artifact_ready'), false);
 
-    const fullOutput = runCli(FULL_DETAIL_COMMAND, {
-      OPL_STATE_DIR: stateRoot,
-    });
+    const fullOutput = runCli(FULL_DETAIL_COMMAND, env);
     const full = fullOutput.app_operator_drilldown;
 
     assert.equal(full.current_control_state.summary.running_provider_attempt_count, 1);
@@ -143,7 +138,10 @@ test('runtime operator summary exposes running provider attempts as liveness ref
 
 test('runtime full detail preserves domain-authored quality debt reasons without inferring quality', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-operator-quality-debt-'));
-  installRuntimePackageFixture(stateRoot, 'mas');
+  const env = {
+    OPL_STATE_DIR: stateRoot,
+    OPL_MODULE_PATH_MEDAUTOSCIENCE: installRuntimePackageFixture(stateRoot, 'mas'),
+  };
   const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-quality-debt');
   try {
     const taskId = insertFamilyRuntimeTaskProjectionFixture({
@@ -178,9 +176,7 @@ test('runtime full detail preserves domain-authored quality debt reasons without
       'sha256:mas-quality-debt',
       '--task',
       taskId,
-    ], {
-      OPL_STATE_DIR: stateRoot,
-    });
+    ], env);
     const attemptId = created.family_runtime_stage_attempt.attempt.stage_attempt_id;
     const db = new DatabaseSync(path.join(stateRoot, 'family-runtime', 'queue.sqlite'));
     try {
@@ -203,9 +199,7 @@ test('runtime full detail preserves domain-authored quality debt reasons without
       db.close();
     }
 
-    const full = runCli(FULL_DETAIL_COMMAND, {
-      OPL_STATE_DIR: stateRoot,
-    }).app_operator_drilldown;
+    const full = runCli(FULL_DETAIL_COMMAND, env).app_operator_drilldown;
     const state = full.current_control_state.states.find(
       (item: Record<string, unknown>) => item.current_stage_attempt_id === attemptId,
     );
@@ -227,7 +221,10 @@ test('runtime full detail preserves domain-authored quality debt reasons without
 
 test('runtime operator projection does not count stale MAS work-unit live attempt as current running', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-operator-stale-workunit-'));
-  installRuntimePackageFixture(stateRoot, 'mas');
+  const env = {
+    OPL_STATE_DIR: stateRoot,
+    OPL_MODULE_PATH_MEDAUTOSCIENCE: installRuntimePackageFixture(stateRoot, 'mas'),
+  };
   const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-stale-workunit');
   try {
     const staleTaskId = insertFamilyRuntimeTaskProjectionFixture({
@@ -271,9 +268,7 @@ test('runtime operator projection does not count stale MAS work-unit live attemp
       'codex_cli',
       '--task',
       staleTaskId,
-    ], {
-      OPL_STATE_DIR: stateRoot,
-    }).family_runtime_stage_attempt.attempt;
+    ], env).family_runtime_stage_attempt.attempt;
     insertFamilyRuntimeTaskProjectionFixture({
       stateRoot,
       domainId: 'medautoscience',
@@ -316,9 +311,7 @@ test('runtime operator projection does not count stale MAS work-unit live attemp
       db.close();
     }
 
-    const projection = runCli(FULL_DETAIL_COMMAND, {
-      OPL_STATE_DIR: stateRoot,
-    }).app_operator_drilldown;
+    const projection = runCli(FULL_DETAIL_COMMAND, env).app_operator_drilldown;
     const staleState = projection.current_control_state.states.find((state: Record<string, unknown>) =>
       state.current_stage_attempt_id === staleAttempt.stage_attempt_id
     );
@@ -341,7 +334,10 @@ test('runtime operator projection does not count stale MAS work-unit live attemp
 
 test('runtime operator projection exposes stall lineage for repeated typed blockers', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-operator-stall-lineage-'));
-  installRuntimePackageFixture(stateRoot, 'mas');
+  const env = {
+    OPL_STATE_DIR: stateRoot,
+    OPL_MODULE_PATH_MEDAUTOSCIENCE: installRuntimePackageFixture(stateRoot, 'mas'),
+  };
   const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-stall-lineage');
   try {
     const attemptIds: string[] = [];
@@ -368,9 +364,7 @@ test('runtime operator projection exposes stall lineage for repeated typed block
         }),
         '--source-fingerprint',
         `sha256:mas-stall-${index}`,
-      ], {
-        OPL_STATE_DIR: stateRoot,
-      });
+      ], env);
       const attemptId = created.family_runtime_stage_attempt.attempt.stage_attempt_id;
       attemptIds.push(attemptId);
       runCli([
@@ -400,14 +394,10 @@ test('runtime operator projection exposes stall lineage for repeated typed block
             progress_delta_classification: index === 0 ? 'platform_repair' : 'typed_blocker',
           },
         }),
-      ], {
-        OPL_STATE_DIR: stateRoot,
-      });
+      ], env);
     }
 
-    const full = runCli(FULL_DETAIL_COMMAND, {
-      OPL_STATE_DIR: stateRoot,
-    }).app_operator_drilldown;
+    const full = runCli(FULL_DETAIL_COMMAND, env).app_operator_drilldown;
 
     const lineage = full.family_stall_lineage.lineages.find(
       (entry: Record<string, unknown>) =>
@@ -430,7 +420,10 @@ test('runtime operator projection exposes stall lineage for repeated typed block
 
 test('runtime operator summary bounds running provider attempt liveness samples', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-operator-live-control-bounded-'));
-  installRuntimePackageFixture(stateRoot, 'mas');
+  const env = {
+    OPL_STATE_DIR: stateRoot,
+    OPL_MODULE_PATH_MEDAUTOSCIENCE: installRuntimePackageFixture(stateRoot, 'mas'),
+  };
   try {
     const attemptIds: string[] = [];
     for (let index = 0; index < 7; index += 1) {
@@ -470,9 +463,7 @@ test('runtime operator summary bounds running provider attempt liveness samples'
         `sha256:mas-live-control-${index}`,
         '--task',
         taskId,
-      ], {
-        OPL_STATE_DIR: stateRoot,
-      });
+      ], env);
       const attemptId = created.family_runtime_stage_attempt.attempt.stage_attempt_id;
       attemptIds.push(attemptId);
       runCli([
@@ -482,14 +473,10 @@ test('runtime operator summary bounds running provider attempt liveness samples'
         attemptId,
         '--stage-packet-ref',
         `packet:mas-live-control-${index}`,
-      ], {
-        OPL_STATE_DIR: stateRoot,
-      });
+      ], env);
     }
 
-    const summaryOutput = runCli(SUMMARY_COMMAND, {
-      OPL_STATE_DIR: stateRoot,
-    });
+    const summaryOutput = runCli(SUMMARY_COMMAND, env);
     const summary = summaryOutput.app_operator_drilldown.summary;
 
     assert.equal(summary.current_control_state_running_provider_attempt_count, 7);
@@ -510,9 +497,7 @@ test('runtime operator summary bounds running provider attempt liveness samples'
       true,
     );
 
-    const fullOutput = runCli(FULL_DETAIL_COMMAND, {
-      OPL_STATE_DIR: stateRoot,
-    });
+    const fullOutput = runCli(FULL_DETAIL_COMMAND, env);
     assert.equal(fullOutput.app_operator_drilldown.current_control_state.states.length, 7);
     const fullAttemptIds = fullOutput.app_operator_drilldown.current_control_state.states
       .map((state: Record<string, unknown>) => state.active_stage_attempt_id);

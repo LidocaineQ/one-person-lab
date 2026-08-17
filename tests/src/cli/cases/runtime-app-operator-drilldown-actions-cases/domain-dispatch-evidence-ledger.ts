@@ -14,7 +14,11 @@ import {
 test('runtime action records readable domain progress without a launch authorization control plane', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-action-domain-progress-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
-  installRuntimePackageFixture(stateRoot, 'mas');
+  const cliEnv = {
+    OPL_STATE_DIR: stateRoot,
+    OPL_CONTRACTS_DIR: fixtureContractsRoot,
+    OPL_MODULE_PATH_MEDAUTOSCIENCE: installRuntimePackageFixture(stateRoot, 'mas'),
+  };
   const workspaceRoot = createRuntimeWorkspaceFixture(stateRoot, 'mas-domain-progress');
   try {
     const created = runCli([
@@ -37,10 +41,7 @@ test('runtime action records readable domain progress without a launch authoriza
       'task-domain-progress',
       '--source-fingerprint',
       'sha256:domain-progress',
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
     const attempt = created.family_runtime_stage_attempt.attempt;
     const attemptId = attempt.stage_attempt_id;
     assert.equal(attempt.status, 'queued');
@@ -58,15 +59,10 @@ test('runtime action records readable domain progress without a launch authoriza
         next_owner: 'med-autoscience',
         domain_ready_verdict: 'quality_debt_open',
       }),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
 
-    const projection = runCli(['runtime', 'app-operator-drilldown', '--detail', 'full'], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    }).app_operator_drilldown;
+    const projection = runCli(['runtime', 'app-operator-drilldown', '--detail', 'full'], cliEnv)
+      .app_operator_drilldown;
     const recordActionId = `domain_dispatch:medautoscience:${attemptId}:record`;
     const recordRoute = projection.operator_action_routing_refs.refs.find(
       (ref: { action_id: string }) => ref.action_id === recordActionId,
@@ -100,10 +96,7 @@ test('runtime action records readable domain progress without a launch authoriza
       recordActionId,
       '--payload',
       JSON.stringify(recordRoute.payload_template),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    });
+    ], cliEnv);
     assert.equal(emptyPayload.payload.error.code, 'cli_usage_error');
     assert.equal(
       emptyPayload.payload.error.details.error_kind,
@@ -123,10 +116,7 @@ test('runtime action records readable domain progress without a launch authoriza
       '--dry-run',
       '--payload',
       JSON.stringify(progressPayload),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    }).runtime_operator_action_execution;
+    ], cliEnv).runtime_operator_action_execution;
     assert.equal(dryRun.execution.execution_status, 'dry_run');
     assert.equal(
       dryRun.execution.result.domain_dispatch_evidence_payload_preflight.selected_payload_path,
@@ -151,17 +141,12 @@ test('runtime action records readable domain progress without a launch authoriza
       recordActionId,
       '--payload',
       JSON.stringify(progressPayload),
-    ], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    }).runtime_operator_action_execution;
+    ], cliEnv).runtime_operator_action_execution;
     assert.equal(recorded.execution.result.external_evidence_apply.status, 'recorded');
     assert.equal(recorded.authority_boundary.can_write_domain_truth, false);
 
-    const recordedProjection = runCli(['runtime', 'app-operator-drilldown', '--detail', 'full'], {
-      OPL_STATE_DIR: stateRoot,
-      OPL_CONTRACTS_DIR: fixtureContractsRoot,
-    }).app_operator_drilldown;
+    const recordedProjection = runCli(['runtime', 'app-operator-drilldown', '--detail', 'full'], cliEnv)
+      .app_operator_drilldown;
     const verifyRoute = recordedProjection.operator_action_routing_refs.refs.find(
       (ref: { action_id: string }) => ref.action_id === `domain_dispatch:medautoscience:${attemptId}:verify`,
     );
