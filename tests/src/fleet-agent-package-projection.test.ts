@@ -70,6 +70,13 @@ test('Fleet Agent owner projection is a schema-valid capability Package with one
     owner_package_manifest_ref: 'plugins/opl-fleet-agent/opl-package.json',
     owner_plugin_manifest_ref: 'plugins/opl-fleet-agent/plugin.json',
   });
+  assert.deepEqual(manifest.codex_surface.configured_codex_plugin_carrier, {
+    kind: 'codex_plugin_manager',
+    plugin_selector: 'opl-fleet-agent@opl-fleet-agent',
+    executor_route: 'codex_cli',
+    marketplace_source: 'gaofeng21cn/opl-fleet-agent',
+    publication_ref: null,
+  });
   assert.equal(resolvePackageHostIntegration(manifest as any).integration_kind, 'capability_provider');
 
   const catalogEntry = normalizedManifest();

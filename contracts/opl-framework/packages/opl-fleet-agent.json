@@ -48,6 +48,13 @@
     "plugin_source_path": ".",
     "plugin_payload_manifest_url": "payloads/opl-fleet-agent-0.2.40.json",
     "carrier_source_commit": "98891d42eebf1b0b179144611659ae21ba610437",
+    "configured_codex_plugin_carrier": {
+      "kind": "codex_plugin_manager",
+      "plugin_selector": "opl-fleet-agent@opl-fleet-agent",
+      "executor_route": "codex_cli",
+      "marketplace_source": "gaofeng21cn/opl-fleet-agent",
+      "publication_ref": null
+    },
     "codex_default_exposure": false,
     "optional_install_policy": "all_exported_skills",
     "app_contribution_abi": {
