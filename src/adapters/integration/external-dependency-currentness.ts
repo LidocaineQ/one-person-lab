@@ -172,14 +172,17 @@ export function inspectExternalCodexInstallation(input: {
   binaryPath: string;
   version: string | null;
   latestVersion: string | null;
+  inspectOwner?: boolean;
 }): ExternalDependencyInstallation {
-  const owner: ExternalDependencyOwner = isHomebrewFormulaOwner(input.binaryPath, 'codex')
-    ? 'homebrew_formula'
-    : isHomebrewCaskOwner(input.binaryPath, 'codex')
-      ? 'homebrew_cask'
-    : isGlobalNpmCodexOwner(input.binaryPath)
-      ? 'global_npm'
-      : 'global_path';
+  const owner: ExternalDependencyOwner = input.inspectOwner === false
+    ? 'global_path'
+    : isHomebrewFormulaOwner(input.binaryPath, 'codex')
+      ? 'homebrew_formula'
+      : isHomebrewCaskOwner(input.binaryPath, 'codex')
+        ? 'homebrew_cask'
+        : isGlobalNpmCodexOwner(input.binaryPath)
+          ? 'global_npm'
+          : 'global_path';
   const action = owner === 'homebrew_formula' || owner === 'homebrew_cask' || owner === 'global_npm'
     ? updateAction('codex-cli', owner)
     : null;
@@ -231,7 +234,7 @@ function latestTemporalVersion(brew: string | null) {
 }
 
 export function inspectExternalTemporalInstallation(
-  options: { refreshLatest?: boolean; inspectVersion?: boolean } = {},
+  options: { refreshLatest?: boolean; inspectVersion?: boolean; inspectOwner?: boolean } = {},
 ): ExternalDependencyInstallation {
   const cohortVersion = readTemporalStableCohort().cli.version;
   const binaryPath = process.env.OPL_TEMPORAL_BIN?.trim() || findExecutable('temporal');
@@ -243,7 +246,7 @@ export function inspectExternalTemporalInstallation(
     };
   }
   const version = options.inspectVersion === false ? null : output(binaryPath, ['--version']);
-  const brew = brewBinary();
+  const brew = options.inspectOwner === false ? null : brewBinary();
   const owner = brew && isHomebrewFormulaOwner(binaryPath, 'temporal') ? 'homebrew_formula' : 'global_path';
   const latest = latestTemporalVersion(options.refreshLatest && brew ? brew : null);
   const action = owner === 'homebrew_formula' ? updateAction('temporal-system-cli', owner) : null;

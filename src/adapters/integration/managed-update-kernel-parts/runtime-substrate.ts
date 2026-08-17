@@ -21,6 +21,7 @@ import { asRecord, booleanValue, stringValue } from './shared.ts';
 type RuntimeSubstrateComponentOptions = {
   allowFrameworkChannelLookup?: boolean;
   refreshManagedDependencyLatest?: boolean;
+  inspectExternalDependencyOwners?: boolean;
 };
 
 export function buildRuntimeSubstrateComponent(
@@ -36,6 +37,7 @@ export function buildRuntimeSubstrateComponent(
   });
   const dependencyCatalog = inspectBaseManagedDependencies(process.env.HOME?.trim() || process.cwd(), {
     refreshManagedLatest: options.refreshManagedDependencyLatest,
+    inspectExternalOwners: options.inspectExternalDependencyOwners,
   });
   const dependencyRecords = dependencyCatalog.dependencies as Array<Record<string, unknown>>;
   const managedDependencyUpdateAvailable = dependencyRecords.some((entry) => (

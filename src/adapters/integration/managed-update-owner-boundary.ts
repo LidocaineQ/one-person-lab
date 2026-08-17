@@ -50,6 +50,7 @@ export type ManagedUpdateCoordinationRole =
 export type ManagedUpdateConditionStatus = 'True' | 'False' | 'Unknown';
 export type ManagedUpdateComponentState =
   | 'current'
+  | 'currentness_not_checked'
   | 'update_available'
   | 'staged'
   | 'needs_reload'
@@ -209,6 +210,7 @@ export const KERNEL_LIFECYCLE = [
 
 export const STATE_VOCABULARY: ManagedUpdateComponentState[] = [
   'current',
+  'currentness_not_checked',
   'update_available',
   'staged',
   'needs_restart',
@@ -406,6 +408,9 @@ export function summarizeManagedUpdateComponents(components: ManagedUpdateCompon
   return {
     total_components_count: components.length,
     current_components_count: components.filter((entry) => entry.state === 'current').length,
+    currentness_not_checked_components_count: components.filter(
+      (entry) => entry.state === 'currentness_not_checked',
+    ).length,
     update_available_components_count: components.filter((entry) => entry.state === 'update_available').length,
     staged_components_count: components.filter((entry) => entry.state === 'staged').length,
     restart_required_components_count: components.filter((entry) => entry.state === 'needs_restart').length,

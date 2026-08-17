@@ -206,6 +206,30 @@ exit 1
     ].join('\n'),
     { mode: 0o755 },
   );
+  const curlMarker = path.join(codexFixture.fixtureRoot, 'curl-called.marker');
+  const curlBin = path.join(codexFixture.fixtureRoot, 'curl');
+  fs.writeFileSync(
+    curlBin,
+    [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      `touch ${JSON.stringify(curlMarker)}`,
+      'echo "unexpected App release metadata lookup" >&2',
+      'exit 42',
+      '',
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+  const appPath = path.join(codexFixture.fixtureRoot, 'One Person Lab.app');
+  const infoPlist = path.join(appPath, 'Contents', 'Info.plist');
+  fs.mkdirSync(path.dirname(infoPlist), { recursive: true });
+  fs.writeFileSync(infoPlist, 'fixture');
+  const plutilBin = path.join(codexFixture.fixtureRoot, 'plutil');
+  fs.writeFileSync(
+    plutilBin,
+    '#!/usr/bin/env bash\necho \'{"CFBundleIdentifier":"cn.onepersonlab.opl","CFBundleShortVersionString":"1.0.0"}\'\n',
+    { mode: 0o755 },
+  );
 
   try {
     const output = runCli(['app', 'state', '--profile', 'fast'], {
@@ -215,9 +239,13 @@ exit 1
       OPL_DEVELOPER_MODE_GH_BINARY: ghBin,
       OPL_TEMPORAL_BIN: temporalBin,
       OPL_HOMEBREW_BIN: brewBin,
+      OPL_CURL_BIN: curlBin,
+      OPL_APP_INSTALLED_PATH: appPath,
+      OPL_PLUTIL_BIN: plutilBin,
       PATH: `${codexFixture.fixtureRoot}:/usr/bin:/bin`,
     }) as {
       app_state: {
+        managed_update: Record<string, any>;
         core: {
           codex: {
             parsed_version: string | null;
@@ -233,9 +261,48 @@ exit 1
     assert.equal(output.app_state.core.codex.latest_version, null);
     assert.equal(output.app_state.core.codex.latest_version_status, 'unknown');
     assert.equal(output.app_state.core.codex.diagnostics.includes('codex_cli_latest_lookup_skipped_fast_profile'), true);
+    assert.equal(output.app_state.managed_update.operation, 'status');
+    assert.deepEqual(
+      output.app_state.managed_update.components.map((component: Record<string, unknown>) => component.component_id),
+      ['opl_app', 'opl_base', 'opl_packages'],
+    );
+    const app = output.app_state.managed_update.components[0];
+    const base = output.app_state.managed_update.components[1];
+    assert.deepEqual(Object.keys(output.app_state.managed_update).sort(), [
+      'components',
+      'operation',
+      'update_channel',
+    ]);
+    for (const component of output.app_state.managed_update.components) {
+      assert.deepEqual(Object.keys(component).sort(), [
+        'auto_apply',
+        'channel',
+        'component_id',
+        'current',
+        'label',
+        'lifecycle_owner',
+        'plan',
+        'state',
+      ]);
+      assert.deepEqual(Object.keys(component.auto_apply).sort(), [
+        'app_background_safe',
+        'eligible',
+        'mode',
+      ]);
+      assert.deepEqual(Object.keys(component.plan), ['summary']);
+    }
+    assert.equal(app.state, 'currentness_not_checked');
+    assert.equal(app.current.currentness, 'unknown');
+    assert.equal(app.current.latest_version, null);
+    assert.equal(app.current.manual_guidance, null);
+    assert.doesNotMatch(app.plan.summary, /manual|repair|required/i);
+    assert.equal(base.current.installed_version, '0.125.0');
+    assert.equal(Array.isArray(base.current.dependency_catalog.flow_dependencies), true);
+    assert.equal(Object.hasOwn(base.current.dependency_catalog, 'flow_dependency_ids'), false);
     assert.equal(fs.existsSync(npmMarker), false);
     assert.equal(fs.existsSync(brewMarker), false);
     assert.equal(fs.existsSync(ghMarker), false);
+    assert.equal(fs.existsSync(curlMarker), false);
   } finally {
     fs.rmSync(codexFixture.fixtureRoot, { recursive: true, force: true });
     fs.rmSync(homeRoot, { recursive: true, force: true });
@@ -253,7 +320,21 @@ test('app state fast stays bounded for GUI rendering', () => {
       PATH: '/usr/bin:/bin',
     });
     const byteLength = Buffer.byteLength(JSON.stringify(output), 'utf8');
+    const managedUpdateByteLength = Buffer.byteLength(
+      JSON.stringify((output as any).app_state.managed_update),
+      'utf8',
+    );
     assert.equal(byteLength <= 262144, true, `fast app state was ${byteLength} bytes`);
+    assert.equal(
+      managedUpdateByteLength <= 32768,
+      true,
+      `fast managed update projection was ${managedUpdateByteLength} bytes`,
+    );
+    assert.equal(
+      (output as any).app_state.meta.elapsed_ms <= 5000,
+      true,
+      `fast app state took ${(output as any).app_state.meta.elapsed_ms}ms`,
+    );
   } finally {
     fs.rmSync(homeRoot, { recursive: true, force: true });
   }

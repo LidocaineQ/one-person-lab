@@ -64,7 +64,7 @@ function codexCurrentness(value: unknown) {
 
 export function inspectBaseManagedDependencies(
   home: string,
-  options: { refreshManagedLatest?: boolean } = {},
+  options: { refreshManagedLatest?: boolean; inspectExternalOwners?: boolean } = {},
 ) {
   const codex = resolveCodexVersion({ skipLatestLookup: !options.refreshManagedLatest });
   const codexRecord = codex as unknown as Record<string, unknown>;
@@ -96,6 +96,7 @@ export function inspectBaseManagedDependencies(
     .map((entry) => inspectExternalCodexInstallation({
       ...entry,
       latestVersion: typeof codexRecord.latest_version === 'string' ? codexRecord.latest_version : null,
+      inspectOwner: options.inspectExternalOwners !== false,
     }));
   const selectedExternalCodex = inspectedCodexInstallations.find((entry) => (
     Boolean(codexPath) && path.resolve(entry.binary_path ?? '') === path.resolve(codexPath!)
@@ -127,7 +128,11 @@ export function inspectBaseManagedDependencies(
   );
   const officeCli = refreshedToolMap.get('officecli') ?? resolveOfficeCliTool(home);
   const mineruOpenApi = refreshedToolMap.get('mineru-open-api') ?? resolveMineruOpenApiTool(home);
-  const temporalSystemCli = inspectExternalTemporalInstallation({ refreshLatest: options.refreshManagedLatest });
+  const temporalSystemCli = inspectExternalTemporalInstallation({
+    refreshLatest: options.refreshManagedLatest,
+    inspectVersion: options.inspectExternalOwners !== false,
+    inspectOwner: options.inspectExternalOwners !== false,
+  });
   const dependencies = [
     {
       dependency_id: 'codex-cli',

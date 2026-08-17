@@ -568,6 +568,9 @@ export async function runManagedUpdateKernelOperation(
           summary: {
             total_components_count: selectedComponents.length,
             current_components_count: selectedComponents.filter((entry) => entry.state === 'current').length,
+            currentness_not_checked_components_count: selectedComponents.filter(
+              (entry) => entry.state === 'currentness_not_checked',
+            ).length,
             update_available_components_count: selectedComponents.filter((entry) => entry.state === 'update_available').length,
             staged_components_count: selectedComponents.filter((entry) => entry.state === 'staged').length,
             restart_required_components_count: selectedComponents.filter((entry) => entry.state === 'needs_restart').length,

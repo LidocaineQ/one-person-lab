@@ -90,22 +90,30 @@ function readMacAppBundle(appPath: string) {
   }
 }
 
-function readMacLatestVersion() {
+function readMacLatestVersion(allowNetworkLookup: boolean) {
   const metadataUrl = process.env.OPL_APP_LATEST_METADATA_URL?.trim()
     || `https://github.com/${getOplReleaseRepo()}/releases/latest/download/latest-mac.yml`;
+  if (!allowNetworkLookup) {
+    return {
+      metadata_url: metadataUrl,
+      latest_version: null,
+      lookup_status: 'not_checked' as const,
+    };
+  }
   const curl = process.env.OPL_CURL_BIN?.trim() || 'curl';
   const raw = readCommandOutput(curl, ['-fsSL', '--max-time', '10', metadataUrl], 12000);
   const version = raw?.match(/^version:\s*([^\s#]+)\s*$/m)?.[1] ?? null;
   return {
     metadata_url: metadataUrl,
     latest_version: version && valid(version) ? version : null,
+    lookup_status: 'checked' as const,
   };
 }
 
-function buildMacAppCarrierReadback() {
+function buildMacAppCarrierReadback(allowNetworkLookup: boolean) {
   const appPath = resolveMacAppPath();
   const app = readMacAppBundle(appPath);
-  const latest = readMacLatestVersion();
+  const latest = readMacLatestVersion(allowNetworkLookup);
   const installedVersion = app?.installed_version ?? null;
   const latestVersion = latest.latest_version;
   const currentness = installedVersion && latestVersion
@@ -121,6 +129,7 @@ function buildMacAppCarrierReadback() {
     installed_version: installedVersion,
     latest_version: latestVersion,
     latest_version_status: currentness,
+    latest_version_lookup_status: latest.lookup_status,
     release_metadata_url: latest.metadata_url,
     host_update_route: 'one_person_lab_app_standard_updater_or_signed_installer',
     host_update_route_examples: [
@@ -128,7 +137,7 @@ function buildMacAppCarrierReadback() {
       'One-Person-Lab-<version>-mac-arm64.dmg',
     ],
     host_executor_required: false,
-    manual_required: currentness === 'unknown',
+    manual_required: !app || (latest.lookup_status === 'checked' && currentness === 'unknown'),
     managed_kernel_apply_allowed: false,
   };
 }
@@ -180,10 +189,13 @@ function buildLinuxPackageCarrierReadback() {
   };
 }
 
-export function buildInstallationCarrierComponent(channel: string): ManagedUpdateComponent {
+export function buildInstallationCarrierComponent(
+  channel: string,
+  options: { allowNetworkLookup?: boolean } = {},
+): ManagedUpdateComponent {
   const macAppCarrierReadback = (process.platform === 'darwin'
     || process.env.OPL_APP_CARRIER_PLATFORM?.trim() === 'darwin')
-    ? buildMacAppCarrierReadback()
+    ? buildMacAppCarrierReadback(options.allowNetworkLookup !== false)
     : null;
   const linuxPackageCarrierReadback = buildLinuxPackageCarrierReadback();
   const dockerDataVolumePreservation = {
@@ -241,17 +253,22 @@ export function buildInstallationCarrierComponent(channel: string): ManagedUpdat
     },
   ];
   const macAppState = macAppCarrierReadback?.currentness ?? 'unknown';
-  const state: ManagedUpdateComponent['state'] = macAppState === 'current'
-    ? 'current'
-    : macAppState === 'update_available'
-      ? 'update_available'
-      : 'skipped_manual_required';
+  const state: ManagedUpdateComponent['state'] = macAppCarrierReadback?.carrier_status !== 'installed'
+    ? 'skipped_manual_required'
+    : macAppState === 'current'
+      ? 'current'
+      : macAppState === 'update_available'
+        ? 'update_available'
+        : macAppCarrierReadback.latest_version_lookup_status === 'not_checked'
+          ? 'currentness_not_checked'
+          : 'skipped_manual_required';
   const manualRequiredCount = state === 'skipped_manual_required' ? carrierVariants.length : 0;
+  const actionRequired = state !== 'current' && state !== 'currentness_not_checked';
   const detail = statusDetail({
     component_state: state,
     manual_required_targets_count: manualRequiredCount,
-    post_apply_status: state === 'current' ? 'skipped' : 'manual_required',
-    reload_status: state === 'current' ? 'not_required' : 'manual_required',
+    post_apply_status: actionRequired ? 'manual_required' : 'skipped',
+    reload_status: actionRequired ? 'manual_required' : 'not_required',
   });
   const reloadGuidance: ManagedUpdateReloadGuidance = {
     reload_required: false,
@@ -313,6 +330,7 @@ export function buildInstallationCarrierComponent(channel: string): ManagedUpdat
       installed_version: macAppCarrierReadback?.installed_version ?? null,
       latest_version: macAppCarrierReadback?.latest_version ?? null,
       latest_version_status: macAppCarrierReadback?.latest_version_status ?? 'unknown',
+      latest_version_lookup_status: macAppCarrierReadback?.latest_version_lookup_status ?? 'not_applicable',
       release_metadata_url: macAppCarrierReadback?.release_metadata_url ?? null,
       managed_kernel_apply_allowed: false,
       opl_update_apply_must_not_claim_carrier_update_complete: true,
@@ -322,9 +340,11 @@ export function buildInstallationCarrierComponent(channel: string): ManagedUpdat
         ...DOCKER_WEBUI_HOST_UPDATE_ROUTE_EXAMPLES,
         ...LINUX_PACKAGE_HOST_UPDATE_ROUTE_EXAMPLES,
       ],
-      manual_guidance: macAppCarrierReadback
-        ? 'Use the OPL App standard updater or signed macOS installer; opl update apply is intentionally projection-only for installation_carrier.'
-        : 'Use the host package manager or documented host executor for Linux package carriers; opl update apply is intentionally projection-only for installation_carrier.',
+      manual_guidance: state === 'currentness_not_checked'
+        ? null
+        : macAppCarrierReadback
+          ? 'Use the OPL App standard updater or signed macOS installer; opl update apply is intentionally projection-only for installation_carrier.'
+          : 'Use the host package manager or documented host executor for Linux package carriers; opl update apply is intentionally projection-only for installation_carrier.',
       carrier_variants: carrierVariants,
     },
     target: {
@@ -348,10 +368,18 @@ export function buildInstallationCarrierComponent(channel: string): ManagedUpdat
         'MacosStandardCurrentness',
         macAppCarrierReadback.currentness === 'unknown' ? 'Unknown' : 'True',
         macAppCarrierReadback.currentness === 'unknown'
-          ? 'AppReleaseMetadataReadbackRequired'
+          ? macAppCarrierReadback.carrier_status !== 'installed'
+            ? 'AppInstallationNotDetected'
+            : macAppCarrierReadback.latest_version_lookup_status === 'not_checked'
+              ? 'AppReleaseMetadataLookupNotRun'
+              : 'AppReleaseMetadataReadbackRequired'
           : 'OwnerReleaseMetadataReadback',
         macAppCarrierReadback.currentness === 'unknown'
-          ? 'macOS App currentness requires the installed bundle and owner latest-mac.yml readback.'
+          ? macAppCarrierReadback.carrier_status !== 'installed'
+            ? 'The macOS App installation carrier was not detected at the configured path.'
+            : macAppCarrierReadback.latest_version_lookup_status === 'not_checked'
+              ? 'macOS App latest release metadata was intentionally not checked for this bounded projection.'
+              : 'macOS App currentness requires the installed bundle and owner latest-mac.yml readback.'
           : 'macOS App bundle and owner latest-mac.yml currentness were read back from the App carrier owner.',
       )] : [
         condition(
@@ -392,8 +420,8 @@ export function buildInstallationCarrierComponent(channel: string): ManagedUpdat
     },
     status_detail: detail,
     post_apply_guidance: {
-      required: state !== 'current',
-      command_refs: state === 'current'
+      required: actionRequired,
+      command_refs: !actionRequired
         ? []
         : macAppCarrierReadback
           ? ['One Person Lab App standard updater or signed installer']
@@ -405,11 +433,13 @@ export function buildInstallationCarrierComponent(channel: string): ManagedUpdat
       reload_guidance: reloadGuidance,
     },
     plan: {
-      action: state === 'current' ? 'none' : 'manual_review',
+      action: actionRequired ? 'manual_review' : 'none',
       summary: state === 'current'
         ? 'Installed macOS App matches or exceeds the owner latest-stable updater target.'
-        : 'Installation carrier status is readback-only in the Framework kernel; carrier replacement uses the App or host-specific route.',
-      command_refs: state === 'current' ? [] : macAppCarrierReadback
+        : state === 'currentness_not_checked'
+          ? 'Installed App version was read locally; latest release currentness was not checked for this bounded projection.'
+          : 'Installation carrier status is readback-only in the Framework kernel; carrier replacement uses the App or host-specific route.',
+      command_refs: !actionRequired ? [] : macAppCarrierReadback
         ? [
           manualCommand(
             'macos_standard_app_update_route',
@@ -442,7 +472,7 @@ export function buildInstallationCarrierComponent(channel: string): ManagedUpdat
       apply_mode: 'projection_only',
       status_detail: detail,
       reload_guidance: reloadGuidance,
-      repair_action: state === 'current' ? null : 'carrier_specific_host_update_route',
+      repair_action: actionRequired ? 'carrier_specific_host_update_route' : null,
       contentIdentityFields: ['carrier_type', 'installed_version', 'latest_version', 'image_ref', 'image_digest', 'package_manager', 'host_update_route'],
     }),
     authority_boundary: {

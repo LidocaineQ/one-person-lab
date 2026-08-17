@@ -6,6 +6,7 @@
   "surface_id": "opl_managed_updater_kernel",
   "public_cli_surfaces": [
     "opl update status --json",
+    "opl app state --profile fast --json",
     "opl update check --json",
     "opl update plan --json",
     "opl update apply --json",
@@ -33,6 +34,7 @@
   ],
   "component_state_vocabulary": [
     "current",
+    "currentness_not_checked",
     "update_available",
     "staged",
     "needs_restart",
@@ -115,6 +117,79 @@
         "observed_status"
       ],
       "app_hardcoded_dependency_classification_allowed": false
+    }
+  },
+  "app_state_projection": {
+    "field": "app_state.managed_update",
+    "source_surface": "opl update status --json",
+    "producer": "buildManagedUpdateKernelProjection",
+    "operation": "status",
+    "projection_mode": "studio_consumed_compact_projection",
+    "required_top_level_fields": [
+      "operation",
+      "update_channel",
+      "components"
+    ],
+    "required_component_fields": [
+      "component_id",
+      "lifecycle_owner",
+      "label",
+      "state",
+      "channel",
+      "current",
+      "auto_apply",
+      "plan"
+    ],
+    "required_current_fields": [
+      "installed_version",
+      "latest_version",
+      "manual_guidance"
+    ],
+    "required_auto_apply_fields": [
+      "mode",
+      "eligible",
+      "app_background_safe"
+    ],
+    "required_plan_fields": [
+      "summary"
+    ],
+    "required_component_ids": [
+      "opl_app",
+      "opl_base",
+      "opl_packages"
+    ],
+    "required_currentness_paths": [
+      "components[opl_app].state",
+      "components[opl_app].current.currentness",
+      "components[opl_base].state",
+      "components[opl_packages].state"
+    ],
+    "flow_dependencies_path": "components[opl_base].current.dependency_catalog.flow_dependencies",
+    "flow_dependencies_contract_ref": "base_dependency_catalog_contract.flow_dependencies_projection",
+    "forbidden_kernel_envelope_fields": [
+      "authority_boundary",
+      "conditions",
+      "idempotency_lock",
+      "lifecycle",
+      "notes",
+      "owner_execution_boundary",
+      "owner_route",
+      "post_apply_guidance",
+      "receipt",
+      "receipts",
+      "repair_actions",
+      "status_detail",
+      "target"
+    ],
+    "max_serialized_bytes": 32768,
+    "fast_profile_policy": {
+      "network_lookup_allowed": false,
+      "heavy_probe_allowed": false,
+      "mutation_allowed": false,
+      "second_updater_or_currentness_allowed": false,
+      "skipped_external_probe_component_state": "currentness_not_checked",
+      "skipped_external_probe_currentness": "unknown",
+      "manual_remediation_allowed_when_probe_skipped": false
     }
   },
   "coordination_roles": [

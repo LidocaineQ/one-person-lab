@@ -165,6 +165,62 @@ test('managed update contract exposes only OPL Base, OPL App, and OPL Packages l
     contract.base_dependency_catalog_contract.flow_dependencies_projection.app_hardcoded_dependency_classification_allowed,
     false,
   );
+  assert.equal(contract.public_cli_surfaces.includes('opl app state --profile fast --json'), true);
+  assert.deepEqual(contract.app_state_projection, {
+    field: 'app_state.managed_update',
+    source_surface: 'opl update status --json',
+    producer: 'buildManagedUpdateKernelProjection',
+    operation: 'status',
+    projection_mode: 'studio_consumed_compact_projection',
+    required_top_level_fields: ['operation', 'update_channel', 'components'],
+    required_component_fields: [
+      'component_id',
+      'lifecycle_owner',
+      'label',
+      'state',
+      'channel',
+      'current',
+      'auto_apply',
+      'plan',
+    ],
+    required_current_fields: ['installed_version', 'latest_version', 'manual_guidance'],
+    required_auto_apply_fields: ['mode', 'eligible', 'app_background_safe'],
+    required_plan_fields: ['summary'],
+    required_component_ids: ['opl_app', 'opl_base', 'opl_packages'],
+    required_currentness_paths: [
+      'components[opl_app].state',
+      'components[opl_app].current.currentness',
+      'components[opl_base].state',
+      'components[opl_packages].state',
+    ],
+    flow_dependencies_path: 'components[opl_base].current.dependency_catalog.flow_dependencies',
+    flow_dependencies_contract_ref: 'base_dependency_catalog_contract.flow_dependencies_projection',
+    forbidden_kernel_envelope_fields: [
+      'authority_boundary',
+      'conditions',
+      'idempotency_lock',
+      'lifecycle',
+      'notes',
+      'owner_execution_boundary',
+      'owner_route',
+      'post_apply_guidance',
+      'receipt',
+      'receipts',
+      'repair_actions',
+      'status_detail',
+      'target',
+    ],
+    max_serialized_bytes: 32768,
+    fast_profile_policy: {
+      network_lookup_allowed: false,
+      heavy_probe_allowed: false,
+      mutation_allowed: false,
+      second_updater_or_currentness_allowed: false,
+      skipped_external_probe_component_state: 'currentness_not_checked',
+      skipped_external_probe_currentness: 'unknown',
+      manual_remediation_allowed_when_probe_skipped: false,
+    },
+  });
 
   assert.deepEqual(contract.app_action_consumer_policy.canonical_delegated_surfaces, {
     module_sync: 'opl packages update',
@@ -174,6 +230,31 @@ test('managed update contract exposes only OPL Base, OPL App, and OPL Packages l
     settings_apply_opl_base_update: 'opl update apply',
     settings_check_app_update: 'opl app state --profile fast',
     settings_rollback_runtime_substrate: 'opl update rollback',
+  });
+});
+
+test('managed update projection can defer App release metadata lookup for fast consumers', async () => {
+  await withMacAppCarrierFixture('1.0.0', '1.1.0', async () => {
+    const output = await buildManagedUpdateKernelProjection(
+      loadFrameworkContracts(),
+      { operation: 'status', componentId: 'opl_app' },
+      { allowExternalProbes: false },
+    ) as Record<string, any>;
+    const app = output.managed_update.components[0];
+
+    assert.equal(app.current.installed_version, '1.0.0');
+    assert.equal(app.current.latest_version, null);
+    assert.equal(app.current.currentness, 'unknown');
+    assert.equal(app.current.latest_version_lookup_status, 'not_checked');
+    assert.equal(app.current.manual_guidance, null);
+    assert.equal(app.state, 'currentness_not_checked');
+    assert.equal(app.status_detail.manual_required_targets_count, 0);
+    assert.equal(app.post_apply_guidance.required, false);
+    assert.deepEqual(app.post_apply_guidance.command_refs, []);
+    assert.equal(app.plan.action, 'none');
+    assert.match(app.plan.summary, /currentness was not checked/);
+    assert.equal(output.managed_update.summary.currentness_not_checked_components_count, 1);
+    assert.equal(output.managed_update.summary.skipped_manual_required_components_count, 0);
   });
 });
 

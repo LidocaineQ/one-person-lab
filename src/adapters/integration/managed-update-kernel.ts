@@ -53,11 +53,15 @@ function shouldBuildComponent(requested: string | null, componentId: string) {
   return !requested || requested === componentId;
 }
 
-function buildManagedUpdateRuntimeEnvironment(operation: ManagedUpdateKernelInput['operation']) {
+function buildManagedUpdateRuntimeEnvironment(
+  operation: ManagedUpdateKernelInput['operation'],
+  allowExternalProbes: boolean,
+) {
   return {
     core_engines: {
       codex: resolveCodexVersion({
-        preferOfflineLatestLookup: operation === 'status',
+        skipLatestLookup: !allowExternalProbes,
+        preferOfflineLatestLookup: allowExternalProbes && operation === 'status',
       }),
     },
   };
@@ -231,19 +235,29 @@ function buildCapabilityPackagesComponent(
 export async function buildManagedUpdateKernelProjection(
   contracts: FrameworkContracts,
   input: ManagedUpdateKernelInput,
+  options: { allowExternalProbes?: boolean } = {},
 ) {
   const channel = readOplUpdateChannel().channel;
   const requested = requestedComponentId(input.componentId);
+  const allowExternalProbes = options.allowExternalProbes !== false;
   const components: ManagedUpdateComponent[] = [];
 
   if (shouldBuildComponent(requested, 'opl_app')) {
-    components.push(buildInstallationCarrierComponent(channel));
+    components.push(buildInstallationCarrierComponent(channel, {
+      allowNetworkLookup: allowExternalProbes,
+    }));
   }
   if (shouldBuildComponent(requested, 'opl_base')) {
-    components.push(buildRuntimeSubstrateComponent(buildManagedUpdateRuntimeEnvironment(input.operation), channel, {
-      allowFrameworkChannelLookup: input.operation === 'check' || input.operation === 'plan',
-      refreshManagedDependencyLatest: input.operation !== 'status',
-    }));
+    components.push(buildRuntimeSubstrateComponent(
+      buildManagedUpdateRuntimeEnvironment(input.operation, allowExternalProbes),
+      channel,
+      {
+        allowFrameworkChannelLookup: allowExternalProbes
+          && (input.operation === 'check' || input.operation === 'plan'),
+        refreshManagedDependencyLatest: allowExternalProbes && input.operation !== 'status',
+        inspectExternalDependencyOwners: allowExternalProbes,
+      },
+    ));
   }
   if (shouldBuildComponent(requested, 'opl_packages')) {
     const descriptors = [...discoverInstalledPackageDescriptors().values()]

@@ -9,6 +9,7 @@ import {
 } from '../../kernel/local-codex-defaults.ts';
 import {
   buildOplDeveloperModeSurface,
+  buildManagedUpdateKernelProjection,
   buildOplModules,
   canonicalAgentPackageId,
   compactStorageOwnerInventorySnapshot,
@@ -897,6 +898,63 @@ function compactFastOperatorRuntimeProjection(operator: JsonRecord) {
   };
 }
 
+function compactFastManagedUpdateProjection(
+  projection: Awaited<ReturnType<typeof buildManagedUpdateKernelProjection>>,
+) {
+  const managedUpdate = projection.managed_update;
+  return {
+    operation: managedUpdate.operation,
+    update_channel: managedUpdate.update_channel,
+    components: managedUpdate.components.map((component) => {
+      const current = component.current;
+      const dependencyCatalog = isRecord(current.dependency_catalog)
+        ? current.dependency_catalog
+        : null;
+      const flowDependencies = dependencyCatalog && Array.isArray(dependencyCatalog.flow_dependencies)
+        ? dependencyCatalog.flow_dependencies
+        : null;
+      const installedVersion = typeof current.installed_version === 'string'
+        ? current.installed_version
+        : typeof current.parsed_version === 'string'
+          ? current.parsed_version
+          : typeof current.codex_version === 'string'
+            ? current.codex_version
+            : null;
+
+      return {
+        component_id: component.component_id,
+        lifecycle_owner: component.lifecycle_owner,
+        label: component.label,
+        state: component.state,
+        channel: component.channel,
+        current: {
+          installed_version: installedVersion,
+          latest_version: typeof current.latest_version === 'string'
+            ? current.latest_version
+            : null,
+          ...(typeof current.currentness === 'string'
+            ? { currentness: current.currentness }
+            : {}),
+          manual_guidance: typeof current.manual_guidance === 'string'
+            ? current.manual_guidance
+            : null,
+          ...(flowDependencies
+            ? { dependency_catalog: { flow_dependencies: flowDependencies } }
+            : {}),
+        },
+        auto_apply: {
+          mode: component.auto_apply.mode,
+          eligible: component.auto_apply.eligible,
+          app_background_safe: component.auto_apply.app_background_safe,
+        },
+        plan: {
+          summary: component.plan.summary,
+        },
+      };
+    }),
+  };
+}
+
 export async function buildOplAppState(input: {
   profile?: AppStateProfile;
   readAgentPackageStatus?: AgentPackageStatusReader;
@@ -926,6 +984,11 @@ export async function buildOplAppState(input: {
   const release = buildReleaseState();
   const workspaceRoot = readOplWorkspaceRoot();
   const core = buildCoreState(profile);
+  const managedUpdate = await buildManagedUpdateKernelProjection(
+    contracts,
+    { operation: 'status' },
+    { allowExternalProbes: profile !== 'fast' },
+  );
   const managedComputerUse = input.automationProviderHost
     ? await input.automationProviderHost.inspect({
       automation_kind: 'computer_use',
@@ -1132,6 +1195,9 @@ export async function buildOplAppState(input: {
       developer_profile: developerProfile,
       developer_mode: developerMode,
       runtime_source_carriers: runtimeSourceCarriersState,
+      managed_update: profile === 'fast'
+        ? compactFastManagedUpdateProjection(managedUpdate)
+        : managedUpdate.managed_update,
       agent_packages: agentPackagesProjection,
       ui_contributions: uiContributions,
       managed_companions: [managedBrowserAutomation, managedComputerUse],
