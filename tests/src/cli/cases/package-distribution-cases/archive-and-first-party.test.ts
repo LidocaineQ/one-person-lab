@@ -51,13 +51,15 @@ function createOwnerPackageFixture(
     || repoName === 'opl-fleet-agent'
     ? `plugins/${repoName}`
     : '.';
-  const manifestRef = kind === 'capability_package'
-    ? pluginRoot === '.'
-      ? 'contracts/opl_capability_package_manifest.json'
-      : `${pluginRoot}/opl-package.json`
-    : kind === 'workflow_profile'
-      ? 'contracts/workflow-policy.json'
-      : 'contracts/opl_agent_package_manifest.json';
+  const manifestRef = repoName === 'opl-channel-weixin'
+    ? 'opl-package.json'
+    : kind === 'capability_package'
+      ? pluginRoot === '.'
+        ? 'contracts/opl_capability_package_manifest.json'
+        : `${pluginRoot}/opl-package.json`
+      : kind === 'workflow_profile'
+        ? 'contracts/workflow-policy.json'
+        : 'contracts/opl_agent_package_manifest.json';
   const ownerManifest = kind === 'workflow_profile'
     ? { package: { id: packageId, version: ownerVersion, owner: packageId, kind: 'workflow_profile' } }
     : {
@@ -398,6 +400,7 @@ test('package archive builder writes channel manifest checksums git source and r
     oplrelay: createOwnerPackageFixture('opl-relay', 'opl-relay', '0.5.2', 'capability_package'),
     oplpersona: createOwnerPackageFixture('opl-persona', 'opl-persona', '0.2.2', 'capability_package'),
     oplflow: createOwnerPackageFixture('opl-flow', 'opl-flow', '0.1.20', 'workflow_profile'),
+    oplchannelweixin: createOwnerPackageFixture('opl-channel-weixin', 'opl-channel-weixin', '0.1.0', 'capability_package'),
     oplfleetagent: createOwnerPackageFixture('opl-fleet-agent', 'opl-fleet-agent', '0.2.40', 'capability_package'),
   };
   const ownerSourceEnv = {
@@ -411,6 +414,7 @@ test('package archive builder writes channel manifest checksums git source and r
     OPL_PACKAGE_SOURCE_PATH_OPL_RELAY: fixtures.oplrelay.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OPL_PERSONA: fixtures.oplpersona.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OPL_FLOW: fixtures.oplflow.sourceRoot,
+    OPL_PACKAGE_SOURCE_PATH_OPL_CHANNEL_WEIXIN: fixtures.oplchannelweixin.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OPL_FLEET_AGENT: fixtures.oplfleetagent.sourceRoot,
     OPL_PACKAGE_RELEASE_GATE: 'test_owner_sha_release_gate',
   };
@@ -1907,6 +1911,7 @@ test('package archive builder refreshes reused managed clones before archiving s
     oplrelay: createOwnerPackageFixture('opl-relay', 'opl-relay', '0.5.2', 'capability_package'),
     oplpersona: createOwnerPackageFixture('opl-persona', 'opl-persona', '0.2.2', 'capability_package'),
     oplflow: createOwnerPackageFixture('opl-flow', 'opl-flow', '0.1.20', 'workflow_profile'),
+    oplchannelweixin: createOwnerPackageFixture('opl-channel-weixin', 'opl-channel-weixin', '0.1.0', 'capability_package'),
     oplfleetagent: createOwnerPackageFixture('opl-fleet-agent', 'opl-fleet-agent', '0.2.40', 'capability_package'),
   };
   const frameworkFixture = createFrozenFrameworkFixture('0.3.5');
@@ -1941,6 +1946,7 @@ test('package archive builder refreshes reused managed clones before archiving s
     OPL_PACKAGE_SOURCE_PATH_OPL_RELAY: fixtures.oplrelay.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OPL_PERSONA: fixtures.oplpersona.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OPL_FLOW: fixtures.oplflow.sourceRoot,
+    OPL_PACKAGE_SOURCE_PATH_OPL_CHANNEL_WEIXIN: fixtures.oplchannelweixin.sourceRoot,
     OPL_PACKAGE_SOURCE_PATH_OPL_FLEET_AGENT: fixtures.oplfleetagent.sourceRoot,
     OPL_PACKAGE_RELEASE_GATE: 'test_owner_sha_release_gate',
   };

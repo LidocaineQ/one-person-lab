@@ -273,6 +273,17 @@ function loadAuthority(options) {
   if (!PACKAGE_ID.test(pluginId)) {
     throw new Error(`Invalid canonical plugin id: ${pluginId}`);
   }
+  const declaredSkillIds = manifest.exports === undefined
+    ? codexSurface.required_skill_ids
+    : requireObject(manifest.exports, 'Framework package exports').core_skill_ids;
+  if (!Array.isArray(declaredSkillIds)) {
+    throw new Error('Framework package must declare its required or core skill ids as an array');
+  }
+  const coreSkillIds = declaredSkillIds.map((candidate, index) => requireString(
+    candidate,
+    `Framework package core skill id ${index}`,
+  ));
+  const agentPluginManifestRequired = coreSkillIds.length > 0;
   const topLevelSourceCommit = manifest.source_commit;
   const carrierSourceCommit = codexSurface.carrier_source_commit;
   if (topLevelSourceCommit !== undefined && carrierSourceCommit !== undefined
@@ -373,13 +384,13 @@ function loadAuthority(options) {
       digest: declared.digest,
     };
   }
-  if (!paths.includes('plugin.json')) {
+  if (agentPluginManifestRequired && !paths.includes('plugin.json')) {
     throw new Error('Framework payload allowlist must include Agent Plugins 1.0 plugin.json');
   }
   if (!paths.includes('.codex-plugin/plugin.json')) {
     throw new Error('Framework payload allowlist must include .codex-plugin/plugin.json');
   }
-  if (!paths.includes(`skills/${pluginId}/SKILL.md`)) {
+  if (agentPluginManifestRequired && !paths.includes(`skills/${pluginId}/SKILL.md`)) {
     throw new Error(`Framework payload allowlist must include skills/${pluginId}/SKILL.md`);
   }
   assertSchemaPayload(schemaBinding.localPath, manifest, 'Framework package manifest');
@@ -404,6 +415,7 @@ function loadAuthority(options) {
     packageId,
     packageVersion,
     pluginId,
+    agentPluginManifestRequired,
     sourceRepoUrl,
     githubRepository,
     sourceRoot,
@@ -611,31 +623,41 @@ function readSourceSnapshot(options, authority) {
     entry.relativePath,
     gitBytes(options.repo, ['cat-file', 'blob', entry.objectId], `Cannot read carrier blob ${entry.objectId}`),
   ]));
-  const plugin = requireObject(
-    parseJsonBytes(blobs.get('plugin.json'), 'Committed Agent Plugins manifest'),
-    'Committed Agent Plugins manifest',
-  );
-  assertSchemaPayload(AGENT_PLUGIN_SCHEMA, plugin, 'Committed Agent Plugins manifest');
-  if (plugin.name !== authority.pluginId) {
-    throw new Error(`Committed plugin name does not match Framework identity: expected=${authority.pluginId} actual=${String(plugin.name)}`);
-  }
-  const pluginVersion = requireString(plugin.version, 'Committed plugin version');
-  assertSemver(pluginVersion, 'Committed plugin version');
-  if (pluginVersion !== authority.packageVersion) {
-    throw new Error(`Committed plugin version does not match Framework package version: expected=${authority.packageVersion} actual=${pluginVersion}`);
-  }
-  const legacyPlugin = requireObject(
+  const codexPlugin = requireObject(
     parseJsonBytes(blobs.get('.codex-plugin/plugin.json'), 'Committed Codex compatibility manifest'),
     'Committed Codex compatibility manifest',
   );
-  const openAiExtension = requireObject(
-    requireObject(plugin.extensions, 'Committed Agent Plugins extensions')['com.openai'],
-    'Committed Agent Plugins com.openai extension',
-  );
-  if (legacyPlugin.name !== plugin.name
-    || legacyPlugin.version !== plugin.version
-    || JSON.stringify(legacyPlugin.interface) !== JSON.stringify(openAiExtension.interface)) {
-    throw new Error('Committed Codex compatibility manifest identity, version, or interface differs from Agent Plugins 1.0 authority');
+  if (codexPlugin.name !== authority.pluginId) {
+    throw new Error(`Committed plugin name does not match Framework identity: expected=${authority.pluginId} actual=${String(codexPlugin.name)}`);
+  }
+  const codexPluginVersion = requireString(codexPlugin.version, 'Committed plugin version');
+  assertSemver(codexPluginVersion, 'Committed plugin version');
+  if (codexPluginVersion !== authority.packageVersion) {
+    throw new Error(`Committed plugin version does not match Framework package version: expected=${authority.packageVersion} actual=${codexPluginVersion}`);
+  }
+  if (authority.agentPluginManifestRequired) {
+    const plugin = requireObject(
+      parseJsonBytes(blobs.get('plugin.json'), 'Committed Agent Plugins manifest'),
+      'Committed Agent Plugins manifest',
+    );
+    assertSchemaPayload(AGENT_PLUGIN_SCHEMA, plugin, 'Committed Agent Plugins manifest');
+    if (plugin.name !== authority.pluginId) {
+      throw new Error(`Committed plugin name does not match Framework identity: expected=${authority.pluginId} actual=${String(plugin.name)}`);
+    }
+    const pluginVersion = requireString(plugin.version, 'Committed plugin version');
+    assertSemver(pluginVersion, 'Committed plugin version');
+    if (pluginVersion !== authority.packageVersion) {
+      throw new Error(`Committed plugin version does not match Framework package version: expected=${authority.packageVersion} actual=${pluginVersion}`);
+    }
+    const openAiExtension = requireObject(
+      requireObject(plugin.extensions, 'Committed Agent Plugins extensions')['com.openai'],
+      'Committed Agent Plugins com.openai extension',
+    );
+    if (codexPlugin.name !== plugin.name
+      || codexPlugin.version !== plugin.version
+      || JSON.stringify(codexPlugin.interface) !== JSON.stringify(openAiExtension.interface)) {
+      throw new Error('Committed Codex compatibility manifest identity, version, or interface differs from Agent Plugins 1.0 authority');
+    }
   }
   if (authority.ownerPackageDescriptorRef !== null) {
     const descriptorBytes = blobs.get(authority.ownerPackageDescriptorRef);

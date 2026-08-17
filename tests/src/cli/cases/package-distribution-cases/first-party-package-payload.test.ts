@@ -70,6 +70,8 @@ function createSourceRepo(root: string, input: {
   pluginName?: string;
   pluginVersion?: string;
   pluginBytes?: Buffer;
+  includeAgentPluginManifest?: boolean;
+  includeSkill?: boolean;
   executableSkill?: boolean;
   symlinkSkill?: boolean;
   portableOwnerDescriptor?: boolean;
@@ -88,16 +90,18 @@ function createSourceRepo(root: string, input: {
   const pluginVersion = input.pluginVersion ?? packageVersion;
   const openAiInterface = { displayName: 'Example Plugin' };
   const pluginPath = rootedPath(sourceRoot, 'plugin.json');
-  writeFile(
-    repo,
-    pluginPath,
-    input.pluginBytes ?? `${JSON.stringify({
-      $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
-      name: pluginName,
-      version: pluginVersion,
-      extensions: { 'com.openai': { interface: openAiInterface } },
-    })}\n`,
-  );
+  if (input.includeAgentPluginManifest !== false) {
+    writeFile(
+      repo,
+      pluginPath,
+      input.pluginBytes ?? `${JSON.stringify({
+        $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+        name: pluginName,
+        version: pluginVersion,
+        extensions: { 'com.openai': { interface: openAiInterface } },
+      })}\n`,
+    );
+  }
   writeFile(
     repo,
     rootedPath(sourceRoot, '.codex-plugin/plugin.json'),
@@ -108,21 +112,23 @@ function createSourceRepo(root: string, input: {
     writeFile(repo, rootedPath(sourceRoot, input.extraFile.path), input.extraFile.content);
   }
   const skillPath = rootedPath(sourceRoot, `skills/${pluginId}/SKILL.md`);
-  if (input.symlinkSkill) {
-    writeFile(repo, rootedPath(sourceRoot, 'skills/shared.md'), '# Shared\n');
-    fs.mkdirSync(path.dirname(path.join(repo, skillPath)), { recursive: true });
-    fs.symlinkSync('../../shared.md', path.join(repo, skillPath));
-  } else {
-    writeFile(repo, skillPath, '# Example 0.3.1\n', input.executableSkill ? 0o755 : undefined);
+  if (input.includeSkill !== false) {
+    if (input.symlinkSkill) {
+      writeFile(repo, rootedPath(sourceRoot, 'skills/shared.md'), '# Shared\n');
+      fs.mkdirSync(path.dirname(path.join(repo, skillPath)), { recursive: true });
+      fs.symlinkSync('../../shared.md', path.join(repo, skillPath));
+    } else {
+      writeFile(repo, skillPath, '# Example 0.3.1\n', input.executableSkill ? 0o755 : undefined);
+    }
   }
   writeFile(repo, rootedPath(sourceRoot, 'README.md'), 'not part of the carrier payload\n');
   writeFile(repo, 'docs/repository-only.md', 'must never be discovered recursively\n');
   const contentLockPaths = [
-    'plugin.json',
+    ...(input.includeAgentPluginManifest === false ? [] : ['plugin.json']),
     '.codex-plugin/plugin.json',
     'assets/icon.bin',
     ...(input.extraFile ? [input.extraFile.path] : []),
-    `skills/${pluginId}/SKILL.md`,
+    ...(input.includeSkill === false ? [] : [`skills/${pluginId}/SKILL.md`]),
   ];
   const ownerPackageManifestRef = input.portableOwnerDescriptor ? 'contracts/owner-package.json' : undefined;
   const ownerPackageDescriptorRef = input.portableOwnerDescriptor ? 'opl-package.json' : undefined;
@@ -193,6 +199,7 @@ function createAuthority(root: string, source: SourceFixture, input: {
   repository?: string;
   surface?: 'agent' | 'capability' | 'workflow';
   manifestSourceRepo?: boolean;
+  coreSkillIds?: string[];
 } = {}): AuthorityFixture {
   const id = input.id ?? packageId;
   const plugin = input.plugin ?? pluginId;
@@ -211,7 +218,10 @@ function createAuthority(root: string, source: SourceFixture, input: {
   manifest.codex_surface.plugin_id = plugin;
   manifest.codex_surface.plugin_payload_manifest_url = `payloads/${id}-${version}.json`;
   manifest.codex_surface.carrier_source_commit = source.sourceCommit;
-  if (manifest.codex_surface.required_skill_ids !== undefined) manifest.codex_surface.required_skill_ids = [plugin];
+  if (input.coreSkillIds !== undefined) manifest.exports.core_skill_ids = input.coreSkillIds;
+  if (manifest.codex_surface.required_skill_ids !== undefined) {
+    manifest.codex_surface.required_skill_ids = input.coreSkillIds ?? [plugin];
+  }
   if (manifest.content_lock !== undefined) {
     manifest.content_lock.canonicalization = 'ordered_path_length_file_length_bytes';
     manifest.content_lock.paths = source.contentLockPaths ?? source.paths;
@@ -408,6 +418,40 @@ test('source_root dot still reads only allowlisted blobs instead of recursively 
     assert.equal(payload.files.some((entry: Record<string, string>) => entry.path.startsWith('docs/')), false, surface);
     assert.equal(payload.files.some((entry: Record<string, string>) => entry.path === 'README.md'), false, surface);
   }
+});
+
+test('provider-only capability payload supports zero skills without an Agent Plugins manifest', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-payload-provider-only-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const source = createSourceRepo(root, {
+    sourceRoot: '.',
+    portableOwnerDescriptor: true,
+    includeAgentPluginManifest: false,
+    includeSkill: false,
+  });
+  const authority = createAuthority(root, source, {
+    surface: 'capability',
+    manifestSourceRepo: false,
+    coreSkillIds: [],
+  });
+  editJson(authority.manifest, (manifest) => {
+    manifest.entrypoints = [{
+      entrypoint_id: 'example-channel-provider',
+      kind: 'channel_provider',
+      module_ref: 'dist/provider.js',
+      export_name: 'createExampleChannelProvider',
+    }];
+  });
+
+  const result = runGenerator({ authority, repo: source.repo, sourceCommit: source.sourceCommit });
+  const payload = JSON.parse(fs.readFileSync(authority.output, 'utf8')) as Record<string, any>;
+
+  assert.equal(result.status, 'created');
+  assert.deepEqual(payload.files.map((entry: Record<string, string>) => entry.path), source.paths);
+  assert.equal(payload.files.some((entry: Record<string, string>) => entry.path === 'plugin.json'), false);
+  assert.equal(payload.files.some((entry: Record<string, string>) => entry.path.startsWith('skills/')), false);
+  assert.equal(payload.files.some((entry: Record<string, string>) => entry.path === '.codex-plugin/plugin.json'), true);
+  assert.equal(payload.files.some((entry: Record<string, string>) => entry.path === 'opl-package.json'), true);
 });
 
 test('capability payload carries one portable owner descriptor outside the non-self-referential content lock', (t) => {
