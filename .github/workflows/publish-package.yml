@@ -95,6 +95,37 @@ jobs:
         with:
           cosign-release: v3.1.1
 
+      - name: Resolve exact Package owner source
+        id: package-source
+        shell: bash
+        env:
+          OWNER_READ_SSH_KEY: ${{ inputs.package_id == 'opl-channel-weixin' && secrets.OPL_CHANNEL_WEIXIN_OWNER_READ_KEY || '' }}
+        run: |
+          set -euo pipefail
+          manifest="contracts/opl-framework/packages/${PACKAGE_ID}.json"
+          source_repo="$(jq -er .source_repo "$manifest")"
+          if [[ "$source_repo" =~ ^https://github\.com/([^/]+)/([^/]+)\.git$ ]]; then
+            owner_repo="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+          else
+            echo "::error::Package source_repo must be a canonical GitHub HTTPS repository: $source_repo"
+            exit 2
+          fi
+          if [ "$PACKAGE_ID" = opl-channel-weixin ] && [ -z "$OWNER_READ_SSH_KEY" ]; then
+            echo "::error::Missing read-only owner checkout key for $PACKAGE_ID"
+            exit 2
+          fi
+          echo "owner_repo=$owner_repo" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact Package owner source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ steps.package-source.outputs.owner_repo }}
+          ref: refs/tags/v${{ inputs.expected_package_version }}
+          path: .owner-source
+          fetch-depth: 1
+          ssh-key: ${{ inputs.package_id == 'opl-channel-weixin' && secrets.OPL_CHANNEL_WEIXIN_OWNER_READ_KEY || '' }}
+          persist-credentials: false
+
       - name: Prepare exact Package layers
         shell: bash
         run: |
@@ -117,7 +148,6 @@ jobs:
           manifest="contracts/opl-framework/packages/${PACKAGE_ID}.json"
           source_repo="$(jq -er .source_repo "$manifest")"
           if [[ "$source_repo" =~ ^https://github\.com/([^/]+)/([^/]+)\.git$ ]]; then
-            owner_repo="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
             repo_name="${BASH_REMATCH[2]}"
           else
             echo "::error::Package source_repo must be a canonical GitHub HTTPS repository: $source_repo"
@@ -132,11 +162,7 @@ jobs:
           [ "$(jq -r .package_version "$payload")" = "$EXPECTED_PACKAGE_VERSION" ]
           [ "$(jq -r .source_commit "$payload")" = "$EXPECTED_OWNER_SOURCE_COMMIT" ]
 
-          git clone --filter=blob:none --no-checkout "https://github.com/${owner_repo}.git" .owner-source
-          git -C .owner-source fetch --depth=1 origin \
-            "$EXPECTED_OWNER_SOURCE_COMMIT" \
-            "refs/tags/v${EXPECTED_PACKAGE_VERSION}:refs/tags/v${EXPECTED_PACKAGE_VERSION}"
-          git -C .owner-source checkout --detach "$EXPECTED_OWNER_SOURCE_COMMIT"
+          [ "$(git -C .owner-source rev-parse HEAD)" = "$EXPECTED_OWNER_SOURCE_COMMIT" ]
           [ "$(git -C .owner-source cat-file -t "refs/tags/v${EXPECTED_PACKAGE_VERSION}")" = tag ]
           [ "$(git -C .owner-source rev-parse "v${EXPECTED_PACKAGE_VERSION}^{}")" = "$EXPECTED_OWNER_SOURCE_COMMIT" ]
           node --experimental-strip-types scripts/package-source-projection-gate.mjs \
