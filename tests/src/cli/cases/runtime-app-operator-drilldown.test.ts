@@ -98,7 +98,7 @@ test('runtime app operator projects completed memory trace refs without body or 
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-operator-memory-trace-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
   const workspaceRoot = path.join(stateRoot, 'workspace');
-  const env = {
+  const env: Record<string, string> = {
     OPL_STATE_DIR: stateRoot,
     OPL_CONTRACTS_DIR: fixtureContractsRoot,
     CODEX_HOME: path.join(stateRoot, 'codex-home'),
