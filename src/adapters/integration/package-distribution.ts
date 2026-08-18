@@ -186,7 +186,13 @@ export function loadOplPackageSpecs(packageDirectory?: string): PackageSpec[] {
   });
 }
 
-const PACKAGE_SPECS = loadOplPackageSpecs();
+const APP_OWNED_PACKAGE_REPO = 'one-person-lab-app';
+
+function isFrameworkPublishedPackage(spec: PackageSpec) {
+  return spec.repo_name !== APP_OWNED_PACKAGE_REPO;
+}
+
+const PUBLISHED_PACKAGE_SPECS = loadOplPackageSpecs().filter(isFrameworkPublishedPackage);
 
 function resolveOwner(inputOwner?: string) {
   if (inputOwner?.trim()) {
@@ -396,7 +402,7 @@ function buildPackageReleaseDiscipline(spec: PackageSpec, rollbackVersion: strin
 }
 
 function dependencyOf(moduleId: string) {
-  return PACKAGE_SPECS
+  return PUBLISHED_PACKAGE_SPECS
     .filter((spec) => spec.capability_dependencies?.some((dependency) => dependency.module_id === moduleId))
     .map((spec) => spec.package_id);
 }
@@ -447,7 +453,7 @@ export function buildOplPackageManifest(input: BuildPackageManifestInput = {}) {
   const retainVersions = normalizeRetainVersions(input.retainVersions);
   const rollbackVersion = input.rollbackVersion === undefined ? null : input.rollbackVersion;
   const baseVersion = frameworkVersion(input.frameworkVersion);
-  const packageMembers = Object.fromEntries(PACKAGE_SPECS.map((spec) => {
+  const packageMembers = Object.fromEntries(PUBLISHED_PACKAGE_SPECS.map((spec) => {
     const packageVersion = projectedPackageVersion(spec);
     return [spec.package_id, {
       component_id: spec.package_id,
@@ -478,8 +484,8 @@ export function buildOplPackageManifest(input: BuildPackageManifestInput = {}) {
       promotion_evidence_status: 'requires_remote_tag_readback',
       catalog_carrier: `ghcr.io/${owner}/one-person-lab-manifest:${releaseSetGeneration}`,
       catalog_carrier_is_package_identity: false,
-      component_count: PACKAGE_SPECS.length + 2,
-      component_ids: ['opl-base', 'opl-app', ...PACKAGE_SPECS.map((spec) => spec.package_id)],
+      component_count: PUBLISHED_PACKAGE_SPECS.length + 2,
+      component_ids: ['opl-base', 'opl-app', ...PUBLISHED_PACKAGE_SPECS.map((spec) => spec.package_id)],
       bom_status: 'planned',
       bom_digest: null as string | null,
       update_decision: {
@@ -505,8 +511,8 @@ export function buildOplPackageManifest(input: BuildPackageManifestInput = {}) {
         app: buildAppComponent(input.appComponent),
         packages: {
           component_kind: 'package_collection',
-          package_count: PACKAGE_SPECS.length,
-          package_ids: PACKAGE_SPECS.map((spec) => spec.package_id),
+          package_count: PUBLISHED_PACKAGE_SPECS.length,
+          package_ids: PUBLISHED_PACKAGE_SPECS.map((spec) => spec.package_id),
           members: packageMembers,
         },
       },
@@ -565,7 +571,7 @@ export function buildOplPackageManifest(input: BuildPackageManifestInput = {}) {
         },
       },
       package_artifacts: Object.fromEntries(
-        PACKAGE_SPECS.map((spec) => [
+        PUBLISHED_PACKAGE_SPECS.map((spec) => [
           spec.package_id,
           (() => {
             const packageVersion = projectedPackageVersion(spec);
@@ -620,7 +626,7 @@ export function buildOplPackageManifest(input: BuildPackageManifestInput = {}) {
 }
 
 export function getOplPackageSpecs(packageDirectory?: string) {
-  return loadOplPackageSpecs(packageDirectory).map((spec) => ({
+  return loadOplPackageSpecs(packageDirectory).filter(isFrameworkPublishedPackage).map((spec) => ({
     ...spec,
     tags: [...spec.tags],
     package_role: packageRole(spec),
@@ -770,7 +776,7 @@ function buildCurrentPackageCatalog(
   manifest: OplPackageManifest,
   packageDirectory = path.join(repoRoot, 'contracts/opl-framework/packages'),
 ) {
-  return Object.fromEntries(PACKAGE_SPECS.map((spec) => {
+  return Object.fromEntries(PUBLISHED_PACKAGE_SPECS.map((spec) => {
     const manifestPath = path.join(packageDirectory, path.basename(spec.package_manifest_ref));
     const projectedManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
     const packageEntry = manifest.packages.package_artifacts[spec.package_id];

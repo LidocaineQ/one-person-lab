@@ -20,7 +20,10 @@ import {
   nextReleaseSetGeneration,
   parseReleaseSetGeneration,
 } from '../../../../../scripts/release-set-generation.mjs';
-import { getOplPackageSpecs } from '../../../../../src/adapters/integration/package-distribution.ts';
+import {
+  getOplPackageSpecs,
+  loadOplPackageSpecs,
+} from '../../../../../src/adapters/integration/package-distribution.ts';
 
 test('framework packages workflow is release-gated and manually repairable without WebUI publishing', () => {
   const workflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/packages.yml'), 'utf8');
@@ -593,6 +596,8 @@ test('single-Package publication is protected, selector-bound, and readback-only
   );
   assert.match(workflow, /^    permissions:\n      contents: read\n      id-token: write\n      packages: write$/m);
   assert.deepEqual(packageSpecs.map((spec) => spec.package_id), publisherPackageIds);
+  assert.equal(loadOplPackageSpecs().some((spec) => spec.package_id === 'opl-channel-weixin'), true);
+  assert.equal(publisherPackageIds.includes('opl-channel-weixin'), false);
   assert.match(workflow, new RegExp(`options: \\[${publisherPackageIds.join(', ')}\\]`));
   for (const spec of packageSpecs) {
     const manifest = parseJsonText(

@@ -19,7 +19,9 @@ import {
   normalizePackageManifest,
   normalizeWorkflowProfilePackageManifest,
 } from '../../../../../src/adapters/integration/agent-package-registry-parts/manifest-normalizers.ts';
-import { getOplPackageSpecs } from '../../../../../src/adapters/integration/package-distribution.ts';
+import {
+  getOplPackageSpecs,
+} from '../../../../../src/adapters/integration/package-distribution.ts';
 
 const publishedDistributionPayload = {
   payload_kind: 'ghcr_oci_opl_package',
@@ -564,6 +566,8 @@ test('package archive builder writes channel manifest checksums git source and r
   const packageCount = getOplPackageSpecs().length;
   assert.equal(manifest.release_set.component_count, packageCount + 2);
   assert.equal(manifest.release_set.components.packages.package_count, packageCount);
+  assert.equal(Object.hasOwn(manifest.release_set.components.packages.members, 'opl-channel-weixin'), false);
+  assert.equal(Object.hasOwn(manifest.packages.package_artifacts, 'opl-channel-weixin'), false);
   assert.equal(manifest.package_install_update_source, 'per_package_owner_latest_stable');
   assert.equal(manifest.package_consumption_status, 'ordinary_app_users_compose_independent_ghcr_packages');
   for (const artifact of Object.values(manifest.packages.package_artifacts) as any[]) {
