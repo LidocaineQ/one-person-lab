@@ -906,6 +906,12 @@
       ],
       "properties": {
         "shortcut_id": { "type": "string", "minLength": 1 },
+        "icon_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z][A-Za-z0-9._-]*$"
+        },
         "label_i18n": { "$ref": "#/$defs/localized_text" },
         "default_visible": { "type": "boolean" },
         "user_configurable": { "type": "boolean" },

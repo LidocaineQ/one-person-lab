@@ -1376,6 +1376,54 @@ test('static first-party presentation is optional without weakening manifest val
   );
 });
 
+test('home shortcut icon_id is preserved when valid and rejected when malformed', () => {
+  const schema = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/agent-package-manifest.schema.json'),
+    'utf8',
+  )) as Record<string, any>;
+  const manifest = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/packages/mas.json'),
+    'utf8',
+  )) as Record<string, any>;
+  const withIcon = {
+    ...manifest,
+    presentation: {
+      ...manifest.presentation,
+      home_shortcuts: manifest.presentation.home_shortcuts.map((shortcut: Record<string, unknown>) => ({
+        ...shortcut,
+        icon_id: 'agent.preset_16',
+      })),
+    },
+  };
+  assert.doesNotThrow(() => assertJsonSchemaPayload({
+    schemaId: schema.$id,
+    schema,
+    sourceRef: 'contracts/opl-framework/agent-package-manifest.schema.json',
+  }, withIcon));
+  assert.equal(
+    normalizeFirstPartyAgentPackageManifest(withIcon).presentation?.home_shortcuts[0].icon_id,
+    'agent.preset_16',
+  );
+
+  for (const iconId of ['', 'agent/icon', '1agent', 'a'.repeat(129)]) {
+    const malformed = {
+      ...withIcon,
+      presentation: {
+        ...withIcon.presentation,
+        home_shortcuts: withIcon.presentation.home_shortcuts.map((shortcut: Record<string, unknown>) => ({
+          ...shortcut,
+          icon_id: iconId,
+        })),
+      },
+    };
+    assert.throws(
+      () => normalizePackageManifest(malformed, 'framework://contracts/opl-framework/packages/mas.json'),
+      /icon id is invalid/,
+      iconId,
+    );
+  }
+});
+
 test('MAS Scholar Skills provider manifest separates core Skill exports from module contract ids', () => {
   const schemaPath = path.join(repoRoot, 'contracts/opl-framework/capability-package-manifest.schema.json');
   const manifestPath = path.join(repoRoot, 'contracts/opl-framework/packages/mas-scholar-skills.json');

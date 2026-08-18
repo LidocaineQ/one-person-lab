@@ -103,6 +103,7 @@ export type AgentPackageHomeShortcutRoute = {
 
 export type AgentPackageHomeShortcutPresentation = {
   shortcut_id: string;
+  icon_id?: string;
   label_i18n: AgentPackageLocalizedText;
   default_visible: boolean;
   user_configurable: boolean;

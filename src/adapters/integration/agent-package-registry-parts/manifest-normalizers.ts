@@ -41,6 +41,7 @@ const AGENT_PACKAGE_ROLES = new Set<AgentPackageRole>([
 
 const LOCALE_ID_PATTERN = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/;
 const APP_CONTRIBUTION_ID_PATTERN = /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/;
+const HOME_SHORTCUT_ICON_ID_PATTERN = /^[A-Za-z][A-Za-z0-9._-]*$/;
 const APP_CONTRIBUTION_REF_PATTERN =
   /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:#[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?)?$/;
 const APP_CONTRIBUTION_VIEW_TYPES = new Set<AgentPackageAppContributionViewType>([
@@ -604,6 +605,31 @@ function normalizePresentation(
     }
     return {
       shortcut_id: shortcutId,
+      ...(entry.icon_id === undefined
+        ? {}
+        : {
+            icon_id: (() => {
+              const iconId = stringValue(entry.icon_id);
+              if (
+                !iconId
+                || iconId.length > 128
+                || !HOME_SHORTCUT_ICON_ID_PATTERN.test(iconId)
+              ) {
+                throw new FrameworkContractError(
+                  'contract_shape_invalid',
+                  'Agent package presentation shortcut icon id is invalid.',
+                  {
+                    manifest_url: manifestUrl,
+                    shortcut_id: shortcutId,
+                    field: `presentation.home_shortcuts[${index}].icon_id`,
+                    value: entry.icon_id,
+                    failure_code: 'agent_package_presentation_invalid',
+                  },
+                );
+              }
+              return iconId;
+            })(),
+          }),
       label_i18n: normalizeLocalizedText(entry.label_i18n, `presentation.home_shortcuts[${index}].label_i18n`, manifestUrl),
       default_visible: entry.default_visible,
       user_configurable: entry.user_configurable,
