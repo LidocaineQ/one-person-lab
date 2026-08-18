@@ -25,6 +25,7 @@ import {
   runConfiguredCodexPluginCarrier,
   type CodexPluginCommandRunner,
 } from '../../../../../src/adapters/integration/agent-package-registry-parts/configured-codex-plugin-carrier.ts';
+import { listAgentPackageSettingsActions } from '../../../../../src/adapters/integration/agent-package-actions.ts';
 import {
   discoverAvailablePackageDescriptors,
   discoverInstalledPackageDescriptors,
@@ -240,6 +241,103 @@ if (process.argv.slice(2).join(' ') === 'plugin list --available --json') {
     ]) {
       assert.equal(Object.hasOwn(entry, retiredDirectoryField), false);
     }
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
+test('directory actions project the exact settings ABI while the settings catalog stays new-style', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-directory-action-abi-'));
+  const stateDir = path.join(root, 'opl-state');
+  const binary = path.join(root, 'fake-codex.mjs');
+  const pluginState = path.join(root, 'plugin-state.json');
+  const pluginSource = path.join(root, 'plugin-source');
+  writePluginSource(pluginSource, 'directory action ABI');
+  fs.writeFileSync(
+    path.join(pluginSource, 'opl-package.json'),
+    formatJsonPayload(installedOwnerDescriptor()),
+  );
+  writeFakeCodex(binary, ownerPackageVersion);
+  fs.mkdirSync(path.join(root, 'codex-home'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'codex-home', 'config.toml'),
+    '[plugins."third-party-research@fixture-carrier"]\nenabled = false\n',
+  );
+  fs.writeFileSync(pluginState, JSON.stringify({
+    installed: true,
+    version: ownerPackageVersion,
+    marketplaceSource: 'fixture-carrier',
+  }));
+  const env = {
+    HOME: root,
+    CODEX_HOME: path.join(root, 'codex-home'),
+    OPL_STATE_DIR: stateDir,
+    OPL_CODEX_PLUGIN_BIN: binary,
+    FIXTURE_PLUGIN_STATE: pluginState,
+    FIXTURE_PLUGIN_SOURCE: pluginSource,
+  };
+  try {
+    const directory = runCli(['packages', 'list', '--detail', 'full'], env) as any;
+    const entry = directory.opl_agent_packages.directory.entries.find(
+      (candidate: any) => candidate.package_id === packageId,
+    );
+    assert.ok(entry);
+    assert.equal(entry.recommended_action, 'agent_package_repair');
+    const expectedActions = [
+      {
+        action_id: 'agent_package_update',
+        action_ref: 'app_state.actions#agent_package_update',
+        payload: { package_id: packageId },
+        required_payload_fields: ['package_id'],
+        confirmation_required: true,
+        semantic: 'update',
+        surface: 'settings',
+      },
+      {
+        action_id: 'agent_package_repair',
+        action_ref: 'app_state.actions#agent_package_repair',
+        payload: { package_id: packageId },
+        required_payload_fields: ['package_id'],
+        confirmation_required: true,
+        semantic: 'repair',
+        surface: 'settings',
+      },
+      {
+        action_id: 'agent_package_uninstall',
+        action_ref: 'app_state.actions#agent_package_uninstall',
+        payload: { package_id: packageId },
+        required_payload_fields: ['package_id'],
+        confirmation_required: true,
+        semantic: 'uninstall',
+        surface: 'settings',
+      },
+      {
+        action_id: 'agent_package_preferences_set',
+        action_ref: 'app_state.actions#agent_package_preferences_set',
+        payload: { package_id: packageId },
+        required_payload_fields: ['package_id', 'exposure_action or shortcut_id'],
+        confirmation_required: false,
+        semantic: 'preferences',
+        surface: 'settings',
+      },
+    ];
+    assert.deepEqual(entry.available_actions, expectedActions);
+    assert.deepEqual(entry.recommended_action_ref, expectedActions[1]);
+
+    const settingsCatalog = listAgentPackageSettingsActions();
+    assert.deepEqual(settingsCatalog.map((action) => action.action_id), [
+      'agent_package_install',
+      'agent_package_update',
+      'agent_package_repair',
+      'agent_package_uninstall',
+      'agent_package_preferences_set',
+    ]);
+    assert.equal(settingsCatalog.every((action) => !Object.hasOwn(action, 'action_ref')), true);
+    assert.equal(settingsCatalog.find((action) => action.action_id === 'agent_package_update')?.task_kind, 'install');
+    assert.deepEqual(
+      settingsCatalog.find((action) => action.action_id === 'agent_package_preferences_set')?.payload_fields,
+      ['package_id', 'exposure_action', 'shortcut_id', 'visible', 'sort_order'],
+    );
   } finally {
     removeFixtureTree(root);
   }

@@ -216,10 +216,34 @@ function presentationText(value: Record<string, string> | null | undefined, fall
   return value?.['en-US'] ?? value?.zh ?? Object.values(value ?? {})[0] ?? fallback;
 }
 
-function actionEntries(installed: boolean) {
-  return listAgentPackageSettingsActions().filter((action) => installed
-    ? action.action_id !== 'agent_package_install'
-    : action.action_id === 'agent_package_install');
+type AgentPackageSettingsAction = ReturnType<typeof listAgentPackageSettingsActions>[number];
+
+function projectDirectoryAction(action: AgentPackageSettingsAction, packageId: string) {
+  // Update and preferences are configure/install catalog entries whose directory semantics are more specific.
+  const semantic = action.action_id === 'agent_package_update'
+    ? 'update' as const
+    : action.action_id === 'agent_package_preferences_set'
+      ? 'preferences' as const
+      : action.task_kind;
+  return {
+    action_id: action.action_id,
+    action_ref: `app_state.actions#${action.action_id}`,
+    payload: { package_id: packageId },
+    required_payload_fields: action.action_id === 'agent_package_preferences_set'
+      ? ['package_id', 'exposure_action or shortcut_id']
+      : ['package_id'],
+    confirmation_required: action.confirmation_required,
+    semantic,
+    surface: 'settings' as const,
+  };
+}
+
+function actionEntries(installed: boolean, packageId: string) {
+  return listAgentPackageSettingsActions()
+    .filter((action) => installed
+      ? action.action_id !== 'agent_package_install'
+      : action.action_id === 'agent_package_install')
+    .map((action) => projectDirectoryAction(action, packageId));
 }
 
 function directoryEntry(descriptor: InstalledPackageDescriptor) {
@@ -229,7 +253,8 @@ function directoryEntry(descriptor: InstalledPackageDescriptor) {
   const ready = installed
     && descriptor.readiness.physical_status === 'available'
     && descriptor.readiness.callability === 'callable';
-  const actions = actionEntries(installed);
+  const actions = actionEntries(installed, manifest.package_id);
+  const recommendedAction = installed ? (ready ? null : 'agent_package_repair') : 'agent_package_install';
   return {
     package_id: manifest.package_id,
     display_name: manifest.display_name,
@@ -273,8 +298,10 @@ function directoryEntry(descriptor: InstalledPackageDescriptor) {
       detail_surface: `opl packages status --package-id ${manifest.package_id} --json`,
       status_read_error: null,
     },
-    recommended_action: installed ? (ready ? null : 'agent_package_repair') : 'agent_package_install',
-    recommended_action_ref: actions[0] ?? null,
+    recommended_action: recommendedAction,
+    recommended_action_ref: recommendedAction
+      ? actions.find((action) => action.action_id === recommendedAction) ?? null
+      : null,
     available_actions: actions,
     authority_boundary: refsOnlyAuthorityBoundary(),
   };
