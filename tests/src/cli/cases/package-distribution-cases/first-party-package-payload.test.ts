@@ -130,10 +130,13 @@ function createSourceRepo(root: string, input: {
     ...(input.extraFile ? [input.extraFile.path] : []),
     ...(input.includeSkill === false ? [] : [`skills/${pluginId}/SKILL.md`]),
   ];
-  const ownerPackageManifestRef = input.portableOwnerDescriptor ? 'contracts/owner-package.json' : undefined;
   const ownerPackageDescriptorRef = input.portableOwnerDescriptor ? 'opl-package.json' : undefined;
+  const ownerPackageManifestRef = input.portableOwnerDescriptor
+    ? sourceRoot === '.'
+      ? 'contracts/owner-package.json'
+      : rootedPath(sourceRoot, ownerPackageDescriptorRef!)
+    : undefined;
   if (ownerPackageManifestRef && ownerPackageDescriptorRef) {
-    if (sourceRoot !== '.') throw new Error('Portable owner descriptor fixture requires source_root=.');
     const ownerManifestBytes = `${JSON.stringify({
       package_id: packageId,
       version: packageVersion,
@@ -145,10 +148,13 @@ function createSourceRepo(root: string, input: {
       },
     }, null, 2)}\n`;
     writeFile(repo, ownerPackageManifestRef, ownerManifestBytes);
-    if (input.symlinkOwnerDescriptor) {
-      fs.symlinkSync(ownerPackageManifestRef, path.join(repo, ownerPackageDescriptorRef));
-    } else {
-      writeFile(repo, ownerPackageDescriptorRef, ownerManifestBytes);
+    const descriptorPath = rootedPath(sourceRoot, ownerPackageDescriptorRef);
+    if (descriptorPath !== ownerPackageManifestRef) {
+      if (input.symlinkOwnerDescriptor) {
+        fs.symlinkSync(ownerPackageManifestRef, path.join(repo, descriptorPath));
+      } else {
+        writeFile(repo, descriptorPath, ownerManifestBytes);
+      }
     }
   }
   const sourceCommit = commitAll(repo, 'example payload source');
@@ -424,7 +430,7 @@ test('provider-only capability payload supports zero skills without an Agent Plu
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-payload-provider-only-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const source = createSourceRepo(root, {
-    sourceRoot: '.',
+    sourceRoot: 'packages/opl-channel-weixin',
     portableOwnerDescriptor: true,
     includeAgentPluginManifest: false,
     includeSkill: false,
@@ -447,11 +453,15 @@ test('provider-only capability payload supports zero skills without an Agent Plu
   const payload = JSON.parse(fs.readFileSync(authority.output, 'utf8')) as Record<string, any>;
 
   assert.equal(result.status, 'created');
+  assert.equal(payload.source_root, 'packages/opl-channel-weixin');
   assert.deepEqual(payload.files.map((entry: Record<string, string>) => entry.path), source.paths);
   assert.equal(payload.files.some((entry: Record<string, string>) => entry.path === 'plugin.json'), false);
   assert.equal(payload.files.some((entry: Record<string, string>) => entry.path.startsWith('skills/')), false);
   assert.equal(payload.files.some((entry: Record<string, string>) => entry.path === '.codex-plugin/plugin.json'), true);
   assert.equal(payload.files.some((entry: Record<string, string>) => entry.path === 'opl-package.json'), true);
+  assert.ok(payload.files.every((entry: Record<string, string>) => entry.source_url.includes(
+    `/${source.sourceCommit}/packages/opl-channel-weixin/`,
+  )));
 });
 
 test('capability payload carries one portable owner descriptor outside the non-self-referential content lock', (t) => {
@@ -980,9 +990,12 @@ test('Framework allowlists and payloads validate at their explicit schema bounda
     const label = `tracked payload ${file}`;
     assert.ok(canonicalIds.includes(payload.package_id), label);
     assert.equal(file, `${payload.package_id}-${payload.package_version}.json`, label);
-    const allowlist = allowlists[payload.package_id];
-    assert.equal(payload.source_repo, allowlist.source_repo, label);
-    assert.equal(payload.source_root, allowlist.source_root, label);
+    const manifest = manifests[payload.package_id];
+    if (manifest.codex_surface.plugin_payload_manifest_url === `payloads/${file}`) {
+      const allowlist = allowlists[payload.package_id];
+      assert.equal(payload.source_repo, allowlist.source_repo, label);
+      assert.equal(payload.source_root, allowlist.source_root, label);
+    }
     assertPayloadEnvelope(payload, label);
   }
 });

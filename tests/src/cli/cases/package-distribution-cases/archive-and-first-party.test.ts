@@ -45,14 +45,17 @@ function createOwnerPackageFixture(
   ownerVersion: string,
   kind: 'standard_agent' | 'capability_package' | 'workflow_profile' = 'standard_agent',
 ) {
-  const pluginRoot = kind === 'standard_agent'
+  const appOwnedWeixin = repoName === 'one-person-lab-app' && packageId === 'opl-channel-weixin';
+  const pluginRoot = appOwnedWeixin
+    ? 'packages/opl-channel-weixin'
+    : kind === 'standard_agent'
     || repoName === 'opl-relay'
     || repoName === 'opl-persona'
     || repoName === 'opl-fleet-agent'
     ? `plugins/${repoName}`
     : '.';
-  const manifestRef = repoName === 'opl-channel-weixin'
-    ? 'opl-package.json'
+  const manifestRef = appOwnedWeixin
+    ? `${pluginRoot}/opl-package.json`
     : kind === 'capability_package'
       ? pluginRoot === '.'
         ? 'contracts/opl_capability_package_manifest.json'
@@ -76,7 +79,10 @@ function createOwnerPackageFixture(
       };
   const extraFiles: Record<string, string> = {
     [manifestRef]: `${JSON.stringify(ownerManifest, null, 2)}\n`,
-    [`${pluginRoot}/.codex-plugin/plugin.json`.replace(/^\.\//, '')]: `${JSON.stringify({ name: repoName, version: ownerVersion }, null, 2)}\n`,
+    [`${pluginRoot}/.codex-plugin/plugin.json`.replace(/^\.\//, '')]: `${JSON.stringify({
+      name: appOwnedWeixin ? packageId : repoName,
+      version: ownerVersion,
+    }, null, 2)}\n`,
   };
   if (kind === 'standard_agent' || repoName === 'opl-fleet-agent') {
     extraFiles[`${pluginRoot}/plugin.json`] = `${JSON.stringify({
@@ -425,7 +431,7 @@ test('package archive builder writes channel manifest checksums git source and r
     oplrelay: createOwnerPackageFixture('opl-relay', 'opl-relay', '0.5.2', 'capability_package'),
     oplpersona: createOwnerPackageFixture('opl-persona', 'opl-persona', '0.2.2', 'capability_package'),
     oplflow: createOwnerPackageFixture('opl-flow', 'opl-flow', '0.1.20', 'workflow_profile'),
-    oplchannelweixin: createOwnerPackageFixture('opl-channel-weixin', 'opl-channel-weixin', '0.1.0', 'capability_package'),
+    oplchannelweixin: createOwnerPackageFixture('one-person-lab-app', 'opl-channel-weixin', '0.1.1', 'capability_package'),
     oplfleetagent: createOwnerPackageFixture('opl-fleet-agent', 'opl-fleet-agent', '0.2.40', 'capability_package'),
   };
   const ownerSourceEnv = {
@@ -1990,7 +1996,7 @@ test('package archive builder refreshes reused managed clones before archiving s
     oplrelay: createOwnerPackageFixture('opl-relay', 'opl-relay', '0.5.2', 'capability_package'),
     oplpersona: createOwnerPackageFixture('opl-persona', 'opl-persona', '0.2.2', 'capability_package'),
     oplflow: createOwnerPackageFixture('opl-flow', 'opl-flow', '0.1.20', 'workflow_profile'),
-    oplchannelweixin: createOwnerPackageFixture('opl-channel-weixin', 'opl-channel-weixin', '0.1.0', 'capability_package'),
+    oplchannelweixin: createOwnerPackageFixture('one-person-lab-app', 'opl-channel-weixin', '0.1.1', 'capability_package'),
     oplfleetagent: createOwnerPackageFixture('opl-fleet-agent', 'opl-fleet-agent', '0.2.40', 'capability_package'),
   };
   const frameworkFixture = createFrozenFrameworkFixture('0.3.5');

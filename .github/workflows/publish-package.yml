@@ -98,8 +98,6 @@ jobs:
       - name: Resolve exact Package owner source
         id: package-source
         shell: bash
-        env:
-          OWNER_READ_SSH_KEY: ${{ inputs.package_id == 'opl-channel-weixin' && secrets.OPL_CHANNEL_WEIXIN_OWNER_READ_KEY || '' }}
         run: |
           set -euo pipefail
           manifest="contracts/opl-framework/packages/${PACKAGE_ID}.json"
@@ -108,10 +106,6 @@ jobs:
             owner_repo="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
           else
             echo "::error::Package source_repo must be a canonical GitHub HTTPS repository: $source_repo"
-            exit 2
-          fi
-          if [ "$PACKAGE_ID" = opl-channel-weixin ] && [ -z "$OWNER_READ_SSH_KEY" ]; then
-            echo "::error::Missing read-only owner checkout key for $PACKAGE_ID"
             exit 2
           fi
           echo "owner_repo=$owner_repo" >> "$GITHUB_OUTPUT"
@@ -123,7 +117,6 @@ jobs:
           ref: refs/tags/v${{ inputs.expected_package_version }}
           path: .owner-source
           fetch-depth: 1
-          ssh-key: ${{ inputs.package_id == 'opl-channel-weixin' && secrets.OPL_CHANNEL_WEIXIN_OWNER_READ_KEY || '' }}
           persist-credentials: false
 
       - name: Prepare exact Package layers

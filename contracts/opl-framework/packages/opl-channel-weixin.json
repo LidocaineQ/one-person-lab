@@ -3,18 +3,18 @@
   "package_id": "opl-channel-weixin",
   "display_name": "OPL Channel Weixin",
   "publisher": "one-person-lab",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "source": "first_party_owner_projection",
-  "source_repo": "https://github.com/gaofeng21cn/opl-channel-weixin.git",
+  "source_repo": "https://github.com/gaofeng21cn/one-person-lab-app.git",
   "publication_projection_order": 100,
   "publication_source": {
     "module_id": "opl-channel-weixin",
-    "owner_package_manifest_ref": "opl-package.json",
-    "owner_plugin_manifest_ref": ".codex-plugin/plugin.json"
+    "owner_package_manifest_ref": "packages/opl-channel-weixin/opl-package.json",
+    "owner_plugin_manifest_ref": "packages/opl-channel-weixin/.codex-plugin/plugin.json"
   },
   "package_role": "capability_package",
   "schema_ref": "one-person-lab/contracts/opl-framework/capability-package-manifest.schema.json",
-  "owner_package_manifest_ref": "opl-package.json",
+  "owner_package_manifest_ref": "packages/opl-channel-weixin/opl-package.json",
   "owner_package_descriptor_ref": "opl-package.json",
   "capability_abi": {
     "id": "opl-channel-weixin.provider",
@@ -113,19 +113,19 @@
       "dist/src/types.js",
       "package.json"
     ],
-    "digest": "sha256:cec2e3f0410d4602c1972b8751ce5c086c501f8ec0844de4d6b0545a04663f31"
+    "digest": "sha256:2bb6afac7d4432ec1c7f2a2fb2fb6d99ca9028d05a86362447bfb17da0dcf3c8"
   },
   "codex_surface": {
     "plugin_id": "opl-channel-weixin",
-    "plugin_source_path": ".",
-    "plugin_payload_manifest_url": "payloads/opl-channel-weixin-0.1.0.json",
-    "carrier_source_commit": "4a00a45d706bd584b57343a09de4cc57b0a41d93",
+    "plugin_source_path": "packages/opl-channel-weixin",
+    "plugin_payload_manifest_url": "payloads/opl-channel-weixin-0.1.1.json",
+    "carrier_source_commit": "b6f800afac0f23b67abbb20d742d1c116d63207c",
     "codex_default_exposure": false,
     "configured_codex_plugin_carrier": {
       "kind": "codex_plugin_manager",
-      "plugin_selector": "opl-channel-weixin@opl-channel-weixin",
+      "plugin_selector": "opl-channel-weixin@one-person-lab-app",
       "executor_route": "codex_cli",
-      "marketplace_source": "gaofeng21cn/opl-channel-weixin",
+      "marketplace_source": "gaofeng21cn/one-person-lab-app",
       "publication_ref": "ghcr.io/gaofeng21cn/one-person-lab-packages/opl-channel-weixin:latest-stable"
     },
     "optional_install_policy": "all_exported_skills",

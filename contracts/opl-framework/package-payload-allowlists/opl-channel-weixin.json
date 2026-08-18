@@ -2,8 +2,8 @@
   "surface_kind": "opl_package_payload_allowlist.v1",
   "package_id": "opl-channel-weixin",
   "plugin_id": "opl-channel-weixin",
-  "source_repo": "https://github.com/gaofeng21cn/opl-channel-weixin.git",
-  "source_root": ".",
+  "source_repo": "https://github.com/gaofeng21cn/one-person-lab-app.git",
+  "source_root": "packages/opl-channel-weixin",
   "paths": [
     ".codex-plugin/plugin.json",
     "opl-package.json",
