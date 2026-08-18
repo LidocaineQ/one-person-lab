@@ -87,13 +87,22 @@ function readCurrentStableManifest(filePath) {
   return manifest;
 }
 
+function isFrameworkPublishedPackage(manifest) {
+  const sourceRepo = typeof manifest.source_repo === 'string'
+    ? manifest.source_repo.trim()
+    : '';
+  const repoName = sourceRepo.replace(/[\\/]+$/, '').replace(/\.git$/, '').split(/[\\/]/).at(-1) ?? '';
+  return repoName !== 'one-person-lab-app';
+}
+
 function projectionManifest(rootPath, releaseSetGeneration) {
   const packageRoot = path.join(rootPath, 'contracts', 'opl-framework', 'packages');
   const entries = fs.readdirSync(packageRoot, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
     .map((entry) => path.join(packageRoot, entry.name))
     .map((manifestPath) => readJson(manifestPath))
-    .filter((manifest) => typeof manifest.package_id === 'string' && typeof manifest.version === 'string');
+    .filter((manifest) => typeof manifest.package_id === 'string' && typeof manifest.version === 'string')
+    .filter(isFrameworkPublishedPackage);
   if (entries.length === 0) {
     throw new Error(`No Package projections found under ${packageRoot}`);
   }

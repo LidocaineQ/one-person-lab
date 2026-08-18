@@ -142,6 +142,44 @@ test('daily package channel check publishes when a package source fingerprint ch
   assert.deepEqual(summary.changed_packages, ['mas']);
 });
 
+test('daily package channel check excludes App-owned Package projections from publisher changes', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-daily-check-app-owned-'));
+  const packageRoot = path.join(tempRoot, 'contracts', 'opl-framework', 'packages');
+  fs.mkdirSync(path.join(packageRoot, 'payloads'), { recursive: true });
+  fs.writeFileSync(path.join(packageRoot, 'mas.json'), `${JSON.stringify({
+    package_id: 'mas',
+    version: '0.1.1',
+    source_repo: 'https://github.com/gaofeng21cn/med-autoscience.git',
+    codex_surface: { carrier_source_commit: 'a'.repeat(40), plugin_payload_manifest_url: 'payloads/mas-0.1.1.json' },
+  }, null, 2)}\n`);
+  fs.writeFileSync(path.join(packageRoot, 'payloads/mas-0.1.1.json'), `${JSON.stringify({
+    package_id: 'mas',
+    package_version: '0.1.1',
+    source_commit: 'a'.repeat(40),
+    content_lock: { digest: `sha256:${'b'.repeat(64)}` },
+  }, null, 2)}\n`);
+  fs.writeFileSync(path.join(packageRoot, 'opl-channel-weixin.json'), `${JSON.stringify({
+    package_id: 'opl-channel-weixin',
+    version: '0.1.1',
+    source_repo: 'https://github.com/gaofeng21cn/one-person-lab-app.git',
+    codex_surface: { carrier_source_commit: 'c'.repeat(40), plugin_payload_manifest_url: 'payloads/opl-channel-weixin-0.1.1.json' },
+  }, null, 2)}\n`);
+  fs.writeFileSync(path.join(packageRoot, 'payloads/opl-channel-weixin-0.1.1.json'), `${JSON.stringify({
+    package_id: 'opl-channel-weixin',
+    package_version: '0.1.1',
+    source_commit: 'c'.repeat(40),
+    content_lock: { digest: `sha256:${'d'.repeat(64)}` },
+  }, null, 2)}\n`);
+
+  const summary = runDailyCheck([
+    '--projection-root', tempRoot,
+    '--release-set-generation', '26.6.3',
+  ]);
+
+  assert.deepEqual(summary.changed_packages, ['mas']);
+  assert.equal(summary.changed_packages.includes('opl-channel-weixin'), false);
+});
+
 test('daily package channel check bootstraps all Packages when latest-stable does not exist yet', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-daily-check-'));
   const candidate = path.join(tempRoot, 'candidate.json');
