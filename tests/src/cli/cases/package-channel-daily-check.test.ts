@@ -371,6 +371,21 @@ test('daily Package check reads projection manifests without building Package ar
     source_commit: 'c'.repeat(40),
     content_lock: { digest: `sha256:${'d'.repeat(64)}` },
   })}\n`, 'utf8');
+  fs.writeFileSync(path.join(packageRoot, 'opl-link-desktop-connector.json'), `${JSON.stringify({
+    package_id: 'opl-link-desktop-connector',
+    version: '0.1.0',
+    publication_channel_admission: 'development_only',
+    codex_surface: {
+      plugin_payload_manifest_url: 'payloads/opl-link-desktop-connector-0.1.0.json',
+      carrier_source_commit: 'e'.repeat(40),
+    },
+  })}\n`, 'utf8');
+  fs.writeFileSync(path.join(payloadRoot, 'opl-link-desktop-connector-0.1.0.json'), `${JSON.stringify({
+    package_id: 'opl-link-desktop-connector',
+    package_version: '0.1.0',
+    source_commit: 'e'.repeat(40),
+    content_lock: { digest: `sha256:${'f'.repeat(64)}` },
+  })}\n`, 'utf8');
   writeManifest(current, {
     version: '26.6.3',
     generatedAt: '2026-06-02T00:00:00.000Z',

@@ -23,6 +23,10 @@
     "publisher": { "type": "string", "minLength": 1 },
     "version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$" },
     "source": { "type": "string", "minLength": 1 },
+    "publication_channel_admission": {
+      "description": "Whether the Package may enter the protected publication channel. Missing preserves the existing admitted behavior.",
+      "enum": ["admitted", "development_only"]
+    },
     "owner_package_manifest_ref": { "type": "string", "minLength": 1 },
     "owner_package_descriptor_ref": { "type": "string", "minLength": 1 },
     "package_role": {

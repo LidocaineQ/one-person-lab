@@ -13,12 +13,12 @@ import {
   test,
 } from './helpers.ts';
 import { readBundledCodexDefaultProfile } from '../../../../../src/kernel/local-codex-defaults.ts';
-import { getOplPackageSpecs } from '../../../../../src/adapters/integration/package-distribution.ts';
+import { getPublicationAdmittedOplPackageSpecs } from '../../../../../src/adapters/integration/package-distribution.ts';
 
 const codexDefaultProfile = readBundledCodexDefaultProfile();
 
 test('packages manifest exposes independent owner currentness and compatibility snapshot coordinates', () => {
-  const packageSpecs = getOplPackageSpecs();
+  const packageSpecs = getPublicationAdmittedOplPackageSpecs();
   const scholarPackage = packageSpecs.find((spec) => spec.package_id === 'mas-scholar-skills');
   const flowPackage = packageSpecs.find((spec) => spec.package_id === 'opl-flow');
   assert.ok(scholarPackage);
@@ -146,7 +146,7 @@ test('packages manifest exposes independent owner currentness and compatibility 
   assert.equal(output.packages_manifest.release_set_generation, '26.4.27');
   assert.equal(output.packages_manifest.release_set.generation, '26.4.27');
   assert.equal(output.packages_manifest.release_set.surface_kind, 'opl_release_set.v2');
-  const packageCount = getOplPackageSpecs().length;
+  const packageCount = getPublicationAdmittedOplPackageSpecs().length;
   assert.equal(output.packages_manifest.release_set.component_count, packageCount + 2);
   assert.equal(output.packages_manifest.release_set.components.packages.package_count, packageCount);
   assert.equal(output.packages_manifest.release_set.components.base.component_id, 'opl-base');

@@ -10,7 +10,10 @@ import {
   type PackageHostManifest,
 } from '../../src/authority/packages/package-host-integration.ts';
 import { normalizePackageManifest } from '../../src/adapters/integration/agent-package-registry-parts/manifest-normalizers.ts';
-import { getOplPackageSpecs } from '../../src/adapters/integration/package-distribution.ts';
+import {
+  getOplPackageSpecs,
+  getPublicationAdmittedOplPackageSpecs,
+} from '../../src/adapters/integration/package-distribution.ts';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 import { validateJsonSchemaPayload } from '../../src/kernel/schema-registry.ts';
 import { buildAppUiContributionsProjection } from '../../src/read-models/operator/app-state-ui-contributions.ts';
@@ -48,6 +51,7 @@ test('OPL Link projection, payload, and allowlist bind one exact owner cohort', 
   assert.equal(manifest.package_id, 'opl-link-desktop-connector');
   assert.equal(manifest.version, '0.1.0');
   assert.equal(manifest.source_repo, 'https://github.com/gaofeng21cn/opl-link.git');
+  assert.equal(manifest.publication_channel_admission, 'development_only');
   assert.equal(manifest.codex_surface.plugin_id, manifest.package_id);
   assert.equal(manifest.codex_surface.carrier_source_commit, ownerCommit);
   assert.equal(manifest.content_lock.digest, contentLockDigest);
@@ -85,8 +89,12 @@ test('dynamic package discovery admits one remote companion Host contribution an
   const normalized = normalizePackageManifest(hostManifest, pathToFileURL(manifestPath).href);
   const specs = getOplPackageSpecs();
   const spec = specs.find((entry) => entry.package_id === manifest.package_id);
+  const publicationSpec = getPublicationAdmittedOplPackageSpecs()
+    .find((entry) => entry.package_id === manifest.package_id);
 
   assert.ok(spec);
+  assert.equal(publicationSpec, undefined);
+  assert.equal(spec.publication_channel_admission, 'development_only');
   assert.equal(spec.scope, 'capability_package');
   assert.equal(spec.version, manifest.version);
   assert.equal(spec.repo_url, manifest.source_repo);

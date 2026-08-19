@@ -6,6 +6,7 @@
   "version": "0.1.0",
   "source": "first_party_owner_projection",
   "source_repo": "https://github.com/gaofeng21cn/opl-link.git",
+  "publication_channel_admission": "development_only",
   "publication_projection_order": 110,
   "publication_source": {
     "module_id": "opl-link-desktop-connector",

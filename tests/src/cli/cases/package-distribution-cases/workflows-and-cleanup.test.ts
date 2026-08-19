@@ -22,6 +22,7 @@ import {
 } from '../../../../../scripts/release-set-generation.mjs';
 import {
   getOplPackageSpecs,
+  getPublicationAdmittedOplPackageSpecs,
   loadOplPackageSpecs,
 } from '../../../../../src/adapters/integration/package-distribution.ts';
 
@@ -580,7 +581,7 @@ test('single-Package payload materialization binds exact physical archive proven
 
 test('single-Package publication is protected, selector-bound, and readback-only after unknown results', () => {
   const workflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/publish-package.yml'), 'utf8');
-  const packageSpecs = getOplPackageSpecs();
+  const packageSpecs = getPublicationAdmittedOplPackageSpecs();
   const publisherPackageIds = packageSpecs.map((spec) => spec.package_id);
 
   assert.match(workflow, /^  workflow_dispatch:$/m);
@@ -597,8 +598,18 @@ test('single-Package publication is protected, selector-bound, and readback-only
   assert.match(workflow, /^    permissions:\n      contents: read\n      id-token: write\n      packages: write$/m);
   assert.deepEqual(packageSpecs.map((spec) => spec.package_id), publisherPackageIds);
   assert.equal(loadOplPackageSpecs().some((spec) => spec.package_id === 'opl-channel-weixin'), true);
+  assert.equal(getOplPackageSpecs().some((spec) => spec.package_id === 'opl-link-desktop-connector'), true);
   assert.equal(publisherPackageIds.includes('opl-channel-weixin'), false);
+  assert.equal(publisherPackageIds.includes('opl-link-desktop-connector'), false);
   assert.match(workflow, new RegExp(`options: \\[${publisherPackageIds.join(', ')}\\]`));
+  const linkPublicationGate = spawnSync(process.execPath, [
+    '--experimental-strip-types',
+    path.join(repoRoot, 'scripts/package-source-projection-gate.mjs'),
+    '--package-id', 'opl-link-desktop-connector',
+    '--owner-root', repoRoot,
+  ], { cwd: repoRoot, encoding: 'utf8' });
+  assert.equal(linkPublicationGate.status, 1);
+  assert.match(linkPublicationGate.stderr, /Package is not admitted to the publication channel/);
   for (const spec of packageSpecs) {
     const manifest = parseJsonText(
       fs.readFileSync(path.join(repoRoot, spec.package_manifest_ref), 'utf8'),

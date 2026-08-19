@@ -88,11 +88,15 @@ function readCurrentStableManifest(filePath) {
 }
 
 function isFrameworkPublishedPackage(manifest) {
+  const publicationChannelAdmission = manifest.publication_channel_admission ?? 'admitted';
+  if (publicationChannelAdmission !== 'admitted' && publicationChannelAdmission !== 'development_only') {
+    throw new Error('Package projection publication_channel_admission must be admitted or development_only.');
+  }
   const sourceRepo = typeof manifest.source_repo === 'string'
     ? manifest.source_repo.trim()
     : '';
   const repoName = sourceRepo.replace(/[\\/]+$/, '').replace(/\.git$/, '').split(/[\\/]/).at(-1) ?? '';
-  return repoName !== 'one-person-lab-app';
+  return repoName !== 'one-person-lab-app' && publicationChannelAdmission === 'admitted';
 }
 
 function projectionManifest(rootPath, releaseSetGeneration) {

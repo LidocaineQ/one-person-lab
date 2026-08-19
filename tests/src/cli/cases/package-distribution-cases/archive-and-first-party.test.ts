@@ -20,7 +20,7 @@ import {
   normalizeWorkflowProfilePackageManifest,
 } from '../../../../../src/adapters/integration/agent-package-registry-parts/manifest-normalizers.ts';
 import {
-  getOplPackageSpecs,
+  getPublicationAdmittedOplPackageSpecs,
 } from '../../../../../src/adapters/integration/package-distribution.ts';
 
 const publishedDistributionPayload = {
@@ -174,7 +174,7 @@ function addFrameworkPackageProjections(
   sourceRoot: string,
   fixtures: Record<string, ReturnType<typeof createOwnerPackageFixture>>,
 ) {
-  for (const spec of getOplPackageSpecs()) {
+  for (const spec of getPublicationAdmittedOplPackageSpecs()) {
     const fixture = Object.values(fixtures).find((candidate) => candidate.packageId === spec.package_id);
     assert.ok(fixture);
     const sourceCommit = fixture.getHeadSha();
@@ -525,7 +525,7 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(ownerCohortLock.surface_kind, 'opl_package_owner_cohort_lock.v1');
   assert.deepEqual(
     Object.keys(ownerCohortLock.packages).sort(),
-    getOplPackageSpecs().map((spec) => spec.package_id).sort(),
+    getPublicationAdmittedOplPackageSpecs().map((spec) => spec.package_id).sort(),
   );
   assert.equal(ownerCohortLock.packages.mas.source_commit, fixtures.medautoscience.getHeadSha());
   assert.equal(
@@ -563,11 +563,13 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(channelManifest.release_set_generation, manifest.release_set_generation);
   assert.equal(manifest.release_set.generation, '26.4.31');
   assert.equal(manifest.release_set.surface_kind, 'opl_release_set.v2');
-  const packageCount = getOplPackageSpecs().length;
+  const packageCount = getPublicationAdmittedOplPackageSpecs().length;
   assert.equal(manifest.release_set.component_count, packageCount + 2);
   assert.equal(manifest.release_set.components.packages.package_count, packageCount);
   assert.equal(Object.hasOwn(manifest.release_set.components.packages.members, 'opl-channel-weixin'), false);
+  assert.equal(Object.hasOwn(manifest.release_set.components.packages.members, 'opl-link-desktop-connector'), false);
   assert.equal(Object.hasOwn(manifest.packages.package_artifacts, 'opl-channel-weixin'), false);
+  assert.equal(Object.hasOwn(manifest.packages.package_artifacts, 'opl-link-desktop-connector'), false);
   assert.equal(manifest.package_install_update_source, 'per_package_owner_latest_stable');
   assert.equal(manifest.package_consumption_status, 'ordinary_app_users_compose_independent_ghcr_packages');
   for (const artifact of Object.values(manifest.packages.package_artifacts) as any[]) {
@@ -683,7 +685,7 @@ test('package archive builder writes channel manifest checksums git source and r
 
   assert.equal(channelManifest.package_catalog_surface_kind, 'opl_package_catalog.v1');
   const packageCatalog = channelManifest.packages.package_catalog;
-  const packageSpecs = getOplPackageSpecs();
+  const packageSpecs = getPublicationAdmittedOplPackageSpecs();
   const expectedSourceRoots = Object.fromEntries(packageSpecs.map((spec) => {
     const allowlist = parseJsonText(fs.readFileSync(
       path.join(repoRoot, 'contracts/opl-framework/package-payload-allowlists', `${spec.package_id}.json`),

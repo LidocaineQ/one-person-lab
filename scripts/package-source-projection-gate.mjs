@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   getOplPackageSpecs,
+  getPublicationAdmittedOplPackageSpecs,
   normalizeDistributionVersion,
 } from '../src/adapters/integration/package-distribution.ts';
 import { assertJsonSchemaPayload } from '../src/kernel/schema-registry.ts';
@@ -523,8 +524,15 @@ function parseOptions(argv) {
 
 function main() {
   const options = parseOptions(process.argv.slice(2));
-  const spec = getOplPackageSpecs().find((entry) => entry.package_id === options.packageId);
-  if (!spec) throw new Error(`Unknown canonical Package id: ${options.packageId}`);
+  const spec = getPublicationAdmittedOplPackageSpecs()
+    .find((entry) => entry.package_id === options.packageId);
+  if (!spec) {
+    const discovered = getOplPackageSpecs().some((entry) => entry.package_id === options.packageId);
+    if (discovered) {
+      throw new Error(`Package is not admitted to the publication channel: ${options.packageId}`);
+    }
+    throw new Error(`Unknown canonical Package id: ${options.packageId}`);
+  }
   const result = validatePackageSourceProjection({
     frameworkRoot: options.frameworkRoot,
     spec,

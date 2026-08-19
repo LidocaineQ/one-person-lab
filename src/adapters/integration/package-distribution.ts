@@ -28,6 +28,7 @@ export type PackageSpec = {
   owner_manifest_kind: 'standard_agent' | 'capability_package' | 'workflow_profile';
   owner_plugin_manifest_ref: string;
   owner_language_version_ref?: string;
+  publication_channel_admission: 'admitted' | 'development_only';
   capability_dependencies?: readonly ModuleCapabilityDependency[];
   version: string;
 };
@@ -131,6 +132,13 @@ function projectionDescription(payload: Record<string, unknown>, fallback: strin
   return typeof english === 'string' && english.trim() ? english.trim() : fallback;
 }
 
+function projectionPublicationChannelAdmission(payload: Record<string, unknown>) {
+  const value = payload.publication_channel_admission;
+  if (value === undefined || value === 'admitted') return 'admitted' as const;
+  if (value === 'development_only') return value;
+  throw new Error('Package projection publication_channel_admission must be admitted or development_only.');
+}
+
 export function loadOplPackageSpecs(packageDirectory?: string): PackageSpec[] {
   const agentManifests = new Map(
     listFirstPartyAgentPackageManifests(packageDirectory)
@@ -180,6 +188,7 @@ export function loadOplPackageSpecs(packageDirectory?: string): PackageSpec[] {
         : typeof publicationSource?.owner_language_version_ref === 'string'
           ? { owner_language_version_ref: publicationSource.owner_language_version_ref }
           : {}),
+      publication_channel_admission: projectionPublicationChannelAdmission(payload),
       capability_dependencies: agentManifest?.capability_dependencies ?? [],
       version: projectionString(payload, 'version'),
     };
@@ -188,8 +197,12 @@ export function loadOplPackageSpecs(packageDirectory?: string): PackageSpec[] {
 
 const APP_OWNED_PACKAGE_REPO = 'one-person-lab-app';
 
-function isFrameworkPublishedPackage(spec: PackageSpec) {
+function isFrameworkManagedPackage(spec: PackageSpec) {
   return spec.repo_name !== APP_OWNED_PACKAGE_REPO;
+}
+
+function isFrameworkPublishedPackage(spec: PackageSpec) {
+  return isFrameworkManagedPackage(spec) && spec.publication_channel_admission === 'admitted';
 }
 
 const PUBLISHED_PACKAGE_SPECS = loadOplPackageSpecs().filter(isFrameworkPublishedPackage);
@@ -626,6 +639,18 @@ export function buildOplPackageManifest(input: BuildPackageManifestInput = {}) {
 }
 
 export function getOplPackageSpecs(packageDirectory?: string) {
+  return loadOplPackageSpecs(packageDirectory).filter(isFrameworkManagedPackage).map((spec) => ({
+    ...spec,
+    tags: [...spec.tags],
+    package_role: packageRole(spec),
+    selected_version: projectedPackageVersion(spec),
+    stable_version: null,
+    manifest_url: spec.package_manifest_ref,
+    trust_tier: 'first_party' as const,
+  }));
+}
+
+export function getPublicationAdmittedOplPackageSpecs(packageDirectory?: string) {
   return loadOplPackageSpecs(packageDirectory).filter(isFrameworkPublishedPackage).map((spec) => ({
     ...spec,
     tags: [...spec.tags],

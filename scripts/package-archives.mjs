@@ -14,7 +14,7 @@ import {
 import {
   buildOplPackageManifest,
   buildOplPackageChannelManifest,
-  getOplPackageSpecs,
+  getPublicationAdmittedOplPackageSpecs,
   normalizeDistributionVersion,
   sha256File,
   writeOplPackageManifest,
@@ -361,12 +361,12 @@ function validateOwnerCohortLock(lock) {
   if (lock?.surface_kind !== 'opl_package_owner_cohort_lock.v1') {
     throw new Error('Owner cohort lock must use opl_package_owner_cohort_lock.v1');
   }
-  const expectedIds = getOplPackageSpecs().map((spec) => spec.package_id).sort();
+  const expectedIds = getPublicationAdmittedOplPackageSpecs().map((spec) => spec.package_id).sort();
   const actualIds = Object.keys(lock.packages ?? {}).sort();
   if (JSON.stringify(actualIds) !== JSON.stringify(expectedIds)) {
     throw new Error(`Owner cohort lock ids must be exactly: ${expectedIds.join(', ')}`);
   }
-  for (const spec of getOplPackageSpecs()) {
+  for (const spec of getPublicationAdmittedOplPackageSpecs()) {
     const entry = lock.packages[spec.package_id];
     if (entry.package_id !== spec.package_id
       || entry.repo_name !== spec.repo_name
@@ -394,7 +394,7 @@ function resolveOwnerCohort(options) {
     : null;
   const resolved = new Map();
   const packages = {};
-  for (const spec of getOplPackageSpecs()) {
+  for (const spec of getPublicationAdmittedOplPackageSpecs()) {
     const lockedCommit = supplied?.packages?.[spec.package_id]?.source_commit
       ?? (options.ownerCohortMode === 'framework-projection'
         ? readProjectedCarrierCommit(spec, options.frameworkSourceRoot)
@@ -518,7 +518,7 @@ function main() {
     tap_generator_role: 'consume_projection_without_inference',
   };
 
-  for (const spec of getOplPackageSpecs()) {
+  for (const spec of getPublicationAdmittedOplPackageSpecs()) {
     const repoPath = ownerCohort.resolved.get(spec.package_id);
     const ownerMetadata = readOwnerPackageMetadata(
       spec,
