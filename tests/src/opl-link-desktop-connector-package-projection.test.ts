@@ -79,9 +79,10 @@ test('OPL Link projection, payload, and allowlist bind one exact owner cohort', 
 });
 
 test('dynamic package discovery admits one remote companion Host contribution and hides absent Package', () => {
-  const manifest = readJson(manifestRef) as PackageHostManifest;
+  const manifest = readJson(manifestRef);
+  const hostManifest = manifest as PackageHostManifest;
   const manifestPath = path.join(repoRoot, manifestRef);
-  const normalized = normalizePackageManifest(manifest, pathToFileURL(manifestPath).href);
+  const normalized = normalizePackageManifest(hostManifest, pathToFileURL(manifestPath).href);
   const specs = getOplPackageSpecs();
   const spec = specs.find((entry) => entry.package_id === manifest.package_id);
 
@@ -103,7 +104,7 @@ test('dynamic package discovery admits one remote companion Host contribution an
     'pair-revoke',
   ]);
 
-  const integration = resolvePackageHostIntegration(manifest);
+  const integration = resolvePackageHostIntegration(hostManifest);
   assert.equal(integration.integration_kind, 'capability_provider');
   const remoteCompanionPoint = readCapabilityPackageHostContract().integration_points.find(
     (point) => point.trigger === 'remote_companion_connector',
