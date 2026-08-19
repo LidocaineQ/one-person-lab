@@ -16,7 +16,7 @@ const repoRoot = path.resolve(import.meta.dirname, '..', '..');
 const manifestRef = 'contracts/opl-framework/packages/opl-fleet-agent.json';
 const allowlistRef = 'contracts/opl-framework/package-payload-allowlists/opl-fleet-agent.json';
 const payloadRef = 'contracts/opl-framework/packages/payloads/opl-fleet-agent-0.2.40.json';
-const ownerCommit = '472101a1f59aab48270a1bab64a76e3206eef482';
+const ownerCommit = '98891d42eebf1b0b179144611659ae21ba610437';
 
 function readJson(relativePath: string) {
   return parseJsonText(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')) as Record<string, any>;
