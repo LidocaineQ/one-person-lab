@@ -5,6 +5,20 @@ Purpose: `decisions`
 State: `active_truth`
 Machine boundary: 本文是核心人读真相面。机器真相继续归 contracts、source、CLI/API 行为、runtime ledger、provider receipt、domain-owned manifest 和真实 workspace / App evidence。
 
+## 2026-08-19
+
+### 决策：Package 拓扑按真实生命周期逐级晋升，publication 与 repo 分开判断
+
+原因：OPL 有许多用途单一、随 owner repo 同步演进的实际 Package 或可复用模块。仅凭“代码通用”就独立发布或拆仓，会制造额外版本、currentness、兼容、凭据、发布和回退责任；反过来，把已经形成仓外 consumer 与独立生命周期的能力长期绑定在 owner repo 内，也会阻塞其独立演进。必须把 API 复用、Package publication 和 repo ownership 作为三个不同决策。
+
+影响：
+
+- Source unit 按四级梯度晋升：单一用途、单一 caller 且随 owner 同步演进的实现保留为 repo 内置模块；出现稳定 API 或多个仓内 consumer 时可成为 workspace Package；只有存在仓外真实 consumer、独立版本/发布节奏、稳定公开 ABI、明确 owner，以及 currentness、兼容和回退证据时，才成为独立发布 Package；只有 owner、权限/凭据、原生技术栈或运维生命周期也必须独立时，才进一步拆成独立 repo。
+- 独立发布 Package 可以继续留在 monorepo。publication boundary 回答“谁按什么版本交付给 consumer”，repo boundary 回答“谁独立持有源码、权限和运维”，两者不能互相推导。
+- “代码通用”只足以支持 API 或 workspace Package 边界，不足以支持独立发布或拆仓。真实 publication consumer 必须通过 canonical artifact 在仓外安装或导入并形成受支持调用链；同仓 import、workspace link、fixture、候选分支和 focused test 都不构成独立 publication 需求。
+- 没有真实触发时不保留 publication backlog，也不为想象中的未来 consumer 预建发布流水线、currentness、兼容层或独立 repo。出现 fresh 触发证据后，再为该 Package 建立单独 owner-gated publication lane。
+- 当前 `@one-person-lab/cordis-abi` 与 `@one-person-lab/package-host` 保持 workspace/source candidates；Runway executor、Foundry evaluation和 Connect discovery 继续由 Framework Host 直接持有。Weixin 具备独立 owner、版本、artifact、安装 consumer 与连接生命周期，Fleet Agent 具备独立原生技术栈、签名/公证和常驻生命周期，因此二者的独立 repo 有现实责任边界；这不能反推其他通用模块也应拆仓。
+
 ## 2026-08-16
 
 ### 决策：退休并归档 `opl-hermes-shell`
