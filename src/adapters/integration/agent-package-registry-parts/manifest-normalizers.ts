@@ -7,6 +7,7 @@ import { canonicalAgentPackageId } from '../agent-package-identity.ts';
 import { MANIFEST_REQUIRED_FIELDS } from './constants.ts';
 import {
   assertChannelProviderEntrypointsContentLocked,
+  assertRemoteCompanionEntrypointsContentLocked,
   normalizePackageEntrypoints,
 } from './channel-provider-entrypoint-contract.ts';
 import {
@@ -52,6 +53,7 @@ const APP_CONTRIBUTION_VIEW_TYPES = new Set<AgentPackageAppContributionViewType>
   'artifact_view',
   'activity_log',
   'channel_access',
+  'remote_companion_access',
 ]);
 const APP_CONTRIBUTION_BADGE_TONES = new Set([
   'neutral',
@@ -1575,9 +1577,11 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
   const entrypoints = normalizePackageEntrypoints(payload.entrypoints, manifestUrl);
   if (
     coreSkillIds.length === 0
-    && !entrypoints.some((entry) => entry.kind === 'channel_provider')
+    && !entrypoints.some((entry) => (
+      entry.kind === 'channel_provider' || entry.kind === 'remote_companion_connector'
+    ))
   ) {
-    throw new FrameworkContractError('contract_shape_invalid', 'Capability package must export at least one core skill unless it provides a channel provider entrypoint.', {
+    throw new FrameworkContractError('contract_shape_invalid', 'Capability package must export at least one core skill unless it provides a channel provider entrypoint or a remote companion connector entrypoint.', {
       manifest_url: manifestUrl,
       failure_code: 'invalid_capability_package_manifest',
     });
@@ -1619,6 +1623,7 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
   const contentLockPaths = uniqueStrings(stringList(payload.content_lock.paths).map((entry, index) =>
     normalizedRelativePath(entry, `content_lock.paths[${index}]`)));
   assertChannelProviderEntrypointsContentLocked(entrypoints, contentLockPaths, manifestUrl);
+  assertRemoteCompanionEntrypointsContentLocked(entrypoints, contentLockPaths, manifestUrl);
   const runtimeModuleBindings = normalizeRuntimeModuleBindings(
     payload.exports.runtime_module_bindings,
     contentLockPaths,

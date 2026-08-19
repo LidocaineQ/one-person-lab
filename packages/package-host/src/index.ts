@@ -32,6 +32,7 @@ export const WORKFLOW_PROFILE_HOST_CONTRACT_REF =
 export type PackageHostIntegrationKind =
   | 'standard_agent_runtime'
   | 'capability_provider'
+  | 'remote_companion_connector'
   | 'host_client'
   | 'workflow_profile_source';
 
@@ -41,6 +42,7 @@ export type PackageHostIntegrationTrigger =
   | 'foundry_binding'
   | 'app_contribution'
   | 'channel_provider'
+  | 'remote_companion_connector'
   | 'profile_materialization'
   | 'descriptor_discovery';
 
@@ -88,6 +90,57 @@ export type PackageHostChannelProviderContract = Readonly<{
   ];
 }>;
 
+export type PackageHostRemoteCompanionConnectorContract = Readonly<{
+  host_service_id: 'opl.connect.remote-companion-connector-host';
+  callback_api_version: '1.0.0';
+  activation: 'optional_shell_injected';
+  connector_source: 'installed_descriptor_entrypoint';
+  connector_identity: 'manifest_package_id';
+  conversation_methods: readonly [
+    'listDirectory',
+    'readHistory',
+    'startConversation',
+    'openConversation',
+    'sendMessage',
+    'subscribeEvents',
+    'stopTurn',
+    'respondApproval',
+    'refresh',
+  ];
+  protected_blob_port: 'package_scoped_opaque_uint8array';
+  protected_blob_max_bytes: 262144;
+  protected_blob_methods: readonly ['read', 'replace', 'clear'];
+  connector_factory: 'zero_argument_synchronous';
+  connector_start_fields: readonly [
+    'activation_context',
+    'canonical_conversation_bridge',
+    'protected_blob',
+  ];
+  activation_context_fields: readonly [
+    'environment',
+    'cohort_id',
+    'protocol_version',
+    'provider',
+    'service_origin',
+    'config_digest',
+    'package_content_digest',
+    'package_artifact_digest',
+  ];
+  remote_companion_access_controller: 'optional_descriptor_bound';
+  remote_companion_access_methods: readonly [
+    'readRemoteCompanionAccess',
+    'executeRemoteCompanionAction',
+  ];
+  forbidden_surfaces: readonly [
+    'second_cordis_host',
+    'second_app_server',
+    'provider_history_as_conversation_truth',
+    'conversation_history_persistence',
+    'credential_material_persistence',
+    'unrestricted_json_rpc',
+  ];
+}>;
+
 export type PackageHostIntegration = Readonly<{
   surface_kind: 'opl_package_host_integration.v1';
   integration_kind: PackageHostIntegrationKind;
@@ -99,6 +152,7 @@ export type PackageHostIntegration = Readonly<{
     teardown_owner: 'opl_host' | 'package';
   }>;
   channel_provider?: PackageHostChannelProviderContract;
+  remote_companion_connector?: PackageHostRemoteCompanionConnectorContract;
   authority_boundary: Readonly<{
     forbidden_authorities: readonly string[];
   }>;
@@ -492,3 +546,5 @@ export function assertPackageHostContext(payload: unknown): asserts payload is P
 export function validatePackageHostContext(payload: unknown) {
   return validateJsonSchemaPayload(contextSchemaEntry, payload);
 }
+
+export * from './remote-companion.ts';

@@ -11,6 +11,13 @@ export type ChannelProviderPackageEntrypoint = Readonly<{
   export_name: string;
 }>;
 
+export type RemoteCompanionConnectorPackageEntrypoint = Readonly<{
+  entrypoint_id: string;
+  kind: 'remote_companion_connector';
+  module_ref: string;
+  export_name: string;
+}>;
+
 function normalizedModuleRef(value: unknown, field: string) {
   const raw = assertStringValue(value, field);
   const normalized = path.posix.normalize(raw);
@@ -60,8 +67,15 @@ export function normalizePackageEntrypoints(
       failure_code: 'agent_package_channel_provider_entrypoint_invalid',
     });
   }
+  const remoteCompanionEntries = entries.filter((entry) => entry.kind === 'remote_companion_connector');
+  if (remoteCompanionEntries.length > 1) {
+    throw new FrameworkContractError('contract_shape_invalid', 'A Package may declare only one remote companion connector entrypoint.', {
+      manifest_url: manifestUrl,
+      failure_code: 'agent_package_remote_companion_connector_entrypoint_invalid',
+    });
+  }
   return entries.map((entry, index) => {
-    if (entry.kind !== 'channel_provider') return entry;
+    if (entry.kind !== 'channel_provider' && entry.kind !== 'remote_companion_connector') return entry;
     const unexpected = Object.keys(entry).filter((key) => ![
       'entrypoint_id',
       'kind',
@@ -78,16 +92,24 @@ export function normalizePackageEntrypoints(
       || !/^[a-z][a-z0-9._-]*$/.test(entrypointId)
       || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(exportName)
     ) {
-      throw new FrameworkContractError('contract_shape_invalid', 'Channel provider entrypoint declaration is invalid.', {
+      throw new FrameworkContractError(
+        'contract_shape_invalid',
+        entry.kind === 'channel_provider'
+          ? 'Channel provider entrypoint declaration is invalid.'
+          : 'Remote companion connector entrypoint declaration is invalid.',
+        {
         manifest_url: manifestUrl,
         entrypoint_index: index,
         unsupported_fields: unexpected,
-        failure_code: 'agent_package_channel_provider_entrypoint_invalid',
-      });
+        failure_code: entry.kind === 'channel_provider'
+          ? 'agent_package_channel_provider_entrypoint_invalid'
+          : 'agent_package_remote_companion_connector_entrypoint_invalid',
+        },
+      );
     }
     return {
       entrypoint_id: entrypointId,
-      kind: 'channel_provider',
+      kind: entry.kind,
       module_ref: normalizedModuleRef(
         entry.module_ref,
         `entrypoints[${index}].module_ref`,
@@ -114,6 +136,27 @@ export function assertChannelProviderEntrypointsContentLocked(
       manifest_url: manifestUrl,
       unlocked_entrypoint_refs: unlockedEntrypointRefs,
       failure_code: 'agent_package_channel_provider_entrypoint_unlocked',
+    });
+  }
+}
+
+export function assertRemoteCompanionEntrypointsContentLocked(
+  entrypoints: readonly Record<string, unknown>[],
+  contentLockPaths: readonly string[],
+  manifestUrl: string,
+) {
+  const unlockedEntrypointRefs = entrypoints.flatMap((entry) => (
+    entry.kind === 'remote_companion_connector'
+      && typeof entry.module_ref === 'string'
+      && !contentLockPaths.includes(entry.module_ref)
+      ? [entry.module_ref]
+      : []
+  ));
+  if (unlockedEntrypointRefs.length > 0) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Remote companion connector modules must be covered by the Package content lock.', {
+      manifest_url: manifestUrl,
+      unlocked_entrypoint_refs: unlockedEntrypointRefs,
+      failure_code: 'agent_package_remote_companion_connector_entrypoint_unlocked',
     });
   }
 }

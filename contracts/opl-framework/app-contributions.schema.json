@@ -148,7 +148,8 @@
             "task_board",
             "artifact_view",
             "activity_log",
-            "channel_access"
+            "channel_access",
+            "remote_companion_access"
           ]
         },
         "title_i18n": {

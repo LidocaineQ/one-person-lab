@@ -24,6 +24,13 @@ import {
   type CordisChannelProviderHostService,
 } from './plugins/cordis-channel-provider-host.ts';
 import {
+  CORDIS_REMOTE_COMPANION_CONNECTOR_HOST_PLUGIN_DESCRIPTOR,
+  CORDIS_REMOTE_COMPANION_CONNECTOR_HOST_SERVICE,
+  cordisRemoteCompanionConnectorHostPlugin,
+  type CordisRemoteCompanionConnectorHostPluginConfig,
+  type CordisRemoteCompanionConnectorHostService,
+} from './plugins/cordis-remote-companion-connector-host.ts';
+import {
   CORDIS_AUTOMATION_PROVIDER_HOST_PLUGIN_DESCRIPTOR,
   CORDIS_AUTOMATION_PROVIDER_HOST_SERVICE,
   cordisAutomationProviderHostPlugin,
@@ -33,7 +40,12 @@ import {
 import {
   discoverInstalledPackageDescriptors,
   loadInstalledChannelProviders,
+  loadInstalledRemoteCompanionConnectors,
 } from '../adapters/integration/index.ts';
+import type {
+  InstalledRemoteCompanionConnectorAttachment,
+  RemoteCompanionActivationContextResolver,
+} from '../adapters/integration/public/remote-companion-connector-entrypoints.ts';
 import {
   CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_PLUGIN_DESCRIPTOR,
   CORDIS_CONNECT_DESCRIPTOR_DISCOVERY_SERVICE,
@@ -153,6 +165,7 @@ type CordisAppFullServices = Omit<CordisBaseHeadlessServices, 'childFactories'> 
   >;
   frameworkReadiness: CordisFrameworkReadinessService;
   channelProviderHost: CordisChannelProviderHostService | null;
+  remoteCompanionHost: CordisRemoteCompanionConnectorHostService | null;
   automationProviderHost: CordisAutomationProviderHostService | null;
 };
 
@@ -204,6 +217,24 @@ export type CordisAutomationProviderHostBootstrap = Readonly<{
   actionCatalog(input?: Parameters<CordisAutomationProviderHostService['actionCatalog']>[0]):
     ReturnType<CordisAutomationProviderHostService['actionCatalog']>;
   appStatePatch(): Readonly<Record<string, unknown>>;
+  dispose(): Promise<void>;
+}>;
+
+export type CordisRemoteCompanionCompositionOptions = Readonly<
+  Omit<CordisRemoteCompanionConnectorHostPluginConfig, 'connectors'> & {
+    connectors?: readonly InstalledRemoteCompanionConnectorAttachment[];
+    activationContext?: RemoteCompanionActivationContextResolver;
+  }
+>;
+
+export type CordisRemoteCompanionConnectorHostBootstrap = Readonly<{
+  appStatePatch(): Readonly<Record<string, unknown>>;
+  readRemoteCompanionAccess(
+    input: Parameters<CordisRemoteCompanionConnectorHostService['readRemoteCompanionAccess']>[0],
+  ): ReturnType<CordisRemoteCompanionConnectorHostService['readRemoteCompanionAccess']>;
+  executeRemoteCompanionAction(
+    input: Parameters<CordisRemoteCompanionConnectorHostService['executeRemoteCompanionAction']>[0],
+  ): ReturnType<CordisRemoteCompanionConnectorHostService['executeRemoteCompanionAction']>;
   dispose(): Promise<void>;
 }>;
 
@@ -393,11 +424,13 @@ export async function createCordisAppFullComposition(options: {
   atlas?: CordisAtlasCatalogPluginConfig;
   connect?: CordisConnectDescriptorDiscoveryPluginConfig;
   channelProvider?: CordisChannelProviderHostPluginConfig;
+  remoteCompanion?: CordisRemoteCompanionCompositionOptions;
   automationProvider?: CordisAutomationProviderHostPluginConfig;
 }): Promise<CordisAppFullComposition> {
   const base = await createCordisBaseComposition('app-full', options);
   let readinessFiber: CordisFiber | null = null;
   let channelProviderFiber: CordisFiber | null = null;
+  let remoteCompanionFiber: CordisFiber | null = null;
   let automationProviderFiber: CordisFiber | null = null;
   try {
     const runtimeSnapshotProvider: RuntimeTraySnapshotProvider = (contracts, snapshotOptions) =>
@@ -408,6 +441,13 @@ export async function createCordisAppFullComposition(options: {
     readinessFiber = await base.ctx.plugin(cordisFrameworkReadinessPlugin, {
       runtimeSnapshotProvider,
     });
+    const installedRemoteCompanionConnectors = options.remoteCompanion
+      ? options.remoteCompanion.connectors
+        ?? await loadInstalledRemoteCompanionConnectors(
+          base.services.descriptorDiscovery.discover().values(),
+          { activationContext: options.remoteCompanion.activationContext },
+        )
+      : [];
     if (options.channelProvider) {
       const installedProviders = await loadInstalledChannelProviders(
         base.services.descriptorDiscovery.discover().values(),
@@ -417,6 +457,21 @@ export async function createCordisAppFullComposition(options: {
         {
           ...options.channelProvider,
           installedProviders,
+        },
+      );
+    }
+    if (installedRemoteCompanionConnectors.length > 0) {
+      remoteCompanionFiber = await base.ctx.plugin(
+        cordisRemoteCompanionConnectorHostPlugin,
+        {
+          canonical_conversation_bridge: options.remoteCompanion!.canonical_conversation_bridge,
+          connectors: installedRemoteCompanionConnectors,
+          ...(options.remoteCompanion!.protectedBlobHost
+            ? { protectedBlobHost: options.remoteCompanion!.protectedBlobHost }
+            : {}),
+          ...(options.remoteCompanion!.protectedBlobPort
+            ? { protectedBlobPort: options.remoteCompanion!.protectedBlobPort }
+            : {}),
         },
       );
     }
@@ -440,6 +495,9 @@ export async function createCordisAppFullComposition(options: {
         channelProviderHost: options.channelProvider
           ? requiredService(base.ctx, CORDIS_CHANNEL_PROVIDER_HOST_SERVICE)
           : null,
+        remoteCompanionHost: installedRemoteCompanionConnectors.length > 0
+          ? requiredService(base.ctx, CORDIS_REMOTE_COMPANION_CONNECTOR_HOST_SERVICE)
+          : null,
         automationProviderHost: options.automationProvider
           ? requiredService(base.ctx, CORDIS_AUTOMATION_PROVIDER_HOST_SERVICE)
           : null,
@@ -448,10 +506,14 @@ export async function createCordisAppFullComposition(options: {
         ...CORDIS_BASE_HEADLESS_PLUGIN_DESCRIPTORS,
         CORDIS_CONSOLE_READINESS_PLUGIN_DESCRIPTOR,
         ...(options.channelProvider ? [CORDIS_CHANNEL_PROVIDER_HOST_PLUGIN_DESCRIPTOR] : []),
+        ...(installedRemoteCompanionConnectors.length > 0
+          ? [CORDIS_REMOTE_COMPANION_CONNECTOR_HOST_PLUGIN_DESCRIPTOR]
+          : []),
         ...(options.automationProvider ? [CORDIS_AUTOMATION_PROVIDER_HOST_PLUGIN_DESCRIPTOR] : []),
       ], ['agent_executor_request', 'runway_attempt', 'pack_stagecraft_route']),
       async dispose() {
         await automationProviderFiber?.dispose();
+        await remoteCompanionFiber?.dispose();
         await channelProviderFiber?.dispose();
         await readinessFiber?.dispose();
         await base.dispose();
@@ -459,11 +521,37 @@ export async function createCordisAppFullComposition(options: {
     };
   } catch (error) {
     await automationProviderFiber?.dispose();
+    await remoteCompanionFiber?.dispose();
     await channelProviderFiber?.dispose();
     await readinessFiber?.dispose();
     await base.dispose();
     throw error;
   }
+}
+
+export async function startCordisRemoteCompanionConnectorHost(
+  options: CordisRemoteCompanionCompositionOptions,
+): Promise<CordisRemoteCompanionConnectorHostBootstrap> {
+  const composition = await createCordisAppFullComposition({
+    runtimeSnapshotProvider: async (contracts, snapshotOptions) => {
+      const { buildRuntimeTraySnapshot } = await import(
+        '../read-models/operator/runtime-tray-snapshot.ts'
+      );
+      return buildRuntimeTraySnapshot(contracts, snapshotOptions);
+    },
+    remoteCompanion: options,
+  });
+  const host = composition.services.remoteCompanionHost;
+  if (!host) {
+    await composition.dispose();
+    throw new Error('No callable remote companion connector Package was installed.');
+  }
+  return Object.freeze({
+    appStatePatch: () => host.appStatePatch(),
+    readRemoteCompanionAccess: (input) => host.readRemoteCompanionAccess(input),
+    executeRemoteCompanionAction: (input) => host.executeRemoteCompanionAction(input),
+    dispose: () => composition.dispose(),
+  });
 }
 
 export async function startCordisChannelProviderHost(options: {

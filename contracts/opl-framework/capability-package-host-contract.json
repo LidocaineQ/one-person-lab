@@ -71,6 +71,25 @@
         "required_missing": "reject_launch",
         "optional_missing": "diagnostic_only"
       }
+    },
+    {
+      "integration_id": "capability-package.remote-companion-connector",
+      "trigger": "remote_companion_connector",
+      "allowed_profiles": ["app-full"],
+      "requirements": {
+        "required": [
+          {
+            "service_id": "opl.connect.remote-companion-connector-host",
+            "api_versions": ["1.0.0"],
+            "scope": "composition"
+          }
+        ],
+        "optional": []
+      },
+      "failure_policy": {
+        "required_missing": "reject_launch",
+        "optional_missing": "diagnostic_only"
+      }
     }
   ],
   "composition_policy": {
@@ -102,6 +121,60 @@
       "secret_persistence",
       "session_persistence",
       "thread_persistence"
+    ]
+  },
+  "remote_companion_connector": {
+    "host_service_id": "opl.connect.remote-companion-connector-host",
+    "callback_api_version": "1.0.0",
+    "activation": "optional_shell_injected",
+    "connector_source": "installed_descriptor_entrypoint",
+    "connector_identity": "manifest_package_id",
+    "conversation_methods": [
+      "listDirectory",
+      "readHistory",
+      "startConversation",
+      "openConversation",
+      "sendMessage",
+      "subscribeEvents",
+      "stopTurn",
+      "respondApproval",
+      "refresh"
+    ],
+    "protected_blob_port": "package_scoped_opaque_uint8array",
+    "protected_blob_max_bytes": 262144,
+    "protected_blob_methods": [
+      "read",
+      "replace",
+      "clear"
+    ],
+    "connector_factory": "zero_argument_synchronous",
+    "connector_start_fields": [
+      "activation_context",
+      "canonical_conversation_bridge",
+      "protected_blob"
+    ],
+    "activation_context_fields": [
+      "environment",
+      "cohort_id",
+      "protocol_version",
+      "provider",
+      "service_origin",
+      "config_digest",
+      "package_content_digest",
+      "package_artifact_digest"
+    ],
+    "remote_companion_access_controller": "optional_descriptor_bound",
+    "remote_companion_access_methods": [
+      "readRemoteCompanionAccess",
+      "executeRemoteCompanionAction"
+    ],
+    "forbidden_surfaces": [
+      "second_cordis_host",
+      "second_app_server",
+      "provider_history_as_conversation_truth",
+      "conversation_history_persistence",
+      "credential_material_persistence",
+      "unrestricted_json_rpc"
     ]
   },
   "authority_boundary": {

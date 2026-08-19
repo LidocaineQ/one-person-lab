@@ -145,10 +145,20 @@
       "if": {
         "properties": {
           "entrypoints": {
-            "contains": {
-              "properties": { "kind": { "const": "channel_provider" } },
-              "required": ["kind"]
-            }
+            "anyOf": [
+              {
+                "contains": {
+                  "properties": { "kind": { "const": "channel_provider" } },
+                  "required": ["kind"]
+                }
+              },
+              {
+                "contains": {
+                  "properties": { "kind": { "const": "remote_companion_connector" } },
+                  "required": ["kind"]
+                }
+              }
+            ]
           }
         },
         "required": ["entrypoints"]
@@ -183,7 +193,9 @@
       "allOf": [
         {
           "if": {
-            "properties": { "kind": { "const": "channel_provider" } },
+            "properties": {
+              "kind": { "enum": ["channel_provider", "remote_companion_connector"] }
+            },
             "required": ["kind"]
           },
           "then": { "required": ["module_ref", "export_name"] }
@@ -391,7 +403,8 @@
                   "task_board",
                   "artifact_view",
                   "activity_log",
-                  "channel_access"
+                  "channel_access",
+                  "remote_companion_access"
                 ]
               },
               "title_i18n": { "$ref": "#/$defs/app_contribution_localized_text" },

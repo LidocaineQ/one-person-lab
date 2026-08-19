@@ -46,7 +46,8 @@ export type AgentPackageAppContributionViewType =
   | 'task_board'
   | 'artifact_view'
   | 'activity_log'
-  | 'channel_access';
+  | 'channel_access'
+  | 'remote_companion_access';
 
 export type AgentPackageAppContributionUiSlot =
   | 'composer.palette'

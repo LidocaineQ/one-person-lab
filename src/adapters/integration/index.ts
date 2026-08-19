@@ -64,6 +64,9 @@ export {
 export type { CordisConnectDescriptorDiscoveryService } from './public/descriptor-discovery.ts';
 export { loadInstalledChannelProviders } from './public/channel-provider-entrypoints.ts';
 export {
+  loadInstalledRemoteCompanionConnectors,
+} from './public/remote-companion-connector-entrypoints.ts';
+export {
   admitReleaseBundleOperation,
   buildReleaseBundle,
   buildReleaseBundleConsumerEnvelope,
