@@ -14,6 +14,7 @@ import {
   runCliFailure,
   test,
 } from './helpers.ts';
+import { pathToFileURL } from 'node:url';
 import { validateJsonSchemaPayload } from '../../../../../src/kernel/schema-registry.ts';
 import {
   normalizeAgentPluginName,
@@ -326,6 +327,7 @@ test('directory actions project the exact settings ABI while the settings catalo
 
     const settingsCatalog = listAgentPackageSettingsActions();
     assert.deepEqual(settingsCatalog.map((action) => action.action_id), [
+      'install_from_manifest_url',
       'agent_package_install',
       'agent_package_update',
       'agent_package_repair',
@@ -338,6 +340,59 @@ test('directory actions project the exact settings ABI while the settings catalo
       settingsCatalog.find((action) => action.action_id === 'agent_package_preferences_set')?.payload_fields,
       ['package_id', 'exposure_action', 'shortcut_id', 'visible', 'sort_order'],
     );
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
+test('manual Agent manifest install validates the manifest and keeps dry-run side-effect free', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-manual-agent-manifest-install-'));
+  const manifestPath = path.join(root, 'agent.json');
+  const binary = path.join(root, 'fake-codex.mjs');
+  const callsPath = path.join(root, 'calls.log');
+  const manifest = agentPackageManifest({
+    packageId: 'third.party.manual',
+    agentId: 'third-party-manual',
+    pluginId: 'third-party-manual@manual-carrier',
+  });
+  (manifest.codex_surface as Record<string, unknown>).configured_codex_plugin_carrier = {
+    kind: 'codex_plugin_manager',
+    plugin_selector: 'third-party-manual@manual-carrier',
+    marketplace_source: null,
+    executor_route: 'codex_cli',
+  };
+  fs.writeFileSync(manifestPath, formatJsonPayload(manifest));
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+import fs from 'node:fs';
+fs.appendFileSync(${JSON.stringify(callsPath)}, process.argv.slice(2).join(' ') + '\\n');
+if (process.argv.slice(2).join(' ') === 'plugin list --json') {
+  process.stdout.write(JSON.stringify({ installed: [], available: [] }));
+} else {
+  process.exitCode = 23;
+}
+`);
+  fs.chmodSync(binary, 0o755);
+  try {
+    const output = runCli([
+      'packages', 'install',
+      '--manifest-url', pathToFileURL(manifestPath).href,
+      '--trust-tier', 'third_party_verified',
+      '--dry-run',
+    ], {
+      HOME: root,
+      CODEX_HOME: path.join(root, 'codex-home'),
+      OPL_STATE_DIR: path.join(root, 'opl-state'),
+      OPL_CODEX_PLUGIN_BIN: binary,
+    }) as any;
+    const result = output.opl_agent_package_install;
+    assert.equal(result.status, 'validated_no_write');
+    assert.equal(result.dry_run, true);
+    assert.equal(result.package_id, 'third.party.manual');
+    assert.equal(result.manifest_url, pathToFileURL(manifestPath).href);
+    assert.equal(result.trust_tier, 'third_party_verified');
+    assert.equal(result.configured_carrier.native_action_dispatched, false);
+    assert.equal(fs.readFileSync(callsPath, 'utf8').trim(), 'plugin list --json');
+    assert.equal(fs.existsSync(path.join(root, 'opl-state')), false);
   } finally {
     removeFixtureTree(root);
   }

@@ -64,8 +64,33 @@ function parsePackageSelection(
     });
   }
   const selectedPackageId = positional.packageId ?? optionPackageId;
+  const manifestUrl = readOptionalString(parsed['manifest-url']);
+  const trustTier = readOptionalString(parsed['trust-tier']);
+  if (manifestUrl && selectedPackageId) {
+    throw buildUsageError(`${command} accepts a package id or --manifest-url, not both.`, spec, {
+      conflicting: ['<package_id>', '--manifest-url'],
+    });
+  }
+  if (manifestUrl && trustTier !== 'third_party_unverified' && trustTier !== 'third_party_verified') {
+    throw buildUsageError(`${command} requires --trust-tier with --manifest-url.`, spec, {
+      required: ['--trust-tier'],
+      allowed_trust_tiers: ['third_party_unverified', 'third_party_verified'],
+    });
+  }
+  if (!manifestUrl && trustTier) {
+    throw buildUsageError(`${command} accepts --trust-tier only with --manifest-url.`, spec, {
+      conflicting: ['--trust-tier', '<package_id>'],
+    });
+  }
+  if (!selectedPackageId && !manifestUrl) {
+    throw buildUsageError(`${command} requires a package id or --manifest-url.`, spec, {
+      required: ['<package_id> or --manifest-url'],
+    });
+  }
   return {
     packageId: selectedPackageId,
+    manifestUrl,
+    trustTier: trustTier as AgentPackageInstallInput['trustTier'],
     dryRun: parsed['dry-run'] === true,
   };
 }
@@ -194,11 +219,12 @@ export function buildPackagesCommandSpecs(
       ),
     },
     'packages install': {
-      usage: 'opl packages install <package_id> [--dry-run]',
-      summary: 'Install one Package through its native carrier and return fresh carrier readback.',
+      usage: 'opl packages install <package_id> [--dry-run] | --manifest-url <url> --trust-tier <tier> [--dry-run]',
+      summary: 'Install one Package through its native carrier, or validate and install a third-party Agent manifest.',
       examples: [
         'opl packages install rca --json',
         'opl packages install opl-flow --json',
+        'opl packages install --manifest-url https://example.com/agent.json --trust-tier third_party_verified --dry-run --json',
       ],
       group: 'packages',
       help_surface: 'default',

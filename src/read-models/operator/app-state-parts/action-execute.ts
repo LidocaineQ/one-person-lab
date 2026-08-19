@@ -45,6 +45,7 @@ import { buildRuntimeTraySnapshot } from '../runtime-tray-snapshot.ts';
 import {
   agentPackageIdPayload,
   agentPackageInstallPayload,
+  agentPackageManifestInstallPayload,
   agentPackagePreferencesPayload,
   dockerWebuiSeedEnv,
   modulePayload,
@@ -630,6 +631,16 @@ async function executeDirectAppAction(
       delegatedSurface: requireAgentPackageDelegatedSurface(options.actionId),
       result: await runOplAgentPackageInstall({
         ...installPayload,
+        dryRun: options.dryRun,
+      }),
+    };
+  }
+
+  if (options.actionId === 'install_from_manifest_url') {
+    return {
+      delegatedSurface: requireAgentPackageDelegatedSurface(options.actionId),
+      result: await runOplAgentPackageInstall({
+        ...agentPackageManifestInstallPayload(options.payload),
         dryRun: options.dryRun,
       }),
     };

@@ -3,9 +3,11 @@ import path from 'node:path';
 
 import { deriveAgentPackageLaunchState } from '../../kernel/agent-package-launch-state.ts';
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
+import { parseJsonText } from '../../kernel/json-file.ts';
 import { refsOnlyAuthorityBoundary } from '../../kernel/refs-only-authority-boundary.ts';
 import { resolveOplStatePaths } from '../../kernel/runtime-state-paths.ts';
 import { canonicalAgentPackageId } from './agent-package-identity.ts';
+import { isFirstPartyPackage } from './agent-package-first-party.ts';
 import { listAgentPackageSettingsActions } from './agent-package-actions.ts';
 import {
   discoverAvailablePackageDescriptors,
@@ -29,6 +31,7 @@ import {
   managedPolicyCurrentnessFromDescriptor,
   repairManagedPolicyDependenciesFromDescriptor,
 } from './agent-package-registry-parts/managed-policy-surface.ts';
+import { normalizePackageManifest } from './agent-package-registry-parts/manifest-normalizers.ts';
 import { sha256Text } from './agent-package-registry-parts/shared.ts';
 import { materializeStandardAgentFrameworkLink } from './standard-agent-framework-link.ts';
 import type {
@@ -86,6 +89,92 @@ function requirePackageId(value: string | null | undefined, action: string) {
     });
   }
   return packageId;
+}
+
+function assertManualManifestUrl(value: string | null | undefined) {
+  const source = stringValue(value);
+  if (!source) {
+    throw new FrameworkContractError('cli_usage_error', 'Manual Agent installation requires a manifest URL.', {
+      action_id: 'install_from_manifest_url',
+      required: ['manifest_url'],
+    });
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(source);
+  } catch {
+    throw new FrameworkContractError('cli_usage_error', 'Agent manifest URL is invalid.', {
+      action_id: 'install_from_manifest_url',
+      manifest_url: source,
+    });
+  }
+  const loopbackHttp = parsed.protocol === 'http:'
+    && ['127.0.0.1', '::1', 'localhost'].includes(parsed.hostname.toLowerCase());
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'file:' && !loopbackHttp) {
+    throw new FrameworkContractError('cli_usage_error', 'Agent manifest URL must use HTTPS, file, or loopback HTTP.', {
+      action_id: 'install_from_manifest_url',
+      manifest_url: source,
+      allowed_protocols: ['https', 'file', 'loopback_http'],
+    });
+  }
+  return parsed;
+}
+
+async function readManualAgentManifest(input: AgentPackageInstallInput) {
+  const source = assertManualManifestUrl(input.manifestUrl);
+  if (input.trustTier !== 'third_party_unverified' && input.trustTier !== 'third_party_verified') {
+    throw new FrameworkContractError('cli_usage_error', 'Manual Agent installation requires an explicit third-party trust tier.', {
+      action_id: 'install_from_manifest_url',
+      required: ['trust_tier'],
+      allowed_trust_tiers: ['third_party_unverified', 'third_party_verified'],
+    });
+  }
+  let raw: string;
+  if (source.protocol === 'file:') {
+    raw = fs.readFileSync(source, 'utf8');
+  } else {
+    const response = await fetch(source, { signal: AbortSignal.timeout(30_000) });
+    if (!response.ok) {
+      throw new FrameworkContractError('codex_command_failed', 'Agent manifest fetch failed.', {
+        manifest_url: source.toString(),
+        status: response.status,
+      });
+    }
+    raw = await response.text();
+  }
+  let manifest;
+  try {
+    manifest = normalizePackageManifest(parseJsonText(raw), source.toString());
+  } catch (error) {
+    if (error instanceof FrameworkContractError) throw error;
+    throw new FrameworkContractError('contract_json_invalid', 'Agent manifest must be valid JSON.', {
+      manifest_url: source.toString(),
+      cause: error instanceof Error ? error.message : String(error),
+    });
+  }
+  if (manifest.package_role !== 'standard_agent' && manifest.package_role !== 'workflow_profile') {
+    throw new FrameworkContractError('contract_shape_invalid', 'The Add Agent flow accepts Agent or workflow Packages only.', {
+      manifest_url: source.toString(),
+      package_id: manifest.package_id,
+      package_role: manifest.package_role,
+      allowed_package_roles: ['standard_agent', 'workflow_profile'],
+    });
+  }
+  if (isFirstPartyPackage(manifest.package_id)) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Manual manifests cannot claim an OPL-managed Package identity.', {
+      manifest_url: source.toString(),
+      package_id: manifest.package_id,
+      failure_code: 'manual_manifest_first_party_identity_forbidden',
+    });
+  }
+  if (!manifest.configured_codex_plugin_carrier) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Agent manifest must declare a configured Codex Plugin carrier.', {
+      manifest_url: source.toString(),
+      package_id: manifest.package_id,
+      failure_code: 'manual_manifest_native_carrier_missing',
+    });
+  }
+  return { manifest, source: source.toString(), raw };
 }
 
 function requireDescriptor(
@@ -240,6 +329,7 @@ function projectDirectoryAction(action: AgentPackageSettingsAction, packageId: s
 
 function actionEntries(installed: boolean, packageId: string) {
   return listAgentPackageSettingsActions()
+    .filter((action) => action.action_id !== 'install_from_manifest_url')
     .filter((action) => installed
       ? action.action_id !== 'agent_package_install'
       : action.action_id === 'agent_package_install')
@@ -518,6 +608,41 @@ function nativeLifecycleResult(
 }
 
 export async function runOplAgentPackageInstall(input: AgentPackageInstallInput) {
+  if (input.manifestUrl) {
+    const selected = await readManualAgentManifest(input);
+    const result = nativeLifecycleResult('install', input, {
+      manifest: selected.manifest,
+      manifestPath: selected.source,
+      manifest_sha256: sha256Text(selected.raw),
+      sourcePath: selected.source,
+      pluginId: selected.manifest.configured_codex_plugin_carrier!.carrier.pluginId,
+      marketplaceSource: selected.manifest.configured_codex_plugin_carrier!.carrier.marketplaceSource,
+      enabled: false,
+      carrier: selected.manifest.configured_codex_plugin_carrier!,
+      carrier_readback: {
+        kind: 'codex_plugin_manager',
+        identity: selected.manifest.configured_codex_plugin_carrier!.carrier.pluginId,
+        source_ref: selected.source,
+        version: selected.manifest.version,
+        enabled: false,
+        lifecycle_authority: 'carrier_owned',
+      },
+      readiness: {
+        installed: false,
+        physical_status: 'unavailable',
+        callability: 'disabled',
+      },
+    });
+    return {
+      version: 'g2' as const,
+      opl_agent_package_install: {
+        surface_kind: 'opl_agent_package_install' as const,
+        ...result,
+        manifest_url: selected.source,
+        trust_tier: input.trustTier,
+      },
+    };
+  }
   return {
     version: 'g2' as const,
     opl_agent_package_install: {

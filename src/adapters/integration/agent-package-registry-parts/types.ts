@@ -12,6 +12,8 @@ export type AgentPackageAuthorityBoundary = {
 
 export type AgentPackageInstallInput = {
   packageId?: string | null;
+  manifestUrl?: string | null;
+  trustTier?: 'third_party_unverified' | 'third_party_verified' | null;
   dryRun?: boolean;
 };
 

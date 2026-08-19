@@ -93,6 +93,7 @@ test('app action catalog exposes representative safe delegated action refs', () 
       'settings_configure_webui_api_key',
       'task_action_receipt_preview',
       'opl_pack_provision_submission_resource',
+      'install_from_manifest_url',
     ]) {
       assert.ok(actions.has(actionId), `missing App action: ${actionId}`);
       const delegatedSurface = actions.get(actionId)?.delegated_surface ?? '';
@@ -105,6 +106,9 @@ test('app action catalog exposes representative safe delegated action refs', () 
     }
     assert.deepEqual(actions.get('module_sync')?.payload_fields, []);
     assert.equal(actions.get('module_sync')?.delegated_surface, 'opl packages update');
+    assert.deepEqual(actions.get('install_from_manifest_url')?.payload_fields, ['manifest_url', 'trust_tier']);
+    assert.equal(actions.get('install_from_manifest_url')?.dry_run_supported, true);
+    assert.equal(actions.get('install_from_manifest_url')?.confirmation_required, true);
     assert.equal(actions.has('refresh_registry'), false);
     assert.equal(actions.has('scholarskills_workspace_sync'), false);
     assert.equal(actions.has('scholarskills_quest_sync'), false);
@@ -290,7 +294,6 @@ test('retired App action aliases cannot execute through the generic action shell
     for (const actionId of [
       'scholarskills_workspace_sync',
       'scholarskills_quest_sync',
-      'install_from_manifest_url',
       'agent_package_install_from_manifest_url',
       'agent_package_activate',
     ]) {

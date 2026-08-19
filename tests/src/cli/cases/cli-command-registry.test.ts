@@ -35,7 +35,7 @@ const registryCases = [
   ['connect update', 'connect_update', ['module'], undefined],
   ['connect reinstall', 'connect_reinstall', ['module'], undefined],
   ['connect remove', 'connect_remove', ['module'], undefined],
-  ['packages install', 'packages_install', ['package-id', 'dry-run'], 'OPL Packages'],
+  ['packages install', 'packages_install', ['package-id', 'dry-run', 'manifest-url', 'trust-tier'], 'OPL Packages'],
   ['packages status', 'packages_status', ['package-id'], 'OPL Packages'],
   ['packages update', 'packages_update', ['package-id', 'dry-run'], 'OPL Packages'],
   ['packages repair', 'packages_repair', ['package-id', 'dry-run'], 'OPL Packages'],

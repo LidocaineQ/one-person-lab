@@ -150,6 +150,22 @@ export function agentPackageInstallPayload(payload: JsonRecord) {
   return agentPackageIdPayload('agent_package_install', payload);
 }
 
+export function agentPackageManifestInstallPayload(payload: JsonRecord) {
+  const manifestUrl = stringPayloadField(payload, 'manifest_url');
+  const trustTier = stringPayloadField(payload, 'trust_tier');
+  if (!manifestUrl || (trustTier !== 'third_party_unverified' && trustTier !== 'third_party_verified')) {
+    throw new FrameworkContractError('cli_usage_error', 'install_from_manifest_url requires manifest_url and an explicit trust_tier.', {
+      action_id: 'install_from_manifest_url',
+      required: ['manifest_url', 'trust_tier'],
+      allowed_trust_tiers: ['third_party_unverified', 'third_party_verified'],
+    });
+  }
+  return {
+    manifestUrl,
+    trustTier: trustTier as 'third_party_unverified' | 'third_party_verified',
+  };
+}
+
 export function agentPackageIdPayload(actionId: string, payload: JsonRecord) {
   const packageId = stringPayloadField(payload, 'package_id')
     ?? stringPayloadField(payload, 'packageId');

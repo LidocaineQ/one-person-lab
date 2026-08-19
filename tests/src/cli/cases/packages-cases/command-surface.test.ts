@@ -48,6 +48,7 @@ test('package help surface keeps lifecycle commands ordinary and routes internal
   ]);
   assert.equal(commandSpecs['packages activate'], undefined);
   assert.match(commandSpecs['packages install']!.summary, /native carrier/);
+  assert.match(commandSpecs['packages install']!.usage, /manifest-url/);
   assert.match(commandSpecs['packages update']!.summary, /native carrier/);
   assert.doesNotMatch(commandSpecs['packages install']!.summary, /Release Set/);
   assert.doesNotMatch(commandSpecs['packages update']!.summary, /Release Set/);

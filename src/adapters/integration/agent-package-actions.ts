@@ -1,4 +1,5 @@
 export type AgentPackageAppActionId =
+  | 'install_from_manifest_url'
   | 'agent_package_install'
   | 'agent_package_update'
   | 'agent_package_repair'
@@ -30,6 +31,22 @@ export type AgentPackageActionCatalogEntry = {
 };
 
 const AGENT_PACKAGE_ACTION_CATALOG = [
+  {
+    action_id: 'install_from_manifest_url',
+    stable_id: 'install_agent_package_from_manifest_url',
+    label: 'Install agent from manifest',
+    section_id: 'capabilities',
+    task_kind: 'install',
+    taxonomy: 'settings.capabilities.agent_package.install_from_manifest',
+    delegated_surface: 'opl packages install --manifest-url <manifest_url> --trust-tier <trust_tier>',
+    payload_fields: ['manifest_url', 'trust_tier'],
+    mutates: 'native_package_carrier',
+    dry_run_supported: true,
+    confirmation_required: true,
+    danger_level: 'medium',
+    impact: 'Validates one third-party Agent manifest before delegating installation to its declared native carrier.',
+    follow_up_action_ids: [],
+  },
   {
     action_id: 'agent_package_install',
     stable_id: 'install_agent_package',

@@ -4131,14 +4131,32 @@
           "value_kind": "boolean",
           "required": false,
           "summary": "Validate and preview the native carrier action without writing state."
+        },
+        {
+          "name": "manifest-url",
+          "flag": "--manifest-url",
+          "value_kind": "string",
+          "required": false,
+          "summary": "HTTPS, file, or loopback HTTP URL for a third-party Agent Package manifest."
+        },
+        {
+          "name": "trust-tier",
+          "flag": "--trust-tier",
+          "value_kind": "string",
+          "required": false,
+          "allowed_values": [
+            "third_party_unverified",
+            "third_party_verified"
+          ],
+          "summary": "Explicit trust tier for a manually supplied third-party manifest."
         }
       ],
       "output_schema": {
         "type": "object",
-        "required": [
-          "version",
-          "opl_agent_package_install"
-        ],
+      "required": [
+        "version",
+        "opl_agent_package_install"
+      ],
         "additionalProperties": true,
         "properties": {
           "version": {
@@ -4170,8 +4188,8 @@
       "positional_args": [
         {
           "name": "package_id",
-          "required": true,
-          "summary": "First-party OPL Package id or alias."
+          "required": false,
+          "summary": "First-party OPL Package id or alias; omit when using --manifest-url."
         }
       ]
     },
@@ -4294,8 +4312,8 @@
       "positional_args": [
         {
           "name": "package_id",
-          "required": true,
-          "summary": "First-party OPL Package id or alias."
+          "required": false,
+          "summary": "First-party OPL Package id or alias; omit when using --manifest-url."
         }
       ]
     },
