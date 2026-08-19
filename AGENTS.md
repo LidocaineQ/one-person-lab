@@ -4,6 +4,8 @@
 
 - Framework 持有通用 runtime、Package activation/discovery、projection、installed aggregation 和 shared contracts；领域 truth、quality verdict、artifact authority 仍归 MAS、MAG、RCA 等领域 owner。
 - One Person Lab App 持有桌面产品、GUI 和发布产品 truth；AionUI 与 Studio Shell 仓只承载对应实现，已退休的 Hermes 仓只保留 read-only Git provenance。
+- AionCore 是只读的官方上游依赖，不是 OPL 维护面。不得为解决 OPL 问题建立或维护 AionCore fork、提交 AionCore PR/补丁，或把本地修改版纳入产品；问题必须在 OPL 自有 App/Shell 边界解决，版本升级只采用官方未修改的 release。
+- 不得单独替换或热更新 `/Applications/One Person Lab.app` 内正在运行的 AionCore 二进制。AionCore 升级必须随完整 OPL App 构建和安装完成，并回读 App bundle、AionCore 与其 bundled Codex CLI 的实际版本。
 - Package 是安装单元，Skill、Tool、Plugin、MCP 和 entrypoint 是 descriptor 可发现能力；Package identity、物理 carrier、executor route 与 publication/currentness 必须分离。
 - 新 Package/Agent 通过 installed descriptor 动态发现；不得新增固定 Package、Agent、Plugin 或 Module 清单，也不得让 App starter profile 反向成为 Framework registry。
 - Package 依赖只声明 required/optional presence 与可调用入口。稳定 identity 只能兼容扩展；删除旧 identity 前须有 fresh no-active-consumer proof。
