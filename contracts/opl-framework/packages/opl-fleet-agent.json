@@ -1,10 +1,10 @@
 {
   "surface_kind": "opl_capability_package_manifest.v2",
   "package_id": "opl-fleet-agent",
-  "display_name": "OPL Fleet Agent",
+  "display_name": "OPL Fleet Agent Integration",
   "publisher": "one-person-lab",
   "version": "0.2.40",
-  "source": "first_party",
+  "source": "first_party_owner_projection",
   "package_role": "capability_package",
   "source_repo": "https://github.com/gaofeng21cn/opl-fleet-agent.git",
   "publication_source": {
@@ -12,7 +12,7 @@
     "owner_package_manifest_ref": "plugins/opl-fleet-agent/opl-package.json",
     "owner_plugin_manifest_ref": "plugins/opl-fleet-agent/plugin.json"
   },
-  "machine_boundary": "This Package projects sanitized node-local observations from the installed native OPL Fleet Agent. It does not own native installation, collection, upgrade, fleet admission, leases, dispatch, task completion, execution constraints, receipts, or Cordis Host truth.",
+  "machine_boundary": "This optional read-only adapter projects sanitized node-local observations from the installed native OPL Fleet Agent. It is not a dependency of installing or running the native OPL Fleet Agent.app. It does not own native installation, collection, upgrade, fleet admission, leases, dispatch, task completion, execution constraints, receipts, or Cordis Host truth.",
   "schema_ref": "one-person-lab/contracts/opl-framework/capability-package-manifest.schema.json",
   "capability_abi": {
     "id": "opl-fleet-agent.capabilities",
@@ -41,13 +41,13 @@
       "skills/opl-fleet-agent/SKILL.md",
       "skills/opl-fleet-agent/agents/openai.yaml"
     ],
-    "digest": "sha256:bfaa5318bbe5212be7e601089f1de6375f79d2b98c6864d7dcf2165a87fc4b0d"
+    "digest": "sha256:e31ecdef2a18e45af57a871af70732aebf137bf56f123f3ea0047ad3e415383f"
   },
   "codex_surface": {
     "plugin_id": "opl-fleet-agent",
     "plugin_source_path": ".",
     "plugin_payload_manifest_url": "payloads/opl-fleet-agent-0.2.40.json",
-    "carrier_source_commit": "98891d42eebf1b0b179144611659ae21ba610437",
+    "carrier_source_commit": "472101a1f59aab48270a1bab64a76e3206eef482",
     "configured_codex_plugin_carrier": {
       "kind": "codex_plugin_manager",
       "plugin_selector": "opl-fleet-agent@opl-fleet-agent",
@@ -115,25 +115,6 @@
         "tone": "neutral"
       }
     ],
-    "ui": [
-      {
-        "contribution_id": "fleet.agent.telemetry-settings",
-        "slot": "settings.section",
-        "contribution_kind": "view",
-        "trust_tier": "declarative",
-        "scope": "root",
-        "sort_order": 300,
-        "view_id": "fleet.agent.telemetry"
-      },
-      {
-        "contribution_id": "fleet.agent.doctor-settings",
-        "slot": "settings.section",
-        "contribution_kind": "view",
-        "trust_tier": "declarative",
-        "scope": "root",
-        "sort_order": 310,
-        "view_id": "fleet.agent.doctor"
-      }
-    ]
+    "ui": []
   }
 }

@@ -16,7 +16,7 @@ const repoRoot = path.resolve(import.meta.dirname, '..', '..');
 const manifestRef = 'contracts/opl-framework/packages/opl-fleet-agent.json';
 const allowlistRef = 'contracts/opl-framework/package-payload-allowlists/opl-fleet-agent.json';
 const payloadRef = 'contracts/opl-framework/packages/payloads/opl-fleet-agent-0.2.40.json';
-const ownerCommit = '98891d42eebf1b0b179144611659ae21ba610437';
+const ownerCommit = '472101a1f59aab48270a1bab64a76e3206eef482';
 
 function readJson(relativePath: string) {
   return parseJsonText(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')) as Record<string, any>;
@@ -59,6 +59,8 @@ test('Fleet Agent owner projection is a schema-valid capability Package with one
   );
 
   assert.equal(manifest.package_id, 'opl-fleet-agent');
+  assert.equal(manifest.display_name, 'OPL Fleet Agent Integration');
+  assert.equal(manifest.source, 'first_party_owner_projection');
   assert.equal(manifest.codex_surface.plugin_id, 'opl-fleet-agent');
   assert.deepEqual(manifest.capability_abi, {
     id: 'opl-fleet-agent.capabilities',
@@ -94,30 +96,27 @@ test('Fleet Agent owner projection is a schema-valid capability Package with one
   assert.equal(manifest.codex_surface.carrier_source_commit, ownerCommit);
 });
 
-test('Fleet Agent contributions project into declarative settings slots without lifecycle actions', () => {
+test('Fleet Agent views remain readable without projecting ordinary Settings UI', () => {
   const manifest = normalizedManifest();
+  const contributions = manifest.app_contributions;
+  assert.ok(contributions);
   const projection = buildAppUiContributionsProjection({
     'opl-fleet-agent': {
       presence: { installed: true },
       capability_exposure: { status: 'visible' },
-      app_contributions: manifest.app_contributions,
+      app_contributions: contributions,
     },
   });
 
-  assert.equal(projection.contribution_count, 2);
+  assert.deepEqual(contributions.ui ?? [], []);
+  assert.equal(contributions.views.length, 2);
   assert.deepEqual(
-    projection.slots['settings.section'].map((entry) => entry.contribution_key),
-    [
-      'opl-fleet-agent:fleet.agent.telemetry-settings',
-      'opl-fleet-agent:fleet.agent.doctor-settings',
-    ],
-  );
-  assert.deepEqual(
-    projection.entries.map((entry) => entry.view?.data_ref),
+    contributions.views.map((view) => view.data_ref),
     ['fleet.agent.telemetry.v1#local', 'fleet.agent.doctor.v1#current'],
   );
-  assert.equal(projection.entries.every((entry) => entry.trust_tier === 'declarative'), true);
-  assert.equal(projection.entries.every((entry) => entry.commands.length === 0), true);
+  assert.equal(projection.contribution_count, 0);
+  assert.deepEqual(projection.slots['settings.section'], []);
+  assert.deepEqual(projection.entries, []);
 });
 
 test('Fleet Agent native-provider absence remains a successful unavailable contribution read', () => {
@@ -169,6 +168,8 @@ process.stdout.write(JSON.stringify({
       },
     }) as any;
 
+    assert.equal(output.opl_app_contribution.response.operation, 'read');
+    assert.equal(output.opl_app_contribution.response.ref, 'fleet.agent.telemetry.v1#local');
     assert.equal(output.opl_app_contribution.response.result.availability, 'unavailable');
     assert.equal(output.opl_app_contribution.response.result.reason_code, 'native_provider_not_installed');
     assert.equal(output.opl_app_contribution.response.result.freshness.state, 'unavailable');
