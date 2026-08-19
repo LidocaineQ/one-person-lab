@@ -657,7 +657,8 @@ Re-review 采用 finding closure，不得用普通新建议无限重开循环。
 - 历史实现曾以 `opl packages registry refresh --registry-url <url> --json` 拉取和缓存 registry URL；该命令现已删除。
 - 历史实现曾以 `opl packages validate-manifest (--manifest-url <url>|--registry-url <url> --package-id <id>) --json` 写 validation receipt；该命令与 receipt writer 现已删除。
 - 历史实现曾在 Framework `OPL_STATE_DIR` 写 `agent-package-locks.json` 和 `agent-package-lifecycle-ledger.json`；这些私有 writer、payload/rollback/transaction 路径现已删除。
-- 历史 App action `install_from_manifest_url` 曾路由到 Framework package lock writer；该 action ID 与 writer 现已删除，唯一安装 action 为 `agent_package_install`。
+- 历史 App action `install_from_manifest_url` 曾路由到 Framework package lock writer；该私有 writer 已删除。当前同名 action 是受保护的 owner action：它只接受 manifest URL 和显式 third-party trust tier，先验证清单与信任边界，再委托 configured native carrier；支持 dry-run，实际写入仍须确认。
+- `agent_package_install` 仍是目录中已发现 Package 的安装 action。它与 `install_from_manifest_url` 共用 native-carrier lifecycle truth，不恢复 Framework registry、cache、lock、ledger、payload materializer 或 rollback 第二控制面。
 - 该能力不接管 Pack OS generic capability-pack descriptor，也不替代 first-party GHCR package channel；第三方 agent package lifecycle 是 Connect 的 external descriptor / distribution surface，Pack OS 继续持有通用 capability pack descriptor / content-addressed cache / refs-only distribution lock。
 - 该 landing 不声明 domain ready、publication ready、visual/export ready、App release ready、Brand L5 或 production ready；package 的 Codex/runtime-source carrier currentness 只授权 package launch gate，真实 domain 结果、App release、生产长稳和用户交付仍需要对应 owner evidence。
 
