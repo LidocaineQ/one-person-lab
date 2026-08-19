@@ -206,13 +206,13 @@ function manifestWithCleanupResidue() {
       direct_skill_parity_refs: ['proof:mag:direct-skill-parity'],
       opl_hosted_parity_refs: ['proof:mag:opl-hosted-parity'],
       replacement_parity_refs: ['proof:mag:replacement-parity'],
-      provenance_refs: ['docs/history/runtime-substrate/mag-gateway-tombstone.md'],
+      provenance_refs: ['runtime/fixtures/provenance/mag-gateway-retirement.json'],
       legacy_active_path_policy: 'physically_removed_or_history_tombstone_only',
       legacy_active_path_residue: [
         {
           path_family: 'default Hermes active path',
           state: 'tombstone_only',
-          evidence_ref: 'docs/history/specs/hermes-tombstone.md',
+          evidence_ref: 'runtime/fixtures/provenance/hermes-retirement.json',
         },
         {
           path_family: 'default Gateway active path',
@@ -225,7 +225,7 @@ function manifestWithCleanupResidue() {
     legacy_retirement_tombstone_proof: {
       status: 'no_active_default_caller_proven',
       active_default_callers: [],
-      tombstone_refs: ['docs/history/specs/hermes-tombstone.md'],
+      tombstone_refs: ['runtime/fixtures/provenance/hermes-retirement.json'],
       source_refs: ['docs/decisions.md#temporal-runtime'],
     },
   } as JsonRecord;
@@ -472,7 +472,7 @@ test('legacy cleanup gate emits executable OPL lifecycle apply plan without doma
     'contracts/README.md',
     'runtime/README.md',
     'docs/status.md',
-    'docs/history/specs/hermes-tombstone.md',
+    'runtime/fixtures/provenance/hermes-retirement.json',
   ]);
   assert.deepEqual(plan.actions[0].replacement_parity_refs, [
     'proof:mag:replacement-parity',

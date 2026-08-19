@@ -1,21 +1,7 @@
-# Source 文档
+# OPL Source 文档
 
-Owner: `One Person Lab`
-Purpose: `generic_source_workspace_support`
-State: `active_support`
-Machine boundary: 人读索引。机器真相继续归 workspace registry、source/artifact contracts、runtime evidence、domain manifests 与 owner receipts。
+本目录只解释外部 source、workspace 输入和 artifact intake 边界。
 
-本目录承接通用 workspace/source intake shell、workspace registry、source locator、source scope refs、source refs/status projection 与 source ref transport 边界。领域 source semantics、研究来源、基金材料和视觉素材判断继续归 MAS/MAG/RCA。workspace / file lifecycle 的长期隔离纪律归 [Workspace / File Lifecycle 政策](../policies/runtime-artifact-hygiene-policy.md)。
+- [Workspace / Source Intake](./workspace-source-intake-boundary.md)
 
-当前入口先看：
-
-- [OPL 系列项目开发主参考](../active/opl-family-development-reference.md)
-- [OPL 运行模型](../public/operating-model.md)
-- [共享运行时合同](../specs/shared-runtime-contract.md)
-- [共享领域合同](../specs/shared-domain-contract.md)
-
-## 内容
-
-| 文件 | 生命周期状态 | 当前 owner | 阅读规则 |
-| --- | --- | --- | --- |
-| `workspace-source-intake-boundary.md` | `active_support` | OPL source/workspace shell owner | 只解释通用 workspace/source locator、registry、transport、freshness 和 App/workbench projection 边界；domain source semantics 和 readiness verdict 回 MAS/MAG/RCA。 |
+Framework 源码责任图见 [源码模块边界](../references/source-module-boundary.md)；运行状态见 [状态](../status.md)。

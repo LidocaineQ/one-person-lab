@@ -196,7 +196,8 @@ test('family-runtime attempt create projects launch invocation and gates non-def
 
     const missingBinding = runCli([
       ...baseArgs,
-      '--new-attempt',
+      '--task',
+      'missing-executor-binding',
       '--executor-kind',
       'hermes_agent',
     ], env);
@@ -213,7 +214,8 @@ test('family-runtime attempt create projects launch invocation and gates non-def
 
     const declaredBinding = runCli([
       ...baseArgs,
-      '--new-attempt',
+      '--task',
+      'declared-executor-binding',
       '--executor-kind',
       'hermes_agent',
       '--executor-binding-ref',
@@ -227,7 +229,8 @@ test('family-runtime attempt create projects launch invocation and gates non-def
 
     const authoringMissingRef = runCli([
       ...baseArgs,
-      '--new-attempt',
+      '--task',
+      'authoring-without-ref',
       '--invocation-mode',
       'authoring',
     ], env);
@@ -240,7 +243,8 @@ test('family-runtime attempt create projects launch invocation and gates non-def
 
     const authoringBoundedEdit = runCli([
       ...baseArgs,
-      '--new-attempt',
+      '--task',
+      'authoring-with-bounded-edit',
       '--invocation-mode',
       'authoring',
       '--bounded-edit-ref',
@@ -254,7 +258,8 @@ test('family-runtime attempt create projects launch invocation and gates non-def
 
     const unsupportedReviewLane = runCliFailure([
       ...baseArgs,
-      '--new-attempt',
+      '--task',
+      'unsupported-review-lane',
       '--review-lane',
       'medical',
     ], env);
@@ -356,29 +361,39 @@ test('family-runtime observes one declared action route without treating future 
       (finding: { code: string }) => finding.code === 'stage_route_action_missing_advisory',
     ), true);
 
-    const unknown = runCli([...createArgs('missing-action'), '--new-attempt'], env).family_runtime_stage_attempt;
+    const unknown = runCli([
+      ...createArgs('missing-action'), '--task', 'missing-action',
+    ], env).family_runtime_stage_attempt;
     assert.equal(unknown.attempt.status, 'queued');
     assert.equal(unknown.stage_context_observation.progression_effect, 'stage_may_start');
     assert.equal(unknown.stage_context_observation.warning_findings.some(
       (finding: { code: string }) => finding.code === 'stage_route_action_unknown_advisory',
     ), true);
 
-    const noRoute = runCli([...createArgs('inspect'), '--new-attempt'], env).family_runtime_stage_attempt;
+    const noRoute = runCli([
+      ...createArgs('inspect'), '--task', 'inspect-no-route',
+    ], env).family_runtime_stage_attempt;
     assert.equal(noRoute.attempt.status, 'queued');
     assert.equal(noRoute.stage_context_observation.progression_effect, 'stage_may_start');
     assert.equal(noRoute.stage_context_observation.warning_findings.some(
       (finding: { code: string }) => finding.code === 'stage_route_action_has_no_route_advisory',
     ), true);
 
-    const offRoute = runCli([...createArgs('optimize'), '--new-attempt'], env).family_runtime_stage_attempt;
+    const offRoute = runCli([
+      ...createArgs('optimize'), '--task', 'optimize-off-route',
+    ], env).family_runtime_stage_attempt;
     assert.equal(offRoute.attempt.status, 'queued');
     assert.equal(offRoute.stage_context_observation.progression_effect, 'stage_may_start');
     assert.equal(offRoute.stage_context_observation.warning_findings.some(
       (finding: { code: string }) => finding.code === 'stage_route_stage_outside_action_advisory',
     ), true);
 
-    const build = runCli([...createArgs('compose-deliverable'), '--new-attempt'], env).family_runtime_stage_attempt;
-    const takeover = runCli([...createArgs('assess-existing-deliverable'), '--new-attempt'], env).family_runtime_stage_attempt;
+    const build = runCli([
+      ...createArgs('compose-deliverable'), '--task', 'compose-deliverable',
+    ], env).family_runtime_stage_attempt;
+    const takeover = runCli([
+      ...createArgs('assess-existing-deliverable'), '--task', 'assess-existing-deliverable',
+    ], env).family_runtime_stage_attempt;
     assert.equal(build.attempt.status, 'queued');
     assert.equal(build.stage_context_observation.status, 'declared');
     assert.equal(build.stage_context_observation.progression_effect, 'stage_may_start');
@@ -391,7 +406,7 @@ test('family-runtime observes one declared action route without treating future 
     assert.notEqual(build.attempt.stage_attempt_id, takeover.attempt.stage_attempt_id);
 
     const downstream = runCli([
-      ...createArgs('compose-deliverable', 'delivery-planning'), '--new-attempt',
+      ...createArgs('compose-deliverable', 'delivery-planning'), '--task', 'delivery-planning',
     ], env).family_runtime_stage_attempt;
     assert.equal(downstream.attempt.status, 'queued');
     assert.equal(downstream.stage_context_observation.progression_effect, 'stage_may_start');
@@ -527,7 +542,6 @@ test('family-runtime blocks only an unavailable selected executor and keeps stat
     repoDirs.push(bindMedAutoScienceManifest(stateRoot, fixtureContractsRoot, manifestForStage(baseStage)));
     const missingBinding = runCli([
       ...baseArgs,
-      '--new-attempt',
       '--source-fingerprint',
       'sha256:stage-kernel-missing-executor-binding',
       '--executor-kind',
@@ -550,7 +564,6 @@ test('family-runtime blocks only an unavailable selected executor and keeps stat
     })));
     const missingScope = runCli([
       ...baseArgs,
-      '--new-attempt',
       '--source-fingerprint',
       'sha256:stage-kernel-missing-scope',
     ], env);

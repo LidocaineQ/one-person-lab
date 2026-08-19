@@ -1,6 +1,5 @@
 # OPL Foundry Kernel 控制面边界
 
-Status: `active_runtime_support`
 Owner: `One Person Lab`
 Purpose: `foundry_kernel_control_plane`
 State: `active_support`

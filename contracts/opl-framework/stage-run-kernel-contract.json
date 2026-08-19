@@ -170,8 +170,7 @@
       "cli_default": "stable_domain_stage_action_workspace_task_idempotency",
       "hosted_action": "action_run_id_plus_action_run_ref",
       "validated_route": "parent_stage_run_id_plus_decisive_attempt_ref_plus_route_decision_sha256_plus_target_stage",
-      "explicit_new_run_option": "--new-stage-run",
-      "quality_path_compatibility_alias": "--new-attempt"
+      "explicit_new_run_option": "--new-stage-run"
     },
     "launch_registry": {
       "database": "${OPL_STATE_DIR}/family-runtime/queue.sqlite",

@@ -31,27 +31,27 @@ const FALSE_AUTHORITY_BOUNDARY: BrandModuleAuthorityBoundary = {
 };
 
 const BRAND_MODULE_DOC_PATHS: Record<BrandModuleId, string> = {
-  charter: 'docs/references/brand-modules/charter.md',
-  atlas: 'docs/references/brand-modules/atlas.md',
-  workspace: 'docs/references/brand-modules/workspace.md',
-  pack: 'docs/references/brand-modules/pack.md',
-  stagecraft: 'docs/references/brand-modules/stagecraft.md',
-  runway: 'docs/references/brand-modules/runway.md',
-  ledger: 'docs/references/brand-modules/ledger.md',
-  console: 'docs/references/brand-modules/console.md',
-  'foundry': 'docs/references/brand-modules/foundry.md',
-  connect: 'docs/references/brand-modules/connect.md',
+  charter: 'docs/references/family-capability-portfolio.md',
+  atlas: 'docs/references/family-capability-portfolio.md',
+  workspace: 'docs/references/family-capability-portfolio.md',
+  pack: 'docs/references/family-capability-portfolio.md',
+  stagecraft: 'docs/references/family-capability-portfolio.md',
+  runway: 'docs/references/family-capability-portfolio.md',
+  ledger: 'docs/references/family-capability-portfolio.md',
+  console: 'docs/references/family-capability-portfolio.md',
+  'foundry': 'docs/references/family-capability-portfolio.md',
+  connect: 'docs/references/family-capability-portfolio.md',
 };
 
 const HUMAN_DOC_PATHS: Record<string, string> = {
-  'human_doc:opl_brand_module_maturity_against_workspace': 'docs/references/brand-modules/current-maturity-against-workspace.md',
+  'human_doc:opl_brand_module_maturity_against_workspace': 'docs/references/family-capability-portfolio.md',
   'human_doc:opl_status': 'docs/status.md',
   'human_doc:opl_architecture': 'docs/architecture.md',
-  'human_doc:opl_stage_native_kernel_rollout_plan': 'docs/active/opl-stage-native-kernel-rollout-plan.md',
+  'human_doc:opl_stage_native_kernel_rollout_plan': 'docs/architecture.md',
   'human_doc:opl_runtime_index': 'docs/runtime/README.md',
   'human_doc:opl_delivery_index': 'docs/delivery/README.md',
   'human_doc:opl_public_surface_index': 'docs/product/opl-public-surface-index.md',
-  'human_doc:opl_foundry_agent_target_operating_architecture': 'docs/active/opl-foundry-agent-target-operating-architecture.md',
+  'human_doc:opl_foundry_agent_target_operating_architecture': 'docs/architecture.md',
 };
 
 function brandModuleRegistry(contracts: FrameworkContracts) {

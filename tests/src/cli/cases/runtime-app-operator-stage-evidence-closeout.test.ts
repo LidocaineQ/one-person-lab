@@ -131,7 +131,7 @@ test('stage production evidence record routes expose fail-closed workorder and c
     );
     assert.equal(
       providerLongSoakTail.doc_ref,
-      'docs/active/production-framework-closure-gap-matrix.md#closure-gap-matrix',
+      'docs/status.md#production-evidence',
     );
     const route = projection.operator_action_routing_refs.refs.find(
       (ref: { action_id: string }) =>

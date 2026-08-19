@@ -95,7 +95,7 @@ const SAMPLE_SOURCE_CLASSIFICATIONS = [
   {
     surface_id: 'legacy_runtime_residue',
     classification: 'legacy_proof_tombstone',
-    source_refs: ['docs/history/runtime-tombstone.md'],
+    source_refs: ['runtime/fixtures/provenance/runtime-retirement.json'],
   },
 ] as const;
 
@@ -187,7 +187,7 @@ function syncStandardAgentConformanceProfile(repoDir: string) {
     },
     physical_morphology: {
       scan_roots: ['agent/', 'contracts/', 'runtime/'],
-      allowed_residue_prefixes: ['docs/history/', 'tests/'],
+      allowed_residue_prefixes: [],
       required_surface_ids: morphology.required_surface_ids,
       surface_classifications: morphology.surface_classifications,
       forbidden_name_tokens: [],
@@ -792,7 +792,9 @@ export function configureReadyMagMorphology(repoDir: string) {
     functionalAudit.physical_source_morphology_policy.required_surface_ids.map((surface_id: string) => ({
       surface_id,
       classification: surface_id === 'legacy_runtime_residue' ? 'legacy_proof_tombstone' : 'refs_only_adapter',
-      source_refs: surface_id === 'legacy_runtime_residue' ? ['docs/history/runtime-tombstone.md'] : ['agent/'],
+      source_refs: surface_id === 'legacy_runtime_residue'
+        ? ['runtime/fixtures/provenance/runtime-retirement.json']
+        : ['agent/'],
     }))
   );
   functionalAudit.physical_source_morphology_policy.forbidden_residue_classes = [

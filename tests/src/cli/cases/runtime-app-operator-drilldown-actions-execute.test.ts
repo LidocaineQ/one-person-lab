@@ -53,20 +53,20 @@ test('runtime action execute can apply and verify legacy cleanup plans from App 
     direct_skill_parity_refs: ['proof:mas:direct-skill-parity'],
     opl_hosted_parity_refs: ['proof:mas:opl-hosted-parity'],
     replacement_parity_refs: ['proof:mas:replacement-parity'],
-    provenance_refs: ['docs/history/runtime-substrate/mas-local-runtime-tombstone.md'],
+    provenance_refs: ['runtime/fixtures/provenance/mas-local-runtime-retirement.json'],
     legacy_active_path_policy: 'physically_removed_or_history_tombstone_only',
     legacy_active_path_residue: [
       {
         path_family: 'default MAS local scheduler',
         state: 'tombstone_only',
-        evidence_ref: 'docs/history/runtime-substrate/mas-local-scheduler-tombstone.md',
+        evidence_ref: 'runtime/fixtures/provenance/mas-local-scheduler-retirement.json',
       },
     ],
   };
   masManifest.legacy_retirement_tombstone_proof = {
     status: 'no_active_default_caller_proven',
     active_default_callers: [],
-    tombstone_refs: ['docs/history/runtime-substrate/mas-local-scheduler-tombstone.md'],
+    tombstone_refs: ['runtime/fixtures/provenance/mas-local-scheduler-retirement.json'],
     source_refs: ['docs/decisions.md#temporal-runtime'],
   };
 

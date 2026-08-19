@@ -250,7 +250,7 @@ function physicalSourceMorphologyPolicy(domainId: string) {
       {
         surface_id: 'fixture_or_provenance_refs',
         classification: 'provenance_or_fixture',
-        source_refs: ['runtime/fixtures/README.md', 'docs/history/'],
+        source_refs: ['runtime/fixtures/README.md'],
       },
     ],
     authority_boundary: {
@@ -275,7 +275,7 @@ function standardAgentConformanceProfile(domainId: string) {
     },
     physical_morphology: {
       scan_roots: ['agent/', 'contracts/', 'runtime/'],
-      allowed_residue_prefixes: ['docs/history/'],
+      allowed_residue_prefixes: [],
       required_surface_ids: morphology.required_surface_ids,
       surface_classifications: morphology.surface_classifications,
       forbidden_name_tokens: [],

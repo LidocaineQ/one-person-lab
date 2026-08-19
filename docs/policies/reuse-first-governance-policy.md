@@ -11,7 +11,7 @@ Machine boundary: 本文是人读维护政策。可执行守门继续归 `contra
 
 ## 治理结论
 
-2026-07-04 的 reuse-first 治理经验固定为三条长期规则：
+复用优先固定为三条长期规则：
 
 1. **先复用现有 owner surface，再考虑新增实现。** 新增 runtime、schema、CLI、package/update、workspace、observability 或 catalog 逻辑前，必须先查本仓已有 helper / registry / owner boundary；本仓没有再看 Node 标准库、平台能力和已安装依赖；只有这些都不覆盖时才写最小新代码。
 2. **只保留 strict diff gate。** 不再维护 full scan、历史 finding 分类或 owner worklist；`reuse-first:scan:diff` 只检查当前 diff 新增行和未跟踪文件，并在出现未解释 hard finding 时失败。

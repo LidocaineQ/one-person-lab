@@ -296,20 +296,20 @@ export function withEvidenceWorklistSurfaces(
       direct_skill_parity_refs: [`proof:${targetDomainId}:direct-skill-parity`],
       opl_hosted_parity_refs: [`proof:${targetDomainId}:opl-hosted-parity`],
       replacement_parity_refs: [`proof:${targetDomainId}:replacement-parity`],
-      provenance_refs: [`docs/history/${targetDomainId}-legacy-tombstone.md`],
+      provenance_refs: [`runtime/fixtures/provenance/${targetDomainId}-retirement.json`],
       legacy_active_path_policy: 'physically_removed_or_history_tombstone_only',
       legacy_active_path_residue: options.cleanupReady === false
         ? []
         : [{
             path_family: `${targetDomainId}:legacy-runtime`,
             state: 'tombstone_only',
-            evidence_ref: `docs/history/${targetDomainId}-legacy-runtime-tombstone.md`,
+            evidence_ref: `runtime/fixtures/provenance/${targetDomainId}-runtime-retirement.json`,
           }],
     },
     legacy_retirement_tombstone_proof: {
       status: 'no_active_default_caller_proven',
       active_default_callers: [],
-      tombstone_refs: [`docs/history/${targetDomainId}-legacy-runtime-tombstone.md`],
+      tombstone_refs: [`runtime/fixtures/provenance/${targetDomainId}-runtime-retirement.json`],
       source_refs: [`docs/decisions.md#${targetDomainId}-legacy-runtime`],
     },
   };

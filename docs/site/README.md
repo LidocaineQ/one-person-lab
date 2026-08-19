@@ -9,20 +9,22 @@ Source truth stays in `docs/whitepapers/` and
 `contracts/whitepaper_profile.json`. Artifact verification is generated beside
 the ignored HTML/PDF bundle; publication receipts are GitHub Actions artifacts.
 
-This repo publishes one current public whitepaper copy plus the four-document
-family catalog. A normal push builds a reviewable immutable bundle. An explicit
-`workflow_dispatch` with `publish=true` enters the `whitepaper-production`
-Environment, deploys the same bundle without rebuilding, and verifies the live
-HTML/PDF/catalog bytes before writing a publication receipt.
+`npm run docs:whitepaper` generates the local OPL family source output;
+`npm run docs:whitepaper:framework` generates the local Framework source output.
+`npm run docs:whitepapers:family` builds all five registry entries and stages the
+atomic publication candidate outside this directory. Build and publication
+evidence is documented in [`docs/delivery/whitepapers/README.md`](../delivery/whitepapers/README.md).
 
 Generated output:
 
 - `docs/site/latest/whitepapers/opl-whitepaper.html`
 - `docs/site/latest/whitepapers/opl-whitepaper.pdf`
 - `docs/site/latest/whitepapers/opl-whitepaper.verification.json`
+- `docs/site/latest/whitepapers/opl-framework-whitepaper.html`
+- `docs/site/latest/whitepapers/opl-framework-whitepaper.pdf`
+- `docs/site/latest/whitepapers/opl-framework-whitepaper.verification.json`
 - `docs/site/latest/whitepapers/index.html`
 
-Do not commit `docs/site/latest/` on `main`. Rebuild it with
-`npm run docs:latest`. `npm run docs:publish` no longer force-pushes a locally
-generated orphan branch; it requests the approved remote workflow from clean,
-current `main`.
+Do not commit `docs/site/latest/` on `main`. `npm run docs:latest` is the local
+OPL family source build; the complete public collection is produced by the
+family build and published only through the environment-gated workflow.

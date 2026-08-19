@@ -1,185 +1,67 @@
 # Shared Runtime Contract
 
-Owner: `One Person Lab`
-Purpose: `specs_shared_runtime_contract`
-State: `active_spec_support`
-Machine boundary: 本文是人读 spec 支撑材料。机器可读行为继续归 contracts、schema、source、CLI/API 行为、runtime ledger、生成产物和 semantic human_doc ids。
+本文解释 OPL Family 共享的 runtime 行为。machine shape 由 `contracts/family-orchestration/*.schema.json` 和 `contracts/opl-framework/*runtime*.json` 持有。
 
-> 当前状态说明：本文作为 stage-led、以 Agent executor 为最小执行单位的 OPL Framework 共享边界参考保留。公开产品分层、运行主线、admitted Foundry Agents、MDS 读法和下层 domain 执行词汇均以核心五件套、active gap plan、`docs/active/current-development-lines.md` 与 fresh CLI/read-model 为准。当前长期生态读法是 `OPL Base + OPL App + OPL Packages + OPL Cloud`，Foundry Agents 是 Packages 中的专业 authority family；默认运行主线仍是 `Codex-default executor -> explicit OPL activation -> Temporal-backed provider stage runtime -> selected Foundry Agent entry`。历史日期校准和具体 counters 归 `docs/history/**`，不得从本文冻结。
+## Owner split
 
-## 目的
+- Framework：StageRun/Attempt envelope、provider adapter、runtime projection、refs-only evidence 和 operator action。
+- provider：workflow history、queue、retry、timeout 和 worker transport。
+- Package/domain：专业执行入口、artifact body、quality verdict、owner receipt 和 typed blocker。
+- App：用户交互、session UI 和 product truth。
 
-这份文档用于冻结 `OPL` 体系下跨 domain 共享的运行合同。
-它回答的是“长期在线 runtime 至少要稳定拥有什么对象和行为”，而不是“今天具体由哪套 execution plane 实现”。
+## Required runtime surfaces
 
-这份合同属于 `Unified Harness Engineering Substrate` 之内，但它不等于整个 substrate，更不等于某个具体开源项目的套壳。
+### Event envelope
 
-## 它负责什么
+event 必须绑定 run/attempt identity、source、sequence、timestamp 和 payload kind。event 只描述观察到的事实，不直接声明专业完成。
 
-`Shared Runtime Contract` 负责冻结长期在线 runtime 必须稳定暴露的共享对象与行为面，包括：
+### Checkpoint lineage
 
-- `runtime profile`
-- `session substrate`
-- `provider bridge status`
-- `memory provider hook`
-- `delivery / cron`
-- `approval / interrupt / resume`
-- `family event envelope`
-- `family checkpoint lineage`
-- `product-entry runtime continuity discovery`
-- `family persistence policy`
-- `family lifecycle ledger`
-- `family owner route`
+checkpoint 绑定父 run、workspace scope、artifact refs 和恢复 cursor。恢复必须延续同一 lineage，不能把“最新文件”猜成当前任务。
 
-这些对象是跨 domain 共享的运行底座要求。
-它们描述的是 runtime 应具备怎样的结构化能力，而不是某个 domain 自己的对象、评审标准或交付真相。
+### Attempt projection
 
-## 它不负责什么
+projection 至少表达 request identity、provider/executor、状态、最新事件、输出 refs、阻塞和可执行恢复动作。它可重建，不能成为 provider history 或 domain truth 的第二 copy。
 
-这份合同不负责：
+### Runtime supervision
 
-- 定义 domain-specific object model
-- 定义 domain-specific artifact schema
-- 定义某个 domain 的 gate / audit / delivery 真相
-- 让 `OPL` 越过 domain-agent entry 直接接管 domain-owned runtime 或 delivery truth
-- 把某个具体 execution plane 直接写成 `OPL` 当前既成事实
+supervision 观察 service、worker、queue 和 source freshness。自动 repair 只处理 Framework/provider owner 的运行面；存在 active mutation、权限或数据风险时 fail closed。
 
-## 当前冻结的 v1 对象
+### Human gate
 
-当前最先要冻结清楚的对象包括：
+human gate 必须有明确 owner、reason、所需输入和恢复动作。没有授权时不能自动越过；普通诊断和低风险可恢复操作不应被升级为 human gate。
 
-1. `runtime profile`
-   - `profile_id`
-   - `runtime_home`
-   - `subprocess_home`
-   - `runtime_status_root`
+## State semantics
 
-2. `session substrate`
-   - `session_id`
-   - `parent_session_id`
-   - `session_state`
-   - `resume_pointer`
-   - `interrupt_reason`
+- `queued`：等待 provider 消费；
+- `running`：Attempt 正在执行；
+- `checkpointed`：已有可恢复点；
+- `blocked`：需要 owner input、typed blocker resolution 或受保护条件；
+- `failed`：Attempt 终止且有诊断；
+- `completed`：transport/executor 已产生终态输出。
 
-3. `provider bridge status`
-   - `bridge_state`
-   - `active_runs`
-   - `last_heartbeat`
-   - `restart_requested`
-   - `exit_reason`
+`completed` 不等于 owner accepted、artifact ready 或 production ready。
 
-4. `memory provider hook`
-   - `prefetch`
-   - `sync_turn`
-   - `on_session_end`
-   - `on_delegation`
+## Composition boundary
 
-5. `delivery / cron`
-   - `job_id`
-   - `delivery_target`
-   - `next_run_at`
-   - `output_record`
-   - `silent_delivery`
+Cordis Host 提供进程内 service graph。StageRun 发起后冻结必要的 composition identity；durable history 仍在 provider，Package installed truth 仍在 native carrier。
 
-6. `approval / interrupt / resume`
-   - `approval_request_id`
-   - `approval_scope`
-   - `approval_decision`
-   - `interrupt_reason`
-   - `resume_allowed`
+## Failure and recovery
 
-## Family Orchestration Companion Schemas
+1. 先读取同一 Attempt 和 provider history。
+2. 区分 transport failure、executor failure、owner blocker 和 artifact rejection。
+3. 只对当前 owner 的状态执行 repair。
+4. 保留已有 artifact refs 和 lineage。
+5. 重新运行必须产生新 Attempt identity，并明确关联原 Attempt。
 
-为了避免把 family runtime 层绑死在某一个 orchestration framework 上，这份合同之下现在同步冻结两类 machine-readable companion schema：
+## Forbidden claims
 
-1. `family event envelope`
-   - 统一 event correlation、producer、session、audit reference 的 envelope
-2. `family checkpoint lineage`
-   - 统一 checkpoint ancestry、resume、state reference 的 envelope
-3. `product-entry runtime continuity discovery`
-   - 统一 `runtime inventory + task lifecycle + session continuity + progress projection + artifact inventory` 的发现面，并把 `runtime_control` / `runtime_loop_closure` 作为共享 control reference；repo-owned runtime-control projection 继续由各 domain 仓自己持有
-4. `family persistence policy`
-   - 统一区分 domain-owned file authority、SQLite sidecar index、projection cache 与 historical/provenance reference 的控制面 surface
-5. `family lifecycle ledger`
-   - 统一 dry-run / apply / verify lifecycle action、manifest ref、checksum 与 restore proof 的 receipt surface；`family-runtime lifecycle apply` 可对 OPL-owned runtime/index/provenance/tombstone refs 写 cleanup receipt / ledger / restore-proof refs，并把真实 domain retention / restore / artifact mutation authority 保留在 domain owner receipt
-6. `family owner route`
-   - 统一 route epoch、source fingerprint、next owner、allowed actions、idempotency key 与 handoff / projection refs 的 owner-route surface
+Framework/provider 不得因为 workflow complete、worker healthy、evidence present 或 queue empty而声明：
 
-这些 schema 位于 `contracts/family-orchestration/`。
-它们冻结的是多个 domain runtime 都能吸收的互操作语义，同时继续把 runtime ownership 与 durable truth 留在各自 domain 仓。
+- domain ready；
+- artifact accepted；
+- quality/export/publication verdict；
+- App released；
+- production ready。
 
-persistence / lifecycle / owner-route surface 属于控制面 contract。它们不会把 `OPL` 改成 domain runtime owner、memory store、scheduler、publication-quality judge、domain artifact cleanup executor、domain restore executor 或 artifact authority；`OPL` 只能对自身持有的 locator/index/provenance/tombstone refs 做受控 ledger apply。
-
-## 与 CrewAI 的关系
-
-这里对 `CrewAI` 的吸收方式是“借鉴 orchestration 思想”，不是“把它变成家族强制 runtime 层”。
-
-当前明确的切分是：
-
-- 在 contract 层吸收 event correlation、checkpoint lineage、flow introspection 与 human-gate pause / resume 语义
-- 不把 `CrewAI` 统一成默认 `LLM`、`Agent`、`Crew` 或 memory owner
-- 不让 `CrewAI` 替代 `Codex CLI`、OPL session/runtime 入口或任何 domain-agent entry
-
-## 与 Hermes-Agent 的关系
-
-`Hermes` 相关命名在当前 OPL 中必须拆开读：`hermes_agent`、`claude_code` 与 `antigravity_cli` 是 canonical 显式非默认 executor adapter/backend；旧 Hermes runtime / Gateway / provider 相关内容只作为历史 provenance、诊断语料和负向 guard 参考。
-
-因此，更准确的表达是：
-
-- OPL framework 的 production online substrate 是 provider-backed stage runtime，当前必需路径是 Temporal-backed provider
-- `hermes_agent`、`claude_code` 与 `antigravity_cli` 是 canonical 显式非默认 executor adapter/backend
-- 旧 Hermes provider、Gateway、readiness 与 compatibility surface 只保留为历史 provenance、诊断语料或负向 guard
-- `Hermes-Agent` 不是整个 `UHS`
-- `Hermes-Agent` 也不会替代 OPL session/runtime 入口、任何 domain-agent entry 或 domain-owned truth surface
-- 任何集成方式都必须保持 OPL 作为 framework/control-plane owner，并保持 domain 仓作为 truth owner
-
-也就是说，`Hermes` 当前不是“怎么稳定地跑”的目标 owner。它的 active executor-facing 角色是显式 `hermes_agent` adapter/backend；旧 provider / Gateway / runtime surface 只作为 diagnostic / provenance / negative-guard 语境保留。OPL provider-backed stage runtime 的生产在线能力由 Temporal-backed provider 承担并按必需依赖维护。
-
-## 当前真实状态
-
-截至当前公开主线，真实状态仍然是：
-
-- 默认 OPL 入口是本地 `opl` / `opl exec` / `opl resume`，并继承 Codex-default 语义
-- 显式 activation 只路由到已收录 domain agents：`MAS`、`MAG`、`RCA`
-- `MCP` 与其他 protocol surface 保持为 supporting 或 domain-owned 层
-- `Shared Runtime Contract` 是当前共享边界下的参考合同，不是默认产品入口
-- runtime-oriented 的 family orchestration companion schemas 已经落在 `contracts/family-orchestration/`，先冻结共享 `event envelope + checkpoint lineage + product-entry runtime continuity discovery + persistence / lifecycle / owner-route discovery` 语义，而不是把它们误写成某个统一 runtime owner
-- 当前公开产品分层是 `OPL Base + OPL App + OPL Packages + OPL Cloud`；当前 Foundry Agents 为 `MAS`、`MAG`、`RCA`，作为 Packages 中的专业家族保留领域 authority；`OPL Meta Agent` 是 Agent Foundry / new-agent builder/tester module，不持有 MAS/MAG/RCA 的 domain truth；`MDS` 只保留为 MAS 声明的可选 companion diagnostic、intake 与 parity oracle 引用
-- Hermes provider/readiness/compat 角色限定为历史 provenance、诊断语料或负向 guard；`hermes_agent` executor adapter 仅可显式选择，并必须独立 receipt / audit / fail-closed；它不提供默认长期在线 substrate、provider readiness path、默认 executor 或兼容 fallback
-
-## 实现边界
-
-只要不改写上层合同，`Shared Runtime Contract` 后续可以由不同 deployment shape 实现：
-
-- 当前本地 Codex-default executor 路径
-- 目标 provider-backed stage runtime，包括 Temporal-backed provider 路径
-- `hermes_agent` 这类显式非默认 executor adapter，以及旧 Hermes provider/Gateway surface 的历史 provenance、诊断语料或负向 guard 资产
-- future platform-hosted execution plane
-
-从产品形态看，目标形态是：
-
-- 本地开源版可以用 Codex-default execution 与显式 domain activation 运行
-- 已配置 family runtime provider 承载 stage attempt、wakeup、receipt、approval、retry、dead-letter 和 projection
-- 未来托管版可以在平台内运行受支持 provider，同时不接管 domain truth
-
-变化的应只是 runtime substrate 的承载方式，而不是：
-
-- `OPL` 的 session/runtime 与 activation 语义
-- formal-entry matrix
-- domain-agent 边界
-- domain-owned artifact / audit / delivery truth
-
-## 当前产品分层中的位置
-
-- `one-person-lab` / `OPL Framework`
-  - 负责定义这份共享运行合同的公开语言、machine-readable contract、provider-backed stage runtime、stage-attempt request/projection、stage attempt ledger、receipt/projection、generated surface 与 App/operator read model。
-- `one-person-lab-app`
-  - 作为产品工作台消费 framework/provider 状态和 domain-owned projection；不持有 provider substrate、domain truth、artifact authority、quality/export verdict 或 owner receipt。
-- `med-autoscience`
-  - 作为医学研究 Foundry Agent，在医学 Research Foundry 主线里吸收并验证 shared runtime contract，同时保留 study truth、publication quality、artifact authority、memory body 与 owner receipt。
-- `med-autogrant`
-  - 作为基金申请 Foundry Agent，在 grant authoring 主线里吸收并验证 shared runtime contract，同时保留 grant truth、fundability/export verdict、artifact authority、memory body 与 owner receipt。
-- `redcube-ai`
-  - 作为视觉交付 Foundry Agent，在视觉交付主线里吸收并验证 shared runtime contract，同时保留 visual truth、review/export verdict、artifact authority、memory body 与 owner receipt。
-
-因此，这份合同是当前 Foundry Agents 共享运行对齐面的顶层锚点；历史“四仓统一” wording 只按当时的 OPL + MAS/MAG/RCA 收敛语境读取。
+这些结论必须来自对应 owner receipt、human gate 或 release readback。

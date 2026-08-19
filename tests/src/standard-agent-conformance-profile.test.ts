@@ -24,7 +24,7 @@ function fixtureRepo() {
     },
     physical_morphology: {
       scan_roots: ['src/'],
-      allowed_residue_prefixes: ['docs/history/'],
+      allowed_residue_prefixes: [],
       required_surface_ids: ['domain_entry'],
       surface_classifications: [{ surface_id: 'domain_entry', classification: 'minimal_authority_function' }],
       forbidden_name_tokens: ['generic_runtime_owner'],

@@ -221,12 +221,12 @@ test('compact functional audit inherits platform proof policy without repeating 
     retired_generated_surface_provenance: [{
       surface_id: 'legacy-wrapper',
       replacement_ref: 'opl-generated:standard-agent-surfaces',
-      provenance_refs: ['docs/history/retired-wrapper.md'],
+      provenance_refs: ['runtime/fixtures/provenance/retired-wrapper.json'],
     }],
     bridge_exit_gate: {
       physical_delete_authorization_refs: [],
       no_forbidden_write_refs: ['contracts/authority.json'],
-      provenance_refs: ['docs/history/retired-wrapper.md'],
+      provenance_refs: ['runtime/fixtures/provenance/retired-wrapper.json'],
     },
     authority_boundary: {
       domain_can_claim_generic_runtime_owner: false,

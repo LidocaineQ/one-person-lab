@@ -65,28 +65,28 @@ function writeCompactAudit(repoDir: string, codePaths: string[]) {
       {
         surface_id: 'legacy_cli_wrapper',
         replacement_ref: 'contracts/generated_surface_handoff.json#cli',
-        provenance_refs: ['docs/history/legacy-cli-wrapper.md'],
+        provenance_refs: ['runtime/fixtures/provenance/retired-cli-wrapper.json'],
       },
       {
         surface_id: 'legacy_status_wrapper',
         replacement_ref: 'contracts/generated_surface_handoff.json#status_read_model',
-        provenance_refs: ['docs/history/legacy-status-wrapper.md'],
+        provenance_refs: ['runtime/fixtures/provenance/retired-status-wrapper.json'],
       },
       {
         surface_id: 'legacy_workbench_wrapper',
         replacement_ref: 'contracts/generated_surface_handoff.json#workbench_drilldown',
-        provenance_refs: ['docs/history/legacy-workbench-wrapper.md'],
+        provenance_refs: ['runtime/fixtures/provenance/retired-workbench-wrapper.json'],
       },
       {
         surface_id: 'legacy_runtime_probe',
         replacement_ref: 'contracts/generated_surface_handoff.json#domain_handler',
-        provenance_refs: ['docs/history/legacy-runtime-probe.md'],
+        provenance_refs: ['runtime/fixtures/provenance/retired-runtime-probe.json'],
       },
     ],
     bridge_exit_gate: {
       physical_delete_authorization_refs: ['owner-receipt:retirement'],
       no_forbidden_write_refs: ['test:no-forbidden-write'],
-      provenance_refs: ['docs/history/legacy-generated-surfaces.md'],
+      provenance_refs: ['runtime/fixtures/provenance/retired-generated-surfaces.json'],
     },
   });
 }
@@ -172,7 +172,7 @@ for (const invalidCase of [
     mutate(audit: Record<string, unknown>) {
       audit.retired_generated_surface_provenance = [{
         surface_id: 'legacy-wrapper',
-        provenance_refs: ['docs/history/legacy-wrapper.md'],
+        provenance_refs: ['runtime/fixtures/provenance/retired-wrapper.json'],
       }];
     },
     blocker: 'compact_functional_audit_retired_provenance_missing_replacement_ref:0',

@@ -67,7 +67,6 @@
     "same_invocation_same_spec_replays_existing_run": true,
     "same_invocation_different_spec_fails_closed": true,
     "explicit_new_stage_run_option": "--new-stage-run",
-    "quality_path_new_attempt_compatibility_alias": true,
     "direct_unbound_stage_run_creation_forbidden": true
   },
   "owner_split": {

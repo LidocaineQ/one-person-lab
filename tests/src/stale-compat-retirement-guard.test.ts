@@ -131,8 +131,8 @@ test('ordinary owner-channel catalog paths do not retain a Framework catalog sel
   );
 });
 
-test('retired profile and MAG aliases remain history-only in active docs', () => {
-  const machineSurfaceViolations: string[] = [];
+test('retired profile and MAG aliases stay absent from machine surfaces', () => {
+  const violations: string[] = [];
   const retiredAliases = [
     ...retiredWorkspaceProfileAliases,
     retiredMagSustainedConsumptionCommand,
@@ -142,39 +142,12 @@ test('retired profile and MAG aliases remain history-only in active docs', () =>
     const content = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
     for (const alias of retiredAliases) {
       if (content.includes(alias)) {
-        machineSurfaceViolations.push(`${relativePath}: ${alias}`);
+        violations.push(`${relativePath}: ${alias}`);
       }
     }
   }
 
-  assert.deepEqual(machineSurfaceViolations, []);
-
-  const decisions = fs.readFileSync(path.join(repoRoot, 'docs/decisions.md'), 'utf8');
-  const architecture = fs.readFileSync(path.join(repoRoot, 'docs/architecture.md'), 'utf8');
-  for (const alias of retiredWorkspaceProfileAliases) {
-    const decisionLine = decisions.split(/\r?\n/).find((line) => line.includes('`' + alias + '`'));
-    const architectureLine = architecture.split(/\r?\n/).find((line) => line.includes('`' + alias + '`'));
-    assert.match(decisionLine ?? '', /已退役.*history-only/);
-    assert.match(architectureLine ?? '', /已退役.*history-only/);
-  }
-  const retiredMagCommandLine = decisions.split(/\r?\n/).find((line) =>
-    line.includes(retiredMagSustainedConsumptionCommand)
-  );
-  assert.match(retiredMagCommandLine ?? '', /已退役.*history-only/);
-  assert.match(decisions, /runtime owner-evidence-sustained-consumption/);
-
-  const topologyContractReadme = fs.readFileSync(
-    path.join(repoRoot, 'contracts/opl-framework/README.md'),
-    'utf8',
-  );
-  const topologyContractReadmeZh = fs.readFileSync(
-    path.join(repoRoot, 'contracts/opl-framework/README.zh-CN.md'),
-    'utf8',
-  );
-  assert.doesNotMatch(topologyContractReadme, /roots for RCA\/MAG\/OMA deliverables and MAS studies/);
-  assert.doesNotMatch(topologyContractReadmeZh, /RCA series `projects\/<deck-id>`.*MAS portfolio `projects\/<study-id>`/);
-  assert.match(topologyContractReadme, /domain-declared display labels.*do not define a Framework profile/);
-  assert.match(topologyContractReadmeZh, /domain-declared 名称只作为 display 或 provenance terminology，不定义 Framework profile/);
+  assert.deepEqual(violations, []);
 });
 
 test('active OPL MAS command surfaces do not resurrect retired progress-projection public command', () => {

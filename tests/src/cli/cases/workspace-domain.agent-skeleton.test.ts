@@ -261,13 +261,13 @@ test('legacy domain-manifest skeleton inspection accepts MAS MAG RCA fixture sur
       direct_skill_parity_refs: ['proof:mag:direct-skill-parity'],
       opl_hosted_parity_refs: ['proof:mag:opl-hosted-parity'],
       replacement_parity_refs: ['proof:mag:replacement-parity'],
-      provenance_refs: ['docs/history/runtime-substrate/mag-gateway-tombstone.md'],
+      provenance_refs: ['runtime/fixtures/provenance/mag-gateway-retirement.json'],
       legacy_active_path_policy: 'physically_removed_or_history_tombstone_only',
       legacy_active_path_residue: [
         {
           path_family: 'default Gateway active path',
           state: 'tombstone_only',
-          evidence_ref: 'docs/history/runtime-substrate/mag-gateway-tombstone.md',
+          evidence_ref: 'runtime/fixtures/provenance/mag-gateway-retirement.json',
         },
       ],
     },

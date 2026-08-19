@@ -1,135 +1,54 @@
 # OPL 项目概览
 
-Owner: `One Person Lab`
-Purpose: `project`
-State: `active_truth`
-Machine boundary: 本文是核心人读真相面。机器真相继续归 contracts、source、CLI/API 行为、runtime ledger、provider receipt、domain-owned manifest 和真实 workspace / App evidence。
+One Person Lab（OPL）是一套面向复杂知识工作的 AI-native 工作系统。它把目标拆成可恢复的 Stage，让专业 Agent 在明确的材料、权限、产物和责任边界内执行、审阅、修订与交接。
 
-## 项目是什么
+本文只定义产品定位和产品拓扑，不描述实现进度或运行状态。
 
-对外公开时，`One Person Lab` (`OPL`) 固定为四个清晰产品层：`OPL Base`、`OPL App`、`OPL Packages` 和 `OPL Cloud`。其中 Base 由 OPL Framework 实现，是面向高价值知识工作的完整智能体开发与运行基础；App 是本地工作台；Packages 提供可安装的专业能力；Cloud 提供在线治理与托管。用户可以按项目需要使用具体云端能力，Cloud 产品本身正在持续落地。Foundry Agents 作为 Packages 中的专业 authority family 保留领域判断与交付权威，不再与四个产品层并列。Framework 给先进 AI executor 搭台：大型任务按接近人类专家实施的 stage 推进，stage 内最小执行单位是 Agent executor，当前默认且第一公民 executor 是 `Codex CLI`。
-OPL 当前读法固定为 `AI-first / executor-first / Codex-first`。智能体进步主要来自 `Codex CLI` 等 AI executor 能力升级，以及 domain stage pack、prompt、skill、knowledge、rubric 与 quality gate 的改进。OPL 不限制 AI executor 的内部规划、创作、评审、路线判断或修订策略，也不把开放式专家工作写成固定脚本；它只守 owner boundary、权限、安全、审计、receipt、typed blocker、恢复、route-back 和 projection 这些可验证下限。
-这组读法由 [硬约束](./invariants.md) 中的 OPL 内部 8 项原则冻结。provider proof、descriptor ready、generated surface ready、cleanup proof 或 tail ledger 只能作为证据和阻塞定位，不能替代 domain-owned quality / artifact / production verdict，也不能写成 OPL/domain/artifact/production ready。
-OPL Framework 可以使用外部运行时 provider，但框架边界由本仓持有：`Codex-default session runtime`、显式 `domain-agent activation` 层、provider-backed family runtime control plane，以及 One Person Lab App / 其他 shell 背后的 shared projection/contract 层。
-当前仓库跟踪：
+## 产品分层
 
-- `opl` / `opl exec` / `opl resume` 这组 CLI / shell 前门
-- Codex-default session/runtime 路径
-- domain-agent activation / dispatch 规格
-- stage descriptor、stage pack admission、requires / ensures composition、domain memory locator、handoff envelope、receipt、projection、trust lane 与 authority boundary 这组 family-level stage control 语言
-- `OPL Runtime Manager` 产品控制面：把 family runtime provider 纳入 OPL 产品级 profile、stage-attempt request/projection、domain dispatch、任务注册、诊断和状态投影；Temporal-backed provider 是 OPL production online runtime 的必需 substrate，`hermes_agent`、`claude_code` 与 `antigravity_cli` 一样作为显式非默认 executor adapter/backend 保留，stage-level executor policy 可声明 `executor_kind`、`model`、`reasoning_effort`、`provider` 与 `executor_binding_ref`，`local_sqlite` 只作为已退役 provider 词汇和负向 guard，SQLite sidecar 只服务 projection/readback index，旧 Hermes provider/Gateway 语料只作为 legacy/proof/provenance/diagnostic/negative-guard 读取
-- 智能体运行外围能力：stage attempt ledger、provider-backed attempt transport、checkpoint/closeout/receipt、artifact index、file lifecycle、retention、restore proof、migration ledger、workspace lifecycle、human gate / resume token 和 operator projection
-- 统一 `domain-agent skeleton` 与 repo-source 边界：domain 仓按 `agent/`、`contracts/`、`runtime/authority_functions/`、`src/` 或 `packages/`、`docs/` 暴露 stage、prompt、Skill、domain-owned knowledge/memory locator、quality gate、最小 authority function、sidecar、receipt schema、projection builder 和 artifact locator contract；真实 workspace state、runtime artifact body、receipt 实例和交付物实例必须落在外部 workspace / runtime artifact root，不落在开发仓源码目录
-- 执行引擎与模块注册表
-- 工作空间、会话、进度、交付物等接口面
-- 跨仓共享的模块、机器可读合同与可发现索引
-- One Person Lab App / OPL-branded AionUI GUI/WebUI 使用的 runtime/release surface
+- **OPL Base**：Framework、CLI、Stage/Attempt、Workspace、Package discovery、Host composition、runtime provider adapter 和 read model。
+- **OPL App**：桌面产品、用户交互、Settings、官方 starter profile 和 product truth。
+- **OPL Packages**：可安装的 Agent、capability、workflow profile 和 provider。Package 是唯一安装单元，Skill、Tool、Plugin、MCP 和 entrypoint 是 Package descriptor 中的能力。
+- **OPL Cloud**：远端 workspace、managed resource、协作和 Cloud product truth。
 
-当前 repo 分工固定为：`one-person-lab` 是 OPL Framework 唯一 Cordis Host / runtime / CLI / contracts owner，并为 `OPL Base` 的 headless / 独立安装维护自包含 Codex carrier，但不持有 GUI renderer 或 App product truth；`one-person-lab-app` 是 App product/profile truth、Client Contribution ABI、release、updater、用户教程、页面状态、active-shell validation 和 GUI candidate policy owner；`opl-aion-shell` 是当前 OPL-branded AionUI renderer/carrier，`opl-studio` 是 App-owned DSH-derived foreground candidate，二者必须消费同一 Framework Host projected client graph 与 App profile，不各自创建 Host、Client registry 或 currentness。App Full runtime 不重复嵌入 Framework Codex carrier。Studio 通过同一 `OPL_CODEX_BIN` / Codex App Server 边界使用 Studio-owned 或 exact external binary，不继承 AionCore dependency；Hermes Desktop / `hermes-codex` 已退休，仓库只保留 read-only Git provenance，不进入候选、replay、验证或发布路线；`opl-agui-codex-shell` / `agui-codex` 只作为 AG-UI/CopilotKit archived technical proof 与显式 replay surface 保留。MAS/MAG/RCA/Book Forge 等 domain repos 是 domain app/runtime authority，持有自己的 stage 语义、prompt、skill、领域逻辑、质量 gate、truth reducer、运行规则、交付物真相、owner receipt 和 direct skill 入口。
+专业 Agent 持有各自领域的事实、质量判断、artifact authority、owner receipt、typed blocker 和 human gate。Framework 只提供通用底座与受控投影，不代替领域负责人作结论。
 
-MAS 的论文推进 SSOT 不在 OPL 仓维护。当前 MAS paper-facing 默认入口是 MAS 仓的 `PaperMissionRun`、`paper-mission inspect|start|resume|consume-candidate`、product-entry / domain-handler `paper_mission/start_or_resume` 和 `artifact_first_mission_summary.paper_mission_run`。OPL 只持有承载这些 refs 的 Framework runtime、Runway StageRun、stage-attempt projection、attempt ledger、`current_owner_delta` 和 App/workbench projection；不能在 OPL 侧重建 paper mission 状态、签 MAS owner receipt、创建 MAS typed blocker、授权 publication / artifact / current package verdict，或把 provider completion / read-model clean 写成 MAS paper progress。
+## Framework 的职责
 
-One Person Lab App 继续放在独立的界面仓中维护，作为普通用户使用 OPL Framework 与 Foundry Agents 的工作台产品。Framework 侧把普通用户 App 目标形态读作 `Codex App wrapper + Host-derived Client Cordis`：固定使用 `Codex CLI` 作为 concrete executor，内置 MAS/MAG/RCA 及后续 Foundry Agent 的任务入口，不把 AionUI/DSH renderer的多 backend、多 Agent选择或 executor切换暴露成普通用户产品面。App renderer可以运行Host派生的Client Cordis，但不能独立发现/安装 plugin、维护第二 product/profile/currentness truth。
+Framework 持有：
 
-## 品牌模块目标
+- Stage、Attempt、Workspace 和 session continuity 的通用模型；
+- Package descriptor 发现、required/optional presence、callability 和 native carrier 聚合；
+- Cordis Host composition、受控 profile 和 Client contribution projection；
+- Temporal 等 provider 的薄 adapter、运行状态和可恢复控制面；
+- refs-only evidence、operator read model 和明确的 action routing；
+- 通用 contract、schema、CLI 和跨仓边界。
 
-OPL 的品牌语言由当前真实 capability portfolio 直接生成，不再保留人为固定的“十大”口径。唯一机器入口是 `contracts/opl-framework/family-capability-domain-registry.json`；当前按 Foundation / Build / Run / Operate 四组展示 11 个品牌：`OPL Charter`、`OPL Workspace`、`OPL Atlas`、`OPL Pack`、`OPL Stagecraft`、`OPL Runway`、`OPL Ledger`、`OPL Connect`、`OPL Console`、`OPL Foundry` 和 `OPL Fabric`。`brand-module-registry.json` 只投影其中 10 个具有 Framework CLI / L4 / L5 surface 的品牌，Fabric 由 Cloud authority 承载。品牌仍与源码单元、Package 和 Cordis contribution 分层，但每个品牌都必须绑定真实 owner/caller；责任结构改变时品牌组合同步改变，不维护另一套历史 taxonomy。
+Framework 不持有：
 
-品牌模块目标态的详细设计留在 [OPL 品牌模块理想态](./references/brand-modules/README.md)。核心文档只承载当前项目意识：新增 capability、CLI/App surface、contract、read model、release/install path 或 docs support 时，必须能归到某个品牌模块，并保持 domain truth、artifact authority、quality verdict、owner receipt、typed blocker 和 App release truth 的原 owner 不变。模块数量不是冻结约束；新的 bounded context 只有在 owner、purpose、machine boundary、authority false flags 和 L4/L5 口径清楚时才进入 taxonomy。
+- App 的产品、交互和发布事实；
+- Package owner 的版本、发布节奏和领域实现；
+- native carrier 的内部安装状态机；
+- 领域质量、交付、投稿、发布或生产就绪判断；
+- Cloud resource 的 provider truth。
 
-源码物理组织已从品牌桶重排为责任导向的 13 个 source units，落在 6 个 target roots：`src/authority/**`、`src/adapters/**`、`src/read-models/**`、`src/host/**`、`src/entrypoints/**` 和 `src/kernel/**`。`src/modules/**` 是历史路径，successor-first caller cutover 已完成并标记为 `retired`/`must_be_absent`；它不再是 compatibility source、public barrel 或当前 owner。`contracts/opl-framework/source-module-map.json` 是机器 source-unit/legacy-root contract，`contracts/opl-framework/package-topology.json` 是 Package/source/plugin 关联 contract；二者都不是 Cordis registry。该物理重排不等于 release、production、App 或 Cloud 完成。
+## Package 拓扑
 
-当前 runtime / product / policy 入口的归位方式固定为：`OPL Workspace` 提供 Framework workspace protocol、Project / Stage Artifact Unit 和用户检查根，不等同在线 `OPL Workspace` 产品体验；`OPL Stagecraft` 提供 stage pack、declared stage context、Stage Attempt Runtime 和 capability use policy，语义 route 由 Codex CLI 选择；`OPL Runway` 提供 Temporal-backed provider、stage-attempt projection、lease、retry/dead-letter 和 worker lifecycle；`OPL Atlas` 提供 route graph、decision map、workspace/resource index、capability / tool-card catalog 与 cross-agent topology telemetry；`OPL Ledger` 提供 refs-only evidence、receipt、trace、replay、long-soak、cleanup 和 no-regression telemetry，不保存 artifact body 或 domain verdict；OpenScience-style artifact graph / claim warning / project-local ledger pointer / annotation regeneration / native viewer watch 模式也只进入 Ledger 的 refs-only substrate provenance surface，不引入 OpenScience runtime、Electron、MCP、AGPL code、第二 artifact authority 或第二 skill catalog；`OPL Console` 提供 App/operator owner-delta-first cockpit、invocation-plan projection、治理和 action boundary，不是 Connect 私有后端；`OPL Foundry` 以内部 Foundry Kernel 提供候选物化、评测、`EvidenceBundle`、版本、canary、activation 与 rollback control plane，并通过 OMA `engineer-agent` 获取 blueprint / eval / evolution semantics；`OPL Connect` 提供可独立调用的 source connector、managed modules、skills、plugin metadata、MCP/OpenAI/AI SDK descriptors 和 domain discovery；`OPL Fabric` 承载 Cloud 资源供给、操作记录和 owner readback；`OPL Charter` 冻结 owner split、surface budget 和 forbidden claims。
+模块是否拆仓、是否独立发布，是两个不同问题。
 
-当前 family capability portfolio 共同描述 Foundry Agent OS pattern：`OPL Agent OS + Domain Declarative Pack + Domain Minimal Authority Kernel + Domain Capability Registry`。Agent Tool Arsenal / Capability Invocation OS 不新增独立品牌域；它由 Pack、Atlas、Stagecraft、Console、Connect、Runway 和 Ledger 等 domain 的真实 authority/contribution 协作承接，而不是要求品牌、目录或 plugin 对称。Capability Registry 和 Tool Arsenal 都不执行 capability，不生成 owner receipt、typed blocker 或 domain verdict。
+1. **仓内模块**：只有本仓调用、与本仓同生命周期、无独立 owner 时，留在真实源码 owner 内。
+2. **workspace Package**：在同一仓内已有多个调用者、需要明确 ABI 或独立组合，但仍随本仓发布时，放入 `packages/*`。
+3. **独立 owner repo**：能力已被多个产品或仓库复用，需要独立 ownership、issue/review、release 或安全边界时，拆到独立仓。
+4. **独立 publication**：只有出现真实外部 consumer、不同发布节奏或必须独立回滚的运行单元后，才建立独立 artifact publication。独立仓本身不自动要求独立发布。
 
-`Evidence-Grounded Decision Agent Profile` 也按这组协同边界读取：它是标准 Foundry Agent 的横切 decision-support profile，不是医学、血液病或任何单一领域 agent，也不是独立品牌 capability domain。通用 flow 是 `material/case intake -> structured extraction -> enrichment -> mode routing -> evidence/tool execution -> synthesis -> independent review/human gate -> decision-support artifact + evidence trace`。OPL 只固定 stage pack、tool affordance、runtime attempt、refs-only evidence、Console projection、connector boundary、agent improvement 和 forbidden-claim 这些 framework 下限；domain truth、最终决策、质量裁决、artifact authority、owner receipt、typed blocker 和 human gate 仍由对应 domain / App / human owner 持有。
-
-这组归位只帮助维护入口变薄。它不创造新的 runtime owner、product truth、domain truth、artifact authority、quality verdict、owner receipt 或 production maturity 证明；当前活跃差距和执行顺序仍以 [OPL Family 当前状态与理想目标差距](./active/current-state-vs-ideal-gap.md) 为准。
-
-## 当前产品层级
-
-`OPL` 当前对外使用四层结构组织产品认知：Base、App、Packages 和 Cloud。在线 Workspace、Console/Gateway 和托管运行体验的具体可用性以真实 account、storage、isolation、backend 与 owner policy 证据为准；Cloud 不持有 Framework Host、App release、Package currentness 或 domain verdict。
-
-安装、管理和更新也只使用三层用户对象：`OPL Base` 是可独立使用的 Framework runtime，`OPL App` 是可替换 GUI/部署载体，`OPL Package` 是可自由组合的安装单元。Skill、Tool、Plugin、MCP、workflow 和 entrypoint 是 Package 可发现 capability，不是平行生命周期。Package identity、carrier 与 executor route相互独立；Base只提供薄 native-carrier adapter与 fresh installed聚合，Framework不自建跨包 resolver、lock或固定 registry，共享 manifest只服务 Full/offline/integration/QA快照。Source unit 按“repo 内置模块 -> workspace Package -> 独立发布 Package -> 独立 repo”逐级晋升：通用性最多先证明 API/workspace 边界；仓外真实 consumer 与独立版本节奏证明 publication；独立 owner、权限、技术栈或运维生命周期才证明拆仓。独立发布 Package 可以留在 monorepo。当前 `@one-person-lab/cordis-abi`、`@one-person-lab/package-host` 仍是 workspace/source candidates；Connect descriptor discovery、Runway executor 和 Foundry evaluation 由 Framework Host 直接持有。完整门槛由 [`decisions.md`](./decisions.md) 的 2026-08-19 Package topology 决策持有；现有 `opl packages`仍是独立 Package platform migration surface，详见 [`OPL Package 平台组合迁移计划`](./active/opl-package-platform-composition-migration.md)。
-
-1. `OPL Base`
-   由 OPL Framework 实现的智能体开发与运行基础。它持有唯一 Cordis Host、CLI、Codex-default session runtime、activation layer、stage control plane、provider-backed stage-attempt transport、shared contracts/indexes、恢复和审计 surface。Agent 不内嵌第二份 OPL runtime，App 也不是必需入口。
-2. `OPL App`
-   普通用户使用的本地工作台产品。它消费 Framework 与 Package projection，持有 GUI product truth、Client profile/ABI、page-state policy、release gate、updater metadata、用户文档和 active-shell validation，不复制 runtime、Package currentness 或 domain truth。
-3. `OPL Packages`
-   可独立安装与发布的 Agent、Skill、Tool、Plugin 和 Workflow。MAS/MAG/RCA/Book Forge/OMA 等 Foundry Agents 通过 Package 进入生态，同时保留 domain truth、quality verdict、artifact authority、owner receipt 和 direct entry；一个 Package 可以贡献多个或零个 Cordis plugin。
-4. `OPL Cloud`
-   在线 Workspace、Console、Control Plane、Fabric、Ledger 与 Serve 产品。它复用 Base/App/Packages 的合同和引用，但持有独立的账号、资源、服务与发布 authority，不成为第二 Framework Host。
-
-其中 `OPL Runtime Manager` 位于默认运行时层与显式激活层之间。它是产品级管理/投影层，不是新的 domain runtime kernel：具体 executor 由 OPL / domain route 显式选择，当前第一公民 executor 是 `Codex CLI`；Temporal-backed provider 的目标职责是 durable workflow、activity retry/timeout、signal/query、history 与恢复，SQLite sidecar 只承担可重建 projection/readback index。
-
-`hermes_agent`、`claude_code` 与 `antigravity_cli` 只作为显式非默认 Agent executor adapter/backend 接入，必须提供独立 receipt、audit、executor binding ref 和 fail-closed 语义；其中 `hermes_agent` 额外要求 full agent loop / tool event proof，`antigravity_cli` 只作为类似 RCA HTML route + Gemini model/reasoning selection 的 stage-level experimental adapter 示例。`OPL Runtime Manager` 负责把 provider profile、stage-attempt request/projection、domain task registration、诊断、恢复入口、可选 native helper 与高频状态索引统一投影进 `sessions / progress / artifacts / attention queue`。
-
-## 项目目标
-
-- 把 `OPL Framework` 建成完整的 stage-led 智能体开发与运行框架，支撑高价值知识工作的全自动交付
-- 让大型任务按接近人类专家的阶段推进：界定目标、准备材料、执行、审核、修订、交付收口，并把每个阶段变成可恢复、可审计、可追踪的工作单元
-- 把 Agent executor 固定为阶段内最小执行单位；`Codex CLI` 是当前默认且第一公民 executor，其他 executor adapter 只在显式选择后接入并接受回执/审计约束
-- 坚持 AI-first、AI 原生专家判断优先、contract-light：通过 AI executor 升级、domain stage pack、prompt、skill、knowledge 与 quality gate 迭代获得智能提升；合同只固定边界、权限、安全、审计、receipt、恢复和 projection 下限，不规定 AI executor 的内部策略，也不让 readiness / scorecard / checklist 替代 domain-owned quality gate
-- 把外部流程验证论文中值得吸收的模式收敛成 OPL 自有 stage pack 准入规则：静态准入只验证 descriptor core、requires / ensures 组合、trust lane 和 authority boundary；运行时边界继续由 provider、executor、human gate、domain receipt 与 fail-closed blocker 约束，不引入 GraphFlow / GFL runtime dependency
-- 给 `opl`、`opl exec`、`opl resume`、直接 `Codex` 使用和外部壳提供稳定一致的 Codex-default session/runtime 合同
-- 把 family capability domains 作为 OPL Framework/App/Cloud 长期设计语言和成熟度推进模型：以 `OPL Workspace` 的 `L4 executable baseline` 作为当前可执行基线，推动 `Charter / Workspace / Atlas / Pack / Stagecraft / Runway / Ledger / Connect / Console / Foundry / Fabric` 按各自 authority surface、Host/Client contribution、合同、CLI/App/Cloud 入口、验证、真实用户路径和 owner evidence演进，最终达到 `L5 production operating maturity`
-- 冻结 `OPL Runtime Manager` 的产品控制面合同，让 OPL 能管理 provider-backed family runtime，而不复制一套 domain scheduler/session/memory kernel
-- 把 MAS 已验证的 SQLite / file lifecycle / restore proof / retention / artifact index 经验上收成 OPL framework primitives，并让 MAG/RCA 等 domain agent 可复用
-- 用 OPL Meta Agent 的 `engineer-agent` 统一承接新 Agent 的创建、接管和改进语义，产出 `AgentBlueprint` / `EvalSpec` 或基于 `EvidenceBundle` 的 `EvolutionProposal`；由 Foundry Kernel 执行标准骨架物化、评测、版本、canary、activation 和 rollback，并让目标 owner 持有保护测试、最终验收、权限授权和生产采用；MAS/MAG/RCA/Book Forge 的业务内部继续允许保持领域差异
-- 让 `opl install` 只负责 OPL Base：Framework-owned Codex carrier + Temporal-backed family runtime provider + native helpers；`--with-app` 只增加桌面 App。当前 AionUI App 使用 AionCore managed Codex，不能再把 Base carrier 复制进 App bundle；Agent/capability/workflow Packages 由显式 Package lifecycle 或 App 首装 Official Profile 负责；`--no-online-runtime` 只用于开发/离线 degraded diagnostics，不能通过 Full online readiness
-- 以 contract-first 方式规划 `OPL native helper` 与高频文件/状态索引：只做系统探测、artifact discovery、状态投影加速，不替代 domain-owned durable truth
-- 把 domain app 以可同步的 skill pack 与稳定 contract 接入统一 activation layer
-- 统一管理执行引擎、模块、工作空间、会话、进度与交付物
-- 维护 family-level shared modules、shared contracts 与 shared indexes
-- 让 One Person Lab App 作为用户可见工作台，复用同一套 runtime/activation truth
-- 明确 `OPL Framework`、One Person Lab App 与各个独立 `domain agent` / `Foundry Agent` 仓的边界
-- 保持公开文档、machine-readable contracts 与已收录领域状态一致
-- 同步 OPL 内部 8 项原则：真相归主、抓大放小、目标先于路径、AI-first / contract-light、阶段交付、单源派生、结构收敛和证据匹配风险；其中 `verified_static_core` 与 `runtime_enforced_boundary` 分层仍是合同下限，未闭合边界必须返回 typed blocker、human gate、receipt conflict 或 route-back ref
-
-## 作用边界
-
-- `OPL` 负责 Codex-default session/runtime、activation layer、release distribution surface，以及 shared modules / contracts / indexes
-- `OPL` 负责把 domain stage 表达成可发现、可恢复、可审计的 family-level work unit；stage 内部的专家拆解、创作、审核、修订和最终质量判断由 domain agent 与被选中的 Agent executor 执行，当前第一公民 executor 是 `Codex CLI`
-- `OPL` 负责把合同保持为轻量下限：它声明 owner、权限、safe action、receipt、blocker、audit、recovery 和 projection，不检查或规定 stage 内的开放式 AI 内部策略，也不把合同完整性解释为质量裁决
-- `OPL` 负责在启动 stage 前完成 stage pack admission：检查 stage id、owner、输入/输出 refs、`requires`、`ensures`、knowledge refs、skill / prompt / evaluation refs、tool affordance boundary、trust lane、authority boundary、launch profile 和 selected executor binding 是否自洽。该准入只证明 stage pack 可以被 OPL 调度，不证明 domain 工作已完成或质量已达标，也不规定 executor 必须如何选择或编排工具。
-- `OPL` 负责把可静态验证的 stage descriptor core 与必须运行时约束的边界分开：descriptor、组合关系、allowed refs 和 executor binding 属于 verified static core；AI 判断、人类批准、外部系统结果、artifact mutation、memory writeback 和 domain verdict 属于 runtime-enforced boundary。
-- `OPL` 负责发现和投影 domain-owned memory locator、stage `knowledge_refs` 与 writeback receipt refs；memory 正文、写回接受/拒绝、route 判断、quality verdict 和 artifact authority 继续由 domain agent 持有
-- `OPL` 负责智能体运行外围：attempt、provider-backed transport、checkpoint、receipt、artifact index、file lifecycle、retention、restore proof、workspace lifecycle、human gate 和 operator projection
-- `OPL` 负责定义并验证 standard domain-agent skeleton；domain repo 负责把自身 stage、prompt、Skill、tool affordance boundary、knowledge、quality gate、domain truth authority refs、workspace / source / artifact locator contract 和 authority function 映射到这个 skeleton。developer checkout 只保存 locator、index、schema、receipt refs、restore / retention policy 和可审查 fixture，不保存运行生成物或 workspace state body
-- `OPL Runtime Manager` 负责 family runtime provider provisioning、profile wiring、stage-attempt request/projection、task registration hydration、diagnostics、status projection、native helper catalog 与 state index catalog
-- `OPL Runtime Manager` 不拥有 domain truth、domain quality authority、artifact gate、publication/package gate 或 concrete executor
-- Full OPL family readiness 要求 Temporal-backed family runtime provider 已配置且 ready。Temporal 不是可选候选，而是生产在线 runtime 的必需 substrate；Hermes gateway readiness 只作为历史 / 诊断 / 负向 guard 语境出现。
-- `hermes_agent` executor adapter 不提供 provider readiness，`local_sqlite` 只代表 retired-provider negative guard；SQLite sidecar 只代表 projection/readback index
-- `OPL` 的默认具体 executor 仍是 `Codex CLI`
-- `Hermes-Agent` 不再是新的目标默认 session/wakeup substrate；`hermes_agent` 保留为显式非默认 Agent executor adapter，当前只保证可接入、可回执、可审计、可 fail-closed，不保证行为、质量、工具语义或 resume 与 `Codex CLI` 等价
-- family runtime provider 缺失或未 ready 表示 Full OPL readiness degraded；本地 CLI/status/manifest 可以继续报告诊断，但完整在线能力未通过
-- `OPL` 不持有领域运行时所有权
-- `OPL` 不替代各个领域仓的智能体逻辑
-- 外部界面仓负责 One Person Lab App 外壳；当前仓库只跟踪 framework runtime、release discovery/consumer surface 与接口真相。`one-person-lab-app` 持有 GUI product truth、release gate、页面状态、active-shell validation 和 GUI candidate policy；当前主线 `opl-aion-shell` 是 replaceable GUI shell implementation carrier，`opl-studio` 是 DSH-derived foreground alternative，Hermes Desktop / `hermes-codex` 已退休且只保留 read-only Git provenance，`opl-agui-codex-shell` / `agui-codex` 只作为 archived technical proof explicit replay surface
-- 普通用户 App 面必须保持 `Codex CLI` 固定执行器和内置 Foundry Agent 入口语义；非默认 executor adapter 只能由显式 stage / request / developer-operator diagnostic 绑定进入，不得成为 App 普通产品选择器或 shell-owned truth
-- `Med Auto Science`、`Med Auto Grant`、`RedCube AI`、`OPL Book Forge` 等仓继续是独立 `domain agent`
-- 这些 `domain agent` 通过本地 CLI、程序/脚本与 repo-tracked contract 暴露稳定 capability surface；它们既可以通过 `OPL` activation 调用，也可以被 `Codex` 直接调用，工作逻辑保持一致
-- `MAS`、`MAG`、`RCA` 可以作为运行在 OPL Framework 上的 Foundry Agents 被托管、唤醒和投影，但不是 OPL 内部模块；direct Codex app skill 调用仍是一等入口
-- `harness / controller` 继续作为各 domain 仓内部的边界层语言存在，但不再是顶层公开主语
-- `frontdoor`、gateway-first、federation-first、Hermes-first 和旧 Product API 计划只在 history、compatibility、diagnostic 或 superseded reference 语境中出现；active docs 不把这些路线写成当前产品入口或目标 topology
+不得为了“以后可能通用”提前拆仓，也不得让已经形成独立 consumer 和 release cadence 的通用能力继续被单一产品仓锁住。当前人读 portfolio 见 [Family capability portfolio](./references/family-capability-portfolio.md)。
 
 ## 默认入口
 
-建议阅读顺序：
+- CLI：`opl`
+- 当前状态：`opl app state --profile fast --json`
+- Package：`opl packages status --json`
+- Framework readiness：`opl framework readiness --family-defaults --json`
+- 桌面体验：One Person Lab App
 
-1. `README.md`
-2. `docs/README.md`
-3. `docs/status.md`
-4. `docs/project.md`
-5. `docs/architecture.md`
-6. `docs/invariants.md`
-7. `contracts/README.md`
-
-## 核心公开面
-
-- 顶层叙事：`README*`、`docs/README*` 与 `docs/public/`
-- 当前接口与合同入口：`contracts/README.md`、`docs/product/opl-public-surface-index.md`、`docs/active/` 与 `docs/specs/` 下仍生效的 runtime / product-boundary 规格
-- 旧 gateway-first 语料：人读材料已经进入 `docs/history/compatibility/gateway-federation/`；活跃机器可读合同只保留当前 stage-led framework、runtime 与 domain-agent catalog surface
-- 参考与历史：`docs/references/`、`docs/history/` 与 `docs/docs_portfolio_consolidation.md`
+具体命令和 payload 以 `opl --help`、contracts 和 fresh readback 为准。

@@ -57,9 +57,7 @@ Desktop 启动维护会在 `system_action.details.temporal_runtime_reconcile` �
 
 Shell 只向 Desktop OPL child command 注入私有 `OPL_APP_HOST_KIND=desktop` host hint；Web host 不注入。Full wrapper 若注入打包的本机默认地址，还必须同时传 `OPL_TEMPORAL_ADDRESS=127.0.0.1:7233` 与 `OPL_TEMPORAL_ADDRESS_SOURCE=packaged_local_default`，Framework 才把该环境地址识别为 OPL-managed；缺少来源、远程地址、来源与地址不匹配或显式 custom command 一律保持 `not_applicable` 且不打开 runtime、不产生 mutation。`OPL_APP_PROCESS_INSTANCE_ID` 同时存在于 Desktop 与 Web host，不能单独授权 launchd mutation。host hint 或 address source 本身也不触发动作，只有显式执行 `opl system startup-maintenance` 时 Framework 才消费它；普通 `app state`、status、diagnose 等读取永远不会因此产生 mutation。
 
-## Migration And Rollback
-
-旧 detached server 若占用同一地址，install 会先有界停止该 PID并确认端口释放，再 bootstrap launchd job。旧 `start-dev` 若未配置数据库文件，其内存 workflow history 无法迁移；operation receipt 只声明 process adoption，并明确 `old_in_memory_history_migration=not_available`。
+## Failure Rollback
 
 plist/config 写入或 bootstrap 失败会恢复原始字节。新 job loaded 但未 ready 时，安装事务会先 bootout 并移除新 supervisor，再尝试恢复原 detached service。bootout 失败时保留当前文件和 job，不伪称 removed，也不会并发启动另一个端口冲突进程。
 

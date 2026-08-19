@@ -145,7 +145,6 @@ test('family-runtime registry parser reuses shared option walking without changi
       closeoutRefs: [],
       humanGateRefs: [],
       blockedReason: undefined,
-      newAttempt: false,
       newStageRun: false,
       stageRunInvocationId: undefined,
       parentRouteDecisionRef: undefined,

@@ -174,7 +174,6 @@ export type FamilyRuntimeCommandInput =
       closeoutRefs?: string[];
       humanGateRefs?: string[];
       blockedReason?: string;
-      newAttempt?: boolean;
       newStageRun?: boolean;
       stageRunInvocationId?: string;
       parentRouteDecisionRef?: string;

@@ -21,22 +21,17 @@ Neither surface grants dispatch, retry, reconcile, publication, or release-state
 authority. Recovery remains `opl release status` followed by exact `opl release
 reconcile` when an owner-authoritative unknown marker exists.
 
-## Planned package composition boundary
+## Package composition boundary
 
-The 2026-07-24 planned target treats Package as the installation unit and
-Skill/Tool/Plugin/workflow/entrypoint as discoverable capabilities. Installation,
-updates, removal, source currentness, and physical recovery belong to Codex Plugin
-Manager, Git, or the actual carrier platform. Framework contracts may expose a thin
-adapter, dynamic installed descriptors, Agent Work Item/Temporal aggregation, and
-typed custom-view data, but must not create a parallel fixed
-Package/Agent/Plugin/Module registry, resolver, installed lock, payload, LKG,
-lifecycle receipt, materializer, or durable package transaction. Dependencies are
-presence/callability only; MAS -> ScholarSkills remains required.
-
-Existing exact managed source, lock, Release Set, materialization, and LKG contracts
-remain current compatibility inputs until the platform proof and dual-read migration
-finish. They are not the long-term target and must not gain new consumers. See
-[`docs/active/opl-package-platform-composition-migration.md`](../../docs/active/opl-package-platform-composition-migration.md).
+Package is the installation unit; Skill, Tool, Plugin, workflow, and entrypoint
+are descriptor capabilities. Installation, updates, removal, source
+currentness, and physical recovery belong to the configured native carrier.
+Framework contracts expose thin carrier adapters, installed descriptor
+aggregation, presence/callability, runtime projection, and Host contribution
+boundaries. They do not define a fixed Package/Agent/Plugin registry, central
+resolver, installed lock, payload lock, LKG, materializer, or durable Package
+transaction. See [`docs/project.md`](../../docs/project.md) for topology
+promotion rules.
 
 It is repo-tracked because the current framework needs stable machine-readable inputs for:
 

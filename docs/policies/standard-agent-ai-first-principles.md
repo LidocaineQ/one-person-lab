@@ -49,12 +49,6 @@ OPL 标准智能体采用 AI-first 原则包：AI 负责阶段内的开放式理
 
 ## Domain Adoption
 
-每个标准 domain agent 必须保留自己的领域特化：
+每个标准 domain agent 都必须把 `domain_intake` 映射到本仓真实 Stage、source refs、owner receipt、typed blocker、human gate 和 route-back surface。具体映射只由该 Agent 的当前 descriptor、Stage manifest 和 capability map 持有，Framework policy 不复制成员清单或 stage 名称。
 
-- MAS：把 OPL `domain_intake` 映射到 `01-study_intake` 和 `study_task_intake` surfaces；MAS 继续持有 study truth、source readiness、publication/artifact authority。
-- MAG：映射到 grant/request intake 与 grant authority surface；OPL 只消费 refs 和 generated entry。
-- RCA：映射到 RCA visual/evidence intake 与 visual-deliverable authority surface。
-- OMA：映射到 `engineer-agent` 语义入口以及内部 `design|diagnose` provider operation；Foundry lifecycle authority 留在 OPL。
-- BookForge：映射到 book/project intake 与 manuscript/export authority surface。
-
-MAS ScholarSkills 是 capability pack，不是 domain intake owner。active professional modules 只由能力合同声明，不能通过 `intake` 或 `omics` 文案扩大成 active domain stage。
+capability pack 不是 domain intake owner。active professional modules 只由能力合同声明，不能通过 README、Skill 文案或目录名称扩大成 active domain stage。

@@ -66,7 +66,7 @@ Domain repo 持有阶段语义、专业能力、知识、质量门和最小领�
 | `agent/quality_gates/` | 审稿、交付、导出、owner review 等质量门规则和 receipt shape。 | 不让 OPL 代签领域质量结论。 |
 | `contracts/` | 机器可读连接层，固定 pack、stage、action、surface、receipt 和 authority boundary。 | 不承载长篇叙事，不替代真实 owner evidence。 |
 | `runtime/authority_functions/` | 最小领域 authority functions 或其声明源。 | 不实现 generic scheduler、queue、attempt ledger、status/workbench shell。 |
-| `docs/` | 当前读法、架构、状态、决策和迁移说明。 | 不作为机器 truth，不替代 contracts/source/tests/readback。 |
+| `docs/` | 当前读法、架构、状态、决策和必要操作说明。 | 不作为机器 truth，不替代 contracts/source/tests/readback，不保存完成流水或迁移档案。 |
 
 ## Stage 内部连接方式
 
@@ -127,12 +127,12 @@ OMA stage-decomposition / agent-building semantics
 
 OMA 负责目标理解、设计依据、`AgentBlueprint` / `EvalSpec`、证据诊断和 `EvolutionProposal`。OPL Framework 负责 Pack scaffold/conformance、generated interfaces、FoundryRun、物化、评测、证据、版本、canary、activation、rollback 和 workspace projection。目标 agent/owner 负责自己的 domain truth、保护测试、artifact body、quality verdict、owner receipt、human gate 与生产采用。
 
-## 迁移口径
+## 准入口径
 
-1. 先保证 repo source 结构完整：`agent/`、`contracts/`、`runtime/`、`docs/` 都存在，并由 `pack_compiler_input.json` 指向真实非 README 文件。
-2. 再补 Stage 内资源连接：每个 stage 都要能解析 prompt、skill、tool、knowledge 和 quality gate refs。
-3. 再推进 Stage Pack v2：补 plane version、standard pack ABI、tool affordance boundary、receipt schema refs、authority function refs、L4 / L5 entry gate、independent gate 和 stage completion policy。字段级清单见 `docs/policies/stage-pack-v2-migration-checklist.md`。
-4. 最后处理外置能力包：只有高频、重型、跨 stage 或需要独立发布的 professional skill / reference pack 才外置。
+1. repo source 必须具备 `agent/`、`contracts/`、`runtime/` 和 `docs/`，`pack_compiler_input.json` 只能指向真实 source，不得用 README 占位。
+2. 每个 Stage 必须能解析自己的 prompt、skill、tool、knowledge、quality gate、receipt 和 authority function refs，并通过当前 Stage Pack contract。
+3. generated/hosted surface 必须从同一 declarative source 产生，standalone 与 hosted caller 都不能回到 repo-local generic runtime。
+4. professional skill / reference pack 只有在真实多 Stage 或跨仓 consumer、独立 owner 或独立发布节奏存在时才外置。
 
 目录语义是稳定边界，不随命名偏好移动：`agent/primary_skill/SKILL.md` 表示标准 agent 的 rich default Codex entry source；`agent/skills/` 表示 domain pack 内的 skill declaration / generated-surface 输入；`agent/professional_skills/<skill-id>/SKILL.md` 表示 Codex-style 一等专业方法 Skill。若某个 repo 暂时采用等价目录，必须在 `contracts/capability_map.json` 中声明 `capability_kind`、canonical source 和 runtime projection，并保证不会降低 Codex discovery 或 OPL sync 能力。
 

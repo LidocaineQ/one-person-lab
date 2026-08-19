@@ -90,8 +90,7 @@
     "docs/source",
     "docs/policies",
     "docs/specs",
-    "docs/references",
-    "docs/history"
+    "docs/references"
   ],
   "verification_commands": [
     "scripts/verify.sh",

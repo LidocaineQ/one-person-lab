@@ -286,7 +286,6 @@ function parseAttemptCreateArgs(rest: string[]): FamilyRuntimeCommandInput {
   let reviewLane: string | undefined;
   let taskId: string | undefined;
   let blockedReason: string | undefined;
-  let newAttempt = false;
   let newStageRun = false;
   let stageRunInvocationId: string | undefined;
   let parentRouteDecisionRef: string | undefined;
@@ -297,10 +296,7 @@ function parseAttemptCreateArgs(rest: string[]): FamilyRuntimeCommandInput {
   const closeoutRefs: string[] = [];
   const humanGateRefs: string[] = [];
   parseCliOptions(rest, 1, (token, value) => {
-    if (token === '--new-attempt') {
-      newAttempt = true;
-      return false;
-    } else if (token === '--new-stage-run') {
+    if (token === '--new-stage-run') {
       newStageRun = true;
       return false;
     } else if (token === '--stage-run-invocation-id' && value) {
@@ -440,7 +436,6 @@ function parseAttemptCreateArgs(rest: string[]): FamilyRuntimeCommandInput {
       closeoutRefs,
       humanGateRefs,
       blockedReason,
-      newAttempt,
       newStageRun,
       stageRunInvocationId,
       parentRouteDecisionRef,

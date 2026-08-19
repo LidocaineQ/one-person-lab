@@ -745,7 +745,7 @@ export async function runFamilyRuntime(
       });
       const stageRunInvocationId = parsed.input.stageRunInvocationId
         ? explicitStageRunInvocationId(parsed.input.stageRunInvocationId)
-        : parsed.input.newStageRun || parsed.input.newAttempt
+        : parsed.input.newStageRun
           ? stableId('sri', [baseStageRunInvocationId, 'explicit_new_stage_run', randomUUID()])
           : baseStageRunInvocationId;
       const stageRunId = deriveStageRunId({
@@ -865,9 +865,7 @@ export async function runFamilyRuntime(
         sourceFingerprint,
         taskId,
       ]);
-      const projectedIdempotencyKey = parsed.input.newAttempt
-        ? stableId('idem', [baseIdempotencyKey, 'new_attempt_requested'])
-        : baseIdempotencyKey;
+      const projectedIdempotencyKey = baseIdempotencyKey;
       const defaultStageContextObservation = cordis.stageContext.observe(loadFrameworkContracts(), {
         domainId: parsed.input.domainId,
         stageId: parsed.input.stageId,
@@ -922,25 +920,17 @@ export async function runFamilyRuntime(
         ?? parsed.input.blockedReason
         ?? undefined;
       if (!existingAttempt && (existingStageRunLaunch || stageQualityBinding?.enabled)) {
-        if (parsed.input.newStageRun && parsed.input.newAttempt) {
-          throw new FrameworkContractError(
-            'cli_usage_error',
-            '--new-stage-run cannot be combined with its quality-path --new-attempt compatibility alias.',
-            { mutually_exclusive: ['--new-stage-run', '--new-attempt'] },
-          );
-        }
         if (
           parsed.input.stageRunInvocationId
-          && (parsed.input.newStageRun || parsed.input.newAttempt)
+          && parsed.input.newStageRun
         ) {
           throw new FrameworkContractError(
             'cli_usage_error',
-            '--stage-run-invocation-id cannot be combined with --new-stage-run or the quality-path --new-attempt alias.',
+            '--stage-run-invocation-id cannot be combined with --new-stage-run.',
             {
               mutually_exclusive: [
                 '--stage-run-invocation-id',
                 '--new-stage-run',
-                '--new-attempt',
               ],
             },
           );

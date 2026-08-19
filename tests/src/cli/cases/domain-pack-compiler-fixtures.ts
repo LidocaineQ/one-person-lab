@@ -107,7 +107,7 @@ function withStandardSkeleton(payload: JsonRecord, agentId: string) {
       direct_skill_parity_refs: [`proof:${agentId}:direct-skill-parity`],
       opl_hosted_parity_refs: [`proof:${agentId}:opl-hosted-parity`],
       replacement_parity_refs: [`proof:${agentId}:replacement-parity`],
-      provenance_refs: [`docs/history/runtime-substrate/${agentId}-legacy-tombstone.md`],
+      provenance_refs: [`runtime/fixtures/provenance/${agentId}-retirement.json`],
       legacy_active_path_policy: 'physically_removed_or_history_tombstone_only',
       legacy_active_path_residue: [],
     },

@@ -68,12 +68,10 @@ test('family structure advisory classifies tracked structural risks without fail
   }
 });
 
-test('package exposes the family structure advisory command and tracked report', () => {
+test('package exposes the family structure advisory command', () => {
   const packageJson = parseJsonText(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8')) as any;
-  const trackedReportPath = path.join(repoRoot, 'docs/references/operating-governance/family-structure-advisory-report.md');
   assert.equal(packageJson.scripts?.['family:structure-advisory'], 'node ./scripts/family-structure-advisory.mjs');
   assert.equal(fs.existsSync(scriptPath), true);
-  assert.equal(fs.existsSync(trackedReportPath), true);
 });
 
 test('default family structure advisory scope follows the current OPL series', () => {

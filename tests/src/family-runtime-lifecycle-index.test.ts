@@ -195,7 +195,7 @@ test('family runtime lifecycle apply records domain-owner legacy cleanup handoff
           action_kind: 'record_domain_owner_handoff_receipt',
           owner_scope: 'domain_owner_handoff_receipt_ref',
           target_ref: 'src/med_autoscience/controllers/supervision_scheduler_parts/local_adapter.py',
-          restore_proof_refs: ['docs/history/runtime/local-scheduler-tombstone.md'],
+          restore_proof_refs: ['runtime/fixtures/provenance/local-scheduler-retirement.json'],
           domain_owner_handoff_receipt_refs: ['mas://receipt/local-scheduler-retired'],
         },
       ],
@@ -219,7 +219,7 @@ test('family runtime lifecycle apply records domain-owner legacy cleanup handoff
           action_kind: 'record_domain_owner_handoff_receipt',
           owner_scope: 'domain_owner_handoff_receipt_ref',
           target_ref: 'src/med_autoscience/controllers/supervision_scheduler_parts/local_adapter.py',
-          restore_proof_refs: ['docs/history/runtime/local-scheduler-tombstone.md'],
+          restore_proof_refs: ['runtime/fixtures/provenance/local-scheduler-retirement.json'],
           domain_owner_handoff_receipt_refs: ['mas://receipt/local-scheduler-retired'],
           no_active_caller_refs: ['proof:mas:local-scheduler-no-active-caller'],
           replacement_parity_refs: ['proof:opl:temporal-scheduler-replacement'],
@@ -247,7 +247,7 @@ test('family runtime lifecycle apply records domain-owner legacy cleanup handoff
     const reconciled = reconcileFamilyRuntimeLifecycleRefs({
       target_domain_id: 'med-autoscience',
       expected_domain_artifact_mutation_receipt_refs: ['mas://receipt/local-scheduler-retired'],
-      expected_restore_proof_refs: ['docs/history/runtime/local-scheduler-tombstone.md'],
+      expected_restore_proof_refs: ['runtime/fixtures/provenance/local-scheduler-retirement.json'],
     });
 
     assert.equal(reconciled.status, 'reconciled');

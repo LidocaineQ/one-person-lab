@@ -515,8 +515,7 @@ Close findings using the latest package.
         const first = await executeNewStageRun(baseArgs);
         const replay = await runFamilyRuntime(baseArgs, runtimeOptions);
         const explicitNew = await executeNewStageRun([...baseArgs, '--new-stage-run']);
-        const compatibilityAlias = await executeNewStageRun([...baseArgs, '--new-attempt']);
-        return { first, replay, explicitNew, compatibilityAlias };
+        return { first, replay, explicitNew };
       } finally {
         await connection.close();
       }
@@ -527,7 +526,6 @@ Close findings using the latest package.
     const state = execution.first.state as any;
     const replayLaunch = execution.replay.family_runtime_stage_run as any;
     const explicitNewLaunch = execution.explicitNew.cli.family_runtime_stage_run as any;
-    const compatibilityAliasLaunch = execution.compatibilityAlias.cli.family_runtime_stage_run as any;
     const manifestSource = fs.readFileSync(path.join(packRoot, 'agent/stages/manifest.json'), 'utf8');
     const manifestHash = crypto.createHash('sha256').update(manifestSource).digest('hex');
 
@@ -555,16 +553,7 @@ Close findings using the latest package.
       launch.temporal_start.first_execution_run_id,
     );
     assert.notEqual(explicitNewLaunch.stage_run_input.stage_run_id, stageRunInput.stage_run_id);
-    assert.notEqual(
-      compatibilityAliasLaunch.stage_run_input.stage_run_id,
-      stageRunInput.stage_run_id,
-    );
-    assert.notEqual(
-      compatibilityAliasLaunch.stage_run_input.stage_run_id,
-      explicitNewLaunch.stage_run_input.stage_run_id,
-    );
     assert.equal(explicitNewLaunch.durable_launch.start_status, 'started');
-    assert.equal(compatibilityAliasLaunch.durable_launch.start_status, 'started');
 
     assert.equal(state.status, 'completed_with_quality_debt', JSON.stringify(state, null, 2));
     assert.equal(state.sqlite_projection.status, 'synced');
@@ -686,8 +675,8 @@ Close findings using the latest package.
         FROM stage_run_launches
         ORDER BY created_at ASC
       `).all() as Array<Record<string, any>>;
-      assert.equal(launches.length, 3);
-      assert.equal(new Set(launches.map((entry) => entry.stage_run_id)).size, 3);
+      assert.equal(launches.length, 2);
+      assert.equal(new Set(launches.map((entry) => entry.stage_run_id)).size, 2);
       assert.equal(launches.every((entry) => entry.launch_status === 'closed'), true);
       assert.equal(
         launches.every((entry) => entry.terminal_status === 'completed_with_quality_debt'),
