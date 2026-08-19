@@ -875,9 +875,21 @@
       "portfolio_domain_id": "integration",
       "brand_name": "OPL Connect",
       "owner": "OPL Framework + App release owner",
-      "purpose": "Generated and distributed interfaces for CLI, MCP, ToolResultEnvelope descriptors, OpenAI tools, AI SDK tools, Skills/plugins, module install, release, and drift detection.",
+      "purpose": "Stable external connector access and generated or distributed interfaces for CLI, MCP, ToolResultEnvelope descriptors, OpenAI tools, AI SDK tools, Skills/plugins, module install, release, and drift detection.",
       "state": "active_structural_baseline",
-      "machine_boundary": "Connect publishes descriptors and distribution surfaces derived from canonical contracts. It does not reinterpret domain semantics or claim install/release evidence that belongs to a release artifact owner.",
+      "machine_boundary": "Connect owns generic connector lifecycle and Framework-hosted composition for external connectors, including message-channel and remote-companion desktop connectors, while publishing descriptors and distribution surfaces derived from canonical contracts. The connected product or provider owner keeps credentials, provider lifecycle, content, history, remote service, and domain semantics. Connect uses installed descriptor projection rather than a fixed brand membership registry and does not claim install/release evidence that belongs to a release artifact owner.",
+      "connector_classification": {
+        "module_scope": "connector_packages_and_framework_hosted_connector_contributions",
+        "connector_kinds": [
+          "external_connector",
+          "message_channel_connector",
+          "remote_companion_connector"
+        ],
+        "membership_source": "current_installed_enabled_callable_package_descriptors_and_framework_host_projection",
+        "fixed_brand_membership_registry_allowed": false,
+        "connected_product_absorbed_into_connect": false,
+        "single_cordis_host_owner": "OPL Framework"
+      },
       "module_doc_ref": "human_doc:opl_brand_module_connect",
       "contract_refs": [
         "contracts/opl-framework/brand-module-surfaces.json",
@@ -962,6 +974,8 @@
         "domain_ready",
         "quality_verdict",
         "production_ready",
+        "connector_membership_from_fixed_brand_allowlist",
+        "connected_product_or_remote_service_owned_by_connect",
         "tool_descriptor_presence_is_handler_readiness",
         "tool_result_envelope_is_domain_authority"
       ]

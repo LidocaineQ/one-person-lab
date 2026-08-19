@@ -123,11 +123,12 @@
       "domain_id": "integration",
       "brand_name": "OPL Connect",
       "display": { "short_name": "Connect", "group_id": "run", "order": 80, "tagline": "Connect the ecosystem." },
-      "name_assessment": { "verdict": "keep", "rationale": "Directly names external reach and carrier operations, which remain distinct from Atlas discovery." },
-      "authority_surfaces": ["native-carrier", "provider-credentials", "source-discovery", "release-operation"],
-      "package_units": ["root-authority"],
+      "name_assessment": { "verdict": "keep", "rationale": "Directly names external reach and Framework-hosted connector composition, which remain distinct from Atlas discovery and from the connected product itself." },
+      "authority_surfaces": ["installed-connector-descriptors", "framework-hosted-connector-composition", "native-carrier-owner", "provider-credential-owner", "app-connector-contribution", "release-operation"],
+      "package_units": ["root-authority", "connector-packages"],
       "contributions": [
         { "contribution_id": "descriptor-discovery", "host": "framework-host", "owner": "opl-framework", "independent_release": false, "slot_or_service": "opl.connect.descriptor-discovery" },
+        { "contribution_id": "connector-provider-host", "host": "framework-host", "owner": "opl-framework", "independent_release": false, "slot_or_service": "opl.connect.channel-provider-host" },
         { "contribution_id": "client-connection", "host": "app-client", "owner": "opl-app", "independent_release": false, "slot_or_service": "connection.remote" }
       ]
     },
