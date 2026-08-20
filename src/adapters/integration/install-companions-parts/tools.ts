@@ -304,7 +304,7 @@ function inspectGhStackEntrypoint(ghPath: string | null, home: string): OplCompa
   if (!ghPath || !fs.existsSync(ghPath) || !fs.statSync(ghPath).isFile()) return null;
   const version = runCommandForOutput(
     ghPath,
-    ['extension', 'exec', 'gh-stack', '--', '--version'],
+    ['extension', 'exec', 'stack', '--version'],
     5_000,
     { ...process.env, HOME: home },
   );

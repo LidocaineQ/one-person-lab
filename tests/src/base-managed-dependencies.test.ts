@@ -394,7 +394,7 @@ test('official gh-stack extension installs through GitHub CLI and remains callab
     `const calls = ${JSON.stringify(calls)};`,
     "const args = process.argv.slice(2).join(' ');",
     "fs.appendFileSync(calls, `${args}\\n`);",
-    "if (args === 'extension exec gh-stack -- --version') { if (!fs.existsSync(marker)) process.exit(1); console.log('gh-stack version v0.1.0'); process.exit(0); }",
+    "if (args === 'extension exec stack --version') { if (!fs.existsSync(marker)) process.exit(1); console.log('gh stack version 0.1.0'); process.exit(0); }",
     "if (args === 'extension install github/gh-stack') { fs.writeFileSync(marker, 'v0.1.0'); process.exit(0); }",
     "if (args === 'extension upgrade github/gh-stack') { fs.writeFileSync(marker, 'v0.1.0'); process.exit(0); }",
     "if (args === 'stack --version') { console.log('install the official extension'); process.exit(0); }",
@@ -430,6 +430,7 @@ test('official gh-stack extension installs through GitHub CLI and remains callab
       assert.match(observed.tools[0]?.version ?? '', /0\.1\.0/);
       const recordedCalls = fs.readFileSync(calls, 'utf8').trim().split('\n');
       assert.equal(recordedCalls.includes('extension install github/gh-stack'), true);
+      assert.equal(recordedCalls.includes('extension exec stack --version'), true);
       assert.equal(recordedCalls.includes('stack --version'), false);
     });
   } finally {
