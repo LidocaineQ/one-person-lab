@@ -12,10 +12,7 @@ dist/
 build/
 out/
 /src/entrypoints/cli/command-surface-manifest.ts
-packages/cordis-abi/contracts/cordis-*.schema.json
-packages/package-host/contracts/package-host-context.schema.json
-packages/package-host/contracts/package-host-integration.schema.json
-packages/package-host/contracts/*-host-contract.json
+# Package contract projections are tracked so source archives run without lifecycle scripts.
 node_modules/
 target/
 .venv/
