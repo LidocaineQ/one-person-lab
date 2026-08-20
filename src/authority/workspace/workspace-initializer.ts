@@ -68,6 +68,7 @@ export type WorkspaceInitializeOptions = {
   bind?: boolean;
   dryRun?: boolean;
   force?: boolean;
+  adoptExistingTopology?: boolean;
   packageReadiness?: AgentPackageReadinessPort;
   refreshWorkspaceSkills: WorkspaceSkillProjectionRefresher;
 };
@@ -216,14 +217,17 @@ function assertCompatibleExistingIndex(input: {
   agent: WorkspaceAgentProfile;
   profileId: WorkspaceProfileId;
   profile: TopologyProfile;
+  adoptExistingTopology?: boolean;
 }) {
   const existingAgent = isRecord(input.existingIndex.agent) ? input.existingIndex.agent : {};
   const existingProfile = isRecord(input.existingIndex.workspace_topology_profile)
     ? input.existingIndex.workspace_topology_profile
     : {};
-  const blockers = [
+  const identityBlockers = [
     existingAgent.agent_id === input.agent.agent_id ? null : 'agent_id_mismatch',
     existingAgent.project_id === input.agent.project_id ? null : 'agent_project_id_mismatch',
+  ];
+  const topologyBlockers = [
     existingProfile.profile_id === input.profileId ? null : 'profile_id_mismatch',
     existingProfile.workspace_mode === input.profile.workspace_mode ? null : 'workspace_mode_mismatch',
     existingProfile.project_collection_path === input.profile.project_collection_path
@@ -232,6 +236,10 @@ function assertCompatibleExistingIndex(input: {
     existingProfile.project_stage_outputs_root === input.profile.project_stage_outputs_root
       ? null
       : 'project_stage_outputs_root_mismatch',
+  ];
+  const blockers = [
+    ...identityBlockers,
+    ...(input.adoptExistingTopology ? [] : topologyBlockers),
   ].filter((entry): entry is string => Boolean(entry));
 
   if (blockers.length > 0) {
@@ -556,7 +564,7 @@ export function initializeWorkspace(
     normalizeOptionalString(options.projectId) ?? agent.default_project_id,
     'project_id',
   );
-  const title = normalizeOptionalString(options.title);
+  const requestedTitle = normalizeOptionalString(options.title);
   const createdAt = new Date().toISOString();
   const updatedAt = createdAt;
   const projectRoot = path.join(workspacePath, profile.project_collection_path, projectId);
@@ -568,8 +576,21 @@ export function initializeWorkspace(
   const currentProject = workspaceProjectEntry(projectId, projectRootRef, stageOutputsRootRef);
   const existingIndex = options.force ? null : readExistingWorkspaceIndex(workspaceIndexPath);
   if (existingIndex) {
-    assertCompatibleExistingIndex({ existingIndex, agent, profileId, profile });
+    assertCompatibleExistingIndex({
+      existingIndex,
+      agent,
+      profileId,
+      profile,
+      adoptExistingTopology: options.adoptExistingTopology,
+    });
   }
+  const title = requestedTitle ?? (
+    options.adoptExistingTopology
+    && typeof existingIndex?.title === 'string'
+    && existingIndex.title.trim().length > 0
+      ? existingIndex.title
+      : null
+  );
   const existingProjects = normalizeExistingProjects(existingIndex?.projects);
   const mergedProjects = mergeWorkspaceProjects(existingProjects, currentProject);
   const createdDirectories: string[] = [];
@@ -589,10 +610,14 @@ export function initializeWorkspace(
     updatedAt,
     projects: mergedProjects.projects,
     existingIndex,
-    profileAppliedBy: 'opl_workspace_init',
-    profileEvent: existingIndex
-      ? mergedProjects.project_was_already_indexed ? 'ensured' : 'project_appended'
-      : 'initialized',
+    profileAppliedBy: options.adoptExistingTopology
+      ? 'opl_workspace_adopt'
+      : 'opl_workspace_init',
+    profileEvent: options.adoptExistingTopology
+      ? 'adopted'
+      : existingIndex
+        ? mergedProjects.project_was_already_indexed ? 'ensured' : 'project_appended'
+        : 'initialized',
   });
   if (existingIndex && typeof existingIndex.created_at === 'string') {
     workspaceIndex.created_at = existingIndex.created_at;

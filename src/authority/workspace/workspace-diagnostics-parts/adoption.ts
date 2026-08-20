@@ -190,6 +190,7 @@ export function adoptWorkspace(
       mode: options.mode,
       bind: false,
       force: false,
+      adoptExistingTopology: true,
       refreshWorkspaceSkills: options.refreshWorkspaceSkills,
     });
     return {

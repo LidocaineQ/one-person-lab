@@ -222,6 +222,131 @@ test('workspace adopt apply materializes OPL metadata and generated inspection r
   }
 });
 
+test('workspace adopt apply performs the topology migration promised by dry-run', () => {
+  const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-workspace-adopt-migration-state-'));
+  const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-workspace-adopt-migration-'));
+
+  try {
+    runCli([
+      'workspace',
+      'init',
+      '--agent',
+      'mas',
+      '--workspace',
+      workspacePath,
+      '--project-id',
+      'legacy-study',
+      '--mode',
+      'one_off',
+      '--no-bind',
+    ], {
+      OPL_STATE_DIR: stateRoot,
+    });
+
+    const legacyIndexPath = path.join(workspacePath, 'workspace_index.json');
+    const legacyIndex = readJsonFile(legacyIndexPath);
+    legacyIndex.workspace_topology_profile.project_collection_path = 'projects';
+    for (const project of legacyIndex.projects) {
+      for (const field of [
+        'project_root',
+        'stage_outputs_root',
+        'control_root',
+        'inputs_root',
+        'exports_root',
+        'packages_root',
+        'review_root',
+        'handoff_root',
+        'archive_root',
+        'project_config_ref',
+        'project_index_ref',
+        'stage_outputs_manifest_ref',
+        'stage_outputs_index_ref',
+        'current_stage_pointer_ref',
+      ]) {
+        project[field] = project[field].replace(/^studies\//u, 'projects/');
+      }
+    }
+    fs.renameSync(path.join(workspacePath, 'studies'), path.join(workspacePath, 'projects'));
+    for (const fileName of ['stage_outputs_index.json', 'current_stage.json']) {
+      const generatedPath = path.join(
+        workspacePath,
+        'projects',
+        'legacy-study',
+        'artifacts',
+        'stage_outputs',
+        fileName,
+      );
+      const generated = fs.readFileSync(generatedPath, 'utf8')
+        .replaceAll('studies/legacy-study', 'projects/legacy-study');
+      fs.writeFileSync(generatedPath, generated);
+    }
+    fs.writeFileSync(legacyIndexPath, `${JSON.stringify(legacyIndex, null, 2)}\n`);
+
+    const dryRun = runCli([
+      'workspace',
+      'adopt',
+      '--agent',
+      'mas',
+      '--workspace',
+      workspacePath,
+      '--project-id',
+      'canonical-study',
+      '--mode',
+      'portfolio',
+      '--dry-run',
+    ], {
+      OPL_STATE_DIR: stateRoot,
+    });
+    assert.equal(dryRun.workspace_adoption.status, 'dry_run_ready');
+    assert.equal(dryRun.workspace_adoption.existing_workspace_index_detected, true);
+    assert.deepEqual(
+      dryRun.workspace_adoption.would_index_projects.map((entry: { project_id: string }) => entry.project_id),
+      ['legacy-study', 'canonical-study'],
+    );
+
+    const applied = runCli([
+      'workspace',
+      'adopt',
+      '--agent',
+      'mas',
+      '--workspace',
+      workspacePath,
+      '--project-id',
+      'canonical-study',
+      '--mode',
+      'portfolio',
+      '--apply',
+    ], {
+      OPL_STATE_DIR: stateRoot,
+    });
+    assert.equal(applied.workspace_adoption.status, 'applied');
+    assert.equal(applied.workspace_adoption.profile.profile_id, 'portfolio');
+
+    const workspaceIndex = readJsonFile(path.join(workspacePath, 'workspace_index.json'));
+    assert.equal(workspaceIndex.profile_binding.applied_by, 'opl_workspace_adopt');
+    assert.equal(workspaceIndex.topology_events.at(-1).event, 'adopted');
+    assert.deepEqual(
+      workspaceIndex.projects.map((entry: { project_id: string; project_root: string }) => ({
+        project_id: entry.project_id,
+        project_root: entry.project_root,
+      })),
+      [
+        { project_id: 'legacy-study', project_root: 'projects/legacy-study' },
+        { project_id: 'canonical-study', project_root: 'studies/canonical-study' },
+      ],
+    );
+    assert.equal(fs.statSync(path.join(workspacePath, 'projects', 'legacy-study')).isDirectory(), true);
+    assert.equal(fs.statSync(path.join(workspacePath, 'studies', 'canonical-study')).isDirectory(), true);
+    const validation = runCli(['workspace', 'validate', '--workspace', workspacePath], {
+      OPL_STATE_DIR: stateRoot,
+    }).workspace_validation;
+    assert.equal(validation.status, 'passed', JSON.stringify(validation, null, 2));
+  } finally {
+    fs.rmSync(stateRoot, { recursive: true, force: true });
+    fs.rmSync(workspacePath, { recursive: true, force: true });
+  }
+});
+
 test('workspace upgrade restores generated manifests without moving project roots', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-workspace-upgrade-state-'));
   const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-workspace-upgrade-root-'));
