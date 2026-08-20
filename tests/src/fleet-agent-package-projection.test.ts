@@ -109,7 +109,7 @@ test('Fleet Agent keeps its published Settings projections for version 0.2.40', 
   });
 
   assert.deepEqual(
-    contributions.ui.map((entry) => entry.contribution_id),
+    (contributions.ui ?? []).map((entry) => entry.contribution_id),
     ['fleet.agent.telemetry-settings', 'fleet.agent.doctor-settings'],
   );
   assert.equal(contributions.views.length, 2);
