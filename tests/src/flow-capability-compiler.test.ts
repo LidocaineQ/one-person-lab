@@ -69,12 +69,38 @@ test('Flow capability compiler derives online and Full plans from bundle-owned p
     dependency({ id: 'agent-reach', kind: 'codex_skill', bundle_id: 'internet-research', offline_bundle: 'none' }),
     dependency({ id: 'agent-reach', kind: 'cli', bundle_id: 'internet-research', offline_bundle: 'none' }),
     dependency({ id: 'officecli', kind: 'cli', bundle_id: 'office-authoring', offline_bundle: 'full' }),
+    dependency({ id: 'gh-stack', kind: 'cli', bundle_id: 'stacked-pr-landing', offline_bundle: 'none' }),
+    dependency({ id: 'ffmpeg', kind: 'cli', bundle_id: 'browser-gif-encoding', offline_bundle: 'none' }),
   ];
   const bundles: AgentPackageFlowCapabilityBundle[] = [{
     id: 'internet-research',
     label: 'Internet research',
     relationship: 'experience_baseline',
     member_refs: ['codex_skill:agent-reach', 'cli:agent-reach'],
+    online_materialization: 'members_marked_default',
+    full_distribution: 'members_marked_full',
+    readiness: {
+      aggregation: 'all_members',
+      absence_effect: 'degraded_non_blocking',
+      repair_policy: 'framework_or_owner_adapter',
+    },
+  }, {
+    id: 'stacked-pr-landing',
+    label: 'Stacked pull-request landing',
+    relationship: 'experience_baseline',
+    member_refs: ['cli:gh-stack'],
+    online_materialization: 'members_marked_default',
+    full_distribution: 'members_marked_full',
+    readiness: {
+      aggregation: 'all_members',
+      absence_effect: 'degraded_non_blocking',
+      repair_policy: 'framework_or_owner_adapter',
+    },
+  }, {
+    id: 'browser-gif-encoding',
+    label: 'Browser GIF encoding',
+    relationship: 'experience_baseline',
+    member_refs: ['cli:ffmpeg'],
     online_materialization: 'members_marked_default',
     full_distribution: 'members_marked_full',
     readiness: {
@@ -106,7 +132,7 @@ test('Flow capability compiler derives online and Full plans from bundle-owned p
   });
   assert.deepEqual(
     strategy.materialization_plan.items.map((item) => item.capability_ref),
-    ['cli:agent-reach', 'cli:officecli', 'codex_skill:agent-reach'],
+    ['cli:agent-reach', 'cli:ffmpeg', 'cli:gh-stack', 'cli:officecli', 'codex_skill:agent-reach'],
   );
   assert.deepEqual(
     strategy.full_distribution_plan.items.map((item) => item.capability_ref),

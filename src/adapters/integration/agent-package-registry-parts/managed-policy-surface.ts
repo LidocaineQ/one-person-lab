@@ -7,8 +7,10 @@ import { assertJsonSchemaPayload } from '../../../kernel/schema-registry.ts';
 import { readLocalCodexDefaultsIfAvailable } from '../../../kernel/local-codex-defaults.ts';
 import { resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
 import {
+  OPL_COMPANION_TOOL_IDS,
   syncOplCompanionSkills,
   type OplCompanionNetworkAccess,
+  type OplCompanionToolId,
   type OplManagedSkillDependency,
 } from '../install-companions.ts';
 import { resolveCodexConfigPath, resolveCodexHome, sha256Text } from './shared.ts';
@@ -35,6 +37,7 @@ const MIGRATION_SURFACE_KINDS = [
   'config_table',
   'prompt_or_agent',
 ] as const;
+const SUPPORTED_COMPANION_TOOL_IDS = new Set<string>(OPL_COMPANION_TOOL_IDS);
 
 type MigrationSurfaceKind = typeof MIGRATION_SURFACE_KINDS[number];
 
@@ -963,12 +966,11 @@ function managedPolicyDependencySelection(input: {
       relationship: 'recommended' as const,
     })),
   ].filter((entry) => entry.dependency.online_install_default);
-  const supportedToolIds = new Set(['officecli', 'mineru-open-api', 'agent-reach']);
-  const toolIdsByBundle = new Map<string, Array<'officecli' | 'mineru-open-api' | 'agent-reach'>>();
+  const toolIdsByBundle = new Map<string, OplCompanionToolId[]>();
   for (const { dependency } of selected) {
-    if (dependency.kind !== 'cli' || !supportedToolIds.has(dependency.id) || !dependency.bundle_id) continue;
+    if (dependency.kind !== 'cli' || !SUPPORTED_COMPANION_TOOL_IDS.has(dependency.id) || !dependency.bundle_id) continue;
     const current = toolIdsByBundle.get(dependency.bundle_id) ?? [];
-    current.push(dependency.id as 'officecli' | 'mineru-open-api' | 'agent-reach');
+    current.push(dependency.id as OplCompanionToolId);
     toolIdsByBundle.set(dependency.bundle_id, current);
   }
   const managedSkillDependencies: OplManagedSkillDependency[] = input.schema === 'opl_flow_workflow_policy.v3'
@@ -1070,7 +1072,7 @@ function managedPolicyDependencySelection(input: {
       .filter((dependency) => {
         if (dependency.kind === 'base') return dependency.id !== 'opl-base';
         if (dependency.kind === 'codex_skill') return false;
-        if (dependency.kind === 'cli') return !supportedToolIds.has(dependency.id);
+        if (dependency.kind === 'cli') return !SUPPORTED_COMPANION_TOOL_IDS.has(dependency.id);
         return true;
       });
     if (unsupported.length > 0) {
@@ -1090,8 +1092,8 @@ function managedPolicyDependencySelection(input: {
       .map(({ dependency }) => dependency.id),
     toolIds: selected
       .filter(({ dependency }) => dependency.kind === 'cli'
-        && supportedToolIds.has(dependency.id))
-      .map(({ dependency }) => dependency.id as 'officecli' | 'mineru-open-api' | 'agent-reach'),
+        && SUPPORTED_COMPANION_TOOL_IDS.has(dependency.id))
+      .map(({ dependency }) => dependency.id as OplCompanionToolId),
     managedSkillDependencies,
   };
 }
@@ -1144,7 +1146,7 @@ function skillSyncItemCurrent(item: ReturnType<typeof syncOplCompanionSkills>['i
 function dependencySyncDriftReasons(
   sync: ReturnType<typeof syncOplCompanionSkills>,
   skillIds: string[],
-  toolIds: Array<'officecli' | 'mineru-open-api' | 'agent-reach'>,
+  toolIds: OplCompanionToolId[],
 ) {
   const reasons: string[] = [];
   const itemsById = new Map(sync.items.map((entry) => [entry.skill_id, entry]));
@@ -1295,10 +1297,7 @@ function capabilityReadbackFromSync(input: {
       reason: item.note ?? `skill_${item.status}`,
     };
   }
-  if (dependency.kind === 'cli'
-    && (dependency.id === 'officecli'
-      || dependency.id === 'mineru-open-api'
-      || dependency.id === 'agent-reach')) {
+  if (dependency.kind === 'cli' && SUPPORTED_COMPANION_TOOL_IDS.has(dependency.id)) {
     const tool = sync.tools.find((entry) => entry.tool_id === dependency.id);
     if (!tool || tool.status === 'missing' || tool.currentness === 'missing') {
       return { id: dependency.id, kind: dependency.kind, status: 'missing', reason: 'tool_missing' };

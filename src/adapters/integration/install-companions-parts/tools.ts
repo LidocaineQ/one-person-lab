@@ -6,7 +6,14 @@ import { spawnSync } from 'node:child_process';
 import { resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
 
 export type OplCompanionToolActionStatus = 'ready' | 'installed' | 'updated' | 'missing' | 'failed';
-export type OplCompanionToolId = 'officecli' | 'mineru-open-api' | 'agent-reach';
+export const OPL_COMPANION_TOOL_IDS = [
+  'officecli',
+  'mineru-open-api',
+  'agent-reach',
+  'gh-stack',
+  'ffmpeg',
+] as const;
+export type OplCompanionToolId = typeof OPL_COMPANION_TOOL_IDS[number];
 export type OplCompanionToolCurrentness = 'current' | 'update_available' | 'unknown' | 'missing';
 export type OplCompanionNetworkAccess = 'allowed' | 'forbidden';
 
@@ -22,6 +29,8 @@ export type OplCompanionToolSyncItem = {
   latest_version: string | null;
   currentness: OplCompanionToolCurrentness;
   latest_version_source: 'github_tags' | 'npm_registry' | 'configured' | null;
+  binary_paths?: Record<string, string>;
+  entrypoint?: string[];
   health_check?: {
     adapter: 'agent_reach_doctor';
     status: 'ready' | 'degraded' | 'invalid';
@@ -49,14 +58,23 @@ function managedToolReceiptPath(toolId: OplCompanionToolId) {
   return path.join(managedToolHome(), 'receipts', `${toolId}.json`);
 }
 
-function readLatestToolVersionReceipt(toolId: OplCompanionToolId): LatestToolVersion | null {
+function readManagedToolReceipt(toolId: OplCompanionToolId): Record<string, unknown> | null {
   const receiptPath = managedToolReceiptPath(toolId);
   if (!fs.existsSync(receiptPath)) return null;
   try {
-    const payload = JSON.parse(fs.readFileSync(receiptPath, 'utf8')) as {
-      latest_version?: unknown;
-      latest_version_source?: unknown;
-    };
+    const payload = JSON.parse(fs.readFileSync(receiptPath, 'utf8')) as unknown;
+    if (!payload || typeof payload !== 'object') return null;
+    const record = payload as Record<string, unknown>;
+    return record.dependency_id === toolId ? record : null;
+  } catch {
+    return null;
+  }
+}
+
+function readLatestToolVersionReceipt(toolId: OplCompanionToolId): LatestToolVersion | null {
+  const payload = readManagedToolReceipt(toolId);
+  if (!payload) return null;
+  try {
     const version = typeof payload.latest_version === 'string' ? payload.latest_version : null;
     const source = payload.latest_version_source;
     return {
@@ -68,8 +86,34 @@ function readLatestToolVersionReceipt(toolId: OplCompanionToolId): LatestToolVer
   }
 }
 
+function managedToolReceiptMatches(
+  toolId: OplCompanionToolId,
+  binaryPaths: Record<string, string>,
+  contentSha256: string,
+) {
+  const receipt = readManagedToolReceipt(toolId);
+  if (!receipt || receipt.content_sha256 !== contentSha256) return false;
+  if (!receipt.binary_paths || typeof receipt.binary_paths !== 'object') return false;
+  const receiptPaths = receipt.binary_paths as Record<string, unknown>;
+  const entries = Object.entries(binaryPaths);
+  return Object.keys(receiptPaths).length === entries.length
+    && entries.every(([name, binaryPath]) => (
+      typeof receiptPaths[name] === 'string'
+      && path.resolve(receiptPaths[name]) === path.resolve(binaryPath)
+    ));
+}
+
 function binarySha256(binaryPath: string) {
   return crypto.createHash('sha256').update(fs.readFileSync(binaryPath)).digest('hex');
+}
+
+function binarySetSha256(binaryPaths: Record<string, string>) {
+  const digest = crypto.createHash('sha256');
+  for (const [name, binaryPath] of Object.entries(binaryPaths).sort(([left], [right]) => left.localeCompare(right))) {
+    digest.update(`${name}\0`);
+    digest.update(fs.readFileSync(binaryPath));
+  }
+  return digest.digest('hex');
 }
 
 function pathOwnership(binaryPath: string | null): OplCompanionToolSyncItem['ownership'] {
@@ -108,10 +152,15 @@ function findExecutableInPath(command: string) {
   return null;
 }
 
-function runCommandForOutput(command: string, args: string[], timeoutMs = 5_000) {
+function runCommandForOutput(
+  command: string,
+  args: string[],
+  timeoutMs = 5_000,
+  env: NodeJS.ProcessEnv = process.env,
+) {
   const result = spawnSync(command, args, {
     encoding: 'utf8',
-    env: process.env,
+    env,
     stdio: 'pipe',
     timeout: timeoutMs,
   });
@@ -147,11 +196,13 @@ function maxVersion(values: string[]) {
 }
 
 function configuredLatestVersion(toolId: OplCompanionToolId) {
-  const key = toolId === 'officecli'
-    ? 'OPL_OFFICECLI_LATEST_VERSION'
-    : toolId === 'mineru-open-api'
-      ? 'OPL_MINERU_OPEN_API_LATEST_VERSION'
-      : 'OPL_AGENT_REACH_LATEST_VERSION';
+  const key = {
+    officecli: 'OPL_OFFICECLI_LATEST_VERSION',
+    'mineru-open-api': 'OPL_MINERU_OPEN_API_LATEST_VERSION',
+    'agent-reach': 'OPL_AGENT_REACH_LATEST_VERSION',
+    'gh-stack': 'OPL_GH_STACK_LATEST_VERSION',
+    ffmpeg: 'OPL_FFMPEG_LATEST_VERSION',
+  }[toolId];
   const value = process.env[key]?.trim();
   return value ? parseVersion(value)?.version ?? value : null;
 }
@@ -164,6 +215,19 @@ function resolveLatestToolVersion(toolId: OplCompanionToolId): LatestToolVersion
   }
   if (toolId === 'agent-reach') {
     return readLatestToolVersionReceipt(toolId) ?? { version: null, source: null };
+  }
+  if (toolId === 'ffmpeg') {
+    return readLatestToolVersionReceipt(toolId) ?? { version: null, source: null };
+  }
+  if (toolId === 'gh-stack') {
+    const output = runCommandForOutput(
+      'git',
+      ['ls-remote', '--tags', '--refs', 'https://github.com/github/gh-stack.git'],
+    );
+    return {
+      version: output ? maxVersion(output.split('\n').map((line) => line.split('refs/tags/')[1] ?? '')) : null,
+      source: output ? 'github_tags' : null,
+    };
   }
   if (toolId === 'officecli') {
     const output = runCommandForOutput(
@@ -234,6 +298,69 @@ function inspectOfficeCliBinary(binaryPath: string | null): OplCompanionToolSync
 
 function inspectMineruOpenApiBinary(binaryPath: string | null): OplCompanionToolSyncItem | null {
   return inspectToolBinary('mineru-open-api', binaryPath, ['version']);
+}
+
+function inspectGhStackEntrypoint(ghPath: string | null, home: string): OplCompanionToolSyncItem | null {
+  if (!ghPath || !fs.existsSync(ghPath) || !fs.statSync(ghPath).isFile()) return null;
+  const version = runCommandForOutput(
+    ghPath,
+    ['extension', 'exec', 'gh-stack', '--', '--version'],
+    5_000,
+    { ...process.env, HOME: home },
+  );
+  if (!version) return null;
+  return withCurrentness({
+    tool_id: 'gh-stack',
+    binary_path: ghPath,
+    binary_paths: { gh: ghPath },
+    entrypoint: ['gh', 'stack'],
+    version,
+    status: 'ready',
+    action: 'none',
+    note: null,
+    ownership: 'user_managed',
+    content_sha256: binarySha256(ghPath),
+    latest_version: null,
+    currentness: 'unknown',
+    latest_version_source: null,
+  }, readLatestToolVersionReceipt('gh-stack'));
+}
+
+function inspectFfmpegPair(
+  ffmpegPath: string | null,
+  ffprobePath: string | null,
+): OplCompanionToolSyncItem | null {
+  if (!ffmpegPath || !ffprobePath) return null;
+  if (
+    !fs.existsSync(ffmpegPath)
+    || !fs.statSync(ffmpegPath).isFile()
+    || !fs.existsSync(ffprobePath)
+    || !fs.statSync(ffprobePath).isFile()
+  ) return null;
+  const ffmpegVersion = runCommandForOutput(ffmpegPath, ['-version']);
+  const ffprobeVersion = runCommandForOutput(ffprobePath, ['-version']);
+  if (!ffmpegVersion || !ffprobeVersion) return null;
+  const binaryPaths = { ffmpeg: ffmpegPath, ffprobe: ffprobePath };
+  const contentSha256 = binarySetSha256(binaryPaths);
+  return withCurrentness({
+    tool_id: 'ffmpeg',
+    binary_path: ffmpegPath,
+    binary_paths: binaryPaths,
+    entrypoint: ['ffmpeg', 'ffprobe'],
+    version: [ffmpegVersion, ffprobeVersion]
+      .map((value) => value.split('\n')[0])
+      .join('\n'),
+    status: 'ready',
+    action: 'none',
+    note: null,
+    ownership: managedToolReceiptMatches('ffmpeg', binaryPaths, contentSha256)
+      ? 'opl_managed'
+      : pathOwnership(ffmpegPath),
+    content_sha256: contentSha256,
+    latest_version: null,
+    currentness: 'unknown',
+    latest_version_source: null,
+  }, readLatestToolVersionReceipt('ffmpeg'));
 }
 
 const AGENT_REACH_CORE_CHANNELS = ['web', 'youtube', 'rss', 'github', 'bilibili', 'v2ex'] as const;
@@ -330,6 +457,74 @@ export function resolveAgentReachTool(
   return null;
 }
 
+export function resolveGhStackTool(home: string): OplCompanionToolSyncItem | null {
+  const directBinary = process.env.OPL_GH_STACK_BIN?.trim() || null;
+  if (directBinary) {
+    const inspected = inspectToolBinary('gh-stack', directBinary, ['--version']);
+    if (inspected) return { ...inspected, entrypoint: [directBinary] };
+  }
+  const ghCandidates = [
+    process.env.OPL_GH_BIN?.trim() || null,
+    findExecutableInPath('gh'),
+  ];
+  for (const candidate of ghCandidates) {
+    const inspected = inspectGhStackEntrypoint(candidate, home);
+    if (inspected) return inspected;
+  }
+  return null;
+}
+
+function resolveHomebrewFormulaBinary(formula: string, binaryName: string) {
+  const brew = process.env.OPL_HOMEBREW_BIN?.trim() || findExecutableInPath('brew');
+  if (!brew) return null;
+  const prefix = runCommandForOutput(brew, ['--prefix', formula]);
+  return prefix ? path.join(prefix, 'bin', binaryName) : null;
+}
+
+export function resolveFfmpegTool(home: string): OplCompanionToolSyncItem | null {
+  const runtimeHome = process.env.OPL_FULL_RUNTIME_HOME?.trim();
+  const explicitFfmpeg = process.env.OPL_FFMPEG_BIN?.trim() || null;
+  const explicitFfprobe = process.env.OPL_FFPROBE_BIN?.trim()
+    || (explicitFfmpeg ? path.join(path.dirname(explicitFfmpeg), process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe') : null);
+  const pairs: Array<[string | null, string | null]> = [
+    [explicitFfmpeg, explicitFfprobe],
+    [
+      path.join(managedToolHome(), '.local', 'bin', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'),
+      path.join(managedToolHome(), '.local', 'bin', process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe'),
+    ],
+    [
+      runtimeHome ? path.join(runtimeHome, 'bin', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg') : null,
+      runtimeHome ? path.join(runtimeHome, 'bin', process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe') : null,
+    ],
+    [findExecutableInPath('ffmpeg'), findExecutableInPath('ffprobe')],
+    [
+      path.join(home, '.local', 'bin', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'),
+      path.join(home, '.local', 'bin', process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe'),
+    ],
+    [
+      resolveHomebrewFormulaBinary('ffmpeg', 'ffmpeg'),
+      resolveHomebrewFormulaBinary('ffmpeg', 'ffprobe'),
+    ],
+  ];
+  for (const [ffmpegPath, ffprobePath] of pairs) {
+    const inspected = inspectFfmpegPair(ffmpegPath, ffprobePath);
+    if (inspected) return inspected;
+  }
+  return null;
+}
+
+export function resolveOplCompanionTool(
+  home: string,
+  toolId: OplCompanionToolId,
+  options: { includeHealthCheck?: boolean } = {},
+): OplCompanionToolSyncItem | null {
+  if (toolId === 'officecli') return resolveOfficeCliTool(home);
+  if (toolId === 'mineru-open-api') return resolveMineruOpenApiTool(home);
+  if (toolId === 'agent-reach') return resolveAgentReachTool(home, options);
+  if (toolId === 'gh-stack') return resolveGhStackTool(home);
+  return resolveFfmpegTool(home);
+}
+
 export function installAgentReachSkill(home: string) {
   const tool = resolveAgentReachTool(home);
   if (!tool?.binary_path) {
@@ -364,6 +559,27 @@ function buildMineruOpenApiInstallCommand() {
     || 'npm install -g mineru-open-api@latest';
 }
 
+function failedTool(
+  toolId: OplCompanionToolId,
+  action: 'none' | 'install' | 'update',
+  status: 'missing' | 'failed',
+  note: string,
+): OplCompanionToolSyncItem {
+  return {
+    tool_id: toolId,
+    binary_path: null,
+    version: null,
+    status,
+    action,
+    note,
+    ownership: 'missing',
+    content_sha256: null,
+    latest_version: null,
+    currentness: 'missing',
+    latest_version_source: null,
+  };
+}
+
 function writeManagedToolReceipt(tool: OplCompanionToolSyncItem) {
   const receiptPath = managedToolReceiptPath(tool.tool_id);
   fs.mkdirSync(path.dirname(receiptPath), { recursive: true });
@@ -371,6 +587,8 @@ function writeManagedToolReceipt(tool: OplCompanionToolSyncItem) {
     surface_kind: 'opl_base_managed_dependency_receipt',
     dependency_id: tool.tool_id,
     binary_path: tool.binary_path,
+    binary_paths: tool.binary_paths,
+    entrypoint: tool.entrypoint,
     version: tool.version,
     content_sha256: tool.content_sha256,
     latest_version: tool.latest_version,
@@ -443,6 +661,102 @@ function installMineruOpenApiTool(
     note: [result.stderr, result.stdout].filter(Boolean).join('\n').trim() || 'mineru-open-api install did not produce a runnable binary.',
     ownership: 'missing', content_sha256: null, latest_version: null, currentness: 'missing', latest_version_source: null,
   };
+}
+
+function installGhStackTool(
+  home: string,
+  action: 'install' | 'update' = 'install',
+  latest: LatestToolVersion | null = null,
+): OplCompanionToolSyncItem {
+  const gh = process.env.OPL_GH_BIN?.trim() || findExecutableInPath('gh');
+  if (!gh) {
+    return failedTool('gh-stack', action, 'failed', 'GitHub CLI is required to install the official gh-stack extension.');
+  }
+  const args = action === 'update'
+    ? ['extension', 'upgrade', 'github/gh-stack']
+    : ['extension', 'install', 'github/gh-stack'];
+  const result = spawnSync(gh, args, {
+    encoding: 'utf8',
+    env: { ...process.env, HOME: home },
+    stdio: 'pipe',
+    timeout: 60_000,
+  });
+  const installed = inspectGhStackEntrypoint(gh, home);
+  if (result.status === 0 && installed) {
+    const managed = withCurrentness({
+      ...installed,
+      status: action === 'update' ? 'updated' as const : 'installed' as const,
+      action,
+      ownership: 'user_managed' as const,
+    }, latest ?? resolveLatestToolVersion('gh-stack'));
+    writeManagedToolReceipt(managed);
+    return managed;
+  }
+  return failedTool(
+    'gh-stack',
+    action,
+    'failed',
+    [result.stderr, result.stdout].filter(Boolean).join('\n').trim()
+      || 'GitHub CLI did not install a callable gh-stack extension.',
+  );
+}
+
+function installFfmpegTool(
+  home: string,
+  action: 'install' | 'update' = 'install',
+  latest: LatestToolVersion | null = null,
+): OplCompanionToolSyncItem {
+  const localBin = path.join(managedToolHome(), '.local', 'bin');
+  fs.mkdirSync(localBin, { recursive: true });
+  ensurePathEntry(localBin);
+  const customCommand = process.env.OPL_FFMPEG_INSTALL_COMMAND?.trim();
+  const brew = process.env.OPL_HOMEBREW_BIN?.trim() || findExecutableInPath('brew');
+  let result;
+  if (customCommand) {
+    result = spawnSync(process.env.SHELL?.trim() || '/bin/bash', ['-lc', customCommand], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        HOME: home,
+        PATH: process.env.PATH,
+        OPL_COMPANION_TOOL_BIN_DIR: localBin,
+      },
+      stdio: 'pipe',
+      timeout: 120_000,
+    });
+  } else if (brew) {
+    result = spawnSync(brew, [action === 'update' ? 'upgrade' : 'install', 'ffmpeg'], {
+      encoding: 'utf8',
+      env: { ...process.env, HOME: home },
+      stdio: 'pipe',
+      timeout: 300_000,
+    });
+  } else {
+    return failedTool(
+      'ffmpeg',
+      action,
+      'failed',
+      'No supported non-interactive FFmpeg package manager is available. Install both ffmpeg and ffprobe, or configure OPL_FFMPEG_INSTALL_COMMAND.',
+    );
+  }
+  const installed = resolveFfmpegTool(home);
+  if (result.status === 0 && installed) {
+    const managed = withCurrentness({
+      ...installed,
+      status: action === 'update' ? 'updated' as const : 'installed' as const,
+      action,
+      ownership: 'opl_managed' as const,
+    }, latest ?? resolveLatestToolVersion('ffmpeg'));
+    writeManagedToolReceipt(managed);
+    return managed;
+  }
+  return failedTool(
+    'ffmpeg',
+    action,
+    'failed',
+    [result.stderr, result.stdout].filter(Boolean).join('\n').trim()
+      || 'FFmpeg install did not produce callable ffmpeg and ffprobe binaries.',
+  );
 }
 
 export function ensureOfficeCliTool(
@@ -523,17 +837,59 @@ export function ensureAgentReachTool(
   };
 }
 
+export function ensureGhStackTool(
+  home: string,
+  options: { networkAccess?: OplCompanionNetworkAccess } = {},
+): OplCompanionToolSyncItem {
+  const existing = resolveGhStackTool(home);
+  if (existing) return existing;
+  if (options.networkAccess === 'forbidden' || companionToolInstallDisabled()) {
+    return failedTool(
+      'gh-stack',
+      'none',
+      'missing',
+      'Remote companion install is disabled; the official gh-stack extension was not installed.',
+    );
+  }
+  return installGhStackTool(home);
+}
+
+export function ensureFfmpegTool(
+  home: string,
+  options: { networkAccess?: OplCompanionNetworkAccess } = {},
+): OplCompanionToolSyncItem {
+  const existing = resolveFfmpegTool(home);
+  if (existing) return existing;
+  if (options.networkAccess === 'forbidden' || companionToolInstallDisabled()) {
+    return failedTool(
+      'ffmpeg',
+      'none',
+      'missing',
+      'Remote companion install is disabled; callable ffmpeg and ffprobe binaries were not found.',
+    );
+  }
+  return installFfmpegTool(home);
+}
+
+export function ensureOplCompanionTool(
+  home: string,
+  toolId: OplCompanionToolId,
+  options: { networkAccess?: OplCompanionNetworkAccess } = {},
+): OplCompanionToolSyncItem {
+  if (toolId === 'officecli') return ensureOfficeCliTool(home, options);
+  if (toolId === 'mineru-open-api') return ensureMineruOpenApiTool(home, options);
+  if (toolId === 'agent-reach') return ensureAgentReachTool(home, options);
+  if (toolId === 'gh-stack') return ensureGhStackTool(home, options);
+  return ensureFfmpegTool(home, options);
+}
+
 export function inspectManagedCompanionToolCurrentness(
   home: string,
   toolIds: OplCompanionToolId[] = ['officecli', 'mineru-open-api'],
 ) {
   return toolIds.map((toolId) => {
-    const current = toolId === 'officecli'
-      ? resolveOfficeCliTool(home)
-      : toolId === 'mineru-open-api'
-        ? resolveMineruOpenApiTool(home)
-        : resolveAgentReachTool(home);
-    return current?.ownership === 'opl_managed'
+    const current = resolveOplCompanionTool(home, toolId);
+    return current && (current.ownership === 'opl_managed' || toolId === 'gh-stack')
       ? withCurrentness(current, resolveLatestToolVersion(toolId))
       : current;
   });
@@ -544,15 +900,28 @@ export function reconcileManagedCompanionTools(
   toolIds: OplCompanionToolId[] = ['officecli', 'mineru-open-api'],
 ) {
   return toolIds.map((toolId) => {
-    const current = toolId === 'officecli'
-      ? resolveOfficeCliTool(home)
-      : toolId === 'mineru-open-api'
-        ? resolveMineruOpenApiTool(home)
-        : resolveAgentReachTool(home);
+    const current = resolveOplCompanionTool(home, toolId);
     if (toolId === 'agent-reach') {
       return current ?? ensureAgentReachTool(home);
     }
-    if (current?.ownership === 'app_bundled' && current.binary_path) {
+    if (toolId === 'gh-stack') {
+      if (current) {
+        const latest = resolveLatestToolVersion(toolId);
+        const inspected = withCurrentness(current, latest);
+        if (inspected.currentness !== 'update_available' || companionToolInstallDisabled()) {
+          writeManagedToolReceipt(inspected);
+          return inspected;
+        }
+        return installGhStackTool(home, 'update', latest);
+      }
+      if (companionToolInstallDisabled()) {
+        return failedTool('gh-stack', 'none', 'missing', 'Remote managed dependency update is disabled.');
+      }
+      return installGhStackTool(home);
+    }
+    if (current?.ownership === 'app_bundled'
+      && current.binary_path
+      && (toolId === 'officecli' || toolId === 'mineru-open-api')) {
       const targetPath = path.join(managedToolHome(), '.local', 'bin', toolId);
       fs.mkdirSync(path.dirname(targetPath), { recursive: true });
       fs.copyFileSync(current.binary_path, targetPath);
@@ -591,7 +960,9 @@ export function reconcileManagedCompanionTools(
       }
       return toolId === 'officecli'
         ? installOfficeCliTool('update', latest)
-        : installMineruOpenApiTool('update', latest);
+        : toolId === 'mineru-open-api'
+          ? installMineruOpenApiTool('update', latest)
+          : installFfmpegTool(home, 'update', latest);
     }
     if (companionToolInstallDisabled()) {
       return current ?? {
@@ -600,6 +971,8 @@ export function reconcileManagedCompanionTools(
         latest_version: null, currentness: 'missing' as const, latest_version_source: null,
       };
     }
-    return toolId === 'officecli' ? installOfficeCliTool() : installMineruOpenApiTool();
+    if (toolId === 'officecli') return installOfficeCliTool();
+    if (toolId === 'mineru-open-api') return installMineruOpenApiTool();
+    return installFfmpegTool(home);
   });
 }

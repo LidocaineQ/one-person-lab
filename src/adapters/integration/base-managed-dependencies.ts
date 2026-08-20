@@ -6,9 +6,10 @@ import { resolveCodexVersion } from './system-installation/engine-helpers.ts';
 import { readOplFlowManagedDependencies, readOplFlowManagedDependencyIds } from './agent-package-registry.ts';
 import {
   inspectManagedCompanionToolCurrentness,
+  OPL_COMPANION_TOOL_IDS,
   reconcileManagedCompanionTools,
-  resolveMineruOpenApiTool,
-  resolveOfficeCliTool,
+  resolveOplCompanionTool,
+  type OplCompanionToolId,
   type OplCompanionToolSyncItem,
 } from './install-companions-parts/tools.ts';
 import {
@@ -32,7 +33,13 @@ function packageVersion(packageName: string) {
 }
 
 function toolDependency(tool: OplCompanionToolSyncItem | null, dependencyId: string, selectedByFlow: boolean) {
-  const managed = selectedByFlow && (tool?.ownership === 'opl_managed' || tool?.ownership === 'app_bundled' || !tool);
+  const ownerAdapterManaged = dependencyId === 'gh-stack';
+  const managed = selectedByFlow && (
+    ownerAdapterManaged
+    || tool?.ownership === 'opl_managed'
+    || tool?.ownership === 'app_bundled'
+    || !tool
+  );
   return {
     dependency_id: dependencyId,
     dependency_kind: 'cli',
@@ -42,7 +49,9 @@ function toolDependency(tool: OplCompanionToolSyncItem | null, dependencyId: str
     currentness: tool?.currentness ?? 'missing',
     content_sha256: tool?.content_sha256 ?? null,
     ownership: tool?.ownership ?? 'missing',
-    update_policy: tool?.ownership === 'opl_managed'
+    update_policy: ownerAdapterManaged
+      ? 'owner_adapter_managed_reconcile'
+      : tool?.ownership === 'opl_managed'
       ? 'silent_managed_reconcile'
       : tool?.ownership === 'app_bundled'
         ? 'updated_with_app_runtime_generation'
@@ -120,14 +129,19 @@ export function inspectBaseManagedDependencies(
   ));
   const temporalCurrent = temporalComplete && temporalDriftedPackages.length === 0;
   const flowDependencyIds = readOplFlowManagedDependencyIds();
-  const selectedToolIds = (['officecli', 'mineru-open-api'] as const).filter((id) => flowDependencyIds.includes(id));
+  const frameworkToolIds = OPL_COMPANION_TOOL_IDS.filter((id) => id !== 'agent-reach');
+  const selectedToolIds = frameworkToolIds.filter((id) => flowDependencyIds.includes(id));
   const refreshedToolMap = new Map(
     (options.refreshManagedLatest ? inspectManagedCompanionToolCurrentness(home, [...selectedToolIds]) : [])
       .filter((entry): entry is OplCompanionToolSyncItem => Boolean(entry))
       .map((entry) => [entry.tool_id, entry]),
   );
-  const officeCli = refreshedToolMap.get('officecli') ?? resolveOfficeCliTool(home);
-  const mineruOpenApi = refreshedToolMap.get('mineru-open-api') ?? resolveMineruOpenApiTool(home);
+  const companionTools = new Map<OplCompanionToolId, OplCompanionToolSyncItem | null>(
+    frameworkToolIds.map((toolId) => [
+      toolId,
+      refreshedToolMap.get(toolId) ?? resolveOplCompanionTool(home, toolId),
+    ]),
+  );
   const temporalSystemCli = inspectExternalTemporalInstallation({
     refreshLatest: options.refreshManagedLatest,
     inspectVersion: options.inspectExternalOwners !== false,
@@ -170,8 +184,11 @@ export function inspectBaseManagedDependencies(
       binary_path: null,
       status: temporalCurrent ? 'ready' : 'attention_needed',
     },
-    toolDependency(officeCli, 'officecli', flowDependencyIds.includes('officecli')),
-    toolDependency(mineruOpenApi, 'mineru-open-api', flowDependencyIds.includes('mineru-open-api')),
+    ...frameworkToolIds.map((toolId) => toolDependency(
+      companionTools.get(toolId) ?? null,
+      toolId,
+      flowDependencyIds.includes(toolId),
+    )),
     {
       ...temporalSystemCli,
       dependency_kind: 'external_cli',
@@ -217,7 +234,8 @@ export function inspectBaseManagedDependencies(
 
 export function reconcileBaseManagedDependencies(home: string) {
   const dependencyIds = new Set(readOplFlowManagedDependencyIds());
-  const selectedTools = (['officecli', 'mineru-open-api'] as const).filter((id) => dependencyIds.has(id));
+  const selectedTools = OPL_COMPANION_TOOL_IDS
+    .filter((id) => id !== 'agent-reach' && dependencyIds.has(id));
   const toolResults = selectedTools.length > 0
     ? reconcileManagedCompanionTools(home, [...selectedTools])
     : [];

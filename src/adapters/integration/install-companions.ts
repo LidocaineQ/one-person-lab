@@ -7,13 +7,10 @@ export { buildOplGuiShellSurface } from './install-companions/gui-shell.ts';
 export type { OplGuiShellSurface } from './install-companions/gui-shell.ts';
 import { runGit } from './system-installation/shared.ts';
 import {
-  ensureMineruOpenApiTool,
-  ensureOfficeCliTool,
-  ensureAgentReachTool,
+  ensureOplCompanionTool,
   installAgentReachSkill,
-  resolveAgentReachTool,
-  resolveMineruOpenApiTool,
-  resolveOfficeCliTool,
+  OPL_COMPANION_TOOL_IDS,
+  resolveOplCompanionTool,
   type OplCompanionToolId,
   type OplCompanionNetworkAccess,
   type OplCompanionToolSyncItem,
@@ -35,6 +32,7 @@ export type {
   OplCompanionNetworkAccess,
   OplCompanionToolSyncItem,
 } from './install-companions-parts/tools.ts';
+export { OPL_COMPANION_TOOL_IDS } from './install-companions-parts/tools.ts';
 export type {
   OplCompanionSkillActionStatus,
   OplCompanionSkillApplyMode,
@@ -684,11 +682,11 @@ function buildNoApplyCompanionResult(
     .filter((skill) => !selectedSkills || selectedSkills.has(skill.skill_id))
     .map((skill) => buildObservedCompanionItem(home, skill, mode));
   const tools = [
-    ...(selectedTools.has('officecli') ? [resolveOfficeCliTool(home)] : []),
-    ...(selectedTools.has('mineru-open-api') ? [resolveMineruOpenApiTool(home)] : []),
-    ...(selectedTools.has('agent-reach') ? [resolveAgentReachTool(home, {
-      includeHealthCheck: toolInspection === 'full',
-    })] : []),
+    ...OPL_COMPANION_TOOL_IDS
+      .filter((toolId) => selectedTools.has(toolId))
+      .map((toolId) => resolveOplCompanionTool(home, toolId, {
+        includeHealthCheck: toolInspection === 'full',
+      })),
   ]
     .filter((tool): tool is OplCompanionToolSyncItem => Boolean(tool))
     .filter((tool) => selectedTools.has(tool.tool_id));
@@ -753,9 +751,9 @@ export function syncOplCompanionSkills(
   const selectedTools = new Set(options.toolIds ?? []);
   const networkAccess = options.networkAccess ?? 'allowed';
   const tools = [
-    ...(selectedTools.has('officecli') ? [ensureOfficeCliTool(home, { networkAccess })] : []),
-    ...(selectedTools.has('mineru-open-api') ? [ensureMineruOpenApiTool(home, { networkAccess })] : []),
-    ...(selectedTools.has('agent-reach') ? [ensureAgentReachTool(home, { networkAccess })] : []),
+    ...OPL_COMPANION_TOOL_IDS
+      .filter((toolId) => selectedTools.has(toolId))
+      .map((toolId) => ensureOplCompanionTool(home, toolId, { networkAccess })),
   ];
   const ownerCliInstallNeeded = recommendedSkills.some((skill) =>
     skill.managed_dependency_mode === 'owner_cli'
@@ -862,13 +860,12 @@ export function buildOplRecommendedSkills(
 ): OplRecommendedSkill[] {
   if (managedSkillDependencies.length === 0) return [];
   const selectedToolIds = new Set(managedSkillDependencies.flatMap((dependency) => dependency.requiredTools ?? []));
-  const toolReadyById: Record<OplCompanionToolId, boolean> = {
-    officecli: selectedToolIds.has('officecli') && Boolean(resolveOfficeCliTool(home)),
-    'mineru-open-api': selectedToolIds.has('mineru-open-api') && Boolean(resolveMineruOpenApiTool(home)),
-    'agent-reach': selectedToolIds.has('agent-reach') && Boolean(resolveAgentReachTool(home, {
+  const toolReadyById = Object.fromEntries(OPL_COMPANION_TOOL_IDS.map((toolId) => [
+    toolId,
+    selectedToolIds.has(toolId) && Boolean(resolveOplCompanionTool(home, toolId, {
       includeHealthCheck: options.toolInspection !== 'fast',
     })),
-  };
+  ])) as Record<OplCompanionToolId, boolean>;
 
   const managedSpecs = managedSkillDependencies.map((dependency): Omit<OplRecommendedSkill, 'status'> => {
     const github = dependency.sourceMode === 'github';

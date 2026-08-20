@@ -16,6 +16,7 @@ import {
 import { syncOplCompanionSkills } from '../../src/adapters/integration/install-companions.ts';
 import {
   reconcileManagedCompanionTools,
+  resolveFfmpegTool,
   resolveOfficeCliTool,
 } from '../../src/adapters/integration/install-companions-parts/tools.ts';
 import {
@@ -373,6 +374,143 @@ test('OPL-managed OfficeCLI and MinerU refresh latest currentness and silently u
       const second = reconcileManagedCompanionTools(root);
       assert.deepEqual(second.map((entry) => entry.action), ['none', 'none']);
       assert.deepEqual(second.map((entry) => entry.currentness), ['current', 'current']);
+    });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('official gh-stack extension installs through GitHub CLI and remains callable on readback', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-gh-stack-adapter-'));
+  const gh = path.join(root, 'bin', 'gh');
+  const ambientHome = path.join(root, 'ambient-home');
+  const calls = path.join(root, 'gh.calls');
+  fs.mkdirSync(path.dirname(gh), { recursive: true });
+  fs.writeFileSync(gh, [
+    `#!${process.execPath}`,
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    "const marker = path.join(process.env.HOME, 'gh-stack.installed');",
+    `const calls = ${JSON.stringify(calls)};`,
+    "const args = process.argv.slice(2).join(' ');",
+    "fs.appendFileSync(calls, `${args}\\n`);",
+    "if (args === 'extension exec gh-stack -- --version') { if (!fs.existsSync(marker)) process.exit(1); console.log('gh-stack version v0.1.0'); process.exit(0); }",
+    "if (args === 'extension install github/gh-stack') { fs.writeFileSync(marker, 'v0.1.0'); process.exit(0); }",
+    "if (args === 'extension upgrade github/gh-stack') { fs.writeFileSync(marker, 'v0.1.0'); process.exit(0); }",
+    "if (args === 'stack --version') { console.log('install the official extension'); process.exit(0); }",
+    "process.exit(2);",
+    '',
+  ].join('\n'), { mode: 0o755 });
+  try {
+    withEnvironment({
+      HOME: ambientHome,
+      OPL_STATE_DIR: path.join(root, 'state'),
+      OPL_GH_BIN: gh,
+      OPL_GH_STACK_LATEST_VERSION: '0.1.0',
+      OPL_COMPANION_DISABLE_REMOTE_INSTALL: undefined,
+      PATH: '/usr/bin:/bin',
+    }, () => {
+      const managed = syncOplCompanionSkills(root, {
+        mode: 'managed',
+        skillIds: [],
+        toolIds: ['gh-stack'],
+        networkAccess: 'allowed',
+      });
+      assert.equal(managed.tools[0]?.status, 'installed');
+      assert.equal(managed.tools[0]?.currentness, 'current');
+      assert.deepEqual(managed.tools[0]?.entrypoint, ['gh', 'stack']);
+      assert.equal(fs.existsSync(path.join(root, 'gh-stack.installed')), true);
+      assert.equal(fs.existsSync(path.join(ambientHome, 'gh-stack.installed')), false);
+      assert.equal(fs.existsSync(path.join(root, 'state', 'base-dependencies', 'receipts', 'gh-stack.json')), true);
+
+      const observed = syncOplCompanionSkills(root, {
+        mode: 'observe', skillIds: [], toolIds: ['gh-stack'], networkAccess: 'forbidden',
+      });
+      assert.equal(observed.tools[0]?.status, 'ready');
+      assert.match(observed.tools[0]?.version ?? '', /0\.1\.0/);
+      const recordedCalls = fs.readFileSync(calls, 'utf8').trim().split('\n');
+      assert.equal(recordedCalls.includes('extension install github/gh-stack'), true);
+      assert.equal(recordedCalls.includes('stack --version'), false);
+    });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('FFmpeg companion readiness requires callable ffmpeg and ffprobe binaries as one pair', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-ffmpeg-adapter-'));
+  const installer = path.join(root, 'install-ffmpeg.sh');
+  fs.writeFileSync(installer, [
+    '#!/usr/bin/env bash',
+    'set -euo pipefail',
+    'mkdir -p "$OPL_COMPANION_TOOL_BIN_DIR"',
+    'for tool in ffmpeg ffprobe; do',
+    '  cat > "$OPL_COMPANION_TOOL_BIN_DIR/$tool" <<EOS',
+    '#!/usr/bin/env bash',
+    'echo "$tool version 8.1.2"',
+    'EOS',
+    '  chmod +x "$OPL_COMPANION_TOOL_BIN_DIR/$tool"',
+    'done',
+    '',
+  ].join('\n'), { mode: 0o755 });
+  try {
+    withEnvironment({
+      HOME: root,
+      OPL_STATE_DIR: path.join(root, 'state'),
+      OPL_FFMPEG_BIN: undefined,
+      OPL_FFPROBE_BIN: undefined,
+      OPL_FFMPEG_INSTALL_COMMAND: installer,
+      OPL_HOMEBREW_BIN: undefined,
+      OPL_COMPANION_DISABLE_REMOTE_INSTALL: undefined,
+      PATH: '/usr/bin:/bin',
+    }, () => {
+      const managed = syncOplCompanionSkills(root, {
+        mode: 'managed',
+        skillIds: [],
+        toolIds: ['ffmpeg'],
+        networkAccess: 'allowed',
+      });
+      assert.equal(managed.tools[0]?.status, 'installed');
+      assert.equal(managed.tools[0]?.ownership, 'opl_managed');
+      assert.deepEqual(Object.keys(managed.tools[0]?.binary_paths ?? {}).sort(), ['ffmpeg', 'ffprobe']);
+      assert.match(managed.tools[0]?.version ?? '', /ffmpeg version 8\.1\.2/);
+      assert.match(managed.tools[0]?.version ?? '', /ffprobe version 8\.1\.2/);
+
+      assert.equal(resolveFfmpegTool(root)?.ownership, 'opl_managed');
+
+      const ffprobe = managed.tools[0]?.binary_paths?.ffprobe;
+      assert.ok(ffprobe);
+      fs.rmSync(ffprobe);
+      assert.equal(resolveFfmpegTool(root), null);
+    });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('existing PATH FFmpeg stays external and is never overwritten by the managed repair adapter', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-ffmpeg-external-'));
+  const bin = path.join(root, 'bin');
+  const installerMarker = path.join(root, 'installer-called');
+  executable(path.join(bin, 'ffmpeg'), 'ffmpeg version 7.1.0');
+  executable(path.join(bin, 'ffprobe'), 'ffprobe version 7.1.0');
+  try {
+    withEnvironment({
+      HOME: root,
+      OPL_STATE_DIR: path.join(root, 'state'),
+      OPL_FFMPEG_BIN: undefined,
+      OPL_FFPROBE_BIN: undefined,
+      OPL_FFMPEG_INSTALL_COMMAND: `touch ${JSON.stringify(installerMarker)}`,
+      OPL_HOMEBREW_BIN: undefined,
+      OPL_COMPANION_DISABLE_REMOTE_INSTALL: undefined,
+      PATH: `${bin}:/usr/bin:/bin`,
+    }, () => {
+      const managed = syncOplCompanionSkills(root, {
+        mode: 'managed', skillIds: [], toolIds: ['ffmpeg'], networkAccess: 'allowed',
+      });
+      assert.equal(managed.tools[0]?.status, 'ready');
+      assert.equal(managed.tools[0]?.ownership, 'global_path');
+      assert.equal(fs.existsSync(installerMarker), false);
     });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
