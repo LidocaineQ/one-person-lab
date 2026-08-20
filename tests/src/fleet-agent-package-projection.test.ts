@@ -59,8 +59,8 @@ test('Fleet Agent owner projection is a schema-valid capability Package with one
   );
 
   assert.equal(manifest.package_id, 'opl-fleet-agent');
-  assert.equal(manifest.display_name, 'OPL Fleet Agent Integration');
-  assert.equal(manifest.source, 'first_party_owner_projection');
+  assert.equal(manifest.display_name, 'OPL Fleet Agent');
+  assert.equal(manifest.source, 'first_party');
   assert.equal(manifest.codex_surface.plugin_id, 'opl-fleet-agent');
   assert.deepEqual(manifest.capability_abi, {
     id: 'opl-fleet-agent.capabilities',
@@ -96,7 +96,7 @@ test('Fleet Agent owner projection is a schema-valid capability Package with one
   assert.equal(manifest.codex_surface.carrier_source_commit, ownerCommit);
 });
 
-test('Fleet Agent views remain readable without projecting ordinary Settings UI', () => {
+test('Fleet Agent keeps its published Settings projections for version 0.2.40', () => {
   const manifest = normalizedManifest();
   const contributions = manifest.app_contributions;
   assert.ok(contributions);
@@ -108,15 +108,23 @@ test('Fleet Agent views remain readable without projecting ordinary Settings UI'
     },
   });
 
-  assert.deepEqual(contributions.ui ?? [], []);
+  assert.deepEqual(
+    contributions.ui.map((entry) => entry.contribution_id),
+    ['fleet.agent.telemetry-settings', 'fleet.agent.doctor-settings'],
+  );
   assert.equal(contributions.views.length, 2);
   assert.deepEqual(
     contributions.views.map((view) => view.data_ref),
     ['fleet.agent.telemetry.v1#local', 'fleet.agent.doctor.v1#current'],
   );
-  assert.equal(projection.contribution_count, 0);
-  assert.deepEqual(projection.slots['settings.section'], []);
-  assert.deepEqual(projection.entries, []);
+  assert.equal(projection.contribution_count, 2);
+  assert.deepEqual(
+    projection.slots['settings.section'].map((entry) => entry.contribution_key),
+    [
+      'opl-fleet-agent:fleet.agent.telemetry-settings',
+      'opl-fleet-agent:fleet.agent.doctor-settings',
+    ],
+  );
 });
 
 test('Fleet Agent native-provider absence remains a successful unavailable contribution read', () => {

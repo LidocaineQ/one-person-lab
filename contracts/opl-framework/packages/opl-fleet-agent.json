@@ -1,10 +1,10 @@
 {
   "surface_kind": "opl_capability_package_manifest.v2",
   "package_id": "opl-fleet-agent",
-  "display_name": "OPL Fleet Agent Integration",
+  "display_name": "OPL Fleet Agent",
   "publisher": "one-person-lab",
   "version": "0.2.40",
-  "source": "first_party_owner_projection",
+  "source": "first_party",
   "package_role": "capability_package",
   "source_repo": "https://github.com/gaofeng21cn/opl-fleet-agent.git",
   "publication_source": {
@@ -12,7 +12,7 @@
     "owner_package_manifest_ref": "plugins/opl-fleet-agent/opl-package.json",
     "owner_plugin_manifest_ref": "plugins/opl-fleet-agent/plugin.json"
   },
-  "machine_boundary": "This optional read-only adapter projects sanitized node-local observations from the installed native OPL Fleet Agent. It is not a dependency of installing or running the native OPL Fleet Agent.app. It does not own native installation, collection, upgrade, fleet admission, leases, dispatch, task completion, execution constraints, receipts, or Cordis Host truth.",
+  "machine_boundary": "This Package projects sanitized node-local observations from the installed native OPL Fleet Agent. It does not own native installation, collection, upgrade, fleet admission, leases, dispatch, task completion, execution constraints, receipts, or Cordis Host truth.",
   "schema_ref": "one-person-lab/contracts/opl-framework/capability-package-manifest.schema.json",
   "capability_abi": {
     "id": "opl-fleet-agent.capabilities",
@@ -115,6 +115,25 @@
         "tone": "neutral"
       }
     ],
-    "ui": []
+    "ui": [
+      {
+        "contribution_id": "fleet.agent.telemetry-settings",
+        "slot": "settings.section",
+        "contribution_kind": "view",
+        "trust_tier": "declarative",
+        "scope": "root",
+        "sort_order": 300,
+        "view_id": "fleet.agent.telemetry"
+      },
+      {
+        "contribution_id": "fleet.agent.doctor-settings",
+        "slot": "settings.section",
+        "contribution_kind": "view",
+        "trust_tier": "declarative",
+        "scope": "root",
+        "sort_order": 310,
+        "view_id": "fleet.agent.doctor"
+      }
+    ]
   }
 }
