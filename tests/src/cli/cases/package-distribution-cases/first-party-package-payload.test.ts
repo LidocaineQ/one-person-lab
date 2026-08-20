@@ -7,7 +7,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 
-import { getOplPackageSpecs } from '../../../../../src/adapters/integration/package-distribution.ts';
+import { loadOplPackageSpecs } from '../../../../../src/adapters/integration/package-distribution.ts';
 import { assertJsonSchemaPayload } from '../../../../../src/kernel/schema-registry.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../..');
@@ -916,7 +916,7 @@ test('Framework allowlists and payloads validate at their explicit schema bounda
     path.join(repoRoot, 'contracts/opl-framework/package-payload-manifest-v2.schema.json'),
     'utf8',
   )) as Record<string, any>;
-  const canonicalIds = getOplPackageSpecs().map((spec) => spec.package_id);
+  const canonicalIds = loadOplPackageSpecs().map((spec) => spec.package_id);
   const packageRoot = path.join(repoRoot, 'contracts/opl-framework/packages');
   const payloadRoot = path.join(packageRoot, 'payloads');
   const manifests = Object.fromEntries(canonicalIds.map((id) => [
