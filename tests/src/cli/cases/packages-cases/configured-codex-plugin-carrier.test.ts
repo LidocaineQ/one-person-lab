@@ -15,6 +15,7 @@ import {
   test,
 } from './helpers.ts';
 import { pathToFileURL } from 'node:url';
+import crypto from 'node:crypto';
 import { validateJsonSchemaPayload } from '../../../../../src/kernel/schema-registry.ts';
 import {
   normalizeAgentPluginName,
@@ -31,6 +32,8 @@ import {
   discoverAvailablePackageDescriptors,
   discoverInstalledPackageDescriptors,
 } from '../../../../../src/adapters/integration/agent-package-registry-parts/installed-codex-plugin-directory.ts';
+import { listCurrentPackageProjections } from '../../../../../src/kernel/standard-agent-registry.ts';
+import { normalizePackageManifest } from '../../../../../src/adapters/integration/agent-package-registry-parts/manifest-normalizers.ts';
 import {
   createOplAgentPackageStatusReader,
   runOplAgentPackageBulkUpdate,
@@ -123,6 +126,176 @@ if (args === 'plugin list --json') {
     assert.ok(entry);
     assert.equal(entry.installed, true);
     assert.equal(result.opl_agent_packages.installed_package_count, 1);
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
+test('clean Codex state projects current first-party carrier manifests as installable Packages', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-clean-package-directory-'));
+  const binary = path.join(root, 'fake-codex.mjs');
+  fs.writeFileSync(binary, `#!/usr/bin/env node
+process.stdout.write(JSON.stringify({ installed: [], available: [] }));
+`);
+  fs.chmodSync(binary, 0o755);
+  try {
+    const result = runCli(['packages', 'list', '--detail', 'full'], {
+      HOME: root,
+      CODEX_HOME: path.join(root, 'codex-home'),
+      OPL_STATE_DIR: path.join(root, 'opl-state'),
+      OPL_CODEX_PLUGIN_BIN: binary,
+    }) as any;
+    const expectedPackageIds = listCurrentPackageProjections()
+      .flatMap((projection) => {
+        const manifest = normalizePackageManifest(projection.payload, projection.source_ref);
+        return manifest.configured_codex_plugin_carrier ? [manifest.package_id] : [];
+      })
+      .sort();
+    const entries = result.opl_agent_packages.directory.entries;
+    assert.deepEqual(entries.map((entry: any) => entry.package_id).sort(), expectedPackageIds);
+    assert.equal(result.opl_agent_packages.installed_package_count, 0);
+    assert.equal(result.opl_agent_packages.directory.installable_package_count, expectedPackageIds.length);
+    for (const entry of entries) {
+      assert.equal(entry.installed, false, entry.package_id);
+      assert.equal(entry.installability.status, 'installable', entry.package_id);
+      assert.equal(entry.recommended_action, 'agent_package_install', entry.package_id);
+      assert.equal(entry.recommended_action_ref?.action_id, 'agent_package_install', entry.package_id);
+    }
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
+test('configured first-party carrier installs from a frozen local payload without Git', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-payload-carrier-install-'));
+  const packageDirectory = path.join(root, 'packages');
+  const sourceRoot = path.join(root, 'source');
+  const stateDir = path.join(root, 'opl-state');
+  const packageId = 'fixture-package';
+  const pluginId = 'fixture-package';
+  const marketplaceId = 'fixture-marketplace';
+  const sourceCommit = '1'.repeat(40);
+  const files = new Map([
+    ['plugin.json', `${JSON.stringify({
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+      name: pluginId,
+      version: '1.0.0',
+      skills: './skills/',
+    }, null, 2)}\n`],
+    ['.codex-plugin/plugin.json', `${JSON.stringify({
+      name: pluginId,
+      version: '1.0.0',
+      skills: './skills/',
+    }, null, 2)}\n`],
+    [`skills/${pluginId}/SKILL.md`, `# ${pluginId}\n`],
+  ]);
+  const contentHash = crypto.createHash('sha256');
+  for (const [relativePath, content] of files) {
+    const pathBytes = Buffer.from(relativePath);
+    const contentBytes = Buffer.from(content);
+    const pathLength = Buffer.allocUnsafe(8);
+    const contentLength = Buffer.allocUnsafe(8);
+    pathLength.writeBigUInt64BE(BigInt(pathBytes.length));
+    contentLength.writeBigUInt64BE(BigInt(contentBytes.length));
+    contentHash.update(pathLength);
+    contentHash.update(pathBytes);
+    contentHash.update(contentLength);
+    contentHash.update(contentBytes);
+  }
+  fs.mkdirSync(packageDirectory, { recursive: true });
+  for (const [relativePath, content] of files) {
+    const sourcePath = path.join(sourceRoot, relativePath);
+    fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+    fs.writeFileSync(sourcePath, content);
+  }
+  fs.writeFileSync(path.join(packageDirectory, `${packageId}.json`), formatJsonPayload({
+    package_id: packageId,
+    version: '1.0.0',
+    codex_surface: {
+      plugin_id: pluginId,
+      carrier_source_commit: sourceCommit,
+      plugin_payload_manifest_url: 'payloads/fixture-package-1.0.0.json',
+    },
+  }));
+  fs.mkdirSync(path.join(packageDirectory, 'payloads'), { recursive: true });
+  fs.writeFileSync(
+    path.join(packageDirectory, 'payloads', 'fixture-package-1.0.0.json'),
+    formatJsonPayload({
+      package_id: packageId,
+      plugin_id: pluginId,
+      package_version: '1.0.0',
+      source_commit: sourceCommit,
+      content_lock: {
+        digest: `sha256:${contentHash.digest('hex')}`,
+      },
+      files: [...files].map(([relativePath, content]) => ({
+        path: relativePath,
+        mode: '100644',
+        source_url: pathToFileURL(path.join(sourceRoot, relativePath)).toString(),
+        sha256: `sha256:${crypto.createHash('sha256').update(content).digest('hex')}`,
+      })),
+    }),
+  );
+
+  const calls: string[] = [];
+  let installed = false;
+  const marketplaceRoot = path.join(stateDir, 'codex-plugin-marketplaces', marketplaceId);
+  try {
+    const result = runConfiguredCodexPluginCarrier({
+      descriptor: {
+        packageId,
+        carrier: {
+          kind: 'codex_plugin_manager',
+          pluginId: `${pluginId}@${marketplaceId}`,
+          marketplaceSource: 'owner/fixture-package',
+        },
+        executor: { route: 'codex_cli', requiredSkillIds: [pluginId] },
+        publicationRef: 'ghcr.io/owner/packages/fixture-package:latest-stable',
+      },
+      action: 'install',
+      env: { HOME: root, CODEX_HOME: path.join(root, 'codex-home'), OPL_STATE_DIR: stateDir },
+      packageDirectory,
+      runner: ({ args }) => {
+        const command = args.join(' ');
+        calls.push(command);
+        if (command === 'plugin marketplace list --json') {
+          return { status: 0, stdout: JSON.stringify({ marketplaces: [] }), stderr: '', error: null };
+        }
+        if (command === `plugin marketplace add ${marketplaceRoot} --json`) {
+          return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+        }
+        if (command === `plugin add ${pluginId}@${marketplaceId} --json`) {
+          installed = true;
+          return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+        }
+        if (command === 'plugin list --json') {
+          return {
+            status: 0,
+            stdout: pluginList(installed ? [{
+              pluginId: `${pluginId}@${marketplaceId}`,
+              version: '1.0.0',
+              sourcePath: path.join(marketplaceRoot, 'plugins', pluginId),
+              marketplaceSource: marketplaceRoot,
+            }] : []),
+            stderr: '',
+            error: null,
+          };
+        }
+        return { status: 2, stdout: '', stderr: `unexpected command: ${command}`, error: null };
+      },
+    });
+    assert.equal(result.status, 'installed');
+    assert.equal(result.executor.status, 'callable');
+    assert.equal(fs.existsSync(path.join(
+      marketplaceRoot, 'plugins', pluginId, 'skills', pluginId, 'SKILL.md',
+    )), true);
+    assert.deepEqual(calls, [
+      'plugin marketplace list --json',
+      `plugin marketplace add ${marketplaceRoot} --json`,
+      `plugin add ${pluginId}@${marketplaceId} --json`,
+      'plugin list --json',
+    ]);
+    assert.equal(calls.some((command) => command.includes('git')), false);
   } finally {
     removeFixtureTree(root);
   }

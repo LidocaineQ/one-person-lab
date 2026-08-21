@@ -11,6 +11,10 @@ import {
   type ResolvedAgentPluginManifest,
 } from '../../../kernel/agent-plugin-manifest.ts';
 import { parseJsonText } from '../../../kernel/json-file.ts';
+import {
+  listCurrentPackageProjections,
+  PACKAGE_PROJECTION_ROOT,
+} from '../../../kernel/standard-agent-registry.ts';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
 import { isFirstPartyPackage } from '../agent-package-first-party.ts';
 import { resolveCanonicalOplFamilyMarketplaceId } from '../system-installation/codex-plugin-registry.ts';
@@ -80,7 +84,15 @@ export type InstalledPackageManifest = Pick<
   | 'content_lock_canonicalization'
   | 'configured_codex_plugin_carrier'
   | 'app_contributions'
-> & Partial<Pick<AgentPackageManifest, 'content_digest' | 'content_lock_paths'>>;
+> & Partial<Pick<
+  AgentPackageManifest,
+  | 'source_commit'
+  | 'carrier_source_commit'
+  | 'plugin_id'
+  | 'plugin_payload_manifest_url'
+  | 'content_digest'
+  | 'content_lock_paths'
+>>;
 
 export type InstalledPackageDescriptor = {
   manifest: InstalledPackageManifest;
@@ -336,6 +348,79 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
   }
 }
 
+function projectedManifestPath(sourceRef: string) {
+  return path.isAbsolute(sourceRef)
+    ? sourceRef
+    : path.join(PACKAGE_PROJECTION_ROOT, path.basename(sourceRef));
+}
+
+function readProjectedPackageDescriptor(
+  projection: ReturnType<typeof listCurrentPackageProjections>[number],
+): InstalledPackageDescriptor | null {
+  try {
+    const manifestPath = projectedManifestPath(projection.source_ref);
+    const manifestText = fs.readFileSync(manifestPath, 'utf8');
+    const manifest = normalizePackageManifest(
+      JSON.parse(manifestText),
+      pathToFileURL(manifestPath).toString(),
+    );
+    const carrier = manifest.configured_codex_plugin_carrier;
+    if (!carrier || !isFirstPartyPackage(manifest.package_id)) return null;
+    return {
+      manifest,
+      manifestPath,
+      manifest_sha256: sha256Text(manifestText),
+      sourcePath: manifestPath,
+      pluginId: carrier.carrier.pluginId,
+      marketplaceSource: carrier.carrier.marketplaceSource,
+      enabled: false,
+      carrier,
+      carrier_readback: {
+        kind: 'owner_package_projection',
+        identity: carrier.carrier.pluginId,
+        source_ref: projection.source_ref,
+        version: manifest.version,
+        enabled: false,
+        lifecycle_authority: 'carrier_owned',
+      },
+      readiness: {
+        installed: false,
+        physical_status: 'unavailable',
+        callability: 'disabled',
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+function discoverProjectedPackageDescriptors(input: { packageId?: string | null } = {}) {
+  const discovered = new Map<string, InstalledPackageDescriptor>();
+  for (const projection of listCurrentPackageProjections()) {
+    const descriptor = readProjectedPackageDescriptor(projection);
+    if (!descriptor) continue;
+    if (input.packageId && descriptor.manifest.package_id !== input.packageId) continue;
+    discovered.set(descriptor.manifest.package_id, descriptor);
+  }
+  return discovered;
+}
+
+function withCurrentOwnerProjection(
+  descriptor: InstalledPackageDescriptor,
+  ownerProjection: InstalledPackageDescriptor | undefined,
+) {
+  if (!ownerProjection
+    || descriptor.manifest.version !== ownerProjection.manifest.version
+    || !installedDescriptorMatchesConfiguredCarrier(descriptor)) return descriptor;
+  return {
+    ...descriptor,
+    manifest: ownerProjection.manifest,
+    manifestPath: ownerProjection.manifestPath,
+    manifest_sha256: ownerProjection.manifest_sha256,
+    carrier: ownerProjection.carrier,
+  };
+}
+
 export function installedDescriptorMatchesConfiguredCarrier(
   descriptor: InstalledPackageDescriptor,
 ) {
@@ -454,7 +539,12 @@ export function discoverInstalledPackageDescriptors(input: {
   runner?: CodexPluginCommandRunner;
   failClosedOnCarrierError?: boolean;
 } = {}) {
-  return discoverPackageDescriptors(input);
+  const installed = discoverPackageDescriptors(input);
+  const projected = discoverProjectedPackageDescriptors(input);
+  for (const [packageId, descriptor] of installed) {
+    installed.set(packageId, withCurrentOwnerProjection(descriptor, projected.get(packageId)));
+  }
+  return installed;
 }
 
 export function discoverAvailablePackageDescriptors(input: {
@@ -463,7 +553,13 @@ export function discoverAvailablePackageDescriptors(input: {
   env?: NodeJS.ProcessEnv;
   runner?: CodexPluginCommandRunner;
 } = {}) {
-  return discoverPackageDescriptors({ ...input, includeAvailable: true });
+  const discovered = discoverProjectedPackageDescriptors(input);
+  for (const [packageId, descriptor] of discoverPackageDescriptors({ ...input, includeAvailable: true })) {
+    discovered.set(packageId, descriptor.readiness.installed
+      ? withCurrentOwnerProjection(descriptor, discovered.get(packageId))
+      : descriptor);
+  }
+  return discovered;
 }
 
 /**

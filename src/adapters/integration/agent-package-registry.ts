@@ -607,6 +607,66 @@ function nativeLifecycleResult(
   };
 }
 
+function requiredDependencyInstallResults(
+  descriptor: InstalledPackageDescriptor,
+  input: AgentPackageInstallInput,
+  completed = new Set<string>(),
+  visiting = new Set<string>(),
+): Record<string, unknown>[] {
+  const results: Record<string, unknown>[] = [];
+  for (const dependency of descriptor.manifest.capability_dependencies) {
+    if (!dependency.required || completed.has(dependency.package_id)) continue;
+    if (visiting.has(dependency.package_id)) {
+      throw new FrameworkContractError(
+        'contract_shape_invalid',
+        'Required Package dependency closure contains a cycle.',
+        {
+          package_id: descriptor.manifest.package_id,
+          dependency_package_id: dependency.package_id,
+          failure_code: 'agent_package_required_dependency_cycle',
+        },
+      );
+    }
+    const snapshot = packageSnapshot({ includeAvailable: true });
+    const installed = snapshot.installed.get(dependency.package_id) ?? null;
+    const ready = installed?.readiness.installed === true
+      && installed.readiness.physical_status === 'available'
+      && (installed.readiness.callability === 'callable'
+        || installed.readiness.projection_callability === 'callable');
+    if (ready) {
+      completed.add(dependency.package_id);
+      continue;
+    }
+    const dependencyDescriptor = snapshot.descriptors.get(dependency.package_id) ?? null;
+    if (!dependencyDescriptor) {
+      throw new FrameworkContractError(
+        'contract_shape_invalid',
+        'Required Package dependency is not installable from the current owner projections.',
+        {
+          package_id: descriptor.manifest.package_id,
+          dependency_package_id: dependency.package_id,
+          failure_code: 'agent_package_required_dependency_unavailable',
+        },
+      );
+    }
+    visiting.add(dependency.package_id);
+    results.push(...requiredDependencyInstallResults(
+      dependencyDescriptor,
+      { ...input, packageId: dependency.package_id, manifestUrl: null },
+      completed,
+      visiting,
+    ));
+    results.push(nativeLifecycleResult(
+      'install',
+      { ...input, packageId: dependency.package_id, manifestUrl: null },
+      dependencyDescriptor,
+    ));
+    visiting.delete(dependency.package_id);
+    completed.add(dependency.package_id);
+  }
+  return results;
+}
+
 export async function runOplAgentPackageInstall(input: AgentPackageInstallInput) {
   if (input.manifestUrl) {
     const selected = await readManualAgentManifest(input);
@@ -643,11 +703,14 @@ export async function runOplAgentPackageInstall(input: AgentPackageInstallInput)
       },
     };
   }
+  const descriptor = requireDescriptor(input, 'install');
+  const dependencyResults = requiredDependencyInstallResults(descriptor, input);
   return {
     version: 'g2' as const,
     opl_agent_package_install: {
       surface_kind: 'opl_agent_package_install' as const,
-      ...nativeLifecycleResult('install', input),
+      ...nativeLifecycleResult('install', input, descriptor),
+      required_dependency_install_results: dependencyResults,
     },
   };
 }
