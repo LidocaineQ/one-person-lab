@@ -837,7 +837,7 @@ function resolvePayloadFileSource(value: unknown, sourceCommit: string) {
   return url;
 }
 
-function githubArchiveFileSource(source: URL, sourceCommit: string) {
+export function githubArchiveFileSource(source: URL, sourceCommit: string) {
   if (source.protocol !== 'https:' || source.hostname !== 'raw.githubusercontent.com') return null;
   const segments = source.pathname.split('/').filter(Boolean);
   const [owner, repository, commit, ...relativePath] = segments;
@@ -929,7 +929,16 @@ function materializeGithubArchive(input: {
   return {
     sourceRoot,
     cleanup: () => fs.rmSync(temporaryRoot, { recursive: true, force: true }),
-    pathFor: (relativePath: string) => {
+    pathFor: (source: URL) => {
+      const fileSource = githubArchiveFileSource(source, input.sourceCommit);
+      if (!fileSource || fileSource.key !== archive.key) {
+        return localReadbackFailure(
+          'configured_codex_plugin_carrier_payload_invalid',
+          'Configured Package payload file does not belong to its downloaded GitHub archive.',
+          { package_id: input.packageId },
+        );
+      }
+      const relativePath = fileSource.relativePath;
       const candidate = path.resolve(sourceRoot, ...relativePath.split('/'));
       if (candidate !== sourceRoot && !candidate.startsWith(`${sourceRoot}${path.sep}`)) {
         return localReadbackFailure(
@@ -1034,7 +1043,7 @@ function installPayloadMarketplace(input: {
       if (source.protocol === 'file:') {
         bytes = fs.readFileSync(fileURLToPath(source));
       } else if (archive) {
-        bytes = archive.pathFor(payloadRelativePath(candidate.path, `files[${index}].path`));
+        bytes = archive.pathFor(source);
       } else {
         const curl = fs.existsSync('/usr/bin/curl') ? '/usr/bin/curl' : 'curl';
         const result = spawnSync(curl, [

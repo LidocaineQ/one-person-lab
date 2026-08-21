@@ -23,6 +23,7 @@ import {
 } from '../../../../../src/kernel/agent-plugin-manifest.ts';
 import {
   createMemoizedCodexPluginListRunner,
+  githubArchiveFileSource,
   githubMarketplaceSourceIdentity,
   runConfiguredCodexPluginCarrier,
   type CodexPluginCommandRunner,
@@ -38,6 +39,19 @@ import {
   createOplAgentPackageStatusReader,
   runOplAgentPackageBulkUpdate,
 } from '../../../../../src/adapters/integration/agent-package-registry.ts';
+
+test('GitHub archive payload reads the owner source path independently from its install path', () => {
+  const commit = '1'.repeat(40);
+  const source = new URL(
+    `https://raw.githubusercontent.com/owner/repository/${commit}/plugins/example/.codex-plugin/plugin.json`,
+  );
+
+  assert.deepEqual(githubArchiveFileSource(source, commit), {
+    key: `owner/repository@${commit}`,
+    archiveUrl: `https://codeload.github.com/owner/repository/tar.gz/${commit}`,
+    relativePath: 'plugins/example/.codex-plugin/plugin.json',
+  });
+});
 
 const packageId = 'third.party.research';
 const pluginSelector = 'third-party-research@fixture-carrier';
