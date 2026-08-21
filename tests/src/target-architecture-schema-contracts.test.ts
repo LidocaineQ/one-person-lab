@@ -25,7 +25,6 @@ const schemaPaths = [
   'contracts/opl-framework/owner-answer.schema.json',
   'contracts/opl-framework/evidence-ledger-event.schema.json',
   'contracts/opl-framework/golden-path-profile.schema.json',
-  'contracts/opl-framework/default-surface-budget.schema.json',
   'contracts/opl-framework/workspace-topology-profile.schema.json',
   'contracts/opl-framework/workspace-index.schema.json',
   'contracts/opl-framework/capability-registry-resolver.schema.json',
@@ -93,7 +92,6 @@ test('target architecture schemas retain sparse identity, required-field, and au
   const ownerAnswer = schemas['contracts/opl-framework/owner-answer.schema.json'];
   const evidenceLedger = schemas['contracts/opl-framework/evidence-ledger-event.schema.json'];
   const goldenPath = schemas['contracts/opl-framework/golden-path-profile.schema.json'];
-  const surfaceBudget = schemas['contracts/opl-framework/default-surface-budget.schema.json'];
   const workspaceTopology = schemas['contracts/opl-framework/workspace-topology-profile.schema.json'];
   const workspaceIndex = schemas['contracts/opl-framework/workspace-index.schema.json'];
   const capabilityResolver = schemas['contracts/opl-framework/capability-registry-resolver.schema.json'];
@@ -128,7 +126,6 @@ test('target architecture schemas retain sparse identity, required-field, and au
     [ownerAnswer.$defs.authority_boundary.properties, ['opl_can_sign_domain_owner_answer', 'opl_can_authorize_quality_verdict']],
     [evidenceLedger.$defs.authority_boundary.properties, ['event_can_create_default_action_without_delta', 'opl_can_write_domain_truth']],
     [goldenPath.$defs.authority_boundary.properties, ['variant_can_be_default_without_explicit_selection', 'opl_can_authorize_domain_ready']],
-    [surfaceBudget.$defs.authority_boundary.properties, ['default_surface_can_claim_production_ready', 'default_surface_can_replace_domain_owner']],
     [workspaceTopology.$defs.authority_boundary.properties, ['opl_can_write_domain_truth', 'runtime_state_counts_as_user_default_surface']],
     [workspaceIndex.$defs.authority_boundary.properties, ['opl_can_write_domain_truth', 'runtime_state_counts_as_user_default_surface']],
     [capabilityResolver.$defs.authority_boundary.properties, ['can_execute_capability', 'can_write_domain_truth', 'can_create_domain_typed_blocker']],

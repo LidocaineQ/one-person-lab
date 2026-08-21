@@ -96,7 +96,7 @@ export function buildRuntimeSubstrateComponent(
       owner_executor_id: 'opl_runtime_substrate_materializer',
       executor_kind: 'controlled_framework_executor',
       runner_can_execute: true,
-      allowed_operations: ['apply', 'repair', MANAGED_UPDATE_OWNER_ACTIONS.revert], // reuse-first: allow App-owned runtime materializer operations.
+      allowed_operations: ['apply', 'repair', MANAGED_UPDATE_OWNER_ACTIONS.revert],
       receipt_projection: 'component_receipt_with_owner_route',
       diagnostic_only: false,
       notes: [

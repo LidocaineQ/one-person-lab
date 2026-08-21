@@ -69,7 +69,7 @@ test('family-runtime status exposes Temporal provider runtime and SQLite project
     );
     assert.equal(
       output.family_runtime.queue_lifecycle_boundary.field_roles.projection_or_audit_when_temporal_selected
-        .includes('tasks.max_attempts'), // reuse-first: allow local max_attempts vocabulary boundary.
+        .includes('tasks.max_attempts'),
       true,
     );
     assert.equal(
@@ -270,7 +270,7 @@ test('bin/opl routes family-runtime commands into the OPL CLI instead of Codex p
     );
 
     assert.equal(result.status, 0, result.stderr);
-    const output = JSON.parse(result.stdout); // reuse-first: allow CLI stdout JSON parser in migrated test case.
+    const output = JSON.parse(result.stdout);
     assert.equal(output.family_runtime.surface_id, 'opl_family_runtime');
     assert.equal(output.family_runtime.provider_model, 'provider_backed_stage_attempt_runtime');
     assert.equal(output.family_runtime.configured_provider, 'temporal');

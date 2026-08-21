@@ -592,7 +592,7 @@ test('explicit Gateway binding overrides ChatGPT and environment access without 
 });
 
 test('failed Gateway post-write readback restores config and management receipt bytes', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-gateway-readback-rollback-')); // reuse-first: allow - Gateway-owned rollback fixture.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-gateway-readback-rollback-'));
   const previous = { codex: process.env.CODEX_HOME, home: process.env.HOME, state: process.env.OPL_STATE_DIR };
   process.env.CODEX_HOME = path.join(root, 'codex');
   process.env.HOME = root;
@@ -657,7 +657,7 @@ test('failed Gateway post-write readback restores config and management receipt 
 });
 
 test('explicit Codex binding failure keeps the managed key reusable for a corrected retry', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-gateway-rollback-')); // reuse-first: allow - Gateway-owned rollback fixture.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-gateway-rollback-'));
   let keyName = '';
   let keyStatus = 'active';
   let createCount = 0;

@@ -4,7 +4,6 @@ import { buildTaskRunProjectionV2 } from './app-state-task-run-projection.ts';
 import {
   buildBrandExperienceProfile,
   buildDefaultReadSurfacePolicy,
-  buildOneShotPlanLandingProfile,
   buildOrdinaryCockpit,
 } from './app-state-parts/view-model-operator-profiles.ts';
 import {
@@ -728,7 +727,6 @@ export function buildOplAppOperatorViewModel(input: OplAppOperatorViewModelInput
   const defaultReadSurfacePolicy = buildDefaultReadSurfacePolicy(input);
   const ordinaryCockpit = buildOrdinaryCockpit(currentOwnerDeltaTopline, input);
   const brandExperienceProfile = buildBrandExperienceProfile(input);
-  const oneShotPlanLanding = buildOneShotPlanLandingProfile(input);
   const foundry = asRecord(input.foundry);
   const lazyRefs = [
     {
@@ -755,14 +753,12 @@ export function buildOplAppOperatorViewModel(input: OplAppOperatorViewModelInput
     default_read_surface_policy: defaultReadSurfacePolicy,
     ordinary_cockpit: ordinaryCockpit,
     brand_experience_profile: brandExperienceProfile,
-    one_shot_plan_landing: oneShotPlanLanding,
     ...currentOwnerDeltaTopline,
     workbench: {
       view_model_schema: 'opl_app_operator_workbench.v1',
       default_read_surface_policy: defaultReadSurfacePolicy,
       ordinary_cockpit: ordinaryCockpit,
       brand_experience_profile: brandExperienceProfile,
-      one_shot_plan_landing: oneShotPlanLanding,
       foundry,
       settings_control_center: {
         surface_kind: 'opl_settings_control_center_workbench_ref.v1',

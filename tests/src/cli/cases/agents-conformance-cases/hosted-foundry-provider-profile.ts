@@ -84,7 +84,6 @@ function removeRepoLocalRuntimeContracts(repoDir: string) {
     'standard-agent-principles-adoption.json',
     'stage_operating_principles.json',
     'private_functional_surface_policy.json',
-    'standard_agent_conformance_profile.json',
     'workspace_lifecycle_policy.json',
     'stage_artifact_kernel_adoption.json',
     'stage_run_kernel_profile.json',

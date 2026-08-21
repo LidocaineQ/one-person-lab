@@ -1792,7 +1792,7 @@ import path from 'node:path';
 const args = process.argv.slice(2);
 const stateFile = process.env.FIXTURE_PLUGIN_STATE;
 const sourcePath = process.env.FIXTURE_PLUGIN_SOURCE;
-let state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : { installed: false, version: '1.0.0', marketplaceSource: null }; // reuse-first: disposable native CLI fixture owns this transient state.
+let state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : { installed: false, version: '1.0.0', marketplaceSource: null };
 const configPath = path.join(process.env.CODEX_HOME, 'config.toml');
 const enabled = !fs.existsSync(configPath) || !/\\[plugins\\."third-party-research@fixture-carrier"\\][\\s\\S]*?enabled = false/.test(fs.readFileSync(configPath, 'utf8'));
 if (args.join(' ') === 'plugin marketplace list --json') {

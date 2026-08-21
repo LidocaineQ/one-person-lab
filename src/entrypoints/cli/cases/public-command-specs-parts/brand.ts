@@ -19,7 +19,6 @@ import type { FrameworkContracts } from '../../../../kernel/types.ts';
 import { assertNoArgs } from '../../modules/support.ts';
 import type { CommandSpec } from '../../modules/support.ts';
 import { buildBrandModuleSurfaceSpecs } from './brand-module-surfaces.ts';
-import { buildBrandOperatingModelCommandSpecs } from './brand-operating-model.ts';
 import { buildBrandPackCommandSpecs } from './brand-pack.ts';
 import { buildBrandRunwayCommandSpecs } from './brand-runway.ts';
 import { buildLedgerBundleCommandSpecs } from './ledger-bundle.ts';
@@ -135,7 +134,6 @@ export function buildBrandCommandSpecs(
         return buildBrandModuleInterfaces(getContracts());
       },
     },
-    ...buildBrandOperatingModelCommandSpecs(getContracts),
     ...brandModuleSurfaceSpecs,
     ...buildBrandPackCommandSpecs(brandModuleSurfaceSpecs['pack inspect']),
     ...ledgerBundleCommandSpecs,

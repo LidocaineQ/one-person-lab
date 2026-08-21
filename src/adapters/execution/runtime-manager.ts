@@ -379,7 +379,7 @@ export async function buildRuntimeManager(
       },
       notes: [
         'Family runtime provider is Temporal-only; local_sqlite is retired as a provider and SQLite sidecars are projection/readback indexes only.',
-        'external_sandbox is an agent_sandbox_execution_substrate readback for E2B/Daytona/Modal-style adapters; it is not a Temporal durable workflow substrate replacement.',
+        'external_sandbox is an agent_sandbox_execution_substrate readback for E2B; it is not a Temporal durable workflow substrate replacement.',
         `OPL Runtime Manager is the product control plane, stage ${OBSERVABILITY_ATTEMPT_LEDGER_LABEL}, and projection layer.`,
         'Registered domain agents keep domain-owned truth and route-selected executor semantics.',
       ],

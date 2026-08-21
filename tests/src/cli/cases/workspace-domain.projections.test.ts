@@ -10,7 +10,10 @@ import {
 
 import './workspace-domain.descriptor.test.ts';
 import './workspace-domain.progress.test.ts';
-import { createRcaWorkspaceDescriptorFixture } from './workspace-domain-test-helper.ts';
+import {
+  createRcaWorkspaceDescriptorFixture,
+  createWorkspaceDescriptorFamilyFixture,
+} from './workspace-domain-test-helper.ts';
 
 function readJsonFile(filePath: string) {
   return parseJsonText(fs.readFileSync(filePath, 'utf8')) as any;
@@ -225,6 +228,11 @@ test('workspace adopt apply materializes OPL metadata and generated inspection r
 test('workspace adopt apply performs the topology migration promised by dry-run', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-workspace-adopt-migration-state-'));
   const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-workspace-adopt-migration-'));
+  const descriptorFixture = createWorkspaceDescriptorFamilyFixture(['mas']);
+  const env = {
+    OPL_STATE_DIR: stateRoot,
+    OPL_FAMILY_WORKSPACE_ROOT: descriptorFixture.familyRoot,
+  };
 
   try {
     runCli([
@@ -239,9 +247,7 @@ test('workspace adopt apply performs the topology migration promised by dry-run'
       '--mode',
       'one_off',
       '--no-bind',
-    ], {
-      OPL_STATE_DIR: stateRoot,
-    });
+    ], env);
 
     const legacyIndexPath = path.join(workspacePath, 'workspace_index.json');
     const legacyIndex = readJsonFile(legacyIndexPath);
@@ -294,9 +300,7 @@ test('workspace adopt apply performs the topology migration promised by dry-run'
       '--mode',
       'portfolio',
       '--dry-run',
-    ], {
-      OPL_STATE_DIR: stateRoot,
-    });
+    ], env);
     assert.equal(dryRun.workspace_adoption.status, 'dry_run_ready');
     assert.equal(dryRun.workspace_adoption.existing_workspace_index_detected, true);
     assert.deepEqual(
@@ -316,9 +320,7 @@ test('workspace adopt apply performs the topology migration promised by dry-run'
       '--mode',
       'portfolio',
       '--apply',
-    ], {
-      OPL_STATE_DIR: stateRoot,
-    });
+    ], env);
     assert.equal(applied.workspace_adoption.status, 'applied');
     assert.equal(applied.workspace_adoption.profile.profile_id, 'portfolio');
 
@@ -337,13 +339,12 @@ test('workspace adopt apply performs the topology migration promised by dry-run'
     );
     assert.equal(fs.statSync(path.join(workspacePath, 'projects', 'legacy-study')).isDirectory(), true);
     assert.equal(fs.statSync(path.join(workspacePath, 'studies', 'canonical-study')).isDirectory(), true);
-    const validation = runCli(['workspace', 'validate', '--workspace', workspacePath], {
-      OPL_STATE_DIR: stateRoot,
-    }).workspace_validation;
+    const validation = runCli(['workspace', 'validate', '--workspace', workspacePath], env).workspace_validation;
     assert.equal(validation.status, 'passed', JSON.stringify(validation, null, 2));
   } finally {
     fs.rmSync(stateRoot, { recursive: true, force: true });
     fs.rmSync(workspacePath, { recursive: true, force: true });
+    descriptorFixture.cleanup();
   }
 });
 

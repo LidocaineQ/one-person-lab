@@ -44,7 +44,6 @@
   "evidence_sources": [
     "family_structure_advisory",
     "line_budget",
-    "reuse_first_scan",
     "ponytail_audit_when_installed",
     "codegraph_callers_and_dependencies",
     "repo_native_tests_and_contracts",

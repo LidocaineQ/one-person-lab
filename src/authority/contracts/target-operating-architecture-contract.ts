@@ -5,12 +5,10 @@ import {
   isRecord,
 } from '../../kernel/contract-validation.ts';
 import {
-  expectAllowedStringArray,
   expectNonEmptyStringArray,
   requireEveryValue,
 } from './brand-module-contracts.ts';
 import {
-  TARGET_ARCHITECTURE_ACCEPTED_OWNER_ANSWER_SHAPES,
   TARGET_ARCHITECTURE_FOUNDRY_KERNEL_MAY_PRODUCE,
   TARGET_ARCHITECTURE_FOUNDRY_KERNEL_MUST_NOT_PRODUCE,
   TARGET_ARCHITECTURE_APP_DEFAULT_FIELDS,
@@ -22,16 +20,10 @@ import {
   TARGET_ARCHITECTURE_DOMAIN_PACK_DECLARATIONS,
   TARGET_ARCHITECTURE_FORBIDDEN_FRAMEWORK_ROUTE_DECISIONS,
   TARGET_ARCHITECTURE_GENERATED_SURFACES,
-  TARGET_ARCHITECTURE_HARD_BLOCKER_CONDITIONS,
-  TARGET_ARCHITECTURE_LANES,
-  TARGET_ARCHITECTURE_NON_AUTHORITY_FORBIDDEN_OUTPUTS,
-  TARGET_ARCHITECTURE_ORDINARY_SURFACE_PLANES,
-  TARGET_ARCHITECTURE_PLANES,
   TARGET_ARCHITECTURE_RECONCILER_LOOPS,
   TARGET_ARCHITECTURE_RESOURCE_FIELDS,
   TARGET_ARCHITECTURE_RESOURCE_KINDS,
   TARGET_ARCHITECTURE_STAGE_ROUTE_CAPABILITIES,
-  TARGET_ARCHITECTURE_SMALL_DETAIL_LANES,
   TARGET_ARCHITECTURE_VAULT_REF_STREAMS,
   expectFalseBoolean,
   expectTrueBoolean,
@@ -39,7 +31,6 @@ import {
 } from './target-operating-architecture-shared.ts';
 import {
   validateFoundryAgentOsStandard,
-  validateOneShotPlanLandingModel,
   validateTargetOperatingArchitectureExperienceModel,
   validateTargetOperatingArchitectureMultiPlaneModel,
 } from './target-operating-architecture-sections.ts';
@@ -59,7 +50,6 @@ export function validateTargetOperatingArchitecture(
   const resourceModelRaw = value.resource_model;
   const codexRouteOwnerRaw = value.codex_stage_route_owner;
   const domainPackRaw = value.domain_pack_authority_abi;
-  const surfaceBudgetRaw = value.surface_budget_compiler_policy;
   const reconcilerRaw = value.reconciler_model;
   const reconcilerSubstratePolicyRaw = isRecord(reconcilerRaw)
     ? reconcilerRaw.substrate_policy
@@ -68,35 +58,30 @@ export function validateTargetOperatingArchitecture(
   const appConsoleRaw = value.app_console_policy;
   const experienceOperatingModelRaw = value.experience_operating_model;
   const foundryKernelRaw = value.foundry_kernel_plane;
-  const oneShotPlanLandingModelRaw = value.one_shot_plan_landing_model;
   const foundryAgentOsStandardRaw = value.foundry_agent_os_standard;
   const multiPlaneRaw = value.multi_plane_operating_system;
   if (
     !isRecord(resourceModelRaw)
     || !isRecord(codexRouteOwnerRaw)
     || !isRecord(domainPackRaw)
-    || !isRecord(surfaceBudgetRaw)
     || !isRecord(reconcilerRaw)
     || !isRecord(reconcilerSubstratePolicyRaw)
     || !isRecord(catalogRaw)
     || !isRecord(appConsoleRaw)
     || !isRecord(experienceOperatingModelRaw)
     || !isRecord(foundryKernelRaw)
-    || !isRecord(oneShotPlanLandingModelRaw)
     || !isRecord(foundryAgentOsStandardRaw)
     || !isRecord(multiPlaneRaw)
   ) {
     throw new FrameworkContractError(
       'contract_shape_invalid',
-      'target-operating-architecture-contract.json must declare resource, authority, ABI, surface, multi-plane, reconciler, catalog, App, Foundry Kernel, and Foundry Agent OS sections.',
+      'target-operating-architecture-contract.json must declare resource, authority, ABI, multi-plane, reconciler, catalog, App, Foundry Kernel, and Foundry Agent OS sections.',
       {
         file: filePath,
         field: !isRecord(multiPlaneRaw)
           ? 'multi_plane_operating_system'
           : !isRecord(experienceOperatingModelRaw)
-              ? 'experience_operating_model'
-            : !isRecord(oneShotPlanLandingModelRaw)
-              ? 'one_shot_plan_landing_model'
+            ? 'experience_operating_model'
             : undefined,
       },
     );
@@ -233,69 +218,6 @@ export function validateTargetOperatingArchitecture(
     filePath,
   );
 
-  const allowedLanes = expectNonEmptyStringArray(
-    surfaceBudgetRaw.allowed_lanes,
-    'surface_budget_compiler_policy.allowed_lanes',
-    filePath,
-  );
-  requireEveryValue(allowedLanes, TARGET_ARCHITECTURE_LANES, 'surface_budget_compiler_policy.allowed_lanes', filePath);
-  const smallDetailLanes = expectNonEmptyStringArray(
-    surfaceBudgetRaw.small_detail_default_lanes,
-    'surface_budget_compiler_policy.small_detail_default_lanes',
-    filePath,
-  );
-  requireEveryValue(
-    smallDetailLanes,
-    TARGET_ARCHITECTURE_SMALL_DETAIL_LANES,
-    'surface_budget_compiler_policy.small_detail_default_lanes',
-    filePath,
-  );
-  const hardBlockerConditions = expectNonEmptyStringArray(
-    surfaceBudgetRaw.hard_blocker_upgrade_conditions,
-    'surface_budget_compiler_policy.hard_blocker_upgrade_conditions',
-    filePath,
-  );
-  requireEveryValue(
-    hardBlockerConditions,
-    TARGET_ARCHITECTURE_HARD_BLOCKER_CONDITIONS,
-    'surface_budget_compiler_policy.hard_blocker_upgrade_conditions',
-    filePath,
-  );
-  const acceptedOwnerAnswerShapes = expectNonEmptyStringArray(
-    surfaceBudgetRaw.accepted_owner_answer_shapes,
-    'surface_budget_compiler_policy.accepted_owner_answer_shapes',
-    filePath,
-  );
-  requireEveryValue(
-    acceptedOwnerAnswerShapes,
-    TARGET_ARCHITECTURE_ACCEPTED_OWNER_ANSWER_SHAPES,
-    'surface_budget_compiler_policy.accepted_owner_answer_shapes',
-    filePath,
-  );
-  const ordinarySurfaceAllowedPlanes = expectAllowedStringArray(
-    surfaceBudgetRaw.ordinary_surface_allowed_planes,
-    'surface_budget_compiler_policy.ordinary_surface_allowed_planes',
-    filePath,
-    TARGET_ARCHITECTURE_PLANES,
-  );
-  requireEveryValue(
-    ordinarySurfaceAllowedPlanes,
-    TARGET_ARCHITECTURE_ORDINARY_SURFACE_PLANES,
-    'surface_budget_compiler_policy.ordinary_surface_allowed_planes',
-    filePath,
-  );
-  const nonAuthoritySurfaceForbiddenOutputs = expectAllowedStringArray(
-    surfaceBudgetRaw.non_authority_surface_forbidden_outputs,
-    'surface_budget_compiler_policy.non_authority_surface_forbidden_outputs',
-    filePath,
-    TARGET_ARCHITECTURE_NON_AUTHORITY_FORBIDDEN_OUTPUTS,
-  );
-  requireEveryValue(
-    nonAuthoritySurfaceForbiddenOutputs,
-    TARGET_ARCHITECTURE_NON_AUTHORITY_FORBIDDEN_OUTPUTS,
-    'surface_budget_compiler_policy.non_authority_surface_forbidden_outputs',
-    filePath,
-  );
   const multiPlaneOperatingSystem = validateTargetOperatingArchitectureMultiPlaneModel(filePath, multiPlaneRaw);
 
   const reconcilerLoops = expectNonEmptyStringArray(
@@ -447,74 +369,6 @@ export function validateTargetOperatingArchitecture(
         filePath,
       ),
     },
-    surface_budget_compiler_policy: {
-      ordinary_path_root: expectString(surfaceBudgetRaw.ordinary_path_root, 'surface_budget_compiler_policy.ordinary_path_root', filePath),
-      ordinary_progress_spine: isRecord(surfaceBudgetRaw.ordinary_progress_spine)
-        ? {
-            default_planning_root: expectString(
-              surfaceBudgetRaw.ordinary_progress_spine.default_planning_root,
-              'surface_budget_compiler_policy.ordinary_progress_spine.default_planning_root',
-              filePath,
-            ),
-            default_next_action_derives_from: expectString(
-              surfaceBudgetRaw.ordinary_progress_spine.default_next_action_derives_from,
-              'surface_budget_compiler_policy.ordinary_progress_spine.default_next_action_derives_from',
-              filePath,
-            ),
-            lightweight_receipt: expectString(
-              surfaceBudgetRaw.ordinary_progress_spine.lightweight_receipt,
-              'surface_budget_compiler_policy.ordinary_progress_spine.lightweight_receipt',
-              filePath,
-            ),
-            lightweight_receipt_tier: expectString(
-              surfaceBudgetRaw.ordinary_progress_spine.lightweight_receipt_tier,
-              'surface_budget_compiler_policy.ordinary_progress_spine.lightweight_receipt_tier',
-              filePath,
-            ),
-            audit_sidecar_role: expectString(
-              surfaceBudgetRaw.ordinary_progress_spine.audit_sidecar_role,
-              'surface_budget_compiler_policy.ordinary_progress_spine.audit_sidecar_role',
-              filePath,
-            ),
-          }
-        : undefined,
-      artifact_tiers: expectNonEmptyStringArray(
-        surfaceBudgetRaw.artifact_tiers,
-        'surface_budget_compiler_policy.artifact_tiers',
-        filePath,
-      ),
-      progress_delta_receipt_cannot_authorize: expectNonEmptyStringArray(
-        surfaceBudgetRaw.progress_delta_receipt_cannot_authorize,
-        'surface_budget_compiler_policy.progress_delta_receipt_cannot_authorize',
-        filePath,
-      ),
-      audit_sidecar_must_not_generate_default_next_action: expectTrueBoolean(
-        surfaceBudgetRaw.audit_sidecar_must_not_generate_default_next_action,
-        'surface_budget_compiler_policy.audit_sidecar_must_not_generate_default_next_action',
-        filePath,
-      ),
-      surface_plane_binding_required: expectTrueBoolean(
-        surfaceBudgetRaw.surface_plane_binding_required,
-        'surface_budget_compiler_policy.surface_plane_binding_required',
-        filePath,
-      ),
-      default_surface_requires_plane_ref: expectTrueBoolean(
-        surfaceBudgetRaw.default_surface_requires_plane_ref,
-        'surface_budget_compiler_policy.default_surface_requires_plane_ref',
-        filePath,
-      ),
-      ordinary_surface_allowed_planes: ordinarySurfaceAllowedPlanes,
-      non_authority_surface_forbidden_outputs: nonAuthoritySurfaceForbiddenOutputs,
-      allowed_lanes: allowedLanes,
-      small_detail_default_lanes: smallDetailLanes,
-      hard_blocker_upgrade_conditions: hardBlockerConditions,
-      ordinary_path_must_not_be_overridden_by: expectNonEmptyStringArray(
-        surfaceBudgetRaw.ordinary_path_must_not_be_overridden_by,
-        'surface_budget_compiler_policy.ordinary_path_must_not_be_overridden_by',
-        filePath,
-      ),
-      accepted_owner_answer_shapes: acceptedOwnerAnswerShapes,
-    },
     multi_plane_operating_system: multiPlaneOperatingSystem,
     reconciler_model: {
       loop_granularity: expectString(reconcilerRaw.loop_granularity, 'reconciler_model.loop_granularity', filePath),
@@ -568,10 +422,6 @@ export function validateTargetOperatingArchitecture(
       may_produce: foundryKernelMayProduce,
       must_not_produce: foundryKernelMustNotProduce,
     },
-    one_shot_plan_landing_model: validateOneShotPlanLandingModel(
-      filePath,
-      oneShotPlanLandingModelRaw,
-    ),
     foundry_agent_os_standard: validateFoundryAgentOsStandard(
       filePath,
       foundryAgentOsStandardRaw,

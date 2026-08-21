@@ -75,7 +75,6 @@ const GATE_OBSERVATION_IDS: Record<string, string[]> = {
     'action_catalog',
     'stage_plane',
     'generated_surface_handoff_checks',
-    'golden_path_default_surface_budget_checks',
   ],
   standard_pack_abi: [
     'pack_compiler_checks',
@@ -340,7 +339,6 @@ function buildObservations(
     private_surface_checks: observationFromReport(report, 'private_surface_checks'),
     legacy_runtime_residue_guard: observationFromReport(report, 'legacy_runtime_residue_guard'),
     platform_surface_ownership_checks: observationFromReport(report, 'platform_surface_ownership_checks'),
-    physical_morphology_checks: observationFromReport(report, 'physical_morphology_checks'),
     workspace_file_lifecycle_checks: observationFromReport(report, 'workspace_file_lifecycle_checks'),
     stage_artifact_kernel_adoption_checks: observationFromReport(report, 'stage_artifact_kernel_adoption_checks'),
     stage_run_kernel_profile_checks: observationFromReport(report, 'stage_run_kernel_profile_checks'),
@@ -348,7 +346,6 @@ function buildObservations(
     stage_operating_principle_checks: observationFromReport(report, 'stage_operating_principle_checks'),
     standard_agent_principle_checks: observationFromReport(report, 'standard_agent_principle_checks'),
     state_index_kernel_adoption_checks: observationFromReport(report, 'state_index_kernel_adoption_checks'),
-    golden_path_default_surface_budget_checks: observationFromReport(report, 'golden_path_default_surface_budget_checks'),
     workspace_norm_checks: observationFromReport(report, 'workspace_norm_checks'),
     generated_interfaces: buildGeneratedInterfacesObservation(report.repo_dir, contracts),
     action_catalog: buildActionCatalogObservation(report.repo_dir),

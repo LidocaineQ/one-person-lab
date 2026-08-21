@@ -720,7 +720,7 @@ export function buildQueueTemporalLifecycleBoundary(
       'temporal_workflow_history_or_query_readback',
       'stage_attempt_identity',
       'temporal_retry_policy_readback_for_attempt_budget',
-      'temporal_activity_failure_or_dead_letter_history', // reuse-first: allow Temporal-owned dead-letter evidence vocabulary.
+      'temporal_activity_failure_or_dead_letter_history',
       'authority_event_ref_or_projection_rebuild_ref',
       'operator_projection_repair_or_retirement_receipt',
     ],
@@ -732,19 +732,19 @@ export function buildQueueTemporalLifecycleBoundary(
     local_projection_field_policy: {
       tasks_status: 'handoff_readback_only_not_temporal_workflow_status',
       tasks_attempts: 'handoff_readback_only_temporal_retry_policy_required',
-      tasks_max_attempts: 'handoff_readback_only_temporal_retry_policy_required', // reuse-first: allow local max_attempts vocabulary boundary.
-      tasks_lease_owner: 'handoff_readback_only_not_worker_or_activity_ownership', // reuse-first: allow local lease_owner vocabulary boundary.
-      tasks_lease_expires_at: 'handoff_readback_only_not_worker_or_activity_ownership', // reuse-first: allow local lease_owner vocabulary boundary.
-      tasks_dead_letter_reason: 'handoff_readback_only_temporal_failure_history_required', // reuse-first: allow local dead-letter vocabulary boundary.
+      tasks_max_attempts: 'handoff_readback_only_temporal_retry_policy_required',
+      tasks_lease_owner: 'handoff_readback_only_not_worker_or_activity_ownership',
+      tasks_lease_expires_at: 'handoff_readback_only_not_worker_or_activity_ownership',
+      tasks_dead_letter_reason: 'handoff_readback_only_temporal_failure_history_required',
     },
     allowed_local_action:
       'read_projection_and_emit_operator_handoff_only',
     forbidden_local_actions: [
       'treat_sqlite_task_status_as_temporal_lifecycle_truth',
       'retry_or_dead_letter_without_temporal_history',
-      'derive_retry_budget_from_tasks_max_attempts', // reuse-first: allow local max_attempts vocabulary boundary.
-      'derive_worker_liveness_from_tasks_lease_owner', // reuse-first: allow local lease_owner vocabulary boundary.
-      'derive_terminal_failure_from_tasks_dead_letter_reason', // reuse-first: allow local dead-letter vocabulary boundary.
+      'derive_retry_budget_from_tasks_max_attempts',
+      'derive_worker_liveness_from_tasks_lease_owner',
+      'derive_terminal_failure_from_tasks_dead_letter_reason',
       'claim_provider_backed_runtime_ready',
       'claim_domain_progress_or_domain_ready',
       'schedule_tick_from_local_lifecycle_projection',

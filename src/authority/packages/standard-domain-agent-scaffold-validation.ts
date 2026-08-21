@@ -327,7 +327,6 @@ export function validateStandardDomainAgentScaffold(input: ScaffoldValidateInput
     'contracts/capability_map.json',
     'contracts/stage_operating_principles.json',
     'contracts/functional_privatization_audit.json',
-    'contracts/standard_agent_conformance_profile.json',
     'contracts/workspace_lifecycle_policy.json',
   ];
   const hostedContractOmissions = new Set([
@@ -336,7 +335,6 @@ export function validateStandardDomainAgentScaffold(input: ScaffoldValidateInput
     'contracts/standard-agent-principles-adoption.json',
     'contracts/stage_operating_principles.json',
     'contracts/private_functional_surface_policy.json',
-    'contracts/standard_agent_conformance_profile.json',
     'contracts/workspace_lifecycle_policy.json',
   ]);
   const requiredContractFiles = hostedFoundryProvider

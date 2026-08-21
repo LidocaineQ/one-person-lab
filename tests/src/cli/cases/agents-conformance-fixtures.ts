@@ -165,37 +165,6 @@ function syncStageManifestFromPlane(repoDir: string, stageControlPlane: Record<s
   writeJson(manifestPath, manifest);
 }
 
-function syncStandardAgentConformanceProfile(repoDir: string) {
-  const manifest = readJson(path.join(repoDir, 'agent', 'stages', 'manifest.json'));
-  const stages = Array.isArray(manifest.stages) ? manifest.stages : [];
-  const stageIds = stages.map((stage: Record<string, any>) => stage.stage_id);
-  const defaultStage = stages.find((stage: Record<string, any>) =>
-    stage.selected_executor?.default_executor === true
-  ) ?? stages[0];
-  const morphology = readJson(contractPath(repoDir, 'functional_privatization_audit.json'))
-    .physical_source_morphology_policy;
-  writeJson(contractPath(repoDir, 'standard_agent_conformance_profile.json'), {
-    surface_kind: 'opl_standard_agent_conformance_profile',
-    version: 'opl.standard-agent-conformance-profile.v1',
-    profile_id: `${manifest.target_domain_id}.standard-agent-conformance.v1`,
-    target_domain_id: manifest.target_domain_id,
-    golden_path: {
-      required_stage_ids: stageIds,
-      allowed_stage_ids: stageIds,
-      default_stage_id: defaultStage.stage_id,
-      forbidden_owner_tokens: [],
-    },
-    physical_morphology: {
-      scan_roots: ['agent/', 'contracts/', 'runtime/'],
-      allowed_residue_prefixes: [],
-      required_surface_ids: morphology.required_surface_ids,
-      surface_classifications: morphology.surface_classifications,
-      forbidden_name_tokens: [],
-      required_parity_gates: ['generated_surface_consumption'],
-    },
-  });
-}
-
 export function buildReadyAgentRepo() {
   const targetDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-conformance-'));
   buildStandardDomainAgentScaffold({
@@ -604,8 +573,6 @@ export function buildReadyAgentRepo() {
     },
   });
 
-  syncStandardAgentConformanceProfile(targetDir);
-
   return targetDir;
 }
 
@@ -631,7 +598,6 @@ export function retargetReadyRepoToMag(repoDir: string) {
   manifest.owner = 'med-autogrant';
   manifest.authority_boundary.domain_truth_owner = 'med-autogrant';
   writeJson(manifestPath, manifest);
-  syncStandardAgentConformanceProfile(repoDir);
 }
 
 export function retargetReadyRepo(repoDir: string, domainId: string, domainLabel: string) {
@@ -666,7 +632,6 @@ export function retargetReadyRepo(repoDir: string, domainId: string, domainLabel
   manifest.owner = domainId;
   manifest.authority_boundary.domain_truth_owner = domainId;
   writeJson(manifestPath, manifest);
-  syncStandardAgentConformanceProfile(repoDir);
 }
 
 export function configureReadyCapabilityPackage(repoDir: string) {
@@ -811,7 +776,6 @@ export function configureReadyMagMorphology(repoDir: string) {
     mag_can_restore_legacy_compat_alias: false,
   };
   writeJson(functionalAuditPath, functionalAudit);
-  syncStandardAgentConformanceProfile(repoDir);
 }
 
 export function configureReadyRcaMorphology(repoDir: string) {
@@ -920,8 +884,6 @@ export function configureReadyRcaMorphology(repoDir: string) {
   };
   writeJson(actionCatalogPath, actionCatalog);
   syncStageManifestFromPlane(repoDir, stageControlPlane);
-  syncStandardAgentConformanceProfile(repoDir);
-
   writeJson(path.join(repoDir, 'contracts', 'physical_source_morphology_policy.json'), {
     canonical_pack_root: 'agent/',
     status: 'active_source_classification_policy_landed',

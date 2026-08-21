@@ -587,11 +587,11 @@ export function buildEvidenceEnvelopeProjection(input: {
     projection_policy:
       'single_refs_only_claim_reading_over_stage_external_domain_dispatch_and_cleanup_evidence',
     source_refs: [
-      '/runtime_tray_snapshot/app_operator_drilldown/stage_production_evidence', // reuse-first: allow existing operator source ref; semantic_conventions exports refs-only signals.
-      '/runtime_tray_snapshot/app_operator_drilldown/domain_evidence_request_refs', // reuse-first: allow existing operator source ref; semantic_conventions exports refs-only signals.
-      '/runtime_tray_snapshot/app_operator_drilldown/domain_dispatch_evidence', // reuse-first: allow existing operator source ref; semantic_conventions exports refs-only signals.
-      '/runtime_tray_snapshot/app_operator_drilldown/domain_legacy_cleanup_plan_refs', // reuse-first: allow existing operator source ref; semantic_conventions exports refs-only signals.
-      '/runtime_tray_snapshot/app_operator_drilldown/operator_action_routing_refs', // reuse-first: allow existing operator source ref; semantic_conventions exports refs-only signals.
+      '/runtime_tray_snapshot/app_operator_drilldown/stage_production_evidence',
+      '/runtime_tray_snapshot/app_operator_drilldown/domain_evidence_request_refs',
+      '/runtime_tray_snapshot/app_operator_drilldown/domain_dispatch_evidence',
+      '/runtime_tray_snapshot/app_operator_drilldown/domain_legacy_cleanup_plan_refs',
+      '/runtime_tray_snapshot/app_operator_drilldown/operator_action_routing_refs',
     ],
     summary,
     semantic_conventions: buildEvidenceEnvelopeSemanticConventions(envelopes, summary),

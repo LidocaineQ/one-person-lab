@@ -9,7 +9,6 @@
   "machine_boundary": "This matrix is an OPL readback seed and delete/tombstone planning input. It does not mutate domain repos, write domain truth, sign owner receipts, create typed blockers, authorize physical delete, or claim domain/runtime/production readiness.",
   "source_surfaces": [
     "contracts/opl-framework/private-platform-residue-owner-decisions.json",
-    "contracts/opl-framework/wrapper-retirement-gate-policy.json",
     "contracts/opl-framework/target-operating-architecture-contract.json",
     "contracts/opl-framework/standard-agent-admission-gates.json",
     "opl agents default-callers --family-defaults --json",

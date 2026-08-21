@@ -110,7 +110,6 @@ export function frameworkStatusFromAttentionCounts(input: {
   openTailCount?: number;
   operatorActionableAttentionCount?: number;
   domainBlockedAttentionCount?: number;
-  semanticAttentionGateCount?: number;
   hardBlockerCount?: number;
 }) {
   if (numberValue(input.hardBlockerCount) > 0) {
@@ -119,10 +118,7 @@ export function frameworkStatusFromAttentionCounts(input: {
   if (numberValue(input.openTailCount) > 0) {
     return 'framework_control_plane_available_with_open_production_tail';
   }
-  if (
-    numberValue(input.operatorActionableAttentionCount) > 0
-    || numberValue(input.semanticAttentionGateCount) > 0
-  ) {
+  if (numberValue(input.operatorActionableAttentionCount) > 0) {
     return 'framework_control_plane_available_with_operator_attention';
   }
   if (numberValue(input.domainBlockedAttentionCount) > 0) {

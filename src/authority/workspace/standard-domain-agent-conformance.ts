@@ -33,8 +33,6 @@ import { buildEvidenceTailClassification } from './standard-domain-agent-conform
 import { buildFamilyAgentLiveConformanceProbe } from './family-agent-conformance-probe.ts';
 import { buildGeneratedInterfaceCheck } from './standard-domain-agent-conformance-generated-interfaces.ts';
 import { buildStandardAgentRepoContractReadout, type StandardAgentRepoContractReadout } from '../packages/index.ts';
-import { buildGoldenPathDefaultSurfaceBudgetChecks } from './standard-domain-agent-conformance-golden-path.ts';
-import { buildPhysicalMorphologyChecks } from './standard-domain-agent-conformance-physical-morphology.ts';
 import { buildStandardAgentSourceBehaviorChecks } from './standard-domain-agent-source-behavior.ts';
 import { buildStandardAgentSourceClosureForRepo } from './standard-agent-source-closure.ts';
 import { buildStageRunDomainAdoptionReadModel } from './standard-domain-agent-conformance-stage-run-adoption.ts';
@@ -273,7 +271,6 @@ function buildRepoConformance(
   const legacyRuntimeResidueGuard = buildLegacyRuntimeResidueGuard(privateSurfaceChecks);
   const generatedInterfaceChecks = buildGeneratedInterfaceCheck(repoDir);
   const platformSurfaceOwnershipChecks = buildAgentPlatformSurfaceOwnershipForRepo(repoDir, input.requested_agent_id);
-  const physicalMorphologyChecks = buildPhysicalMorphologyChecks(repoDir, domainId);
   const sourceBehaviorChecks = buildStandardAgentSourceBehaviorChecks(repoDir);
   const sourceClosureChecks = buildStandardAgentSourceClosureForRepo(
     repoDir,
@@ -287,10 +284,6 @@ function buildRepoConformance(
   const stageQualityRoutePromptAlignmentChecks = buildStageQualityRoutePromptAlignmentChecks(repoDir);
   const standardAgentPrincipleChecks = buildStandardAgentPrincipleAdoptionChecks(repoDir);
   const stateIndexKernelAdoptionChecks = buildStateIndexKernelAdoptionChecks(repoDir);
-  const goldenPathDefaultSurfaceBudgetChecks = buildGoldenPathDefaultSurfaceBudgetChecks(
-    repoDir,
-    repoContractReadout,
-  );
   const workspaceNormChecks = buildAgentWorkspaceNormChecks(contracts.agentWorkspaceNorm);
   const workspaceNormProjection = buildAgentWorkspaceNormProjection({
     contract: contracts.agentWorkspaceNorm,
@@ -306,7 +299,6 @@ function buildRepoConformance(
     legacy_runtime_residue_guard: legacyRuntimeResidueGuard,
     generated_interface_checks: generatedInterfaceChecks,
     platform_surface_ownership_checks: platformSurfaceOwnershipChecks,
-    physical_morphology_checks: physicalMorphologyChecks,
     source_behavior_checks: sourceBehaviorChecks,
     source_closure_checks: sourceClosureChecks,
     workspace_file_lifecycle_checks: workspaceFileLifecycleChecks,
@@ -317,7 +309,6 @@ function buildRepoConformance(
     stage_quality_route_prompt_alignment_checks: stageQualityRoutePromptAlignmentChecks,
     standard_agent_principle_checks: standardAgentPrincipleChecks,
     state_index_kernel_adoption_checks: stateIndexKernelAdoptionChecks,
-    golden_path_default_surface_budget_checks: goldenPathDefaultSurfaceBudgetChecks,
     workspace_norm_checks: workspaceNormChecks,
   });
   const { blockers, raw_blockers: rawBlockers, effective_checks: effectiveChecks } = profileAwareChecks;
@@ -357,7 +348,6 @@ function buildRepoConformance(
     legacy_runtime_residue_guard: legacyRuntimeResidueGuard,
     generated_interface_checks: generatedInterfaceChecks,
     platform_surface_ownership_checks: platformSurfaceOwnershipChecks,
-    physical_morphology_checks: physicalMorphologyChecks,
     source_behavior_checks: sourceBehaviorChecks,
     source_closure_checks: sourceClosureChecks,
     workspace_file_lifecycle_checks: workspaceFileLifecycleChecks,
@@ -368,7 +358,6 @@ function buildRepoConformance(
     stage_quality_route_prompt_alignment_checks: stageQualityRoutePromptAlignmentChecks,
     standard_agent_principle_checks: standardAgentPrincipleChecks,
     state_index_kernel_adoption_checks: stateIndexKernelAdoptionChecks,
-    golden_path_default_surface_budget_checks: goldenPathDefaultSurfaceBudgetChecks,
     workspace_norm_checks: workspaceNormChecks,
     workspace_norm_projection: workspaceNormProjection,
     evidence_tail_classification: evidenceTailClassification,

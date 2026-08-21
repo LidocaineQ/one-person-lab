@@ -676,8 +676,10 @@ export function buildRuntimeEnvironmentMaterializeReadback(input: RuntimeEnviron
         updates_rollback_pointer: false,
         protects_current_pointer: true,
         protects_rollback_pointer: true,
-        apply_blocker_ref: 'external_sandbox_provider_adapter_unconfigured',
-        route_hint: 'configure_external_sandbox_provider_adapter',
+        apply_blocker_ref: adapter?.adapter_status ?? 'external_sandbox_provider_adapter_unconfigured',
+        route_hint: adapter?.adapter_status === 'external_sandbox_provider_adapter_unsupported'
+          ? 'select_supported_external_sandbox_substrate'
+          : 'configure_external_sandbox_provider_adapter',
         steps: [
           'select_external_sandbox_provider',
           'resolve_template_or_snapshot_ref',

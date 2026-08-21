@@ -180,7 +180,7 @@
           "contracts/opl-framework/stage-owner-receipt.schema.json",
           "contracts/opl-framework/stage-typed-blocker.schema.json",
           "contracts/opl-framework/stage-artifact-unit.schema.json",
-          "contracts/opl-framework/stage-artifact-progress-truth-policy.json",
+          "contracts/opl-framework/progress-delta-receipt.schema.json",
           "candidate_domain_repo:stage_completion_policy_contract"
         ],
         "forbidden_claims": [
@@ -217,8 +217,8 @@
           "candidate_domain_repo:authority_boundary_contract",
           "candidate_domain_repo:review_surface_contract",
           "candidate_domain_repo:runtime_dependency_boundary",
-          "contracts/opl-framework/guardrail-tier-policy.json",
-          "contracts/opl-framework/default-surface-budget.schema.json"
+          "contracts/opl-framework/target-operating-architecture-contract.json",
+          "contracts/opl-framework/public-surface-index.json"
         ],
         "forbidden_claims": [
           "domain_ready",
@@ -272,7 +272,7 @@
           "candidate_domain_repo:human_gate_contract",
           "candidate_domain_repo:review_surface_contract",
           "candidate_domain_repo:decision_receipt_contract",
-          "contracts/opl-framework/guardrail-tier-policy.json"
+          "contracts/opl-framework/owner-answer.schema.json"
         ],
         "forbidden_claims": [
           "domain_ready",

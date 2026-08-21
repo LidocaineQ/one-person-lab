@@ -214,7 +214,7 @@ export const APP_AION_CONSUMER_ONLY_TRUTH_SURFACES: ConsumerOnlyTruthSurface[] =
   {
     surface: 'domain_private_platform_residue',
     owner: 'domain-owner-via-private-platform-cleanup-lane',
-    truth_owner: 'wrapper-retirement-gate-policy private_platform_cleanup_lane plus domain owner decision',
+    truth_owner: 'domain-private-platform-tail-matrix cleanup lane plus domain owner decision',
     app_aion_role: 'developer/operator detail only; never default Settings or first-screen truth',
     local_truth_allowed: false,
     current_source_ref: 'contracts/opl-framework/domain-private-platform-tail-matrix.json',

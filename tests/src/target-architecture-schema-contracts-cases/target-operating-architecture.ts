@@ -171,28 +171,6 @@ test('target operating architecture keeps framework-wide ownership and authority
     assert.equal(axis.forbidden_regressions.includes('ready_claim_without_owner_evidence'), true);
     assert.equal(axis.forbidden_regressions.includes('diagnostic_tail_becomes_default_route'), true);
   }
-  const oneShot = contract.one_shot_plan_landing_model;
-  assert.equal(oneShot.model_id, 'opl_family_one_shot_plan_landing.v1');
-  assert.deepEqual(oneShot.implementation_slices.map((slice) => slice.plan_id), [
-    'P0',
-    'P1',
-    'P2',
-    'P3',
-    'P4',
-    'P5',
-    'P6',
-    'P7',
-    'P8',
-  ]);
-  assert.equal(oneShot.summary.all_opl_controlled_surfaces_landed, true);
-  assert.equal(oneShot.summary.external_owner_evidence_still_required, true);
-  assert.equal(oneShot.summary.ready_claim_authorized, false);
-  for (const slice of oneShot.implementation_slices) {
-    assert.notEqual(slice.opl_landed_surfaces.length, 0, slice.plan_id);
-    assert.notEqual(slice.validation_commands.length, 0, slice.plan_id);
-    assert.notEqual(slice.false_completion_claims.length, 0, slice.plan_id);
-  }
-
   assert.equal(contract.foundry_kernel_plane.role, 'durable_agent_engineering_control_plane');
   for (const forbiddenOutput of [
     'domain_quality_verdict',
@@ -231,7 +209,6 @@ test('target operating architecture keeps framework-wide ownership and authority
     multi_plane: multiPlane.cross_plane_authority_boundary,
     reconciler: contract.reconciler_model.loop_authority_boundary,
     experience: experience.authority_boundary,
-    one_shot: oneShot.authority_boundary,
     foundry_agent_os: foundry.authority_boundary,
   })) {
     for (const [claim, allowed] of Object.entries(boundary)) {

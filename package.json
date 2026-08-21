@@ -103,7 +103,6 @@
     "test": "npm run test:smoke",
     "line-budget": "node ./scripts/line-budget.mjs",
     "line-budget:strict": "node ./scripts/line-budget.mjs",
-    "reuse-first:scan:diff": "node ./scripts/reuse-first-scan.mjs --diff-ref origin/main",
     "fresh-install:smoke": "node ./scripts/fresh-install-smoke.mjs",
     "new-machine:codex-bootstrap:docker-smoke": "node ./scripts/new-machine-codex-bootstrap-docker-smoke.mjs",
     "source:modules": "node ./scripts/source-module-boundary.mjs",

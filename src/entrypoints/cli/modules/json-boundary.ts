@@ -28,7 +28,7 @@ export function readJsonObject(
 ) {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(value); // reuse-first: allow central CLI JSON boundary helper over per-command parsers.
+    parsed = JSON.parse(value);
   } catch (error) {
     throw buildUsageError(messages.parseErrorMessage, spec, {
       parse_error: error instanceof Error ? error.message : String(error),

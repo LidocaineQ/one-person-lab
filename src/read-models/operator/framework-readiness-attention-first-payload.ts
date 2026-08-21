@@ -17,14 +17,12 @@ import {
 
 export function frameworkAttentionFirstPayload(input: {
   status: string;
-  semanticHygieneContractFloor: JsonRecord;
   hardBlockerCount: number;
   agentHardBlockerCount: number;
   generatedDefaultEntrySourceOfWorkBlockedCount: number;
   stageHardBlockerCount: number;
   packCompilerBlockerCount: number;
   diagnosticFailureCount: number;
-  semanticAttentionGateCount: number;
   stageWarningCount: number;
   agentStructuralEvidenceTailCount: number;
   appLiveEvidenceTailCount: number;
@@ -51,7 +49,6 @@ export function frameworkAttentionFirstPayload(input: {
   memoryArtifactLifecycleEvidence: JsonRecord;
   appReleaseUserPathEvidence: JsonRecord;
   developerModeLiveCloseoutEvidence: JsonRecord;
-  workstreamOperatingLoop: JsonRecord;
   familyStallLineage: JsonRecord;
   domainDispatchEvidenceWorkorderGroupAttentionItems: JsonRecord[];
   domainDispatchEvidenceWorkorderAttentionItems: JsonRecord[];
@@ -89,13 +86,6 @@ export function frameworkAttentionFirstPayload(input: {
     numberValue(input.domainOwnerPayloadSummaryAttention.naming_hygiene_blocker_count);
   const blockers = frameworkReadinessBlockers(input);
   const warnings = [
-    ...(input.semanticAttentionGateCount > 0
-      ? [{
-          warning_id: 'semantic_hygiene_attention_required',
-          count: input.semanticAttentionGateCount,
-          drilldown_ref: '/framework_readiness/semantic_hygiene',
-        }]
-      : []),
     ...(input.stageWarningCount > 0
       ? [{
           warning_id: 'stage_readiness_advisory_warnings',
@@ -255,18 +245,6 @@ export function frameworkAttentionFirstPayload(input: {
       attention_payload_requirement_semantics: attentionCounts.payloadRequirementSemantics,
       provider_slo_cadence_window_status: input.providerSloCadenceWindowStatus ?? null,
       provider_slo_capability_status: input.providerSloCapabilityStatus ?? null,
-      workstream_operating_loop_workstream_count:
-        numberValue(record(input.workstreamOperatingLoop.summary).workstream_count),
-      workstream_operating_loop_artifact_first_review_available_count:
-        numberValue(record(input.workstreamOperatingLoop.summary).artifact_first_review_available_count),
-      workstream_operating_loop_goal_oracle_missing_count:
-        numberValue(record(input.workstreamOperatingLoop.summary).goal_oracle_missing_count),
-      workstream_operating_loop_goal_oracle_target_anchor_observed_count:
-        numberValue(record(input.workstreamOperatingLoop.summary).goal_oracle_target_anchor_observed_count),
-      workstream_operating_loop_deliverable_target_ref_observed_count:
-        numberValue(record(input.workstreamOperatingLoop.summary).deliverable_target_ref_observed_count),
-      workstream_operating_loop_goal_oracle_advisory_count:
-        numberValue(record(input.workstreamOperatingLoop.summary).goal_oracle_advisory_count),
       owner_delta_handoff_status:
         input.ownerDeltaHandoffSummary.status ?? null,
       owner_delta_handoff_current_operator_action_state:
@@ -274,7 +252,6 @@ export function frameworkAttentionFirstPayload(input: {
       owner_delta_handoff_next_owner:
         input.ownerDeltaHandoffSummary.next_owner ?? null,
     },
-    semantic_hygiene_contract_floor: input.semanticHygieneContractFloor,
     stage_evidence_workorder_attention_items: input.stageEvidenceWorkorderAttentionItems,
     stage_replay_missing_receipt_workorder_attention_summary:
       input.stageReplayMissingReceiptWorkorderAttentionSummary,
@@ -299,8 +276,6 @@ export function frameworkAttentionFirstPayload(input: {
       input.appReleaseUserPathEvidence,
     developer_mode_live_closeout_evidence:
       input.developerModeLiveCloseoutEvidence,
-    workstream_operating_loop:
-      input.workstreamOperatingLoop,
     family_stall_lineage: input.familyStallLineage,
     domain_dispatch_evidence_workorder_packet_summary:
       input.domainDispatchEvidenceWorkorderSummary,

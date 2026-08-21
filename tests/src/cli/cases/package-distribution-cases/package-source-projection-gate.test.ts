@@ -479,7 +479,7 @@ test('package source projection gate binds one regular owner descriptor outside 
   assert.equal(result.status, 'validated');
   assert.equal(result.file_count, 3);
 
-  const payload = JSON.parse(fs.readFileSync( // reuse-first: allow local generated fixture parser.
+  const payload = JSON.parse(fs.readFileSync(
     payloadPath,
     'utf8',
   ));

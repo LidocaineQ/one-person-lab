@@ -37,7 +37,7 @@ export interface RuntimeEnvironmentTargetInput {
   rootOption?: '--artifact-root' | '--paper-root';
 }
 
-export const RUNTIME_ENVIRONMENT_FALLBACK_POINTER = 'rollback'; // reuse-first: allow runtime-environment fallback pointer, not updater/package manager.
+export const RUNTIME_ENVIRONMENT_FALLBACK_POINTER = 'rollback';
 
 export interface RuntimeEnvironmentMaterializeInput extends RuntimeEnvironmentTargetInput {
   apply?: boolean;

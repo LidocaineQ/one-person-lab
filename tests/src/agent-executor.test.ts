@@ -386,7 +386,7 @@ test('hermes_agent execution requires full loop proof with tool events', () => {
 let input = '';
 process.stdin.on('data', chunk => { input += chunk; });
 process.stdin.on('end', () => {
-  const request = JSON.parse(input); // reuse-first: allow embedded external executor fixture JSON boundary.
+  const request = JSON.parse(input);
   if (request.domain_payload?.route_id !== 'critique') {
     process.stderr.write('missing domain payload');
     process.exit(2);

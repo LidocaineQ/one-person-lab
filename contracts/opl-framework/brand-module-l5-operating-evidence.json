@@ -278,7 +278,6 @@
           "owner_repo_ref": "/Users/gaofeng/workspace/one-person-lab#brand-module:charter",
           "current_state": "satisfied",
           "evidence_refs": [
-            "no-resurrection-guard-ref:tests/src/active-path-residue-scan.test.ts#docs-active-no-resurrection",
             "source-scan-ref:tests/src/cli/cases/brand-modules.test.ts#l5-false-completion-guard"
           ],
           "owner_acceptance_refs": [
@@ -460,7 +459,6 @@
           "owner_repo_ref": "/Users/gaofeng/workspace/one-person-lab#brand-module:atlas",
           "current_state": "satisfied",
           "evidence_refs": [
-            "no-resurrection-guard-ref:tests/src/active-path-residue-scan.test.ts#docs-active-no-resurrection",
             "source-scan-ref:tests/src/cli/cases/brand-modules.test.ts#l5-false-completion-guard"
           ],
           "owner_acceptance_refs": [
@@ -648,7 +646,6 @@
           "owner_repo_ref": "/Users/gaofeng/workspace/one-person-lab#brand-module:workspace",
           "current_state": "satisfied",
           "evidence_refs": [
-            "no-resurrection-guard-ref:tests/src/active-path-residue-scan.test.ts#docs-active-no-resurrection",
             "source-scan-ref:tests/src/cli/cases/brand-modules.test.ts#l5-false-completion-guard"
           ],
           "owner_acceptance_refs": [
@@ -831,7 +828,6 @@
           "owner_repo_ref": "/Users/gaofeng/workspace/one-person-lab#brand-module:pack",
           "current_state": "satisfied",
           "evidence_refs": [
-            "no-resurrection-guard-ref:tests/src/active-path-residue-scan.test.ts#docs-active-no-resurrection",
             "source-scan-ref:tests/src/cli/cases/brand-modules.test.ts#l5-false-completion-guard"
           ],
           "owner_acceptance_refs": [
@@ -1018,7 +1014,6 @@
           "owner_repo_ref": "/Users/gaofeng/workspace/one-person-lab#brand-module:stagecraft",
           "current_state": "satisfied",
           "evidence_refs": [
-            "no-resurrection-guard-ref:tests/src/active-path-residue-scan.test.ts#docs-active-no-resurrection",
             "source-scan-ref:tests/src/cli/cases/brand-modules.test.ts#l5-false-completion-guard"
           ],
           "owner_acceptance_refs": [
@@ -1206,7 +1201,6 @@
           "owner_repo_ref": "/Users/gaofeng/workspace/one-person-lab#brand-module:runway",
           "current_state": "satisfied",
           "evidence_refs": [
-            "no-resurrection-guard-ref:tests/src/active-path-residue-scan.test.ts#docs-active-no-resurrection",
             "source-scan-ref:tests/src/cli/cases/brand-modules.test.ts#l5-false-completion-guard"
           ],
           "owner_acceptance_refs": [
@@ -1389,7 +1383,6 @@
           "owner_repo_ref": "/Users/gaofeng/workspace/one-person-lab#brand-module:ledger",
           "current_state": "satisfied",
           "evidence_refs": [
-            "no-resurrection-guard-ref:tests/src/active-path-residue-scan.test.ts#docs-active-no-resurrection",
             "source-scan-ref:tests/src/cli/cases/brand-modules.test.ts#l5-false-completion-guard"
           ],
           "owner_acceptance_refs": [
@@ -1571,7 +1564,6 @@
           "owner_repo_ref": "/Users/gaofeng/workspace/one-person-lab#brand-module:console",
           "current_state": "satisfied",
           "evidence_refs": [
-            "no-resurrection-guard-ref:tests/src/active-path-residue-scan.test.ts#docs-active-no-resurrection",
             "source-scan-ref:tests/src/cli/cases/brand-modules.test.ts#l5-false-completion-guard"
           ],
           "owner_acceptance_refs": [
@@ -1754,7 +1746,6 @@
           "owner_repo_ref": "/Users/gaofeng/workspace/one-person-lab#brand-module:foundry",
           "current_state": "satisfied",
           "evidence_refs": [
-            "no-resurrection-guard-ref:tests/src/active-path-residue-scan.test.ts#docs-active-no-resurrection",
             "source-scan-ref:tests/src/cli/cases/brand-modules.test.ts#l5-false-completion-guard"
           ],
           "owner_acceptance_refs": [
@@ -1936,7 +1927,6 @@
           "owner_repo_ref": "/Users/gaofeng/workspace/one-person-lab#brand-module:connect",
           "current_state": "satisfied",
           "evidence_refs": [
-            "no-resurrection-guard-ref:tests/src/active-path-residue-scan.test.ts#docs-active-no-resurrection",
             "source-scan-ref:tests/src/cli/cases/brand-modules.test.ts#l5-false-completion-guard"
           ],
           "owner_acceptance_refs": [

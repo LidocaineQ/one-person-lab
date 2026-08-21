@@ -30,7 +30,6 @@ import {
   record,
   stringValue,
 } from './framework-readiness-values.ts';
-import { buildOplFrameworkSemanticHygieneAudit } from './framework-semantic-hygiene.ts';
 import type { FrameworkContracts } from '../../kernel/types.ts';
 import {
   requireRuntimeTraySnapshotProvider,
@@ -114,7 +113,6 @@ async function buildFrameworkReadinessCompactCoreModel(
     options.runtimeSnapshotProvider,
     'framework readiness compact',
   );
-  const semanticHygiene = buildOplFrameworkSemanticHygieneAudit(contracts);
   const agentReadinessDiagnostic = buildAgentReadinessDiagnostic();
   const agentReadiness = agentReadinessDiagnostic.readiness;
   const generatedDefaultEntrySourceOfWork =
@@ -140,7 +138,6 @@ async function buildFrameworkReadinessCompactCoreModel(
     providerKind: 'temporal',
   });
   const appOperatorDrilldown = record(runtimeSnapshot.runtime_tray_snapshot.app_operator_drilldown);
-  const semanticSummary = record(semanticHygiene.summary);
   const agentSummary = record(agentReadiness.summary);
   const packSummary = record(packCompiler.summary);
   const stagesSummary = record(familyStages.summary);
@@ -163,9 +160,6 @@ async function buildFrameworkReadinessCompactCoreModel(
     record(appOperatorDrilldown.attention_first_payload).owner_delta_first,
   );
   const ownerHandoffPacket = record(appEvidenceAfterContract.owner_handoff_packet);
-  const workstreamOperatingLoop = record(
-    record(appOperatorDrilldown.attention_first_payload).workstream_operating_loop,
-  );
   const stageSourceScopeMissingWorkorderCount =
     numberValue(appSummary.stage_production_evidence_missing_expected_receipt_stage_count);
   const stageRuntimeEventMissingWorkorderCount =
@@ -255,7 +249,6 @@ async function buildFrameworkReadinessCompactCoreModel(
     openTailCount,
     operatorActionableAttentionCount: attentionCounts.operatorActionableAttentionCount,
     domainBlockedAttentionCount: attentionCounts.domainBlockedAttentionCount,
-    semanticAttentionGateCount: numberValue(semanticSummary.attention_required_gate_count),
     hardBlockerCount,
   });
   const ownerDeltaTopline = options.ownerDeltaObserver.observe({
@@ -274,8 +267,6 @@ async function buildFrameworkReadinessCompactCoreModel(
     pack_compiler_hard_blocker_count: packCompilerBlockerCount,
     framework_diagnostic_failure_count:
       agentReadinessDiagnostic.failure === null ? 0 : 1,
-    semantic_hygiene_attention_required_gate_count:
-      numberValue(semanticSummary.attention_required_gate_count),
     agent_structural_evidence_tail_open_count: agentStructuralEvidenceTailCount,
     provider_slo_guarded_open_tail_count: providerSloGuardedOpenTailCount,
     app_live_evidence_tail_raw_open_count: appRawOpenTailCount,
@@ -325,10 +316,6 @@ async function buildFrameworkReadinessCompactCoreModel(
     family_stage_blocked_count:
       numberValue(record(familyStageReadiness.summary).blocked_stage_count),
     family_stages_total_count: numberValue(stagesSummary.stage_count),
-    workstream_operating_loop_workstream_count:
-      numberValue(record(workstreamOperatingLoop.summary).workstream_count),
-    workstream_operating_loop_artifact_first_review_available_count:
-      numberValue(record(workstreamOperatingLoop.summary).artifact_first_review_available_count),
     owner_delta_handoff_status:
       ownerDeltaHandoffSummary.status ?? null,
   };

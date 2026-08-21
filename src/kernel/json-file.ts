@@ -41,11 +41,11 @@ export type JsonReceiptLedger<Receipt> = {
 };
 
 export function parseJsonText(raw: string): unknown {
-  return JSON.parse(raw); // reuse-first: allow central JSON file boundary parse.
+  return JSON.parse(raw);
 }
 
 export function formatJsonPayload(payload: unknown): string {
-  return `${JSON.stringify(payload, null, 2)}\n`; // reuse-first: allow central JSON file boundary serialization.
+  return `${JSON.stringify(payload, null, 2)}\n`;
 }
 
 export function writeJsonPayloadFile(filePath: string, payload: unknown) {

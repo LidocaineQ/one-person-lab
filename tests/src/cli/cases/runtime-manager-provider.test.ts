@@ -310,6 +310,7 @@ test('runtime manager fail-closes external sandbox provider when adapter config 
     assert.equal(provider.details.adapter_id, 'opl.external_sandbox_provider_adapter.v1');
     assert.equal(provider.details.adapter.adapter_status, 'external_sandbox_provider_adapter_unconfigured');
     assert.deepEqual(provider.details.missing_required_env, [
+      'OPL_EXTERNAL_SANDBOX_SUBSTRATE',
       'OPL_EXTERNAL_SANDBOX_ENDPOINT',
       'OPL_EXTERNAL_SANDBOX_CREDENTIAL_REF',
       'OPL_EXTERNAL_SANDBOX_PROVIDER_RECEIPT_REF',
@@ -333,7 +334,7 @@ test('runtime manager fail-closes external sandbox provider when adapter config 
     );
     assert.equal(
       output.notes.includes(
-        'external_sandbox is an agent_sandbox_execution_substrate readback for E2B/Daytona/Modal-style adapters; it is not a Temporal durable workflow substrate replacement.',
+        'external_sandbox is an agent_sandbox_execution_substrate readback for E2B; it is not a Temporal durable workflow substrate replacement.',
       ),
       true,
     );
@@ -396,6 +397,7 @@ test('family-runtime status does not treat configured external sandbox as full o
       OPL_EXTERNAL_SANDBOX_ENDPOINT: 'https://sandbox.invalid',
       OPL_EXTERNAL_SANDBOX_CREDENTIAL_REF: 'keychain://opl/external-sandbox/test',
       OPL_EXTERNAL_SANDBOX_PROVIDER_RECEIPT_REF: 'opl://provider/external-sandbox/test-receipt',
+      OPL_EXTERNAL_SANDBOX_SUBSTRATE: 'e2b',
       OPL_TEMPORAL_ADDRESS: '',
       TEMPORAL_ADDRESS: '',
     }).family_runtime;

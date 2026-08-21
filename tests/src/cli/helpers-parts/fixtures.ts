@@ -136,7 +136,7 @@ const marketplacePluginSourcePath = (source, pluginId) => {
   if (!root) return null;
   const manifestPath = path.join(root, '.agents', 'plugins', 'marketplace.json');
   if (fs.existsSync(manifestPath)) {
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); // reuse-first: allow disposable fake Codex CLI to parse its marketplace contract.
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     const plugin = Array.isArray(manifest.plugins)
       ? manifest.plugins.find((entry) => entry && entry.name === pluginId)
       : null;
@@ -165,7 +165,7 @@ for (const [header, lines] of sections) {
   if (!sourcePath) continue;
   const manifestPath = path.join(sourcePath, '.codex-plugin', 'plugin.json');
   if (!fs.existsSync(manifestPath)) continue;
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); // reuse-first: allow disposable fake Codex CLI to parse its own copied plugin manifest.
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   configuredInstalled.push({
     pluginId: selector,
     version: typeof manifest.version === 'string' ? manifest.version : null,

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 
 export function parseJsonText(text) {
-  return JSON.parse(text); // reuse-first: allow one shared maintainer script JSON boundary.
+  return JSON.parse(text);
 }
 
 export function readJsonFile(filePath) {

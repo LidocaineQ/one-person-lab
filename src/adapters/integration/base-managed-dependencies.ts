@@ -139,7 +139,11 @@ export function inspectBaseManagedDependencies(
   const companionTools = new Map<OplCompanionToolId, OplCompanionToolSyncItem | null>(
     frameworkToolIds.map((toolId) => [
       toolId,
-      refreshedToolMap.get(toolId) ?? resolveOplCompanionTool(home, toolId),
+      options.inspectExternalOwners === false && toolId === 'gh-stack'
+        ? null
+        : refreshedToolMap.get(toolId) ?? resolveOplCompanionTool(home, toolId, {
+            includeHomebrewFallback: options.inspectExternalOwners !== false,
+          }),
     ]),
   );
   const temporalSystemCli = inspectExternalTemporalInstallation({

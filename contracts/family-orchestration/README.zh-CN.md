@@ -20,7 +20,7 @@ Machine boundary: 本文是 family orchestration schemas 的人读支撑索引�
 
 这里只把 GraphFlow / GFL 吸收为治理词汇：boundary、evidence、audit、replay、route-back。OPL 不把 GraphFlow / GFL 引入为 runtime、provider、executor、planner、proof assistant、workflow compiler、stage runner 或 domain verdict authority。
 
-当前 active contract narrative 是 **AI-first、executor-first、contract-light**，surface 收敛为 `Minimal Trust Kernel + Stage Strategy Kernel + Readiness + Derived Diagnostic Lenses + Surface Budget + AI Capability Aperture`。Minimal Trust Kernel 只保启动安全、owner boundary、allowed refs、expected receipt、audit、replay 与 route-back 证据；Stage Strategy Kernel 保留 selected executor 的 stage 内开放式认知空间，同时声明 prompt、skill、tool affordance、knowledge、rubric 与独立 quality gate refs 以便审计和复用；Readiness 是默认 operator / App 聚合面，不新增 domain verdict；Derived Diagnostic Lenses 解释 assumption、cohort visibility、runtime budget、replay、failure localization 或缺失证据，并作为 advisory 输入折叠进 readiness，不作为 standalone 默认 CLI 或 schema 目标。Surface Budget 由 `contracts/opl-framework/surface-budget-policy.json` 冻结：新增 default surface 只允许服务 launch safety、authority boundary、evidence / replay / audit / route-back，或 App/runtime 反复消费。AI Capability Aperture 保留更强 executor、更丰富 domain pack 和独立 reviewer 的开放式专家执行空间，但不把 strategy ref 完整性升级成 launch hard gate。
+Readiness 是默认 operator / App 聚合面，详细诊断按需请求。Stage 内策略由 selected executor 根据已准入的 Stage pack 执行。Framework 持有激活、运行时 transport 和投影；domain owner 提供领域 truth 与 verdict；App 仓持有 GUI 和 release truth。`public-surface-index.json` 列出 active surfaces 及其 routes。
 
 当前 stage-led 合同基本原则是：
 

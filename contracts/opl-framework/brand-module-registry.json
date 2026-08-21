@@ -44,8 +44,7 @@
       "contract_refs": [
         "contracts/opl-framework/brand-module-surfaces.json",
         "contracts/opl-framework/brand-module-registry.json",
-        "contracts/opl-framework/public-surface-index.json",
-        "contracts/opl-framework/surface-budget-policy.json"
+        "contracts/opl-framework/public-surface-index.json"
       ],
       "cli_surfaces": [
         "opl charter status --json",
@@ -737,7 +736,6 @@
         "opl console validate --json",
         "opl console doctor --json",
         "opl app state --profile fast --json",
-        "opl system semantic-hygiene --json",
         "opl contract validate --json"
       ],
       "status_doc_refs": [
@@ -932,7 +930,6 @@
       "validation_surfaces": [
         "opl connect validate --json",
         "opl connect doctor --json",
-        "opl system semantic-hygiene --json",
         "opl connect packages manifest --json",
         "opl packages update --json",
         "opl contract validate --json"

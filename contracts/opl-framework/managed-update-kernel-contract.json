@@ -435,7 +435,7 @@
       "opl_packages"
     ],
     "package_manager_claim_must_be_false": true,
-    "purpose": "reuse-first: allow owner-routed managed update boundary. The runner must name the owner executor and readback boundary per component before apply/repair/rollback, so prompt-only and projection-only components remain receipt/readback projections instead of generic package-manager targets."
+    "purpose": "The runner must name the owner executor and readback boundary per component before apply, repair, or rollback. Prompt-only and projection-only components remain receipt/readback projections rather than generic package-manager targets."
   },
   "providers": [
     {

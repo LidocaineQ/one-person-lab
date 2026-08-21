@@ -30,7 +30,6 @@ test('runtime App drilldown retains the canonical workbench shell', () => {
     assert.equal(projection.surface_kind, 'opl_app_operator_drilldown_read_model');
     assert.ok(Array.isArray(projection.runtime_workbench.archived_attempts));
     assert.equal(projection.runtime_workbench.memory_trace_projection.surface_kind, 'opl_memory_trace_projection');
-    assert.equal(projection.runtime_workbench.workstream_operating_loop.surface_kind, 'opl_workstream_operating_loop_projection');
     assert.equal(
       projection.runtime_workbench.current_work_unit_first_read_model.surface_kind,
       'opl_app_current_work_unit_first_read_model',

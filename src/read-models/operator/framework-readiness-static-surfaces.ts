@@ -12,7 +12,6 @@ export function frameworkKernelFloor() {
       'receipt_replay_audit_baseline_missing',
     ],
     advisory_sources: [
-      'semantic_hygiene_attention',
       'agent_structural_evidence_tail',
       'app_live_evidence_tail',
       'stage_receipt_freshness_tail',
@@ -30,13 +29,6 @@ export function frameworkKernelFloor() {
 
 export function frameworkDiagnosticDrilldowns(sourceCommands: SourceCommands) {
   return [
-    {
-      lens_id: 'semantic_hygiene',
-      role: 'diagnostic_drilldown',
-      default_surface: false,
-      source_command: sourceCommands.semantic_hygiene,
-      embedded_payload_ref: '/framework_readiness/semantic_hygiene',
-    },
     {
       lens_id: 'agent_conformance_tail',
       role: 'diagnostic_drilldown',

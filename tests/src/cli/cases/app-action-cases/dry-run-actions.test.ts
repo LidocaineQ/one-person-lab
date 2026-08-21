@@ -435,7 +435,7 @@ test('app action execute dry-runs Codex, module, scheduler, and worker actions f
     );
     assert.equal(
       rollbackPlan.result.settings_control_center_action.task_kind,
-      'rollback', // reuse-first: allow owner-routed update command registry metadata.
+      'rollback',
     );
     assert.equal(rollbackPlan.result.settings_control_center_action.danger_level, 'high');
     assert.equal(

@@ -83,7 +83,7 @@ export type ManagedUpdateOwnerExecutionBoundary = {
     | 'controlled_framework_executor'
     | 'clean_managed_package_executor';
   runner_can_execute: boolean;
-  allowed_operations: ManagedUpdateOperation[]; // reuse-first: allow owner-specific operation vocabulary, not a generic package manager.
+  allowed_operations: ManagedUpdateOperation[];
   readback_ref: string;
   receipt_projection:
     | 'read_only_projection'
@@ -427,7 +427,7 @@ export function managedUpdateOperationMode(operation: ManagedUpdateOperation) {
   if (operation === 'repair') {
     return 'controlled_repair';
   }
-  if (operation === 'rollback') { // reuse-first: allow owner-routed operation vocabulary.
+  if (operation === 'rollback') {
     return 'controlled_rollback';
   }
   return 'read_only_projection';
@@ -533,7 +533,7 @@ function postApplyActionReceipt(
 }
 
 function componentExecutionRollbackRef(componentId: string, resultRef: string | null) {
-  return `opl://managed-update/${componentId}/rollback/${encodeURIComponent(resultRef ?? 'previous')}`; // reuse-first: allow owner-routed receipt ref.
+  return `opl://managed-update/${componentId}/rollback/${encodeURIComponent(resultRef ?? 'previous')}`;
 }
 
 export function managedUpdateCommand(

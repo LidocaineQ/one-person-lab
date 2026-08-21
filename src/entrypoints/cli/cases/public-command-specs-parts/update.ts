@@ -6,7 +6,7 @@ import { parseRegisteredCommandOptions } from '../../modules/support.ts';
 import type { CommandSpec } from '../../modules/support.ts';
 
 function buildUpdateSpec(
-  operation: ManagedUpdateOperation, // reuse-first: allow owner-routed update command registry metadata.
+  operation: ManagedUpdateOperation,
   usage: string,
   summary: string,
   examples: string[],
@@ -25,7 +25,7 @@ function buildUpdateSpec(
         componentId: operation === 'repair' || operation === 'rollback' ? 'opl_base' : undefined,
         receiptId: parsed.receipt as string | undefined,
       };
-      if (operation === 'apply' || operation === 'repair' || operation === 'rollback') { // reuse-first: allow owner-routed update command registry metadata.
+      if (operation === 'apply' || operation === 'repair' || operation === 'rollback') {
         return runManagedUpdateKernelOperation(getContracts(), input);
       }
       return buildManagedUpdateKernelProjection(getContracts(), input);
@@ -73,11 +73,11 @@ export function buildUpdateCommandSpecs(
       ['opl update repair --receipt receipt-001 --json'],
       getContracts,
     ),
-    'update rollback': buildUpdateSpec( // reuse-first: allow owner-routed update command registry metadata.
-      'rollback', // reuse-first: allow owner-routed update command registry metadata.
-      'opl update rollback', // reuse-first: allow owner-routed update command registry metadata.
-      'Roll back the OPL Base runtime through its owner-controlled rollback pointer.', // reuse-first: allow owner-routed update command registry metadata.
-      ['opl update rollback --json'], // reuse-first: allow owner-routed update command registry metadata.
+    'update rollback': buildUpdateSpec(
+      'rollback',
+      'opl update rollback',
+      'Roll back the OPL Base runtime through its owner-controlled rollback pointer.',
+      ['opl update rollback --json'],
       getContracts,
     ),
   };

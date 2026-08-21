@@ -1,9 +1,6 @@
-import { buildExternalSandboxProviderAdapterPlan, buildModelEndpointProviderReadback } from '../external-sandbox-provider-adapter.ts';
-import {
-  externalSandboxProviderPolicy,
-  RUNTIME_ENVIRONMENT_SUBSTRATE_CONTRACT,
-} from './contract.ts';
-import type { JsonRecord, RuntimeEnvironmentTargetInput } from './contract.ts';
+import { buildExternalSandboxProviderAdapterPlan } from '../external-sandbox-provider-adapter.ts';
+import { externalSandboxProviderPolicy } from './contract.ts';
+import type { RuntimeEnvironmentTargetInput } from './contract.ts';
 import {
   normalizeTarget,
   targetRef,
@@ -16,7 +13,6 @@ import {
 export function sandboxProviderPlan(input: RuntimeEnvironmentTargetInput) {
   const target = normalizeTarget(input);
   const policy = externalSandboxProviderPolicy();
-  const modelEndpointPolicy = RUNTIME_ENVIRONMENT_SUBSTRATE_CONTRACT.model_endpoint_provider_policy as JsonRecord;
   const externalSelected = target.sandbox_provider === 'external_sandbox';
   const fastLocalEnvSelected = target.sandbox_provider === 'fast_local_env';
   const localAgentSandboxSelected = target.sandbox_provider === 'local_devcontainer' || target.sandbox_provider === 'local_docker';
@@ -67,10 +63,7 @@ export function sandboxProviderPlan(input: RuntimeEnvironmentTargetInput) {
     provider_role: providerRole,
     provider_ref: `sandbox-provider:${target.sandbox_provider}:${targetRef(target)}`,
     later_sandbox_provider_kinds: ['local_docker', 'external_sandbox'],
-    later_external_sandbox_substrates: ['e2b', 'daytona', 'modal'],
     supported_provider_kinds: policy.supported_provider_kinds,
-    external_provider_examples: policy.external_provider_examples,
-    provider_family_catalog: policy.provider_family_catalog,
     required_external_sandbox_refs: policy.required_external_sandbox_refs,
     runtime_environment_provider: externalSelected
       ? {
@@ -85,7 +78,6 @@ export function sandboxProviderPlan(input: RuntimeEnvironmentTargetInput) {
           can_claim_runtime_ready: false,
         }
       : null,
-    modal_like_env_spec_catalog: policy.modal_like_env_spec_catalog,
     e2b_default_dependency: policy.e2b_default_dependency,
     e2b_package_dependency_class: policy.e2b_package_dependency_class,
     e2b_connect_configuration_assist_only: policy.e2b_connect_configuration_assist_only,
@@ -93,7 +85,6 @@ export function sandboxProviderPlan(input: RuntimeEnvironmentTargetInput) {
     local_provider_examples: policy.local_provider_examples,
     adapter,
     local_sandbox_preflight: localSandboxPreflight,
-    model_endpoint_provider_family: buildModelEndpointProviderReadback(modelEndpointPolicy),
     template_ref: externalSelected ? adapter?.template_ref : localTemplateRef,
     sandbox_binding_ref: externalSelected ? adapter?.sandbox_binding_ref : null,
     snapshot_ref: null,

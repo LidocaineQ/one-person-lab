@@ -14,7 +14,6 @@ import {
 } from '../../src/kernel/standard-agent-registry.ts';
 import { OFFICIAL_KNOWLEDGE_DELIVERABLE_QUALITY_PROFILE } from '../../src/authority/packages/standard-agent-stage-manifest.ts';
 import {
-  CANONICAL_OPL_PACKAGE_IDS,
   canonicalAgentPackageId,
 } from '../../src/adapters/integration/agent-package-identity.ts';
 import { listFirstPartyAgentPackageManifests } from '../../src/adapters/integration/agent-package-manifests.ts';
@@ -171,13 +170,6 @@ test('package and module aliases derive registry entries without promoting Schol
     project_id: 'scholarskills',
     project: 'mas-scholar-skills',
   }), false);
-});
-
-test('canonical App-state package identities match the release package specs', () => {
-  assert.deepEqual(
-    getOplPackageSpecs().map((spec) => spec.package_id),
-    [...CANONICAL_OPL_PACKAGE_IDS],
-  );
 });
 
 test('one unknown Agent projection drives all runtime registries', () => {

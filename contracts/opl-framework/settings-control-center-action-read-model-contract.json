@@ -606,7 +606,7 @@
       },
       {
         "surface": "domain_private_platform_residue",
-        "truth_owner": "wrapper-retirement-gate-policy private_platform_cleanup_lane plus domain owner decision",
+        "truth_owner": "domain-private-platform-tail-matrix cleanup lane plus domain owner decision",
         "app_aion_role": "developer/operator detail only; never default Settings or first-screen truth",
         "local_truth_allowed": false,
         "required_visible_refs": [

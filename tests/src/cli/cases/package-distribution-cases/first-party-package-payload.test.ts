@@ -471,7 +471,7 @@ test('capability payload carries one portable owner descriptor outside the non-s
   const authority = createAuthority(root, source, { surface: 'capability', manifestSourceRepo: false });
 
   runGenerator({ authority, repo: source.repo, sourceCommit: source.sourceCommit });
-  const payload = JSON.parse(fs.readFileSync( // reuse-first: allow local generated fixture parser.
+  const payload = JSON.parse(fs.readFileSync(
     authority.output,
     'utf8',
   )) as Record<string, any>;

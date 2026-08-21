@@ -93,59 +93,11 @@ export const TARGET_ARCHITECTURE_PLANES = [
   'improvement_plane',
 ] as const;
 
-export const TARGET_ARCHITECTURE_ORDINARY_SURFACE_PLANES = [
-  'ordinary_progress_plane',
-  'durable_runway_plane',
-  'authority_decision_plane',
-  'reconciler_plane',
-  'app_cockpit_plane',
-] as const;
-
-export const TARGET_ARCHITECTURE_NON_AUTHORITY_FORBIDDEN_OUTPUTS = [
-  'domain_owner_answer',
-  'domain_typed_blocker',
-  'quality_or_export_verdict',
-  'artifact_body_mutation',
-  'memory_body_mutation',
-  'domain_ready_declaration',
-  'production_ready_declaration',
-] as const;
-
 export const TARGET_ARCHITECTURE_PLANE_FORBIDDEN_CLAIMS = [
   'domain_ready_declaration',
   'quality_or_export_verdict',
   'owner_receipt_signature',
   'typed_blocker_signature',
-] as const;
-
-export const TARGET_ARCHITECTURE_SMALL_DETAIL_LANES = [
-  'advisory',
-  'audit',
-  'diagnostic',
-  'cleanup',
-  'production_evidence',
-] as const;
-
-export const TARGET_ARCHITECTURE_HARD_BLOCKER_CONDITIONS = [
-  'wrong_launch',
-  'authority_violation',
-  'not_recoverable',
-  'not_auditable',
-  'cannot_closeout',
-  'invalid_owner_answer_shape',
-  'irreversible_mutation',
-] as const;
-
-export const TARGET_ARCHITECTURE_ACCEPTED_OWNER_ANSWER_SHAPES = [
-  'owner_receipt_ref',
-  'quality_gate_receipt_ref',
-  'human_gate_ref',
-  'typed_blocker_ref',
-  'no_regression_ref',
-  'long_soak_ref',
-  'route_back_ref',
-  'physical_delete_authorization_ref',
-  'keep_as_authority_adapter_ref',
 ] as const;
 
 export const TARGET_ARCHITECTURE_PASSIVE_STAGE_PROJECTIONS = [
@@ -289,24 +241,6 @@ export const TARGET_ARCHITECTURE_FOUNDRY_KERNEL_MUST_NOT_PRODUCE = [
   'owner_receipt_body',
   'typed_blocker',
   'protected_test_body',
-] as const;
-
-export const TARGET_ARCHITECTURE_ONE_SHOT_PLAN_IDS = [
-  'P0',
-  'P1',
-  'P2',
-  'P3',
-  'P4',
-  'P5',
-  'P6',
-  'P7',
-  'P8',
-] as const;
-
-export const TARGET_ARCHITECTURE_ONE_SHOT_PLAN_STATUSES = [
-  'opl_landed',
-  'opl_landed_owner_gated',
-  'external_owner_gated',
 ] as const;
 
 export const TARGET_ARCHITECTURE_FOUNDRY_AGENT_OS_CAPABILITY_REGISTRY_MODULES = [

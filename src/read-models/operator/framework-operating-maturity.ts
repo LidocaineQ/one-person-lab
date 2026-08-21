@@ -194,41 +194,6 @@ function domainOwnerEvidenceRoutes(
   });
 }
 
-function oneShotPlanLandingReadout(contracts: FrameworkContracts) {
-  const model = contracts.targetOperatingArchitecture.one_shot_plan_landing_model;
-  return {
-    surface_kind: 'opl_one_shot_plan_landing_readout',
-    source_contract_ref:
-      'contracts/opl-framework/target-operating-architecture-contract.json#one_shot_plan_landing_model',
-    model_id: model.model_id,
-    status: model.summary.external_owner_evidence_still_required
-      ? 'opl_surfaces_landed_external_owner_evidence_required'
-      : 'opl_surfaces_landed_no_external_owner_gate_observed',
-    summary: model.summary,
-    implementation_slices: model.implementation_slices,
-    owner_gated_plan_ids: model.implementation_slices
-      .filter((slice) => slice.status !== 'opl_landed')
-      .map((slice) => slice.plan_id),
-    remaining_owner_gates: model.implementation_slices
-      .filter((slice) => slice.remaining_owner_gate !== 'none')
-      .map((slice) => ({
-        plan_id: slice.plan_id,
-        title: slice.title,
-        status: slice.status,
-        remaining_owner_gate: slice.remaining_owner_gate,
-      })),
-    non_closing_inputs: [
-      'contract_validation',
-      'docs_foldback',
-      'generated_descriptor_ready',
-      'provider_completion',
-      'verified_refs_only_ledger',
-      'zero_worklist_count',
-    ],
-    authority_boundary: model.authority_boundary,
-  };
-}
-
 function ownerGateStopLoss() {
   return [
     'do not add more OPL projection evidence to claim ready',
@@ -441,7 +406,6 @@ export async function buildFrameworkOperatingMaturityReadout(
       drilldownMaturity.lifecycle.nextEvidenceAction,
     ownerEvidenceIntake,
   });
-  const oneShotPlanLanding = oneShotPlanLandingReadout(contracts);
   const ownerGateInventory = unresolvedOwnerGates({
     ownerDeltaBridge,
     productionEvidenceGate,
@@ -480,7 +444,6 @@ export async function buildFrameworkOperatingMaturityReadout(
         ready_claim_authorized: false,
       },
       current_owner_delta_bridge: ownerDeltaBridge,
-      one_shot_plan_landing: oneShotPlanLanding,
       unresolved_owner_gates: ownerGateInventory,
       owner_evidence_intake: ownerEvidenceIntake,
       foundry_agent_os_production_evidence_gate: productionEvidenceGate,

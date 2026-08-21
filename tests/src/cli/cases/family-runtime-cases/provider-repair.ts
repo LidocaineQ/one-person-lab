@@ -133,7 +133,7 @@ test('family-runtime temporal provider repair installs visibility Search Attribu
       },
     });
     assert.equal(result.status, 0, result.stderr);
-    const output = JSON.parse(result.stdout); // reuse-first: allow CLI stdout JSON parser in migrated test case.
+    const output = JSON.parse(result.stdout);
     const repair = output.family_runtime_provider.temporal_visibility_repair;
     const workerRepair = output.family_runtime_provider.temporal_worker_repair;
     assert.equal(repair.surface_kind, 'temporal_visibility_repair_receipt');

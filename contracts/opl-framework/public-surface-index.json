@@ -82,28 +82,7 @@
       ],
       "notes": [
         "Public positioning for OPL as a stage-led framework, app workbench, and Foundry Agent product family."
-      ],
-      "surface_budget": {
-        "default_surface": true,
-        "default_surface_allowed_reasons": [
-          "authority_boundary"
-        ],
-        "promotion_evidence_refs": {
-          "folded_into_attention_entry_ref": "contracts/opl-framework/public-surface-index.json#opl_public_readme"
-        },
-        "consumer_refs": [
-          "operator_cli",
-          "app"
-        ],
-        "authority_boundary": {
-          "can_claim_domain_ready": false,
-          "can_claim_quality_verdict": false,
-          "can_claim_artifact_authority": false,
-          "can_claim_production_ready": false,
-          "can_replace_ai_executor_planning": false,
-          "can_replace_domain_owner": false
-        }
-      }
+      ]
     },
     {
       "surface_id": "one_person_lab_app_workbench",
@@ -169,28 +148,7 @@
         "Default GUI page state comes from `opl app state --profile fast --json`; explicit refresh or diagnostic panes may request `opl app state --profile full --json`.",
         "`opl app action execute --json` is the App mutating boundary; GUI pages must not stitch together module, developer-supervisor, worker, system-info, release, or provider commands as independent truth sources.",
         "`opl runtime app-operator-drilldown --detail full --json` remains an explicit full runtime drilldown exception for operator/status diagnostics and must not be used as normal GUI page state."
-      ],
-      "surface_budget": {
-        "default_surface": true,
-        "default_surface_allowed_reasons": [
-          "authority_boundary"
-        ],
-        "promotion_evidence_refs": {
-          "folded_into_attention_entry_ref": "contracts/opl-framework/public-surface-index.json#one_person_lab_app_workbench"
-        },
-        "consumer_refs": [
-          "operator_cli",
-          "app"
-        ],
-        "authority_boundary": {
-          "can_claim_domain_ready": false,
-          "can_claim_quality_verdict": false,
-          "can_claim_artifact_authority": false,
-          "can_claim_production_ready": false,
-          "can_replace_ai_executor_planning": false,
-          "can_replace_domain_owner": false
-        }
-      }
+      ]
     },
     {
       "surface_id": "opl_stage_runtime_framework",
@@ -264,28 +222,7 @@
       ],
       "notes": [
         "Defines provider-backed stage attempt runtime, refs-only StageRun spec/status/event-log/read-model substrate, OPL Runtime Manager boundaries, and OPL-owned generated-surface handoff plus unified CLI/MCP/Skill/product-entry/tool interface bundles compiled from admitted domain packs."
-      ],
-      "surface_budget": {
-        "default_surface": true,
-        "default_surface_allowed_reasons": [
-          "authority_boundary"
-        ],
-        "promotion_evidence_refs": {
-          "folded_into_attention_entry_ref": "contracts/opl-framework/public-surface-index.json#opl_stage_runtime_framework"
-        },
-        "consumer_refs": [
-          "operator_cli",
-          "app"
-        ],
-        "authority_boundary": {
-          "can_claim_domain_ready": false,
-          "can_claim_quality_verdict": false,
-          "can_claim_artifact_authority": false,
-          "can_claim_production_ready": false,
-          "can_replace_ai_executor_planning": false,
-          "can_replace_domain_owner": false
-        }
-      }
+      ]
     },
     {
       "surface_id": "opl_framework_locator",
@@ -323,28 +260,7 @@
       "notes": [
         "OPL-compatible agents locate their external OPL Framework runtime dependency through this surface before invoking framework-owned runtime, contract, package, or projection calls.",
         "This locator does not discover domain agents, does not require One Person Lab App, and does not authorize Foundry Agents to embed or fork OPL runtime truth."
-      ],
-      "surface_budget": {
-        "default_surface": true,
-        "default_surface_allowed_reasons": [
-          "authority_boundary"
-        ],
-        "promotion_evidence_refs": {
-          "folded_into_attention_entry_ref": "contracts/opl-framework/public-surface-index.json#opl_framework_locator"
-        },
-        "consumer_refs": [
-          "operator_cli",
-          "app"
-        ],
-        "authority_boundary": {
-          "can_claim_domain_ready": false,
-          "can_claim_quality_verdict": false,
-          "can_claim_artifact_authority": false,
-          "can_claim_production_ready": false,
-          "can_replace_ai_executor_planning": false,
-          "can_replace_domain_owner": false
-        }
-      }
+      ]
     },
     {
       "surface_id": "opl_domain_agent_catalog",
@@ -384,28 +300,7 @@
       ],
       "notes": [
         "Indexes selected domain agents without becoming a domain truth source."
-      ],
-      "surface_budget": {
-        "default_surface": true,
-        "default_surface_allowed_reasons": [
-          "authority_boundary"
-        ],
-        "promotion_evidence_refs": {
-          "folded_into_attention_entry_ref": "contracts/opl-framework/public-surface-index.json#opl_domain_agent_catalog"
-        },
-        "consumer_refs": [
-          "operator_cli",
-          "app"
-        ],
-        "authority_boundary": {
-          "can_claim_domain_ready": false,
-          "can_claim_quality_verdict": false,
-          "can_claim_artifact_authority": false,
-          "can_claim_production_ready": false,
-          "can_replace_ai_executor_planning": false,
-          "can_replace_domain_owner": false
-        }
-      }
+      ]
     },
     {
       "surface_id": "mag_foundry_agent_package",
@@ -432,28 +327,7 @@
       "notes": [
         "MAG is published as an OPL-compatible Foundry Agent package with direct app skill entry and domain-owned grant authority.",
         "The package declares compatibility with OPL Framework; it does not vendor or fork an OPL runtime."
-      ],
-      "surface_budget": {
-        "default_surface": true,
-        "default_surface_allowed_reasons": [
-          "authority_boundary"
-        ],
-        "promotion_evidence_refs": {
-          "folded_into_attention_entry_ref": "contracts/opl-framework/public-surface-index.json#mag_foundry_agent_package"
-        },
-        "consumer_refs": [
-          "operator_cli",
-          "app"
-        ],
-        "authority_boundary": {
-          "can_claim_domain_ready": false,
-          "can_claim_quality_verdict": false,
-          "can_claim_artifact_authority": false,
-          "can_claim_production_ready": false,
-          "can_replace_ai_executor_planning": false,
-          "can_replace_domain_owner": false
-        }
-      }
+      ]
     },
     {
       "surface_id": "mas_foundry_agent_package",
@@ -480,28 +354,7 @@
       "notes": [
         "MAS is published as an OPL-compatible Foundry Agent package with direct app skill entry and domain-owned medical research authority.",
         "The package declares compatibility with OPL Framework; it does not vendor or fork an OPL runtime."
-      ],
-      "surface_budget": {
-        "default_surface": true,
-        "default_surface_allowed_reasons": [
-          "authority_boundary"
-        ],
-        "promotion_evidence_refs": {
-          "folded_into_attention_entry_ref": "contracts/opl-framework/public-surface-index.json#mas_foundry_agent_package"
-        },
-        "consumer_refs": [
-          "operator_cli",
-          "app"
-        ],
-        "authority_boundary": {
-          "can_claim_domain_ready": false,
-          "can_claim_quality_verdict": false,
-          "can_claim_artifact_authority": false,
-          "can_claim_production_ready": false,
-          "can_replace_ai_executor_planning": false,
-          "can_replace_domain_owner": false
-        }
-      }
+      ]
     },
     {
       "surface_id": "rca_foundry_agent_package",
@@ -528,28 +381,7 @@
       "notes": [
         "RCA is published as an OPL-compatible Foundry Agent package with direct app skill entry and domain-owned visual deliverable authority.",
         "The package declares compatibility with OPL Framework; it does not vendor or fork an OPL runtime."
-      ],
-      "surface_budget": {
-        "default_surface": true,
-        "default_surface_allowed_reasons": [
-          "authority_boundary"
-        ],
-        "promotion_evidence_refs": {
-          "folded_into_attention_entry_ref": "contracts/opl-framework/public-surface-index.json#rca_foundry_agent_package"
-        },
-        "consumer_refs": [
-          "operator_cli",
-          "app"
-        ],
-        "authority_boundary": {
-          "can_claim_domain_ready": false,
-          "can_claim_quality_verdict": false,
-          "can_claim_artifact_authority": false,
-          "can_claim_production_ready": false,
-          "can_replace_ai_executor_planning": false,
-          "can_replace_domain_owner": false
-        }
-      }
+      ]
     },
     {
       "surface_id": "mag_domain_agent_entry",
@@ -573,28 +405,7 @@
       "routes_to": [],
       "notes": [
         "MAG owns grant authoring truth, progress, quality, and artifacts."
-      ],
-      "surface_budget": {
-        "default_surface": true,
-        "default_surface_allowed_reasons": [
-          "authority_boundary"
-        ],
-        "promotion_evidence_refs": {
-          "folded_into_attention_entry_ref": "contracts/opl-framework/public-surface-index.json#mag_domain_agent_entry"
-        },
-        "consumer_refs": [
-          "operator_cli",
-          "app"
-        ],
-        "authority_boundary": {
-          "can_claim_domain_ready": false,
-          "can_claim_quality_verdict": false,
-          "can_claim_artifact_authority": false,
-          "can_claim_production_ready": false,
-          "can_replace_ai_executor_planning": false,
-          "can_replace_domain_owner": false
-        }
-      }
+      ]
     },
     {
       "surface_id": "mas_domain_agent_entry",
@@ -618,28 +429,7 @@
       "routes_to": [],
       "notes": [
         "MAS owns study truth, runtime health, publication judgment, and artifacts."
-      ],
-      "surface_budget": {
-        "default_surface": true,
-        "default_surface_allowed_reasons": [
-          "authority_boundary"
-        ],
-        "promotion_evidence_refs": {
-          "folded_into_attention_entry_ref": "contracts/opl-framework/public-surface-index.json#mas_domain_agent_entry"
-        },
-        "consumer_refs": [
-          "operator_cli",
-          "app"
-        ],
-        "authority_boundary": {
-          "can_claim_domain_ready": false,
-          "can_claim_quality_verdict": false,
-          "can_claim_artifact_authority": false,
-          "can_claim_production_ready": false,
-          "can_replace_ai_executor_planning": false,
-          "can_replace_domain_owner": false
-        }
-      }
+      ]
     },
     {
       "surface_id": "rca_domain_agent_entry",
@@ -663,28 +453,7 @@
       "routes_to": [],
       "notes": [
         "RCA owns visual deliverable truth, review state, export authority, and artifacts."
-      ],
-      "surface_budget": {
-        "default_surface": true,
-        "default_surface_allowed_reasons": [
-          "authority_boundary"
-        ],
-        "promotion_evidence_refs": {
-          "folded_into_attention_entry_ref": "contracts/opl-framework/public-surface-index.json#rca_domain_agent_entry"
-        },
-        "consumer_refs": [
-          "operator_cli",
-          "app"
-        ],
-        "authority_boundary": {
-          "can_claim_domain_ready": false,
-          "can_claim_quality_verdict": false,
-          "can_claim_artifact_authority": false,
-          "can_claim_production_ready": false,
-          "can_replace_ai_executor_planning": false,
-          "can_replace_domain_owner": false
-        }
-      }
+      ]
     }
   ]
 }

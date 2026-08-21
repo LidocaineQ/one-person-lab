@@ -207,9 +207,11 @@ export function inspectFamilyRuntimeProvider(kind: FamilyRuntimeProviderKind): F
       provider_kind: kind,
       status: 'attention_needed',
       ready: false,
-      degraded_reason: config.configured
-        ? 'external_sandbox_not_temporal_durable_workflow_substrate'
-        : 'external_sandbox_adapter_unconfigured',
+      degraded_reason: config.unsupportedSubstrate
+        ? 'external_sandbox_substrate_unsupported'
+        : config.configured
+          ? 'external_sandbox_not_temporal_durable_workflow_substrate'
+          : 'external_sandbox_adapter_unconfigured',
       capabilities: [
         'agent_sandbox_execution_substrate',
         'isolated_filesystem',
@@ -228,6 +230,7 @@ export function inspectFamilyRuntimeProvider(kind: FamilyRuntimeProviderKind): F
         provider_receipt_ref_configured: Boolean(config.providerReceiptRef),
         adapter_configured: config.configured,
         selected_external_substrate: config.substrate,
+        unsupported_external_substrate: config.unsupportedSubstrate,
         endpoint: config.endpoint,
         credential_ref: config.credentialRef,
         provider_receipt_ref: config.providerReceiptRef,

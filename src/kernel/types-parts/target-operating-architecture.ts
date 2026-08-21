@@ -52,28 +52,6 @@ export interface TargetOperatingArchitectureContract {
     authority_functions: string[];
     private_platform_residue_default_disposition: string;
   };
-  surface_budget_compiler_policy: {
-    ordinary_path_root: string;
-    ordinary_progress_spine?: {
-      default_planning_root: string;
-      default_next_action_derives_from: string;
-      lightweight_receipt: string;
-      lightweight_receipt_tier: string;
-      audit_sidecar_role: string;
-    };
-    artifact_tiers?: string[];
-    progress_delta_receipt_cannot_authorize?: string[];
-    audit_sidecar_must_not_generate_default_next_action?: boolean;
-    surface_plane_binding_required: true;
-    default_surface_requires_plane_ref: true;
-    ordinary_surface_allowed_planes: string[];
-    non_authority_surface_forbidden_outputs: string[];
-    allowed_lanes: string[];
-    small_detail_default_lanes: string[];
-    hard_blocker_upgrade_conditions: string[];
-    ordinary_path_must_not_be_overridden_by: string[];
-    accepted_owner_answer_shapes: string[];
-  };
   multi_plane_operating_system: {
     plane_model_id: string;
     default_ordinary_route: string;
@@ -126,31 +104,6 @@ export interface TargetOperatingArchitectureContract {
     role: string;
     may_produce: string[];
     must_not_produce: string[];
-  };
-  one_shot_plan_landing_model: {
-    model_id: string;
-    purpose: string;
-    source_plan_ref: string;
-    default_completion_semantics: string;
-    implementation_slices: Array<{
-      plan_id: string;
-      title: string;
-      status: 'opl_landed' | 'opl_landed_owner_gated' | 'external_owner_gated';
-      opl_landed_surfaces: string[];
-      validation_commands: string[];
-      remaining_owner_gate: string;
-      false_completion_claims: string[];
-    }>;
-    summary: {
-      total_plan_count: number;
-      opl_landed_count: number;
-      opl_landed_owner_gated_count: number;
-      external_owner_gated_count: number;
-      all_opl_controlled_surfaces_landed: boolean;
-      external_owner_evidence_still_required: boolean;
-      ready_claim_authorized: false;
-    };
-    authority_boundary: Record<string, false>;
   };
   foundry_agent_os_standard: {
     pattern_id: string;

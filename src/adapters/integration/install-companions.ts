@@ -686,6 +686,7 @@ function buildNoApplyCompanionResult(
       .filter((toolId) => selectedTools.has(toolId))
       .map((toolId) => resolveOplCompanionTool(home, toolId, {
         includeHealthCheck: toolInspection === 'full',
+        includeHomebrewFallback: toolInspection === 'full',
       })),
   ]
     .filter((tool): tool is OplCompanionToolSyncItem => Boolean(tool))
@@ -864,6 +865,7 @@ export function buildOplRecommendedSkills(
     toolId,
     selectedToolIds.has(toolId) && Boolean(resolveOplCompanionTool(home, toolId, {
       includeHealthCheck: options.toolInspection !== 'fast',
+      includeHomebrewFallback: options.toolInspection !== 'fast',
     })),
   ])) as Record<OplCompanionToolId, boolean>;
 

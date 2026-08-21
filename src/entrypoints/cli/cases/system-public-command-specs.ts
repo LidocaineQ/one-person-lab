@@ -1,5 +1,4 @@
 import { bootstrapLocalCodexDefaults, readBundledCodexDefaultProfile } from '../../../kernel/local-codex-defaults.ts';
-import { buildOplFrameworkSemanticHygieneAudit } from '../../../read-models/operator/index.ts';
 import { buildOplSystemDependencyDoctor } from '../../../adapters/integration/system-installation/dependency-doctor.ts';
 import { buildOplDockerWebuiDoctor } from '../../../adapters/integration/system-installation/docker-webui-doctor.ts';
 import { buildOplEnvironment } from '../../../adapters/integration/system-installation/environment.ts';
@@ -263,18 +262,6 @@ export function buildPublicSystemCommandSpecs(
       async () => buildPublicSystemPayload(await buildOplEnvironment(getContracts())),
     ),
     'system initialize': systemInitializeSpec,
-    'system semantic-hygiene': buildNoArgSpec(
-      {
-        usage: 'opl system semantic-hygiene',
-        summary: 'Show the machine-readable OPL framework semantic hygiene audit gates.',
-        examples: ['opl system semantic-hygiene --json'],
-        group: 'system',
-      },
-      () => ({
-        version: 'g2',
-        semantic_hygiene: buildOplFrameworkSemanticHygieneAudit(getContracts()),
-      }),
-    ),
     'system dependency-doctor': systemDependencyDoctorSpec,
     'system dependency-maintenance': systemDependencyMaintenanceSpec,
     'system configure-codex': systemConfigureCodexSpec,

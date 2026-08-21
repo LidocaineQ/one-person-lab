@@ -54,6 +54,7 @@ function parsePackageSelection(
   command: string,
   args: string[],
   spec: CommandSpec,
+  selectionRequired = true,
 ): AgentPackageInstallInput {
   const positional = takePositionalPackageId(args, command, spec);
   const parsed = parseRegisteredCommandOptions(command, positional.args, spec);
@@ -82,7 +83,7 @@ function parsePackageSelection(
       conflicting: ['--trust-tier', '<package_id>'],
     });
   }
-  if (!selectedPackageId && !manifestUrl) {
+  if (selectionRequired && !selectedPackageId && !manifestUrl) {
     throw buildUsageError(`${command} requires a package id or --manifest-url.`, spec, {
       required: ['<package_id> or --manifest-url'],
     });
@@ -242,7 +243,12 @@ export function buildPackagesCommandSpecs(
       group: 'packages',
       help_surface: 'default',
       handler: (args) => {
-        const input = parsePackageSelection('packages update', args, getCommandSpec('packages update'));
+        const input = parsePackageSelection(
+          'packages update',
+          args,
+          getCommandSpec('packages update'),
+          false,
+        );
         if (hasExplicitPackageSelection(input)) {
           return runOplAgentPackageUpdate(input);
         }

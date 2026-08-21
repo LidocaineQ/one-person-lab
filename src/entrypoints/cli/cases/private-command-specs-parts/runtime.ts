@@ -239,14 +239,14 @@ export function buildPrivateRuntimeCommandSpecs({
         return runtimeSnapshotProvider(getContracts());
       },
     },
-    'runtime app-operator-drilldown': { // reuse-first: allow diagnostic drilldown command projection.
-      usage: 'opl runtime app-operator-drilldown [--detail summary|full] [--full]', // reuse-first: allow diagnostic drilldown command projection.
+    'runtime app-operator-drilldown': {
+      usage: 'opl runtime app-operator-drilldown [--detail summary|full] [--full]',
       summary:
-        'Project the App/operator drilldown read model from the runtime snapshot, summary-first by default.', // reuse-first: allow diagnostic drilldown command projection.
+        'Project the App/operator drilldown read model from the runtime snapshot, summary-first by default.',
       examples: [
-        'opl runtime app-operator-drilldown', // reuse-first: allow diagnostic drilldown command projection.
-        'opl runtime app-operator-drilldown --json', // reuse-first: allow diagnostic drilldown command projection.
-        'opl runtime app-operator-drilldown --detail full --json', // reuse-first: allow diagnostic drilldown command projection.
+        'opl runtime app-operator-drilldown',
+        'opl runtime app-operator-drilldown --json',
+        'opl runtime app-operator-drilldown --detail full --json',
       ],
       registry: {
         command_id: 'runtime app-operator-drilldown',
@@ -277,7 +277,7 @@ export function buildPrivateRuntimeCommandSpecs({
         },
       },
       handler: async (args) => {
-        const spec = getCommandSpecs()['runtime app-operator-drilldown']; // reuse-first: allow diagnostic drilldown command projection.
+        const spec = getCommandSpecs()['runtime app-operator-drilldown'];
         const parsed = parseRegisteredCommandOptions(
           'runtime app-operator-drilldown',
           args,

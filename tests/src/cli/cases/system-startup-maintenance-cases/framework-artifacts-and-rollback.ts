@@ -341,7 +341,7 @@ test('system startup-maintenance applies OPL Framework runtime archive to a mana
     assert.equal(output.system_action.details.framework_targets[0].result.source_archive, archivePath);
     assert.equal(output.system_action.details.framework_targets[0].result.previous_root, null);
     assert.equal(output.system_action.details.framework_targets[0].result.rollback_ref, null);
-    const metadata = JSON.parse(fs.readFileSync(output.system_action.details.framework_targets[0].result.metadata_ref, 'utf8')); // reuse-first: allow local test fixture metadata parser.
+    const metadata = JSON.parse(fs.readFileSync(output.system_action.details.framework_targets[0].result.metadata_ref, 'utf8'));
     assert.equal(metadata.surface_kind, 'opl_framework_pending_generation.v1');
     assert.equal(metadata.target_root, targetRoot);
     assert.equal(metadata.pending_root, `${targetRoot}.pending`);
@@ -601,11 +601,11 @@ test('system startup-maintenance applies package channel framework artifact into
     assert.equal(output.system_action.details.framework_targets[0].reason, 'framework_runtime_artifact_applied');
     assert.equal(output.system_action.details.framework_targets[0].result.target_root, expectedTargetRoot);
     assert.equal(output.system_action.details.framework_targets[0].result.previous_root, `${expectedTargetRoot}.previous`);
-    assert.match(output.system_action.details.framework_targets[0].result.rollback_ref, /^opl:\/\/managed-update\/runtime_substrate\/framework\/rollback\//); // reuse-first: allow owner-routed runtime materializer assertion.
+    assert.match(output.system_action.details.framework_targets[0].result.rollback_ref, /^opl:\/\/managed-update\/runtime_substrate\/framework\/rollback\//);
     assert.equal(fs.readFileSync(path.join(expectedTargetRoot, 'MARKER.txt'), 'utf8'), 'new-docker-data-framework\n');
     assert.equal(fs.existsSync(path.join(`${expectedTargetRoot}.previous`, 'package.json')), true);
     assert.equal(fs.existsSync(path.join(expectedTargetRoot, '.git')), false);
-    const metadata = JSON.parse(fs.readFileSync(output.system_action.details.framework_targets[0].result.metadata_ref, 'utf8')); // reuse-first: allow local test fixture metadata parser.
+    const metadata = JSON.parse(fs.readFileSync(output.system_action.details.framework_targets[0].result.metadata_ref, 'utf8'));
     assert.equal(metadata.source_head_sha, 'f'.repeat(40));
     assert.equal(metadata.previous_root, `${expectedTargetRoot}.previous`);
   } finally {
@@ -614,8 +614,8 @@ test('system startup-maintenance applies package channel framework artifact into
   }
 });
 
-test('OPL Base rollback restores the previous OPL Framework runtime root', () => { // reuse-first: allow owner-routed runtime materializer assertion.
-  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-substrate-framework-rollback-')); // reuse-first: allow owner-routed runtime materializer fixture.
+test('OPL Base rollback restores the previous OPL Framework runtime root', () => {
+  const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-runtime-substrate-framework-rollback-'));
   const targetRoot = path.join(homeRoot, 'data', 'opl', 'framework-current');
   const previousRoot = `${targetRoot}.previous`;
   const codexFixture = createCurrentCodexFixture();
@@ -662,7 +662,7 @@ test('OPL Base rollback restores the previous OPL Framework runtime root', () =>
     assert.equal(output.managed_update.execution.adapter_results[0].result.framework_rollback.result.target_root, targetRoot);
     assert.equal(output.managed_update.execution.adapter_results[0].result.framework_rollback.result.rollback_root, `${targetRoot}.rolled-back`);
     assert.equal(output.managed_update.components[0].receipt.verify_result, 'passed');
-    assert.match(output.managed_update.components[0].receipt.rollback_ref ?? '', /^opl:\/\/managed-update\/opl_base\/rollback\//); // reuse-first: allow owner-routed runtime materializer assertion.
+    assert.match(output.managed_update.components[0].receipt.rollback_ref ?? '', /^opl:\/\/managed-update\/opl_base\/rollback\//);
     assert.equal(fs.readFileSync(path.join(targetRoot, 'MARKER.txt'), 'utf8'), 'old-framework\n');
     assert.equal(fs.readFileSync(path.join(`${targetRoot}.rolled-back`, 'MARKER.txt'), 'utf8'), 'new-framework\n');
   } finally {

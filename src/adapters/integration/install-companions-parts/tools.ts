@@ -481,7 +481,10 @@ function resolveHomebrewFormulaBinary(formula: string, binaryName: string) {
   return prefix ? path.join(prefix, 'bin', binaryName) : null;
 }
 
-export function resolveFfmpegTool(home: string): OplCompanionToolSyncItem | null {
+export function resolveFfmpegTool(
+  home: string,
+  options: { includeHomebrewFallback?: boolean } = {},
+): OplCompanionToolSyncItem | null {
   const runtimeHome = process.env.OPL_FULL_RUNTIME_HOME?.trim();
   const explicitFfmpeg = process.env.OPL_FFMPEG_BIN?.trim() || null;
   const explicitFfprobe = process.env.OPL_FFPROBE_BIN?.trim()
@@ -501,10 +504,12 @@ export function resolveFfmpegTool(home: string): OplCompanionToolSyncItem | null
       path.join(home, '.local', 'bin', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'),
       path.join(home, '.local', 'bin', process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe'),
     ],
-    [
-      resolveHomebrewFormulaBinary('ffmpeg', 'ffmpeg'),
-      resolveHomebrewFormulaBinary('ffmpeg', 'ffprobe'),
-    ],
+    ...(options.includeHomebrewFallback === false
+      ? []
+      : [[
+          resolveHomebrewFormulaBinary('ffmpeg', 'ffmpeg'),
+          resolveHomebrewFormulaBinary('ffmpeg', 'ffprobe'),
+        ] as [string | null, string | null]]),
   ];
   for (const [ffmpegPath, ffprobePath] of pairs) {
     const inspected = inspectFfmpegPair(ffmpegPath, ffprobePath);
@@ -516,13 +521,13 @@ export function resolveFfmpegTool(home: string): OplCompanionToolSyncItem | null
 export function resolveOplCompanionTool(
   home: string,
   toolId: OplCompanionToolId,
-  options: { includeHealthCheck?: boolean } = {},
+  options: { includeHealthCheck?: boolean; includeHomebrewFallback?: boolean } = {},
 ): OplCompanionToolSyncItem | null {
   if (toolId === 'officecli') return resolveOfficeCliTool(home);
   if (toolId === 'mineru-open-api') return resolveMineruOpenApiTool(home);
   if (toolId === 'agent-reach') return resolveAgentReachTool(home, options);
   if (toolId === 'gh-stack') return resolveGhStackTool(home);
-  return resolveFfmpegTool(home);
+  return resolveFfmpegTool(home, options);
 }
 
 export function installAgentReachSkill(home: string) {

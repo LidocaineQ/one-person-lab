@@ -260,30 +260,6 @@ function physicalSourceMorphologyPolicy(domainId: string) {
   };
 }
 
-function standardAgentConformanceProfile(domainId: string) {
-  const morphology = physicalSourceMorphologyPolicy(domainId);
-  return {
-    surface_kind: 'opl_standard_agent_conformance_profile',
-    version: 'opl.standard-agent-conformance-profile.v1',
-    profile_id: `${domainId}.standard-agent-conformance.v1`,
-    target_domain_id: domainId,
-    golden_path: {
-      required_stage_ids: [STARTER_STAGE_ID],
-      allowed_stage_ids: [STARTER_STAGE_ID],
-      default_stage_id: STARTER_STAGE_ID,
-      forbidden_owner_tokens: [],
-    },
-    physical_morphology: {
-      scan_roots: ['agent/', 'contracts/', 'runtime/'],
-      allowed_residue_prefixes: [],
-      required_surface_ids: morphology.required_surface_ids,
-      surface_classifications: morphology.surface_classifications,
-      forbidden_name_tokens: [],
-      required_parity_gates: ['generated_surface_consumption'],
-    },
-  };
-}
-
 function primarySkill(domainId: string, domainLabel: string, pluginName: string) {
   return `---\nname: ${pluginName}\ndescription: Use when Codex needs ${domainLabel} to interpret domain intent, select a declared Stage, and return domain-owner evidence.\n---\n\n# ${domainLabel}\n\nUse this primary Skill as the system-level entry into the ${domainLabel} Agent. Read the declared Stage, professional Skill, tool, knowledge, and quality-gate refs from the repo contracts; keep domain truth, quality verdicts, artifacts, owner receipts, and typed blockers with the domain owner.\n\nProfessional Skills are projected as a complete package-bound generation into the active Workspace. Before each Stage or Attempt, consume the current generation selected by OPL; do not hot-replace Skills inside a running Attempt.\n\nCanonical action: \`opl agents run --domain ${domainId} --action <action_id>\`.\n`;
 }
@@ -737,13 +713,6 @@ export function buildScaffoldFiles(domainId: string, domainLabel: string): Scaff
           domain_can_claim_generic_runtime_owner: false,
           domain_repo_can_own_generated_surface: false,
         },
-      }),
-    },
-    {
-      path: 'contracts/standard_agent_conformance_profile.json',
-      content: json({
-        ...standardAgentConformanceProfile(domainId),
-        marker: SCAFFOLD_MARKER,
       }),
     },
     {

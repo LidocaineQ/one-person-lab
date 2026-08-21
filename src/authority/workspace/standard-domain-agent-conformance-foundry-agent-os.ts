@@ -64,11 +64,6 @@ type RepoConformanceReport = {
       provider_completion_counts_as_domain_accepted?: unknown;
     };
   };
-  golden_path_default_surface_budget_checks: {
-    authority_boundary: {
-      guard_can_write_domain_truth?: unknown;
-    };
-  };
 };
 
 type FrameworkCapabilityPackageConformanceReport = {
@@ -204,9 +199,6 @@ function buildFoundryAgentOsDomainConformance(
     report.stage_run_kernel_profile_checks.stage_run_state_machine.provider_completion_counts_as_domain_accepted === false
       ? null
       : 'provider_completion_must_not_count_as_domain_accepted',
-    report.golden_path_default_surface_budget_checks.authority_boundary.guard_can_write_domain_truth === false
-      ? null
-      : 'golden_path_guard_can_write_domain_truth_must_be_false',
   ].filter((entry): entry is string => Boolean(entry));
   const blockers = unique([
     standardMembership !== 'unknown_non_standard_agent'

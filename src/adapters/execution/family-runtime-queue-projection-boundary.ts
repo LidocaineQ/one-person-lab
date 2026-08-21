@@ -19,14 +19,14 @@ export const FAMILY_RUNTIME_STAGE_ATTEMPT_STATUS = {
   completed: 'completed',
   failed: 'failed',
   humanGate: 'human_gate',
-  deadLettered: 'dead_lettered', // reuse-first: allow stage attempt projection vocabulary; provider/Temporal history remains authoritative.
+  deadLettered: 'dead_lettered',
 } as const;
 
 export const FAMILY_RUNTIME_TASK_COLUMNS = {
   maxAttempts: QUEUE_PROJECTION_VOCABULARY.maxAttempts,
   leaseOwner: QUEUE_PROJECTION_VOCABULARY.leaseOwner,
-  leaseExpiresAt: 'lease_expires_at', // reuse-first: allow local lease projection column; not worker ownership truth.
-  deadLetterReason: 'dead_letter_reason', // reuse-first: allow local failure reason projection column; Temporal failure history is the target owner.
+  leaseExpiresAt: 'lease_expires_at',
+  deadLetterReason: 'dead_letter_reason',
 } as const;
 
 export const FAMILY_RUNTIME_QUEUE_PROJECTION_FIELDS = {
@@ -41,7 +41,7 @@ export const FAMILY_RUNTIME_QUEUE_PROJECTION_BOUNDARY = {
   durable_lifecycle_owner: 'temporal_workflow_activity_retry_schedule_history',
   local_store_role: 'projection_cache_and_operator_audit_index',
   tables: {
-    tasks: TASKS_TABLE, // reuse-first: allow local projection table vocabulary; not durable queue truth.
+    tasks: TASKS_TABLE,
   },
   forbidden_claims: [
     'local_tasks_table_is_production_durable_queue',

@@ -24,7 +24,6 @@ interface ProfileAwareChecksInput {
   legacy_runtime_residue_guard: Check;
   generated_interface_checks: Check;
   platform_surface_ownership_checks: Check;
-  physical_morphology_checks: Check;
   source_behavior_checks: Check;
   source_closure_checks: Check;
   workspace_file_lifecycle_checks: Check;
@@ -35,7 +34,6 @@ interface ProfileAwareChecksInput {
   stage_quality_route_prompt_alignment_checks: Check;
   standard_agent_principle_checks: Check;
   state_index_kernel_adoption_checks: Check;
-  golden_path_default_surface_budget_checks: Check;
   workspace_norm_checks: Check;
 }
 
@@ -106,11 +104,6 @@ export function buildProfileAwareConformanceChecks(input: ProfileAwareChecksInpu
     platform_surface_ownership_checks: checkReadout(input.platform_surface_ownership_checks, {
       applicability: 'required_from_agent_repo', evidence_owner: 'agent_repo',
     }),
-    physical_morphology_checks: profileOwnedCheck(
-      input.physical_morphology_checks,
-      hosted,
-      'one-person-lab',
-    ),
     source_behavior_checks: checkReadout(input.source_behavior_checks, {
       applicability: 'required_from_agent_repo', evidence_owner: 'agent_repo',
     }),
@@ -158,10 +151,6 @@ export function buildProfileAwareConformanceChecks(input: ProfileAwareChecksInpu
       input.state_index_kernel_adoption_checks,
       hosted,
     ),
-    golden_path_default_surface_budget_checks: profileOwnedCheck(
-      input.golden_path_default_surface_budget_checks,
-      hosted,
-    ),
     workspace_norm_checks: checkReadout(input.workspace_norm_checks, {
       applicability: 'required_from_one-person-lab', evidence_owner: 'one-person-lab',
     }),
@@ -176,7 +165,6 @@ export function buildProfileAwareConformanceChecks(input: ProfileAwareChecksInpu
     ...input.legacy_runtime_residue_guard.blockers,
     ...input.generated_interface_checks.blockers,
     ...input.platform_surface_ownership_checks.blockers,
-    ...input.physical_morphology_checks.blockers,
     ...input.source_behavior_checks.blockers,
     ...input.source_closure_checks.blockers.map((blocker) => `source_closure:${blocker}`),
     ...input.workspace_file_lifecycle_checks.blockers,
@@ -187,7 +175,6 @@ export function buildProfileAwareConformanceChecks(input: ProfileAwareChecksInpu
     ...input.stage_quality_route_prompt_alignment_checks.blockers,
     ...input.standard_agent_principle_checks.blockers,
     ...input.state_index_kernel_adoption_checks.blockers,
-    ...input.golden_path_default_surface_budget_checks.blockers,
     ...input.workspace_norm_checks.blockers,
   ]);
   return {

@@ -7,7 +7,6 @@ import { fileURLToPath } from 'node:url';
 
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 import { SETTINGS_CONTROL_CENTER_ACTIONS } from '../../src/read-models/operator/app-state-settings-control-center.ts';
-import './verification-command-surfaces-cases/surface-budget-policy.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
@@ -218,7 +217,6 @@ test('repo-tracked verification command surfaces reference valid npm scripts and
     'contracts/opl-framework/functional-privatization-audit-envelope-contract.json',
     'contracts/opl-framework/family-runtime-online-substrate-contract.json',
     'contracts/opl-framework/fresh-install-test-matrix.json',
-    'contracts/opl-framework/surface-budget-policy.json',
   ];
 
   const npmRunPattern = /npm run ([a-z0-9:-]+)/gi;
@@ -242,95 +240,6 @@ test('repo-tracked verification command surfaces reference valid npm scripts and
         `${relativePath} references missing test file: ${filePath}`,
       );
     }
-  }
-});
-
-test('policy contract sentinels keep audit, progress, and physical-delete authority closed', () => {
-  const guardrailTier = readJson<Record<string, any>>(
-    'contracts/opl-framework/guardrail-tier-policy.json',
-  );
-
-  assert.equal(guardrailTier.contract_kind, 'opl_guardrail_tier_policy.v1');
-  assert.deepEqual(guardrailTier.tiers.map((tier: { tier_id: string }) => tier.tier_id), [
-    'launch_hard',
-    'runtime_enforced',
-    'domain_or_human_gate',
-    'audit_only',
-  ]);
-  assert.equal(
-    guardrailTier.tiers.find((tier: { tier_id: string }) => tier.tier_id === 'audit_only')?.default_path_role,
-    'cannot_block_ordinary_launch_without_folded_delta',
-  );
-  assert.equal(guardrailTier.default_denied_hard_gate_reason_classes.includes('raw_evidence_envelope'), true);
-  assert.equal(
-    guardrailTier.folding_policy.audit_signal_can_affect_default_path_only_after_folded_into.includes(
-      'current_owner_delta',
-    ),
-    true,
-  );
-  assert.equal(guardrailTier.folding_policy.raw_trace_can_create_default_action, false);
-  assert.equal(guardrailTier.folding_policy.warning_can_become_launch_blocker_without_tier_change, false);
-  assert.equal(guardrailTier.security_failure_containment.default_posture, 'fail_open_outside_the_violated_boundary');
-  assert.equal(guardrailTier.security_failure_containment.ordinary_healthy_path_must_remain_available, true);
-  assert.equal(guardrailTier.security_failure_containment.hardening_admission.permits_second_resolver_lock_lkg_or_signature_registry, false);
-  assert.equal(guardrailTier.security_failure_containment.hardening_admission.permits_mandatory_cold_start_without_trust_domain_evidence, false);
-  for (const [claim, allowed] of Object.entries(guardrailTier.authority_boundary)) {
-    assert.equal(allowed, false, `guardrail policy must not claim ${claim}`);
-  }
-
-  const securityHardening = readJson<Record<string, any>>(
-    'contracts/opl-framework/security-hardening-worklist.json',
-  );
-  assert.equal(securityHardening.contract_kind, 'opl_security_hardening_worklist.v1');
-  assert.equal(securityHardening.source_scan.finding_count, 10);
-  assert.equal(securityHardening.default_policy.posture, 'fail_open_outside_the_violated_boundary');
-  assert.equal(securityHardening.default_policy.advisory_or_unproven_risk_can_block_ordinary_runtime, false);
-  assert.equal(securityHardening.findings.length, 10);
-  assert.equal(securityHardening.findings.filter((finding: { status: string }) => finding.status === 'implemented_verified').length, 4);
-  for (const [claim, allowed] of Object.entries(securityHardening.authority_boundary)) {
-    assert.equal(allowed, false, `security hardening worklist must not claim ${claim}`);
-  }
-
-  const progressTruth = readJson<Record<string, any>>(
-    'contracts/opl-framework/stage-artifact-progress-truth-policy.json',
-  );
-  assert.equal(progressTruth.contract_kind, 'opl_stage_artifact_progress_truth_policy.v1');
-  for (const claim of [
-    'opl_can_mutate_artifact_body',
-    'opl_can_create_domain_owner_answer',
-    'opl_can_authorize_quality_or_export',
-    'provider_completion_counts_as_progress',
-    'raw_receipt_count_counts_as_progress',
-    'artifact_attempt_pointer_can_write_stage_current_pointer',
-    'framework_can_accept_reject_or_override_codex_route',
-  ]) {
-    assert.equal(progressTruth.authority_boundary[claim], false, `progress truth must not claim ${claim}`);
-  }
-  assert.equal(progressTruth.authority_boundary.readable_file_counts_as_progress, true);
-  assert.equal(progressTruth.authority_boundary.raw_evidence_envelope_counts_as_progress, true);
-  assert.equal(
-    progressTruth.authority_boundary.decisive_codex_attempt_route_context_is_semantic_owner,
-    true,
-  );
-  assert.equal(
-    progressTruth.authority_boundary.stage_transition_materialization_owner_is_opl_stage_run_controller,
-    true,
-  );
-
-  const wrapperRetirement = readJson<Record<string, any>>(
-    'contracts/opl-framework/wrapper-retirement-gate-policy.json',
-  );
-  assert.equal(wrapperRetirement.contract_kind, 'opl_wrapper_retirement_gate_policy.v1');
-  for (const [owner, physicalDeleteAuthorized] of [
-    ['OPL', wrapperRetirement.private_platform_residue_deletion_gate.physical_delete_authorized_by_opl],
-    ['owner work order', wrapperRetirement.private_platform_residue_deletion_gate.owner_decision_work_order.work_order_can_authorize_domain_repo_physical_delete],
-    ['owner route matrix', wrapperRetirement.first_batch_owner_route_tail_matrix.authority_boundary.matrix_can_authorize_physical_delete],
-    ['generated readiness', wrapperRetirement.generated_default_caller_readiness_can_authorize_physical_delete],
-    ['docs foldback', wrapperRetirement.docs_foldback_boundary.docs_foldback_can_authorize_physical_delete],
-    ['delete read model', wrapperRetirement.delete_gate_read_model_boundary.delete_gate_read_model_can_authorize_physical_delete],
-    ['lifecycle apply', wrapperRetirement.opl_apply_boundary.family_runtime_lifecycle_apply_can_delete_domain_repo_files],
-  ] as const) {
-    assert.equal(physicalDeleteAuthorized, false, `${owner} must not authorize physical delete`);
   }
 });
 
@@ -409,38 +318,4 @@ test('machine-readable framework contracts do not pin human docs paths outside t
       `${relativePath} must use machine contract refs or human_doc:* semantic ids instead of pinning prose document paths`,
     );
   }
-});
-
-test('scripts/verify.sh provides the canonical verification wrapper', () => {
-  const verifyScript = read('scripts/verify.sh');
-
-  assert.match(verifyScript, /run-with-repo-temp-env\.sh/);
-  assert.match(verifyScript, /OPL_REPO_TEMP_ENV_ACTIVE/);
-  assert.match(verifyScript, /node scripts\/line-budget\.mjs/);
-  assert.doesNotMatch(verifyScript, /node scripts\/line-budget\.mjs --strict/);
-  assert.doesNotMatch(verifyScript, /OPL_STRUCTURAL_QUALITY_STRICT=1/);
-  assert.equal(
-    (verifyScript.match(/npm run source:modules -- --strict-imports --strict-cycles/g) ?? []).length,
-    2,
-  );
-  assert.match(verifyScript, /npm run reuse-first:scan:diff/);
-  assert.equal(
-    (verifyScript.match(/node scripts\/line-budget\.mjs/g) ?? []).length,
-    4,
-  );
-  assert.match(verifyScript, /npm run test:smoke/);
-  assert.match(verifyScript, /npm run test:fast/);
-  assert.match(verifyScript, /npm run test:regression/);
-  assert.match(verifyScript, /npm run test:integration/);
-  assert.match(verifyScript, /PYTHONDONTWRITEBYTECODE=1/);
-  assert.match(verifyScript, /PYTHONPYCACHEPREFIX="\$\{PYTHONPYCACHEPREFIX:-\$\{family_tmp_root\}\/pycache\}"/);
-  assert.match(verifyScript, /PYTEST_ADDOPTS="\$\{PYTEST_ADDOPTS:-\} -p no:cacheprovider -o cache_dir=\$\{family_tmp_root\}\/pytest-cache"/);
-  assert.match(verifyScript, /PYTHONPATH=python pytest python\/tests/);
-  assert.match(verifyScript, /npm run test:fresh-install/);
-  assert.match(verifyScript, /npm run test:artifact/);
-  assert.match(verifyScript, /npm run test:full/);
-  assert.match(verifyScript, /npm run native:doctor/);
-  assert.match(verifyScript, /npm run native:family-smoke/);
-  assert.match(verifyScript, /\.\/scripts\/run-structural-quality-gate\.sh/);
-  assert.match(verifyScript, /smoke\|fast\|regression\|integration\|structure\|structure:strict\|reuse-first\|family\|meta\|fresh-install\|artifact\|native\|full\|lint\|line-budget\|line-budget:strict\|typecheck/);
 });

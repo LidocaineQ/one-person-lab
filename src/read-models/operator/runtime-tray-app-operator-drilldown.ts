@@ -39,7 +39,6 @@ import {
   buildStageProductionEvidence,
   buildStageProductionEvidenceReceiptRoutes,
   buildStandardAgentTemplateConsumptionProjection,
-  buildWorkstreamOperatingLoop,
   currentControlStateProjection,
   decisionMapRefs,
   domainProjectionRefs,
@@ -72,7 +71,7 @@ import {
   typedBlockerRefs,
   uniqueRefs,
   uniqueStrings,
-} from './runtime-tray-app-operator-drilldown-parts/index.ts'; // reuse-first: allow stable legacy file path
+} from './runtime-tray-app-operator-drilldown-parts/index.ts';
 import {
   buildEvidenceEnvelopeProjection,
 } from '../../authority/evidence/index.ts';
@@ -240,13 +239,6 @@ export function buildAppOperatorDrilldown(input: {
   const lifecycleRefs = buildLifecycleLedgerRefs();
   const safeActions = safeActionRefs(actionRefs, lifecycleRefs);
   const executionBridge = buildAppExecutionBridge(actionRefs, periodicRefs, lifecycleRefs);
-  const workstreamOperatingLoop = buildWorkstreamOperatingLoop({
-    attempts,
-    domainDispatchEvidence,
-    artifactRefs,
-    packageLifecycle,
-    memoryRefs,
-  });
   const memoryArtifactLifecycleEvidenceProjection =
     buildMemoryArtifactLifecycleEvidenceProjection();
   const currentWorkUnitItems = (input.currentWorkUnitProjections ?? [])
@@ -427,22 +419,6 @@ export function buildAppOperatorDrilldown(input: {
     attempt_true_path_observed_count: truePathProofs.filter((proof) =>
       stringValue(proof.proof_status) === 'observed'
     ).length,
-    workstream_operating_loop_workstream_count:
-      record(workstreamOperatingLoop.summary).workstream_count,
-    workstream_operating_loop_artifact_first_review_available_count:
-      record(workstreamOperatingLoop.summary).artifact_first_review_available_count,
-    workstream_operating_loop_deliverable_progress_workstream_count:
-      record(workstreamOperatingLoop.summary).deliverable_progress_workstream_count,
-    workstream_operating_loop_platform_repair_only_workstream_count:
-      record(workstreamOperatingLoop.summary).platform_repair_only_workstream_count,
-    workstream_operating_loop_goal_oracle_missing_count:
-      record(workstreamOperatingLoop.summary).goal_oracle_missing_count,
-    workstream_operating_loop_goal_oracle_target_anchor_observed_count:
-      record(workstreamOperatingLoop.summary).goal_oracle_target_anchor_observed_count,
-    workstream_operating_loop_deliverable_target_ref_observed_count:
-      record(workstreamOperatingLoop.summary).deliverable_target_ref_observed_count,
-    workstream_operating_loop_goal_oracle_advisory_count:
-      record(workstreamOperatingLoop.summary).goal_oracle_advisory_count,
     domain_current_work_unit_projection_count:
       record(domainCurrentWorkUnitProjection.summary).current_work_unit_count,
     current_work_unit_first_default_primary_source:
@@ -502,10 +478,6 @@ export function buildAppOperatorDrilldown(input: {
     sourceRef(
       '/runtime_tray_snapshot/app_operator_drilldown/standard_agent_template_consumption_refs',
       'standard_agent_template_consumption_refs',
-    ),
-    sourceRef(
-      '/runtime_tray_snapshot/app_operator_drilldown/workstream_operating_loop',
-      'workstream_operating_loop_projection',
     ),
     sourceRef(
       '/runtime_tray_snapshot/app_operator_drilldown/current_work_unit_first_read_model',
@@ -615,13 +587,11 @@ export function buildAppOperatorDrilldown(input: {
     production_evidence_tail_ledger: productionEvidenceTailLedger,
     evidence_envelope: evidenceEnvelope,
     semantic_conventions: record(record(evidenceEnvelope).semantic_conventions),
-    workstream_operating_loop: workstreamOperatingLoop,
     current_work_unit_first_read_model: currentWorkUnitFirstReadModel,
     domain_current_work_unit_projection: domainCurrentWorkUnitProjection,
     runtime_workbench: {
       archived_attempts: recordList(input.stageAttemptWorkbench.archived_attempts),
       memory_trace_projection: memoryTrace,
-      workstream_operating_loop: workstreamOperatingLoop,
       current_work_unit_first_read_model: currentWorkUnitFirstReadModel,
       domain_current_work_unit_projection: domainCurrentWorkUnitProjection,
     },

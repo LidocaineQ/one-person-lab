@@ -59,7 +59,7 @@ opl packages status --package-id opl-flow --json >/tmp/opl-flow-status.json
 
 node <<'NODE'
 const fs = require('fs');
-const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8')); // reuse-first: allow Docker inline smoke JSON boundary.
+const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
 const packages = [
   {
     packageId: 'mas',
@@ -164,7 +164,7 @@ NODE
 
 node <<'NODE'
 const fs = require('fs');
-const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8')); // reuse-first: allow Docker inline smoke JSON boundary.
+const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
 const install = readJson('/tmp/opl-flow-install.json');
 const status = readJson('/tmp/opl-flow-status.json');
 const packageInstall = install.opl_agent_package_install;
@@ -268,7 +268,7 @@ fs.writeFileSync(binary, [
   "const args = process.argv.slice(2);",
   "const stateFile = process.env.FIXTURE_PLUGIN_STATE;",
   "const sourcePath = process.env.FIXTURE_PLUGIN_SOURCE;",
-  "let state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : { installed: false, version: '9.1.0', marketplaceSource: 'future-carrier' }; // reuse-first: allow test-only fake carrier state boundary.",
+  "let state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : { installed: false, version: '9.1.0', marketplaceSource: 'future-carrier' };
   "if (args.join(' ') === 'plugin marketplace list --json') {",
   "  process.stdout.write(JSON.stringify({ marketplaces: state.marketplaceSource ? [{ marketplaceSource: { sourceType: 'local', source: state.marketplaceSource } }] : [] }));",
   "} else if (args[0] === 'plugin' && args[1] === 'marketplace' && args[2] === 'add') {",
@@ -307,7 +307,7 @@ opl app state --profile fast --json >/tmp/future-agent-app-state.json
 
 node <<'NODE'
 const fs = require('fs');
-const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8')); // reuse-first: allow Docker inline smoke JSON boundary.
+const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
 const install = readJson('/tmp/future-agent-install.json').opl_agent_package_install;
 const status = readJson('/tmp/future-agent-status.json').opl_agent_package_status;
 const list = readJson('/tmp/future-agent-list.json').opl_agent_packages;
@@ -350,7 +350,7 @@ opl packages status --package-id future.agent-lab --json >/tmp/future-agent-afte
 
 node <<'NODE'
 const fs = require('fs');
-const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8')); // reuse-first: allow Docker inline smoke JSON boundary.
+const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
 const removed = readJson('/tmp/future-agent-uninstall.json').opl_agent_package_uninstall;
 const after = readJson('/tmp/future-agent-after-remove.json').opl_agent_package_status;
 if (removed?.status !== 'uninstalled' || after?.status !== 'not_installed') {

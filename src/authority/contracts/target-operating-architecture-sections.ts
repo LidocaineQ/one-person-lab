@@ -739,6 +739,5 @@ export function validateTargetOperatingArchitectureMultiPlaneModel(
 }
 
 export {
-  validateOneShotPlanLandingModel,
   validateTargetOperatingArchitectureExperienceModel,
 } from './target-operating-architecture-plan-experience.ts';

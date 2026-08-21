@@ -30,7 +30,6 @@ import { buildAppDrilldownCurrentOwnerDeltaReadModel } from './current-owner-del
 import { buildAppOperatorOwnerDeltaTopline } from './owner-delta-topline.ts';
 import { buildOwnerPayloadWorkorder } from './owner-payload-workorder.ts';
 import { buildOwnerDeltaFirstProjection } from './owner-delta-first.ts';
-import { ownerDeltaAvailable } from './owner-delta-availability.ts';
 import { splitOperatorAttentionCounts } from '../framework-readiness-attention-counts.ts';
 import {
   LAZY_LOAD_TARGETS,
@@ -620,15 +619,11 @@ function evidenceNextSteps(operatorProjection: JsonRecord) {
 function buildAttentionFirstPayload(operatorProjection: JsonRecord) {
   const evidenceAfterContract = evidenceAfterContractAttention(operatorProjection);
   const evidenceNextStepsProjection = evidenceNextSteps(operatorProjection);
-  const workstreamOperatingLoop = record(operatorProjection.workstream_operating_loop);
   const actions = defaultSelectedSafeActionCandidates(
     safeActionRoutes(operatorProjection),
     operatorProjection,
     {
-      ownerDeltaAvailable: ownerDeltaAvailable({
-        evidenceNextStepsProjection,
-        workstreamOperatingLoop,
-      }),
+      ownerDeltaAvailable: numberValue(evidenceNextStepsProjection.total_count) > 0,
     },
   ).sort(compareDefaultSelectedSafeActions);
   const nextAction = actions[0] ?? null;
@@ -637,7 +632,6 @@ function buildAttentionFirstPayload(operatorProjection: JsonRecord) {
     nextSafeAction: selectedSafeAction,
     evidenceAfterContract,
     evidenceNextSteps: evidenceNextStepsProjection,
-    workstreamOperatingLoop,
     domainCurrentWorkUnitProjection:
       record(operatorProjection.domain_current_work_unit_projection),
   });
@@ -666,7 +660,6 @@ function buildAttentionFirstPayload(operatorProjection: JsonRecord) {
     owner_delta_first: ownerDeltaFirst,
     evidence_after_contract: evidenceAfterContract,
     evidence_next_steps: evidenceNextStepsProjection,
-    workstream_operating_loop: workstreamOperatingLoop,
     codex_app_runtime_role: record(operatorProjection.codex_app_runtime_role),
     next_safe_action: selectedSafeAction,
     additional_safe_action_count: Math.max(actions.length - (nextAction ? 1 : 0), 0),

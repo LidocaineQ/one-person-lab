@@ -51,15 +51,6 @@ function selectedPayloadOwnerFirst(input: {
       'one-person-lab',
     );
   }
-  if (primarySource === 'workstream_operating_loop') {
-    return concreteOwner(
-      input.primary.owner,
-      input.primary.domain_id,
-      input.evidenceNextSteps.next_owner,
-      input.primary.payload_owner,
-      'one-person-lab',
-    );
-  }
   const selectedPayloadOwner = stringValue(input.nextSafeAction.payload_owner);
   if (selectedPayloadOwner && selectedPayloadOwner !== generic) {
     return canonicalOwnerId(selectedPayloadOwner);
@@ -78,53 +69,6 @@ function selectedPayloadOwnerFirst(input: {
     input.nextSafeAction.owner,
     'one-person-lab',
   );
-}
-
-function firstWorkstreamRequiringOwner(loop: JsonRecord) {
-  const actionableWorkstreams = recordList(loop.workstreams).filter((item) =>
-    stringValue(record(item.next_steering_action).action_id) !== 'continue_workstream_observation'
-  );
-  const defaultOwnerDeltaEligibleWorkstreams = actionableWorkstreams.filter((item) =>
-    !isUnboundDispatchTargetAnchorProvenance(item)
-  );
-  const closedActionableWorkstreams = defaultOwnerDeltaEligibleWorkstreams.filter((item) =>
-    stringValue(item.heartbeat_status) === 'closed'
-    || stringValue(item.closeout_receipt_status) === 'accepted_typed_closeout'
-    || stringValue(item.attempt_status) === 'completed'
-    || stringValue(item.local_status) === 'completed'
-  );
-  return defaultOwnerDeltaEligibleWorkstreams
-    .filter((item) => item.default_actionable === true)
-    .sort(compareWorkstreamCurrentness)[0]
-    ?? closedActionableWorkstreams
-      .filter((item) => stringValue(item.default_actionability_status) !== 'superseded')
-      .sort(compareWorkstreamCurrentness)[0]
-    ?? defaultOwnerDeltaEligibleWorkstreams
-      .filter((item) => stringValue(item.default_actionability_status) !== 'superseded')
-      .sort(compareWorkstreamCurrentness)[0]
-    ?? recordList(loop.workstreams)
-      .filter((item) => stringValue(item.default_actionability_status) !== 'superseded')
-      .filter((item) => !isUnboundDispatchTargetAnchorProvenance(item))
-      .sort(compareWorkstreamCurrentness)[0]
-    ?? {};
-}
-
-function isUnboundDispatchTargetAnchorProvenance(workstream: JsonRecord) {
-  return stringValue(workstream.default_actionability_status)
-      === 'not_actionable_unbound_dispatch_identity'
-    && stringValue(record(workstream.next_steering_action).action_id)
-      === 'record_owner_or_gate_for_target_anchor'
-    && !hasOwnerAnswerOrHandoffAnchor(workstream);
-}
-
-function hasOwnerAnswerOrHandoffAnchor(workstream: JsonRecord) {
-  return [
-    'owner_receipt_refs',
-    'typed_blocker_refs',
-    'quality_gate_refs',
-    'owner_handoff_packet_refs',
-    'stage_pack_refs',
-  ].some((key) => stringList(workstream[key]).length > 0);
 }
 
 function timestampMs(value: unknown) {
@@ -147,51 +91,6 @@ function eventSequence(value: unknown) {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return timestampMs(text);
-}
-
-function heartbeatRank(value: unknown) {
-  const status = stringValue(value);
-  if (status === 'running' || status === 'checkpointed') {
-    return 3;
-  }
-  if (status === 'blocked') {
-    return 2;
-  }
-  if (status === 'closed') {
-    return 1;
-  }
-  return 0;
-}
-
-function compareWorkstreamCurrentness(left: JsonRecord, right: JsonRecord) {
-  return heartbeatRank(right.heartbeat_status) - heartbeatRank(left.heartbeat_status)
-    || timestampMs(right.updated_at) - timestampMs(left.updated_at)
-    || timestampMs(right.created_at) - timestampMs(left.created_at)
-    || String(right.stage_attempt_id ?? '').localeCompare(String(left.stage_attempt_id ?? ''));
-}
-
-function nextActionFromWorkstream(workstream: JsonRecord) {
-  const action = record(workstream.next_steering_action);
-  if (Object.keys(action).length === 0) {
-    return {};
-  }
-  return {
-    step_kind: stringValue(action.action_kind) ?? stringValue(action.action_id),
-    owner: concreteOwner(workstream.domain_id, action.owner),
-    status: stringValue(action.status),
-    domain_id: stringValue(workstream.domain_id),
-    stage_id: stringValue(workstream.stage_id),
-    stage_attempt_id: stringValue(workstream.stage_attempt_id),
-    workstream_id: stringValue(workstream.workstream_id),
-    required_refs_any_of: stringList(action.required_next_refs_any_of),
-    artifact_review_refs: stringList(action.artifact_review_refs),
-    typed_blocker_refs: stringList(action.typed_blocker_refs),
-    latest_owner_answer_ref: stringValue(workstream.latest_owner_answer_ref),
-    latest_owner_answer_kind: stringValue(workstream.latest_owner_answer_kind),
-    latest_owner_answer_is_domain_ready_verdict:
-      workstream.latest_owner_answer_is_domain_ready_verdict === true,
-    source: 'workstream_operating_loop',
-  };
 }
 
 function currentWorkUnitOwnerPriority(item: JsonRecord) {
@@ -282,13 +181,9 @@ function firstActionCandidate(input: {
   currentWorkUnitAction: JsonRecord;
   nextSafeAction: JsonRecord;
   evidenceStep: JsonRecord;
-  workstreamAction: JsonRecord;
 }) {
   if (Object.keys(input.currentWorkUnitAction).length > 0) {
     return input.currentWorkUnitAction;
-  }
-  if (Object.keys(input.workstreamAction).length > 0) {
-    return input.workstreamAction;
   }
   if (Object.keys(input.evidenceStep).length > 0) {
     return {
@@ -332,19 +227,9 @@ function firstActionCandidate(input: {
 
 function requiredDelta(input: {
   primary: JsonRecord;
-  workstreamAction: JsonRecord;
   nextSafeAction: JsonRecord;
 }) {
   const primaryStep = stringValue(input.primary.step_kind);
-  if (primaryStep === 'owner_steering_required') {
-    return 'domain_owner_receipt_quality_gate_or_typed_blocker_required';
-  }
-  if (primaryStep === 'artifact_first_review') {
-    return 'artifact_review_or_domain_owner_receipt_required';
-  }
-  if (primaryStep === 'typed_blocker_followthrough') {
-    return 'typed_blocker_owner_followthrough_required';
-  }
   if (primaryStep === 'domain_dispatch_evidence_group_workorder'
     || primaryStep === 'domain_dispatch_evidence_workorder') {
     return 'domain_dispatch_owner_receipt_or_typed_blocker_payload_required';
@@ -370,7 +255,6 @@ export function buildOwnerDeltaFirstProjection(input: {
   nextSafeAction: JsonRecord | null;
   evidenceAfterContract: JsonRecord;
   evidenceNextSteps: JsonRecord;
-  workstreamOperatingLoop: JsonRecord;
   domainCurrentWorkUnitProjection?: JsonRecord;
 }) {
   const nextSafeAction = record(input.nextSafeAction);
@@ -378,14 +262,11 @@ export function buildOwnerDeltaFirstProjection(input: {
     record(input.domainCurrentWorkUnitProjection),
   );
   const currentWorkUnitAction = nextActionFromCurrentWorkUnit(currentWorkUnit);
-  const workstream = firstWorkstreamRequiringOwner(input.workstreamOperatingLoop);
-  const workstreamAction = nextActionFromWorkstream(workstream);
   const evidenceStep = firstEvidenceStep(input.evidenceNextSteps);
   const primary = firstActionCandidate({
     currentWorkUnitAction,
     nextSafeAction,
     evidenceStep,
-    workstreamAction,
   });
   const owner = selectedPayloadOwnerFirst({
     nextSafeAction,
@@ -394,20 +275,15 @@ export function buildOwnerDeltaFirstProjection(input: {
   });
   const safeActionAvailable = Object.keys(nextSafeAction).length > 0;
   const totalEvidenceNextStepCount = numberValue(input.evidenceNextSteps.total_count);
-  const goalOracleMissingCount =
-    numberValue(record(input.workstreamOperatingLoop.summary).goal_oracle_missing_count);
   const domainBlockedAttentionCount =
     numberValue(input.evidenceAfterContract.domain_blocked_attention_count);
   const requiredRefsAnyOf = stringList(primary.required_refs_any_of);
   const nextRequiredDelta = requiredDelta({
     primary,
-    workstreamAction,
     nextSafeAction,
   });
   const currentWorkUnitNeedsOwnerDelta = Object.keys(currentWorkUnitAction).length > 0;
-  const workstreamNeedsOwnerDelta = Object.keys(workstreamAction).length > 0
-    && stringValue(workstreamAction.step_kind) !== 'operator_observation';
-  const status = currentWorkUnitNeedsOwnerDelta || workstreamNeedsOwnerDelta || goalOracleMissingCount > 0
+  const status = currentWorkUnitNeedsOwnerDelta
     ? 'owner_delta_required'
     : safeActionAvailable
       ? 'operator_safe_action_available'
@@ -430,7 +306,6 @@ export function buildOwnerDeltaFirstProjection(input: {
     domain_current_work_unit_item:
       Object.keys(currentWorkUnit).length > 0 ? currentWorkUnit : null,
     selected_safe_action: Object.keys(nextSafeAction).length > 0 ? nextSafeAction : null,
-    workstream_item: Object.keys(workstream).length > 0 ? workstream : null,
     evidence_next_step: Object.keys(evidenceStep).length > 0 ? evidenceStep : null,
     summary: {
       safe_action_available: safeActionAvailable,
@@ -439,18 +314,13 @@ export function buildOwnerDeltaFirstProjection(input: {
       owner_payload_required_attention_count:
         numberValue(input.evidenceAfterContract.operator_payload_required_attention_count),
       domain_blocked_attention_count: domainBlockedAttentionCount,
-      workstream_count: numberValue(record(input.workstreamOperatingLoop.summary).workstream_count),
       domain_current_work_unit_count:
         numberValue(record(record(input.domainCurrentWorkUnitProjection).summary).current_work_unit_count),
-      workstream_goal_oracle_missing_count: goalOracleMissingCount,
-      workstream_next_steering_action_count:
-        numberValue(record(input.workstreamOperatingLoop.summary).next_steering_action_count),
     },
     raw_attention_default_policy:
       'blocked_refs_only_envelopes_stage_replay_packets_and_ledger_counters_are_full_detail_drilldown_not_primary_operator_next_step',
     full_detail_sections: [
       'attention_first_payload.evidence_next_steps',
-      'attention_first_payload.workstream_operating_loop',
       'attention_first_payload.domain_current_work_unit_projection',
       'evidence_envelope',
       'stage_production_evidence',

@@ -114,7 +114,7 @@ function bindStageEvidenceManifest(stateRoot: string, fixtureContractsRoot: stri
 }
 
 function readFullAppOperatorProjection(stateRoot: string, fixtureContractsRoot: string) {
-  return runCli(['runtime', 'app-operator-drilldown', '--detail', 'full'], { // reuse-first: allow existing public CLI projection command in tests.
+  return runCli(['runtime', 'app-operator-drilldown', '--detail', 'full'], {
     OPL_STATE_DIR: stateRoot,
     OPL_CONTRACTS_DIR: fixtureContractsRoot,
   }).app_operator_drilldown;

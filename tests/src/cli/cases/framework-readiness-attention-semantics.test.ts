@@ -25,7 +25,6 @@ test('framework readiness status treats blocked refs-only attention separately f
       openTailCount: 0,
       operatorActionableAttentionCount: 0,
       domainBlockedAttentionCount: 7,
-      semanticAttentionGateCount: 0,
     }),
     'framework_control_plane_available_with_blocked_refs_only_attention',
   );
@@ -35,7 +34,6 @@ test('framework readiness status treats blocked refs-only attention separately f
       openTailCount: 0,
       operatorActionableAttentionCount: 3,
       domainBlockedAttentionCount: 7,
-      semanticAttentionGateCount: 0,
     }),
     'framework_control_plane_available_with_operator_attention',
   );
@@ -45,7 +43,6 @@ test('framework readiness status treats blocked refs-only attention separately f
       openTailCount: 0,
       operatorActionableAttentionCount: 0,
       domainBlockedAttentionCount: 0,
-      semanticAttentionGateCount: 0,
     }),
     'framework_control_plane_available',
   );

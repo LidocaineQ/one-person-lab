@@ -19,7 +19,6 @@ import {
   buildFamilyStageReadinessInspect,
   buildFamilyStagesList,
 } from '../../authority/stages/index.ts';
-import { buildOplFrameworkSemanticHygieneAudit } from './framework-semantic-hygiene.ts';
 import {
   evidenceEnvelopeOpenCount,
   evidenceEnvelopeSummary,
@@ -31,9 +30,6 @@ import {
   openSafeActionPayloadCounts,
   splitOperatorAttentionCountsWithSafeActionPayload,
 } from './framework-readiness-attention-counts.ts';
-import {
-  semanticHygieneContractFloor,
-} from './framework-readiness-semantic-hygiene.ts';
 import {
   FRAMEWORK_READINESS_SOURCE_COMMANDS as SOURCE_COMMANDS,
   frameworkReadinessStageSourceCommand,
@@ -175,7 +171,6 @@ export async function buildFrameworkReadinessSummary(
     options.runtimeSnapshotProvider,
     'framework readiness',
   );
-  const semanticHygiene = buildOplFrameworkSemanticHygieneAudit(contracts);
   const agentReadinessDiagnostic = buildAgentReadinessDiagnostic();
   const agentReadiness = agentReadinessDiagnostic.readiness;
   const generatedDefaultEntrySourceOfWork =
@@ -220,7 +215,6 @@ export async function buildFrameworkReadinessSummary(
     })).family_runtime_evidence_worklist,
   );
 
-  const semanticSummary = record(semanticHygiene.summary);
   const agentSummary = record(agentReadiness.summary);
   const stageRunDomainAdoptionReadModel = record(record(agentReadiness).stage_run_domain_adoption_read_model);
   const packSummary = record(packCompiler.summary);
@@ -251,9 +245,6 @@ export async function buildFrameworkReadinessSummary(
   );
   const developerModeLiveCloseoutEvidence = record(
     appEvidenceAfterContract.developer_mode_live_closeout_evidence,
-  );
-  const workstreamOperatingLoop = record(
-    record(appOperatorDrilldown.attention_first_payload).workstream_operating_loop,
   );
   const ownerPayloadGroupAttentionCount =
     numberValue(appEvidenceAfterContract.owner_payload_group_attention_count);
@@ -346,7 +337,6 @@ export async function buildFrameworkReadinessSummary(
   const appLiveEvidenceTailCount = appOpenTailCount;
   const stageReceiptFreshnessTailCount =
     stageProductionCallerTailCount + stageReceiptFreshnessOpenWorkorderCount;
-  const semanticAttentionGateCount = numberValue(semanticSummary.attention_required_gate_count);
   const domainDispatchAttentionCount =
     numberValue(appSummary.domain_dispatch_attention_count)
     || (
@@ -395,7 +385,6 @@ export async function buildFrameworkReadinessSummary(
     openTailCount,
     operatorActionableAttentionCount: attentionCounts.operatorActionableAttentionCount,
     domainBlockedAttentionCount: attentionCounts.domainBlockedAttentionCount,
-    semanticAttentionGateCount,
     hardBlockerCount,
   });
   const ownerDeltaHandoffSummary = buildOwnerDeltaHandoffSummaryFromFrameworkReadiness({
@@ -410,17 +399,12 @@ export async function buildFrameworkReadinessSummary(
   });
   const attentionFirstPayload = frameworkAttentionFirstPayload({
     status: frameworkStatus,
-    semanticHygieneContractFloor: semanticHygieneContractFloor(
-      semanticHygiene,
-      SOURCE_COMMANDS.semantic_hygiene,
-    ),
     hardBlockerCount,
     agentHardBlockerCount,
     generatedDefaultEntrySourceOfWorkBlockedCount,
     stageHardBlockerCount,
     packCompilerBlockerCount,
     diagnosticFailureCount,
-    semanticAttentionGateCount,
     stageWarningCount,
     agentStructuralEvidenceTailCount,
     appLiveEvidenceTailCount,
@@ -447,7 +431,6 @@ export async function buildFrameworkReadinessSummary(
     memoryArtifactLifecycleEvidence,
     appReleaseUserPathEvidence,
     developerModeLiveCloseoutEvidence,
-    workstreamOperatingLoop,
     familyStallLineage,
     domainDispatchEvidenceWorkorderGroupAttentionItems,
     domainDispatchEvidenceWorkorderAttentionItems,
@@ -478,7 +461,6 @@ export async function buildFrameworkReadinessSummary(
     stage_readiness_hard_blocker_count: stageHardBlockerCount,
     pack_compiler_hard_blocker_count: packCompilerBlockerCount,
     framework_diagnostic_failure_count: diagnosticFailureCount,
-    semantic_hygiene_attention_required_gate_count: semanticAttentionGateCount,
     agent_structural_evidence_tail_open_count: agentStructuralEvidenceTailCount,
     provider_slo_guarded_open_tail_count: providerSloGuardedOpenTailCount,
     app_live_evidence_tail_raw_open_count: appRawOpenTailCount,
@@ -549,18 +531,6 @@ export async function buildFrameworkReadinessSummary(
     open_tail_count: openTailCount,
     provider_slo_cadence_window_status: appSummary.provider_slo_cadence_window_status ?? null,
     provider_slo_capability_status: appSummary.provider_slo_capability_status ?? null,
-    workstream_operating_loop_workstream_count:
-      numberValue(record(workstreamOperatingLoop.summary).workstream_count),
-    workstream_operating_loop_artifact_first_review_available_count:
-      numberValue(record(workstreamOperatingLoop.summary).artifact_first_review_available_count),
-    workstream_operating_loop_goal_oracle_missing_count:
-      numberValue(record(workstreamOperatingLoop.summary).goal_oracle_missing_count),
-    workstream_operating_loop_goal_oracle_target_anchor_observed_count:
-      numberValue(record(workstreamOperatingLoop.summary).goal_oracle_target_anchor_observed_count),
-    workstream_operating_loop_deliverable_target_ref_observed_count:
-      numberValue(record(workstreamOperatingLoop.summary).deliverable_target_ref_observed_count),
-    workstream_operating_loop_goal_oracle_advisory_count:
-      numberValue(record(workstreamOperatingLoop.summary).goal_oracle_advisory_count),
     owner_delta_handoff_status:
       ownerDeltaHandoffSummary.status ?? null,
     owner_delta_handoff_current_operator_action_state:
@@ -684,11 +654,6 @@ export async function buildFrameworkReadinessSummary(
           SOURCE_COMMANDS.family_runtime_evidence_worklist,
         ],
       }),
-      semantic_hygiene: {
-        source_command: SOURCE_COMMANDS.semantic_hygiene,
-        summary: semanticSummary,
-        authority_boundary: semanticHygiene.authority_boundary,
-      },
       agent_conformance_tail: {
         source_command: SOURCE_COMMANDS.agents_readiness,
         status: agentReadiness.status,
@@ -882,10 +847,6 @@ export async function buildFrameworkReadinessSummary(
       developer_mode_live_closeout_evidence: {
         source_command: SOURCE_COMMANDS.app_operator_drilldown,
         ...developerModeLiveCloseoutEvidence,
-      },
-      workstream_operating_loop: {
-        source_command: SOURCE_COMMANDS.app_operator_drilldown,
-        ...workstreamOperatingLoop,
       },
       runtime_manager_route_support: {
         source_command: SOURCE_COMMANDS.app_operator_drilldown,

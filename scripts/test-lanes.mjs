@@ -73,13 +73,13 @@ const sourceTestRoots = discoverTestRoots(activeSourceTestFiles);
 
 const readModelGateCliExclusions = [
   ...expandTestFiles([
-    'tests/src/cli/cases/{agents-conformance-mas-tombstones,agents-conformance-stage-pack-v2,agents-default-callers,agents-residue-decisions,domain-pack-compiler-canonical-targets,framework-readiness-cli-surface,system-dependency-doctor,web-runtime}.test.ts',
+    'tests/src/cli/cases/{agents-conformance-stage-pack-v2,agents-default-callers,agents-residue-decisions,domain-pack-compiler-canonical-targets,framework-readiness-cli-surface,system-dependency-doctor,web-runtime}.test.ts',
     'tests/src/cli/cases/connect-*.test.ts',
     'tests/src/cli/cases/pack-*.test.ts',
     'tests/src/cli/cases/release-*.test.ts',
   ]),
   ...expandTestFiles([
-    'tests/src/cli/cases/{agents-run,artifact-provenance-bundle-ledger,brand-modules,capability-map-audit-script,cli-broken-pipe,cli-command-registry,family-manifest-fixtures,family-runtime-command-parser,framework-operating-maturity,okf-command-surface,opl-foundation-skills-plugin-surface,packages,read-only-cli-invocation,runtime-brand-module-l5-evidence-ledger,runtime-environment-substrate-command-surface,runtime-stage-candidate-portfolio-read-model,runtime-stage-run-evidence-pack-read-model,standard-agent-unified-public-surfaces,system-semantic-hygiene}.test.ts',
+    'tests/src/cli/cases/{agents-run,artifact-provenance-bundle-ledger,brand-modules,capability-map-audit-script,cli-broken-pipe,cli-command-registry,family-manifest-fixtures,family-runtime-command-parser,framework-operating-maturity,okf-command-surface,opl-foundation-skills-plugin-surface,packages,read-only-cli-invocation,runtime-brand-module-l5-evidence-ledger,runtime-environment-substrate-command-surface,runtime-stage-candidate-portfolio-read-model,runtime-stage-run-evidence-pack-read-model,standard-agent-unified-public-surfaces}.test.ts',
   ]),
 ];
 
@@ -101,7 +101,6 @@ const readModelGateTopLevelPatterns = [
   'tests/src/framework-readiness-owner-delta-handoff-summary.test.ts',
   'tests/src/family-runtime-evidence-worklist-family-scope.test.ts',
   'tests/src/runtime-app-operator-selected-safe-action.test.ts',
-  'tests/src/verification-test-governance.test.ts',
 ];
 
 const readModelGateTestFiles = [
@@ -126,12 +125,11 @@ const readModelGateTestFiles = [
 
 const fastLaneExcludedTestFiles = new Set(expandTestFiles([
   'tests/built/**/*.test.{ts,mjs}',
-  'tests/src/{agent-profile-spine,cli-acp-runtime,cli-codex-default-shell-sync-skills,cli-codex-default-shell,cli-install,cli,cli-modularization,domain-definition-contract,evidence-grounded-decision-agent-profile,family-domain-catalog,family-entry-contracts,family-executor-adapter-contract,family-orchestration,fresh-install-smoke,handoff-bundle,opl-skills-boundary,product-entry-agent-executor,product-entry-companions,product-entry-runtime,profile-capability-plan,refactor-patrol-state,reuse-first-scan,runtime-state-paths,source-module-boundary,source-module-public-imports,stage-run-mag-integration,standard-agent-conformance-profile}.test.ts',
-  'tests/src/cli/cases/{agents-conformance-mas-tombstones,agents-conformance-stage-pack-v2,agents-default-callers,agents-residue-decisions,domain-pack-compiler-canonical-targets,framework-readiness-cli-surface,system-dependency-doctor,web-runtime}.test.ts',
+  'tests/src/{agent-profile-spine,cli-acp-runtime,cli-codex-default-shell-sync-skills,cli-codex-default-shell,cli-install,cli,cli-modularization,domain-definition-contract,evidence-grounded-decision-agent-profile,family-domain-catalog,family-entry-contracts,family-executor-adapter-contract,family-orchestration,fresh-install-smoke,handoff-bundle,opl-skills-boundary,product-entry-agent-executor,product-entry-companions,product-entry-runtime,profile-capability-plan,refactor-patrol-state,runtime-state-paths,source-module-boundary,source-module-public-imports,stage-run-mag-integration}.test.ts',
+  'tests/src/cli/cases/{agents-conformance-stage-pack-v2,agents-default-callers,agents-residue-decisions,domain-pack-compiler-canonical-targets,framework-readiness-cli-surface,system-dependency-doctor,web-runtime}.test.ts',
 ]));
 
 const fastReadModelSharedTestFiles = new Set([
-  'tests/src/verification-test-governance.test.ts',
   'tests/src/cli/cases/domain-pack-compiler-active-caller-targets.test.ts',
   'tests/src/cli/cases/domain-pack-compiler-generated-interfaces.test.ts',
   'tests/src/cli/cases/domain-pack-compiler-standard-agent-contract-pack.test.ts',
@@ -182,7 +180,7 @@ const lanes = {
   smoke: [
     { kind: 'npm', args: ['run', 'source:modules', '--', '--strict-imports', '--strict-cycles'] },
     sourceTest([
-      '{verification-command-surfaces,target-architecture-schema-contracts,evidence-grounded-decision-agent-profile,agent-profile-spine,standard-agent-conformance-profile,profile-capability-plan,evidence-grounded-stagecraft-runway,evidence-grounded-substrate,cognitive-computation-kernel-contract,advisory-knowledge-boundary-contract,opl-flow-completion-audit-contract,verification-test-governance,test-lanes-state-isolation,reuse-first-scan,source-module-boundary,source-module-public-imports,cli-modularization,runtime-state-paths,runtime-environment-substrate,opl-session-runtime}.test.ts',
+      '{verification-command-surfaces,target-architecture-schema-contracts,evidence-grounded-decision-agent-profile,agent-profile-spine,profile-capability-plan,evidence-grounded-stagecraft-runway,evidence-grounded-substrate,cognitive-computation-kernel-contract,advisory-knowledge-boundary-contract,opl-flow-completion-audit-contract,test-lanes-state-isolation,source-module-boundary,source-module-public-imports,cli-modularization,runtime-state-paths,runtime-environment-substrate,opl-session-runtime}.test.ts',
       'cli/cases/runtime-environment-substrate-command-surface.test.ts',
     ], { batchSize: 25 }),
   ],
@@ -212,9 +210,9 @@ const lanes = {
   ],
   meta: [
     sourceTest([
-      '{verification-command-surfaces,target-architecture-schema-contracts,cognitive-computation-kernel-contract,verification-test-governance,refactor-patrol-state,reuse-first-scan,cli-modularization,runtime-state-paths,current-owner-delta-read-model-cache,active-path-residue-scan,stale-compat-retirement-guard,family-product-operator-projection}.test.ts',
+      '{verification-command-surfaces,target-architecture-schema-contracts,cognitive-computation-kernel-contract,refactor-patrol-state,cli-modularization,runtime-state-paths,current-owner-delta-read-model-cache,family-product-operator-projection}.test.ts',
       'framework-readiness-attention-actions.test.ts',
-      'cli/cases/{system-semantic-hygiene,system-dependency-doctor,framework-readiness-binding-cases,framework-readiness,runtime-manifest-cache-timeout,framework-readiness-attention-semantics,framework-readiness-cli-surface,agents-conformance-stage-pack-v2,agents-conformance-mas-tombstones,agents-source-closure,agents-default-callers,agents-residue-decisions,domain-pack-compiler-canonical-targets}.test.ts',
+      'cli/cases/{system-dependency-doctor,framework-readiness-binding-cases,framework-readiness,runtime-manifest-cache-timeout,framework-readiness-attention-semantics,framework-readiness-cli-surface,agents-conformance-stage-pack-v2,agents-source-closure,agents-default-callers,agents-residue-decisions,domain-pack-compiler-canonical-targets}.test.ts',
     ], { batchSize: 10 }),
   ],
   regression: [

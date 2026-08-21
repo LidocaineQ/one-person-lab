@@ -33,9 +33,6 @@ case "$lane" in
     node scripts/line-budget.mjs
     ./scripts/run-structural-quality-gate.sh
     ;;
-  reuse-first)
-    npm run reuse-first:scan:diff
-    ;;
   family)
     family_tmp_cleanup=0
     if [ -n "${OPL_FAMILY_PYTHON_TMP_ROOT:-}" ]; then
@@ -84,7 +81,7 @@ case "$lane" in
     ;;
   *)
     echo "Unknown lane: $lane" >&2
-    echo "Usage: scripts/verify.sh [smoke|fast|regression|integration|structure|structure:strict|reuse-first|family|meta|fresh-install|artifact|native|full|lint|line-budget|line-budget:strict|typecheck]" >&2
+    echo "Usage: scripts/verify.sh [smoke|fast|regression|integration|structure|structure:strict|family|meta|fresh-install|artifact|native|full|lint|line-budget|line-budget:strict|typecheck]" >&2
     exit 1
     ;;
 esac
