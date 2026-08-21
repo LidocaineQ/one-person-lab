@@ -837,6 +837,120 @@ function resolvePayloadFileSource(value: unknown, sourceCommit: string) {
   return url;
 }
 
+function githubArchiveFileSource(source: URL, sourceCommit: string) {
+  if (source.protocol !== 'https:' || source.hostname !== 'raw.githubusercontent.com') return null;
+  const segments = source.pathname.split('/').filter(Boolean);
+  const [owner, repository, commit, ...relativePath] = segments;
+  if (!owner || !repository || commit !== sourceCommit || relativePath.length === 0) {
+    return localReadbackFailure(
+      'configured_codex_plugin_carrier_payload_invalid',
+      'Configured Package payload file source is not pinned to one GitHub commit.',
+    );
+  }
+  return {
+    key: `${owner}/${repository}@${commit}`,
+    archiveUrl: `https://codeload.github.com/${owner}/${repository}/tar.gz/${commit}`,
+    relativePath: relativePath.join('/'),
+  };
+}
+
+function materializeGithubArchive(input: {
+  packageId: string;
+  payloadFiles: readonly Record<string, unknown>[];
+  sourceCommit: string;
+  env: NodeJS.ProcessEnv;
+}) {
+  const sources = input.payloadFiles.map((candidate) => {
+    const source = resolvePayloadFileSource(candidate.source_url, input.sourceCommit);
+    return source ? { source, archive: githubArchiveFileSource(source, input.sourceCommit) } : null;
+  });
+  const githubSources = sources.filter(
+    (value): value is { source: URL; archive: NonNullable<ReturnType<typeof githubArchiveFileSource>> } =>
+      value !== null && value.archive !== null,
+  );
+  if (githubSources.length === 0) return null;
+  const archiveKeys = new Set(githubSources.map((value) => value.archive.key));
+  if (archiveKeys.size !== 1) {
+    return localReadbackFailure(
+      'configured_codex_plugin_carrier_payload_invalid',
+      'Configured Package payload files reference more than one GitHub archive.',
+      { package_id: input.packageId },
+    );
+  }
+  const archive = githubSources[0].archive;
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-archive-'));
+  const archivePath = path.join(temporaryRoot, 'source.tar.gz');
+  const curl = fs.existsSync('/usr/bin/curl') ? '/usr/bin/curl' : 'curl';
+  const download = spawnSync(curl, [
+    '--fail', '--silent', '--show-error', '--location',
+    '--proto', '=https', '--tlsv1.2',
+    '--connect-timeout', '10', '--max-time', '300',
+    archive.archiveUrl,
+    '--output', archivePath,
+  ], { encoding: 'utf8', env: input.env, maxBuffer: 8 * 1024 * 1024 });
+  if (download.status !== 0 || download.error) {
+    fs.rmSync(temporaryRoot, { recursive: true, force: true });
+    return localReadbackFailure(
+      'configured_codex_plugin_carrier_payload_download_failed',
+      'Configured Package payload archive download did not complete.',
+      {
+        package_id: input.packageId,
+        archive_url: archive.archiveUrl,
+        exit_status: download.status,
+        error: download.error?.message ?? download.stderr.trim() ?? null,
+      },
+    );
+  }
+  const extractRoot = path.join(temporaryRoot, 'source');
+  fs.mkdirSync(extractRoot, { recursive: true });
+  const extract = spawnSync('/usr/bin/tar', ['-xzf', archivePath, '-C', extractRoot], {
+    encoding: 'utf8',
+    env: input.env,
+    maxBuffer: 8 * 1024 * 1024,
+  });
+  if (extract.status !== 0 || extract.error) {
+    fs.rmSync(temporaryRoot, { recursive: true, force: true });
+    return localReadbackFailure(
+      'configured_codex_plugin_carrier_payload_invalid',
+      'Configured Package payload archive could not be extracted.',
+      { package_id: input.packageId, error: extract.error?.message ?? extract.stderr.trim() ?? null },
+    );
+  }
+  const roots = fs.readdirSync(extractRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory());
+  if (roots.length !== 1) {
+    fs.rmSync(temporaryRoot, { recursive: true, force: true });
+    return localReadbackFailure(
+      'configured_codex_plugin_carrier_payload_invalid',
+      'Configured Package payload archive has an invalid root.',
+      { package_id: input.packageId },
+    );
+  }
+  const sourceRoot = path.join(extractRoot, roots[0].name);
+  return {
+    sourceRoot,
+    cleanup: () => fs.rmSync(temporaryRoot, { recursive: true, force: true }),
+    pathFor: (relativePath: string) => {
+      const candidate = path.resolve(sourceRoot, ...relativePath.split('/'));
+      if (candidate !== sourceRoot && !candidate.startsWith(`${sourceRoot}${path.sep}`)) {
+        return localReadbackFailure(
+          'configured_codex_plugin_carrier_payload_invalid',
+          'Configured Package payload path escapes its source archive.',
+          { package_id: input.packageId, payload_path: relativePath },
+        );
+      }
+      const stat = fs.lstatSync(candidate, { throwIfNoEntry: false });
+      if (!stat?.isFile() || stat.isSymbolicLink()) {
+        return localReadbackFailure(
+          'configured_codex_plugin_carrier_payload_invalid',
+          'Configured Package payload archive is missing a declared physical file.',
+          { package_id: input.packageId, payload_path: relativePath },
+        );
+      }
+      return fs.readFileSync(candidate);
+    },
+  };
+}
+
 function writePayloadMarketplaceManifest(input: {
   marketplaceRoot: string;
   marketplaceId: string;
@@ -897,6 +1011,12 @@ function installPayloadMarketplace(input: {
   const stagingRoot = `${marketplaceRoot}.${process.pid}.${crypto.randomUUID()}.staging`;
   const pluginRoot = path.join(stagingRoot, 'plugins', projection.pluginId);
   const downloaded = new Map<string, Buffer>();
+  const archive = materializeGithubArchive({
+    packageId: input.packageId,
+    payloadFiles: payload.files.filter(isRecord),
+    sourceCommit: projection.sourceCommit,
+    env: input.env,
+  });
   try {
     for (const [index, candidate] of payload.files.entries()) {
       if (!isRecord(candidate)) {
@@ -913,6 +1033,8 @@ function installPayloadMarketplace(input: {
       let bytes: Buffer;
       if (source.protocol === 'file:') {
         bytes = fs.readFileSync(fileURLToPath(source));
+      } else if (archive) {
+        bytes = archive.pathFor(payloadRelativePath(candidate.path, `files[${index}].path`));
       } else {
         const curl = fs.existsSync('/usr/bin/curl') ? '/usr/bin/curl' : 'curl';
         const result = spawnSync(curl, [
@@ -1008,6 +1130,7 @@ function installPayloadMarketplace(input: {
     }
     return marketplaceRoot;
   } finally {
+    archive?.cleanup();
     fs.rmSync(stagingRoot, { recursive: true, force: true });
   }
 }
