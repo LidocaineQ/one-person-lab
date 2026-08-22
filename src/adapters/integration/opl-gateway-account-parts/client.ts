@@ -148,6 +148,20 @@ async function request(path: string, options: RequestOptions = {}) {
 
 export type GatewaySession = { access_token: string; refresh_token: string };
 
+const GATEWAY_LOGIN_RETRY_DELAY_MS = 500;
+
+function retryableGatewayLoginFailure(error: unknown) {
+  if (!(error instanceof FrameworkContractError)) return false;
+  const reasonCode = error.details?.reason_code;
+  return reasonCode === 'network_timeout'
+    || reasonCode === 'network_unreachable'
+    || reasonCode === 'gateway_unavailable';
+}
+
+function delay(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 export async function inspectGatewayPublicSettings() {
   const value = record(await request('/settings/public'));
   return {
@@ -159,13 +173,20 @@ export async function inspectGatewayPublicSettings() {
 
 export async function loginGateway(email: string, password: string): Promise<GatewaySession> {
   let value: Record<string, unknown>;
-  try {
-    value = record(await request('/auth/login', { method: 'POST', body: { email, password } }));
-  } catch (error) {
-    if (error instanceof FrameworkContractError && error.details?.http_status === 401) {
-      throw gatewayError('invalid_credentials', 'OPL Gateway email or password is incorrect.', 401);
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      value = record(await request('/auth/login', { method: 'POST', body: { email, password } }));
+      break;
+    } catch (error) {
+      if (error instanceof FrameworkContractError && error.details?.http_status === 401) {
+        throw gatewayError('invalid_credentials', 'OPL Gateway email or password is incorrect.', 401);
+      }
+      if (attempt === 0 && retryableGatewayLoginFailure(error)) {
+        await delay(GATEWAY_LOGIN_RETRY_DELAY_MS);
+        continue;
+      }
+      throw error;
     }
-    throw error;
   }
   const accessToken = text(value.access_token ?? value.accessToken ?? value.token);
   const refreshToken = text(value.refresh_token ?? value.refreshToken);
