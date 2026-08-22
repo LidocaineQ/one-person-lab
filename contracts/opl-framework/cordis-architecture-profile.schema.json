@@ -10,6 +10,7 @@
     "state",
     "machine_boundary",
     "source_refs",
+    "host_scope_boundary",
     "architecture_layers",
     "authority_boundary",
     "source_to_target_mapping",
@@ -29,6 +30,7 @@
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/repo_ref" }
     },
+    "host_scope_boundary": { "$ref": "#/$defs/host_scope_boundary" },
     "architecture_layers": {
       "type": "array",
       "minItems": 4,
@@ -54,6 +56,36 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^(contracts|src|tests|scripts|docs|package\\.json)(/|$)"
+    },
+    "host_scope_boundary": {
+      "type": "object",
+      "required": [
+        "framework_host",
+        "framework_host_scope",
+        "framework_host_unique_within_scope",
+        "studio_application_host",
+        "studio_application_host_scope",
+        "studio_application_host_may_exist_without_authority_transfer",
+        "separate_hosts_do_not_create"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "framework_host": { "const": "one-person-lab-framework" },
+        "framework_host_scope": { "const": "framework_runtime_package_graph_and_app_projection" },
+        "framework_host_unique_within_scope": { "const": true },
+        "studio_application_host": { "const": "opl-studio" },
+        "studio_application_host_scope": { "const": "dsh_profile_plugin_lifecycle_codex_and_delivery_transport_composition" },
+        "studio_application_host_may_exist_without_authority_transfer": { "const": true },
+        "separate_hosts_do_not_create": {
+          "const": [
+            "second_opl_runtime",
+            "second_package_registry",
+            "second_package_currentness_authority",
+            "second_app_state_or_action_authority",
+            "second_domain_product_or_release_authority"
+          ]
+        }
+      }
     },
     "architecture_layer": {
       "type": "object",

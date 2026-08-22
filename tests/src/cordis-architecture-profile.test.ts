@@ -50,6 +50,21 @@ test('Cordis architecture profile is valid against its machine contract', () => 
 
 test('Cordis architecture profile freezes the four-layer model and ten-module mapping', () => {
   const profile = readJson(contractRef);
+  assert.deepEqual(profile.host_scope_boundary, {
+    framework_host: 'one-person-lab-framework',
+    framework_host_scope: 'framework_runtime_package_graph_and_app_projection',
+    framework_host_unique_within_scope: true,
+    studio_application_host: 'opl-studio',
+    studio_application_host_scope: 'dsh_profile_plugin_lifecycle_codex_and_delivery_transport_composition',
+    studio_application_host_may_exist_without_authority_transfer: true,
+    separate_hosts_do_not_create: [
+      'second_opl_runtime',
+      'second_package_registry',
+      'second_package_currentness_authority',
+      'second_app_state_or_action_authority',
+      'second_domain_product_or_release_authority',
+    ],
+  });
   assert.deepEqual(
     profile.architecture_layers.map((layer: JsonObject) => layer.layer_id),
     ['authority_domain', 'package', 'cordis_plugin_contribution', 'curated_composition_profile'],

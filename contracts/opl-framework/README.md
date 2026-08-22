@@ -60,7 +60,18 @@ It is repo-tracked because the current framework needs stable machine-readable i
 - App runtime state/action CLI boundary for GUI implementations
 - optional native-helper lifecycle checks
 
-The current ecosystem model is `OPL Base + OPL App + OPL Packages + OPL Cloud`. `one-person-lab` implements Base and owns the single Framework Cordis Host; `one-person-lab-app` owns one App product, its GUI ABI, Client profile, release composition, and active-shell decision; `opl-aion-shell` is the current Stable Shell and `opl-studio` is the DSH-derived candidate Shell. Packages remain independently installable, versioned, and releasable capability products; MAS/MAG/RCA retain domain authority as members of the Foundry Agent Package family. Cloud is the online product layer under active implementation, not a second Cordis Host. Brand/cognitive domains, authority owners, Package release units, and Cordis plugin contributions are intentionally separate structures. The execution chain remains `Codex CLI first-class executor + explicit OPL activation + configured family runtime provider + installed Package discovery`.
+The current ecosystem model is `OPL Base + OPL App + OPL Packages + OPL Cloud`. `one-person-lab` implements Base and owns the only Cordis Host for `framework_runtime_package_graph_and_app_projection`; `one-person-lab-app` owns one App product, its GUI ABI, Client profile, release composition, and active-shell decision; `opl-aion-shell` is the current Stable Shell and `opl-studio` implements the candidate DSH/Cordis Application Host for `dsh_profile_plugin_lifecycle_codex_and_delivery_transport_composition`. Packages remain independently installable, versioned, and releasable capability products; MAS/MAG/RCA retain domain authority as members of the Foundry Agent Package family. Cloud is the online product layer under active implementation. Brand/cognitive domains, authority owners, Package release units, and Cordis plugin contributions are intentionally separate structures. The execution chain remains `Codex CLI first-class executor + explicit OPL activation + configured family runtime provider + installed Package discovery`.
+
+### Host scope boundary
+
+`cordis-architecture-profile.json#host_scope_boundary` is the machine owner for
+the two-Host boundary. The Framework Host remains unique inside its runtime,
+Package graph, and App projection scope. Studio may run its separate Application
+Host without authority transfer because it consumes only public App state/action,
+authentication, and channel callback contracts. The two Hosts must not create a
+second OPL runtime, Package registry/currentness authority, App state/action
+authority, or domain/product/release authority, and they do not share internal
+registries, sessions, or service graphs.
 
 ## Current Truth Lives Elsewhere
 

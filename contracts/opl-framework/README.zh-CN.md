@@ -42,7 +42,16 @@ latest event id；Full 还必须绑定精确 source checkpoint run id。两个 s
 - GUI 实现消费的 App runtime state/action CLI 边界
 - 可选 native helper 生命周期检查
 
-当前生态模型是 `OPL Base + OPL App + OPL Packages + OPL Cloud`。`one-person-lab` 实现 Base 并持有唯一 Framework Cordis Host；`one-person-lab-app` 持有唯一 App 产品、GUI ABI、Client profile、发布组合和 active-shell 决策；`opl-aion-shell` 是当前 Stable Shell，`opl-studio` 是 DSH-derived 候选 Shell。Packages 是可独立安装、版本化和发布的能力产品，MAS/MAG/RCA 作为 Foundry Agent Package 家族成员保留各自领域 authority；Cloud 是正在落地的在线产品层，不是第二 Cordis Host。品牌/认知域、authority owner、Package 发布单元与 Cordis plugin contribution 是四种独立结构。执行链路仍是 `Codex CLI first-class executor + explicit OPL activation + configured family runtime provider + installed Package discovery`。
+当前生态模型是 `OPL Base + OPL App + OPL Packages + OPL Cloud`。`one-person-lab` 实现 Base，并持有 `framework_runtime_package_graph_and_app_projection` scope 内唯一的 Cordis Host；`one-person-lab-app` 持有唯一 App 产品、GUI ABI、Client profile、发布组合和 active-shell 决策；`opl-aion-shell` 是当前 Stable Shell，`opl-studio` 实现 `dsh_profile_plugin_lifecycle_codex_and_delivery_transport_composition` scope 的候选 DSH/Cordis Application Host。Packages 是可独立安装、版本化和发布的能力产品，MAS/MAG/RCA 作为 Foundry Agent Package 家族成员保留各自领域 authority；Cloud 是正在落地的在线产品层。品牌/认知域、authority owner、Package 发布单元与 Cordis plugin contribution 是四种独立结构。执行链路仍是 `Codex CLI first-class executor + explicit OPL activation + configured family runtime provider + installed Package discovery`。
+
+### Host scope 边界
+
+`cordis-architecture-profile.json#host_scope_boundary` 是两 Host 边界的机器 owner。
+Framework Host 在 runtime、Package graph 与 App projection scope 内保持唯一；Studio
+可以在不转移 authority 的前提下运行独立 Application Host，因为它只消费 App
+state/action、authentication 和 channel callback 公开合同。两者不得形成第二套 OPL
+runtime、Package registry/currentness、App state/action、domain、product 或 release
+authority，也不共享内部 registry、session 或 service graph。
 
 ## 当前真相应去哪里看
 

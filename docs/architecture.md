@@ -7,7 +7,10 @@
 ```text
 User
   -> OPL App / CLI / Cloud
-  -> curated Cordis composition profile
+  -> selected product carrier
+       -> Framework Cordis profiles for runtime, Package graph and App projection
+       `-> Studio DSH Application Host for plugin, Codex and delivery composition
+  -> public App state/action/authentication/channel contracts
   -> Framework authority + adapters + read models
   -> Package entrypoints / runtime providers / native carriers
   -> domain-owned facts, artifacts and verdicts
@@ -55,13 +58,30 @@ owner descriptor
 
 ## Cordis architecture
 
-Cordis 是进程内 composition 层：
+Cordis 是进程内 composition 层。Framework 在自己的 scope 内提供三个受控 profile：
 
 - `base-headless`：Framework CLI 和 headless 默认 profile。
 - `app-full`：App/Client contribution 与 managed companion profile。
 - `foundry-dev`：Foundry 开发和评测 profile。
 
 Host service 通过显式依赖注入、typed event 和可撤销 effect 组合。运行开始后使用冻结的 composition identity；Cordis 不承担 durable workflow、证据账本、Package currentness、领域判断或安全沙箱。
+
+### Host scope boundary
+
+`contracts/opl-framework/cordis-architecture-profile.json#host_scope_boundary`
+冻结两个可以并存、但 authority 不重叠的 Host：
+
+| Host | 唯一 scope | 不拥有 |
+| --- | --- | --- |
+| Framework Host | `framework_runtime_package_graph_and_app_projection` | App product/release truth、domain verdict、Studio plugin/Codex lifecycle |
+| Studio Application Host | `dsh_profile_plugin_lifecycle_codex_and_delivery_transport_composition` | OPL runtime、Package registry/currentness、App state/action、domain/product/release authority |
+
+Studio Host 位于 `opl-studio` 仓，负责固定 DSH profile、插件生命周期、
+`opl-codex-native` 和 Electron/WebUI/OCI transport。它通过 App state/action、
+authentication 与 channel callback 公开合同消费 Framework，不加载或复制
+Framework registry、currentness、session、Package graph 或内部 service graph。
+因此“Framework Host 在其 scope 内唯一”与“Studio 是独立 DSH Application Host”
+同时成立。
 
 ## Runtime control chain
 
@@ -91,6 +111,6 @@ Stage 决定工作边界，AI/executor 决定阶段内方法，provider 保存 d
 
 ## Product boundary
 
-Framework 提供稳定 Host graph 和 machine-readable surface；App 选择用户体验、starter profile 和 renderer；Cloud 提供远端资源与协作；Package owner 独立演进自己的实现和发布。
+Framework 提供稳定的 runtime/Package Host graph 和 machine-readable surface；App 选择用户体验、starter profile、renderer 与 release carrier；Studio 可以在不转移 authority 的前提下组合自己的 DSH/Codex/delivery Host；Cloud 提供远端资源与协作；Package owner 独立演进自己的实现和发布。
 
 跨仓变更先修改实际 owner contract，再更新 consumer。不得用 Framework README、App profile 或固定 family registry 反向定义其他 repo 的成员资格或专业事实。

@@ -31,11 +31,19 @@ Charter、Workspace、Atlas、Pack、Stagecraft、Runway、Ledger、Connect、Co
 
 真实责任由 authority surface、source unit、Package 和 Cordis contribution 分别承担；portfolio 从 contract 读取，不为每个品牌复制一份状态文档。
 
-## Cordis 是唯一进程内 composition runtime
+## Cordis 是共同的进程内 composition runtime，Host 唯一性按 scope 判断
 
 Framework 使用正式 `@deepseek-ai/cordis` 处理 service 注入、typed event、effect 和 teardown。当前受控 profile 是 `base-headless`、`app-full` 和 `foundry-dev`。
 
-不建立自研平行 composition 内核。Cordis 不接管 Temporal history、Package currentness、Workspace 数据、evidence authority、domain verdict 或 App product truth。
+Framework Host 在 `framework_runtime_package_graph_and_app_projection` 范围内唯一。
+`opl-studio` 可以运行独立的 DSH/Cordis Application Host，范围仅为
+`dsh_profile_plugin_lifecycle_codex_and_delivery_transport_composition`。两者通过
+App state/action、authentication 和 channel callback 公开合同连接，不共享 registry、
+currentness、session 或内部 service graph。
+
+不建立自研平行 composition 内核，也不让 Studio Host 成为第二套 OPL runtime、Package
+registry/currentness、App state/action、domain、product 或 release authority。Cordis 不接管
+Temporal history、Workspace 数据、evidence authority、domain verdict 或 App product truth。
 
 ## Temporal 承担 durable execution，不承担专业判断
 

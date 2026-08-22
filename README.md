@@ -94,7 +94,7 @@ Users only need four stable product concepts:
 
 | Product | User understanding | Internal authority |
 | --- | --- | --- |
-| **OPL Base** | The runtime foundation that makes long work runnable, recoverable, and auditable. | `one-person-lab` implements OPL Framework, the single Cordis Host. |
+| **OPL Base** | The runtime foundation that makes long work runnable, recoverable, and auditable. | `one-person-lab` implements OPL Framework and owns the only Cordis Host for Framework runtime, Package graph, and App projection. |
 | **OPL App** | The local workbench for choosing work, watching progress, opening files, and acting on blockers. | `one-person-lab-app` owns the product, GUI ABI, selected Shell, and release. |
 | **OPL Packages** | Installable Agents, Skills, Tools, Plugins, and Workflows that add professional capability. | Each Package owner owns identity and publication; Framework discovers and projects installed capabilities. |
 | **OPL Cloud** | Online Workspace, account governance, hosted resources, collaboration, and Agent services. | `one-person-lab-cloud` owns Cloud products and services; the product is in active implementation and delivery. |
@@ -103,6 +103,14 @@ Foundry Agents such as MAS, MAG, RCA, OMA, and Book Forge are professional
 authority domains delivered through OPL Packages. They keep their own quality,
 artifact, and delivery decisions; they are not a fifth product layer and are not
 Framework plugins by definition.
+
+The Studio implementation may run a separate DeepSeek Harness/Cordis
+Application Host for its profile, plugin lifecycle, native Codex backend, and
+delivery transports. It consumes Framework/App public contracts and does not
+create another OPL runtime, Package registry/currentness authority, App
+state/action owner, or product/release authority. The scoped Host boundary is
+machine-readable in
+[`cordis-architecture-profile.json`](./contracts/opl-framework/cordis-architecture-profile.json).
 
 Users do not need to understand the repository split. For developers:
 `one-person-lab` maintains Base/Framework, `one-person-lab-app` maintains the App

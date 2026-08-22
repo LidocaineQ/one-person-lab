@@ -23,8 +23,14 @@
 - 维护 upstream intake和shell-local build；
 - 不定义第二 Package catalog、runtime currentness、domain truth或release verdict。
 
+当前两个 Shell 的实现形态不同：`opl-aion-shell` 是 Stable AionUI carrier；
+`opl-studio` 是完整的 DSH/Cordis Application Host，额外持有自己的 DSH profile、
+插件生命周期、`opl-codex-native` 和 Desktop/WebUI/OCI transport。Studio Host 只通过
+公开 App state/action、authentication 和 channel callback 合同消费 Framework Host，
+不得取得 Framework runtime/Package graph/currentness 或 App product/release authority。
+
 ## 切换 shell
 
-切换只应影响 App adapter、shell源码、packaging和UI测试。Framework runtime和domain Package不随shell重写。
+切换只应影响 App adapter、shell源码、Application Host/carrier packaging和UI测试。Framework runtime和domain Package不随shell重写，也不迁移到 Studio Host。
 
 完成切换必须验证 contract parity、packaged runtime、accessibility、启动/恢复、Settings和至少一条真实Package user path。候选源码或截图不能替代 App owner adoption decision。

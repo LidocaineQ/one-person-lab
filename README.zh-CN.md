@@ -94,7 +94,7 @@ One Person Lab 的优势在于，它既让用户看得见“现在做到哪一�
 
 | 产品 | 用户理解 | 内部权威 |
 | --- | --- | --- |
-| **OPL Base** | 让长期工作可以运行、恢复和审计的基础。 | `one-person-lab` 实现 OPL Framework，也是唯一 Cordis Host。 |
+| **OPL Base** | 让长期工作可以运行、恢复和审计的基础。 | `one-person-lab` 实现 OPL Framework，并持有 Framework runtime、Package graph 与 App projection 范围内唯一的 Cordis Host。 |
 | **OPL App** | 选择工作、查看进度、打开文件和处理阻塞的本地工作台。 | `one-person-lab-app` 持有产品、GUI ABI、Shell 选择和发布。 |
 | **OPL Packages** | 可安装的 Agent、Skill、Tool、Plugin 和 Workflow，为系统增加专业能力。 | 每个 Package owner 持有身份和发布；Framework 发现并投影已安装能力。 |
 | **OPL Cloud** | 在线 Workspace、账号治理、托管资源、协作与 Agent 服务。 | `one-person-lab-cloud` 持有 Cloud 产品与服务。 |
@@ -102,6 +102,12 @@ One Person Lab 的优势在于，它既让用户看得见“现在做到哪一�
 MAS、MAG、RCA、OMA、Book Forge 等 Foundry Agents 是通过 OPL Packages 交付的专业
 authority domain。它们继续持有自己的质量、产物与交付判断；它们不是第五个产品层，
 也不因为被 Framework 托管就天然等于 Cordis plugin。
+
+Studio 实现可以为 DSH profile、插件生命周期、原生 Codex 后端和 delivery transport
+运行独立的 DeepSeek Harness/Cordis Application Host。它只消费 Framework/App 公开
+合同，不创建第二套 OPL runtime、Package registry/currentness、App state/action、产品
+或发布 authority。机器边界见
+[`cordis-architecture-profile.json`](./contracts/opl-framework/cordis-architecture-profile.json)。
 
 如果只是使用产品，不需要理解仓库分工。对开发者来说：`one-person-lab` 维护
 Base/Framework，`one-person-lab-app` 维护 App 产品与发布体验，各 Package 仓维护可安装

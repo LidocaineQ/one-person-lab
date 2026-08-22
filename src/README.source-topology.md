@@ -14,7 +14,7 @@ Machine boundary: 当前 task branch 已按责任重排 Framework 源码；机�
 | Authority | `src/authority/**` | Framework-owned contracts、workspace/packages/stages/evidence/evolution authority surfaces。 |
 | Adapters | `src/adapters/**` | execution 与 integration 的 carrier/provider/executor 外部边界。 |
 | Read models | `src/read-models/**` | catalog/discovery 与 operator/product projections。 |
-| Host | `src/host/**` | Framework 唯一 Cordis Host、composition profiles、plugin contributions 与 Host projection。 |
+| Host | `src/host/**` | Framework runtime/Package/App projection scope 内唯一的 Cordis Host、composition profiles、plugin contributions 与 Host projection。 |
 | Entrypoints | `src/entrypoints/**` | CLI/App/runtime 的薄接线层，不拥有产品或 domain truth。 |
 | Kernel | `src/kernel/**` | brand-neutral shared types、ports 和 runtime primitives。 |
 
@@ -55,6 +55,6 @@ Connect descriptor discovery、Runway executor 和 Foundry evaluation 已内联�
 
 1. 新源码进入最小 responsibility source unit；不要按品牌名新建平行目录。
 2. 同 unit 内使用相对 import；跨 unit 只走 public entrypoint 或显式 Host injection。
-3. Host 是唯一 composition authority；authority/adapters/read-models 不反向持有 Host registry 或创建第二 runtime。
+3. Framework Host 是 Framework runtime/Package/App projection scope 内唯一的 composition authority；authority/adapters/read-models 不反向持有 Host registry 或创建第二 runtime。Studio 的独立 DSH Application Host 只通过公开 App contracts 消费该 projection，不进入本源码 topology。
 4. Package、plugin API/source identity、composition snapshot、authority truth 和 App product profile 分开版本化与回读。
 5. 提交前运行 strict source/package boundaries、typecheck/build 和相应 focused tests；candidate pass 不能外推 canonical、release 或 production 完成。
