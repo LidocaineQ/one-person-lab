@@ -111,6 +111,7 @@
         "plugin_payload_manifest_url": { "type": "string", "minLength": 1 },
         "carrier_source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "codex_default_exposure": { "const": false },
+        "interaction_mode": { "enum": ["headless_internal"] },
         "optional_install_policy": { "const": "all_exported_skills" },
         "configured_codex_plugin_carrier": {
           "type": "object",

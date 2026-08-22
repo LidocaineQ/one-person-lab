@@ -376,6 +376,21 @@ test('remote companion manifest and loader require a locked synchronous factory 
     assert.equal(loaded.length, 1);
     assert.equal(loaded[0]?.descriptor.manifest.package_id, 'opl-remote-companion-test');
     assert.equal(typeof loaded[0]?.connector.start, 'function');
+    const headless = await loadInstalledRemoteCompanionConnectors([{
+      ...descriptor,
+      enabled: false,
+      carrier_readback: { ...descriptor.carrier_readback, enabled: false },
+      readiness: {
+        ...descriptor.readiness,
+        callability: 'disabled',
+        projection_callability: 'callable',
+      },
+      manifest: { ...descriptor.manifest, codex_interaction_mode: 'headless_internal' },
+    }], {
+      activationContext: activationContext('opl-remote-companion-test'),
+    });
+    assert.equal(headless[0]?.descriptor.enabled, false);
+    assert.equal(typeof headless[0]?.connector.start, 'function');
 
     const forExport = (exportName: string) => ({
       ...descriptor,

@@ -15,8 +15,8 @@ import { buildAppUiContributionsProjection } from '../../src/read-models/operato
 const repoRoot = path.resolve(import.meta.dirname, '..', '..');
 const manifestRef = 'contracts/opl-framework/packages/opl-fleet-agent.json';
 const allowlistRef = 'contracts/opl-framework/package-payload-allowlists/opl-fleet-agent.json';
-const payloadRef = 'contracts/opl-framework/packages/payloads/opl-fleet-agent-0.2.40.json';
-const ownerCommit = '98891d42eebf1b0b179144611659ae21ba610437';
+const payloadRef = 'contracts/opl-framework/packages/payloads/opl-fleet-agent-0.2.41.json';
+const ownerCommit = 'b5a24e97b6caa125780e0399742eed9784f46352';
 
 function readJson(relativePath: string) {
   return parseJsonText(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')) as Record<string, any>;
@@ -62,6 +62,7 @@ test('Fleet Agent owner projection is a schema-valid capability Package with one
   assert.equal(manifest.display_name, 'OPL Fleet Agent');
   assert.equal(manifest.source, 'first_party');
   assert.equal(manifest.codex_surface.plugin_id, 'opl-fleet-agent');
+  assert.equal(manifest.codex_surface.interaction_mode, 'headless_internal');
   assert.deepEqual(manifest.capability_abi, {
     id: 'opl-fleet-agent.capabilities',
     version: '1.0.0',
@@ -96,7 +97,7 @@ test('Fleet Agent owner projection is a schema-valid capability Package with one
   assert.equal(manifest.codex_surface.carrier_source_commit, ownerCommit);
 });
 
-test('Fleet Agent keeps its published Settings projections for version 0.2.40', () => {
+test('Fleet Agent keeps its published Settings projections for version 0.2.41', () => {
   const manifest = normalizedManifest();
   const contributions = manifest.app_contributions;
   assert.ok(contributions);
@@ -151,11 +152,12 @@ process.stdout.write(JSON.stringify({
     const descriptor = {
       manifest,
       sourcePath: sourceRoot,
-      enabled: true,
+      enabled: false,
       readiness: {
         installed: true,
         physical_status: 'available',
-        callability: 'callable',
+        callability: 'disabled',
+        projection_callability: 'callable',
       },
       carrier_readback: {
         kind: 'codex_plugin',

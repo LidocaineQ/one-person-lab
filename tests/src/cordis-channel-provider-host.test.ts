@@ -624,6 +624,19 @@ test('app-full loads a callable channel provider from an installed descriptor en
     );
     const loaded = await import(pathToFileURL(modulePath).href);
     assert.equal(loaded.disposeCount, 2);
+    const headless = (await loadInstalledChannelProviders([{
+      ...descriptor,
+      enabled: false,
+      carrier_readback: { ...descriptor.carrier_readback, enabled: false },
+      readiness: {
+        ...descriptor.readiness,
+        callability: 'disabled',
+        projection_callability: 'callable',
+      },
+      manifest: { ...descriptor.manifest, codex_interaction_mode: 'headless_internal' },
+    }]))[0];
+    assert.equal(headless?.descriptor.enabled, false);
+    assert.equal(headless?.provider.provider_id, 'opl-channel-test');
     fs.rmSync(packageRoot, { recursive: true, force: true });
   }
 });

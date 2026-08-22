@@ -136,6 +136,8 @@ export {
 } from './agent-package-actions.ts';
 export {
   discoverInstalledPackageDescriptors,
+  installedDescriptorHasExpectedCodexExposure,
+  installedDescriptorSupportsFrameworkCalls,
 } from './agent-package-registry-parts/installed-codex-plugin-directory.ts';
 export type {
   InstalledPackageDescriptor,

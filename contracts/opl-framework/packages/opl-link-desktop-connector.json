@@ -174,6 +174,7 @@
     "plugin_payload_manifest_url": "payloads/opl-link-desktop-connector-0.1.0.json",
     "carrier_source_commit": "c21e2ddda2f790d3f21677fcec616c29c343357f",
     "codex_default_exposure": false,
+    "interaction_mode": "headless_internal",
     "configured_codex_plugin_carrier": {
       "kind": "codex_plugin_manager",
       "plugin_selector": "opl-link-desktop-connector@opl-link",

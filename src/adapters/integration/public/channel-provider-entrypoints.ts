@@ -9,6 +9,7 @@ import {
 import type {
   InstalledPackageDescriptor,
 } from '../agent-package-registry-parts/installed-codex-plugin-directory.ts';
+import { installedDescriptorSupportsFrameworkCalls } from '../agent-package-registry-parts/installed-codex-plugin-directory.ts';
 import type {
   ChannelProviderPackageEntrypoint,
 } from '../agent-package-registry-parts/channel-provider-entrypoint-contract.ts';
@@ -63,11 +64,7 @@ function resolveEntrypointModule(
 }
 
 function isCallable(descriptor: InstalledPackageDescriptor) {
-  return descriptor.enabled
-    && descriptor.carrier_readback.enabled
-    && descriptor.readiness.installed
-    && descriptor.readiness.physical_status === 'available'
-    && descriptor.readiness.callability === 'callable';
+  return installedDescriptorSupportsFrameworkCalls(descriptor);
 }
 
 function createChannelProvider(

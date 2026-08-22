@@ -697,6 +697,22 @@ function normalizeCodexDefaultExposure(
   return value;
 }
 
+function normalizeCodexInteractionMode(
+  codexSurface: Record<string, unknown>,
+  manifestUrl: string,
+) {
+  const value = codexSurface.interaction_mode;
+  if (value === undefined) return 'interactive' as const;
+  if (value !== 'headless_internal') {
+    throw new FrameworkContractError('contract_shape_invalid', 'Agent package interaction_mode must be headless_internal when declared.', {
+      manifest_url: manifestUrl,
+      interaction_mode: value,
+      failure_code: 'agent_package_codex_interaction_mode_invalid',
+    });
+  }
+  return value;
+}
+
 function normalizeCapabilityDependencies(
   value: unknown,
   manifestUrl: string,
@@ -1267,6 +1283,7 @@ function normalizeConfiguredCodexPluginCarrier(
     packageId: string;
     requiredSkillIds: string[];
     manifestUrl: string;
+    interactionMode: 'interactive' | 'headless_internal';
   },
 ): AgentPackageConfiguredCodexPluginCarrierDescriptor | null {
   if (value === undefined || value === null) return null;
@@ -1361,6 +1378,7 @@ function normalizeConfiguredCodexPluginCarrier(
   }
   return {
     packageId: input.packageId,
+    interactionMode: input.interactionMode,
     carrier: {
       kind: 'codex_plugin_manager',
       pluginId: pluginSelector,
@@ -1490,6 +1508,14 @@ export function normalizeManifest(payload: unknown, manifestUrl: string): AgentP
   }
   const distributionPayload = normalizeDistributionPayload(payload.distribution_payload);
   const carrierAuthority = normalizeCarrierSourceAuthority(payload, payload.codex_surface, manifestUrl);
+  const codexInteractionMode = normalizeCodexInteractionMode(payload.codex_surface, manifestUrl);
+  if (codexInteractionMode !== 'interactive') {
+    throw new FrameworkContractError('contract_shape_invalid', 'Only capability Packages may declare a headless internal Codex interaction mode.', {
+      manifest_url: manifestUrl,
+      package_role: 'standard_agent',
+      failure_code: 'agent_package_codex_interaction_mode_role_invalid',
+    });
+  }
   const codexVisibleEntry = pluginId
     ?? stringValue(payload.codex_surface.codex_visible_entry)
     ?? stringValue(payload.agent_id)!;
@@ -1508,6 +1534,7 @@ export function normalizeManifest(payload: unknown, manifestUrl: string): AgentP
     verified_payload_source_commit: null,
     codex_surface: payload.codex_surface,
     codex_default_exposure: normalizeCodexDefaultExposure(payload.codex_surface, manifestUrl),
+    codex_interaction_mode: codexInteractionMode,
     skill_packs: skillPacks,
     entrypoints,
     health_check: healthCheck,
@@ -1536,7 +1563,7 @@ export function normalizeManifest(payload: unknown, manifestUrl: string): AgentP
     content_lock_paths: [],
     configured_codex_plugin_carrier: normalizeConfiguredCodexPluginCarrier(
       payload.codex_surface.configured_codex_plugin_carrier,
-      { packageId, requiredSkillIds, manifestUrl },
+      { packageId, requiredSkillIds, manifestUrl, interactionMode: codexInteractionMode },
     ),
     app_contributions: normalizeAppContributions(payload.app_contributions, manifestUrl),
   };
@@ -1668,6 +1695,14 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
     coreModuleIds,
   );
   const carrierAuthority = normalizeCarrierSourceAuthority(payload, codexSurface, manifestUrl);
+  const codexInteractionMode = normalizeCodexInteractionMode(codexSurface, manifestUrl);
+  const codexDefaultExposure = normalizeCodexDefaultExposure(codexSurface, manifestUrl);
+  if (codexInteractionMode === 'headless_internal' && codexDefaultExposure !== false) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Headless internal capability Packages must disable default Codex exposure.', {
+      manifest_url: manifestUrl,
+      failure_code: 'agent_package_codex_interaction_mode_exposure_invalid',
+    });
+  }
   const pluginId = stringValue(codexSurface.plugin_id) ?? packageId;
   const pluginSourceRef = stringValue(codexSurface.plugin_source_path);
   const pluginSourcePath = pluginSourceRef
@@ -1694,7 +1729,8 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
     carrier_source_commit: carrierAuthority.carrierSourceCommit,
     verified_payload_source_commit: null,
     codex_surface: codexSurface,
-    codex_default_exposure: normalizeCodexDefaultExposure(codexSurface, manifestUrl),
+    codex_default_exposure: codexDefaultExposure,
+    codex_interaction_mode: codexInteractionMode,
     skill_packs: [],
     entrypoints,
     health_check: {},
@@ -1725,7 +1761,7 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
     content_lock_paths: contentLockPaths,
     configured_codex_plugin_carrier: normalizeConfiguredCodexPluginCarrier(
       codexSurface.configured_codex_plugin_carrier,
-      { packageId, requiredSkillIds: allSkillIds, manifestUrl },
+      { packageId, requiredSkillIds: allSkillIds, manifestUrl, interactionMode: codexInteractionMode },
     ),
     app_contributions: normalizeAppContributions(payload.app_contributions, manifestUrl),
   };
@@ -1776,6 +1812,14 @@ export function normalizeWorkflowProfilePackageManifest(payload: unknown, manife
   const profileSurface = normalizeProfileSurface(payload.profile_surface);
   const managedPolicySurface = normalizeManagedPolicySurface(payload.managed_policy_surface);
   const carrierAuthority = normalizeCarrierSourceAuthority(payload, codexSurface, manifestUrl);
+  const codexInteractionMode = normalizeCodexInteractionMode(codexSurface, manifestUrl);
+  if (codexInteractionMode !== 'interactive') {
+    throw new FrameworkContractError('contract_shape_invalid', 'Only capability Packages may declare a headless internal Codex interaction mode.', {
+      manifest_url: manifestUrl,
+      package_role: 'workflow_profile',
+      failure_code: 'agent_package_codex_interaction_mode_role_invalid',
+    });
+  }
   if (!profileSurface || !managedPolicySurface) {
     throw new FrameworkContractError('contract_shape_invalid', 'Workflow profile package must declare profile and managed policy surfaces.', {
       manifest_url: manifestUrl,
@@ -1797,6 +1841,7 @@ export function normalizeWorkflowProfilePackageManifest(payload: unknown, manife
     verified_payload_source_commit: null,
     codex_surface: codexSurface,
     codex_default_exposure: normalizeCodexDefaultExposure(codexSurface, manifestUrl),
+    codex_interaction_mode: codexInteractionMode,
     skill_packs: [],
     entrypoints: [],
     health_check: {},
@@ -1822,7 +1867,7 @@ export function normalizeWorkflowProfilePackageManifest(payload: unknown, manife
     content_lock_paths: [],
     configured_codex_plugin_carrier: normalizeConfiguredCodexPluginCarrier(
       codexSurface.configured_codex_plugin_carrier,
-      { packageId, requiredSkillIds, manifestUrl },
+      { packageId, requiredSkillIds, manifestUrl, interactionMode: codexInteractionMode },
     ),
     app_contributions: normalizeAppContributions(payload.app_contributions, manifestUrl),
   };

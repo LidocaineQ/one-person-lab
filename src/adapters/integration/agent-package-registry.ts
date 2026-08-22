@@ -13,7 +13,9 @@ import {
   discoverAvailablePackageDescriptors,
   discoverInstalledPackageDescriptors,
   discoverInstalledOwnerProfileDescriptors,
+  installedDescriptorHasExpectedCodexExposure,
   installedDescriptorMatchesConfiguredCarrier,
+  installedDescriptorSupportsFrameworkCalls,
   type InstalledPackageDescriptor,
 } from './agent-package-registry-parts/installed-codex-plugin-directory.ts';
 import {
@@ -206,7 +208,10 @@ function configuredCarrierFromDescriptor(
   const exactCarrier = installedDescriptorMatchesConfiguredCarrier(descriptor);
   const installed = descriptor.readiness.installed && exactCarrier;
   const physical = descriptor.readiness.physical_status === 'available';
-  const callable = installed && physical && descriptor.readiness.callability === 'callable';
+  const callable = installed
+    && physical
+    && installedDescriptorSupportsFrameworkCalls(descriptor)
+    && installedDescriptorHasExpectedCodexExposure(descriptor);
   const observedBase = descriptor.pluginId.split('@', 1)[0];
   const expectedBase = expectedCarrier.pluginId.split('@', 1)[0];
   return {
@@ -253,7 +258,9 @@ function configuredCarrierFromDescriptor(
           ? 'configured_native_carrier_not_installed'
         : !physical
           ? 'configured_native_carrier_physical_unavailable'
-          : 'configured_native_carrier_disabled',
+          : descriptor.manifest.codex_interaction_mode === 'headless_internal'
+            ? 'configured_native_carrier_headless_exposure_enabled'
+            : 'configured_native_carrier_disabled',
   };
 }
 
@@ -328,9 +335,17 @@ function projectDirectoryAction(action: AgentPackageSettingsAction, packageId: s
   };
 }
 
-function actionEntries(installed: boolean, packageId: string) {
+function actionEntries(
+  installed: boolean,
+  packageId: string,
+  interactionMode: InstalledPackageDescriptor['manifest']['codex_interaction_mode'],
+) {
   return listAgentPackageSettingsActions()
     .filter((action) => action.action_id !== 'install_from_manifest_url')
+    .filter((action) => (
+      interactionMode !== 'headless_internal'
+      || action.action_id !== 'agent_package_preferences_set'
+    ))
     .filter((action) => installed
       ? action.action_id !== 'agent_package_install'
       : action.action_id === 'agent_package_install')
@@ -342,9 +357,12 @@ function directoryEntry(descriptor: InstalledPackageDescriptor) {
   const installed = descriptor.readiness.installed
     && installedDescriptorMatchesConfiguredCarrier(descriptor);
   const ready = installed
-    && descriptor.readiness.physical_status === 'available'
-    && descriptor.readiness.callability === 'callable';
-  const actions = actionEntries(installed, manifest.package_id);
+    && installedDescriptorSupportsFrameworkCalls(descriptor)
+    && installedDescriptorHasExpectedCodexExposure(descriptor);
+  const codexVisible = installed
+    && descriptor.enabled
+    && manifest.codex_interaction_mode !== 'headless_internal';
+  const actions = actionEntries(installed, manifest.package_id, manifest.codex_interaction_mode);
   const recommendedAction = installed ? (ready ? null : 'agent_package_repair') : 'agent_package_install';
   return {
     package_id: manifest.package_id,
@@ -376,6 +394,7 @@ function directoryEntry(descriptor: InstalledPackageDescriptor) {
     },
     installed,
     activated: ready,
+    codex_visible: codexVisible,
     installability: {
       status: installed ? 'installed' as const : 'installable' as const,
       installable: !installed,
@@ -430,8 +449,15 @@ function buildPackageStatus(input: OplAgentPackageStatusInput, snapshot: Package
       (entry) => entry.readiness.physical_status === 'available',
     );
   const callable = packageId
-    ? physical && installedDescriptor?.readiness.callability === 'callable'
-    : physical && installedEntries.every((entry) => entry.readiness.callability === 'callable');
+    ? physical && Boolean(
+        installedDescriptor
+        && installedDescriptorSupportsFrameworkCalls(installedDescriptor)
+        && installedDescriptorHasExpectedCodexExposure(installedDescriptor)
+      )
+    : physical && installedEntries.every((entry) => (
+        installedDescriptorSupportsFrameworkCalls(entry)
+        && installedDescriptorHasExpectedCodexExposure(entry)
+      ));
   const dependencies = dependencyReadiness(installedDescriptor, snapshot.installed);
   const dependenciesReady = packageId ? dependencies?.operational_ready !== false : true;
   const managedPolicyCurrentness = installedDescriptor
@@ -506,7 +532,11 @@ function buildPackageStatus(input: OplAgentPackageStatusInput, snapshot: Package
         : null;
   const launchState = deriveAgentPackageLaunchState({
     installed,
-    exposure_state: installed ? (installedDescriptor?.enabled ? 'visible' : 'hidden') : 'not_installed',
+    exposure_state: installed
+      ? installedDescriptor?.enabled && installedDescriptor.manifest.codex_interaction_mode !== 'headless_internal'
+        ? 'visible'
+        : 'hidden'
+      : 'not_installed',
     operational_ready: operationalReady,
     launch_blocked_reason: launchBlockedReason,
     degraded_reason: degradedReason,
@@ -533,8 +563,14 @@ function buildPackageStatus(input: OplAgentPackageStatusInput, snapshot: Package
       installed_content_digest: installedDescriptor?.manifest.content_digest ?? null,
       managed_policy_currentness: managedPolicyCurrentness,
       codex_visible: packageId
-        ? Boolean(installed && installedDescriptor?.enabled)
-        : installedEntries.some((entry) => entry.enabled),
+        ? Boolean(
+            installed
+            && installedDescriptor?.enabled
+            && installedDescriptor.manifest.codex_interaction_mode !== 'headless_internal',
+          )
+        : installedEntries.some((entry) => (
+            entry.enabled && entry.manifest.codex_interaction_mode !== 'headless_internal'
+          )),
       package_dependency_readiness: dependencies,
       package_operational: {
         status: operationalReady ? 'operational' as const : 'unavailable' as const,

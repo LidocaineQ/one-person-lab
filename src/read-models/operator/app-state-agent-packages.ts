@@ -164,7 +164,8 @@ export function projectRuntimeAgentPackageDirectoryEntry(
 ) {
   const statusReadError = entry.readiness.status_read_error;
   const launchAllowed = entry.readiness.launch_allowed;
-  const codexVisible = entry.installed
+  const codexVisible = entry.codex_visible === true
+    && entry.installed
     && statusReadError === null
     && (launchAllowed === true || entry.readiness.verification_deferred === true);
   const callable = entry.installed && launchAllowed === true && statusReadError === null;
@@ -209,7 +210,9 @@ export function projectRuntimeAgentPackageDirectoryEntry(
           ? 'not_installed'
           : codexVisible
             ? 'visible'
-            : 'attention_needed',
+            : entry.readiness.operational_ready
+              ? 'hidden'
+              : 'attention_needed',
         codex_visible: codexVisible,
       },
       codex_visible: codexVisible,

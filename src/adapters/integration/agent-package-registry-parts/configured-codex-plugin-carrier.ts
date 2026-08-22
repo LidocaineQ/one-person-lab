@@ -1443,13 +1443,26 @@ function configuredPluginSelection(input: {
   const unexpectedSameName = installedSameName.filter(
     (candidate) => !acceptedPluginIds.has(candidate.pluginId),
   );
-  const ambiguous = installedSameName.filter((candidate) => candidate.enabled).length > 1
-    && Boolean(entry?.installed);
+  const enabledSameName = installedSameName.filter((candidate) => candidate.enabled);
+  const ambiguous = Boolean(entry?.installed) && (
+    enabledSameName.length > 1
+    || (
+      input.descriptor.interactionMode === 'headless_internal'
+      && unexpectedSameName.some((candidate) => candidate.enabled)
+    )
+  );
   const unexpectedOnly = !entry?.installed && unexpectedSameName.length > 0;
   const missingSkills = entry
     ? missingRequiredSkills(entry.sourcePath, input.descriptor.executor.requiredSkillIds)
     : input.descriptor.executor.requiredSkillIds;
-  const callable = Boolean(entry?.installed && entry.enabled && missingSkills.length === 0 && !ambiguous && !unexpectedOnly);
+  const expectedEnabled = input.descriptor.interactionMode !== 'headless_internal';
+  const callable = Boolean(
+    entry?.installed
+    && entry.enabled === expectedEnabled
+    && missingSkills.length === 0
+    && !ambiguous
+    && !unexpectedOnly,
+  );
   return { installedSameName, entry, unexpectedSameName, ambiguous, unexpectedOnly, missingSkills, callable };
 }
 
@@ -1461,6 +1474,7 @@ function configuredCarrierPrecedence(input: { ambiguous: boolean; unexpectedOnly
 
 function configuredCarrierReason(input: {
   installed: boolean;
+  interactionMode: 'interactive' | 'headless_internal';
   ambiguous: boolean;
   unexpectedOnly: boolean;
   callable: boolean;
@@ -1469,7 +1483,8 @@ function configuredCarrierReason(input: {
 }) {
   if (input.installed) {
     if (input.ambiguous) return 'configured_native_carrier_source_ambiguous';
-    if (!input.enabled) return 'configured_native_carrier_disabled';
+    if (!input.enabled && input.interactionMode !== 'headless_internal') return 'configured_native_carrier_disabled';
+    if (input.enabled && input.interactionMode === 'headless_internal') return 'configured_native_carrier_headless_exposure_enabled';
     return input.callable ? null : `required_skill_unavailable:${input.missingSkills.join(',')}`;
   }
   return input.unexpectedOnly
@@ -1518,6 +1533,7 @@ function configuredPluginReadback(input: {
     native_action_dispatched: input.action === 'list' || input.dispatchAction,
     reason: configuredCarrierReason({
       installed,
+      interactionMode: input.descriptor.interactionMode ?? 'interactive',
       ambiguous: selection.ambiguous,
       unexpectedOnly: selection.unexpectedOnly,
       callable: selection.callable,
@@ -1542,6 +1558,17 @@ export function runConfiguredCodexPluginCarrier(input: {
   packageDirectory?: string;
 }): ConfiguredCodexPluginCarrierReadback {
   assertDescriptor(input.descriptor);
+  if (input.action === 'enable' && input.descriptor.interactionMode === 'headless_internal') {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Headless internal Package carriers cannot be enabled for ordinary Codex interaction.',
+      {
+        package_id: input.descriptor.packageId,
+        plugin_id: input.descriptor.carrier.pluginId,
+        failure_code: 'configured_codex_plugin_carrier_headless_enable_forbidden',
+      },
+    );
+  }
   const binary = input.binary?.trim()
     || process.env.OPL_CODEX_PLUGIN_BIN?.trim()
     || 'codex';
@@ -1627,11 +1654,15 @@ export function runConfiguredCodexPluginCarrier(input: {
       if (isConfiguredCarrierReadback(entries)) return entries;
     }
   }
-  if (isConfigToggle && input.dryRun !== true) {
+  const enforceHeadlessInternal = input.descriptor.interactionMode === 'headless_internal'
+    && input.action !== 'list'
+    && input.action !== 'remove'
+    && input.dryRun !== true;
+  if ((isConfigToggle || enforceHeadlessInternal) && input.dryRun !== true) {
     setConfiguredPluginEnabled({
       descriptor: input.descriptor,
       entries,
-      enabled: input.action === 'enable',
+      enabled: enforceHeadlessInternal ? false : input.action === 'enable',
       env,
       beforeConfigReplace: input.beforeConfigReplace,
     });

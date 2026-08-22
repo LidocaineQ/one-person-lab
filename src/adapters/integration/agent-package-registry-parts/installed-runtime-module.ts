@@ -7,6 +7,7 @@ import { FrameworkContractError, isRecord } from '../../../kernel/contract-valid
 import { parseJsonText } from '../../../kernel/json-file.ts';
 import {
   discoverInstalledPackageDescriptors,
+  installedDescriptorSupportsFrameworkCalls,
   type InstalledPackageDescriptor,
 } from './installed-codex-plugin-directory.ts';
 import type { CodexPluginCommandRunner } from './configured-codex-plugin-carrier.ts';
@@ -185,13 +186,7 @@ function resolveBinding(input: InstalledPackageRuntimeModuleInput): InstalledPac
       reason_code: 'installed_package_descriptor_missing',
     });
   }
-  if (
-    !descriptor.enabled
-    || !descriptor.carrier_readback.enabled
-    || !descriptor.readiness.installed
-    || descriptor.readiness.physical_status !== 'available'
-    || descriptor.readiness.callability !== 'callable'
-  ) {
+  if (!installedDescriptorSupportsFrameworkCalls(descriptor)) {
     throw new FrameworkContractError('codex_command_failed', 'Required installed Package descriptor is not callable.', {
       package_id: input.packageId,
       enabled: descriptor.enabled,

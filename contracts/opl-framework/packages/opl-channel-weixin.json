@@ -121,6 +121,7 @@
     "plugin_payload_manifest_url": "payloads/opl-channel-weixin-0.1.1.json",
     "carrier_source_commit": "b6f800afac0f23b67abbb20d742d1c116d63207c",
     "codex_default_exposure": false,
+    "interaction_mode": "headless_internal",
     "configured_codex_plugin_carrier": {
       "kind": "codex_plugin_manager",
       "plugin_selector": "opl-channel-weixin@one-person-lab-app",

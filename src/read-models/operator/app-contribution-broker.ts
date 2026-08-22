@@ -7,6 +7,7 @@ import { parseJsonText } from '../../kernel/json-file.ts';
 import {
   type CordisConnectDescriptorDiscoveryService,
   type InstalledPackageDescriptor,
+  installedDescriptorSupportsFrameworkCalls,
 } from '../../adapters/integration/index.ts';
 import { buildWorkItemProjectionV2 } from './work-item-projection/projection.ts';
 
@@ -270,12 +271,7 @@ function resolveContribution(input: AppContributionRequest, discover: () => Map<
       failure_code: 'agent_package_app_contribution_package_unavailable',
     });
   }
-  if (
-    !descriptor.enabled
-    || !descriptor.readiness.installed
-    || descriptor.readiness.physical_status !== 'available'
-    || descriptor.readiness.callability !== 'callable'
-  ) {
+  if (!installedDescriptorSupportsFrameworkCalls(descriptor)) {
     return contractError('Installed Package carrier is not callable for its app contribution.', {
       package_id: input.packageId,
       carrier_identity: descriptor.carrier_readback.identity,
@@ -449,10 +445,7 @@ export function hasExecutableAppContribution(
     const discover = requireDescriptorDiscovery(options.descriptorDiscovery);
     return [...discover().values()].some((descriptor) => {
       if (
-        !descriptor.enabled
-        || !descriptor.readiness.installed
-        || descriptor.readiness.physical_status !== 'available'
-        || descriptor.readiness.callability !== 'callable'
+        !installedDescriptorSupportsFrameworkCalls(descriptor)
         || !descriptor.manifest.app_contributions?.commands.length
       ) {
         return false;

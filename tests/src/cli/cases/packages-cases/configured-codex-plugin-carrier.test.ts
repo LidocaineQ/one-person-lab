@@ -654,6 +654,49 @@ test('installed descriptor accepts equivalent GitHub marketplace source spelling
   }
 });
 
+test('current headless owner projection keeps a disabled same-version install callable', () => {
+  const projectionPath = path.resolve(
+    'contracts',
+    'opl-framework',
+    'packages',
+    'opl-fleet-agent.json',
+  );
+  const projected = normalizePackageManifest(
+    parseJsonText(fs.readFileSync(projectionPath, 'utf8')),
+    pathToFileURL(projectionPath).href,
+  );
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-current-headless-owner-projection-'));
+  const sourcePath = path.join(root, 'installed');
+  writePluginSource(sourcePath, 'stale interactive owner descriptor', './skills/');
+  const staleOwner = parseJsonText(fs.readFileSync(projectionPath, 'utf8')) as any;
+  delete staleOwner.codex_surface.interaction_mode;
+  fs.writeFileSync(path.join(sourcePath, 'opl-package.json'), formatJsonPayload(staleOwner));
+  try {
+    const discovered = discoverInstalledPackageDescriptors({
+      packageId: projected.package_id,
+      runner: () => ({
+        status: 0,
+        stdout: pluginList([{
+          pluginId: projected.configured_codex_plugin_carrier!.carrier.pluginId,
+          version: projected.version,
+          sourcePath,
+          marketplaceSource: 'gaofeng21cn/opl-fleet-agent',
+          enabled: false,
+        }]),
+        stderr: '',
+        error: null,
+      }),
+    });
+    const selected = discovered.get(projected.package_id);
+    assert.ok(selected);
+    assert.equal(selected.manifest.codex_interaction_mode, 'headless_internal');
+    assert.equal(selected.readiness.callability, 'disabled');
+    assert.equal(selected.readiness.projection_callability, 'callable');
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
 test('Agent Plugins 1.0 manifests win globally and fatal standard errors never fall back to legacy', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-agent-plugin-resolution-'));
   const legacyRoot = path.join(root, 'legacy');
@@ -1947,6 +1990,97 @@ test('configured Codex carrier toggles only its native plugin table and verifies
     assert.equal(enabled.executor.status, 'callable');
     assert.match(fs.readFileSync(configPath, 'utf8'), /\[plugins\."third-party-research@fixture-carrier"\]\nenabled = true\ncustom = "preserved"/);
     assert.equal(fs.existsSync(stateDir), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('headless internal carrier stays installed and Framework-callable while Codex exposure is disabled', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-headless-carrier-'));
+  const binary = path.join(root, 'fake-codex');
+  const configHome = path.join(root, 'codex-home');
+  const stateFile = path.join(root, 'plugin-state.json');
+  const sourcePath = path.join(root, 'plugin-source');
+  const configPath = path.join(configHome, 'config.toml');
+  const headlessDescriptor = { ...descriptor, interactionMode: 'headless_internal' as const };
+  const env = {
+    CODEX_HOME: configHome,
+    FIXTURE_PLUGIN_SOURCE: sourcePath,
+    FIXTURE_PLUGIN_STATE: stateFile,
+  };
+  try {
+    writePluginSource(sourcePath, 'headless');
+    writeFakeCodex(binary);
+    fs.mkdirSync(configHome, { recursive: true });
+    fs.writeFileSync(configPath, '', 'utf8');
+    fs.writeFileSync(stateFile, JSON.stringify({
+      installed: true,
+      version: '1.0.1',
+      marketplaceSource: 'fixture-carrier',
+    }), 'utf8');
+
+    const repaired = runConfiguredCodexPluginCarrier({
+      descriptor: headlessDescriptor,
+      action: 'repair',
+      binary,
+      env,
+    });
+    assert.equal(repaired.status, 'installed');
+    assert.equal(repaired.enabled, false);
+    assert.equal(repaired.executor.status, 'callable');
+    assert.equal(repaired.reason, null);
+    assert.match(
+      fs.readFileSync(configPath, 'utf8'),
+      /\[plugins\."third-party-research@fixture-carrier"\]\nenabled = false/,
+    );
+
+    assert.throws(
+      () => runConfiguredCodexPluginCarrier({
+        descriptor: headlessDescriptor,
+        action: 'enable',
+        dryRun: true,
+        binary,
+        env,
+      }),
+      (error: any) => error?.details?.failure_code
+        === 'configured_codex_plugin_carrier_headless_enable_forbidden',
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('headless internal carrier rejects an enabled same-name source outside its owner selector', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-headless-carrier-duplicate-'));
+  const selectedSource = path.join(root, 'selected');
+  const duplicateSource = path.join(root, 'duplicate');
+  writePluginSource(selectedSource, 'selected');
+  writePluginSource(duplicateSource, 'duplicate');
+  try {
+    const readback = runConfiguredCodexPluginCarrier({
+      descriptor: { ...descriptor, interactionMode: 'headless_internal' },
+      action: 'list',
+      runner: () => ({
+        status: 0,
+        stdout: pluginList([{
+          pluginId: pluginSelector,
+          version: '1.0.1',
+          sourcePath: selectedSource,
+          marketplaceSource: 'fixture-carrier',
+          enabled: false,
+        }, {
+          pluginId: 'third-party-research@historical-carrier',
+          version: '1.0.1',
+          sourcePath: duplicateSource,
+          marketplaceSource: 'historical-carrier',
+          enabled: true,
+        }]),
+        stderr: '',
+        error: null,
+      }),
+    });
+    assert.equal(readback.executor.status, 'attention_needed');
+    assert.equal(readback.reason, 'configured_native_carrier_source_ambiguous');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -71,6 +71,7 @@ export type InstalledPackageManifest = Pick<
   | 'source_repo'
   | 'codex_surface'
   | 'codex_default_exposure'
+  | 'codex_interaction_mode'
   | 'codex_visible_entry'
   | 'entrypoints'
   | 'required_skill_ids'
@@ -241,6 +242,7 @@ function normalizeNativeCarrierManifest(
       codex_default_exposure: entry.enabled,
     },
     codex_default_exposure: entry.enabled,
+    codex_interaction_mode: 'interactive',
     codex_visible_entry: packageId,
     entrypoints: [],
     required_skill_ids: requiredSkillIds,
@@ -254,6 +256,7 @@ function normalizeNativeCarrierManifest(
     content_lock_canonicalization: null,
     configured_codex_plugin_carrier: {
       packageId,
+      interactionMode: 'interactive',
       carrier: {
         kind: 'codex_plugin_manager',
         pluginId: entry.pluginId,
@@ -295,6 +298,7 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
     }
     const carrier = manifest.configured_codex_plugin_carrier ?? {
       packageId: manifest.package_id,
+      interactionMode: manifest.codex_interaction_mode,
       carrier: {
         kind: 'codex_plugin_manager' as const,
         pluginId: entry.pluginId,
@@ -315,8 +319,9 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
       },
       configured_codex_plugin_carrier: carrier,
     };
-    const projectionCallableWhileDisabled = manifest.package_role === 'capability_package'
-      && manifest.codex_default_exposure === false;
+    const projectionCallableWhileDisabled = manifest.codex_interaction_mode === 'headless_internal'
+      && entry.installed !== false
+      && !entry.enabled;
     return {
       manifest,
       manifestPath,
@@ -412,12 +417,19 @@ function withCurrentOwnerProjection(
   if (!ownerProjection
     || descriptor.manifest.version !== ownerProjection.manifest.version
     || !installedDescriptorMatchesConfiguredCarrier(descriptor)) return descriptor;
+  const readiness = { ...descriptor.readiness };
+  delete readiness.projection_callability;
+  const projectionCallableWhileDisabled = ownerProjection.manifest.codex_interaction_mode === 'headless_internal'
+    && readiness.installed
+    && !descriptor.enabled;
+  if (projectionCallableWhileDisabled) readiness.projection_callability = 'callable';
   return {
     ...descriptor,
     manifest: ownerProjection.manifest,
     manifestPath: ownerProjection.manifestPath,
     manifest_sha256: ownerProjection.manifest_sha256,
     carrier: ownerProjection.carrier,
+    readiness,
   };
 }
 
@@ -432,6 +444,23 @@ export function installedDescriptorMatchesConfiguredCarrier(
   return descriptor.pluginId === expected.pluginId
     || (canonicalMarketplaceId !== null
       && descriptor.pluginId === `${pluginName}@${canonicalMarketplaceId}`);
+}
+
+export function installedDescriptorSupportsFrameworkCalls(
+  descriptor: InstalledPackageDescriptor,
+) {
+  return descriptor.readiness.installed
+    && descriptor.readiness.physical_status === 'available'
+    && (descriptor.readiness.projection_callability ?? descriptor.readiness.callability) === 'callable'
+    && installedDescriptorHasExpectedCodexExposure(descriptor);
+}
+
+export function installedDescriptorHasExpectedCodexExposure(
+  descriptor: InstalledPackageDescriptor,
+) {
+  return descriptor.manifest.codex_interaction_mode === 'headless_internal'
+    ? !descriptor.enabled
+    : descriptor.enabled;
 }
 
 export function discoverPackageDescriptors(input: {

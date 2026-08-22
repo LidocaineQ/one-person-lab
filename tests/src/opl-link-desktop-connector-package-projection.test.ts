@@ -53,6 +53,7 @@ test('OPL Link projection, payload, and allowlist bind one exact owner cohort', 
   assert.equal(manifest.source_repo, 'https://github.com/gaofeng21cn/opl-link.git');
   assert.equal(manifest.publication_channel_admission, 'development_only');
   assert.equal(manifest.codex_surface.plugin_id, manifest.package_id);
+  assert.equal(manifest.codex_surface.interaction_mode, 'headless_internal');
   assert.equal(manifest.codex_surface.carrier_source_commit, ownerCommit);
   assert.equal(manifest.content_lock.digest, contentLockDigest);
   assert.equal(allowlist.package_id, manifest.package_id);

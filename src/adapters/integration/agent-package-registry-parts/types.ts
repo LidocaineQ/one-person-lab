@@ -22,6 +22,8 @@ export type AgentPackageRole =
   | 'capability_package'
   | 'workflow_profile';
 
+export type AgentPackageCodexInteractionMode = 'interactive' | 'headless_internal';
+
 export type AgentPackagePackageActionInput = {
   packageId: string;
   dryRun?: boolean;
@@ -122,6 +124,7 @@ export type AgentPackagePresentation = {
 
 export type AgentPackageConfiguredCodexPluginCarrierDescriptor = {
   packageId: string;
+  interactionMode?: AgentPackageCodexInteractionMode;
   carrier: {
     kind: 'codex_plugin_manager';
     pluginId: string;
@@ -186,6 +189,7 @@ export type AgentPackageManifest = {
   verified_payload_source_commit: string | null;
   codex_surface: Record<string, unknown>;
   codex_default_exposure?: boolean;
+  codex_interaction_mode?: AgentPackageCodexInteractionMode;
   skill_packs: Record<string, unknown>[];
   entrypoints: Record<string, unknown>[];
   health_check: Record<string, unknown>;

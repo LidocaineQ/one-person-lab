@@ -185,6 +185,40 @@ test('generic broker reads a dynamically installed descriptor contribution witho
   }
 });
 
+test('generic broker executes a headless internal contribution without enabling Codex exposure', () => {
+  const fixture = writeContributionFixture();
+  const descriptor = {
+    ...fixture.descriptor,
+    enabled: false,
+    carrier_readback: { ...fixture.descriptor.carrier_readback, enabled: false },
+    readiness: {
+      ...fixture.descriptor.readiness,
+      callability: 'disabled' as const,
+      projection_callability: 'callable' as const,
+    },
+    manifest: {
+      ...fixture.descriptor.manifest,
+      codex_interaction_mode: 'headless_internal' as const,
+    },
+  };
+  try {
+    const output = runAppContribution({
+      packageId: fixture.manifest.package_id,
+      ref: 'future.data.v1#current',
+      operation: 'read',
+      input: { source: 'headless' },
+      confirmed: false,
+    }, {
+      descriptorDiscovery: {
+        discover: () => new Map([[fixture.manifest.package_id, descriptor]]),
+      },
+    }) as any;
+    assert.equal(output.opl_app_contribution.response.result.owner_echo.source, 'headless');
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test('work-item contribution resolves its workspace from exact Host identity before owner invocation', () => {
   const fixture = writeContributionFixture();
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-contribution-workspace-'));
