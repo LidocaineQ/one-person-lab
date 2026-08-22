@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 
 import { canonicalJsonBytes, canonicalJsonText } from '../../kernel/canonical-json.ts';
@@ -552,6 +553,54 @@ function normalizedPayload(action: FamilyActionCatalogAction, payload: Record<st
     normalized[field] = workspaceRoot;
   }
   return normalized;
+}
+
+function qualificationProvisioningPayload(
+  input: StandardAgentActionRuntimeInput,
+  workspaceRoot: string,
+) {
+  if (input.actionId !== QUALIFICATION_PROVISIONING_ACTION_ID) return input.payload;
+  const workspaceIndexPath = path.join(workspaceRoot, 'workspace_index.json');
+  let currentWorkspaceIndex: Record<string, unknown>;
+  try {
+    const stat = fs.lstatSync(workspaceIndexPath);
+    if (stat.isSymbolicLink() || !stat.isFile()) {
+      fail('Qualification provisioning workspace index must be a physical file.', {
+        failure_code: 'qualification_provisioning_workspace_index_invalid',
+        workspace_index_path: workspaceIndexPath,
+      });
+    }
+    const bytes = fs.readFileSync(workspaceIndexPath);
+    const record = parseJsonText(bytes.toString('utf8'));
+    if (!isRecord(record)) {
+      fail('Qualification provisioning workspace index must contain a JSON object.', {
+        failure_code: 'qualification_provisioning_workspace_index_invalid',
+        workspace_index_path: workspaceIndexPath,
+      });
+    }
+    currentWorkspaceIndex = {
+      exists: true,
+      workspace_index_ref: 'workspace_index.json',
+      workspace_index_sha256: sha256(bytes),
+      workspace_index_bytes_base64: bytes.toString('base64'),
+      workspace_index_byte_size: bytes.byteLength,
+      record,
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    currentWorkspaceIndex = {
+      exists: false,
+      workspace_index_ref: 'workspace_index.json',
+      workspace_index_sha256: null,
+      workspace_index_bytes_base64: null,
+      workspace_index_byte_size: null,
+      record: null,
+    };
+  }
+  return {
+    ...input.payload,
+    current_workspace_index: currentWorkspaceIndex,
+  };
 }
 
 const WORK_ITEM_IDENTITY_FIELDS = ['work_item_id', 'study_id', 'quest_id'] as const;
@@ -2894,8 +2943,11 @@ export async function runStandardAgentAction(
   )) {
     fail('Hosted Agent action request conflicts with its frozen legacy run binding.', { run_id: runId });
   }
+  const effectiveRuntimeInput = invocationContext === QUALIFICATION_PROVISIONING_INVOCATION
+    ? { ...input, payload: qualificationProvisioningPayload(input, runtimeBinding.workspace_root) }
+    : input;
   let liveContext = await buildLiveActionContext({
-    runtimeInput: input,
+    runtimeInput: effectiveRuntimeInput,
     runtimeBinding,
     dependencies,
   });
@@ -2911,7 +2963,7 @@ export async function runStandardAgentAction(
     timeoutMs,
   });
   const materializedContext = await materializeLifecycleAdmissionContext({
-    runtimeInput: input,
+    runtimeInput: effectiveRuntimeInput,
     runId,
     workspaceRoot: runtimeBinding.workspace_root,
     domainId: runtimeBinding.agent_id,
@@ -3039,5 +3091,12 @@ export function runStandardAgentQualificationProvisioning(
       action_id: input.actionId,
     });
   }
-  return runStandardAgentAction(input, dependencies, QUALIFICATION_PROVISIONING_INVOCATION);
+  const resolveManagedCheckout = dependencies.resolveManagedCheckout ?? resolveStandardAgentManagedCheckout;
+  return runStandardAgentAction(input, {
+    ...dependencies,
+    resolveManagedCheckout: (checkoutInput) => resolveManagedCheckout({
+      ...checkoutInput,
+      preserveWorkspaceForQualificationProvisioning: true,
+    }),
+  }, QUALIFICATION_PROVISIONING_INVOCATION);
 }

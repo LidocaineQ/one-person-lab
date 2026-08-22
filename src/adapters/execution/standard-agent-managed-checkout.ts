@@ -242,6 +242,10 @@ function nativeRuntimeFromStatus(
     observed.plugin_source_path,
     'configured_carrier.carrier.observed_sources[0].plugin_source_path',
   );
+  const observedMarketplaceSource = text(
+    observed.marketplace_source,
+    'configured_carrier.carrier.observed_sources[0].marketplace_source',
+  );
   if (
     configured.surface_kind !== 'opl_configured_codex_plugin_carrier_readback.v1'
     || configured.package_id !== packageId
@@ -264,8 +268,10 @@ function nativeRuntimeFromStatus(
     || observed.installed_version !== installedVersion
     || observed.enabled !== true
     || !marketplaceMatches(
-      text(observed.marketplace_source, 'configured_carrier.carrier.observed_sources[0].marketplace_source'),
+      observedMarketplaceSource,
       marketplaceSource,
+      sourcePolicy,
+      installedCarrierKind,
     )
     || configured.publication_ref !== descriptor.publication_ref
     || installedCarrier.lifecycle_authority !== 'carrier_owned'
@@ -293,7 +299,7 @@ function nativeRuntimeFromStatus(
     ? realDirectory(sourcePolicy.developer_checkout_path, 'source_policy.developer_checkout_path')
     : null;
   const localCarrierMarketplace = installedCarrierKind === 'local'
-    ? realDirectory(marketplaceSource, 'configured_carrier.carrier.marketplace_source')
+    ? realDirectory(observedMarketplaceSource, 'configured_carrier.carrier.observed_sources[0].marketplace_source')
     : null;
   const runtimeCheckoutRoot = [policyRuntimeCheckout, localCarrierMarketplace, pluginSourcePath]
     .filter((candidate): candidate is string => Boolean(candidate))
@@ -306,7 +312,24 @@ function nativeRuntimeFromStatus(
         .filter((candidate): candidate is string => Boolean(candidate)),
     });
   }
-  if (!pathWithin(runtimeCheckoutRoot, pluginSourcePath)) {
+  const policyProvidesSeparateRuntime = policyRuntimeCheckout !== null
+    && pathsMatch(runtimeCheckoutRoot, policyRuntimeCheckout);
+  if (policyProvidesSeparateRuntime && !pathWithin(runtimeCheckoutRoot, pluginSourcePath)) {
+    const runtimeDescriptor = ownerDescriptor(runtimeCheckoutRoot, packageId);
+    if (
+      runtimeDescriptor.package_version !== descriptor.package_version
+      || runtimeDescriptor.plugin_selector !== descriptor.plugin_selector
+      || runtimeDescriptor.marketplace_source !== descriptor.marketplace_source
+      || runtimeDescriptor.publication_ref !== descriptor.publication_ref
+      || runtimeDescriptor.domain_descriptor_ref !== descriptor.domain_descriptor_ref
+    ) {
+      blocked('Standard Agent runtime checkout and installed carrier owner identities disagree.', {
+        package_id: packageId,
+        runtime_descriptor: runtimeDescriptor,
+        carrier_descriptor: descriptor,
+      });
+    }
+  } else if (!pathWithin(runtimeCheckoutRoot, pluginSourcePath)) {
     blocked('Standard Agent native carrier plugin root is outside its runtime checkout.', {
       package_id: packageId,
       runtime_checkout_root: runtimeCheckoutRoot,
@@ -325,6 +348,7 @@ function nativeRuntimeFromStatus(
 export async function resolveStandardAgentManagedCheckout(input: {
   domainId: string;
   workspaceRoot: string;
+  preserveWorkspaceForQualificationProvisioning?: boolean;
   useBoundaryId?: string;
   packageReadiness?: AgentPackageReadinessPort;
   refreshWorkspaceSkills?: WorkspaceSkillProjectionRefresher;
@@ -352,23 +376,35 @@ export async function resolveStandardAgentManagedCheckout(input: {
   const sourcePolicy = packageReadiness.readSourcePolicy?.(packageId) ?? null;
   const nativeRuntime = nativeRuntimeFromStatus(packageStatus, packageId, sourcePolicy);
 
-  const workspaceEnsure = input.workspaceEnsurer
-    ? input.workspaceEnsurer({ agentId: agent.agent_id, workspacePath: requestedWorkspaceRoot })
-    : ensureWorkspace(loadFrameworkContracts(), {
+  const workspaceEnsure = input.preserveWorkspaceForQualificationProvisioning
+    ? ensureWorkspace(loadFrameworkContracts(), {
         agentId: agent.agent_id,
         workspacePath: requestedWorkspaceRoot,
+        dryRun: true,
         packageReadiness,
-        refreshWorkspaceSkills: input.refreshWorkspaceSkills ?? (() => {
-          throw new FrameworkContractError(
-            'contract_shape_invalid',
-            'Managed Standard Agent workspace requires the composed Connect Skill refresher.',
-            { failure_code: 'cordis_connect_workspace_skill_refresher_required' },
-          );
-        }),
-      });
+        refreshWorkspaceSkills: input.refreshWorkspaceSkills ?? (() => ({
+          status: 'not_applicable',
+          dry_run: true,
+          writes_performed: false,
+        })),
+      })
+    : input.workspaceEnsurer
+      ? input.workspaceEnsurer({ agentId: agent.agent_id, workspacePath: requestedWorkspaceRoot })
+      : ensureWorkspace(loadFrameworkContracts(), {
+          agentId: agent.agent_id,
+          workspacePath: requestedWorkspaceRoot,
+          packageReadiness,
+          refreshWorkspaceSkills: input.refreshWorkspaceSkills ?? (() => {
+            throw new FrameworkContractError(
+              'contract_shape_invalid',
+              'Managed Standard Agent workspace requires the composed Connect Skill refresher.',
+              { failure_code: 'cordis_connect_workspace_skill_refresher_required' },
+            );
+          }),
+        });
   const workspaceRoot = fs.realpathSync.native(workspaceEnsure.workspace_initialization.workspace_path);
 
-  return {
+  const result = {
     agent,
     package_id: packageId,
     workspace_root: workspaceRoot,
@@ -380,4 +416,5 @@ export async function resolveStandardAgentManagedCheckout(input: {
     runtime_source_kind: 'installed_native_carrier' as const,
     native_runtime: nativeRuntime,
   };
+  return result;
 }

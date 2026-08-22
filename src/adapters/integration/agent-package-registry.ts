@@ -23,6 +23,7 @@ import {
 } from './agent-package-registry-parts/home-shortcuts.ts';
 import {
   runConfiguredCodexPluginCarrier,
+  sourceTreeSha256,
   type ConfiguredCodexPluginCarrierAction,
   type ConfiguredCodexPluginCarrierReadback,
 } from './agent-package-registry-parts/configured-codex-plugin-carrier.ts';
@@ -221,7 +222,7 @@ function configuredCarrierFromDescriptor(
         installed_version: installed ? descriptor.carrier_readback.version : null,
         enabled: installed && descriptor.enabled,
         plugin_source_path: descriptor.sourcePath,
-        source_tree_sha256: null,
+        source_tree_sha256: sourceTreeSha256(descriptor.sourcePath),
       }],
       precedence: installed
         ? 'exact_single_source'

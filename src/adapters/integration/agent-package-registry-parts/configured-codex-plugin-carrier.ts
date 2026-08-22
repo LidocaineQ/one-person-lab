@@ -307,7 +307,7 @@ function pluginBareName(pluginId: string) {
   return pluginId.split('@', 1)[0] ?? pluginId;
 }
 
-function sourceTreeSha256(sourcePath: string | null) {
+export function sourceTreeSha256(sourcePath: string | null) {
   if (!sourcePath) return null;
   try {
     if (!fs.statSync(sourcePath).isDirectory()) return null;

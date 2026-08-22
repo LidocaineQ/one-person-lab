@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { canonicalJsonText } from '../../kernel/canonical-json.ts';
 import { FrameworkContractError } from '../../kernel/contract-validation.ts';
@@ -126,11 +127,12 @@ def deny_workspace_read(candidate):
 def canonical_text(value):
     return json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":"))
 
-checkout, module_name, callable_name, workspace_root, workspace_read_root = sys.argv[1:6]
+checkout, module_name, callable_name, workspace_root, workspace_read_root, framework_python_root = sys.argv[1:7]
 workspace_root = os.path.realpath(workspace_root)
-allowed_read_roots = tuple(os.path.realpath(root) for root in (checkout, workspace_read_root))
+framework_python_root = os.path.realpath(framework_python_root)
+allowed_read_roots = tuple(os.path.realpath(root) for root in (checkout, workspace_read_root, framework_python_root))
 sys.addaudithook(deny)
-for candidate in (checkout, os.path.join(checkout, "src"), os.path.join(checkout, "python")):
+for candidate in (checkout, os.path.join(checkout, "src"), os.path.join(checkout, "python"), framework_python_root):
     if os.path.isdir(candidate):
         sys.path.insert(0, candidate)
 
@@ -193,9 +195,11 @@ function sandboxProfile(input: {
   checkoutRoot: string;
   workspaceRoot: string;
   workspaceReadRoot: string;
+  additionalReadRoots?: string[];
 }) {
   if (input.workspaceReadRoot === input.workspaceRoot) return BASE_SANDBOX_PROFILE;
-  const allowedWorkspaceRoots = [input.workspaceReadRoot];
+  const allowedWorkspaceRoots = [input.workspaceReadRoot, ...(input.additionalReadRoots ?? [])]
+    .filter((root) => canonicalDescendant(input.workspaceRoot, root));
   if (canonicalDescendant(input.workspaceRoot, input.checkoutRoot)) {
     allowedWorkspaceRoots.push(input.checkoutRoot);
   }
@@ -381,10 +385,21 @@ export function runStandardAgentHandlerSandbox(input: {
   if (!/^[A-Za-z_]\w*$/.test(input.binding.callable)) {
     invalid('Python handler callable is invalid.', { callable: input.binding.callable });
   }
+  const frameworkPythonRoot = physicalDirectory(
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..', 'python'),
+    'OPL Framework Python import root',
+    'standard_agent_handler_framework_python_root_not_canonical',
+  );
+  const pythonProfile = sandboxProfile({
+    checkoutRoot,
+    workspaceRoot,
+    workspaceReadRoot,
+    additionalReadRoots: [frameworkPythonRoot],
+  });
   const python = resolvePython(checkoutRoot);
   const result = spawnSync('/usr/bin/sandbox-exec', [
     '-p',
-    profile,
+    pythonProfile,
     python,
     '-I',
     '-B',
@@ -395,6 +410,7 @@ export function runStandardAgentHandlerSandbox(input: {
     input.binding.callable,
     workspaceRoot,
     workspaceReadRoot,
+    frameworkPythonRoot,
   ], commonOptions);
   if (result.status !== 0 || result.error) processFailure(result, 'python_audit_hook', timeout);
   const output = parseSingleCanonicalJson(result.stdout ?? '');
