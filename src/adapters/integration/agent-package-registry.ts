@@ -371,7 +371,13 @@ function directoryEntry(descriptor: InstalledPackageDescriptor) {
     description: presentationText(manifest.presentation?.description_i18n, manifest.display_name),
     tags: [],
     package_role: manifest.package_role,
-    capability_metadata: null,
+    capability_metadata: installed
+      ? {
+          source: manifest.source,
+          required_skill_ids: [...manifest.required_skill_ids],
+          optional_skill_refs: [...manifest.optional_skill_refs],
+        }
+      : null,
     display_name_i18n: manifest.presentation?.display_name_i18n ?? null,
     description_i18n: manifest.presentation?.description_i18n ?? null,
     session_routing_summary_i18n: manifest.presentation?.session_routing_summary_i18n ?? null,

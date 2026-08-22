@@ -139,6 +139,11 @@ if (args === 'plugin list --json') {
     );
     assert.ok(entry);
     assert.equal(entry.installed, true);
+    assert.deepEqual(entry.capability_metadata, {
+      source: 'third_party',
+      required_skill_ids: ['third-party-research'],
+      optional_skill_refs: ['officecli-docx'],
+    });
     assert.equal(result.opl_agent_packages.installed_package_count, 1);
   } finally {
     removeFixtureTree(root);
