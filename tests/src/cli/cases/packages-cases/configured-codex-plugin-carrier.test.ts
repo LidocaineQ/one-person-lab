@@ -25,6 +25,8 @@ import {
   createMemoizedCodexPluginListRunner,
   githubArchiveFileSource,
   githubMarketplaceSourceIdentity,
+  isTransientConfiguredDownloadFailure,
+  runConfiguredDownloadWithTransientRetry,
   runConfiguredCodexPluginCarrier,
   type CodexPluginCommandRunner,
 } from '../../../../../src/adapters/integration/agent-package-registry-parts/configured-codex-plugin-carrier.ts';
@@ -51,6 +53,65 @@ test('GitHub archive payload reads the owner source path independently from its 
     archiveUrl: `https://codeload.github.com/owner/repository/tar.gz/${commit}`,
     relativePath: 'plugins/example/.codex-plugin/plugin.json',
   });
+});
+
+test('configured payload downloads retry only bounded transient transport failures', () => {
+  const transportFailure = {
+    status: 35,
+    stdout: Buffer.alloc(0),
+    stderr: 'curl: (35) TLS connect error',
+    error: null,
+  };
+  const success = {
+    status: 0,
+    stdout: Buffer.from('payload'),
+    stderr: '',
+    error: null,
+  };
+  const attempts = [transportFailure, transportFailure, success];
+  const delays: number[] = [];
+  const retried = runConfiguredDownloadWithTransientRetry(
+    () => attempts.shift() ?? success,
+    (delayMs) => delays.push(delayMs),
+  );
+  assert.equal(retried.status, 0);
+  assert.equal(retried.attemptCount, 3);
+  assert.deepEqual(delays, [250, 500]);
+
+  assert.equal(isTransientConfiguredDownloadFailure({
+    status: 22,
+    stderr: 'curl: (22) The requested URL returned error: 503',
+    error: null,
+  }), true);
+  assert.equal(isTransientConfiguredDownloadFailure({
+    status: 16,
+    stderr: 'curl: (16) Error in the HTTP2 framing layer',
+    error: null,
+  }), true);
+  assert.equal(isTransientConfiguredDownloadFailure({
+    status: 22,
+    stderr: 'curl: (22) The requested URL returned error: 404',
+    error: null,
+  }), false);
+  assert.equal(isTransientConfiguredDownloadFailure({
+    status: null,
+    stderr: '',
+    error: Object.assign(new Error('spawn failed'), { code: 'ENOENT' }),
+  }), false);
+
+  let permanentAttempts = 0;
+  const permanent = runConfiguredDownloadWithTransientRetry(() => {
+    permanentAttempts += 1;
+    return {
+      status: 22,
+      stdout: Buffer.alloc(0),
+      stderr: 'curl: (22) The requested URL returned error: 403',
+      error: null,
+    };
+  }, () => assert.fail('permanent failure must not wait for a retry'));
+  assert.equal(permanent.status, 22);
+  assert.equal(permanent.attemptCount, 1);
+  assert.equal(permanentAttempts, 1);
 });
 
 const packageId = 'third.party.research';

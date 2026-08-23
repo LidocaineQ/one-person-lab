@@ -77,6 +77,60 @@ export type CodexPluginCommandRunner = (input: {
   env: NodeJS.ProcessEnv;
 }) => CodexPluginCommandResult;
 
+type ConfiguredDownloadAttempt = {
+  status: number | null;
+  stdout: Buffer;
+  stderr: string;
+  error: Error | null;
+};
+
+type ConfiguredDownloadResult = ConfiguredDownloadAttempt & {
+  attemptCount: number;
+};
+
+const TRANSIENT_CURL_EXIT_STATUSES = new Set([5, 6, 7, 16, 18, 28, 35, 52, 55, 56, 92]);
+const TRANSIENT_SPAWN_ERROR_CODES = new Set([
+  'EAI_AGAIN',
+  'ECONNABORTED',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ENETDOWN',
+  'ENETRESET',
+  'ENETUNREACH',
+  'ETIMEDOUT',
+]);
+
+export function isTransientConfiguredDownloadFailure(
+  result: Pick<ConfiguredDownloadAttempt, 'status' | 'stderr' | 'error'>,
+) {
+  if (result.status !== null && TRANSIENT_CURL_EXIT_STATUSES.has(result.status)) return true;
+  if (result.status === 22
+    && /curl:\s*\(22\).*\b(?:408|425|429|500|502|503|504)\b/i.test(result.stderr)) {
+    return true;
+  }
+  const errorCode = (result.error as NodeJS.ErrnoException | null)?.code;
+  return typeof errorCode === 'string' && TRANSIENT_SPAWN_ERROR_CODES.has(errorCode);
+}
+
+function waitForConfiguredDownloadRetry(delayMs: number) {
+  const sleeper = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
+  Atomics.wait(sleeper, 0, 0, delayMs);
+}
+
+export function runConfiguredDownloadWithTransientRetry(
+  attempt: () => ConfiguredDownloadAttempt,
+  waitForRetry: (delayMs: number) => void = waitForConfiguredDownloadRetry,
+): ConfiguredDownloadResult {
+  let attemptCount = 1;
+  let result = attempt();
+  while (attemptCount < 3 && isTransientConfiguredDownloadFailure(result)) {
+    waitForRetry(250 * (2 ** (attemptCount - 1)));
+    attemptCount += 1;
+    result = attempt();
+  }
+  return { ...result, attemptCount };
+}
+
 export type ConfiguredCodexPluginCarrierReadback = {
   surface_kind: 'opl_configured_codex_plugin_carrier_readback.v1';
   package_id: string;
@@ -881,13 +935,21 @@ function materializeGithubArchive(input: {
   const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-archive-'));
   const archivePath = path.join(temporaryRoot, 'source.tar.gz');
   const curl = fs.existsSync('/usr/bin/curl') ? '/usr/bin/curl' : 'curl';
-  const download = spawnSync(curl, [
-    '--fail', '--silent', '--show-error', '--location',
-    '--proto', '=https', '--tlsv1.2',
-    '--connect-timeout', '10', '--max-time', '300',
-    archive.archiveUrl,
-    '--output', archivePath,
-  ], { encoding: 'utf8', env: input.env, maxBuffer: 8 * 1024 * 1024 });
+  const download = runConfiguredDownloadWithTransientRetry(() => {
+    const result = spawnSync(curl, [
+      '--fail', '--silent', '--show-error', '--location',
+      '--proto', '=https', '--tlsv1.2',
+      '--connect-timeout', '10', '--max-time', '120',
+      archive.archiveUrl,
+      '--output', archivePath,
+    ], { encoding: null, env: input.env, maxBuffer: 8 * 1024 * 1024 });
+    return {
+      status: result.status,
+      stdout: result.stdout ?? Buffer.alloc(0),
+      stderr: result.stderr?.toString('utf8') ?? '',
+      error: result.error ?? null,
+    };
+  });
   if (download.status !== 0 || download.error) {
     fs.rmSync(temporaryRoot, { recursive: true, force: true });
     return localReadbackFailure(
@@ -897,7 +959,8 @@ function materializeGithubArchive(input: {
         package_id: input.packageId,
         archive_url: archive.archiveUrl,
         exit_status: download.status,
-        error: download.error?.message ?? download.stderr.trim() ?? null,
+        attempt_count: download.attemptCount,
+        error: download.error?.message || download.stderr.trim() || null,
       },
     );
   }
@@ -1046,12 +1109,20 @@ function installPayloadMarketplace(input: {
         bytes = archive.pathFor(source);
       } else {
         const curl = fs.existsSync('/usr/bin/curl') ? '/usr/bin/curl' : 'curl';
-        const result = spawnSync(curl, [
-          '--fail', '--silent', '--show-error', '--location',
-          '--proto', '=https', '--tlsv1.2',
-          '--connect-timeout', '10', '--max-time', '30',
-          source.toString(),
-        ], { encoding: null, env: input.env, maxBuffer: 128 * 1024 * 1024 });
+        const result = runConfiguredDownloadWithTransientRetry(() => {
+          const download = spawnSync(curl, [
+            '--fail', '--silent', '--show-error', '--location',
+            '--proto', '=https', '--tlsv1.2',
+            '--connect-timeout', '10', '--max-time', '30',
+            source.toString(),
+          ], { encoding: null, env: input.env, maxBuffer: 128 * 1024 * 1024 });
+          return {
+            status: download.status,
+            stdout: download.stdout ?? Buffer.alloc(0),
+            stderr: download.stderr?.toString('utf8') ?? '',
+            error: download.error ?? null,
+          };
+        });
         if (result.status !== 0 || result.error) {
           localReadbackFailure(
             'configured_codex_plugin_carrier_payload_download_failed',
@@ -1060,7 +1131,8 @@ function installPayloadMarketplace(input: {
               package_id: input.packageId,
               payload_path: relativePath,
               exit_status: result.status,
-              error: result.error?.message ?? null,
+              attempt_count: result.attemptCount,
+              error: result.error?.message || result.stderr.trim() || null,
             },
           );
         }
