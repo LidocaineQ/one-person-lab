@@ -67,7 +67,8 @@ type ProjectionPlan = {
   fullExportDigest: string;
 };
 
-const WORKSPACE_OWNER_KIND = 'opl_workspace_agent_package_skill_owner.v1';
+const WORKSPACE_OWNER_KIND_V1 = 'opl_workspace_agent_package_skill_owner.v1';
+const WORKSPACE_OWNER_KIND_V2 = 'opl_workspace_agent_package_skill_owner.v2';
 const WORKSPACE_MANIFEST_KIND = 'opl_workspace_agent_package_skill_projection.v1';
 
 function copySkillTree(sourceRoot: string, targetRoot: string) {
@@ -526,6 +527,64 @@ function writeAtomicJson(filePath: string, value: unknown) {
   fs.renameSync(temporary, filePath);
 }
 
+type WorkspaceSkillOwner = {
+  skillId: string;
+  skillDigest: string;
+  owners: Map<string, string>;
+};
+
+function workspaceSkillOwnerFromRecord(
+  value: Record<string, unknown> | null,
+  expectedSkillId: string,
+): WorkspaceSkillOwner | null {
+  if (!value) return null;
+  const skillId = stringValue(value.skill_id);
+  const skillDigestValue = stringValue(value.skill_digest);
+  if (skillId !== expectedSkillId || !skillDigestValue?.match(/^sha256:[a-f0-9]{64}$/)) return null;
+
+  if (value.surface_kind === WORKSPACE_OWNER_KIND_V1) {
+    const packageId = stringValue(value.package_id);
+    const generationId = stringValue(value.generation_id);
+    if (!packageId || !generationId) return null;
+    return {
+      skillId,
+      skillDigest: skillDigestValue,
+      owners: new Map([[packageId, generationId]]),
+    };
+  }
+  if (value.surface_kind !== WORKSPACE_OWNER_KIND_V2 || !Array.isArray(value.owners)) return null;
+
+  const owners = new Map<string, string>();
+  for (const entry of value.owners) {
+    if (!isRecord(entry)) return null;
+    const packageId = stringValue(entry.package_id);
+    const generationId = stringValue(entry.generation_id);
+    if (!packageId || !generationId || owners.has(packageId)) return null;
+    owners.set(packageId, generationId);
+  }
+  return owners.size > 0
+    ? { skillId, skillDigest: skillDigestValue, owners }
+    : null;
+}
+
+function workspaceSkillOwnerPayload(
+  skillId: string,
+  skillDigestValue: string,
+  owners: Map<string, string>,
+) {
+  return {
+    surface_kind: WORKSPACE_OWNER_KIND_V2,
+    skill_id: skillId,
+    skill_digest: skillDigestValue,
+    owners: [...owners.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([packageId, generationId]) => ({
+        package_id: packageId,
+        generation_id: generationId,
+      })),
+  };
+}
+
 export function syncAgentPackageSkillProjectionToWorkspace(
   projection: AgentPackageSkillProjection,
   targetWorkspace: string,
@@ -562,30 +621,45 @@ export function syncAgentPackageSkillProjectionToWorkspace(
     skillId,
     path.join(ownersRoot, `${safeSkillId(skillId)}.json`),
   ]));
+  const states = new Map<string, {
+    skillId: string;
+    targetSkill: string;
+    ownerPath: string;
+    owner: WorkspaceSkillOwner | null;
+    targetExists: boolean;
+    actualDigest: string | null;
+    previousContains: boolean;
+    nextContains: boolean;
+    nextDigest: string | null;
+  }>();
   for (const skillId of affectedSkillIds) {
     const targetSkill = path.join(skillsRoot, skillId);
-    const owner = readJsonRecord(ownerPaths.get(skillId)!);
-    if (!fs.existsSync(targetSkill)) {
-      if (owner && owner.package_id !== projection.root_package_id) {
-        throw new FrameworkContractError(
-          'contract_shape_invalid',
-          'Workspace Skill owner marker belongs to another package.',
-          {
-            skill_id: skillId,
-            owner_package_id: owner.package_id,
-            failure_code: 'agent_package_workspace_skill_owner_conflict',
-          },
-        );
-      }
-      continue;
-    }
-    const expectedDigest = stringValue(owner?.skill_digest);
-    const owned = owner?.surface_kind === WORKSPACE_OWNER_KIND
-      && owner.package_id === projection.root_package_id
-      && owner.skill_id === skillId
-      && expectedDigest !== null
-      && skillDigest(skillsRoot, skillId) === expectedDigest;
-    if (!owned) {
+    const ownerPath = ownerPaths.get(skillId)!;
+    const ownerRecord = readJsonRecord(ownerPath);
+    const owner = workspaceSkillOwnerFromRecord(ownerRecord, skillId);
+    const targetExists = fs.existsSync(targetSkill);
+    const actualDigest = targetExists ? skillDigest(skillsRoot, skillId) : null;
+    const previousContains = previousSkillIds.includes(skillId);
+    const nextContains = projection.skill_ids.includes(skillId);
+    const nextDigest = nextContains ? projection.skill_digests[skillId] : null;
+    const currentOwns = owner?.owners.has(projection.root_package_id) === true;
+    const otherOwnerPackageIds = owner
+      ? [...owner.owners.keys()].filter((packageId) => packageId !== projection.root_package_id)
+      : [];
+
+    states.set(skillId, {
+      skillId,
+      targetSkill,
+      ownerPath,
+      owner,
+      targetExists,
+      actualDigest,
+      previousContains,
+      nextContains,
+      nextDigest,
+    });
+
+    if ((ownerRecord && !owner) || (targetExists && (!owner || actualDigest !== owner.skillDigest))) {
       throw new FrameworkContractError(
         'contract_shape_invalid',
         'Workspace Skill projection refuses to overwrite an unmanaged or drifted Skill directory.',
@@ -597,6 +671,47 @@ export function syncAgentPackageSkillProjectionToWorkspace(
         },
       );
     }
+    if (previousContains && owner && !currentOwns) {
+      throw new FrameworkContractError(
+        'contract_shape_invalid',
+        'Workspace Skill projection manifest and owner marker disagree.',
+        {
+          package_id: projection.root_package_id,
+          skill_id: skillId,
+          owner_package_ids: [...owner.owners.keys()].sort(),
+          failure_code: 'agent_package_workspace_skill_owner_conflict',
+        },
+      );
+    }
+    if (!fs.existsSync(targetSkill)) {
+      if (owner && (otherOwnerPackageIds.length > 0 || (nextContains && !currentOwns))) {
+        throw new FrameworkContractError(
+          'contract_shape_invalid',
+          'Workspace Skill owner marker belongs to another package while its managed directory is missing.',
+          {
+            skill_id: skillId,
+            owner_package_ids: [...owner.owners.keys()].sort(),
+            failure_code: 'agent_package_workspace_skill_owner_conflict',
+          },
+        );
+      }
+      continue;
+    }
+    if (nextContains && actualDigest !== nextDigest && (!currentOwns || otherOwnerPackageIds.length > 0)) {
+      throw new FrameworkContractError(
+        'contract_shape_invalid',
+        'Workspace Skill projection refuses to replace bytes still owned by another package.',
+        {
+          package_id: projection.root_package_id,
+          skill_id: skillId,
+          target_skill_root: targetSkill,
+          owner_package_ids: [...owner!.owners.keys()].sort(),
+          current_digest: actualDigest,
+          requested_digest: nextDigest,
+          failure_code: 'agent_package_workspace_skill_owner_conflict',
+        },
+      );
+    }
   }
   const alreadyCurrent = previous?.surface_kind === WORKSPACE_MANIFEST_KIND
     && previous.package_id === projection.root_package_id
@@ -604,6 +719,7 @@ export function syncAgentPackageSkillProjectionToWorkspace(
     && projection.skill_ids.every((skillId) => (
       fs.existsSync(path.join(skillsRoot, skillId))
       && skillDigest(skillsRoot, skillId) === projection.skill_digests[skillId]
+      && states.get(skillId)?.owner?.owners.get(projection.root_package_id) === projection.generation_id
     ));
   if (alreadyCurrent) {
     return { status: 'unchanged' as const, writes_performed: false, workspaceSkillsRoot: skillsRoot };
@@ -618,8 +734,22 @@ export function syncAgentPackageSkillProjectionToWorkspace(
   const backupRoot = path.join(transactionRoot, 'backup');
   const previousOwnerBytes = new Map<string, Buffer | null>();
   const previousManifestBytes = fs.existsSync(manifestPath) ? fs.readFileSync(manifestPath) : null;
+  const desiredOwners = new Map<string, Map<string, string>>();
+  const replaceSkillIds = new Set<string>();
+  const removeSkillIds = new Set<string>();
+  for (const state of states.values()) {
+    const owners = new Map(state.owner?.owners ?? []);
+    if (state.previousContains && !state.nextContains) owners.delete(projection.root_package_id);
+    if (state.nextContains) owners.set(projection.root_package_id, projection.generation_id);
+    desiredOwners.set(state.skillId, owners);
+    if (state.nextContains && (!state.targetExists || state.actualDigest !== state.nextDigest)) {
+      replaceSkillIds.add(state.skillId);
+    } else if (state.previousContains && !state.nextContains && owners.size === 0 && state.targetExists) {
+      removeSkillIds.add(state.skillId);
+    }
+  }
   try {
-    for (const skillId of projection.skill_ids) {
+    for (const skillId of replaceSkillIds) {
       copySkillTree(
         path.join(projection.skills_root, skillId),
         path.join(stageRoot, skillId),
@@ -629,24 +759,41 @@ export function syncAgentPackageSkillProjectionToWorkspace(
       const ownerPath = ownerPaths.get(skillId)!;
       previousOwnerBytes.set(skillId, fs.existsSync(ownerPath) ? fs.readFileSync(ownerPath) : null);
       const targetSkill = path.join(skillsRoot, skillId);
-      if (fs.existsSync(targetSkill)) {
+      if ((replaceSkillIds.has(skillId) || removeSkillIds.has(skillId)) && fs.existsSync(targetSkill)) {
         fs.mkdirSync(backupRoot, { recursive: true });
         fs.renameSync(targetSkill, path.join(backupRoot, skillId));
       }
     }
-    for (const skillId of projection.skill_ids) {
+    for (const skillId of replaceSkillIds) {
       fs.renameSync(path.join(stageRoot, skillId), path.join(skillsRoot, skillId));
-      writeAtomicJson(ownerPaths.get(skillId)!, {
-        surface_kind: WORKSPACE_OWNER_KIND,
-        package_id: projection.root_package_id,
-        skill_id: skillId,
-        generation_id: projection.generation_id,
-        skill_digest: projection.skill_digests[skillId],
-      });
+    }
+    for (const state of states.values()) {
+      const owners = desiredOwners.get(state.skillId)!;
+      const ownerPath = ownerPaths.get(state.skillId)!;
+      if (owners.size === 0) {
+        if (fs.existsSync(ownerPath)) fs.unlinkSync(ownerPath);
+        continue;
+      }
+      const desiredDigest = state.nextDigest ?? state.owner?.skillDigest;
+      if (!desiredDigest) {
+        throw new FrameworkContractError(
+          'contract_shape_invalid',
+          'Workspace Skill projection could not determine the managed Skill digest.',
+          {
+            package_id: projection.root_package_id,
+            skill_id: state.skillId,
+            failure_code: 'agent_package_workspace_skill_owner_conflict',
+          },
+        );
+      }
+      writeAtomicJson(
+        ownerPath,
+        workspaceSkillOwnerPayload(state.skillId, desiredDigest, owners),
+      );
     }
     for (const skillId of previousSkillIds.filter((skillId) => !projection.skill_ids.includes(skillId))) {
       const ownerPath = ownerPaths.get(skillId)!;
-      if (fs.existsSync(ownerPath)) fs.unlinkSync(ownerPath);
+      if (desiredOwners.get(skillId)?.size === 0 && fs.existsSync(ownerPath)) fs.unlinkSync(ownerPath);
     }
     writeAtomicJson(manifestPath, {
       surface_kind: WORKSPACE_MANIFEST_KIND,
@@ -659,7 +806,7 @@ export function syncAgentPackageSkillProjectionToWorkspace(
     removeTree(transactionRoot);
     return { status: 'materialized' as const, writes_performed: true, workspaceSkillsRoot: skillsRoot };
   } catch (error) {
-    for (const skillId of projection.skill_ids) {
+    for (const skillId of [...replaceSkillIds, ...removeSkillIds]) {
       removeTree(path.join(skillsRoot, skillId));
     }
     for (const skillId of affectedSkillIds) {
