@@ -74,7 +74,7 @@
     "views": [
       {
         "view_id": "fleet.agent.telemetry",
-        "view_type": "activity_log",
+        "view_type": "service_status",
         "title_i18n": {
           "zh-CN": "本机 Fleet Agent 遥测",
           "en-US": "Local Fleet Agent telemetry"
@@ -90,7 +90,7 @@
       },
       {
         "view_id": "fleet.agent.doctor",
-        "view_type": "activity_log",
+        "view_type": "service_status",
         "title_i18n": {
           "zh-CN": "本机 Fleet Agent 诊断",
           "en-US": "Local Fleet Agent doctor"

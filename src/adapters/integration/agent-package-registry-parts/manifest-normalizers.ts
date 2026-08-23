@@ -52,6 +52,7 @@ const APP_CONTRIBUTION_VIEW_TYPES = new Set<AgentPackageAppContributionViewType>
   'task_board',
   'artifact_view',
   'activity_log',
+  'service_status',
   'channel_access',
   'remote_companion_access',
 ]);

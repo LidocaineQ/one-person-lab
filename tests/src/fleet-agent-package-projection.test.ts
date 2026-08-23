@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 
 import { resolvePackageHostIntegration } from '../../src/authority/packages/package-host-integration.ts';
 import { normalizePackageManifest } from '../../src/adapters/integration/agent-package-registry-parts/manifest-normalizers.ts';
+import { FrameworkContractError } from '../../src/kernel/contract-validation.ts';
 import { parseJsonText } from '../../src/kernel/json-file.ts';
 import { validateJsonSchemaPayload } from '../../src/kernel/schema-registry.ts';
 import { runAppContribution } from '../../src/read-models/operator/app-contribution-broker.ts';
@@ -17,6 +18,12 @@ const manifestRef = 'contracts/opl-framework/packages/opl-fleet-agent.json';
 const allowlistRef = 'contracts/opl-framework/package-payload-allowlists/opl-fleet-agent.json';
 const payloadRef = 'contracts/opl-framework/packages/payloads/opl-fleet-agent-0.2.41.json';
 const ownerCommit = 'b5a24e97b6caa125780e0399742eed9784f46352';
+const appContributionsSchemaRefs = [
+  'contracts/opl-framework/app-contributions.schema.json',
+  'contracts/opl-framework/capability-package-manifest.schema.json',
+  'contracts/opl-framework/workflow-profile-package-manifest.schema.json',
+  'contracts/opl-framework/agent-package-manifest.schema.json',
+] as const;
 
 function readJson(relativePath: string) {
   return parseJsonText(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')) as Record<string, any>;
@@ -30,6 +37,24 @@ function assertSchema(relativePath: string, schemaId: string, payload: unknown) 
     sourceRef: relativePath,
   }, payload);
   assert.equal(result.ok, true, result.ok ? undefined : JSON.stringify(result.errors));
+}
+
+function appContributionsSchema(relativePath: string) {
+  const schema = readJson(relativePath);
+  if (relativePath.endsWith('/app-contributions.schema.json')) return schema;
+  return {
+    $schema: schema.$schema,
+    $defs: schema.$defs,
+    $ref: '#/$defs/app_contributions',
+  };
+}
+
+function validateAppContributionsSchema(relativePath: string, payload: unknown) {
+  return validateJsonSchemaPayload({
+    schemaId: `${relativePath}#/app_contributions`,
+    schema: appContributionsSchema(relativePath),
+    sourceRef: relativePath,
+  }, payload);
 }
 
 function normalizedManifest() {
@@ -57,6 +82,10 @@ test('Fleet Agent owner projection is a schema-valid capability Package with one
     'opl.package_payload_manifest.fleet_agent.v2',
     payload,
   );
+  for (const schemaRef of appContributionsSchemaRefs) {
+    const result = validateAppContributionsSchema(schemaRef, manifest.app_contributions);
+    assert.equal(result.ok, true, result.ok ? undefined : `${schemaRef}: ${JSON.stringify(result.errors)}`);
+  }
 
   assert.equal(manifest.package_id, 'opl-fleet-agent');
   assert.equal(manifest.display_name, 'OPL Fleet Agent');
@@ -97,6 +126,15 @@ test('Fleet Agent owner projection is a schema-valid capability Package with one
   assert.equal(manifest.codex_surface.carrier_source_commit, ownerCommit);
 });
 
+test('App contribution schema mirrors reject unknown view types', () => {
+  const invalidContributions = structuredClone(readJson(manifestRef).app_contributions) as Record<string, any>;
+  invalidContributions.views[0].view_type = 'unknown_view_type';
+  for (const schemaRef of appContributionsSchemaRefs) {
+    const result = validateAppContributionsSchema(schemaRef, invalidContributions);
+    assert.equal(result.ok, false, `${schemaRef} accepted an unknown view_type`);
+  }
+});
+
 test('Fleet Agent keeps its published Settings projections for version 0.2.41', () => {
   const manifest = normalizedManifest();
   const contributions = manifest.app_contributions;
@@ -115,16 +153,43 @@ test('Fleet Agent keeps its published Settings projections for version 0.2.41', 
   );
   assert.equal(contributions.views.length, 2);
   assert.deepEqual(
+    contributions.views.map((view) => view.view_type),
+    ['service_status', 'service_status'],
+  );
+  assert.deepEqual(
     contributions.views.map((view) => view.data_ref),
     ['fleet.agent.telemetry.v1#local', 'fleet.agent.doctor.v1#current'],
   );
   assert.equal(projection.contribution_count, 2);
+  assert.deepEqual(
+    projection.entries.map((entry) => (entry.view as any).view_type),
+    ['service_status', 'service_status'],
+  );
   assert.deepEqual(
     projection.slots['settings.section'].map((entry) => entry.contribution_key),
     [
       'opl-fleet-agent:fleet.agent.telemetry-settings',
       'opl-fleet-agent:fleet.agent.doctor-settings',
     ],
+  );
+});
+
+test('App contribution normalizer rejects unknown view types while accepting service_status', () => {
+  const manifest = readJson(manifestRef);
+  assert.deepEqual(
+    normalizePackageManifest(manifest, 'framework://opl-fleet-agent.json').app_contributions?.views
+      .map((view) => view.view_type),
+    ['service_status', 'service_status'],
+  );
+
+  const invalidManifest = structuredClone(manifest) as Record<string, any>;
+  invalidManifest.app_contributions.views[0].view_type = 'unknown_view_type';
+  assert.throws(
+    () => normalizePackageManifest(invalidManifest, 'framework://opl-fleet-agent.json'),
+    (error: unknown) => error instanceof FrameworkContractError
+      && error.code === 'contract_shape_invalid'
+      && error.details?.failure_code === 'agent_package_app_contributions_invalid'
+      && error.details?.field === 'app_contributions.views[0].view_type',
   );
 });
 
