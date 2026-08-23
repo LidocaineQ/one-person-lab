@@ -289,7 +289,31 @@ export async function ensureFamilyRuntimePackageLaunchReady(input: {
     && sourcePolicy.developer_checkout_available === true
     ? optionalString(sourcePolicy.developer_checkout_path)
     : null;
+  const fullRuntimeCheckoutResolution = sourcePolicy?.effective_install_update_source === 'full_runtime'
+    ? packageReadiness.resolveStandardAgentContractCheckout?.(input.domainId) ?? null
+    : null;
+  if (
+    sourcePolicy?.effective_install_update_source === 'full_runtime'
+    && (
+      fullRuntimeCheckoutResolution?.status !== 'resolved'
+      || !optionalString(fullRuntimeCheckoutResolution.checkout?.checkout_path)
+    )
+  ) {
+    throw new FrameworkContractError(
+      'contract_shape_invalid',
+      'Full runtime launch requires the packaged Standard Agent module checkout.',
+      {
+        domain_id: input.domainId,
+        package_id: packageId,
+        source_policy: sourcePolicy,
+        checkout_resolution: fullRuntimeCheckoutResolution,
+        failure_code: 'full_runtime_module_checkout_unavailable',
+      },
+    );
+  }
+  const fullRuntimeCheckout = optionalString(fullRuntimeCheckoutResolution?.checkout?.checkout_path);
   const effectiveRuntimeCheckout = policyRuntimeCheckout
+    ?? fullRuntimeCheckout
     ?? localCarrierRuntimeCheckout(packageStatus);
   const skillRefresh = await packageReadiness.refreshWorkspaceSkills?.({
     packageId,
