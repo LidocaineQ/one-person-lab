@@ -70,7 +70,8 @@ function contributionReadback(resolved: ResolvedContribution, request: AppContri
     readiness: {
       installed: resolved.descriptor.readiness.installed,
       physical_status: resolved.descriptor.readiness.physical_status,
-      callability: resolved.descriptor.readiness.callability,
+      callability: resolved.descriptor.readiness.projection_callability
+        ?? resolved.descriptor.readiness.callability,
     },
   };
 }

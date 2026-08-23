@@ -214,6 +214,7 @@ test('generic broker executes a headless internal contribution without enabling 
       },
     }) as any;
     assert.equal(output.opl_app_contribution.response.result.owner_echo.source, 'headless');
+    assert.equal(output.opl_app_contribution.readiness.callability, 'callable');
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
   }
