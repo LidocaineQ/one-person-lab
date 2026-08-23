@@ -16,9 +16,14 @@ import {
 } from './packages-cases/capability-fixtures.ts';
 import { createFakeCodexPluginManagerFixture } from '../helpers-parts/fixtures.ts';
 import {
+  ensureFamilyRuntimePackageLaunchReady,
   packageLaunchHardStopReason,
   packageRuntimeSourceCheckoutPath,
 } from '../../../../src/adapters/execution/family-runtime-package-readiness.ts';
+import {
+  readAgentPackageReadinessPort,
+  registerAgentPackageReadinessPort,
+} from '../../../../src/kernel/agent-package-readiness-port.ts';
 
 function createArgs(workspace: string) {
   return [
@@ -189,6 +194,65 @@ test('retired compatibility runtime source is ignored without a native carrier',
       checkout_path: '/tmp/stale-source',
     },
   }), null);
+});
+
+test('MAG start materializes a workspace-bound native package-use binding without retired receipts', async () => {
+  const previousPort = readAgentPackageReadinessPort();
+  const workspace = '/tmp/opl-mag-package-use-binding-proof';
+  const packageStatus = {
+    installed_package_count: 1,
+    launch_allowed: true,
+    installed_manifest_sha256: 'a'.repeat(64),
+    installed_content_digest: `sha256:${'b'.repeat(64)}`,
+    installed_carrier_readback: {
+      kind: 'local',
+      lifecycle_authority: 'carrier_owned',
+      source_ref: '/tmp/opl-mag-native-carrier',
+      version: '0.3.12',
+    },
+    configured_carrier: {
+      status: 'installed',
+      installed_version: '0.3.12',
+    },
+    package_dependency_readiness: { dependencies: [] },
+  };
+  registerAgentPackageReadinessPort({
+    readStatus: () => ({ opl_agent_package_status: packageStatus }),
+    refreshWorkspaceSkills: () => ({
+      projection: {
+        core_digest: `sha256:${'c'.repeat(64)}`,
+        full_export_digest: `sha256:${'d'.repeat(64)}`,
+      },
+    }),
+  });
+  try {
+    const createOnly = await ensureFamilyRuntimePackageLaunchReady({
+      domainId: 'medautogrant',
+      workspaceLocator: { workspace_root: workspace },
+    });
+    assert.equal(createOnly?.package_use_binding, null);
+
+    const started = await ensureFamilyRuntimePackageLaunchReady({
+      domainId: 'medautogrant',
+      workspaceLocator: { workspace_root: workspace },
+      useBoundaryId: 'package-use_mag-focused-proof',
+    });
+    assert.deepEqual(started?.package_use_binding, {
+      surface_kind: 'opl_agent_package_use_binding.v1',
+      binding_origin: 'installed_native_carrier',
+      scope: 'workspace',
+      target_root: workspace,
+      root_package: started?.native_package_closure.root_package,
+      provider_packages: [],
+      dependency_closure_digest: started?.native_package_closure.dependency_closure_digest,
+      core_skill_tree_digest: `sha256:${'c'.repeat(64)}`,
+      skill_tree_digest: `sha256:${'d'.repeat(64)}`,
+      use_boundary_id: 'package-use_mag-focused-proof',
+    });
+    assert.equal(Object.hasOwn(started?.package_use_binding ?? {}, 'use_receipt_ref'), false);
+  } finally {
+    if (previousPort) registerAgentPackageReadinessPort(previousPort);
+  }
 });
 
 test('family-runtime attempt create fails closed when the canonical domain package is not installed', () => {

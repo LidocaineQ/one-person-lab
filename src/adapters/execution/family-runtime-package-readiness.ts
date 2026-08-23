@@ -153,6 +153,30 @@ function nativePackageClosure(packageId: string, packageStatus: any) {
   };
 }
 
+function nativePackageUseBinding(input: {
+  closure: ReturnType<typeof nativePackageClosure>;
+  scope: PackageScope | null;
+  useBoundaryId?: string;
+}) {
+  if (!input.closure || !input.scope || !input.useBoundaryId) return null;
+  const targetRoot = input.scope.scope === 'workspace'
+    ? input.scope.targetWorkspace
+    : input.scope.targetQuest;
+  if (!targetRoot) return null;
+  return {
+    surface_kind: 'opl_agent_package_use_binding.v1' as const,
+    binding_origin: 'installed_native_carrier' as const,
+    scope: input.scope.scope,
+    target_root: targetRoot,
+    root_package: input.closure.root_package,
+    provider_packages: input.closure.provider_packages,
+    dependency_closure_digest: input.closure.dependency_closure_digest,
+    core_skill_tree_digest: input.closure.core_skill_tree_digest,
+    skill_tree_digest: input.closure.skill_tree_digest,
+    use_boundary_id: input.useBoundaryId,
+  };
+}
+
 function locatorString(locator: Record<string, unknown>, keys: string[]): string | null {
   for (const key of keys) {
     const value = optionalString(locator[key]);
@@ -343,10 +367,15 @@ export async function ensureFamilyRuntimePackageLaunchReady(input: {
         skill_projection: skillRefresh.projection,
       }
     : nativeClosure;
+  const nativeUseBinding = nativePackageUseBinding({
+    closure: effectiveNativePackageClosure,
+    scope,
+    useBoundaryId: input.useBoundaryId,
+  });
   const readbackUseBinding = isRecord(packageStatus.package_use_binding)
     ? packageStatus.package_use_binding
     : null;
-  const effectiveUseBinding = pinnedUseBinding ?? readbackUseBinding;
+  const effectiveUseBinding = pinnedUseBinding ?? readbackUseBinding ?? nativeUseBinding;
   if (packageStatus.launch_allowed === true) {
     return {
       ...packageStatus,
