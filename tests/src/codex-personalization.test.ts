@@ -23,15 +23,9 @@ function writeOplFlowPackage(root: string) {
   const ownerSourceCommit = 'bd9e5a9b23e5e843bf2f0d33e094b1de11244542';
   const sourceRoot = path.join(root, 'source', 'opl-flow');
   const requiredSkillIds = [
-    'coordinate-concurrent-tasks',
-    'codex-app-owner-migration',
-    'develop-and-deliver',
-    'github-ssot-patrol',
-    'opl-doc',
-    'opl-fleet',
     'opl-flow',
-    'recover-codex-tasks',
-    'task-mode-gate',
+    'software-development',
+    'manage-codex-tasks',
   ];
   const files = {
     '.codex-plugin/plugin.json': `${JSON.stringify({ name: 'opl-flow', version, skills: './skills/' })}\n`,
