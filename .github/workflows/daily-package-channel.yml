@@ -9,11 +9,6 @@ on:
         description: Optional Release Set generation override. Empty allocates the next UTC YY.M.D[-rN].
         required: false
         type: string
-      force_publish:
-        description: Mark owner publication required even when Package fingerprints are unchanged
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -166,13 +161,80 @@ jobs:
           set -euo pipefail
           summary=dist/opl-daily-packages/daily-package-channel-summary.json
           test -f "$summary"
-          summary_status="$(jq -r .status "$summary")"
-          publish_required="$(jq -r .publish_required "$summary")"
-          if [ "${{ github.event.inputs.force_publish || 'false' }}" = true ]; then
-            publish_required=true
+          owner_state=dist/opl-daily-packages/current-owner-channels.json
+          plan=dist/opl-daily-packages/owner-channel-publication-plan.json
+          jq -n '{surface_kind:"opl_package_owner_channel_state.v1",packages:{}}' > "$owner_state"
+          while IFS= read -r package_id; do
+            image="ghcr.io/${{ github.repository_owner }}/one-person-lab-packages/$package_id"
+            descriptor_file="$RUNNER_TEMP/opl-$package_id-latest-stable-descriptor.json"
+            descriptor_error="$RUNNER_TEMP/opl-$package_id-latest-stable-descriptor.error"
+            manifest_file="$RUNNER_TEMP/opl-$package_id-latest-stable-manifest.json"
+            payload_file="$RUNNER_TEMP/opl-$package_id-latest-stable-payload.json"
+            if oras manifest fetch --descriptor "$image:latest-stable" \
+              > "$descriptor_file" 2> "$descriptor_error"; then
+              digest="$(jq -er '.digest | select(test("^sha256:[0-9a-f]{64}$"))' "$descriptor_file")"
+              oras manifest fetch "${image}@${digest}" > "$manifest_file"
+              payload_digest="$(jq -er \
+                '[.layers[] | select(.mediaType == "application/vnd.onepersonlab.package.payload.v1+json") | .digest] | select(length == 1) | .[0]' \
+                "$manifest_file")"
+              for attempt in 1 2 3; do
+                if oras blob fetch --output "$payload_file" "${image}@${payload_digest}"; then
+                  break
+                fi
+                [ "$attempt" -lt 3 ] || exit 1
+                sleep "$((attempt * 5))"
+              done
+              jq -e \
+                --arg id "$package_id" \
+                '.package_id == $id
+                  and (.package_version | test("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"))
+                  and (.source_commit | test("^[0-9a-f]{40}$"))
+                  and (.content_lock.digest | test("^sha256:[0-9a-f]{64}$"))' \
+                "$payload_file" >/dev/null
+              entry="$(jq -c \
+                --arg digest "$digest" \
+                '{status:"present",digest:$digest,fingerprint:{package_version:.package_version,package_content_digest:.content_lock.digest,owner_source_commit:.source_commit}}' \
+                "$payload_file")"
+            else
+              tags_file="$RUNNER_TEMP/opl-$package_id-tags.txt"
+              tags_error="$RUNNER_TEMP/opl-$package_id-tags.error"
+              if oras repo tags "$image" > "$tags_file" 2> "$tags_error"; then
+                if grep -Fxq latest-stable "$tags_file"; then
+                  echo "::error::latest-stable exists but its exact digest could not be resolved for $package_id."
+                  exit 1
+                fi
+                entry='{"status":"absent","digest":null,"fingerprint":null}'
+              elif grep -Fq 'name unknown: repository name not known to registry' "$tags_error"; then
+                echo "::notice::No owner repository exists for $package_id; treating the independent channel as verified absence."
+                entry='{"status":"absent","digest":null,"fingerprint":null}'
+              else
+                echo "::error::Unable to read the independent latest-stable state for $package_id."
+                cat "$descriptor_error" >&2
+                cat "$tags_error" >&2
+                exit 1
+              fi
+            fi
+            jq --arg id "$package_id" --argjson entry "$entry" \
+              '.packages[$id] = $entry' "$owner_state" > "$owner_state.next"
+            mv "$owner_state.next" "$owner_state"
+          done < <(jq -er '.candidate_fingerprint | keys[]' "$summary")
+
+          set +e
+          node scripts/package-owner-channel-plan.mjs \
+            --candidate-summary "$summary" \
+            --current-state "$owner_state" \
+            --output "$plan"
+          plan_status=$?
+          set -e
+          if [ "$plan_status" -eq 2 ]; then
+            jq -r '.violations[] | "::error::\(.package_id): \(.reason) current=\(.current_version) candidate=\(.candidate_version)"' "$plan"
+            exit 1
           fi
+          [ "$plan_status" -eq 0 ]
+          summary_status="$(jq -r .status "$plan")"
+          publish_required="$(jq -r .publish_required "$plan")"
           echo "publish_required=$publish_required" >> "$GITHUB_OUTPUT"
-          changed_packages_json="$(jq -c .changed_packages "$summary")"
+          changed_packages_json="$(jq -c .changed_packages "$plan")"
           echo "changed_packages_json=$changed_packages_json" >> "$GITHUB_OUTPUT"
           non_package_changed_components_json="$(jq -c '.non_package_changed_components // []' "$summary")"
           echo "non_package_changed_components_json=$non_package_changed_components_json" >> "$GITHUB_OUTPUT"
@@ -186,6 +248,7 @@ jobs:
             echo "### Daily package channel"
             echo "- Status: \`$summary_status\`"
             echo "- Publish required: \`$publish_required\`"
+            echo "- Independent owner-channel changes: \`$changed_packages_json\`"
             echo "- Package publication scope: \`packages_only\`"
             echo "- Non-Package diagnostics: \`$non_package_changed_components_json\`"
             echo "- Retained components: \`$(jq -c .retained_components "$summary")\`"
@@ -207,33 +270,13 @@ jobs:
         run: |
           set -euo pipefail
           summary=dist/opl-daily-packages/daily-package-channel-summary.json
+          owner_plan=dist/opl-daily-packages/owner-channel-publication-plan.json
+          owner_state=dist/opl-daily-packages/current-owner-channels.json
           plan='[]'
           while IFS= read -r package_id; do
             version="$(jq -er --arg id "$package_id" '.candidate_fingerprint[$id].package_version' "$summary")"
             owner_commit="$(jq -er --arg id "$package_id" '.candidate_fingerprint[$id].owner_source_commit' "$summary")"
-            image="ghcr.io/${{ github.repository_owner }}/one-person-lab-packages/$package_id"
-            predecessor='none'
-            descriptor_file="$RUNNER_TEMP/opl-$package_id-latest-stable-descriptor.json"
-            descriptor_error="$RUNNER_TEMP/opl-$package_id-latest-stable-descriptor.error"
-            if oras manifest fetch --descriptor "$image:latest-stable" \
-              > "$descriptor_file" 2> "$descriptor_error"; then
-              predecessor="$(jq -er '.digest | select(test("^sha256:[0-9a-f]{64}$"))' "$descriptor_file")"
-            else
-              tags_file="$RUNNER_TEMP/opl-$package_id-tags.txt"
-              tags_error="$RUNNER_TEMP/opl-$package_id-tags.error"
-              if oras repo tags "$image" > "$tags_file" 2> "$tags_error"; then
-                if grep -Fxq latest-stable "$tags_file"; then
-                  echo "::error::latest-stable exists but its exact predecessor digest could not be resolved for $package_id."
-                  exit 1
-                fi
-              elif grep -Fq 'name unknown: repository name not known to registry' "$tags_error"; then
-                echo "::notice::No owner repository exists for $package_id; treating the independent predecessor as verified absence."
-              else
-                echo "::error::Unable to verify the independent latest-stable predecessor for $package_id."
-                cat "$tags_error" >&2
-                exit 1
-              fi
-            fi
+            predecessor="$(jq -er --arg id "$package_id" '.packages[$id] | if .status == "present" then .digest else "none" end' "$owner_state")"
             request_id="daily-${{ github.run_id }}-${{ github.run_attempt }}-${package_id}"
             plan="$(jq -c \
               --arg id "$package_id" \
@@ -243,7 +286,7 @@ jobs:
               --arg request_id "$request_id" \
               '. + [{package_id:$id, expected_package_version:$version, expected_owner_source_commit:$owner_commit, expected_latest_stable_predecessor:$predecessor, publication_request_id:$request_id}]' \
               <<< "$plan")"
-          done < <(jq -er '.changed_packages[]' "$summary")
+          done < <(jq -er '.changed_packages[]' "$owner_plan")
           test "$(jq 'length' <<< "$plan")" -gt 0
           echo "publication_inputs_json=$plan" >> "$GITHUB_OUTPUT"
           {

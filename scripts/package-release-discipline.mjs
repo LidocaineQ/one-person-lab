@@ -163,7 +163,9 @@ function validateManifest(manifest, promotionTarget = 'candidate') {
   assertCondition(automation?.channel_manifest?.ghcr_ref?.includes('<release_set_generation>'), 'Catalog carrier must use Release Set generation', failures);
   assertCondition(automation?.artifact_build?.required_input === 'release_set_generation', 'Artifact build input must be Release Set generation', failures);
   assertCondition(automation?.daily_package_channel?.generation_template === '<utc_yy.m.d[-rN_auto]>', 'Daily generation template drifted', failures);
-  assertCondition(automation?.daily_package_channel?.force_publish_input === 'force_publish', 'Daily force repair input drifted', failures);
+  assertCondition(automation?.daily_package_channel?.comparison === 'independent_owner_channel_version_and_content_lock', 'Daily owner-channel comparison drifted', failures);
+  assertCondition(automation?.daily_package_channel?.publish_gate === 'new_version_with_changed_content_or_verified_channel_bootstrap', 'Daily Package publish gate drifted', failures);
+  assertCondition(!Object.hasOwn(automation?.daily_package_channel ?? {}, 'force_publish_input'), 'Daily reconciliation must not expose a no-change publication bypass', failures);
   assertCondition(automation?.cleanup?.protected_tags?.includes('candidate') && automation?.cleanup?.protected_tags?.includes('latest-stable'), 'Cleanup must protect both moving tags', failures);
 
   for (const packageId of packageIds) {
@@ -362,7 +364,10 @@ function validateWorkflow(manifest, manifestPath, failures) {
   assertCondition(!source.includes('Previous latest-stable App release')
     && /app_version="\$\(jq -r '\.release_set\.components\.app\.version'/.test(source)
     && !/gh release (?:list|view|download) --repo gaofeng21cn\/one-person-lab-app/.test(dailySource), 'Daily Package reconciliation must not resolve or bind App currentness', failures);
-  assertCondition(/force_publish[\s\S]*publish_required=true/.test(dailySource), 'force_publish must be consumed as an explicit Release Set repair', failures);
+  assertCondition(!/force_publish/.test(dailySource)
+    && /package-owner-channel-plan\.mjs/.test(dailySource)
+    && /current-owner-channels\.json/.test(dailySource)
+    && /oras blob fetch --output "\$payload_file"/.test(dailySource), 'Daily reconciliation must compare each independent owner channel without a no-change bypass', failures);
   assertCondition(/publish_required="\$\(jq -r \.publish_required/.test(dailySource)
     && /publication_inputs_json/.test(dailySource)
     && /publish-independent-packages:/.test(dailySource)

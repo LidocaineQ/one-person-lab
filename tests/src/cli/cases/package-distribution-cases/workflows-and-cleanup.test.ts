@@ -268,14 +268,17 @@ test('framework packages workflow is release-gated and manually repairable witho
   assert.doesNotMatch(dailyPackageWorkflow, /if ! oras repo tags "ghcr\.io\/\$\{\{ github\.repository_owner \}\}\/one-person-lab-manifest"/);
   assert.match(dailyPackageWorkflow, /release-set-generation\.mjs/);
   assert.match(dailyPackageWorkflow, /workflow_dispatch:/);
-  assert.match(dailyPackageWorkflow, /force_publish:/);
-  assert.match(dailyPackageWorkflow, /force_publish[\s\S]*publish_required=true/);
+  assert.doesNotMatch(dailyPackageWorkflow, /force_publish:/);
   assert.doesNotMatch(dailyPackageWorkflow, /npm run packages:manifest/);
   assert.match(dailyPackageWorkflow, /OPL_PACKAGE_RELEASE_GATE:\s*daily_package_channel_detection/);
   assert.match(dailyPackageWorkflow, /--projection-root \./);
   assert.doesNotMatch(dailyPackageWorkflow, /--owner-cohort-mode/);
   assert.doesNotMatch(dailyPackageWorkflow, /gh release (?:list|view|download) --repo gaofeng21cn\/one-person-lab-app/);
   assert.match(dailyPackageWorkflow, /npm run packages:daily-check/);
+  assert.match(dailyPackageWorkflow, /package-owner-channel-plan\.mjs/);
+  assert.match(dailyPackageWorkflow, /current-owner-channels\.json/);
+  assert.match(dailyPackageWorkflow, /application\/vnd\.onepersonlab\.package\.payload\.v1\+json/);
+  assert.match(dailyPackageWorkflow, /oras blob fetch --output "\$payload_file"/);
   assert.doesNotMatch(dailyPackageWorkflow, /--fallback-stage candidate_manifest_build/);
   assert.doesNotMatch(dailyPackageWorkflow, /candidate_built=false/);
   assert.doesNotMatch(dailyPackageWorkflow, /retained_previous_stable/);
@@ -288,7 +291,7 @@ test('framework packages workflow is release-gated and manually repairable witho
   assert.match(dailyPackageWorkflow, /verified absence/);
   assert.match(dailyPackageWorkflow, /oras repo tags "\$image" > "\$tags_file" 2> "\$tags_error"/);
   assert.match(dailyPackageWorkflow, /elif grep -Fq 'name unknown: repository name not known to registry' "\$tags_error"/);
-  assert.match(dailyPackageWorkflow, /Unable to verify the independent latest-stable predecessor for \$package_id\.[\s\S]*cat "\$tags_error" >&2[\s\S]*exit 1/);
+  assert.match(dailyPackageWorkflow, /Unable to read the independent latest-stable state for \$package_id\.[\s\S]*cat "\$tags_error" >&2[\s\S]*exit 1/);
   assert.match(dailyPackageWorkflow, /latest-stable exists but its exact digest could not be resolved/);
   assert.match(dailyPackageWorkflow, /release_manifests\[@\]/);
   assert.match(dailyPackageWorkflow, /\.release_set\.bom_status == "complete"/);
@@ -299,6 +302,7 @@ test('framework packages workflow is release-gated and manually repairable witho
   assert.doesNotMatch(dailyPackageWorkflow, /uses:\s+\.\/\.github\/workflows\/packages\.yml/);
   assert.match(dailyPackageWorkflow, /publication_inputs_json:/);
   assert.match(dailyPackageWorkflow, /Prepare independent Package publication plan/);
+  assert.match(dailyPackageWorkflow, /done < <\(jq -er '\.changed_packages\[\]' "\$owner_plan"\)/);
   assert.match(dailyPackageWorkflow, /publish-independent-packages:/);
   assert.match(dailyPackageWorkflow, /uses:\s+\.\/\.github\/workflows\/publish-package\.yml/);
   assert.match(dailyPackageWorkflow, /Package publication scope:.*packages_only/);
@@ -833,6 +837,8 @@ test('daily package detector publishes only version-bumped changed packages and 
   assert.equal(unbumpedOutput.publish_required, false);
   assert.deepEqual(unbumpedOutput.changed_packages, []);
   assert.deepEqual(unbumpedOutput.observed_changed_packages, ['mas']);
+  assert.equal(unbumpedOutput.candidate_fingerprint.mas.package_version, '0.1.0-alpha.4');
+  assert.equal(unbumpedOutput.current_fingerprint.mas.package_version, '0.1.0-alpha.4');
   assert.deepEqual(unbumpedOutput.fallback.blocking_components, ['mas']);
 });
 

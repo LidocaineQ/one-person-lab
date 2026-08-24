@@ -369,13 +369,12 @@ function buildReleaseAutomation(retainVersions: number, rollbackVersion: string 
       workflow: '.github/workflows/daily-package-channel.yml',
       schedule: 'daily',
       generation_template: '<utc_yy.m.d[-rN_auto]>',
-      change_detector: 'scripts/package-channel-daily-check.mjs',
-      comparison: 'package_source_fingerprint',
+      change_detector: 'scripts/package-channel-daily-check.mjs + scripts/package-owner-channel-plan.mjs',
+      comparison: 'independent_owner_channel_version_and_content_lock',
       ignored_fields: ['release_set_generation', 'generated_at', 'artifact tag'],
       no_change_behavior: 'skip_without_publish',
-      publish_gate: 'daily_package_channel_changed',
+      publish_gate: 'new_version_with_changed_content_or_verified_channel_bootstrap',
       manual_repair_trigger: 'workflow_dispatch',
-      force_publish_input: 'force_publish',
     },
   };
 }

@@ -78,7 +78,6 @@ test('packages manifest exposes independent owner currentness and compatibility 
           no_change_behavior: string;
           publish_gate: string;
           manual_repair_trigger: string;
-          force_publish_input: string;
         };
       };
       packages: {
@@ -207,11 +206,11 @@ test('packages manifest exposes independent owner currentness and compatibility 
   );
   assert.equal(
     output.packages_manifest.release_automation.daily_package_channel.change_detector,
-    'scripts/package-channel-daily-check.mjs',
+    'scripts/package-channel-daily-check.mjs + scripts/package-owner-channel-plan.mjs',
   );
   assert.equal(
     output.packages_manifest.release_automation.daily_package_channel.comparison,
-    'package_source_fingerprint',
+    'independent_owner_channel_version_and_content_lock',
   );
   assert.equal(
     output.packages_manifest.release_automation.daily_package_channel.no_change_behavior,
@@ -219,16 +218,13 @@ test('packages manifest exposes independent owner currentness and compatibility 
   );
   assert.equal(
     output.packages_manifest.release_automation.daily_package_channel.publish_gate,
-    'daily_package_channel_changed',
+    'new_version_with_changed_content_or_verified_channel_bootstrap',
   );
   assert.equal(
     output.packages_manifest.release_automation.daily_package_channel.manual_repair_trigger,
     'workflow_dispatch',
   );
-  assert.equal(
-    output.packages_manifest.release_automation.daily_package_channel.force_publish_input,
-    'force_publish',
-  );
+  assert.equal(Object.hasOwn(output.packages_manifest.release_automation.daily_package_channel, 'force_publish_input'), false);
   assert.deepEqual(output.packages_manifest.release_automation.cleanup.protected_tags, ['candidate', 'latest-stable']);
   assert.equal(Object.hasOwn(output.packages_manifest.packages, 'webui_docker_image'), false);
   assert.equal(output.packages_manifest.packages.framework_core.package_name, 'one-person-lab-framework');

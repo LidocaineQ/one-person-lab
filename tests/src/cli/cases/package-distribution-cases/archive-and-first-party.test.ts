@@ -628,7 +628,9 @@ test('package archive builder writes channel manifest checksums git source and r
   assert.equal(manifest.release_automation.daily_package_channel.status, 'active_change_detected_daily_publish');
   assert.equal(manifest.release_automation.daily_package_channel.no_change_behavior, 'skip_without_publish');
   assert.equal(manifest.release_automation.daily_package_channel.generation_template, '<utc_yy.m.d[-rN_auto]>');
-  assert.equal(manifest.release_automation.daily_package_channel.force_publish_input, 'force_publish');
+  assert.equal(manifest.release_automation.daily_package_channel.comparison, 'independent_owner_channel_version_and_content_lock');
+  assert.equal(manifest.release_automation.daily_package_channel.publish_gate, 'new_version_with_changed_content_or_verified_channel_bootstrap');
+  assert.equal(Object.hasOwn(manifest.release_automation.daily_package_channel, 'force_publish_input'), false);
   assert.equal(Object.hasOwn(manifest.packages, 'webui_docker_image'), false);
   assert.equal(manifest.packages.framework_core.artifact, 'ghcr.io/gaofeng21cn/one-person-lab-framework:0.3.5');
   assert.match(manifest.packages.framework_core.source_archive.sha256, /^[0-9a-f]{64}$/);
