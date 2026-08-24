@@ -84,14 +84,6 @@ export function buildOplRecommendedSkillsFromFlowStatus(): OplRecommendedSkill[]
       if (dependency.install_source === 'owner_cli' && dependency.id === 'agent-reach') {
         return { ...base, sourceMode: 'owner_cli', ownerToolId: 'agent-reach' };
       }
-      if (dependency.source?.startsWith('https://') && dependency.source_path) {
-        return {
-          ...base,
-          sourceMode: 'github',
-          repositoryUrl: dependency.source,
-          repositorySourcePath: dependency.source_path,
-        };
-      }
       return {
         ...base,
         sourceMode: 'observe_existing',

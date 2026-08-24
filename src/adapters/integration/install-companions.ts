@@ -652,7 +652,9 @@ function buildObservedCompanionItem(
     || skill.managed_dependency_mode === 'owner_cli') {
     return {
       ...observed,
-      source_authority: 'existing_codex_entry',
+      source_authority: skill.managed_dependency_mode === 'owner_cli'
+        ? 'existing_codex_entry'
+        : skillSourceAuthority(home, source.link_path),
       entrypoint_authority_status: 'not_applicable',
       payload_currentness: observed.source_payload_sha256 ? 'current' : 'missing',
     };
@@ -792,11 +794,13 @@ export function syncOplCompanionSkills(
             ? `Existing Skill payload validation failed: ${inspection.errors.join(', ')}`
             : skill.managed_dependency_mode === 'owner_cli'
               ? 'Skill entrypoint is owned and materialized by the Agent Reach CLI.'
-              : 'Existing compatible Skill entrypoint observed; legacy policy sources are not used to fetch, copy, or update bytes.',
+              : 'Existing compatible Skill entrypoint observed; the external owner remains responsible for fetching and updating its bytes.',
         }));
         const observed = items.at(-1);
         if (observed) {
-          observed.source_authority = 'existing_codex_entry';
+          observed.source_authority = skill.managed_dependency_mode === 'owner_cli'
+            ? 'existing_codex_entry'
+            : skillSourceAuthority(home, source.link_path);
           observed.entrypoint_authority_status = 'not_applicable';
           observed.payload_currentness = observed.source_payload_sha256 ? 'current' : 'missing';
         }
@@ -872,6 +876,15 @@ export function buildOplRecommendedSkills(
   const managedSpecs = managedSkillDependencies.map((dependency): Omit<OplRecommendedSkill, 'status'> => {
     const github = dependency.sourceMode === 'github';
     const ownerCli = dependency.sourceMode === 'owner_cli';
+    const existingSkillPaths = ownerCli
+      ? [
+          path.join(resolveCodexSkillsDir(home), dependency.id, 'SKILL.md'),
+          path.join(resolveAgentsSkillsDir(home), dependency.id, 'SKILL.md'),
+        ]
+      : [
+          path.join(resolveAgentsSkillsDir(home), dependency.id, 'SKILL.md'),
+          path.join(resolveCodexSkillsDir(home), dependency.id, 'SKILL.md'),
+        ];
     return {
       skill_id: dependency.id,
       scope: 'global_user',
@@ -895,11 +908,7 @@ export function buildOplRecommendedSkills(
               'SKILL.md',
             ),
           ]
-        : [
-            path.join(resolveCodexSkillsDir(home), dependency.id, 'SKILL.md'),
-            path.join(resolveAgentsSkillsDir(home), dependency.id, 'SKILL.md'),
-            path.join(home, '.skills-manager', 'skills', dependency.id, 'SKILL.md'),
-          ],
+        : [...existingSkillPaths, path.join(home, '.skills-manager', 'skills', dependency.id, 'SKILL.md')],
       required_tools: dependency.requiredTools,
       install_hint: github
         ? [
@@ -909,7 +918,7 @@ export function buildOplRecommendedSkills(
           ].filter(Boolean).join(' ')
         : ownerCli
           ? `Install the ${dependency.ownerToolId} owner CLI, then run ${dependency.ownerToolId} skill --install.`
-          : `Update or repair the package to migrate ${dependency.id} to a public repository source; only an existing compatible entrypoint is observed for this legacy policy.`,
+          : `Install or update ${dependency.id} through its owner-supported Skills installer; Framework only observes an existing entrypoint.`,
       supports: [dependency.id],
     };
   });

@@ -1014,9 +1014,8 @@ function managedPolicyDependencySelection(input: {
     }
     return [{
       id: dependency.id,
-      sourceMode: 'github' as const,
-      repositoryUrl,
-      repositorySourcePath,
+      sourceMode: 'observe_existing' as const,
+      legacySource: `${repositoryUrl}#${repositorySourcePath}`,
       owner: dependency.owner,
       requiredTools: dependency.bundle_id ? toolIdsByBundle.get(dependency.bundle_id) ?? [] : [],
       versionRequirement: dependency.version_requirement,
