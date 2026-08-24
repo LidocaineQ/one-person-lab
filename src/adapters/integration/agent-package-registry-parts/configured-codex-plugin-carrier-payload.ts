@@ -132,6 +132,31 @@ export function githubArchiveFileSource(source: URL, sourceCommit: string) {
   };
 }
 
+function runPayloadCurl(input: {
+  url: string;
+  outputPath?: string;
+  maxTimeSeconds: number;
+  maxBuffer: number;
+  env: NodeJS.ProcessEnv;
+}) {
+  const curl = fs.existsSync('/usr/bin/curl') ? '/usr/bin/curl' : 'curl';
+  return runConfiguredDownloadWithTransientRetry(() => {
+    const result = spawnSync(curl, [
+      '--fail', '--silent', '--show-error', '--location',
+      '--proto', '=https', '--tlsv1.2',
+      '--connect-timeout', '10', '--max-time', String(input.maxTimeSeconds),
+      input.url,
+      ...(input.outputPath ? ['--output', input.outputPath] : []),
+    ], { encoding: null, env: input.env, maxBuffer: input.maxBuffer });
+    return {
+      status: result.status,
+      stdout: result.stdout ?? Buffer.alloc(0),
+      stderr: result.stderr?.toString('utf8') ?? '',
+      error: result.error ?? null,
+    };
+  });
+}
+
 function materializeGithubArchive(input: {
   packageId: string;
   payloadFiles: readonly Record<string, unknown>[];
@@ -158,21 +183,12 @@ function materializeGithubArchive(input: {
   const archive = githubSources[0].archive;
   const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-archive-'));
   const archivePath = path.join(temporaryRoot, 'source.tar.gz');
-  const curl = fs.existsSync('/usr/bin/curl') ? '/usr/bin/curl' : 'curl';
-  const download = runConfiguredDownloadWithTransientRetry(() => {
-    const result = spawnSync(curl, [
-      '--fail', '--silent', '--show-error', '--location',
-      '--proto', '=https', '--tlsv1.2',
-      '--connect-timeout', '10', '--max-time', '120',
-      archive.archiveUrl,
-      '--output', archivePath,
-    ], { encoding: null, env: input.env, maxBuffer: 8 * 1024 * 1024 });
-    return {
-      status: result.status,
-      stdout: result.stdout ?? Buffer.alloc(0),
-      stderr: result.stderr?.toString('utf8') ?? '',
-      error: result.error ?? null,
-    };
+  const download = runPayloadCurl({
+    url: archive.archiveUrl,
+    outputPath: archivePath,
+    maxTimeSeconds: 120,
+    maxBuffer: 8 * 1024 * 1024,
+    env: input.env,
   });
   if (download.status !== 0 || download.error) {
     fs.rmSync(temporaryRoot, { recursive: true, force: true });
@@ -332,20 +348,11 @@ export function installPayloadMarketplace(input: {
       } else if (archive) {
         bytes = archive.pathFor(source);
       } else {
-        const curl = fs.existsSync('/usr/bin/curl') ? '/usr/bin/curl' : 'curl';
-        const result = runConfiguredDownloadWithTransientRetry(() => {
-          const download = spawnSync(curl, [
-            '--fail', '--silent', '--show-error', '--location',
-            '--proto', '=https', '--tlsv1.2',
-            '--connect-timeout', '10', '--max-time', '30',
-            source.toString(),
-          ], { encoding: null, env: input.env, maxBuffer: 128 * 1024 * 1024 });
-          return {
-            status: download.status,
-            stdout: download.stdout ?? Buffer.alloc(0),
-            stderr: download.stderr?.toString('utf8') ?? '',
-            error: download.error ?? null,
-          };
+        const result = runPayloadCurl({
+          url: source.toString(),
+          maxTimeSeconds: 30,
+          maxBuffer: 128 * 1024 * 1024,
+          env: input.env,
         });
         if (result.status !== 0 || result.error) {
           localReadbackFailure(
