@@ -224,7 +224,9 @@ function createAuthority(root: string, source: SourceFixture, input: {
   manifest.codex_surface.plugin_id = plugin;
   manifest.codex_surface.plugin_payload_manifest_url = `payloads/${id}-${version}.json`;
   manifest.codex_surface.carrier_source_commit = source.sourceCommit;
-  if (input.coreSkillIds !== undefined) manifest.exports.core_skill_ids = input.coreSkillIds;
+  if (input.coreSkillIds !== undefined && manifest.exports !== undefined) {
+    manifest.exports.core_skill_ids = input.coreSkillIds;
+  }
   if (manifest.codex_surface.required_skill_ids !== undefined) {
     manifest.codex_surface.required_skill_ids = input.coreSkillIds ?? [plugin];
   }
@@ -424,6 +426,21 @@ test('source_root dot still reads only allowlisted blobs instead of recursively 
     assert.equal(payload.files.some((entry: Record<string, string>) => entry.path.startsWith('docs/')), false, surface);
     assert.equal(payload.files.some((entry: Record<string, string>) => entry.path === 'README.md'), false, surface);
   }
+});
+
+test('payload allowlist must include every declared required Skill entrypoint', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-package-payload-required-skills-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const source = createSourceRepo(root, { sourceRoot: '.' });
+  const authority = createAuthority(root, source, {
+    surface: 'workflow',
+    coreSkillIds: [pluginId, 'missing-skill'],
+  });
+
+  const result = runFailure({ authority, repo: source.repo, sourceCommit: source.sourceCommit });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /must include skills\/missing-skill\/SKILL\.md/);
+  assert.equal(fs.existsSync(authority.output), false);
 });
 
 test('provider-only capability payload supports zero skills without an Agent Plugins manifest', (t) => {

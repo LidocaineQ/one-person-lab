@@ -390,8 +390,13 @@ function loadAuthority(options) {
   if (!paths.includes('.codex-plugin/plugin.json')) {
     throw new Error('Framework payload allowlist must include .codex-plugin/plugin.json');
   }
-  if (agentPluginManifestRequired && !paths.includes(`skills/${pluginId}/SKILL.md`)) {
-    throw new Error(`Framework payload allowlist must include skills/${pluginId}/SKILL.md`);
+  if (surfaceKind === 'opl_workflow_profile_package_manifest.v1') {
+    for (const skillId of coreSkillIds) {
+      const skillEntrypoint = `skills/${skillId}/SKILL.md`;
+      if (!paths.includes(skillEntrypoint)) {
+        throw new Error(`Framework payload allowlist must include ${skillEntrypoint}`);
+      }
+    }
   }
   assertSchemaPayload(schemaBinding.localPath, manifest, 'Framework package manifest');
   assertSchemaPayload(

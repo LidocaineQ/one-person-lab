@@ -1512,6 +1512,17 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
     'coordinate-concurrent-tasks',
     'codex-app-owner-migration',
     'develop-and-deliver',
+    'architect-and-simplify',
+    'zoom-out',
+    'improve-codebase-architecture',
+    'grill-with-docs',
+    'prototype',
+    'book-aposd',
+    'book-clean-architecture',
+    'book-ddia',
+    'book-domain-driven-design',
+    'book-legacy-code',
+    'book-release-it',
     'github-ssot-patrol',
     'opl-doc',
     'opl-fleet',
@@ -1537,6 +1548,14 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
   assert.equal(payload.surface_kind, 'opl_package_payload_manifest.v2');
   assert.match(payload.source_commit, /^[0-9a-f]{40}$/);
   assert.equal(payload.files.some((file: Record<string, unknown>) => file.path === 'opl-package.json'), true);
+  const allowlist = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts/opl-framework/package-payload-allowlists/opl-flow.json'),
+    'utf8',
+  )) as Record<string, any>;
+  assert.deepEqual(
+    payload.files.map((file: Record<string, unknown>) => file.path),
+    allowlist.paths,
+  );
   for (const requiredPath of [
     'contracts/fleet-telemetry-protocol.json',
     'contracts/fleet-telemetry-protocol.schema.json',
@@ -1550,65 +1569,13 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
       requiredPath,
     );
   }
-  assert.deepEqual(
-    payload.files
-      .filter((file: Record<string, unknown>) => String(file.path).startsWith('skills/'))
-      .map((file: Record<string, unknown>) => file.path),
-    [
-      'skills/coordinate-concurrent-tasks/SKILL.md',
-      'skills/coordinate-concurrent-tasks/agents/openai.yaml',
-      'skills/codex-app-owner-migration/SKILL.md',
-      'skills/codex-app-owner-migration/agents/openai.yaml',
-      'skills/develop-and-deliver/SKILL.md',
-      'skills/develop-and-deliver/agents/openai.yaml',
-      'skills/dsh-archive-agent-notes/SKILL.md',
-      'skills/dsh-archive-agent-notes/agents/openai.yaml',
-      'skills/dsh-code-review/SKILL.md',
-      'skills/dsh-code-review/agents/openai.yaml',
-      'skills/dsh-doc-site-sync/SKILL.md',
-      'skills/dsh-doc-site-sync/agents/openai.yaml',
-      'skills/dsh-doc-standards/SKILL.md',
-      'skills/dsh-doc-standards/agents/openai.yaml',
-      'skills/dsh-find-simplifications/SKILL.md',
-      'skills/dsh-find-simplifications/agents/openai.yaml',
-      'skills/dsh-merging-stacked-prs/SKILL.md',
-      'skills/dsh-merging-stacked-prs/agents/openai.yaml',
-      'skills/dsh-pre-push-checks/SKILL.md',
-      'skills/dsh-pre-push-checks/agents/openai.yaml',
-      'skills/dsh-prose-standard/SKILL.md',
-      'skills/dsh-prose-standard/agents/openai.yaml',
-      'skills/dsh-translate-docs/SKILL.md',
-      'skills/dsh-translate-docs/agents/openai.yaml',
-      'skills/dsh-trim-cot-leakage/SKILL.md',
-      'skills/dsh-trim-cot-leakage/agents/openai.yaml',
-      'skills/github-ssot-patrol/SKILL.md',
-      'skills/github-ssot-patrol/agents/openai.yaml',
-      'skills/github-ssot-patrol/references/decision-contract.md',
-      'skills/github-ssot-patrol/scripts/github_patrol.py',
-      'skills/opl-doc/SKILL.md',
-      'skills/opl-doc/agents/openai.yaml',
-      'skills/opl-fleet/SKILL.md',
-      'skills/opl-fleet/agents/openai.yaml',
-      'skills/opl-flow/SKILL.md',
-      'skills/opl-flow/agents/openai.yaml',
-      'skills/opl-flow/references/app-integration.md',
-      'skills/opl-flow/references/codex-baseline.md',
-      'skills/opl-flow/references/ledger-start.md',
-      'skills/opl-flow/references/ledger-supervisor.md',
-      'skills/opl-flow/references/package-lifecycle.md',
-      'skills/opl-flow/references/package-release.md',
-      'skills/opl-flow/references/setup-update.md',
-      'skills/opl-flow/references/terminal-readback.md',
-      'skills/opl-flow/scripts/package_release.py',
-      'skills/recover-codex-tasks/SKILL.md',
-      'skills/recover-codex-tasks/agents/openai.yaml',
-      'skills/task-mode-gate/SKILL.md',
-      'skills/task-mode-gate/agents/openai.yaml',
-      'skills/record-browser-gif/SKILL.md',
-      'skills/record-browser-gif/agents/openai.yaml',
-      'skills/record-browser-gif/scripts/encode_gif.py',
-    ],
-  );
+  for (const skillId of manifest.codex_surface.required_skill_ids) {
+    assert.equal(
+      payload.files.some((file: Record<string, unknown>) => file.path === `skills/${skillId}/SKILL.md`),
+      true,
+      skillId,
+    );
+  }
   assert.equal(
     payload.files.some((file: Record<string, unknown>) => String(file.path).startsWith('optional-skills/codex-ops-kit/')),
     false,
