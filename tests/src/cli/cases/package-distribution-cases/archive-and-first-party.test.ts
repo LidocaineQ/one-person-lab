@@ -1503,7 +1503,7 @@ test('OPL Flow is a workflow-profile Package without Agent identity', () => {
   assert.equal(manifest.codex_surface.carrier_source_commit, payload.source_commit);
   assert.deepEqual(manifest.codex_surface.configured_codex_plugin_carrier, {
     kind: 'codex_plugin_manager',
-    plugin_selector: 'opl-flow@opl-flow-local',
+    plugin_selector: 'opl-flow@opl-flow',
     executor_route: 'codex_cli',
     marketplace_source: 'gaofeng21cn/opl-flow',
     publication_ref: 'ghcr.io/gaofeng21cn/one-person-lab-packages/opl-flow:latest-stable',
