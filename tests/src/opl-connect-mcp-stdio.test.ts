@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createServer } from 'node:https';
 import path from 'node:path';
@@ -10,8 +11,29 @@ import {
   getDefaultEnvironment,
 } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-import { repoRoot } from './cli/helpers.ts';
+import {
+  createFakeCodexPluginManagerFixture,
+  createInstalledPackageCarrierFixture,
+  repoRoot,
+} from './cli/helpers.ts';
 import { createTestTlsServerFixture } from './cli/helpers-parts/tls-fixture.ts';
+import { resolveFamilyWorkspaceRootFromRepoRoot } from '../../src/kernel/family-workspace-root.ts';
+
+const configuredScholarPackageRoot = process.env.OPL_SCHOLAR_SKILLS_E2E_ROOT?.trim() || null;
+const familyScholarPackageRoot = path.join(resolveFamilyWorkspaceRootFromRepoRoot(repoRoot), 'mas-scholar-skills');
+const scholarPackageRoot = configuredScholarPackageRoot
+  ?? (fs.existsSync(path.join(familyScholarPackageRoot, 'opl-package.json')) ? familyScholarPackageRoot : null);
+if (configuredScholarPackageRoot && !fs.existsSync(path.join(configuredScholarPackageRoot, 'opl-package.json'))) {
+  throw new Error(`Configured ScholarSkills E2E root is missing its owner manifest: ${configuredScholarPackageRoot}`);
+}
+const packageFixture = scholarPackageRoot ? createInstalledPackageCarrierFixture(scholarPackageRoot) : null;
+const codexFixture = packageFixture
+  ? createFakeCodexPluginManagerFixture(path.join(packageFixture.fixtureRoot, 'codex-plugin-manager'))
+  : null;
+if (packageFixture) {
+  test.after(() => fs.rmSync(packageFixture.fixtureRoot, { recursive: true, force: true }));
+}
+const packageBackedTest = packageFixture ? test : test.skip;
 
 const testTlsFixture = createTestTlsServerFixture();
 test.after(() => testTlsFixture.close());
@@ -106,7 +128,7 @@ function structuredContent(result: unknown) {
   return payload as Record<string, any>;
 }
 
-test('opl-connect stdio MCP exposes progressive discovery and executes PubMed tools', async () => {
+packageBackedTest('opl-connect stdio MCP exposes progressive discovery and executes PubMed tools', async () => {
   const fakeServer = await startFakeBiomedicalProviderServer();
   const transport = new StdioClientTransport({
     command: path.join(repoRoot, 'bin', 'opl'),
@@ -114,7 +136,10 @@ test('opl-connect stdio MCP exposes progressive discovery and executes PubMed to
     cwd: repoRoot,
     env: {
       ...getDefaultEnvironment(),
+      CODEX_HOME: packageFixture!.codexHome,
       NODE_TLS_REJECT_UNAUTHORIZED: '0',
+      OPL_CODEX_PLUGIN_BIN: codexFixture!.codexPath,
+      OPL_STATE_DIR: packageFixture!.stateRoot,
       OPL_CONNECT_PUBMED_EUTILS_BASE: fakeServer.pubmedBaseUrl,
       OPL_CONNECT_EUROPE_PMC_API_BASE: fakeServer.europePmcBaseUrl,
     },
@@ -154,6 +179,7 @@ test('opl-connect stdio MCP exposes progressive discovery and executes PubMed to
         arguments: { provider: 'pubmed', query: 'CONSORT randomized trial', limit: 1 },
       },
     }));
+    assert.equal(searchResult.error, undefined, JSON.stringify(searchResult));
     assert.deepEqual(searchResult.opl_connect_scientific.result_refs, ['pubmed:20332509']);
     assert.equal(searchResult.opl_connect_scientific.normalized_results[0].doi, '10.1136/bmj.c332');
 

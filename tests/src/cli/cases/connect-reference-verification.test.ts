@@ -33,6 +33,27 @@ const packageBackedTest = cliPackageFixture ? test : test.skip;
 const testTlsFixture = createTestTlsServerFixture();
 test.after(() => testTlsFixture.close());
 
+function isolatedScholarPackage() {
+  const packageRoot = cliPackageFixture!.packageRoot;
+  const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, 'opl-package.json'), 'utf8')) as {
+    version: string;
+  };
+  return {
+    runner: ({ args }: { binary: string; args: string[]; env: NodeJS.ProcessEnv }) => ({
+      status: args.join(' ') === 'plugin list --json' ? 0 : 2,
+      stdout: JSON.stringify({ installed: [{
+        pluginId: 'mas-scholar-skills@mas-scholar-skills-test',
+        version: manifest.version,
+        enabled: true,
+        source: { source: 'local', path: packageRoot },
+        marketplaceSource: { sourceType: 'local', source: packageRoot },
+      }] }),
+      stderr: '',
+      error: null,
+    }),
+  };
+}
+
 const originalTlsRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 test.after(() => {
@@ -666,6 +687,7 @@ packageBackedTest('reference providers materialize PubMed and PMC receipts witho
       referencesFile,
       providers: ['pubmed', 'pmc'],
       maxRetries: 0,
+      installedPackage: isolatedScholarPackage(),
     });
     const report = result.opl_connect_reference_verification;
     assert.deepEqual(report.provider_evidence.map((entry) => entry.provider_id), ['pubmed', 'pmc']);
@@ -688,6 +710,7 @@ packageBackedTest('reference providers materialize PubMed and PMC receipts witho
       references: [{ id: 'inline-ncbi', pmid: '123456' }],
       providers: ['pubmed'],
       maxRetries: 0,
+      installedPackage: isolatedScholarPackage(),
     });
     assert.equal(inline.opl_connect_reference_verification.request.references_file, null);
     assert.equal(inline.opl_connect_reference_verification.request.reference_source_kind, 'inline_references');
@@ -740,6 +763,7 @@ packageBackedTest('reference providers normalize OpenAlex and both Semantic Scho
       referencesFile,
       providers: ['openalex', 'semantic-scholar'],
       maxRetries: 0,
+      installedPackage: isolatedScholarPackage(),
     });
     assert.deepEqual(
       result.opl_connect_reference_verification.provider_evidence.map((entry) => entry.provider_identifiers.pmid),
@@ -1344,6 +1368,7 @@ packageBackedTest('connect references defer a chunked oversized provider body an
       references: [{ id: 'ref-large', pmid: '123456' }],
       providers: ['pubmed'],
       maxRetries: 0,
+      installedPackage: isolatedScholarPackage(),
     });
     const evidence = result.opl_connect_reference_verification.provider_evidence[0];
     assert.equal(result.opl_connect_reference_verification.status, 'completed');
@@ -1371,6 +1396,7 @@ packageBackedTest('connect references defer a chunked oversized provider body an
       references: [{ id: 'ref-legal', pmid: '123456' }],
       providers: ['pubmed'],
       maxRetries: 0,
+      installedPackage: isolatedScholarPackage(),
     });
     assert.equal(legal.opl_connect_reference_verification.provider_evidence[0].status, 'matched');
     assert.equal(activeSignal?.aborted, true);

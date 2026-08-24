@@ -933,8 +933,18 @@ test('provider-hosted attempt launch consumes typed capability readout without c
     });
     assert.ok(nextAttempt);
     assert.notEqual(nextAttempt.stage_attempt_id, attempt.stage_attempt_id);
-    assert.equal(Object.hasOwn(attempt.workspace_locator, 'package_use_binding'), false);
-    assert.equal(Object.hasOwn(nextAttempt.workspace_locator, 'package_use_binding'), false);
+    const firstUseBinding = attempt.workspace_locator.package_use_binding as Record<string, unknown>;
+    const nextUseBinding = nextAttempt.workspace_locator.package_use_binding as Record<string, unknown>;
+    assert.equal(firstUseBinding.surface_kind, 'opl_agent_package_use_binding.v1');
+    assert.equal(firstUseBinding.binding_origin, 'installed_native_carrier');
+    assert.equal(firstUseBinding.scope, 'workspace');
+    assert.equal(firstUseBinding.target_root, familyRoot);
+    assert.equal(typeof firstUseBinding.use_boundary_id, 'string');
+    assert.equal(nextUseBinding.surface_kind, 'opl_agent_package_use_binding.v1');
+    assert.equal(nextUseBinding.binding_origin, 'installed_native_carrier');
+    assert.notEqual(nextUseBinding.use_boundary_id, firstUseBinding.use_boundary_id);
+    assert.equal(Object.hasOwn(firstUseBinding, 'use_receipt_ref'), false);
+    assert.equal(Object.hasOwn(nextUseBinding, 'use_receipt_ref'), false);
 
     let nestedProviderIdentity: Record<string, unknown> = {
       status: 'provider_attempt_pending',

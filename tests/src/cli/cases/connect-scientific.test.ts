@@ -43,6 +43,27 @@ const packageBackedTest = cliPackageFixture ? test : test.skip;
 const testTlsFixture = createTestTlsServerFixture();
 test.after(() => testTlsFixture.close());
 
+function isolatedScholarPackage() {
+  const packageRoot = cliPackageFixture!.packageRoot;
+  const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, 'opl-package.json'), 'utf8')) as {
+    version: string;
+  };
+  return {
+    runner: ({ args }: { binary: string; args: string[]; env: NodeJS.ProcessEnv }) => ({
+      status: args.join(' ') === 'plugin list --json' ? 0 : 2,
+      stdout: JSON.stringify({ installed: [{
+        pluginId: 'mas-scholar-skills@mas-scholar-skills-test',
+        version: manifest.version,
+        enabled: true,
+        source: { source: 'local', path: packageRoot },
+        marketplaceSource: { sourceType: 'local', source: packageRoot },
+      }] }),
+      stderr: '',
+      error: null,
+    }),
+  };
+}
+
 const originalTlsRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 test.after(() => {
@@ -395,10 +416,14 @@ export function runScientificSearchAdapterStep(request) {
 }
 
 packageBackedTest('scientific connector providers are explicit adapters with no core default', () => {
-  const registry = buildScientificConnectorProviderRegistryReadback();
+  const installedPackage = isolatedScholarPackage();
+  const registry = buildScientificConnectorProviderRegistryReadback(installedPackage);
   assert.equal(registry.surface_kind, 'opl_scientific_connector_provider_registry');
   assert.equal(registry.default_provider_id, null);
-  assert.deepEqual(scientificConnectorProviderIds(), ['crossref', 'openalex', 'pubmed', 'pmc']);
+  assert.deepEqual(
+    scientificConnectorProviderIds(installedPackage),
+    ['crossref', 'openalex', 'pubmed', 'pmc'],
+  );
   assert.equal(registry.providers.every((provider) => provider.adapter_role === 'optional_provider_adapter'), true);
   assert.equal(registry.authority_boundary.can_write_domain_truth, false);
 });
@@ -473,7 +498,9 @@ packageBackedTest('canonical ScholarSkills installed descriptor executes the two
 });
 
 packageBackedTest('reference verification provider registry owns defaults and aliases', () => {
-  assert.deepEqual(referenceVerificationProviderIds(), [
+  const installedPackage = isolatedScholarPackage();
+  const providerIds = referenceVerificationProviderIds(installedPackage);
+  assert.deepEqual(providerIds, [
     'crossref',
     'openalex',
     'pubmed',
@@ -482,24 +509,30 @@ packageBackedTest('reference verification provider registry owns defaults and al
     'crossmark',
     'publisher',
   ]);
-  assert.deepEqual(normalizeReferenceVerificationProviders([]), referenceVerificationProviderIds());
   assert.deepEqual(
-    normalizeReferenceVerificationProviders(['openalex,semantic_scholar,pubmed,pmc', 'openalex']),
+    normalizeReferenceVerificationProviders([], installedPackage),
+    providerIds,
+  );
+  assert.deepEqual(
+    normalizeReferenceVerificationProviders(
+      ['openalex,semantic_scholar,pubmed,pmc', 'openalex'],
+      installedPackage,
+    ),
     ['openalex', 'semantic-scholar', 'pubmed', 'pmc'],
   );
   assert.throws(
-    () => normalizeReferenceVerificationProviders(['unsupported-provider']),
+    () => normalizeReferenceVerificationProviders(['unsupported-provider'], installedPackage),
     (error: unknown) => {
       assert.equal((error as { code?: string }).code, 'codex_command_failed');
       assert.deepEqual(
         (error as { details?: { supported?: string[] } }).details?.supported,
-        referenceVerificationProviderIds(),
+        providerIds,
       );
       return true;
     },
   );
   assert.throws(
-    () => normalizeReferenceVerificationProviders(['', '   ', ',']),
+    () => normalizeReferenceVerificationProviders(['', '   ', ','], installedPackage),
     (error: unknown) => {
       assert.equal((error as { code?: string }).code, 'codex_command_failed');
       assert.match((error as Error).message, /at least one non-empty provider/);
@@ -1028,7 +1061,12 @@ packageBackedTest('connect scientific bounds chunked provider bodies and keeps l
 
     let failure: unknown;
     try {
-      await runOplConnectScientificSearch({ provider: 'crossref', query: 'oversized', limit: 1 });
+      await runOplConnectScientificSearch({
+        provider: 'crossref',
+        query: 'oversized',
+        limit: 1,
+        installedPackage: isolatedScholarPackage(),
+      });
     } catch (error) {
       failure = error;
     }
@@ -1042,7 +1080,12 @@ packageBackedTest('connect scientific bounds chunked provider bodies and keeps l
         headers: { 'content-type': 'application/json' },
       });
     };
-    const legal = await runOplConnectScientificSearch({ provider: 'crossref', query: 'legal', limit: 1 });
+    const legal = await runOplConnectScientificSearch({
+      provider: 'crossref',
+      query: 'legal',
+      limit: 1,
+      installedPackage: isolatedScholarPackage(),
+    });
     assert.deepEqual(legal.opl_connect_scientific.normalized_results, []);
     assert.equal(activeSignal?.aborted, true);
   } finally {
