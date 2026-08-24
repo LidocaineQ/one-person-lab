@@ -409,7 +409,7 @@ function readProjectedPackageDescriptor(
   }
 }
 
-function discoverProjectedPackageDescriptors(input: { packageId?: string | null } = {}) {
+export function discoverCurrentOwnerPackageDescriptors(input: { packageId?: string | null } = {}) {
   const discovered = new Map<string, InstalledPackageDescriptor>();
   for (const projection of listCurrentPackageProjections()) {
     const descriptor = readProjectedPackageDescriptor(projection);
@@ -584,7 +584,7 @@ export function discoverInstalledPackageDescriptors(input: {
   failClosedOnCarrierError?: boolean;
 } = {}) {
   const installed = discoverPackageDescriptors(input);
-  const projected = discoverProjectedPackageDescriptors(input);
+  const projected = discoverCurrentOwnerPackageDescriptors(input);
   for (const [packageId, descriptor] of installed) {
     installed.set(packageId, withCurrentOwnerProjection(descriptor, projected.get(packageId)));
   }
@@ -597,7 +597,7 @@ export function discoverAvailablePackageDescriptors(input: {
   env?: NodeJS.ProcessEnv;
   runner?: CodexPluginCommandRunner;
 } = {}) {
-  const discovered = discoverProjectedPackageDescriptors(input);
+  const discovered = discoverCurrentOwnerPackageDescriptors(input);
   for (const [packageId, descriptor] of discoverPackageDescriptors({ ...input, includeAvailable: true })) {
     discovered.set(packageId, descriptor.readiness.installed
       ? withCurrentOwnerProjection(descriptor, discovered.get(packageId))

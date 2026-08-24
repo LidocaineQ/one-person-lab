@@ -41,6 +41,7 @@ import {
   createOplAgentPackageStatusReader,
   runOplAgentPackageBulkUpdate,
 } from '../../../../../src/adapters/integration/agent-package-registry.ts';
+import { selectPackageMutationDescriptor } from '../../../../../src/adapters/integration/agent-package-registry-parts/registry-status-projection.ts';
 
 
 export {
@@ -76,6 +77,7 @@ export {
   normalizePackageManifest,
   createOplAgentPackageStatusReader,
   runOplAgentPackageBulkUpdate,
+  selectPackageMutationDescriptor,
 };
 
 export type { CodexPluginCommandRunner };

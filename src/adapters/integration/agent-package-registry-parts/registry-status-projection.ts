@@ -2,10 +2,12 @@ import { deriveAgentPackageLaunchState } from '../../../kernel/agent-package-lau
 import { FrameworkContractError } from '../../../kernel/contract-validation.ts';
 import { refsOnlyAuthorityBoundary } from '../../../kernel/refs-only-authority-boundary.ts';
 import { resolveOplStatePaths } from '../../../kernel/runtime-state-paths.ts';
+import { compare } from 'semver';
 import { canonicalAgentPackageId } from '../agent-package-identity.ts';
 import { listAgentPackageSettingsActions } from '../agent-package-actions.ts';
 import {
   discoverAvailablePackageDescriptors,
+  discoverCurrentOwnerPackageDescriptors,
   discoverInstalledPackageDescriptors,
   installedDescriptorHasExpectedCodexExposure,
   installedDescriptorMatchesConfiguredCarrier,
@@ -77,6 +79,27 @@ export function requireDescriptor(
     });
   }
   return descriptor;
+}
+
+export function selectPackageMutationDescriptor(
+  installed: InstalledPackageDescriptor,
+  ownerProjection: InstalledPackageDescriptor | null,
+) {
+  if (!ownerProjection) return installed;
+  return compare(ownerProjection.manifest.version, installed.manifest.version) >= 0
+    ? ownerProjection
+    : installed;
+}
+
+export function requirePackageMutationDescriptor(
+  input: Pick<AgentPackageInstallInput, 'packageId'>,
+  action: 'update' | 'repair',
+) {
+  const installed = requireDescriptor(input, action, { installed: true });
+  const ownerProjection = discoverCurrentOwnerPackageDescriptors({
+    packageId: installed.manifest.package_id,
+  }).get(installed.manifest.package_id) ?? null;
+  return selectPackageMutationDescriptor(installed, ownerProjection);
 }
 
 function configuredCarrierFromDescriptor(

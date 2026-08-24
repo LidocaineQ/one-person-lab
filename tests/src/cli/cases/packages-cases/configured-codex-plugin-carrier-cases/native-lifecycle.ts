@@ -31,6 +31,7 @@ import {
   normalizePackageManifest,
   createOplAgentPackageStatusReader,
   runOplAgentPackageBulkUpdate,
+  selectPackageMutationDescriptor,
   packageId,
   pluginSelector,
   ownerPackageVersion,
@@ -47,6 +48,137 @@ import {
   unavailableCodexRunner,
 } from '../configured-codex-plugin-carrier-shared.ts';
 import type { CodexPluginCommandRunner } from '../configured-codex-plugin-carrier-shared.ts';
+
+test('Package mutations advance to a newer owner projection without allowing downgrade', () => {
+  const installed = {
+    manifest: { version: '0.1.52' },
+    carrier: { carrier: { pluginId: 'opl-flow@opl-flow-local' } },
+  } as any;
+  const newerOwner = {
+    manifest: { version: '0.1.53' },
+    carrier: { carrier: { pluginId: 'opl-flow@opl-flow' } },
+  } as any;
+  const olderOwner = {
+    manifest: { version: '0.1.51' },
+    carrier: { carrier: { pluginId: 'opl-flow@stale' } },
+  } as any;
+
+  assert.equal(
+    selectPackageMutationDescriptor(installed, newerOwner).carrier.carrier.pluginId,
+    'opl-flow@opl-flow',
+  );
+  assert.equal(
+    selectPackageMutationDescriptor(installed, olderOwner).carrier.carrier.pluginId,
+    'opl-flow@opl-flow-local',
+  );
+});
+
+test('packages update uses the current owner projection to rename an installed OPL Flow carrier', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-flow-owner-projection-update-'));
+  const binary = path.join(root, 'fake-codex.mjs');
+  const statePath = path.join(root, 'state.json');
+  const callsPath = path.join(root, 'calls.json');
+  const legacySource = path.join(root, 'legacy-source');
+  const targetSource = path.join(root, 'target-source');
+  const projection = parseJsonText(fs.readFileSync(
+    path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'opl-flow.json'),
+    'utf8',
+  )) as any;
+  const legacyManifest = structuredClone(projection);
+  legacyManifest.version = '0.1.52';
+  legacyManifest.codex_surface.configured_codex_plugin_carrier.plugin_selector = 'opl-flow@opl-flow-local';
+  try {
+    for (const [source, manifest] of [[legacySource, legacyManifest], [targetSource, projection]] as const) {
+      fs.mkdirSync(source, { recursive: true });
+      fs.writeFileSync(path.join(source, 'opl-package.json'), formatJsonPayload(manifest));
+      fs.mkdirSync(path.join(source, '.codex-plugin'), { recursive: true });
+      fs.writeFileSync(path.join(source, '.codex-plugin', 'plugin.json'), formatJsonPayload({
+        name: 'opl-flow',
+        version: manifest.version,
+        description: 'OPL Flow carrier rename fixture.',
+        skills: './skills/',
+      }));
+      for (const skillId of manifest.codex_surface.required_skill_ids) {
+        fs.mkdirSync(path.join(source, 'skills', skillId), { recursive: true });
+        fs.writeFileSync(path.join(source, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`);
+      }
+    }
+    fs.writeFileSync(statePath, JSON.stringify({
+      targetMarketplace: false,
+      targetInstalled: false,
+      legacyInstalled: true,
+      legacyMarketplace: true,
+    }));
+    fs.writeFileSync(callsPath, '[]');
+    fs.writeFileSync(binary, `#!/usr/bin/env node
+import fs from 'node:fs';
+const args = process.argv.slice(2);
+const command = args.join(' ');
+const statePath = process.env.FIXTURE_STATE;
+const callsPath = process.env.FIXTURE_CALLS;
+const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+const calls = JSON.parse(fs.readFileSync(callsPath, 'utf8'));
+calls.push(command);
+fs.writeFileSync(callsPath, JSON.stringify(calls));
+const save = () => fs.writeFileSync(statePath, JSON.stringify(state));
+const source = 'https://github.com/gaofeng21cn/opl-flow.git';
+if (command === 'plugin marketplace list --json') {
+  process.stdout.write(JSON.stringify({ marketplaces: [
+    ...(state.legacyMarketplace ? [{ name: 'opl-flow-local', marketplaceSource: { sourceType: 'git', source } }] : []),
+    ...(state.targetMarketplace ? [{ name: 'opl-flow', marketplaceSource: { sourceType: 'git', source } }] : []),
+  ] }));
+} else if (command === 'plugin marketplace add gaofeng21cn/opl-flow --json') {
+  state.targetMarketplace = true; save(); process.stdout.write(JSON.stringify({ status: 'ok' }));
+} else if (command === 'plugin add opl-flow@opl-flow --json') {
+  state.targetInstalled = true; save(); process.stdout.write(JSON.stringify({ status: 'ok' }));
+} else if (command === 'plugin remove opl-flow@opl-flow-local --json') {
+  state.legacyInstalled = false; save(); process.stdout.write(JSON.stringify({ status: 'ok' }));
+} else if (command === 'plugin marketplace remove opl-flow-local --json') {
+  state.legacyMarketplace = false; save(); process.stdout.write(JSON.stringify({ status: 'ok' }));
+} else if (command === 'plugin list --json') {
+  process.stdout.write(JSON.stringify({ installed: [
+    ...(state.legacyInstalled ? [{ pluginId: 'opl-flow@opl-flow-local', version: '0.1.52', installed: true, enabled: true, source: { source: 'local', path: process.env.FIXTURE_LEGACY_SOURCE }, marketplaceSource: { sourceType: 'git', source } }] : []),
+    ...(state.targetInstalled ? [{ pluginId: 'opl-flow@opl-flow', version: '0.1.53', installed: true, enabled: true, source: { source: 'local', path: process.env.FIXTURE_TARGET_SOURCE }, marketplaceSource: { sourceType: 'git', source } }] : []),
+  ], available: [] }));
+} else {
+  process.stderr.write('unexpected command: ' + command);
+  process.exitCode = 2;
+}
+`);
+    fs.chmodSync(binary, 0o755);
+
+    const update = runCli(['packages', 'update', 'opl-flow'], {
+      HOME: root,
+      CODEX_HOME: path.join(root, 'codex-home'),
+      OPL_STATE_DIR: path.join(root, 'opl-state'),
+      OPL_CODEX_PLUGIN_BIN: binary,
+      FIXTURE_STATE: statePath,
+      FIXTURE_CALLS: callsPath,
+      FIXTURE_LEGACY_SOURCE: legacySource,
+      FIXTURE_TARGET_SOURCE: targetSource,
+    }) as any;
+    assert.equal(update.opl_agent_package_update.status, 'updated');
+    assert.equal(update.opl_agent_package_update.configured_carrier.carrier.plugin_id, 'opl-flow@opl-flow');
+    assert.equal(
+      update.opl_agent_package_update.configured_carrier.installed_version,
+      '0.1.53',
+      JSON.stringify(update.opl_agent_package_update.configured_carrier),
+    );
+    assert.deepEqual(JSON.parse(fs.readFileSync(callsPath, 'utf8')), [
+      'plugin list --json',
+      'plugin marketplace list --json',
+      'plugin marketplace add gaofeng21cn/opl-flow --json',
+      'plugin add opl-flow@opl-flow --json',
+      'plugin list --json',
+      'plugin remove opl-flow@opl-flow-local --json',
+      'plugin list --json',
+      'plugin marketplace list --json',
+      'plugin marketplace remove opl-flow-local --json',
+    ]);
+  } finally {
+    removeFixtureTree(root);
+  }
+});
 
 test('configured Codex carrier toggles only its native plugin table and verifies fresh enabled state', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-toggle-'));

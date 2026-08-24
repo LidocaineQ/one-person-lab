@@ -937,10 +937,10 @@ test('package status projects and bulk update visits required installed owner de
     ], JSON.stringify(bulkUpdate, null, 2));
     assert.deepEqual(
       fs.readFileSync(callsPath, 'utf8').trim().split('\n')
-        .filter((command) => command.startsWith('plugin add ')),
+      .filter((command) => command.startsWith('plugin add ')),
       [
-        'plugin add med-autoscience@carrier --json',
-        'plugin add mas-scholar-skills@carrier --json',
+        'plugin add med-autoscience@med-autoscience --json',
+        'plugin add mas-scholar-skills@mas-scholar-skills --json',
       ],
     );
 

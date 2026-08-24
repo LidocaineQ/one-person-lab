@@ -20,6 +20,7 @@ import { normalizePackageManifest } from './manifest-normalizers.ts';
 import {
   packageSnapshot,
   requireDescriptor,
+  requirePackageMutationDescriptor,
 } from './registry-status-projection.ts';
 import { sha256Text } from './shared.ts';
 import type {
@@ -257,11 +258,12 @@ export async function runOplAgentPackageInstall(input: AgentPackageInstallInput)
 }
 
 export async function runOplAgentPackageUpdate(input: AgentPackageInstallInput) {
+  const descriptor = requirePackageMutationDescriptor(input, 'update');
   return {
     version: 'g2' as const,
     opl_agent_package_update: {
       surface_kind: 'opl_agent_package_update' as const,
-      ...nativeLifecycleResult('update', input),
+      ...nativeLifecycleResult('update', input, descriptor),
     },
   };
 }
@@ -318,8 +320,9 @@ export async function runOplAgentPackageBulkUpdate(
 }
 
 export async function runOplAgentPackageRepair(input: AgentPackageRepairInput) {
+  const mutationDescriptor = requirePackageMutationDescriptor(input, 'repair');
+  const nativeRepair = nativeLifecycleResult('repair', input, mutationDescriptor);
   const descriptor = requireDescriptor(input, 'repair', { installed: true });
-  const nativeRepair = nativeLifecycleResult('repair', input, descriptor);
   const managedPolicyRepair = descriptor.manifest.managed_policy_surface
     ? repairManagedPolicyDependenciesFromDescriptor({
         manifest: {
