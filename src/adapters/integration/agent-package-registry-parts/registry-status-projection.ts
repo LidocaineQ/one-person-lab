@@ -475,7 +475,6 @@ function buildPackageStatus(input: OplAgentPackageStatusInput, snapshot: Package
       },
       specialized_capabilities: managedPolicyCurrentness.specialized_capabilities ?? {
         status: 'not_declared' as const,
-        failure_ids: [],
         repair_command: null,
         capabilities: [],
       },
