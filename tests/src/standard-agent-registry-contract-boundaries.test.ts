@@ -251,6 +251,21 @@ test('one unknown Agent projection drives all runtime registries', () => {
   }
 });
 
+test('a standalone workflow profile never becomes a local Agent wrapper', () => {
+  const packageDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-workflow-profile-registry-'));
+  try {
+    fs.copyFileSync(
+      path.join(repoRoot, 'contracts/opl-framework/packages/opl-flow.json'),
+      path.join(packageDirectory, 'opl-flow.json'),
+    );
+    assert.deepEqual(loadStandardAgentRegistry(packageDirectory), []);
+    assert.deepEqual(buildCodexFamilyPluginSpecs(packageDirectory), []);
+    assert.deepEqual(listCodexFamilyPluginPackIds(packageDirectory), []);
+  } finally {
+    fs.rmSync(packageDirectory, { recursive: true, force: true });
+  }
+});
+
 test('malformed standard Agent descriptor projections fail closed before registry admission', () => {
   const packageDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-invalid-agent-projection-'));
   const cases: Array<[string, (fixture: Record<string, any>) => void]> = [

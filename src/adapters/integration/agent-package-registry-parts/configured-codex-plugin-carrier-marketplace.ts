@@ -9,6 +9,7 @@ import { sameMarketplaceSource } from './shared.ts';
 import type {
   ConfiguredCodexPluginCarrierAction,
   CodexPluginCommandRunner,
+  CodexPluginListEntry,
 } from './configured-codex-plugin-carrier-types.ts';
 
 function ensureMarketplaceArgs(source: string) {
@@ -33,7 +34,10 @@ export function ensureMarketplaceAvailable(input: {
     ? parseMarketplaceList(marketplaceList.stdout, input.packageId)
     : [];
   const configuredMarketplace = marketplaces
-    .find((entry) => sameMarketplaceSource(entry.marketplaceSource, input.marketplaceSource)) ?? null;
+    .find((entry) => (
+      entry.name === marketplaceName(input.pluginId)
+      && sameMarketplaceSource(entry.marketplaceSource, input.marketplaceSource)
+    )) ?? null;
   if (configuredMarketplace) {
     if ((input.action !== 'update' && input.action !== 'repair')
       || configuredMarketplace.sourceType !== 'git') return;
@@ -104,5 +108,53 @@ export function ensureMarketplaceAvailable(input: {
       args: marketplaceArgs,
       result: marketplaceResult,
     });
+  }
+}
+
+export function removeUnusedMarketplaces(input: {
+  packageId: string;
+  action: ConfiguredCodexPluginCarrierAction;
+  marketplaceNames: string[];
+  installedEntries: CodexPluginListEntry[];
+  binary: string;
+  env: NodeJS.ProcessEnv;
+  runner: CodexPluginCommandRunner;
+}) {
+  const usedMarketplaceNames = new Set(
+    input.installedEntries
+      .filter((entry) => entry.installed)
+      .map((entry) => marketplaceName(entry.pluginId)),
+  );
+  const candidates = [...new Set(input.marketplaceNames)]
+    .filter((name) => name && !usedMarketplaceNames.has(name));
+  if (candidates.length === 0) return;
+
+  const listArgs = ['plugin', 'marketplace', 'list', '--json'];
+  const listResult = input.runner({ binary: input.binary, args: listArgs, env: input.env });
+  if (listResult.status !== 0 || listResult.error) {
+    commandFailure({
+      packageId: input.packageId,
+      action: input.action,
+      args: listArgs,
+      result: listResult,
+    });
+  }
+  const configuredNames = new Set(
+    parseMarketplaceList(listResult.stdout, input.packageId)
+      .map((entry) => entry.name)
+      .filter((name): name is string => name !== null),
+  );
+  for (const name of candidates) {
+    if (!configuredNames.has(name)) continue;
+    const removeArgs = ['plugin', 'marketplace', 'remove', name, '--json'];
+    const removeResult = input.runner({ binary: input.binary, args: removeArgs, env: input.env });
+    if (removeResult.status !== 0 || removeResult.error) {
+      commandFailure({
+        packageId: input.packageId,
+        action: input.action,
+        args: removeArgs,
+        result: removeResult,
+      });
+    }
   }
 }

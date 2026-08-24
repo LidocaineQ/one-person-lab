@@ -6,6 +6,7 @@ import {
   nativeArgs,
   observedSource,
   parsePluginList,
+  marketplaceName,
   pluginBareName,
 } from './configured-codex-plugin-carrier-native.ts';
 import {
@@ -14,7 +15,10 @@ import {
   setConfiguredPluginEnabled,
 } from './configured-codex-plugin-carrier-local.ts';
 import { installPayloadMarketplace } from './configured-codex-plugin-carrier-payload.ts';
-import { ensureMarketplaceAvailable } from './configured-codex-plugin-carrier-marketplace.ts';
+import {
+  ensureMarketplaceAvailable,
+  removeUnusedMarketplaces,
+} from './configured-codex-plugin-carrier-marketplace.ts';
 import { sameMarketplaceSource } from './shared.ts';
 import type { AgentPackageConfiguredCodexPluginCarrierDescriptor } from './types.ts';
 import type {
@@ -421,7 +425,8 @@ export function runConfiguredCodexPluginCarrier(input: {
   if ((input.action === 'update' || input.action === 'repair') && marketplaceSource) {
     const selection = configuredPluginSelection({ entries, descriptor: input.descriptor });
     const targetEntry = selection.installedSameName.find((entry) => (
-      entry.enabled
+      entry.pluginId === input.descriptor.carrier.pluginId
+      && entry.enabled
       && sameMarketplaceSource(entry.marketplaceSource, marketplaceSource)
       && missingRequiredSkills(
         entry.sourcePath,
@@ -430,7 +435,10 @@ export function runConfiguredCodexPluginCarrier(input: {
     )) ?? null;
     const staleSameNameSources = targetEntry
       ? selection.installedSameName.filter(
-        (entry) => !sameMarketplaceSource(entry.marketplaceSource, marketplaceSource),
+        (entry) => (
+          entry.pluginId !== targetEntry.pluginId
+          || !sameMarketplaceSource(entry.marketplaceSource, marketplaceSource)
+        ),
       )
       : [];
     if (targetEntry && staleSameNameSources.length > 0) {
@@ -455,6 +463,17 @@ export function runConfiguredCodexPluginCarrier(input: {
         runner,
       });
       if (isConfiguredCarrierReadback(entries)) return entries;
+      removeUnusedMarketplaces({
+        packageId: input.descriptor.packageId,
+        action: input.action,
+        marketplaceNames: staleSameNameSources
+          .filter((entry) => sameMarketplaceSource(entry.marketplaceSource, marketplaceSource))
+          .map((entry) => marketplaceName(entry.pluginId)),
+        installedEntries: entries,
+        binary,
+        env,
+        runner,
+      });
     }
   }
   const enforceHeadlessInternal = input.descriptor.interactionMode === 'headless_internal'

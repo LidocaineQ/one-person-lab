@@ -852,6 +852,115 @@ test('configured Codex carrier update replaces an accepted managed wrapper after
   }
 });
 
+test('configured Codex carrier update completes a same-source marketplace rename', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configured-carrier-marketplace-rename-'));
+  const source = 'https://github.com/gaofeng21cn/opl-flow.git';
+  const pluginSource = path.join(root, 'plugin');
+  const calls: string[] = [];
+  let targetMarketplace = false;
+  let targetInstalled = false;
+  let legacyInstalled = true;
+  let legacyMarketplace = true;
+  writePluginSource(pluginSource, 'flow');
+  const configured = {
+    ...descriptor,
+    packageId: 'opl-flow',
+    carrier: {
+      ...descriptor.carrier,
+      pluginId: 'opl-flow@opl-flow',
+      marketplaceSource: 'gaofeng21cn/opl-flow',
+    },
+    executor: {
+      ...descriptor.executor,
+      requiredSkillIds: ['third-party-research'],
+    },
+  };
+  try {
+    const readback = runConfiguredCodexPluginCarrier({
+      descriptor: configured,
+      action: 'update',
+      runner: ({ args }) => {
+        const command = args.join(' ');
+        calls.push(command);
+        if (command === 'plugin marketplace list --json') {
+          return {
+            status: 0,
+            stdout: JSON.stringify({
+              marketplaces: [
+                ...(legacyMarketplace ? [{
+                  name: 'opl-flow-local',
+                  marketplaceSource: { sourceType: 'git', source },
+                }] : []),
+                ...(targetMarketplace ? [{
+                  name: 'opl-flow',
+                  marketplaceSource: { sourceType: 'git', source },
+                }] : []),
+              ],
+            }),
+            stderr: '',
+            error: null,
+          };
+        }
+        if (command === 'plugin marketplace add gaofeng21cn/opl-flow --json') {
+          targetMarketplace = true;
+          return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+        }
+        if (command === 'plugin add opl-flow@opl-flow --json') {
+          targetInstalled = true;
+          return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+        }
+        if (command === 'plugin remove opl-flow@opl-flow-local --json') {
+          assert.equal(targetInstalled, true);
+          legacyInstalled = false;
+          return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+        }
+        if (command === 'plugin marketplace remove opl-flow-local --json') {
+          assert.equal(legacyInstalled, false);
+          legacyMarketplace = false;
+          return { status: 0, stdout: JSON.stringify({ status: 'ok' }), stderr: '', error: null };
+        }
+        if (command === 'plugin list --json') {
+          return {
+            status: 0,
+            stdout: pluginList([
+              ...(legacyInstalled ? [{
+                pluginId: 'opl-flow@opl-flow-local',
+                version: '0.1.52',
+                sourcePath: pluginSource,
+                marketplaceSource: source,
+              }] : []),
+              ...(targetInstalled ? [{
+                pluginId: 'opl-flow@opl-flow',
+                version: '0.1.53',
+                sourcePath: pluginSource,
+                marketplaceSource: source,
+              }] : []),
+            ]),
+            stderr: '',
+            error: null,
+          };
+        }
+        return { status: 1, stdout: '', stderr: `unexpected command: ${command}`, error: null };
+      },
+    });
+    assert.equal(readback.carrier.plugin_id, 'opl-flow@opl-flow');
+    assert.equal(readback.carrier.precedence, 'exact_single_source');
+    assert.equal(readback.executor.status, 'callable');
+    assert.deepEqual(calls, [
+      'plugin marketplace list --json',
+      'plugin marketplace add gaofeng21cn/opl-flow --json',
+      'plugin add opl-flow@opl-flow --json',
+      'plugin list --json',
+      'plugin remove opl-flow@opl-flow-local --json',
+      'plugin list --json',
+      'plugin marketplace list --json',
+      'plugin marketplace remove opl-flow-local --json',
+    ]);
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
 test('configured Codex carrier reports a declared selector without a physical source as unavailable', () => {
   const readback = runConfiguredCodexPluginCarrier({
     descriptor,
