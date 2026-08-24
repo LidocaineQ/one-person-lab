@@ -55,6 +55,7 @@ function runtimeDirectoryEntry(input: {
     package_role: input.packageRole ?? 'standard_agent',
     installed,
     activated: false,
+    codex_visible: installed && !input.statusReadError,
     configured_carrier: {
       carrier: {
         kind: 'codex_plugin_manager',
