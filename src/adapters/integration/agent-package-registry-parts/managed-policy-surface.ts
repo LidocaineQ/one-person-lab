@@ -1127,9 +1127,11 @@ function skillSyncItemCurrent(item: ReturnType<typeof syncOplCompanionSkills>['i
       && item.frontmatter_schema_status !== 'invalid'
       && item.resource_closure_status !== 'incomplete';
   }
-  if (item.source_authority === 'existing_codex_entry') {
+  if (item.entrypoint_authority_status === 'not_applicable') {
     return item.status === 'ready'
+      && item.source_authority !== 'missing'
       && item.source_payload_sha256 !== null
+      && item.payload_currentness === 'current'
       && item.frontmatter_schema_status === 'valid'
       && item.resource_closure_status === 'complete';
   }

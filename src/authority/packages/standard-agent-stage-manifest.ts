@@ -1,3 +1,10 @@
+import {
+  resolveStandardAgentStageQualityRuntimeBinding as resolveStageQualityRuntimeBinding,
+} from './standard-agent-stage-manifest-parts/runtime-quality-binding.ts';
+import type {
+  StandardAgentStageQualityRuntimeBinding,
+} from './standard-agent-stage-manifest-parts/types.ts';
+
 export { STANDARD_AGENT_STAGE_MANIFEST_REF } from './standard-agent-stage-prompt.ts';
 
 export {
@@ -6,7 +13,12 @@ export {
   STANDARD_AGENT_DESCRIPTOR_REF,
 } from './standard-agent-stage-manifest-parts/manifest-compiler.ts';
 
-export { resolveStandardAgentStageQualityRuntimeBinding } from './standard-agent-stage-manifest-parts/runtime-quality-binding.ts';
+export function resolveStandardAgentStageQualityRuntimeBinding(
+  repoDirInput: string,
+  stageIdInput: string,
+): StandardAgentStageQualityRuntimeBinding | null {
+  return resolveStageQualityRuntimeBinding(repoDirInput, stageIdInput);
+}
 
 export {
   resolveStandardAgentStageReviewLane,

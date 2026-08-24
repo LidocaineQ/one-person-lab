@@ -708,6 +708,35 @@ test('installed descriptor accepts equivalent GitHub marketplace source spelling
   }
 });
 
+test('disabled native plugin without a Framework owner descriptor stays non-callable', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-disabled-native-plugin-'));
+  const sourcePath = path.join(root, 'installed');
+  writePluginSource(sourcePath, 'native plugin without owner descriptor');
+  try {
+    const discovered = discoverInstalledPackageDescriptors({
+      runner: () => ({
+        status: 0,
+        stdout: pluginList([{
+          pluginId: pluginSelector,
+          version: '1.0.1',
+          sourcePath,
+          marketplaceSource: 'fixture-carrier',
+          enabled: false,
+        }]),
+        stderr: '',
+        error: null,
+      }),
+    });
+    const selected = discovered.get('third-party-research');
+    assert.ok(selected);
+    assert.equal(selected.enabled, false);
+    assert.equal(selected.readiness.callability, 'disabled');
+    assert.equal(selected.readiness.projection_callability, undefined);
+  } finally {
+    removeFixtureTree(root);
+  }
+});
+
 test('current headless owner projection keeps a disabled same-version install callable', () => {
   const projectionPath = path.resolve(
     'contracts',

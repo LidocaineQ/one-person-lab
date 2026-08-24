@@ -282,10 +282,12 @@ function normalizeNativeCarrierManifest(
 function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): InstalledPackageDescriptor | null {
   const ownerManifestPath = path.join(entry.sourcePath, 'opl-package.json');
   try {
+    const hasOwnerManifest = fs.existsSync(ownerManifestPath)
+      && fs.statSync(ownerManifestPath).isFile();
     let manifestPath = ownerManifestPath;
     let manifest: InstalledPackageManifest;
     let manifestText: string;
-    if (fs.existsSync(ownerManifestPath) && fs.statSync(ownerManifestPath).isFile()) {
+    if (hasOwnerManifest) {
       manifestText = fs.readFileSync(ownerManifestPath, 'utf8');
       manifest = normalizePackageManifest(
         JSON.parse(manifestText),
@@ -326,7 +328,8 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
       },
       configured_codex_plugin_carrier: carrier,
     };
-    const projectionCallableWhileDisabled = frameworkProjectionRemainsCallableWhileDisabled(manifest)
+    const projectionCallableWhileDisabled = hasOwnerManifest
+      && frameworkProjectionRemainsCallableWhileDisabled(manifest)
       && entry.installed !== false
       && !entry.enabled;
     return {

@@ -1,6 +1,3 @@
-import { execFileSync } from 'node:child_process';
-import crypto from 'node:crypto';
-
 import {
   assert,
   fs,
@@ -552,7 +549,7 @@ test('installed native descriptor projects Flow policy planes and model recommen
   }
 });
 
-test('public packages repair runs the native carrier and managed policy projection', () => {
+test('public packages repair runs the native carrier and preserves an owner-managed policy Skill', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture.opl-flow-local-policy-repair-'));
   const home = path.join(root, 'home');
   const codexHome = path.join(home, '.codex');
@@ -562,13 +559,7 @@ test('public packages repair runs the native carrier and managed policy projecti
     includeManagedSkillCompanion: true,
   });
   fs.copyFileSync(manifestPath, path.join(sourceRoot, 'opl-package.json'));
-  const repositoryUrl = 'https://github.com/fixture/ui-ux-pro-max';
-  const repositoryDigest = crypto.createHash('sha256')
-    .update(repositoryUrl.toLowerCase())
-    .digest('hex')
-    .slice(0, 20);
-  const repositoryRoot = path.join(codexHome, 'opl-companion-sources', 'github', repositoryDigest);
-  const skillRoot = path.join(repositoryRoot, 'skill');
+  const skillRoot = path.join(home, '.agents', 'skills', 'ui-ux-pro-max');
   fs.mkdirSync(skillRoot, { recursive: true });
   fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), [
     '---',
@@ -579,13 +570,6 @@ test('public packages repair runs the native carrier and managed policy projecti
     '# UI UX Pro Max',
     '',
   ].join('\n'), 'utf8');
-  execFileSync('git', ['init', '--quiet'], { cwd: repositoryRoot });
-  execFileSync('git', ['config', 'user.name', 'OPL Test'], { cwd: repositoryRoot });
-  execFileSync('git', ['config', 'user.email', 'opl-test@example.invalid'], { cwd: repositoryRoot });
-  execFileSync('git', ['remote', 'add', 'origin', repositoryUrl], { cwd: repositoryRoot });
-  execFileSync('git', ['add', '.'], { cwd: repositoryRoot });
-  execFileSync('git', ['commit', '--quiet', '-m', 'fixture'], { cwd: repositoryRoot });
-
   try {
     const env = {
       HOME: home,
@@ -617,12 +601,12 @@ test('public packages repair runs the native carrier and managed policy projecti
         'fixture.opl-flow@fixture-marketplace',
         '--json',
       ]);
-      assert.equal(repair?.managed_policy_repair?.status, 'repaired');
-      assert.equal(repair?.managed_policy_repair?.writes_performed, true);
+      assert.equal(repair?.managed_policy_repair?.status, 'current');
+      assert.equal(repair?.managed_policy_repair?.writes_performed, false);
       assert.equal(repair?.managed_policy_repair?.currentness.experience_baseline?.status, 'current');
-      const entrypoint = path.join(codexHome, 'skills', 'ui-ux-pro-max');
-      assert.equal(fs.lstatSync(entrypoint).isSymbolicLink(), true);
-      assert.equal(fs.realpathSync(entrypoint), fs.realpathSync(skillRoot));
+      assert.equal(fs.lstatSync(skillRoot).isDirectory(), true);
+      assert.equal(fs.existsSync(path.join(codexHome, 'skills', 'ui-ux-pro-max')), false);
+      assert.match(fs.readFileSync(path.join(skillRoot, 'SKILL.md'), 'utf8'), /Managed policy repair fixture/);
     });
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
