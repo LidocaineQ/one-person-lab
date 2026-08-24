@@ -662,7 +662,7 @@ export function writeMasConsumer(
   return manifestPath;
 }
 
-function commitDeveloperFixture(checkoutPath: string, message: string) {
+export function commitDeveloperFixture(checkoutPath: string, message: string) {
   execFileSync('git', ['init', '-q'], { cwd: checkoutPath });
   execFileSync('git', ['config', 'user.name', 'OPL Fixture'], { cwd: checkoutPath });
   execFileSync('git', ['config', 'user.email', 'opl-fixture@example.test'], { cwd: checkoutPath });

@@ -11,6 +11,7 @@ import {
   test,
 } from '../helpers.ts';
 import {
+  commitDeveloperFixture,
   writeCapabilityProvider,
   writeMasConsumer,
 } from './packages-cases/capability-fixtures.ts';
@@ -315,6 +316,10 @@ test('native package launch projects Workspace Skills without private lifecycle 
     { configuredCarrier: true },
   );
   writeEmptyCapabilityMap(consumerRoot);
+  commitDeveloperFixture(
+    path.join(consumerRoot, 'plugins', 'med-autoscience'),
+    'native package launch fixture',
+  );
   const env = {
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
@@ -366,7 +371,13 @@ test('native package launch projects Workspace Skills without private lifecycle 
       first.workspace_locator.native_package_closure.root_package.content_digest,
       /^sha256:[a-f0-9]{64}$/,
     );
-    assert.equal(first.workspace_locator.native_package_closure.skill_projection.skill_ids.length, 10);
+    const expectedProviderSkillIds = providerStatus.configured_carrier.executor.required_skill_ids
+      .filter((skillId: string) => skillId !== 'mas-scholar-skills')
+      .sort();
+    assert.deepEqual(
+      first.workspace_locator.native_package_closure.skill_projection.skill_ids,
+      expectedProviderSkillIds,
+    );
     assert.equal(fs.existsSync(path.join(env.OPL_STATE_DIR, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite')), false);
     assert.equal(fs.existsSync(path.join(workspace, '.codex', 'skills')), true);

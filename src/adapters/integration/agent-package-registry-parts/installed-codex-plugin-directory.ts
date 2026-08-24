@@ -109,6 +109,13 @@ export type InstalledPackageDescriptor = {
   readiness: InstalledPackageReadiness;
 };
 
+function frameworkProjectionRemainsCallableWhileDisabled(
+  manifest: Pick<InstalledPackageManifest, 'package_role' | 'codex_default_exposure' | 'codex_interaction_mode'>,
+) {
+  return manifest.codex_interaction_mode === 'headless_internal'
+    || (manifest.package_role === 'capability_package' && manifest.codex_default_exposure === false);
+}
+
 function stringValue(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
@@ -319,7 +326,7 @@ function readInstalledPackageDescriptor(entry: InstalledCarrierEntry): Installed
       },
       configured_codex_plugin_carrier: carrier,
     };
-    const projectionCallableWhileDisabled = manifest.codex_interaction_mode === 'headless_internal'
+    const projectionCallableWhileDisabled = frameworkProjectionRemainsCallableWhileDisabled(manifest)
       && entry.installed !== false
       && !entry.enabled;
     return {
@@ -419,7 +426,7 @@ function withCurrentOwnerProjection(
     || !installedDescriptorMatchesConfiguredCarrier(descriptor)) return descriptor;
   const readiness = { ...descriptor.readiness };
   delete readiness.projection_callability;
-  const projectionCallableWhileDisabled = ownerProjection.manifest.codex_interaction_mode === 'headless_internal'
+  const projectionCallableWhileDisabled = frameworkProjectionRemainsCallableWhileDisabled(ownerProjection.manifest)
     && readiness.installed
     && !descriptor.enabled;
   if (projectionCallableWhileDisabled) readiness.projection_callability = 'callable';
@@ -458,9 +465,14 @@ export function installedDescriptorSupportsFrameworkCalls(
 export function installedDescriptorHasExpectedCodexExposure(
   descriptor: InstalledPackageDescriptor,
 ) {
-  return descriptor.manifest.codex_interaction_mode === 'headless_internal'
-    ? !descriptor.enabled
-    : descriptor.enabled;
+  if (descriptor.manifest.codex_interaction_mode === 'headless_internal') {
+    return !descriptor.enabled;
+  }
+  if (descriptor.manifest.package_role === 'capability_package'
+    && descriptor.manifest.codex_default_exposure === false) {
+    return true;
+  }
+  return descriptor.enabled;
 }
 
 export function discoverPackageDescriptors(input: {
