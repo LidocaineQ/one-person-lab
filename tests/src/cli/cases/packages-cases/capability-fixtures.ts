@@ -189,6 +189,9 @@ export function writeCapabilityProvider(
     coreSkillIds?: string[];
     moduleIds?: string[];
     specialtySkillIds?: string[];
+    defaultMaterializedSkillIds?: string[];
+    defaultMaterializationPolicy?: 'all_exported_skills' | 'core_skills_only';
+    optionalSkillsInstalledByDefault?: boolean;
     consumerProfiles?: Array<{
       profile_id: string;
       consumer_agent_id: string;
@@ -203,6 +206,9 @@ export function writeCapabilityProvider(
   const coreSkillIds = options.coreSkillIds ?? scholarSkillsCoreSkillIds;
   const moduleIds = options.moduleIds ?? scholarSkillsModuleIds;
   const specialtySkillIds = options.specialtySkillIds ?? [];
+  const defaultMaterializationPolicy = options.defaultMaterializationPolicy ?? 'all_exported_skills';
+  const optionalSkillsInstalledByDefault = options.optionalSkillsInstalledByDefault
+    ?? (defaultMaterializationPolicy === 'all_exported_skills');
   const configuredCarrier = options.configuredCarrier === true;
   const carrierMarketplaceRoot = path.join(root, 'native-carrier-marketplace');
   const carrierPluginRoot = path.join(carrierMarketplaceRoot, 'plugins', packageId);
@@ -266,8 +272,11 @@ export function writeCapabilityProvider(
       core_module_ids: moduleIds,
       specialty_skill_ids: specialtySkillIds,
       optional_skill_policy_ref: 'test://optional-specialties',
-      optional_skills_installed_by_default: true,
-      default_materialization_policy: 'all_exported_skills',
+      optional_skills_installed_by_default: optionalSkillsInstalledByDefault,
+      default_materialization_policy: defaultMaterializationPolicy,
+      ...(options.defaultMaterializedSkillIds
+        ? { default_materialized_skill_ids: options.defaultMaterializedSkillIds }
+        : {}),
     },
     consumer_profiles: options.consumerProfiles ?? [],
     content_lock: {
@@ -281,7 +290,7 @@ export function writeCapabilityProvider(
       plugin_source_path: '.',
       required_skill_ids: coreSkillIds,
       codex_default_exposure: false,
-      optional_install_policy: 'all_exported_skills',
+      optional_install_policy: defaultMaterializationPolicy,
       ...(configuredCarrier ? {
         configured_codex_plugin_carrier: {
           kind: 'codex_plugin_manager',

@@ -235,6 +235,9 @@ test('workspace init projects the installed MAS professional Skill generation an
   const workspaceRoot = path.join(root, 'workspaces');
   const providerManifest = writeCapabilityProvider(path.join(root, 'provider'), '0.1.0', {
     configuredCarrier: true,
+    defaultMaterializedSkillIds: ['mas-scholar-skills'],
+    defaultMaterializationPolicy: 'core_skills_only',
+    optionalSkillsInstalledByDefault: false,
   });
   const consumerManifest = writeMasConsumer(root, providerManifest, '0.1.0a4', {
     configuredCarrier: true,
@@ -288,11 +291,11 @@ test('workspace init projects the installed MAS professional Skill generation an
       second.workspace_skill_projection.generation_id,
       first.workspace_skill_projection.generation_id,
     );
-    assert.equal(first.workspace_skill_projection.skill_ids.length, 10);
+    assert.deepEqual(first.workspace_skill_projection.skill_ids, ['mas-scholar-skills']);
     assert.deepEqual(first.workspace_skill_projection.root_skill_ids, ['med-autoscience']);
     assert.equal(fs.existsSync(path.join(workspaceSkillsRoot, 'med-autoscience')), false);
-    assert.equal(fs.existsSync(path.join(workspaceSkillsRoot, 'mas-scholar-skills')), false);
-    assert.equal(fs.readdirSync(workspaceSkillsRoot).length, 10);
+    assert.equal(fs.existsSync(path.join(workspaceSkillsRoot, 'mas-scholar-skills')), true);
+    assert.deepEqual(fs.readdirSync(workspaceSkillsRoot), ['mas-scholar-skills']);
   } finally {
     removeFixtureTree(root);
   }
