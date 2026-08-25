@@ -46,6 +46,7 @@ import {
   writeNativeMarketplace,
   unavailableCodexRunner,
 } from '../configured-codex-plugin-carrier-shared.ts';
+import { execFileSync } from 'node:child_process';
 import type { CodexPluginCommandRunner } from '../configured-codex-plugin-carrier-shared.ts';
 
 test('GitHub archive payload reads the owner source path independently from its install path', () => {
@@ -216,7 +217,12 @@ process.stdout.write(JSON.stringify({ installed: [], available: [] }));
     const expectedPackageIds = listCurrentPackageProjections()
       .flatMap((projection) => {
         const manifest = normalizePackageManifest(projection.payload, projection.source_ref);
-        return manifest.configured_codex_plugin_carrier ? [manifest.package_id] : [];
+        return manifest.configured_codex_plugin_carrier
+          && !(manifest.package_role === 'capability_package'
+            && manifest.codex_default_exposure === false
+            && manifest.codex_interaction_mode === 'headless_internal')
+          ? [manifest.package_id]
+          : [];
       })
       .sort();
     const entries = result.opl_agent_packages.directory.entries;
@@ -847,14 +853,15 @@ test('package status projects and bulk update visits required installed owner de
     }));
   };
   const dependency = {
+    module_id: 'scholarskills',
     package_id: 'mas-scholar-skills',
     required: true,
     dependency_kind: 'hard_runtime_dependency' as const,
     version_requirement: '>=0.2.0 <0.3.0',
     capability_abi: 'mas-scholar-skills.v1',
     consumer_profile_id: 'mas-medical-paper.v1',
-    required_export_ids: ['scholar-core'],
-    required_module_ids: ['scholarskills'],
+    required_export_ids: [] as string[],
+    required_module_ids: [] as string[],
     bootstrap_manifest_url: null,
     dependency_source: null,
   };
@@ -862,33 +869,32 @@ test('package status projects and bulk update visits required installed owner de
   rootManifest.version = '0.2.25';
   rootManifest.codex_surface.required_skill_ids = ['mas'];
   rootManifest.capability_dependencies = [dependency];
-  const providerManifest = agentPackageManifest({
-    packageId: 'mas-scholar-skills',
-    agentId: 'mas-scholar-skills',
-    pluginId: 'mas-scholar-skills',
-  }) as any;
-  providerManifest.version = '0.2.24';
-  providerManifest.codex_surface.required_skill_ids = ['mas-scholar-skills'];
-  providerManifest.capability_provider = {
-    capability_abi: 'mas-scholar-skills.v1',
-    exports: [{ export_id: 'scholar-core', skill_id: 'mas-scholar-skills', install_mode: 'core_required' }],
-    module_export_ids: ['scholarskills'],
-    consumer_profiles: [{
-      profile_id: 'mas-medical-paper.v1',
-      consumer_agent_id: 'mas',
-      required_export_ids: ['scholar-core'],
-      required_module_ids: ['scholarskills'],
-    }],
-  };
+  const providerProjection = listCurrentPackageProjections()
+    .find((projection) => projection.payload.package_id === 'mas-scholar-skills');
+  assert.ok(providerProjection, 'ScholarSkills owner projection is required for this fixture');
+  const providerOwnerManifest = normalizePackageManifest(
+    providerProjection.payload,
+    providerProjection.source_ref,
+  );
+  const provider = providerOwnerManifest.capability_provider;
+  assert.ok(provider, 'ScholarSkills capability provider is required for this fixture');
+  dependency.required_export_ids = provider.exports.map((entry) => entry.export_id);
+  dependency.required_module_ids = [...provider.module_export_ids];
   fs.mkdirSync(rootSource, { recursive: true });
   fs.mkdirSync(providerSource, { recursive: true });
   writePlugin(rootSource, 'mas', '0.2.25');
-  writePlugin(providerSource, 'mas-scholar-skills', '0.2.24');
+  for (const entry of provider.exports) {
+    fs.mkdirSync(path.join(providerSource, 'skills', entry.skill_id), { recursive: true });
+    fs.writeFileSync(path.join(providerSource, 'skills', entry.skill_id, 'SKILL.md'), `# ${entry.skill_id}\n`);
+  }
+  execFileSync('git', ['init', '-q'], { cwd: providerSource });
+  execFileSync('git', ['config', 'user.name', 'OPL Fixture'], { cwd: providerSource });
+  execFileSync('git', ['config', 'user.email', 'opl-fixture@example.test'], { cwd: providerSource });
+  execFileSync('git', ['add', '.'], { cwd: providerSource });
+  execFileSync('git', ['commit', '-q', '-m', 'ScholarSkills fixture'], { cwd: providerSource });
   fs.writeFileSync(path.join(rootSource, 'opl-package.json'), formatJsonPayload(rootManifest));
-  fs.writeFileSync(path.join(providerSource, 'opl-package.json'), formatJsonPayload(providerManifest));
   fs.writeFileSync(binary, `#!/usr/bin/env node\nimport fs from 'node:fs';\nfs.appendFileSync(process.env.FIXTURE_CODEX_CALLS, process.argv.slice(2).join(' ') + '\\n');\nprocess.stdout.write(${JSON.stringify(pluginList([
     { pluginId: 'med-autoscience@carrier', version: '0.2.25', sourcePath: rootSource, marketplaceSource: 'fixture' },
-    { pluginId: 'mas-scholar-skills@carrier', version: '0.2.24', sourcePath: providerSource, marketplaceSource: 'fixture' },
   ], [{
     name: 'carrier',
     marketplaceSource: { sourceType: 'local', source: 'fixture' },
@@ -907,12 +913,14 @@ test('package status projects and bulk update visits required installed owner de
     stateDir: process.env.OPL_STATE_DIR,
     pluginBin: process.env.OPL_CODEX_PLUGIN_BIN,
     callsPath: process.env.FIXTURE_CODEX_CALLS,
+    scholarSkillsPath: process.env.OPL_MODULE_PATH_SCHOLARSKILLS,
   };
   process.env.HOME = env.HOME;
   process.env.CODEX_HOME = env.CODEX_HOME;
   process.env.OPL_STATE_DIR = env.OPL_STATE_DIR;
   process.env.OPL_CODEX_PLUGIN_BIN = env.OPL_CODEX_PLUGIN_BIN;
   process.env.FIXTURE_CODEX_CALLS = env.FIXTURE_CODEX_CALLS;
+  process.env.OPL_MODULE_PATH_SCHOLARSKILLS = providerSource;
   try {
     const status = runCli(['packages', 'status', '--package-id', 'mas'], env).opl_agent_package_status;
     assert.equal(status.package_dependency_readiness?.status, 'current');
@@ -926,13 +934,21 @@ test('package status projects and bulk update visits required installed owner de
     assert.equal(fs.existsSync(path.join(stateDir, 'agent-package-locks.json')), false);
 
     fs.writeFileSync(callsPath, '');
+    await runCliAsync(['packages', 'install', 'mas'], env);
+    assert.deepEqual(
+      fs.readFileSync(callsPath, 'utf8').trim().split('\n')
+        .filter((command) => command.startsWith('plugin add ')),
+      [
+        'plugin add med-autoscience@carrier --json',
+      ],
+    );
+
+    fs.writeFileSync(callsPath, '');
     const bulkUpdate = await runOplAgentPackageBulkUpdate();
     assert.deepEqual(bulkUpdate.targets.map((target: any) => target.target_id), [
       'mas',
-      'mas-scholar-skills',
     ]);
     assert.deepEqual(bulkUpdate.targets.map((target: any) => target.status), [
-      'completed',
       'completed',
     ], JSON.stringify(bulkUpdate, null, 2));
     assert.deepEqual(
@@ -940,7 +956,6 @@ test('package status projects and bulk update visits required installed owner de
       .filter((command) => command.startsWith('plugin add ')),
       [
         'plugin add med-autoscience@med-autoscience --json',
-        'plugin add mas-scholar-skills@mas-scholar-skills --json',
       ],
     );
 
@@ -955,6 +970,8 @@ test('package status projects and bulk update visits required installed owner de
     else process.env.OPL_CODEX_PLUGIN_BIN = previous.pluginBin;
     if (previous.callsPath === undefined) delete process.env.FIXTURE_CODEX_CALLS;
     else process.env.FIXTURE_CODEX_CALLS = previous.callsPath;
+    if (previous.scholarSkillsPath === undefined) delete process.env.OPL_MODULE_PATH_SCHOLARSKILLS;
+    else process.env.OPL_MODULE_PATH_SCHOLARSKILLS = previous.scholarSkillsPath;
     removeFixtureTree(root);
   }
 });

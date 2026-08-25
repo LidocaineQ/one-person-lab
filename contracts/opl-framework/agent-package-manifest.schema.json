@@ -618,6 +618,7 @@
       "items": {
         "type": "object",
         "required": [
+          "module_id",
           "package_id",
           "required",
           "capability_abi",
@@ -848,6 +849,17 @@
           },
           "minItems": 1,
           "uniqueItems": true
+        },
+        "default_materialized_skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "default_materialization_policy": {
+          "enum": ["all_exported_skills", "core_skills_only"]
         },
         "consumer_profiles": {
           "type": "array",

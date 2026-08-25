@@ -44,6 +44,10 @@ export function normalizeCapabilityDependencies(
   }
   const dependencies = entries.map((entry, index) => {
     const packageId = canonicalManifestIdentity(entry.package_id, `capability_dependencies[${index}].package_id`);
+    const moduleId = assertStringValue(
+      entry.module_id,
+      `capability_dependencies[${index}].module_id`,
+    );
     if (typeof entry.required !== 'boolean') {
       throw new FrameworkContractError('contract_shape_invalid', 'Agent package capability dependency required must be a boolean.', {
         manifest_url: manifestUrl,
@@ -94,6 +98,7 @@ export function normalizeCapabilityDependencies(
     const bootstrapManifestRef = stringValue(entry.bootstrap_manifest_url)
       ?? stringValue(entry.manifest_url);
     return {
+      module_id: moduleId,
       package_id: packageId,
       required,
       dependency_kind: expectedDependencyKind,
@@ -215,6 +220,18 @@ export function normalizeCapabilityProvider(value: unknown): AgentPackageCapabil
     });
   }
   const capabilityAbi = assertStringValue(value.capability_abi, 'capability_provider.capability_abi');
+  const declaredMaterializationPolicy = stringValue(value.default_materialization_policy);
+  const defaultMaterializationPolicy = declaredMaterializationPolicy === 'core_skills_only'
+    ? 'core_skills_only' as const
+    : declaredMaterializationPolicy === null || declaredMaterializationPolicy === 'all_exported_skills'
+      ? 'all_exported_skills' as const
+      : null;
+  if (defaultMaterializationPolicy === null) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Capability provider default Skill materialization policy is invalid.', {
+      default_materialization_policy: value.default_materialization_policy,
+      failure_code: 'agent_package_capability_provider_invalid',
+    });
+  }
   const rawExports = recordList(value.exports);
   if (rawExports.length !== value.exports.length) {
     throw new FrameworkContractError('contract_shape_invalid', 'Capability provider exports must be objects.', {
@@ -248,6 +265,19 @@ export function normalizeCapabilityProvider(value: unknown): AgentPackageCapabil
     }
   }
   const moduleExportIds = uniqueStrings(stringList(value.module_export_ids));
+  const defaultMaterializedSkillIds = uniqueStrings(stringList(value.default_materialized_skill_ids));
+  const coreSkillIds = exports
+    .filter((entry) => entry.install_mode === 'core_required')
+    .map((entry) => entry.skill_id);
+  const effectiveDefaultMaterializedSkillIds = defaultMaterializedSkillIds.length > 0
+    ? defaultMaterializedSkillIds
+    : coreSkillIds;
+  if (effectiveDefaultMaterializedSkillIds.some((skillId) => !exports.some((entry) => entry.skill_id === skillId))) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Capability provider default materialized Skills must be declared exports.', {
+      default_materialized_skill_ids: effectiveDefaultMaterializedSkillIds,
+      failure_code: 'agent_package_capability_provider_default_materialization_invalid',
+    });
+  }
   const consumerProfiles = normalizeCapabilityConsumerProfiles(
     value.consumer_profiles,
     exports,
@@ -257,6 +287,8 @@ export function normalizeCapabilityProvider(value: unknown): AgentPackageCapabil
     capability_abi: capabilityAbi,
     exports,
     module_export_ids: moduleExportIds,
+    default_materialized_skill_ids: effectiveDefaultMaterializedSkillIds,
+    default_materialization_policy: defaultMaterializationPolicy,
     consumer_profiles: consumerProfiles,
   };
 }
@@ -284,10 +316,24 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
       failure_code: 'invalid_capability_package_manifest',
     });
   }
-  if (payload.exports.optional_skills_installed_by_default !== true
-    || payload.exports.default_materialization_policy !== 'all_exported_skills') {
-    throw new FrameworkContractError('contract_shape_invalid', 'Capability package must materialize every declared Skill while keeping specialty readiness non-blocking.', {
+  const optionalSkillsInstalledByDefault = payload.exports.optional_skills_installed_by_default;
+  const declaredMaterializationPolicy = stringValue(payload.exports.default_materialization_policy);
+  const defaultMaterializationPolicy = declaredMaterializationPolicy === 'core_skills_only'
+    ? 'core_skills_only' as const
+    : declaredMaterializationPolicy === 'all_exported_skills'
+      ? 'all_exported_skills' as const
+      : optionalSkillsInstalledByDefault === true
+        ? 'all_exported_skills' as const
+        : optionalSkillsInstalledByDefault === false
+          ? 'core_skills_only' as const
+          : null;
+  if (typeof optionalSkillsInstalledByDefault !== 'boolean'
+    || defaultMaterializationPolicy === null
+    || (optionalSkillsInstalledByDefault !== (defaultMaterializationPolicy === 'all_exported_skills'))) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Capability package default Skill materialization policy is inconsistent.', {
       manifest_url: manifestUrl,
+      optional_skills_installed_by_default: optionalSkillsInstalledByDefault,
+      default_materialization_policy: defaultMaterializationPolicy,
       failure_code: 'capability_package_default_materialization_invalid',
     });
   }
@@ -311,6 +357,19 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
     throw new FrameworkContractError('contract_shape_invalid', 'Capability package core and specialty skill ids must not overlap.', {
       manifest_url: manifestUrl,
       failure_code: 'capability_package_export_overlap',
+    });
+  }
+  const declaredDefaultMaterializedSkillIds = uniqueStrings(
+    stringList(payload.exports.default_materialized_skill_ids),
+  );
+  const defaultMaterializedSkillIds = declaredDefaultMaterializedSkillIds.length > 0
+    ? declaredDefaultMaterializedSkillIds
+    : coreSkillIds;
+  if (defaultMaterializedSkillIds.some((skillId) => !allSkillIds.includes(skillId))) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Capability package default materialized Skills must be declared exports.', {
+      manifest_url: manifestUrl,
+      default_materialized_skill_ids: defaultMaterializedSkillIds,
+      failure_code: 'capability_package_default_materialization_invalid',
     });
   }
   const capabilityAbi = assertStringValue(payload.capability_abi.id, 'capability_abi.id');
@@ -388,6 +447,16 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
   );
   const codexInteractionMode = normalizeCodexInteractionMode(codexSurface, manifestUrl);
   const codexDefaultExposure = normalizeCodexDefaultExposure(codexSurface, manifestUrl);
+  const optionalInstallPolicy = codexSurface.optional_install_policy
+    ?? defaultMaterializationPolicy;
+  if (optionalInstallPolicy !== defaultMaterializationPolicy) {
+    throw new FrameworkContractError('contract_shape_invalid', 'Capability package Codex install policy must match its default materialization policy.', {
+      manifest_url: manifestUrl,
+      optional_install_policy: optionalInstallPolicy,
+      default_materialization_policy: defaultMaterializationPolicy,
+      failure_code: 'capability_package_codex_materialization_policy_invalid',
+    });
+  }
   if (codexInteractionMode === 'headless_internal' && codexDefaultExposure !== false) {
     throw new FrameworkContractError('contract_shape_invalid', 'Headless internal capability Packages must disable default Codex exposure.', {
       manifest_url: manifestUrl,
@@ -446,6 +515,8 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
       capability_abi: capabilityAbi,
       exports: capabilityExports,
       module_export_ids: coreModuleIds,
+      default_materialized_skill_ids: defaultMaterializedSkillIds,
+      default_materialization_policy: defaultMaterializationPolicy,
       consumer_profiles: consumerProfiles,
     },
     runtime_module_bindings: runtimeModuleBindings,

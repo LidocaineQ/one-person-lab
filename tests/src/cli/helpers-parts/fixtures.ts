@@ -337,7 +337,7 @@ export function createInstalledPackageCarrierFixture(
       `source = ${JSON.stringify(marketplaceRoot)}`,
       '',
       `[plugins."${packageId}@${marketplaceId}"]`,
-      'enabled = true',
+      packageId === 'mas-scholar-skills' ? 'enabled = false' : 'enabled = true',
       '',
     ].join('\n'),
     'utf8',

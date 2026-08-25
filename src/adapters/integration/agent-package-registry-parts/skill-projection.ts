@@ -26,6 +26,13 @@ import { materializeStandardAgentCapabilityMap } from '../../../authority/packag
 import type { CordisConnectDescriptorDiscoveryService } from '../public/descriptor-discovery.ts';
 import { inspectOplModule } from '../system-installation/modules.ts';
 import { sha256Text } from './shared.ts';
+import {
+  discoverCurrentOwnerPackageDescriptors,
+  isProjectLocalCapabilityPackage,
+  projectLocalCapabilityDependencyReadiness,
+  resolveProjectLocalCapabilitySourceRoot,
+  type InstalledPackageManifest,
+} from './installed-codex-plugin-directory.ts';
 import type {
   AgentPackageSkillProjection,
   AgentPackageWorkspaceSkillRefresh,
@@ -48,6 +55,8 @@ type CapabilityProviderSource = {
   packageId: string;
   sourceRoot: string;
   sourceRef: string;
+  defaultMaterializedSkillIds: string[];
+  defaultMaterializationPolicy: 'all_exported_skills' | 'core_skills_only';
   exports: Array<{
     skillId: string;
     installMode: 'core_required' | 'optional_named_specialty';
@@ -198,11 +207,18 @@ function buildProjectionPlan(input: {
   rootSourceRoot: string;
   rootSourceRef: string;
   providers: CapabilityProviderSource[];
+  selectedSkillIds?: string[];
 }) {
+  const selectedSkillIds = new Set((input.selectedSkillIds ?? []).map(safeSkillId));
   const sources = [
     ...rootProfessionalSkillSources(input.rootSourceRoot, input.rootSourceRef),
     ...input.providers.flatMap((provider) => provider.exports
-      .filter((entry) => entry.skillId !== provider.packageId)
+      .filter((entry) => (
+        (entry.installMode === 'core_required'
+          && provider.defaultMaterializedSkillIds.includes(entry.skillId))
+        || provider.defaultMaterializationPolicy === 'all_exported_skills'
+        || selectedSkillIds.has(entry.skillId)
+      ))
       .map((entry): SkillSource => ({
         skillId: safeSkillId(entry.skillId),
         sourceRoot: path.join(provider.sourceRoot, 'skills', entry.skillId),
@@ -317,6 +333,7 @@ export function materializeAgentPackageWorkspaceSkillProjection(input: {
   rootSourceRoot: string;
   rootSourceRef: string;
   providers?: CapabilityProviderSource[];
+  selectedSkillIds?: string[];
   dryRun?: boolean;
 }) {
   const plan = buildProjectionPlan({
@@ -473,17 +490,26 @@ function installedAgentSourceRoot(packageId: string, descriptor: {
 }
 
 function installedProviderSourceRoot(
-  descriptor: { sourcePath: string; marketplaceSource: string | null },
+  descriptor: {
+    sourcePath: string;
+    marketplaceSource: string | null;
+    manifest: Pick<InstalledPackageManifest, 'package_role' | 'codex_default_exposure' | 'codex_interaction_mode'>;
+  },
   skillIds: string[],
+  moduleId: string,
 ) {
   const candidates = [
     realDirectory(descriptor.sourcePath),
     realDirectory(descriptor.marketplaceSource),
     ...ancestors(descriptor.sourcePath).map((candidate) => realDirectory(candidate)),
   ].filter((candidate): candidate is string => candidate !== null);
-  return [...new Set(candidates)].find((candidate) => skillIds.every((skillId) => (
+  const installedSource = [...new Set(candidates)].find((candidate) => skillIds.every((skillId) => (
     containedRegularFile(candidate, `skills/${safeSkillId(skillId)}/SKILL.md`) !== null
   ))) ?? null;
+  if (installedSource) return installedSource;
+  return isProjectLocalCapabilityPackage(descriptor.manifest)
+    ? resolveProjectLocalCapabilitySourceRoot(moduleId, skillIds)
+    : null;
 }
 
 function attentionRefresh(packageId: string, reason: string, targetWorkspace: string | null) {
@@ -829,6 +855,7 @@ export function refreshInstalledAgentPackageWorkspaceSkills(input: {
   packageStatus?: any;
   targetWorkspace?: string | null;
   dryRun?: boolean;
+  selectedSkillIds?: string[];
   descriptorDiscovery?: Pick<CordisConnectDescriptorDiscoveryService, 'discover'>;
 }): AgentPackageWorkspaceSkillRefresh {
   const packageId = input.packageId.trim();
@@ -851,7 +878,10 @@ export function refreshInstalledAgentPackageWorkspaceSkills(input: {
       { failure_code: 'cordis_connect_descriptor_discovery_service_required' },
     );
   }
-  const descriptors = input.descriptorDiscovery.discover();
+  const descriptors = new Map(input.descriptorDiscovery.discover());
+  for (const [packageId, descriptor] of discoverCurrentOwnerPackageDescriptors()) {
+    if (!descriptors.has(packageId)) descriptors.set(packageId, descriptor);
+  }
   const root = descriptors.get(packageId);
   if (!root || root.manifest.package_role !== 'standard_agent') {
     return notInstalledRefresh(packageId, targetWorkspace);
@@ -863,11 +893,19 @@ export function refreshInstalledAgentPackageWorkspaceSkills(input: {
   const providers: CapabilityProviderSource[] = [];
   for (const dependency of root.manifest.capability_dependencies.filter((entry) => entry.required)) {
     const provider = descriptors.get(dependency.package_id);
+    const projectLocalReadiness = provider
+      && isProjectLocalCapabilityPackage(provider.manifest)
+      ? projectLocalCapabilityDependencyReadiness(provider, dependency)
+      : null;
+    const nativeProviderReady = provider
+      && provider.manifest.package_role === 'capability_package'
+      && provider.readiness.installed === true
+      && provider.readiness.physical_status === 'available'
+      && (provider.readiness.projection_callability ?? provider.readiness.callability) === 'callable'
+      && Boolean(provider.manifest.capability_provider);
     if (!provider
       || provider.manifest.package_role !== 'capability_package'
-      || provider.readiness.installed !== true
-      || provider.readiness.physical_status !== 'available'
-      || (provider.readiness.projection_callability ?? provider.readiness.callability) !== 'callable'
+      || (!nativeProviderReady && projectLocalReadiness?.status !== 'current')
       || !provider.manifest.capability_provider) {
       return attentionRefresh(
         packageId,
@@ -884,6 +922,7 @@ export function refreshInstalledAgentPackageWorkspaceSkills(input: {
     const providerSourceRoot = installedProviderSourceRoot(
       provider,
       exports.filter((entry) => entry.skillId !== dependency.package_id).map((entry) => entry.skillId),
+      dependency.module_id,
     );
     if (!providerSourceRoot) {
       return attentionRefresh(
@@ -896,6 +935,11 @@ export function refreshInstalledAgentPackageWorkspaceSkills(input: {
       packageId: dependency.package_id,
       sourceRoot: providerSourceRoot,
       sourceRef: provider.manifestPath,
+      defaultMaterializedSkillIds: provider.manifest.capability_provider.default_materialized_skill_ids,
+      defaultMaterializationPolicy: provider.manifest.capability_provider.default_materialization_policy
+        ?? (provider.manifest.codex_surface.optional_install_policy === 'core_skills_only'
+          ? 'core_skills_only'
+          : 'all_exported_skills'),
       exports,
     });
   }
@@ -905,6 +949,7 @@ export function refreshInstalledAgentPackageWorkspaceSkills(input: {
     rootSourceRoot,
     rootSourceRef: root.manifestPath,
     providers,
+    selectedSkillIds: input.selectedSkillIds,
     dryRun: input.dryRun,
   });
   if (!materialized.projection) {

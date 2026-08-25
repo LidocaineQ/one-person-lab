@@ -56,6 +56,11 @@
           "items": { "type": "string", "minLength": 1 },
           "uniqueItems": true
         },
+        "default_materialized_skill_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
         "core_module_ids": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
@@ -68,8 +73,10 @@
           "uniqueItems": true
         },
         "optional_skill_policy_ref": { "type": "string", "minLength": 1 },
-        "optional_skills_installed_by_default": { "const": true },
-        "default_materialization_policy": { "const": "all_exported_skills" }
+        "optional_skills_installed_by_default": { "type": "boolean" },
+        "default_materialization_policy": {
+          "enum": ["all_exported_skills", "core_skills_only"]
+        }
       },
       "additionalProperties": true
     },
@@ -112,7 +119,9 @@
         "carrier_source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "codex_default_exposure": { "const": false },
         "interaction_mode": { "enum": ["headless_internal"] },
-        "optional_install_policy": { "const": "all_exported_skills" },
+        "optional_install_policy": {
+          "enum": ["all_exported_skills", "core_skills_only"]
+        },
         "configured_codex_plugin_carrier": {
           "type": "object",
           "required": [

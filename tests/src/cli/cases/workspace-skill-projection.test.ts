@@ -103,7 +103,7 @@ test('installed Skill refresh rejects an implicit descriptor discovery path', ()
   );
 });
 
-test('all five standard Agents project their complete professional Skill closure without primary Skills', () => {
+test('standard Agents project required Skills while provider defaults stay explicit', () => {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-standard-agent-skill-closure-'));
   const stateRoot = path.join(fixtureRoot, 'state');
   const previousStateDir = process.env.OPL_STATE_DIR;
@@ -111,7 +111,7 @@ test('all five standard Agents project their complete professional Skill closure
 
   try {
     const cases = [
-      { packageId: 'mas', rootSkills: [], providerSkills: numberedSkills('mas-scholar', 34), expected: 34 },
+      { packageId: 'mas', rootSkills: [], providerSkills: numberedSkills('mas-scholar', 34), expected: 35 },
       { packageId: 'mag', rootSkills: numberedSkills('mag-method', 2), providerSkills: [], expected: 2 },
       { packageId: 'rca', rootSkills: numberedSkills('rca-method', 8), providerSkills: [], expected: 8 },
       { packageId: 'oma', rootSkills: numberedSkills('oma-method', 4), providerSkills: [], expected: 4 },
@@ -122,7 +122,9 @@ test('all five standard Agents project their complete professional Skill closure
       const agentRoot = path.join(fixtureRoot, fixture.packageId);
       rootFixture(agentRoot, [...fixture.rootSkills]);
       const providerRoot = path.join(fixtureRoot, `${fixture.packageId}-provider`);
-      providerFixture(providerRoot, [...fixture.providerSkills]);
+      providerFixture(providerRoot, fixture.packageId === 'mas'
+        ? ['mas-scholar-skills', ...fixture.providerSkills]
+        : [...fixture.providerSkills]);
       const result = materializeAgentPackageWorkspaceSkillProjection({
         rootPackageId: fixture.packageId,
         rootSkillIds: [fixture.packageId],
@@ -133,6 +135,8 @@ test('all five standard Agents project their complete professional Skill closure
               packageId: 'mas-scholar-skills',
               sourceRoot: providerRoot,
               sourceRef: 'mas-scholar-skills:installed-descriptor',
+              defaultMaterializedSkillIds: ['mas-scholar-skills', ...fixture.providerSkills],
+              defaultMaterializationPolicy: 'all_exported_skills',
               exports: [
                 { skillId: 'mas-scholar-skills', installMode: 'core_required' },
                 ...fixture.providerSkills.map((skillId) => ({
@@ -148,8 +152,62 @@ test('all five standard Agents project their complete professional Skill closure
       assert.equal(result.skill_ids.length, fixture.expected, fixture.packageId);
       assert.deepEqual(result.root_skill_ids, [fixture.packageId], fixture.packageId);
       assert.equal(result.skill_ids.includes(fixture.packageId), false, fixture.packageId);
-      assert.equal(result.skill_ids.includes('mas-scholar-skills'), false, fixture.packageId);
+      assert.equal(result.skill_ids.includes('mas-scholar-skills'), fixture.packageId === 'mas', fixture.packageId);
     }
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    removeFixture(fixtureRoot);
+  }
+});
+
+test('core-only capability projection keeps optional specialists on demand', () => {
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-core-only-skill-projection-'));
+  const stateRoot = path.join(fixtureRoot, 'state');
+  const agentRoot = path.join(fixtureRoot, 'mas');
+  const providerRoot = path.join(fixtureRoot, 'scholar');
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = stateRoot;
+
+  try {
+    rootFixture(agentRoot, ['mas-native']);
+    providerFixture(providerRoot, ['medical-manuscript-writing', 'medical-single-cell-modeling']);
+    const provider = {
+      packageId: 'mas-scholar-skills',
+      sourceRoot: providerRoot,
+      sourceRef: 'mas-scholar-skills:installed-descriptor',
+      defaultMaterializedSkillIds: ['medical-manuscript-writing'],
+      defaultMaterializationPolicy: 'core_skills_only' as const,
+      exports: [
+        { skillId: 'medical-manuscript-writing', installMode: 'core_required' as const },
+        { skillId: 'medical-single-cell-modeling', installMode: 'optional_named_specialty' as const },
+      ],
+    };
+
+    const coreOnly = materializeAgentPackageWorkspaceSkillProjection({
+      rootPackageId: 'mas',
+      rootSkillIds: ['mas'],
+      rootSourceRoot: agentRoot,
+      rootSourceRef: 'mas:installed-descriptor',
+      providers: [provider],
+    });
+    assert.deepEqual(coreOnly.skill_ids, ['mas-native', 'medical-manuscript-writing']);
+    assert.deepEqual(coreOnly.projection?.specialty_skill_ids, []);
+
+    const selected = materializeAgentPackageWorkspaceSkillProjection({
+      rootPackageId: 'mas',
+      rootSkillIds: ['mas'],
+      rootSourceRoot: agentRoot,
+      rootSourceRef: 'mas:installed-descriptor',
+      providers: [provider],
+      selectedSkillIds: ['medical-single-cell-modeling'],
+    });
+    assert.deepEqual(selected.skill_ids, [
+      'mas-native',
+      'medical-manuscript-writing',
+      'medical-single-cell-modeling',
+    ]);
+    assert.deepEqual(selected.projection?.specialty_skill_ids, ['medical-single-cell-modeling']);
   } finally {
     if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateDir;

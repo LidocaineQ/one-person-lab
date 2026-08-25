@@ -54,7 +54,7 @@ function isolatedScholarPackage() {
       stdout: JSON.stringify({ installed: [{
         pluginId: 'mas-scholar-skills@mas-scholar-skills-test',
         version: manifest.version,
-        enabled: true,
+        enabled: false,
         source: { source: 'local', path: packageRoot },
         marketplaceSource: { sourceType: 'local', source: packageRoot },
       }] }),
@@ -361,6 +361,9 @@ export function runScientificSearchAdapterStep(request) {
     codex_surface: {
       plugin_id: 'mas-scholar-skills',
       required_skill_ids: ['mas-scholar-skills'],
+      codex_default_exposure: false,
+      optional_install_policy: 'all_exported_skills',
+      interaction_mode: 'headless_internal',
     },
     exports: {
       core_skill_ids: ['mas-scholar-skills'],
@@ -383,7 +386,7 @@ export function runScientificSearchAdapterStep(request) {
       stdout: JSON.stringify({ installed: [{
         pluginId: 'mas-scholar-skills@synthetic',
         version: '0.0.0',
-        enabled: true,
+        enabled: false,
         source: { source: 'local', path: sourceRoot },
         marketplaceSource: { source: sourceRoot },
       }] }),
@@ -444,7 +447,7 @@ packageBackedTest('canonical ScholarSkills installed descriptor executes the two
       stdout: JSON.stringify({ installed: [{
         pluginId: 'mas-scholar-skills@mas-scholar-skills',
         version: manifest.version,
-        enabled: true,
+        enabled: false,
         source: { source: 'local', path: scholarRoot },
         marketplaceSource: { sourceType: 'local', source: scholarRoot },
       }] }),
@@ -563,7 +566,7 @@ if [[ "$*" != "plugin list --json" ]]; then exit 2; fi
 printf '%s\n' ${shellSingleQuote(JSON.stringify({ installed: [{
   pluginId: 'mas-scholar-skills@synthetic',
   version: '0.0.0',
-  enabled: true,
+  enabled: false,
   source: { source: 'local', path: sourceRoot },
   marketplaceSource: { source: sourceRoot },
 }] }))}

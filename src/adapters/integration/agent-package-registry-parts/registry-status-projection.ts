@@ -12,6 +12,8 @@ import {
   installedDescriptorHasExpectedCodexExposure,
   installedDescriptorMatchesConfiguredCarrier,
   installedDescriptorSupportsFrameworkCalls,
+  isProjectLocalCapabilityPackage,
+  projectLocalCapabilityDependencyReadiness,
   type InstalledPackageDescriptor,
 } from './installed-codex-plugin-directory.ts';
 import { mergedHomeShortcutPreferences } from './home-shortcuts.ts';
@@ -38,6 +40,7 @@ export function packageSnapshot(input: { includeAvailable?: boolean } = {}): Pac
   const installed = new Map(
     [...discoveredInstalled].filter(([, descriptor]) => (
       installedDescriptorMatchesConfiguredCarrier(descriptor)
+      && !isProjectLocalCapabilityPackage(descriptor.manifest)
     )),
   );
   const descriptors = input.includeAvailable
@@ -169,35 +172,44 @@ function configuredCarrierFromDescriptor(
 function dependencyReadiness(
   descriptor: InstalledPackageDescriptor | null,
   installed: ReadonlyMap<string, InstalledPackageDescriptor>,
+  ownerDescriptors: ReadonlyMap<string, InstalledPackageDescriptor>,
 ) {
   if (!descriptor) return null;
   const dependencies = descriptor.manifest.capability_dependencies.map((dependency) => {
     const candidate = installed.get(dependency.package_id) ?? null;
-    const present = candidate?.readiness.installed === true;
-    const callable = present
+    const owner = ownerDescriptors.get(dependency.package_id) ?? null;
+    const projectLocal = owner
+      ? projectLocalCapabilityDependencyReadiness(owner, dependency)
+      : null;
+    const nativePresent = candidate?.readiness.installed === true;
+    const present = nativePresent || Boolean(projectLocal && projectLocal.status !== 'missing');
+    const nativeCallable = nativePresent
       && candidate?.readiness.physical_status === 'available'
       && (candidate.readiness.callability === 'callable'
         || candidate.readiness.projection_callability === 'callable');
-    const reasons = !present
-      ? ['package_missing']
-      : callable
-        ? []
-        : [candidate?.readiness.physical_status !== 'available'
-            ? 'package_source_unavailable'
-            : 'package_disabled'];
+    const callable = projectLocal?.status === 'current' || nativeCallable;
+    const reasons = projectLocal
+      ? projectLocal.reasons
+      : !present
+        ? ['package_missing']
+        : callable
+          ? []
+          : [candidate?.readiness.physical_status !== 'available'
+              ? 'package_source_unavailable'
+              : 'package_disabled'];
     return {
       package_id: dependency.package_id,
       required: dependency.required,
       consumer_profile_id: dependency.consumer_profile_id ?? null,
       required_export_ids: [...dependency.required_export_ids],
       required_module_ids: [...dependency.required_module_ids],
-      installed_version: candidate?.manifest.version ?? null,
-      manifest_sha256: candidate?.manifest_sha256 ?? null,
-      content_digest: candidate?.manifest.content_digest ?? null,
+      installed_version: candidate?.manifest.version ?? owner?.manifest.version ?? null,
+      manifest_sha256: candidate?.manifest_sha256 ?? owner?.manifest_sha256 ?? null,
+      content_digest: candidate?.manifest.content_digest ?? owner?.manifest.content_digest ?? null,
       status: !present ? 'missing' as const : callable ? 'current' as const : 'incompatible' as const,
       reasons,
-      missing_required_export_ids: [],
-      missing_required_module_ids: [],
+      missing_required_export_ids: projectLocal?.missingRequiredExportIds ?? [],
+      missing_required_module_ids: projectLocal?.missingRequiredModuleIds ?? [],
     };
   });
   const required = dependencies.filter((dependency) => dependency.required);
@@ -327,6 +339,7 @@ function directoryEntry(descriptor: InstalledPackageDescriptor) {
 
 function directoryFrom(snapshot: PackageSnapshot, detail: 'fast' | 'full') {
   const entries = [...snapshot.descriptors.values()]
+    .filter((descriptor) => !isProjectLocalCapabilityPackage(descriptor.manifest))
     .map(directoryEntry)
     .sort((left, right) => left.display_name.localeCompare(right.display_name, 'en'));
   return {
@@ -366,7 +379,11 @@ function buildPackageStatus(input: OplAgentPackageStatusInput, snapshot: Package
         installedDescriptorSupportsFrameworkCalls(entry)
         && installedDescriptorHasExpectedCodexExposure(entry)
       ));
-  const dependencies = dependencyReadiness(installedDescriptor, snapshot.installed);
+  const dependencies = dependencyReadiness(
+    installedDescriptor,
+    snapshot.installed,
+    discoverCurrentOwnerPackageDescriptors(),
+  );
   const dependenciesReady = packageId ? dependencies?.operational_ready !== false : true;
   const managedPolicyCurrentness = installedDescriptor
     ? managedPolicyCurrentnessFromDescriptor({

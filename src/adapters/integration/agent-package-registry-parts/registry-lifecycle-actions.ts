@@ -22,6 +22,9 @@ import {
   requireDescriptor,
   requirePackageMutationDescriptor,
 } from './registry-status-projection.ts';
+import {
+  projectLocalCapabilityDependencyReadiness,
+} from './installed-codex-plugin-directory.ts';
 import { sha256Text } from './shared.ts';
 import type {
   AgentPackageHomeShortcutPreferencesSetInput,
@@ -190,6 +193,40 @@ function requiredDependencyInstallResults(
           failure_code: 'agent_package_required_dependency_unavailable',
         },
       );
+    }
+    const projectLocalReadiness = projectLocalCapabilityDependencyReadiness(
+      dependencyDescriptor,
+      dependency,
+    );
+    if (projectLocalReadiness) {
+      if (projectLocalReadiness.status !== 'current') {
+        throw new FrameworkContractError(
+          'contract_shape_invalid',
+          'Required project-local capability source is not ready.',
+          {
+            package_id: descriptor.manifest.package_id,
+            dependency_package_id: dependency.package_id,
+            dependency_module_id: dependency.module_id,
+            source_root: projectLocalReadiness.sourceRoot,
+            missing_required_export_ids: projectLocalReadiness.missingRequiredExportIds,
+            missing_required_module_ids: projectLocalReadiness.missingRequiredModuleIds,
+            reasons: projectLocalReadiness.reasons,
+            failure_code: 'agent_package_required_project_local_capability_unavailable',
+          },
+        );
+      }
+      results.push({
+        status: input.dryRun ? 'validated_no_write' : 'project_local_ready',
+        dry_run: input.dryRun === true,
+        package_id: dependency.package_id,
+        materialization_scope: ['workspace', 'quest'],
+        source_root: projectLocalReadiness.sourceRoot,
+        native_carrier_action: 'not_dispatched',
+        authority_boundary: refsOnlyAuthorityBoundary(),
+      });
+      completed.add(dependency.package_id);
+      visiting.delete(dependency.package_id);
+      continue;
     }
     visiting.add(dependency.package_id);
     results.push(...requiredDependencyInstallResults(

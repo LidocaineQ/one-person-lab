@@ -392,6 +392,7 @@ export type AgentPackageManagedPolicyCurrentness = {
 };
 
 export type AgentPackageCapabilityDependency = {
+  module_id: string;
   package_id: string;
   required: boolean;
   dependency_kind: 'hard_runtime_dependency' | 'optional_enhancement';
@@ -421,6 +422,8 @@ export type AgentPackageCapabilityProvider = {
   capability_abi: string;
   exports: AgentPackageCapabilityExport[];
   module_export_ids: string[];
+  default_materialized_skill_ids: string[];
+  default_materialization_policy: 'all_exported_skills' | 'core_skills_only';
   consumer_profiles?: AgentPackageCapabilityConsumerProfile[];
 };
 

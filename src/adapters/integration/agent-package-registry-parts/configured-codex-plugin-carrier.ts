@@ -426,10 +426,10 @@ export function runConfiguredCodexPluginCarrier(input: {
   if (isConfiguredCarrierReadback(entries)) return entries;
   if ((input.action === 'update' || input.action === 'repair') && marketplaceSource) {
     const selection = configuredPluginSelection({ entries, descriptor: input.descriptor });
-    const targetEntry = selection.installedSameName.find((entry) => (
-      entry.pluginId === input.descriptor.carrier.pluginId
-      && entry.enabled
-      && sameMarketplaceSource(entry.marketplaceSource, marketplaceSource)
+      const targetEntry = selection.installedSameName.find((entry) => (
+        entry.pluginId === input.descriptor.carrier.pluginId
+        && (input.descriptor.interactionMode === 'headless_internal' || entry.enabled)
+        && sameMarketplaceSource(entry.marketplaceSource, marketplaceSource)
       && missingRequiredSkills(
         entry.sourcePath,
         input.descriptor.executor.requiredSkillIds,

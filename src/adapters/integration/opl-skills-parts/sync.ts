@@ -280,6 +280,18 @@ function resolvePackagedSourceHead(repoRoot: string) {
 }
 
 function materializedCapabilitySkillIds(pluginSourcePath: string) {
+  const packageManifest = readJsonFileOrNull(path.join(pluginSourcePath, 'opl-package.json'));
+  const packageExports = isRecord(packageManifest) && isRecord(packageManifest.exports)
+    ? packageManifest.exports
+    : null;
+  const declaredDefaultSkillIds = packageExports && Array.isArray(packageExports.default_materialized_skill_ids)
+    ? packageExports.default_materialized_skill_ids.filter(
+        (skillId): skillId is string => typeof skillId === 'string' && skillId.trim().length > 0,
+      )
+    : [];
+  if (declaredDefaultSkillIds.length > 0) {
+    return [...new Set(declaredDefaultSkillIds)].sort();
+  }
   const skillsRoot = path.join(pluginSourcePath, 'skills');
   if (!isDirectory(skillsRoot)) {
     return [];
@@ -575,6 +587,28 @@ export function runSkillPackInstaller(
         plugin_source_path: inspected.plugin_source_path,
         skill_entry_path: inspected.skill_entry_path,
         workspace_or_quest_local_skill: localSkillInstall,
+      },
+      registry_repo_root: null,
+      stdout: '',
+      stderr: '',
+    };
+  }
+
+  if (inspected.domain_id === 'scholarskills' && options.scope === 'codex') {
+    return {
+      ...inspected,
+      sync_status: 'skipped',
+      sync_scope: 'codex',
+      target_scope: 'codex',
+      target_root: null,
+      workspace_or_quest_local_skill_root: null,
+      codex_discovery_kind: 'workspace_or_quest_local_skill',
+      installer_result: {
+        source: 'project_local_only',
+        requested_scope: 'codex',
+        allowed_scopes: ['workspace', 'quest'],
+        global_codex_write: false,
+        reason: 'mas_scholar_skills_is_a_project_local_capability_dependency',
       },
       registry_repo_root: null,
       stdout: '',

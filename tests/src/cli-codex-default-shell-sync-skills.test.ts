@@ -392,6 +392,43 @@ test('opl connect sync-skills refuses to mirror legacy test skill stubs', () => 
   }
 });
 
+test('opl connect sync-skills never mirrors ScholarSkills into the user Codex scope', () => {
+  const captureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-scholar-global-scope-'));
+  const { workspaceRoot } = createFakeFamilySkillWorkspace(captureDir);
+  const homeDir = path.join(captureDir, 'home');
+  const codexHome = path.join(homeDir, '.codex');
+  fs.mkdirSync(codexHome, { recursive: true });
+
+  try {
+    const output = runCli([
+      'connect',
+      'sync-skills',
+      '--domain',
+      'scholarskills',
+      '--scope',
+      'codex',
+    ], {
+      HOME: homeDir,
+      CODEX_HOME: codexHome,
+      OPL_STATE_DIR: path.join(homeDir, 'state'),
+      OPL_FAMILY_WORKSPACE_ROOT: workspaceRoot,
+    });
+    const pack = output.skill_sync.packs[0];
+
+    assert.equal(output.skill_sync.summary.synced, 0);
+    assert.equal(output.skill_sync.summary.skipped, 1);
+    assert.equal(pack.sync_status, 'skipped');
+    assert.equal(pack.installer_result.source, 'project_local_only');
+    assert.deepEqual(pack.installer_result.allowed_scopes, ['workspace', 'quest']);
+    assert.equal(pack.installer_result.global_codex_write, false);
+    assert.equal(output.skill_sync.codex_plugin_registry, null);
+    assert.equal(fs.existsSync(path.join(codexHome, 'skills', 'mas-scholar-skills')), false);
+  } finally {
+    fs.rmSync(captureDir, { recursive: true, force: true });
+    fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test('opl connect sync-skills materializes MAS without an overlay or repo installer', () => {
   const captureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-mas-carrier-only-'));
   const { workspaceRoot } = createFakeFamilySkillWorkspace(captureDir);

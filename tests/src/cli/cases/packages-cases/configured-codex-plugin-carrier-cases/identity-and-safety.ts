@@ -203,11 +203,18 @@ test('required OPL Package status accepts installed local carriers consistently'
     );
     fs.mkdirSync(sourcePath, { recursive: true });
     fs.writeFileSync(path.join(sourcePath, 'opl-package.json'), manifest, 'utf8');
+    if (packageId === 'mas-scholar-skills') {
+      const providerManifest = parseJsonText(manifest) as any;
+      for (const skillId of providerManifest.exports.all_skill_ids) {
+        fs.mkdirSync(path.join(sourcePath, 'skills', skillId), { recursive: true });
+        fs.writeFileSync(path.join(sourcePath, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`, 'utf8');
+      }
+    }
     return {
       pluginId,
       version: (parseJsonText(manifest) as any).version,
       installed: true,
-      enabled: true,
+      enabled: packageId !== 'mas-scholar-skills',
       source: { source: 'local', path: sourcePath },
       marketplaceSource: {
         sourceType: 'local',
@@ -229,12 +236,17 @@ if (args === 'plugin list --json' || args === 'plugin list --available --json') 
     CODEX_HOME: path.join(root, 'codex-home'),
     OPL_STATE_DIR: path.join(root, 'opl-state'),
     OPL_CODEX_PLUGIN_BIN: binary,
+    OPL_MODULE_PATH_SCHOLARSKILLS: path.join(root, 'plugins', 'mas-scholar-skills'),
   };
   try {
     const directory = (runCli(['packages', 'list', '--detail', 'full'], env) as any)
       .opl_agent_packages.directory;
     for (const { packageId } of requiredPackages) {
       const entry = directory.entries.find((candidate: any) => candidate.package_id === packageId);
+      if (packageId === 'mas-scholar-skills') {
+        assert.equal(entry, undefined, packageId);
+        continue;
+      }
       assert.ok(entry, packageId);
       assert.equal(entry.installed, true, packageId);
       assert.equal(entry.activated, true, packageId);
