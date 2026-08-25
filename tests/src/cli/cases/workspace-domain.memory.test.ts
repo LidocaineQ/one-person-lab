@@ -283,10 +283,24 @@ test('domain memory descriptors are indexed without granting OPL memory or verdi
 test('domain memory read model projects runtime receipt refs without applying memory writes', () => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-family-domain-memory-runtime-evidence-'));
   const { fixtureRoot, fixtureContractsRoot } = createFamilyContractsFixtureRoot();
+  const scholarSkillsRoot = path.join(stateRoot, 'scholar-skills-source');
+  for (const skillId of [
+    'medical-research-lit',
+    'medical-statistical-review',
+    'medical-methodology-planner',
+    'medical-evidence-integrity-reviewer',
+    'medical-evidence-synthesis-and-claim-map',
+    'medical-reference-integrity-auditor',
+  ]) {
+    const skillRoot = path.join(scholarSkillsRoot, 'skills', skillId);
+    fs.mkdirSync(skillRoot, { recursive: true });
+    fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), `# ${skillId}\n`);
+  }
   const env = {
     OPL_CONTRACTS_DIR: fixtureContractsRoot,
     OPL_FAMILY_WORKSPACE_ROOT: fixtureRoot,
     OPL_STATE_DIR: stateRoot,
+    OPL_MODULE_PATH_SCHOLARSKILLS: scholarSkillsRoot,
   };
   const fixtures = loadFamilyManifestFixtures();
   const masManifest = withDomainMemoryDescriptor(fixtures.medautoscience);

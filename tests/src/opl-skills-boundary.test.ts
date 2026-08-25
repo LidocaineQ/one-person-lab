@@ -138,6 +138,10 @@ test('OPL system skill sync catalog excludes MDS stage skills while exposing Sch
       );
       assert.equal('default_target_project' in pack.capability_plugin_distribution, false);
       assert.equal(pack.capability_plugin_distribution?.domain_module, false);
+      assert.equal(pack.professional_skill_exposure.status, 'passed');
+      assert.equal(pack.professional_skill_exposure.professional_skill_count, 35);
+      assert.equal(pack.professional_skill_exposure.repo_internal_professional_skill_count, 35);
+      assert.equal(pack.professional_skill_exposure.default_codex_exposed_count, 0);
       assert.deepEqual(pack.command_preview, [
         'opl',
         'packages',

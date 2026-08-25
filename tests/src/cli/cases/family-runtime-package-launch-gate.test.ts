@@ -324,6 +324,7 @@ test('native package launch projects Workspace Skills without private lifecycle 
     OPL_STATE_DIR: path.join(root, 'state'),
     CODEX_HOME: path.join(root, 'codex-home'),
     OPL_MODULE_PATH_MEDAUTOSCIENCE: path.join(consumerRoot, 'plugins', 'med-autoscience'),
+    OPL_MODULE_PATH_SCHOLARSKILLS: providerRoot,
     OPL_CODEX_PLUGIN_BIN: createFakeCodexPluginManagerFixture(
       path.join(root, 'fake-codex-plugin-manager'),
     ).codexPath,
@@ -371,9 +372,7 @@ test('native package launch projects Workspace Skills without private lifecycle 
       first.workspace_locator.native_package_closure.root_package.content_digest,
       /^sha256:[a-f0-9]{64}$/,
     );
-    const expectedProviderSkillIds = providerStatus.configured_carrier.executor.required_skill_ids
-      .filter((skillId: string) => skillId !== 'mas-scholar-skills')
-      .sort();
+    const expectedProviderSkillIds = providerStatus.configured_carrier.executor.required_skill_ids.sort();
     assert.deepEqual(
       first.workspace_locator.native_package_closure.skill_projection.skill_ids,
       expectedProviderSkillIds,

@@ -472,6 +472,9 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
   const pluginPayloadManifestUrl = pluginPayloadManifestRef
     ? resolveManifestRelativeSource(pluginPayloadManifestRef, manifestUrl)
     : null;
+  const carrierRequiredSkillIds = defaultMaterializationPolicy === 'all_exported_skills'
+    ? allSkillIds
+    : defaultMaterializedSkillIds;
   if (pluginPayloadManifestUrl) {
     validateUrlLike(pluginPayloadManifestUrl, 'codex_surface.plugin_payload_manifest_url');
   }
@@ -525,7 +528,12 @@ export function normalizeCapabilityPackageManifest(payload: unknown, manifestUrl
     content_lock_paths: contentLockPaths,
     configured_codex_plugin_carrier: normalizeConfiguredCodexPluginCarrier(
       codexSurface.configured_codex_plugin_carrier,
-      { packageId, requiredSkillIds: allSkillIds, manifestUrl, interactionMode: codexInteractionMode },
+      {
+        packageId,
+        requiredSkillIds: carrierRequiredSkillIds,
+        manifestUrl,
+        interactionMode: codexInteractionMode,
+      },
     ),
     app_contributions: normalizeAppContributions(payload.app_contributions, manifestUrl),
   };

@@ -1471,6 +1471,10 @@ test('MAS Scholar Skills provider manifest separates core Skill exports from mod
   assert.equal(manifest.content_lock.digest, payload.content_lock.digest);
   assert.equal(manifest.codex_surface.carrier_source_commit, payload.source_commit);
   assert.equal(normalized.required_skill_ids.length, 36);
+  assert.deepEqual(
+    normalized.configured_codex_plugin_carrier?.executor.requiredSkillIds,
+    ['mas-scholar-skills'],
+  );
   assert.equal(normalized.capability_provider?.module_export_ids.length, 10);
   assert.equal(normalized.capability_provider?.exports.filter((entry) => entry.install_mode === 'core_required').length, 11);
   assert.equal(normalized.capability_provider?.exports.filter((entry) => entry.install_mode !== 'core_required').length, 25);

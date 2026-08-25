@@ -31,6 +31,7 @@ import {
   normalizePackageManifest,
   createOplAgentPackageStatusReader,
   runOplAgentPackageBulkUpdate,
+  configuredCarrierFromDescriptor,
   packageId,
   pluginSelector,
   ownerPackageVersion,
@@ -198,6 +199,48 @@ if (args === 'plugin list --json') {
   } finally {
     removeFixtureTree(root);
   }
+});
+
+test('carrier status does not relabel capability closure Skills as carrier requirements', () => {
+  const normalized = normalizePackageManifest(
+    installedOwnerDescriptor(),
+    'file:///fixture/opl-package.json',
+  ) as any;
+  const descriptorWithCapabilityClosure = {
+    manifest: {
+      ...normalized,
+      required_skill_ids: ['third-party-research', 'medical-single-cell-modeling'],
+    },
+    manifestPath: '/fixture/opl-package.json',
+    manifest_sha256: 'fixture',
+    sourcePath: '/fixture/plugin-source',
+    pluginId: pluginSelector,
+    marketplaceSource: 'fixture-carrier',
+    enabled: true,
+    carrier: {
+      ...descriptor,
+      executor: {
+        route: 'codex_cli',
+        requiredSkillIds: ['third-party-research'],
+      },
+    },
+    carrier_readback: {
+      kind: 'fixture-carrier',
+      identity: pluginSelector,
+      source_ref: '/fixture/plugin-source',
+      version: ownerPackageVersion,
+      enabled: true,
+      lifecycle_authority: 'carrier_owned',
+    },
+    readiness: {
+      installed: true,
+      physical_status: 'available',
+      callability: 'callable',
+    },
+  } as any;
+
+  const readback = configuredCarrierFromDescriptor(descriptorWithCapabilityClosure);
+  assert.deepEqual(readback.executor.required_skill_ids, ['third-party-research']);
 });
 
 test('clean Codex state projects current first-party carrier manifests as installable Packages', () => {

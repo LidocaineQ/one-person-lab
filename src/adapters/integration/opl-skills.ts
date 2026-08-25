@@ -46,6 +46,7 @@ import {
   normalizeDomainSelection,
   type InspectFamilySkillPack,
   type InspectFamilySkillPackPluginTransport,
+  type SkillPackDistributionRole,
   type SkillPackSyncScope,
   type SkillPackSpec,
   type SyncFamilySkillPack,
@@ -479,8 +480,72 @@ function capabilityRefs(capability: Record<string, unknown>) {
   return refs;
 }
 
-function inspectProfessionalSkillExposure(repoRoot: string): InspectFamilySkillPack['professional_skill_exposure'] {
+function inspectProfessionalSkillExposure(
+  repoRoot: string,
+  distributionRole: SkillPackDistributionRole,
+): InspectFamilySkillPack['professional_skill_exposure'] {
   const capabilityMapPath = path.join(repoRoot, 'contracts', 'capability_map.json');
+  const onDemandExposurePolicy = readFoundryAgentContractPolicy('skill_on_demand_exposure_policy');
+  if (distributionRole === 'framework_capability_plugin_pack') {
+    const packageManifestPath = path.join(repoRoot, 'opl-package.json');
+    const packageRead = readJsonFileResult(packageManifestPath);
+    const packageManifest = packageRead.status === 'resolved' && isRecord(packageRead.payload)
+      ? packageRead.payload
+      : null;
+    const exports = packageManifest && isRecord(packageManifest.exports)
+      ? packageManifest.exports
+      : null;
+    const coreSkillIds = Array.isArray(exports?.core_skill_ids)
+      ? exports.core_skill_ids.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      : [];
+    const specialtySkillIds = Array.isArray(exports?.specialty_skill_ids)
+      ? exports.specialty_skill_ids.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      : [];
+    const allSkillIds = [...new Set([...coreSkillIds, ...specialtySkillIds])];
+    const skillRoot = path.join(repoRoot, 'skills');
+    const sourceSkillIds = fs.existsSync(skillRoot) && fs.statSync(skillRoot).isDirectory()
+      ? fs.readdirSync(skillRoot, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(skillRoot, entry.name, 'SKILL.md')))
+        .map((entry) => entry.name)
+        .sort()
+      : [];
+    const aggregateSkillId = typeof exports?.default_materialized_skill_ids === 'object'
+      && Array.isArray(exports.default_materialized_skill_ids)
+      && typeof exports.default_materialized_skill_ids[0] === 'string'
+      ? exports.default_materialized_skill_ids[0]
+      : null;
+    const professionalSkillIds = allSkillIds.filter((skillId) => skillId !== aggregateSkillId);
+    const blockers: string[] = [];
+    if (!packageManifest || !exports) {
+      blockers.push('missing_capability_package_manifest_exports');
+    }
+    for (const skillId of professionalSkillIds) {
+      if (!sourceSkillIds.includes(skillId)) {
+        blockers.push(`missing_capability_package_skill:${skillId}`);
+      }
+    }
+    const defaultCodexExposed = packageManifest?.codex_surface;
+    const defaultCodexExposedCount = isRecord(defaultCodexExposed)
+      && defaultCodexExposed.codex_default_exposure === true
+      ? professionalSkillIds.length
+      : 0;
+    if (defaultCodexExposedCount > 0) {
+      blockers.push('capability_package_codex_default_exposure_must_be_false');
+    }
+    return {
+      surface_kind: 'opl_professional_skill_exposure_audit',
+      status: blockers.length > 0 ? 'blocked' : sourceSkillIds.length > 0 ? 'passed' : 'skipped',
+      capability_map_path: capabilityMapPath,
+      capability_map_found: fs.existsSync(capabilityMapPath),
+      professional_skill_count: professionalSkillIds.length,
+      repo_internal_professional_skill_count: professionalSkillIds.filter((skillId) => sourceSkillIds.includes(skillId)).length,
+      default_codex_exposed_count: defaultCodexExposedCount,
+      expected_exposure_layer: 'repo_internal_professional_skill',
+      codex_default_exposure_required: false,
+      on_demand_exposure_policy: onDemandExposurePolicy,
+      blockers,
+    };
+  }
   const repoSkillRefs = listRepoProfessionalSkillRefs(repoRoot);
   const capabilityMapFound = fs.existsSync(capabilityMapPath) && fs.statSync(capabilityMapPath).isFile();
   const base = {
@@ -492,7 +557,7 @@ function inspectProfessionalSkillExposure(repoRoot: string): InspectFamilySkillP
     default_codex_exposed_count: 0,
     expected_exposure_layer: 'repo_internal_professional_skill' as const,
     codex_default_exposure_required: false as const,
-    on_demand_exposure_policy: readFoundryAgentContractPolicy('skill_on_demand_exposure_policy'),
+    on_demand_exposure_policy: onDemandExposurePolicy,
   };
 
   if (!capabilityMapFound) {
@@ -666,7 +731,7 @@ function inspectFamilySkillPackAtRepoRoot(
     plugin_transport: pluginTransport,
     management_model: 'opl_managed_codex_plugin_surface',
     management_model_role: 'unified_management_semantics_transport_may_differ',
-    professional_skill_exposure: inspectProfessionalSkillExposure(repoRoot),
+    professional_skill_exposure: inspectProfessionalSkillExposure(repoRoot, spec.distribution_role),
     plugin_source_path: pluginSourcePath,
     repo_root: repoRoot,
     repo_found: repoFound,

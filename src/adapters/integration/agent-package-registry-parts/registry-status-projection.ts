@@ -105,10 +105,11 @@ export function requirePackageMutationDescriptor(
   return selectPackageMutationDescriptor(installed, ownerProjection);
 }
 
-function configuredCarrierFromDescriptor(
+export function configuredCarrierFromDescriptor(
   descriptor: InstalledPackageDescriptor,
   operation: ConfiguredCodexPluginCarrierAction = 'list',
 ): ConfiguredCodexPluginCarrierReadback {
+  const carrierRequiredSkillIds = descriptor.carrier.executor.requiredSkillIds;
   const expectedCarrier = descriptor.carrier.carrier;
   const exactCarrier = installedDescriptorMatchesConfiguredCarrier(descriptor);
   const installed = descriptor.readiness.installed && exactCarrier;
@@ -142,7 +143,7 @@ function configuredCarrierFromDescriptor(
     },
     executor: {
       route: 'codex_cli',
-      required_skill_ids: [...descriptor.manifest.required_skill_ids],
+      required_skill_ids: [...carrierRequiredSkillIds],
       status: callable ? 'callable' : 'attention_needed',
     },
     publication_ref: descriptor.carrier.publicationRef,
@@ -288,7 +289,7 @@ function directoryEntry(descriptor: InstalledPackageDescriptor) {
     capability_metadata: installed
       ? {
           source: manifest.source,
-          required_skill_ids: [...manifest.required_skill_ids],
+          required_skill_ids: [...descriptor.carrier.executor.requiredSkillIds],
           optional_skill_refs: [...manifest.optional_skill_refs],
         }
       : null,
