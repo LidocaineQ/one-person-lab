@@ -365,8 +365,9 @@ function buildReleaseAutomation(retainVersions: number, rollbackVersion: string 
       destructive_action_requires: 'package_admin_with_delete_packages_scope',
     },
     daily_package_channel: {
-      status: 'active_change_detected_daily_publish',
+      status: 'active_change_detection_with_independent_publication',
       workflow: '.github/workflows/daily-package-channel.yml',
+      publication_workflow: '.github/workflows/daily-package-channel-publication.yml',
       schedule: 'daily',
       generation_template: '<utc_yy.m.d[-rN_auto]>',
       change_detector: 'scripts/package-channel-daily-check.mjs + scripts/package-owner-channel-plan.mjs',

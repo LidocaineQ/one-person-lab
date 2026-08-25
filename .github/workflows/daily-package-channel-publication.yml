@@ -1,0 +1,165 @@
+name: Dispatch Daily OPL Package Publications
+
+on:
+  workflow_run:
+    workflows:
+      - Daily OPL Package Channel
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Completed Daily OPL Package Channel run whose plan should be dispatched.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opl-daily-package-publication-${{ github.event.workflow_run.id || inputs.source_run_id }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch-owner-publications:
+    name: Dispatch independent Package owner publishers
+    if: >-
+      ${{
+        (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+          github.actor == github.triggering_actor &&
+          (github.actor == github.repository_owner || github.actor == 'RenDeHuang'))
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: write
+      contents: read
+    env:
+      SOURCE_EVENT_RUN_ID: ${{ github.event.workflow_run.id || '' }}
+      MANUAL_SOURCE_RUN_ID: ${{ inputs.source_run_id || '' }}
+      FRAMEWORK_REPOSITORY: ${{ github.repository }}
+
+    steps:
+      - name: Resolve completed daily detection run and candidate plan
+        id: authority
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_run_id="$SOURCE_EVENT_RUN_ID"
+          if [ -z "$source_run_id" ]; then
+            source_run_id="$MANUAL_SOURCE_RUN_ID"
+          fi
+          [[ "$source_run_id" =~ ^[1-9][0-9]*$ ]]
+          run_json="$(gh api "repos/$FRAMEWORK_REPOSITORY/actions/runs/$source_run_id")"
+          jq -e \
+            --arg repository "$FRAMEWORK_REPOSITORY" \
+            --arg run_id "$source_run_id" \
+            '(.id | tostring) == $run_id and
+             .repository.full_name == $repository and
+             .path == ".github/workflows/daily-package-channel.yml" and
+             (.event == "schedule" or .event == "workflow_dispatch") and
+             .head_branch == "main" and .status == "completed" and
+             .conclusion == "success" and (.head_sha | test("^[0-9a-f]{40}$"))' \
+            <<< "$run_json" >/dev/null
+          source_sha="$(jq -r .head_sha <<< "$run_json")"
+          artifacts_json="$(gh api "repos/$FRAMEWORK_REPOSITORY/actions/runs/$source_run_id/artifacts?per_page=100")"
+          artifact_name="$(jq -r \
+            --arg prefix "opl-daily-package-channel-candidate-" \
+            --arg run_id "$source_run_id" \
+            '[.artifacts[] | select(.name | startswith($prefix)) |
+              select(.expired == false and (.workflow_run.id | tostring) == $run_id)] |
+              if length == 1 then .[0].name else empty end' \
+            <<< "$artifacts_json")"
+          [[ "$artifact_name" =~ ^opl-daily-package-channel-candidate-[0-9]{2}\.[0-9]{1,2}\.[0-9]{1,2}(-r[1-9][0-9]*)?$ ]]
+          {
+            echo "source_run_id=$source_run_id"
+            echo "source_sha=$source_sha"
+            echo "artifact_name=$artifact_name"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download read-only daily dispatch plan
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ steps.authority.outputs.artifact_name }}
+          path: artifacts/daily-package-channel
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.authority.outputs.source_run_id }}
+
+      - name: Dispatch only ready owner publishers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ steps.authority.outputs.source_run_id }}
+          SOURCE_SHA: ${{ steps.authority.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          plan="artifacts/daily-package-channel/package-publication-dispatch-plan.json"
+          test -s "$plan"
+          jq -e \
+            --arg run_id "$SOURCE_RUN_ID" \
+            --arg source_sha "$SOURCE_SHA" \
+            '.surface_kind == "opl_package_publication_dispatch_plan.v1" and
+             .source_run_id == $run_id and .framework_source_commit == $source_sha and
+             (.status == "skipped" or .status == "publish_ready" or .status == "needs_owner_release") and
+             (.ready_packages | type == "array") and (.needs_owner_release | type == "array")' \
+            "$plan" >/dev/null
+
+          failures=0
+          dispatched=0
+          already_dispatched=0
+          while IFS= read -r entry; do
+            package_id="$(jq -er .package_id <<< "$entry")"
+            version="$(jq -er .expected_package_version <<< "$entry")"
+            owner_commit="$(jq -er .expected_owner_source_commit <<< "$entry")"
+            predecessor="$(jq -er .expected_latest_stable_predecessor <<< "$entry")"
+            request_id="$(jq -er .publication_request_id <<< "$entry")"
+            existing_runs="$(gh api "repos/$FRAMEWORK_REPOSITORY/actions/workflows/publish-package.yml/runs?event=workflow_dispatch&per_page=100")"
+            active_or_success="$(jq --arg request_id "$request_id" \
+              '[.workflow_runs[] | select((.name // "") | contains($request_id)) |
+                select(.status != "completed" or .conclusion == "success")] | length' \
+              <<< "$existing_runs")"
+            if [ "$active_or_success" -gt 0 ]; then
+              echo "::notice::${package_id}: publication request ${request_id} already exists; no duplicate dispatch."
+              already_dispatched=$((already_dispatched + 1))
+              continue
+            fi
+            payload="$(jq -n \
+              --arg ref "main" \
+              --arg package_id "$package_id" \
+              --arg version "$version" \
+              --arg owner_commit "$owner_commit" \
+              --arg framework_commit "$SOURCE_SHA" \
+              --arg predecessor "$predecessor" \
+              --arg request_id "$request_id" \
+              '{ref:$ref,inputs:{package_id:$package_id,
+                expected_package_version:$version,
+                expected_owner_source_commit:$owner_commit,
+                expected_framework_source_commit:$framework_commit,
+                expected_latest_stable_predecessor:$predecessor,
+                publication_request_id:$request_id}}')"
+            if gh api --method POST \
+              "repos/$FRAMEWORK_REPOSITORY/actions/workflows/publish-package.yml/dispatches" \
+              --input - <<< "$payload"; then
+              echo "::notice::${package_id}: dispatched publication request ${request_id}."
+              dispatched=$((dispatched + 1))
+            else
+              echo "::error::${package_id}: publication dispatch failed for ${request_id}."
+              failures=1
+            fi
+          done < <(jq -c '.ready_packages[]' "$plan")
+
+          needs_owner_release_count="$(jq '.needs_owner_release | length' "$plan")"
+          if [ "$needs_owner_release_count" -gt 0 ]; then
+            echo "::notice::${needs_owner_release_count} Package owner release(s) are still required; no publisher was dispatched for those entries."
+          fi
+          {
+            echo "### Daily Package publication follower"
+            echo "- Source detection run: \`$SOURCE_RUN_ID\`"
+            echo "- Dispatched: \`$dispatched\`"
+            echo "- Existing requests reused: \`$already_dispatched\`"
+            echo "- Owner releases still needed: \`$needs_owner_release_count\`"
+            echo "- Core daily detection remains successful regardless of follower outcome."
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$failures" -eq 0 ]

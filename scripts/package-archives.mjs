@@ -433,6 +433,7 @@ const releaseWorkflowPaths = [
   '.github/workflows/packages.yml',
   '.github/workflows/release-package-channel.yml',
   '.github/workflows/daily-package-channel.yml',
+  '.github/workflows/daily-package-channel-publication.yml',
 ];
 
 function copyReleaseDisciplineWorkflows(outDir) {

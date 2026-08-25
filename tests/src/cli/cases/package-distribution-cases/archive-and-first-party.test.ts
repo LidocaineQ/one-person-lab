@@ -515,10 +515,12 @@ test('package archive builder writes channel manifest checksums git source and r
     '.github/workflows/packages.yml',
     '.github/workflows/release-package-channel.yml',
     '.github/workflows/daily-package-channel.yml',
+    '.github/workflows/daily-package-channel-publication.yml',
   ]);
   assert.equal(fs.existsSync(path.join(outDir, '.github/workflows/packages.yml')), true);
   assert.equal(fs.existsSync(path.join(outDir, '.github/workflows/release-package-channel.yml')), true);
   assert.equal(fs.existsSync(path.join(outDir, '.github/workflows/daily-package-channel.yml')), true);
+  assert.equal(fs.existsSync(path.join(outDir, '.github/workflows/daily-package-channel-publication.yml')), true);
   assert.equal(relativeCloneRootFromOutDir === '' || !relativeCloneRootFromOutDir.startsWith('..'), false);
   assert.equal(path.relative(repoRoot, archiveBuilderResult.clone_root).startsWith('..'), true);
   const ownerCohortLockSource = fs.readFileSync(archiveBuilderResult.owner_cohort_lock, 'utf8');
@@ -625,7 +627,11 @@ test('package archive builder writes channel manifest checksums git source and r
   );
   assert.equal(manifest.release_automation.release_manifest_publication_status, 'configured_pending_remote_verification');
   assert.equal(manifest.release_automation.release_manifest_package.package_channel_status, 'active_release_channel');
-  assert.equal(manifest.release_automation.daily_package_channel.status, 'active_change_detected_daily_publish');
+  assert.equal(manifest.release_automation.daily_package_channel.status, 'active_change_detection_with_independent_publication');
+  assert.equal(
+    manifest.release_automation.daily_package_channel.publication_workflow,
+    '.github/workflows/daily-package-channel-publication.yml',
+  );
   assert.equal(manifest.release_automation.daily_package_channel.no_change_behavior, 'skip_without_publish');
   assert.equal(manifest.release_automation.daily_package_channel.generation_template, '<utc_yy.m.d[-rN_auto]>');
   assert.equal(manifest.release_automation.daily_package_channel.comparison, 'independent_owner_channel_version_and_content_lock');

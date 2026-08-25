@@ -11,6 +11,7 @@ const PACKAGE_REMOTE_PUBLISH_STATUS = 'publication_workflow_configured_pending_r
 const PACKAGE_WORKFLOW_PATH = '.github/workflows/packages.yml';
 const PACKAGE_RELEASE_CALLER_WORKFLOW_PATH = '.github/workflows/release-package-channel.yml';
 const PACKAGE_DAILY_WORKFLOW_PATH = '.github/workflows/daily-package-channel.yml';
+const PACKAGE_DAILY_PUBLICATION_WORKFLOW_PATH = '.github/workflows/daily-package-channel-publication.yml';
 const PACKAGE_STABLE_WORKFLOW_PATH = '.github/workflows/publish-package.yml';
 const RELEASE_HARNESS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -162,6 +163,9 @@ function validateManifest(manifest, promotionTarget = 'candidate') {
   assertCondition(JSON.stringify(automation?.channel_manifest?.moving_tags) === JSON.stringify(['candidate', 'latest-stable']), 'Moving tags must be candidate and latest-stable only', failures);
   assertCondition(automation?.channel_manifest?.ghcr_ref?.includes('<release_set_generation>'), 'Catalog carrier must use Release Set generation', failures);
   assertCondition(automation?.artifact_build?.required_input === 'release_set_generation', 'Artifact build input must be Release Set generation', failures);
+  assertCondition(automation?.daily_package_channel?.status === 'active_change_detection_with_independent_publication', 'Daily Package channel must expose detection and publication as separate surfaces', failures);
+  assertCondition(automation?.daily_package_channel?.workflow === PACKAGE_DAILY_WORKFLOW_PATH, 'Daily detector workflow path drifted', failures);
+  assertCondition(automation?.daily_package_channel?.publication_workflow === PACKAGE_DAILY_PUBLICATION_WORKFLOW_PATH, 'Daily publication follower workflow path drifted', failures);
   assertCondition(automation?.daily_package_channel?.generation_template === '<utc_yy.m.d[-rN_auto]>', 'Daily generation template drifted', failures);
   assertCondition(automation?.daily_package_channel?.comparison === 'independent_owner_channel_version_and_content_lock', 'Daily owner-channel comparison drifted', failures);
   assertCondition(automation?.daily_package_channel?.publish_gate === 'new_version_with_changed_content_or_verified_channel_bootstrap', 'Daily Package publish gate drifted', failures);
@@ -192,10 +196,14 @@ function validateWorkflow(manifest, manifestPath, failures) {
   const workflowPath = path.resolve(packageRoot, manifest.release_automation?.artifact_build?.workflow ?? PACKAGE_WORKFLOW_PATH);
   const releasePath = path.resolve(packageRoot, PACKAGE_RELEASE_CALLER_WORKFLOW_PATH);
   const dailyPath = path.resolve(packageRoot, PACKAGE_DAILY_WORKFLOW_PATH);
+  const dailyPublicationPath = path.resolve(packageRoot, PACKAGE_DAILY_PUBLICATION_WORKFLOW_PATH);
   const packageStablePath = path.resolve(RELEASE_HARNESS_ROOT, PACKAGE_STABLE_WORKFLOW_PATH);
   const source = fs.existsSync(workflowPath) ? fs.readFileSync(workflowPath, 'utf8') : '';
   const releaseSource = fs.existsSync(releasePath) ? fs.readFileSync(releasePath, 'utf8') : '';
   const dailySource = fs.existsSync(dailyPath) ? fs.readFileSync(dailyPath, 'utf8') : '';
+  const dailyPublicationSource = fs.existsSync(dailyPublicationPath)
+    ? fs.readFileSync(dailyPublicationPath, 'utf8')
+    : '';
   const packageStableSource = fs.existsSync(packageStablePath) ? fs.readFileSync(packageStablePath, 'utf8') : '';
 
   assertCondition(!/\n\s*push:\n/.test(source), 'package workflow must not restore tag-push publishing', failures);
@@ -369,10 +377,10 @@ function validateWorkflow(manifest, manifestPath, failures) {
     && /current-owner-channels\.json/.test(dailySource)
     && /oras blob fetch --output "\$payload_file"/.test(dailySource), 'Daily reconciliation must compare each independent owner channel without a no-change bypass', failures);
   assertCondition(/publish_required="\$\(jq -r \.publish_required/.test(dailySource)
-    && /publication_inputs_json/.test(dailySource)
-    && /publish-independent-packages:/.test(dailySource)
-    && /uses:\s*\.\/\.github\/workflows\/publish-package\.yml/.test(dailySource)
-    && !/uses:\s*\.\/\.github\/workflows\/packages\.yml/.test(dailySource), 'Daily workflow must dispatch the single-Package owner publisher from an exact changed-package plan', failures);
+    && /package-publication-dispatch-plan\.json/.test(dailySource)
+    && !/publication_inputs_json/.test(dailySource)
+    && !/publish-independent-packages:/.test(dailySource)
+    && !/uses:\s*\.\/\.github\/workflows\/publish-package\.yml/.test(dailySource), 'Daily workflow must emit a publication plan without owning Package publication', failures);
   assertCondition(/workflow_call:/.test(packageStableSource)
     && /publication_request_id/.test(packageStableSource), 'Single-Package publisher must expose the same idempotent route to reusable callers', failures);
   assertCondition(!/uses:\s*\.\/\.github\/workflows\/packages\.yml/.test(dailySource)
@@ -385,8 +393,21 @@ function validateWorkflow(manifest, manifestPath, failures) {
     && !dailySource.includes('retained_previous_stable')
     && !dailySource.includes('force_publish cannot bypass latest-stable fallback'), 'Daily Package reconciliation must fail closed instead of falling back from an archive build it no longer performs', failures);
   assertCondition(!/app_version:/.test(dailySource), 'Daily reconciliation must not pass App identity into Package publication', failures);
-  assertCondition(/expected_framework_source_commit:\s*\$\{\{ github\.sha \}\}/.test(dailySource)
-    && /publication_inputs_json/.test(dailySource), 'Independent Package publication must bind the current Framework source and exact per-Package inputs', failures);
+  assertCondition(/--arg framework_source_commit "\$\{\{ github\.sha \}\}"/.test(dailySource), 'Daily evidence must bind the exact Framework source commit that produced the plan', failures);
+  assertCondition(/workflow_run:/s.test(dailyPublicationSource)
+    && /actions\/download-artifact@/.test(dailyPublicationSource)
+    && /package-publication-dispatch-plan\.json/.test(dailyPublicationSource)
+    && /actions\/workflows\/publish-package\.yml\/dispatches/.test(dailyPublicationSource)
+    && /--arg ref "main"/.test(dailyPublicationSource)
+    && /expected_framework_source_commit:\$framework_commit/.test(dailyPublicationSource)
+    && /group:\s*opl-daily-package-publication-\$\{\{ github\.event\.workflow_run\.id \|\| inputs\.source_run_id \}\}/.test(dailyPublicationSource)
+    && /cancel-in-progress:\s*false/.test(dailyPublicationSource)
+    && /needs_owner_release/.test(dailyPublicationSource), 'Publication follower must consume the sealed daily plan and dispatch only ready owner channels', failures);
+  assertCondition(!/workflow_run:/.test(dailySource), 'Daily detector must not own a downstream workflow-run publication trigger', failures);
+  assertCondition(!/^    outputs:/m.test(dailySource), 'Daily detector must not expose stale fan-out job outputs as a second control surface', failures);
+  assertCondition(/ref: \$\{\{ inputs\.expected_framework_source_commit \}\}/.test(packageStableSource)
+    && /\[ "\$\(git rev-parse HEAD\)" = "\$EXPECTED_FRAMEWORK_SOURCE_COMMIT" \]/.test(packageStableSource)
+    && /GITHUB_EVENT_NAME.*workflow_dispatch/.test(packageStableSource), 'Single-Package publisher must separate its mutable workflow harness ref from the exact frozen Framework source', failures);
   assertCondition(!/:latest(?:["'\s]|$)/m.test(dailySource), 'Daily Package workflow must not use bare latest', failures);
 }
 

@@ -30,6 +30,7 @@ test('framework packages workflow is release-gated and manually repairable witho
   const workflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/packages.yml'), 'utf8');
   const releaseCallerWorkflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/release-package-channel.yml'), 'utf8');
   const dailyPackageWorkflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/daily-package-channel.yml'), 'utf8');
+  const dailyPublicationWorkflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/daily-package-channel-publication.yml'), 'utf8');
   const packageStableWorkflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/publish-package.yml'), 'utf8');
 
   assert.match(workflow, /workflow_dispatch:/);
@@ -66,7 +67,7 @@ test('framework packages workflow is release-gated and manually repairable witho
   assert.ok(releaseCallerWorkflow.indexOf('Validate frozen Framework source input') < releaseCallerWorkflow.indexOf('Setup Node.js'));
   assert.match(releaseCallerWorkflow, /\.release_set\.components\.base\.source_commit/);
   assert.match(releaseCallerWorkflow, /expected_framework_source_commit:\s*\$\{\{ inputs\.expected_framework_source_commit \}\}/);
-  assert.match(dailyPackageWorkflow, /expected_framework_source_commit:\s*\$\{\{ github\.sha \}\}/);
+  assert.match(dailyPackageWorkflow, /--arg framework_source_commit "\$\{\{ github\.sha \}\}"/);
   assert.match(workflow, /release_gate:\s*\n\s*description:/);
   assert.match(workflow, /release_set_generation:/);
   assert.match(workflow, /generation="\$\{generation#v\}"/);
@@ -300,17 +301,25 @@ test('framework packages workflow is release-gated and manually repairable witho
   assert.ok(dailyPackageWorkflow.indexOf('Fetch current latest-stable Release Set manifest') < dailyPackageWorkflow.indexOf('Build Package projection fingerprint'));
   assert.match(dailyPackageWorkflow, /args\+=\(--current-manifest "\$\{\{ steps\.current\.outputs\.current_manifest \}\}"\)/);
   assert.doesNotMatch(dailyPackageWorkflow, /uses:\s+\.\/\.github\/workflows\/packages\.yml/);
-  assert.match(dailyPackageWorkflow, /publication_inputs_json:/);
-  assert.match(dailyPackageWorkflow, /Prepare independent Package publication plan/);
-  assert.match(dailyPackageWorkflow, /done < <\(jq -er '\.changed_packages\[\]' "\$owner_plan"\)/);
-  assert.match(dailyPackageWorkflow, /publish-independent-packages:/);
-  assert.match(dailyPackageWorkflow, /uses:\s+\.\/\.github\/workflows\/publish-package\.yml/);
+  assert.match(dailyPackageWorkflow, /package-publication-dispatch-plan\.json/);
+  assert.doesNotMatch(dailyPackageWorkflow, /publication_inputs_json:/);
+  assert.doesNotMatch(dailyPackageWorkflow, /publish-independent-packages:/);
+  assert.doesNotMatch(dailyPackageWorkflow, /uses:\s+\.\/\.github\/workflows\/publish-package\.yml/);
+  assert.match(dailyPublicationWorkflow, /workflow_run:/);
+  assert.match(dailyPublicationWorkflow, /actions\/download-artifact@/);
+  assert.match(dailyPublicationWorkflow, /package-publication-dispatch-plan\.json/);
+  assert.match(dailyPublicationWorkflow, /actions\/workflows\/publish-package\.yml\/dispatches/);
+  assert.match(dailyPublicationWorkflow, /--arg ref "main"/);
+  assert.match(dailyPublicationWorkflow, /expected_framework_source_commit:\$framework_commit/);
+  assert.match(dailyPublicationWorkflow, /needs_owner_release/);
+  assert.doesNotMatch(dailyPackageWorkflow, /workflow_run:/);
   assert.match(dailyPackageWorkflow, /Package publication scope:.*packages_only/);
   assert.match(dailyPackageWorkflow, /non_package_changed_components_json/);
   assert.match(dailyPackageWorkflow, /publish_required="\$\(jq -r \.publish_required/);
-  assert.match(dailyPackageWorkflow, /if: steps\.decide\.outputs\.publish_required == 'true'/);
-  assert.match(dailyPackageWorkflow, /changed_packages_json:/);
-  assert.match(dailyPackageWorkflow, /owner_cohort_artifact_name:/);
+  assert.match(dailyPackageWorkflow, /if \[ "\$publish_required" = true \]; then/);
+  assert.doesNotMatch(dailyPackageWorkflow, /^    outputs:/m);
+  assert.match(dailyPublicationWorkflow, /group: opl-daily-package-publication-\$\{\{ github\.event\.workflow_run\.id \|\| inputs\.source_run_id \}\}/);
+  assert.match(dailyPublicationWorkflow, /cancel-in-progress: false/);
   assert.doesNotMatch(dailyPackageWorkflow, /app_version:/);
   assert.doesNotMatch(dailyPackageWorkflow, /promotion_target:\s*candidate/);
   assert.doesNotMatch(dailyPackageWorkflow, /\n\s*push:\n/);
@@ -639,8 +648,9 @@ test('single-Package publication is protected, selector-bound, and readback-only
   }
   assert.match(workflow, /group: opl-package-publication-\$\{\{ inputs\.package_id \}\}/);
   assert.match(workflow, /cancel-in-progress: false/);
-  assert.match(workflow, /\[\[ "\$GITHUB_REF" == "refs\/heads\/main" \]\]/);
-  assert.match(workflow, /\[ "\$GITHUB_SHA" = "\$EXPECTED_FRAMEWORK_SOURCE_COMMIT" \]/);
+  assert.match(workflow, /ref: \$\{\{ inputs\.expected_framework_source_commit \}\}/);
+  assert.match(workflow, /\[ "\$\(git rev-parse HEAD\)" = "\$EXPECTED_FRAMEWORK_SOURCE_COMMIT" \]/);
+  assert.match(workflow, /GITHUB_EVENT_NAME.*workflow_dispatch/);
   assert.match(workflow, /npm ci --ignore-scripts --no-audit --no-fund/);
   assert.ok(workflow.indexOf('npm ci --ignore-scripts') < workflow.indexOf('scripts/materialize-package-payload.mjs'));
   assert.match(workflow, /scripts\/package-source-projection-gate\.mjs/);

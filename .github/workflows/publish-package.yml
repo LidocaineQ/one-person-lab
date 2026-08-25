@@ -84,7 +84,7 @@ jobs:
       - name: Checkout exact Framework source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.expected_framework_source_commit }}
           fetch-depth: 1
 
       - name: Set up ORAS
@@ -128,13 +128,14 @@ jobs:
           else
             [ "$PUBLICATION_ENVIRONMENT" = release-stable ]
           fi
-          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          fi
           [[ "$EXPECTED_FRAMEWORK_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           [[ "$EXPECTED_OWNER_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           [[ "$EXPECTED_PACKAGE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
           [[ "$EXPECTED_LATEST_STABLE_PREDECESSOR" == none || "$EXPECTED_LATEST_STABLE_PREDECESSOR" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "$PUBLICATION_REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$ ]]
-          [ "$GITHUB_SHA" = "$EXPECTED_FRAMEWORK_SOURCE_COMMIT" ]
           [ "$(git rev-parse HEAD)" = "$EXPECTED_FRAMEWORK_SOURCE_COMMIT" ]
           npm ci --ignore-scripts --no-audit --no-fund
 

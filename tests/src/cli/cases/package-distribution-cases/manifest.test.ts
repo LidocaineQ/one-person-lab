@@ -72,6 +72,7 @@ test('packages manifest exposes independent owner currentness and compatibility 
         daily_package_channel: {
           status: string;
           workflow: string;
+          publication_workflow: string;
           generation_template: string;
           change_detector: string;
           comparison: string;
@@ -194,11 +195,15 @@ test('packages manifest exposes independent owner currentness and compatibility 
   );
   assert.equal(
     output.packages_manifest.release_automation.daily_package_channel.status,
-    'active_change_detected_daily_publish',
+    'active_change_detection_with_independent_publication',
   );
   assert.equal(
     output.packages_manifest.release_automation.daily_package_channel.workflow,
     '.github/workflows/daily-package-channel.yml',
+  );
+  assert.equal(
+    output.packages_manifest.release_automation.daily_package_channel.publication_workflow,
+    '.github/workflows/daily-package-channel-publication.yml',
   );
   assert.equal(
     output.packages_manifest.release_automation.daily_package_channel.generation_template,
