@@ -340,12 +340,13 @@ export function buildInternalCommandSpecs(
       },
     },
     'skill-sync': {
-      usage: 'opl skill sync [--domain <domain_id>] [--scope <codex|workspace|quest>] [--target-workspace <path>] [--target-quest <path>] [--target-root <path>] [--home <home_path>] [--quiet]',
+      usage: 'opl skill sync [--domain <domain_id>] [--skill <skill_id>] [--scope <codex|workspace|quest>] [--target-workspace <path>] [--target-quest <path>] [--target-root <path>] [--home <home_path>] [--quiet]',
       summary: 'Run the explicit legacy family skill carrier migration; Package lifecycle remains the steady-state authority.',
       examples: [
         'opl skill sync',
         'opl skill sync --domain medautoscience',
         'opl skill sync --domain mas-scholar-skills --scope workspace --target-workspace /path/to/workspace',
+        'opl skill sync --domain scholarskills --skill medical-single-cell-modeling --scope workspace --target-workspace /path/to/workspace',
         'opl skill sync --domain mas-scholar-skills --scope quest --target-quest /path/to/quest',
         'opl skill sync --domain mas-scholar-skills --scope codex',
         'opl skill sync --home /tmp/codex-home',
@@ -355,6 +356,7 @@ export function buildInternalCommandSpecs(
         const parsed = parseSkillPackArgs(args, commandSpecs['skill-sync']);
         return syncFamilySkillPacks({
           domains: parsed.domains,
+          selectedSkillIds: parsed.selectedSkillIds,
           home: parsed.home,
           scope: parsed.scope,
           targetWorkspace: parsed.targetWorkspace,

@@ -439,15 +439,29 @@ process.stdout.write(JSON.stringify({ repo: 'redcube-ai', sync: 'ok' }) + '\\n')
     }
     if (spec.project === 'mas-scholar-skills') {
       const skillRoot = path.join(repoRoot, 'skills', spec.canonicalPlugin);
+      const specialtySkillRoot = path.join(repoRoot, 'skills', 'medical-single-cell-modeling');
       fs.mkdirSync(path.join(repoRoot, '.codex-plugin'), { recursive: true });
       fs.mkdirSync(skillRoot, { recursive: true });
+      fs.mkdirSync(specialtySkillRoot, { recursive: true });
       fs.writeFileSync(
         path.join(repoRoot, '.codex-plugin', 'plugin.json'),
         JSON.stringify({ name: spec.canonicalPlugin, skills: './skills/' }, null, 2),
       );
+      writeJsonFixture(path.join(repoRoot, 'opl-package.json'), {
+        exports: {
+          core_skill_ids: [spec.canonicalPlugin],
+          default_materialized_skill_ids: [spec.canonicalPlugin],
+          specialty_skill_ids: ['medical-single-cell-modeling'],
+          all_skill_ids: [spec.canonicalPlugin, 'medical-single-cell-modeling'],
+        },
+      });
       fs.writeFileSync(
         path.join(skillRoot, 'SKILL.md'),
         `---\nname: ${spec.canonicalPlugin}\ndescription: MAS Scholar Skills fixture capability plugin pack.\n---\n\n# MAS Scholar Skills\n\nThis fixture represents the external ScholarSkills capability plugin pack.\n`,
+      );
+      fs.writeFileSync(
+        path.join(specialtySkillRoot, 'SKILL.md'),
+        '---\nname: medical-single-cell-modeling\ndescription: Single-cell modeling fixture specialist.\n---\n\n# Medical Single-Cell Modeling\n',
       );
       continue;
     }

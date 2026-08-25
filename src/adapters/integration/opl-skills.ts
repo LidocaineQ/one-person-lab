@@ -85,6 +85,7 @@ type SyncFamilySkillPacksOptions = ReadFamilySkillPacksOptions & {
   targetWorkspace?: string;
   targetQuest?: string;
   targetRoot?: string;
+  selectedSkillIds?: string[];
   companionMode?: OplCompanionSkillApplyMode;
   invocation?: 'explicit_legacy_migration';
 };
@@ -697,6 +698,7 @@ export function syncFamilySkillPackFromRepoRoot(
     registerPlugin?: boolean;
     scope: SkillPackSyncScope;
     targetRoot: string;
+    selectedSkillIds?: string[];
   }> = {},
 ) {
   const familySkillPackSpecs = listFamilySkillPackSpecs();
@@ -722,6 +724,7 @@ export function syncFamilySkillPackFromRepoRoot(
       home: normalizeOptionalString(options.home) ?? undefined,
       scope,
       targetRoot,
+      selectedSkillIds: options.selectedSkillIds,
       resolveCodexHome,
       writeMaterializedPluginCarrier: writeOplMaterializedPluginCarrier,
     },
@@ -826,6 +829,20 @@ export function readFamilySkillPacks(options: ReadFamilySkillPacksOptions = {}) 
 
 export function syncFamilySkillPacks(options: SyncFamilySkillPacksOptions = {}) {
   const selectedDomains = normalizeDomainSelection(options.domains);
+  const selectedSkillIds = [...new Set((options.selectedSkillIds ?? [])
+    .map((skillId) => skillId.trim())
+    .filter(Boolean))];
+  if (selectedSkillIds.length > 0
+    && (!selectedDomains || selectedDomains.size !== 1 || !selectedDomains.has('scholarskills'))) {
+    throw new FrameworkContractError(
+      'cli_usage_error',
+      'Selected ScholarSkills require --domain scholarskills.',
+      {
+        required: ['--domain scholarskills'],
+        selected_skill_ids: selectedSkillIds,
+      },
+    );
+  }
   const resolvedHome = normalizeOptionalString(options.home) ?? null;
   const inspectedPacks = listFamilySkillPackSpecs()
     .filter((spec) => !selectedDomains || selectedDomains.has(spec.domain_id))
@@ -877,6 +894,7 @@ export function syncFamilySkillPacks(options: SyncFamilySkillPacksOptions = {}) 
           targetQuest: options.targetQuest,
           targetRoot: explicitTargetRoot ?? undefined,
         }),
+        selectedSkillIds,
       };
     })(),
     resolveCodexHome,

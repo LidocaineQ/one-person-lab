@@ -16,6 +16,7 @@ import {
   createFakeCodexFixture,
   createFakeFamilySkillWorkspace,
   runCli,
+  runCliFailure,
   runEntryPathRaw,
 } from './cli-codex-default-shell-helpers.ts';
 
@@ -423,6 +424,109 @@ test('opl connect sync-skills never mirrors ScholarSkills into the user Codex sc
     assert.equal(pack.installer_result.global_codex_write, false);
     assert.equal(output.skill_sync.codex_plugin_registry, null);
     assert.equal(fs.existsSync(path.join(codexHome, 'skills', 'mas-scholar-skills')), false);
+  } finally {
+    fs.rmSync(captureDir, { recursive: true, force: true });
+    fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test('opl connect sync-skills materializes only the ScholarSkills aggregate by default', () => {
+  const captureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-scholar-core-only-'));
+  const { workspaceRoot } = createFakeFamilySkillWorkspace(captureDir);
+  const targetWorkspace = path.join(captureDir, 'target-workspace');
+  fs.mkdirSync(targetWorkspace, { recursive: true });
+
+  try {
+    const output = runCli([
+      'connect',
+      'sync-skills',
+      '--domain',
+      'scholarskills',
+      '--scope',
+      'workspace',
+      '--target-workspace',
+      targetWorkspace,
+    ], {
+      OPL_STATE_DIR: path.join(captureDir, 'state'),
+      OPL_FAMILY_WORKSPACE_ROOT: workspaceRoot,
+    });
+    const pack = output.skill_sync.packs[0];
+    const localInstall = pack.installer_result.workspace_or_quest_local_skill;
+
+    assert.equal(pack.sync_status, 'synced');
+    assert.deepEqual(localInstall.materialized_skill_ids, ['mas-scholar-skills']);
+    assert.equal(fs.existsSync(path.join(targetWorkspace, '.codex', 'skills', 'mas-scholar-skills', 'SKILL.md')), true);
+    assert.equal(fs.existsSync(path.join(targetWorkspace, '.codex', 'skills', 'medical-single-cell-modeling')), false);
+  } finally {
+    fs.rmSync(captureDir, { recursive: true, force: true });
+    fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test('opl connect sync-skills materializes one explicitly selected ScholarSkills specialist', () => {
+  const captureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-scholar-selected-'));
+  const { workspaceRoot } = createFakeFamilySkillWorkspace(captureDir);
+  const targetWorkspace = path.join(captureDir, 'target-workspace');
+  fs.mkdirSync(targetWorkspace, { recursive: true });
+
+  try {
+    const output = runCli([
+      'connect',
+      'sync-skills',
+      '--domain',
+      'scholarskills',
+      '--skill',
+      'medical-single-cell-modeling',
+      '--scope',
+      'workspace',
+      '--target-workspace',
+      targetWorkspace,
+    ], {
+      OPL_STATE_DIR: path.join(captureDir, 'state'),
+      OPL_FAMILY_WORKSPACE_ROOT: workspaceRoot,
+    });
+    const localInstall = output.skill_sync.packs[0].installer_result.workspace_or_quest_local_skill;
+
+    assert.deepEqual(localInstall.materialized_skill_ids, [
+      'mas-scholar-skills',
+      'medical-single-cell-modeling',
+    ]);
+    assert.equal(
+      fs.existsSync(path.join(targetWorkspace, '.codex', 'skills', 'medical-single-cell-modeling', 'SKILL.md')),
+      true,
+    );
+  } finally {
+    fs.rmSync(captureDir, { recursive: true, force: true });
+    fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test('opl connect sync-skills rejects an unknown ScholarSkills specialist', () => {
+  const captureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-scholar-unknown-'));
+  const { workspaceRoot } = createFakeFamilySkillWorkspace(captureDir);
+  const targetWorkspace = path.join(captureDir, 'target-workspace');
+  fs.mkdirSync(targetWorkspace, { recursive: true });
+
+  try {
+    const failure = runCliFailure([
+      'connect',
+      'sync-skills',
+      '--domain',
+      'scholarskills',
+      '--skill',
+      'medical-not-a-real-skill',
+      '--scope',
+      'workspace',
+      '--target-workspace',
+      targetWorkspace,
+    ], {
+      OPL_STATE_DIR: path.join(captureDir, 'state'),
+      OPL_FAMILY_WORKSPACE_ROOT: workspaceRoot,
+    });
+
+    assert.equal(failure.status, 2);
+    assert.equal(failure.payload.error.code, 'cli_usage_error');
+    assert.deepEqual(failure.payload.error.details.selected_skill_ids, ['medical-not-a-real-skill']);
   } finally {
     fs.rmSync(captureDir, { recursive: true, force: true });
     fs.rmSync(workspaceRoot, { recursive: true, force: true });

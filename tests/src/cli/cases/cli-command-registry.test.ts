@@ -502,6 +502,7 @@ test('core option parsers reuse node parseArgs without changing their value sema
     '--quiet',
   ], spec), {
     domains: ['mas', 'mag'],
+    selectedSkillIds: [],
     home: '  /tmp/codex home  ',
     quiet: true,
   });

@@ -267,6 +267,7 @@ type SystemConfigureCodexCliInput = {
 
 type SkillPacksCliInput = {
   domains: string[];
+  selectedSkillIds: string[];
   home?: string;
   scope?: 'codex' | 'workspace' | 'quest';
   targetWorkspace?: string;

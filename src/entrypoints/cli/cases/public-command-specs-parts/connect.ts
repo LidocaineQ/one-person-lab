@@ -636,7 +636,7 @@ export function buildConnectCommandSpecs(
       help_surface: 'default',
     }),
     'connect sync-skills': cloneCommandSpec(commandSpecs['skill-sync'], {
-      usage: 'opl connect sync-skills [--domain <domain_id>] [--scope <codex|workspace|quest>] [--target-workspace <path>] [--target-quest <path>] [--target-root <path>] [--home <home_path>] [--quiet]',
+      usage: 'opl connect sync-skills [--domain <domain_id>] [--skill <skill_id>] [--scope <codex|workspace|quest>] [--target-workspace <path>] [--target-quest <path>] [--target-root <path>] [--home <home_path>] [--quiet]',
       summary: 'Sync installed family/domain Codex carrier projections through the canonical Connect command surface.',
       examples: [
         'opl connect sync-skills --json',

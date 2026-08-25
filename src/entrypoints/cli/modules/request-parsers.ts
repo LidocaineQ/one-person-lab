@@ -298,10 +298,12 @@ function parseSkillPackArgs(
 ): SkillPacksCliInput {
   const parsed: SkillPacksCliInput = {
     domains: [],
+    selectedSkillIds: [],
     quiet: false,
   };
   const values = parseCommandOptions(args, spec, {
     domain: { type: 'string', multiple: true },
+    skill: { type: 'string', multiple: true },
     home: { type: 'string' },
     scope: { type: 'string' },
     'target-workspace': { type: 'string' },
@@ -319,6 +321,8 @@ function parseSkillPackArgs(
     throw buildUsageError('Option --mode requires observe, ask_to_apply, or managed.', spec, { option: '--mode', value: mode });
   }
   parsed.domains = (values.domain as string[] | undefined) ?? [];
+  parsed.selectedSkillIds = ((values.skill as string[] | undefined) ?? []).flatMap((value) =>
+    value.split(',').map((entry) => entry.trim()).filter(Boolean));
   parsed.quiet = values.quiet === true;
   if (values.home !== undefined) parsed.home = values.home as string;
   if (scope !== undefined) parsed.scope = scope as SkillPacksCliInput['scope'];

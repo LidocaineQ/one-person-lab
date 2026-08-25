@@ -31,6 +31,7 @@ type RunSkillPackInstallerOptions = {
   home?: string;
   scope: SkillPackSyncScope;
   targetRoot?: string | null;
+  selectedSkillIds?: string[];
   resolveCodexHome: (home: string) => string;
   writeMaterializedPluginCarrier: (
     inspected: InspectFamilySkillPack,
@@ -279,7 +280,7 @@ function resolvePackagedSourceHead(repoRoot: string) {
   return typeof head === 'string' && head.trim().length > 0 ? head.trim() : null;
 }
 
-function materializedCapabilitySkillIds(pluginSourcePath: string) {
+function materializedCapabilitySkillIds(pluginSourcePath: string, selectedSkillIds: string[] = []) {
   const packageManifest = readJsonFileOrNull(path.join(pluginSourcePath, 'opl-package.json'));
   const packageExports = isRecord(packageManifest) && isRecord(packageManifest.exports)
     ? packageManifest.exports
@@ -290,17 +291,46 @@ function materializedCapabilitySkillIds(pluginSourcePath: string) {
       )
     : [];
   if (declaredDefaultSkillIds.length > 0) {
-    return [...new Set(declaredDefaultSkillIds)].sort();
+    const declaredSkillIds = [
+      ...(Array.isArray(packageExports?.all_skill_ids) ? packageExports.all_skill_ids : []),
+      ...(Array.isArray(packageExports?.core_skill_ids) ? packageExports.core_skill_ids : []),
+      ...(Array.isArray(packageExports?.specialty_skill_ids) ? packageExports.specialty_skill_ids : []),
+    ].filter((skillId): skillId is string => typeof skillId === 'string' && skillId.trim().length > 0);
+    const allowedSkillIds = new Set(declaredSkillIds);
+    const unknownSkillIds = selectedSkillIds.filter((skillId) => !allowedSkillIds.has(skillId));
+    if (unknownSkillIds.length > 0) {
+      throw new FrameworkContractError(
+        'cli_usage_error',
+        'ScholarSkills --skill must name an exported Skill.',
+        {
+          selected_skill_ids: unknownSkillIds,
+          allowed_skill_ids: [...allowedSkillIds].sort(),
+        },
+      );
+    }
+    return [...new Set([...declaredDefaultSkillIds, ...selectedSkillIds])].sort();
   }
   const skillsRoot = path.join(pluginSourcePath, 'skills');
   if (!isDirectory(skillsRoot)) {
     return [];
   }
-  return fs.readdirSync(skillsRoot, { withFileTypes: true })
+  const availableSkillIds = fs.readdirSync(skillsRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .filter((skillId) => fs.existsSync(path.join(skillsRoot, skillId, 'SKILL.md')))
     .sort();
+  const unknownSkillIds = selectedSkillIds.filter((skillId) => !availableSkillIds.includes(skillId));
+  if (unknownSkillIds.length > 0) {
+    throw new FrameworkContractError(
+      'cli_usage_error',
+      'ScholarSkills --skill must name an exported Skill.',
+      {
+        selected_skill_ids: unknownSkillIds,
+        allowed_skill_ids: availableSkillIds,
+      },
+    );
+  }
+  return [...new Set([...availableSkillIds, ...selectedSkillIds])].sort();
 }
 
 function assertCapabilitySkillTargetReplaceable(
@@ -343,8 +373,9 @@ function assertCapabilitySkillTargetReplaceable(
 function copyMaterializedCapabilitySkillDirs(
   inspected: InspectFamilySkillPack,
   targetCodexSkillsRoot: string,
+  selectedSkillIds: string[] = [],
 ) {
-  const skillIds = materializedCapabilitySkillIds(inspected.plugin_source_path);
+  const skillIds = materializedCapabilitySkillIds(inspected.plugin_source_path, selectedSkillIds);
   for (const skillId of skillIds) {
     if (skillId === inspected.canonical_plugin_name) {
       continue;
@@ -396,6 +427,7 @@ function copyWorkspaceOrQuestLocalScholarSkillsSkill(
   inspected: InspectFamilySkillPack,
   targetRoot: string,
   targetScope: Extract<SkillPackSyncScope, 'workspace' | 'quest'>,
+  selectedSkillIds: string[] = [],
 ) {
   const resolvedTargetRoot = path.resolve(targetRoot);
   const targetCodexSkillsRoot = path.join(resolvedTargetRoot, '.codex', 'skills');
@@ -428,6 +460,7 @@ function copyWorkspaceOrQuestLocalScholarSkillsSkill(
   const materializedSkillIds = copyMaterializedCapabilitySkillDirs(
     inspected,
     targetCodexSkillsRoot,
+    selectedSkillIds,
   );
   const receiptPath = path.join(skillRoot, '.opl-install-receipt.json');
   const gitExclude = ensureManagedPathGitExclude(
@@ -477,6 +510,7 @@ function syncWorkspaceOrQuestLocalSkill(
   inspected: InspectFamilySkillPack,
   targetScope: Extract<SkillPackSyncScope, 'workspace' | 'quest'>,
   targetRoot: string | null | undefined,
+  selectedSkillIds: string[] = [],
 ) {
   if (inspected.domain_id !== 'scholarskills') {
     return {
@@ -522,6 +556,7 @@ function syncWorkspaceOrQuestLocalSkill(
     inspected,
     resolvedTargetRoot,
     targetScope,
+    selectedSkillIds,
   );
 }
 
@@ -573,6 +608,7 @@ export function runSkillPackInstaller(
       inspected,
       options.scope,
       options.targetRoot,
+      options.selectedSkillIds,
     );
     return {
       ...inspected,
