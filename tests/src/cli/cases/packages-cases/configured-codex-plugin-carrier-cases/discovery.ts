@@ -263,13 +263,22 @@ process.stdout.write(JSON.stringify({ installed: [], available: [] }));
         return manifest.configured_codex_plugin_carrier
           && !(manifest.package_role === 'capability_package'
             && manifest.codex_default_exposure === false
-            && manifest.codex_interaction_mode === 'headless_internal')
+            && manifest.codex_interaction_mode === 'headless_internal'
+            && (manifest.capability_provider?.consumer_profiles?.length ?? 0) > 0)
           ? [manifest.package_id]
           : [];
       })
       .sort();
     const entries = result.opl_agent_packages.directory.entries;
     assert.deepEqual(entries.map((entry: any) => entry.package_id).sort(), expectedPackageIds);
+    assert.equal(entries.some((entry: any) => entry.package_id === 'mas-scholar-skills'), false);
+    for (const packageId of [
+      'opl-channel-weixin',
+      'opl-fleet-agent',
+      'opl-link-desktop-connector',
+    ]) {
+      assert.equal(entries.some((entry: any) => entry.package_id === packageId), true, packageId);
+    }
     assert.equal(result.opl_agent_packages.installed_package_count, 0);
     assert.equal(result.opl_agent_packages.directory.installable_package_count, expectedPackageIds.length);
     for (const entry of entries) {
@@ -930,6 +939,7 @@ test('package status projects and bulk update visits required installed owner de
     fs.mkdirSync(path.join(providerSource, 'skills', entry.skill_id), { recursive: true });
     fs.writeFileSync(path.join(providerSource, 'skills', entry.skill_id, 'SKILL.md'), `# ${entry.skill_id}\n`);
   }
+  fs.writeFileSync(path.join(providerSource, 'opl-package.json'), formatJsonPayload(providerProjection.payload));
   execFileSync('git', ['init', '-q'], { cwd: providerSource });
   execFileSync('git', ['config', 'user.name', 'OPL Fixture'], { cwd: providerSource });
   execFileSync('git', ['config', 'user.email', 'opl-fixture@example.test'], { cwd: providerSource });
@@ -948,6 +958,7 @@ test('package status projects and bulk update visits required installed owner de
     CODEX_HOME: codexHome,
     OPL_STATE_DIR: stateDir,
     OPL_CODEX_PLUGIN_BIN: binary,
+    OPL_MODULE_PATH_SCHOLARSKILLS: providerSource,
     FIXTURE_CODEX_CALLS: callsPath,
   };
   const previous = {
@@ -1001,6 +1012,32 @@ test('package status projects and bulk update visits required installed owner de
         'plugin add med-autoscience@med-autoscience --json',
       ],
     );
+
+    const unavailableProviderSource = path.join(root, 'missing-scholar-source');
+    env.OPL_MODULE_PATH_SCHOLARSKILLS = unavailableProviderSource;
+    process.env.OPL_MODULE_PATH_SCHOLARSKILLS = unavailableProviderSource;
+    fs.writeFileSync(binary, `#!/usr/bin/env node\nimport fs from 'node:fs';\nfs.appendFileSync(process.env.FIXTURE_CODEX_CALLS, process.argv.slice(2).join(' ') + '\\n');\nprocess.stdout.write(${JSON.stringify(pluginList([
+      { pluginId: 'med-autoscience@carrier', version: '0.2.25', sourcePath: rootSource, marketplaceSource: 'fixture' },
+      {
+        pluginId: providerOwnerManifest.configured_codex_plugin_carrier!.carrier.pluginId,
+        version: providerOwnerManifest.version,
+        sourcePath: providerSource,
+        marketplaceSource: 'gaofeng21cn/mas-scholar-skills',
+        enabled: false,
+      },
+    ]))});\n`);
+    fs.chmodSync(binary, 0o755);
+    fs.writeFileSync(callsPath, '');
+
+    const nativeFallbackStatus = runCli(
+      ['packages', 'status', '--package-id', 'mas'],
+      env,
+    ).opl_agent_package_status;
+    assert.equal(nativeFallbackStatus.package_dependency_readiness?.status, 'current');
+    assert.equal(nativeFallbackStatus.package_dependency_readiness?.operational_ready, true);
+    assert.deepEqual(nativeFallbackStatus.package_dependency_readiness?.dependencies[0]?.reasons, []);
+    assert.equal(nativeFallbackStatus.operational_ready, true);
+    assert.equal(nativeFallbackStatus.launch_allowed, true);
 
   } finally {
     if (previous.home === undefined) delete process.env.HOME;

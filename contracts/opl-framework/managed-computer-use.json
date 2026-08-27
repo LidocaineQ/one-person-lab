@@ -2,7 +2,7 @@
   "schema": "opl_framework_managed_computer_use.v1",
   "owner": "one-person-lab",
   "product_identity_source_ref": "one-person-lab-app/contracts/app-release-qualification-input-manifest.json#runtime_payloads.kimi_cu",
-  "product_identity_source_sha256": "5a7c64110f8de56de8c464a26aaf5209f8853dc2ff32f59d069410487b74258a",
+  "product_identity_source_sha256": "6b163eae2bacee4ba07eaa639bb645c257be89a8fee8dfda52e317addc6d04f9",
   "provider_id": "kimi-cu",
   "product_name": "KimiCU",
   "version": "0.5.4",
@@ -25,7 +25,7 @@
   },
   "mcp": {
     "server_id": "kimi-cu",
-    "args": ["mcp"],
+    "args": ["mcp", "-s", "user"],
     "required_tools": [
       "list_apps",
       "get_app_state",
@@ -44,7 +44,7 @@
     "service_status_args": ["service-status"],
     "xpc_ping_args": ["xpc-ping"],
     "permission_status_args": ["doctor"],
-    "mcp_handshake": ["initialize", "tools/list"]
+    "mcp_handshake": ["initialize", "tools/list", "tools/call:list_apps"]
   },
   "permission_model": {
     "required": ["accessibility", "screen_recording"],
@@ -56,7 +56,8 @@
       "xpc_ping_passed",
       "accessibility_granted",
       "screen_recording_granted",
-      "mcp_tools_exact"
+      "mcp_tools_exact",
+      "mcp_list_apps_call_passed"
     ]
   },
   "distribution_parity": {

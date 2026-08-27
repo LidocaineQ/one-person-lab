@@ -199,7 +199,10 @@ function requiredDependencyInstallResults(
       dependency,
     );
     if (projectLocalReadiness) {
-      if (projectLocalReadiness.status !== 'current') {
+      const compatibilityReasons = projectLocalReadiness.reasons.filter(
+        (reason) => reason !== 'package_source_unavailable',
+      );
+      if (compatibilityReasons.length > 0) {
         throw new FrameworkContractError(
           'contract_shape_invalid',
           'Required project-local capability source is not ready.',
@@ -215,18 +218,20 @@ function requiredDependencyInstallResults(
           },
         );
       }
-      results.push({
-        status: input.dryRun ? 'validated_no_write' : 'project_local_ready',
-        dry_run: input.dryRun === true,
-        package_id: dependency.package_id,
-        materialization_scope: ['workspace', 'quest'],
-        source_root: projectLocalReadiness.sourceRoot,
-        native_carrier_action: 'not_dispatched',
-        authority_boundary: refsOnlyAuthorityBoundary(),
-      });
-      completed.add(dependency.package_id);
-      visiting.delete(dependency.package_id);
-      continue;
+      if (projectLocalReadiness.status === 'current') {
+        results.push({
+          status: input.dryRun ? 'validated_no_write' : 'project_local_ready',
+          dry_run: input.dryRun === true,
+          package_id: dependency.package_id,
+          materialization_scope: ['workspace', 'quest'],
+          source_root: projectLocalReadiness.sourceRoot,
+          native_carrier_action: 'not_dispatched',
+          authority_boundary: refsOnlyAuthorityBoundary(),
+        });
+        completed.add(dependency.package_id);
+        visiting.delete(dependency.package_id);
+        continue;
+      }
     }
     visiting.add(dependency.package_id);
     results.push(...requiredDependencyInstallResults(

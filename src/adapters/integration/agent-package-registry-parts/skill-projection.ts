@@ -493,7 +493,10 @@ function installedProviderSourceRoot(
   descriptor: {
     sourcePath: string;
     marketplaceSource: string | null;
-    manifest: Pick<InstalledPackageManifest, 'package_role' | 'codex_default_exposure' | 'codex_interaction_mode'>;
+    manifest: Pick<
+      InstalledPackageManifest,
+      'package_role' | 'codex_default_exposure' | 'codex_interaction_mode' | 'capability_provider'
+    >;
   },
   skillIds: string[],
   moduleId: string,
