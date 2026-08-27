@@ -167,6 +167,12 @@ export type ManagedComputerUseInspection = {
     required_tools: string[];
     observed_tools: string[];
     tools_exact: boolean | null;
+    functional_probe: {
+      tool_name: 'list_apps';
+      called: boolean;
+      passed: boolean | null;
+      result_kind: 'content' | 'structured_content' | 'empty' | 'error' | 'not_checked';
+    };
   };
   service: {
     registered: boolean | null;
@@ -390,18 +396,41 @@ function readMcpRegistration(lock: ManagedComputerUseLock, configPath: string) {
   };
 }
 
-function observeMcpTools(lock: ManagedComputerUseLock, executable: string) {
+function observeMcpCapability(lock: ManagedComputerUseLock, executable: string) {
   const fixture = process.env.OPL_KIMI_CU_MCP_TOOLS?.trim();
-  if (fixture) return fixture.split(',').map((entry) => entry.trim()).filter(Boolean);
-  if (!fs.existsSync(executable)) return [];
+  if (fixture) {
+    const passed = process.env.OPL_KIMI_CU_MCP_FUNCTIONAL_PROBE === 'passed';
+    return {
+      observedTools: fixture.split(',').map((entry) => entry.trim()).filter(Boolean),
+      functionalProbe: {
+        tool_name: 'list_apps' as const,
+        called: true,
+        passed,
+        result_kind: passed ? 'content' as const : 'error' as const,
+      },
+    };
+  }
+  if (!fs.existsSync(executable)) {
+    return {
+      observedTools: [],
+      functionalProbe: {
+        tool_name: 'list_apps' as const,
+        called: false,
+        passed: null,
+        result_kind: 'not_checked' as const,
+      },
+    };
+  }
   const request = [
     JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'opl-framework', version: '0.3.5' } } }),
     JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }),
     JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }),
+    JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'list_apps', arguments: {} } }),
   ].join('\n') + '\n';
   const result = spawnSync(executable, lock.mcp.args, { input: request, encoding: 'utf8', timeout: 5000 });
   const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
   const tools: string[] = [];
+  let functionalResult: JsonRecord | null = null;
   for (const line of output.split(/\r?\n/)) {
     try {
       const parsed = JSON.parse(line) as JsonRecord;
@@ -414,19 +443,39 @@ function observeMcpTools(lock: ManagedComputerUseLock, executable: string) {
           }
         }
       }
+      if (parsed.id === 3 && resultValue) functionalResult = resultValue;
     } catch {
       // KimiCU may emit diagnostics beside JSON-RPC frames; ignore non-frames.
     }
   }
-  return [...new Set(tools)];
+  const content = functionalResult?.content;
+  const structuredContent = functionalResult?.structuredContent;
+  const functionalPassed = Boolean(
+    functionalResult
+    && functionalResult.isError !== true
+    && (Array.isArray(content) || (structuredContent && typeof structuredContent === 'object')),
+  );
+  return {
+    observedTools: [...new Set(tools)],
+    functionalProbe: {
+      tool_name: 'list_apps' as const,
+      called: functionalResult !== null,
+      passed: functionalPassed,
+      result_kind: functionalResult?.isError === true
+        ? 'error' as const
+        : Array.isArray(content)
+          ? (content.length > 0 ? 'content' as const : 'empty' as const)
+          : structuredContent && typeof structuredContent === 'object'
+            ? 'structured_content' as const
+            : 'error' as const,
+    },
+  };
 }
 
 function parsePermissionStatus(
   output: string | null,
   label: 'Accessibility' | 'Screen Recording',
-  commandPassed: boolean,
 ): 'granted' | 'required' | 'unknown' {
-  if (commandPassed) return 'granted';
   const line = output?.split(/\r?\n/).find((entry) => entry.toLowerCase().includes(label.toLowerCase()));
   if (!line) return 'unknown';
   if (
@@ -470,17 +519,28 @@ export function inspectManagedComputerUse(options: { runExternalChecks?: boolean
   const permissionStatus = shouldProbe && executableExists
     ? runCommand(executable, lock.health.permission_status_args)
     : { ok: false, output: null };
-  const observedTools = shouldProbe && executableExists ? observeMcpTools(lock, executable) : [];
+  const mcpCapability = shouldProbe && executableExists
+    ? observeMcpCapability(lock, executable)
+    : {
+        observedTools: [],
+        functionalProbe: {
+          tool_name: 'list_apps' as const,
+          called: false,
+          passed: null,
+          result_kind: 'not_checked' as const,
+        },
+      };
+  const observedTools = mcpCapability.observedTools;
   const toolsExact = observedTools.length > 0
     && lock.mcp.required_tools.every((tool) => observedTools.includes(tool))
     && observedTools.every((tool) => lock.mcp.required_tools.includes(tool));
   const registered = mcpRegistration.registered && identityVerified;
   const serviceRegistered = service.output?.includes('status=1') === true;
   const accessibilityPermission = shouldProbe && executableExists
-    ? parsePermissionStatus(permissionStatus.output, 'Accessibility', permissionStatus.ok)
+    ? parsePermissionStatus(permissionStatus.output, 'Accessibility')
     : 'unknown';
   const screenRecordingPermission = shouldProbe && executableExists
-    ? parsePermissionStatus(permissionStatus.output, 'Screen Recording', permissionStatus.ok)
+    ? parsePermissionStatus(permissionStatus.output, 'Screen Recording')
     : 'unknown';
   const permissionGranted = accessibilityPermission === 'granted'
     && screenRecordingPermission === 'granted';
@@ -502,7 +562,8 @@ export function inspectManagedComputerUse(options: { runExternalChecks?: boolean
     && serviceRegistered
     && xpc.ok
     && permissionGranted
-    && toolsExact;
+    && toolsExact
+    && mcpCapability.functionalProbe.passed === true;
   const status: ManagedComputerUseInspection['status'] = !supportedPlatform
     ? 'unsupported_platform'
     : !shouldProbe && identityVerified && registered
@@ -555,6 +616,7 @@ export function inspectManagedComputerUse(options: { runExternalChecks?: boolean
       required_tools: lock.mcp.required_tools,
       observed_tools: observedTools,
       tools_exact: shouldProbe ? toolsExact : null,
+      functional_probe: mcpCapability.functionalProbe,
     },
     service: {
       registered: shouldProbe ? Boolean(serviceRegistered) : null,
@@ -696,8 +758,8 @@ export function reconcileManagedComputerUse(actionId: ManagedComputerUseActionId
     runCommand(executable, ['uninstall']);
   }
   if (!before.installed || actionId === 'settings_reinstall_computer_use') materializeArchive(lock, installPath);
-  runCommand(executable, ['install']);
   reconcileMcpRegistration(lock, executable);
+  runCommand(executable, ['install']);
   return inspectManagedComputerUse();
 }
 
