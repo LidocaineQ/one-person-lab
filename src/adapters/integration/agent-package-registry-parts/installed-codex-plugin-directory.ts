@@ -116,11 +116,15 @@ export type InstalledPackageDescriptor = {
 };
 
 export function isProjectLocalCapabilityPackage(
-  manifest: Pick<InstalledPackageManifest, 'package_role' | 'codex_default_exposure' | 'codex_interaction_mode'>,
+  manifest: Pick<
+    InstalledPackageManifest,
+    'package_role' | 'codex_default_exposure' | 'codex_interaction_mode' | 'capability_provider'
+  >,
 ) {
   return manifest.package_role === 'capability_package'
     && manifest.codex_default_exposure === false
-    && manifest.codex_interaction_mode === 'headless_internal';
+    && manifest.codex_interaction_mode === 'headless_internal'
+    && (manifest.capability_provider?.consumer_profiles?.length ?? 0) > 0;
 }
 
 function existingDirectory(value: string | null | undefined) {
@@ -191,18 +195,21 @@ export function projectLocalCapabilityDependencyReadiness(
     dependency.module_id,
     requiredSkillIds,
   );
-  const reasons = [
+  const compatibilityReasons = [
     ...(provider?.capability_abi === dependency.capability_abi ? [] : ['capability_abi_mismatch']),
     ...(missingRequiredExportIds.length > 0 ? ['required_exports_missing'] : []),
     ...(missingRequiredModuleIds.length > 0 ? ['required_modules_missing'] : []),
+  ];
+  const reasons = [
+    ...compatibilityReasons,
     ...(!sourceRoot ? ['package_source_unavailable'] : []),
   ];
   return {
-    status: reasons.length === 0
-      ? 'current' as const
-      : !sourceRoot && missingRequiredExportIds.length === 0 && missingRequiredModuleIds.length === 0
-        ? 'missing' as const
-        : 'incompatible' as const,
+    status: compatibilityReasons.length > 0
+      ? 'incompatible' as const
+      : sourceRoot
+        ? 'current' as const
+        : 'missing' as const,
     sourceRoot,
     missingRequiredExportIds,
     missingRequiredModuleIds,

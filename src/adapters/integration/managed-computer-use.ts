@@ -519,7 +519,10 @@ export function inspectManagedComputerUse(options: { runExternalChecks?: boolean
   const permissionStatus = shouldProbe && executableExists
     ? runCommand(executable, lock.health.permission_status_args)
     : { ok: false, output: null };
-  const mcpCapability = shouldProbe && executableExists
+  const mcpCapability: {
+    observedTools: string[];
+    functionalProbe: ManagedComputerUseInspection['mcp']['functional_probe'];
+  } = shouldProbe && executableExists
     ? observeMcpCapability(lock, executable)
     : {
         observedTools: [],

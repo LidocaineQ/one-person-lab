@@ -40,7 +40,7 @@ export function packageSnapshot(input: { includeAvailable?: boolean } = {}): Pac
   const installed = new Map(
     [...discoveredInstalled].filter(([, descriptor]) => (
       installedDescriptorMatchesConfiguredCarrier(descriptor)
-      && !isProjectLocalCapabilityPackage(descriptor.manifest)
+      && descriptor.carrier_readback.kind !== 'project_local_owner_projection'
     )),
   );
   const descriptors = input.includeAvailable
@@ -182,15 +182,26 @@ function dependencyReadiness(
     const projectLocal = owner
       ? projectLocalCapabilityDependencyReadiness(owner, dependency)
       : null;
+    const projectLocalCompatibilityReasons = projectLocal?.reasons.filter(
+      (reason) => reason !== 'package_source_unavailable',
+    ) ?? [];
     const nativePresent = candidate?.readiness.installed === true;
     const present = nativePresent || Boolean(projectLocal && projectLocal.status !== 'missing');
     const nativeCallable = nativePresent
       && candidate?.readiness.physical_status === 'available'
       && (candidate.readiness.callability === 'callable'
         || candidate.readiness.projection_callability === 'callable');
-    const callable = projectLocal?.status === 'current' || nativeCallable;
+    const nativeProjectLocalFallback = Boolean(
+      projectLocal
+      && projectLocalCompatibilityReasons.length === 0
+      && projectLocal.reasons.includes('package_source_unavailable')
+      && nativeCallable,
+    );
+    const callable = projectLocal
+      ? projectLocal.status === 'current' || nativeProjectLocalFallback
+      : nativeCallable;
     const reasons = projectLocal
-      ? projectLocal.reasons
+      ? callable ? [] : projectLocal.reasons
       : !present
         ? ['package_missing']
         : callable
