@@ -299,6 +299,32 @@ test('gateway client preserves typed failures for 2FA and non-success HTTP 200 e
   });
 });
 
+test('gateway client recovers after two consecutive transient control-plane failures', async () => {
+  let settingsRequests = 0;
+  let loginRequests = 0;
+  await withControlServer((request, response) => {
+    if (request.url === '/api/v1/settings/public') {
+      settingsRequests += 1;
+      if (settingsRequests < 3) return json(response, { code: 503 }, 503);
+      return json(response, { code: 0, data: { server_timezone: 'Asia/Shanghai' } });
+    }
+    if (request.url === '/api/v1/auth/login') {
+      loginRequests += 1;
+      if (loginRequests < 3) return json(response, { code: 503 }, 503);
+      return json(response, { code: 0, data: { access_token: 'access', refresh_token: 'refresh' } });
+    }
+    return json(response, { code: 404 }, 404);
+  }, async () => {
+    const settings = await inspectGatewayPublicSettings();
+    assert.equal(settings.server_timezone, 'Asia/Shanghai');
+    assert.equal(settingsRequests, 3);
+
+    const session = await loginGateway('user@example.test', 'secret');
+    assert.deepEqual(session, { access_token: 'access', refresh_token: 'refresh' });
+    assert.equal(loginRequests, 3);
+  });
+});
+
 test('gateway client bounds chunked oversized responses without retrying the current request', async () => {
   const previousLimit = process.env.OPL_CONNECT_MAX_RESPONSE_BODY_BYTES;
   let oversized = true;

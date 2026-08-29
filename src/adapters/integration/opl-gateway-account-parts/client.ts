@@ -18,6 +18,16 @@ type RequestOptions = {
 };
 
 const DEFAULT_GATEWAY_MAX_RESPONSE_BODY_BYTES = 1024 * 1024;
+const GATEWAY_TRANSIENT_ATTEMPTS = 5;
+const GATEWAY_RETRY_BASE_DELAY_MS = 500;
+
+function delay(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function waitBeforeGatewayRetry(failedAttempt: number) {
+  return delay(GATEWAY_RETRY_BASE_DELAY_MS * failedAttempt);
+}
 
 function gatewayError(code: string, message: string, status?: number) {
   return new FrameworkContractError('launcher_failed', message, {
@@ -92,7 +102,7 @@ function errorCode(status: number) {
 
 async function request(path: string, options: RequestOptions = {}) {
   const method = options.method ?? 'GET';
-  const attempts = method === 'GET' && options.safeGetRetry !== false ? 2 : 1;
+  const attempts = method === 'GET' && options.safeGetRetry !== false ? GATEWAY_TRANSIENT_ATTEMPTS : 1;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10_000);
@@ -110,7 +120,10 @@ async function request(path: string, options: RequestOptions = {}) {
         ...(options.body ? { body: JSON.stringify(options.body) } : {}),
       });
       if (!response.ok) {
-        if (method === 'GET' && response.status >= 500 && attempt + 1 < attempts) continue;
+        if (method === 'GET' && response.status >= 500 && attempt + 1 < attempts) {
+          await waitBeforeGatewayRetry(attempt + 1);
+          continue;
+        }
         throw gatewayError(errorCode(response.status), 'OPL Gateway rejected the request.', response.status);
       }
       const raw = await readResponseBody(response, maxResponseBodyBytes(DEFAULT_GATEWAY_MAX_RESPONSE_BODY_BYTES));
@@ -132,7 +145,10 @@ async function request(path: string, options: RequestOptions = {}) {
       if (error instanceof ResponseBodyTooLargeError) {
         throw gatewayError('gateway_response_too_large', 'OPL Gateway returned an oversized response.');
       }
-      if (method === 'GET' && attempt + 1 < attempts) continue;
+      if (method === 'GET' && attempt + 1 < attempts) {
+        await waitBeforeGatewayRetry(attempt + 1);
+        continue;
+      }
       const timeoutFailure = error instanceof Error && error.name === 'AbortError';
       throw gatewayError(
         timeoutFailure ? 'network_timeout' : 'network_unreachable',
@@ -148,18 +164,12 @@ async function request(path: string, options: RequestOptions = {}) {
 
 export type GatewaySession = { access_token: string; refresh_token: string };
 
-const GATEWAY_LOGIN_RETRY_DELAY_MS = 500;
-
 function retryableGatewayLoginFailure(error: unknown) {
   if (!(error instanceof FrameworkContractError)) return false;
   const reasonCode = error.details?.reason_code;
   return reasonCode === 'network_timeout'
     || reasonCode === 'network_unreachable'
     || reasonCode === 'gateway_unavailable';
-}
-
-function delay(milliseconds: number) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 export async function inspectGatewayPublicSettings() {
@@ -172,8 +182,8 @@ export async function inspectGatewayPublicSettings() {
 }
 
 export async function loginGateway(email: string, password: string): Promise<GatewaySession> {
-  let value: Record<string, unknown>;
-  for (let attempt = 0; ; attempt += 1) {
+  let value: Record<string, unknown> | null = null;
+  for (let attempt = 0; attempt < GATEWAY_TRANSIENT_ATTEMPTS; attempt += 1) {
     try {
       value = record(await request('/auth/login', { method: 'POST', body: { email, password } }));
       break;
@@ -181,13 +191,14 @@ export async function loginGateway(email: string, password: string): Promise<Gat
       if (error instanceof FrameworkContractError && error.details?.http_status === 401) {
         throw gatewayError('invalid_credentials', 'OPL Gateway email or password is incorrect.', 401);
       }
-      if (attempt === 0 && retryableGatewayLoginFailure(error)) {
-        await delay(GATEWAY_LOGIN_RETRY_DELAY_MS);
+      if (attempt + 1 < GATEWAY_TRANSIENT_ATTEMPTS && retryableGatewayLoginFailure(error)) {
+        await waitBeforeGatewayRetry(attempt + 1);
         continue;
       }
       throw error;
     }
   }
+  if (!value) throw gatewayError('gateway_unavailable', 'OPL Gateway could not be reached.');
   const accessToken = text(value.access_token ?? value.accessToken ?? value.token);
   const refreshToken = text(value.refresh_token ?? value.refreshToken);
   if (value.requires_2fa === true || text(value.temp_token ?? value.tempToken)) {
