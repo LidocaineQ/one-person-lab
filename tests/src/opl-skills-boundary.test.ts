@@ -6,7 +6,6 @@ import { test } from 'node:test';
 
 import { readFamilySkillPacks } from '../../src/adapters/integration/opl-skills.ts';
 import { normalizeDomainSelection } from '../../src/adapters/integration/opl-skills-parts/registry.ts';
-import { resolveFamilyWorkspaceRootFromRepoRoot } from '../../src/kernel/family-workspace-root.ts';
 import { resolveStandardAgent } from '../../src/kernel/standard-agent-registry.ts';
 import { registerOplFamilyCodexPlugins } from '../../src/adapters/integration/system-installation/codex-plugin-registry.ts';
 import type { OplModuleId } from '../../src/adapters/integration/system-installation/shared.ts';
@@ -99,13 +98,33 @@ test('OBF resolves to OPL Book Forge through the standard agent registry aliases
 test('OPL system skill sync catalog excludes MDS stage skills while exposing ScholarSkills as a target-scoped capability pack', () => {
   const previousFamilyWorkspaceRoot = process.env.OPL_FAMILY_WORKSPACE_ROOT;
   const previousModuleSourceMode = process.env.OPL_MODULE_SOURCE_MODE;
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-scholarskills-catalog-'));
+  const repoRoot = process.cwd();
+  const packageProjection = JSON.parse(fs.readFileSync(
+    path.join(repoRoot, 'contracts', 'opl-framework', 'packages', 'mas-scholar-skills.json'),
+    'utf8',
+  ));
+  const scholarRoot = path.join(fixtureRoot, 'mas-scholar-skills');
+  const allSkillIds = packageProjection.exports.all_skill_ids as string[];
+  const defaultSkillIds = new Set(packageProjection.exports.default_materialized_skill_ids as string[]);
+  const professionalSkillIds = allSkillIds.filter((skillId) => !defaultSkillIds.has(skillId));
+  fs.mkdirSync(scholarRoot, { recursive: true });
+  fs.writeFileSync(path.join(scholarRoot, 'opl-package.json'), `${JSON.stringify({
+    exports: packageProjection.exports,
+    codex_surface: packageProjection.codex_surface,
+  }, null, 2)}\n`);
+  for (const skillId of allSkillIds) {
+    const skillRoot = path.join(scholarRoot, 'skills', skillId);
+    fs.mkdirSync(skillRoot, { recursive: true });
+    fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), `# ${skillId}\n`);
+  }
   let catalog!: ReturnType<typeof readFamilySkillPacks>['skill_catalog'];
   try {
-    const repoRoot = process.cwd();
-    process.env.OPL_FAMILY_WORKSPACE_ROOT = resolveFamilyWorkspaceRootFromRepoRoot(repoRoot);
+    process.env.OPL_FAMILY_WORKSPACE_ROOT = fixtureRoot;
     process.env.OPL_MODULE_SOURCE_MODE = 'git_checkout';
     catalog = readFamilySkillPacks().skill_catalog;
   } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
     if (previousFamilyWorkspaceRoot === undefined) {
       delete process.env.OPL_FAMILY_WORKSPACE_ROOT;
     } else {
@@ -139,9 +158,10 @@ test('OPL system skill sync catalog excludes MDS stage skills while exposing Sch
       assert.equal('default_target_project' in pack.capability_plugin_distribution, false);
       assert.equal(pack.capability_plugin_distribution?.domain_module, false);
       assert.equal(pack.professional_skill_exposure.status, 'passed');
-      assert.equal(pack.professional_skill_exposure.professional_skill_count, 35);
-      assert.equal(pack.professional_skill_exposure.repo_internal_professional_skill_count, 35);
+      assert.equal(pack.professional_skill_exposure.professional_skill_count, professionalSkillIds.length);
+      assert.equal(pack.professional_skill_exposure.repo_internal_professional_skill_count, professionalSkillIds.length);
       assert.equal(pack.professional_skill_exposure.default_codex_exposed_count, 0);
+      assert.deepEqual(pack.professional_skill_exposure.blockers, []);
       assert.deepEqual(pack.command_preview, [
         'opl',
         'packages',

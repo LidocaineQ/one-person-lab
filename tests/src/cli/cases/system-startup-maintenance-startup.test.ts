@@ -361,7 +361,7 @@ test('ScholarSkills sync rejects identity drift and unmanaged skill collisions',
     const codexCollisionRoot = path.join(homeRoot, 'codex-home', 'skills', 'mas-scholar-skills');
     fs.mkdirSync(codexCollisionRoot, { recursive: true });
     fs.writeFileSync(path.join(codexCollisionRoot, 'USER.md'), 'preserve codex skill\n', 'utf8');
-    const codexCollision = runCliFailure([
+    const codexSkip = runCli([
       'connect',
       'sync-skills',
       '--domain',
@@ -369,9 +369,12 @@ test('ScholarSkills sync rejects identity drift and unmanaged skill collisions',
       '--scope',
       'codex',
     ], env);
-    assert.equal(codexCollision.status, 2);
-    assert.equal(codexCollision.payload.error.code, 'contract_shape_invalid');
-    assert.equal(codexCollision.payload.error.details.skill_id, 'mas-scholar-skills');
+    assert.equal(codexSkip.skill_sync.summary.synced, 0);
+    assert.equal(codexSkip.skill_sync.summary.skipped, 1);
+    assert.equal(codexSkip.skill_sync.packs[0].sync_status, 'skipped');
+    assert.equal(codexSkip.skill_sync.packs[0].installer_result.source, 'project_local_only');
+    assert.deepEqual(codexSkip.skill_sync.packs[0].installer_result.allowed_scopes, ['workspace', 'quest']);
+    assert.equal(codexSkip.skill_sync.packs[0].installer_result.global_codex_write, false);
     assert.equal(
       fs.readFileSync(path.join(codexCollisionRoot, 'USER.md'), 'utf8'),
       'preserve codex skill\n',

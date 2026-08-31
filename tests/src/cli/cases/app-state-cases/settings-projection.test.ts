@@ -487,7 +487,7 @@ exit 0
   fs.chmodSync(executable, 0o755);
   fs.writeFileSync(path.join(codexHome, 'config.toml'), `[mcp_servers.kimi-cu]
 command = "${executable}"
-args = ["mcp"]
+args = ["mcp", "-s", "user"]
 enabled = true
 `);
 
