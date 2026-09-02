@@ -2,7 +2,12 @@ import {
   buildFoundryTemporalActivities,
   codexStageActivity,
   createProductionFoundryKernel,
+  domainHandlerDispatchActivity,
+  schedulerTickActivity,
   stageQualityAttemptMaterializeActivity,
+  stageQualityAttemptSyncActivity,
+  stageQualityCycleProjectActivity,
+  stageQualityReviewReceiptActivity,
   stageRunRouteLaunchActivity,
 } from '../adapters/execution/index.ts';
 import {
@@ -32,9 +37,14 @@ export function buildCordisTemporalActivities() {
           createAgentExecutorRequest: createCordisAgentExecutorRequest,
         }),
       }),
+    domainHandlerDispatchActivity,
+    schedulerTickActivity,
     stageQualityAttemptMaterializeActivity: (
       input: Parameters<typeof stageQualityAttemptMaterializeActivity>[0],
     ) => stageQualityAttemptMaterializeActivity(input, { createStageRouteComposition }),
+    stageQualityAttemptSyncActivity,
+    stageQualityCycleProjectActivity,
+    stageQualityReviewReceiptActivity,
     stageRunRouteLaunchActivity: (
       input: Parameters<typeof stageRunRouteLaunchActivity>[0],
     ) => stageRunRouteLaunchActivity(input, { createStageRouteComposition }),

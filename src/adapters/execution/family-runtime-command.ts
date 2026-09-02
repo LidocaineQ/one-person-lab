@@ -98,6 +98,12 @@ export type FamilyRuntimeCommandInput =
   }
   | { mode: 'stage_run_query'; workflowId: string }
   | {
+    mode: 'stage_run_recover_closeout';
+    stageRunId: string;
+    stageAttemptId: string;
+    retryTerminalRecovery: boolean;
+  }
+  | {
     mode: 'stage_artifact';
     input: {
       action: 'open' | 'commit' | 'status' | 'explain' | 'rebuild' | 'promote' | 'gc' | 'restore' | 'validate' | 'conformance' | 'workbench';

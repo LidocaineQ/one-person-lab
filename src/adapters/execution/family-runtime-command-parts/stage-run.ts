@@ -2,14 +2,37 @@ import { FrameworkContractError } from '../../../kernel/contract-validation.ts';
 import type { FamilyRuntimeCommandInput } from '../family-runtime-command.ts';
 
 export function parseStageRunArgs(rest: string[]): FamilyRuntimeCommandInput | null {
-  const [action, identityOrFlag, maybePath] = rest;
+  const [action, identityOrFlag, maybeFlag, maybeAttempt, retryFlag] = rest;
   if (action === 'query') {
-    if (!identityOrFlag || maybePath) {
+    if (!identityOrFlag || maybeFlag || maybeAttempt) {
       throw new FrameworkContractError('cli_usage_error', 'family-runtime stage-run query requires one workflow id.', {
         usage: 'opl family-runtime stage-run query <workflow_id>',
       });
     }
     return { mode: 'stage_run_query', workflowId: identityOrFlag };
+  }
+  if (action === 'recover-closeout') {
+    if (
+      !identityOrFlag
+      || maybeFlag !== '--attempt'
+      || !maybeAttempt
+      || (retryFlag !== undefined && retryFlag !== '--retry-terminal-recovery')
+      || rest.length > 5
+    ) {
+      throw new FrameworkContractError(
+        'cli_usage_error',
+        'family-runtime stage-run recover-closeout requires a StageRun id and an Attempt id.',
+        {
+          usage: 'opl family-runtime stage-run recover-closeout <stage_run_id> --attempt <attempt_id> [--retry-terminal-recovery]',
+        },
+      );
+    }
+    return {
+      mode: 'stage_run_recover_closeout',
+      stageRunId: identityOrFlag,
+      stageAttemptId: maybeAttempt,
+      retryTerminalRecovery: retryFlag === '--retry-terminal-recovery',
+    };
   }
   return null;
 }

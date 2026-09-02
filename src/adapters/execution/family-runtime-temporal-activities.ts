@@ -462,6 +462,13 @@ function closeoutRouteImpactForTemporalResult(
   closeout: ReturnType<typeof normalizeTypedStageCloseoutPacket>,
 ) {
   const routeImpact = closeout.route_impact ? { ...closeout.route_impact } : {};
+  if (isRecord(routeImpact.stage_route_decision)) {
+    const {
+      reason: _ignoredRecommendationReason,
+      ...stageRouteDecision
+    } = routeImpact.stage_route_decision;
+    routeImpact.stage_route_decision = stageRouteDecision;
+  }
   if (!isRecord(routeImpact.user_stage_log) && isRecord(closeout.user_stage_log)) {
     routeImpact.user_stage_log = compactDomainStageLogForRouteImpact(closeout.user_stage_log) ?? closeout.user_stage_log;
   }
@@ -1273,6 +1280,7 @@ export async function stageQualityAttemptMaterializeActivity(
     const requestedUseBoundaryId = stableId('package-use', [
       'stage_quality_attempt',
       stageRun.stage_run_id,
+      stageRun.recovery_resume ? readString(input.stage_run_workflow_run_id) : null,
       input.quality_cycle_id,
       input.attempt_role,
       input.quality_round_index,
@@ -2056,10 +2064,13 @@ export async function stageQualityCycleProjectActivity(
       });
       return projectTemporalStageRunQualityCycle(db, input.state);
     });
-    recordStageRunClosed(db, {
-      stageRunId: input.stage_run.stage_run_id,
-      terminalStatus: input.state.status,
-    });
+    const launch = findStageRunLaunch(db, input.stage_run.stage_run_id);
+    if (launch?.launch_status !== 'closed') {
+      recordStageRunClosed(db, {
+        stageRunId: input.stage_run.stage_run_id,
+        terminalStatus: input.state.status,
+      });
+    }
     return projected;
   } finally {
     db.close();

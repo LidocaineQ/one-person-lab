@@ -239,6 +239,20 @@ test('Temporal StageRun start Search Attributes use the same three-key index bud
   });
 });
 
+test('Cordis Temporal activity projection registers the complete StageRun and scheduler activity set', () => {
+  const projection = buildCordisTemporalActivities();
+
+  for (const activityName of [
+    'domainHandlerDispatchActivity',
+    'schedulerTickActivity',
+    'stageQualityAttemptSyncActivity',
+    'stageQualityCycleProjectActivity',
+    'stageQualityReviewReceiptActivity',
+  ] as const) {
+    assert.equal(projection[activityName], activities[activityName]);
+  }
+});
+
 test('Temporal StageAttemptWorkflow retries short idempotent activities without retrying Codex activity', async () => {
   const testEnv = await createTemporalTestWorkflowEnvironment();
   const taskQueue = `opl-stage-attempt-short-retry-test-${Date.now()}`;

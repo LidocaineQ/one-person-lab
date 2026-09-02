@@ -101,6 +101,8 @@ import { materializeReviewerInputSnapshot } from './family-runtime-reviewer-inpu
 import { persistReviewEvidenceArtifactCandidate } from './family-runtime-review-evidence-artifact.ts';
 import { preflightFamilyRuntimeDomainLifecycleAdmission } from './family-runtime-domain-lifecycle-admission.ts';
 import { requireRuntimeExecutionScopeMutationAllowed } from './family-runtime-execution-scope-persistence.ts';
+import { projectRecoveredStageRunQuery } from './family-runtime-stage-run-query-projection.ts';
+import { recoverStageRunCloseoutProjection } from './family-runtime-stage-run-closeout-recovery.ts';
 function parsedRuntimeRecord(value: unknown) {
   if (typeof value !== 'string' || !value.trim()) return null;
   try {
@@ -374,6 +376,10 @@ export async function runFamilyRuntime(
         input: Parameters<typeof launchRegisteredStageRun>[0]['stageRunInput'],
         context: { paths: ReturnType<typeof familyRuntimePaths> },
       ) => Promise<Record<string, unknown>>;
+      startRecoveryWorkflow?: (
+        input: Parameters<typeof launchRegisteredStageRun>[0]['stageRunInput'],
+        context: { paths: ReturnType<typeof familyRuntimePaths> },
+      ) => Promise<Record<string, unknown>>;
       describeWorkflow?: (
         input: Parameters<typeof launchRegisteredStageRun>[0]['stageRunInput'],
         context: { paths: ReturnType<typeof familyRuntimePaths> },
@@ -489,7 +495,38 @@ export async function runFamilyRuntime(
             workflowId: parsed.workflowId,
             paths,
           });
-      return { version: 'g2', family_runtime_stage_run_query: stage_run_query };
+      const projectedStageRunQuery = isRecord(stage_run_query)
+        ? projectRecoveredStageRunQuery(db, stage_run_query)
+        : stage_run_query;
+      return { version: 'g2', family_runtime_stage_run_query: projectedStageRunQuery };
+    }
+    if (parsed.mode === 'stage_run_recover_closeout') {
+      const recovery = await recoverStageRunCloseoutProjection(db, {
+        stageRunId: parsed.stageRunId,
+        stageAttemptId: parsed.stageAttemptId,
+      }, {
+        retryTerminalRecovery: parsed.retryTerminalRecovery,
+        describeWorkflow: async (workflowInput) =>
+          options.stageRunRuntime?.describeWorkflow
+            ? await options.stageRunRuntime.describeWorkflow(workflowInput, { paths })
+            : await (await temporalProviderModule()).describeTemporalStageRunWorkflow(
+                workflowInput,
+                { paths },
+              ),
+        startWorkflow: async (workflowInput) =>
+          options.stageRunRuntime?.startRecoveryWorkflow
+            ? await options.stageRunRuntime.startRecoveryWorkflow(workflowInput, { paths })
+            : await (await temporalProviderModule()).startTemporalStageRunRecoveryWorkflow(
+                workflowInput,
+                { paths },
+              ),
+      });
+      insertEvent(db, {
+        eventType: 'stage_run_closeout_recovered',
+        source: 'opl-cli',
+        payload: recovery,
+      });
+      return { version: 'g2', family_runtime_stage_run_closeout_recovery: recovery };
     }
     if (parsed.mode === 'status') {
       return await buildFamilyRuntimeStatusPayload(

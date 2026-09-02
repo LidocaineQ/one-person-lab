@@ -62,7 +62,7 @@ export type CordisAgentExecutorService = {
 export {
   runPackNativeHelperExecutionCommand,
 } from './pack-native-helper-execution.ts';
-export { buildCodexCliPreview, buildCodexExecArgs, parseCodexExecOutput, resolveCodexBinary, runCodexCommand, runCodexCommandStreaming } from './codex.ts';
+export { buildCodexCliPreview, buildCodexExecArgs, buildCodexExecResumeArgs, parseCodexExecOutput, resolveCodexBinary, runCodexCommand, runCodexCommandStreaming } from './codex.ts';
 export type { CodexExecEvent } from './codex.ts';
 export { listCodexAppRuntimeEvidenceReceipts } from './codex-app-runtime-evidence-ledger.ts';
 export { runFamilyRuntime } from './family-runtime.ts';
@@ -71,7 +71,12 @@ export type { CodexStageRunnerInput } from './family-runtime-codex-stage-runner.
 export type { AgentExecutorRequestCompositionFactory } from './composition-factory-ports.ts';
 export {
   codexStageActivity,
+  domainHandlerDispatchActivity,
+  schedulerTickActivity,
   stageQualityAttemptMaterializeActivity,
+  stageQualityAttemptSyncActivity,
+  stageQualityCycleProjectActivity,
+  stageQualityReviewReceiptActivity,
   stageRunRouteLaunchActivity,
 } from './family-runtime-temporal-activities.ts';
 export { buildFoundryTemporalActivities } from './foundry-temporal-activities.ts';
