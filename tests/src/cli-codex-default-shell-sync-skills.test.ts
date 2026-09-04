@@ -455,8 +455,8 @@ test('opl connect sync-skills materializes only the ScholarSkills aggregate by d
 
     assert.equal(pack.sync_status, 'synced');
     assert.deepEqual(localInstall.materialized_skill_ids, ['mas-scholar-skills']);
-    assert.equal(fs.existsSync(path.join(targetWorkspace, '.codex', 'skills', 'mas-scholar-skills', 'SKILL.md')), true);
-    assert.equal(fs.existsSync(path.join(targetWorkspace, '.codex', 'skills', 'medical-single-cell-modeling')), false);
+    assert.equal(fs.existsSync(path.join(targetWorkspace, '.agents', 'skills', 'mas-scholar-skills', 'SKILL.md')), true);
+    assert.equal(fs.existsSync(path.join(targetWorkspace, '.agents', 'skills', 'medical-single-cell-modeling')), false);
   } finally {
     fs.rmSync(captureDir, { recursive: true, force: true });
     fs.rmSync(workspaceRoot, { recursive: true, force: true });
@@ -492,7 +492,7 @@ test('opl connect sync-skills materializes one explicitly selected ScholarSkills
       'medical-single-cell-modeling',
     ]);
     assert.equal(
-      fs.existsSync(path.join(targetWorkspace, '.codex', 'skills', 'medical-single-cell-modeling', 'SKILL.md')),
+      fs.existsSync(path.join(targetWorkspace, '.agents', 'skills', 'medical-single-cell-modeling', 'SKILL.md')),
       true,
     );
   } finally {

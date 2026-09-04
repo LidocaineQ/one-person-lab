@@ -379,7 +379,7 @@ test('native package launch projects Workspace Skills without private lifecycle 
     );
     assert.equal(fs.existsSync(path.join(env.OPL_STATE_DIR, 'agent-package-locks.json')), false);
     assert.equal(fs.existsSync(path.join(env.OPL_STATE_DIR, 'agent-package-lifecycle.sqlite')), false);
-    assert.equal(fs.existsSync(path.join(workspace, '.codex', 'skills')), true);
+    assert.equal(fs.existsSync(path.join(workspace, '.agents', 'skills')), true);
 
     const startFailure = runCliFailure([
       'family-runtime', 'attempt', 'start', first.stage_attempt_id,

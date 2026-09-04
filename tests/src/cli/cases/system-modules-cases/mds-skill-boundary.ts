@@ -14,7 +14,7 @@ test('MDS runtime dependency install preserves project-local skills without sync
   const turnkeyLogPath = path.join(homeRoot, 'mds-turnkey.log');
   const medDeepScientistRemote = createGitModuleRemoteFixture('med-deepscientist', {
     extraFiles: {
-      '.codex/skills/scout/SKILL.md': [
+      '.agents/skills/scout/SKILL.md': [
         '---',
         'name: scout',
         'description: MAS/MDS project-local scout stage fixture.',
@@ -71,7 +71,7 @@ printf 'health\\n' >> ${JSON.stringify(turnkeyLogPath)}
     assert.equal(install.module_action.turnkey.health_check.status, 'completed');
     assert.deepEqual(fs.readFileSync(turnkeyLogPath, 'utf8').trim().split('\n'), ['bootstrap', 'health']);
     assert.equal(
-      fs.existsSync(path.join(install.module_action.module.checkout_path, '.codex', 'skills', 'scout', 'SKILL.md')),
+      fs.existsSync(path.join(install.module_action.module.checkout_path, '.agents', 'skills', 'scout', 'SKILL.md')),
       true,
     );
     assert.equal(fs.existsSync(path.join(homeRoot, 'codex-home', 'skills', 'scout', 'SKILL.md')), false);

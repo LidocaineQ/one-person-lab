@@ -454,7 +454,7 @@ if (args.join(' ') === 'plugin list --json') {
     assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-lifecycle-ledger.json')), false);
     assert.equal(fs.existsSync(path.join(stateRoot, 'agent-package-lifecycle.sqlite')), false);
     assert.equal(
-      fs.existsSync(path.join(workspace, '.codex', 'skills', 'rca-fixture-method', 'SKILL.md')),
+      fs.existsSync(path.join(workspace, '.agents', 'skills', 'rca-fixture-method', 'SKILL.md')),
       true,
     );
   } finally {
@@ -494,7 +494,7 @@ test('MAS launch projects Workspace Skills without private lifecycle materializa
       '--entry-url', entryUrl,
       '--manifest-command', buildManifestCommand(loadFamilyManifestFixtures().medautoscience),
     ], env);
-    const skillsRoot = path.join(workspace, '.codex', 'skills');
+    const skillsRoot = path.join(workspace, '.agents', 'skills');
     const lifecycleLedger = path.join(stateRoot, 'agent-package-lifecycle-ledger.json');
     assert.equal(fs.existsSync(skillsRoot), false);
     assert.equal(fs.existsSync(lifecycleLedger), false);
@@ -563,6 +563,7 @@ test('bound quest root reads MAS native carrier without private lifecycle writes
     assert.equal(bound.binding.workspace_path, quest);
     assert.equal(boundProject.active_binding.binding_id, bound.binding.binding_id);
     assert.equal(boundProject.bindings[0].workspace_path_currentness.status, 'current');
+    assert.equal(fs.existsSync(path.join(quest, '.agents', 'skills')), false);
     assert.equal(fs.existsSync(path.join(quest, '.codex', 'skills')), false);
     const current = runCli([
       'packages', 'status', '--package-id', 'mas',
@@ -611,6 +612,8 @@ test('workspace bindings reuse the native MAS carrier without per-workspace Skil
         '--manifest-command', buildManifestCommand(loadFamilyManifestFixtures().medautoscience),
       ], env);
     }
+    assert.equal(fs.existsSync(path.join(workspaceA, '.agents', 'skills')), false);
+    assert.equal(fs.existsSync(path.join(workspaceB, '.agents', 'skills')), false);
     assert.equal(fs.existsSync(path.join(workspaceA, '.codex', 'skills')), false);
     assert.equal(fs.existsSync(path.join(workspaceB, '.codex', 'skills')), false);
     runCli([
@@ -618,6 +621,7 @@ test('workspace bindings reuse the native MAS carrier without per-workspace Skil
       '--entry-command', 'printf launched',
       '--manifest-command', buildManifestCommand(loadFamilyManifestFixtures().medautoscience),
     ], env);
+    assert.equal(fs.existsSync(path.join(workspaceC, '.agents', 'skills')), false);
     assert.equal(fs.existsSync(path.join(workspaceC, '.codex', 'skills')), false);
 
     runCli(['workspace', 'activate', '--project', 'medautoscience', '--path', workspaceA], env);
@@ -646,6 +650,8 @@ test('workspace bindings reuse the native MAS carrier without per-workspace Skil
     runCli([
       'workspace', 'activate', '--project', 'medautoscience', '--path', workspaceA,
     ], env);
+    assert.equal(fs.existsSync(path.join(workspaceA, '.agents', 'skills')), false);
+    assert.equal(fs.existsSync(path.join(workspaceB, '.agents', 'skills')), false);
     assert.equal(fs.existsSync(path.join(workspaceA, '.codex', 'skills')), false);
     assert.equal(fs.existsSync(path.join(workspaceB, '.codex', 'skills')), false);
   } finally {

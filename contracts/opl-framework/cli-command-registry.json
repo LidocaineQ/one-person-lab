@@ -2909,7 +2909,7 @@
           "flag": "--target-root",
           "value_kind": "string",
           "required": true,
-          "summary": "Project, workspace, or quest root that receives .codex/skills/<skill-id>."
+          "summary": "Project, workspace, or quest root that receives .agents/skills/<skill-id>."
         }
       ],
       "output_schema": {

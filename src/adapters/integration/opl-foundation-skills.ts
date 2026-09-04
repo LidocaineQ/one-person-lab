@@ -2,8 +2,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FrameworkContractError } from '../../kernel/contract-validation.ts';
-import { parseJsonText } from '../../kernel/json-file.ts';
+import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
+import { parseJsonText, readJsonFileOrNull } from '../../kernel/json-file.ts';
 
 type FoundationSkillScope = 'project' | 'workspace' | 'quest';
 type FoundationSkillExposureScope =
@@ -373,7 +373,23 @@ export function runOplConnectFoundationSkillsSync(input: FoundationSkillsSyncInp
   const exposureEntries = readExposureManifest();
   const skill = readSkillCard(skillId, exposureEntries?.entries.get(skillId));
   assertSkillAllowedForScope(skill, scope);
-  const targetSkillRoot = path.join(targetRoot, '.codex', 'skills', skillId);
+  const targetSkillRoot = path.join(targetRoot, '.agents', 'skills', skillId);
+  const legacySkillRoot = path.join(targetRoot, '.codex', 'skills', skillId);
+  let removeLegacySkillRoot = false;
+  if (fs.existsSync(legacySkillRoot)) {
+    const legacyReceipt = readJsonFileOrNull(path.join(legacySkillRoot, '.opl-foundation-skill-sync-readback.json'));
+    if (!isRecord(legacyReceipt)
+      || legacyReceipt.receipt_kind !== 'opl_connect_foundation_skill_sync_readback'
+      || legacyReceipt.skill_id !== skillId
+      || legacyReceipt.target_scope !== scope) {
+      throw new FrameworkContractError('contract_shape_invalid', 'Foundation skill migration refuses to remove an unmanaged legacy Skill directory.', {
+        skill_id: skillId,
+        target_skill_root: legacySkillRoot,
+        failure_code: 'opl_connect_foundation_skill_legacy_unowned_collision',
+      });
+    }
+    removeLegacySkillRoot = true;
+  }
 
   fs.rmSync(targetSkillRoot, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(targetSkillRoot), { recursive: true });
@@ -396,6 +412,9 @@ export function runOplConnectFoundationSkillsSync(input: FoundationSkillsSyncInp
   };
   const receiptPath = path.join(targetSkillRoot, '.opl-foundation-skill-sync-readback.json');
   fs.writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
+  if (removeLegacySkillRoot) {
+    fs.rmSync(legacySkillRoot, { recursive: true, force: true });
+  }
 
   return {
     version: 'g2',

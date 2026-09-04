@@ -4,9 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { FrameworkContractError } from '../../kernel/contract-validation.ts';
+import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
 import { resolveDefaultFamilyWorkspaceRoot } from '../../authority/workspace/index.ts';
-import { parseJsonText } from '../../kernel/json-file.ts';
+import { parseJsonText, readJsonFileOrNull } from '../../kernel/json-file.ts';
 import { resolveOplStatePaths } from '../../kernel/runtime-state-paths.ts';
 
 type ExternalSkillSourceId = 'kdense-scientific-agent-skills';
@@ -778,7 +778,26 @@ export function runOplConnectExternalSkillsSync(input: ExternalSkillSyncInput) {
     });
   }
   const targetRoot = syncTargetRoot(input);
-  const targetSkillRoot = path.join(targetRoot, '.codex', 'skills', skillId);
+  const targetSkillRoot = path.join(targetRoot, '.agents', 'skills', skillId);
+  const legacySkillRoot = path.join(targetRoot, '.codex', 'skills', skillId);
+  let removeLegacySkillRoot = false;
+  if (fs.existsSync(legacySkillRoot)) {
+    const legacyReceipt = readJsonFileOrNull(path.join(legacySkillRoot, '.opl-install-receipt.json'));
+    if (!isRecord(legacyReceipt)
+      || legacyReceipt.receipt_kind !== 'opl_connect_external_skill_sync_receipt'
+      || legacyReceipt.source_id !== source.source_id
+      || legacyReceipt.skill_id !== skillId
+      || legacyReceipt.target_scope !== input.scope
+      || legacyReceipt.target_root !== targetRoot) {
+      throw new FrameworkContractError('contract_shape_invalid', 'External skill migration refuses to remove an unmanaged legacy Skill directory.', {
+        source_id: source.source_id,
+        skill_id: skillId,
+        target_skill_root: legacySkillRoot,
+        failure_code: 'opl_connect_external_skill_legacy_unowned_collision',
+      });
+    }
+    removeLegacySkillRoot = true;
+  }
   fs.rmSync(targetSkillRoot, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(targetSkillRoot), { recursive: true });
   fs.cpSync(card.source_path, targetSkillRoot, { recursive: true });
@@ -810,6 +829,9 @@ export function runOplConnectExternalSkillsSync(input: ExternalSkillSyncInput) {
   };
   const receiptPath = path.join(targetSkillRoot, '.opl-install-receipt.json');
   fs.writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
+  if (removeLegacySkillRoot) {
+    fs.rmSync(legacySkillRoot, { recursive: true, force: true });
+  }
 
   return {
     version: 'g2',

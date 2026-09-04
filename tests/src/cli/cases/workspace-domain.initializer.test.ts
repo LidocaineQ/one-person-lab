@@ -283,7 +283,7 @@ test('workspace init projects the installed MAS professional Skill generation an
     ];
     const first = runCli(args, env).workspace_initialization;
     const second = runCli(args, env).workspace_initialization;
-    const workspaceSkillsRoot = path.join(first.workspace_path, '.codex', 'skills');
+    const workspaceSkillsRoot = path.join(first.workspace_path, '.agents', 'skills');
 
     assert.equal(first.workspace_skill_projection.status, 'materialized');
     assert.equal(second.workspace_skill_projection.status, 'unchanged');

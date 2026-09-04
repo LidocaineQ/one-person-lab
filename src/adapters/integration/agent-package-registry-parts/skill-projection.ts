@@ -525,7 +525,7 @@ function attentionRefresh(packageId: string, reason: string, targetWorkspace: st
     root_skill_ids: [],
     skill_ids: [],
     target_workspace: targetWorkspace,
-    workspace_skills_root: targetWorkspace ? path.join(targetWorkspace, '.codex', 'skills') : null,
+    workspace_skills_root: targetWorkspace ? path.join(targetWorkspace, '.agents', 'skills') : null,
     writes_performed: false,
     projection: null,
   } satisfies AgentPackageWorkspaceSkillRefresh;
@@ -631,7 +631,8 @@ export function syncAgentPackageSkillProjectionToWorkspace(
     );
   }
   const codexRoot = path.join(workspaceRoot, '.codex');
-  const skillsRoot = path.join(codexRoot, 'skills');
+  const skillsRoot = path.join(workspaceRoot, '.agents', 'skills');
+  const legacySkillsRoot = path.join(codexRoot, 'skills');
   const ownersRoot = path.join(codexRoot, 'opl-agent-package-skill-owners');
   const manifestsRoot = path.join(codexRoot, 'opl-agent-package-skill-projections');
   const transactionsRoot = path.join(codexRoot, '.opl-skill-projection-transactions');
@@ -650,6 +651,28 @@ export function syncAgentPackageSkillProjectionToWorkspace(
     skillId,
     path.join(ownersRoot, `${safeSkillId(skillId)}.json`),
   ]));
+  const legacySkillPathsToRemove: string[] = [];
+  for (const skillId of affectedSkillIds) {
+    const legacySkill = path.join(legacySkillsRoot, skillId);
+    if (!fs.existsSync(legacySkill)) continue;
+    const owner = workspaceSkillOwnerFromRecord(
+      readJsonRecord(path.join(ownersRoot, `${safeSkillId(skillId)}.json`)),
+      skillId,
+    );
+    if (!owner || skillDigest(legacySkillsRoot, skillId) !== owner.skillDigest) {
+      throw new FrameworkContractError(
+        'contract_shape_invalid',
+        'Workspace Skill migration refuses to remove an unmanaged or drifted legacy Skill directory.',
+        {
+          package_id: projection.root_package_id,
+          skill_id: skillId,
+          target_skill_root: legacySkill,
+          failure_code: 'agent_package_workspace_skill_legacy_unowned_collision',
+        },
+      );
+    }
+    legacySkillPathsToRemove.push(legacySkill);
+  }
   const states = new Map<string, {
     skillId: string;
     targetSkill: string;
@@ -832,6 +855,9 @@ export function syncAgentPackageSkillProjectionToWorkspace(
       skill_ids: projection.skill_ids,
       skill_digests: projection.skill_digests,
     });
+    for (const legacySkill of legacySkillPathsToRemove) {
+      removeTree(legacySkill);
+    }
     removeTree(transactionRoot);
     return { status: 'materialized' as const, writes_performed: true, workspaceSkillsRoot: skillsRoot };
   } catch (error) {
@@ -965,7 +991,7 @@ export function refreshInstalledAgentPackageWorkspaceSkills(input: {
       root_skill_ids: materialized.root_skill_ids,
       skill_ids: materialized.skill_ids,
       target_workspace: targetWorkspace,
-      workspace_skills_root: targetWorkspace ? path.join(targetWorkspace, '.codex', 'skills') : null,
+      workspace_skills_root: targetWorkspace ? path.join(targetWorkspace, '.agents', 'skills') : null,
       writes_performed: false,
       projection: null,
     };

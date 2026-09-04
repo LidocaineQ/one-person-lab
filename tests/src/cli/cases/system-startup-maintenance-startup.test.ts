@@ -340,7 +340,7 @@ test('ScholarSkills sync rejects identity drift and unmanaged skill collisions',
     assert.equal(identityDrift.payload.error.details.observed_name, 'wrong-package');
 
     fs.writeFileSync(manifestPath, fixtureFiles['plugin.json'], 'utf8');
-    const collisionRoot = path.join(workspaceRoot, '.codex', 'skills', 'example-specialist');
+    const collisionRoot = path.join(workspaceRoot, '.agents', 'skills', 'example-specialist');
     fs.mkdirSync(collisionRoot, { recursive: true });
     fs.writeFileSync(path.join(collisionRoot, 'USER.md'), 'preserve me\n', 'utf8');
     const collision = runCliFailure([

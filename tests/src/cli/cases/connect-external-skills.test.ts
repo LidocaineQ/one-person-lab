@@ -529,7 +529,7 @@ test('connect external-skills accepts source slash skill selector for inspect an
     assert.equal(sync.opl_connect_external_skills.source_id, 'kdense-scientific-agent-skills');
     assert.equal(sync.opl_connect_external_skills.skill.skill_id, 'scanpy');
     assert.equal(sync.opl_connect_external_skills.skill.risk_flags.includes('specialist_runtime_environment_review'), true);
-    assert.equal(sync.opl_connect_external_skills.target_skill_root, path.join(workspaceRoot, '.codex', 'skills', 'scanpy'));
+    assert.equal(sync.opl_connect_external_skills.target_skill_root, path.join(workspaceRoot, '.agents', 'skills', 'scanpy'));
   } finally {
     fs.rmSync(sourceRoot, { recursive: true, force: true });
     fs.rmSync(workspaceRoot, { recursive: true, force: true });
@@ -580,11 +580,11 @@ test('connect external-skills sync copies only the selected skill into workspace
     assert.match(synced.skill.content_sha256, /^[a-f0-9]{64}$/);
     assert.equal(synced.target_scope, 'workspace');
     assert.equal(synced.target_root, workspaceRoot);
-    assert.equal(synced.target_skill_root, path.join(workspaceRoot, '.codex', 'skills', 'scanpy'));
+    assert.equal(synced.target_skill_root, path.join(workspaceRoot, '.agents', 'skills', 'scanpy'));
     assertExternalSkillTriggerPolicy(synced.trigger_policy);
-    assert.equal(fs.existsSync(path.join(workspaceRoot, '.codex', 'skills', 'scanpy', 'SKILL.md')), true);
-    assert.equal(fs.existsSync(path.join(workspaceRoot, '.codex', 'skills', 'scanpy', 'references', 'guide.md')), true);
-    assert.equal(fs.existsSync(path.join(workspaceRoot, '.codex', 'skills', 'scientific-writing')), false);
+    assert.equal(fs.existsSync(path.join(workspaceRoot, '.agents', 'skills', 'scanpy', 'SKILL.md')), true);
+    assert.equal(fs.existsSync(path.join(workspaceRoot, '.agents', 'skills', 'scanpy', 'references', 'guide.md')), true);
+    assert.equal(fs.existsSync(path.join(workspaceRoot, '.agents', 'skills', 'scientific-writing')), false);
     const receipt = parseJsonText(
       fs.readFileSync(synced.install_receipt_path, 'utf8'),
     ) as {
@@ -659,7 +659,52 @@ test('connect external-skills accepts skill-id alias for MAS helper compatibilit
     };
     assert.equal(sync.opl_connect_external_skills.status, 'synced');
     assert.equal(sync.opl_connect_external_skills.skill.skill_id, 'scanpy');
-    assert.equal(sync.opl_connect_external_skills.target_skill_root, path.join(workspaceRoot, '.codex', 'skills', 'scanpy'));
+    assert.equal(sync.opl_connect_external_skills.target_skill_root, path.join(workspaceRoot, '.agents', 'skills', 'scanpy'));
+  } finally {
+    fs.rmSync(sourceRoot, { recursive: true, force: true });
+    fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test('connect external-skills migrates an OPL-owned legacy workspace Skill', () => {
+  const sourceRoot = createExternalSkillsFixture();
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kdense-skills-legacy-migration-'));
+  try {
+    runCli([
+      'connect', 'external-skills', 'sync', '--source-root', sourceRoot,
+      '--skill', 'scanpy', '--scope', 'workspace', '--target-workspace', workspaceRoot,
+    ]);
+    const currentSkillRoot = path.join(workspaceRoot, '.agents', 'skills', 'scanpy');
+    const legacySkillRoot = path.join(workspaceRoot, '.codex', 'skills', 'scanpy');
+    fs.mkdirSync(path.dirname(legacySkillRoot), { recursive: true });
+    fs.renameSync(currentSkillRoot, legacySkillRoot);
+
+    runCli([
+      'connect', 'external-skills', 'sync', '--source-root', sourceRoot,
+      '--skill', 'scanpy', '--scope', 'workspace', '--target-workspace', workspaceRoot,
+    ]);
+    assert.equal(fs.existsSync(path.join(workspaceRoot, '.agents', 'skills', 'scanpy', 'SKILL.md')), true);
+    assert.equal(fs.existsSync(legacySkillRoot), false);
+  } finally {
+    fs.rmSync(sourceRoot, { recursive: true, force: true });
+    fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test('connect external-skills preserves an unmanaged legacy workspace Skill', () => {
+  const sourceRoot = createExternalSkillsFixture();
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kdense-skills-legacy-collision-'));
+  const legacySkillRoot = path.join(workspaceRoot, '.codex', 'skills', 'scanpy');
+  try {
+    fs.mkdirSync(legacySkillRoot, { recursive: true });
+    fs.writeFileSync(path.join(legacySkillRoot, 'USER.md'), 'preserve legacy user bytes\n', 'utf8');
+    const failure = runCliFailure([
+      'connect', 'external-skills', 'sync', '--source-root', sourceRoot,
+      '--skill', 'scanpy', '--scope', 'workspace', '--target-workspace', workspaceRoot,
+    ]);
+    assert.equal(failure.payload.error.code, 'contract_shape_invalid');
+    assert.equal(failure.payload.error.details.failure_code, 'opl_connect_external_skill_legacy_unowned_collision');
+    assert.equal(fs.readFileSync(path.join(legacySkillRoot, 'USER.md'), 'utf8'), 'preserve legacy user bytes\n');
   } finally {
     fs.rmSync(sourceRoot, { recursive: true, force: true });
     fs.rmSync(workspaceRoot, { recursive: true, force: true });

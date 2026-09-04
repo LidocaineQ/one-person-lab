@@ -430,7 +430,8 @@ function copyWorkspaceOrQuestLocalScholarSkillsSkill(
   selectedSkillIds: string[] = [],
 ) {
   const resolvedTargetRoot = path.resolve(targetRoot);
-  const targetCodexSkillsRoot = path.join(resolvedTargetRoot, '.codex', 'skills');
+  const targetCodexSkillsRoot = path.join(resolvedTargetRoot, '.agents', 'skills');
+  const legacyCodexSkillsRoot = path.join(resolvedTargetRoot, '.codex', 'skills');
   const skillRoot = path.join(
     targetCodexSkillsRoot,
     inspected.canonical_plugin_name,
@@ -489,6 +490,7 @@ function copyWorkspaceOrQuestLocalScholarSkillsSkill(
     authority_flags: FRAMEWORK_CAPABILITY_PACKAGE_AUTHORITY_BOUNDARY,
   };
   writeJsonFile(receiptPath, receipt);
+  removeLegacyManagedCapabilitySkillDirs(legacyCodexSkillsRoot, inspected);
 
   return {
     status: 'installed',
@@ -504,6 +506,37 @@ function copyWorkspaceOrQuestLocalScholarSkillsSkill(
     materialized_skill_ids: materializedSkillIds,
     authority_boundary: FRAMEWORK_CAPABILITY_PACKAGE_AUTHORITY_BOUNDARY,
   };
+}
+
+function removeLegacyManagedCapabilitySkillDirs(
+  legacySkillsRoot: string,
+  inspected: InspectFamilySkillPack,
+) {
+  if (!isDirectory(legacySkillsRoot)) return;
+  for (const entry of fs.readdirSync(legacySkillsRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const targetSkillDir = path.join(legacySkillsRoot, entry.name);
+    const marker = readJsonFileOrNull(path.join(targetSkillDir, '.opl-connect-skill-sync.json'));
+    const receipt = readJsonFileOrNull(path.join(targetSkillDir, '.opl-install-receipt.json'));
+    const managedSpecialist = isRecord(marker) && (
+      (
+        marker.surface_kind === 'opl_connect_managed_framework_capability_skill_dir'
+        && marker.capability_package_id === inspected.canonical_plugin_name
+        && marker.skill_id === entry.name
+      )
+      || (
+        marker.surface_kind === 'opl_connect_managed_mas_scholar_skills_specialist_dir'
+        && marker.skill_id === entry.name
+      )
+    );
+    const managedAggregate = entry.name === inspected.canonical_plugin_name
+      && isRecord(receipt)
+      && receipt.receipt_kind === 'opl_scholarskills_workspace_or_quest_local_install_receipt'
+      && receipt.target_root === path.dirname(path.dirname(legacySkillsRoot));
+    if (managedSpecialist || managedAggregate) {
+      fs.rmSync(targetSkillDir, { recursive: true, force: true });
+    }
+  }
 }
 
 function syncWorkspaceOrQuestLocalSkill(

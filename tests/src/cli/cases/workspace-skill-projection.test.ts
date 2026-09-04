@@ -274,7 +274,7 @@ test('Skill refresh creates a new immutable generation while an existing Attempt
 
     syncAgentPackageSkillProjectionToWorkspace(refreshed.projection, workspaceRoot);
     assert.match(
-      fs.readFileSync(path.join(workspaceRoot, '.codex', 'skills', skillId, 'SKILL.md'), 'utf8'),
+      fs.readFileSync(path.join(workspaceRoot, '.agents', 'skills', skillId, 'SKILL.md'), 'utf8'),
       /Updated professional method/,
     );
   } finally {
@@ -312,7 +312,7 @@ test('MAS and MAG share identical managed Skill bytes in one Workspace', () => {
     }).projection!;
 
     assert.equal(syncAgentPackageSkillProjectionToWorkspace(masProjection, workspaceRoot).status, 'materialized');
-    const skillRoot = path.join(workspaceRoot, '.codex', 'skills', skillId);
+    const skillRoot = path.join(workspaceRoot, '.agents', 'skills', skillId);
     const firstInode = fs.statSync(skillRoot).ino;
     assert.equal(syncAgentPackageSkillProjectionToWorkspace(magProjection, workspaceRoot).status, 'materialized');
 
@@ -374,7 +374,7 @@ test('shared Workspace Skill ownership keeps bytes until the remaining Agent rel
     syncAgentPackageSkillProjectionToWorkspace(refreshedMasProjection, workspaceRoot);
 
     assert.equal(
-      fs.existsSync(path.join(workspaceRoot, '.codex', 'skills', sharedSkillId, 'SKILL.md')),
+      fs.existsSync(path.join(workspaceRoot, '.agents', 'skills', sharedSkillId, 'SKILL.md')),
       true,
     );
     const owner = JSON.parse(fs.readFileSync(
@@ -424,7 +424,7 @@ test('Workspace projection refuses a different digest still owned by another Age
         && error.details?.failure_code === 'agent_package_workspace_skill_owner_conflict',
     );
     assert.equal(
-      fs.readFileSync(path.join(workspaceRoot, '.codex', 'skills', skillId, 'SKILL.md'), 'utf8'),
+      fs.readFileSync(path.join(workspaceRoot, '.agents', 'skills', skillId, 'SKILL.md'), 'utf8'),
       `# ${skillId}\n`,
     );
   } finally {
@@ -440,7 +440,7 @@ test('Workspace projection refuses to overwrite an unmanaged Skill directory', (
   const agentRoot = path.join(fixtureRoot, 'oma');
   const workspaceRoot = path.join(fixtureRoot, 'workspace');
   const skillId = 'oma-method';
-  const unmanagedRoot = path.join(workspaceRoot, '.codex', 'skills', skillId);
+  const unmanagedRoot = path.join(workspaceRoot, '.agents', 'skills', skillId);
   const previousStateDir = process.env.OPL_STATE_DIR;
   process.env.OPL_STATE_DIR = stateRoot;
 
@@ -502,7 +502,7 @@ test('Workspace projection refuses to repair through a malformed owner marker', 
       (error: unknown) => error instanceof FrameworkContractError
         && error.details?.failure_code === 'agent_package_workspace_skill_unowned_collision',
     );
-    assert.equal(fs.existsSync(path.join(workspaceRoot, '.codex', 'skills', skillId)), false);
+    assert.equal(fs.existsSync(path.join(workspaceRoot, '.agents', 'skills', skillId)), false);
   } finally {
     if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateDir;
@@ -574,13 +574,82 @@ test('Workspace projection accepts an existing physical .codex directory', () =>
       'materialized',
     );
     assert.equal(
-      fs.readFileSync(path.join(workspaceRoot, '.codex', 'skills', skillId, 'SKILL.md'), 'utf8'),
+      fs.readFileSync(path.join(workspaceRoot, '.agents', 'skills', skillId, 'SKILL.md'), 'utf8'),
       `# ${skillId}\n`,
     );
     assert.equal(
       fs.readFileSync(path.join(workspaceRoot, '.codex', 'config.toml'), 'utf8'),
       'model = "gpt-5"\n',
     );
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    removeFixture(fixtureRoot);
+  }
+});
+
+test('Workspace projection migrates an OPL-owned legacy Skill into .agents', () => {
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-skill-workspace-legacy-migration-'));
+  const stateRoot = path.join(fixtureRoot, 'state');
+  const agentRoot = path.join(fixtureRoot, 'mag');
+  const workspaceRoot = path.join(fixtureRoot, 'workspace');
+  const skillId = 'mag-method';
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = stateRoot;
+
+  try {
+    rootFixture(agentRoot, [skillId]);
+    fs.mkdirSync(workspaceRoot, { recursive: true });
+    const projection = materializeAgentPackageWorkspaceSkillProjection({
+      rootPackageId: 'mag',
+      rootSkillIds: ['mag'],
+      rootSourceRoot: agentRoot,
+      rootSourceRef: 'mag:installed-descriptor',
+    }).projection!;
+    syncAgentPackageSkillProjectionToWorkspace(projection, workspaceRoot);
+    const currentSkillRoot = path.join(workspaceRoot, '.agents', 'skills', skillId);
+    const legacySkillRoot = path.join(workspaceRoot, '.codex', 'skills', skillId);
+    fs.mkdirSync(path.dirname(legacySkillRoot), { recursive: true });
+    fs.renameSync(currentSkillRoot, legacySkillRoot);
+
+    assert.equal(syncAgentPackageSkillProjectionToWorkspace(projection, workspaceRoot).status, 'materialized');
+    assert.equal(fs.existsSync(path.join(workspaceRoot, '.agents', 'skills', skillId, 'SKILL.md')), true);
+    assert.equal(fs.existsSync(legacySkillRoot), false);
+  } finally {
+    if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
+    else process.env.OPL_STATE_DIR = previousStateDir;
+    removeFixture(fixtureRoot);
+  }
+});
+
+test('Workspace projection preserves an unmanaged legacy Skill directory', () => {
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-skill-workspace-legacy-collision-'));
+  const stateRoot = path.join(fixtureRoot, 'state');
+  const agentRoot = path.join(fixtureRoot, 'oma');
+  const workspaceRoot = path.join(fixtureRoot, 'workspace');
+  const skillId = 'oma-method';
+  const legacySkillRoot = path.join(workspaceRoot, '.codex', 'skills', skillId);
+  const previousStateDir = process.env.OPL_STATE_DIR;
+  process.env.OPL_STATE_DIR = stateRoot;
+
+  try {
+    rootFixture(agentRoot, [skillId]);
+    fs.mkdirSync(legacySkillRoot, { recursive: true });
+    fs.writeFileSync(path.join(legacySkillRoot, 'USER.md'), 'preserve legacy user bytes\n');
+    const projection = materializeAgentPackageWorkspaceSkillProjection({
+      rootPackageId: 'oma',
+      rootSkillIds: ['oma'],
+      rootSourceRoot: agentRoot,
+      rootSourceRef: 'oma:installed-descriptor',
+    }).projection!;
+
+    assert.throws(
+      () => syncAgentPackageSkillProjectionToWorkspace(projection, workspaceRoot),
+      (error: unknown) => error instanceof FrameworkContractError
+        && error.details?.failure_code === 'agent_package_workspace_skill_legacy_unowned_collision',
+    );
+    assert.equal(fs.readFileSync(path.join(legacySkillRoot, 'USER.md'), 'utf8'), 'preserve legacy user bytes\n');
+    assert.equal(fs.existsSync(path.join(workspaceRoot, '.agents', 'skills', skillId)), false);
   } finally {
     if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateDir;

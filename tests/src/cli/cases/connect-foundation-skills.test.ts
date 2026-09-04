@@ -192,12 +192,12 @@ test('connect foundation-skills sync copies only the selected skill into target 
     assert.match(synced.skill.content_sha256, /^[a-f0-9]{64}$/);
     assert.equal(synced.target_scope, 'workspace');
     assert.equal(synced.target_root, targetRoot);
-    assert.equal(synced.target_skill_root, path.join(targetRoot, '.codex', 'skills', 'opl-external-specialist-skill-router'));
+    assert.equal(synced.target_skill_root, path.join(targetRoot, '.agents', 'skills', 'opl-external-specialist-skill-router'));
     assert.equal(synced.no_authority, true);
     assert.equal(synced.authority_boundary.single_skill_sync_only, true);
     assert.equal(synced.authority_boundary.can_write_codex_global_config, false);
     assert.equal(fs.existsSync(path.join(synced.target_skill_root, 'SKILL.md')), true);
-    assert.equal(fs.existsSync(path.join(targetRoot, '.codex', 'skills', 'opl-runway-compute-operator')), false);
+    assert.equal(fs.existsSync(path.join(targetRoot, '.agents', 'skills', 'opl-runway-compute-operator')), false);
 
     const receipt = parseJsonText(fs.readFileSync(synced.readback_path, 'utf8')) as {
       receipt_kind: string;
@@ -287,6 +287,49 @@ test('connect foundation-skills sync rejects unknown skills', () => {
     assert.equal(failure.status, 4);
     assert.equal(failure.payload.error.code, 'codex_command_failed');
     assert.match(failure.payload.error.message, /not found/);
+  } finally {
+    fs.rmSync(targetRoot, { recursive: true, force: true });
+  }
+});
+
+test('connect foundation-skills migrates an OPL-owned legacy workspace Skill', () => {
+  const targetRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-foundation-skill-legacy-migration-'));
+  const skillId = 'opl-external-specialist-skill-router';
+  try {
+    runCli([
+      'connect', 'foundation-skills', 'sync', '--skill', skillId,
+      '--scope', 'workspace', '--target-root', targetRoot, '--json',
+    ]);
+    const currentSkillRoot = path.join(targetRoot, '.agents', 'skills', skillId);
+    const legacySkillRoot = path.join(targetRoot, '.codex', 'skills', skillId);
+    fs.mkdirSync(path.dirname(legacySkillRoot), { recursive: true });
+    fs.renameSync(currentSkillRoot, legacySkillRoot);
+
+    runCli([
+      'connect', 'foundation-skills', 'sync', '--skill', skillId,
+      '--scope', 'workspace', '--target-root', targetRoot, '--json',
+    ]);
+    assert.equal(fs.existsSync(path.join(targetRoot, '.agents', 'skills', skillId, 'SKILL.md')), true);
+    assert.equal(fs.existsSync(legacySkillRoot), false);
+  } finally {
+    fs.rmSync(targetRoot, { recursive: true, force: true });
+  }
+});
+
+test('connect foundation-skills preserves an unmanaged legacy workspace Skill', () => {
+  const targetRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-foundation-skill-legacy-collision-'));
+  const skillId = 'opl-external-specialist-skill-router';
+  const legacySkillRoot = path.join(targetRoot, '.codex', 'skills', skillId);
+  try {
+    fs.mkdirSync(legacySkillRoot, { recursive: true });
+    fs.writeFileSync(path.join(legacySkillRoot, 'USER.md'), 'preserve legacy user bytes\n');
+    const failure = runCliFailure([
+      'connect', 'foundation-skills', 'sync', '--skill', skillId,
+      '--scope', 'workspace', '--target-root', targetRoot, '--json',
+    ]);
+    assert.equal(failure.payload.error.code, 'contract_shape_invalid');
+    assert.equal(failure.payload.error.details.failure_code, 'opl_connect_foundation_skill_legacy_unowned_collision');
+    assert.equal(fs.readFileSync(path.join(legacySkillRoot, 'USER.md'), 'utf8'), 'preserve legacy user bytes\n');
   } finally {
     fs.rmSync(targetRoot, { recursive: true, force: true });
   }
