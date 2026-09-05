@@ -292,6 +292,25 @@ test('framework raw executor output is verified outside the work-item root witho
       undefined,
       'framework raw progress must not be projected as a domain-declared quality artifact',
     );
+    const reviewInput = {
+      artifactRefs: [artifactRef],
+      artifactHashes: [rawArtifact.sha256],
+      artifactIdentityReceiptRefs: [metadata!.artifact_identity_receipt_ref],
+      domainId: producerAttempt.domain_id,
+      workspaceRoot,
+      expectedProducingAttemptId: producerAttempt.stage_attempt_id,
+      expectedProducingStageId: producerAttempt.stage_id,
+      expectedStageRunId: producerAttempt.stage_run_id,
+      expectedScopeKind: 'work_item' as const,
+      expectedExecutionScope: executionScope,
+    };
+    assert.deepEqual(verifyStageQualityArtifactIdentityAtAttemptBoundary(reviewInput).artifact_refs, [artifactRef]);
+    assert.throws(() => verifyStageQualityArtifactIdentityAtAttemptBoundary({
+      ...reviewInput,
+      expectedExecutionScope: workItemScope(workspaceRoot, 'study-002'),
+    }), /does not match|identity receipt/i);
+    fs.appendFileSync(new URL(rawArtifact.output_ref), '\nchanged after handoff');
+    assert.throws(() => verifyStageQualityArtifactIdentityAtAttemptBoundary(reviewInput), /do not match|no longer matches/);
   } finally {
     if (previousStateDir === undefined) delete process.env.OPL_STATE_DIR;
     else process.env.OPL_STATE_DIR = previousStateDir;

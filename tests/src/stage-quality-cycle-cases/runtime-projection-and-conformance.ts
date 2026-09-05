@@ -332,6 +332,16 @@ test('Temporal StageRun terminal state idempotently refreshes the SQLite quality
     assert.deepEqual(second.state, first.state);
     assert.equal((second.state as any).controller_readback.controller_status, 'completed_with_quality_debt');
     assert.equal((second.state as any).controller_readback.attempts[0].attempt_role, 're_reviewer');
+    db.prepare("UPDATE stage_attempts SET route_impact_json = '{}' WHERE stage_attempt_id = ?")
+      .run(repairer.stage_attempt_id);
+    db.prepare('UPDATE stage_attempt_closeouts SET packet_json = ? WHERE closeout_id = ?').run(JSON.stringify({
+      authority_boundary: { opl: 'raw_executor_output_progress_envelope_only' },
+      closeout_ref_metadata: [{
+        ref: 'artifact:deck-v4', ref_kind: 'raw_executor_output',
+        sha256: 'sha256:deck-v4', artifact_identity_receipt_ref: 'receipt:deck-v4',
+      }],
+    }), 'closeout:repairer-projection');
+    assert.deepEqual(projectTemporalStageRunQualityCycle(db, state).state, first.state);
     const persistedCycleRow = () => ({
       ...db.prepare(`
         SELECT *

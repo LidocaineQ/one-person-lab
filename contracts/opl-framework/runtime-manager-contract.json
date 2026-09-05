@@ -13,7 +13,9 @@
     "child_workflow": "StageAttemptWorkflow",
     "raw_stage_run_start_cli_retired": true,
     "stage_run_cli_allowed_actions": [
-      "query"
+      "query",
+      "watch",
+      "recover-closeout"
     ],
     "required_stage_run_fields": [
       "stage_run_id",

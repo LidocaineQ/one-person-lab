@@ -228,7 +228,7 @@ test('foundry agent series policy release fingerprint stays tied to the skeleton
   assert.equal(release.policy_bundle.authority_boundary.policy_release_can_claim_domain_ready, false);
 });
 
-test('StageRun creation contracts expose one pack-bound write entry and a query-only StageRun CLI', () => {
+test('StageRun creation contracts expose pack-bound creation, observation, and closeout recovery', () => {
   const quality = readJson('contracts/opl-framework/stage-quality-cycle-contract.json');
   const attempts = readJson('contracts/opl-framework/family-runtime-attempt-contract.json');
   const temporal = readJson('contracts/opl-framework/family-runtime-temporal-first-contract.json');
@@ -239,7 +239,7 @@ test('StageRun creation contracts expose one pack-bound write entry and a query-
   assert.equal(quality.pack_bound_creation.canonical_request_surface,
     'opl family-runtime attempt create');
   assert.equal(quality.pack_bound_creation.raw_stage_run_start_cli_retired, true);
-  assert.deepEqual(quality.pack_bound_creation.stage_run_cli_allowed_actions, ['query']);
+  assert.deepEqual(quality.pack_bound_creation.stage_run_cli_allowed_actions, ['query', 'watch', 'recover-closeout']);
   assert.equal(quality.pack_bound_creation.stage_run_id_binds_manifest_sha256, false);
   assert.equal(quality.pack_bound_creation.stage_run_spec_sha256_binds_manifest_sha256, true);
   assert.ok(quality.pack_bound_creation.required_binding_fields.includes('manifest_sha256'));
@@ -249,7 +249,7 @@ test('StageRun creation contracts expose one pack-bound write entry and a query-
     'pack_bound_family_runtime_attempt_create_only');
   assert.equal(temporal.workflow_activity_signal_mapping.stage_run_workflow.raw_stage_run_start_cli_retired, true);
   assert.equal(manager.pack_bound_stage_run.direct_unbound_stage_run_creation_forbidden, true);
-  assert.deepEqual(manager.pack_bound_stage_run.stage_run_cli_allowed_actions, ['query']);
+  assert.deepEqual(manager.pack_bound_stage_run.stage_run_cli_allowed_actions, ['query', 'watch', 'recover-closeout']);
   assert.deepEqual(manager.pack_bound_stage_run.stage_run_id_derives_only_from,
     ['domain_id', 'stage_id', 'stage_run_invocation_id']);
   assert.equal(manager.pack_bound_stage_run.manifest_sha256_participates_in_stage_run_id, false);

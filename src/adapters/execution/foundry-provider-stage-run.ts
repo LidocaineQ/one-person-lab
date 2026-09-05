@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { canonicalJsonBytes, canonicalJsonText } from '../../kernel/canonical-json.ts';
 import { FrameworkContractError, isRecord } from '../../kernel/contract-validation.ts';
-import { parseJsonText } from '../../kernel/json-file.ts';
+import { parseJsonText, writeJsonPayloadFile } from '../../kernel/json-file.ts';
 import { FoundryTransientActivityError } from '../../authority/evolution/index.ts';
 import type {
   FoundryProviderOperationInvoker,
@@ -14,16 +14,14 @@ import type {
 } from '../../authority/evolution/index.ts';
 import { FileFoundryContentStore, foundryStoragePaths } from '../../authority/evidence/index.ts';
 import { runFamilyRuntime } from './family-runtime.ts';
+import {
+  appendDistinctStageRunObservation,
+  summarizeStageRunObservation,
+  TERMINAL_STAGE_RUN_STATUSES,
+  type StageRunObservation,
+} from './family-runtime-stage-run-observation.ts';
 
 type JsonRecord = Record<string, unknown>;
-
-const TERMINAL_STAGE_RUN_STATUSES = new Set([
-  'completed',
-  'completed_with_quality_debt',
-  'blocked',
-  'human_gate',
-  'failed',
-]);
 const SUCCESS_STAGE_RUN_STATUSES = new Set(['completed', 'completed_with_quality_debt']);
 
 function fail(message: string, details: JsonRecord = {}): never {
@@ -244,6 +242,34 @@ function nextWorkflowId(state: JsonRecord) {
     : null;
 }
 
+function observationReceiptPath(storageRoot: string, activity: FoundryActivityIdentity) {
+  return path.join(storageRoot, 'provider-observations', `${activityKey(activity)}.json`);
+}
+
+function writeObservationReceipt(input: {
+  file: string;
+  operation: 'design' | 'diagnose';
+  activity: FoundryActivityIdentity;
+  workflowId: string;
+  observations: StageRunObservation[];
+}) {
+  const latest = input.observations[input.observations.length - 1] ?? null;
+  writeJsonPayloadFile(input.file, {
+    surface_kind: 'opl_foundry_provider_stage_run_observation_receipt',
+    version: 'opl-foundry-provider-stage-run-observation.v1',
+    operation: input.operation,
+    activity: input.activity,
+    workflow_id: input.workflowId,
+    status: latest?.status ?? null,
+    observations: input.observations,
+    updated_at: new Date().toISOString(),
+    authority_boundary: {
+      opl: 'provider_stage_run_observation_and_transport_only',
+      domain: 'semantic_design_and_evidence_diagnosis_owner',
+    },
+  });
+}
+
 const BLUEPRINT_CONTENT_REF_FIELDS = [
   'prompt_refs',
   'skill_refs',
@@ -328,19 +354,80 @@ export class StageRunFoundryProviderInvoker implements FoundryProviderOperationI
     const visitedWorkflows = new Set<string>();
     const visitedStages = new Set<string>();
     let terminalArtifacts: Array<{ ref: string; sha256: string }> = [];
+    const observations: StageRunObservation[] = [];
+    const observationFile = observationReceiptPath(this.#storageRoot, input.activity);
+    let observationError: string | null = null;
+    let observationPersisted = false;
+    try {
+      if (fs.existsSync(observationFile)) {
+        const prior = JSON.parse(fs.readFileSync(observationFile, 'utf8'));
+        if (isRecord(prior) && canonicalJsonText(prior.activity) === canonicalJsonText(input.activity)
+          && Array.isArray(prior.observations)) {
+          observations.push(...prior.observations.filter(isRecord) as StageRunObservation[]);
+          observationPersisted = true;
+        }
+      }
+    } catch (error) {
+      observationError = error instanceof Error ? error.message : String(error);
+    }
+    const observe = (workflow: string, queriedState: JsonRecord) => {
+      const previousCount = observations.length;
+      appendDistinctStageRunObservation(
+        observations,
+        summarizeStageRunObservation(queriedState, workflow),
+      );
+      if (observations.length === previousCount && observationPersisted) return;
+      try {
+        fs.mkdirSync(path.dirname(observationFile), { recursive: true });
+        writeObservationReceipt({
+          file: observationFile,
+          operation: input.operation,
+          activity: input.activity,
+          workflowId: workflow,
+          observations,
+        });
+        observationPersisted = true;
+        observationError = null;
+      } catch (error) {
+        // Observation is best effort; the provider's artifacts remain authoritative.
+        observationError = error instanceof Error ? error.message : String(error);
+      }
+    };
+    const observationContext = () => ({
+      observation_receipt_ref: observationPersisted ? pathToFileURL(observationFile).href : null,
+      observation_error: observationError,
+      latest_observation: observations[observations.length - 1] ?? null,
+      observation_count: observations.length,
+    });
+    const query = async (workflow: string) => {
+      try {
+        const queried = stageRunState(await this.#gateway.query(workflow));
+        observe(workflow, queried.state);
+        return queried;
+      } catch (error) {
+        if (error instanceof FrameworkContractError) throw error;
+        throw new FoundryTransientActivityError(
+          `Foundry provider ${input.operation} StageRun query failed: ${String(error)}. `
+            + JSON.stringify(observationContext()),
+          { cause: error },
+        );
+      }
+    };
 
     for (let hops = 0; hops < 32; hops += 1) {
       if (visitedWorkflows.has(workflowId)) {
         fail('Foundry provider StageRun route contains a workflow cycle.', { workflow_id: workflowId });
       }
       visitedWorkflows.add(workflowId);
-      let queried = stageRunState(await this.#gateway.query(workflowId));
+      let queried = await query(workflowId);
       while (!TERMINAL_STAGE_RUN_STATUSES.has(queried.status)) {
         if (Date.now() >= deadline) {
-          throw new FoundryTransientActivityError(`Foundry provider ${input.operation} StageRun timed out.`);
+          throw new FoundryTransientActivityError(
+            `Foundry provider ${input.operation} StageRun timed out. ${JSON.stringify(observationContext())}`,
+          );
         }
         await new Promise((resolve) => setTimeout(resolve, this.#pollIntervalMs));
-        queried = stageRunState(await this.#gateway.query(workflowId));
+        queried = await query(workflowId);
       }
       if (!allowedStages.has(queried.stageId)) {
         fail('Foundry provider StageRun routed outside the operation manifest.', { stage_id: queried.stageId });
@@ -348,7 +435,8 @@ export class StageRunFoundryProviderInvoker implements FoundryProviderOperationI
       visitedStages.add(queried.stageId);
       if (!SUCCESS_STAGE_RUN_STATUSES.has(queried.status)) {
         throw new Error(
-          `Foundry provider ${input.operation} StageRun ended ${queried.status}: ${String(queried.state.blocked_reason ?? 'no reason')}`,
+          `Foundry provider ${input.operation} StageRun ended ${queried.status}: `
+            + `${String(queried.state.blocked_reason ?? 'no reason')} ${JSON.stringify(observationContext())}`,
         );
       }
       const next = nextWorkflowId(queried.state);
@@ -364,6 +452,7 @@ export class StageRunFoundryProviderInvoker implements FoundryProviderOperationI
         fail('Foundry provider operation ended before its declared terminal Stage.', {
           stage_id: queried.stageId,
           terminal_stage_ref: operation.terminal_stage_ref,
+          ...observationContext(),
         });
       }
       workflowId = next;

@@ -2,22 +2,50 @@ import { FrameworkContractError } from '../../../kernel/contract-validation.ts';
 import type { FamilyRuntimeCommandInput } from '../family-runtime-command.ts';
 
 export function parseStageRunArgs(rest: string[]): FamilyRuntimeCommandInput | null {
-  const [action, identityOrFlag, maybeFlag, maybeAttempt, retryFlag] = rest;
+  const [action, identityOrFlag, ...flags] = rest;
   if (action === 'query') {
-    if (!identityOrFlag || maybeFlag || maybeAttempt) {
+    if (!identityOrFlag || flags.length > 0) {
       throw new FrameworkContractError('cli_usage_error', 'family-runtime stage-run query requires one workflow id.', {
         usage: 'opl family-runtime stage-run query <workflow_id>',
       });
     }
     return { mode: 'stage_run_query', workflowId: identityOrFlag };
   }
+  if (action === 'watch') {
+    if (!identityOrFlag) {
+      throw new FrameworkContractError('cli_usage_error', 'family-runtime stage-run watch requires one workflow id.', {
+        usage: 'opl family-runtime stage-run watch <workflow_id> [--interval-ms <n>] [--timeout-ms <n>]',
+      });
+    }
+    let intervalMs = 250;
+    let timeoutMs = 30_000;
+    for (let index = 0; index < flags.length; index += 2) {
+      const flag = flags[index];
+      const rawValue = flags[index + 1];
+      if ((flag !== '--interval-ms' && flag !== '--timeout-ms') || !rawValue) {
+        throw new FrameworkContractError('cli_usage_error', 'family-runtime stage-run watch has invalid options.', {
+          usage: 'opl family-runtime stage-run watch <workflow_id> [--interval-ms <n>] [--timeout-ms <n>]',
+        });
+      }
+      const value = Number(rawValue);
+      if (!Number.isSafeInteger(value) || value < 1) {
+        throw new FrameworkContractError('cli_usage_error', 'family-runtime stage-run watch intervals must be positive integers.', {
+          option: flag,
+          value: rawValue,
+        });
+      }
+      if (flag === '--interval-ms') intervalMs = value;
+      else timeoutMs = value;
+    }
+    return { mode: 'stage_run_watch', workflowId: identityOrFlag, intervalMs, timeoutMs };
+  }
   if (action === 'recover-closeout') {
     if (
       !identityOrFlag
-      || maybeFlag !== '--attempt'
-      || !maybeAttempt
-      || (retryFlag !== undefined && retryFlag !== '--retry-terminal-recovery')
-      || rest.length > 5
+      || flags[0] !== '--attempt'
+      || !flags[1]
+      || (flags.length > 2 && flags[2] !== '--retry-terminal-recovery')
+      || flags.length > 3
     ) {
       throw new FrameworkContractError(
         'cli_usage_error',
@@ -30,8 +58,8 @@ export function parseStageRunArgs(rest: string[]): FamilyRuntimeCommandInput | n
     return {
       mode: 'stage_run_recover_closeout',
       stageRunId: identityOrFlag,
-      stageAttemptId: maybeAttempt,
-      retryTerminalRecovery: retryFlag === '--retry-terminal-recovery',
+      stageAttemptId: flags[1],
+      retryTerminalRecovery: flags[2] === '--retry-terminal-recovery',
     };
   }
   return null;

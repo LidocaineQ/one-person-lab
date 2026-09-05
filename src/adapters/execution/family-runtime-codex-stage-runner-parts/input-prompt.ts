@@ -385,6 +385,8 @@ export function runnerPromptFor(input: {
       workspaceRoot: workspaceRootFromAttempt(input.attempt),
     }),
     'Write useful stage artifacts as early as possible. Partial drafts, negative findings, failed attempts, review findings, and route-back recommendations are consumable progress.',
+    'Start by reading the supplied artifacts and existing workspace files. Use their contents to judge what work is already usable and choose the next useful action; an incomplete status index or missing review receipt is not a reason to restart completed work.',
+    'Prioritize a useful deliverable and continued progress, then improve quality. Preserve remaining issues with the artifact so the next agent can continue. Runtime and observation records support this work; they do not determine the semantic value of the files.',
     'A typed closeout packet is preferred when naturally available, but it is never required for stage progression.',
     'Your final message may be structured JSON or ordinary readable text. OPL persists it as a raw artifact and derives refs, hashes, lineage, and a minimal progress envelope.',
     'Cross-Stage semantic route selection must come from this StageRun\'s decisive Codex Attempt: the producer for a primary-only StageRun, otherwise the terminal reviewer or re-reviewer. Other Attempts may return evidence-backed stage_route_recommendation only. The decisive Attempt cannot write a Stage current pointer or materialize a Stage transition. OPL validates terminal-role eligibility, route shape, field exclusivity, legacy-field absence, finding closure, and declared target identity; the StageRun controller then materializes the accepted declared-Stage transition without judging its domain semantics.',

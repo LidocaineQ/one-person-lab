@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 
 import { Worker } from '@temporalio/worker';
+import { FrameworkContractError } from '../../src/kernel/contract-validation.ts';
 
 import type {
   TemporalStageAttemptWorkflowInput,
   TemporalStageQualityAttemptMaterializationInput,
   TemporalStageRunWorkflowInput,
 } from '../../src/adapters/execution/family-runtime-temporal.ts';
-import { StageRunWorkflow } from '../../src/adapters/execution/family-runtime-temporal-workflows.ts';
+import { StageRunWorkflow, stageRunQuery } from '../../src/adapters/execution/family-runtime-temporal-workflows.ts';
 import { STAGE_RUN_ATTEMPT_CONTENT_BINDING_VERSION } from '../../src/adapters/execution/family-runtime-stage-quality-attempt-boundary.ts';
 import {
   stageAttemptExecutionContentBindingSha256,
@@ -118,6 +119,10 @@ async function runController(input: {
   legacyVerdictRole?: TemporalStageQualityAttemptMaterializationInput['attempt_role'];
   nonReviewOutcomeRole?: 'producer' | 'repairer';
   failReceiptForReviewerRole?: 'reviewer' | 're_reviewer';
+  failAttemptSync?: boolean;
+  queryDuringHandoff?: boolean;
+  transientHandoffFailures?: number;
+  permanentHandoffFailure?: boolean;
   rawArtifactProgressRole?: 'producer';
   repairRequiredRoute?: {
     role: 'reviewer' | 're_reviewer';
@@ -132,6 +137,7 @@ async function runController(input: {
   const workflowInputs: TemporalStageAttemptWorkflowInput[] = [];
   const reviewReceiptInputs: any[] = [];
   const routeInputs: any[] = [];
+  const handoffObservations: any[] = [];
   try {
     const activities = {
       async stageQualityAttemptMaterializeActivity(materialization: TemporalStageQualityAttemptMaterializationInput) {
@@ -247,6 +253,7 @@ async function runController(input: {
         return { projected: true };
       },
       async stageQualityAttemptSyncActivity(syncInput: { attempt_ref: string }) {
+        if (input.failAttemptSync) throw new Error('simulated-sqlite-projection-unavailable');
         return {
           synced: true,
           opl_review_evidence_artifact_receipt_ref: null,
@@ -281,6 +288,16 @@ async function runController(input: {
       },
       async stageRunRouteLaunchActivity(routeInput: any) {
         routeInputs.push(routeInput);
+        if (input.queryDuringHandoff) {
+          handoffObservations.push(await testEnv.client.workflow
+            .getHandle(routeInput.parent_stage_run.workflow_id).query(stageRunQuery));
+        }
+        if (input.permanentHandoffFailure) {
+          throw new FrameworkContractError('contract_shape_invalid', 'route-target-identity-mismatch');
+        }
+        if (routeInputs.length <= (input.transientHandoffFailures ?? 0)) {
+          throw new Error('temporary-route-transport-unavailable');
+        }
         const complete = routeInput.decision.decision_kind === 'complete';
         return {
           surface_kind: 'opl_stage_run_route_launch_receipt',
@@ -593,7 +610,7 @@ async function runController(input: {
       });
       return await handle.result();
     });
-    return { state, attempts, workflowInputs, reviewReceiptInputs, routeInputs };
+    return { state, attempts, workflowInputs, reviewReceiptInputs, routeInputs, handoffObservations };
   } finally {
     await testEnv.teardown();
   }
@@ -760,8 +777,9 @@ test('StageRun controller caps quality work at three repair rounds and fails ope
   assert.equal(state.review_receipts.length, 4);
   assert.equal(state.review_receipts[3]?.verdict, 'repair_required');
   assert.equal(state.source_attempt_ref, `opl://stage_attempts/${state.attempts.at(-1)?.stage_attempt_id}`);
-  assert.equal(state.decisive_attempt_role, null);
-  assert.equal(state.selected_stage_route, null);
+  assert.equal(state.decisive_attempt_role, 're_reviewer');
+  assert.equal(state.selected_stage_route?.target_stage_id, 'review_and_revision');
+  assert.equal(state.next_stage_run_launch?.target_workflow_id, 'workflow:review_and_revision');
 });
 
 test('max=0 initial reviewer repair_required fails open with consumable quality debt', async () => {
@@ -778,8 +796,9 @@ test('max=0 initial reviewer repair_required fails open with consumable quality 
   assert.equal(state.repair_rounds_used, 0);
   assert.equal(state.review_receipts[0]?.verdict, 'repair_required');
   assert.equal(state.source_attempt_ref, `opl://stage_attempts/${state.attempts[1]?.stage_attempt_id}`);
-  assert.equal(state.decisive_attempt_role, null);
-  assert.equal(state.selected_stage_route, null);
+  assert.equal(state.decisive_attempt_role, 'reviewer');
+  assert.equal(state.selected_stage_route?.target_stage_id, 'review_and_revision');
+  assert.equal(state.next_stage_run_launch?.target_workflow_id, 'workflow:review_and_revision');
   assert.equal(state.quality_debt_refs.includes('quality-debt:finding:visual-clipping'), true);
   assert.deepEqual(state.human_gate_refs, []);
   assert.equal(state.quality_scope_budget?.max_attempts, 0);
@@ -885,7 +904,7 @@ test('decisive Attempt route validation uses its current declared Stage catalog'
   assert.equal(routeInputs[0]?.decision.target_stage_id, 'publication_followup');
 });
 
-test('raw producer progress is recorded but cannot become formal Review input', async () => {
+test('raw producer progress reaches fresh AI review without a typed quality envelope', async () => {
   const { state, attempts } = await runController({
     id: 'raw-producer-review',
     closeFindingAfterRound: null,
@@ -893,16 +912,15 @@ test('raw producer progress is recorded but cannot become formal Review input', 
     initialReviewerOutcome: 'pass',
     initialReviewerFindings: 'none',
   });
-  assert.deepEqual(attempts.map((attempt) => attempt.attempt_role), ['producer']);
-  assert.deepEqual(state.attempts.map((attempt) => attempt.attempt_role), ['producer']);
-  assert.deepEqual(state.attempts[0]?.artifact_refs, []);
-  assert.equal(state.status, 'blocked');
-  assert.equal(state.hard_stop_class, 'zero_consumable_artifact');
-  assert.equal(state.blocked_reason, 'stage_quality_attempt_without_consumable_artifact');
-  assert.equal(state.source_attempt_ref, `opl://stage_attempts/${state.attempts[0]?.stage_attempt_id}`);
+  assert.deepEqual(attempts.map((attempt) => attempt.attempt_role), ['producer', 'reviewer']);
+  assert.deepEqual(state.attempts[0]?.artifact_refs, ['artifact:deck-v1']);
+  assert.equal(state.status, 'completed');
+  assert.equal(state.hard_stop_class, null);
+  assert.equal(state.selected_stage_route?.target_stage_id, 'review_and_revision');
+  assert.equal(state.next_stage_run_launch?.target_workflow_id, 'workflow:review_and_revision');
   assert.equal(state.quality_scope_budget_usage?.attempts_used, 0);
-  assert.equal(state.quality_scope_budget_usage?.managed_attempts_used, 1);
-  assert.equal(state.review_receipts.length, 0);
+  assert.equal(state.quality_scope_budget_usage?.managed_attempts_used, 2);
+  assert.equal(state.review_receipts.length, 1);
 });
 
 test('reviewer quality-debt verdict terminalizes the StageRun and retains reviewer route authority', async () => {
@@ -968,7 +986,7 @@ test('initial repair_required outcome requires at least one required finding', a
   assert.ok(state.quality_debt_refs.some((ref) => ref.includes('repair_required')));
 });
 
-test('initial pass outcome cannot carry an open required finding', async () => {
+test('open findings downgrade a pass claim without discarding the AI continuation', async () => {
   const { state, attempts } = await runController({
     id: 'initial-pass-required-finding',
     closeFindingAfterRound: null,
@@ -978,11 +996,12 @@ test('initial pass outcome cannot carry an open required finding', async () => {
   assert.deepEqual(attempts.map((attempt) => attempt.attempt_role), ['producer', 'reviewer']);
   assert.equal(state.status, 'completed_with_quality_debt');
   assert.equal(state.review_receipts.length, 0);
-  assert.equal(state.selected_stage_route, null);
+  assert.equal(state.selected_stage_route?.target_stage_id, 'review_and_revision');
+  assert.equal(state.next_stage_run_launch?.target_workflow_id, 'workflow:review_and_revision');
   assert.ok(state.quality_debt_refs.some((ref) => ref.includes('open%20required%20finding')));
 });
 
-test('initial quality_debt outcome cannot carry an open required finding', async () => {
+test('open findings remain quality debt without discarding the AI continuation', async () => {
   const { state, attempts } = await runController({
     id: 'initial-quality-debt-required-finding',
     closeFindingAfterRound: null,
@@ -992,7 +1011,8 @@ test('initial quality_debt outcome cannot carry an open required finding', async
   assert.deepEqual(attempts.map((attempt) => attempt.attempt_role), ['producer', 'reviewer']);
   assert.equal(state.status, 'completed_with_quality_debt');
   assert.equal(state.review_receipts.length, 0);
-  assert.equal(state.selected_stage_route, null);
+  assert.equal(state.selected_stage_route?.target_stage_id, 'review_and_revision');
+  assert.equal(state.next_stage_run_launch?.target_workflow_id, 'workflow:review_and_revision');
   assert.ok(state.quality_debt_refs.some((ref) => ref.includes('open%20required%20finding')));
 });
 
@@ -1148,15 +1168,65 @@ test('reviewer-only outcome is rejected when a producer or repairer returns it',
 });
 
 test('receipt activity validation failure cannot forge a review receipt', async () => {
-  const { state } = await runController({
+  const { state, routeInputs } = await runController({
     id: 'receipt-validation-failure',
     closeFindingAfterRound: null,
     failReceiptForReviewerRole: 'reviewer',
+    initialReviewerOutcome: 'pass',
   });
   assert.equal(state.status, 'completed_with_quality_debt');
   assert.equal(state.review_receipts.length, 0);
-  assert.equal(state.selected_stage_route, null);
+  assert.equal(state.selected_stage_route?.target_stage_id, 'review_and_revision');
+  assert.equal(routeInputs.length, 1);
+  assert.equal(state.next_stage_run_launch?.target_workflow_id, 'workflow:review_and_revision');
   assert.ok(state.quality_debt_refs.some((ref) => ref.includes('receipt-validation-failure')));
+});
+
+test('StageRun query stays running until the next StageRun launch is available', async () => {
+  const { state, handoffObservations } = await runController({
+    id: 'handoff-publication', closeFindingAfterRound: null,
+    formalReviewRequired: false, queryDuringHandoff: true,
+  });
+  assert.equal(handoffObservations.length, 1);
+  assert.equal(handoffObservations[0].status, 'running');
+  assert.equal(handoffObservations[0].next_stage_run_launch, null);
+  assert.equal(state.status, 'completed');
+  assert.equal(state.next_stage_run_launch?.target_workflow_id, 'workflow:review_and_revision');
+});
+
+test('Attempt projection failure preserves artifacts and continues to review and handoff', async () => {
+  const { state, attempts } = await runController({
+    id: 'attempt-sync-progress', closeFindingAfterRound: null,
+    initialReviewerOutcome: 'pass', failAttemptSync: true,
+  });
+  assert.deepEqual(attempts.map((attempt) => attempt.attempt_role), ['producer', 'reviewer']);
+  assert.deepEqual(state.artifact_refs, ['artifact:deck-v1']);
+  assert.equal(state.next_stage_run_launch?.target_workflow_id, 'workflow:review_and_revision');
+  assert.ok(state.quality_debt_refs.some((ref) => ref.includes('simulated-sqlite-projection-unavailable')));
+});
+
+test('transient handoff failure retries transport without rerunning completed AI Attempts', async () => {
+  const { state, attempts, routeInputs } = await runController({
+    id: 'transient-handoff', closeFindingAfterRound: null,
+    formalReviewRequired: false, transientHandoffFailures: 3,
+  });
+  assert.equal(routeInputs.length, 4);
+  assert.equal(attempts.length, 1);
+  assert.equal(state.status, 'completed');
+  assert.equal(state.next_stage_run_launch?.target_workflow_id, 'workflow:review_and_revision');
+});
+
+test('permanent handoff failure exposes its cause and preserves the artifact and AI route', async () => {
+  const { state, attempts, routeInputs } = await runController({
+    id: 'permanent-handoff', closeFindingAfterRound: null,
+    formalReviewRequired: false, permanentHandoffFailure: true,
+  });
+  assert.equal(routeInputs.length, 1);
+  assert.equal(attempts.length, 1);
+  assert.equal(state.status, 'failed');
+  assert.match(state.blocked_reason!, /route-target-identity-mismatch/);
+  assert.deepEqual(state.artifact_refs, ['artifact:deck-v1']);
+  assert.equal(state.selected_stage_route?.target_stage_id, 'review_and_revision');
 });
 
 test('recoverable producer and repairer quality debt still reaches fresh formal Review', async () => {

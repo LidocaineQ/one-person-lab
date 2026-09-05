@@ -701,6 +701,9 @@ export function buildPrivateRuntimeCommandSpecs({
       ],
       handler: (args) => familyRuntime(args, {
         runtimeSnapshotProvider,
+        onStageRunObservation: (observation) => {
+          process.stderr.write(`${JSON.stringify(observation)}\n`);
+        },
       }),
     },
     'stage-artifact': {

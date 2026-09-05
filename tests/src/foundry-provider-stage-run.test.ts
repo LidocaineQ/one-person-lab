@@ -190,6 +190,9 @@ function state(input: {
   next?: string | null;
   refs?: string[];
   hashes?: string[];
+  currentRole?: string | null;
+  attempts?: Array<Record<string, unknown>>;
+  blockedReason?: string | null;
 }) {
   return {
     surface_kind: 'temporal_stage_run_query',
@@ -203,7 +206,11 @@ function state(input: {
     next_stage_run_launch: input.next
       ? { target_workflow_id: input.next }
       : null,
-    blocked_reason: null,
+    current_role: input.currentRole ?? null,
+    attempts: input.attempts ?? [],
+    blocked_reason: input.blockedReason ?? null,
+    hard_stop_class: null,
+    updated_at: new Date().toISOString(),
   };
 }
 
@@ -320,7 +327,7 @@ function transportBlueprint(
   };
 }
 
-test('StageRun provider invocation follows declared Stages and returns one exact terminal protocol artifact', async () => {
+test('StageRun provider invocation follows declared Stages even when observation persistence fails', async (t) => {
   const output = canonicalJsonBytes({
     surface_kind: 'opl_foundry_agent_blueprint',
     marker: 'exact-terminal-output',
@@ -350,9 +357,12 @@ test('StageRun provider invocation follows declared Stages and returns one exact
           });
     },
   };
+  const storageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-foundry-provider-invoker-'));
+  t.after(() => fs.rmSync(storageRoot, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(storageRoot, 'provider-observations'), 'not a directory');
   const invoker = new StageRunFoundryProviderInvoker({
     gateway,
-    storage_root: fs.mkdtempSync(path.join(os.tmpdir(), 'opl-foundry-provider-invoker-')),
+    storage_root: storageRoot,
     poll_interval_ms: 1,
     timeout_ms: 100,
     artifact_reader: { readExact: () => output },
@@ -372,6 +382,66 @@ test('StageRun provider invocation follows declared Stages and returns one exact
   assert.equal(launches[0]?.stage_id, 'mission-intake');
   assert.equal(launches[0]?.input_artifact_refs.length, 1);
   assert.equal(launches[0]?.input_artifact_hashes.length, 1);
+});
+
+test('StageRun provider preserves observation history across retries and reports the failing attempt', async (t) => {
+  const storageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-foundry-provider-observations-'));
+  t.after(() => fs.rmSync(storageRoot, { recursive: true, force: true }));
+  const gateway: FoundryProviderStageRunGateway = {
+    async launch() {
+      return { workflow_id: 'workflow:mission-intake' };
+    },
+    async query() {
+      return state({
+        stage: 'mission-intake',
+        status: 'blocked',
+        currentRole: null,
+        blockedReason: 'codex_cli_provider_unavailable',
+        attempts: [{
+          attempt_role: 'producer',
+          stage_attempt_id: 'sat_mission_intake_producer_0',
+          status: 'blocked',
+        }],
+      });
+    },
+  };
+  const invoker = new StageRunFoundryProviderInvoker({ gateway, storage_root: storageRoot });
+
+  await assert.rejects(invoker.invoke({
+    operation: 'design',
+    provider,
+    checkout_root: '/managed/oma',
+    payload: { request: { marker: 'request' } as never },
+    activity,
+  }), (error: Error) => {
+    assert.match(error.message, /codex_cli_provider_unavailable/);
+    assert.match(error.message, /sat_mission_intake_producer_0/);
+    assert.match(error.message, /observation_receipt_ref/);
+    return true;
+  });
+  const receiptFile = path.join(
+    storageRoot,
+    'provider-observations',
+    `${crypto.createHash('sha256').update(canonicalJsonBytes({
+      run_id: activity.run_id,
+      iteration: activity.iteration,
+      phase: activity.phase,
+      input_digest: activity.input_digest,
+    })).digest('hex')}.json`,
+  );
+  assert.equal(fs.existsSync(receiptFile), true);
+  const receipt = JSON.parse(fs.readFileSync(receiptFile, 'utf8')) as Record<string, any>;
+  assert.equal(receipt.surface_kind, 'opl_foundry_provider_stage_run_observation_receipt');
+  assert.equal(receipt.observations.length, 1);
+  assert.equal(receipt.observations[0].stage_id, 'mission-intake');
+  assert.equal(receipt.observations[0].attempt.stage_attempt_id, 'sat_mission_intake_producer_0');
+  await assert.rejects(invoker.invoke({
+    operation: 'design', provider, checkout_root: '/managed/oma',
+    payload: { request: { marker: 'request' } as never }, activity,
+  }));
+  const retried = JSON.parse(fs.readFileSync(receiptFile, 'utf8'));
+  assert.deepEqual(retried.observations[0], receipt.observations[0]);
+  assert.ok(retried.observations.length >= receipt.observations.length);
 });
 
 test('StageRun provider transports all seven exact content classes into a compiler-complete candidate', async (t) => {

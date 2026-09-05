@@ -17,7 +17,7 @@ import {
   type WorkItemExecutionScopeSnapshot,
 } from '../family-runtime-execution-scope.ts';
 import type { TypedStageCloseoutPacket } from './closeout-normalization.ts';
-import { verifyFrameworkRawProgressEnvelope } from './raw-artifact-identity-verification.ts';
+import { verifyFrameworkRawArtifactInput, verifyFrameworkRawProgressEnvelope } from './raw-artifact-identity-verification.ts';
 import { isRecord, type JsonRecord } from './shared.ts';
 
 const SHA256_PATTERN = /^(?:sha256:)?([a-f0-9]{64})$/i;
@@ -624,6 +624,7 @@ export function verifyStageQualityArtifactIdentityAtAttemptBoundary(input: {
   domainId: string;
   workspaceRoot: string;
   expectedProducingAttemptId: string;
+  expectedProducingStageId?: string;
   expectedStageRunId?: string | null;
   expectedScopeKind?: FamilyRuntimeExecutionScopeKind;
   expectedExecutionScope?: WorkItemExecutionScopeSnapshot | null;
@@ -686,6 +687,18 @@ export function verifyStageQualityArtifactIdentityAtAttemptBoundary(input: {
       artifactRef: pair.artifactRef,
       artifactSha256: pair.artifactSha256,
     });
+    // Framework-owned raw output has its own physical root, bound to this exact Attempt and scope.
+    const rawInput = receipt.surface_kind === 'opl_transport_artifact_identity_receipt'
+      && input.expectedProducingStageId
+      ? verifyFrameworkRawArtifactInput({
+          attemptId: expectedProducingAttemptId,
+          stageId: input.expectedProducingStageId,
+          domainId: input.domainId,
+          artifactRef: pair.artifactRef,
+          artifactSha256: pair.artifactSha256,
+        })
+      : null;
+    if (rawInput) return receiptRef;
     verifyCurrentArtifactBytes({
       artifactRef: pair.artifactRef,
       artifactSha256: pair.artifactSha256,

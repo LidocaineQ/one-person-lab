@@ -614,6 +614,29 @@ export function recoverFrameworkRawArtifactForAttempt(
   };
 }
 
+export function verifyFrameworkRawArtifactInput(input: {
+  attemptId: string;
+  stageId: string;
+  domainId: string;
+  artifactRef: string;
+  artifactSha256: string;
+}) {
+  const location = rawExecutorOutputLocation(input.attemptId);
+  if (input.artifactRef !== pathToFileURL(location.outputPath).href) return null;
+  const artifact = recoverFrameworkRawArtifactForAttempt({
+    stage_attempt_id: input.attemptId,
+    stage_id: input.stageId,
+    domain_id: input.domainId,
+  });
+  if (!artifact || artifact.sha256 !== input.artifactSha256) {
+    return rawProvenanceError({
+      artifactRef: input.artifactRef,
+      message: 'Raw progress input no longer matches its producing Attempt bytes.',
+    });
+  }
+  return artifact;
+}
+
 export function verifyFrameworkRawProgressEnvelope(input: {
   closeoutPacket: TypedStageCloseoutPacket;
   attempt: JsonRecord;

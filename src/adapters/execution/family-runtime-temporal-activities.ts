@@ -1468,6 +1468,7 @@ export async function stageQualityAttemptMaterializeActivity(
           domainId: stageRun.domain_id,
           workspaceRoot,
           expectedProducingAttemptId: artifactProducerAttempt!.stage_attempt_id,
+          expectedProducingStageId: stageRun.stage_id,
           expectedStageRunId: stageRun.stage_run_id,
           expectedScopeKind: stageRun.scope_kind,
           expectedExecutionScope: stageRun.execution_scope,

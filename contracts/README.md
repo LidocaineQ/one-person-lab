@@ -7,7 +7,11 @@ Machine boundary: 本文是人读合同目录说明和边界索引。机器 trut
 
 这个目录只保留 `OPL` 的 machine-readable contract surface 与其目录说明。
 
-Stage 内质量循环的 canonical machine surface 是 `contracts/opl-framework/stage-quality-cycle-contract.json`、`stage-quality-cycle.schema.json` 和 `official-knowledge-deliverable-quality-profile.json`。`StageRunWorkflow` 是非模型 Temporal 父级 controller，`StageAttemptWorkflow` 是独立 executor child；Attempt 不得被产品面投影成小 Stage。终局 decisive Attempt 只拥有语义 route decision，Stage transition 由 controller 校验并物化。StageRun 只能由 `opl family-runtime attempt create` 消费已编译的 pack-bound quality binding 创建；`stage_run_id` 绑定 durable invocation，精确不可变输入由 `stage_run_spec_sha256` 绑定，并在 Temporal start 前登记到 `stage_run_launches`。raw `stage-run start` 已退役，`stage-run` CLI 只保留 query。
+Stage 内质量循环的 canonical machine surface 是 `contracts/opl-framework/stage-quality-cycle-contract.json`、`stage-quality-cycle.schema.json` 和 `official-knowledge-deliverable-quality-profile.json`。`StageRunWorkflow` 是非模型 Temporal 父级 controller，`StageAttemptWorkflow` 是独立 executor child；Attempt 不得被产品面投影成小 Stage。终局 decisive Attempt 只拥有语义 route decision，Stage transition 由 controller校验并物化。StageRun 只能由 `opl family-runtime attempt create` 消费已编译的 pack-bound quality binding 创建；`stage_run_id` 绑定 durable invocation，精确不可变输入由 `stage_run_spec_sha256` 绑定，并在 Temporal start 前登记到 `stage_run_launches`。raw `stage-run start` 已退役；`stage-run query` 读取当前状态，`stage-run watch` 连续观测并跟随跨阶段交接，`stage-run recover-closeout` 从已有成果恢复收尾。
+
+OPL 的首要目标是持续推进知识交付。智能体先读取工作目录和已有成果，由 AI 判断当前能做什么并保存可接力的结果，再逐步改善质量。原始文本、部分草稿和失败分析都可以成为下一次工作的输入；缺少正式评审格式或回执，不等于没有成果。评审未通过不自动否定已有交付，Framework 也不替 AI 作出语义路由决策。
+
+文件保存成果，Temporal 管理托管执行和接力，SQLite 提供索引与启动登记。已有 AI 路由不能因普通回执或投影失败而丢失，观测写入失败不能阻断执行。`watch` 将变化即时写到 stderr，结束后返回完整 JSON；Foundry 调用同时保留跨阶段、跨重试的观测文件。Temporal 暂时不可用时，已有文件仍可供智能体继续工作；托管 StageRun 的调度恢复仍依赖 Temporal 和既有启动登记，不能把这说成已经有一套离线自动调度器。
 
 - narrative 协作规则看仓库根 `AGENTS.md`
 - 默认人类/AI 入口看 `README*` 与 `docs/README*`

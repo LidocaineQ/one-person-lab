@@ -157,6 +157,16 @@ const {
   },
 });
 
+const { stageRunRouteLaunchActivity: retryStageRunRouteLaunchActivity } = proxyActivities<
+  Pick<StageAttemptActivities, 'stageRunRouteLaunchActivity'>
+>({
+  startToCloseTimeout: SHORT_STAGE_ACTIVITY_START_TO_CLOSE_TIMEOUT,
+  retry: {
+    maximumInterval: '30 seconds',
+    nonRetryableErrorTypes: ['FrameworkContractError'],
+  },
+});
+
 function nowIso() {
   return new Date(Date.now()).toISOString();
 }
@@ -1141,6 +1151,11 @@ function qualityFailureRef(input: TemporalStageRunWorkflowInput, reason: string)
   return `opl://stage-runs/${encodeURIComponent(input.stage_run_id)}/quality-debt/${encodeURIComponent(reason)}`;
 }
 
+function activityFailureReason(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  return error.cause instanceof Error ? activityFailureReason(error.cause) : error.message;
+}
+
 function providerRuntimeHardStop(state: TemporalStageAttemptWorkflowState): {
   hard_stop_class: StageQualityHardStopClass;
   blocked_reason: string;
@@ -1216,6 +1231,7 @@ export async function StageRunWorkflow(
   const recoveryAttemptRunIdentityEnabled = patched(
     'opl-stage-run-recovery-attempt-run-identity-v1',
   );
+  const progressFirstHandoffEnabled = patched('opl-stage-run-progress-first-handoff-v1');
   const qualityScopeBudget = normalizeStageQualityScopeBudget(
     input.quality_policy.formal_review.scope_budget,
     { legacyMaxRepairRounds: input.quality_policy.formal_review.max_repair_rounds },
@@ -1293,7 +1309,10 @@ export async function StageRunWorkflow(
       ),
     };
   }
-  setHandler(stageRunQuery, () => state);
+  let handoffPending = false;
+  setHandler(stageRunQuery, () => handoffPending
+    ? { ...state, status: 'running' }
+    : state);
   const observedSessions = new Set<string>();
   if (recoveryResume?.producer_attempt_summary.execution_session_ref) {
     observedSessions.add(recoveryResume.producer_attempt_summary.execution_session_ref);
@@ -1317,17 +1336,38 @@ export async function StageRunWorkflow(
       && state.selected_stage_route
       && state.decisive_attempt_ref
       && decisiveExecutionContentBinding
+      && (!progressFirstHandoffEnabled || !state.next_stage_run_launch)
     ) {
-      const nextStageRunLaunch = await stageRunRouteLaunchActivity({
-        parent_stage_run: input,
-        decisive_attempt_ref: state.decisive_attempt_ref,
-        decisive_execution_content_binding: decisiveExecutionContentBinding,
-        decision: state.selected_stage_route,
-        artifact_refs: state.artifact_refs,
-        artifact_hashes: state.artifact_hashes,
-        artifact_identity_receipt_refs: state.artifact_identity_receipt_refs,
-      });
-      state = {
+      // A consumer must not see a terminal StageRun before its handoff is available.
+      handoffPending = progressFirstHandoffEnabled;
+      let nextStageRunLaunch: TemporalStageRunRouteLaunchReceipt | null = null;
+      try {
+        const launchRoute = progressFirstHandoffEnabled
+          ? retryStageRunRouteLaunchActivity : stageRunRouteLaunchActivity;
+        nextStageRunLaunch = await launchRoute({
+          parent_stage_run: input,
+          decisive_attempt_ref: state.decisive_attempt_ref,
+          decisive_execution_content_binding: decisiveExecutionContentBinding,
+          decision: state.selected_stage_route,
+          artifact_refs: state.artifact_refs,
+          artifact_hashes: state.artifact_hashes,
+          artifact_identity_receipt_refs: state.artifact_identity_receipt_refs,
+        });
+      } catch (error) {
+        if (!progressFirstHandoffEnabled) throw error;
+        state = {
+          ...state,
+          status: 'failed',
+          blocked_reason: `stage_route_handoff_failed:${activityFailureReason(error)}`,
+          route_quality_debt_refs: [...new Set([
+            ...state.route_quality_debt_refs,
+            qualityFailureRef(input, `stage-route-handoff:${activityFailureReason(error)}`),
+          ])],
+        };
+      } finally {
+        handoffPending = false;
+      }
+      if (nextStageRunLaunch) state = {
         ...state,
         next_stage_run_launch: nextStageRunLaunch,
         route_quality_debt_refs: nextStageRunLaunch.materialization_status === 'route_budget_exhausted'
@@ -1455,10 +1495,12 @@ export async function StageRunWorkflow(
         : {}),
     });
     assertWorkflowAttemptIdentity({ expected: childInput, actual: result });
-    await stageQualityAttemptSyncActivity({
-      attempt_ref: materialized.attempt_ref,
-      workflow_state: result,
-    });
+    if (!progressFirstHandoffEnabled) {
+      await stageQualityAttemptSyncActivity({
+        attempt_ref: materialized.attempt_ref,
+        workflow_state: result,
+      });
+    }
     const reviewRole = attemptInput.role === 'reviewer' || attemptInput.role === 're_reviewer';
     const executionSessionRef = executionSessionRefFromAttemptState(result);
     if (result.status === 'completed') {
@@ -1474,7 +1516,12 @@ export async function StageRunWorkflow(
     const outcome = result.status === 'completed'
       ? stageQualityAttemptOutcomeFromEnvelope({ attemptRole: attemptInput.role, envelope })
       : null;
-    const attemptReturnedArtifactIdentity = asStringList(envelope.artifact_refs).length > 0;
+    const rawProgress = progressFirstHandoffEnabled
+      && asRecord(asRecord(result.closeout_packet).authority_boundary).opl
+        === 'raw_executor_output_progress_envelope_only';
+    const attemptReturnedArtifactIdentity = asStringList(envelope.artifact_refs).length > 0
+      || (rawProgress && asRecordList(asRecord(result.closeout_packet).closeout_ref_metadata)
+        .some((entry) => entry.ref_kind === 'raw_executor_output'));
     let artifactIdentity: {
       artifactRefs: string[];
       artifactHashes: string[];
@@ -1485,7 +1532,7 @@ export async function StageRunWorkflow(
         ? qualityArtifactIdentity(
           result,
           envelope,
-          formalReviewDeclaredArtifactIdentityEnabled,
+          formalReviewDeclaredArtifactIdentityEnabled && !progressFirstHandoffEnabled,
           reviewRole
               ? {
                   artifactRefs: attemptInput.artifactRefs,
@@ -1562,7 +1609,9 @@ export async function StageRunWorkflow(
           ...routeRejectionReasons.map((reason) => qualityFailureRef(input, `route-output:${reason}`)),
         ]),
       ],
-      quality_debt_refs: state.quality_debt_refs,
+      quality_debt_refs: rawProgress
+        ? [...new Set([...state.quality_debt_refs, qualityFailureRef(input, 'raw-artifact-requires-domain-review')])]
+        : state.quality_debt_refs,
       route_recommendations: routeEvaluation.recommendation
         ? [...state.route_recommendations, {
             attempt_ref: materialized.attempt_ref,
@@ -1580,6 +1629,23 @@ export async function StageRunWorkflow(
         formalReviewDeclaredArtifactIdentityEnabled,
       ),
     };
+    if (progressFirstHandoffEnabled) {
+      try {
+        await stageQualityAttemptSyncActivity({
+          attempt_ref: materialized.attempt_ref,
+          workflow_state: result,
+        });
+      } catch (error) {
+        if (controllerHardStopFromError(error)) throw error;
+        state = {
+          ...state,
+          quality_debt_refs: [...new Set([
+            ...state.quality_debt_refs,
+            qualityFailureRef(input, `attempt-sync:${activityFailureReason(error)}`),
+          ])],
+        };
+      }
+    }
     if (result.status === 'human_gate') {
       state = {
         ...state,
@@ -1830,6 +1896,7 @@ export async function StageRunWorkflow(
     });
     parentAttemptRef = review.attemptRef;
     if (stageRunStopped(state)) return terminalize(state);
+    if (progressFirstHandoffEnabled) commitTerminalRouteDecision(review);
     const initialOutcome = review.outcome;
     if (!initialOutcome) {
       throw new Error('Completed initial Review Attempt did not expose a canonical quality outcome.');
@@ -1994,6 +2061,7 @@ export async function StageRunWorkflow(
         ),
       };
       if (stageRunStopped(state)) return terminalize(state);
+      if (progressFirstHandoffEnabled) commitTerminalRouteDecision(reReview);
       const reReviewOutcome = reReview.outcome;
       if (!reReviewOutcome) {
         throw new Error('Completed Re-review Attempt did not expose a canonical quality outcome.');
@@ -2179,6 +2247,7 @@ export async function StageRunWorkflow(
     }
     const reason = hardStop && !hardStopTerminates
       ? hardStop.blockedReason
+      : progressFirstHandoffEnabled ? activityFailureReason(error)
       : error instanceof Error ? error.message : String(error);
     return terminalize(hasConsumableArtifact(state)
       ? {

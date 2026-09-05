@@ -347,11 +347,26 @@ function persistedAttemptOutputArtifactIdentity(
     field: 'route_impact_json',
   });
   const envelope = recordValue(routeImpact.stage_quality_cycle) ?? {};
-  const artifactRefs = exactStringArray(envelope.artifact_refs, {
+  const closeoutRow = db.prepare(`
+    SELECT packet_json FROM stage_attempt_closeouts
+    WHERE stage_attempt_id = ?
+    ORDER BY created_at DESC, closeout_id DESC
+    LIMIT 1
+  `).get(stageAttemptId) as { packet_json?: unknown } | undefined;
+  const packet = persistedJsonRecord(closeoutRow?.packet_json, {
+    stageAttemptId,
+    field: 'stage_attempt_closeouts.packet_json',
+  });
+  const metadata = packet.closeout_ref_metadata;
+  const rawMetadata = recordValue(packet.authority_boundary)?.opl === 'raw_executor_output_progress_envelope_only'
+    && Array.isArray(metadata)
+    ? metadata.map(recordValue).filter((entry) => entry?.ref_kind === 'raw_executor_output')
+    : [];
+  const artifactRefs = exactStringArray(envelope.artifact_refs ?? rawMetadata.map((entry) => entry?.ref ?? entry?.uri), {
     stageAttemptId,
     field: 'route_impact_json.stage_quality_cycle.artifact_refs',
   });
-  const artifactHashes = exactStringArray(envelope.artifact_hashes, {
+  const artifactHashes = exactStringArray(envelope.artifact_hashes ?? rawMetadata.map((entry) => entry?.sha256), {
     stageAttemptId,
     field: 'route_impact_json.stage_quality_cycle.artifact_hashes',
   }).map(canonicalArtifactHash);
@@ -372,17 +387,6 @@ function persistedAttemptOutputArtifactIdentity(
       artifact_identity_receipt_refs: [],
     };
   }
-  const closeoutRow = db.prepare(`
-    SELECT packet_json FROM stage_attempt_closeouts
-    WHERE stage_attempt_id = ?
-    ORDER BY created_at DESC, closeout_id DESC
-    LIMIT 1
-  `).get(stageAttemptId) as { packet_json?: unknown } | undefined;
-  const packet = persistedJsonRecord(closeoutRow?.packet_json, {
-    stageAttemptId,
-    field: 'stage_attempt_closeouts.packet_json',
-  });
-  const metadata = packet.closeout_ref_metadata;
   if (!Array.isArray(metadata)) {
     throw new FrameworkContractError(
       'contract_shape_invalid',
@@ -468,7 +472,7 @@ function requireProjectedAttemptArtifactIdentityMatchesPersisted(input: {
   const persisted = persistedAttemptOutputArtifactIdentity(input.db, artifactAuthority);
   const projected = {
     artifact_refs: input.summary.artifact_refs,
-    artifact_hashes: input.summary.artifact_hashes,
+    artifact_hashes: input.summary.artifact_hashes.map(canonicalArtifactHash),
     artifact_identity_receipt_refs: input.summary.artifact_identity_receipt_refs,
   };
   if (canonicalJsonText(persisted) !== canonicalJsonText(projected)) {

@@ -103,6 +103,12 @@ import { preflightFamilyRuntimeDomainLifecycleAdmission } from './family-runtime
 import { requireRuntimeExecutionScopeMutationAllowed } from './family-runtime-execution-scope-persistence.ts';
 import { projectRecoveredStageRunQuery } from './family-runtime-stage-run-query-projection.ts';
 import { recoverStageRunCloseoutProjection } from './family-runtime-stage-run-closeout-recovery.ts';
+import {
+  appendDistinctStageRunObservation,
+  summarizeStageRunObservation,
+  TERMINAL_STAGE_RUN_STATUSES,
+  type StageRunObservation,
+} from './family-runtime-stage-run-observation.ts';
 function parsedRuntimeRecord(value: unknown) {
   if (typeof value !== 'string' || !value.trim()) return null;
   try {
@@ -354,6 +360,7 @@ async function syncTemporalStageAttemptsForTask(
 export async function runFamilyRuntime(
   args: string[],
   options: {
+    onStageRunObservation?: (observation: StageRunObservation) => void;
     runtimeSnapshotProvider?: RuntimeTraySnapshotProvider;
     ownerDeltaObserver?: import('../../authority/evidence/index.ts').CordisOwnerDeltaObserverService;
     loadDomainManifests?: DomainManifestCatalogLoader;
@@ -499,6 +506,71 @@ export async function runFamilyRuntime(
         ? projectRecoveredStageRunQuery(db, stage_run_query)
         : stage_run_query;
       return { version: 'g2', family_runtime_stage_run_query: projectedStageRunQuery };
+    }
+    if (parsed.mode === 'stage_run_watch') {
+      const observations: StageRunObservation[] = [];
+      const startedAt = Date.now();
+      let workflowId = parsed.workflowId;
+      const visitedWorkflows = new Set([workflowId]);
+      let latest: Record<string, unknown> | null = null;
+      let projected: unknown = null;
+      let timedOut = false;
+      while (true) {
+        const queried = options.stageRunRuntime?.queryWorkflow
+          ? await options.stageRunRuntime.queryWorkflow({ workflowId }, { paths })
+          : await (await temporalProviderModule()).queryTemporalStageRunWorkflow({
+              workflowId,
+              paths,
+            });
+        latest = isRecord(queried) ? queried : null;
+        projected = latest ? projectRecoveredStageRunQuery(db, latest) : queried;
+        const previousCount = observations.length;
+        appendDistinctStageRunObservation(
+          observations,
+          summarizeStageRunObservation(projected, workflowId),
+        );
+        if (observations.length !== previousCount) {
+          options.onStageRunObservation?.(observations[observations.length - 1]!);
+        }
+        const observedState = isRecord(projected) ? projected : latest;
+        const status = observedState && typeof observedState.status === 'string'
+          ? observedState.status
+          : null;
+        const nextWorkflowId = observations[observations.length - 1]?.next_workflow_id;
+        if (status && TERMINAL_STAGE_RUN_STATUSES.has(status)) {
+          if ((status !== 'completed' && status !== 'completed_with_quality_debt') || !nextWorkflowId) break;
+          if (visitedWorkflows.has(nextWorkflowId)) {
+            throw new FrameworkContractError('contract_shape_invalid', 'StageRun watch encountered a workflow cycle.', {
+              workflow_id: nextWorkflowId,
+              observations,
+            });
+          }
+          workflowId = nextWorkflowId;
+          visitedWorkflows.add(workflowId);
+        }
+        if (Date.now() - startedAt >= parsed.timeoutMs) {
+          timedOut = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, parsed.intervalMs));
+      }
+      return {
+        version: 'g2',
+        family_runtime_stage_run_watch: {
+          surface_kind: 'opl_family_runtime_stage_run_watch',
+          version: 'opl-family-runtime-stage-run-watch.v1',
+          workflow_id: parsed.workflowId,
+          current_workflow_id: workflowId,
+          observations,
+          latest: projected,
+          terminal: !timedOut && observations.length > 0
+            && observations[observations.length - 1]!.status !== null
+            && TERMINAL_STAGE_RUN_STATUSES.has(observations[observations.length - 1]!.status!),
+          timed_out: timedOut,
+          interval_ms: parsed.intervalMs,
+          timeout_ms: parsed.timeoutMs,
+        },
+      };
     }
     if (parsed.mode === 'stage_run_recover_closeout') {
       const recovery = await recoverStageRunCloseoutProjection(db, {

@@ -270,6 +270,23 @@ test('family-runtime StageRun closeout recovery requires an explicit terminal re
   );
 });
 
+test('family-runtime StageRun watch accepts bounded polling controls', () => {
+  assert.deepEqual(parseRegisteredFamilyRuntimeCommand([
+    'stage-run',
+    'watch',
+    'workflow:example',
+    '--interval-ms',
+    '100',
+    '--timeout-ms',
+    '2000',
+  ]), {
+    mode: 'stage_run_watch',
+    workflowId: 'workflow:example',
+    intervalMs: 100,
+    timeoutMs: 2000,
+  });
+});
+
 test('family-runtime parser keeps command-specific unknown option payloads', () => {
   assert.throws(
     () => parseRegisteredFamilyRuntimeCommand(['queue', 'list']),
