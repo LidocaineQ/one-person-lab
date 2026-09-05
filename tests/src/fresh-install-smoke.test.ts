@@ -975,7 +975,7 @@ test('Codex default profile exporter deterministically projects the OPL Flow rec
     base_url: string;
   };
   const workflowPolicy = {
-    schema: 'opl_flow_workflow_policy.v1',
+    schema: 'opl_flow_workflow_policy.v4',
     package: { id: 'opl-flow' },
     codex_model_policy: {
       configured_default: {
@@ -1035,7 +1035,7 @@ test('Codex default profile exporter deterministically projects the OPL Flow rec
       encoding: 'utf8',
     });
     assert.notEqual(mismatch.status, 0);
-    assert.match(mismatch.stderr, /schema must match opl_flow_workflow_policy.v1/);
+    assert.match(mismatch.stderr, /schema must match opl_flow_workflow_policy.v4/);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

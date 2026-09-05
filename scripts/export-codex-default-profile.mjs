@@ -55,9 +55,9 @@ function buildProfile(workflowPolicy) {
   const root = record(workflowPolicy, 'root');
   assertEqual(
     requiredString(root.schema, 'schema'),
-    'opl_flow_workflow_policy.v1',
+    'opl_flow_workflow_policy.v4',
     'schema',
-    'opl_flow_workflow_policy.v1',
+    'opl_flow_workflow_policy.v4',
   );
   const packageProfile = record(root.package, 'package');
   assertEqual(
